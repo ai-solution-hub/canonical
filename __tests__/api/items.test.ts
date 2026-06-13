@@ -367,10 +367,10 @@ describe('POST /api/items', () => {
     expect(insertCall.created_by).toBe('test-user-id');
   });
 
-  // S207 WP-A4 (Plan Task 3.2): typed ingest_source column. Read by
+  // Typed ingestion_source column. Read by
   // ensure_v1_history_at_commit() trigger to set
   // content_history.change_reason='initial_ingest'.
-  it('writes ingest_source defaulting to "manual" when ingestion_source omitted', async () => {
+  it('writes ingestion_source defaulting to "manual" when ingestion_source omitted', async () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
@@ -391,10 +391,10 @@ describe('POST /api/items', () => {
     expect(res.status).toBe(201);
 
     const insertCall = mockSupabase._chain.insert.mock.calls[0][0];
-    expect(insertCall.ingest_source).toBe('manual');
+    expect(insertCall.ingestion_source).toBe('manual');
   });
 
-  it('writes ingest_source from caller-supplied ingestion_source override', async () => {
+  it('writes ingestion_source from caller-supplied ingestion_source override', async () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
@@ -409,13 +409,13 @@ describe('POST /api/items', () => {
 
     const req = createTestRequest('/api/items', {
       method: 'POST',
-      body: validCreateBody({ ingestion_source: 'url_import' }),
+      body: validCreateBody({ ingestion_source: 'upload' }),
     });
     const res = await POST(req);
     expect(res.status).toBe(201);
 
     const insertCall = mockSupabase._chain.insert.mock.calls[0][0];
-    expect(insertCall.ingest_source).toBe('url_import');
+    expect(insertCall.ingestion_source).toBe('upload');
   });
 
   // ─────────────────────────────────────────────────────────────────────

@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('content_items')
       .select(
-        'id, title, content, dedup_status, created_at, primary_domain, content_owner_id, ingest_source, superseded_by, metadata, publication_status',
+        'id, title, content, dedup_status, created_at, primary_domain, content_owner_id, ingestion_source, superseded_by, metadata, publication_status',
       )
       .eq('dedup_status', 'suspected_duplicate')
       .is('archived_at', null)

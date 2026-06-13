@@ -14,20 +14,20 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { run, type ParsedArgs } from '@/scripts/ledger-cli';
 
-const REPO = resolve(__dirname, '../..');
-const REAL = {
-  task: join(REPO, 'docs/reference/task-list.json'),
-  roadmap: join(REPO, 'docs/reference/product-roadmap.json'),
-  backlog: join(REPO, 'docs/reference/product-backlog.json'),
+// ID-68.35: repointed from docs/reference/ live ledgers to synthetic fixtures.
+const FIXTURES = {
+  task: resolve(__dirname, '../fixtures/ledger/task-list.json'),
+  roadmap: resolve(__dirname, '../fixtures/ledger/product-roadmap.json'),
+  backlog: resolve(__dirname, '../fixtures/ledger/product-backlog.json'),
 };
 
 let dir: string;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'ledger-cli-aic-'));
-  copyFileSync(REAL.task, join(dir, 'task-list.json'));
-  copyFileSync(REAL.roadmap, join(dir, 'product-roadmap.json'));
-  copyFileSync(REAL.backlog, join(dir, 'product-backlog.json'));
+  copyFileSync(FIXTURES.task, join(dir, 'task-list.json'));
+  copyFileSync(FIXTURES.roadmap, join(dir, 'product-roadmap.json'));
+  copyFileSync(FIXTURES.backlog, join(dir, 'product-backlog.json'));
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -62,12 +62,14 @@ function readRoadmap() {
 }
 
 describe('auto-id — {35.21} max+1 on record-creating commands', () => {
-  it('add-subtask 35 --title X assigns max(existing subId)+1 (number)', async () => {
+  it('add-subtask 35 --title X assigns max(existing subId)+1 (digit-string)', async () => {
     const tl = readTask();
     const task35 = tl.tasks.find((t: { id: string }) => t.id === '35');
     if (!task35) throw new Error('task 35 missing in fixture');
-    const expected =
-      Math.max(...task35.subtasks.map((s: { id: number }) => s.id)) + 1;
+    // ID-102: subtask ids are digit-strings; nextId is String(max(Number)+1).
+    const expected = String(
+      Math.max(...task35.subtasks.map((s: { id: string }) => Number(s.id))) + 1,
+    );
     const r = await run(
       args('add-subtask', ['35'], {
         title: 'Auto-id subtask',
@@ -83,7 +85,7 @@ describe('auto-id — {35.21} max+1 on record-creating commands', () => {
     );
     expect(added).toBeDefined();
     expect(added.id).toBe(expected);
-    expect(typeof added.id).toBe('number');
+    expect(typeof added.id).toBe('string');
   });
 
   it('create-backlog --title Y assigns max(existing item id)+1 (string)', async () => {
@@ -151,13 +153,11 @@ describe('auto-id — {35.21} max+1 on record-creating commands', () => {
     expect(added.id).toBe(expected);
   });
 
-  it('add-subtask --id N (numeric string) coerces to NUMBER to match subtask.id schema ({35.28})', async () => {
+  it('add-subtask --id N (digit-string) stores the STRING to match subtask.id schema ({35.28}, ID-102)', async () => {
     // RESEARCH: the named-flag parser used to set `record.id = flags.id`
-    // verbatim, which left subtask.id as a STRING and tripped schema-error
-    // ("subtask.id expected number, received string"). The workaround was to
-    // omit --id and rely on auto-id. Per {35.28} the --id flag site now mirrors
-    // nextId() policy — number for subtasks, string for tasks/items/themes —
-    // so an explicit `--id 27` lands as the integer 27 on the subtask.
+    // verbatim. ID-102 retypes subtask.id to a digit-STRING (unifying with
+    // task/item/theme ids), so an explicit `--id 777` is validated
+    // positive-integer and stored as the string "777" — no number round-trip.
     const r = await run(
       args('add-subtask', ['35'], {
         id: '777',
@@ -173,8 +173,8 @@ describe('auto-id — {35.21} max+1 on record-creating commands', () => {
       (s: { title: string }) => s.title === 'Explicit numeric --id subtask',
     );
     expect(added).toBeDefined();
-    expect(added.id).toBe(777);
-    expect(typeof added.id).toBe('number');
+    expect(added.id).toBe('777');
+    expect(typeof added.id).toBe('string');
   });
 
   it('add-subtask --id abc (non-coercible) rejects with a clear error ({35.28})', async () => {
@@ -312,14 +312,12 @@ describe('update-backlog — {35.21} field-type-aware coercion (RESEARCH §5.3)'
 describe('--depends flag — {35.29} per-record-kind type discrimination', () => {
   // RESEARCH §3 (and TaskSchema/SubtaskSchema/BacklogItemSchema in lib/validation/*):
   //   - task.dependencies     : string[]   (open-task)
-  //   - subtask.dependencies  : number[]   (add-subtask) — Taskmaster mandate
+  //   - subtask.dependencies  : string[]   (add-subtask) — ID-102 unified
   //   - item.dependencies     : string[]   (create-backlog)
-  // The {35.15} named-flag parser used to Number()-coerce digit-only tokens of
-  // `--depends 6,7` to numbers, which silently broke `open-task` /
-  // `create-backlog` with a confusing `schema-error` ("expected string, received
-  // number") and only happened to work for `add-subtask`. {35.29} mirrors the
-  // {35.28} --id pattern: emit string[] from the parser; coerce to number[] at
-  // the `add-subtask` call site only.
+  // The {35.15} named-flag parser emits string[]; post ID-102 EVERY record kind
+  // stores deps as string[] — the RC-1 number[] subtask asymmetry (and its
+  // call-site number coercion) is eliminated, so `--depends 1,2` lands as
+  // ["1","2"] on a subtask just as it does on a task or backlog item.
 
   it('open-task --depends 6,7 lands as string[] on task.dependencies', async () => {
     const r = await run(
@@ -342,13 +340,13 @@ describe('--depends flag — {35.29} per-record-kind type discrimination', () =>
     for (const d of added.dependencies) expect(typeof d).toBe('string');
   });
 
-  it('add-subtask --depends 1,2 lands as number[] on subtask.dependencies (regression)', async () => {
-    // The {35.29} fix MUST NOT regress {35.28}'s subtask behaviour: subtask.id
-    // is a number, subtask.dependencies is number[], so the add-subtask call
-    // site coerces the parsed string[] back to number[] before insertion.
+  it('add-subtask --depends 1,2 lands as string[] on subtask.dependencies (ID-102)', async () => {
+    // ID-102: subtask.dependencies is string[], type-identical to a Task's. The
+    // add-subtask call site no longer coerces to number[] — the digit-strings
+    // pass through verbatim.
     const r = await run(
       args('add-subtask', ['35'], {
-        title: 'Deps-number subtask',
+        title: 'Deps-string subtask',
         description: 'A short summary.',
         status: 'pending',
         depends: '1,2',
@@ -358,11 +356,11 @@ describe('--depends flag — {35.29} per-record-kind type discrimination', () =>
     const after = readTask();
     const t = after.tasks.find((x: { id: string }) => x.id === '35');
     const added = t.subtasks.find(
-      (s: { title: string }) => s.title === 'Deps-number subtask',
+      (s: { title: string }) => s.title === 'Deps-string subtask',
     );
     expect(added).toBeDefined();
-    expect(added.dependencies).toEqual([1, 2]);
-    for (const d of added.dependencies) expect(typeof d).toBe('number');
+    expect(added.dependencies).toEqual(['1', '2']);
+    for (const d of added.dependencies) expect(typeof d).toBe('string');
   });
 
   it('create-backlog --depends 17,18 lands as string[] on item.dependencies', async () => {
@@ -386,9 +384,9 @@ describe('--depends flag — {35.29} per-record-kind type discrimination', () =>
   });
 
   it('add-subtask --depends with non-numeric token rejects with invalid-depends', async () => {
-    // Mirrors the {35.28} --id reject path: a non-coercible token in a context
-    // requiring number[] is surfaced as a structured envelope rather than
-    // passed to the schema as a confusing `schema-error`.
+    // Mirrors the {35.28} --id reject path: a non-positive-integer token in a
+    // deps context (string[] of digits, ID-102) is surfaced as a structured
+    // envelope rather than passed to the schema as a confusing `schema-error`.
     const r = await run(
       args('add-subtask', ['35'], {
         title: 'Bad-deps subtask',

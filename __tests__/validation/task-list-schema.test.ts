@@ -25,7 +25,7 @@ import {
 // ──────────────────────────────────────────────────────────────────────────────
 
 const VALID_SUBTASK = {
-  id: 1,
+  id: '1',
   title: 'Write the failing test',
   description: 'Create a test file that imports the new schema and fails.',
   details:
@@ -250,16 +250,69 @@ describe('SubtaskSchema shape', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects a Subtask with non-integer id (inv 9 — must be integer >= 1)', () => {
-    expect(SubtaskSchema.safeParse({ ...VALID_SUBTASK, id: 0 }).success).toBe(
+  it('accepts a digit-string id (ID-102 inv 3 — /^\\d+$/, positive)', () => {
+    expect(
+      SubtaskSchema.safeParse({ ...VALID_SUBTASK, id: '15' }).success,
+    ).toBe(true);
+  });
+
+  it('rejects a Subtask id that violates the digit-string contract (ID-102 inv 3)', () => {
+    // "0" must reject: the bare /^\d+$/ admits it, the .refine(>0) rejects it.
+    expect(SubtaskSchema.safeParse({ ...VALID_SUBTASK, id: '0' }).success).toBe(
+      false,
+    );
+    expect(SubtaskSchema.safeParse({ ...VALID_SUBTASK, id: '' }).success).toBe(
+      false,
+    );
+    expect(
+      SubtaskSchema.safeParse({ ...VALID_SUBTASK, id: '15.0' }).success,
+    ).toBe(false);
+    expect(
+      SubtaskSchema.safeParse({ ...VALID_SUBTASK, id: '15 ' }).success,
+    ).toBe(false);
+    expect(
+      SubtaskSchema.safeParse({ ...VALID_SUBTASK, id: '-1' }).success,
+    ).toBe(false);
+    expect(
+      SubtaskSchema.safeParse({ ...VALID_SUBTASK, id: 'abc' }).success,
+    ).toBe(false);
+  });
+
+  it('rejects a number-typed id post-flip (ID-102 inv 15 — fail loud, no coerce)', () => {
+    // The old contract accepted number 15; the string-only schema rejects it.
+    expect(SubtaskSchema.safeParse({ ...VALID_SUBTASK, id: 15 }).success).toBe(
       false,
     );
     expect(SubtaskSchema.safeParse({ ...VALID_SUBTASK, id: 1.5 }).success).toBe(
       false,
     );
-    expect(SubtaskSchema.safeParse({ ...VALID_SUBTASK, id: '1' }).success).toBe(
-      false,
-    );
+  });
+
+  it('accepts digit-string dependencies and an empty default (ID-102 inv 4)', () => {
+    expect(
+      SubtaskSchema.safeParse({ ...VALID_SUBTASK, dependencies: ['1', '3'] })
+        .success,
+    ).toBe(true);
+    expect(
+      SubtaskSchema.safeParse({ ...VALID_SUBTASK, dependencies: [] }).success,
+    ).toBe(true);
+  });
+
+  it('rejects a non-digit / non-positive dependency entry (ID-102 inv 4/6)', () => {
+    // number element rejects (inv 6)
+    expect(
+      SubtaskSchema.safeParse({ ...VALID_SUBTASK, dependencies: [1] }).success,
+    ).toBe(false);
+    // "0" rejects (the .refine(>0) on each element)
+    expect(
+      SubtaskSchema.safeParse({ ...VALID_SUBTASK, dependencies: ['0'] })
+        .success,
+    ).toBe(false);
+    // non-digit string rejects
+    expect(
+      SubtaskSchema.safeParse({ ...VALID_SUBTASK, dependencies: ['abc'] })
+        .success,
+    ).toBe(false);
   });
 });
 
@@ -478,24 +531,24 @@ describe('TaskPriority enum membership (inv 25)', () => {
 // ──────────────────────────────────────────────────────────────────────────────
 
 describe('Sibling-only Subtask dependency enforcement (inv 14–16)', () => {
-  it('accepts a Task where subtask deps reference valid sibling ids (positive case)', () => {
+  it('accepts a Task where subtask deps reference valid sibling ids (positive case — string ids/deps)', () => {
     const task = {
       ...VALID_TASK,
       subtasks: [
-        { ...VALID_SUBTASK, id: 1, dependencies: [] },
-        { ...VALID_SUBTASK, id: 2, dependencies: [1] },
-        { ...VALID_SUBTASK, id: 3, dependencies: [1, 2] },
+        { ...VALID_SUBTASK, id: '1', dependencies: [] },
+        { ...VALID_SUBTASK, id: '2', dependencies: ['1'] },
+        { ...VALID_SUBTASK, id: '3', dependencies: ['1', '2'] },
       ],
     };
     expect(TaskSchema.safeParse(task).success).toBe(true);
   });
 
-  it('rejects a Task where a subtask references a non-existent sibling id (negative case — inv 14)', () => {
+  it('rejects a Task where a subtask references a non-existent sibling id (negative case — inv 14, string-phrased)', () => {
     const task = {
       ...VALID_TASK,
       subtasks: [
-        { ...VALID_SUBTASK, id: 1, dependencies: [] },
-        { ...VALID_SUBTASK, id: 2, dependencies: [99] }, // id 99 does not exist
+        { ...VALID_SUBTASK, id: '1', dependencies: [] },
+        { ...VALID_SUBTASK, id: '2', dependencies: ['99'] }, // id "99" does not exist
       ],
     };
     const result = TaskSchema.safeParse(task);
@@ -509,12 +562,12 @@ describe('Sibling-only Subtask dependency enforcement (inv 14–16)', () => {
 
   it('rejects a Task where a subtask references an id from a different Task (cross-Task dep — inv 16)', () => {
     // Simulated cross-Task: Subtask dep points to an id that would belong to another Task
-    // (Since sibling ids restart at 1, a cross-Task dep of e.g. 100 won't exist as a sibling)
+    // (Since sibling ids restart at 1, a cross-Task dep of e.g. "100" won't exist as a sibling)
     const task = {
       ...VALID_TASK,
       subtasks: [
-        { ...VALID_SUBTASK, id: 1, dependencies: [] },
-        { ...VALID_SUBTASK, id: 2, dependencies: [100] }, // 100 is not a sibling
+        { ...VALID_SUBTASK, id: '1', dependencies: [] },
+        { ...VALID_SUBTASK, id: '2', dependencies: ['100'] }, // "100" is not a sibling
       ],
     };
     expect(TaskSchema.safeParse(task).success).toBe(false);
@@ -523,9 +576,20 @@ describe('Sibling-only Subtask dependency enforcement (inv 14–16)', () => {
   it('accepts a Subtask with empty dependencies array (no deps case)', () => {
     const task = {
       ...VALID_TASK,
-      subtasks: [{ ...VALID_SUBTASK, id: 1, dependencies: [] }],
+      subtasks: [{ ...VALID_SUBTASK, id: '1', dependencies: [] }],
     };
     expect(TaskSchema.safeParse(task).success).toBe(true);
+  });
+
+  it('rejects a number-typed dependency entry post-flip (ID-102 inv 6)', () => {
+    const task = {
+      ...VALID_TASK,
+      subtasks: [
+        { ...VALID_SUBTASK, id: '1', dependencies: [] },
+        { ...VALID_SUBTASK, id: '2', dependencies: [1] }, // number, not "1"
+      ],
+    };
+    expect(TaskSchema.safeParse(task).success).toBe(false);
   });
 });
 
@@ -535,12 +599,12 @@ describe('Sibling-only Subtask dependency enforcement (inv 14–16)', () => {
 
 /**
  * Build a VALID_TASK_LIST fixture populated with `n` subtasks on Task id "1".
- * Each subtask gets a unique integer id and empty dependencies[].
+ * Each subtask gets a unique digit-string id and empty dependencies[].
  */
 function buildTaskListWithSubtaskCount(n: number) {
   const subtasks = Array.from({ length: n }, (_, i) => ({
     ...VALID_SUBTASK,
-    id: i + 1,
+    id: String(i + 1),
     dependencies: [],
   }));
   return {
@@ -582,7 +646,12 @@ describe('parseTaskListWithWarnings — value + error behaviour', () => {
         {
           ...VALID_TASK,
           subtasks: [
-            { ...VALID_SUBTASK, id: 1, status: 'cancelled', dependencies: [] },
+            {
+              ...VALID_SUBTASK,
+              id: '1',
+              status: 'cancelled',
+              dependencies: [],
+            },
           ],
         },
       ],

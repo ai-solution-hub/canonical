@@ -102,7 +102,6 @@ export const DocLinkSchema = z
       .describe('Original text matched by the regex sweep, for round-trip'),
   })
   .strict();
-export type DocLink = z.infer<typeof DocLinkSchema>;
 
 // ──────────────────────────────────────────
 // Theme (Subtask 30.6 / TECH §3.1)
@@ -194,6 +193,15 @@ export const RoadmapSchema = z
      * sections[] field.
      */
     themes: z.array(RoadmapThemeSchema),
+
+    /**
+     * ID-90 F5/Bug3: monotonic id high-water mark — the highest theme id ever
+     * ALLOCATED (never decreases on delete), so the auto-id allocator never
+     * reuses a freed id. OPTIONAL + backward-compatible (absent → fall back to
+     * `max(survivors)+1`). Declared here because the root is `.strict()`.
+     * Vendored parity with task-view `packages/schemas/src/roadmap-schema.ts`.
+     */
+    _idHighWater: z.number().int().nonnegative().optional(),
   })
   .strict();
 export type Roadmap = z.infer<typeof RoadmapSchema>;

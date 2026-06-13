@@ -40,7 +40,7 @@ Use this skill when the main session needs to launch one or more independent sub
 
 ## Setup
 
-There are 10 scripts which live next to this SKILL.md. The orchestrator should set:
+The dispatch + monitoring scripts live next to this SKILL.md. The orchestrator should set:
 
 ```bash
 SD_SCRIPTS=".claude/skills/session-driver-cmux/scripts"
@@ -183,6 +183,21 @@ KH "Worktree isolation rules" from CLAUDE.md apply unchanged:
   is normal — the orchestrator decides whether to rebase or accept the
   divergence at merge time).
 
+### Ledger writes — clash-free protocol
+
+cmux workers (sub-orchestrators included) MUST NOT mutate or commit the ledger
+JSONs — `docs/reference/{task-list,product-backlog,product-roadmap,product-retros}.json`
+or their `docs/reference/{tasks,backlog}/*.md` mirrors — in their worktree
+branch. Workers instead **RETURN ledger-write intents** to the Orchestrator (e.g.
+"flip {N.M} done with journal X", "create backlog item Y"; see the
+`ledger_intents` contract under *Final-report convention* below), and the
+Orchestrator applies every write via `ledger-cli.ts` against the MAIN checkout.
+
+> **Canonical protocol + rationale** (one mutex per ledger directory, why an
+> in-branch `chore(ledger)` commit bypasses it, the bl-287/288 3-way collision):
+> `.claude/skills/workflow-orchestration/SKILL.md` → *Ledger field-discipline*.
+> This note is the worker-facing summary; that section is the source of truth.
+
 ---
 
 ## Reference: script summary
@@ -192,6 +207,7 @@ KH "Worktree isolation rules" from CLAUDE.md apply unchanged:
 | `launch-worker.sh`   | `<worker-name> <base-dir> [--branch <ref>] [--brief <file>] [extra-claude-args...]`              | Create worktree + cmux workspace, launch claude              |
 | `send-prompt.sh`     | `<worker-name> <prompt-text>`                                                                    | Send text to a worker (no wait)                              |
 | `converse.sh`        | `<worker-name> <session-id> <prompt> [timeout=120]`                                              | send-prompt + wait-for-stop + return last assistant text     |
+| `read-turn.sh`       | `<session-id> [--full]`                                                                          | Render a worker's last turn (thinking + tool_use + tool_result + text) as markdown. `--full` un-truncates tool_results (default 5 lines) |
 | `wait-for-fleet.sh`  | `--mode any\|all [--timeout S] <session-id>...`                                                  | Wait for any-of or all-of a set of workers to emit `stop`    |
 | `stop-worker.sh`     | `<worker-name> <session-id> [--force] [--delete-branch]`                                         | /exit, close workspace, verify clean tree, remove worktree; optionally delete worker branch |
 | `watch-fleet.sh`     | `[env: IGNORE SEEN_OQ SEEN_FINAL SEEN_SEND INTERVAL MAX_POLLS QUIET_POLLS]`                      | Smart multi-signal watcher: exits (wakes parent) on any actionable fleet event (session_end / final_report.* / OQ-heading growth / AskUserQuestion stall / stop pause / fleet-quiet). Complements `wait-for-fleet.sh`. |
@@ -244,13 +260,16 @@ worker->parent *decisions* (questions needing a ruling); `watch-fleet.sh` carrie
 
 ### Reading worker output
 
-`read-turn.sh` from the upstream session-driver plugin is the one upstream
-script that works under KH layout (it honours the events-dir env var). If you
-need to collect a full markdown turn:
+`converse.sh` returns only the worker's final assistant text. To collect a
+worker's full last turn — thinking blocks, `tool_use` calls, `tool_result`s,
+and assistant text — as markdown, use the KH-local `read-turn.sh` (it resolves
+the worker cwd from `<sid>/meta.json` and encodes the Claude projects dir name
+to match this layout; the upstream superpowers script reads the wrong
+`/tmp/claude-workers/<id>.meta` path and mis-encodes dotted worktree paths):
 
 ```bash
-KH_CMUX_EVENTS_DIR=".claude/cmux-events" \
-  bash ~/.claude/plugins/cache/superpowers-marketplace/claude-session-driver/1.0.1/scripts/read-turn.sh "$SESSION_ID"
+"$SD_SCRIPTS/read-turn.sh" "$SESSION_ID"          # tool_results truncated to 5 lines
+"$SD_SCRIPTS/read-turn.sh" "$SESSION_ID" --full   # tool_results rendered in full
 ```
 
 Or read the events JSONL directly:
@@ -288,7 +307,14 @@ S3=$(echo "$R3" | jq -r '.session_id')
 # Do NOT author specs/plans or edit code/docs directly as your own deliverable —
 # this holds for doc-only / spec-only / ASSESS-only Tasks too (spec & plan
 # authoring is the Planner's role). Commit on your worker branch; surface Open
-# Questions via the OQ-escalation channel (see Escalation below)."
+# Questions via the OQ-escalation channel (see Escalation below).
+# Carry the result-size discipline into every dispatch brief you compose: bound
+# every tool-result and return-payload, bound high-output calls at source
+# (`git show --stat` before a full diff, scope `git`/`grep` to explicit paths,
+# narrow searches, read summarised verdicts), and write any >64K artefact to a
+# file and return the PATH — a convention, not a programmatic block. The
+# canonical statement is `references/dispatch-primitives.md` → *Result-size
+# discipline*; inherit it so your own sub-dispatches carry it too."
 "$SD_SCRIPTS/send-prompt.sh" subo-id-23 "$(cat .claude/cmux-briefs/cmux-brief-id-23.md)"
 "$SD_SCRIPTS/send-prompt.sh" subo-id-24 "$(cat .claude/cmux-briefs/cmux-brief-id-24.md)"
 "$SD_SCRIPTS/send-prompt.sh" subo-id-25 "$(cat .claude/cmux-briefs/cmux-brief-id-25.md)"
@@ -331,9 +357,8 @@ S3=$(echo "$R3" | jq -r '.session_id')
 # Wait for the whole fleet
 "$SD_SCRIPTS/wait-for-fleet.sh" --mode all --timeout 600 "$S1" "$S2" "$S3"
 
-# Collect (use upstream read-turn.sh for full markdown)
-KH_CMUX_EVENTS_DIR=".claude/cmux-events" \
-  bash ~/.claude/plugins/cache/superpowers-marketplace/claude-session-driver/1.0.1/scripts/read-turn.sh "$S1"
+# Collect (read-turn.sh renders the full markdown turn: thinking + tools + text)
+"$SD_SCRIPTS/read-turn.sh" "$S1"
 
 # Tear down
 "$SD_SCRIPTS/stop-worker.sh" worker-api "$S1"
@@ -393,11 +418,15 @@ EMIT its final report to a structured file inside its events directory
 *in addition to* (not instead of) the stdout summary:
 
 ```
-Before /exit, write your final report to `<events_dir>/final_report.yaml`
-(or `.json`). Schema: structured key/value with sections {summary, commits,
-dispositions, OQs_for_parent, next_session_handoff}. Keep stdout summary
-too (for human glance) but the YAML/JSON file is the canonical machine-read
-surface.
+Before /exit, write your final report to YOUR PER-SID events dir:
+`$KH_CMUX_EVENTS_DIR/<your-SID>/final_report.yaml` (or `.json`) — NOT the bare
+`$KH_CMUX_EVENTS_DIR` base dir. A base-dir report is INVISIBLE to
+watch-fleet.sh (it only scans `<base>/<sid>/final_report.*`), so it surfaces as
+a `stop` pause — never FINAL_REPORT — and risks clobbering a sibling worker's
+report. Schema: structured key/value with sections {summary, commits,
+dispositions, ledger_intents, OQs_for_parent, next_session_handoff}. Keep the
+stdout summary too (for human glance) but the YAML/JSON file is the canonical
+machine-read surface.
 ```
 
 In the brief, `<events_dir>` resolves to the worker's per-SID directory
@@ -410,6 +439,25 @@ EVENTS_DIR=$(jq -r '.events_dir' <(echo "$R1"))
 cat "$EVENTS_DIR/final_report.yaml"            # clean machine read
 yq '.commits[]' "$EVENTS_DIR/final_report.yaml"
 ```
+
+**`ledger_intents` contract.** This is how a worker hands its ledger writes back
+to the Orchestrator without touching the ledger in-branch (see *Ledger writes —
+clash-free protocol* above). `ledger_intents` is a list; each intent carries:
+
+- `verb` — the ledger mutation (e.g. `set-status`, `add-journal`, `add-subtask`,
+  `create-backlog`, `create-roadmap`).
+- `target` — the `N.M` id the intent applies to, or `null` for a create (the
+  Orchestrator allocates the id under the mutex on MAIN — workers never pre-assign
+  one).
+- `args` — the verb-specific payload (e.g. the status value, the `<info added on …>`
+  journal text, the backlog item fields).
+
+Author any `description` (≤250) and `testStrategy` (≤300) values inside `args`
+**within budget on the first pass** (invariant 57) — overflow belongs in the
+unbudgeted `details`, not trimmed at apply-time. The Orchestrator replays each
+intent through the `ledger-cli.ts` façade on the MAIN checkout; this doc names the
+façade only and intentionally carries no invocation recipe (the verb→flag mapping
+lives with the CLI, not here).
 
 ### Handing off to a human
 

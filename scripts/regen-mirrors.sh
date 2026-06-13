@@ -72,18 +72,27 @@ else
   echo "→ node_modules present (skip install)"
 fi
 
+# --- resolve the relocated ledger dir (ID-68.35) -----------------------------
+# The ledger JSONs + mirror dirs moved OUT of the public repo's docs/reference/
+# into the PRIVATE knowledge-hub-docs-site checkout at src/content/docs/ledgers/.
+# Fail-closed: error LOUD if KH_PRIVATE_DOCS_DIR is unset (no stale in-repo path).
+LEDGER_DIR="${KH_PRIVATE_DOCS_DIR:?KH_PRIVATE_DOCS_DIR must be set (ID-68.35 ledger relocation)}/src/content/docs/ledgers"
+
 # --- regenerate all three ledgers in place (--check writes mirrors) ----------
 echo "→ regenerating mirrors (--check x3)"
-node "$DIR/bin/task-view.js" --check docs/reference/task-list.json
-node "$DIR/bin/task-view.js" --check docs/reference/product-roadmap.json
-node "$DIR/bin/task-view.js" --check docs/reference/product-backlog.json
+node "$DIR/bin/task-view.js" --check "$LEDGER_DIR/task-list.json"
+node "$DIR/bin/task-view.js" --check "$LEDGER_DIR/product-roadmap.json"
+node "$DIR/bin/task-view.js" --check "$LEDGER_DIR/product-backlog.json"
 
 # --- report drift (informational; CI is the gate) ---------------------------
 # Use `git status --porcelain` (not `git diff`) so NEW mirrors for added records
 # are surfaced too — `git diff` ignores untracked files, so a freshly-added
 # Task's mirror (e.g. a new ID-NN.md) would otherwise be silently missed.
-MIRROR_DIRS=(docs/reference/tasks docs/reference/roadmap docs/reference/backlog)
-DRIFT="$(git status --porcelain -- "${MIRROR_DIRS[@]}")"
+MIRROR_DIRS=("$LEDGER_DIR/tasks" "$LEDGER_DIR/roadmap" "$LEDGER_DIR/backlog")
+# git must run in the DOCS-SITE repo (the ledger relocation moved the mirror
+# dirs out of this repo — a bare `git status` here fatals with "outside
+# repository"; WS-B3 fix).
+DRIFT="$(git -C "$KH_PRIVATE_DOCS_DIR" status --porcelain -- "${MIRROR_DIRS[@]}")"
 if [ -z "$DRIFT" ]; then
   echo "✓ mirrors in sync — no drift"
 else

@@ -2,7 +2,7 @@
  * ledger-server-client.ts — HTTP transport client for the ledger server.
  * ID-90.17, TECH §Proposed changes K2 + §Decisions T-2.
  *
- * Maps HTTP responses from the task-view patch-server (v0.4.0-task-view) into
+ * Maps HTTP responses from the task-view patch-server (v0.5.0-task-view) into
  * the CliResult envelope consumed by `scripts/ledger-cli.ts`. The façade (K4,
  * {90.19}) builds TransportRequest from a ServerIntent and calls
  * `transportCommit`; this module owns the wire protocol, retry loop and

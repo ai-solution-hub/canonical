@@ -45,6 +45,7 @@ from scripts.cocoindex_pipeline.prompts import (
     CLASSIFICATION_PROMPT,
     ENTITY_MENTION_PROMPT,
     Q_A_FORM_PROMPT,
+    RELATIONSHIP_PROMPT,
 )
 
 # `flow_context` is imported LAZILY (function-local) inside the retry hook,
@@ -393,6 +394,37 @@ class EntityMentionExtraction(_ExtractionCore):
     source_span_start: int = Field(ge=0)
     source_span_end: int = Field(ge=0)
     mention_confidence: float = Field(ge=0.0, le=1.0)
+
+
+class RelationshipExtraction(_ExtractionCore):
+    """A single extracted entity-to-entity relationship triple ({101.6} PC-1).
+
+    Returned (in a list) by the `extract_relationships` memo extractor — holds
+    ONLY the LLM-generated triple fields (NO stamp fields, NO `extraction_kind`
+    discriminator; bl-220 stamp-free, mirroring `EntityMentionExtraction`'s
+    shaping). This extractor returns RAW triples; canonicalisation of the
+    `source` / `target` names and any persistence happens at the {101.7} write
+    site, OUTSIDE this stamp-free memo boundary.
+
+    The `relationship` Literal enumerates EXACTLY the 10 relationship types of
+    the TS `ExtractedRelationship` union (`lib/ai/classify.ts:653-666`) — the
+    Inv-4 parity contract. Do not add or drop a type without updating both sides.
+    """
+
+    source: str = Field(min_length=1)
+    relationship: Literal[
+        "holds",
+        "complies_with",
+        "delivers_to",
+        "uses",
+        "demonstrated_by",
+        "requires",
+        "part_of",
+        "supersedes",
+        "references",
+        "evidences",
+    ]
+    target: str = Field(min_length=1)
 
 
 class ClassificationExtraction(_ExtractionCore):
@@ -777,6 +809,9 @@ _qa_form_adapter: TypeAdapter[QAFormExtraction] = TypeAdapter(QAFormExtraction)
 _entity_mentions_adapter: TypeAdapter[list[EntityMentionExtraction]] = TypeAdapter(
     list[EntityMentionExtraction]
 )
+_relationships_adapter: TypeAdapter[list[RelationshipExtraction]] = TypeAdapter(
+    list[RelationshipExtraction]
+)
 
 
 # Per-extractor max-tokens ceilings ({73.1} S300 Path-B re-smoke fix).
@@ -795,6 +830,7 @@ _entity_mentions_adapter: TypeAdapter[list[EntityMentionExtraction]] = TypeAdapt
 #   - classification   → bounded (one object + a single rationale string).
 _MAX_TOKENS_QA_FORM = 32768
 _MAX_TOKENS_ENTITY_MENTIONS = 16384
+_MAX_TOKENS_RELATIONSHIPS = 16384
 _MAX_TOKENS_CLASSIFICATION = 4096
 
 
@@ -1066,3 +1102,35 @@ async def extract_entity_mentions(
     )
     response_text = _strip_code_fence(response.content[0].text)
     return _entity_mentions_adapter.validate_json(response_text)
+
+
+@coco.fn(memo=True)
+async def extract_relationships(
+    content_text: str,
+) -> list[RelationshipExtraction]:
+    """Relationship extractor — returns a list (empty if no relationships).
+
+    Structural sibling of `extract_entity_mentions` ({101.6} PC-1): the LLM is
+    instructed to return a JSON array (not an object wrapping an array), so the
+    TypeAdapter is `list[RelationshipExtraction]`. The 10-type `relationship`
+    Literal mirrors the TS `ExtractedRelationship` union (Inv-4 parity).
+    Returns RAW triples; canonicalisation happens at the {101.7} write site.
+    Same memoisation + validation-failure contract as `extract_classification`.
+    """
+    client = anthropic.AsyncAnthropic()
+    response = await _anthropic_retry(
+        lambda: _anthropic_message(
+            client,
+            model=ANTHROPIC_MODEL,
+            max_tokens=_MAX_TOKENS_RELATIONSHIPS,
+            # Static prompt rides the cached system block; ONLY the
+            # per-document content_text is in the uncached suffix (ID-61.1).
+            system=_cached_system_block(RELATIONSHIP_PROMPT),
+            messages=[{"role": "user", "content": content_text}],
+        )
+    )
+    _guard_not_truncated(
+        response, "extract_relationships", _MAX_TOKENS_RELATIONSHIPS
+    )
+    response_text = _strip_code_fence(response.content[0].text)
+    return _relationships_adapter.validate_json(response_text)

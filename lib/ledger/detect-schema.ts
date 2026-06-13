@@ -1,8 +1,10 @@
 /**
- * VENDORED from task-view @ v0.2.0-task-view (packages/server/detect-schema.ts).
+ * VENDORED from task-view @ v0.5.0-task-view (packages/server/detect-schema.ts).
  * Body byte-faithful; only the three schema import specifiers are rewired from
  * `@task-view/schemas/*` → KH's vendored `@/lib/validation/*`. Re-vendor per
  * lib/ledger/README.md. Guarded by task-view-vendor-drift.yml (ID-35.10).
+ * ID-102.8: upstream detect-schema is byte-identical v0.4.0↔v0.5.0 — the
+ * string-id flip introduced no change to this oracle module (pin bump only).
  *
  * ROLE (ID-90.22 R1b/R2): CLI-side validation oracle. `scripts/ledger-cli.ts`'s
  * `loadLedger` calls `detectSchema` to parse + document-kind-detect the on-disk
@@ -37,11 +39,16 @@ import {
   BacklogSchema,
   type BacklogDocument,
 } from '@/lib/validation/backlog-schema';
+import {
+  RetrosSchema,
+  type RetrosDocument,
+} from '@/lib/validation/retro-schema';
 
 export type DetectSchemaResult =
   | { kind: 'task-list'; data: TaskList }
   | { kind: 'roadmap'; data: Roadmap }
   | { kind: 'backlog'; data: BacklogDocument }
+  | { kind: 'retro'; data: RetrosDocument }
   | { kind: 'unknown'; documentName: string | null };
 
 /** Canonical literal values. Source of truth for both routing and CLI error messages. */
@@ -49,6 +56,7 @@ export const KNOWN_DOCUMENT_NAMES = [
   'Knowledge Hub Task List',
   'Knowledge Hub Roadmap',
   'Product Backlog',
+  'Knowledge Hub Retros',
 ] as const;
 
 export type KnownDocumentName = (typeof KNOWN_DOCUMENT_NAMES)[number];
@@ -72,6 +80,10 @@ export function detectSchema(parsed: unknown): DetectSchemaResult {
   }
   if (documentName === 'Product Backlog') {
     return { kind: 'backlog', data: BacklogSchema.parse(parsed) };
+  }
+  // WS-C C2: the retro session ledger — fourth known kind in the KH oracle.
+  if (documentName === 'Knowledge Hub Retros') {
+    return { kind: 'retro', data: RetrosSchema.parse(parsed) };
   }
 
   return {

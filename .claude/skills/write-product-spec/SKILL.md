@@ -49,7 +49,7 @@ the tech spec can be written directly from it.
 
 Write specs to `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/ID-N-<slug>/PRODUCT.md`, where:
 
-- `N` is the Task ID from `docs/reference/task-list.json` (e.g.
+- `N` is the Task ID from `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/task-list.json` (e.g.
   `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/ID-9-astro-starlight-docs-foundation/PRODUCT.md`).
 - `<slug>` is a short kebab-case feature name matching the sibling
   `RESEARCH.md` / `TECH.md` / `PLAN.md` location.
@@ -75,7 +75,7 @@ labels or repo are unclear).
 ## Before writing
 
 Gather only the context you need: directory id (GitHub issue, Linear ticket,
-kebab feature name, or Taskmaster task ID), feature summary, target users, key
+or kebab feature name), feature summary, target users, key
 behaviors, edge cases, and how the feature will be validated. Use
 `AskUserQuestion` for missing context rather than guessing.
 

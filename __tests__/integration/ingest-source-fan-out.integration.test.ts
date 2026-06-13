@@ -93,17 +93,16 @@ async function seedItemWithIngestSource(
   // covered by per-route unit tests in __tests__/api/ + __tests__/mcp/.
   //
   // `content_text_hash` is GENERATED ALWAYS — omitted per CLAUDE.md.
-  // ingest_source is a NEW typed column not yet in database.types.ts
-  // (Wave 5 sweep regen), so the payload is cast through `as never` to
-  // bypass excess-property checking on this single field. Same pattern as
-  // the production wire sites (lib/mcp/tools/content.ts:475 etc.).
+  // The payload is kept loosely typed (Record<string, unknown>) so the
+  // optional `ingestion_source` field can be set conditionally without
+  // tripping excess-property checks at the seed call site.
   const payload: Record<string, unknown> = {
     title: `${TEST_PREFIX} ${label}`,
-    content: `ingest_source fan-out fixture for ${label}. Disposable.`,
+    content: `ingestion_source fan-out fixture for ${label}. Disposable.`,
     content_type: 'article',
   };
   if (ingestSource !== null) {
-    payload.ingest_source = ingestSource;
+    payload.ingestion_source = ingestSource;
   }
 
   const { data, error } = await serviceClient
@@ -170,16 +169,9 @@ describe('ingest_source fan-out — typed-column provenance round-trip', () => {
       .eq('id', id);
     expect(updateErr).toBeNull();
 
-    // ingest_source is not yet in database.types.ts (Wave 5 sweep regen)
-    // so we select it through `as any` to bypass the supabase-js generic
-    // SELECT type inference. The other typed columns are present in the
-    // generated types and select cleanly.
     const { data, error } = await serviceClient
       .from('content_items')
-      .select(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        'source_url, source_file, source_document_id, ingest_source' as any,
-      )
+      .select('source_url, source_file, source_document_id, ingestion_source')
       .eq('id', id)
       .single();
 
@@ -188,12 +180,12 @@ describe('ingest_source fan-out — typed-column provenance round-trip', () => {
       source_url: string | null;
       source_file: string | null;
       source_document_id: string | null;
-      ingest_source: string | null;
+      ingestion_source: string | null;
     };
     expect(row.source_url).toBe(url);
     expect(row.source_file).toBe(file);
     expect(row.source_document_id).toBeNull();
-    expect(row.ingest_source).toBe('url_import');
+    expect(row.ingestion_source).toBe('url_import');
   });
 });
 
@@ -213,7 +205,7 @@ describe('ingest_source fan-out — typed column → content_history trigger', (
     it(`'${ingestSource}': content_items column + content_history v1.metadata fan-out`, async () => {
       const id = await seedItemWithIngestSource(ingestSource, ingestSource);
 
-      // Assert content_items.ingest_source persisted.
+      // Assert content_items.ingestion_source persisted.
       const { data: itemRow, error: itemErr } = await serviceClient
         .from('content_items')
         .select('id')
@@ -222,19 +214,17 @@ describe('ingest_source fan-out — typed column → content_history trigger', (
       expect(itemErr).toBeNull();
       expect(itemRow?.id).toBe(id);
 
-      // Re-read the typed column via a service-client raw select so the
-      // ingest_source field surfaces despite database.types.ts not being
-      // regenerated yet.
+      // Re-read the typed column to confirm the ingestion_source field
+      // round-trips on content_items.
       const itemRaw = await serviceClient
         .from('content_items')
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .select('ingest_source' as any)
+        .select('ingestion_source')
         .eq('id', id)
         .single();
       expect(itemRaw.error).toBeNull();
       expect(
-        (itemRaw.data as unknown as { ingest_source: string | null })
-          .ingest_source,
+        (itemRaw.data as unknown as { ingestion_source: string | null })
+          .ingestion_source,
       ).toBe(ingestSource);
 
       // Assert content_history v1 row written by trigger.

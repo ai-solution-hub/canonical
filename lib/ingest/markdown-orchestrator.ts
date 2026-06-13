@@ -23,7 +23,7 @@
 //                     error_message via `sb()` (insert failure surfaces to
 //                     Sentry — never silent-catch on the audit-trail write).
 //                  Per-file pipeline: INSERT content_items (with
-//                  `ingest_source: 'upload'` so the deferred trigger
+//                  `ingestion_source: 'upload'` so the deferred trigger
 //                  `ensure_v1_history_at_commit` writes the v1 content_history
 //                  row with `change_reason='initial_ingest'` per spec §7.6
 //                  G17 + memory feedback_content_history_change_reason_mandatory),
@@ -41,7 +41,7 @@
 // - G3 / feedback_content_text_hash_generated_always: `content_text_hash` is
 //   GENERATED ALWAYS — OMITTED from every INSERT payload.
 // - G5 / feedback_content_history_change_reason_mandatory: v1 history row is
-//   written by the deferred trigger when `ingest_source` is set on insert; we
+//   written by the deferred trigger when `ingestion_source` is set on insert; we
 //   never write content_history directly. Trigger emits
 //   `change_reason='initial_ingest'`.
 // - G6 / CLAUDE.md "Cron pipeline_runs inserts": `recordPipelineRun()` is
@@ -52,7 +52,7 @@
 //   `feedback_record_pipeline_run_signature`.
 // - G8 / CLAUDE.md embedding vector serialisation: `JSON.stringify(embedding)`
 //   on the `embedding` column write.
-// - G17 / spec §7.6: `ingest_source: 'upload'` on every content_items insert
+// - G17 / spec §7.6: `ingestion_source: 'upload'` on every content_items insert
 //   — without it the trigger emits the legacy `'auto_v1_on_insert'` reason.
 // - D-A guard / spec §7.3 + plan EP2-T3(b): `publication_status` is set
 //   EXPLICITLY in the INSERT — never relying on the column DEFAULT
@@ -618,7 +618,7 @@ async function importOneFile(
 
   // Build INSERT payload (spec §7.3 canonical shape).
   // - `content_text_hash` OMITTED per G3 (GENERATED ALWAYS column).
-  // - `ingest_source: 'upload'` so trigger writes v1 history with
+  // - `ingestion_source: 'upload'` so trigger writes v1 history with
   //   `change_reason='initial_ingest'` (G17).
   // - `publication_status` set EXPLICITLY (D-A guard) — never relying on
   //   the column DEFAULT.
@@ -640,7 +640,7 @@ async function importOneFile(
     platform: 'manual',
     author_name: authorFromFrontMatter ?? author,
     source_file: file.filename,
-    ingest_source: 'upload',
+    ingestion_source: 'upload',
     publication_status: publicationStatus,
     metadata: insertMetadata as Json,
     dedup_status,

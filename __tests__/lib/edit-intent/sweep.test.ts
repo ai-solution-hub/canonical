@@ -48,27 +48,32 @@ interface HistoryRow {
 
 /**
  * In-memory supabase stub modelling the three tables the sweep + rollback
- * touch: content_items (live bytes), source_documents (storage_path
- * resolution embedded in the content_items select), and content_history
- * (the per-match snapshot rows carrying the sweep-id provenance). The stub is
- * deliberately small — it only models the exact query shapes the code issues.
+ * touch: content_items (live bytes + source_document_id), source_documents
+ * (storage_path, read directly by PK — the content_items ->
+ * source_documents FK was dropped in migration 20260602073942, so the
+ * adapter resolves it with a second plain read, never an FK embed), and
+ * content_history (the per-match snapshot rows carrying the sweep-id
+ * provenance). The stub is deliberately small — it only models the exact
+ * query shapes the code issues.
  */
 function makeDb(files: Record<string, { rel: string; content: string }>): {
   client: unknown;
   history: HistoryRow[];
   liveContent: () => Record<string, string>;
 } {
-  // Per-item live content + storage_path.
-  const items: Record<
-    string,
-    { content: string; source_document_id: string; storage_path: string }
-  > = {};
+  // Per-item live content + a per-item source_document carrying its
+  // storage_path (each item gets a distinct doc id derived from SRC_DOC).
+  const items: Record<string, { content: string; source_document_id: string }> =
+    {};
+  const docs: Record<string, { storage_path: string }> = {};
+  let docSeq = 0;
   for (const [id, f] of Object.entries(files)) {
+    const docId = `${SRC_DOC.slice(0, -2)}${String(docSeq++).padStart(2, '0')}`;
     items[id] = {
       content: f.content,
-      source_document_id: SRC_DOC,
-      storage_path: f.rel,
+      source_document_id: docId,
     };
+    docs[docId] = { storage_path: f.rel };
   }
   const history: HistoryRow[] = [];
 
@@ -85,12 +90,10 @@ function makeDb(files: Record<string, { rel: string; content: string }>): {
                 async maybeSingle() {
                   const it = items[id];
                   if (!it) return { data: null, error: null };
-                  // Shape mirrors writeBackFileFirst's embedded select.
+                  // Shape mirrors writeBackFileFirst's plain column read
+                  // (no FK embed — dropped in migration 20260602073942).
                   return {
-                    data: {
-                      source_document_id: it.source_document_id,
-                      source_documents: { storage_path: it.storage_path },
-                    },
+                    data: { source_document_id: it.source_document_id },
                     error: null,
                   };
                 },
@@ -111,6 +114,26 @@ function makeDb(files: Record<string, { rel: string; content: string }>): {
                 items[id].content = patch.content;
               }
               return { error: null };
+            },
+          };
+        },
+      };
+    }
+    if (table === 'source_documents') {
+      return {
+        select() {
+          return {
+            eq(_col: string, id: string) {
+              return {
+                async maybeSingle() {
+                  const doc = docs[id];
+                  if (!doc) return { data: null, error: null };
+                  return {
+                    data: { storage_path: doc.storage_path },
+                    error: null,
+                  };
+                },
+              };
             },
           };
         },

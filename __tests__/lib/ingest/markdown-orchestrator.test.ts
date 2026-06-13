@@ -318,7 +318,7 @@ describe('orchestrateMarkdownBatch', () => {
   // ────────── Phase 2: import ──────────
 
   describe('phase: import — full pipeline success', () => {
-    it('runs Pattern E lifecycle: at-start INSERT → mid-flight UPDATE → terminal UPDATE; inserts content_items with ingest_source=upload + publication_status; classifies, embeds', async () => {
+    it('runs Pattern E lifecycle: at-start INSERT → mid-flight UPDATE → terminal UPDATE; inserts content_items with ingestion_source=upload + publication_status; classifies, embeds', async () => {
       const supabase = buildSupabaseWithSequentialInserts(['new-id-1']);
 
       const result = await orchestrateMarkdownBatch({
@@ -382,12 +382,12 @@ describe('orchestrateMarkdownBatch', () => {
         (call) =>
           call[0] &&
           typeof call[0] === 'object' &&
-          'ingest_source' in (call[0] as Record<string, unknown>),
+          'ingestion_source' in (call[0] as Record<string, unknown>),
       );
       expect(contentItemsInsertCall).toBeDefined();
       const payload = contentItemsInsertCall![0] as Record<string, unknown>;
-      // G17 — ingest_source: 'upload'
-      expect(payload.ingest_source).toBe('upload');
+      // G17 — ingestion_source: 'upload'
+      expect(payload.ingestion_source).toBe('upload');
       // D-A guard — publication_status set explicitly (not relying on DEFAULT).
       // 'final' filename heuristic → 'in_review'.
       expect(payload.publication_status).toBe('in_review');
@@ -685,7 +685,7 @@ describe('orchestrateMarkdownBatch', () => {
         (call) =>
           call[0] &&
           typeof call[0] === 'object' &&
-          'ingest_source' in (call[0] as Record<string, unknown>),
+          'ingestion_source' in (call[0] as Record<string, unknown>),
       );
       const payload = ciInsert![0] as Record<string, unknown>;
       expect(payload.dedup_status).toBe('suspected_duplicate');
@@ -721,7 +721,7 @@ describe('orchestrateMarkdownBatch', () => {
         (call) =>
           call[0] &&
           typeof call[0] === 'object' &&
-          'ingest_source' in (call[0] as Record<string, unknown>),
+          'ingestion_source' in (call[0] as Record<string, unknown>),
       );
       expect(ciInsert).toBeUndefined();
 

@@ -485,7 +485,7 @@ async function main() {
   } else {
     console.log(`\nTest bid seeded successfully. View at:`);
     console.log(
-      `  https://knowledge-hub-seven-kappa.vercel.app/bids/${procurementId}`,
+      `  ${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/bids/${procurementId}`,
     );
   }
 }

@@ -43,7 +43,7 @@ const MINIMAL_INPUT: RetrospectiveOpeningInput = {
   original_session: 'S242',
   original_branch: 'content-items-investigation',
   continuation_prompt_path:
-    'docs/continuation-prompts/continuation-prompt-kh-s242-main-t1-specs-and-phase-0-close.md',
+    '${KH_PRIVATE_DOCS_DIR}/src/content/docs/continuation-prompts/continuation-prompt-kh-s242-main-t1-specs-and-phase-0-close.md',
   commits: [
     {
       sha8: '2f142936',
@@ -59,7 +59,7 @@ const FULL_INPUT_TECH_5_2: RetrospectiveOpeningInput = {
   original_session: 'S242',
   original_branch: 'content-items-investigation',
   continuation_prompt_path:
-    'docs/continuation-prompts/continuation-prompt-kh-s242-main-t1-specs-and-phase-0-close.md',
+    '${KH_PRIVATE_DOCS_DIR}/src/content/docs/continuation-prompts/continuation-prompt-kh-s242-main-t1-specs-and-phase-0-close.md',
   commits: [
     {
       sha8: '2f142936',
@@ -152,7 +152,7 @@ describe('formatRetrospectiveJournalBlock — required body lines', () => {
   it('contains the Original work line citing original_session and continuation_prompt_path', () => {
     const out = formatRetrospectiveJournalBlock(MINIMAL_INPUT);
     expect(out).toContain(
-      'Original work happened S242 per `docs/continuation-prompts/continuation-prompt-kh-s242-main-t1-specs-and-phase-0-close.md`.',
+      'Original work happened S242 per `${KH_PRIVATE_DOCS_DIR}/src/content/docs/continuation-prompts/continuation-prompt-kh-s242-main-t1-specs-and-phase-0-close.md`.',
     );
   });
 
@@ -286,7 +286,7 @@ describe('formatRetrospectiveJournalBlock — TECH §5.2 worked example round-tr
     const expected = [
       '<info added on 2026-05-22T10:00:00.000Z>',
       'RETROSPECTIVE OPENING — Task opened in `done` status post-implementation.',
-      'Original work happened S242 per `docs/continuation-prompts/continuation-prompt-kh-s242-main-t1-specs-and-phase-0-close.md`.',
+      'Original work happened S242 per `${KH_PRIVATE_DOCS_DIR}/src/content/docs/continuation-prompts/continuation-prompt-kh-s242-main-t1-specs-and-phase-0-close.md`.',
       '',
       'Commits (S242, content-items-investigation):',
       '- 2f142936 — docs(spec): procurement-workspaces PRODUCT + TECH — S242 W3 fix-pass per verifier findings',

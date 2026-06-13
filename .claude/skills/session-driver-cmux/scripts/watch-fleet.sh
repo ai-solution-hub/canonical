@@ -7,11 +7,19 @@
 #   - last event == AskUserQuestion, stable 2 polls   -> headless stall
 #   - last event == stop, stable 2 polls              -> paused (done / needs nudge / awaiting-decision)
 #   - OQ-pending.md (found ANYWHERE in worktree) grew beyond seen lines  (SEEN_OQ="<sid>:<lines> ...")
+#   - oq/oq-state.json lifecycle_state=awaiting-decision (skip if sid in SEEN_BLOCKED)
+#     -- the SECOND OQ surface; watching only OQ-pending.md left the watcher
+#        blind to oq_emit blocking questions (F7 friction, WS-A6).
 #   - final_report.* in events dir                    (skip if sid in SEEN_FINAL)
 #   - session_end event                               (skip if sid in SEEN_SEND)
+#   - abtop context_percent > ABTOP_CTX_TRIP%         (skip if sid in SEEN_SAT)
+#     -- context-SATURATION: the worker is near its window and will soon
+#        auto-compact + degrade; surface so the parent can compact / hand off
+#        first. Needs `abtop` on PATH; silent no-op otherwise. (C3, WS-C)
 # Fleet-wide: no event growth for QUIET_POLLS -> stall/all-idle.
 #
-# Env: IGNORE, SEEN_OQ, SEEN_FINAL, SEEN_SEND, INTERVAL, MAX_POLLS, QUIET_POLLS.
+# Env: IGNORE, SEEN_OQ, SEEN_BLOCKED, SEEN_FINAL, SEEN_SEND, SEEN_SAT, INTERVAL,
+#      MAX_POLLS, QUIET_POLLS, ABTOP_CTX_TRIP.
 # Exit: 0 = tripped (report on stdout); 2 = max-poll timeout.
 
 set -uo pipefail
@@ -37,8 +45,19 @@ MAX_POLLS="${MAX_POLLS:-40}"       # ~16 min at 25s
 QUIET_POLLS="${QUIET_POLLS:-28}"   # ~11.6 min zero growth
 IGNORE="${IGNORE:-}"
 SEEN_OQ="${SEEN_OQ:-}"
+SEEN_BLOCKED="${SEEN_BLOCKED:-}"
 SEEN_FINAL="${SEEN_FINAL:-}"
 SEEN_SEND="${SEEN_SEND:-}"
+SEEN_SAT="${SEEN_SAT:-}"
+
+# C3 (WS-C): abtop context-saturation probe. Trips a worker whose context fill
+# exceeds ABTOP_CTX_TRIP% so the parent can compact / hand off BEFORE the worker
+# auto-compacts and degrades — a signal that event-growth polling cannot see.
+# Silent-failure-safe: a no-op when abtop is absent or its --json is unparseable.
+# Join key = Claude session_id (abtop .sessions[].session_id == the worker's
+# meta.json .session_id). SEEN_SAT suppresses re-trips across re-arms.
+ABTOP_CTX_TRIP="${ABTOP_CTX_TRIP:-85}"
+HAVE_ABTOP=0; command -v abtop >/dev/null 2>&1 && HAVE_ABTOP=1
 
 in_list() { case " $2 " in *" $1 "*) return 0;; *) return 1;; esac; }
 seen_oq_lines() { printf '%s' "$SEEN_OQ" | tr ' ' '\n' | awk -F: -v s="$1" '$1==s{print $2; exit}'; }
@@ -68,6 +87,11 @@ prev_ask=""; prev_stop=""; prev_total=-1; quiet_count=0; poll=0
 
 while [ "$poll" -lt "$MAX_POLLS" ]; do
   poll=$((poll + 1)); report=""; cur_ask=""; cur_stop=""; fleet_total=0
+
+  # One abtop snapshot per poll (not per worker) — a cheap one-shot JSON. Blank
+  # on any failure so the per-worker probe below silently no-ops. (C3, WS-C)
+  abtop_json=""
+  if [ "$HAVE_ABTOP" -eq 1 ]; then abtop_json=$(abtop --json 2>/dev/null || true); fi
 
   for m in "$EVENTS_BASE"/*/meta.json; do
     [ -f "$m" ] || continue
@@ -109,6 +133,26 @@ while [ "$poll" -lt "$MAX_POLLS" ]; do
       seen=$(seen_oq_lines "$sid"); seen="${seen:-0}"
       [ "$oq_heads" -gt "$seen" ] && report="${report}
   $name ($sid): OQ count grew to $oq_heads (seen=$seen)"
+    fi
+    # Second OQ surface: oq/oq-state.json lifecycle marker (oq_emit blocking
+    # channel). awaiting-decision = worker is BLOCKED on a parent decision —
+    # trip unless the caller already handled it (sid in SEEN_BLOCKED). (WS-A6)
+    sfile="$d/oq/oq-state.json"
+    if [ -f "$sfile" ] && ! in_list "$sid" "$SEEN_BLOCKED"; then
+      lstate=$(jq -r '.lifecycle_state // empty' "$sfile" 2>/dev/null)
+      [ "$lstate" = "awaiting-decision" ] && report="${report}
+  $name ($sid): OQ-STATE awaiting-decision (oq/oq-state.json — blocking)"
+    fi
+    # abtop context-saturation probe (C3/WS-C). jq does the float compare; a
+    # blank result = below threshold, no abtop data, or null context. SEEN_SAT
+    # suppresses re-trips across re-arms.
+    if [ -n "$abtop_json" ] && ! in_list "$sid" "$SEEN_SAT"; then
+      satpct=$(printf '%s' "$abtop_json" \
+        | jq -r --arg sid "$sid" --argjson t "$ABTOP_CTX_TRIP" \
+          '.sessions[]|select(.session_id==$sid and .context_percent>$t)|(.context_percent|floor)' \
+          2>/dev/null | head -1)
+      [ -n "$satpct" ] && report="${report}
+  $name ($sid): CONTEXT-SATURATED ${satpct}% > ${ABTOP_CTX_TRIP}% (abtop — compact / hand off before auto-compact)"
     fi
     if [ "$last" = "AskUserQuestion" ]; then
       cur_ask="$cur_ask $name"

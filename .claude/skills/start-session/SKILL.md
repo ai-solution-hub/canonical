@@ -31,10 +31,20 @@ git branch | grep worktree | wc -l
 
 # Verify clean working tree
 git status
+
+# List NAMED worktrees (git worktree prune only clears deleted dirs — named
+# worktrees from prior sessions survive and accumulate)
+git worktree list
 ```
 
 If unmerged branches exist, deploy an agent to investigate whether they should be merged or
 deleted.
+
+For each named worktree under `.claude/worktrees/` not referenced by the
+continuation prompt or an active parallel session: check `git -C <wt> status
+--porcelain`, salvage any untracked/modified files worth keeping, then
+`git worktree remove <wt>`. Ask the user only when a worktree is dirty and its
+purpose is unclear. (WS-A4 — stale worktrees were a top-5 friction cluster.)
 
 ---
 
@@ -66,13 +76,22 @@ Read these documents in parallel to load context:
 
 Call `mempalace_diary_read` (`agent_name: claude`, `last_n: 2`) for the most recent diary entries. For recall during the session, use `mempalace_search` and `mempalace_kg_query`; any errors are transient and should resolve on retry.
 
-### 2b: Task-list state inspection
+### 2b: Task-list state inspection (slice reads ONLY)
 
-Read `docs/reference/task-list.json` at session start where a task whose `session_refs[]` includes the previous
-  session — these are recently-closed records; their `<info added on …>`
-  journal blocks (PRODUCT inv 13) surface what shipped, commit SHAs, and any
-  in-flight discoveries the previous Executor / Checker left behind that may
-  have been omitted from the continuation prompt.
+Inspect recently-active task records via the ledger CLI — **never Read the
+ledger JSON files wholesale** (task-list.json is multi-MB; full reads burn
+context for nothing — WS-B4):
+
+```bash
+bun scripts/ledger-cli.ts show task <id>          # one task record
+bun scripts/ledger-cli.ts get task <id> <field>   # one field (e.g. status_note)
+```
+
+For tasks referenced by the continuation prompt, the records' `<info added on …>`
+journal blocks (PRODUCT inv 13) surface what shipped, commit SHAs, and any
+in-flight discoveries the previous Executor / Checker left behind that may
+have been omitted from the continuation prompt. Prefer `get … details` /
+`get … status_note` over `show` for large done tasks.
 
 ### 2c: Sandbox / allowlist carryover
 
@@ -87,12 +106,37 @@ Use `gh-axi` (not raw `gh`) for any GitHub operation this session — pre-aggreg
 CI rollups + structured error translation; `gh-axi api` is the raw-API escape hatch
 (ID-92, see CLAUDE.md).
 
+### 2e: Owning-theme strategic context
+
+For each active Task surfaced in 2b, load the **owning roadmap theme** so the session
+opens with the strategic "why this Task matters" — not just the tactical task state.
+
+1. **Resolve the owning theme.** Read the active Task's `capability_theme` field (the
+   optional back-link to a roadmap theme `id`). Then read **only that one owning-theme
+   record** via `bun scripts/ledger-cli.ts show roadmap <themeId>` — the same canonical
+   slice-read path Step 2b uses. Do not read the full ~23KB / 12-theme roadmap,
+   and do not introduce a hard-coded path that bypasses the canonical reader. The owning
+   theme is ~1–2KB; the all-titles list and the full-roadmap dump are rejected
+   alternatives (read only the single owning-theme record).
+2. **Surface only theme title + current intent.** From that one theme record, surface the
+   theme **title** and its **current intent** (`description` — "why this Task matters").
+   Do **not** surface theme history, prior-session notes, or any unrelated theme.
+3. **Unset / operational Task → explicit no-op note.** If the active Task has **no**
+   `capability_theme` (unset or operational), emit an **explicit** note —
+   *"no owning theme — operational Task"* — rather than a silent skip. Never fall back to
+   reading the full roadmap.
+4. **Multiple active Tasks → dedupe by theme.** With several active Tasks, read each
+   owning theme **deduplicated by theme** — read each distinct owning theme once, never
+   all 12.
+
+This sub-step is **read-only** — no roadmap write surface, no ledger-write (§LP) exposure.
+
 ---
 
 ## Step 3: Review Continuation Prompt and Confirm Session Plan
 
 ```bash
-ls -1 docs/continuation-prompts/continuation-prompt-kh-*.md 2>/dev/null | sort -V | tail -2
+ls -1 ${KH_PRIVATE_DOCS_DIR}/src/content/docs/continuation-prompts/continuation-prompt-kh-*.md 2>/dev/null | sort -V | tail -2
 ```
 
 1. Read the continuation prompt thoroughly
@@ -121,9 +165,8 @@ Once the session plan is presented, invoke the `workflow-orchestration` skill vi
 
 - **ALL verification gaps must be fixed** — even minor ones
 - **NEVER prefix a Bash command with `cd /Users/.../knowledge-hub`** (or any absolute cd
-  into the repo root) — this applies to the MAIN session, not just worktree agents. You
-  are already in the repo CWD. Use paths relative to CWD, or `git -C <path>` flags. A
-  PreToolUse guard hard-blocks `cd <repo-root>` to stop wrong-branch commit leakage; each
-  block costs a full retry round-trip. Carry this rule into every brief you compose this
-  session. (Friction register FR-001 — permanent rule, not a per-handoff carryover.)
+  into the repo root) — this applies to the MAIN session, not just worktree agents; use
+  relative paths or `git -C <path>`, and carry this rule into every brief you compose this
+  session (FR-001 — permanent rule, not a per-handoff carryover; full friction-register
+  rules: `.claude/agents/references/shared-discipline.md` §Friction register).
 

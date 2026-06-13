@@ -196,13 +196,13 @@ export const ContentRow = memo(function ContentRow({
                   )}
                 </span>
               </span>
-            ) : item.source_document ? (
+            ) : item.source_file ? (
               <span className="flex items-center gap-1">
                 <ContentTypeIcon
                   contentType={item.content_type}
                   size="size-3"
                 />
-                {item.source_document}
+                {item.source_file}
               </span>
             ) : (
               <span className="flex items-center gap-1">

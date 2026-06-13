@@ -9,6 +9,7 @@
  */
 
 import { BRANDING } from '@/lib/client-config';
+import { clientEnv } from '@/lib/env-client';
 
 // ── Interfaces ──
 
@@ -34,7 +35,7 @@ export interface RssChannelConfig {
 
 // ── Constants ──
 
-const KH_NAMESPACE = 'https://knowledge-hub-seven-kappa.vercel.app/ns/1.0';
+const KH_NAMESPACE = `${clientEnv.NEXT_PUBLIC_APP_URL}/ns/1.0`;
 
 // ── Public API ──
 

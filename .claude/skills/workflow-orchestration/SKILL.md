@@ -59,24 +59,24 @@ SESSION
 - **Spec-authoring ({N.1}–{N.4})** — `spec-driven-implementation` chain:
   RESEARCH.md, PRODUCT.md, TECH.md, PLAN.md — **all four conditional**. One
   fresh Planner per subtask, Checker gates each output, Liam ratifies before
-  implementation. Right-size the spec chain to the task shape — not every Task
-  needs all four artefacts. Heuristic: author {N.2} PRODUCT when the change is
-  user-facing or behaviourally ambiguous; author {N.3} TECH when the technical
-  approach is non-obvious, risky, or spans multiple subsystems; {N.1} RESEARCH
-  and {N.4} PLAN as warranted by uncertainty/decomposition size. The Orchestrator
-  selects the artefact subset at Task open (the Planner may recommend an upgrade
-  mid-{N.1} if research surfaces hidden complexity). ID-92 PRODUCT may later
-  formalise named tiers + the recording location — keep this a heuristic, not a
-  rigid gate.
+  implementation. Right-size the spec chain via the four named tiers (Full chain /
+  PRODUCT+PLAN / TECH+PLAN / Spec-free) — the Orchestrator decides the tier at
+  Task open, records it as a terse `status_note` marker (≤300-char budget,
+  invariant 57), and an under-specified Task that later reveals compound
+  invariants ESCALATES to a heavier tier, never silently proceeds. Full tier
+  definitions: `.claude/agents/references/shared-discipline.md` §Spec-chain
+  right-sizing and §Spec-tier budget.
 - **Implementation ({N.2-5+})** — one Executor per subtask. Parallel when groups touch disjoint file sets;
   sequential when they share files / schema / produced inputs.
 - **Closing** — Executor `code-simplification` pass, then Checker
   `quality-review` pass, then Orchestrator gates Task → `done` only after
   Curator triage complete and roadmap/backlog implications recorded.
 
-**Task-list ingress:** read `docs/reference/task-list.json` via
-`parseTaskListWithWarnings` from `lib/validation/task-list-schema.ts`, never
-`JSON.parse` directly.
+**Task-list ingress:** SLICE READS ONLY — `bun scripts/ledger-cli.ts show task <id>`
+/ `get task <id> <field>` (ledgers live in the docs-site; the CLI resolves the
+dir). Never Read/`JSON.parse` the ledger JSONs wholesale — task-list.json is
+multi-MB. Programmatic full-list validation (rare) goes through
+`parseTaskListWithWarnings` from `lib/validation/task-list-schema.ts`.
 
 For full per-phase detail (Planner-model rules, subtask `details`/`testStrategy`
 structure, end-of-task gates, the helper's call-shape with ts example), see [references/lifecycle-detail.md](references/lifecycle-detail.md).
@@ -110,6 +110,19 @@ For details on how the three primitives compose and what every dispatch brief mu
 After every subtask PASS (or PASS_WITH_NOTES with all notes resolved),
 the Orchestrator owns the merge. Executors invoke `commit-commands` per
 subtask. **On conflict**: invoke the `resolve-merge-conflicts` skill.
+
+**Pre-integration preflight (WS-A4 — F2 friction killer).** Before any
+cherry-pick / merge batch:
+
+1. **Stop competing watchers** — kill or pause background git-watchers
+   (`watch-fleet.sh`, inline `git status` loops) for the duration of the
+   integration; concurrent watchers recreate `.git/index.lock` mid-cherry-pick.
+2. **Confirm CWD is the canonical checkout** (`git rev-parse --show-toplevel`),
+   not a worktree — completing worktree agents can drag the session CWD.
+3. **Check for concurrent sessions on the branch** (`git log origin/<branch>..HEAD`
+   + recent reflog) before assuming local state is authoritative.
+
+Resume watchers only after the final cherry-pick of the batch lands.
 
 ---
 
@@ -171,62 +184,26 @@ file matching the allowlist in the fourth sub-section. Non-code-touching dispatc
 
 <!-- code-intel:baseline-start -->
 
-The Knowledge Hub codebase is indexed by three complementary code-intelligence tools.
-Each role in the SDLC workflow has a defined set of obligations:
+Per-role obligations are canonical in `.claude/agents/references/shared-discipline.md`
+§Code-intelligence discipline. Binding summary per role:
 
-**Orchestrator (this skill)**
+- **Orchestrator (this skill)** — consult `gitnexus_query` when composing a Planner
+  brief (findings land in the spec's Context / Problem section); `gitnexus_context` on
+  key symbols when dispatch scope is ambiguous; cite `ast-dataflow` queries where
+  call-chain precision is needed; consult `ccc` for semantic search when gitnexus /
+  ast-dataflow have not surfaced the relevant symbols.
+- **Planner** — `gitnexus_query` on domain vocabulary + `gitnexus_context` on mandated
+  symbols before authoring; cite outputs in the spec.
+- **Executor** — pre-edit `gitnexus_impact` (journal the verdict; HIGH/CRITICAL →
+  escalate); pre-commit `gitnexus_detect_changes` (boundary containment).
+- **Checker** — `gitnexus_detect_changes` on the Executor's commit; a missing
+  `gitnexus_impact` journal verdict → `scope-containment: FAIL`.
+- **Curator** — caller-count pre-grep (`gitnexus_context` + `ast-dataflow callers`;
+  ≥10 callers / ≥3 modules → roadmap, fewer → backlog).
 
-- Consult `gitnexus_query` when composing a Planner brief to identify relevant existing
-  execution flows and symbols the spec will touch. This finding lands in the spec's
-  Context / Problem section so the Planner has grounded orientation before writing.
-- Consult `gitnexus_context` on key symbols when the dispatch scope is ambiguous —
-  the call-graph context resolves whether a change is isolated or cross-cutting.
-- Where `ast-dataflow` provides finer-grained call-chain precision (e.g. wrong-argument
-  suspects, barrel-chain tracing), cite the query and its output in the dispatch brief.
-- Consult `ccc` for semantic search across the codebase when gitnexus or ast-dataflow
-  has not already surfaced the relevant symbols.
-
-**Planner (task-planner agent)**
-
-- Run `gitnexus_query` on the spec's domain vocabulary before authoring PRODUCT.md or
-  TECH.md — this surfaces existing execution flows so the spec does not re-invent
-  covered behaviour.
-- Run `gitnexus_context` on any symbol the spec mandates be modified — record the verdict
-  level (LOW / MEDIUM / HIGH / CRITICAL) and the names of the top-3 affected execution
-  flows in the spec's Context section.
-- Where ast-dataflow Q1 / Q2 / Q3 sweeps are appropriate (rename verification,
-  import-path correctness, string-literal site inventory), cite the sweep output.
-
-**Executor (task-executor agent)**
-
-- Before editing any symbol: run `gitnexus_impact({target: '<symbolName>', direction: 'upstream'})`.
-  Record the verdict level, caller count, and top-3 affected execution flows in the
-  Subtask journal block. If the verdict is HIGH or CRITICAL, STOP and escalate to the
-  Orchestrator before proceeding.
-- Before committing: run `gitnexus_detect_changes()` to verify the affected symbol set
-  matches the Subtask's expected file-ownership boundary. Scope creep surfaces here.
-- Use `ast-dataflow` for call-chain precision when gitnexus does not give file:line
-  granularity — especially for wrong-argument suspects or barrel-chain regressions.
-
-**Checker (task-checker agent)**
-
-- Run `gitnexus_detect_changes` on the Executor's commit to audit scope containment.
-- If the Executor's journal block is missing a `gitnexus_impact` verdict, flag
-  `scope-containment: FAIL` in the audit output.
-
-**Curator (workflow-curator agent)**
-
-- Run `gitnexus_context({name: '<symbolName>'})` on finding symbols to count callers.
-  Ten or more callers across three or more modules → roadmap-level finding. Fewer →
-  backlog item. This is the deterministic caller-count signal for routing decisions.
-- Supplement with `ast-dataflow callers <symbolName>` for TypeScript-corpus precision
-  when the gitnexus count is ambiguous.
-
-See `.gitnexus/CLAUDE.md` "Always Do" for canonical `gitnexus_impact` + `gitnexus_query`
-+ `gitnexus_detect_changes` + `gitnexus_context` call patterns. See
-`.ast-dataflow/CLAUDE.md` for the 12 available queries and 9 cross-tool patterns. The
-`ccc` skill body at `~/.agents/skills/ccc/SKILL.md` documents `ccc search`, `ccc describe`,
-and `ccc guide`.
+See `.gitnexus/CLAUDE.md` "Always Do" for canonical call patterns,
+`.ast-dataflow/CLAUDE.md` for the 12 queries and 9 cross-tool patterns, and the `ccc`
+skill body at `~/.agents/skills/ccc/SKILL.md` for `ccc search` / `describe` / `guide`.
 
 <!-- code-intel:baseline-end -->
 
@@ -238,23 +215,13 @@ When composing a Planner dispatch brief, include the following code-intelligence
 orientation in the brief's "Context" or "Problem" section. The Planner must have this
 grounding before writing the spec:
 
-> **Code-intelligence orientation for this Planner brief:**
->
-> Before writing PRODUCT.md or TECH.md, run the following:
->
-> 1. `gitnexus_query({query: '<domain vocabulary from the spec title>'})` — identifies
->    existing execution flows and symbols in the Knowledge Hub codebase that overlap with
->    the spec's domain. Cite findings in the spec's Context / Problem section, or note
->    "gitnexus orientation: no existing symbols match — greenfield surface" if the query
->    returns no relevant results.
->
-> 2. `gitnexus_context({name: '<symbol>'})` — for each symbol the spec mandates be
->    modified, record the full call-graph context: verdict level (LOW / MEDIUM / HIGH /
->    CRITICAL), caller count, and the names of the top-3 affected execution flows. These
->    go into the spec's Context section alongside the symbol reference.
->
-> The Planner cites the gitnexus_query and gitnexus_context outputs explicitly — not
-> paraphrased — so the Checker can verify the orientation step was completed.
+> **Code-intelligence orientation for this Planner brief:** Before writing PRODUCT.md or
+> TECH.md, run `gitnexus_query({query: '<domain vocabulary from the spec title>'})` and
+> `gitnexus_context({name: '<symbol>'})` for each symbol the spec mandates be modified,
+> and cite the outputs explicitly — not paraphrased — in the spec's Context / Problem
+> section so the Checker can verify the orientation step was completed (greenfield
+> disclaimer only after the `ccc search` fallback also returns nothing). Full steps:
+> `.claude/agents/references/shared-discipline.md` §Code-intelligence discipline.
 
 <!-- code-intel:planner-block-end -->
 
@@ -266,28 +233,16 @@ When composing an Executor dispatch brief, include the following code-intelligen
 discipline in the brief's "Operating instructions" section. The Executor must follow
 this discipline on every code-touching Subtask:
 
-> **Code-intelligence discipline for this Executor brief:**
->
-> Before editing any function, class, or method named in this brief:
->
-> 1. Run `gitnexus_impact({target: '<symbolName>', direction: 'upstream'})` and record
->    in your journal block: the verdict level (LOW / MEDIUM / HIGH / CRITICAL), caller
->    count, and the names of the top-3 affected execution flows.
->
-> 2. **If the verdict is HIGH or CRITICAL: STOP and escalate to the Orchestrator.**
->    Do not proceed with edits until the Orchestrator has reviewed the blast radius.
->
-> 3. Before committing: run `gitnexus_detect_changes()` to verify the affected symbol
->    set is contained within this Subtask's file-ownership boundary. If detect_changes
->    reports symbols outside the boundary, STOP and escalate — this is scope creep and
->    the Checker will FAIL the scope-containment audit.
->
-> 4. **Worktree-dispatch caveats** (`isolation: "worktree"`): (a) `gitnexus_detect_changes()`
->    is unrunnable in agent worktrees — they inherit no `.gitnexus` index ("last indexed:
->    never"); use `git diff --name-only` as the authoritative scope-containment fallback.
->    `gitnexus_impact` (primary-tree symbol index) stays reliable. (b) pytest MUST run from
->    the worktree CWD — main-repo-CWD invocations resolve `scripts.*` to the MAIN tree's
->    modules (namespace-package hazard; spurious results against stale code).
+> **Code-intelligence discipline for this Executor brief:** Pre-edit, run
+> `gitnexus_impact({target: '<symbolName>', direction: 'upstream'})` for each symbol you
+> will modify and journal the verdict level, caller count, and top-3 affected execution
+> flows — **if the verdict is HIGH or CRITICAL, STOP and escalate to the Orchestrator**
+> before editing. Pre-commit, run `gitnexus_detect_changes()` and verify the affected
+> symbol set is contained within this Subtask's file-ownership boundary (outside the
+> boundary → STOP and escalate; the Checker FAILs the scope-containment audit). Full
+> discipline incl. worktree-dispatch caveats (`gitnexus_detect_changes` is unrunnable in
+> agent worktrees — use `git diff --name-only` fallback; pytest from the worktree CWD):
+> `.claude/agents/references/shared-discipline.md` §Code-intelligence discipline.
 
 <!-- code-intel:executor-block-end -->
 
@@ -320,7 +275,7 @@ tool discipline above) when it modifies files matching any of the following:
 **Out-of-scope** (code-intelligence tool discipline does NOT apply):
 
 - `.md` / `.mdx` — documentation and spec files
-- `.json` (ledger files in `docs/reference/`) — workflow ledger files
+- `.json` (ledger files in the docs-site `src/content/docs/ledgers/`) — workflow ledger files
 - `.py` — Python pipeline scripts (ast-dataflow covers TypeScript only; use grep for Python)
 - `.sql` — Supabase migration files (use grep for SQL)
 
@@ -416,6 +371,23 @@ substrate, while the CLI is the **operator surface**; its invocation shapes are
 unchanged (invariant 57). Per-field discipline - **Canonical
 reference:** `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md`
 
+**Ledger writes are MAIN-checkout-only — never in a worker branch.** This section
+is the **canonical home** for the clash-free ledger-write protocol; the
+`session-driver-cmux` and `task-executor` worker-side notes cross-reference it
+rather than restate it. The ID-90 daemon serialises behind **one mutex per ledger
+directory**, so it only de-conflicts writers that all target the *same*
+main-checkout ledger directory. Sub-orchestrators and executors dispatched into
+their own worktrees (via `session-driver-cmux` or `Agent` `isolation: "worktree"`)
+MUST NOT mutate or commit the ledger JSONs or their `ledgers/{tasks,backlog}/*.md`
+mirrors (docs-site) in their branch — an in-branch `chore(ledger)` commit bypasses the mutex
+entirely. Workers **return ledger-write intents** (flip {N.M} done with journal X,
+create backlog item Y); **the Orchestrator applies every returned intent via
+`ledger-cli.ts` on the MAIN checkout** — id allocation for creates happens here,
+under the mutex, never in a worker. *Evidence (S-current):* three parallel
+sub-orchestrators each committed ledger deltas in-branch → bl-287/bl-288 collided
+3-ways (same ids reused), forcing manual de-dup, re-ID, and journal replay — the
+exact clash the single mutex exists to prevent.
+
 | Field | Shape | Load-bearing for |
 |---|---|---|
 | `last_updated` (roadmap file-level) | Single-line `kh-{track}-S{N} {wave} close-out — {short marker}` | Freshness guard on roadmap only. |
@@ -426,7 +398,7 @@ reference:** `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discip
 | `testStrategy` (Subtask) | One-line acceptance criterion the Checker verifies against | Checker contract. |
 | `cross_doc_links` | Repo-relative path + anchor + raw text per `DocLinkSchema` | Doc-graph traversal. |
 | Commit messages | Body + bullets per `commit-commands` convention | Per-commit immutable audit. |
-| Continuation prompts (`docs/continuation-prompts/` — Class 3 interim home, stays in-repo until the scripted handoff model lands; ID-68 PC-12) | Multi-section session handoff | Session-to-session context transfer. |
+| Continuation prompts (`${KH_PRIVATE_DOCS_DIR}/src/content/docs/continuation-prompts/` — relocated to the private docs-site repo per ID-68.34) | Multi-section session handoff | Session-to-session context transfer. |
 | Mempalace diary (`mempalace_diary_write`) | AAAK pipe-delimited per-WP segments | Cross-session recall. |
 
 **Budget gate is HARD for Subtask `description` (≤250) and `testStrategy` (≤300):** Records MUST be authored within budget on the first pass; relocate any overflow into the unbudgeted `details` field.
@@ -436,7 +408,7 @@ reference:** `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discip
 ## Backlog pickup → Promote
 
 When the Orchestrator or Liam selects a backlog item from
-`docs/reference/product-backlog.json` to implement, the **first action is to
+the backlog ledger (`bun scripts/ledger-cli.ts show backlog <id>`) to implement, the **first action is to
 invoke `bun scripts/ledger-cli.ts promote <backlogId> <taskJson>`**.
 
 **Canonical invocation:**

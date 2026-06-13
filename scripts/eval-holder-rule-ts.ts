@@ -48,6 +48,7 @@
 
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
+import { spawn } from 'child_process';
 import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Json } from '@/supabase/types/database.types';
@@ -224,6 +225,74 @@ interface CliArgs {
   itemIds: string[] | null;
   dryRun: boolean;
   env: string;
+  // ID-101 §{101.9} PC-6 lane 3 — cross-path parity. When `path` is set the
+  // script runs the parity comparator INSTEAD of the snapshot/run flows;
+  // `mode` is ignored in that case (it stays 'run' as a harmless default so
+  // the existing `--mode=run` byte path is never reached). `runs` is N≥3.
+  path: 'cocoindex' | 'legacy' | 'both' | null;
+  runs: number;
+}
+
+// ──────────────────────────────────────────
+// Cross-path parity types (ID-101 §{101.9}, PC-6 lane 3)
+// ──────────────────────────────────────────
+
+/** A canonicalised relationship triple — the Inv-2 comparison unit. */
+interface Triple {
+  source_entity: string;
+  relationship_type: string;
+  target_entity: string;
+}
+
+/** Per-cert holder state — the Inv-9 comparison unit. */
+interface HolderState {
+  holder: 'self' | 'supplier';
+  supplier_name?: string;
+}
+
+/** One document's cocoindex-path extraction output (from the Python driver). */
+interface CocoindexDocResult {
+  item_id: string;
+  triples: Triple[];
+  holder_states: Record<string, HolderState>;
+  holder_diagnostics: Record<
+    string,
+    {
+      per_mention_canonical: string;
+      relationship_canonical: string;
+      cert_space_mismatch: boolean;
+      client_org_space_mismatch: boolean;
+    }
+  >;
+  error?: string;
+}
+
+interface CocoindexDriverOutput {
+  documents: CocoindexDocResult[];
+}
+
+/** Triple-set comparison for a SINGLE run of one document (Inv-2). */
+interface TripleSetComparison {
+  both: Triple[];
+  legacyOnly: Triple[];
+  cocoOnly: Triple[];
+}
+
+/**
+ * Holder-state divergence bucket for one cert (Inv-9). `match` = identical
+ * holder state across paths; `parity_failure` = a genuine cross-path mismatch;
+ * `expected_ts_space_mismatch` = a mismatch attributable to one of the two
+ * bl-288 TS-oracle canonical-space bugs the Python port fixes (bucketed
+ * SEPARATELY, never counted as a parity failure).
+ */
+type HolderBucket = 'match' | 'parity_failure' | 'expected_ts_space_mismatch';
+
+interface HolderComparison {
+  canonical_name: string;
+  legacy: HolderState | null;
+  cocoindex: HolderState | null;
+  bucket: HolderBucket;
+  reason: string;
 }
 
 // ──────────────────────────────────────────
@@ -237,6 +306,8 @@ function parseArgs(): CliArgs {
   let itemIds: string[] | null = null;
   let dryRun = false;
   let env = '';
+  let path: 'cocoindex' | 'legacy' | 'both' | null = null;
+  let runs = 3; // PC-6 lane 3 default: N≥3 recurrence gate.
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -249,6 +320,24 @@ function parseArgs(): CliArgs {
         process.exit(2);
       }
       mode = value;
+    } else if (arg.startsWith('--path=')) {
+      const value = arg.slice('--path='.length);
+      if (value !== 'cocoindex' && value !== 'legacy' && value !== 'both') {
+        logError(
+          `Invalid --path value: "${value}". Must be "cocoindex", "legacy", or "both".`,
+        );
+        process.exit(2);
+      }
+      path = value;
+    } else if (arg.startsWith('--runs=')) {
+      const value = Number.parseInt(arg.slice('--runs='.length), 10);
+      if (!Number.isInteger(value) || value < 1) {
+        logError(
+          `Invalid --runs value: "${arg.slice('--runs='.length)}". Must be a positive integer.`,
+        );
+        process.exit(2);
+      }
+      runs = value;
     } else if (arg.startsWith('--output=')) {
       output = arg.slice('--output='.length);
     } else if (arg.startsWith('--item-ids=')) {
@@ -273,17 +362,22 @@ function parseArgs(): CliArgs {
     }
   }
 
-  if (!mode) {
-    logError('--mode is required. Use --mode=snapshot or --mode=run.');
+  // ID-101 §{101.9}: --path selects the cross-path parity flow and makes
+  // --mode optional (mode is irrelevant under --path). Without --path the
+  // original contract holds: --mode is required.
+  if (!path && !mode) {
+    logError('--mode is required (or use --path=both for cross-path parity).');
     process.exit(2);
   }
 
-  if (dryRun && mode !== 'run') {
-    logError('--dry-run is only valid with --mode=run.');
+  if (dryRun && mode !== 'run' && !path) {
+    logError('--dry-run is only valid with --mode=run or --path=...');
     process.exit(2);
   }
 
-  return { mode, output, itemIds, dryRun, env };
+  // Default mode to 'run' under --path so the CliArgs shape is satisfied; the
+  // run flow is never reached because main() routes to runParity() first.
+  return { mode: mode ?? 'run', output, itemIds, dryRun, env, path, runs };
 }
 
 function printUsage(): void {
@@ -294,10 +388,21 @@ Modes:
   --mode=snapshot   Read-only dump of current entity data for target items.
   --mode=run        Re-classify target items and verify holder metadata.
 
+Cross-path parity (ID-101 §{101.9}, PC-6 lane 3 — overrides --mode):
+  --path=both       Compare LEGACY (persisted TS oracle of record) vs COCOINDEX
+                    (in-memory Python driver) over the pinned corpus: triple-set
+                    equality after canonicalisation (Inv-2, order-tolerant, N≥3
+                    recurrence rule) + per-cert holder-state match (Inv-9), with
+                    bl-288 expected-class divergences bucketed separately. ZERO
+                    DB writes.
+  --path=legacy     Read-only: emit the persisted TS-oracle triples/holders only.
+  --path=cocoindex  Emit the in-memory cocoindex-path triples/holders only.
+  --runs=<N>        Cocoindex runs for the N≥3 recurrence gate (default: 3).
+
 Options:
-  --output=<path>   Write output to file (default: stdout for snapshot).
+  --output=<path>   Write output to file (default: stdout for snapshot/parity).
   --item-ids=<csv>  Comma-separated item ID prefixes (default: all holds items).
-  --dry-run         Run mode only: report what would run without classifying.
+  --dry-run         Run/parity mode: report the plan without classifying/LLM.
   --env=prod        Asserts SUPABASE_URL points at current prod
                     ('rovrymhhffssilaftdwd'). Override invocation:
                     SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key>
@@ -593,6 +698,173 @@ function identifyPositiveControlItems(
   }
 
   return Array.from(supplierHeldItemIds).slice(0, 3);
+}
+
+// ──────────────────────────────────────────
+// Cross-path parity comparator (ID-101 §{101.9}, PC-6 lane 3)
+//
+// PURE functions — no DB, no LLM, no subprocess. Exported for Vitest
+// (`__tests__/scripts/eval-holder-rule-parity.test.ts`). The comparison units
+// are already-canonicalised: legacy triples come from the persisted
+// `entity_relationships` rows (the TS oracle of record, written by prior
+// production `classifyContent` runs — `resolveAlias(canonicalise(x)).toLowerCase()`
+// at classify.ts:1788) and cocoindex triples come from the Python driver
+// (`canonicalise_for_relationship`, the cross-language port). Both endpoints
+// therefore live in the SAME lowercase relationship-canonical space, so the
+// comparator compares on raw set-equality (Inv-2, order-tolerant).
+// ──────────────────────────────────────────
+
+/** Stable set-membership key for a canonicalised triple (Inv-2). */
+export function tripleKey(t: Triple): string {
+  return `${t.source_entity} ${t.relationship_type} ${t.target_entity}`;
+}
+
+/**
+ * Set-difference of two canonicalised triple lists (Inv-2, order-tolerant).
+ * Returns the intersection (`both`) and the one-path-only triples. Duplicates
+ * within a single list are collapsed (set semantics).
+ */
+export function compareTripleSets(
+  legacy: Triple[],
+  cocoindex: Triple[],
+): TripleSetComparison {
+  const legacyByKey = new Map<string, Triple>();
+  for (const t of legacy) legacyByKey.set(tripleKey(t), t);
+  const cocoByKey = new Map<string, Triple>();
+  for (const t of cocoindex) cocoByKey.set(tripleKey(t), t);
+
+  const both: Triple[] = [];
+  const legacyOnly: Triple[] = [];
+  const cocoOnly: Triple[] = [];
+
+  for (const [key, t] of legacyByKey) {
+    if (cocoByKey.has(key)) both.push(t);
+    else legacyOnly.push(t);
+  }
+  for (const [key, t] of cocoByKey) {
+    if (!legacyByKey.has(key)) cocoOnly.push(t);
+  }
+  return { both, legacyOnly, cocoOnly };
+}
+
+/**
+ * Aggregate per-run triple comparisons for ONE document into the recurrence
+ * verdict (PC-6 lane 3 non-determinism rule): a one-path-only triple counts as
+ * a real parity MISS only if it recurs across ALL `runs` runs (N≥3); a triple
+ * one-path-only in SOME but not all runs is TRANSIENT (logged, not failed).
+ *
+ * `runComparisons` is the list of `compareTripleSets` results, one per run, for
+ * the same document. Returns the recurring (real) and transient legacy-only /
+ * coco-only key sets plus their triple payloads.
+ */
+export function aggregateRunComparisons(
+  runComparisons: TripleSetComparison[],
+): {
+  recurringLegacyOnly: Triple[];
+  recurringCocoOnly: Triple[];
+  transientLegacyOnly: Triple[];
+  transientCocoOnly: Triple[];
+  parityHolds: boolean;
+} {
+  const n = runComparisons.length;
+  const legacyOnlyCounts = new Map<string, { triple: Triple; count: number }>();
+  const cocoOnlyCounts = new Map<string, { triple: Triple; count: number }>();
+
+  for (const cmp of runComparisons) {
+    for (const t of cmp.legacyOnly) {
+      const key = tripleKey(t);
+      const e = legacyOnlyCounts.get(key) ?? { triple: t, count: 0 };
+      e.count += 1;
+      legacyOnlyCounts.set(key, e);
+    }
+    for (const t of cmp.cocoOnly) {
+      const key = tripleKey(t);
+      const e = cocoOnlyCounts.get(key) ?? { triple: t, count: 0 };
+      e.count += 1;
+      cocoOnlyCounts.set(key, e);
+    }
+  }
+
+  const recurringLegacyOnly: Triple[] = [];
+  const transientLegacyOnly: Triple[] = [];
+  for (const { triple, count } of legacyOnlyCounts.values()) {
+    if (n > 0 && count === n) recurringLegacyOnly.push(triple);
+    else transientLegacyOnly.push(triple);
+  }
+  const recurringCocoOnly: Triple[] = [];
+  const transientCocoOnly: Triple[] = [];
+  for (const { triple, count } of cocoOnlyCounts.values()) {
+    if (n > 0 && count === n) recurringCocoOnly.push(triple);
+    else transientCocoOnly.push(triple);
+  }
+
+  const parityHolds =
+    recurringLegacyOnly.length === 0 && recurringCocoOnly.length === 0;
+  return {
+    recurringLegacyOnly,
+    recurringCocoOnly,
+    transientLegacyOnly,
+    transientCocoOnly,
+    parityHolds,
+  };
+}
+
+/**
+ * Bucket a per-cert holder-state divergence (Inv-9). `legacy` is the persisted
+ * TS-oracle holder (from `entity_mentions.metadata.holder`); `cocoindex` is the
+ * Python-driver holder. `diag` carries the two canonical-space flags the Python
+ * driver emits (`build_holder_diagnostics`).
+ *
+ * Expected-class (bl-288): the TS oracle carries two latent canonical-space
+ * mismatches the Python port FIXES. A divergence is bucketed
+ * `expected_ts_space_mismatch` — NOT a parity failure — when:
+ *   (A) the cert's per-mention canonical ≠ its relationship canonical
+ *       (`cert_space_mismatch`): the TS Pass-2 membership check builds its sets
+ *       from `row.canonical_name` but compares against relationship-canonical
+ *       targets/sources, so it MISSES the cert and never stamps a holder the
+ *       Python port (correctly) derives; OR
+ *   (B) the client org's relationship canonical ≠ its bare lowercase
+ *       (`client_org_space_mismatch`): the TS self-comparison uses the merely-
+ *       lowercased branding name, so a self-held cert is mis-attributed.
+ * Both are documented in holder_rule.py (R2 / R4) and tracked as bl-288.
+ *
+ * Identical states → `match`. A genuine mismatch with NO known-bug signature →
+ * `parity_failure`.
+ */
+export function classifyHolderDivergence(
+  legacy: HolderState | null,
+  cocoindex: HolderState | null,
+  diag: {
+    cert_space_mismatch: boolean;
+    client_org_space_mismatch: boolean;
+  } | null,
+): { bucket: HolderBucket; reason: string } {
+  const same =
+    (legacy?.holder ?? null) === (cocoindex?.holder ?? null) &&
+    (legacy?.supplier_name ?? null) === (cocoindex?.supplier_name ?? null);
+  if (same) {
+    return { bucket: 'match', reason: 'identical holder state across paths' };
+  }
+  if (diag?.cert_space_mismatch) {
+    return {
+      bucket: 'expected_ts_space_mismatch',
+      reason:
+        'bl-288 bug A: cert per-mention canonical ≠ relationship canonical — ' +
+        'TS Pass-2 membership built from row.canonical_name misses this cert',
+    };
+  }
+  if (diag?.client_org_space_mismatch) {
+    return {
+      bucket: 'expected_ts_space_mismatch',
+      reason:
+        'bl-288 bug B: client-org relationship canonical ≠ bare-lowercase ' +
+        'branding — TS self-comparison mis-attributes a self-held cert',
+    };
+  }
+  return {
+    bucket: 'parity_failure',
+    reason: `holder mismatch: legacy=${JSON.stringify(legacy)} cocoindex=${JSON.stringify(cocoindex)}`,
+  };
 }
 
 // ──────────────────────────────────────────
@@ -1082,6 +1354,429 @@ Overall:                ${allPassed ? 'ALL PASSED' : 'FAILED'}
 }
 
 // ──────────────────────────────────────────
+// Cross-path parity flow (ID-101 §{101.9}, PC-6 lane 3)
+//
+// Reads the LEGACY side (the TS oracle of record) READ-ONLY from the persisted
+// `entity_relationships` + `entity_mentions.metadata.holder` rows — written by
+// prior production `classifyContent` runs — and the COCOINDEX side IN-MEMORY via
+// the Python parity driver subprocess. ZERO DB writes on either side.
+// ──────────────────────────────────────────
+
+/** Persisted item content text needed by the Python cocoindex driver. */
+async function fetchItemContent(
+  supabase: SupabaseClient<Database>,
+  itemId: string,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('content_items')
+    .select('content')
+    .eq('id', itemId)
+    .maybeSingle();
+  if (error) {
+    throw new Error(`Failed to fetch content for ${itemId}: ${error.message}`);
+  }
+  return data?.content ?? null;
+}
+
+/**
+ * Fetch ALL persisted relationship triples for an item (every relationship_type,
+ * not just `holds`). These rows ARE the legacy TS oracle of record — their
+ * endpoints were canonicalised by the TS writer
+ * (`resolveAlias(canonicalise(x)).toLowerCase()`, classify.ts:1788), so they sit
+ * in the SAME relationship-canonical space as the Python driver's
+ * `canonicalise_for_relationship` output.
+ */
+async function fetchAllRelationships(
+  supabase: SupabaseClient<Database>,
+  itemId: string,
+): Promise<Triple[]> {
+  const { data, error } = await supabase
+    .from('entity_relationships')
+    .select('source_entity, relationship_type, target_entity')
+    .eq('source_item_id', itemId);
+  if (error) {
+    throw new Error(
+      `Failed to fetch relationships for ${itemId}: ${error.message}`,
+    );
+  }
+  return (data ?? []).map((r) => ({
+    source_entity: r.source_entity,
+    relationship_type: r.relationship_type,
+    target_entity: r.target_entity,
+  }));
+}
+
+/**
+ * Read the persisted legacy holder states for an item's certification mentions,
+ * keyed by `canonical_name` — the TS oracle of record (`entity_mentions.metadata`,
+ * stamped by `deriveHolderMetadata` at prior production classify time).
+ */
+async function fetchLegacyHolderStates(
+  supabase: SupabaseClient<Database>,
+  itemId: string,
+): Promise<Record<string, HolderState>> {
+  const mentions = await fetchEntityMentions(supabase, itemId);
+  const states: Record<string, HolderState> = {};
+  for (const m of mentions) {
+    if (m.entity_type !== 'certification') continue;
+    const md = m.metadata as Record<string, unknown> | null;
+    const holder = md?.holder;
+    if (holder === 'self') {
+      states[m.canonical_name.toLowerCase()] = { holder: 'self' };
+    } else if (holder === 'supplier') {
+      const supplierName =
+        typeof md?.supplier_name === 'string' ? md.supplier_name : undefined;
+      states[m.canonical_name.toLowerCase()] = {
+        holder: 'supplier',
+        supplier_name: supplierName,
+      };
+    }
+    // No holder key → absent (Inv-10 parity: no-signal certs are not stamped).
+  }
+  return states;
+}
+
+/**
+ * Invoke the Python cocoindex parity driver as a subprocess on a batch of
+ * fixture documents. Replicates the flow.py write-site IN-MEMORY (no DB, no
+ * LMDB). `PIPELINE_CLIENT_ORG` is derived from the SAME client-org source the TS
+ * eval uses (BRANDING / NEXT_PUBLIC_CLIENT_ID guard) and passed in the env.
+ */
+async function runCocoindexDriver(
+  documents: { item_id: string; content_text: string }[],
+  clientOrgRaw: string,
+): Promise<CocoindexDriverOutput> {
+  const payload = JSON.stringify({ documents });
+  const { stdout, stderr, exitCode } = await new Promise<{
+    stdout: string;
+    stderr: string;
+    exitCode: number;
+  }>((resolve, reject) => {
+    const proc = spawn(
+      'python3',
+      ['-m', 'scripts.cocoindex_pipeline.parity_driver'],
+      {
+        cwd: PROJECT_ROOT,
+        env: { ...process.env, PIPELINE_CLIENT_ORG: clientOrgRaw },
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    );
+    let out = '';
+    let err = '';
+    proc.stdout.on('data', (chunk: Buffer) => {
+      out += chunk.toString();
+    });
+    proc.stderr.on('data', (chunk: Buffer) => {
+      err += chunk.toString();
+    });
+    proc.on('error', reject);
+    proc.on('close', (code: number | null) => {
+      resolve({ stdout: out, stderr: err, exitCode: code ?? -1 });
+    });
+    proc.stdin.write(payload);
+    proc.stdin.end();
+  });
+
+  if (stderr.trim()) {
+    for (const line of stderr.trim().split('\n')) log(`[py-driver] ${line}`);
+  }
+  if (exitCode !== 0) {
+    throw new Error(
+      `Python parity driver exited ${exitCode}. stderr:\n${stderr}`,
+    );
+  }
+  try {
+    return JSON.parse(stdout) as CocoindexDriverOutput;
+  } catch (err) {
+    throw new Error(
+      `Failed to parse Python driver stdout as JSON: ${err instanceof Error ? err.message : String(err)}\nstdout was:\n${stdout.slice(0, 500)}`,
+    );
+  }
+}
+
+/**
+ * Resolve the pinned parity corpus: the residual items + up-to-3 positive-control
+ * supplier items the script already knows (PC-6 lane 3 "the residual +
+ * positive-control items the script already knows"). Read-only — no writes.
+ */
+async function resolveParityCorpus(
+  supabase: SupabaseClient<Database>,
+  args: CliArgs,
+): Promise<string[]> {
+  const allHolds = await fetchHoldsRelationships(supabase);
+  const holdsByItem = groupBySourceItem(allHolds);
+
+  const corpus = new Set<string>();
+  if (args.itemIds) {
+    const knownIds = Array.from(holdsByItem.keys());
+    for (const id of resolveItemIds(args.itemIds, knownIds)) corpus.add(id);
+  }
+
+  // Positive-control supplier items (env-driven entity). Optional for parity:
+  // when EVAL_POSITIVE_CONTROL_ENTITY is unset we log + skip rather than
+  // fail-fast (the residual items + any --item-ids still form a valid corpus).
+  // The destructive --mode=run path keeps its hard fail-fast unchanged.
+  const positiveControlEntity =
+    process.env.EVAL_POSITIVE_CONTROL_ENTITY?.trim();
+  if (positiveControlEntity) {
+    for (const id of identifyPositiveControlItems(
+      holdsByItem,
+      positiveControlEntity.toLowerCase(),
+    )) {
+      corpus.add(id);
+    }
+  } else {
+    log(
+      'EVAL_POSITIVE_CONTROL_ENTITY unset — parity corpus omits positive-control items ' +
+        '(residual + --item-ids only).',
+    );
+  }
+
+  // Residual items (always included).
+  for (const rid of await resolveResidualItemIds(supabase)) corpus.add(rid);
+
+  return Array.from(corpus);
+}
+
+async function runParity(
+  supabase: SupabaseClient<Database>,
+  args: CliArgs,
+): Promise<void> {
+  const path = args.path!;
+  log(`Mode: parity (--path=${path}, runs=${args.runs})`);
+
+  // FAIL-FAST: the Python holder path needs PIPELINE_CLIENT_ORG; derive it from
+  // the same client-org source the TS eval uses (BRANDING / NEXT_PUBLIC_CLIENT_ID
+  // guard at the legacy run path). Mirror the existing guard exactly.
+  if (path !== 'legacy' && !process.env.NEXT_PUBLIC_CLIENT_ID) {
+    logError(
+      `NEXT_PUBLIC_CLIENT_ID is not set, so BRANDING falls back to the ` +
+        `"default" client config ("${CLIENT_ORG_LOWER}"). The cocoindex holder ` +
+        `path would resolve PIPELINE_CLIENT_ORG against the wrong client org. ` +
+        `Set NEXT_PUBLIC_CLIENT_ID in your shell or .env.local and retry.`,
+    );
+    process.exit(2);
+  }
+  // The Python driver relationship-canonicalises this raw value itself (parity
+  // with flow.py:2253). BRANDING.organisationName is the canonical client-org
+  // name; CLIENT_ORG_LOWER is its lowercase form, resolved in main().
+  const { BRANDING } = await import('@/lib/client-config');
+  const clientOrgRaw = BRANDING.organisationName;
+
+  const corpus = await resolveParityCorpus(supabase, args);
+  log(`Pinned parity corpus: ${corpus.length} items.`);
+
+  // ── --dry-run: print the plan, no LLM, no subprocess, no DB writes ──────────
+  if (args.dryRun) {
+    const plan = {
+      mode: 'parity',
+      path,
+      runs: args.runs,
+      corpus,
+      corpus_size: corpus.length,
+      client_org: CLIENT_ORG_LOWER,
+      env_checks: {
+        NEXT_PUBLIC_CLIENT_ID: Boolean(process.env.NEXT_PUBLIC_CLIENT_ID),
+        ANTHROPIC_API_KEY: Boolean(process.env.ANTHROPIC_API_KEY),
+        SUPABASE_URL: Boolean(process.env.SUPABASE_URL),
+        EVAL_POSITIVE_CONTROL_ENTITY: Boolean(
+          process.env.EVAL_POSITIVE_CONTROL_ENTITY,
+        ),
+      },
+      legacy_side:
+        'read persisted entity_relationships + entity_mentions.metadata.holder (zero writes)',
+      cocoindex_side:
+        'in-memory python3 -m scripts.cocoindex_pipeline.parity_driver (zero writes)',
+    };
+    process.stdout.write(JSON.stringify(plan, null, 2) + '\n');
+    log('DRY RUN — plan printed; no LLM calls, no DB writes.');
+    return;
+  }
+
+  // ── Legacy side: read the persisted TS oracle of record (read-only) ─────────
+  const legacyTriplesByItem = new Map<string, Triple[]>();
+  const legacyHolderByItem = new Map<string, Record<string, HolderState>>();
+  const contentByItem = new Map<string, string>();
+  for (const itemId of corpus) {
+    if (path !== 'cocoindex') {
+      legacyTriplesByItem.set(
+        itemId,
+        await fetchAllRelationships(supabase, itemId),
+      );
+      legacyHolderByItem.set(
+        itemId,
+        await fetchLegacyHolderStates(supabase, itemId),
+      );
+    }
+    const content = await fetchItemContent(supabase, itemId);
+    if (content) contentByItem.set(itemId, content);
+    else
+      log(`Warning: item ${itemId} has no content — skipping coco extraction.`);
+  }
+
+  // ── Cocoindex side: N≥3 in-memory runs through the Python driver ────────────
+  // Per-run, per-item cocoindex output (path=cocoindex|both).
+  const cocoRuns: Map<string, CocoindexDocResult>[] = [];
+  if (path !== 'legacy') {
+    const documents = corpus
+      .filter((id) => contentByItem.has(id))
+      .map((id) => ({ item_id: id, content_text: contentByItem.get(id)! }));
+    for (let run = 0; run < args.runs; run++) {
+      log(
+        `Cocoindex run ${run + 1}/${args.runs} (${documents.length} docs)...`,
+      );
+      const out = await runCocoindexDriver(documents, clientOrgRaw);
+      const byItem = new Map<string, CocoindexDocResult>();
+      for (const doc of out.documents) byItem.set(doc.item_id, doc);
+      cocoRuns.push(byItem);
+    }
+  }
+
+  // ── Compare per item ────────────────────────────────────────────────────────
+  const perItemReports: Array<Record<string, unknown>> = [];
+  let anyParityFailure = false;
+
+  for (const itemId of corpus) {
+    const legacyTriples = legacyTriplesByItem.get(itemId) ?? [];
+    const legacyHolders = legacyHolderByItem.get(itemId) ?? {};
+
+    // Per-run triple comparisons (legacy vs each coco run).
+    const runComparisons: TripleSetComparison[] = [];
+    for (const run of cocoRuns) {
+      const cocoDoc = run.get(itemId);
+      const cocoTriples = cocoDoc?.triples ?? [];
+      runComparisons.push(compareTripleSets(legacyTriples, cocoTriples));
+    }
+    const tripleAgg =
+      path === 'both' ? aggregateRunComparisons(runComparisons) : null;
+    if (tripleAgg && !tripleAgg.parityHolds) anyParityFailure = true;
+
+    // Holder-state comparison (use the FIRST coco run's holder states; holder
+    // derivation is deterministic given a fixed mention/relationship set, so it
+    // does not need the N-run recurrence rule — only triples vary run-to-run).
+    const holderComparisons: HolderComparison[] = [];
+    if (path === 'both') {
+      const firstRun = cocoRuns[0]?.get(itemId);
+      const cocoHolders = firstRun?.holder_states ?? {};
+      const cocoDiag = firstRun?.holder_diagnostics ?? {};
+      const allCertKeys = new Set<string>([
+        ...Object.keys(legacyHolders),
+        ...Object.keys(cocoHolders),
+      ]);
+      for (const key of allCertKeys) {
+        const legacy = legacyHolders[key] ?? null;
+        const cocoindex = cocoHolders[key] ?? null;
+        const diag = cocoDiag[key]
+          ? {
+              cert_space_mismatch: cocoDiag[key].cert_space_mismatch,
+              client_org_space_mismatch:
+                cocoDiag[key].client_org_space_mismatch,
+            }
+          : null;
+        const { bucket, reason } = classifyHolderDivergence(
+          legacy,
+          cocoindex,
+          diag,
+        );
+        if (bucket === 'parity_failure') anyParityFailure = true;
+        holderComparisons.push({
+          canonical_name: key,
+          legacy,
+          cocoindex,
+          bucket,
+          reason,
+        });
+      }
+    }
+
+    perItemReports.push({
+      item_id: itemId,
+      legacy_triples: legacyTriples.length,
+      coco_triples_per_run:
+        path !== 'legacy'
+          ? cocoRuns.map((r) => r.get(itemId)?.triples.length ?? 0)
+          : [],
+      triple_parity: tripleAgg
+        ? {
+            holds: tripleAgg.parityHolds,
+            recurring_legacy_only: tripleAgg.recurringLegacyOnly,
+            recurring_coco_only: tripleAgg.recurringCocoOnly,
+            transient_legacy_only: tripleAgg.transientLegacyOnly,
+            transient_coco_only: tripleAgg.transientCocoOnly,
+          }
+        : null,
+      holder_comparisons: holderComparisons,
+      holder_buckets: {
+        match: holderComparisons.filter((h) => h.bucket === 'match').length,
+        parity_failure: holderComparisons.filter(
+          (h) => h.bucket === 'parity_failure',
+        ).length,
+        expected_ts_space_mismatch: holderComparisons.filter(
+          (h) => h.bucket === 'expected_ts_space_mismatch',
+        ).length,
+      },
+      coco_errors:
+        path !== 'legacy'
+          ? cocoRuns
+              .map((r) => r.get(itemId)?.error)
+              .filter((e): e is string => Boolean(e))
+          : [],
+    });
+  }
+
+  const report = {
+    generated_at: new Date().toISOString(),
+    mode: 'parity' as const,
+    path,
+    runs: args.runs,
+    supabase_project: process.env.SUPABASE_URL ?? '',
+    client_org: CLIENT_ORG_LOWER,
+    corpus_size: corpus.length,
+    parity_holds: !anyParityFailure,
+    per_item: perItemReports,
+  };
+
+  const json = JSON.stringify(report, null, 2);
+  if (args.output) {
+    mkdirSync(dirname(args.output), { recursive: true });
+    writeFileSync(args.output, json, 'utf-8');
+    log(`Parity report written to ${args.output}`);
+  } else {
+    process.stdout.write(json + '\n');
+  }
+
+  // Summary to stderr.
+  const totalExpected = perItemReports.reduce(
+    (acc, r) =>
+      acc +
+      ((r.holder_buckets as { expected_ts_space_mismatch: number })
+        .expected_ts_space_mismatch ?? 0),
+    0,
+  );
+  const totalHolderFailures = perItemReports.reduce(
+    (acc, r) =>
+      acc +
+      ((r.holder_buckets as { parity_failure: number }).parity_failure ?? 0),
+    0,
+  );
+  process.stderr.write(`
+--- Cross-Path Parity Summary (PC-6 lane 3) ---
+Path:                      ${path}
+Runs (N):                  ${args.runs}
+Corpus items:              ${corpus.length}
+Triple-set parity:         ${path === 'both' ? (perItemReports.every((r) => !r.triple_parity || (r.triple_parity as { holds: boolean }).holds) ? 'HOLDS' : 'FAILS') : 'n/a (single-path)'}
+Holder parity failures:    ${totalHolderFailures}
+Holder expected (bl-288):  ${totalExpected}
+Overall:                   ${report.parity_holds ? 'PARITY HOLDS' : 'PARITY FAILS'}
+---
+`);
+
+  if (!report.parity_holds) {
+    process.exit(1);
+  }
+}
+
+// ──────────────────────────────────────────
 // Main
 // ──────────────────────────────────────────
 
@@ -1090,18 +1785,29 @@ async function main(): Promise<void> {
   // Assert --env=prod when set BEFORE creating client / running anything.
   assertEnvFlag(args.env, process.env.SUPABASE_URL);
   // Resolve the client org from branding before any holder-attribution
-  // comparison runs (used by both snapshot and evaluation paths).
+  // comparison runs (used by snapshot, evaluation, AND parity paths).
   await resolveClientOrgLower();
   const supabase = createServiceRoleClient();
 
-  if (args.mode === 'snapshot') {
+  if (args.path) {
+    // ID-101 §{101.9}: --path routes to the cross-path parity flow, BYPASSING
+    // the snapshot/run flows entirely (--mode=run byte path is never reached).
+    await runParity(supabase, args);
+  } else if (args.mode === 'snapshot') {
     await runSnapshot(supabase, args);
   } else {
     await runEvaluation(supabase, args);
   }
 }
 
-main().catch((err: unknown) => {
-  logError(err instanceof Error ? err.message : String(err));
-  process.exit(2);
-});
+// Only run when invoked as a script (`bun run scripts/eval-holder-rule-ts.ts`).
+// Guarded so the cross-path comparator functions can be imported by Vitest
+// (`__tests__/scripts/eval-holder-rule-parity.test.ts`) WITHOUT triggering a
+// live DB/LLM run. Mirrors `scripts/compare-quality.ts:751`. The script entry
+// path (`import.meta.main === true`) is unchanged — `--mode=run` is byte-intact.
+if (import.meta.main) {
+  main().catch((err: unknown) => {
+    logError(err instanceof Error ? err.message : String(err));
+    process.exit(2);
+  });
+}

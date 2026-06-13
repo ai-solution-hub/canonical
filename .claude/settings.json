@@ -29,11 +29,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "CMD=$(jq -r '.tool_input.command' 2>/dev/null); if echo \"$CMD\" | grep -qE '(^|[[:space:]]|;|&&|\\|\\|)cd[[:space:]]+/Users/liamj/Documents/development/knowledge-hub'; then echo 'BLOCKED: bash command contains cd to /Users/liamj/Documents/development/knowledge-hub*. This causes commits to leak to the wrong branch. Drop the cd prefix; use relative paths from your CWD.' >&2; exit 2; fi"
+            "command": "CMD=$(jq -r '.tool_input.command' 2>/dev/null); if echo \"$CMD\" | grep -qE '(^|[[:space:]]|;|&&|\\|\\|)cd[[:space:]]+/Users/liamj/Documents/development/knowledge-hub(/|[[:space:]]|$|;)'; then echo 'BLOCKED: bash command contains cd to the knowledge-hub repo. This causes commits to leak to the wrong branch. Drop the cd prefix; use relative paths from your CWD (sibling repos like knowledge-hub-docs-site are NOT blocked).' >&2; exit 2; fi"
           },
           {
             "type": "command",
             "command": "bash \"$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/git-c-abs-path-subcommand-guard.sh\""
+          },
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/bash-heredoc-preflight.sh\""
+          },
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/ip-leak-filename-guard.sh\""
           }
         ]
       },
@@ -42,11 +50,15 @@
         "hooks": [
           {
             "type": "command",
-            "command": "INPUT=$(cat); FP=$(echo \"$INPUT\" | jq -r '.tool_input.file_path' 2>/dev/null); CWD=$(echo \"$INPUT\" | jq -r '.cwd' 2>/dev/null); if echo \"$FP\" | grep -qE '^/Users/liamj/Documents/development/knowledge-hub(/|$)'; then case \"$FP\" in \"$CWD\"/*|\"$CWD\") exit 0;; esac; echo \"BLOCKED: Write/Edit/MultiEdit to absolute knowledge-hub path '$FP' from CWD '$CWD'. Sub-agents must write only within their worktree (use relative paths or the worktree-absolute prefix). Tier 2.2 hook (ID-19.3) — prevents cross-tree leak when CWD-correct agent emits wrong absolute path.\" >&2; exit 2; fi"
+            "command": "INPUT=$(cat); FP=$(echo \"$INPUT\" | jq -r '.tool_input.file_path' 2>/dev/null); CWD=$(echo \"$INPUT\" | jq -r '.cwd' 2>/dev/null); if echo \"$FP\" | grep -qE '^/Users/liamj/Documents/development/knowledge-hub(/|$)'; then case \"$FP\" in \"$CWD\"/*|\"$CWD\"|/Users/liamj/Documents/development/knowledge-hub/.claude/cmux-events/*) exit 0;; esac; echo \"BLOCKED: Write/Edit/MultiEdit to absolute knowledge-hub path '$FP' from CWD '$CWD'. Sub-agents must write only within their worktree (use relative paths or the worktree-absolute prefix). Tier 2.2 hook (ID-19.3) — prevents cross-tree leak when CWD-correct agent emits wrong absolute path.\" >&2; exit 2; fi"
           },
           {
             "type": "command",
             "command": "bash \"$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/sentinel-gated-agents-skills-edit-guard.sh\""
+          },
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/ip-leak-filename-guard.sh\""
           }
         ]
       }
@@ -55,6 +67,7 @@
   "sandbox": {
     "filesystem": {
       "allowWrite": [
+        "/Users/liamj/Documents/development/knowledge-hub/.claude/cmux-events",
         "/Users/liamj/Documents/development/knowledge-hub-docs-site",
         "/Users/liamj/Documents/development/knowledge-hub-docs-site/.claude",
         ".claude",

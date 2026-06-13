@@ -30,12 +30,11 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { BacklogSchema } from '@/lib/validation/backlog-schema';
 
-const PROJECT_ROOT = join(__dirname, '../..');
-const BACKLOG_PATH = join(PROJECT_ROOT, 'docs/reference/product-backlog.json');
+const BACKLOG_PATH = resolve(__dirname, '../fixtures/ledger/product-backlog.json');
 
 describe('product-backlog.json schema roundtrip (BacklogSchema)', () => {
   it('parses the live JSON file without throwing', () => {

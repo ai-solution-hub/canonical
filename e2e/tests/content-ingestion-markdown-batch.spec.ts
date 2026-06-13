@@ -118,7 +118,7 @@ test.describe('Content ingestion -- markdown batch (EP2 §1.11 §10.6)', () => {
         content: fileContent,
         content_type: 'article',
         platform: 'manual',
-        ingest_source: 'manual',
+        ingestion_source: 'manual',
         publication_status: 'published',
         created_by: adminUserId,
         content_owner_id: adminUserId,
@@ -519,7 +519,7 @@ test.describe('Content ingestion -- markdown batch (EP2 §1.11 §10.6)', () => {
     const { data: finalRow, error: finalErr } = await svc
       .from('content_items')
       .select(
-        'id, content, publication_status, dedup_status, source_file, ingest_source, metadata',
+        'id, content, publication_status, dedup_status, source_file, ingestion_source, metadata',
       )
       .eq('id', finalStored.id)
       .single();
@@ -527,7 +527,7 @@ test.describe('Content ingestion -- markdown batch (EP2 §1.11 §10.6)', () => {
     expect(finalRow!.publication_status).toBe('in_review');
     expect(finalRow!.dedup_status).toBe('clean');
     expect(finalRow!.source_file).toBe('foo-final.md');
-    expect(finalRow!.ingest_source).toBe('upload');
+    expect(finalRow!.ingestion_source).toBe('upload');
     expect(finalRow!.content as string).toContain(SENTINELS.final);
 
     // bar-draft.md row: dedup-flagged + draft, suspected_duplicate_of seeded id.

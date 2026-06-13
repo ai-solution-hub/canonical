@@ -46,7 +46,7 @@ wrapper) carries:
 | Field | Source |
 |---|---|
 | Subtask id (`ID-N.M`) | Composite-id prose used in the dispatch message. |
-| `task-list.json` path | Defaults to `docs/reference/task-list.json` — repo-relative. |
+| `task-list.json` path | Access via `bun scripts/ledger-cli.ts get task <N>`; ledger lives in `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/task-list.json`. |
 | Location of the Subtask `details` field within it | Parent Task id (`N`) + Subtask id (`M`). |
 | Spec-slice path | The `details` field references something like `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/<task-slug>/PRODUCT.md#<section>` or `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/<task-slug>/TECH.md#<section>`. Read only that slice — not the whole document. |
 | `testStrategy` | One-line prose acceptance statement (Planner-populated, per PRODUCT inv 9). |
@@ -58,9 +58,9 @@ Orchestrator before starting — do not guess.
 
 ### Step 1 — Read the brief
 
-Load `docs/reference/task-list.json`. Locate the parent Task by `id`
-(string, e.g. `"8"`), then locate the Subtask by integer `id` within
-`task.subtasks[]`. Read the `details` markdown field in full —
+Obtain the parent Task + Subtask via `bun scripts/ledger-cli.ts get task <N>`
+(slice read — never wholesale-load the multi-MB ledger); locate the Subtask
+by id within the returned `subtasks[]`. Read the `details` markdown field in full —
 **this is your primary input**, more authoritative than the dispatch
 message itself.
 
@@ -186,29 +186,22 @@ routes any out-of-scope findings to the Curator via `triage-finding`.
 
 ## State machine
 
-Per kh-sdlc-workflow.md §6.3 and B12:
-
-| Transition | Who | When |
-|---|---|---|
-| Subtask `pending → in_progress` | **Executor** | Step 1 — when you start the Subtask. |
-| Subtask `in_progress → done` | **Checker only** | Checker PASS verdict with zero further-action findings. |
-| Subtask `→ deferred` | **Orchestrator** | Subtask blocked on external precondition. |
-
-You may NEVER set a Subtask to `done`. The Checker owns that
-transition — the rationale is that Executor self-attestation creates a
-loophole around the verification gate. If you believe a Subtask is
-complete, leave it `in_progress`, journal what shipped, and the
-Checker decides.
+Per kh-sdlc-workflow.md §6.3 and B12: you move `pending → in_progress` ONLY; the
+Checker alone sets `done` (Executor self-attestation would create a loophole
+around the verification gate — if you believe a Subtask is complete, leave it
+`in_progress`, journal what shipped, and the Checker decides); the Orchestrator
+owns `deferred`. Full state tables:
+`.claude/skills/workflow-orchestration/references/state-machines.md` (summary in
+`.claude/agents/references/shared-discipline.md` §State machine).
 
 ## Escalation
 
-If, while executing, you discover production behaviour that
-contradicts the brief, or the brief references a spec slice that
-disagrees with the codebase, **STOP and escalate** to the Orchestrator.
-Do not silently work around (per CLAUDE.md "Agent escalation rule").
-The Orchestrator may re-engage the Planner to amend the spec, or
-re-scope the Subtask. This is a feature, not a failure mode — escalation
-keeps the spec-as-source-of-truth honest.
+If, while executing, you discover production behaviour that contradicts the
+brief, or the brief references a spec slice that disagrees with the codebase,
+**STOP and escalate** to the Orchestrator with evidence — never silently work
+around (canonical rule: `.claude/agents/references/shared-discipline.md`
+§Escalation rule). The Orchestrator may re-engage the Planner to amend the spec,
+or re-scope the Subtask.
 
 ## Forbidden
 
@@ -234,34 +227,12 @@ breaks the workflow's verification gates:
 
 ## KH-specific quality bars
 
-Apply these to every change. They are non-negotiable and the Checker
-audits them per Subtask:
-
-- **Semantic design tokens.** No raw Tailwind colours; use the tokens
-  in `app/globals.css` per `${KH_PRIVATE_DOCS_DIR}/src/content/docs/design/warm-meridian-implementation-spec.md`.
-- **UK English.** `colour`, `organisation`, DD/MM/YYYY dates.
-- **Auth helper shape.** `getAuthorisedClient()` returns a
-  discriminated union — check `auth.success`, not `auth.authorised`.
-  Route failure reasons via `authFailureResponse(auth)`.
-- **Supabase safety.** Use `sb()` (fail-fast) or `tryQuery()` (Result)
-  from `@/lib/supabase/safe`. Composite responses use
-  `warningsEnvelope()`. Never silently swallow Supabase errors —
-  ESLint `local/no-unchecked-supabase-error` will block the PR
-  otherwise.
-- **No barrel re-exports.** Import direct file paths
-  (`@/lib/bid/helpers`), never index re-exports.
-- **Data fetching.** TanStack Query exclusively. Keys in
-  `lib/query/query-keys.ts`, fetchers in `lib/query/fetchers.ts`. No
-  SWR or raw fetch in hooks.
-- **Test runner.** `bun run test` (NOT `bun test` — Bun's built-in
-  test runner). See CLAUDE.md Gotchas.
-- **Stable empty defaults.** Module-level `const EMPTY_X: T[] = [];`
-  + `useMemo` for hook returns that may be empty. Inline `?? []`
-  creates new references and breaks downstream `useMemo` deps.
-- **Function `search_path`.** New PL/pgSQL functions in migrations
-  MUST include `SET search_path = public, extensions`, plus an
-  explicit `REVOKE EXECUTE ... FROM anon` per CLAUDE.md Supabase
-  Gotchas.
+Apply the KH quality bars to every change — non-negotiable, audited by the
+Checker per Subtask: semantic tokens only, UK English, `auth.success` +
+`authFailureResponse(auth)`, `sb()`/`tryQuery()` Supabase safety, no barrel
+re-exports, TanStack Query only, `bun run test` (never `bun test`), stable
+empty defaults, PL/pgSQL `search_path` + anon REVOKE. Full list and
+elaboration: `.claude/agents/references/shared-discipline.md` §KH quality bars.
 
 ## Related skills
 

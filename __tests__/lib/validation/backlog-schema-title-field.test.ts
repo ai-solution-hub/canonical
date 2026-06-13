@@ -14,6 +14,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   BacklogItemSchema,
   BacklogSchema,
@@ -124,28 +125,32 @@ describe('parseBacklogWithWarnings — title budget ({35.14})', () => {
   });
 });
 
-describe('live product-backlog.json — still parses with the title field added', () => {
+describe('fixture product-backlog.json — still parses with the title field added', () => {
   // The "title is OPTIONAL" concern is proven above with a CONSTRUCTED fixture
   // (BacklogItemSchema.title — parses an item with NO title) — decoupled from the
-  // live ledger so it cannot re-break as the live data evolves. This block only
-  // proves the LIVE ledger still parses. {35.23} backfilled a title onto all 149
-  // live items, so we assert the post-backfill reality: every item carries a
-  // non-empty title within the ≤80 soft budget. (Pre-{35.24} this asserted
-  // `title === undefined`, which {35.23}'s backfill correctly invalidated.)
-  it('parses the current live ledger; every backfilled item has a non-empty title ≤80', () => {
-    const raw = readFileSync('docs/reference/product-backlog.json', 'utf8');
+  // live ledger so it cannot re-break as the live data evolves. This block proves
+  // the FIXTURE ledger still parses. All three synthetic items carry titles within
+  // the ≤80 soft budget (ID-68.35: live ledger removed from public repo; fixture
+  // is synthetic de-identified data with titles pre-supplied).
+  it('parses the fixture ledger; every item has a non-empty title ≤80', () => {
+    const fixturePath = resolve(
+      __dirname,
+      '../../fixtures/ledger/product-backlog.json',
+    );
+    const raw = readFileSync(fixturePath, 'utf8');
     const parsed = JSON.parse(raw);
     const result = BacklogSchema.safeParse(parsed);
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.items.length).toBeGreaterThanOrEqual(149);
-      // Post-{35.23} backfill: every live item now carries a title.
+      // Fixture has 3 synthetic items (ids 1, 2, 100) — all carry titles.
+      expect(result.data.items.length).toBeGreaterThanOrEqual(1);
+      // Every synthetic item carries a title.
       expect(
         result.data.items.every(
           (i) => typeof i.title === 'string' && i.title.length > 0,
         ),
       ).toBe(true);
-      // The backfill respected the ≤80 soft budget (none over-budget).
+      // All titles respect the ≤80 soft budget.
       expect(
         result.data.items.every(
           (i) => (i.title?.length ?? 0) <= LEDGER_BUDGETS.item.title,

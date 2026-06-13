@@ -69,8 +69,9 @@ export interface SpawnSeam {
 }
 
 export interface EnsureServerOptions {
-  /** Override the default ledger directory (docs/reference). When non-default,
-   *  an ephemeral per-invocation server is spawned — no handle file. */
+  /** Override the default ledger directory (the env-resolved docs-site ledgers
+   *  path — see resolveDefaultLedgerDir(), ID-68.35). When non-default, an
+   *  ephemeral per-invocation server is spawned — no handle file. */
   ledgerDir?: string;
   /** Repo root (defaults to cwd). Used to locate ci.yml and .cache/. */
   repoRoot?: string;
@@ -90,7 +91,37 @@ export interface EnsureServerResult {
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
-const DEFAULT_LEDGER_DIR = 'docs/reference';
+/**
+ * Resolve the default ledger directory — the relocated docs-site ledgers
+ * (ID-68.35). The five ledger JSONs + four mirror dirs moved OUT of the public
+ * repo's `docs/reference/` into the PRIVATE `knowledge-hub-docs-site` checkout
+ * at `src/content/docs/ledgers/`, resolved via `KH_PRIVATE_DOCS_DIR`.
+ *
+ * Fail-closed: if the env var is unset, throw LOUD rather than silently falling
+ * back to a stale in-repo path (which no longer holds the canonical ledgers).
+ * Mirrors the resolver precedent in sweep-identity-relocation.ts /
+ * generate-purge-path-inventory.ts. Exported so ledger-cli.ts's `--ledger-dir`
+ * parser default calls the SAME resolver — keeping the CLI default and the
+ * daemon default byte-identical so the `isDefault` persistent-vs-ephemeral gate
+ * still holds.
+ */
+export function tryResolveDefaultLedgerDir(): string | null {
+  const base = process.env.KH_PRIVATE_DOCS_DIR;
+  if (!base) return null;
+  return resolve(base, 'src/content/docs/ledgers');
+}
+
+export function resolveDefaultLedgerDir(): string {
+  const dir = tryResolveDefaultLedgerDir();
+  if (dir === null) {
+    throw new Error(
+      'KH_PRIVATE_DOCS_DIR is not set — required to locate the relocated ledgers ' +
+        '(docs-site src/content/docs/ledgers). Ledgers moved out of the public repo under ID-68.35.',
+    );
+  }
+  return dir;
+}
+
 const HANDLE_DIR = '.cache/ledger-server';
 const HANDLE_FILENAME = 'handle.json';
 const SPAWN_TAG_FILENAME = 'spawn-tag.json';
@@ -436,19 +467,34 @@ export async function ensureServer(
   opts: EnsureServerOptions = {},
 ): Promise<EnsureServerResult> {
   const repoRoot = opts.repoRoot ?? process.cwd();
-  const ledgerDir = opts.ledgerDir ?? DEFAULT_LEDGER_DIR;
+  // ID-68.35: an EXPLICIT opts.ledgerDir (tests, K5 parity harness) must work
+  // even when KH_PRIVATE_DOCS_DIR is unset — KH CI under Inv 30 has no docs-site
+  // sibling. Such a dir is definitionally NON-default → ephemeral, so we resolve
+  // the default with the NON-throwing variant for the comparison. Only the
+  // no-explicit-dir path genuinely REQUIRES the default and fail-closes (throws)
+  // when the env is unset.
+  const explicitDir = opts.ledgerDir;
+  const defaultLedgerDir =
+    explicitDir === undefined
+      ? resolveDefaultLedgerDir()
+      : tryResolveDefaultLedgerDir();
+  const ledgerDir = explicitDir ?? (defaultLedgerDir as string);
   const seam = opts.spawnSeam ?? defaultSpawnSeam();
   const deadlineMs = opts.deadlineMs ?? DEFAULT_DEADLINE_MS;
 
   const tag = resolveTag(repoRoot);
-  // ledgerDir-switch fix: callers pass the ledger dir either relative
-  // ('docs/reference') or ABSOLUTE (serverCommitMutation sends
-  // resolve(path, '..')). An absolute path never === the relative literal, so
-  // the unnormalised compare made the DEFAULT ledger ALWAYS take the ephemeral
-  // branch — the persistent reuse path was unreachable in production. Normalise
-  // both sides against repoRoot so the default ledger reliably reuses (inv 48).
+  // ledgerDir-switch fix: callers pass the ledger dir either relative or
+  // ABSOLUTE (serverCommitMutation sends resolve(path, '..')). An absolute path
+  // never === a relative literal, so the unnormalised compare made the DEFAULT
+  // ledger ALWAYS take the ephemeral branch — the persistent reuse path was
+  // unreachable in production. Normalise both sides against repoRoot so the
+  // default ledger reliably reuses (inv 48). Post ID-68.35 the default is the
+  // already-absolute env-resolved docs-site path (resolveDefaultLedgerDir());
+  // resolve(repoRoot, <absolute>) returns it unchanged, so the gate still holds.
+  // A null default (env unset + explicit dir) is never the default → ephemeral.
   const isDefault =
-    resolve(repoRoot, ledgerDir) === resolve(repoRoot, DEFAULT_LEDGER_DIR);
+    defaultLedgerDir !== null &&
+    resolve(repoRoot, ledgerDir) === resolve(repoRoot, defaultLedgerDir);
 
   if (isDefault) {
     // ── default ledger dir: reuse or spawn a persistent daemon ──────────

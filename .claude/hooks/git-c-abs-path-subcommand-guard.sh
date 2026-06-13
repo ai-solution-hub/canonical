@@ -21,14 +21,16 @@ CMD=$(echo "$INPUT" | jq -r '.tool_input.command' 2>/dev/null || true)
 
 # Phase 1: detect `git -C <abs knowledge-hub path>` shape. If not matched,
 # this hook has nothing to do.
-if ! echo "$CMD" | grep -qE 'git[[:space:]]+-C[[:space:]]+/Users/liamj/Documents/development/knowledge-hub'; then
+# Boundary `(/|[[:space:]]|$)` so sibling repos (knowledge-hub-docs-site,
+# knowledge-hub-archive) no longer false-positive (WS-A2 fix, 2026-06-12).
+if ! echo "$CMD" | grep -qE 'git[[:space:]]+-C[[:space:]]+/Users/liamj/Documents/development/knowledge-hub(/[^[:space:]]*)?([[:space:]]|$)'; then
   exit 0
 fi
 
 # Phase 2: extract the subcommand following the path.
 # Format: `git -C <path> <subcommand> [args...]`
 SUBCMD=$(echo "$CMD" \
-  | sed -nE 's|.*git[[:space:]]+-C[[:space:]]+/Users/liamj/Documents/development/knowledge-hub[^[:space:]]*[[:space:]]+([^[:space:]]+).*|\1|p' \
+  | sed -nE 's|.*git[[:space:]]+-C[[:space:]]+/Users/liamj/Documents/development/knowledge-hub(/[^[:space:]]*)?[[:space:]]+([^[:space:]]+).*|\2|p' \
   | head -n1)
 
 if [ -z "$SUBCMD" ]; then

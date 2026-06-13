@@ -24,7 +24,7 @@ const { mockSearch, mockSearchResults, mockIsLoading, mockError } = vi.hoisted(
         similarity: number;
         summary: string | null;
         metadata: Record<string, unknown> | null;
-        source_document: string | null;
+        source_file: string | null;
         [key: string]: unknown;
       }>,
     },
@@ -94,7 +94,7 @@ function createSearchResult(
     governance_review_status: null,
     metadata: null,
     verified_at: null,
-    source_document: null,
+    source_file: null,
     brief: null,
     similarity: overrides.similarity ?? 0.85,
   };

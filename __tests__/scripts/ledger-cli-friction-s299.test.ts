@@ -32,20 +32,21 @@ import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { run, subcommandHelp, type ParsedArgs } from '@/scripts/ledger-cli';
 
+// ID-68.35: repointed from docs/reference/ live ledgers to synthetic fixtures.
 const REPO = resolve(__dirname, '../..');
-const REAL = {
-  task: join(REPO, 'docs/reference/task-list.json'),
-  roadmap: join(REPO, 'docs/reference/product-roadmap.json'),
-  backlog: join(REPO, 'docs/reference/product-backlog.json'),
+const FIXTURES = {
+  task: resolve(__dirname, '../fixtures/ledger/task-list.json'),
+  roadmap: resolve(__dirname, '../fixtures/ledger/product-roadmap.json'),
+  backlog: resolve(__dirname, '../fixtures/ledger/product-backlog.json'),
 };
 
 let dir: string;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'ledger-cli-friction-'));
-  copyFileSync(REAL.task, join(dir, 'task-list.json'));
-  copyFileSync(REAL.roadmap, join(dir, 'product-roadmap.json'));
-  copyFileSync(REAL.backlog, join(dir, 'product-backlog.json'));
+  copyFileSync(FIXTURES.task, join(dir, 'task-list.json'));
+  copyFileSync(FIXTURES.roadmap, join(dir, 'product-roadmap.json'));
+  copyFileSync(FIXTURES.backlog, join(dir, 'product-backlog.json'));
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -78,7 +79,7 @@ function readBacklog() {
 function firstTaskId(): string {
   return readTask().tasks[0].id;
 }
-function firstTaskWithSubtask(): { taskId: string; subId: number } {
+function firstTaskWithSubtask(): { taskId: string; subId: string } {
   for (const t of readTask().tasks) {
     if (Array.isArray(t.subtasks) && t.subtasks.length > 0) {
       return { taskId: t.id, subId: t.subtasks[0].id };
@@ -229,7 +230,7 @@ describe('S299 F7 — field-edit value via --file / stdin', () => {
       (x: { id: string }) => x.id === taskId,
     ).status_note;
     // Reset and repeat via --file (with a trailing newline).
-    copyFileSync(REAL.task, join(dir, 'task-list.json'));
+    copyFileSync(FIXTURES.task, join(dir, 'task-list.json'));
     const f = join(dir, 'sn.txt');
     writeFileSync(f, 'Parity check.\n', 'utf8');
     await run(args('update-task', [taskId, 'status_note'], { file: f }));
@@ -262,11 +263,11 @@ describe('S299 F7 — field-edit value via --file / stdin', () => {
     expect(r.ok).toBe(true);
     const sub = readTask()
       .tasks.find((x: { id: string }) => x.id === taskId)
-      .subtasks.find((s: { id: number }) => s.id === subId);
+      .subtasks.find((s: { id: string }) => s.id === subId);
     expect(sub.description).toBe('Subtask body from file.');
   });
 
-  it('a JSON-typed field (dependencies) via --file still JSON-coerces', async () => {
+  it('a JSON-typed field (dependencies) via --file still JSON-coerces (ID-102: string[])', async () => {
     const tl = readTask();
     // A task whose subtask has a sibling so the superRefine passes.
     const task = tl.tasks.find(
@@ -277,7 +278,8 @@ describe('S299 F7 — field-edit value via --file / stdin', () => {
     const target = task.subtasks[1];
     const sibling = task.subtasks[0];
     const f = join(dir, 'deps.json');
-    writeFileSync(f, `[${sibling.id}]\n`, 'utf8');
+    // Post ID-102: subtask.dependencies is string[] of digit-strings.
+    writeFileSync(f, `["${sibling.id}"]\n`, 'utf8');
     const r = await run(
       args('update-subtask', [`${task.id}.${target.id}`, 'dependencies'], {
         file: f,
@@ -285,9 +287,9 @@ describe('S299 F7 — field-edit value via --file / stdin', () => {
     );
     expect(r.ok).toBe(true);
     const t2 = readTask().tasks.find((t: { id: string }) => t.id === task.id);
-    const s2 = t2.subtasks.find((s: { id: number }) => s.id === target.id);
+    const s2 = t2.subtasks.find((s: { id: string }) => s.id === target.id);
     expect(s2.dependencies).toEqual([sibling.id]);
-    expect(typeof s2.dependencies[0]).toBe('number');
+    expect(typeof s2.dependencies[0]).toBe('string');
   });
 
   it('a missing --file exits NON-ZERO (input-read-failed), never a silent no-op', async () => {

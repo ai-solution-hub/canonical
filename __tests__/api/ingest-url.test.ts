@@ -492,10 +492,10 @@ describe('POST /api/ingest/url — Successful Import', () => {
     expect(insertData.metadata.extraction_method).toBe('readability');
   });
 
-  // S207 WP-A4 (Plan Task 3.2): typed ingest_source column. Read by
+  // Typed ingestion_source column. Read by
   // ensure_v1_history_at_commit() trigger to set
   // content_history.change_reason='initial_ingest'.
-  it('writes ingest_source="url_import" to content_items insert payload', async () => {
+  it('writes ingestion_source="url_import" to content_items insert payload', async () => {
     const req = createTestRequest('/api/ingest/url', {
       method: 'POST',
       body: { url: SAMPLE_URL },
@@ -503,7 +503,7 @@ describe('POST /api/ingest/url — Successful Import', () => {
     await POST(req);
 
     const insertData = mockSupabase._chain.insert.mock.calls[0][0];
-    expect(insertData.ingest_source).toBe('url_import');
+    expect(insertData.ingestion_source).toBe('url_import');
   });
 
   it('calls classifyContent with correct params', async () => {

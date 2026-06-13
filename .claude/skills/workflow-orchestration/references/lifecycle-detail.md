@@ -8,15 +8,24 @@ planning the Task's subtask structure or briefing a Planner.
 
 When a Task lands with unspec'd surface area, the Orchestrator invokes
 `spec-driven-implementation` to create the spec-authoring subtask chain. **All
-four artefacts are conditional** — right-size the chain to the task shape, not
-every Task needs all four. Heuristic: author {N.2} PRODUCT when the change is
-user-facing or behaviourally ambiguous; author {N.3} TECH when the technical
-approach is non-obvious, risky, or spans multiple subsystems; {N.1} RESEARCH and
-{N.4} PLAN as warranted by uncertainty/decomposition size. The Orchestrator
-selects the artefact subset at Task open (the Planner may recommend an upgrade
-mid-{N.1} if research surfaces hidden complexity). ID-92 PRODUCT may later
-formalise named tiers + the recording location — keep this a heuristic, not a
-rigid gate.
+four artefacts are conditional** — right-size the chain to the task shape via the
+four named tiers below. The Orchestrator decides the tier at Task open; the
+Planner may recommend an upgrade mid-`{N.1}` if RESEARCH surfaces compound
+invariants:
+
+- **Full chain** (RESEARCH + PRODUCT + TECH + PLAN) — compound invariants /
+  multiple migrations / chain-dependent slices / >2h effort.
+- **PRODUCT + PLAN** (skip TECH) — behaviourally rich, implementation-shallow.
+- **TECH + PLAN** (skip PRODUCT) — unambiguous behaviour, non-trivial
+  implementation.
+- **Spec-free** — trivial / operational.
+
+The chosen tier is recorded in the Task `status_note` as a one-line marker (e.g.
+`spec tier: PRODUCT+PLAN`). **The `status_note` is budget-gated at ≤300
+characters (invariant 57)** — keep the marker terse. The light tier is a
+*recorded* decision: an under-specified Task that later reveals compound
+invariants ESCALATES to a heavier tier (a `status_note` update), never silently
+proceeds.
 
 - `{N.1}` RESEARCH.md — Planner, when warranted by domain complexity. Domain
   skills (`claude-api`, `supabase-postgres-best-practices`, etc.) are added
@@ -75,13 +84,17 @@ After every implementation subtask is `done`:
 
 ## Loading task-list.json (soft-ceiling surfacing)
 
-When reading `docs/reference/task-list.json` invoke `parseTaskListWithWarnings` from
+Default access is SLICE READS via the ledger CLI (`bun scripts/ledger-cli.ts
+show task <id>` / `get task <id> <field>`) — never a wholesale Read of the
+multi-MB ledger. When a programmatic FULL-list pass is genuinely required
+(e.g. ceiling audit), invoke `parseTaskListWithWarnings` from
 `lib/validation/task-list-schema.ts`:
 
 ```ts
 import { parseTaskListWithWarnings } from '@/lib/validation/task-list-schema';
 
-const raw = JSON.parse(await fs.readFile('docs/reference/task-list.json', 'utf8'));
+const ledgerDir = `${process.env.KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers`;
+const raw = JSON.parse(await fs.readFile(`${ledgerDir}/task-list.json`, 'utf8'));
 const { value, warnings } = parseTaskListWithWarnings(raw);
 ```
 

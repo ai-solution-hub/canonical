@@ -23,7 +23,7 @@ function buildRow(
     created_at: '2026-04-28T12:00:00Z',
     primary_domain: 'tech-it',
     content_owner_id: null,
-    ingest_source: 'url_import',
+    ingestion_source: 'url_import',
     superseded_by: null,
     publication_status: 'in_review',
     metadata: null,
@@ -59,7 +59,7 @@ describe('ContentDedupRowCard', () => {
           title: null,
           content: null,
           primary_domain: null,
-          ingest_source: null,
+          ingestion_source: null,
         })}
         label="subject"
       />,

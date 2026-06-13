@@ -17,7 +17,7 @@ import { describe, it, expect } from 'vitest';
 import { TaskSchema } from '@/lib/validation/task-list-schema';
 
 const VALID_SUBTASK = {
-  id: 1,
+  id: '1',
   title: 'Smoke subtask',
   description:
     'Smoke subtask used to satisfy TaskSchema for capability_theme cases.',

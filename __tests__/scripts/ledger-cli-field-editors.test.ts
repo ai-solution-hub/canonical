@@ -15,20 +15,20 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { run, type ParsedArgs } from '@/scripts/ledger-cli';
 
-const REPO = resolve(__dirname, '../..');
-const REAL = {
-  task: join(REPO, 'docs/reference/task-list.json'),
-  roadmap: join(REPO, 'docs/reference/product-roadmap.json'),
-  backlog: join(REPO, 'docs/reference/product-backlog.json'),
+// ID-68.35: repointed from docs/reference/ live ledgers to synthetic fixtures.
+const FIXTURES = {
+  task: resolve(__dirname, '../fixtures/ledger/task-list.json'),
+  roadmap: resolve(__dirname, '../fixtures/ledger/product-roadmap.json'),
+  backlog: resolve(__dirname, '../fixtures/ledger/product-backlog.json'),
 };
 
 let dir: string;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'ledger-cli-fe-'));
-  copyFileSync(REAL.task, join(dir, 'task-list.json'));
-  copyFileSync(REAL.roadmap, join(dir, 'product-roadmap.json'));
-  copyFileSync(REAL.backlog, join(dir, 'product-backlog.json'));
+  copyFileSync(FIXTURES.task, join(dir, 'task-list.json'));
+  copyFileSync(FIXTURES.roadmap, join(dir, 'product-roadmap.json'));
+  copyFileSync(FIXTURES.backlog, join(dir, 'product-backlog.json'));
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -60,7 +60,7 @@ function readRoadmap() {
 }
 
 // A task/subtask known to exist in the live fixture for editing.
-function firstTaskWithSubtask(): { taskId: string; subId: number } {
+function firstTaskWithSubtask(): { taskId: string; subId: string } {
   const tl = readTask();
   for (const t of tl.tasks) {
     if (Array.isArray(t.subtasks) && t.subtasks.length > 0) {
@@ -79,7 +79,7 @@ describe('update-subtask — {35.19} subtask field editor', () => {
     expect(r.ok).toBe(true);
     const tl = readTask();
     const task = tl.tasks.find((t: { id: string }) => t.id === taskId);
-    const sub = task.subtasks.find((s: { id: number }) => s.id === subId);
+    const sub = task.subtasks.find((s: { id: string }) => s.id === subId);
     expect(sub.status).toBe('done');
   });
 
@@ -87,7 +87,7 @@ describe('update-subtask — {35.19} subtask field editor', () => {
     // Pick a subtask whose status is NOT already the target so the diff is real.
     const tl = readTask();
     let taskId = '';
-    let subId = -1;
+    let subId = '';
     for (const t of tl.tasks) {
       const s = (t.subtasks ?? []).find(
         (s: { status: string }) => s.status !== 'done',
@@ -118,8 +118,11 @@ describe('update-subtask — {35.19} subtask field editor', () => {
     expect(changed[0]).toContain('done');
   });
 
-  it('coerces dependencies to a number[] (JSON), not a string', async () => {
+  it('coerces dependencies to a string[] (JSON), not a scalar string (ID-102)', async () => {
     // Use a task whose subtask has a sibling so the superRefine passes.
+    // Post ID-102: subtask.dependencies is string[] of digit-strings; the
+    // field-editor JSON-parses the arg verbatim (["1"] stays ["1"]) and the
+    // string schema validates it.
     const tl = readTask();
     const task = tl.tasks.find(
       (t: { subtasks: unknown[] }) =>
@@ -132,15 +135,15 @@ describe('update-subtask — {35.19} subtask field editor', () => {
       args('update-subtask', [
         `${task.id}.${target.id}`,
         'dependencies',
-        `[${sibling.id}]`,
+        `["${sibling.id}"]`,
       ]),
     );
     expect(r.ok).toBe(true);
     const after = readTask();
     const t2 = after.tasks.find((t: { id: string }) => t.id === task.id);
-    const s2 = t2.subtasks.find((s: { id: number }) => s.id === target.id);
+    const s2 = t2.subtasks.find((s: { id: string }) => s.id === target.id);
     expect(s2.dependencies).toEqual([sibling.id]);
-    expect(typeof s2.dependencies[0]).toBe('number');
+    expect(typeof s2.dependencies[0]).toBe('string');
   });
 
   it('keeps a description that looks like JSON as a string', async () => {
@@ -151,7 +154,7 @@ describe('update-subtask — {35.19} subtask field editor', () => {
     expect(r.ok).toBe(true);
     const tl = readTask();
     const task = tl.tasks.find((t: { id: string }) => t.id === taskId);
-    const sub = task.subtasks.find((s: { id: number }) => s.id === subId);
+    const sub = task.subtasks.find((s: { id: string }) => s.id === subId);
     expect(sub.description).toBe('123');
     expect(typeof sub.description).toBe('string');
   });
@@ -174,7 +177,7 @@ describe('update-subtask — {35.19} subtask field editor', () => {
 
 describe('ID-65.5 — minimal-diff is the default (NO flag), --whole-file opts out', () => {
   /** A subtask whose status is NOT already the target, so a flip is a real diff. */
-  function nonDoneSubtask(): { taskId: string; subId: number } {
+  function nonDoneSubtask(): { taskId: string; subId: string } {
     const tl = readTask();
     for (const t of tl.tasks) {
       const s = (t.subtasks ?? []).find(
@@ -218,7 +221,7 @@ describe('ID-65.5 — minimal-diff is the default (NO flag), --whole-file opts o
     // The value still persists on the whole-file path.
     const tl = readTask();
     const task = tl.tasks.find((t: { id: string }) => t.id === taskId);
-    const sub = task.subtasks.find((s: { id: number }) => s.id === subId);
+    const sub = task.subtasks.find((s: { id: string }) => s.id === subId);
     expect(sub.status).toBe('done');
   });
 
@@ -238,7 +241,7 @@ describe('ID-65.5 — minimal-diff is the default (NO flag), --whole-file opts o
     const scopedBytes = readFileSync(join(dir, 'task-list.json'), 'utf8');
 
     // Reset the temp ledger and repeat with --whole-file.
-    copyFileSync(REAL.task, join(dir, 'task-list.json'));
+    copyFileSync(FIXTURES.task, join(dir, 'task-list.json'));
     const wholeR = await run(
       args('update-subtask', [`${taskId}.${subId}`, 'status', 'done'], {
         wholeFile: true,
@@ -431,7 +434,7 @@ describe('create-theme — {35.20} roadmap record create', () => {
 
 describe('ID-65.8 — append-journal accepts dotted AND legacy id args', () => {
   /** A task whose first subtask has no `details` (clean append target). */
-  function subtaskTarget(): { taskId: string; subId: number } {
+  function subtaskTarget(): { taskId: string; subId: string } {
     const tl = readTask();
     for (const t of tl.tasks) {
       if (Array.isArray(t.subtasks) && t.subtasks.length > 0) {
@@ -441,10 +444,10 @@ describe('ID-65.8 — append-journal accepts dotted AND legacy id args', () => {
     throw new Error('no task with a subtask in fixture');
   }
 
-  function readSub(taskId: string, subId: number) {
+  function readSub(taskId: string, subId: string) {
     const tl = readTask();
     const task = tl.tasks.find((t: { id: string }) => t.id === taskId);
-    return task.subtasks.find((s: { id: number }) => s.id === subId);
+    return task.subtasks.find((s: { id: string }) => s.id === subId);
   }
 
   it('appends a journal block via the dotted `35.1 <text>` form', async () => {
@@ -478,7 +481,7 @@ describe('ID-65.8 — append-journal accepts dotted AND legacy id args', () => {
     const afterDotted = readSub(taskId, subId).details as string;
 
     // Reset and repeat with the legacy form — same byte-for-byte target field.
-    copyFileSync(REAL.task, join(dir, 'task-list.json'));
+    copyFileSync(FIXTURES.task, join(dir, 'task-list.json'));
     const legacy = await run(
       args('append-journal', [taskId, String(subId), 'SAME-TARGET probe.']),
     );
@@ -496,7 +499,7 @@ describe('ID-65.8 — append-journal accepts dotted AND legacy id args', () => {
 });
 
 describe('ID-65.8 — flip-subtask accepts dotted AND legacy id args', () => {
-  function nonDoneSubtask(): { taskId: string; subId: number } {
+  function nonDoneSubtask(): { taskId: string; subId: string } {
     const tl = readTask();
     for (const t of tl.tasks) {
       const s = (t.subtasks ?? []).find(
@@ -507,10 +510,10 @@ describe('ID-65.8 — flip-subtask accepts dotted AND legacy id args', () => {
     throw new Error('no non-done subtask in fixture');
   }
 
-  function readStatus(taskId: string, subId: number) {
+  function readStatus(taskId: string, subId: string) {
     const tl = readTask();
     const task = tl.tasks.find((t: { id: string }) => t.id === taskId);
-    return task.subtasks.find((s: { id: number }) => s.id === subId).status;
+    return task.subtasks.find((s: { id: string }) => s.id === subId).status;
   }
 
   it('flips status via the dotted `35.1 done` form', async () => {
@@ -530,7 +533,7 @@ describe('ID-65.8 — flip-subtask accepts dotted AND legacy id args', () => {
 
 describe('ID-65.8 — delete-subtask accepts dotted AND legacy id args', () => {
   /** A task with >=2 subtasks so a delete leaves a non-empty, valid Task. */
-  function taskWithTwoSubtasks(): { taskId: string; subId: number } {
+  function taskWithTwoSubtasks(): { taskId: string; subId: string } {
     const tl = readTask();
     const task = tl.tasks.find(
       (t: { subtasks: unknown[] }) =>
@@ -542,10 +545,10 @@ describe('ID-65.8 — delete-subtask accepts dotted AND legacy id args', () => {
     return { taskId: task.id, subId: last.id };
   }
 
-  function hasSub(taskId: string, subId: number): boolean {
+  function hasSub(taskId: string, subId: string): boolean {
     const tl = readTask();
     const task = tl.tasks.find((t: { id: string }) => t.id === taskId);
-    return task.subtasks.some((s: { id: number }) => s.id === subId);
+    return task.subtasks.some((s: { id: string }) => s.id === subId);
   }
 
   it('removes a subtask via the dotted `35.7` form', async () => {
@@ -567,7 +570,7 @@ describe('ID-65.8 — update-subtask is unchanged (already dotted)', () => {
   it('still flips a subtask status via the dotted id', async () => {
     const tl = readTask();
     let taskId = '';
-    let subId = -1;
+    let subId = '';
     for (const t of tl.tasks) {
       const s = (t.subtasks ?? []).find(
         (s: { status: string }) => s.status !== 'done',
@@ -585,7 +588,7 @@ describe('ID-65.8 — update-subtask is unchanged (already dotted)', () => {
     expect(r.ok).toBe(true);
     const after = readTask();
     const task = after.tasks.find((t: { id: string }) => t.id === taskId);
-    const sub = task.subtasks.find((s: { id: number }) => s.id === subId);
+    const sub = task.subtasks.find((s: { id: string }) => s.id === subId);
     expect(sub.status).toBe('done');
   });
 });

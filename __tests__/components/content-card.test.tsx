@@ -66,7 +66,7 @@ function makeContentItem(
     platform: 'web',
     author_name: null,
     source_domain: null,
-    source_document: null,
+    source_file: null,
     thumbnail_url: null,
     captured_date: '2026-01-15T10:00:00Z',
     ai_keywords: null,
@@ -145,7 +145,7 @@ describe('ContentCard', () => {
           content_type: 'q_a_pair',
           title: 'Test question?',
           content: 'Test answer',
-          source_document: 'client-qa.docx',
+          source_file: 'client-qa.docx',
         })}
       />,
     );

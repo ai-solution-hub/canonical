@@ -319,11 +319,11 @@ export async function POST(request: NextRequest) {
         suggested_title: title,
         content_type: contentType,
         platform: 'manual',
-        // S207 WP-A4 (Plan Task 3.2): typed provenance column. The trigger
+        // Typed provenance column. The trigger
         // `ensure_v1_history_at_commit` reads this to set
         // `content_history.change_reason='initial_ingest'` + writes
         // `metadata.ingest_source` on the v1 row for granular observability.
-        ingest_source: 'upload',
+        ingestion_source: 'upload',
         metadata: {
           original_filename: filename,
           file_size: file.size,

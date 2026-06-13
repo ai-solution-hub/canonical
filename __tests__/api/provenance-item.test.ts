@@ -71,13 +71,6 @@ function buildProvenanceResponse(overrides?: Record<string, unknown>) {
       classificationModelSource: 'recorded',
       embeddingModel: 'text-embedding-3-large',
       embeddingModelSource: 'recorded',
-      classificationTokensIn: 1420,
-      classificationTokensOut: 312,
-      classificationCacheCreation: 0,
-      classificationCacheRead: 0,
-      embeddingTokens: 890,
-      estimatedClassifyCost: 0.0447,
-      estimatedEmbedCost: 0.0001157,
     },
     drafting: {
       recentDrafts: [
@@ -347,10 +340,10 @@ describe('GET /api/provenance/item/[id]', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Cost fields
+  // Processing provenance (model fields; token/cost fields removed in {64.12})
   // -------------------------------------------------------------------------
 
-  it('includes cost data when tokens are present', async () => {
+  it('surfaces classification and embedding model provenance', async () => {
     configureAuth(mockSupabase).asAdmin();
     mockGetItemProvenance.mockResolvedValue(buildProvenanceResponse());
 
@@ -360,41 +353,10 @@ describe('GET /api/provenance/item/[id]', () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.processing.estimatedClassifyCost).toBeGreaterThan(0);
-    expect(body.processing.estimatedEmbedCost).toBeGreaterThan(0);
-    expect(body.processing.classificationTokensIn).toBe(1420);
-    expect(body.processing.classificationTokensOut).toBe(312);
-  });
-
-  it('returns null cost when tokens are not recorded', async () => {
-    configureAuth(mockSupabase).asAdmin();
-    mockGetItemProvenance.mockResolvedValue(
-      buildProvenanceResponse({
-        processing: {
-          classificationModel: 'claude-opus-4-6',
-          classificationModelSource: 'env_default',
-          embeddingModel: 'text-embedding-3-large',
-          embeddingModelSource: 'env_default',
-          classificationTokensIn: null,
-          classificationTokensOut: null,
-          classificationCacheCreation: null,
-          classificationCacheRead: null,
-          embeddingTokens: null,
-          estimatedClassifyCost: null,
-          estimatedEmbedCost: null,
-        },
-      }),
-    );
-
-    const req = createTestRequest('/api/provenance/item/' + VALID_UUID);
-    const params = createTestParams({ id: VALID_UUID });
-    const res = await GET(req, { params });
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.processing.estimatedClassifyCost).toBeNull();
-    expect(body.processing.estimatedEmbedCost).toBeNull();
-    expect(body.processing.classificationTokensIn).toBeNull();
+    expect(body.processing.classificationModel).toBe('claude-opus-4-6');
+    expect(body.processing.classificationModelSource).toBe('recorded');
+    expect(body.processing.embeddingModel).toBe('text-embedding-3-large');
+    expect(body.processing.embeddingModelSource).toBe('recorded');
   });
 
   // -------------------------------------------------------------------------

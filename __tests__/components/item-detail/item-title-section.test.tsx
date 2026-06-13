@@ -149,7 +149,7 @@ describe('ItemTitleSection', () => {
 
   it('shows source document text', () => {
     const item = createMockItem({
-      source_document: 'Annual Report 2025',
+      source_file: 'Annual Report 2025',
     });
     render(<ItemTitleSection {...createDefaultProps({ item })} />);
     expect(screen.getByText('Annual Report 2025')).toBeInTheDocument();

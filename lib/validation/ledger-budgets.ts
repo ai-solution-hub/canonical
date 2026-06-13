@@ -72,6 +72,14 @@ export const LEDGER_BUDGETS = {
     title: 80,
     description: 500,
   },
+  /**
+   * product-retros.json — Retro record (WS-C C2). Intentionally EMPTY: retros
+   * are append-only narrative and the six-category structure already enforces
+   * discipline (retro-schema.ts header). No per-field char budget is registered,
+   * so the create/patch budget sweep measures nothing and always passes. The
+   * key exists so `retro` is a valid `LedgerRecordKind`.
+   */
+  retro: {},
 } as const;
 
 export type LedgerRecordKind = keyof typeof LEDGER_BUDGETS;

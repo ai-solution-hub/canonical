@@ -41,7 +41,7 @@ export async function GET(
     const { data: rows, error: rowsErr } = await supabase
       .from('content_items')
       .select(
-        'id, title, content, dedup_status, created_at, primary_domain, content_type, content_owner_id, ingest_source, superseded_by, archived_at, publication_status',
+        'id, title, content, dedup_status, created_at, primary_domain, content_type, content_owner_id, ingestion_source, superseded_by, archived_at, publication_status',
       )
       .in('id', [leftId, rightId]);
 

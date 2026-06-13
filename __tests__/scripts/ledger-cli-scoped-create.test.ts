@@ -28,19 +28,19 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { run, type ParsedArgs } from '@/scripts/ledger-cli';
 
-const REPO = resolve(__dirname, '../..');
-const REAL = {
-  task: join(REPO, 'docs/reference/task-list.json'),
-  roadmap: join(REPO, 'docs/reference/product-roadmap.json'),
-  backlog: join(REPO, 'docs/reference/product-backlog.json'),
+// ID-68.35: repointed from docs/reference/ live ledgers to synthetic fixtures.
+const FIXTURES = {
+  task: resolve(__dirname, '../fixtures/ledger/task-list.json'),
+  roadmap: resolve(__dirname, '../fixtures/ledger/product-roadmap.json'),
+  backlog: resolve(__dirname, '../fixtures/ledger/product-backlog.json'),
 };
 
 let dir: string;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'ledger-cli-scoped-create-'));
-  copyFileSync(REAL.task, join(dir, 'task-list.json'));
-  copyFileSync(REAL.roadmap, join(dir, 'product-roadmap.json'));
-  copyFileSync(REAL.backlog, join(dir, 'product-backlog.json'));
+  copyFileSync(FIXTURES.task, join(dir, 'task-list.json'));
+  copyFileSync(FIXTURES.roadmap, join(dir, 'product-roadmap.json'));
+  copyFileSync(FIXTURES.backlog, join(dir, 'product-backlog.json'));
 });
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
@@ -135,7 +135,7 @@ describe('add-subtask — scoped splice produces a record-sized diff (ID-65.3)',
     // then snapshot, then add-subtask and prove the diff is record-sized.
     const taskId = '9931';
     const subtasks = Array.from({ length: 40 }, (_, i) => ({
-      id: i + 1,
+      id: String(i + 1),
       title: `Existing subtask ${i + 1}`,
       description: 'Short.',
       details: '',
@@ -213,7 +213,7 @@ describe('add-subtask — scoped splice produces a record-sized diff (ID-65.3)',
       true,
     );
     const sub = {
-      id: 7,
+      id: '7',
       title: 'Seventh',
       description: 'Short.',
       details: '',
@@ -222,13 +222,13 @@ describe('add-subtask — scoped splice produces a record-sized diff (ID-65.3)',
     const ok = await run(args('add-subtask', [taskId, JSON.stringify(sub)]));
     expect(ok.ok).toBe(true);
     if (ok.ok) {
-      expect(ok.result).toMatchObject({ taskId, subId: 7, subtaskCount: 1 });
+      expect(ok.result).toMatchObject({ taskId, subId: '7', subtaskCount: 1 });
     }
 
     // --dryRun: the scoped path must short-circuit before any byte is written.
     const before = readText('task-list');
     const dry = await run(
-      args('add-subtask', [taskId, JSON.stringify({ ...sub, id: 8 })], {
+      args('add-subtask', [taskId, JSON.stringify({ ...sub, id: '8' })], {
         dryRun: true,
       }),
     );

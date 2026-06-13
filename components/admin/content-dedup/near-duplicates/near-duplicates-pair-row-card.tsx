@@ -61,7 +61,7 @@ export function NearDuplicatesPairRowCard({
           </span>
           <span className="block">
             <span className="font-medium text-foreground">Source:</span>{' '}
-            {row.ingest_source ?? '—'}
+            {row.ingestion_source ?? '—'}
           </span>
           <span className="block">
             <span className="font-medium text-foreground">Domain:</span>{' '}

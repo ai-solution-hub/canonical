@@ -258,10 +258,10 @@ describe('MCP create_content_item — S205 WP-A1 typed provenance', () => {
       expect(result.structuredContent.source_document_id).toBe(SOURCE_DOC_ID);
     });
 
-    // S207 WP-A4 (Plan Task 3.2): typed ingest_source column. Read by
+    // Typed ingestion_source column. Read by
     // ensure_v1_history_at_commit() trigger to set
     // content_history.change_reason='initial_ingest'.
-    it('writes ingest_source="mcp_create" to the content_items insert payload', async () => {
+    it('writes ingestion_source="mcp_create" to the content_items insert payload', async () => {
       const result = await createTool(
         {
           title: 'Ingest Source MCP',
@@ -273,7 +273,7 @@ describe('MCP create_content_item — S205 WP-A1 typed provenance', () => {
 
       expect(result.isError).toBeFalsy();
       const insertCall = findContentItemsInsert(mocks.chain.insert);
-      expect(insertCall.ingest_source).toBe('mcp_create');
+      expect(insertCall.ingestion_source).toBe('mcp_create');
     });
   });
 

@@ -30,6 +30,7 @@ venv/
 # Both are blanket-ignored by .claude/* above; listing explicitly to document
 # intent and so newcomers don't try to track them.
 .claude/cmux-events/
+.claude/cmux-briefs/
 .claude/scheduled_tasks.lock
 .claude/worktrees/
 
@@ -98,6 +99,7 @@ logs/
 # Session output dumps (Claude Code session exports)
 output.jsonl
 *-session-output.md
+*_session_output.md
 *-session-output.jsonl
 *_session_output.json
 *-session-output.json
@@ -121,3 +123,14 @@ entities.json
 /.cache/
 lib/branding/client-branding-map.generated.ts
 .type-drift-report.md
+
+# ID-95 PI-15: client-provenance entity_aliases snapshot is point-of-use generated (deploy), never committed
+scripts/tests/fixtures/entity_aliases_snapshot.json
+
+# ID-95 PI-18 {95.13}: canonical-content propagation catalog holds service-role
+# DSNs (config-as-data, out-of-band operator input) — MUST NEVER be committed
+scripts/.propagation-catalog.json
+
+# Local session ephemera (Lavish review artifacts, user scratch dir)
+.lavish/
+.user-scratch/

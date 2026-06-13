@@ -22,12 +22,12 @@ import {
 } from '@/lib/validation/task-list-schema';
 
 const VALID_SUBTASK = {
-  id: 1,
+  id: '1',
   title: 'Smoke subtask',
   description: 'Short one-sentence subtask summary.',
   details: 'Brief.',
   status: 'pending' as const,
-  dependencies: [] as number[],
+  dependencies: [] as string[],
   testStrategy: 'One-line acceptance.',
 };
 
@@ -101,7 +101,7 @@ describe('parseTaskListWithWarnings — field-length discipline (ID-34 inv 8)', 
   it('warns on an over-budget Subtask.description with composite id', () => {
     const longSubDesc = 'd'.repeat(FIELD_BUDGETS.subtaskDescription + 1);
     const task = makeTask({
-      subtasks: [{ ...VALID_SUBTASK, id: 3, description: longSubDesc }],
+      subtasks: [{ ...VALID_SUBTASK, id: '3', description: longSubDesc }],
     });
     const { warnings } = parseTaskListWithWarnings(makeDoc([task]));
     expect(warnings).toHaveLength(1);
@@ -131,7 +131,7 @@ describe('parseTaskListWithWarnings — field-length discipline (ID-34 inv 8)', 
   it('emits only field warnings for a >25-Subtask Task (ceiling warning removed S279)', () => {
     const subtasks = Array.from({ length: 26 }, (_, i) => ({
       ...VALID_SUBTASK,
-      id: i + 1,
+      id: String(i + 1),
     }));
     const longDesc = 'x'.repeat(FIELD_BUDGETS.taskDescription + 1);
     const { warnings } = parseTaskListWithWarnings(

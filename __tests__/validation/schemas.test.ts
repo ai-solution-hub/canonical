@@ -1038,6 +1038,55 @@ describe('S206 content_owner_id schema widening', () => {
       });
       expect(result.success).toBe(false);
     });
+
+    // ID-107.3 — ingestion_source body enum must only accept the
+    // web-form-REACHABLE allow-list. Internally-stamped sources
+    // (url_import via /api/ingest/url, mcp_create, bid_outcome_integration,
+    // reserved adopted_from_reference) MUST NOT be acceptable from an
+    // arbitrary /api/items create body.
+    describe('ingestion_source web-form allow-list', () => {
+      it.each(['manual', 'upload', 'upload_autosplit'] as const)(
+        'accepts web-form-reachable ingestion_source %s',
+        (source) => {
+          const result = ItemCreateBodySchema.safeParse({
+            ...baseItemCreate,
+            ingestion_source: source,
+          });
+          expect(result.success).toBe(true);
+          if (result.success) {
+            expect(result.data.ingestion_source).toBe(source);
+          }
+        },
+      );
+
+      it('rejects url_import (internally stamped by /api/ingest/url, not web-form-reachable)', () => {
+        const result = ItemCreateBodySchema.safeParse({
+          ...baseItemCreate,
+          ingestion_source: 'url_import',
+        });
+        expect(result.success).toBe(false);
+      });
+
+      it.each([
+        'mcp_create',
+        'bid_outcome_integration',
+        'adopted_from_reference',
+      ])(
+        'rejects route-internal/reserved ingestion_source %s from the create body',
+        (source) => {
+          const result = ItemCreateBodySchema.safeParse({
+            ...baseItemCreate,
+            ingestion_source: source,
+          });
+          expect(result.success).toBe(false);
+        },
+      );
+
+      it('accepts when ingestion_source is omitted (field is optional)', () => {
+        const result = ItemCreateBodySchema.safeParse(baseItemCreate);
+        expect(result.success).toBe(true);
+      });
+    });
   });
 
   describe('IngestUrlBodySchema (EP4)', () => {

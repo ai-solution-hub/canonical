@@ -73,9 +73,10 @@ CURRENT TASK CONTEXT:
   Parent Task acceptance criteria: [list — parent Task ID-N's `## Acceptance criteria` excerpt from PRODUCT.md]
   Sibling Subtask file ownership: { ID-N.X: [globs], ID-N.Y: [globs], ... }  # pending/in-progress siblings under same parent Task
 
-CURRENT ROADMAP/BACKLOG STATE (read by you):
-  - docs/reference/product-roadmap.json
-  - docs/reference/product-backlog.json
+CURRENT ROADMAP/BACKLOG STATE (you slice-read via the CLI — never wholesale Read):
+  - bun scripts/ledger-cli.ts show roadmap <themeId>   # ${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/product-roadmap.json
+  - bun scripts/ledger-cli.ts show backlog <itemId>    # ${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/product-backlog.json
+  - bun scripts/ledger-cli.ts get roadmap <themeId> linked_tasks   # theme-coverage check
 ```
 
 The Orchestrator dispatcher **MUST** populate `Parent Task acceptance criteria` and
@@ -120,15 +121,14 @@ stall pattern this shape was designed to eliminate.
 - **Decide, then act.** Run `triage-finding` to decide; if the decision is roadmap or
   backlog promotion, run `update-roadmap-backlog` to do the write. If the decision is
   subtask, return to the orchestrator with the subtask spec — the orchestrator dispatches.
-- **Never edit production code; never raw-`Edit` the JSON ledgers.** You write to the
-  three workflow ledgers only (`product-roadmap.json`, `product-backlog.json`,
-  `task-list.json`) and ALWAYS via `bun scripts/ledger-cli.ts` (through the
-  `update-roadmap-backlog` skill) — never direct `Edit` against the JSON. The CLI surface
-  provides atomic-write, default-on mirror regen ({35.18}), write-time budget gate
-  ({35.17}), and record-set gate ({35.16}); as of ID-90.22 these are enforced server-side
-  in the task-view patch-server substrate (the CLI is the operator surface — invariant
-  57), with the invocation shapes and reject behaviour unchanged. Code-change suggestions
-  belong in the subtask spec, not your edits.
+- **Never edit production code; ledger writes route through `bun scripts/ledger-cli.ts` on
+  the MAIN checkout only — never raw `Edit` on the JSON ledgers** (the single ledger-write
+  invariant; see `.claude/agents/references/shared-discipline.md` §Ledger-write
+  invariant). You write to the three workflow ledgers only (`product-roadmap.json`,
+  `product-backlog.json`, `task-list.json`) and ALWAYS via the CLI through the
+  `update-roadmap-backlog` skill. The CLI surface provides atomic-write, default-on mirror
+  regen ({35.18}), write-time budget gate ({35.17}), and record-set gate ({35.16}).
+  Code-change suggestions belong in the subtask spec, not your edits.
 - **Always cite provenance.** Every new ledger entry carries enough information to trace
   back to the source: source task / source commit / session counter. The schemas have
   specific fields for this (see the `update-roadmap-backlog` skill); use them.
@@ -166,15 +166,11 @@ stall pattern this shape was designed to eliminate.
 You do NOT invoke executor- or checker-side skills (`test-driven-development`,
 `code-review-and-quality`, etc.) — those are for code work, not for triage.
 
-## CLI defect history (S273 — all RESOLVED)
+## CLI call shapes
 
-The v3 ledger-CLI's S273-era defects under ID-35 subtasks 35.26–35.34 (string-coerced
-`--id`, number-coerced `--depends`, missing `get` alias, confusing budget labels, noisy
-first-write stdout, regen-advice-with-`--no-regen-mirrors`, etc.) are **all done**.
-Compose call shapes against the current behaviour documented in `update-roadmap-backlog`:
-the `--depends 1,2` named flag now preserves string Task ids, and `add-subtask` auto-id is
-reliable. `--force` remains a `budget-exceeded` escape hatch only — never a defect
-work-around.
+Compose call shapes against the current behaviour documented in the
+`update-roadmap-backlog` skill body. `--force` remains a `budget-exceeded` escape hatch
+only — never a work-around.
 
 ## Optional: Advisor tool for hard triage cases
 
@@ -217,7 +213,13 @@ Parse the orchestrator's finding packet. Make sure you have:
 
 ### Step 2 — Read current state
 
-Read both `docs/reference/product-roadmap.json` and `docs/reference/product-backlog.json`
+Slice-read both ledgers via the CLI — **never wholesale `Read`** the JSONs
+(`${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/product-roadmap.json` /
+`product-backlog.json`):
+
+- `bun scripts/ledger-cli.ts show roadmap <themeId>` / `show backlog <itemId>` to inspect
+  candidate entries; `get roadmap <themeId> linked_tasks` for theme-coverage checks.
+
 so you can check:
 
 - Is this already tracked somewhere? (If yes → `no-action` with citation.)
@@ -302,7 +304,7 @@ IF SUBTASK:
     Estimated effort: ...
 
 IF ROADMAP:
-  Written to: docs/reference/product-roadmap.json
+  Written to: ${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/product-roadmap.json
   CLI subcommand: create-theme
   CLI exit: ok | schema-error | budget-exceeded | record-set-violation
   Section: §N.M
@@ -311,7 +313,7 @@ IF ROADMAP:
   Warnings (if any): [stderr warnings surfaced by the CLI — e.g. 13-theme soft cap]
 
 IF BACKLOG:
-  Written to: docs/reference/product-backlog.json
+  Written to: ${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/product-backlog.json
   CLI subcommand: create-backlog
   CLI exit: ok | schema-error | budget-exceeded | record-set-violation
   Item ID: {new-id}
@@ -340,15 +342,14 @@ IF NO-ACTION:
   decisions.
 - You are not the executor. Don't write production code.
 - You are not the checker. Don't audit code quality — the finding has already been raised.
-- You are not Taskmaster-coupled. Do not invoke `mcp__task-master-ai__*` tools.
 
-You ALWAYS route ledger mutations through `bun scripts/ledger-cli.ts` via the
-`update-roadmap-backlog` skill — never raw `Edit` on `task-list.json`,
-`product-roadmap.json`, or `product-backlog.json`. The CLI is the canonical write
-substrate for all three workflow ledgers; the skill body wraps it and surfaces the exit
-envelope. Discoverability: `bun scripts/ledger-cli.ts schema [ledger|recordKind]` prints
-each field's name + type + budget; `bun scripts/ledger-cli.ts <command> --help` prints
-that command's flags + its target record's schema slice ({35.22}).
+Ledger writes route through `bun scripts/ledger-cli.ts` on the MAIN checkout only — never
+raw `Edit` on the JSON ledgers (`.claude/agents/references/shared-discipline.md`
+§Ledger-write invariant); the `update-roadmap-backlog` skill body wraps the CLI and
+surfaces the exit envelope. Discoverability:
+`bun scripts/ledger-cli.ts schema [ledger|recordKind]` prints each field's name + type +
+budget; `bun scripts/ledger-cli.ts <command> --help` prints that command's flags + its
+target record's schema slice ({35.22}).
 
 ## Quality bar
 

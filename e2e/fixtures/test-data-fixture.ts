@@ -217,11 +217,39 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       const bidDeadline = new Date(
         now + FRESHNESS_OFFSETS.FOURTEEN_DAYS_FUTURE_MS,
       ).toISOString();
+
+      // S246 WP2b T2 (migration 20260520120828): `workspaces.type` was DROPPED
+      // and replaced by a NOT-NULL `application_type_id` FK. Resolve the
+      // `application_types.key` referenced by each shape to its id once, then
+      // map shapes -> insert rows. `application_types.id` is gen_random_uuid()
+      // (NOT stable across Supabase branches), so we query rather than hardcode.
+      const { data: appTypeRows } = await supabase
+        .from('application_types')
+        .select('id, key')
+        .throwOnError();
+      const appTypeIdByKey = new Map(
+        (appTypeRows ?? []).map((r) => [r.key, r.id]),
+      );
+      const resolveAppTypeId = (key: string): string => {
+        const id = appTypeIdByKey.get(key);
+        if (!id) {
+          throw new Error(
+            `[test-data-fixture] No application_types row for key '${key}'. ` +
+              `Available keys: ${[...appTypeIdByKey.keys()].join(', ')}`,
+          );
+        }
+        return id;
+      };
+
       const workspaceShapes = buildCoreWorkspaces(bidDeadline);
-      const workspaceInserts = workspaceShapes.map((shape) => ({
-        ...shape,
-        name: `${prefix} ${shape.name}`,
-      }));
+      const workspaceInserts = workspaceShapes.map((shape) => {
+        const { applicationTypeKey, ...rest } = shape;
+        return {
+          ...rest,
+          name: `${prefix} ${shape.name}`,
+          application_type_id: resolveAppTypeId(applicationTypeKey),
+        };
+      });
 
       const { data: workspaces } = await supabase
         .from('workspaces')
@@ -373,7 +401,8 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         .insert({
           name: `${prefix} Cyber Security Intel`,
           description: 'E2E worker-scoped intelligence workspace.',
-          type: 'intelligence',
+          // S246 WP2b T2: `type` column dropped; use the application_type_id FK.
+          application_type_id: resolveAppTypeId('intelligence'),
           domain_metadata: {},
         })
         .select('id')

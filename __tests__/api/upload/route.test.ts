@@ -328,19 +328,19 @@ describe('POST /api/upload — OPS-12 closure', () => {
       expect(pipelinePayload.source_filename).toBe('sample.pdf');
       expect(pipelinePayload.created_by).toBe(CALLER_USER_ID);
 
-      // content_items INSERT carries title, content_type, ingest_source=upload.
+      // content_items INSERT carries title, content_type, ingestion_source=upload.
       const contentItemInsert = inserts.find(
         (call: unknown[]) =>
           typeof call[0] === 'object' &&
           call[0] !== null &&
-          'ingest_source' in (call[0] as Record<string, unknown>),
+          'ingestion_source' in (call[0] as Record<string, unknown>),
       );
       expect(contentItemInsert).toBeDefined();
       const contentPayload = contentItemInsert![0] as Record<string, unknown>;
       expect(contentPayload.title).toBe('Sample');
       expect(contentPayload.content_type).toBe('pdf');
       expect(contentPayload.platform).toBe('manual');
-      expect(contentPayload.ingest_source).toBe('upload');
+      expect(contentPayload.ingestion_source).toBe('upload');
       expect(contentPayload.created_by).toBe(CALLER_USER_ID);
       expect(contentPayload.content_owner_id).toBe(CALLER_USER_ID);
 
@@ -382,7 +382,7 @@ describe('POST /api/upload — OPS-12 closure', () => {
         (call: unknown[]) =>
           typeof call[0] === 'object' &&
           call[0] !== null &&
-          'ingest_source' in (call[0] as Record<string, unknown>),
+          'ingestion_source' in (call[0] as Record<string, unknown>),
       );
       expect(contentItemInsert).toBeUndefined();
     });

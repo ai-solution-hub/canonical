@@ -24,7 +24,7 @@ function buildMember(
     primary_domain: 'access-control',
     content_type: 'q_a_pair',
     content_owner_id: null,
-    ingest_source: 'example-reingest-2026-v2',
+    ingestion_source: 'example-reingest-2026-v2',
     superseded_by: null,
     archived_at: null,
     publication_status: 'published',
@@ -64,7 +64,7 @@ describe('NearDuplicatesPairRowCard', () => {
           title: null,
           content: null,
           primary_domain: null,
-          ingest_source: null,
+          ingestion_source: null,
           content_type: null,
         })}
         side="left"

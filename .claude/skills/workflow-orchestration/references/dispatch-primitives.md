@@ -29,9 +29,9 @@ Every dispatch produces a brief the sub-agent receives as its initial
 prompt. The brief carries:
 
 - **Subtask reference** — `ID-N.M` plus the Subtask object from
-  `task-list.json` (read the relevant Task with `parseTaskListWithWarnings`
-  and pass the Subtask through verbatim — its `details` field is the
-  load-bearing dispatch brief).
+  `task-list.json` (slice-read the relevant Task with
+  `bun scripts/ledger-cli.ts show task <N>` and pass the Subtask through
+  verbatim — its `details` field is the load-bearing dispatch brief).
 - **Spec-slice reference** — path + anchor to the section of PRODUCT.md /
   TECH.md the subtask references. The Executor reads only this slice.
 - **File-ownership boundaries** — explicit allow-list of files this dispatch
@@ -81,6 +81,35 @@ every worker / sub-orchestrator dispatch brief:
   only for subcommands `gh-axi` does not wrap. Never run `gh-axi setup hooks`."
   (Corpus measurement 2026-06-10: raw `gh` still outnumbered `gh-axi` 126:22 —
   carry this line until the adoption gap closes.)
+
+### Result-size discipline (carry into EVERY brief)
+
+Sub-agents should keep tool-result and return-payload size **bounded** — an
+unbounded tool result or inlined artefact body burns the dispatching agent's
+context window and can stall the worker on its own output. The discipline is a
+**convention, not a programmatic block**: no tooling enforces a hard ceiling, so
+the brief-carried convention IS the safeguard. Include these lines verbatim in
+every worker / sub-orchestrator dispatch brief:
+
+- **A1.1 (bound the payload):** "Keep every tool-result and return-payload
+  bounded. Do not inline a large artefact body into your turn or final report —
+  write it to a file and return the PATH, not the full contents."
+- **A1.2 (named high-risk tools + at-source mitigation):** the following calls
+  routinely emit unbounded output — bound each AT SOURCE, not after the fact:
+  - `git diff` / `git show` — run `--stat` first to size the change; scope to
+    explicit paths (`-- path/to/file`) rather than dumping the whole diff.
+  - `mempalace_search` — pass a query that narrows the result set; do not request
+    broad unfiltered sweeps whose body you then discard.
+  - `gitnexus detect_changes` — read the summarised verdict, not a full
+    per-symbol dump; scope follow-up queries to the affected set.
+  - large `grep` — narrow the glob (`--include`, explicit path) and pipe through
+    `head` when you only need the first hits, not the whole match set.
+- **A1.3 (>64K → file-and-path):** "For any artefact larger than ~64K, write it
+  to a file and return the path; never inline a body that size into a tool result
+  or final report."
+- **A1.6 (convention, not a block):** "This is a convention enforced by your own
+  discipline — no PreToolUse guard or harness limit blocks an oversized result.
+  Bounding the output is your responsibility on every call."
 
 ### Curator-brief composition
 

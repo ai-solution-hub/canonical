@@ -1,7 +1,12 @@
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
-import { useQueries, useQuery } from '@tanstack/react-query';
+import {
+  useQueries,
+  useQuery,
+  useMutation,
+  useQueryClient,
+} from '@tanstack/react-query';
 import {
   History,
   ChevronDown,
@@ -27,27 +32,13 @@ import { queryKeys } from '@/lib/query/query-keys';
 import {
   fetchItemHistoryList,
   fetchItemHistoryVersion,
+  rollbackItemVersion,
   type ItemHistoryEntry,
 } from '@/lib/query/fetchers';
 import { cn } from '@/lib/utils';
 
 /** Stable empty default so the memoised list keeps a stable reference. */
 const EMPTY_VERSIONS: ItemHistoryEntry[] = [];
-
-interface VersionDetail {
-  id: string;
-  content_item_id: string;
-  version: number;
-  title: string;
-  content: string;
-  brief: string | null;
-  detail: string | null;
-  reference: string | null;
-  change_summary: string | null;
-  change_type: string;
-  created_by: string | null;
-  created_at: string;
-}
 
 interface VersionHistoryProps {
   itemId: string;
@@ -190,13 +181,9 @@ export function VersionHistory({
   onRollback,
 }: VersionHistoryProps) {
   const { canEdit } = useUserRole();
+  const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [expandedVersion, setExpandedVersion] = useState<string | null>(null);
-  const [versionDetail, setVersionDetail] = useState<VersionDetail | null>(
-    null,
-  );
-  const [loadingDetail, setLoadingDetail] = useState(false);
-  const [rollingBack, setRollingBack] = useState(false);
   // Compare-two-versions affordance (ID-59 {59.12}). Defaults to the latest
   // two revisions; explicit version pickers are deferred to v1.1.
   const [compareMode, setCompareMode] = useState(false);
@@ -254,6 +241,45 @@ export function VersionHistory({
     [versions, newerVersionId],
   );
 
+  // Detail leg — TanStack Query (ID-106.1). Fetches the full body of the
+  // expanded version; only runs when a version is expanded. Telemetry + toast
+  // fire from the queryFn catch so the remediated silent-failure contract
+  // (scope `…loadDetail`) is preserved.
+  const detailQuery = useQuery({
+    queryKey: queryKeys.itemHistory.version(itemId, expandedVersion ?? ''),
+    queryFn: async () => {
+      const versionId = expandedVersion!;
+      try {
+        return await fetchItemHistoryVersion(itemId, versionId);
+      } catch (err) {
+        captureClientException(err, {
+          scope: 'item-detail.version-history.loadDetail',
+          extras: { itemId, versionId },
+        });
+        toast.error('Failed to load version detail');
+        throw err;
+      }
+    },
+    enabled: expandedVersion !== null,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Rollback mutation leg (ID-106.1). Uses useMutation so the query cache is
+  // properly invalidated on success, replacing the old raw-fetch + refetch.
+  const rollbackMutation = useMutation({
+    mutationFn: (versionId: string) => rollbackItemVersion(itemId, versionId),
+    onSuccess: () => {
+      toast.success('Content rolled back successfully');
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.itemHistory.all(itemId),
+      });
+      onRollback?.();
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : 'Failed to rollback');
+    },
+  });
+
   const handleToggleCompare = useCallback(() => {
     setCompareMode((prev) => {
       const next = !prev;
@@ -261,7 +287,6 @@ export function VersionHistory({
         // Collapse any expanded single-version diff and default the pickers
         // to the latest two revisions.
         setExpandedVersion(null);
-        setVersionDetail(null);
         setNewerVersionId(versions[0]?.id ?? null);
         setOlderVersionId(versions[1]?.id ?? null);
       }
@@ -269,51 +294,12 @@ export function VersionHistory({
     });
   }, [versions]);
 
-  const handleViewDetail = async (versionId: string) => {
+  // Pure toggle — no async fetch; detail is driven by detailQuery above.
+  const handleViewDetail = (versionId: string) => {
     if (expandedVersion === versionId) {
       setExpandedVersion(null);
-      setVersionDetail(null);
-      return;
-    }
-
-    setExpandedVersion(versionId);
-    setLoadingDetail(true);
-    try {
-      const res = await fetch(`/api/items/${itemId}/history/${versionId}`);
-      if (!res.ok) throw new Error('Failed to fetch version');
-      const data = await res.json();
-      setVersionDetail(data);
-    } catch (err) {
-      captureClientException(err, {
-        scope: 'item-detail.version-history.loadDetail',
-        extras: { itemId, versionId },
-      });
-      toast.error('Failed to load version detail');
-      setExpandedVersion(null);
-    } finally {
-      setLoadingDetail(false);
-    }
-  };
-
-  const handleRollback = async (versionId: string) => {
-    setRollingBack(true);
-    try {
-      const res = await fetch(`/api/items/${itemId}/rollback`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ version_id: versionId }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Rollback failed');
-      }
-      toast.success('Content rolled back successfully');
-      refetchVersions();
-      onRollback?.();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to rollback');
-    } finally {
-      setRollingBack(false);
+    } else {
+      setExpandedVersion(versionId);
     }
   };
 
@@ -460,11 +446,13 @@ export function VersionHistory({
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => handleRollback(version.id)}
-                                disabled={rollingBack}
+                                onClick={() =>
+                                  rollbackMutation.mutate(version.id)
+                                }
+                                disabled={rollbackMutation.isPending}
                                 className="h-7 gap-1 text-xs"
                               >
-                                {rollingBack ? (
+                                {rollbackMutation.isPending ? (
                                   <Loader2 className="size-3 animate-spin" />
                                 ) : (
                                   <RotateCcw className="size-3" />
@@ -478,19 +466,19 @@ export function VersionHistory({
                         {/* Diff view */}
                         {isExpanded && (
                           <div className="mt-3">
-                            {loadingDetail ? (
+                            {detailQuery.isLoading ? (
                               <div className="flex items-center justify-center py-4">
                                 <Loader2 className="size-4 animate-spin text-muted-foreground" />
                               </div>
-                            ) : versionDetail ? (
+                            ) : detailQuery.data ? (
                               <div className="space-y-3">
-                                {versionDetail.title !== currentTitle && (
+                                {detailQuery.data.title !== currentTitle && (
                                   <div>
                                     <p className="mb-1 text-xs font-medium text-muted-foreground">
                                       Title
                                     </p>
                                     <VersionDiff
-                                      oldText={versionDetail.title}
+                                      oldText={detailQuery.data.title}
                                       newText={currentTitle}
                                     />
                                   </div>
@@ -500,7 +488,7 @@ export function VersionHistory({
                                     Content
                                   </p>
                                   <VersionDiff
-                                    oldText={versionDetail.content}
+                                    oldText={detailQuery.data.content}
                                     newText={currentContent}
                                   />
                                 </div>

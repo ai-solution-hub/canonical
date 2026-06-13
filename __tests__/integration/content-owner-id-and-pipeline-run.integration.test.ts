@@ -86,7 +86,7 @@ async function seedItem(opts: {
   label: string;
 }): Promise<string> {
   // Direct service-role insert. content_text_hash is GENERATED ALWAYS so
-  // it is never specified (per CLAUDE.md). ingest_source is omitted to
+  // it is never specified (per CLAUDE.md). ingestion_source is omitted to
   // exercise the legacy NULL-owner path; the trigger writes
   // change_reason='auto_v1_on_insert' and the v1 row is fine for our
   // assertions which never inspect change_reason.

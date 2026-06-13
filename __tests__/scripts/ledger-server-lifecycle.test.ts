@@ -171,11 +171,18 @@ function makeSpawnSeam(
 
 beforeEach(() => {
   tmpRoot = makeFakeRepo();
+  // ID-68.35: the default ledgerDir now resolves via KH_PRIVATE_DOCS_DIR
+  // (resolveDefaultLedgerDir, fail-closed). Stub it to the fake repo so the
+  // default-path tests are hermetic and CI-safe — KH PR-blocking CI has no
+  // private docs-site sibling (Inv 30). resolveDefaultLedgerDir() then returns
+  // <tmpRoot>/src/content/docs/ledgers.
+  vi.stubEnv('KH_PRIVATE_DOCS_DIR', tmpRoot);
 });
 afterEach(() => {
   for (const s of servers) s.close();
   servers.length = 0;
   rmSync(tmpRoot, { recursive: true, force: true });
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
 
@@ -344,29 +351,32 @@ describe('ensureServer spawns on missing handle', () => {
     expect(readSpawnTagSidecar(tmpRoot)?.spawnTag).toBe('v0.4.0-task-view');
   });
 
-  it('an ABSOLUTE default ledgerDir reaches the PERSISTENT branch (ledgerDir-switch fix)', async () => {
-    // serverCommitMutation passes resolve(path, '..') — an ABSOLUTE
-    // docs/reference. Pre-fix, an absolute path never === the relative literal,
-    // so the default ledger ALWAYS spawned ephemeral and never reused. Post-fix
-    // it normalises: a valid handle + live daemon + matching sidecar reuses.
+  it('the ABSOLUTE env-resolved default ledgerDir reaches the PERSISTENT branch (ledgerDir-switch fix)', async () => {
+    // The default ledgerDir is now an ABSOLUTE env-resolved docs-site path
+    // (resolveDefaultLedgerDir via KH_PRIVATE_DOCS_DIR, ID-68.35) — stubbed to
+    // <tmpRoot>/src/content/docs/ledgers in beforeEach. Pre-fix the default was
+    // the relative literal 'docs/reference' and an absolute path never matched
+    // it (always ephemeral). A valid handle + live daemon + matching sidecar
+    // must now REUSE (persistent), not ephemeral-spawn.
+    const defaultDir = resolve(tmpRoot, 'src/content/docs/ledgers');
     const { port } = await startHealthServer(PKG_VERSION);
     writeHandle(tmpRoot, {
       port,
       pid: 24680,
       version: PKG_VERSION,
-      ledgerDir: 'docs/reference',
+      ledgerDir: defaultDir,
     });
     writeSpawnTagSidecar(tmpRoot, 'v0.4.0-task-view');
     const { seam, spawnCalls } = makeSpawnSeam();
 
     const result = await ensureServer({
       repoRoot: tmpRoot,
-      ledgerDir: resolve(tmpRoot, 'docs/reference'), // ABSOLUTE, not the literal
+      ledgerDir: defaultDir, // ABSOLUTE default
       spawnSeam: seam,
     });
 
-    // reused:true proves the absolute path took the persistent (default) branch
-    // — the ephemeral branch would have spawned instead.
+    // reused:true proves the absolute default path took the persistent branch —
+    // the ephemeral branch would have spawned instead.
     expect(result.reused).toBe(true);
     expect(result.port).toBe(port);
     expect(spawnCalls).toHaveLength(0);

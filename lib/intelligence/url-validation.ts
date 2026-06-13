@@ -12,9 +12,9 @@
 //   refinement (D-4 ratified).
 
 import { FEED_FETCH_TIMEOUT_MS } from './types';
+import { clientEnv } from '@/lib/env-client';
 
-const USER_AGENT =
-  'KnowledgeHub/1.0 (+https://knowledge-hub-seven-kappa.vercel.app)';
+const USER_AGENT = `KnowledgeHub/1.0 (+${clientEnv.NEXT_PUBLIC_APP_URL})`;
 
 /** Accepted HTML content types for web source validation */
 const HTML_CONTENT_TYPES = ['text/html', 'application/xhtml+xml'];

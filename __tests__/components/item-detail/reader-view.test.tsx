@@ -706,7 +706,7 @@ describe('ReaderView', () => {
       render(
         <ReaderView
           data={createMockData({
-            item: createMockItem({ source_document: 'Company Policy v2.1' }),
+            item: createMockItem({ source_file: 'Company Policy v2.1' }),
           })}
           relatedItems={[]}
         />,

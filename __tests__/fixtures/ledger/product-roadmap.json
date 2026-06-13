@@ -1,0 +1,35 @@
+{
+  "document_name": "Knowledge Hub Roadmap",
+  "document_purpose": "Synthetic de-identified fixture for tests. Contains a representative roadmap theme; no real roadmap data.",
+  "date": "2026-01-01",
+  "status": "Active",
+  "forward_looking_only": true,
+  "related_documents": [
+    "docs/reference/product-backlog.json"
+  ],
+  "last_updated": "kh-main-S1 fixture setup",
+  "themes": [
+    {
+      "id": "1",
+      "title": "Fixture Roadmap Theme",
+      "description": "A synthetic roadmap theme for ledger CLI tests covering theme CRUD operations.",
+      "time_horizon": "next",
+      "status": "pending",
+      "linked_tasks": [
+        "1",
+        "2"
+      ],
+      "linked_backlog": [
+        "1"
+      ],
+      "session_refs": [
+        "kh-main-S1"
+      ],
+      "commit_refs": [
+        "abc1234"
+      ],
+      "cross_doc_links": [],
+      "notes": null
+    }
+  ]
+}

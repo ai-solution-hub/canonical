@@ -186,7 +186,7 @@ export function ContentDedupQueueClient() {
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">
-                      {row.ingest_source ?? '—'}
+                      {row.ingestion_source ?? '—'}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Button

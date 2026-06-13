@@ -19,12 +19,31 @@ Run `git status` inside the worktree before tearing it down. If uncommitted chan
 rescue them with a manual commit on the worker's branch. Then `git
 worktree remove`. Never `--force` without inspecting first.
 
-## Checker FAILs three times on the same subtask group
+## Fix-dispatch loop hits its retry budget
 
-Escalate to Liam. Three consecutive FAILs on the same group indicates a
-spec / plan defect, not an implementation defect. Re-engage a Planner to
-amend PRODUCT.md / TECH.md — do not keep dispatching fix-Executors against
-a broken spec.
+Every fix-dispatch loop runs under a **bounded-retry budget**, not an
+open-ended retry. The ceiling: **three consecutive fix-dispatch iterations
+on the same subtask group** (a Checker FAIL → fix-Executor → re-Check
+counting as one iteration). On hitting the ceiling, **PAUSE and escalate to
+Liam for a human decision — do not dispatch a fourth fix-Executor.** Three
+consecutive FAILs on the same group indicates a spec / plan defect, not an
+implementation defect, and a fourth dispatch against a broken spec is thrash,
+not progress. The standard human-decision outcome is to re-engage a Planner
+to amend PRODUCT.md / TECH.md; Liam may instead re-scope, defer, or accept —
+but the loop does not auto-continue past the budget.
+
+The same budget governs any repeated fix-request loop, not only Checker
+FAILs: if the same finding is re-dispatched three times without a verified
+resolution, stop and escalate rather than re-request a fourth time. The
+budget is a ceiling on **iterations**, counted per subtask group per finding.
+
+**Do not re-litigate ignored / won't-fix findings.** Once Liam (or the
+recurring-finding loop) has marked a finding `ignored` / `won't-fix`, a later
+loop does **not** re-open it and spend budget on it again — unless the finding
+is **materially different** (a different root cause, a wider blast radius, or
+a new failure signature). An identical recurrence of a won't-fix finding is
+closed, not a fresh iteration; only a materially-different recurrence opens a
+new bounded loop.
 
 ## Worktree leakage on merge
 

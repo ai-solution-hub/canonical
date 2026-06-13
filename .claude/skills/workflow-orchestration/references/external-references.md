@@ -33,7 +33,8 @@ skills, and project rules.
 
 - `lib/validation/task-list-schema.ts` — `TaskListSchema`,
   `parseTaskListWithWarnings`.
-- `docs/reference/task-list.json` — the live Task list.
+- `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/task-list.json` — the live Task list
+  (slice-read via `bun scripts/ledger-cli.ts show task <id>`; never read wholesale).
 
 ## Side skills the Orchestrator invokes
 

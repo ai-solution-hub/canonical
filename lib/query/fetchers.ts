@@ -124,6 +124,18 @@ export async function fetchItemHistoryVersion(
   );
 }
 
+/** Roll a content item back to a specific history version. */
+export async function rollbackItemVersion(
+  itemId: string,
+  versionId: string,
+): Promise<unknown> {
+  return fetchJson(`/api/items/${itemId}/rollback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ version_id: versionId }),
+  });
+}
+
 /** Response shape for GET /api/admin/taxonomy-sync/status */
 /** @public */
 export interface TaxonomySyncStatus {
@@ -532,7 +544,7 @@ export interface SuspectedDuplicateRow {
   created_at: string;
   primary_domain: string | null;
   content_owner_id: string | null;
-  ingest_source: string | null;
+  ingestion_source: string | null;
   superseded_by: string | null;
   publication_status: string;
   metadata: Record<string, unknown> | null;
@@ -653,7 +665,7 @@ export interface NearDupPairMember {
   primary_domain: string | null;
   content_type: string | null;
   content_owner_id: string | null;
-  ingest_source: string | null;
+  ingestion_source: string | null;
   superseded_by: string | null;
   archived_at: string | null;
   publication_status: string;

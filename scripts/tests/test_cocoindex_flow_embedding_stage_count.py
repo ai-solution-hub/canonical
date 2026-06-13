@@ -56,6 +56,13 @@ import pytest
 
 from conftest import passthrough_coco_fn, stubbed_sys_modules  # noqa: E402
 
+# ID-101 §{101.7}: neutralise the relationship-extraction Path-A seam so
+# ingest_file tests make no live Anthropic call (mirrors the
+# extract_entity_mentions stubs alongside).
+async def _fake_relationships_empty(content_text: str) -> list:
+    return []
+
+
 
 # ── cocoindex stub install (mirrors test_cocoindex_flow_embedding.py) ─────────
 
@@ -247,6 +254,7 @@ def _patch_pipeline(flow, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(flow, "extract_classification", _fake_classification)
     monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
     monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+    monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
     monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
 

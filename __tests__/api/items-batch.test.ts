@@ -423,10 +423,10 @@ describe('POST /api/items/batch', () => {
       }
     });
 
-    // S207 WP-A4 (Plan Task 3.2): typed ingest_source column. Read by
+    // Typed ingestion_source column. Read by
     // ensure_v1_history_at_commit() trigger to set
     // content_history.change_reason='initial_ingest'.
-    it('writes ingest_source="upload_autosplit" to every content_items insert', async () => {
+    it('writes ingestion_source="upload_autosplit" to every content_items insert', async () => {
       configureRole(mockSupabase, 'editor');
 
       await POST(makeRequest({ items: makeSampleItems(2) }));
@@ -440,7 +440,7 @@ describe('POST /api/items/batch', () => {
       );
       expect(itemInserts.length).toBeGreaterThanOrEqual(1);
       for (const call of itemInserts) {
-        expect(call[0].ingest_source).toBe('upload_autosplit');
+        expect(call[0].ingestion_source).toBe('upload_autosplit');
       }
     });
 

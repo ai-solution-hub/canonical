@@ -47,7 +47,6 @@ export function ContentLibraryResult({
     ((result.metadata as Record<string, unknown> | null)?.source_file as
       | string
       | undefined) ??
-    result.source_document ??
     undefined;
 
   const copyText =
