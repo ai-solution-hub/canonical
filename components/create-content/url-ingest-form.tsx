@@ -11,10 +11,6 @@ import {
   type IngestionStep,
 } from '@/components/create-content/ingestion-progress';
 import { IngestionSuccessCard } from '@/components/create-content/ingestion-success-card';
-import {
-  DedupWarning,
-  type DedupMatch,
-} from '@/components/shared/dedup-warning';
 import { ClaudePromptButton } from '@/components/content/claude-prompt-button';
 import { generateIngestDocumentPrompt } from '@/lib/claude-prompts';
 
@@ -25,24 +21,20 @@ interface ExistingItem {
   title: string;
 }
 
-interface LayerSuggestionInfo {
-  suggestedLayer: string;
-  reason: string;
-  confidence: string;
-}
-
+/**
+ * Reduced reference-ingest response from POST /api/ingest/url ({110.6}).
+ * Manual URLs now land in reference_items; the response carries no
+ * content_type / suggested_layer / duplicate_matches (OQ-D, OQ-N).
+ */
 interface IngestResult {
   id: string;
   title: string;
   source_url: string;
-  content_type: string;
+  summary?: string | null;
   primary_domain?: string;
   primary_subtopic?: string;
-  summary?: string;
-  content_length: number;
   warnings: string[];
-  duplicate_matches: DedupMatch[];
-  suggested_layer?: LayerSuggestionInfo;
+  dedup_status: 'clean';
 }
 
 const INITIAL_STEPS: IngestionStep[] = [
@@ -72,8 +64,6 @@ export function UrlIngestForm({ onSuggestManual }: UrlIngestFormProps = {}) {
   const [result, setResult] = useState<IngestResult | null>(null);
   const [existingItem, setExistingItem] = useState<ExistingItem | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
-  const [dedupMatches, setDedupMatches] = useState<DedupMatch[]>([]);
-  const [showDedupWarning, setShowDedupWarning] = useState(false);
   const stepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Clean up timer on unmount
@@ -122,8 +112,6 @@ export function UrlIngestForm({ onSuggestManual }: UrlIngestFormProps = {}) {
     setResult(null);
     setExistingItem(null);
     setErrorMessage('');
-    setDedupMatches([]);
-    setShowDedupWarning(false);
     setSteps(
       INITIAL_STEPS.map((s, i) =>
         i === 0 ? { ...s, status: 'active' as const } : s,
@@ -171,12 +159,8 @@ export function UrlIngestForm({ onSuggestManual }: UrlIngestFormProps = {}) {
         return;
       }
 
-      // Success
+      // Success — reference landing (no dedup matches for the URL path; OQ-D)
       setResult(data);
-      if (data.duplicate_matches?.length > 0) {
-        setDedupMatches(data.duplicate_matches);
-        setShowDedupWarning(true);
-      }
       setFormState('success');
       setSteps((prev) => prev.map((s) => ({ ...s, status: 'done' as const })));
     } catch {
@@ -203,8 +187,6 @@ export function UrlIngestForm({ onSuggestManual }: UrlIngestFormProps = {}) {
     setResult(null);
     setExistingItem(null);
     setErrorMessage('');
-    setDedupMatches([]);
-    setShowDedupWarning(false);
   }, []);
 
   const handleKeyDown = useCallback(
@@ -336,35 +318,21 @@ export function UrlIngestForm({ onSuggestManual }: UrlIngestFormProps = {}) {
         </div>
       )}
 
-      {/* Dedup warning */}
-      {showDedupWarning && dedupMatches.length > 0 && (
-        <DedupWarning
-          matches={dedupMatches}
-          onViewMatch={(id) => window.open(`/item/${id}`, '_blank')}
-          onDismiss={() => setShowDedupWarning(false)}
-        />
-      )}
-
-      {/* Success display */}
+      {/* Success display — manual URLs land in reference_items ({110.7}). */}
       {formState === 'success' && result && (
         <div className="space-y-4">
           <IngestionSuccessCard
-            itemId={result.id}
+            kind="reference"
+            referenceId={result.id}
             title={result.title}
-            contentType={result.content_type}
+            summary={result.summary}
             domain={result.primary_domain}
             subtopic={result.primary_subtopic}
             warnings={result.warnings}
-            dedupMatches={result.duplicate_matches?.map((m) => ({
-              id: m.id,
-              title: m.title,
-              similarity: m.similarity,
-            }))}
-            suggestedLayer={result.suggested_layer}
           />
 
           {/* Low-quality extraction suggestion */}
-          {onSuggestManual && result.content_length < 500 && (
+          {onSuggestManual && (result.summary?.length ?? 0) < 200 && (
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">
                 Limited text extracted from this page. Try{' '}

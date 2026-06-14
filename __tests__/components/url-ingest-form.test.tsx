@@ -207,32 +207,18 @@ vi.mock('@/components/create-content/ingestion-progress', () => ({
 }));
 
 vi.mock('@/components/create-content/ingestion-success-card', () => ({
+  // Reference variant (ID-110 {110.7}) — receives referenceId, not itemId.
   IngestionSuccessCard: ({
-    itemId,
+    kind,
+    referenceId,
     title,
   }: {
-    itemId: string;
+    kind?: string;
+    referenceId?: string;
     title: string;
   }) => (
-    <div data-testid="success-card" data-item-id={itemId}>
+    <div data-testid="success-card" data-kind={kind} data-ref-id={referenceId}>
       {title}
-    </div>
-  ),
-}));
-
-vi.mock('@/components/shared/dedup-warning', () => ({
-  DedupWarning: ({
-    matches,
-    onDismiss,
-  }: {
-    matches: Array<{ id: string; title: string }>;
-    onDismiss: () => void;
-  }) => (
-    <div data-testid="dedup-warning">
-      {matches.map((m) => (
-        <span key={m.id}>{m.title}</span>
-      ))}
-      <button onClick={onDismiss}>Dismiss</button>
     </div>
   ),
 }));
@@ -306,16 +292,16 @@ describe('UrlIngestForm', () => {
     expect(screen.getByText(/importing/i)).toBeInTheDocument();
   });
 
-  it('shows success result on completion', async () => {
+  it('maps the reduced reference response onto the reference variant', async () => {
     const successResponse = {
-      id: 'new-item-123',
+      id: 'ri-new-123',
       title: 'Test Article',
       source_url: 'https://example.com/article',
-      content_type: 'article',
+      summary: 'A long enough summary to suppress the manual hint.'.repeat(6),
       primary_domain: 'General Business',
-      content_length: 500,
+      primary_subtopic: 'Strategy',
       warnings: [],
-      duplicate_matches: [],
+      dedup_status: 'clean',
     };
 
     mockFetch.mockResolvedValue({
@@ -343,6 +329,10 @@ describe('UrlIngestForm', () => {
       expect(screen.getByTestId('success-card')).toBeInTheDocument();
     });
 
+    const card = screen.getByTestId('success-card');
+    // id -> referenceId, kind='reference' (no itemId/content_type/layer).
+    expect(card).toHaveAttribute('data-kind', 'reference');
+    expect(card).toHaveAttribute('data-ref-id', 'ri-new-123');
     expect(screen.getByText('Test Article')).toBeInTheDocument();
   });
 
@@ -377,11 +367,13 @@ describe('UrlIngestForm', () => {
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({
-        id: 'new-item-123',
+        id: 'ri-new-123',
         title: 'Test Article',
-        content_type: 'article',
+        summary: 'A summary long enough to clear the manual-hint gate. '.repeat(
+          5,
+        ),
         warnings: [],
-        duplicate_matches: [],
+        dedup_status: 'clean',
       }),
     });
 
@@ -416,19 +408,18 @@ describe('UrlIngestForm', () => {
   });
 
   describe('onSuggestManual callback', () => {
-    it('shows manual suggestion when content_length < 500 and onSuggestManual provided', async () => {
+    it('shows manual suggestion when summary is short and onSuggestManual provided', async () => {
       const onSuggestManual = vi.fn();
 
       mockFetch.mockResolvedValue({
         ok: true,
         json: async () => ({
-          id: 'new-item-456',
+          id: 'ri-new-456',
           title: 'Brief Article',
           source_url: 'https://example.com/brief',
-          content_type: 'article',
-          content_length: 200,
+          summary: 'Too short.',
           warnings: ['Limited text extracted'],
-          duplicate_matches: [],
+          dedup_status: 'clean',
         }),
       });
 
@@ -463,19 +454,21 @@ describe('UrlIngestForm', () => {
       expect(onSuggestManual).toHaveBeenCalledOnce();
     });
 
-    it('does not show manual suggestion when content_length >= 500', async () => {
+    it('does not show manual suggestion when summary is substantial', async () => {
       const onSuggestManual = vi.fn();
 
       mockFetch.mockResolvedValue({
         ok: true,
         json: async () => ({
-          id: 'new-item-789',
+          id: 'ri-new-789',
           title: 'Long Article',
           source_url: 'https://example.com/long',
-          content_type: 'article',
-          content_length: 5000,
+          summary:
+            'A substantial summary that easily clears the hint gate. '.repeat(
+              5,
+            ),
           warnings: [],
-          duplicate_matches: [],
+          dedup_status: 'clean',
         }),
       });
 
@@ -506,13 +499,12 @@ describe('UrlIngestForm', () => {
       mockFetch.mockResolvedValue({
         ok: true,
         json: async () => ({
-          id: 'new-item-abc',
+          id: 'ri-new-abc',
           title: 'Short Article',
           source_url: 'https://example.com/short',
-          content_type: 'article',
-          content_length: 100,
+          summary: 'Too short.',
           warnings: [],
-          duplicate_matches: [],
+          dedup_status: 'clean',
         }),
       });
 
