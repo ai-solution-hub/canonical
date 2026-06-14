@@ -1143,6 +1143,207 @@ export async function validateEntities(
  *
  * @throws AIServiceError for domain errors (404, 400, 500 on update)
  */
+/**
+ * Build the taxonomy reference string ("- domain: sub, sub, …" lines) the
+ * classifier prompt interpolates into `{TAXONOMY}`. Pure formatting over the
+ * active taxonomy rows — shared by `classifyContent` (content_items path) and
+ * `classifyText` (DB-free reference path) so both prompts stay byte-identical.
+ */
+function buildTaxonomyString(
+  domains: Array<{ id: string; name: string }>,
+  subtopics: Array<{ name: string; domain_id: string }>,
+): string {
+  return domains
+    .map((d) => {
+      const subs = subtopics
+        .filter((s) => s.domain_id === d.id)
+        .map((s) => s.name);
+      return `- ${d.name}: ${subs.join(', ')}`;
+    })
+    .join('\n');
+}
+
+/**
+ * Build the full classification prompt (skill files + client-placeholder
+ * resolution + taxonomy + disambiguation + product anchor). Pure code-motion
+ * of the prompt assembly previously inlined in `classifyContent` — extracted so
+ * the standalone `classifyText` classifier reuses the EXACT same prompt without
+ * duplicating the skill-load / placeholder chain. `classifyContent`'s output is
+ * unchanged: it calls this helper and feeds the result to its existing combined
+ * `return_classification` tool call.
+ */
+async function buildClassificationPrompt(taxonomyStr: string): Promise<string> {
+  // Load classification skill files — main skill + entity types reference
+  const classificationSkill = await loadSkill('classification');
+  const entityTypesRef = await loadSkill('classification-entity-types');
+
+  // Interpolate placeholders in the skill file content. The disambiguation
+  // block is sourced from CLIENT_CONFIG so new clients can add their own
+  // rules without touching this file — see lib/client-config.ts
+  // classification_disambiguation_rules. Placeholders inside the rules
+  // (e.g. {CLIENT_PRODUCT_NAME}) are resolved by the .replaceAll chain
+  // below after the {CLIENT_DISAMBIGUATION} substitution.
+  // Resolve the client entity placeholders ({CLIENT_ORGANISATION_NAME} etc.)
+  // across BOTH skill files. The entity-types reference also carries these
+  // placeholders, so it must run through the same substitution — otherwise the
+  // literal tokens would leak into the prompt.
+  const resolveClientPlaceholders = (text: string): string =>
+    text
+      .replaceAll(
+        '{CLIENT_ORGANISATION_NAME}',
+        CLIENT_CONFIG.entity_examples.organisation_name,
+      )
+      .replaceAll(
+        '{CLIENT_ORGANISATION_SHORT}',
+        CLIENT_CONFIG.entity_examples.organisation_short,
+      )
+      .replaceAll(
+        '{CLIENT_PRODUCT_NAME}',
+        CLIENT_CONFIG.entity_examples.product_name,
+      )
+      .replaceAll(
+        '{CLIENT_PRODUCT_SHORT}',
+        CLIENT_CONFIG.entity_examples.product_short,
+      );
+
+  return (
+    resolveClientPlaceholders(
+      classificationSkill
+        .replace('{TAXONOMY}', taxonomyStr)
+        .replace('{CLIENT_DISAMBIGUATION}', buildDisambiguationBlock()),
+    ) +
+    '\n\n---\n\n' +
+    resolveClientPlaceholders(entityTypesRef) +
+    '\n\n---\n\n' +
+    PAYMENT_GATEWAY_PRODUCT_ANCHOR
+  );
+}
+
+/** Result of the pure {@link classifyText} domain/subtopic classifier. */
+export interface ClassifyTextResult {
+  primary_domain: string;
+  primary_subtopic: string | null;
+}
+
+/** Parameters for the pure {@link classifyText} classifier. */
+export interface ClassifyTextParams {
+  /** Supabase client — used ONLY to read the active taxonomy (no content_items I/O). */
+  supabase: SupabaseClient<Database>;
+  title: string;
+  content: string;
+}
+
+/**
+ * Pure, DB-write-free domain/subtopic classifier (ID-110 {110.6}).
+ *
+ * Runs ONLY the Claude domain/subtopic classification sub-step against raw
+ * title + content: no `content_items` row, no entity/temporal extraction, no
+ * writes. The single DB touch is a read of the active taxonomy (needed to build
+ * the prompt and validate the returned domain against valid slugs) — the same
+ * taxonomy `classifyContent` reads.
+ *
+ * Used by the reference-ingest route (`/api/ingest/url`) to populate
+ * `reference_items.primary_domain`/`primary_subtopic` without minting a
+ * `content_items` row. The content_items path (`classifyContent`) is UNCHANGED:
+ * it keeps its single combined `return_classification` call. The two share the
+ * prompt/taxonomy builders above (DRY), not the LLM round-trip — extracting the
+ * combined call's domain/subtopic into a separate round-trip would alter
+ * `classifyContent`'s cost and token-usage logging, which is out of scope.
+ *
+ * @throws AIServiceError when content is empty or the Claude call/parse fails;
+ *   the caller (route) treats a throw as "pass NULL for domain/subtopic".
+ */
+export async function classifyText(
+  params: ClassifyTextParams,
+): Promise<ClassifyTextResult> {
+  const { supabase, title, content } = params;
+
+  if (!content?.trim()) {
+    throw new AIServiceError('No content to classify', 400);
+  }
+
+  // Build taxonomy string from DB (read-only — same source as classifyContent).
+  const domains = await sb(
+    supabase
+      .from('taxonomy_domains')
+      .select('id, name')
+      .eq('is_active', true)
+      .order('display_order'),
+    'taxonomy.domains.list',
+  );
+
+  const subtopics = await sb(
+    supabase
+      .from('taxonomy_subtopics')
+      .select('name, domain_id')
+      .eq('is_active', true)
+      .order('display_order'),
+    'taxonomy.subtopics.list',
+  );
+
+  const taxonomyStr = buildTaxonomyString(domains, subtopics);
+  const prompt = await buildClassificationPrompt(taxonomyStr);
+
+  // Prepare content for classification (truncate at 5000 chars — same bound as
+  // classifyContent's content_items path).
+  const plainText = stripMarkdown(content);
+  const contentForClassification = plainText.slice(0, 5000);
+
+  // Minimal Claude call: domain + subtopic ONLY (no entity/temporal schema).
+  const client = getAnthropicClient();
+  const model = getAIModel();
+
+  const response = await client.messages.create({
+    model,
+    max_tokens: 500,
+    tools: [
+      {
+        name: 'return_classification',
+        description: 'Return the primary domain and subtopic for this content',
+        input_schema: {
+          type: 'object' as const,
+          properties: {
+            primary_domain: { type: 'string' },
+            primary_subtopic: { type: 'string' },
+          },
+          required: ['primary_domain', 'primary_subtopic'],
+        },
+      },
+    ],
+    tool_choice: { type: 'tool' as const, name: 'return_classification' },
+    messages: [
+      {
+        role: 'user',
+        content: `${prompt}
+
+Title: ${title}
+
+Content:
+${contentForClassification}`,
+      },
+    ],
+  });
+
+  const result = extractToolResult<{
+    primary_domain: string;
+    primary_subtopic: string;
+  }>(response, 'return_classification');
+
+  // Coerce empty / whitespace-only subtopic to null, then validate the domain
+  // against taxonomy slugs (mirrors classifyContent's post-processing).
+  const primarySubtopic = coerceSubtopic(result.primary_subtopic);
+  const validDomainSlugs = (domains ?? []).map((d) => d.name);
+  const primaryDomain =
+    validDomainSlugs.length > 0
+      ? validateDomain(result.primary_domain, validDomainSlugs)
+      : result.primary_domain;
+
+  return {
+    primary_domain: primaryDomain,
+    primary_subtopic: primarySubtopic,
+  };
+}
+
 export async function classifyContent(
   params: ClassifyParams,
 ): Promise<ClassificationResult> {
@@ -1181,10 +1382,6 @@ export async function classifyContent(
     throw new AIServiceError('Content item has no content to classify', 400);
   }
 
-  // Load classification skill files — main skill + entity types reference
-  const classificationSkill = await loadSkill('classification');
-  const entityTypesRef = await loadSkill('classification-entity-types');
-
   // Build taxonomy string from DB
   const domains = await sb(
     supabase
@@ -1204,54 +1401,10 @@ export async function classifyContent(
     'taxonomy.subtopics.list',
   );
 
-  const taxonomyStr = domains
-    .map((d) => {
-      const subs = subtopics
-        .filter((s) => s.domain_id === d.id)
-        .map((s) => s.name);
-      return `- ${d.name}: ${subs.join(', ')}`;
-    })
-    .join('\n');
-
-  // Interpolate placeholders in the skill file content. The disambiguation
-  // block is sourced from CLIENT_CONFIG so new clients can add their own
-  // rules without touching this file — see lib/client-config.ts
-  // classification_disambiguation_rules. Placeholders inside the rules
-  // (e.g. {CLIENT_PRODUCT_NAME}) are resolved by the .replaceAll chain
-  // below after the {CLIENT_DISAMBIGUATION} substitution.
-  // Resolve the client entity placeholders ({CLIENT_ORGANISATION_NAME} etc.)
-  // across BOTH skill files. The entity-types reference also carries these
-  // placeholders, so it must run through the same substitution — otherwise the
-  // literal tokens would leak into the prompt.
-  const resolveClientPlaceholders = (text: string): string =>
-    text
-      .replaceAll(
-        '{CLIENT_ORGANISATION_NAME}',
-        CLIENT_CONFIG.entity_examples.organisation_name,
-      )
-      .replaceAll(
-        '{CLIENT_ORGANISATION_SHORT}',
-        CLIENT_CONFIG.entity_examples.organisation_short,
-      )
-      .replaceAll(
-        '{CLIENT_PRODUCT_NAME}',
-        CLIENT_CONFIG.entity_examples.product_name,
-      )
-      .replaceAll(
-        '{CLIENT_PRODUCT_SHORT}',
-        CLIENT_CONFIG.entity_examples.product_short,
-      );
-
-  const prompt =
-    resolveClientPlaceholders(
-      classificationSkill
-        .replace('{TAXONOMY}', taxonomyStr)
-        .replace('{CLIENT_DISAMBIGUATION}', buildDisambiguationBlock()),
-    ) +
-    '\n\n---\n\n' +
-    resolveClientPlaceholders(entityTypesRef) +
-    '\n\n---\n\n' +
-    PAYMENT_GATEWAY_PRODUCT_ANCHOR;
+  // Taxonomy string + full classification prompt — shared with the pure
+  // classifyText() reference path (DRY; prompt is byte-identical).
+  const taxonomyStr = buildTaxonomyString(domains, subtopics);
+  const prompt = await buildClassificationPrompt(taxonomyStr);
 
   // Prepare content for classification (truncate at 5000 chars)
   const plainText = stripMarkdown(item.content);
