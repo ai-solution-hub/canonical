@@ -84,6 +84,7 @@ function makeExtracted(over: Record<string, unknown> = {}) {
     excerpt: 'A short excerpt.',
     ogImage: '',
     ogDescription: '',
+    ogDate: '',
     extractionMethod: 'readability' as const,
     contentLength: 800,
     ...over,
