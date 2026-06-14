@@ -883,3 +883,40 @@ export async function mutationBulkPublicationAction(
     { method: 'POST' },
   );
 }
+
+// ---------------------------------------------------------------------------
+// Folder-drop ingest poll ({56.12}, ID-56 Path B)
+// ---------------------------------------------------------------------------
+//
+// After a file is staged + walked (lib/upload/folder-drop.ts), cocoindex
+// ingests it asynchronously and stamps `content_items.source_file` with the
+// dropped filename. This fetcher polls a lean authed endpoint that answers the
+// single question "has a content_items row appeared for this source_file yet?"
+// — agnostic of publication/governance state (the row may land in any state).
+
+/** Shape returned by GET /api/ingest/folder-drop/status. */
+/** @public */
+export interface ContentIngestStatus {
+  /** True once a content_items row exists for the polled source_file. */
+  ingested: boolean;
+  /** The content_items id once ingested (null until then). */
+  itemId: string | null;
+}
+
+/**
+ * Poll the folder-drop ingest status for a single `source_file`.
+ *
+ * Wire shape: GET /api/ingest/folder-drop/status?source_file=<name>
+ *
+ * Returns `{ ingested: false, itemId: null }` while the row has not yet landed
+ * (the normal pre-ingest state — NOT an error). A non-OK response throws
+ * ApiError so the caller's poll surfaces a real failure rather than masking it.
+ */
+export async function fetchContentIngestStatus(
+  sourceFile: string,
+): Promise<ContentIngestStatus> {
+  const params = new URLSearchParams({ source_file: sourceFile });
+  return fetchJson<ContentIngestStatus>(
+    `/api/ingest/folder-drop/status?${params.toString()}`,
+  );
+}

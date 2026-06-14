@@ -21,7 +21,21 @@ const UPLOAD_STEPS: IngestionStep[] = [
   { label: 'Generating summary', status: 'pending' },
 ];
 
-/** Interval between cosmetic step advances (ms) */
+/**
+ * Interval between cosmetic step advances (ms).
+ *
+ * NOTE ({56.12}, ID-56 Path B): this cosmetic timer drives the SYNCHRONOUS
+ * /api/upload path, which performs app-side extraction and returns the finished
+ * item in a single response — there is no async backend surface to subscribe
+ * to, so the steps are necessarily illustrative and the timer is retained here.
+ *
+ * The folder-drop async path (Path B) does NOT use this timer: it drives its
+ * progress from REAL poll state via `hooks/useContentIngestPolling.ts`
+ * (content_items.source_file correlation) instead of a cosmetic interval.
+ * Migrating the synchronous path off cosmetic stepping would require a
+ * server-side progress surface for /api/upload (a separate work item) — see the
+ * {56.12} journal escalation.
+ */
 const STEP_ADVANCE_INTERVAL = 2500;
 
 /** localStorage key for skip review preference */

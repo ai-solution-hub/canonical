@@ -22,7 +22,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { FileUpload } from '@/components/create-content/file-upload';
-import { IngestionProgress } from '@/components/create-content/ingestion-progress';
+import {
+  IngestionProgress,
+  type IngestionStep,
+} from '@/components/create-content/ingestion-progress';
+import { IngestionSuccessCard } from '@/components/create-content/ingestion-success-card';
+import { useContentIngestPolling } from '@/hooks/useContentIngestPolling';
 import { DedupWarning } from '@/components/shared/dedup-warning';
 import { ReuploadBanner } from '@/components/source-document/reupload-banner';
 import { UploadReviewStep } from '@/components/create-content/upload-review-step';
@@ -401,6 +406,83 @@ export function UploadTabContent({
     resetMarkdownBatch();
     reset();
   }, [resetMarkdownBatch, reset]);
+
+  // ---------------------------------------------------------------------------
+  // Folder-drop async ingest ({56.12}, ID-56 Path B)
+  // ---------------------------------------------------------------------------
+  // Distinct from the synchronous /api/upload path above: a folder-drop uploads
+  // the file to the authed /api/ingest/folder-drop route (which stages it into
+  // the cocoindex corpus + triggers an incremental walk), then polls
+  // content_items by source_file until the ingested row appears. The status chip
+  // and progress are driven by REAL poll state via useContentIngestPolling — no
+  // cosmetic timer.
+
+  /** Sub-state for the folder-drop surface. */
+  type FolderDropPhase = 'idle' | 'staging' | 'polling';
+  const [folderDropPhase, setFolderDropPhase] =
+    useState<FolderDropPhase>('idle');
+  const [folderDropError, setFolderDropError] = useState<string | null>(null);
+  const [folderDropTitle, setFolderDropTitle] = useState<string>('');
+
+  const ingestPoll = useContentIngestPolling();
+  const { start: startIngestPoll, reset: resetIngestPoll } = ingestPoll;
+
+  const resetFolderDrop = useCallback(() => {
+    setFolderDropPhase('idle');
+    setFolderDropError(null);
+    setFolderDropTitle('');
+    resetIngestPoll();
+  }, [resetIngestPoll]);
+
+  const stageMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/ingest/folder-drop', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          (data as { error?: string }).error ?? 'Folder-drop ingest failed',
+        );
+      }
+      return data as { sourceFile: string; destPath: string };
+    },
+    onMutate: () => {
+      setFolderDropPhase('staging');
+      setFolderDropError(null);
+    },
+    onSuccess: (data) => {
+      // Hand off to the poll loop — it watches content_items.source_file until
+      // the cocoindex-ingested row lands.
+      startIngestPoll(data.sourceFile);
+      setFolderDropPhase('polling');
+    },
+    onError: (err: unknown) => {
+      const message =
+        err instanceof Error ? err.message : 'Folder-drop ingest failed';
+      setFolderDropError(message);
+      toast.error(message);
+      setFolderDropPhase('idle');
+    },
+  });
+
+  const { mutate: stageMutate, isPending: stageIsPending } = stageMutation;
+
+  const handleFolderDropIngest = useCallback(() => {
+    // Path B handles a single file per drop (cocoindex ingests incrementally).
+    const first = files[0];
+    if (!first) return;
+    setFolderDropTitle(first.file.name);
+    stageMutate(first.file);
+  }, [files, stageMutate]);
+
+  const handleFolderDropDone = useCallback(() => {
+    resetFolderDrop();
+    reset();
+  }, [resetFolderDrop, reset]);
 
   // ---------------------------------------------------------------------------
   // Q&A batch creation state
@@ -801,6 +883,96 @@ export function UploadTabContent({
   }
 
   // ---------------------------------------------------------------------------
+  // Render: Folder-drop async ingest ({56.12}) — ingested success card
+  // ---------------------------------------------------------------------------
+
+  if (folderDropPhase === 'polling' && ingestPoll.status === 'ingested') {
+    return (
+      <div
+        className="mx-auto max-w-2xl space-y-4"
+        data-testid="folder-drop-ingested"
+      >
+        <IngestionSuccessCard
+          itemId={ingestPoll.itemId ?? ''}
+          title={folderDropTitle}
+          contentType="other"
+        />
+        <div className="flex items-center justify-end">
+          <Button variant="outline" onClick={handleFolderDropDone}>
+            Ingest another
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Render: Folder-drop async ingest — staging / polling (real poll state)
+  // ---------------------------------------------------------------------------
+
+  if (folderDropPhase === 'staging' || folderDropPhase === 'polling') {
+    const isError =
+      ingestPoll.status === 'error' || ingestPoll.status === 'timeout';
+    const steps: IngestionStep[] = [
+      {
+        label: 'Staging file into corpus',
+        status: folderDropPhase === 'staging' ? 'active' : 'done',
+      },
+      {
+        label: 'Ingesting (classify, embed, chunk)',
+        status:
+          folderDropPhase === 'staging'
+            ? 'pending'
+            : isError
+              ? 'error'
+              : 'active',
+      },
+    ];
+
+    return (
+      <div
+        className="mx-auto max-w-2xl space-y-4"
+        data-testid="folder-drop-active"
+      >
+        <div className="mb-2">
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+            <Upload className="size-5" aria-hidden="true" />
+            Ingesting {folderDropTitle}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            The file is staged into the corpus and processed by the ingestion
+            pipeline. This view updates from real pipeline state.
+          </p>
+        </div>
+
+        <IngestionProgress steps={steps} />
+
+        {isError && (
+          <div
+            role="alert"
+            className="flex items-start gap-2 rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive"
+            data-testid="folder-drop-error"
+          >
+            <XCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <span>
+              {folderDropError ??
+                (ingestPoll.status === 'timeout'
+                  ? 'Ingestion is taking longer than expected — it may still complete. Check Browse shortly, or try again.'
+                  : 'Ingestion status check failed. The file may still be processing — check Browse shortly.')}
+            </span>
+          </div>
+        )}
+
+        <div className="flex items-center justify-end">
+          <Button variant="outline" onClick={resetFolderDrop}>
+            {isError ? 'Back' : 'Cancel'}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
   // Render: Markdown-batch sub-mode — analysing / reviewing / importing
   // ---------------------------------------------------------------------------
 
@@ -1145,6 +1317,20 @@ export function UploadTabContent({
         {hasResults && !isUploading && (
           <Button variant="outline" onClick={() => reset()}>
             Clear
+          </Button>
+        )}
+        {/* Folder-drop async ingest ({56.12}, Path B) \u2014 single-file drops only.
+            Stages into the cocoindex corpus + triggers an incremental walk,
+            then polls content_items for the ingested row. Distinct from the
+            synchronous Upload button below. */}
+        {pendingCount === 1 && !isMarkdownBatch && (
+          <Button
+            variant="outline"
+            onClick={handleFolderDropIngest}
+            disabled={stageIsPending}
+            data-testid="folder-drop-ingest-button"
+          >
+            {stageIsPending ? 'Staging\u2026' : 'Stage & ingest'}
           </Button>
         )}
         <Button
