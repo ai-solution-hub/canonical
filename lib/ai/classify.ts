@@ -528,6 +528,10 @@ export function deriveHolderMetadata(
 ): number {
   const clientOrgLower = BRANDING.organisationName.toLowerCase();
   const holdsRelsByTarget = new Map<string, string>();
+  // ID-109: parallel scope map, keyed identically to holdsRelsByTarget (same
+  // target-canonical space), tracking the resolved holder relation's
+  // `source_scope`. Last-wins on collision, mirroring holdsRelsByTarget.
+  const scopeByTarget = new Map<string, 'internal' | 'external'>();
 
   // Pass 1: canonical `holds` relationships. Last-wins on collision
   // (e.g. two suppliers both assert `holds iso 27001`) — this mirrors
@@ -538,6 +542,11 @@ export function deriveHolderMetadata(
       const targetLower = resolveAlias(canonicalise(rel.target)).toLowerCase();
       const sourceLower = resolveAlias(canonicalise(rel.source)).toLowerCase();
       holdsRelsByTarget.set(targetLower, sourceLower);
+      if (rel.source_scope) {
+        scopeByTarget.set(targetLower, rel.source_scope);
+      } else {
+        scopeByTarget.delete(targetLower);
+      }
     }
   }
 
@@ -569,9 +578,23 @@ export function deriveHolderMetadata(
       const sourceLower = resolveAlias(canonicalise(rel.source)).toLowerCase();
       const sourceIsClientOrg = sourceLower === clientOrgLower;
       const sourceIsExtractedOrg = orgSources.has(sourceLower);
-      if (!sourceIsClientOrg && !sourceIsExtractedOrg) continue;
+      // ID-109: an `internal`-scoped synonym rel admits past the org gate even
+      // when its source is not an organisation — the internal function ("Internal
+      // IT") is deliberately NOT an organisation mention (invariant 2 / PC-2), so
+      // the scope tag is itself the holder-source authority. Without this the
+      // canonical `complies_with` internal case ("Our internal IT team is
+      // compliant to ISO 27001") would be rejected here and never reach the
+      // internal stamp branch.
+      const sourceIsInternalScope = rel.source_scope === 'internal';
+      if (!sourceIsClientOrg && !sourceIsExtractedOrg && !sourceIsInternalScope)
+        continue;
 
       holdsRelsByTarget.set(targetLower, sourceLower);
+      if (rel.source_scope) {
+        scopeByTarget.set(targetLower, rel.source_scope);
+      } else {
+        scopeByTarget.delete(targetLower);
+      }
     }
   }
 
@@ -580,7 +603,14 @@ export function deriveHolderMetadata(
     if (row.entity_type === 'certification') {
       const holdsSource = holdsRelsByTarget.get(row.canonical_name);
       if (holdsSource) {
-        if (holdsSource === clientOrgLower) {
+        // ID-109: internal-function self-attribution. Third stamp branch,
+        // BEFORE the existing self/supplier split. Disclaimer dominance is
+        // enforced at extraction (a disclaimer sets source_scope='external' or
+        // names a third-party source), so an internal-tagged cert is by
+        // construction disclaimer-free here.
+        if (scopeByTarget.get(row.canonical_name) === 'internal') {
+          row.metadata = { holder: 'self', holder_basis: 'internal_function' };
+        } else if (holdsSource === clientOrgLower) {
           row.metadata = { holder: 'self' };
         } else {
           row.metadata = {
@@ -664,6 +694,17 @@ export interface ExtractedRelationship {
     | 'references'
     | 'evidences';
   target: string;
+  /**
+   * ID-109 internal-function holder attribution (Option C). Optional in-memory
+   * tag emitted by extraction on a `holds`/`complies_with`/`evidences` relation:
+   * `'internal'` when the certification is held by the document author's own
+   * internal function (declared with explicit first-person possessive, no
+   * supplier disclaimer in scope), `'external'` when held by a named third
+   * party. Absent ⇒ external/unknown. Consumed by `deriveHolderMetadata`'s
+   * third stamp branch and dropped before the `entity_relationships` write — it
+   * is NEVER persisted (zero-migration; see id-109 TECH §Persistence).
+   */
+  source_scope?: 'internal' | 'external';
 }
 
 /** AI-extracted temporal reference from content classification. */
@@ -1305,6 +1346,12 @@ export async function classifyContent(
                   target: {
                     type: 'string',
                     description: 'Canonical name of the target entity',
+                  },
+                  source_scope: {
+                    type: 'string',
+                    enum: ['internal', 'external'],
+                    description:
+                      "Holder scope for certification `holds`/`complies_with`/`evidences` relations only. Set 'internal' ONLY when the certification is held by the document author's OWN internal function, declared with an explicit first-person possessive ('our'/'we'/'our own') and with NO supplier/third-party disclaimer in scope (e.g. \"Our internal IT team is compliant to ISO 27001\"). Set 'external' when a supplier/third-party disclaimer scopes the certification, or the internal function belongs to a named third party. OMIT the field entirely for bare/non-possessive phrasing or any ambiguous case — do not guess.",
                   },
                 },
                 required: ['source', 'relationship', 'target'],

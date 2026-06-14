@@ -304,6 +304,179 @@ describe('deriveHolderMetadata', () => {
     expect(count).toBe(1);
     expect(rows[0].metadata).toEqual({ holder: 'self' });
   });
+
+  // ---------------------------------------------------------------------
+  // ID-109 — internal-function holder attribution (Option C, source_scope).
+  // OQ-A: mixed provenance → abstain-to-null. OQ-B: our/we/our-own fire,
+  // bare in-house abstains (enforced at extraction; the rule keys off the tag).
+  // ---------------------------------------------------------------------
+
+  it('stamps internal_function self for an internal-tagged `holds` rel (Inv 1/3/10)', () => {
+    // "Our internal IT team is compliant to ISO 27001" — the source is an
+    // internal function (NOT an org), the rel carries source_scope:'internal'.
+    const rows: EntityMentionRow[] = [row({ canonical_name: 'iso 27001' })];
+    const rels: ExtractedRelationship[] = [
+      {
+        source: 'Internal IT',
+        relationship: 'holds',
+        target: 'ISO 27001',
+        source_scope: 'internal',
+      },
+    ];
+
+    const count = deriveHolderMetadata(rows, rels);
+
+    expect(count).toBe(1);
+    expect(rows[0].metadata).toEqual({
+      holder: 'self',
+      holder_basis: 'internal_function',
+    });
+  });
+
+  it('stamps internal_function self for an internal-tagged `complies_with` synonym whose source is not an org (Inv 2/3)', () => {
+    // The canonical worked example: complies_with + non-org internal source.
+    // The internal scope tag admits past the Pass-2 org gate.
+    const rows: EntityMentionRow[] = [row({ canonical_name: 'iso 27001' })];
+    const rels: ExtractedRelationship[] = [
+      {
+        source: 'Internal IT',
+        relationship: 'complies_with',
+        target: 'ISO 27001',
+        source_scope: 'internal',
+      },
+    ];
+
+    const count = deriveHolderMetadata(rows, rels);
+
+    expect(count).toBe(1);
+    expect(rows[0].metadata).toEqual({
+      holder: 'self',
+      holder_basis: 'internal_function',
+    });
+  });
+
+  it('does NOT stamp internal_function on a non-certification mention (Inv 9/14)', () => {
+    const rows: EntityMentionRow[] = [
+      row({ entity_type: 'regulation', canonical_name: 'gdpr' }),
+    ];
+    const rels: ExtractedRelationship[] = [
+      {
+        source: 'Internal IT',
+        relationship: 'holds',
+        target: 'GDPR',
+        source_scope: 'internal',
+      },
+    ];
+
+    const count = deriveHolderMetadata(rows, rels);
+
+    expect(count).toBe(0);
+    expect(rows[0].metadata).toBeUndefined();
+  });
+
+  it('abstains to null on a bare/non-possessive internal subject (no source_scope, source not an org) — OQ-B (Inv 6)', () => {
+    // "Internal IT is compliant to ISO 27001" — no possessive ⇒ extraction
+    // omits source_scope; source is not an org ⇒ Pass-2 rejects ⇒ null.
+    const rows: EntityMentionRow[] = [row({ canonical_name: 'iso 27001' })];
+    const rels: ExtractedRelationship[] = [
+      {
+        source: 'Internal IT',
+        relationship: 'complies_with',
+        target: 'ISO 27001',
+      },
+    ];
+
+    const count = deriveHolderMetadata(rows, rels);
+
+    expect(count).toBe(0);
+    expect(rows[0].metadata).toBeUndefined();
+  });
+
+  it('external-tagged source that is not an org abstains to null (Inv 5/6)', () => {
+    // "Example Datacentre's internal security team is compliant to ISO 27001"
+    // modelled as source_scope:'external' on a non-org source ⇒ Pass-2 rejects.
+    const rows: EntityMentionRow[] = [row({ canonical_name: 'iso 27001' })];
+    const rels: ExtractedRelationship[] = [
+      {
+        source: 'Example Datacentre internal security team',
+        relationship: 'complies_with',
+        target: 'ISO 27001',
+        source_scope: 'external',
+      },
+    ];
+
+    const count = deriveHolderMetadata(rows, rels);
+
+    expect(count).toBe(0);
+    expect(rows[0].metadata).toBeUndefined();
+  });
+
+  it('disclaimer-scoped supplier `holds` wins over internal phrasing — supplier, no holder_basis (Inv 4)', () => {
+    // Disclaimer dominance is resolved at extraction: the disclaimer makes the
+    // cert a supplier `holds` (named third party as source), source_scope
+    // 'external'. The internal branch must NOT fire.
+    const rows: EntityMentionRow[] = [
+      row({ canonical_name: 'iso 27001' }),
+      row({
+        entity_type: 'organisation',
+        canonical_name: 'example datacentre',
+      }),
+    ];
+    const rels: ExtractedRelationship[] = [
+      {
+        source: 'Example Datacentre',
+        relationship: 'holds',
+        target: 'ISO 27001',
+        source_scope: 'external',
+      },
+    ];
+
+    const count = deriveHolderMetadata(rows, rels);
+
+    expect(count).toBe(1);
+    expect(rows[0].metadata).toEqual({
+      holder: 'supplier',
+      supplier_name: 'example datacentre',
+    });
+  });
+
+  it('name-resolved self carries NO holder_basis (Inv 11) — additive guarantee', () => {
+    // Existing self path (source == client org, no source_scope) is unchanged.
+    const rows: EntityMentionRow[] = [row({ canonical_name: 'iso 9001' })];
+    const rels: ExtractedRelationship[] = [
+      { source: selfOrgName, relationship: 'holds', target: 'ISO 9001' },
+    ];
+
+    const count = deriveHolderMetadata(rows, rels);
+
+    expect(count).toBe(1);
+    expect(rows[0].metadata).toEqual({ holder: 'self' });
+    expect(
+      (rows[0].metadata as Record<string, unknown>).holder_basis,
+    ).toBeUndefined();
+  });
+
+  it('internal scope overrides a client-org source (internal branch is first) (Inv 3)', () => {
+    // Even when the holds source happens to be the client org, an explicit
+    // internal scope tag stamps the internal_function breadcrumb.
+    const rows: EntityMentionRow[] = [row({ canonical_name: 'iso 27001' })];
+    const rels: ExtractedRelationship[] = [
+      {
+        source: selfOrgName,
+        relationship: 'holds',
+        target: 'ISO 27001',
+        source_scope: 'internal',
+      },
+    ];
+
+    const count = deriveHolderMetadata(rows, rels);
+
+    expect(count).toBe(1);
+    expect(rows[0].metadata).toEqual({
+      holder: 'self',
+      holder_basis: 'internal_function',
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

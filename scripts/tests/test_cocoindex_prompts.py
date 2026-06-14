@@ -334,3 +334,54 @@ class TestRelationshipPromptHolderRules:
     def test_instructs_empty_list_when_none_found(self) -> None:
         """Inv-8: 'if none are found, return an empty list `[]`'."""
         assert "return an empty list `[]`" in RELATIONSHIP_PROMPT
+
+    # ── ID-109 — internal-function holder attribution (source_scope) ──────────
+
+    def test_contains_internal_function_source_scope_rule(self) -> None:
+        """ID-109 Inv 12: the internal-function source_scope rule is present.
+
+        The classifier must be told to set source_scope:'internal' only on an
+        explicit first-person possessive + disclaimer-free internal function.
+        """
+        assert (
+            "Internal-function holder attribution (the `source_scope` tag):"
+            in RELATIONSHIP_PROMPT
+        )
+        # OQ-B possessive trigger set (our / we / our own).
+        assert '`"our"`, `"we"`, or `"our own"`' in RELATIONSHIP_PROMPT
+        # Disclaimer dominance over the internal tag (Inv 4).
+        assert (
+            "A supplier/third-party disclaimer ALWAYS wins" in RELATIONSHIP_PROMPT
+        )
+        # Abstain on bare/non-possessive phrasing (Inv 6 / OQ-B).
+        assert (
+            'OMIT `source_scope` entirely (abstain)' in RELATIONSHIP_PROMPT
+        )
+
+    def test_contains_internal_function_worked_examples(self) -> None:
+        """ID-109 Inv 15: the three normative worked examples survive verbatim."""
+        for phrase in (
+            'source_scope: "internal"',
+            'source_scope: "external"',
+            "OMIT source_scope (no explicit possessive)",
+        ):
+            assert phrase in RELATIONSHIP_PROMPT, (
+                f"RELATIONSHIP_PROMPT missing internal-function example: {phrase}"
+            )
+
+
+class TestEntityMentionPromptInternalDepartmentsExclusion:
+    """ID-109 Inv 12 / PC-2: resolve the latent ENTITY_MENTION_PROMPT divergence.
+
+    The Python entity-mention prompt previously lacked the "Internal departments"
+    extraction exclusion that classification.md:390 carries. The internal-function
+    subject MUST stay a non-`organisation` mention on BOTH paths.
+    """
+
+    def test_excludes_internal_departments_from_extraction(self) -> None:
+        assert "Internal departments:" in ENTITY_MENTION_PROMPT
+        # The verbatim department examples mirroring classification.md.
+        assert (
+            "IT Department, HR Team, the project team, senior management"
+            in ENTITY_MENTION_PROMPT
+        )

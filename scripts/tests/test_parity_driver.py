@@ -45,11 +45,16 @@ class _Mention:
 
 @dataclass(frozen=True)
 class _Rel:
-    """Duck-typed relationship stand-in (matches RelationshipExtraction shape)."""
+    """Duck-typed relationship stand-in (matches RelationshipExtraction shape).
+
+    ID-109: exposes the optional ``source_scope`` holder-scope tag; defaults to
+    ``None`` so existing cases stay byte-identical.
+    """
 
     source: str
     relationship: str
     target: str
+    source_scope: str | None = None
 
 
 # ── build_triples — 10-set filter ────────────────────────────────────────────
@@ -164,6 +169,29 @@ def test_build_holder_states_no_signal_cert_absent() -> None:
     mentions = [_Mention("ISO 27001", "certification")]
     states = build_holder_states(mentions, [], _CLIENT_ORG_RAW)
     assert states == {}
+
+
+def test_build_holder_states_internal_function_flows_holder_basis() -> None:
+    """ID-109 Inv 12/14: the holder_basis breadcrumb flows through the comparator.
+
+    build_holder_states re-keys derive_holder_metadata's map but passes the full
+    holder_md dict through unchanged — so the TS↔Python parity harness compares
+    holder_basis, catching a one-path-only flip. (Cross-path CI gate.)
+    """
+    mentions = [_Mention("ISO 27001", "certification")]
+    rels = [
+        _Rel(
+            source="Internal IT",
+            relationship="complies_with",
+            target="ISO 27001",
+            source_scope="internal",
+        )
+    ]
+    states = build_holder_states(mentions, rels, _CLIENT_ORG_RAW)
+    key = canonicalise_entity_name("ISO 27001", "certification")
+    assert states == {
+        key: {"holder": "self", "holder_basis": "internal_function"}
+    }
 
 
 def test_build_holder_states_non_cert_never_keyed() -> None:

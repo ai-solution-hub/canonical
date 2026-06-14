@@ -133,12 +133,22 @@ def derive_holder_metadata(
     # Pass 1: canonical `holds` relationships. Last-wins on duplicate target
     # (mirrors the TS single-source assumption — upstream dedup at classifier
     # output is the intended safeguard, not this map).
+    # ID-109: parallel scope map, keyed identically to holds_by_target (same
+    # target-canonical space), tracking the resolved holder relation's
+    # `source_scope`. Last-wins on collision, mirroring holds_by_target. Byte-
+    # parallel to the TS `scopeByTarget` (classify.ts deriveHolderMetadata).
     holds_by_target: dict[str, str] = {}
+    scope_by_target: dict[str, str] = {}
     for rel in relationships:
         if rel.relationship == "holds":
             target_c = canonicalise_for_relationship(rel.target)
             source_c = canonicalise_for_relationship(rel.source)
             holds_by_target[target_c] = source_c
+            rel_scope = getattr(rel, "source_scope", None)
+            if rel_scope:
+                scope_by_target[target_c] = rel_scope
+            else:
+                scope_by_target.pop(target_c, None)
 
     # R2 BRIDGE (load-bearing): build the membership sets in RELATIONSHIP-canonical
     # space, from each mention's RAW entity_name — NOT canonicalise_entity_name —
@@ -166,9 +176,26 @@ def derive_holder_metadata(
             source_c = canonicalise_for_relationship(rel.source)
             source_is_client_org = source_c == client_org_lower
             source_is_extracted_org = source_c in org_sources
-            if not source_is_client_org and not source_is_extracted_org:
+            # ID-109: an `internal`-scoped synonym rel admits past the org gate
+            # even when its source is not an organisation — the internal function
+            # ("Internal IT") is deliberately NOT an organisation mention
+            # (invariant 2 / PC-2), so the scope tag is itself the holder-source
+            # authority. Without this the canonical `complies_with` internal case
+            # ("Our internal IT team is compliant to ISO 27001") would be rejected
+            # here and never reach the internal stamp branch. Byte-parallel to TS.
+            rel_scope = getattr(rel, "source_scope", None)
+            source_is_internal_scope = rel_scope == "internal"
+            if (
+                not source_is_client_org
+                and not source_is_extracted_org
+                and not source_is_internal_scope
+            ):
                 continue
             holds_by_target[target_c] = source_c
+            if rel_scope:
+                scope_by_target[target_c] = rel_scope
+            else:
+                scope_by_target.pop(target_c, None)
 
     # Stamp: ONLY certification mentions (Inv-14), ONLY those with a holder
     # signal (Inv-10 — no-signal certs are absent from the returned map).
@@ -184,7 +211,18 @@ def derive_holder_metadata(
             mention.entity_name, mention.entity_type
         )
         key = (per_doc_canonical, mention.entity_type)
-        if holds_source == client_org_lower:
+        # ID-109: internal-function self-attribution. Third stamp branch, AFTER
+        # the R4 client-org fail-fast and the Inv-10 no-signal guard, and BEFORE
+        # the existing self/supplier split. Disclaimer dominance is enforced at
+        # extraction (a disclaimer sets source_scope='external' or names a
+        # third-party source), so an internal-tagged cert is by construction
+        # disclaimer-free here. Byte-parallel to TS deriveHolderMetadata.
+        if scope_by_target.get(target_c) == "internal":
+            holder_by_mention_id[key] = {
+                "holder": "self",
+                "holder_basis": "internal_function",
+            }
+        elif holds_source == client_org_lower:
             holder_by_mention_id[key] = {"holder": "self"}
         else:
             holder_by_mention_id[key] = {

@@ -776,6 +776,42 @@ Incorrect extraction (what happens without this rule):
 
 - source: "{CLIENT_ORGANISATION_NAME}", relationship: "holds", target: "ISO 27001"
 
+**Internal-function holder attribution (the `source_scope` tag):**
+
+Some certifications are held by the document author organisation's OWN internal function
+(its in-house IT, security, or quality team) rather than by a named external supplier. To
+attribute these correctly, set the optional `source_scope` field on the certification's
+`holds`/`complies_with`/`evidences` relationship:
+
+- Set `source_scope: "internal"` ONLY when ALL of the following hold: (a) the
+  certification is held by the document author's own internal function; (b) it is declared
+  with an explicit first-person possessive — `"our"`, `"we"`, or `"our own"` (e.g. "our
+  internal IT team", "we maintain ISO 27001 through our internal IT"); AND (c) there is NO
+  supplier/third-party disclaimer in scope for that certification. Keep the internal
+  function out of the `organisation` entities — it is NOT an organisation mention; the
+  signal rides on the relationship only.
+- A supplier/third-party disclaimer ALWAYS wins. When a disclaimer (the trigger phrases /
+  disclaimer paragraphs above) scopes the certification to a named third party, set
+  `source_scope: "external"` (or simply name the third party as `source`) — the
+  internal-function tag MUST NOT fire even if the same sentence uses "internal" phrasing.
+- A named third party's internal function ("Example Datacentre's internal security team is
+  compliant to ISO 27001") is EXTERNAL, not the author: set `source_scope: "external"` (or
+  name the third party as `source`).
+- Bare or non-possessive internal-department phrasing ("Internal IT is compliant to ISO
+  27001", "the IT team holds ISO 27001") and bare "in-house" without "our" do NOT qualify:
+  OMIT `source_scope` entirely (abstain). Never guess.
+
+Worked examples:
+
+- Fires (self). "Our internal IT team is compliant to ISO 27001." → source: "Internal IT",
+  relationship: "complies_with", target: "ISO 27001", source_scope: "internal".
+- Disclaimer wins (external). "Note: the certifications below are held by Example
+  Datacentre, not {CLIENT_ORGANISATION_NAME}. ISO 27001 is maintained by our internal
+  team." → source: "Example Datacentre", relationship: "holds", target: "ISO 27001",
+  source_scope: "external".
+- Bare internal department (abstain). "Internal IT is compliant to ISO 27001." → emit the
+  relationship if relevant but OMIT source_scope (no explicit possessive).
+
 ---
 
 ## Temporal Reference Extraction

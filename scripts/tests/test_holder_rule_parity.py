@@ -51,11 +51,17 @@ class _Mention:
 
 @dataclass(frozen=True)
 class _Rel:
-    """Duck-typed relationship stand-in (matches RelationshipExtraction shape)."""
+    """Duck-typed relationship stand-in (matches RelationshipExtraction shape).
+
+    ID-109: exposes the optional ``source_scope`` holder-scope tag
+    (``"internal" | "external" | None``) so the internal-function cases can set
+    it; defaults to ``None`` so existing cases stay byte-identical.
+    """
 
     source: str
     relationship: str
     target: str
+    source_scope: str | None = None
 
 
 def _key(entity_name: str, entity_type: str = "certification") -> tuple[str, str]:
@@ -272,3 +278,167 @@ def test_derive_is_deterministic() -> None:
     first = derive_holder_metadata(mentions, rels, _CLIENT_ORG)
     for _ in range(3):
         assert derive_holder_metadata(mentions, rels, _CLIENT_ORG) == first
+
+
+# ── ID-109 — internal-function holder attribution (Option C, source_scope) ────
+#
+# Byte-parallel to the TS cases in __tests__/lib/ai/classify.test.ts. OQ-A:
+# mixed provenance → abstain-to-null. OQ-B: our/we/our-own fire, bare in-house
+# abstains (enforced at extraction; the rule keys off the tag it receives).
+
+
+def test_internal_function_holds_stamps_self_with_basis() -> None:
+    """An internal-tagged `holds` rel → {holder:self, holder_basis:internal_function} (Inv 1/3/10)."""
+    mentions = [_Mention("ISO 27001", "certification")]
+    rels = [
+        _Rel(
+            source="Internal IT",
+            relationship="holds",
+            target="ISO 27001",
+            source_scope="internal",
+        )
+    ]
+
+    result = derive_holder_metadata(mentions, rels, _CLIENT_ORG)
+
+    assert result == {
+        _key("ISO 27001"): {
+            "holder": "self",
+            "holder_basis": "internal_function",
+        }
+    }
+
+
+def test_internal_function_synonym_non_org_source_admits_and_stamps() -> None:
+    """The canonical example: complies_with + non-org internal source.
+
+    The internal scope tag admits past the Pass-2 org gate (the internal
+    function is deliberately NOT an organisation mention, invariant 2). (Inv 2/3)
+    """
+    mentions = [_Mention("ISO 27001", "certification")]
+    rels = [
+        _Rel(
+            source="Internal IT",
+            relationship="complies_with",
+            target="ISO 27001",
+            source_scope="internal",
+        )
+    ]
+
+    result = derive_holder_metadata(mentions, rels, _CLIENT_ORG)
+
+    assert result == {
+        _key("ISO 27001"): {
+            "holder": "self",
+            "holder_basis": "internal_function",
+        }
+    }
+
+
+def test_internal_tag_never_stamps_non_certification() -> None:
+    """An internal-tagged rel onto a non-cert target stamps nothing (Inv 9/14)."""
+    mentions = [_Mention("GDPR", "regulation")]
+    rels = [
+        _Rel(
+            source="Internal IT",
+            relationship="holds",
+            target="GDPR",
+            source_scope="internal",
+        )
+    ]
+
+    result = derive_holder_metadata(mentions, rels, _CLIENT_ORG)
+
+    assert result == {}
+
+
+def test_bare_internal_subject_abstains_to_null() -> None:
+    """Bare/non-possessive internal subject (no source_scope, non-org source).
+
+    Extraction omits source_scope for bare phrasing (OQ-B); the non-org source
+    is then rejected by the Pass-2 org gate → cert absent from map → null. (Inv 6)
+    """
+    mentions = [_Mention("ISO 27001", "certification")]
+    rels = [
+        _Rel(source="Internal IT", relationship="complies_with", target="ISO 27001")
+    ]
+
+    result = derive_holder_metadata(mentions, rels, _CLIENT_ORG)
+
+    assert result == {}
+
+
+def test_external_tag_non_org_source_abstains_to_null() -> None:
+    """Named third-party internal function (external tag, non-org source) → null (Inv 5/6)."""
+    mentions = [_Mention("ISO 27001", "certification")]
+    rels = [
+        _Rel(
+            source="Example Datacentre internal security team",
+            relationship="complies_with",
+            target="ISO 27001",
+            source_scope="external",
+        )
+    ]
+
+    result = derive_holder_metadata(mentions, rels, _CLIENT_ORG)
+
+    assert result == {}
+
+
+def test_disclaimer_supplier_holds_wins_over_internal_no_basis() -> None:
+    """Disclaimer-scoped supplier `holds` (external tag, org source) → supplier, NO basis (Inv 4)."""
+    mentions = [
+        _Mention("ISO 27001", "certification"),
+        _Mention("Example Datacentre", "organisation"),
+    ]
+    rels = [
+        _Rel(
+            source="Example Datacentre",
+            relationship="holds",
+            target="ISO 27001",
+            source_scope="external",
+        )
+    ]
+
+    result = derive_holder_metadata(mentions, rels, _CLIENT_ORG)
+
+    expected_supplier = canonicalise_for_relationship("Example Datacentre")
+    assert result == {
+        _key("ISO 27001"): {
+            "holder": "supplier",
+            "supplier_name": expected_supplier,
+        }
+    }
+
+
+def test_name_resolved_self_carries_no_basis() -> None:
+    """Existing name-resolved self path is unchanged — NO holder_basis (Inv 11)."""
+    mentions = [_Mention("ISO 9001", "certification")]
+    rels = [_Rel(source="Knowledge Hub Ltd", relationship="holds", target="ISO 9001")]
+
+    result = derive_holder_metadata(mentions, rels, _CLIENT_ORG)
+
+    assert result == {_key("ISO 9001"): {"holder": "self"}}
+    assert "holder_basis" not in result[_key("ISO 9001")]
+
+
+def test_internal_scope_overrides_client_org_source() -> None:
+    """Internal branch runs first: a client-org source + internal tag → basis (Inv 3)."""
+    mentions = [_Mention("ISO 27001", "certification")]
+    rels = [
+        _Rel(
+            source="Knowledge Hub Ltd",
+            relationship="holds",
+            target="ISO 27001",
+            source_scope="internal",
+        )
+    ]
+
+    result = derive_holder_metadata(mentions, rels, _CLIENT_ORG)
+
+    assert result == {
+        _key("ISO 27001"): {
+            "holder": "self",
+            "holder_basis": "internal_function",
+        }
+    }
