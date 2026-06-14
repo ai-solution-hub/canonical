@@ -4590,6 +4590,34 @@ export type Database = {
           updated_at: string
         }[]
       }
+      reference_ingest: {
+        Args: {
+          p_body: string
+          p_content_hash: string
+          p_embedding: string
+          p_extraction_metadata?: Json
+          p_file_size: number
+          p_filename: string
+          p_mime_type: string
+          p_op_id?: string
+          p_primary_domain: string
+          p_primary_subtopic: string
+          p_published_at: string
+          p_source_url: string
+          p_summary: string
+          p_title: string
+        }
+        Returns: {
+          already_existed: boolean
+          primary_domain: string
+          primary_subtopic: string
+          reference_id: string
+          source_document_id: string
+          source_url: string
+          summary: string
+          title: string
+        }[]
+      }
       reference_search: {
         Args: { p_limit?: number; p_query: string; p_query_embedding: string }
         Returns: {
