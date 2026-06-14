@@ -37,18 +37,6 @@ import { resolve } from 'path';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 
-// The eligibility RPC ships in this subtask's migration
-// (20260614012601_id59_route_i_promotion_idempotency_rpc.sql) but is NOT yet in
-// the generated Database type because `supabase gen types` is gated on a
-// successful staging `db push`, which is currently blocked by migration-history
-// drift ({110.5} remote-only migration 20260614010200 absent from this branch —
-// see subtask journal / escalation). Once the migration lands on staging and
-// database.types.ts is regenerated, this constant resolves to a known RPC name
-// and the cast becomes a no-op (remove it then). Named here so both call sites
-// share one removal point.
-const PROMOTION_CANDIDATES_RPC =
-  'q_a_extractions_promotion_candidates' as never;
-
 // ---------------------------------------------------------------------------
 // Environment bootstrap (same walk-up pattern as the sibling suite).
 // ---------------------------------------------------------------------------
@@ -260,12 +248,13 @@ describe.skipIf(!RUN_INTEGRATION)(
         invalidated: true,
       });
 
-      const { data, error } = await db.rpc(PROMOTION_CANDIDATES_RPC);
+      const { data, error } = await db.rpc(
+        'q_a_extractions_promotion_candidates',
+      );
       expect(error, `RPC call failed: ${error?.message}`).toBeNull();
       expect(data).not.toBeNull();
 
-      const rows = (data ?? []) as Array<{ id: string }>;
-      const returnedIds = new Set(rows.map((r) => r.id));
+      const returnedIds = new Set((data ?? []).map((r) => r.id));
 
       expect(
         returnedIds.has(unlinkedId),
@@ -295,7 +284,7 @@ describe.skipIf(!RUN_INTEGRATION)(
         'anon client requires NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
       ).not.toBeNull();
 
-      const { error } = await anon!.rpc(PROMOTION_CANDIDATES_RPC);
+      const { error } = await anon!.rpc('q_a_extractions_promotion_candidates');
       expect(
         error,
         'anon EXECUTE on the eligibility RPC must be denied (RLS-PATTERN P-4 REVOKE)',

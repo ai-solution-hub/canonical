@@ -4528,6 +4528,33 @@ export type Database = {
         Args: { p_source: string; p_target: string; p_type: string }
         Returns: number
       }
+      q_a_extractions_promotion_candidates: {
+        Args: never
+        Returns: {
+          alternate_question_phrasings: string[]
+          created_at: string
+          evaluation_criteria: string | null
+          evidence_requirements: string[]
+          expected_response_kind: string | null
+          extracted_answer_text: string | null
+          extracted_question_text: string
+          extraction_metadata: Json
+          extractor_kind: string
+          id: string
+          invalidated_at: string | null
+          op_id: string | null
+          promoted_to_pair_id: string | null
+          scope_tags: string[]
+          source_content_item_id: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "q_a_extractions"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       q_a_get_verbatim: {
         Args: { p_pair_id: string }
         Returns: {
