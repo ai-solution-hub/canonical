@@ -1,0 +1,44 @@
+-- supabase: no-transaction
+--
+-- =============================================================================
+-- ID-59 {59.21} M1 (part 1 of 2) — route-i promotion idempotency UNIQUE index
+-- =============================================================================
+--
+-- Scope: specs/id-59-concurrent-edit-intent-arbitration/TECH-qa-corpus-promotion.md
+--        M1 step 1 (maps INV-5, INV-8, SILENT-DEFAULT #3 — the single most
+--        important change per the S352 adversarial review).
+--
+-- The extraction->pair link (q_a_extractions.promoted_to_pair_id) is the SOLE
+-- idempotency anchor for route-i corpus promotion: the q_a_extractions PK is
+-- gen_random_uuid() (no deterministic backstop, schema line :104 of
+-- 20260520225456_t6_q_a_pairs_full_schema.sql). A UNIQUE partial index on
+-- promoted_to_pair_id (WHERE NOT NULL) makes "at most one extraction may link to
+-- a given pair" a DB-enforced 1:1 invariant. Combined with the atomic CAS in the
+-- TS promote loop (R1.3), this closes the double-promote race two concurrent or
+-- retried batches could otherwise hit.
+--
+-- CRITICAL — CONCURRENTLY CANNOT RUN INSIDE A TRANSACTION BLOCK.
+--   Supabase `db push` wraps a migration file in a transaction by default. This
+--   file carries the `-- supabase: no-transaction` directive (first line, CLI
+--   magic comment) so the CLI applies its statements OUTSIDE a txn. As a second
+--   layer of safety the CONCURRENTLY index is the SOLE statement in this file
+--   (the eligibility RPC lives in the sibling
+--   20260614012601_..._rpc.sql migration, which runs in a normal txn).
+--   If the index is ever left INVALID (e.g. a build interrupted mid-flight), the
+--   IF NOT EXISTS makes a re-run a no-op against a VALID index but will NOT
+--   auto-rebuild an INVALID one — verify pg_index.indisvalid post-push and
+--   DROP+recreate if invalid.
+--
+-- Idempotency anchor only — no new column (promoted_to_pair_id already exists at
+-- 20260520225456_t6_q_a_pairs_full_schema.sql:120). The new index does not change
+-- the q_a_extractions row type, so `supabase gen types` is a no-op for
+-- database.types.ts (run it anyway to keep parity discipline).
+--
+-- Apply log:
+--   * 2026-06-14 — applied to staging (turayklvaunphgbgscat) via supabase db push.
+--   * PROD push GATED — do NOT push to prod from this subtask.
+-- =============================================================================
+
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS uq_q_a_extractions_promoted_to_pair_id
+  ON public.q_a_extractions (promoted_to_pair_id)
+  WHERE promoted_to_pair_id IS NOT NULL;
