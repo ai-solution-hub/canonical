@@ -140,12 +140,21 @@ tool/resource reference: `.gitnexus/CLAUDE.md`; stale index → `bun run gitnexu
 
 Mempalace MCP is the canonical memory system (`mempalace_diary_read/write`,
 `mempalace_search`, `mempalace_kg_*`). Known issue: `mempalace_search` with a `wing`
-filter errors — search without it and filter results client-side.
+filter errors (`Error finding id` — upstream #1665, HNSW↔sqlite drift after bulk add/delete;
+affects MCP **and** CLI) — search without the wing filter and filter results client-side.
+
+**On-demand historic stores** (deliberately kept OUT of the main palace so current-content
+search stays clean — S355): the `knowledge-hub-archive` repo is mined into a separate palace,
+searchable via `mempalace --palace ~/.mempalace-archive search "…"` (CLI only; point-in-time /
+possibly-superseded — verify against current docs-site before trusting); the full pre-S355
+~350k transcript history is cold in `~/mempalace-backup-PRE-PATHA-20260612.tar.gz` (extract →
+open the nested `.mempalace/palace`, collection `mempalace_drawers`, for a specific older
+conversation).
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **knowledge-hub** (14996 symbols, 35075 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **knowledge-hub** (14761 symbols, 34714 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
 
