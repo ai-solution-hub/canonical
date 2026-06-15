@@ -6,9 +6,11 @@
  * classification). Plan source:
  * `docs/plans/background-queue-infra-plan.md` §1 W2, §2 W2-A.
  *
- * Each §5.4.x candidate spec (5.4.1 / 5.4.2 / 5.4.4) adds its own `case`
+ * Each §5.4.x candidate spec (5.4.1 / 5.4.2) adds its own `case`
  * dispatching to its own handler. As of S224 W4-IMPL the `bid_draft_all`
  * case is registered (per `docs/specs/§5.4.1-batch-draft-all-spec.md` §7.4).
+ * (The §5.4.4 upload-markdown-batch case was removed by ID-46.11 — that
+ * path is superseded by ID-56.12 folder-drop ingest.)
  *
  * Until each candidate ships, claimed jobs of unhandled types fall through
  * to the `default` branch and are permanent-failed (no retry) by the
@@ -43,8 +45,6 @@ import { runBidDraftAllJob } from '@/lib/queue/handlers/procurement-draft-all';
 import type { ProcurementDraftAllBody } from '@/lib/queue/handlers/procurement-draft-all';
 import { runBatchReclassifyJob } from '@/lib/queue/handlers/batch-reclassify';
 import type { BatchReclassifyBody } from '@/lib/queue/handlers/batch-reclassify';
-import { runMarkdownBatchJob } from '@/lib/queue/handlers/markdown-batch';
-import type { MarkdownBatchBody } from '@/lib/queue/handlers/markdown-batch';
 import type { Database, Json } from '@/supabase/types/database.types';
 
 /**
@@ -355,70 +355,6 @@ export async function runJobByType(
 
       // The worker writes `result` to `processing_queue.result`. Cast
       // through `unknown` because BatchReclassifyResult's typed shape is
-      // a stricter subset of `Record<string, unknown>`.
-      return result as unknown as Record<string, unknown>;
-    }
-    case 'markdown_batch': {
-      // -------------------------------------------------------------
-      // 1. Validate envelope shape per spec §3.1 / §7.4.
-      // -------------------------------------------------------------
-      const parsed = queueJobPayloadSchema.safeParse(job.payload);
-      if (!parsed.success) {
-        throw new PermanentJobError(
-          `invalid_envelope: ${parsed.error.message}`,
-        );
-      }
-      const payload = parsed.data as QueueJobPayload<MarkdownBatchBody>;
-
-      // -------------------------------------------------------------
-      // 2. Re-validate auth context per spec §4.2 + PR-5.
-      //    Per D-1 ratified default: requiredRole='editor' matches the
-      //    route's existing `getAuthorisedClient(['admin','editor'])`
-      //    auth gate; admins satisfy via ROLE_RANK
-      //    (`lib/queue/auth.ts:25-36`).
-      // -------------------------------------------------------------
-      const auth = await reValidateAuthContext(
-        supabase,
-        payload.auth_context.user_id,
-        payload.auth_context.role,
-        'editor',
-      );
-      if (!auth.ok) {
-        throw new PermanentJobError(auth.reason);
-      }
-
-      // -------------------------------------------------------------
-      // 3. Invoke handler. The handler's `jobId` parameter is used for
-      //    cooperative-cancel polling per D-8 (cadence=1 — check before
-      //    each file). The dispatcher passes `job.id` so the handler's
-      //    cancelCheck callback can SELECT processing_queue.status.
-      // -------------------------------------------------------------
-      const result = await runMarkdownBatchJob(
-        payload.body,
-        supabase,
-        payload.auth_context,
-        job.id,
-      );
-
-      // -------------------------------------------------------------
-      // 4. NO inline pipeline_runs UPDATE — orchestrator's finaliseRun
-      //    already wrote the terminal status. NO inline Sentry emission
-      //    for pipeline-completion — orchestrator's finaliseRun handles
-      //    it (lib/ingest/markdown-orchestrator.ts:809-836). This is
-      //    the KEY DIFFERENCE from §5.4.1 + §5.4.2 dispatch cases per
-      //    spec §6.3 drift note + R3.
-      //
-      //    Cooperative-cancel handling (D-8): the orchestrator's per-
-      //    file loop already broke and finaliseRun already wrote
-      //    status='completed_with_errors' with the cancellation
-      //    error_message. The handler's `cancelled` flag in the result
-      //    envelope is for the queue-level Sentry/PostHog telemetry
-      //    that runs inside `lib/queue/telemetry.ts` (handled by the
-      //    cron worker post-dispatch).
-      // -------------------------------------------------------------
-
-      // The worker writes `result` to `processing_queue.result`. Cast
-      // through `unknown` because MarkdownBatchResult's typed shape is
       // a stricter subset of `Record<string, unknown>`.
       return result as unknown as Record<string, unknown>;
     }

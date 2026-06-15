@@ -11,13 +11,9 @@
 //                                      handlers that don't need mid-flight
 //                                      progress — never-throws by contract)
 //
-// Spec sources:
-//   - docs/specs/ep2-markdown-ui-ingest-spec.md §7.2 Pattern E.
-//   - .planning/.archive/.specs/§5.4.4-ep2-markdown-batch-migration-spec.md §7.7 +
-//     §10 D-11 (Path B ratified — UPSERT with ignoreDuplicates so the
-//     orchestrator's at-start INSERT does not collide with a producer
-//     pre-INSERT under Pattern 2).
-// Plan: docs/plans/§1.11-ep2-build-plan.md EP2-T6 (e).
+// Spec sources (Pattern E — client-generated id + mid-flight progress):
+//   - the at-start UPSERT uses ignoreDuplicates so the helper's INSERT does
+//     not collide with a producer pre-INSERT under Pattern 2.
 //
 // Why a new helper rather than reusing `recordPipelineRun()`:
 //
@@ -48,7 +44,7 @@ export interface StartPipelineRunParams {
    * Postgres generates one via the column default and we read it back.
    */
   id?: string;
-  /** Pipeline name (e.g. 'upload_markdown_batch', 'file_upload'). */
+  /** Pipeline name (e.g. 'file_upload', 'batch_reclassify'). */
   pipelineName: string;
   /**
    * User id for `created_by` — gates polling visibility via the
@@ -87,7 +83,7 @@ export interface StartPipelineRunParams {
  * @example
  *   const pipelineRunId = await startPipelineRun({
  *     id: clientGeneratedUuid,            // Pattern E adopt
- *     pipelineName: 'upload_markdown_batch',
+ *     pipelineName: 'file_upload',
  *     createdBy: callerUserId,
  *     progress: {
  *       step: 'starting',

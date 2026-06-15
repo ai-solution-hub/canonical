@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import {
   Upload,
   Layers,
@@ -11,7 +11,6 @@ import {
   Loader2,
   CheckCircle,
   XCircle,
-  Info,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -33,30 +32,11 @@ import { ReuploadBanner } from '@/components/source-document/reupload-banner';
 import { UploadReviewStep } from '@/components/create-content/upload-review-step';
 import { QAPreviewList } from '@/components/qa/qa-preview-list';
 import { ClaudePromptButton } from '@/components/content/claude-prompt-button';
-import { MarkdownAnalysisTable } from '@/components/ingest/markdown-analysis-table';
-import { ImportSummaryCard } from '@/components/ingest/import-summary-card';
 import { generateIngestDocumentPrompt } from '@/lib/claude-prompts';
 import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 import { useFileUploadPipeline } from '@/hooks/use-file-upload-pipeline';
-import {
-  analyseMarkdownBatch,
-  importMarkdownBatch,
-  cancelMarkdownBatchJob,
-  fetchPipelineRun,
-  type MarkdownPerFileOverrideWire,
-} from '@/lib/query/fetchers';
-import { queryKeys } from '@/lib/query/query-keys';
 import type { QACreateInput } from '@/lib/quality/qa-detection';
 import type { DedupCheckResult } from '@/components/qa/qa-preview-list';
-import type {
-  MarkdownIngestAnalysis,
-  MarkdownPerFileOverride,
-  MarkdownBatchResultsSummary,
-} from '@/types/ingest';
-
-// Stable empty defaults per G14 — avoid recreating per render.
-const EMPTY_OVERRIDES: MarkdownPerFileOverride[] = [];
-const EMPTY_ANALYSES: MarkdownIngestAnalysis[] = [];
 
 // ---------------------------------------------------------------------------
 // Props
@@ -69,27 +49,6 @@ interface UploadTabContentProps {
   detectedQAPairs?: QACreateInput[];
   /** Source document ID to link batch-created items to. */
   sourceDocumentId?: string;
-  /**
-   * Caller's role — gates admin-only controls inside the markdown-batch
-   * surface (per-row skip-dedup checkbox + batch-wide auto-supersede toggle).
-   * Defaults to 'editor' so admin-only controls stay hidden until the
-   * caller plumbs the role through.
-   */
-  userRole?: 'admin' | 'editor' | 'viewer';
-}
-
-/** Sub-state for the markdown-batch surface (spec §6.1). */
-type MarkdownBatchPhase =
-  | 'idle'
-  | 'analysing'
-  | 'reviewing'
-  | 'importing'
-  | 'done';
-
-/** Result of the markdown-batch import phase, surfaced in the summary card. */
-interface MarkdownBatchResult {
-  pipeline_run_id: string;
-  results_summary: MarkdownBatchResultsSummary;
 }
 
 // ---------------------------------------------------------------------------
@@ -100,7 +59,6 @@ export function UploadTabContent({
   onSwitchTab,
   detectedQAPairs,
   sourceDocumentId,
-  userRole = 'editor',
 }: UploadTabContentProps) {
   const { layers, getLayerLabel } = useLayerVocabulary();
 
@@ -125,287 +83,6 @@ export function UploadTabContent({
     hasResults,
     hasActiveUploads,
   } = pipeline;
-
-  // ---------------------------------------------------------------------------
-  // Markdown-batch sub-mode (spec §6.1, EP2 §1.11 Phase 2)
-  // ---------------------------------------------------------------------------
-  // Detection: every dropped file has a `.md` extension AND there is more
-  // than one file. Single-`.md` drops continue to flow through EP3 (the
-  // user-toggle preview flag is post-EP2 and is NOT wired in this session).
-
-  /** Whether the dropped files trigger the markdown-batch surface. */
-  const isMarkdownBatch = useMemo(
-    () =>
-      files.length > 1 &&
-      files.every((f) => f.file.name.toLowerCase().endsWith('.md')),
-    [files],
-  );
-
-  /**
-   * Whether the dropped batch is a mixed type set (some `.md` + some non-md).
-   * Surfaces the §4.1 fall-back banner.
-   */
-  const isMixedBatch = useMemo(
-    () =>
-      files.length > 1 &&
-      files.some((f) => f.file.name.toLowerCase().endsWith('.md')) &&
-      files.some((f) => !f.file.name.toLowerCase().endsWith('.md')),
-    [files],
-  );
-
-  const [mdPhase, setMdPhase] = useState<MarkdownBatchPhase>('idle');
-  const [mdAnalyses, setMdAnalyses] =
-    useState<MarkdownIngestAnalysis[]>(EMPTY_ANALYSES);
-  const [mdOverrides, setMdOverrides] =
-    useState<MarkdownPerFileOverride[]>(EMPTY_OVERRIDES);
-  const [mdAutoSupersede, setMdAutoSupersede] = useState<boolean>(false);
-  const [mdResult, setMdResult] = useState<MarkdownBatchResult | null>(null);
-
-  // Pattern E (S212 W2): client generates pipeline_run_id BEFORE the import
-  // mutation fires so the polling query can target /api/pipeline-runs/[id]
-  // immediately. Cleared when the surface resets.
-  const [importPipelineRunId, setImportPipelineRunId] = useState<string | null>(
-    null,
-  );
-
-  // S226 §5.4.4: the import mutation now returns a job_id (HTTP 202 +
-  // queued). The UI tracks the job_id so the Cancel button can PATCH
-  // /api/jobs/${jobId}/cancel during polling. Cleared when the surface
-  // resets.
-  const [importJobId, setImportJobId] = useState<string | null>(null);
-
-  const safeMdAnalyses = useMemo(
-    () => mdAnalyses ?? EMPTY_ANALYSES,
-    [mdAnalyses],
-  );
-  const safeMdOverrides = useMemo(
-    () => mdOverrides ?? EMPTY_OVERRIDES,
-    [mdOverrides],
-  );
-
-  /** Reset markdown-batch substate. */
-  const resetMarkdownBatch = useCallback(() => {
-    setMdPhase('idle');
-    setMdAnalyses(EMPTY_ANALYSES);
-    setMdOverrides(EMPTY_OVERRIDES);
-    setMdAutoSupersede(false);
-    setMdResult(null);
-    setImportPipelineRunId(null);
-    setImportJobId(null);
-  }, []);
-
-  const analyseMutation = useMutation({
-    mutationFn: async (rawFiles: File[]) => analyseMarkdownBatch(rawFiles),
-    onMutate: () => {
-      setMdPhase('analysing');
-    },
-    onSuccess: (data) => {
-      setMdAnalyses(data.analysis);
-      setMdPhase('reviewing');
-    },
-    onError: (err: unknown) => {
-      const message =
-        err instanceof Error ? err.message : 'Markdown analysis failed';
-      toast.error(message);
-      setMdPhase('idle');
-    },
-  });
-
-  // S226 §5.4.4: post-migration the POST returns HTTP 202 with
-  // { job_id, pipeline_run_id, status: 'queued', deduplicated }. The
-  // mutation no longer carries the result envelope — that lives on
-  // pipeline_runs.result post-completion (orchestrator's finaliseRun
-  // writes it). The UI continues polling until terminal state and reads
-  // the summary off the polling response.
-  const importMutation = useMutation({
-    mutationFn: async (args: {
-      rawFiles: File[];
-      options: {
-        per_file_overrides?: MarkdownPerFileOverrideWire[];
-        batch?: { auto_supersede?: boolean };
-        pipeline_run_id: string;
-      };
-    }) => importMarkdownBatch({ files: args.rawFiles, options: args.options }),
-    onMutate: () => {
-      setMdPhase('importing');
-    },
-    onSuccess: (data) => {
-      // Track the job_id so the Cancel button can PATCH the cancel route.
-      setImportJobId(data.job_id);
-      // §7.6 step 4: dedup-hit toast — the UI is joining an existing
-      // batch rather than starting fresh. Polling continues against the
-      // same pipeline_run_id (server returned the existing job's id).
-      if (data.deduplicated) {
-        toast.info('Already importing — joining the existing batch…');
-      }
-      // Do NOT flip to 'done' here — the polling resolves to terminal
-      // state and the UI reads the summary off pipeline_runs.result.
-    },
-    onError: (err: unknown) => {
-      const message =
-        err instanceof Error ? err.message : 'Markdown import failed';
-      toast.error(message);
-      setMdPhase('reviewing');
-      setImportPipelineRunId(null);
-      setImportJobId(null);
-    },
-  });
-
-  // Pattern E (S212 W2) — poll the pipeline_runs row mid-flight so the
-  // importing-phase UI can surface the running detail string +
-  // files_completed/files_total without waiting for the mutation to resolve.
-  // Polling is gated on `mdPhase === 'importing'` and a non-null id; the
-  // fetcher tolerates 404 (returns null) for the racy at-start window
-  // where the producer's pre-INSERT hasn't landed yet (sub-100ms after
-  // send — though post-§5.4.4 the producer pre-INSERTs synchronously
-  // BEFORE returning the 202, so the UI should resolve immediately).
-  // 1500 ms refetch cadence — fast enough for ~80-100 s imports to feel
-  // alive without hammering the API.
-  const { data: pipelineRun } = useQuery({
-    queryKey: queryKeys.pipelineRuns.detail(importPipelineRunId ?? ''),
-    queryFn: () =>
-      importPipelineRunId
-        ? fetchPipelineRun(importPipelineRunId).catch(() => null)
-        : null,
-    enabled: !!importPipelineRunId && mdPhase === 'importing',
-    refetchInterval: 1500,
-  });
-
-  // S226 §5.4.4: the import mutation no longer carries the result envelope
-  // (the route returns HTTP 202; the orchestrator writes the terminal
-  // pipeline_runs.result asynchronously). The polling query resolves the
-  // result once the orchestrator's finaliseRun has run. When status flips
-  // to a terminal value, copy the result into mdResult and advance to
-  // the 'done' phase.
-  useEffect(() => {
-    if (mdPhase !== 'importing' || !pipelineRun) return;
-    const terminalStatuses = [
-      'completed',
-      'completed_with_errors',
-      'failed',
-      'cancelled',
-    ];
-    if (!terminalStatuses.includes(pipelineRun.status)) return;
-
-    const resultCandidate = pipelineRun.result as {
-      results_summary?: MarkdownBatchResultsSummary;
-    } | null;
-    if (resultCandidate?.results_summary) {
-      setMdResult({
-        pipeline_run_id: pipelineRun.id,
-        results_summary: resultCandidate.results_summary,
-      });
-      setMdPhase('done');
-    } else if (pipelineRun.status === 'failed') {
-      // Failed run with no results envelope — surface the error_message
-      // and bounce back to the reviewing phase so the user can retry.
-      toast.error(pipelineRun.error_message ?? 'Markdown import failed');
-      setMdPhase('reviewing');
-    } else if (pipelineRun.status === 'cancelled') {
-      toast.info(
-        pipelineRun.error_message ?? 'Markdown import cancelled by user',
-      );
-      setMdPhase('reviewing');
-    }
-    // Stop polling when terminal — clear job_id (no-op if already cleared).
-    setImportJobId(null);
-  }, [mdPhase, pipelineRun]);
-
-  // S226 §5.4.4 D-8: Cancel mutation for the in-flight markdown_batch
-  // job. Wired to PATCH /api/jobs/${jobId}/cancel; on success the polling
-  // query resolves to status='cancelled' (pending) or
-  // 'completed_with_errors' (processing-and-cooperative). The Cancel
-  // button is visible whenever importJobId is set + mdPhase==='importing'.
-  const cancelMutation = useMutation({
-    mutationFn: async (jobId: string) => cancelMarkdownBatchJob(jobId),
-    onSuccess: () => {
-      toast.info('Cancellation requested. The batch will stop shortly.');
-      // Polling will surface terminal state (cancelled or
-      // completed_with_errors) and the useEffect above flips mdPhase.
-    },
-    onError: (err: unknown) => {
-      // 409 race-loss = job already finished; 404 = unknown job_id.
-      const message =
-        err instanceof Error
-          ? err.message
-          : 'Failed to cancel — refresh for results';
-      // Per spec §7.6: 409 toast guidance.
-      if (/409/.test(message) || /already/i.test(message)) {
-        toast.info('Job already finished — refresh for results.');
-      } else {
-        toast.error(message);
-      }
-    },
-  });
-
-  // Destructure mutate functions to keep useCallback dep arrays referentially
-  // stable (TanStack Query mutation objects are NOT stable per render — see
-  // ESLint rule @tanstack/query/no-unstable-deps).
-  const { mutate: analyseMutate, isPending: analyseIsPending } =
-    analyseMutation;
-  const { mutate: importMutate, isPending: importIsPending } = importMutation;
-  const { mutate: cancelMutate, isPending: cancelIsPending } = cancelMutation;
-
-  const handleAnalyseMarkdownBatch = useCallback(() => {
-    const rawFiles = files.map((f) => f.file);
-    analyseMutate(rawFiles);
-  }, [files, analyseMutate]);
-
-  const handleImportMarkdownBatch = useCallback(() => {
-    const rawFiles = files.map((f) => f.file);
-    const perFileOverrides: MarkdownPerFileOverrideWire[] = safeMdOverrides
-      .map((o) => {
-        const wire: MarkdownPerFileOverrideWire = { filename: o.filename };
-        if (o.excluded !== undefined) wire.excluded = o.excluded;
-        if (o.draftOrFinal) wire.draft_or_final = o.draftOrFinal;
-        // Editors silently lose `skip_dedup` per spec §8.2 — but we forward
-        // it here when set; the orchestrator drops it for non-admin callers.
-        if (o.skipDedup !== undefined) wire.skip_dedup = o.skipDedup;
-        return wire;
-      })
-      .filter(
-        (o) =>
-          o.excluded !== undefined ||
-          o.draft_or_final !== undefined ||
-          o.skip_dedup !== undefined,
-      );
-
-    // Pattern E (S212 W2): generate the pipeline_run_id BEFORE firing
-    // the mutation so polling against /api/pipeline-runs/[id] can begin
-    // immediately. The server's at-start INSERT adopts this id verbatim.
-    const pipelineRunId =
-      typeof crypto !== 'undefined' && 'randomUUID' in crypto
-        ? crypto.randomUUID()
-        : // jsdom fallback for tests / pre-Node-19 environments
-          `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    setImportPipelineRunId(pipelineRunId);
-
-    importMutate({
-      rawFiles,
-      options: {
-        per_file_overrides:
-          perFileOverrides.length > 0 ? perFileOverrides : undefined,
-        batch: mdAutoSupersede ? { auto_supersede: true } : undefined,
-        pipeline_run_id: pipelineRunId,
-      },
-    });
-  }, [files, safeMdOverrides, mdAutoSupersede, importMutate]);
-
-  const handleCancelMarkdownBatch = useCallback(() => {
-    if (importJobId) {
-      cancelMutate(importJobId);
-    }
-  }, [importJobId, cancelMutate]);
-
-  const handleMarkdownImportAnother = useCallback(() => {
-    resetMarkdownBatch();
-    reset();
-  }, [resetMarkdownBatch, reset]);
-
-  const handleMarkdownDone = useCallback(() => {
-    resetMarkdownBatch();
-    reset();
-  }, [resetMarkdownBatch, reset]);
 
   // ---------------------------------------------------------------------------
   // Folder-drop async ingest ({56.12}, ID-56 Path B)
@@ -863,26 +540,6 @@ export function UploadTabContent({
   }
 
   // ---------------------------------------------------------------------------
-  // Render: Markdown-batch sub-mode (spec §6.1) — done state
-  // ---------------------------------------------------------------------------
-
-  if (mdPhase === 'done' && mdResult) {
-    return (
-      <div
-        className="mx-auto max-w-3xl space-y-4"
-        data-testid="markdown-batch-done"
-      >
-        <ImportSummaryCard
-          pipelineRunId={mdResult.pipeline_run_id}
-          resultsSummary={mdResult.results_summary}
-          onImportAnother={handleMarkdownImportAnother}
-          onDone={handleMarkdownDone}
-        />
-      </div>
-    );
-  }
-
-  // ---------------------------------------------------------------------------
   // Render: Folder-drop async ingest ({56.12}) — ingested success card
   // ---------------------------------------------------------------------------
 
@@ -973,149 +630,6 @@ export function UploadTabContent({
   }
 
   // ---------------------------------------------------------------------------
-  // Render: Markdown-batch sub-mode — analysing / reviewing / importing
-  // ---------------------------------------------------------------------------
-
-  if (
-    isMarkdownBatch &&
-    (mdPhase === 'analysing' ||
-      mdPhase === 'reviewing' ||
-      mdPhase === 'importing')
-  ) {
-    return (
-      <div
-        className="mx-auto max-w-4xl space-y-4"
-        data-testid="markdown-batch-active"
-      >
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-            <Upload className="size-5" aria-hidden="true" />
-            Markdown batch — {files.length} file
-            {files.length === 1 ? '' : 's'}
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Pre-flight analysis runs front-matter, encoding, and dedup checks
-            before the import pipeline.
-          </p>
-        </div>
-
-        {mdPhase === 'analysing' && (
-          <div
-            className="flex items-center gap-2 rounded-md border border-border bg-card p-6 text-sm text-muted-foreground"
-            data-testid="markdown-batch-analysing"
-          >
-            <Loader2
-              className="size-4 animate-spin text-primary"
-              aria-hidden="true"
-            />
-            Analysing {files.length} file{files.length === 1 ? '' : 's'}
-            &hellip;
-          </div>
-        )}
-
-        {mdPhase === 'reviewing' && (
-          <>
-            <MarkdownAnalysisTable
-              analyses={safeMdAnalyses}
-              overrides={safeMdOverrides}
-              autoSupersede={mdAutoSupersede}
-              role={userRole}
-              onChangeOverrides={setMdOverrides}
-              onChangeAutoSupersede={setMdAutoSupersede}
-            />
-            <div className="flex items-center justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  resetMarkdownBatch();
-                  reset();
-                }}
-                data-testid="markdown-batch-cancel"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleImportMarkdownBatch}
-                data-testid="markdown-batch-import"
-                disabled={importIsPending}
-              >
-                Import
-              </Button>
-            </div>
-          </>
-        )}
-
-        {mdPhase === 'importing' && (
-          <div
-            className="space-y-2 rounded-md border border-border bg-card p-6 text-sm"
-            data-testid="markdown-batch-importing"
-          >
-            <div className="flex items-center gap-2 text-foreground">
-              <Loader2
-                className="size-4 animate-spin text-primary"
-                aria-hidden="true"
-              />
-              <span className="font-medium">Importing markdown batch</span>
-            </div>
-            {/* Pattern E poll-driven detail — the polling query updates
-                this every 1.5s while the orchestrator runs. Pre-row-arrival
-                fallback ("Starting…") covers the racy ~sub-100ms window
-                where the producer's pre-INSERT hasn't landed yet. */}
-            {pipelineRun?.progress?.detail ? (
-              <p
-                className="text-muted-foreground"
-                data-testid="markdown-batch-importing-detail"
-              >
-                {pipelineRun.progress.detail}
-              </p>
-            ) : (
-              <p
-                className="text-muted-foreground"
-                data-testid="markdown-batch-importing-detail"
-              >
-                Starting&hellip;
-              </p>
-            )}
-            {typeof pipelineRun?.progress?.files_completed === 'number' &&
-              typeof pipelineRun?.progress?.files_total === 'number' && (
-                <p
-                  className="text-xs text-muted-foreground"
-                  data-testid="markdown-batch-importing-counts"
-                >
-                  {pipelineRun.progress.files_completed} /{' '}
-                  {pipelineRun.progress.files_total} files
-                </p>
-              )}
-            <p className="text-xs text-muted-foreground">
-              Imports of {files.length} file{files.length === 1 ? '' : 's'}{' '}
-              typically take 80&ndash;100 seconds.
-            </p>
-            {/* S226 §5.4.4 D-8: Cancel batch button. Visible whenever the
-                polled pipeline_runs.status === 'running' (mdPhase ===
-                'importing') AND we have a job_id. PATCHes
-                /api/jobs/${jobId}/cancel; the polling query then resolves
-                to a terminal status. */}
-            {importJobId &&
-              (!pipelineRun || pipelineRun.status === 'running') && (
-                <div className="pt-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleCancelMarkdownBatch}
-                    disabled={cancelIsPending}
-                    data-testid="markdown-batch-cancel-running"
-                  >
-                    Cancel batch
-                  </Button>
-                </div>
-              )}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // ---------------------------------------------------------------------------
   // Render: Upload phase (select + uploading)
   // ---------------------------------------------------------------------------
 
@@ -1137,49 +651,6 @@ export function UploadTabContent({
         onFilesAdded={handleFilesAdded}
         onFileRemoved={handleFileRemoved}
       />
-
-      {/* Mixed-batch fallback banner (spec §4.1 lines 344-347). */}
-      {isMixedBatch && (
-        <div
-          role="status"
-          className="flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground"
-          data-testid="markdown-batch-mixed-banner"
-        >
-          <Info
-            className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-            aria-hidden="true"
-          />
-          <span>
-            Tip: drop only .md files together to use the markdown batch review
-            surface.
-          </span>
-        </div>
-      )}
-
-      {/* Markdown-batch idle CTA — pre-analyse. */}
-      {isMarkdownBatch && mdPhase === 'idle' && (
-        <div
-          className="flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm"
-          data-testid="markdown-batch-idle-banner"
-        >
-          <div>
-            <p className="font-medium text-foreground">
-              Markdown batch detected ({files.length} files)
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Run pre-flight analysis to review front-matter, encoding, and
-              dedup verdicts before importing.
-            </p>
-          </div>
-          <Button
-            onClick={handleAnalyseMarkdownBatch}
-            disabled={analyseIsPending}
-            data-testid="markdown-batch-analyse-button"
-          >
-            Analyse files
-          </Button>
-        </div>
-      )}
 
       {/* Per-file pipeline progress */}
       {files.some((f) => f.status !== 'pending') && (
@@ -1323,7 +794,7 @@ export function UploadTabContent({
             Stages into the cocoindex corpus + triggers an incremental walk,
             then polls content_items for the ingested row. Distinct from the
             synchronous Upload button below. */}
-        {pendingCount === 1 && !isMarkdownBatch && (
+        {pendingCount === 1 && (
           <Button
             variant="outline"
             onClick={handleFolderDropIngest}

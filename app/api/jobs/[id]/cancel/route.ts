@@ -168,11 +168,11 @@ export async function PATCH(
     // 'cancelled' here. Cooperative cancel of a *processing* job is finalised
     // by the worker (finaliseRun / dispatch), so we restrict to 'pending' to
     // avoid a double-write race. pipeline_run_id lives on the queue envelope,
-    // so this covers all 3 producers (markdown_batch, batch_reclassify,
-    // bid_draft_all). Service-role client: pipeline_runs has admin-only
-    // INSERT/SELECT but NO UPDATE policy, so the auth-scoped client's UPDATE is
-    // silently RLS-denied (see markdown-orchestrator.ts finaliseRun). Do NOT
-    // use recordPipelineRun (INSERT-only → would create a 2nd row).
+    // so this covers any producer that pre-allocates a pipeline_runs row
+    // (batch_reclassify, bid_draft_all). Service-role client: pipeline_runs has
+    // admin-only INSERT/SELECT but NO UPDATE policy, so the auth-scoped
+    // client's UPDATE is silently RLS-denied. Do NOT use recordPipelineRun
+    // (INSERT-only → would create a 2nd row).
     if (existing.status === 'pending') {
       const payload = existing.payload as { pipeline_run_id?: unknown } | null;
       const pipelineRunId =

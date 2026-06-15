@@ -6,7 +6,6 @@
     "${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/taxonomy-change-runbook.md"
   ],
   "requiredPaths": [
-    "app/api/ingest/markdown/route.ts",
     "app/api/ingest/url/route.ts",
     "app/api/items/batch/route.ts",
     "app/api/items/route.ts",

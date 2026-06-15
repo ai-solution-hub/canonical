@@ -10,9 +10,8 @@
 // `refetchInterval`, gated on `enabled` (a non-null sourceFile + not-yet-
 // terminal). The terminal transition is observed via the query result, not a
 // cosmetic timer — this replaces the timer-driven illusion of progress with
-// real backend state. Modelled on `components/create-content/
-// upload-tab-content.tsx` (the markdown-batch poll loop) and
-// `hooks/use-notifications.ts` (refetchInterval + stable empties).
+// real backend state. Modelled on `hooks/use-notifications.ts`
+// (refetchInterval + stable empties).
 
 'use client';
 

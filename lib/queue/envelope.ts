@@ -8,27 +8,34 @@ import { z } from 'zod';
  * Plan source: `docs/plans/background-queue-infra-plan.md` §1 W1, §2 W1-B.
  *
  * Liam OQ-3 RATIFIED S221 W3: NO speculative widen of `JobType`. Each
- * §5.4.x candidate (5.4.1 / 5.4.2 / 5.4.4) adds its own `JobType` value
+ * §5.4.x candidate (5.4.1 / 5.4.2) adds its own `JobType` value
  * when its candidate spec dispatches. (`'bid_draft_all'` added by
  * §5.4.1 W4-IMPL S224; `'batch_reclassify'` added by §5.4.2 W1-IMPL
- * S225; `'markdown_batch'` added by §5.4.4 W1-IMPL S226 — see migrations
- * `20260505164817_s224_widen_job_type_check_bid_draft_all.sql`,
- * `20260505211806_s225_widen_job_type_check_batch_reclassify.sql`, and
- * `20260506125704_s226_widen_job_type_check_markdown_batch.sql`.)
+ * S225 — see migrations
+ * `20260505164817_s224_widen_job_type_check_bid_draft_all.sql` and
+ * `20260505211806_s225_widen_job_type_check_batch_reclassify.sql`.)
+ *
+ * The retired §5.4.4 upload-markdown-batch job type (added S226) was
+ * removed from this union by ID-46.11 once the folder-drop replacement UX
+ * (ID-56.12) superseded the manual markdown-upload flow. The DB
+ * `processing_queue_job_type_check` constraint deliberately RETAINS that
+ * legacy value (the optional CHECK-narrowing migration is DEFERRED to
+ * avoid migration churn pre-cutover); the union being a strict subset of
+ * the CHECK is harmless.
  */
 
 /**
  * Job-type values currently enqueued against `processing_queue`.
  *
- * The 10 values below are the actively-enqueued job types (the historic
+ * The 9 values below are the actively-enqueued job types (the historic
  * types `embed | classify | extract_qa | summarise | validate | reprocess`
  * plus the pre-existing template type `template_fill`, plus `bid_draft_all`
  * added by §5.4.1 — see
  * `supabase/migrations/20260505164817_s224_widen_job_type_check_bid_draft_all.sql`,
  * plus `batch_reclassify` added by §5.4.2 W1-IMPL — see
- * `supabase/migrations/20260505211806_s225_widen_job_type_check_batch_reclassify.sql`,
- * plus `markdown_batch` added by §5.4.4 W1-IMPL S226 — see
- * `supabase/migrations/20260506125704_s226_widen_job_type_check_markdown_batch.sql`).
+ * `supabase/migrations/20260505211806_s225_widen_job_type_check_batch_reclassify.sql`).
+ * (The legacy upload-markdown-batch job type was retired from the union by
+ * ID-46.11 — that path is superseded by ID-56.12 folder-drop ingest.)
  *
  * The legacy synchronous template-analyse job type was retired from this
  * union by ID-52 (the app-side analyse path is superseded by the
@@ -52,8 +59,7 @@ export type JobType =
   | 'reprocess'
   | 'template_fill'
   | 'bid_draft_all'
-  | 'batch_reclassify'
-  | 'markdown_batch';
+  | 'batch_reclassify';
 
 /**
  * Lifecycle states for `processing_queue.status`.
@@ -175,7 +181,6 @@ export interface QueueJobPayload<TBody extends Record<string, unknown>> {
  * Examples (spec §5.5 lines 813-815):
  * - `bid_draft_all:${procurementId}:${YYYY-MM-DD}:${requestHash}` ✓
  * - `batch_reclassify:${workspaceId}:${YYYY-MM-DD}:${optionsHash}` ✓
- * - `markdown_batch:${batchId}:${YYYY-MM-DD}:${fileSetHash}` ✓
  *
  * @param args.jobType - The job-type value (must be in `JobType` union).
  * @param args.scopedId - The scoping identifier (bid_id, workspace_id,

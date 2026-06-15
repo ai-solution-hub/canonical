@@ -357,19 +357,10 @@ export const queryKeys = {
   // Taxonomy sync (drift-detection banner, P0-TX)
   taxonomySyncStatus: ['taxonomy-sync-status'] as const,
 
-  // Markdown-batch ingest (EP2 §1.11) — analyse-phase result is cached by a
-  // signature of the dropped filenames so re-drops of the same set hit cache.
-  // Mutations (analyse + import) are fired via useMutation and don't need keys.
-  markdownIngest: {
-    all: ['markdown-ingest'] as const,
-    analyse: (filenamesKey: string) =>
-      ['markdown-ingest', 'analyse', filenamesKey] as const,
-  },
-
-  // Pipeline runs — single-row polling (EP2 Pattern E, S212 W2). The list
+  // Pipeline runs — single-row polling (Pattern E, S212 W2). The list
   // endpoint's cache lives under `admin.pipelineRunsRecent` below; this entry
-  // covers the GET /api/pipeline-runs/[id] poller used by the markdown-batch
-  // UI mid-flight.
+  // covers the GET /api/pipeline-runs/[id] poller used by Pattern E pipelines
+  // mid-flight.
   pipelineRuns: {
     all: ['pipeline-runs'] as const,
     detail: (id: string) => ['pipeline-runs', 'detail', id] as const,

@@ -64,8 +64,8 @@ export interface PipelineProgressUpdate {
  * Use-cases:
  *   - Mid-flight loop step boundaries in `app/api/upload/route.ts`
  *     (EP3 file_upload pipeline).
- *   - Per-file boundaries in `lib/ingest/markdown-orchestrator.ts`
- *     (EP2 upload_markdown_batch pipeline).
+ *   - Per-file boundaries in any batch producer that pre-allocates a
+ *     pipeline_runs row and reports incremental progress.
  *
  * Do NOT use for at-start INSERT — see `startPipelineRun()`.
  * Do NOT use for terminal UPDATE — orchestrators write the final

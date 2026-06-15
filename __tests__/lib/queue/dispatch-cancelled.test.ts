@@ -42,9 +42,6 @@ vi.mock('@/lib/queue/auth', () => ({
 vi.mock('@/lib/queue/handlers/procurement-draft-all', () => ({
   runBidDraftAllJob: vi.fn(),
 }));
-vi.mock('@/lib/queue/handlers/markdown-batch', () => ({
-  runMarkdownBatchJob: vi.fn(),
-}));
 
 vi.mock('@sentry/nextjs', () => ({
   captureMessage: vi.fn(),

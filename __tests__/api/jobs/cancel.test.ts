@@ -290,13 +290,13 @@ describe('PATCH /api/jobs/[id]/cancel', () => {
   it('ID-76: closes the pipeline_runs row to cancelled on a pending cancel carrying a pipeline_run_id (service client)', async () => {
     configureAuth('editor');
 
-    // SELECT returns a pending markdown_batch job whose envelope payload
-    // carries the pre-allocated pipeline_run_id.
+    // SELECT returns a pending job whose envelope payload carries the
+    // pre-allocated pipeline_run_id (batch_reclassify is one such producer).
     mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: {
         id: JOB_ID,
         status: 'pending',
-        job_type: 'markdown_batch',
+        job_type: 'batch_reclassify',
         payload: { pipeline_run_id: PIPELINE_RUN_ID },
       },
       error: null,
