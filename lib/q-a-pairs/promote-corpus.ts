@@ -49,6 +49,7 @@ import { tryQuery } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
 import { generateEmbedding } from '@/lib/ai/embed';
 import type { Database } from '@/supabase/types/database.types';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -118,13 +119,24 @@ export interface PromotionSummary {
 //  the typed client; we just describe what we call on it)
 // ---------------------------------------------------------------------------
 
-/** Minimal interface needed from the Supabase client (injected by callers). */
+/**
+ * Minimal interface needed from the Supabase client (injected by callers).
+ *
+ * `rpc` is derived from the real client type so BOTH production callers are
+ * structurally assignable without a cast — the HTTP route's RLS-scoped
+ * `SupabaseClient<Database>` and the ID-45 pipeline's service-role client. A
+ * hand-rolled `(name: string) => …` rpc is NOT assignable from the real client:
+ * the real rpc's `name` is the generated RPC-name union, and by parameter
+ * contravariance a wider `string`-accepting signature cannot receive it. `from`
+ * stays intentionally loose (`=> any`) so the internal query chains are not
+ * coupled to the generated row types.
+ *
+ * Unit tests inject the shared vitest mock, whose `Mock<…>` fields expose only a
+ * construct signature and so satisfy no function-typed interface — they pass it
+ * `as unknown as SupabaseClientLike`, mirroring the codebase's shared-mock cast.
+ */
 export interface SupabaseClientLike {
-  rpc: (
-    name: string,
-    params?: Record<string, unknown>,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ) => PromiseLike<{ data: any; error: any }>;
+  rpc: SupabaseClient<Database>['rpc'];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   from: (table: string) => any;
 }
@@ -164,9 +176,7 @@ export async function promoteCorpusExtractions(
   // linked-but-unembedded), ordered by created_at.
   // -------------------------------------------------------------------------
   const eligibleResult = await tryQuery(
-    client.rpc('q_a_extractions_promotion_candidates') as ReturnType<
-      typeof client.rpc
-    >,
+    client.rpc('q_a_extractions_promotion_candidates'),
     'q_a_extractions_promotion_candidates',
   );
 

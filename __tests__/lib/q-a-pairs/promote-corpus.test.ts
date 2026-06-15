@@ -39,6 +39,7 @@ vi.mock('@/lib/ai/embed', () => ({
 import {
   promoteCorpusExtractions,
   type PromotionSummary,
+  type SupabaseClientLike,
 } from '@/lib/q-a-pairs/promote-corpus';
 
 // ---------------------------------------------------------------------------
@@ -102,7 +103,9 @@ describe('promoteCorpusExtractions — {59.22} core loop', () => {
   it('returns all-zero summary when RPC returns empty set', async () => {
     supabase.rpc.mockResolvedValueOnce({ data: [], error: null });
 
-    const result: PromotionSummary = await promoteCorpusExtractions(supabase);
+    const result: PromotionSummary = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
 
     expect(result.considered).toBe(0);
     expect(result.promoted).toBe(0);
@@ -138,7 +141,9 @@ describe('promoteCorpusExtractions — {59.22} core loop', () => {
         resolve({ data: [{ id: UUID_NEW_PAIR }], error: null }),
     );
 
-    const result: PromotionSummary = await promoteCorpusExtractions(supabase);
+    const result: PromotionSummary = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
 
     expect(result.considered).toBe(1);
     expect(result.promoted).toBe(1);
@@ -209,7 +214,9 @@ describe('promoteCorpusExtractions — {59.22} core loop', () => {
 
     supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
 
-    const result: PromotionSummary = await promoteCorpusExtractions(supabase);
+    const result: PromotionSummary = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
 
     expect(result.considered).toBe(1);
     expect(result.promoted).toBe(0);
@@ -236,7 +243,9 @@ describe('promoteCorpusExtractions — {59.22} core loop', () => {
 
     supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
 
-    const result: PromotionSummary = await promoteCorpusExtractions(supabase);
+    const result: PromotionSummary = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
 
     expect(result.skipped).toHaveLength(1);
     expect(result.skipped[0].reason).toBe('no_answer_text');
@@ -268,7 +277,9 @@ describe('promoteCorpusExtractions — {59.22} core loop', () => {
       (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
-    const result: PromotionSummary = await promoteCorpusExtractions(supabase);
+    const result: PromotionSummary = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
 
     expect(result.promoted).toBe(0);
     expect(result.already_promoted).toBe(1);
@@ -293,7 +304,9 @@ describe('promoteCorpusExtractions — {59.22} core loop', () => {
       },
     });
 
-    await expect(promoteCorpusExtractions(supabase)).rejects.toThrow();
+    await expect(
+      promoteCorpusExtractions(supabase as unknown as SupabaseClientLike),
+    ).rejects.toThrow();
   });
 });
 
@@ -365,7 +378,9 @@ describe('promoteCorpusExtractions — {59.23} embed-decouple + self-heal (OQ-3)
         resolve({ data: [{ id: UUID_NEW_PAIR_B }], error: null }),
     );
 
-    const result: PromotionSummary = await promoteCorpusExtractions(supabase);
+    const result: PromotionSummary = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
 
     // Batch must NOT throw — embed failure is a soft error
     // promoted = 2 (both CAS-won; both count as promotion attempts)
@@ -400,7 +415,9 @@ describe('promoteCorpusExtractions — {59.23} embed-decouple + self-heal (OQ-3)
         resolve({ data: [{ id: UUID_EXISTING_PAIR }], error: null }),
     );
 
-    const result: PromotionSummary = await promoteCorpusExtractions(supabase);
+    const result: PromotionSummary = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
 
     expect(result.considered).toBe(1);
     // Self-heal counts as promoted (promotion attempt this run)
@@ -458,7 +475,7 @@ describe('promoteCorpusExtractions — {59.23} embed-decouple + self-heal (OQ-3)
         resolve({ data: [{ id: UUID_NEW_PAIR }], error: null }),
     );
 
-    await promoteCorpusExtractions(supabase);
+    await promoteCorpusExtractions(supabase as unknown as SupabaseClientLike);
 
     const updateMock = supabase._chain.update;
     for (const call of updateMock.mock.calls as Array<
@@ -544,7 +561,9 @@ describe('promoteCorpusExtractions — {59.23} embed-decouple + self-heal (OQ-3)
       .mockRejectedValueOnce(new Error('embed fail B'))
       .mockResolvedValueOnce(STUB_EMBEDDING);
 
-    const result: PromotionSummary = await promoteCorpusExtractions(supabase);
+    const result: PromotionSummary = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
 
     // promoted = 3 (A CAS-win + B CAS-win + C self-heal attempt)
     expect(result.promoted).toBe(3);
@@ -581,7 +600,9 @@ describe('promoteCorpusExtractions — {59.23} embed-decouple + self-heal (OQ-3)
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
-    const result: PromotionSummary = await promoteCorpusExtractions(supabase);
+    const result: PromotionSummary = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
 
     // 0 rows on embed UPDATE is a defect — counted as embed_failed
     expect(result.embed_failed).toBe(1);
@@ -684,7 +705,9 @@ describe('promoteCorpusExtractions — {59.24} OQ-2 active retirement pass', () 
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
-    const result = await promoteCorpusExtractions(supabase);
+    const result = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
 
     // Summary: retirement counted correctly
     expect(result.retired).toBe(1);
@@ -742,7 +765,9 @@ describe('promoteCorpusExtractions — {59.24} OQ-2 active retirement pass', () 
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
-    const result = await promoteCorpusExtractions(supabase);
+    const result = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
 
     expect(result.retired).toBe(0);
     expect(result.retired_no_replacement).toBe(1);
@@ -789,7 +814,9 @@ describe('promoteCorpusExtractions — {59.24} OQ-2 active retirement pass', () 
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
-    const result = await promoteCorpusExtractions(supabase);
+    const result = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
 
     expect(result.retired).toBe(0);
     expect(result.retired_no_replacement).toBe(1);
@@ -818,7 +845,9 @@ describe('promoteCorpusExtractions — {59.24} OQ-2 active retirement pass', () 
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
-    const result = await promoteCorpusExtractions(supabase);
+    const result = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
 
     expect(result.retired).toBe(0);
     expect(result.retired_no_replacement).toBe(0);
@@ -881,7 +910,9 @@ describe('promoteCorpusExtractions — {59.24} OQ-2 active retirement pass', () 
     );
 
     // Must NOT throw — concurrent archive is a benign race, not a defect.
-    const result = await promoteCorpusExtractions(supabase);
+    const result = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
 
     // The pair was NOT archived by THIS run — no count increment.
     expect(result.retired).toBe(0);
@@ -966,7 +997,9 @@ describe('promoteCorpusExtractions — {59.24} OQ-2 active retirement pass', () 
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
-    const result = await promoteCorpusExtractions(supabase);
+    const result = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
 
     // Promote loop ran first
     expect(result.promoted).toBe(1);

@@ -31,7 +31,7 @@
 // cutover operator re-invokes until embed_failed + pass-through reach 0.
 export const maxDuration = 120;
 
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { promoteCorpusExtractions } from '@/lib/q-a-pairs/promote-corpus';
@@ -48,7 +48,7 @@ import { promoteCorpusExtractions } from '@/lib/q-a-pairs/promote-corpus';
  * RLS-scoped: uses the authorised cookie-based client (no service-role
  * escalation — INV-15).
  */
-export async function POST() {
+export async function POST(_request: NextRequest) {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);

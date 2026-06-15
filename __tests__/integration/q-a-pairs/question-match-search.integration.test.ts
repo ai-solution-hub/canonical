@@ -172,7 +172,7 @@ async function seedFormQuestion(
 
 async function seedQaPair(opts: {
   questionText: string;
-  answerStandard: string | null;
+  answerStandard: string;
   publicationStatus: 'draft' | 'in_review' | 'published' | 'archived';
   embedding?: number[];
   scopeTag?: string[];
