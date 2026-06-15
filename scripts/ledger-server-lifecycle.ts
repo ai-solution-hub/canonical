@@ -36,6 +36,7 @@ import {
   mkdirSync,
   renameSync,
 } from 'node:fs';
+import { createHash } from 'node:crypto';
 import type { ChildProcess } from 'node:child_process';
 
 // ── types ─────────────────────────────────────────────────────────────────────
@@ -122,6 +123,12 @@ export function resolveDefaultLedgerDir(): string {
   return dir;
 }
 
+// bl-296: handle + spawn-tag sidecar live under a per-ledgerDir SUBDIR of this
+// dir (HANDLE_DIR/<ledgerKey>/…), so the daemon slot is keyed by the resolved
+// ledger directory rather than the per-worktree repoRoot. This disambiguates
+// daemons when `.cache` is shared/symlinked across worktrees (post ID-68.35 they
+// all serve one shared docs-site ledger): same ledgerDir → same slot (correct
+// sharing), different ledgerDir → distinct slot.
 const HANDLE_DIR = '.cache/ledger-server';
 const HANDLE_FILENAME = 'handle.json';
 const SPAWN_TAG_FILENAME = 'spawn-tag.json';
@@ -193,8 +200,29 @@ export function resolveExpectedVersion(repoRoot: string, tag: string): string {
 
 // ── handle file ───────────────────────────────────────────────────────────────
 
-function handlePath(repoRoot: string): string {
-  return resolve(repoRoot, HANDLE_DIR, HANDLE_FILENAME);
+/**
+ * bl-296: stable, filesystem-safe key for a daemon slot, derived from the
+ * RESOLVED ledger directory. A 16-hex sha256 prefix of the absolute ledgerDir —
+ * collision-negligible, contains no path separators, well under filename
+ * limits. Keying by the resolved dir (not repoRoot) means two worktrees pointed
+ * at the same shared ledger map to the SAME slot (safe by construction even when
+ * `.cache` is symlinked), while a different `--ledger-dir` gets its own slot.
+ * Exported for tests.
+ */
+export function ledgerKey(repoRoot: string, ledgerDir: string): string {
+  return createHash('sha256')
+    .update(resolve(repoRoot, ledgerDir))
+    .digest('hex')
+    .slice(0, 16);
+}
+
+function handlePath(repoRoot: string, ledgerDir: string): string {
+  return resolve(
+    repoRoot,
+    HANDLE_DIR,
+    ledgerKey(repoRoot, ledgerDir),
+    HANDLE_FILENAME,
+  );
 }
 
 function readHandle(path: string): ServerHandle | null {
@@ -235,8 +263,13 @@ interface SpawnTagSidecar {
   spawnTag: string;
 }
 
-function spawnTagPath(repoRoot: string): string {
-  return resolve(repoRoot, HANDLE_DIR, SPAWN_TAG_FILENAME);
+function spawnTagPath(repoRoot: string, ledgerDir: string): string {
+  return resolve(
+    repoRoot,
+    HANDLE_DIR,
+    ledgerKey(repoRoot, ledgerDir),
+    SPAWN_TAG_FILENAME,
+  );
 }
 
 function readSpawnTag(path: string): SpawnTagSidecar | null {
@@ -498,8 +531,8 @@ export async function ensureServer(
 
   if (isDefault) {
     // ── default ledger dir: reuse or spawn a persistent daemon ──────────
-    const hPath = handlePath(repoRoot);
-    const sPath = spawnTagPath(repoRoot);
+    const hPath = handlePath(repoRoot, ledgerDir);
+    const sPath = spawnTagPath(repoRoot, ledgerDir);
     const existing = readHandle(hPath);
 
     if (existing) {

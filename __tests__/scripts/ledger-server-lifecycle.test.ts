@@ -23,6 +23,7 @@ import { join, resolve } from 'node:path';
 import { createServer, type Server } from 'node:http';
 import {
   ensureServer,
+  ledgerKey,
   resolveTag,
   resolveExpectedVersion,
   type SpawnSeam,
@@ -59,15 +60,24 @@ function makeFakeRepo(tag = 'v0.4.0-task-view'): string {
   return dir;
 }
 
+// bl-296: the daemon slot is keyed by resolved ledgerDir. The default-path tests
+// stub KH_PRIVATE_DOCS_DIR=repoRoot (beforeEach), so the default ledgerDir is
+// <repoRoot>/src/content/docs/ledgers — seed/read the handle + sidecar under that
+// ledger's keyed subdir, mirroring production handlePath/spawnTagPath.
+function defaultSlotDir(repoRoot: string): string {
+  const ledgerDir = resolve(repoRoot, 'src/content/docs/ledgers');
+  return join(repoRoot, '.cache/ledger-server', ledgerKey(repoRoot, ledgerDir));
+}
+
 function writeHandle(repoRoot: string, handle: ServerHandle): void {
-  const dir = join(repoRoot, '.cache/ledger-server');
+  const dir = defaultSlotDir(repoRoot);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'handle.json'), JSON.stringify(handle));
 }
 
 /** Pre-seed the lifecycle-owned spawn-tag sidecar (inv 48 Layer-2). */
 function writeSpawnTagSidecar(repoRoot: string, spawnTag: string): void {
-  const dir = join(repoRoot, '.cache/ledger-server');
+  const dir = defaultSlotDir(repoRoot);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'spawn-tag.json'), JSON.stringify({ spawnTag }));
 }
@@ -75,10 +85,7 @@ function writeSpawnTagSidecar(repoRoot: string, spawnTag: string): void {
 function readSpawnTagSidecar(repoRoot: string): { spawnTag: string } | null {
   try {
     return JSON.parse(
-      readFileSync(
-        join(repoRoot, '.cache/ledger-server/spawn-tag.json'),
-        'utf8',
-      ),
+      readFileSync(join(defaultSlotDir(repoRoot), 'spawn-tag.json'), 'utf8'),
     ) as { spawnTag: string };
   } catch {
     return null;
@@ -491,5 +498,63 @@ describe('ensureServer ephemeral mode (non-default --ledger-dir)', () => {
     // Should spawn fresh, not reuse the default-dir handle.
     expect(result.reused).toBe(false);
     expect(spawnCalls.length).toBe(1);
+  });
+});
+
+// ── daemon slot keyed by resolved ledgerDir (bl-296) ──────────────────────────
+
+describe('ensureServer keys the daemon slot by ledgerDir (bl-296)', () => {
+  it('ignores a legacy flat-path handle (keyed slot, not .cache/ledger-server/handle.json)', async () => {
+    // Pre-bl-296 the handle + spawn-tag sidecar lived at the FLAT
+    // .cache/ledger-server/{handle,spawn-tag}.json, keyed by repoRoot alone. A
+    // symlinked/shared .cache then let a worktree silently reuse another's
+    // daemon. After re-keying by resolved ledgerDir they live under a per-dir
+    // subdir, so a stale FLAT handle must NOT be reused — ensureServer spawns
+    // fresh into the keyed slot. Seed the flat path directly (not via the keyed
+    // helpers) to prove the lookup moved off it.
+    const { port } = await startHealthServer(PKG_VERSION);
+    const flatDir = join(tmpRoot, '.cache/ledger-server');
+    mkdirSync(flatDir, { recursive: true });
+    writeFileSync(
+      join(flatDir, 'handle.json'),
+      JSON.stringify({
+        port,
+        pid: 13579,
+        version: PKG_VERSION,
+        ledgerDir: resolve(tmpRoot, 'src/content/docs/ledgers'),
+      }),
+    );
+    writeFileSync(
+      join(flatDir, 'spawn-tag.json'),
+      JSON.stringify({ spawnTag: 'v0.4.0-task-view' }),
+    );
+
+    const { seam, spawnCalls } = makeSpawnSeam();
+    const result = await ensureServer({
+      repoRoot: tmpRoot,
+      spawnSeam: seam,
+      deadlineMs: 5000,
+    });
+
+    expect(result.reused).toBe(false); // flat handle ignored
+    expect(spawnCalls.length).toBe(1); // spawned fresh into the keyed slot
+  });
+
+  it('ledgerKey is deterministic and distinct per resolved ledgerDir', () => {
+    const a = resolve(tmpRoot, 'src/content/docs/ledgers');
+    const b = resolve(tmpRoot, 'some/other/ledgers');
+    expect(ledgerKey(tmpRoot, a)).toBe(ledgerKey(tmpRoot, a)); // stable
+    expect(ledgerKey(tmpRoot, a)).not.toBe(ledgerKey(tmpRoot, b)); // distinct dir → distinct slot
+    expect(ledgerKey(tmpRoot, a)).toMatch(/^[0-9a-f]{16}$/); // fs-safe, no separators
+  });
+
+  it('ledgerKey is repoRoot-independent for the same ABSOLUTE ledgerDir (symlink safety)', () => {
+    // Two worktrees pointed at the SAME shared absolute ledger map to the SAME
+    // slot — so a shared/symlinked .cache reuses the same daemon by design,
+    // rather than one worktree silently adopting another's repoRoot-keyed handle.
+    const shared = resolve(tmpRoot, 'src/content/docs/ledgers');
+    expect(ledgerKey('/work/tree-a', shared)).toBe(
+      ledgerKey('/work/tree-b', shared),
+    );
   });
 });
