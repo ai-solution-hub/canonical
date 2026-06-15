@@ -35,14 +35,18 @@ describe('loadBranding', () => {
     warnSpy.mockRestore();
   });
 
-  it('resolves example-client branding when called with "example-client"', () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const branding = loadBranding('example-client');
-    expect(branding.clientId).toBe('example-client');
-    expect(branding.productName).toBe('example-client Design - Knowledge Hub');
-    expect(branding.faviconSvgUrl).toBe('/clients/example-client/favicon.svg');
-    expect(branding.faviconPngUrl).toBe('/clients/example-client/favicon.png');
-    warnSpy.mockRestore();
+  it('resolves to default for an overlay id absent from the public tree', () => {
+    // Post-untrack (ID-68.22): client branding JSON + assets are no longer
+    // committed to the public tree — they are fetched into
+    // lib/branding/clients/ at build time (ID-95). The committed
+    // client-branding map therefore contains ONLY default, so any overlay
+    // client id resolves to default in the public build, exactly like any
+    // other unknown id. A deploy that overlays a client JSON expands the
+    // generated map without a source edit (see client-branding-map.codegen
+    // test for the overlay-present path).
+    const branding = loadBranding('overlay-client');
+    expect(branding.clientId).toBe('default');
+    expect(branding.productName).toBe('Knowledge Hub');
   });
 });
 
