@@ -17,13 +17,15 @@
  * Alternate question phrasings: q_a_extractions has no dedicated phrasings
  * column (the extraction_metadata JSONB is the only place per-extraction
  * metadata lives, but no standard phrasings key is established). Route i
- * therefore defaults alternate_question_phrasings to '{}' for all promoted
- * pairs. When ID-94.1/G4 lands a dedicated column or well-known metadata key,
- * this is the place to update — see the note near the INSERT payload below.
+ * omits alternate_question_phrasings from the INSERT payload entirely and
+ * relies on the column DEFAULT '{}' (an empty text[]). When ID-94.1/G4 lands
+ * a dedicated column or well-known metadata key, update the INSERT payload
+ * below — see the note near the INSERT.
  */
 
 import { tryQuery } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
+import type { Database } from '@/supabase/types/database.types';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -71,10 +73,10 @@ export interface PromotionSummary {
 
 /** Minimal interface needed from the Supabase client (injected by callers). */
 export interface SupabaseClientLike {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   rpc: (
     name: string,
     params?: Record<string, unknown>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ) => PromiseLike<{ data: any; error: any }>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   from: (table: string) => any;
@@ -180,9 +182,10 @@ export async function promoteCorpusExtractions(
     // Field map (INV-6):
     //   question_text             ← extracted_question_text
     //   answer_standard           ← extracted_answer_text
-    //   alternate_question_phrasings ← '{}' (default — no dedicated column on
-    //                                   q_a_extractions; update when ID-94.1/G4
-    //                                   adds a known phrasings key)
+    //   alternate_question_phrasings ← omitted; relies on column DEFAULT '{}'
+    //                                   (an empty text[]). No dedicated column on
+    //                                   q_a_extractions. Update when ID-94.1/G4
+    //                                   adds a known phrasings key.
     //   origin_kind               ← 'extracted_from_corpus' (INV-4)
     //   publication_status        ← 'draft' (embedding + publish is {59.23})
     //   question_embedding        ← omitted/NULL ({59.23})
@@ -192,21 +195,20 @@ export async function promoteCorpusExtractions(
     //                               route-iii lines 155-164 which also omit it)
     //   superseded_by             ← omitted/NULL
     //
+    // The payload is typed as the generated Insert type so a future
+    // alternate_question_phrasings: '{}' (string, not string[]) would be a
+    // compile error — preventing recurrence of the 22P02 bug class.
+    const pairInsert: Database['public']['Tables']['q_a_pairs']['Insert'] = {
+      question_text: extraction.extracted_question_text,
+      answer_standard: answerText,
+      // alternate_question_phrasings intentionally omitted — DB DEFAULT '{}'
+      // (text[] NOT NULL DEFAULT '{}') fills it. Update here for ID-94.1/G4.
+      origin_kind: 'extracted_from_corpus',
+      publication_status: 'draft',
+      // question_embedding intentionally omitted — {59.23} embeds + publishes
+    };
     const insertResult = await tryQuery(
-      client
-        .from('q_a_pairs')
-        .insert({
-          question_text: extraction.extracted_question_text,
-          answer_standard: answerText,
-          // alternate_question_phrasings: no dedicated source column on
-          // q_a_extractions; default to '{}' (the column's NOT NULL DEFAULT '{}')
-          alternate_question_phrasings: '{}',
-          origin_kind: 'extracted_from_corpus',
-          publication_status: 'draft',
-          // question_embedding intentionally omitted — {59.23} embeds + publishes
-        })
-        .select('id')
-        .single(),
+      client.from('q_a_pairs').insert(pairInsert).select('id').single(),
       'q_a_pairs.insertCorpusDraft',
     );
 

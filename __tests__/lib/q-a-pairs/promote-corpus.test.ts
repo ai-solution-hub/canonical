@@ -140,8 +140,9 @@ describe('promoteCorpusExtractions — {59.22} core loop', () => {
     expect(insertPayload.answer_standard).toBe(
       extraction.extracted_answer_text,
     );
-    // alternate_question_phrasings defaults to '{}' (no dedicated column on extractions)
-    expect(insertPayload.alternate_question_phrasings).toEqual('{}');
+    // alternate_question_phrasings is omitted from the payload — DB DEFAULT '{}'
+    // (text[] NOT NULL DEFAULT '{}') fills it; sending a JS string '{}' causes 22P02
+    expect(insertPayload.alternate_question_phrasings).toBeUndefined();
     // publication_status must be 'draft' (not yet published — embedding is {59.23})
     expect(insertPayload.publication_status).toBe('draft');
     // question_embedding must NOT be set in this subtask ({59.23} adds it)

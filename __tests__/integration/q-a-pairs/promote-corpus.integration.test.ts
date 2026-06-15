@@ -197,7 +197,7 @@ describe.skipIf(!RUN_INTEGRATION)(
         const { data: pair } = await db
           .from('q_a_pairs')
           .select(
-            'origin_kind, publication_status, question_embedding, source_form_response_id, source_question_id',
+            'origin_kind, publication_status, question_embedding, source_form_response_id, source_question_id, alternate_question_phrasings',
           )
           .eq('id', ext.promoted_to_pair_id)
           .single();
@@ -210,6 +210,9 @@ describe.skipIf(!RUN_INTEGRATION)(
         // Route-i pairs have no form response lineage
         expect(pair?.source_form_response_id).toBeNull();
         expect(pair?.source_question_id).toBeNull();
+        // DB DEFAULT '{}' round-trips as an empty text[] (real PostgREST proof
+        // that omitting the field from the INSERT payload does NOT cause 22P02)
+        expect(pair?.alternate_question_phrasings).toEqual([]);
       }
 
       expect(summary.promoted).toBeGreaterThanOrEqual(1);
