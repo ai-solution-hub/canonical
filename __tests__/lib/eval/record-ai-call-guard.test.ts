@@ -26,7 +26,7 @@ import { join } from 'node:path';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 
-const PROJECT_ROOT = join(__dirname, '../..');
+const PROJECT_ROOT = join(__dirname, '../../..');
 
 /** The greppable literal a wired touchpoint must contain. */
 const RECORD_AI_CALL_LITERAL = 'recordAiCall(';
