@@ -7,8 +7,8 @@
 --   top-N candidate rows into question_matches via INSERT .. ON CONFLICT upsert.
 -- Reader: question_match_search (STABLE, appended by {57.7}) — reads materialised rows.
 -- Both follow RLS-PATTERN P-4: OWNER postgres, SET search_path = public, extensions,
---   explicit REVOKE anon, GRANT authenticated/service_role; bare `vector` in
---   GRANT/REVOKE signatures (Postgres stores vector(1024) as catalog type `vector`).
+--   explicit REVOKE anon, GRANT authenticated/service_role.
+-- `extensions.vector` (schema-qualified) in signatures: the db push login role's search_path excludes the extensions schema, so bare `vector` fails 42704 at parse time (ops43 20260502143049:71-77 documents this).
 -- ts_rank flag 2 is the bl-76 default ({57.8} calibration DEFERRED post-cutover).
 --
 -- Apply log:
@@ -20,7 +20,7 @@
 CREATE OR REPLACE FUNCTION public.question_match_recompute(
   p_form_question_id uuid,
   p_query            text,
-  p_query_embedding  vector(1024),
+  p_query_embedding  extensions.vector(1024),
   p_question_kind    text,
   p_scope_tag        text[],          -- caller-resolved workspace scope (B5)
   p_anti_scope_tag   text[],
@@ -79,10 +79,10 @@ BEGIN
 END;
 $$;
 
-ALTER FUNCTION public.question_match_recompute(uuid, text, vector, text, text[], text[], integer)
+ALTER FUNCTION public.question_match_recompute(uuid, text, extensions.vector, text, text[], text[], integer)
   OWNER TO postgres;
 REVOKE EXECUTE ON FUNCTION
-  public.question_match_recompute(uuid, text, vector, text, text[], text[], integer) FROM anon;
+  public.question_match_recompute(uuid, text, extensions.vector, text, text[], text[], integer) FROM anon;
 GRANT  EXECUTE ON FUNCTION
-  public.question_match_recompute(uuid, text, vector, text, text[], text[], integer)
+  public.question_match_recompute(uuid, text, extensions.vector, text, text[], text[], integer)
   TO authenticated, service_role;
