@@ -2,6 +2,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 
 // ---------------------------------------------------------------------------
+// ID-71.7 — the former `search_content_chunks` tool is now the `granularity:
+// 'chunk'` branch of the consolidated `find` entry (M27/B-INV-27). These
+// behaviour tests (limit clamping, embedding serialisation, error handling,
+// review-cadence filter pass-through, structuredContent surfacing) are
+// migrated onto `find` so the section-level retrieval contract stays covered.
+// The handler is obtained via `getChunkHandler()`, which wraps `find` and
+// injects `granularity: 'chunk'`.
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
 // Hoisted mocks — supabase auth client + lazy-loaded embedding generator
 // ---------------------------------------------------------------------------
 
@@ -93,9 +103,20 @@ function makeRpcChunk(overrides: Record<string, unknown> = {}) {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('search_content_chunks tool handler', () => {
+describe('find (granularity=chunk) handler', () => {
   let mockServer: ReturnType<typeof createMockMcpServer>;
   const extra = { authInfo: { token: 'test' } };
+
+  /**
+   * Returns a handler that invokes the consolidated `find` tool with
+   * `granularity: 'chunk'` auto-injected, so the migrated chunk-branch
+   * behaviour tests below read unchanged from their pre-consolidation form.
+   */
+  function getChunkHandler() {
+    const findHandler = mockServer.getHandler('find')!;
+    return (args: Record<string, unknown>, e: typeof extra) =>
+      findHandler({ granularity: 'chunk', ...args }, e);
+  }
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -107,12 +128,14 @@ describe('search_content_chunks tool handler', () => {
     );
   });
 
-  it('registers the search_content_chunks tool', () => {
-    expect(mockServer.getHandler('search_content_chunks')).toBeDefined();
+  it('exposes the chunk branch via the consolidated find tool', () => {
+    expect(mockServer.getHandler('find')).toBeDefined();
+    // The standalone search_content_chunks entry is retired (ID-71.7).
+    expect(mockServer.getHandler('search_content_chunks')).toBeUndefined();
   });
 
   it('returns markdown and structuredContent for a successful search', async () => {
-    const handler = mockServer.getHandler('search_content_chunks')!;
+    const handler = getChunkHandler();
     const chunk1 = makeRpcChunk({
       chunk_id: 'c-1',
       heading_text: 'Evacuation Procedures',
@@ -141,7 +164,7 @@ describe('search_content_chunks tool handler', () => {
   });
 
   it('returns isError when the RPC returns an error', async () => {
-    const handler = mockServer.getHandler('search_content_chunks')!;
+    const handler = getChunkHandler();
     mocks.rpcMock.mockResolvedValueOnce({
       data: null,
       error: { message: 'boom' },
@@ -157,7 +180,7 @@ describe('search_content_chunks tool handler', () => {
   });
 
   it('passes content_item_id through to the RPC filter_content_item_id param', async () => {
-    const handler = mockServer.getHandler('search_content_chunks')!;
+    const handler = getChunkHandler();
     mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
 
     const contentItemId = '11111111-2222-4333-8444-555555555555';
@@ -175,7 +198,7 @@ describe('search_content_chunks tool handler', () => {
   });
 
   it('passes filter_content_item_id: undefined (NOT null) when omitted', async () => {
-    const handler = mockServer.getHandler('search_content_chunks')!;
+    const handler = getChunkHandler();
     mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
 
     await handler({ query: 'broad query' }, extra);
@@ -189,7 +212,7 @@ describe('search_content_chunks tool handler', () => {
   });
 
   it('clamps limit to 30 when a larger value is provided', async () => {
-    const handler = mockServer.getHandler('search_content_chunks')!;
+    const handler = getChunkHandler();
     mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
 
     await handler({ query: 'q', limit: 100 }, extra);
@@ -201,7 +224,7 @@ describe('search_content_chunks tool handler', () => {
   });
 
   it('defaults limit to 10 when omitted', async () => {
-    const handler = mockServer.getHandler('search_content_chunks')!;
+    const handler = getChunkHandler();
     mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
 
     await handler({ query: 'q' }, extra);
@@ -213,7 +236,7 @@ describe('search_content_chunks tool handler', () => {
   });
 
   it('uses the requested limit when below the 30 cap', async () => {
-    const handler = mockServer.getHandler('search_content_chunks')!;
+    const handler = getChunkHandler();
     mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
 
     await handler({ query: 'q', limit: 5 }, extra);
@@ -225,7 +248,7 @@ describe('search_content_chunks tool handler', () => {
   });
 
   it('serialises the embedding as a JSON string for the vector RPC param', async () => {
-    const handler = mockServer.getHandler('search_content_chunks')!;
+    const handler = getChunkHandler();
     mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
     mocks.generateEmbeddingMock.mockResolvedValueOnce([0.5, -0.1, 0.9]);
 
@@ -237,7 +260,7 @@ describe('search_content_chunks tool handler', () => {
   });
 
   it('returns the empty-state markdown and count 0 when no chunks match', async () => {
-    const handler = mockServer.getHandler('search_content_chunks')!;
+    const handler = getChunkHandler();
     mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
 
     const result = (await handler(
@@ -251,7 +274,7 @@ describe('search_content_chunks tool handler', () => {
   });
 
   it('treats null RPC data as empty results rather than an error', async () => {
-    const handler = mockServer.getHandler('search_content_chunks')!;
+    const handler = getChunkHandler();
     mocks.rpcMock.mockResolvedValueOnce({ data: null, error: null });
 
     const result = (await handler({ query: 'any' }, extra)) as ToolResult;
@@ -272,7 +295,7 @@ describe('search_content_chunks tool handler', () => {
 
   describe('§5.5 Phase 4 — review-cadence filter params', () => {
     it('passes overdue_review=true through to RPC filter_overdue_review (AC1)', async () => {
-      const handler = mockServer.getHandler('search_content_chunks')!;
+      const handler = getChunkHandler();
       mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
 
       await handler({ query: 'q', overdue_review: true }, extra);
@@ -284,7 +307,7 @@ describe('search_content_chunks tool handler', () => {
     });
 
     it('passes overdue_review=false through to RPC filter_overdue_review', async () => {
-      const handler = mockServer.getHandler('search_content_chunks')!;
+      const handler = getChunkHandler();
       mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
 
       await handler({ query: 'q', overdue_review: false }, extra);
@@ -296,7 +319,7 @@ describe('search_content_chunks tool handler', () => {
     });
 
     it('passes filter_overdue_review: undefined when omitted (AC7 backwards-compat)', async () => {
-      const handler = mockServer.getHandler('search_content_chunks')!;
+      const handler = getChunkHandler();
       mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
 
       await handler({ query: 'q' }, extra);
@@ -311,7 +334,7 @@ describe('search_content_chunks tool handler', () => {
     });
 
     it('passes review_due_within_days through to filter_review_due_within_days (AC2)', async () => {
-      const handler = mockServer.getHandler('search_content_chunks')!;
+      const handler = getChunkHandler();
       mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
 
       await handler({ query: 'q', review_due_within_days: 30 }, extra);
@@ -323,7 +346,7 @@ describe('search_content_chunks tool handler', () => {
     });
 
     it('passes filter_review_due_within_days: undefined when omitted', async () => {
-      const handler = mockServer.getHandler('search_content_chunks')!;
+      const handler = getChunkHandler();
       mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
 
       await handler({ query: 'q' }, extra);
@@ -337,7 +360,7 @@ describe('search_content_chunks tool handler', () => {
     });
 
     it('combines content_item_id, overdue_review, and review_due_within_days in one call', async () => {
-      const handler = mockServer.getHandler('search_content_chunks')!;
+      const handler = getChunkHandler();
       mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
       const contentItemId = '11111111-2222-4333-8444-555555555555';
 
@@ -362,7 +385,7 @@ describe('search_content_chunks tool handler', () => {
     });
 
     it('surfaces the filter values in structuredContent', async () => {
-      const handler = mockServer.getHandler('search_content_chunks')!;
+      const handler = getChunkHandler();
       mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
 
       const result = (await handler(
@@ -375,7 +398,7 @@ describe('search_content_chunks tool handler', () => {
     });
 
     it('reports null for unset filters in structuredContent', async () => {
-      const handler = mockServer.getHandler('search_content_chunks')!;
+      const handler = getChunkHandler();
       mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
 
       const result = (await handler({ query: 'q' }, extra)) as ToolResult;

@@ -2,14 +2,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 
 // ---------------------------------------------------------------------------
-// S217 W1B — split LLM-discovery surface from admin dedup surface.
-// `find_similar_items`        → published-only default (LLM semantic discovery)
-// `find_duplicate_candidates` → admin default returning every state
-// Spec authority: archived publication-lifecycle-state-machine-spec §5.3.2.
-// Both tools share an implementation; only the visibility-filter fallback
-// differs. The tests below assert: (a) registration metadata, (b) RPC
-// pass-through correctness for both default and override paths, and (c) the
-// shared error-handling guard for items missing an embedding.
+// ID-71.7 — LLM semantic-discovery (published-only similar items) is now the
+// `similar_to` branch of the consolidated `find` tool (M27/B-INV-27). The
+// standalone `find_similar_items` entry is retired. The admin-dedup surface
+// `find_duplicate_candidates` is NOT consolidated here (dedup consolidation is
+// the later M32 / {71.10} slice) and continues to share `findSimilarItemsImpl`
+// with `find`'s similar_to branch.
+//
+// `find_duplicate_candidates`  → admin default returning every state.
+//
+// The tests below assert: (a) `find_similar_items` is retired and `find`'s
+// `similar_to` branch serves LLM discovery, (b) RPC pass-through correctness
+// for the surviving admin-dedup tool, and (c) the shared error-handling guard
+// for items missing an embedding.
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
@@ -112,7 +117,7 @@ function makeRpcSimilarRow(
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('find_similar_items + find_duplicate_candidates registration', () => {
+describe('find / find_duplicate_candidates registration (ID-71.7)', () => {
   let mockServer: ReturnType<typeof createMockMcpServer>;
 
   beforeEach(async () => {
@@ -126,15 +131,9 @@ describe('find_similar_items + find_duplicate_candidates registration', () => {
     );
   });
 
-  it('registers find_similar_items with the LLM-discovery title and read-only annotations', () => {
-    const tool = mockServer.getTool('find_similar_items');
-    expect(tool).toBeDefined();
-    expect(tool!.config.title).toBe('Find Similar Items');
-    const annotations = tool!.config.annotations as Record<string, boolean>;
-    expect(annotations.readOnlyHint).toBe(true);
-    expect(annotations.destructiveHint).toBe(false);
-    expect(annotations.idempotentHint).toBe(true);
-    expect(annotations.openWorldHint).toBe(false);
+  it('retires the standalone find_similar_items entry (now find.similar_to)', () => {
+    expect(mockServer.getTool('find_similar_items')).toBeUndefined();
+    expect(mockServer.getTool('find')).toBeDefined();
   });
 
   it('registers find_duplicate_candidates with the admin-dedup title and read-only annotations', () => {
@@ -148,33 +147,29 @@ describe('find_similar_items + find_duplicate_candidates registration', () => {
     expect(annotations.openWorldHint).toBe(false);
   });
 
-  it('find_similar_items description steers admin-dedup callers to the sibling tool', () => {
-    const tool = mockServer.getTool('find_similar_items');
-    const description = tool!.config.description as string;
-    expect(description).toContain('find_duplicate_candidates');
-  });
-
-  it('find_duplicate_candidates description steers LLM-discovery callers to the sibling tool', () => {
+  it('find_duplicate_candidates description steers LLM-discovery callers to the find tool', () => {
     const tool = mockServer.getTool('find_duplicate_candidates');
     const description = tool!.config.description as string;
-    expect(description).toContain('find_similar_items');
-  });
-
-  it('find_similar_items and find_duplicate_candidates expose identical input schemas', () => {
-    const a = mockServer.getTool('find_similar_items');
-    const b = mockServer.getTool('find_duplicate_candidates');
-    expect(a).toBeDefined();
-    expect(b).toBeDefined();
-    const aSchema = a!.config.inputSchema as Record<string, unknown>;
-    const bSchema = b!.config.inputSchema as Record<string, unknown>;
-    // Same param keys (id, threshold, limit, visibility_filter).
-    expect(Object.keys(aSchema).sort()).toEqual(Object.keys(bSchema).sort());
+    expect(description).toContain('find');
+    expect(description).toContain('similar_to');
   });
 });
 
-describe('find_similar_items handler', () => {
+describe('find (similar_to) handler — LLM semantic discovery', () => {
   let mockServer: ReturnType<typeof createMockMcpServer>;
   const extra = { authInfo: { token: 'test' } };
+
+  /** Drives `find`'s similar_to branch (former find_similar_items). */
+  function getSimilarHandler() {
+    const findHandler = mockServer.getHandler('find')!;
+    return (
+      args: { id: string; visibility_filter?: 'default' | 'all' | 'admin' },
+      e: typeof extra,
+    ) => {
+      const { id, ...rest } = args;
+      return findHandler({ similar_to: id, ...rest }, e);
+    };
+  }
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -188,7 +183,7 @@ describe('find_similar_items handler', () => {
   });
 
   it('omits visibility_filter from RPC call when arg not provided (preserves RPC default of "default")', async () => {
-    const handler = mockServer.getHandler('find_similar_items')!;
+    const handler = getSimilarHandler();
     mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
 
     await handler({ id: SOURCE_ID }, extra);
@@ -202,7 +197,7 @@ describe('find_similar_items handler', () => {
   });
 
   it('passes explicit visibility_filter override through to the RPC', async () => {
-    const handler = mockServer.getHandler('find_similar_items')!;
+    const handler = getSimilarHandler();
     mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
 
     await handler({ id: SOURCE_ID, visibility_filter: 'all' }, extra);
@@ -214,7 +209,7 @@ describe('find_similar_items handler', () => {
   });
 
   it('returns isError with guidance text when source item has no embedding', async () => {
-    const handler = mockServer.getHandler('find_similar_items')!;
+    const handler = getSimilarHandler();
     mocks.singleMock.mockResolvedValueOnce({
       data: makeSourceItem({ embedding: null }),
       error: null,
@@ -228,7 +223,7 @@ describe('find_similar_items handler', () => {
   });
 
   it('returns markdown + structuredContent for a successful similarity search', async () => {
-    const handler = mockServer.getHandler('find_similar_items')!;
+    const handler = getSimilarHandler();
     mocks.rpcMock.mockResolvedValueOnce({
       data: [
         makeRpcSimilarRow({

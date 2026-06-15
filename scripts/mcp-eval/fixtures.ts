@@ -80,16 +80,18 @@ export function loadEnv(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Canonical lists — updated to 56 tools (ID-71.10 M32: get_content_item +
-// get_content_items collapse to `get`; assign_content_owner + bulk_assign_owner
-// collapse to `assign`. 58 → 56.)
+// Canonical lists — 53 tools after S357 Wave-1 surface consolidation:
+// ID-71.7 (M27/B-INV-27) collapsed the search trio (search_knowledge_base /
+// search_qa_library / search_content_chunks) + find_similar_items into ONE `find`
+// entry; ID-71.10 (M32) collapsed get_content_item+get_content_items → `get` and
+// assign_content_owner+bulk_assign_owner → `assign`. find_duplicate_candidates
+// retained (dedup consolidation is a later slice). 58 → 53.
 // ---------------------------------------------------------------------------
 
-/** Canonical set of all 56 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
+/** Canonical set of all 53 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
 export const CANONICAL_TOOL_NAMES = [
-  'search_knowledge_base', // 1
-  'search_qa_library', // 2
-  'find_similar_items', // 3
+  // ID-71.7 — ONE consolidated find/answer entry (search + QA + chunk + similar).
+  'find', // 1
   'get_dashboard_summary', // 4
   'get_reorientation', // 5
   'get_freshness_report', // 6
@@ -127,7 +129,6 @@ export const CANONICAL_TOOL_NAMES = [
   'delete_content_item', // 40
   'update_governance_status', // 41
   'get_intelligence_summary', // 42
-  'search_content_chunks', // 43
   'list_guides', // 44
   'get_guide', // 45
   'create_guide', // 46
@@ -147,20 +148,18 @@ export const CANONICAL_TOOL_NAMES = [
   'list_user_workspaces', // 56
   // S202 §5.2 Phase 2 / T7 — publication-lifecycle MCP surface (56 → 57).
   'update_publication_status', // 57
-  // S217 W1B — split LLM-discovery surface from admin dedup surface (57 → 58).
-  // Authority: archived `.specs/publication-lifecycle-state-machine-spec.md` §5.3.2.
-  'find_duplicate_candidates', // 56 (was 58 pre-ID-71.10 collapse)
+  // S217 W1B — admin dedup surface (split from LLM-discovery). Retained through
+  // both ID-71.7 (find consolidation) and ID-71.10 (get/assign) — dedup
+  // consolidation is a later slice.
+  'find_duplicate_candidates',
 ] as const;
 
-export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 56
+export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 53
 
 /** Read-only tools (no side effects). */
 export const READ_ONLY_TOOLS = new Set([
-  'search_knowledge_base',
-  'search_qa_library',
-  'find_similar_items',
+  'find',
   'find_duplicate_candidates',
-  'search_content_chunks',
   'get_dashboard_summary',
   'get_reorientation',
   'get_freshness_report',
@@ -531,7 +530,8 @@ export function getMinimalArgs(
 ): Record<string, unknown> {
   switch (toolName) {
     // Read tools — no args or minimal args
-    case 'search_knowledge_base':
+    // ID-71.7 — consolidated find/answer entry (search + QA + chunk + similar).
+    case 'find':
       return { query: 'test' };
     case 'get_dashboard_summary':
       return {};
@@ -555,10 +555,6 @@ export function getMinimalArgs(
       return {};
     case 'get_freshness_report':
       return {};
-    case 'search_qa_library':
-      return { query: 'test' };
-    case 'search_content_chunks':
-      return { query: 'test' };
     case 'get_entity_relationships':
       return { entity_type: 'certification' };
     case 'get_content_effectiveness':
@@ -567,8 +563,6 @@ export function getMinimalArgs(
       return {};
     case 'audit_content':
       return {};
-    case 'find_similar_items':
-      return { id: knownUUIDs.contentItemId };
     case 'find_duplicate_candidates':
       return { id: knownUUIDs.contentItemId };
     case 'get_workspace_items':

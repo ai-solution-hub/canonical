@@ -260,6 +260,51 @@ export interface SimilarItemsResult {
   similar_items: SimilarItem[];
 }
 
+/**
+ * Zod schema for a `SimilarItem` — mirrors the interface for `find`'s
+ * `outputSchema` runtime validation (similar_to branch).
+ */
+export const SimilarItemSchema = z.object({
+  id: z.string(),
+  title: z.string().nullable(),
+  suggested_title: z.string().nullable(),
+  content_type: z.string().nullable(),
+  primary_domain: z.string().nullable(),
+  similarity: z.number(),
+  likely_duplicate: z.boolean(),
+});
+
+/**
+ * Zod schema for the `find` similar-items structured envelope.
+ */
+export const SimilarItemsResponseSchema = z.object({
+  source_item: z.object({ id: z.string(), title: z.string() }),
+  similar_items: z.array(SimilarItemSchema),
+});
+
+// ---------------------------------------------------------------------------
+// `find` consolidated output schema (ID-71.7 / M37)
+//
+// One outcome-shaped `find` entry collapses the prior search trio +
+// find_similar_items. Its `outputSchema` is the union of the three response
+// envelopes the consolidated branches produce: item-level search
+// (SearchResponseSchema), chunk-level search (ChunkSearchResponseSchema), and
+// vector similar-items discovery (SimilarItemsResponseSchema). The branch is
+// selected at call time by `granularity` / `similar_to`.
+// ---------------------------------------------------------------------------
+
+/**
+ * Zod schema for the consolidated `find` structured response. A union over
+ * the item / chunk / similar-items envelopes — the new entry's `outputSchema`
+ * per M37 (B-INV-37). Declared on `find` only; the retiring trio carried no
+ * retrofit.
+ */
+export const FindResponseSchema = z.union([
+  SearchResponseSchema,
+  ChunkSearchResponseSchema,
+  SimilarItemsResponseSchema,
+]);
+
 export function formatSimilarItems(data: SimilarItemsResult): string {
   const lines: string[] = [
     `# Similar Items to "${data.source_item.title}"`,

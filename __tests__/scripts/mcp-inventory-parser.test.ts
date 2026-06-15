@@ -469,28 +469,34 @@ describe('Full file extraction (search.ts)', () => {
   const searchFile = resolve(TOOLS_DIR, 'search.ts');
 
   it.skipIf(!existsSync(searchFile))(
-    'extracts exactly 5 tools from search.ts',
+    'extracts exactly 2 tools from search.ts (ID-71.7 consolidation)',
     () => {
       const source = readFileSync(searchFile, 'utf-8');
       const tools = parseToolFile(source, 'search.ts');
 
-      expect(tools).toHaveLength(5);
+      // ID-71.7 (M27/B-INV-27) collapsed the former search trio
+      // (search_knowledge_base / search_qa_library / search_content_chunks) +
+      // find_similar_items into ONE `find` entry. find_duplicate_candidates is
+      // retained (dedup consolidation = later M32 slice).
+      expect(tools).toHaveLength(2);
 
       const names = tools.map((t) => t.name);
-      expect(names).toContain('search_knowledge_base');
-      expect(names).toContain('search_qa_library');
-      expect(names).toContain('find_similar_items');
+      expect(names).toContain('find');
       expect(names).toContain('find_duplicate_candidates');
-      expect(names).toContain('search_content_chunks');
 
-      // Verify search_knowledge_base has correct params
-      const skb = tools.find((t) => t.name === 'search_knowledge_base')!;
-      expect(skb.title).toBe('Search Knowledge Base');
-      expect(skb.annotations.readOnlyHint).toBe(true);
-      expect(skb.input_params.length).toBeGreaterThanOrEqual(1);
-      const queryParam = skb.input_params.find((p) => p.name === 'query');
-      expect(queryParam).toBeDefined();
-      expect(queryParam!.required).toBe(true);
+      // Verify `find` carries the consolidated params.
+      const find = tools.find((t) => t.name === 'find')!;
+      expect(find.annotations.readOnlyHint).toBe(true);
+      const paramNames = find.input_params.map((p) => p.name);
+      expect(paramNames).toEqual(
+        expect.arrayContaining([
+          'query',
+          'type',
+          'scope',
+          'granularity',
+          'similar_to',
+        ]),
+      );
     },
   );
 });
@@ -523,14 +529,15 @@ describe('Integration: full codebase extraction', () => {
         }
       }
 
-      // 56 = 43 pre-S180 + 2 governance additions + 3 review tools +
-      // 4 guides (added to CATEGORY_ORDER in WP6 — was a pre-S180 oversight)
-      // + 1 change-report + 1 supersession (S186) + 1 bulk_assign_owner (S194)
-      // + 1 list_user_workspaces (S194) + 1 update_publication_status (S202 §5.2 T7)
-      // + 1 find_duplicate_candidates (S217 W1B — split LLM-discovery vs admin-dedup)
+      // 53 tools. Pre-S357 baseline was 58 (historical lineage: 43 pre-S180 +
+      // governance/review/guides/change-report/supersession/list_user_workspaces/
+      // update_publication_status/find_duplicate_candidates additions through S217).
+      // S357 Wave-1 surface consolidation:
       // − 2 (ID-71.10 M32: get_content_item+get_content_items → `get`,
-      //   assign_content_owner+bulk_assign_owner → `assign`).
-      expect(allTools.length).toBe(56);
+      //   assign_content_owner+bulk_assign_owner → `assign`)
+      // − 3 (ID-71.7 M27: search trio + find_similar_items → ONE `find`;
+      //   find_duplicate_candidates retained for the later dedup slice).
+      expect(allTools.length).toBe(53);
 
       // Every tool should have a non-empty name
       for (const tool of allTools) {

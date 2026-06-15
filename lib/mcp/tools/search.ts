@@ -1,10 +1,18 @@
 /**
- * Search tool registrations (5 tools):
- *   1. search_knowledge_base
- *  13. search_qa_library
- *  20. find_similar_items          — LLM semantic-discovery (published-only default)
- *  20b. find_duplicate_candidates  — admin dedup workflow (admin default: every state)
- *  21. search_content_chunks
+ * Search tool registrations (3 tools):
+ *   1.  find                       — ONE outcome-shaped entry (ID-71.7, M27/M33/M37,
+ *                                     B-INV-27/B-INV-33). Collapses the former search
+ *                                     trio (search_knowledge_base / search_qa_library /
+ *                                     search_content_chunks) + find_similar_items into
+ *                                     `type` / `scope` / `granularity` / `similar_to`
+ *                                     branches. Preserves the two-step list/preview →
+ *                                     verbatim-on-accept retrieval contract (B-INV-33);
+ *                                     declares an `outputSchema` (M37).
+ *   20b. find_duplicate_candidates — admin dedup workflow (admin default: every state).
+ *                                     NOT consolidated here — dedup consolidation is a
+ *                                     later slice (M32 / {71.10}); it continues to share
+ *                                     `findSimilarItemsImpl` with `find`'s similar_to
+ *                                     branch.
  */
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -23,10 +31,7 @@ import type {
   SimilarItemsResult,
   ChunkSearchResult,
 } from '@/lib/mcp/formatters';
-import {
-  SearchResponseSchema,
-  ChunkSearchResponseSchema,
-} from '@/lib/mcp/formatters/search';
+import { FindResponseSchema } from '@/lib/mcp/formatters/search';
 import {
   type ToolExtra,
   toStructuredContent,
@@ -65,287 +70,157 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
       ? domainNames.join(', ')
       : 'security, compliance, implementation, support, corporate, product-feature, methodology';
   // -------------------------------------------------------------------------
-  // 1. search_knowledge_base
+  // Internal: item-granularity search (whole-item). Substrate for `find`'s
+  // default (`granularity: 'item'`) branch — collapses the former
+  // `search_knowledge_base` + `search_qa_library` registrations. The `type`
+  // param reproduces `search_qa_library` (q_a_pair corpus filter); `scope`
+  // reproduces `search_knowledge_base`'s `domain` corpus filter.
   // -------------------------------------------------------------------------
-  defineTool(
-    server,
-    'search_knowledge_base',
-    {
-      title: 'Search Knowledge Base',
-      description: `Search the knowledge base using semantic and keyword search. Returns content items matching your query, ranked by relevance. Use this to find articles, policies, case studies, Q&A pairs, and other knowledge base content. For Q&A pairs specifically, prefer search_qa_library instead. Supports optional domain and workspace_id filters (AND logic when both provided). Valid domains: ${domainList}. Use the kb://taxonomy resource for the full subtopic list.`,
-      outputSchema: SearchResponseSchema,
-      inputSchema: {
-        query: z
-          .string()
-          .describe('The search query — use natural language for best results'),
-        limit: z
-          .number()
-          .optional()
-          .describe(
-            'Maximum number of results to return (default: 10, max: 50)',
-          ),
-        offset: z
-          .number()
-          .optional()
-          .describe('Number of results to skip for pagination (default: 0)'),
-        domain: z
-          .string()
-          .optional()
-          .describe(
-            `Filter results to a specific domain. Valid values: ${domainList}`,
-          ),
-        workspace_id: z
-          .string()
-          .uuid()
-          .optional()
-          .describe(
-            'Filter results to a specific workspace. Items matched via content_item_workspaces junction table.',
-          ),
-        // §5.2 Phase 3 (S216 W3) — publication visibility filter.
-        // Spec: docs/specs/publication-lifecycle-state-machine-spec.md §5.3.
-        // 'default' (omitted) returns only published items. 'all' returns
-        // draft + in_review + published (excludes archived). 'admin' returns
-        // every state including archived. RPC-level filter; pass-through to
-        // hybrid_search.visibility_filter param.
-        visibility_filter: z
-          .enum(['default', 'all', 'admin'])
-          .optional()
-          .describe(
-            'Publication visibility filter. Omit (or "default") for published-only (live content). "all" returns draft + in_review + published (non-archived). "admin" returns every publication state. Default behaviour matches the prior pre-§5.2-Phase-3 search semantics.',
-          ),
-      },
-      annotations: READ_ONLY_ANNOTATIONS,
+  async function runItemSearch(
+    args: {
+      query: string;
+      limit?: number;
+      offset?: number;
+      scope?: string;
+      type?: string;
+      workspace_id?: string;
+      visibility_filter?: 'default' | 'all' | 'admin';
     },
-    async (args, extra: ToolExtra) => {
-      try {
-        const supabase = createMcpClient(extra.authInfo);
-        const searchLimit = Math.min(args.limit ?? 10, 50);
-        const searchOffset = args.offset ?? 0;
+    extra: ToolExtra,
+  ) {
+    try {
+      const supabase = createMcpClient(extra.authInfo);
+      const searchLimit = Math.min(args.limit ?? 10, 50);
+      const searchOffset = args.offset ?? 0;
+      // A content-type filter (e.g. type='q_a_pair') over-fetches like the
+      // former search_qa_library so the type slice survives pagination.
+      const overFetch = args.type
+        ? (searchOffset + searchLimit) * 3 + 1
+        : searchOffset + searchLimit + 1; // +1 to detect has_more
 
-        // Generate embedding for semantic search (lazy-loaded to avoid cold start crash)
-        const generateEmbedding = await getGenerateEmbedding();
-        const embedding = await generateEmbedding(args.query.trim());
+      // Generate embedding for semantic search (lazy-loaded to avoid cold start crash)
+      const generateEmbedding = await getGenerateEmbedding();
+      const embedding = await generateEmbedding(args.query.trim());
 
-        // Over-fetch to support offset-based pagination (hybrid_search has no native offset)
-        const { data: results, error } = await supabase.rpc('hybrid_search', {
-          query_embedding: JSON.stringify(embedding),
-          query_text: args.query.trim(),
-          similarity_threshold: 0.3,
-          limit_count: searchOffset + searchLimit + 1, // +1 to detect has_more
-          // §5.2 Phase 3 — pass-through. Omitted = 'default' (published-only)
-          // by RPC default. `?? undefined` keeps payload clean (matches
-          // existing convention used by search_content_chunks below).
-          visibility_filter: args.visibility_filter ?? undefined,
+      const { data: results, error } = await supabase.rpc('hybrid_search', {
+        query_embedding: JSON.stringify(embedding),
+        query_text: args.query.trim(),
+        similarity_threshold: 0.3,
+        limit_count: overFetch,
+        // §5.2 Phase 3 — pass-through. Omitted = 'default' (published-only)
+        // by RPC default. `?? undefined` keeps payload clean.
+        visibility_filter: args.visibility_filter ?? undefined,
+      });
+
+      if (error) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Search failed: ${error.message}. Try simplifying your query or removing filters.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      let filtered = results ?? [];
+
+      // type filter — preserves the former search_qa_library semantics
+      // (content_type corpus slice; q_a_pair is the canonical case).
+      if (args.type) {
+        filtered = filtered.filter(
+          (r: Record<string, unknown>) => r.content_type === args.type,
+        );
+      }
+
+      // scope filter — preserves the former search_knowledge_base `domain`
+      // corpus filter (scope_tag semantics).
+      if (args.scope) {
+        const scopeLower = args.scope.toLowerCase();
+        filtered = filtered.filter((r: Record<string, unknown>) => {
+          const domain = r.primary_domain as string | null;
+          return domain && domain.toLowerCase().includes(scopeLower);
         });
+      }
 
-        if (error) {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: `Search failed: ${error.message}. Try simplifying your query or removing filters.`,
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        // Post-filter by domain if specified
-        let filtered = results ?? [];
-        if (args.domain) {
-          const domainLower = args.domain.toLowerCase();
-          filtered = filtered.filter((r: Record<string, unknown>) => {
-            const domain = r.primary_domain as string | null;
-            return domain && domain.toLowerCase().includes(domainLower);
-          });
-        }
-
-        // Post-filter by workspace if specified (AND logic with domain filter)
-        if (args.workspace_id) {
-          const junctionResult = await tryQuery(
-            supabase
-              .from('content_item_workspaces')
-              .select('content_item_id')
-              .eq('workspace_id', args.workspace_id),
-            'mcp.search.workspace_junction',
+      // Post-filter by workspace if specified (AND logic with scope/type)
+      if (args.workspace_id) {
+        const junctionResult = await tryQuery(
+          supabase
+            .from('content_item_workspaces')
+            .select('content_item_id')
+            .eq('workspace_id', args.workspace_id),
+          'mcp.find.workspace_junction',
+        );
+        if (!junctionResult.ok) {
+          logger.warn(
+            { err: junctionResult.error.message },
+            '[mcp.find.workspace_junction] degraded — no workspace filter applied',
           );
-          if (!junctionResult.ok) {
-            logger.warn(
-              { err: junctionResult.error.message },
-              '[mcp.search.workspace_junction] degraded — no workspace filter applied',
-            );
-          } else {
-            const workspaceItemIds = new Set(
-              (junctionResult.data ?? []).map(
-                (row: { content_item_id: string }) => row.content_item_id,
-              ),
-            );
-            filtered = filtered.filter((r: Record<string, unknown>) =>
-              workspaceItemIds.has(r.id as string),
-            );
-          }
+        } else {
+          const workspaceItemIds = new Set(
+            (junctionResult.data ?? []).map(
+              (row: { content_item_id: string }) => row.content_item_id,
+            ),
+          );
+          filtered = filtered.filter((r: Record<string, unknown>) =>
+            workspaceItemIds.has(r.id as string),
+          );
         }
-
-        // Apply pagination via slice
-        const totalFiltered = filtered.length;
-        const hasMore = totalFiltered > searchOffset + searchLimit;
-        const paged = filtered.slice(searchOffset, searchOffset + searchLimit);
-
-        // Map to SearchResult type for formatting
-        const searchResults: SearchResult[] = paged.map(
-          (r: Record<string, unknown>) => ({
-            id: r.id as string,
-            title: r.title as string | null,
-            suggested_title: r.suggested_title as string | null,
-            content_type: r.content_type as string | null,
-            primary_domain: r.primary_domain as string | null,
-            primary_subtopic: r.primary_subtopic as string | null,
-            summary: r.summary as string | null,
-            similarity: r.similarity as number,
-          }),
-        );
-
-        const markdown = truncateResponse(
-          formatSearchResults(args.query, searchResults),
-        );
-
-        return {
-          content: [{ type: 'text' as const, text: markdown }],
-          structuredContent: toStructuredContent({
-            query: args.query,
-            offset: searchOffset,
-            count: searchResults.length,
-            has_more: hasMore,
-            results: searchResults,
-          }),
-        };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `Search failed: ${message}. Try simplifying your query or removing filters.`,
-            },
-          ],
-          isError: true,
-        };
       }
-    },
-  );
 
-  // -------------------------------------------------------------------------
-  // 13. search_qa_library
-  // -------------------------------------------------------------------------
-  defineTool(
-    server,
-    'search_qa_library',
-    {
-      title: 'Search Q&A Library',
-      description:
-        'Search the Q&A library for reusable answers. Unlike search_knowledge_base which searches all content types, this tool filters to Q&A pairs only — ideal for finding existing answers to use in bid responses. Q&A pairs have standard and advanced answer levels. Use get_content_item to retrieve the full answer text after finding relevant pairs.',
-      inputSchema: {
-        query: z
-          .string()
-          .describe('The search query — use natural language for best results'),
-        limit: z
-          .number()
-          .optional()
-          .describe(
-            'Maximum number of results to return (default: 10, max: 50)',
-          ),
-        offset: z
-          .number()
-          .optional()
-          .describe('Number of results to skip for pagination (default: 0)'),
-        // §5.2 Phase 3 (S216 W3) — publication visibility filter.
-        visibility_filter: z
-          .enum(['default', 'all', 'admin'])
-          .optional()
-          .describe(
-            'Publication visibility filter. Omit (or "default") for published-only (live content). "all" returns draft + in_review + published. "admin" returns every state.',
-          ),
-      },
-      annotations: READ_ONLY_ANNOTATIONS,
-    },
-    async (args, extra: ToolExtra) => {
-      try {
-        const supabase = createMcpClient(extra.authInfo);
-        const searchLimit = Math.min(args.limit ?? 10, 50);
-        const searchOffset = args.offset ?? 0;
+      // Apply pagination via slice
+      const totalFiltered = filtered.length;
+      const hasMore = totalFiltered > searchOffset + searchLimit;
+      const paged = filtered.slice(searchOffset, searchOffset + searchLimit);
 
-        const generateEmbedding = await getGenerateEmbedding();
-        const embedding = await generateEmbedding(args.query.trim());
+      // Map to SearchResult type for formatting — list/preview metadata only;
+      // verbatim fetch is the caller's follow-up get_content_item step (B-INV-33).
+      const searchResults: SearchResult[] = paged.map(
+        (r: Record<string, unknown>) => ({
+          id: r.id as string,
+          title: r.title as string | null,
+          suggested_title: r.suggested_title as string | null,
+          content_type: r.content_type as string | null,
+          primary_domain: r.primary_domain as string | null,
+          primary_subtopic: r.primary_subtopic as string | null,
+          summary: r.summary as string | null,
+          similarity: r.similarity as number,
+        }),
+      );
 
-        // Over-fetch to compensate for type filtering and support offset pagination
-        const { data: results, error } = await supabase.rpc('hybrid_search', {
-          query_embedding: JSON.stringify(embedding),
-          query_text: args.query.trim(),
-          similarity_threshold: 0.3,
-          limit_count: (searchOffset + searchLimit) * 3 + 1, // Over-fetch for type filtering + pagination
-          // §5.2 Phase 3 — pass-through.
-          visibility_filter: args.visibility_filter ?? undefined,
-        });
+      // q_a_pair callers get the Q&A-styled markdown; otherwise the general
+      // search markdown — both preserved verbatim from the retired trio.
+      const markdown = truncateResponse(
+        args.type === 'q_a_pair'
+          ? formatQASearchResults(args.query, searchResults)
+          : formatSearchResults(args.query, searchResults),
+      );
 
-        if (error) {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: `Q&A search failed: ${error.message}. Try simplifying your query or removing filters.`,
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        // Filter to Q&A pairs only, then apply pagination
-        const allQaResults = (results ?? []).filter(
-          (r) => r.content_type === 'q_a_pair',
-        );
-
-        const hasMore = allQaResults.length > searchOffset + searchLimit;
-        const paged = allQaResults.slice(
-          searchOffset,
-          searchOffset + searchLimit,
-        );
-
-        const qaResults: SearchResult[] = paged.map((r) => ({
-          id: r.id,
-          title: r.title,
-          suggested_title: r.suggested_title,
-          content_type: r.content_type,
-          primary_domain: r.primary_domain,
-          primary_subtopic: r.primary_subtopic,
-          summary: r.summary,
-          similarity: r.similarity,
-        }));
-
-        const markdown = formatQASearchResults(args.query, qaResults);
-        return {
-          content: [{ type: 'text' as const, text: markdown }],
-          structuredContent: toStructuredContent({
-            query: args.query,
-            offset: searchOffset,
-            count: qaResults.length,
-            has_more: hasMore,
-            results: qaResults,
-          }),
-        };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `Q&A search failed: ${message}. Try simplifying your query or removing filters.`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    },
-  );
+      return {
+        content: [{ type: 'text' as const, text: markdown }],
+        structuredContent: toStructuredContent({
+          query: args.query,
+          offset: searchOffset,
+          count: searchResults.length,
+          has_more: hasMore,
+          results: searchResults,
+        }),
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Search failed: ${message}. Try simplifying your query or removing filters.`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
 
   // -------------------------------------------------------------------------
   // 20 / 20b. find_similar_items + find_duplicate_candidates
@@ -498,44 +373,12 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
   }
 
   // -------------------------------------------------------------------------
-  // 20. find_similar_items — LLM semantic-discovery (published-only default)
-  // -------------------------------------------------------------------------
-  defineTool(
-    server,
-    'find_similar_items',
-    {
-      title: 'Find Similar Items',
-      description:
-        'Find published content items similar to a given item using vector cosine similarity. Use this for LLM semantic-discovery and related-content workflows where the caller wants live, citable knowledge-base material. Items above 95% similarity are flagged as likely duplicates. Uses the existing embedding index — no AI cost. For admin dedup workflows that need to match against draft, in_review, or archived siblings, use `find_duplicate_candidates` instead.',
-      inputSchema: {
-        id: z
-          .string()
-          .uuid()
-          .describe('The UUID of the content item to find similar items for'),
-        threshold: z
-          .number()
-          .optional()
-          .describe('Minimum cosine similarity (default: 0.8, range: 0.5–1.0)'),
-        limit: z
-          .number()
-          .optional()
-          .describe('Maximum results (default: 10, max: 25)'),
-        // §5.2 Phase 3 (S216 W3) — publication visibility filter.
-        visibility_filter: z
-          .enum(['default', 'all', 'admin'])
-          .optional()
-          .describe(
-            'Publication visibility filter. Default: "default" (published-only — matches the LLM-discovery semantics of this tool). Override with "all" for draft + in_review + published or "admin" for every state including archived.',
-          ),
-      },
-      annotations: READ_ONLY_ANNOTATIONS,
-    },
-    async (args, extra: ToolExtra) =>
-      findSimilarItemsImpl(args as SimilarItemsArgs, extra, 'default'),
-  );
-
-  // -------------------------------------------------------------------------
   // 20b. find_duplicate_candidates — admin dedup workflow (every state default)
+  //
+  // LLM semantic-discovery (published-only similar items) is now served by the
+  // consolidated `find` tool's `similar_to` branch (ID-71.7). This admin-dedup
+  // surface is NOT consolidated here — dedup consolidation is a later slice
+  // (M32 / {71.10}). It continues to share `findSimilarItemsImpl` with `find`.
   // -------------------------------------------------------------------------
   defineTool(
     server,
@@ -543,7 +386,7 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
     {
       title: 'Find Duplicate Candidates (Admin)',
       description:
-        "Find content items similar to a given item across every publication state — draft, in_review, published, AND archived. Useful for admin dedup workflows where you need to detect duplicates of items that aren't (yet) published. Items above 95% similarity are flagged as likely duplicates. For LLM semantic discovery (published content only), use `find_similar_items`. Uses the existing embedding index — no AI cost.",
+        "Find content items similar to a given item across every publication state — draft, in_review, published, AND archived. Useful for admin dedup workflows where you need to detect duplicates of items that aren't (yet) published. Items above 95% similarity are flagged as likely duplicates. For LLM semantic discovery (published content only), use the `find` tool with the `similar_to` parameter. Uses the existing embedding index — no AI cost.",
       inputSchema: {
         id: z
           .string()
@@ -572,43 +415,188 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
   );
 
   // -------------------------------------------------------------------------
-  // 21. search_content_chunks
+  // Internal: chunk-granularity search (section-level). Substrate for `find`'s
+  // `granularity: 'chunk'` branch — collapses the former
+  // `search_content_chunks` registration. Returns chunk previews (truncated
+  // excerpts), preserving the section-level two-step retrieval contract.
+  // -------------------------------------------------------------------------
+  async function runChunkSearch(
+    args: {
+      query: string;
+      limit?: number;
+      content_item_id?: string;
+      overdue_review?: boolean;
+      review_due_within_days?: number;
+      visibility_filter?: 'default' | 'all' | 'admin';
+    },
+    extra: ToolExtra,
+  ) {
+    try {
+      const supabase = createMcpClient(extra.authInfo);
+      const searchLimit = Math.min(args.limit ?? 10, 30);
+
+      const generateEmbedding = await getGenerateEmbedding();
+      const embedding = await generateEmbedding(args.query.trim());
+
+      const { data: results, error } = await supabase.rpc(
+        'search_content_chunks',
+        {
+          query_embedding: JSON.stringify(embedding),
+          similarity_threshold: 0.3,
+          limit_count: searchLimit,
+          filter_content_item_id: args.content_item_id ?? undefined,
+          // §5.5 Phase 4 — pass-through to the RPC params. `?? undefined`
+          // keeps the JSON-RPC payload free of `null` values (matches the
+          // existing `filter_content_item_id` convention and the
+          // search-chunks-tool.test.ts assertion that null-omits send
+          // `undefined`, not `null`).
+          filter_overdue_review: args.overdue_review ?? undefined,
+          filter_review_due_within_days:
+            args.review_due_within_days ?? undefined,
+          // §5.2 Phase 3 — visibility filter pass-through. Omitted = 'default'
+          // (published-only) by RPC default.
+          visibility_filter: args.visibility_filter ?? undefined,
+        },
+      );
+
+      if (error) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Chunk search failed: ${error.message}. Try simplifying your query.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      const chunkResults = (results ?? []) as ChunkSearchResult[];
+      const markdown = truncateResponse(
+        formatChunkSearchResults(args.query, chunkResults),
+      );
+
+      return {
+        content: [{ type: 'text' as const, text: markdown }],
+        structuredContent: toStructuredContent({
+          query: args.query,
+          count: chunkResults.length,
+          content_item_id: args.content_item_id ?? null,
+          // §5.5 Phase 4 — surface the review-cadence filters so callers
+          // can trace which slice of the index they're looking at.
+          overdue_review_filter: args.overdue_review ?? null,
+          review_due_within_days_filter: args.review_due_within_days ?? null,
+          // §5.2 Phase 3 — surface visibility filter for trace-ability.
+          visibility_filter: args.visibility_filter ?? 'default',
+          results: chunkResults,
+        }),
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Chunk search failed: ${message}. Try simplifying your query.`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // 1. find — ONE outcome-shaped entry (ID-71.7, M27/M33/M37, B-INV-27/33).
+  //
+  // Collapses the former search trio + find_similar_items. Branch selection:
+  //   - `similar_to` present  → vector similar-items discovery (reuses the
+  //     shared findSimilarItemsImpl, published-only default).
+  //   - `granularity: 'chunk'`→ section-level chunk search (runChunkSearch).
+  //   - otherwise (item)      → whole-item search (runItemSearch), with `type`
+  //     reproducing the q_a_pair corpus slice and `scope` the domain corpus
+  //     filter.
+  //
+  // Two-step retrieval (B-INV-33): `find` returns list/preview metadata (and
+  // chunk excerpts) only — never verbatim item bodies; the caller's follow-up
+  // get_content_item step fetches verbatim content on accept. Declares an
+  // outputSchema (M37) — the union of the three branch envelopes.
   // -------------------------------------------------------------------------
   defineTool(
     server,
-    'search_content_chunks',
+    'find',
     {
-      title: 'Search Content Chunks',
-      outputSchema: ChunkSearchResponseSchema,
-      description:
-        'Search within content at the section level using semantic search. Returns individual sections (chunks) of documents rather than whole items, enabling fine-grained retrieval. Each chunk includes its heading path (breadcrumb) showing where it sits in the document structure. Useful for finding specific sections within long documents — e.g. "the Risk Assessment section of a health and safety policy". Use search_knowledge_base for whole-document search, use this for section-level precision. Optional review-cadence filters (`overdue_review`, `review_due_within_days`) restrict results to chunks from items with active document-control review obligations.',
+      title: 'Find Knowledge',
+      description: `Find content in the knowledge base — the single entry for search, Q&A lookup, section-level retrieval, and similar-item discovery. Returns ranked list/preview metadata (title, domain, summary, relevance); use get_content_item afterwards to fetch the verbatim content of an accepted result. Parameters: \`granularity\` ('item' default | 'chunk' for section-level breadcrumbs); \`type\` filters by content type (e.g. 'q_a_pair' to find reusable answers); \`scope\` filters by domain corpus (valid domains: ${domainList} — use the kb://taxonomy resource for the full subtopic list); \`similar_to\` finds published items similar to a given item id via vector cosine similarity (items above 95% similarity flagged as likely duplicates).`,
+      outputSchema: FindResponseSchema,
       inputSchema: {
         query: z
           .string()
-          .describe('The search query — use natural language for best results'),
+          .optional()
+          .describe(
+            'The search query — use natural language for best results. Required unless `similar_to` is supplied.',
+          ),
+        granularity: z
+          .enum(['item', 'chunk'])
+          .optional()
+          .describe(
+            "Retrieval granularity. 'item' (default) returns whole content items. 'chunk' returns individual document sections with heading-path breadcrumbs — fine-grained retrieval for finding a specific section within a long document.",
+          ),
+        type: z
+          .string()
+          .optional()
+          .describe(
+            "Filter results to a specific content type. Use 'q_a_pair' to find reusable Q&A answers (replaces the former Q&A library search). Applies to item granularity.",
+          ),
+        scope: z
+          .string()
+          .optional()
+          .describe(
+            `Filter results to a specific domain corpus. Valid values: ${domainList}. Applies to item granularity.`,
+          ),
+        similar_to: z
+          .string()
+          .uuid()
+          .optional()
+          .describe(
+            'Find published items similar to this content item id via vector cosine similarity (no AI cost). When set, `query`/`scope`/`type`/`granularity` are ignored. Items above 95% similarity are flagged as likely duplicates.',
+          ),
+        threshold: z
+          .number()
+          .optional()
+          .describe(
+            'For `similar_to`: minimum cosine similarity (default: 0.8, range: 0.5–1.0).',
+          ),
         limit: z
           .number()
           .optional()
           .describe(
-            'Maximum number of chunk results to return (default: 10, max: 30)',
+            'Maximum number of results (item: default 10/max 50; chunk: default 10/max 30; similar_to: default 10/max 25).',
+          ),
+        offset: z
+          .number()
+          .optional()
+          .describe(
+            'Number of results to skip for pagination (default: 0). Applies to item granularity.',
+          ),
+        workspace_id: z
+          .string()
+          .uuid()
+          .optional()
+          .describe(
+            'Filter results to a specific workspace (item granularity). Items matched via the content_item_workspaces junction table.',
           ),
         content_item_id: z
           .string()
           .uuid()
           .optional()
           .describe(
-            'Optional: restrict search to chunks within a specific content item. Useful for navigating within a known document.',
+            'For chunk granularity: restrict search to chunks within a specific content item. Useful for navigating within a known document.',
           ),
-        // §5.5 Phase 4 — review-cadence filters (S208 WP1)
-        // Spec: docs/specs/p0-document-control-lifecycle-spec.md §8.2
-        // Both pass through to the RPC's filter_overdue_review +
-        // filter_review_due_within_days params (Option A — RPC-level filter
-        // via existing JOIN, zero round-trip cost).
         overdue_review: z
           .boolean()
           .optional()
           .describe(
-            'If true, only return chunks from content items that are overdue for review (governance_review_status = "review_overdue"). If false, exclude overdue items (return only items not in "review_overdue" status). Omit (undefined) for no filter.',
+            'Chunk granularity review-cadence filter. If true, only return chunks from content items overdue for review; if false, exclude overdue items. Omit for no filter.',
           ),
         review_due_within_days: z
           .number()
@@ -617,97 +605,75 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
           .max(365)
           .optional()
           .describe(
-            'Only return chunks from content items whose next_review_date is within this many days from today. Useful for finding items approaching their review date.',
+            'Chunk granularity review-cadence filter. Only return chunks from content items whose next_review_date is within this many days from today.',
           ),
-        // §5.2 Phase 3 (S216 W3) — publication visibility filter.
-        // Orthogonal to the §5.5 review-cadence filters above — both axes
-        // can be combined (e.g. visibility_filter='all' + overdue_review=true
-        // returns chunks from non-archived items overdue for review,
-        // including drafts).
         visibility_filter: z
           .enum(['default', 'all', 'admin'])
           .optional()
           .describe(
-            'Publication visibility filter. Omit (or "default") for published-only chunks. "all" returns chunks from draft + in_review + published items. "admin" returns every state including archived. Orthogonal to overdue_review and review_due_within_days.',
+            'Publication visibility filter. Omit (or "default") for published-only (live content). "all" returns draft + in_review + published (non-archived). "admin" returns every publication state including archived.',
           ),
       },
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
-      try {
-        const supabase = createMcpClient(extra.authInfo);
-        const searchLimit = Math.min(args.limit ?? 10, 30);
-
-        const generateEmbedding = await getGenerateEmbedding();
-        const embedding = await generateEmbedding(args.query.trim());
-
-        const { data: results, error } = await supabase.rpc(
-          'search_content_chunks',
+      // Branch 1 — vector similar-items discovery (former find_similar_items).
+      if (args.similar_to) {
+        return findSimilarItemsImpl(
           {
-            query_embedding: JSON.stringify(embedding),
-            similarity_threshold: 0.3,
-            limit_count: searchLimit,
-            filter_content_item_id: args.content_item_id ?? undefined,
-            // §5.5 Phase 4 — pass-through to the new RPC params. `?? undefined`
-            // keeps the JSON-RPC payload free of `null` values (matches the
-            // existing `filter_content_item_id` convention and the
-            // search-chunks-tool.test.ts assertion that null-omits send
-            // `undefined`, not `null`).
-            filter_overdue_review: args.overdue_review ?? undefined,
-            filter_review_due_within_days:
-              args.review_due_within_days ?? undefined,
-            // §5.2 Phase 3 — visibility filter pass-through. Omitted = 'default'
-            // (published-only) by RPC default.
-            visibility_filter: args.visibility_filter ?? undefined,
+            id: args.similar_to,
+            threshold: args.threshold,
+            limit: args.limit,
+            visibility_filter: args.visibility_filter,
           },
+          extra,
+          'default',
         );
+      }
 
-        if (error) {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: `Chunk search failed: ${error.message}. Try simplifying your query.`,
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        const chunkResults = (results ?? []) as ChunkSearchResult[];
-        const markdown = truncateResponse(
-          formatChunkSearchResults(args.query, chunkResults),
-        );
-
-        return {
-          content: [{ type: 'text' as const, text: markdown }],
-          structuredContent: toStructuredContent({
-            query: args.query,
-            count: chunkResults.length,
-            content_item_id: args.content_item_id ?? null,
-            // §5.5 Phase 4 — surface the review-cadence filters so callers
-            // can trace which slice of the index they're looking at.
-            // `null` (not `undefined`) when omitted to match the existing
-            // `content_item_id` convention.
-            overdue_review_filter: args.overdue_review ?? null,
-            review_due_within_days_filter: args.review_due_within_days ?? null,
-            // §5.2 Phase 3 — surface visibility filter for trace-ability.
-            visibility_filter: args.visibility_filter ?? 'default',
-            results: chunkResults,
-          }),
-        };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
+      // `query` is required for the search branches (it is optional in the
+      // schema only so `similar_to` can be supplied alone).
+      if (!args.query || args.query.trim().length === 0) {
         return {
           content: [
             {
               type: 'text' as const,
-              text: `Chunk search failed: ${message}. Try simplifying your query.`,
+              text: 'A `query` is required unless `similar_to` is supplied. Provide a natural-language query, or pass `similar_to` with a content item id.',
             },
           ],
           isError: true,
         };
       }
+
+      // Branch 2 — section-level chunk search (former search_content_chunks).
+      if (args.granularity === 'chunk') {
+        return runChunkSearch(
+          {
+            query: args.query,
+            limit: args.limit,
+            content_item_id: args.content_item_id,
+            overdue_review: args.overdue_review,
+            review_due_within_days: args.review_due_within_days,
+            visibility_filter: args.visibility_filter,
+          },
+          extra,
+        );
+      }
+
+      // Branch 3 (default) — whole-item search (former search_knowledge_base +
+      // search_qa_library, with the q_a_pair slice driven by `type`).
+      return runItemSearch(
+        {
+          query: args.query,
+          limit: args.limit,
+          offset: args.offset,
+          scope: args.scope,
+          type: args.type,
+          workspace_id: args.workspace_id,
+          visibility_filter: args.visibility_filter,
+        },
+        extra,
+      );
     },
   );
 }
