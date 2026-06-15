@@ -523,30 +523,11 @@ describe.skipIf(!RUN_INTEGRATION)(
       expect(row.publication_status).toBe('published');
     }, 60_000);
 
-    // -------------------------------------------------------------------------
-    // Test 4b (C2): NULL answer_standard becomes an empty-string preview, not null.
-    // -------------------------------------------------------------------------
-    it('returns empty-string answer preview for a NULL answer_standard (C2)', async () => {
-      const workspaceId = await seedWorkspace('ID-57.7 null-answer workspace');
-      const fq = await seedFormQuestion(workspaceId, 'Null answer probe?');
-
-      const pairId = await seedQaPair({
-        questionText: 'Pair with no standard answer yet.',
-        answerStandard: null,
-        publicationStatus: 'published',
-        embedding: makeEmbedding(1.0, 0.0),
-        scopeTag: ['procurement'],
-      });
-
-      await materialise(fq);
-
-      const { data, error } = await search({ p_form_question_id: fq });
-      expect(error, `search failed: ${error?.message}`).toBeNull();
-      expect(data!.length).toBe(1);
-      expect(data![0].q_a_pair_id).toBe(pairId);
-      // COALESCE(answer_standard, '') → empty string, never null.
-      expect(data![0].answer_standard_preview).toBe('');
-    }, 60_000);
+    // NOTE: the reader DDL uses COALESCE(qap.answer_standard, '') defensively,
+    // but q_a_pairs.answer_standard is NOT NULL (T6 WP1 schema), so a NULL value
+    // is unreachable through a real row insert — a behaviour test for that branch
+    // would assert an impossible state (test-philosophy: test real behaviour, not
+    // unreachable defensive guards). The COALESCE remains correct defensive code.
 
     // -------------------------------------------------------------------------
     // Test 5 (C5): empty list (not error) for a form-question with no
