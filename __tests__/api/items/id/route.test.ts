@@ -451,3 +451,230 @@ describe('PATCH /api/items/[id] — edit_intent stamping ({59.8})', () => {
     expect(lastEditHistoryInsert()).toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// {59.17} — UC4 citation re-anchor on content edit (PRODUCT INV-1 point 1).
+// After the content bytes change (a `content` edit or a Q&A-answer rebuild),
+// the handler re-anchors any ID-58 polymorphic citations that point at the
+// edited content_item. The re-anchor pass is best-effort / non-fatal: it never
+// fails the save. We drive it through the shared chainable mock and assert
+// against the OBSERVABLE outcome — which `citations` UPDATE (if any) was issued
+// and whether the save still succeeds.
+//
+// Mock interaction model: the route's happy path consumes the chain in a fixed
+// order — (1) role lookup `.single()`, (2) current-item fetch `.single()`,
+// then the write-back adapter does a `.maybeSingle()` on content_items for
+// source_document_id (default mock -> null -> source-less DB-only path, which
+// awaits the content_items UPDATE via `.then`). The re-anchor pass then runs:
+// it `tryQuery`s the citations rows (a list select awaited via `.then`), and
+// for a surviving char-kind citation issues an `update().eq()` (awaited via
+// `.then`). We capture the citations query result by stubbing the relevant
+// `.then` call, and capture any citations UPDATE via `.update.mock.calls`.
+// ---------------------------------------------------------------------------
+
+/** A `citations` UPDATE payload by recomputed offsets, or undefined. */
+function citationOffsetUpdate(): Record<string, unknown> | undefined {
+  const calls = mockSupabase._chain.update.mock.calls as Array<
+    [Record<string, unknown>]
+  >;
+  for (let i = calls.length - 1; i >= 0; i--) {
+    const payload = calls[i]?.[0];
+    if (
+      payload &&
+      typeof payload.cited_start === 'number' &&
+      typeof payload.cited_end === 'number'
+    ) {
+      return payload;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Prime auth + current-item fetch for a `content` edit, then arrange the
+ * `.then` chain so the FIRST awaited query (the write-back content_items
+ * UPDATE on the source-less DB-only path) resolves empty-success and the
+ * SECOND awaited query (the re-anchor citations list select) resolves to
+ * `citationRows`. Any further awaited queries resolve empty-success.
+ */
+function setupContentEditWithCitations(
+  citationRows: Array<Record<string, unknown>>,
+  opts: { citationsError?: boolean } = {},
+) {
+  // 1. Role lookup -> editor
+  mockSupabase._chain.single.mockResolvedValueOnce({
+    data: { role: 'editor' },
+    error: null,
+  });
+  // 2. Current-item fetch (content_type 'article' -> no Q&A rebuild path)
+  mockSupabase._chain.single.mockResolvedValueOnce({
+    data: defaultCurrentItem(),
+    error: null,
+  });
+  // write-back source_document_id lookup -> null (source-less DB-only path)
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+  });
+
+  // `.then` consumption order on the happy path:
+  //   call 1: write-back content_items UPDATE (source-less applyDbLeg) -> ok
+  //   call 2: re-anchor citations list select -> citationRows (or error)
+  //   thereafter: default empty-success
+  mockSupabase._chain.then
+    .mockImplementationOnce((resolve: (v: unknown) => void) =>
+      resolve({ data: null, error: null }),
+    )
+    .mockImplementationOnce((resolve: (v: unknown) => void) =>
+      resolve(
+        opts.citationsError
+          ? { data: null, error: { message: 'boom', code: 'XX000' } }
+          : { data: citationRows, error: null },
+      ),
+    );
+}
+
+describe('PATCH /api/items/[id] — UC4 citation re-anchor ({59.17})', () => {
+  it('re-anchors a surviving char-kind citation to its recomputed offsets', async () => {
+    // New content places "cited snippet" at a fresh offset.
+    const newContent = 'Preamble. cited snippet follows here.';
+    const expectedIdx = newContent.indexOf('cited snippet');
+    setupContentEditWithCitations([
+      {
+        id: 'cit-1',
+        cited_kind: 'content_item',
+        cited_content_item_id: VALID_UUID,
+        cited_text: 'cited snippet',
+        cited_location_kind: 'char',
+        cited_start: 0, // stale offset -> must be recomputed
+        cited_end: 5,
+      },
+    ]);
+
+    const request = createTestRequest(`/api/items/${VALID_UUID}`, {
+      method: 'PATCH',
+      body: { field: 'content', value: newContent },
+    });
+
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
+    expect(response.status).toBe(200);
+
+    const upd = citationOffsetUpdate();
+    expect(upd).toBeDefined();
+    expect(upd?.cited_start).toBe(expectedIdx);
+    expect(upd?.cited_end).toBe(expectedIdx + 'cited snippet'.length);
+  });
+
+  it('does NOT mutate offsets for a surviving block-kind citation', async () => {
+    const newContent = 'Para one. cited snippet stays. Para three.';
+    setupContentEditWithCitations([
+      {
+        id: 'cit-block',
+        cited_kind: 'content_item',
+        cited_content_item_id: VALID_UUID,
+        cited_text: 'cited snippet',
+        cited_location_kind: 'block',
+        cited_start: 2,
+        cited_end: 2,
+      },
+    ]);
+
+    const request = createTestRequest(`/api/items/${VALID_UUID}`, {
+      method: 'PATCH',
+      body: { field: 'content', value: newContent },
+    });
+
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
+    expect(response.status).toBe(200);
+
+    // Block-kind survival: text still present but offsets are block indices —
+    // char re-anchoring does not apply, so no offset UPDATE is issued.
+    expect(citationOffsetUpdate()).toBeUndefined();
+  });
+
+  it('flags a lost citation as stale (warning surfaced) without mutating the row', async () => {
+    const newContent = 'Entirely rewritten content with no overlap.';
+    setupContentEditWithCitations([
+      {
+        id: 'cit-gone',
+        cited_kind: 'content_item',
+        cited_content_item_id: VALID_UUID,
+        cited_text: 'this text was removed by the rewrite',
+        cited_location_kind: 'char',
+        cited_start: 0,
+        cited_end: 36,
+      },
+    ]);
+
+    const request = createTestRequest(`/api/items/${VALID_UUID}`, {
+      method: 'PATCH',
+      body: { field: 'content', value: newContent },
+    });
+
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    // Save still succeeds; the stale citation surfaces as a non-fatal warning.
+    expect(json.success).toBe(true);
+    expect(
+      (json.warnings as string[] | undefined)?.some((w) => /citation/i.test(w)),
+    ).toBe(true);
+    // No offset mutation on the lost (stale) row.
+    expect(citationOffsetUpdate()).toBeUndefined();
+  });
+
+  it('keeps the save successful when the re-anchor query fails (best-effort)', async () => {
+    const newContent = 'New body text that changed the content bytes.';
+    setupContentEditWithCitations([], { citationsError: true });
+
+    const request = createTestRequest(`/api/items/${VALID_UUID}`, {
+      method: 'PATCH',
+      body: { field: 'content', value: newContent },
+    });
+
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
+    // A re-anchor failure must NEVER fail the save.
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.success).toBe(true);
+    // No offset UPDATE was possible (the citations read failed).
+    expect(citationOffsetUpdate()).toBeUndefined();
+  });
+
+  it('only re-anchors when the content bytes change (no citations query on a metadata edit)', async () => {
+    // A non-content field edit (suggested_title) must NOT trigger the
+    // re-anchor pass — newContentBytes is null on that path.
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { role: 'editor' },
+      error: null,
+    });
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: defaultCurrentItem(),
+      error: null,
+    });
+
+    const request = createTestRequest(`/api/items/${VALID_UUID}`, {
+      method: 'PATCH',
+      body: { field: 'suggested_title', value: 'A new title' },
+    });
+
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
+    expect(response.status).toBe(200);
+
+    // No `citations` table access on a metadata-only edit.
+    const citationsCalls = mockSupabase.from.mock.calls.filter(
+      (c: unknown[]) => c[0] === 'citations',
+    );
+    expect(citationsCalls.length).toBe(0);
+  });
+});

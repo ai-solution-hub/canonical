@@ -620,6 +620,131 @@ async function patchHandler(
         // Surface a degraded compensating-restore (rare) as a warning so the
         // user still sees ONE save outcome.
         for (const w of writeBack.warnings) warnings.add(w);
+
+        // ID-59 {59.17} / UC4 citation re-anchor (PRODUCT INV-1 point 1).
+        // -----------------------------------------------------------------
+        // The content bytes just changed (a direct `content` edit or a Q&A
+        // answer rebuild — both set `updateData.content`, so reaching here
+        // means the canonical bytes were rewritten). ID-58 polymorphic
+        // citations carry a verbatim `cited_text` snapshot + char/block/page
+        // offsets, but their count-only triggers fire on citations
+        // INSERT/DELETE — NEVER on a content UPDATE — so a paragraph rewrite
+        // leaves any citation offsets pointing at stale positions. INV-1
+        // mandates UC4 additionally re-anchor any citations affected by the
+        // rewrite.
+        //
+        // Semantics (conservative, non-destructive, BEST-EFFORT / NON-FATAL —
+        // a re-anchor failure must never fail the save, mirroring the
+        // content_history best-effort block below):
+        //   - `content_item` citations ONLY (q_a_pair is dormant v1).
+        //   - text survives + kind 'char'  -> re-anchor cited_start/end to the
+        //     recomputed char offsets (UPDATE only if the offsets changed).
+        //   - text survives + kind 'block'/'page'/null -> still valid by text;
+        //     block/page re-indexing needs the Claude block-splitter (out of
+        //     scope), so leave offsets unchanged.
+        //   - text lost (indexOf < 0) -> STALE. There is no `stale` column
+        //     (a persisted flag is a separate backlog follow-up), so log a
+        //     structured best-effort warning + surface ONE aggregate
+        //     non-fatal warning to the user.
+        try {
+          const citationsRes = await tryQuery<
+            Array<{
+              id: string;
+              cited_text: string | null;
+              cited_location_kind: string | null;
+              cited_start: number | null;
+              cited_end: number | null;
+            }>
+          >(
+            supabase
+              .from('citations')
+              .select(
+                'id, cited_text, cited_location_kind, cited_start, cited_end',
+              )
+              .eq('cited_kind', 'content_item')
+              .eq('cited_content_item_id', id)
+              .not('cited_text', 'is', null),
+            'items.patch.citation_reanchor.fetch',
+          );
+
+          if (!isOk(citationsRes)) {
+            logBestEffortWarn(
+              'items.patch.citation_reanchor_query',
+              'Failed to load citations for re-anchoring after content edit',
+              { contentItemId: id, code: citationsRes.error.code },
+            );
+            warnings.add(
+              'Citations could not be re-anchored after this edit — they may be stale',
+            );
+          } else {
+            let staleCount = 0;
+            for (const citation of citationsRes.data) {
+              const citedText = citation.cited_text;
+              if (!citedText) continue; // defensive — the `.not(is null)` filter should exclude these
+              const idx = newContentBytes.indexOf(citedText);
+              if (idx < 0) {
+                // Lost: the rewrite removed/altered the cited text -> stale.
+                // Non-destructive — no row mutation (no stale column to set).
+                staleCount += 1;
+                logBestEffortWarn(
+                  'items.patch.citation_reanchor_stale',
+                  'Cited text no longer present after content edit — citation may be stale',
+                  {
+                    citationId: citation.id,
+                    contentItemId: id,
+                    cited_location_kind: citation.cited_location_kind,
+                  },
+                );
+                continue;
+              }
+              // Survives. Char-kind offsets are char positions and CAN be
+              // re-anchored; block/page offsets are indices that need the
+              // block-splitter (out of scope) so we leave them untouched.
+              if (citation.cited_location_kind === 'char') {
+                const newStart = idx;
+                const newEnd = idx + citedText.length;
+                if (
+                  citation.cited_start !== newStart ||
+                  citation.cited_end !== newEnd
+                ) {
+                  const updateRes = await tryQuery(
+                    supabase
+                      .from('citations')
+                      .update({ cited_start: newStart, cited_end: newEnd })
+                      .eq('id', citation.id),
+                    'items.patch.citation_reanchor.update',
+                  );
+                  if (!isOk(updateRes)) {
+                    logBestEffortWarn(
+                      'items.patch.citation_reanchor_update',
+                      'Failed to persist re-anchored citation offsets',
+                      {
+                        citationId: citation.id,
+                        contentItemId: id,
+                        code: updateRes.error.code,
+                      },
+                    );
+                  }
+                }
+              }
+            }
+            if (staleCount > 0) {
+              warnings.add(
+                `${staleCount} citation(s) may be stale after this content edit`,
+              );
+            }
+          }
+        } catch (reanchorErr) {
+          // Best-effort: a re-anchor failure must NEVER fail the save.
+          logBestEffortWarn(
+            'items.patch.citation_reanchor',
+            'Citation re-anchor pass failed after content edit',
+            { itemId: id, err: String(reanchorErr) },
+          );
+          warnings.add(
+            'Citations could not be re-anchored after this edit — they may be stale',
+          );
+        }
       } catch (writeBackErr) {
         logger.error(
           { err: writeBackErr, op: 'items.patch.write-back' },
