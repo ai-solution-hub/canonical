@@ -1,53 +1,53 @@
 ---
-description: Overview of active bids with progress, gaps, and deadlines
-argument-hint: "[bid name]"
+description: Overview of active forms with progress, gaps, and deadlines
+argument-hint: "[form name]"
 ---
 
-# Bid Status Command
+# Form Status Command
 
 > If you see unfamiliar placeholders or need to check which tools are connected, see [CONNECTORS.md](../CONNECTORS.md).
 
 ```
 +---------------------------------------------------------+
 |  STANDALONE (always works)                              |
-|  Tell Claude about your bids; get urgency ranking,      |
+|  Tell Claude about your forms; get urgency ranking,      |
 |  gap analysis, and prioritised actions                  |
 +---------------------------------------------------------+
 |  SUPERCHARGED (when you connect your tools)             |
-|  Claude pulls live bid data, question-level progress,   |
+|  Claude pulls live form data, question-level progress,   |
 |  confidence postures, and deadline tracking              |
 +---------------------------------------------------------+
 ```
 
-Show an overview of active bids sorted by urgency. Optionally focus on a specific bid for detailed analysis including question-level progress, confidence postures, and response gaps.
+Show an overview of active forms sorted by urgency. Optionally focus on a specific form for detailed analysis including question-level progress, confidence postures, and response gaps.
 
-Focus on this bid: $ARGUMENTS
+Focus on this form: $ARGUMENTS
 If a file is referenced: @$1
 
 ## What I Need From You
 
-**Option A — Overview of all bids (connector required):**
+**Option A — Overview of all forms (connector required):**
 ```
-/kb:bid-status
+/kb:form-status
 ```
 
-**Option B — Focus on a specific bid (connector required):**
+**Option B — Focus on a specific form (connector required):**
 ```
-/kb:bid-status NHS Digital Framework
+/kb:form-status NHS Digital Framework
 ```
 
 **Option C — Manual input (no connector needed):**
 ```
-/kb:bid-status
-[Paste your bid details, question list, or deadline information]
+/kb:form-status
+[Paste your form details, question list, or deadline information]
 ```
 
 ## Usage
 
 ```
-/kb:bid-status
-/kb:bid-status NHS Digital Framework
-/kb:bid-status Highways England
+/kb:form-status
+/kb:form-status NHS Digital Framework
+/kb:form-status Highways England
 ```
 
 ## Instructions
@@ -56,36 +56,36 @@ If a file is referenced: @$1
 
 Determine the scope:
 
-- **No argument**: Show all active bids overview
-- **Bid name provided**: Focus on that specific bid with full detail
+- **No argument**: Show all active forms overview
+- **Form name provided**: Focus on that specific form with full detail
 
-### 2. List Active Bids
+### 2. List Active Forms
 
 **If `~~knowledge base` connector is available:**
 
-Call `list_active_bids` to get the full pipeline. This returns:
-- Bid name and buyer
+Call `list_active_procurement` to get the full pipeline. This returns:
+- Form name and buyer
 - Submission deadline and days remaining
 - Question count and completion progress
 - Current status (active, draft, submitted)
 
-If a bid name was provided, identify the matching bid from the list.
+If a form name was provided, identify the matching form from the list.
 
 **If no connector available:**
 
 ```
-To view your bid pipeline, connect the Knowledge Hub server.
+To view your form pipeline, connect the Knowledge Hub server.
 
 In your MCP settings, add the Knowledge Hub connector:
 URL: https://knowledge-hub-seven-kappa.vercel.app/api/mcp/mcp
 
-Alternatively, tell me about your active bids and I'll help you
+Alternatively, tell me about your active forms and I'll help you
 organise them by urgency and identify gaps.
 ```
 
 ### 3. Sort by Urgency
 
-Rank bids using the @bid-writing skill urgency framework:
+Rank forms using the @completing-forms skill urgency framework:
 
 | Priority | Criteria |
 |----------|----------|
@@ -94,19 +94,19 @@ Rank bids using the @bid-writing skill urgency framework:
 | **Medium** | Deadline within 30 days OR completion <40% |
 | **On track** | Deadline >30 days AND completion >60% |
 
-### 4. Get Detail for Focus Bid
+### 4. Get Detail for Focus Form
 
-If a specific bid was requested, call `get_bid_detail` with the bid ID to get:
+If a specific form was requested, call `get_procurement_detail` with the form ID to get:
 - Full question list with section groupings
 - Response status per question (answered, draft, unanswered)
 - Confidence postures (strong_match, partial_match, needs_sme, no_content)
 - Word limits and response lengths
 
-For the top bid questions, optionally call `get_bid_question` for individual question detail.
+For the top form questions, optionally call `get_form_question` for individual question detail.
 
 ### 5. Identify Gaps
 
-Analyse the bid data to surface:
+Analyse the form data to surface:
 
 **Unanswered questions** — grouped by section, with the hardest gaps highlighted:
 - Questions with `no_content` confidence (no KB material available)
@@ -122,34 +122,34 @@ Analyse the bid data to surface:
 
 ### 6. Present the Overview
 
-**For all bids:**
+**For all forms:**
 
 ```
-# Active Bids Overview
+# Active Forms Overview
 
 ## Critical
-### [Bid Name] — [Buyer]
+### [Form Name] — [Buyer]
 - **Deadline**: [DD/MM/YYYY] ([N] days)
 - **Progress**: [X]/[Y] questions ([Z]%)
 - **Gaps**: [N] unanswered, [N] need SME input
 - **Action**: [Specific recommendation]
 
 ## High Priority
-### [Bid Name] — [Buyer]
+### [Form Name] — [Buyer]
 [Same format]
 
 ## On Track
-### [Bid Name] — [Buyer]
+### [Form Name] — [Buyer]
 [Same format]
 
 ---
-[Total] active bids | [N] critical | [N] high | [N] on track
+[Total] active forms | [N] critical | [N] high | [N] on track
 ```
 
-**For a specific bid:**
+**For a specific form:**
 
 ```
-# [Bid Name] — Detailed Status
+# [Form Name] — Detailed Status
 
 **Buyer**: [Buyer name]
 **Deadline**: [DD/MM/YYYY] ([N] days remaining)
@@ -181,19 +181,19 @@ Analyse the bid data to surface:
 
 ### 7. Handle Edge Cases
 
-**No active bids:**
+**No active forms:**
 ```
-No active bids found. Your bid pipeline is empty.
+No active forms found. Your form pipeline is empty.
 
-To create a new bid workspace, use the Knowledge Hub web interface.
+To create a new form workspace, use the Knowledge Hub web interface.
 ```
 
-**Bid name not found:**
+**Form name not found:**
 ```
-I couldn't find a bid matching "[name]". Active bids are:
-- [Bid 1]
-- [Bid 2]
-- [Bid 3]
+I couldn't find a form matching "[name]". Active forms are:
+- [Form 1]
+- [Form 2]
+- [Form 3]
 
 Did you mean one of these?
 ```
@@ -206,4 +206,4 @@ Did you mean one of these?
 - Sort sections by completion (least complete first) to surface gaps quickly
 - Truncate question text in tables to keep output scannable
 - Always end with actionable recommendations
-- For a workflow-oriented cross-bid review (blockers, stalled drafts, next actions rather than per-bid status), use `/kb:bid-pipeline-review`
+- For a workflow-oriented cross-form review (blockers, stalled drafts, next actions rather than per-form status), use `/kb:form-pipeline-review`

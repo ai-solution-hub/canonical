@@ -81,7 +81,7 @@ Before creating the guide, verify that content exists for the proposed sections.
 
 ### Search for matching content
 
-Call `search_knowledge_base` with terms relevant to each section. This helps:
+Call `find` with terms relevant to each section. This helps:
 - Confirm that sections will not be empty on creation
 - Identify content gaps that need addressing
 - Validate that the section filters will match real content
@@ -138,7 +138,7 @@ Report any discrepancies to the user.
 
 If the user wants to understand how well the guide is covered:
 
-- Use `search_knowledge_base` with domain-specific queries for each section
+- Use `find` with domain-specific queries for each section
 - Report which sections have strong, partial, or no coverage
 - Suggest using `@content-creation` to fill gaps
 - Suggest using `@coverage` for a broader coverage analysis
@@ -174,7 +174,7 @@ All guide names, descriptions, and section names **must** use UK English:
 | `get_guide` | Inspect a specific guide and its sections |
 | `create_guide` | Create a new guide with sections |
 | `update_guide` | Update guide metadata or sections |
-| `search_knowledge_base` | Validate content exists for proposed sections |
+| `find` | Validate content exists for proposed sections |
 
 ## Related Skills
 

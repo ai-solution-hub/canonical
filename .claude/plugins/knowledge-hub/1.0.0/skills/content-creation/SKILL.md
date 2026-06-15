@@ -5,7 +5,7 @@ description: Guide the user through creating knowledge base content to fill temp
 
 # Content Creation
 
-Structured guidance for creating KB content that fills template coverage gaps. Each requirement type has a specific creation flow that ensures the content is complete, well-classified, and immediately useful for bid responses.
+Structured guidance for creating KB content that fills template coverage gaps. Each requirement type has a specific creation flow that ensures the content is complete, well-classified, and immediately useful for form responses.
 
 ## When to Use This Skill
 
@@ -50,14 +50,14 @@ Before creating new content, search for what already exists.
 
 ### Search the Knowledge Base
 
-Call `search_knowledge_base` with the requirement text. This provides:
+Call `find` with the requirement text. This provides:
 - Existing content the user can reference or extend
 - Tone and style examples from the organisation's KB
 - Evidence of what is already documented
 
 ### Search the Q&A Library
 
-Call `search_qa_library` if:
+Call `find` if:
 - The requirement type is `declaration`
 - A Q&A pair would be an appropriate format for the content
 - You want to check for existing standard answers on the topic
@@ -106,7 +106,7 @@ Call `search_qa_library` if:
    - **Outcome** — measurable results with specific figures
 3. Use `create_content_item` with `content_type = 'case_study'`
 
-**Important:** If the user provides vague outcomes ("it went well", "the client was happy"), prompt for specific metrics — percentages, timescales, cost savings, volumes. Evidence without measurable outcomes scores poorly in bid evaluations.
+**Important:** If the user provides vague outcomes ("it went well", "the client was happy"), prompt for specific metrics — percentages, timescales, cost savings, volumes. Evidence without measurable outcomes scores poorly in form evaluations.
 
 ### Data (`requirement_type = 'data'`)
 
@@ -223,8 +223,8 @@ After `classify_content` runs, compare the result against the intended domain/su
 | Tool | When to Use |
 |------|------------|
 | `get_template_gaps` | Find unmet requirements to fill |
-| `search_knowledge_base` | Find related content for context and deduplication |
-| `search_qa_library` | Find existing Q&A pairs for reference |
+| `find` | Find related content for context and deduplication |
+| `find` | Find existing Q&A pairs for reference |
 | `create_content_item` | Create the new KB item |
 | `update_content_item` | Iterate on content after creation |
 | `classify_content` | Auto-classify the new item |
@@ -235,5 +235,5 @@ After `classify_content` runs, compare the result against the intended domain/su
 
 - **@search-strategy** — How to construct effective search queries
 - **@knowledge-synthesis** — How to combine search results into coherent context
-- **@bid-writing** — How to use created content in bid responses
+- **@completing-forms** — How to use created content in form responses
 - **@content-governance** — How to assess and maintain content quality over time

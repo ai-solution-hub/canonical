@@ -58,9 +58,9 @@ app.ontoolresult = (result) => {
     }
     dashboardData = data;
 
-    // If a focused bid detail was included, auto-expand it
-    if (data.focused_bid_detail) {
-      const detail = data.focused_bid_detail as unknown as BidDetailData;
+    // If a focused form detail was included, auto-expand it
+    if (data.focused_form_detail) {
+      const detail = data.focused_form_detail as unknown as BidDetailData;
       expandedBid = {
         bidId: detail.id,
         loading: false,

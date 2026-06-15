@@ -47,11 +47,11 @@ Use the period to frame the change report scope and set expectations about chang
 
 **If `~~knowledge base` connector is available:**
 
-Call `get_dashboard_summary` to get current KB state including:
+Call `whats_in_my_queue` to get current KB state including:
 - Total item counts and type breakdown
 - Items needing attention
 - Recent activity feed
-- Active bid summaries
+- Active form summaries
 
 **If no connector available:**
 
@@ -67,7 +67,7 @@ and I'll help summarise and prioritise them.
 
 ### 3. Fetch Freshness Report
 
-Call `get_freshness_report` to understand the current freshness landscape:
+Call `where_are_we_exposed` to understand the current freshness landscape:
 - How many items are in each state (fresh, aging, stale, expired)
 - Whether freshness is improving or declining
 - Which domains are most affected
@@ -92,27 +92,27 @@ Use the @content-governance skill to categorise changes:
 - Quality issues resolved
 - Items added to review queue
 
-**Bid Activity:**
-- New bid workspaces created
+**Form Activity:**
+- New form workspaces created
 - Responses drafted or updated
-- Bids approaching deadline
+- Forms approaching deadline
 
 ### 5. Categorise by Urgency
 
 **Requires Action:**
-- Expired content in domains used by active bids
+- Expired content in domains used by active forms
 - Quality flags on high-priority items
-- Bid deadlines within 7 days
+- Form deadlines within 7 days
 
 **Awareness:**
 - Content moving from fresh to aging
 - New items added by team
-- Bids progressing (responses completed)
+- Forms progressing (responses completed)
 
 **Positive:**
 - Content refreshed or updated
 - Quality issues resolved
-- Bid milestones achieved
+- Form milestones achieved
 
 ### 6. Present the Change Report
 
@@ -134,9 +134,9 @@ Use the @content-governance skill to categorise changes:
 - Most common issue: [type]
 - Action: `/kb:search [topic]` to review flagged items
 
-### Bids
-- [Bid Name]: Deadline in [N] days, [N] questions unanswered
-- Action: `/kb:bid-status [name]` for detail
+### Forms
+- [Form Name]: Deadline in [N] days, [N] questions unanswered
+- Action: `/kb:form-status [name]` for detail
 
 ## Recent Activity
 
@@ -148,7 +148,7 @@ Use the @content-governance skill to categorise changes:
 ### Updates ([N] items)
 - [N] items refreshed (content updated)
 - [N] items re-classified
-- [N] responses drafted for active bids
+- [N] responses drafted for active forms
 
 ## Freshness Snapshot
 
@@ -178,7 +178,7 @@ Use the @content-governance skill to categorise changes:
 
 No significant changes since your last check. Your KB is stable.
 
-Current state: [N] items | [N]% fresh | [N] active bids
+Current state: [N] items | [N]% fresh | [N] active forms
 
 Next recommended check: [suggest a timeframe based on activity level]
 ```
@@ -198,6 +198,6 @@ Other changes: [N] minor updates, [N] routine freshness transitions.
 - Compare current state to baseline when possible ("+5 from last change report")
 - Focus on actionable changes — routine freshness transitions can be summarised, not listed individually
 - Always end with concrete actions the user can take
-- Link to other commands: `/kb:coverage` for deep analysis, `/kb:bid-status` for bid detail
+- Link to other commands: `/kb:coverage` for deep analysis, `/kb:form-status` for form detail
 - Keep the change report scannable — users should get the key information in 30 seconds
 - Use `--daily` for quick morning check-ins, `--weekly` for end-of-week reviews

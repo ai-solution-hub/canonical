@@ -33,12 +33,12 @@ const APPS: AppConfig[] = [
     ),
   },
   {
-    name: 'bid-dashboard',
-    constName: 'BID_DASHBOARD_HTML',
+    name: 'form-dashboard',
+    constName: 'FORM_DASHBOARD_HTML',
     htmlPath: join(
       PROJECT_ROOT,
       'mcp-apps',
-      'bid-dashboard',
+      'form-dashboard',
       'dist',
       'app.html',
     ),

@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "bid-dashboard",
+      "name": "form-dashboard",
       "dependencies": {
         "@modelcontextprotocol/ext-apps": "1.3.2",
       },

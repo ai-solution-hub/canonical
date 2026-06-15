@@ -37,7 +37,7 @@ vi.mock('@/lib/mcp/formatters', () => ({
 vi.mock('@/lib/mcp/app-bundles', () => ({
   REORIENT_ME_HTML: '<html></html>',
   COVERAGE_MATRIX_HTML: '<html></html>',
-  BID_DASHBOARD_HTML: '<html></html>',
+  FORM_DASHBOARD_HTML: '<html></html>',
 }));
 
 vi.mock('@/lib/mcp/resources', () => ({

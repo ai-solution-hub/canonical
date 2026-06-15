@@ -298,7 +298,7 @@ afterAll(async () => {
   await serviceClient
     .from('processing_queue')
     .delete()
-    .like('idempotency_key', `bid_draft_all:%${TEST_PREFIX}%`);
+    .like('idempotency_key', `form_draft_all:%${TEST_PREFIX}%`);
   if (seededPipelineRunIds.size > 0) {
     await serviceClient
       .from('pipeline_runs')
@@ -323,7 +323,7 @@ describeIfEnv(
       authCookies.clear();
     });
 
-    it('AC-1: returns 202 + {job_id, pipeline_run_id, status:"queued", deduplicated:false}; processing_queue row exists with job_type=bid_draft_all', async () => {
+    it('AC-1: returns 202 + {job_id, pipeline_run_id, status:"queued", deduplicated:false}; processing_queue row exists with job_type=form_draft_all', async () => {
       const { procurementId } = await createTestBid({ status: 'drafting' });
 
       const { POST } =
@@ -361,25 +361,25 @@ describeIfEnv(
         .single();
       expect(rowErr).toBeNull();
       expect(row).toBeTruthy();
-      expect(row!.job_type).toBe('bid_draft_all');
+      expect(row!.job_type).toBe('form_draft_all');
       expect(row!.status).toBe('pending');
       const payload = row!.payload as Record<string, unknown>;
       expect(payload.envelope_version).toBe(1);
       const innerBody = payload.body as Record<string, unknown>;
-      expect(innerBody.bid_id).toBe(procurementId);
+      expect(innerBody.form_id).toBe(procurementId);
       expect(innerBody.model_tier).toBe('drafting');
       expect(innerBody.skip_existing).toBe(true);
       // Idempotency key formula per spec §3.2:
-      // bid_draft_all:${procurementId}:${YYYY-MM-DD}:${requestHash}
+      // form_draft_all:${procurementId}:${YYYY-MM-DD}:${requestHash}
       expect(row!.idempotency_key).toMatch(
         new RegExp(
-          `^bid_draft_all:${procurementId}:\\d{4}-\\d{2}-\\d{2}:[0-9a-f]{16}$`,
+          `^form_draft_all:${procurementId}:\\d{4}-\\d{2}-\\d{2}:[0-9a-f]{16}$`,
         ),
       );
     }, 30_000);
 
     // AC-9 inline assertion — pipeline_runs row inserted at-enqueue.
-    it('AC-9 (producer side): pipeline_runs row INSERTed at-enqueue with status=running, pipeline_name=bid_draft_all, workspace_id=bid_id, id=pipeline_run_id', async () => {
+    it('AC-9 (producer side): pipeline_runs row INSERTed at-enqueue with status=running, pipeline_name=form_draft_all, workspace_id=form_id, id=pipeline_run_id', async () => {
       const { procurementId } = await createTestBid({ status: 'drafting' });
 
       const { POST } =
@@ -405,7 +405,7 @@ describeIfEnv(
       expect(prErr).toBeNull();
       expect(pr).toBeTruthy();
       expect(pr!.status).toBe('running');
-      expect(pr!.pipeline_name).toBe('bid_draft_all');
+      expect(pr!.pipeline_name).toBe('form_draft_all');
       expect(pr!.workspace_id).toBe(procurementId);
     }, 30_000);
   },
@@ -851,7 +851,7 @@ describeIfEnv('AC-6 — bid not in draftable state', () => {
       .eq('id', procurementId);
 
     // Direct envelope insert to processing_queue.
-    const idempotencyKey = `bid_draft_all:${procurementId}:2026-05-05:${TEST_PREFIX}_AC6h`;
+    const idempotencyKey = `form_draft_all:${procurementId}:2026-05-05:${TEST_PREFIX}_AC6h`;
     const envelope: Json = {
       envelope_version: 1,
       auth_context: {
@@ -861,7 +861,7 @@ describeIfEnv('AC-6 — bid not in draftable state', () => {
       },
       idempotency_key: idempotencyKey,
       body: {
-        bid_id: procurementId,
+        form_id: procurementId,
         model_tier: 'drafting',
         skip_existing: true,
       },
@@ -869,7 +869,7 @@ describeIfEnv('AC-6 — bid not in draftable state', () => {
     const { data: insertedJob, error: insertErr } = await serviceClient
       .from('processing_queue')
       .insert({
-        job_type: 'bid_draft_all',
+        job_type: 'form_draft_all',
         status: 'pending',
         payload: envelope,
         priority: 0,
@@ -909,7 +909,7 @@ describeIfEnv('AC-7 — bid with 0 questions → permanent failure', () => {
       zeroQuestions: true,
     });
 
-    const idempotencyKey = `bid_draft_all:${procurementId}:2026-05-05:${TEST_PREFIX}_AC7`;
+    const idempotencyKey = `form_draft_all:${procurementId}:2026-05-05:${TEST_PREFIX}_AC7`;
     const envelope: Json = {
       envelope_version: 1,
       auth_context: {
@@ -919,7 +919,7 @@ describeIfEnv('AC-7 — bid with 0 questions → permanent failure', () => {
       },
       idempotency_key: idempotencyKey,
       body: {
-        bid_id: procurementId,
+        form_id: procurementId,
         model_tier: 'drafting',
         skip_existing: true,
       },
@@ -927,7 +927,7 @@ describeIfEnv('AC-7 — bid with 0 questions → permanent failure', () => {
     const { data: insertedJob } = await serviceClient
       .from('processing_queue')
       .insert({
-        job_type: 'bid_draft_all',
+        job_type: 'form_draft_all',
         status: 'pending',
         payload: envelope,
         priority: 0,
@@ -1071,7 +1071,7 @@ describeIfEnv('AC-8 — cancel pending (200) / processing (409)', () => {
 // preservation).
 //
 // Critical assertion: SELECT count(*) FROM pipeline_runs WHERE pipeline_name=
-// 'bid_draft_all' AND workspace_id=bid_id MUST equal 1, NOT 2 — i.e. the
+// 'form_draft_all' AND workspace_id=form_id MUST equal 1, NOT 2 — i.e. the
 // dispatch code does NOT call recordPipelineRun() at terminal which would
 // INSERT a second row. The current dispatch case writes a direct UPDATE
 // (per the IMPL drift note in lib/queue/dispatch.ts:19-30).
@@ -1092,7 +1092,7 @@ describeIfEnv(
       dispatchSpy = null;
     });
 
-    it('AC-9: post-cron-tick, exactly 1 pipeline_runs row exists for (pipeline_name=bid_draft_all, workspace_id=bid_id) — same UUID as caller-allocated', async () => {
+    it('AC-9: post-cron-tick, exactly 1 pipeline_runs row exists for (pipeline_name=form_draft_all, workspace_id=form_id) — same UUID as caller-allocated', async () => {
       const { procurementId, questionIds } = await createTestBid({
         status: 'drafting',
         questionCount: 2,
@@ -1163,7 +1163,7 @@ describeIfEnv(
       const { count: countBefore } = await serviceClient
         .from('pipeline_runs')
         .select('id', { count: 'exact', head: true })
-        .eq('pipeline_name', 'bid_draft_all')
+        .eq('pipeline_name', 'form_draft_all')
         .eq('workspace_id', procurementId);
       expect(countBefore).toBe(1);
 
@@ -1178,7 +1178,7 @@ describeIfEnv(
       const { data: rows, error: rowsErr } = await serviceClient
         .from('pipeline_runs')
         .select('id, status, items_created, items_processed')
-        .eq('pipeline_name', 'bid_draft_all')
+        .eq('pipeline_name', 'form_draft_all')
         .eq('workspace_id', procurementId);
       expect(rowsErr).toBeNull();
       expect(rows).toHaveLength(1);

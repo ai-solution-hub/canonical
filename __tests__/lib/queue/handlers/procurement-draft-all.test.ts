@@ -3,7 +3,7 @@
  *
  * Spec: docs/specs/§5.4.1-batch-draft-all-spec.md §8 (10 ACs) + §7.7 Vitest
  * cases mapping. The handler under test is the pure async function the
- * dispatcher invokes from `lib/queue/dispatch.ts case 'bid_draft_all':`.
+ * dispatcher invokes from `lib/queue/dispatch.ts case 'form_draft_all':`.
  *
  * AC coverage:
  *   AC-2  Worker drains job to completion (handler-side happy path).
@@ -129,7 +129,7 @@ function makeBody(
   }> = {},
 ) {
   return {
-    bid_id: BID_ID,
+    form_id: BID_ID,
     model_tier: overrides.model_tier ?? ('drafting' as const),
     skip_existing: overrides.skip_existing ?? false,
   };
@@ -281,7 +281,7 @@ function configureSupabase(
 // Test suite.
 // ---------------------------------------------------------------------------
 
-describe('runBidDraftAllJob — bid_draft_all handler (§5.4.1)', () => {
+describe('runBidDraftAllJob — form_draft_all handler (§5.4.1)', () => {
   let mockSupabase: MockSupabaseClient;
 
   beforeEach(() => {

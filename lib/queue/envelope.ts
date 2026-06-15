@@ -9,7 +9,8 @@ import { z } from 'zod';
  *
  * Liam OQ-3 RATIFIED S221 W3: NO speculative widen of `JobType`. Each
  * §5.4.x candidate (5.4.1 / 5.4.2) adds its own `JobType` value
- * when its candidate spec dispatches. (`'bid_draft_all'` added by
+ * when its candidate spec dispatches. (`'form_draft_all'` — formerly
+ * `'bid_draft_all'`, renamed under ID-71 — added by
  * §5.4.1 W4-IMPL S224; `'batch_reclassify'` added by §5.4.2 W1-IMPL
  * S225 — see migrations
  * `20260505164817_s224_widen_job_type_check_bid_draft_all.sql` and
@@ -29,8 +30,8 @@ import { z } from 'zod';
  *
  * The 9 values below are the actively-enqueued job types (the historic
  * types `embed | classify | extract_qa | summarise | validate | reprocess`
- * plus the pre-existing template type `template_fill`, plus `bid_draft_all`
- * added by §5.4.1 — see
+ * plus the pre-existing template type `template_fill`, plus `form_draft_all`
+ * (formerly `bid_draft_all`, renamed under ID-71) added by §5.4.1 — see
  * `supabase/migrations/20260505164817_s224_widen_job_type_check_bid_draft_all.sql`,
  * plus `batch_reclassify` added by §5.4.2 W1-IMPL — see
  * `supabase/migrations/20260505211806_s225_widen_job_type_check_batch_reclassify.sql`).
@@ -58,7 +59,7 @@ export type JobType =
   | 'validate'
   | 'reprocess'
   | 'template_fill'
-  | 'bid_draft_all'
+  | 'form_draft_all'
   | 'batch_reclassify';
 
 /**
@@ -179,11 +180,11 @@ export interface QueueJobPayload<TBody extends Record<string, unknown>> {
  * could disagree on the bucket boundary near midnight).
  *
  * Examples (spec §5.5 lines 813-815):
- * - `bid_draft_all:${procurementId}:${YYYY-MM-DD}:${requestHash}` ✓
+ * - `form_draft_all:${procurementId}:${YYYY-MM-DD}:${requestHash}` ✓
  * - `batch_reclassify:${workspaceId}:${YYYY-MM-DD}:${optionsHash}` ✓
  *
  * @param args.jobType - The job-type value (must be in `JobType` union).
- * @param args.scopedId - The scoping identifier (bid_id, workspace_id,
+ * @param args.scopedId - The scoping identifier (form_id, workspace_id,
  *   batch_id, etc. — chosen per candidate spec).
  * @param args.requestHash - A deterministic hash of the request options
  *   (so different option sets produce different keys, but identical option

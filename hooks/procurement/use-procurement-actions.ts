@@ -399,7 +399,7 @@ export function useFormActions({ id }: UseFormActionsParams) {
   // ---------------------------------------------------------------------
   // Draft all mutation — post-S224 §5.4.1 D-4 ratification.
   //
-  // The route now enqueues a `bid_draft_all` job and returns HTTP 202 with
+  // The route now enqueues a `form_draft_all` job and returns HTTP 202 with
   // `{ job_id, pipeline_run_id, status: 'queued', deduplicated }`. We poll
   // `/api/jobs/:job_id/status` every 3s (matches existing template-fill
   // polling pattern at `components/bid/template-fill-progress.tsx:16`) and

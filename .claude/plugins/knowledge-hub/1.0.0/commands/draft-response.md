@@ -1,6 +1,6 @@
 ---
-description: Draft a bid response using KB content with citations and confidence assessment
-argument-hint: "<bid question text>"
+description: Draft a form response using KB content with citations and confidence assessment
+argument-hint: "<form question text>"
 ---
 
 # Draft Response Command
@@ -11,7 +11,7 @@ argument-hint: "<bid question text>"
 +---------------------------------------------------------+
 |  STANDALONE (always works)                              |
 |  Paste your question and any supporting material;       |
-|  Claude drafts a response using bid writing best        |
+|  Claude drafts a response using form writing best        |
 |  practice with UK procurement conventions               |
 +---------------------------------------------------------+
 |  SUPERCHARGED (when you connect your tools)             |
@@ -21,7 +21,7 @@ argument-hint: "<bid question text>"
 +---------------------------------------------------------+
 ```
 
-Draft a response to a bid question using relevant knowledge base content. Searches for supporting material, evaluates source quality, and produces a structured response following UK public procurement conventions.
+Draft a response to a form question using relevant knowledge base content. Searches for supporting material, evaluates source quality, and produces a structured response following UK public procurement conventions.
 
 Draft a response for: $ARGUMENTS
 If a file is referenced: @$1
@@ -56,15 +56,15 @@ If a file is referenced: @$1
 
 ### 1. Parse the Question
 
-Analyse the bid question to understand:
+Analyse the form question to understand:
 
 - **Question type**: Descriptive ("describe your approach"), evidential ("provide evidence"), process ("how do you"), capability ("demonstrate your ability"), compliance ("confirm you meet")
 - **Domain signals**: Which knowledge domains are relevant (security, compliance, delivery, etc.)
 - **Scope**: Broad ("your approach to X") vs specific ("your ISO 27001 certification")
 - **Evidence requirements**: Does it ask for examples, case studies, metrics, or certifications?
-- **Word limit**: If mentioned, note the target (aim for 90-95% of limit per @bid-writing skill)
+- **Word limit**: If mentioned, note the target (aim for 90-95% of limit per @completing-forms skill)
 
-Use the @bid-writing skill to classify the question type and determine the response structure.
+Use the @completing-forms skill to classify the question type and determine the response structure.
 
 ### 2. Search for Relevant Content
 
@@ -72,8 +72,8 @@ Use the @bid-writing skill to classify the question type and determine the respo
 
 Execute searches in parallel:
 
-1. Call `search_knowledge_base` with the question text to find relevant articles, policies, case studies, and other content
-2. Call `search_qa_library` with the question text to find existing Q&A pairs with standard answers
+1. Call `find` with the question text to find relevant articles, policies, case studies, and other content
+2. Call `find` with the question text to find existing Q&A pairs with standard answers
 
 If the question targets a specific domain, add domain filtering.
 
@@ -88,7 +88,7 @@ In your MCP settings, add the Knowledge Hub connector:
 URL: https://knowledge-hub-seven-kappa.vercel.app/api/mcp/mcp
 
 Alternatively, paste the relevant content you'd like me to work with and
-I'll draft a response following UK bid writing conventions.
+I'll draft a response following UK form writing conventions.
 ```
 
 ### 3. Evaluate Source Quality
@@ -110,7 +110,7 @@ Determine the overall **confidence posture**:
 
 ### 4. Draft the Response
 
-Use the @bid-writing skill to structure the response:
+Use the @completing-forms skill to structure the response:
 
 **Standard structure for descriptive questions:**
 ```
@@ -140,7 +140,7 @@ Use the @bid-writing skill to structure the response:
 [Summary — pattern of capability across examples]
 ```
 
-**Response quality rules from @bid-writing skill:**
+**Response quality rules from @completing-forms skill:**
 - Use UK English throughout (organisation, colour, DD/MM/YYYY)
 - Be specific — use real figures, dates, and named standards
 - Lead with the answer, then provide evidence
@@ -243,7 +243,7 @@ before submission:
 ## Tips
 
 - Never submit a response with `no_content` confidence without explicit user confirmation
-- Always include source citations — traceability is essential for bid responses
+- Always include source citations — traceability is essential for form responses
 - UK procurement evaluators value specificity over generality
 - If the question asks for word count compliance, always include the count
 - Q&A pairs are the strongest source type — they contain pre-approved standard answers

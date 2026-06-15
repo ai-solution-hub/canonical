@@ -1,11 +1,11 @@
 ---
-name: bid-writing
-description: UK public procurement bid writing guidance. Covers PQQ/ITT conventions, response structure, confidence postures, word limit management, evidence-backed writing, and UK English conventions. Use when drafting bid responses, reviewing response quality, or advising on procurement writing best practices.
+name: completing-forms
+description: UK public procurement form writing guidance. Covers PQQ/ITT conventions, response structure, confidence postures, word limit management, evidence-backed writing, and UK English conventions. Use when drafting form responses, reviewing response quality, or advising on procurement writing best practices.
 ---
 
-# Bid Writing
+# Form Writing
 
-Expert guidance for UK public procurement bid responses. This skill covers terminology, response structure, confidence assessment, evidence presentation, word limit management, and quality standards specific to UK tender submissions.
+Expert guidance for UK public procurement form responses. This skill covers terminology, response structure, confidence assessment, evidence presentation, word limit management, and quality standards specific to UK tender submissions.
 
 ## UK Public Procurement Context
 
@@ -15,9 +15,9 @@ Expert guidance for UK public procurement bid responses. This skill covers termi
 |------|---------|
 | **PQQ** | Pre-Qualification Questionnaire — initial screening stage |
 | **SQ** | Selection Questionnaire (newer name for PQQ) |
-| **ITT** | Invitation to Tender — full bid submission |
+| **ITT** | Invitation to Tender — full form submission |
 | **ITQ** | Invitation to Quote — simpler procurement |
-| **Tender** | The formal request for proposals/bids |
+| **Tender** | The formal request for proposals/forms |
 | **Lot** | A subset of a framework or contract |
 | **Framework** | A pre-approved list of suppliers for call-off contracts |
 | **Call-off** | An order placed under an existing framework |
@@ -44,7 +44,7 @@ PQQ/SQ                    ITT                     Contract Award
 
 ### Scoring Systems
 
-Most UK public sector bids use a 0-5 scoring system:
+Most UK public sector forms use a 0-5 scoring system:
 
 | Score | Meaning | What the evaluator is looking for |
 |-------|---------|-----------------------------------|
@@ -159,7 +159,7 @@ When drafting responses, assess the confidence level based on available KB mater
 - Create a placeholder response structure
 - Mark the entire response as needing input
 - Suggest which team members or sources might have the answer
-- Recommend creating a KB item for this topic after the bid
+- Recommend creating a KB item for this topic after the form
 - Note the gap for future content creation priorities
 
 ## Word Limit Management
@@ -173,7 +173,7 @@ When drafting responses, assess the confidence level based on available KB mater
 | 500-1000 words | 85-95% | Longer responses can be slightly under |
 | >1000 words | 80-95% | Very long limits allow more flexibility |
 
-Under-utilising the word limit is a common bid writing failure. Evaluators expect you to use the space provided — a 300-word response to a 500-word question signals insufficient depth.
+Under-utilising the word limit is a common form writing failure. Evaluators expect you to use the space provided — a 300-word response to a 500-word question signals insufficient depth.
 
 ### Word Count Strategy
 
@@ -242,7 +242,7 @@ When referencing standards:
 
 ## UK English Conventions
 
-All bid responses must use UK English consistently:
+All form responses must use UK English consistently:
 
 ### Spelling
 

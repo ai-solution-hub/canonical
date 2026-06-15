@@ -36,7 +36,7 @@ If a file is referenced: @$1
 
 **If `~~knowledge base` connector is available:**
 
-Call `get_dashboard_summary` to get the overall KB health metrics:
+Call `whats_in_my_queue` to get the overall KB health metrics:
 - Total item count and breakdown by content type
 - Items needing attention (stale, expired, quality flagged)
 - Recent activity summary
@@ -56,7 +56,7 @@ you plan content creation priorities.
 
 ### 2. Fetch Freshness Report
 
-Call `get_freshness_report` to get the freshness breakdown:
+Call `where_are_we_exposed` to get the freshness breakdown:
 - Count of items in each freshness state (fresh, aging, stale, expired)
 - Freshness distribution by domain (if available)
 
@@ -64,7 +64,7 @@ Use the @content-governance skill to interpret freshness states.
 
 ### 3. Fetch Quality Summary
 
-Call `get_quality_summary` to get quality issue counts:
+Call `where_are_we_exposed` to get quality issue counts:
 - Items with quality flags
 - Common quality issue types
 - Overall quality health
@@ -80,17 +80,17 @@ Using the @classification skill, analyse the taxonomy coverage:
 
 For each thin or empty domain, note:
 - What content types are present vs missing
-- Whether the domain is important for bid responses
+- Whether the domain is important for form responses
 - Specific subtopics with zero coverage
 
 ### 5. Recommend Content to Create
 
 Based on gaps, generate a prioritised content creation plan:
 
-**Priority 1 — Critical for bids:**
-- Q&A pairs for commonly asked bid questions in thin domains
+**Priority 1 — Critical for forms:**
+- Q&A pairs for commonly asked form questions in thin domains
 - Case studies for domains with no evidence
-- Policies that active bids reference but don't exist
+- Policies that active forms reference but don't exist
 
 **Priority 2 — Strengthen weak areas:**
 - Updated versions of stale/expired content
@@ -124,7 +124,7 @@ Based on gaps, generate a prioritised content creation plan:
 ## Gaps Identified
 
 ### Critical Gaps
-1. **[Domain/Subtopic]** — [N] items, [issue description]. Impact: [why it matters for bids]
+1. **[Domain/Subtopic]** — [N] items, [issue description]. Impact: [why it matters for forms]
 2. **[Domain/Subtopic]** — [N] items, [issue description]. Impact: [why it matters]
 
 ### Freshness Issues
@@ -140,7 +140,7 @@ Based on gaps, generate a prioritised content creation plan:
 ### Priority 1 — Create Now
 | Content | Type | Domain | Why |
 |---------|------|--------|-----|
-| [Specific topic] | Q&A pair | [Domain] | Active bid requires this |
+| [Specific topic] | Q&A pair | [Domain] | Active form requires this |
 | [Specific topic] | Case study | [Domain] | No evidence available |
 
 ### Priority 2 — Create This Week
@@ -158,14 +158,14 @@ Based on gaps, generate a prioritised content creation plan:
 [N] total items | [N] domains covered | [N] gaps identified | [N] items need freshness review
 ```
 
-### 7. Cross-Reference with Active Bids
+### 7. Cross-Reference with Active Forms
 
-If bid data is available from `get_dashboard_summary`, highlight coverage gaps that directly affect active bids:
+If form data is available from `whats_in_my_queue`, highlight coverage gaps that directly affect active forms:
 
 ```
-## Impact on Active Bids
+## Impact on Active Forms
 
-### [Bid Name] ([N] days to deadline)
+### [Form Name] ([N] days to deadline)
 - Missing Q&A pairs for: [topics]
 - Stale content referenced in: [question areas]
 - Recommendation: Prioritise [specific content] before deadline
@@ -175,6 +175,6 @@ If bid data is available from `get_dashboard_summary`, highlight coverage gaps t
 
 - Use the taxonomy from `kb://taxonomy` resource to understand the full domain structure
 - Health ratings: Good (>20 items, >75% fresh), Adequate (10-20 items, >50% fresh), Thin (<10 items), Critical (<5 items or >50% stale)
-- Always connect coverage gaps to bid impact where possible — this makes the analysis actionable
+- Always connect coverage gaps to form impact where possible — this makes the analysis actionable
 - Suggest `/kb:search [domain]` to explore existing content in thin areas
 - Suggest `/kb:draft-response` for specific questions exposed by gaps

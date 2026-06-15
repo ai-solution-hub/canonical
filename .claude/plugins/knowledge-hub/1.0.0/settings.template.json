@@ -31,7 +31,7 @@
     ],
     "notes": "Domains are DB-driven — this list is for reference only"
   },
-  "bid_preferences": {
+  "form_preferences": {
     "default_tone": "professional",
     "case_study_anonymise": true,
     "preferred_evidence_types": [

@@ -11,7 +11,7 @@ description: >-
 
 # Governance Review
 
-Structured workflow for triaging the Knowledge Hub governance queue. Wraps three MCP tools (`get_governance_queue`, `update_governance_status`, `review_governance_item`) into a guided session where each pending item is inspected, acted on, and documented with a structured reason.
+Structured workflow for triaging the Knowledge Hub governance queue. Wraps three MCP tools (`whats_in_my_queue`, `update_governance_status`, `review_governance_item`) into a guided session where each pending item is inspected, acted on, and documented with a structured reason.
 
 ## When to Use This Skill
 
@@ -31,7 +31,7 @@ Structured workflow for triaging the Knowledge Hub governance queue. Wraps three
 |------|--------|
 | **Admin** | Full workflow -- all actions including approve, request changes, revert |
 | **Editor** | Full workflow -- same as admin (MCP tools require editor+) |
-| **Viewer** | No access. If `get_governance_queue` returns permission denied, respond: "Governance review requires editor or admin access. Contact your administrator to request the appropriate role." Do not offer a partial read-only path. |
+| **Viewer** | No access. If `whats_in_my_queue` returns permission denied, respond: "Governance review requires editor or admin access. Contact your administrator to request the appropriate role." Do not offer a partial read-only path. |
 
 ## Workflow
 
@@ -76,7 +76,7 @@ If the user's triggering message already named a domain, skip this prompt and pr
 
 ### Step 2: Discover Queue
 
-Call `get_governance_queue` with `{ limit: 20, offset: 0 }` and the domain from Step 1 (omit domain if "all").
+Call `whats_in_my_queue` with `{ limit: 20, offset: 0 }` and the domain from Step 1 (omit domain if "all").
 
 If the call returns a permission-denied error, the user is a viewer -- display the role message from the Roles table above and stop.
 
@@ -151,7 +151,7 @@ Call `review_governance_item` with `{ item_id, action, notes }`.
 
 **On "already reviewed" error:** The item was processed by another reviewer. Report: "This item was already reviewed by another user." Skip to the next item.
 
-**Stale-state detection:** Track consecutive "already reviewed" errors. If **2 or more consecutive** items return this error, another reviewer is actively working the queue. Re-fetch via `get_governance_queue` with the same parameters to get a fresh working set, then resume iteration.
+**Stale-state detection:** Track consecutive "already reviewed" errors. If **2 or more consecutive** items return this error, another reviewer is actively working the queue. Re-fetch via `whats_in_my_queue` with the same parameters to get a fresh working set, then resume iteration.
 
 **On transient error:** Offer retry or skip. Continue with remaining items.
 
@@ -219,7 +219,7 @@ For large backlogs (>100 items), offer to raise the page size to 100 for faster 
 
 | Tool | When Used | Arguments |
 |------|-----------|-----------|
-| `get_governance_queue` | Step 2 (discover), pagination, stale re-fetch | `{ limit, offset, domain? }` |
+| `whats_in_my_queue` | Step 2 (discover), pagination, stale re-fetch | `{ limit, offset, domain? }` |
 | `review_governance_item` | Step 7 (record review action) | `{ item_id, action, notes? }` |
 | `update_governance_status` | Step 7b (publish after approve) | `{ item_ids, status: "publish" }` |
 

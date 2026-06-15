@@ -112,7 +112,7 @@ Not all KB results are equally trustworthy. Assess confidence based on:
 | Stale | Low — may be outdated, flag to user |
 | Expired | Very low — likely outdated, warn explicitly |
 
-For bid responses, stale or expired sources must be flagged. Using outdated information in a tender response is a risk.
+For form responses, stale or expired sources must be flagged. Using outdated information in a tender response is a risk.
 
 ### Classification Confidence
 
@@ -142,7 +142,7 @@ updated [date] and should be verified for the latest scope.
 I found a reference to ISO 27001 certification in the knowledge base, but
 the source is flagged as stale (last updated [date]). The scope information
 may have changed. Recommend verifying with the security team before including
-in a bid response.
+in a form response.
 ```
 
 ### Conflicting Information
@@ -157,7 +157,7 @@ The more recent source indicates [which version], but this should be verified
 as the documents may refer to different scopes or time periods.
 ```
 
-Always surface conflicts rather than silently picking one version. In bid writing, accuracy is critical.
+Always surface conflicts rather than silently picking one version. In form writing, accuracy is critical.
 
 ## Summarisation Strategies
 
@@ -217,7 +217,7 @@ Found [N] results across [domains]. Want me to dig deeper into [specific aspect]
 - Preserve important nuance and caveats (especially freshness warnings)
 - Include enough detail to decide whether to dig deeper
 - Always offer to provide more detail if the result set was large
-- For bid responses, always include the confidence posture
+- For form responses, always include the confidence posture
 
 ## Synthesis Workflow
 
@@ -262,5 +262,5 @@ Found [N] results across [domains]. Want me to dig deeper into [specific aspect]
 ## Related Skills
 
 - **@search-strategy** — How to construct the queries that feed into synthesis
-- **@bid-writing** — How to use synthesised content in bid responses
+- **@completing-forms** — How to use synthesised content in form responses
 - **@content-governance** — How to assess and act on freshness/quality issues

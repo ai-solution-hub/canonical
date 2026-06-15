@@ -17,16 +17,16 @@ import { buildIdempotencyKey } from '@/lib/queue/envelope';
 import type { ProcurementDraftAllBody } from '@/lib/queue/handlers/procurement-draft-all';
 
 /**
- * POST /api/bids/:id/responses/draft-all — queue a `bid_draft_all` job.
+ * POST /api/procurement/:id/responses/draft-all — queue a `form_draft_all` job.
  *
  * Pre-S224, this route ran a synchronous 100-question loop with a
  * `maxDuration = 120` Vercel cap and a `TIMEOUT_SAFETY_MS = 100_000` safety
  * break. Per `docs/specs/§5.4.1-batch-draft-all-spec.md` §7.5 + D-6
- * ratification, the route now ENQUEUES a `bid_draft_all` job onto
+ * ratification, the route now ENQUEUES a `form_draft_all` job onto
  * `processing_queue` and returns HTTP 202 with `{ job_id, pipeline_run_id,
  * status: 'queued', deduplicated }`. The cron worker
  * (`app/api/cron/process-queue/route.ts`) drains the job via
- * `lib/queue/dispatch.ts` `case 'bid_draft_all':` and the UI polls
+ * `lib/queue/dispatch.ts` `case 'form_draft_all':` and the UI polls
  * `/api/jobs/:job_id/status` for terminal state.
  *
  * pipeline_runs Pattern 2 (spec §6.3): the producer pre-allocates the
@@ -118,7 +118,7 @@ export async function POST(
       .slice(0, 16);
 
     const idempotencyKey = buildIdempotencyKey({
-      jobType: 'bid_draft_all',
+      jobType: 'form_draft_all',
       scopedId: id,
       requestHash,
     });
@@ -126,7 +126,7 @@ export async function POST(
     // ----------------------------------------------------------------
     // pipeline_runs Pattern 2: caller-allocated UUID + INSERT
     // `status='running'` at-enqueue. The worker UPDATEs the SAME row
-    // at-terminal (see `lib/queue/dispatch.ts` `case 'bid_draft_all':`).
+    // at-terminal (see `lib/queue/dispatch.ts` `case 'form_draft_all':`).
     //
     // Service-role client: `pipeline_runs_insert` RLS is admin-only;
     // editor producers would be silently denied. Same pattern as
@@ -137,7 +137,7 @@ export async function POST(
     await sb(
       serviceClient.from('pipeline_runs').insert({
         id: pipelineRunId,
-        pipeline_name: 'bid_draft_all',
+        pipeline_name: 'form_draft_all',
         status: 'running',
         workspace_id: id,
       }),
@@ -181,8 +181,8 @@ export async function POST(
     // ----------------------------------------------------------------
     const enqueueResult = await enqueueQueueJob<ProcurementDraftAllBody>({
       supabase: serviceClient,
-      jobType: 'bid_draft_all',
-      body: { bid_id: id, model_tier, skip_existing },
+      jobType: 'form_draft_all',
+      body: { form_id: id, model_tier, skip_existing },
       authContext: { user_id: user.id, role, workspace_id: id },
       idempotencyKey,
       pipelineRunId,

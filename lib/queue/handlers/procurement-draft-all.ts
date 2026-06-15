@@ -1,5 +1,5 @@
 /**
- * `bid_draft_all` queue handler — Session 224 W4-IMPL.
+ * `form_draft_all` queue handler — Session 224 W4-IMPL.
  *
  * Spec: `docs/specs/§5.4.1-batch-draft-all-spec.md` §4 (handler signature),
  * §5 (retry classification), §6.3 (pipeline_runs Pattern 2 linkage).
@@ -7,7 +7,7 @@
  * `app/api/bids/[id]/responses/draft-all/route.ts:80-301` (the pre-S224
  * synchronous loop), with these adjustments:
  *
- *   - `bid_id` lifted from path-param to body field (per spec §3.1).
+ *   - `form_id` lifted from path-param to body field (per spec §3.1).
  *   - `supabase` is the worker's service-role client (RLS-bypassing).
  *   - `auth_context.user_id` populates `updated_by` on the bid transition
  *     (instead of `user.id` from `getAuthorisedClient()`).
@@ -23,7 +23,7 @@
  *     can pass them to `pipeline_runs.items_created` (per
  *     feedback_record_pipeline_run_signature: `string[]` not `number`).
  *
- * The handler is invoked from `lib/queue/dispatch.ts` `case 'bid_draft_all':`.
+ * The handler is invoked from `lib/queue/dispatch.ts` `case 'form_draft_all':`.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -39,18 +39,18 @@ import { sb } from '@/lib/supabase/safe';
 import type { Database, Json } from '@/supabase/types/database.types';
 
 /**
- * Body of a `bid_draft_all` job, stored at `processing_queue.payload.body`
+ * Body of a `form_draft_all` job, stored at `processing_queue.payload.body`
  * per the envelope contract in `lib/queue/envelope.ts`.
  *
  * Lifted verbatim from `ResponseDraftAllBodySchema`
- * (`lib/validation/schemas.ts:840-843`) plus the path parameter `bid_id`
+ * (`lib/validation/schemas.ts`) plus the path parameter `form_id`
  * promoted from URL to body — per spec §3.1.
  */
 export interface ProcurementDraftAllBody extends Record<string, unknown> {
-  /** UUID of the bid (workspace) being drafted. Validated against
+  /** UUID of the form (workspace) being drafted. Validated against
    *  `workspaces` JOIN `application_types` where key='procurement' before
    *  the worker proceeds. */
-  bid_id: string;
+  form_id: string;
   /** Matches `lib/anthropic.ts` `ModelTier` — controls which model
    *  the drafting Pass 2 runs against. Default: 'drafting'. */
   model_tier: 'analysis' | 'drafting';
@@ -136,7 +136,7 @@ export async function runBidDraftAllJob(
   supabase: SupabaseClient<Database>,
   authContext: ProcurementDraftAllAuthContext,
 ): Promise<ProcurementDraftAllResult> {
-  const { bid_id, model_tier, skip_existing } = body;
+  const { form_id, model_tier, skip_existing } = body;
 
   // ------------------------------------------------------------------
   // 1. Verify bid exists + is in a draftable state.
@@ -148,12 +148,12 @@ export async function runBidDraftAllJob(
   const { data: bid, error: procurementError } = await supabase
     .from('workspaces')
     .select('id, status, domain_metadata, application_types!inner(key)')
-    .eq('id', bid_id)
+    .eq('id', form_id)
     .eq('application_types.key', 'procurement')
     .single();
 
   if (procurementError || !bid) {
-    throw new PermanentJobError(`bid_not_found: ${bid_id}`);
+    throw new PermanentJobError(`bid_not_found: ${form_id}`);
   }
 
   const procurementStatus = (bid.status as ProcurementWorkflowState) ?? 'draft';
@@ -175,14 +175,14 @@ export async function runBidDraftAllJob(
     .select(
       'id, question_text, word_limit, section_name, confidence_posture, matched_content_ids',
     )
-    .eq('workspace_id', bid_id)
+    .eq('workspace_id', form_id)
     .order('section_sequence', { ascending: true })
     .order('question_sequence', { ascending: true });
 
   if (questionsError) {
     logger.error(
-      { err: questionsError, bid_id },
-      'bid_draft_all handler: failed to fetch questions',
+      { err: questionsError, form_id },
+      'form_draft_all handler: failed to fetch questions',
     );
     throw new PermanentJobError(
       `form_questions_fetch_failed: ${questionsError.message}`,
@@ -205,7 +205,7 @@ export async function runBidDraftAllJob(
         .from('form_responses')
         .select('question_id')
         .in('question_id', questionIds),
-      'queue.bid_draft_all.existingResponses',
+      'queue.form_draft_all.existingResponses',
     );
     for (const r of existingResponses) {
       existingResponseIds.add(r.question_id);
@@ -311,7 +311,7 @@ export async function runBidDraftAllJob(
           )
           .select('id')
           .single(),
-        'queue.bid_draft_all.upsertResponse',
+        'queue.form_draft_all.upsertResponse',
       );
       draftedResponseIds.push(upserted.id);
 
@@ -321,8 +321,8 @@ export async function runBidDraftAllJob(
           .from('form_questions')
           .update({ status: 'ai_drafted' })
           .eq('id', question.id)
-          .eq('workspace_id', bid_id),
-        'queue.bid_draft_all.updateQuestionStatus',
+          .eq('workspace_id', form_id),
+        'queue.form_draft_all.updateQuestionStatus',
       );
 
       results.push({
@@ -332,8 +332,8 @@ export async function runBidDraftAllJob(
       });
     } catch (draftErr) {
       logger.error(
-        { err: draftErr, bid_id, question_id: question.id },
-        `bid_draft_all handler: per-question draft failed`,
+        { err: draftErr, form_id, question_id: question.id },
+        `form_draft_all handler: per-question draft failed`,
       );
       results.push({
         question_id: question.id,
@@ -364,7 +364,7 @@ export async function runBidDraftAllJob(
     const { count: undraftedCount } = await supabase
       .from('form_questions')
       .select('id', { count: 'exact', head: true })
-      .eq('workspace_id', bid_id)
+      .eq('workspace_id', form_id)
       .neq('confidence_posture', 'no_content')
       .not(
         'id',
@@ -389,8 +389,8 @@ export async function runBidDraftAllJob(
             updated_by: authContext.user_id,
             updated_at: new Date(Date.now()).toISOString(),
           })
-          .eq('id', bid_id),
-        'queue.bid_draft_all.transitionToInReview',
+          .eq('id', form_id),
+        'queue.form_draft_all.transitionToInReview',
       );
       procurementTransitioned = true;
     }

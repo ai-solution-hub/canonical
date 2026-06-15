@@ -7,8 +7,9 @@
  * `docs/plans/background-queue-infra-plan.md` §1 W2, §2 W2-A.
  *
  * Each §5.4.x candidate spec (5.4.1 / 5.4.2) adds its own `case`
- * dispatching to its own handler. As of S224 W4-IMPL the `bid_draft_all`
- * case is registered (per `docs/specs/§5.4.1-batch-draft-all-spec.md` §7.4).
+ * dispatching to its own handler. As of S224 W4-IMPL the `form_draft_all`
+ * case (formerly `bid_draft_all`, renamed under ID-71) is registered (per
+ * `docs/specs/§5.4.1-batch-draft-all-spec.md` §7.4).
  * (The §5.4.4 upload-markdown-batch case was removed by ID-46.11 — that
  * path is superseded by ID-56.12 folder-drop ingest.)
  *
@@ -80,7 +81,7 @@ export async function runJobByType(
   supabase: SupabaseClient<Database>,
 ): Promise<Record<string, unknown>> {
   switch (job.job_type as JobType) {
-    case 'bid_draft_all': {
+    case 'form_draft_all': {
       // -------------------------------------------------------------
       // 1. Validate envelope shape per spec §3.1 / §7.4.
       // -------------------------------------------------------------
@@ -94,7 +95,7 @@ export async function runJobByType(
 
       // -------------------------------------------------------------
       // 2. Re-validate auth context per spec §4.2 + PR-5 — required
-      //    role for `bid_draft_all` is `editor` (admins satisfy via
+      //    role for `form_draft_all` is `editor` (admins satisfy via
       //    `ROLE_RANK`).
       // -------------------------------------------------------------
       const auth = await reValidateAuthContext(
@@ -159,9 +160,9 @@ export async function runJobByType(
             `pipeline_runs UPDATE failed for ${payload.pipeline_run_id}: ${updateErr.message}`,
             {
               level: 'error',
-              tags: { pipeline: 'bid_draft_all' },
+              tags: { pipeline: 'form_draft_all' },
               extra: {
-                pipelineName: 'bid_draft_all',
+                pipelineName: 'form_draft_all',
                 pipelineRunId: payload.pipeline_run_id,
                 status,
                 errorMessage,
@@ -172,18 +173,18 @@ export async function runJobByType(
           // Replicates `recordPipelineRun`'s status-driven Sentry
           // alerting (failed → error, completed_with_errors → warning).
           Sentry.captureMessage(
-            `Pipeline bid_draft_all ${status}${
+            `Pipeline form_draft_all ${status}${
               errorMessage ? `: ${errorMessage}` : ''
             }`,
             {
               level: status === 'failed' ? 'error' : 'warning',
-              tags: { pipeline: 'bid_draft_all', status },
+              tags: { pipeline: 'form_draft_all', status },
               extra: {
-                pipelineName: 'bid_draft_all',
+                pipelineName: 'form_draft_all',
                 status,
                 errorMessage,
                 itemsProcessed: result.total_questions,
-                workspaceId: payload.body.bid_id,
+                workspaceId: payload.body.form_id,
               },
             },
           );

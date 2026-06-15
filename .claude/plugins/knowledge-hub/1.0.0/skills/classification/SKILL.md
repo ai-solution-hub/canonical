@@ -134,12 +134,12 @@ Each KB item is classified with one content type:
 | **note** | Short-form notes | Quick captures, meeting notes |
 | **research** | Research documents and findings | Market research, analysis |
 | **other** | Content that doesn't fit other categories | Miscellaneous |
-| **q_a_pair** | Question and answer pair with standard/advanced answers | Pre-approved bid responses |
-| **case_study** | Project case study with outcomes | Evidence for bid responses |
+| **q_a_pair** | Question and answer pair with standard/advanced answers | Pre-approved form responses |
+| **case_study** | Project case study with outcomes | Evidence for form responses |
 | **policy** | Organisational policy or procedure | Authority for compliance claims |
 | **certification** | Certification or accreditation record | Proof of compliance |
 | **compliance** | Compliance documentation | Regulatory evidence |
-| **methodology** | Methodology or approach description | Process evidence for bids |
+| **methodology** | Methodology or approach description | Process evidence for forms |
 | **capability** | Service or product capability statement | Capability evidence |
 | **product_description** | Product or service description | Marketing and technical detail |
 | **document** | Generic content item | General knowledge |
@@ -177,7 +177,7 @@ The AI classification system assigns a confidence score (0-1) to each classifica
 ### Handling Low Confidence
 
 When classification confidence is low:
-1. Read the actual content (use `get_content_item` tool)
+1. Read the actual content (use `get` tool)
 2. Check if the assigned domain/subtopic makes sense
 3. If incorrect, use `classify_content` to trigger reclassification
 4. If the content genuinely spans multiple domains, assign the primary domain and note in metadata
@@ -250,11 +250,11 @@ Does it span multiple domains?
 - Check the taxonomy (`kb://taxonomy`) before suggesting a domain — the available domains may differ from expectations
 - Recommend reclassification when content has been substantially edited, not after minor updates
 - Flag items with confidence <0.6 for human review rather than silently accepting
-- Use content type to inform evidence strength in bid responses (Q&A pairs > policies > case studies)
+- Use content type to inform evidence strength in form responses (Q&A pairs > policies > case studies)
 - Note when a subtopic might be a better fit than the current assignment, even if the domain is correct
 
 ## Related Skills
 
 - **@search-strategy** — How classification affects search filtering
 - **@content-governance** — How classification confidence affects quality flags
-- **@bid-writing** — How content types map to evidence strength in bid responses
+- **@completing-forms** — How content types map to evidence strength in form responses

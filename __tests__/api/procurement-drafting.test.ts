@@ -1179,9 +1179,9 @@ describe('POST /api/bids/:id/responses/draft-all (post-S224 §5.4.1 queued)', ()
     // Enqueue called with the right contract.
     expect(mockEnqueueQueueJob).toHaveBeenCalledTimes(1);
     const call = mockEnqueueQueueJob.mock.calls[0][0];
-    expect(call.jobType).toBe('bid_draft_all');
+    expect(call.jobType).toBe('form_draft_all');
     expect(call.body).toEqual({
-      bid_id: VALID_UUID,
+      form_id: VALID_UUID,
       model_tier: 'drafting', // schema default
       skip_existing: true, // schema default
     });
@@ -1190,10 +1190,10 @@ describe('POST /api/bids/:id/responses/draft-all (post-S224 §5.4.1 queued)', ()
       workspace_id: VALID_UUID,
     });
     // Idempotency key formula per spec §3.2:
-    // bid_draft_all:<procurementId>:<YYYY-MM-DD>:<requestHash>
+    // form_draft_all:<procurementId>:<YYYY-MM-DD>:<requestHash>
     expect(call.idempotencyKey).toMatch(
       new RegExp(
-        `^bid_draft_all:${VALID_UUID}:\\d{4}-\\d{2}-\\d{2}:[0-9a-f]{16}$`,
+        `^form_draft_all:${VALID_UUID}:\\d{4}-\\d{2}-\\d{2}:[0-9a-f]{16}$`,
       ),
     );
     expect(call.pipelineRunId).toBe(body.pipeline_run_id);
@@ -1221,7 +1221,7 @@ describe('POST /api/bids/:id/responses/draft-all (post-S224 §5.4.1 queued)', ()
     expect(body.status).toBe('queued');
     const call = mockEnqueueQueueJob.mock.calls[0][0];
     expect(call.body).toEqual({
-      bid_id: VALID_UUID,
+      form_id: VALID_UUID,
       model_tier: 'analysis',
       skip_existing: false,
     });

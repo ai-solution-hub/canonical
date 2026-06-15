@@ -75,7 +75,7 @@ vi.mock('@modelcontextprotocol/ext-apps/server', () => ({
 // Mock app-bundles (lazy loaded by registerResources)
 vi.mock('@/lib/mcp/app-bundles', () => ({
   COVERAGE_MATRIX_HTML: '',
-  BID_DASHBOARD_HTML: '',
+  FORM_DASHBOARD_HTML: '',
   REORIENT_ME_HTML: '',
 }));
 

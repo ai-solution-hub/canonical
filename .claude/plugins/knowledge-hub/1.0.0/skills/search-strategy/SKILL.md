@@ -16,8 +16,8 @@ Turn this:
 
 Into targeted searches:
 ```
-search_knowledge_base: "data protection services NHS" (semantic, domain: security)
-search_qa_library: "data protection NHS healthcare" (Q&A-specific)
+find: "data protection services NHS" (semantic, domain: security)
+find: "data protection NHS healthcare" (Q&A-specific)
 ```
 
 Then synthesise the results into a coherent answer with confidence assessment.
@@ -32,7 +32,7 @@ Classify the user's question to determine search strategy:
 |-----------|---------|----------|
 | **Factual** | "What is our ISO 27001 scope?" | Search Q&A library first, then general KB |
 | **Exploratory** | "What do we know about GDPR?" | Broad search across all types |
-| **Bid-specific** | "Evidence for data protection question" | Search Q&A library AND general KB in parallel |
+| **Form-specific** | "Evidence for data protection question" | Search Q&A library AND general KB in parallel |
 | **Coverage-oriented** | "Do we have content about cloud security?" | Dashboard summary + domain-filtered search |
 | **Compliance-related** | "Do we meet Cyber Essentials Plus?" | Search policies and certifications, then Q&A |
 | **Evidence-seeking** | "Case studies in healthcare sector" | Filter for case_study content type |
@@ -52,7 +52,7 @@ From the query, extract:
 
 | Signal words | Content type filter |
 |-------------|-------------------|
-| "Q&A", "standard answer", "bid answer" | q_a_pair |
+| "Q&A", "standard answer", "form answer" | q_a_pair |
 | "case study", "example", "evidence" | case_study |
 | "policy", "procedure" | policy |
 | "certification", "accreditation", "ISO" | certification |
@@ -137,16 +137,16 @@ Beyond similarity score, consider:
 
 ## Search Tool Selection
 
-### `search_knowledge_base` vs `search_qa_library`
+### `find` vs `find`
 
 | Use case | Tool | Reason |
 |----------|------|--------|
-| General topic search | `search_knowledge_base` | Searches all content types |
-| Standard bid answer | `search_qa_library` | Pre-approved Q&A pairs |
-| Comprehensive bid research | Both in parallel | Q&A for answers, general for evidence |
-| Policy lookup | `search_knowledge_base` | Policies are not Q&A pairs |
-| Case study search | `search_knowledge_base` | Case studies are not Q&A pairs |
-| "Do we have a standard answer for..." | `search_qa_library` | This is exactly what Q&A pairs are |
+| General topic search | `find` | Searches all content types |
+| Standard form answer | `find` | Pre-approved Q&A pairs |
+| Comprehensive form research | Both in parallel | Q&A for answers, general for evidence |
+| Policy lookup | `find` | Policies are not Q&A pairs |
+| Case study search | `find` | Case studies are not Q&A pairs |
+| "Do we have a standard answer for..." | `find` | This is exactly what Q&A pairs are |
 
 ### Pagination
 
@@ -181,7 +181,7 @@ If the first search yields poor results:
 1. **Rephrase**: Use different terminology for the same concept
 2. **Decompose**: Split a complex query into simpler sub-queries
 3. **Generalise**: Search for the parent topic, then scan results
-4. **Switch tool**: If `search_knowledge_base` returns nothing, try `search_qa_library` and vice versa
+4. **Switch tool**: If `find` returns nothing, try `find` and vice versa
 5. **Check coverage**: Run `/kb:coverage` to see if the domain has any content at all
 
 ### No Results Response
@@ -201,7 +201,7 @@ Suggestions:
 
 ## Common Search Patterns
 
-### Pattern: Bid Question Research
+### Pattern: Form Question Research
 
 ```
 Step 1: Search Q&A library for standard answer
@@ -219,7 +219,7 @@ Step 3: Check freshness distribution
 Step 4: Identify gaps and recommend content creation
 ```
 
-### Pattern: Pre-Bid Knowledge Assessment
+### Pattern: Pre-Form Knowledge Assessment
 
 ```
 Step 1: Extract key themes from tender document
@@ -231,5 +231,5 @@ Step 4: Prioritise content creation for gaps before deadline
 ## Related Skills
 
 - **@knowledge-synthesis** — How to combine search results into coherent answers
-- **@bid-writing** — How to use search results in bid responses
+- **@completing-forms** — How to use search results in form responses
 - **@classification** — Understanding the domain taxonomy used for filtering

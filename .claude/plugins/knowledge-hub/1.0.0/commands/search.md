@@ -58,7 +58,7 @@ If a file is referenced: @$1
 
 Analyse the search query to understand:
 
-- **Intent**: What is the user looking for? (a fact, a policy, evidence for a bid, a Q&A pair, a case study)
+- **Intent**: What is the user looking for? (a fact, a policy, evidence for a form, a Q&A pair, a case study)
 - **Content type signals**: References to specific types ("Q&A", "policy", "case study", "certification")
 - **Domain signals**: References to specific domains ("security", "compliance", "service delivery")
 - **Freshness signals**: Recency requirements ("current", "latest", "up to date")
@@ -70,34 +70,40 @@ Use the @search-strategy skill to classify the query type and determine the opti
 
 Based on the query analysis, decide:
 
-**Use `search_knowledge_base`** for:
+`find` is the single entry for all retrieval — search, Q&A lookup, section-level
+retrieval, and similar-item discovery. Shape the call with parameters rather than
+switching tools:
+
+**Plain `find`** (default) for:
 - General questions across all content types
 - Exploratory queries ("what do we know about...")
-- Domain-specific searches
-- Policy or procedure lookups
-- Case study searches
+- Domain-specific searches, policy or procedure lookups, case study searches
 
-**Use `search_qa_library`** for:
-- Questions that are likely answered by existing Q&A pairs
-- Bid-specific questions seeking standard answers
-- Queries containing "Q&A", "standard answer", "bid response"
+**`find` with `type: 'q_a_pair'`** for:
+- Questions likely answered by existing Q&A pairs
+- Form-specific questions seeking standard answers
+- Queries containing "Q&A", "standard answer", "form response"
 
-**Use both** when:
-- Drafting comprehensive bid responses (Q&A for the answer, general search for supporting evidence)
-- The user wants complete coverage of a topic
+**`find` with `granularity: 'chunk'`** when:
+- Drafting comprehensive form responses that need section-level breadcrumbs
+- The user wants complete coverage of a topic (run a broad `find`, then a
+  `type: 'q_a_pair'` pass for reusable answers)
 
-Apply domain filtering if the query clearly targets a specific domain.
+Apply `scope` domain filtering if the query clearly targets a specific domain.
 
 ### 3. Execute Search
 
 **If `~~knowledge base` connector is available:**
 
-Call `search_knowledge_base` with the query text and any applicable filters:
+Call `find` with the query text and any applicable filters:
 - `query` — the search query
 - `limit` — number of results (default 10, increase for broad queries)
-- `domain` — filter by primary domain if the query targets a specific area
+- `scope` — filter by primary domain if the query targets a specific area
+- `type` — e.g. `'q_a_pair'` to target reusable answers
+- `granularity` — `'item'` (default) or `'chunk'` for section-level retrieval
 
-If Q&A-specific, also call `search_qa_library` with the same query.
+For comprehensive coverage, run a plain `find` for supporting evidence and a
+second `find` with `type: 'q_a_pair'` for ready-made answers.
 
 **If no connector available:**
 
@@ -149,7 +155,7 @@ Key sources:
 - [Second most relevant source]
 ```
 
-**For bid-specific queries ("Evidence of similar projects"):**
+**For form-specific queries ("Evidence of similar projects"):**
 ```
 [Summary of available evidence]
 
@@ -203,7 +209,7 @@ These may be tangentially related. Consider:
 [Results]
 
 Note: [N] of these items are flagged as [stale/expired]. The information
-may be outdated and should be verified before use in a bid response.
+may be outdated and should be verified before use in a form response.
 ```
 
 ## Tips
@@ -211,6 +217,6 @@ may be outdated and should be verified before use in a bid response.
 - Always synthesise results into answers — do not present raw search result lists
 - Include source attribution so users can access the full item
 - When results span multiple domains, group by domain for clarity
-- For bid-related queries, always note the confidence level and whether sources are current
+- For form-related queries, always note the confidence level and whether sources are current
 - If only Q&A pairs are found, suggest searching the broader KB for supporting evidence
 - If only articles are found, suggest checking the Q&A library for standard answers

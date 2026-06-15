@@ -2,9 +2,9 @@
 name: daily-briefing
 description: >-
   Per-day operational stand-up aggregation. Surfaces what needs attention
-  today: review queue, active assignments, change reports, bid status, and
+  today: review queue, active assignments, change reports, form status, and
   sector intelligence highlights. Adapts output to the user's persona
-  (bid-writer, SI analyst, admin, marketing, sales). Use when the user says
+  (form-writer, SI analyst, admin, marketing, sales). Use when the user says
   "daily briefing", "start my day", "morning brief", "what's on my plate
   today", "stand up", "what do I need to do today", "morning update", or
   "daily update".
@@ -20,9 +20,9 @@ This skill is distinct from the `/kb:briefing` command, which serves a different
 
 Determine the user's persona before assembling the briefing. Use a three-tier fallback:
 
-1. **Explicit instruction.** The user says "as a bid writer" or "for sales" -- use directly.
-2. **Conversational inference.** If the user's recent messages or active tasks clearly indicate a role (editing bid responses = Rachel; reviewing SI feeds = James; triaging governance queue = Sarah; preparing case studies = Marketing; pipeline/deals = Sales), infer and continue.
-3. **Ambiguous / no context.** Ask once: "Which role shall I tailor this for? (bid writing / sector intelligence / admin / marketing / sales)" Then cache the answer for the conversation.
+1. **Explicit instruction.** The user says "as a form writer" or "for sales" -- use directly.
+2. **Conversational inference.** If the user's recent messages or active tasks clearly indicate a role (editing form responses = Rachel; reviewing SI feeds = James; triaging governance queue = Sarah; preparing case studies = Marketing; pipeline/deals = Sales), infer and continue.
+3. **Ambiguous / no context.** Ask once: "Which role shall I tailor this for? (form writing / sector intelligence / admin / marketing / sales)" Then cache the answer for the conversation.
 
 Always open output with the persona indicator so misdetection is visible and correctable:
 
@@ -32,22 +32,22 @@ Always open output with the persona indicator so misdetection is visible and cor
 
 ## Personas and Tool Sequences
 
-### Rachel (Bid Writer)
+### Rachel (Form Writer)
 
-Rachel's day starts with "what reviews are assigned to me?" followed by bid pipeline status.
+Rachel's day starts with "what reviews are assigned to me?" followed by form pipeline status.
 
 **Step 1 (parallel):**
-- `get_assignments_for_user(status: "active")`
-- `get_review_queue(status: "unverified", limit: 10)`
+- `whats_in_my_queue(status: "active")`
+- `whats_in_my_queue(status: "unverified", limit: 10)`
 
 **Step 2 (parallel):**
-- `list_active_bids(limit: 10)`
+- `list_active_procurement(limit: 10)`
 - `get_change_report(period_days: 7)`
 
 **Output sections (in order):**
 1. Active Assignments
 2. Review Queue (unverified items, limit 10)
-3. Bid Pipeline Status
+3. Form Pipeline Status
 4. Change Report (7 days)
 
 ---
@@ -67,8 +67,8 @@ Call `list_user_workspaces(type: "intelligence")` and resolve:
 - `get_change_report(period_days: 7)`
 
 **Step 2 (parallel):**
-- `get_governance_queue(limit: 10)`
-- `get_review_queue(status: "unverified", limit: 5)`
+- `whats_in_my_queue(limit: 10)`
+- `whats_in_my_queue(status: "unverified", limit: 5)`
 
 **Output sections (in order):**
 1. Intelligence Highlights
@@ -83,20 +83,20 @@ Call `list_user_workspaces(type: "intelligence")` and resolve:
 Admin sees the full operational picture across all reviewers.
 
 **Step 1 (parallel):**
-- `get_governance_queue(limit: 15)`
-- `get_review_queue(status: "all", limit: 15)`
-- `get_assignments_for_user(status: "active")`
+- `whats_in_my_queue(limit: 15)`
+- `whats_in_my_queue(status: "all", limit: 15)`
+- `whats_in_my_queue(status: "active")`
 
 **Step 2 (parallel):**
 - `get_change_report(period_days: 7)`
-- `list_active_bids(limit: 20)`
+- `list_active_procurement(limit: 20)`
 
 **Output sections (in order):**
 1. Governance Queue
 2. Review Queue (all statuses, limit 15)
 3. Active Assignments (all users -- admin privilege)
 4. Change Report (7 days)
-5. Bid Pipeline Status
+5. Form Pipeline Status
 
 ---
 
@@ -112,12 +112,12 @@ Same as James (see above). Call `list_user_workspaces(type: "intelligence")`. Re
 - `get_intelligence_summary(workspace_id: <resolved>, period: "7d", limit: 10)` (skip if no workspace resolved)
 
 **Step 2:**
-- `list_active_bids(limit: 10)` -- show only won/completed bids relevant to marketing collateral
+- `list_active_procurement(limit: 10)` -- show only won/completed forms relevant to marketing collateral
 
 **Output sections (in order):**
 1. Change Report (keyword-filtered to marketing content types)
 2. Intelligence Highlights (if workspace available)
-3. Bid Pipeline (won status only)
+3. Form Pipeline (won status only)
 
 > Richer Marketing-specific tools (asset pipeline, campaign metrics, case-study generation) are deferred to H2 -- tracked as backlog OPS-25.
 
@@ -129,7 +129,7 @@ Sales persona delegates to the Anthropic `sales:daily-briefing` skill for CRM/ca
 
 **Step 1 (parallel):**
 - `get_change_report(period_days: 1)`
-- `list_active_bids(limit: 10)`
+- `list_active_procurement(limit: 10)`
 
 **Step 2 -- Delegation:**
 After rendering the KB supplement sections, invoke the `sales:daily-briefing` skill **by explicit skill name** (not by trigger phrase -- this avoids routing ambiguity since both skills share trigger phrases like "start my day").
@@ -146,14 +146,14 @@ Then invoke the skill by name.
 
 **If `sales:daily-briefing` skill is NOT available (Anthropic plugin not installed):**
 Produce a KB-only Sales aggregation with Sales-oriented framing:
-1. Bid Pipeline (active bids first)
+1. Form Pipeline (active forms first)
 2. Change Report (last 24h)
 3. Review Queue summary (count only)
 
 Include a one-line note: "Install the Sales plugin for full CRM/calendar/pipeline coverage."
 
 **Output sections (in order):**
-1. KB Supplement: Change Report (24h) + Bid Pipeline
+1. KB Supplement: Change Report (24h) + Form Pipeline
 2. CRM & Pipeline (delegated to `sales:daily-briefing`, or KB-only fallback)
 
 ---
@@ -180,13 +180,13 @@ All personas receive markdown structured as:
 3. **[Action]** -- [why]
 
 ---
-[N] review items | [N] active bids | [N] changes (7d) | [N] assignments
+[N] review items | [N] active forms | [N] changes (7d) | [N] assignments
 ```
 
 ### Constraints
 
 - Use UK date format (DD/MM/YYYY) throughout.
-- Recommended Actions capped at 5, urgency-sorted. Synthesise from aggregated data (e.g. "Bid X deadline in 2 days with 4 unanswered questions").
+- Recommended Actions capped at 5, urgency-sorted. Synthesise from aggregated data (e.g. "Form X deadline in 2 days with 4 unanswered questions").
 - Sections render in persona-specific priority order as documented above.
 - Footer always shows counts (0 where applicable).
 
@@ -197,7 +197,7 @@ All personas receive markdown structured as:
 | No review queue items | Omit section. Footer: "Review queue: clear" |
 | No active assignments | Omit section. Footer: "No active assignments" |
 | No change report items | Header + "No content changes in the last 7 days" |
-| No active bids | Omit section. Footer: "No active bids" |
+| No active forms | Omit section. Footer: "No active forms" |
 | No intelligence highlights | Omit section. Footer: "No recent intelligence signals" |
 | No governance items | Omit section. Footer: "Governance queue: clear" |
 | All sections empty | "Nothing requires your attention today. Your KB is in good shape." + suggest `/kb:coverage` for a deeper check. |
@@ -210,11 +210,11 @@ Empty sections are omitted from the body; the footer always shows counts.
 |------|----------|---------|
 | `list_user_workspaces` | James, Marketing | Resolve intelligence workspace before calling `get_intelligence_summary` |
 | `get_intelligence_summary` | James, Marketing | Sector intelligence highlights for a single workspace |
-| `get_review_queue` | Rachel, James, Sarah | Items pending content review |
-| `get_assignments_for_user` | Rachel, Sarah | Review assignments (active/completed) |
+| `whats_in_my_queue` | Rachel, James, Sarah | Items pending content review |
+| `whats_in_my_queue` | Rachel, Sarah | Review assignments (active/completed) |
 | `get_change_report` | All | Recent KB additions, updates, removals |
-| `list_active_bids` | Rachel, Sarah, Marketing, Sales | Active bid pipeline status |
-| `get_governance_queue` | James, Sarah | Items pending governance review |
+| `list_active_procurement` | Rachel, Sarah, Marketing, Sales | Active form pipeline status |
+| `whats_in_my_queue` | James, Sarah | Items pending governance review |
 
 ## Related Skills and Commands
 

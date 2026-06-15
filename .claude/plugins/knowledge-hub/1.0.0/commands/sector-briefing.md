@@ -58,8 +58,8 @@ Extract the domain key from `$ARGUMENTS`. If no domain was supplied, ask the use
 Which domain should this briefing cover? Common values:
 - audit-content
 - social-housing-compliance
-- ai-bids
-- bid-management
+- ai-forms
+- form-management
 
 (Or any other domain key configured in this workspace.)
 ```
@@ -73,11 +73,11 @@ If a second argument is supplied and parses as an integer, use it as the look-ba
 Invoke the `sector_briefing` MCP prompt with `domain` = the parsed argument and `period_days` = the parsed window. The prompt template will direct you through the tool sequence:
 
 1. `list_guides(domain_filter: <domain>, published_only: true)` — guide catalogue
-2. `search_knowledge_base(query: <domain>, domain: <domain>, limit: 10)` — KB items
-3. `search_qa_library(query: <domain>, limit: 5)` — Q&A pairs
+2. `find(query: <domain>, domain: <domain>, limit: 10)` — KB items
+3. `find(query: <domain>, limit: 5)` — Q&A pairs
 4. `get_intelligence_summary(period: <N>d, limit: 15)` — SI feed highlights, filter to the domain
 5. `get_change_report(period_days: <N>, domain: <domain>)` — what changed in the period
-6. `get_governance_queue(limit: 10)` — pending review items, filter to the domain
+6. `whats_in_my_queue(limit: 10)` — pending review items, filter to the domain
 
 Use the `@content-governance` skill for freshness framing and the `@search-strategy` skill for KB querying.
 
@@ -101,7 +101,7 @@ Alternatively, paste the following and I'll compose the briefing manually:
 Two of the referenced tools ship later in the same release train:
 
 - `get_change_report` — registered by WP6 (P1-35). If not yet available, note "Change report tool not yet available — skipping the period change summary" and proceed with the remaining data sources.
-- `get_governance_queue` — registered by WP3 (P0-23). If not yet available, note "Governance queue tool not yet available — skipping governance review section" and proceed.
+- `whats_in_my_queue` — registered by WP3 (P0-23). If not yet available, note "Governance queue tool not yet available — skipping governance review section" and proceed.
 
 If `get_intelligence_summary` requires a `workspace_id` parameter and none is provided, call it once per active workspace and merge results, or prompt the user for the relevant workspace.
 
@@ -142,4 +142,4 @@ Conclude with 2-4 prioritised actions grounded in the four data sources. Example
 - Frame dates as days elapsed for recency, absolute DD/MM/YYYY for deadlines.
 - If the domain has no content (`content_count = 0`), surface that as the top recommendation: "No KB content exists for this domain yet. Consider running `/kb:coverage` to identify gaps."
 - If no SI signals arrived in the period, suggest `/kb:briefing` for broader account-level context.
-- For a wider pipeline view not scoped to one domain, use `/kb:briefing` (whole-account reorient) or `/kb:bid-status` (active bids).
+- For a wider pipeline view not scoped to one domain, use `/kb:briefing` (whole-account reorient) or `/kb:form-status` (active forms).

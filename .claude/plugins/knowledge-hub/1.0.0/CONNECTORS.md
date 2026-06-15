@@ -6,7 +6,7 @@ Plugin files use `~~category` as a placeholder for whatever tool the user connec
 
 Plugins are **tool-agnostic** — they describe workflows in terms of categories rather than specific products. The `.mcp.json` pre-configures the Knowledge Hub MCP server, but the commands and skills work with any connected tools.
 
-This plugin uses `~~knowledge base` as its primary connector. Unlike enterprise search plugins that aggregate across many tools, this plugin provides deep access to a single, structured knowledge base purpose-built for UK bid management.
+This plugin uses `~~knowledge base` as its primary connector. Unlike enterprise search plugins that aggregate across many tools, this plugin provides deep access to a single, structured knowledge base purpose-built for UK form management.
 
 ## Connectors for this plugin
 
@@ -30,10 +30,10 @@ The Knowledge Hub MCP server exposes 54 tools, 12 resources, and 7 prompts for a
 | 6 | `get_reorientation` | Personal briefing on what changed and what needs attention | Any |
 | 7 | `get_freshness_report` | Content freshness breakdown | Any |
 | 8 | `get_expiring_content` | Content expiring within a given window | Any |
-| 9 | `list_active_bids` | Active bids with status, progress, and deadlines | Any |
-| 10 | `get_bid_detail` | Bid with questions, responses, progress, and gaps | Any |
-| 11 | `get_bid_question` | Specific question with response and confidence posture | Any |
-| 12 | `cite_content` | Record that a content item was used in a bid response | Editor+ |
+| 9 | `list_active_procurement` | Active forms with status, progress, and deadlines | Any |
+| 10 | `get_procurement_detail` | Form with questions, responses, progress, and gaps | Any |
+| 11 | `get_form_question` | Specific question with response and confidence posture | Any |
+| 12 | `cite_content` | Record that a content item was used in a form response | Editor+ |
 | 13 | `get_content_effectiveness` | Get win rate stats for a content item | Any |
 | 14 | `get_content_item` | Retrieve a specific content item by ID | Any |
 | 15 | `create_content_item` | Create a new KB content item | Editor+ |
@@ -58,7 +58,7 @@ The Knowledge Hub MCP server exposes 54 tools, 12 resources, and 7 prompts for a
 | 34 | `get_template_coverage` | Template coverage analysis | Any |
 | 35 | `get_template_gaps` | Template gap analysis | Any |
 | 36 | `show_coverage_matrix` | Interactive coverage matrix app (app trigger) | Any |
-| 37 | `show_bid_dashboard` | Interactive bid dashboard app (app trigger) | Any |
+| 37 | `show_procurement_dashboard` | Interactive form dashboard app (app trigger) | Any |
 | 38 | `show_reorient_me` | Interactive reorientation app (app trigger) | Any |
 | 39 | `show_intelligence_feed` | Interactive intelligence feed app (app trigger) | Any |
 | 40 | `delete_content_item` | Delete or archive a content item | Admin |
@@ -82,7 +82,7 @@ The Knowledge Hub MCP server exposes 54 tools, 12 resources, and 7 prompts for a
 | URI | Description |
 |-----|-------------|
 | `kb://items/{id}` | Full content item with metadata |
-| `kb://bids/{id}` | Bid workspace with questions and responses |
+| `kb://forms/{id}` | Form workspace with questions and responses |
 | `kb://qa/{id}` | Q&A pair with standard/advanced answers |
 | `kb://coverage` | Current taxonomy coverage state |
 | `kb://dashboard` | Current dashboard state |
@@ -90,7 +90,7 @@ The Knowledge Hub MCP server exposes 54 tools, 12 resources, and 7 prompts for a
 | `kb://entities` | Entity overview with types, counts, and top entities |
 | `kb://quality-briefing` | Aggregated quality intelligence briefing |
 | `ui://coverage-matrix/app.html` | Coverage Matrix MCP App (interactive UI) |
-| `ui://bid-dashboard/app.html` | Bid Dashboard MCP App (interactive UI) |
+| `ui://form-dashboard/app.html` | Form Dashboard MCP App (interactive UI) |
 | `ui://reorient-me/app.html` | Reorient Me MCP App (interactive UI) |
 | `ui://intelligence-feed/app.html` | Intelligence Feed MCP App (interactive UI) |
 
@@ -99,12 +99,12 @@ The Knowledge Hub MCP server exposes 54 tools, 12 resources, and 7 prompts for a
 | Prompt | Description |
 |--------|-------------|
 | `reorient` | What has changed since I was last active? |
-| `bid_briefing` | Give me a briefing on a specific bid |
+| `form_briefing` | Give me a briefing on a specific form |
 | `coverage_analysis` | Analyse coverage gaps and suggest content to create |
-| `draft_response` | Draft a response to a bid question |
+| `draft_response` | Draft a response to a form question |
 | `review_item` | Review a content item for quality |
 | `sector_briefing` | Domain-scoped sector intelligence briefing |
-| `bid_pipeline_review` | Pipeline-wide bid action review |
+| `form_pipeline_review` | Pipeline-wide form action review |
 
 ## Connecting
 

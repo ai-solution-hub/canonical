@@ -1,6 +1,6 @@
 # Knowledge Hub
 
-A knowledge base plugin primarily designed for [Cowork](https://claude.com/product/cowork), Anthropic's agentic desktop application — though it also works in Claude Code. Search your knowledge base, manage bids, and draft responses with full access to articles, policies, case studies, Q&A pairs, and more — all organised by domain with quality tracking and freshness monitoring.
+A knowledge base plugin primarily designed for [Cowork](https://claude.com/product/cowork), Anthropic's agentic desktop application — though it also works in Claude Code. Search your knowledge base, manage forms, and draft responses with full access to articles, policies, case studies, Q&A pairs, and more — all organised by domain with quality tracking and freshness monitoring.
 
 > **Note:** This plugin is not yet available in the Cowork registry. Install locally via manual connector setup (see [Getting Started](#getting-started) below).
 
@@ -8,7 +8,7 @@ A knowledge base plugin primarily designed for [Cowork](https://claude.com/produ
 
 ## How It Works
 
-Knowledge Hub connects Claude to your structured knowledge base. Ask questions about your content, get briefings on active bids, draft responses to tender questions, and monitor the health of your knowledge base — all through natural conversation.
+Knowledge Hub connects Claude to your structured knowledge base. Ask questions about your content, get briefings on active forms, draft responses to tender questions, and monitor the health of your knowledge base — all through natural conversation.
 
 ```
 You: "What do we say about our ISO 27001 certification?"
@@ -20,7 +20,7 @@ You: "What do we say about our ISO 27001 certification?"
 "Your ISO 27001 certification was achieved in 2023 and covers
  all information processing facilities. The standard answer
  highlights annual surveillance audits and continuous improvement
- through the ISMS. Here are the key points for bid responses..."
+ through the ISMS. Here are the key points for form responses..."
 ```
 
 One query. Full context. Ready-to-use answers.
@@ -34,10 +34,10 @@ Every command works in two modes. Without the connector, you provide context and
 | Feature | Standalone | Supercharged (with connector) |
 |---------|-----------|-------------------------------|
 | **Search** | You paste content; Claude applies search strategy and synthesis | Claude searches live KB with semantic + keyword hybrid search |
-| **Briefing** | You describe priorities; Claude organises and prioritises | Claude pulls reorientation data, bid status, and freshness alerts |
-| **Bid Status** | You share bid details; Claude ranks urgency and identifies gaps | Claude fetches live bid data with question-level progress |
+| **Briefing** | You describe priorities; Claude organises and prioritises | Claude pulls reorientation data, form status, and freshness alerts |
+| **Form Status** | You share form details; Claude ranks urgency and identifies gaps | Claude fetches live form data with question-level progress |
 | **Coverage** | You describe your KB; Claude analyses gaps | Claude pulls dashboard, freshness, and quality data automatically |
-| **Draft Response** | You paste source material; Claude drafts with bid writing best practice | Claude searches KB and Q&A library, cites sources, scores confidence |
+| **Draft Response** | You paste source material; Claude drafts with form writing best practice | Claude searches KB and Q&A library, cites sources, scores confidence |
 | **Change Report** | You share recent changes; Claude categorises and prioritises | Claude generates change report from live dashboard and freshness data |
 | **Classification** | Claude advises on taxonomy based on description | Claude triggers AI classification via `classify_content` tool |
 | **Quality tracking** | Manual review guidance | Live freshness and quality data from KB |
@@ -52,7 +52,7 @@ The Knowledge Hub contains structured content organised by domain and subtopic:
 
 | Content Type | What it covers |
 |-------------|----------------|
-| **Q&A Pairs** | Standard and advanced answers to common bid questions |
+| **Q&A Pairs** | Standard and advanced answers to common form questions |
 | **Articles** | In-depth knowledge base articles |
 | **Policies** | Organisational policies and procedures |
 | **Case Studies** | Project examples with outcomes and evidence |
@@ -71,9 +71,9 @@ Each item is classified into a domain taxonomy, tracked for freshness, and score
 |---------|--------------|
 | `/kb:search` | Search the knowledge base using semantic and keyword search |
 | `/kb:briefing` | Get a reorientation briefing on what changed and what needs attention |
-| `/kb:bid-status` | Overview of active bids with progress, gaps, and deadlines |
+| `/kb:form-status` | Overview of active forms with progress, gaps, and deadlines |
 | `/kb:coverage` | Analyse coverage gaps and identify thin domains |
-| `/kb:draft-response` | Draft a bid response using KB content with citations |
+| `/kb:draft-response` | Draft a form response using KB content with citations |
 | `/kb:change-report` | Generate a change report of recent KB changes and activity |
 
 ### Search
@@ -92,16 +92,16 @@ Searches across all content types using hybrid semantic + keyword search. Result
 /kb:briefing
 ```
 
-Get a personalised briefing covering urgent items needing attention, recent team activity, your recent work, and active bid status. Ideal for starting your day or returning after time away.
+Get a personalised briefing covering urgent items needing attention, recent team activity, your recent work, and active form status. Ideal for starting your day or returning after time away.
 
-### Bid Status
+### Form Status
 
 ```
-/kb:bid-status
-/kb:bid-status NHS Digital Framework
+/kb:form-status
+/kb:form-status NHS Digital Framework
 ```
 
-See all active bids sorted by urgency, or focus on a specific bid. Shows question completion progress, response gaps, confidence postures, and upcoming deadlines.
+See all active forms sorted by urgency, or focus on a specific form. Shows question completion progress, response gaps, confidence postures, and upcoming deadlines.
 
 ### Coverage
 
@@ -138,7 +138,7 @@ Five skills power the Knowledge Hub experience:
 
 **Search Strategy** — Query decomposition for hybrid search. Classifies query types, determines whether to use semantic or keyword search, applies domain filters, and interprets similarity scores.
 
-**Bid Writing** — UK public procurement bid writing guidance. Covers PQQ/ITT conventions, response structure, confidence postures, word limit management, and evidence-backed writing with measurable outcomes. See [QUICKREF.md](skills/bid-writing/QUICKREF.md) for a compact reference card.
+**Form Writing** — UK public procurement form writing guidance. Covers PQQ/ITT conventions, response structure, confidence postures, word limit management, and evidence-backed writing with measurable outcomes. See [QUICKREF.md](skills/completing-forms/QUICKREF.md) for a compact reference card.
 
 **Knowledge Synthesis** — Combines multiple KB sources into coherent responses. Handles deduplication, citation formatting, confidence assessment based on source freshness, and strategies for different result set sizes.
 
@@ -150,7 +150,7 @@ Five skills power the Knowledge Hub experience:
 
 ## Example Workflows
 
-### Preparing a bid response
+### Preparing a form response
 
 ```
 You: /kb:draft-response "Describe your organisation's approach to
@@ -173,11 +173,11 @@ You: /kb:briefing
 
 Claude checks:
   ~~knowledge base -> Reorientation data
-  ~~knowledge base -> Active bids and deadlines
+  ~~knowledge base -> Active forms and deadlines
   ~~knowledge base -> Items needing attention
 
 Result: "3 items need review (2 stale, 1 quality flag).
-        The NHS Framework bid has 4 unanswered questions
+        The NHS Framework form has 4 unanswered questions
         with a deadline in 6 days. 12 new items were added
         since your last visit."
 ```
@@ -200,7 +200,7 @@ Result: Breakdown by domain showing item counts, freshness
 ### Classifying new content
 
 ```
-You: I've just added 15 new Q&A pairs from the latest bid library
+You: I've just added 15 new Q&A pairs from the latest form library
      import. Can you help classify them?
 
 Claude:
@@ -219,10 +219,10 @@ You: /kb:change-report --weekly
 
 Claude checks:
   ~~knowledge base -> Freshness report shows 8 items moved to stale
-  ~~knowledge base -> 3 of those are in domains used by active bids
+  ~~knowledge base -> 3 of those are in domains used by active forms
 
 Result: Prioritised list of stale items, grouped by impact.
-        Bid-critical items flagged first with specific
+        Form-critical items flagged first with specific
         recommendations: update, archive, or verify.
 ```
 
@@ -271,6 +271,6 @@ Without the connector, commands still work — you provide context manually, and
 
 ## Philosophy
 
-Bid teams spend hours hunting for the right answer — digging through old documents, previous bids, and shared drives. The answer exists somewhere, but finding it and knowing it's current takes time.
+Form teams spend hours hunting for the right answer — digging through old documents, previous forms, and shared drives. The answer exists somewhere, but finding it and knowing it's current takes time.
 
 Knowledge Hub treats your organisational knowledge as a structured, searchable, quality-tracked resource. One question, authoritative answers, with confidence scoring so you know what to trust. Your knowledge base should work for you, not the other way around.
