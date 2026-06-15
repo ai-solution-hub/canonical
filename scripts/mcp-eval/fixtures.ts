@@ -80,22 +80,29 @@ export function loadEnv(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Canonical lists — 53 tools after S357 Wave-1 surface consolidation:
+// Canonical lists — 46 tools after S357 Wave-1 surface consolidation:
 // ID-71.7 (M27/B-INV-27) collapsed the search trio (search_knowledge_base /
 // search_qa_library / search_content_chunks) + find_similar_items into ONE `find`
 // entry; ID-71.10 (M32) collapsed get_content_item+get_content_items → `get` and
 // assign_content_owner+bulk_assign_owner → `assign`. find_duplicate_candidates
 // retained (dedup consolidation is a later slice). 58 → 53.
+// ID-71.8 (M29/M4, B-INV-4/29) collapsed the 8 exposure reads
+// (get_freshness_report, get_expiring_content, get_coverage_gaps, audit_content,
+// get_quality_summary, get_quality_briefing, get_quality_actions,
+// get_certification_status) into ONE `where_are_we_exposed` five-layer entry;
+// suggest_content_creation KEPT as the resolution affordance. 53 → 46 (−8 +1).
 // ---------------------------------------------------------------------------
 
-/** Canonical set of all 53 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
+/** Canonical set of all 46 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
 export const CANONICAL_TOOL_NAMES = [
   // ID-71.7 — ONE consolidated find/answer entry (search + QA + chunk + similar).
   'find', // 1
   'get_dashboard_summary', // 4
   'get_reorientation', // 5
-  'get_freshness_report', // 6
-  'get_expiring_content', // 7
+  // ID-71.8 — ONE consolidated five-layer exposure entry (was get_freshness_report,
+  // get_expiring_content, get_coverage_gaps, audit_content, get_quality_summary,
+  // get_quality_briefing, get_quality_actions, get_certification_status).
+  'where_are_we_exposed',
   'list_active_procurement', // 8
   'get_procurement_detail', // 9
   'get_bid_question', // 10
@@ -108,17 +115,11 @@ export const CANONICAL_TOOL_NAMES = [
   'assign', // 17 (ID-71.10 — one-or-many; was assign_content_owner + bulk_assign_owner)
   'get_document_versions', // 18
   'get_document_diff', // 19
-  'get_quality_summary', // 22
-  'get_coverage_gaps', // 23
-  'audit_content', // 24
   'find_all_duplicates', // 25
-  'suggest_content_creation', // 26
-  'get_quality_briefing', // 27
-  'get_quality_actions', // 28
+  'suggest_content_creation', // 26 (KEPT — ID-71.8 resolution affordance, B-INV-4)
   'classify_content', // 29
   'generate_summary', // 30
   'get_entity_relationships', // 31
-  'get_certification_status', // 32
   'list_templates', // 33
   'get_template_coverage', // 34
   'get_template_gaps', // 35
@@ -154,7 +155,7 @@ export const CANONICAL_TOOL_NAMES = [
   'find_duplicate_candidates',
 ] as const;
 
-export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 53
+export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 46 (ID-71.8: 53 − 8 + 1)
 
 /** Read-only tools (no side effects). */
 export const READ_ONLY_TOOLS = new Set([
@@ -162,23 +163,16 @@ export const READ_ONLY_TOOLS = new Set([
   'find_duplicate_candidates',
   'get_dashboard_summary',
   'get_reorientation',
-  'get_freshness_report',
-  'get_expiring_content',
+  'where_are_we_exposed', // ID-71.8 — five-layer exposure consolidation
   'list_active_procurement',
   'get_procurement_detail',
   'get_bid_question',
   'get_content_effectiveness',
   'get', // ID-71.10 — one-or-many (was get_content_item + get_content_items)
   'get_workspace_items',
-  'get_quality_summary',
-  'get_coverage_gaps',
-  'audit_content',
   'find_all_duplicates',
   'suggest_content_creation',
-  'get_quality_briefing',
-  'get_quality_actions',
   'get_entity_relationships',
-  'get_certification_status',
   'list_templates',
   'get_template_coverage',
   'get_template_gaps',
@@ -551,18 +545,13 @@ export function getMinimalArgs(
         question_id:
           knownUUIDs.questionId ?? '00000000-0000-0000-0000-000000000000',
       };
-    case 'get_quality_summary':
-      return {};
-    case 'get_freshness_report':
+    case 'where_are_we_exposed':
+      // ID-71.8 — five-layer exposure consolidation; no args = whole-KB view.
       return {};
     case 'get_entity_relationships':
       return { entity_type: 'certification' };
     case 'get_content_effectiveness':
       return { content_item_id: knownUUIDs.contentItemId };
-    case 'get_coverage_gaps':
-      return {};
-    case 'audit_content':
-      return {};
     case 'find_duplicate_candidates':
       return { id: knownUUIDs.contentItemId };
     case 'get_workspace_items':
@@ -594,17 +583,9 @@ export function getMinimalArgs(
       return { template_name: 'Standard Selection Questionnaire' };
     case 'get_template_gaps':
       return { template_name: 'Standard Selection Questionnaire' };
-    case 'get_expiring_content':
-      return {};
-    case 'get_quality_briefing':
-      return {};
-    case 'get_quality_actions':
-      return {};
     case 'get_document_versions':
       return {};
     case 'get_document_diff':
-      return {};
-    case 'get_certification_status':
       return {};
 
     // Guide read tools

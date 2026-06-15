@@ -38,6 +38,11 @@ export {
   type ExpiringEntityMention,
   type ExpiringContentData,
   formatExpiringContent,
+  type ExposureResolution,
+  type ExposureLayerKey,
+  type ExposureLayer,
+  type WhereAreWeExposedData,
+  formatWhereAreWeExposed,
 } from './dashboard';
 export {
   type ProcurementQuestionSummary,

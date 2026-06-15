@@ -39,6 +39,88 @@ export interface ExpiringContentData {
 }
 
 // ---------------------------------------------------------------------------
+// where_are_we_exposed — five-layer exposure framing (ID-71.8, B-INV-4/29)
+//
+// One outcome-shaped read consolidating the former exposure / freshness /
+// coverage / quality / certification reads into the consumption framing:
+//   data you have → its quality → how you could use it today → the gaps →
+//   the opportunities.
+// Gaps and opportunities carry first-class suggested-resolution affordances
+// (B-INV-4) — each a callable tool + a ready-to-run prompt.
+// ---------------------------------------------------------------------------
+
+/**
+ * A first-class resolution affordance attached to a layer (B-INV-4). Points
+ * the caller at a callable tool ("Draft content for X" / "Discuss options for
+ * Y") rather than leaving a gap as an undifferentiated list entry.
+ */
+export interface ExposureResolution {
+  /** The MCP tool that resolves the gap (e.g. `suggest_content_creation`). */
+  tool: string;
+  /** A ready-to-run natural-language prompt for the caller. */
+  prompt: string;
+  /** Human label for the affordance. */
+  label: string;
+}
+
+/** Stable, ordered layer keys for the five-layer framing. */
+export type ExposureLayerKey =
+  | 'data'
+  | 'quality'
+  | 'use_today'
+  | 'gaps'
+  | 'opportunities';
+
+export interface ExposureLayer {
+  key: ExposureLayerKey;
+  /** Human-readable section heading. */
+  title: string;
+  /** One-line framing of what this layer answers. */
+  summary: string;
+  /** Bullet facts for the layer. */
+  facts: string[];
+  /** First-class resolutions (gaps / opportunities layers). */
+  resolutions?: ExposureResolution[];
+}
+
+export interface WhereAreWeExposedData {
+  /** The five layers, always in canonical order. */
+  layers: ExposureLayer[];
+  generated_at: string;
+}
+
+/**
+ * Render the five-layer exposure framing as ordered Markdown. Layers always
+ * appear in canonical order; gaps/opportunities resolutions render as a
+ * "Suggested resolutions" sub-list so the affordance is visible to humans.
+ */
+export function formatWhereAreWeExposed(data: WhereAreWeExposedData): string {
+  const lines: string[] = ['# Where are we exposed?', ''];
+
+  for (const layer of data.layers) {
+    lines.push(`## ${layer.title}`);
+    lines.push('');
+    lines.push(layer.summary);
+    lines.push('');
+    if (layer.facts.length > 0) {
+      for (const fact of layer.facts) {
+        lines.push(`- ${fact}`);
+      }
+      lines.push('');
+    }
+    if (layer.resolutions && layer.resolutions.length > 0) {
+      lines.push('**Suggested resolutions:**');
+      for (const res of layer.resolutions) {
+        lines.push(`- ${res.label} — \`${res.tool}\`: ${res.prompt}`);
+      }
+      lines.push('');
+    }
+  }
+
+  return lines.join('\n').trimEnd();
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard summary
 // ---------------------------------------------------------------------------
 
