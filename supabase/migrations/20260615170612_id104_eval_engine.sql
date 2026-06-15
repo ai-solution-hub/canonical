@@ -116,6 +116,12 @@ CREATE POLICY eval_touchpoints_delete_admin ON public.eval_touchpoints
   FOR DELETE TO authenticated
   USING (public.get_user_role() = 'admin');
 
+-- updated_at maintenance (T5): keep updated_at current when a contract change
+-- advances contract_version/registry_version. Reuses public.update_updated_at_column()
+-- from the squash baseline (reference_items precedent — 20260606121451_id75_reference_items_layer.sql).
+CREATE TRIGGER set_eval_touchpoints_updated_at BEFORE UPDATE ON public.eval_touchpoints
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
 -- =============================================================================
 -- M2 — eval_runs: uniform run results (T9/T10/T13) — FK → M1
 -- =============================================================================
