@@ -1,10 +1,10 @@
 /**
- * Unit tests for promoteCorpusExtractions — ID-59 {59.22} + {59.23}
+ * Unit tests for promoteCorpusExtractions — ID-59 {59.22} + {59.23} + {59.24}
  *
  * Spec: specs/id-59-concurrent-edit-intent-arbitration/TECH-qa-corpus-promotion.md
- *       R1 steps 1, 2, 3, 4, 5
+ *       R1 steps 1, 2, 3, 4, 5, 6, 7
  * Product invariants tested: INV-1, INV-3, INV-4, INV-5, INV-6, INV-7, INV-8,
- *                            INV-10, INV-11, INV-12 + INV-23 equation
+ *                            INV-9, INV-10, INV-11, INV-12 + INV-23 equation
  *
  * Tests verify OBSERVABLE BEHAVIOUR via the returned PromotionSummary and
  * the mock Supabase calls made — NOT implementation internals.
@@ -589,5 +589,342 @@ describe('promoteCorpusExtractions — {59.23} embed-decouple + self-heal (OQ-3)
     // INV-23 still holds: 1 - 1 = 0 published this run
     expect(result.promoted - result.embed_failed).toBe(0);
     // batch does not throw
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test suite — {59.24} OQ-2 active retirement pass (R1 step 6)
+// ---------------------------------------------------------------------------
+
+const UUID_OLD_PAIR = '00000000-0000-4000-a000-000000000010';
+const UUID_NEW_PAIR_REPLACEMENT = '00000000-0000-4000-a000-000000000011';
+const UUID_SOURCE_ITEM = '00000000-0000-4000-a000-000000000020';
+const UUID_INVALIDATED_EXTRACTION = '00000000-0000-4000-a000-000000000030';
+const UUID_LIVE_EXTRACTION = '00000000-0000-4000-a000-000000000031';
+
+/**
+ * Build a retirement candidate row (invalidated extraction whose promoted pair
+ * is still published) in the shape returned by the embed PostgREST query.
+ */
+function makeRetirementCandidate(
+  overrides: {
+    id?: string;
+    source_content_item_id?: string | null;
+    promoted_to_pair_id?: string;
+  } = {},
+) {
+  const pairId = overrides.promoted_to_pair_id ?? UUID_OLD_PAIR;
+  return {
+    id: overrides.id ?? UUID_INVALIDATED_EXTRACTION,
+    source_content_item_id:
+      overrides.source_content_item_id !== undefined
+        ? overrides.source_content_item_id
+        : UUID_SOURCE_ITEM,
+    promoted_to_pair_id: pairId,
+    // Shape returned by PostgREST embed: q_a_pairs!promoted_to_pair_id
+    'q_a_pairs!promoted_to_pair_id': {
+      id: pairId,
+      publication_status: 'published',
+    },
+  };
+}
+
+describe('promoteCorpusExtractions — {59.24} OQ-2 active retirement pass', () => {
+  let supabase: MockSupabaseClient;
+
+  beforeEach(() => {
+    supabase = createMockSupabaseClient();
+    vi.clearAllMocks();
+    mockGenerateEmbedding.mockResolvedValue(STUB_EMBEDDING);
+  });
+
+  // -------------------------------------------------------------------------
+  // Retirement scenario 1: invalidated promoted extraction + live replacement
+  // for the same source_content_item_id → old pair archived WITH superseded_by.
+  //
+  // Mock call order (promote loop produces nothing; retirement pass runs):
+  //   RPC → [] (no promote candidates)
+  //   then #1 → retirement candidates (one row with embedded published pair)
+  //   then #2 → replacement lookup (live extraction with new pair id)
+  //   then #3 → archive UPDATE (1 row affected)
+  //   then #4 → second-pass candidates (empty → loop exits)
+  // -------------------------------------------------------------------------
+  it('{59.24} Scenario 1: invalidated+promoted pair has live replacement → archived with superseded_by, retired===1', async () => {
+    // Promote loop: no candidates
+    supabase.rpc.mockResolvedValueOnce({ data: [], error: null });
+
+    // Retirement pass — iter 1:
+    // then #1: candidate query (embed path) → one candidate
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [makeRetirementCandidate()],
+          error: null,
+        }),
+    );
+
+    // then #2: replacement lookup → live extraction with new pair
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [{ promoted_to_pair_id: UUID_NEW_PAIR_REPLACEMENT }],
+          error: null,
+        }),
+    );
+
+    // then #3: archive UPDATE → 1 row affected (success)
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: UUID_OLD_PAIR }], error: null }),
+    );
+
+    // Retirement pass — iter 2 (loop-until-dry check):
+    // then #4: candidate query → empty (no more published+invalidated pairs)
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    const result = await promoteCorpusExtractions(supabase);
+
+    // Summary: retirement counted correctly
+    expect(result.retired).toBe(1);
+    expect(result.retired_no_replacement).toBe(0);
+
+    // Promote loop was idle
+    expect(result.promoted).toBe(0);
+    expect(result.considered).toBe(0);
+
+    // Archive UPDATE must carry BOTH superseded_by AND publication_status='archived'
+    const updateCalls = supabase._chain.update.mock.calls as Array<
+      [Record<string, unknown>]
+    >;
+    const archiveCall = updateCalls.find(
+      (call) => call[0]?.publication_status === 'archived',
+    );
+    expect(archiveCall).toBeDefined();
+    expect(archiveCall![0].superseded_by).toBe(UUID_NEW_PAIR_REPLACEMENT);
+    expect(archiveCall![0].publication_status).toBe('archived');
+  });
+
+  // -------------------------------------------------------------------------
+  // Retirement scenario 2: invalidated promoted extraction with NO live
+  // replacement → archived WITHOUT superseded_by, retired_no_replacement===1.
+  // "correct-but-missing over wrong-but-present" (OQ-2 ratified posture).
+  // -------------------------------------------------------------------------
+  it('{59.24} Scenario 2: invalidated+promoted pair with no replacement → archived superseded_by=null, retired_no_replacement===1', async () => {
+    // Promote loop: no candidates
+    supabase.rpc.mockResolvedValueOnce({ data: [], error: null });
+
+    // Retirement pass — iter 1:
+    // then #1: candidate query → one candidate
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [makeRetirementCandidate()],
+          error: null,
+        }),
+    );
+
+    // then #2: replacement lookup → empty (no live replacement)
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    // then #3: archive UPDATE → 1 row affected (success)
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: UUID_OLD_PAIR }], error: null }),
+    );
+
+    // Retirement pass — iter 2:
+    // then #4: candidate query → empty → loop exits
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    const result = await promoteCorpusExtractions(supabase);
+
+    expect(result.retired).toBe(0);
+    expect(result.retired_no_replacement).toBe(1);
+
+    // Archive UPDATE must have superseded_by === null
+    const updateCalls = supabase._chain.update.mock.calls as Array<
+      [Record<string, unknown>]
+    >;
+    const archiveCall = updateCalls.find(
+      (call) => call[0]?.publication_status === 'archived',
+    );
+    expect(archiveCall).toBeDefined();
+    expect(archiveCall![0].superseded_by).toBeNull();
+    expect(archiveCall![0].publication_status).toBe('archived');
+  });
+
+  // -------------------------------------------------------------------------
+  // Retirement scenario 3: source_content_item_id IS NULL → no replacement
+  // lookup possible → archived as retired_no_replacement (OQ-2 spec: sidecar
+  // extractions cannot be matched by source).
+  // -------------------------------------------------------------------------
+  it('{59.24} Scenario 3: source_content_item_id IS NULL → no replacement lookup, retired_no_replacement===1', async () => {
+    supabase.rpc.mockResolvedValueOnce({ data: [], error: null });
+
+    // Candidate with null source_content_item_id
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [makeRetirementCandidate({ source_content_item_id: null })],
+          error: null,
+        }),
+    );
+
+    // NO replacement lookup call expected (source_content_item_id IS NULL skips it)
+
+    // then #2: archive UPDATE → 1 row
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: UUID_OLD_PAIR }], error: null }),
+    );
+
+    // then #3: second-pass candidates → empty
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    const result = await promoteCorpusExtractions(supabase);
+
+    expect(result.retired).toBe(0);
+    expect(result.retired_no_replacement).toBe(1);
+
+    // Verify the replacement lookup was NOT called (no eq on source_content_item_id
+    // with a non-null value). We check that the update mock was called exactly once
+    // (archive only, no promote-loop updates).
+    expect(supabase._chain.update).toHaveBeenCalledTimes(1);
+    const archivePayload = (
+      supabase._chain.update.mock.calls[0] as [Record<string, unknown>]
+    )[0];
+    expect(archivePayload.superseded_by).toBeNull();
+  });
+
+  // -------------------------------------------------------------------------
+  // Retirement scenario 4: idempotency.
+  // Already-archived pairs (publication_status='archived') are not returned
+  // by the retirement candidate query (filter is publication_status='published').
+  // → retired===0, retired_no_replacement===0, no UPDATE fired.
+  // -------------------------------------------------------------------------
+  it('{59.24} Scenario 4 (idempotency): already-archived pair returns no candidates → retired===0, retired_no_replacement===0', async () => {
+    supabase.rpc.mockResolvedValueOnce({ data: [], error: null });
+
+    // Retirement candidate query returns empty (no published+invalidated pairs)
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    const result = await promoteCorpusExtractions(supabase);
+
+    expect(result.retired).toBe(0);
+    expect(result.retired_no_replacement).toBe(0);
+
+    // No archive UPDATE should have been fired
+    const updateCalls = supabase._chain.update.mock.calls as Array<
+      [Record<string, unknown>]
+    >;
+    const archiveCall = updateCalls.find(
+      (call) => call[0]?.publication_status === 'archived',
+    );
+    expect(archiveCall).toBeUndefined();
+  });
+
+  // -------------------------------------------------------------------------
+  // Retirement scenario 5: ordering proof — retirement runs AFTER the promote
+  // loop. A same-run promoted extraction creates its replacement pair BEFORE
+  // the retirement pass runs, so superseded_by can point at it.
+  //
+  // Setup: one live unlinked extraction (promote loop processes it) + one
+  // invalidated extraction for the same source_content_item_id.
+  // The retirement pass should find the just-promoted pair as the replacement.
+  // -------------------------------------------------------------------------
+  it('{59.24} Scenario 5 (ordering): replacement pair created in promote loop is available for superseded_by in retirement pass', async () => {
+    const liveExtraction = makeExtraction({
+      id: UUID_LIVE_EXTRACTION,
+      extracted_question_text: 'Updated procurement threshold?',
+      extracted_answer_text: 'The new threshold is £30,000.',
+      source_content_item_id: UUID_SOURCE_ITEM,
+    });
+
+    // RPC returns the live extraction as a promote candidate
+    supabase.rpc.mockResolvedValueOnce({ data: [liveExtraction], error: null });
+
+    // Promote loop: INSERT → new replacement pair
+    supabase._chain.single.mockResolvedValueOnce({
+      data: { id: UUID_NEW_PAIR_REPLACEMENT },
+      error: null,
+    });
+
+    // CAS → 1 row (success)
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: liveExtraction.id }], error: null }),
+    );
+
+    // Embed UPDATE → 1 row (success)
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: UUID_NEW_PAIR_REPLACEMENT }], error: null }),
+    );
+
+    // Retirement pass — iter 1:
+    // then #3: candidate query → the invalidated extraction with old published pair
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            makeRetirementCandidate({
+              id: UUID_INVALIDATED_EXTRACTION,
+              source_content_item_id: UUID_SOURCE_ITEM,
+              promoted_to_pair_id: UUID_OLD_PAIR,
+            }),
+          ],
+          error: null,
+        }),
+    );
+
+    // then #4: replacement lookup → finds the live extraction just promoted above
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [{ promoted_to_pair_id: UUID_NEW_PAIR_REPLACEMENT }],
+          error: null,
+        }),
+    );
+
+    // then #5: archive UPDATE → 1 row
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: UUID_OLD_PAIR }], error: null }),
+    );
+
+    // then #6: second-pass → empty
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    const result = await promoteCorpusExtractions(supabase);
+
+    // Promote loop ran first
+    expect(result.promoted).toBe(1);
+    expect(result.considered).toBe(1);
+
+    // Then retirement ran with the just-created replacement pair available
+    expect(result.retired).toBe(1);
+    expect(result.retired_no_replacement).toBe(0);
+
+    // Archive payload includes superseded_by = UUID_NEW_PAIR_REPLACEMENT
+    const updateCalls = supabase._chain.update.mock.calls as Array<
+      [Record<string, unknown>]
+    >;
+    const archiveCall = updateCalls.find(
+      (call) => call[0]?.publication_status === 'archived',
+    );
+    expect(archiveCall).toBeDefined();
+    expect(archiveCall![0].superseded_by).toBe(UUID_NEW_PAIR_REPLACEMENT);
   });
 });

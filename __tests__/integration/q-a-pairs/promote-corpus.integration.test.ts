@@ -1,8 +1,8 @@
 /**
- * Integration tests for promoteCorpusExtractions — ID-59 {59.22} + {59.23}
+ * Integration tests for promoteCorpusExtractions — ID-59 {59.22} + {59.23} + {59.24}
  *
  * Spec: specs/id-59-concurrent-edit-intent-arbitration/TECH-qa-corpus-promotion.md
- *       R1 steps 1, 2, 3, 4, 5, 7.
+ *       R1 steps 1, 2, 3, 4, 5, 6, 7.
  *
  * Scope:
  *   - Real CAS / idempotency / race proof against the staging Supabase instance.
@@ -121,6 +121,7 @@ async function seedExtraction(opts: {
   promotedToPairId?: string | null;
   invalidated?: boolean;
   answerText?: string | null;
+  sourceContentItemId?: string | null;
 }): Promise<string> {
   const payload: Database['public']['Tables']['q_a_extractions']['Insert'] = {
     extractor_kind: 'llm_extraction',
@@ -131,6 +132,7 @@ async function seedExtraction(opts: {
         : 'Test answer for corpus promotion.',
     promoted_to_pair_id: opts.promotedToPairId ?? null,
     invalidated_at: opts.invalidated ? new Date().toISOString() : null,
+    source_content_item_id: opts.sourceContentItemId ?? null,
   };
   const { data, error } = await db
     .from('q_a_extractions')
@@ -319,6 +321,98 @@ describe.skipIf(!RUN_INTEGRATION)(
 
       // embed_failed should be 0 for this run (embed succeeded)
       expect(summary.embed_failed).toBe(0);
+    }, 60_000);
+
+    // -----------------------------------------------------------------------
+    // Test 5 ({59.24} OQ-2 retirement — no replacement):
+    //   Seed an invalidated extraction linked to a published pair.
+    //   source_content_item_id is NULL (no FK needed; no replacement possible).
+    //   Run promoteCorpusExtractions → assert old pair becomes 'archived'
+    //   with superseded_by=NULL, retired_no_replacement===1.
+    //   Assert the {64.15} history trigger wrote a q_a_pair_history row.
+    // -----------------------------------------------------------------------
+    it('{59.24} OQ-2 retirement (no replacement): invalidated pair archived, history row written', async () => {
+      // Seed an already-published pair that should be retired
+      const oldPairId = await seedPair({ embedded: true });
+
+      // Seed an invalidated extraction linked to that published pair
+      // source_content_item_id=null → no replacement lookup possible
+      const invalidatedExtractionId = await seedExtraction({
+        promotedToPairId: oldPairId,
+        invalidated: true,
+        sourceContentItemId: null,
+      });
+
+      // Verify initial state
+      const { data: pairBefore } = await db
+        .from('q_a_pairs')
+        .select('publication_status, superseded_by')
+        .eq('id', oldPairId)
+        .single();
+      expect(pairBefore?.publication_status).toBe('published');
+      expect(pairBefore?.superseded_by).toBeNull();
+
+      const summary = await promoteCorpusExtractions(db);
+
+      // OQ-2 retirement: no replacement path
+      expect(summary.retired).toBe(0);
+      expect(summary.retired_no_replacement).toBeGreaterThanOrEqual(1);
+
+      // Old pair must be archived
+      const { data: pairAfter } = await db
+        .from('q_a_pairs')
+        .select('publication_status, superseded_by')
+        .eq('id', oldPairId)
+        .single();
+      expect(pairAfter?.publication_status).toBe('archived');
+      // No replacement → superseded_by stays NULL
+      expect(pairAfter?.superseded_by).toBeNull();
+
+      // The invalidated extraction still points at the old pair
+      const { data: ext } = await db
+        .from('q_a_extractions')
+        .select('promoted_to_pair_id, invalidated_at')
+        .eq('id', invalidatedExtractionId)
+        .single();
+      expect(ext?.promoted_to_pair_id).toBe(oldPairId);
+      expect(ext?.invalidated_at).not.toBeNull();
+
+      // {64.15} history trigger: assert a q_a_pair_history row was written
+      // for the publication_status transition on this pair.
+      const { data: historyRows } = await db
+        .from('q_a_pair_history')
+        .select('q_a_pair_id, changed_at')
+        .eq('q_a_pair_id', oldPairId)
+        .order('changed_at', { ascending: false })
+        .limit(1);
+      expect(historyRows).not.toBeNull();
+      expect(historyRows?.length).toBeGreaterThanOrEqual(1);
+    }, 60_000);
+
+    // -----------------------------------------------------------------------
+    // Test 6 ({59.24} OQ-2 retirement — idempotency):
+    //   Run once (archives the pair), run again → retired_no_replacement===0
+    //   on the second run (pair is already 'archived', not returned by the
+    //   publication_status='published' filter).
+    // -----------------------------------------------------------------------
+    it('{59.24} OQ-2 retirement idempotency: second run returns retired_no_replacement===0 for already-archived pair', async () => {
+      // Seed an invalidated extraction linked to a published pair
+      const oldPairId = await seedPair({ embedded: true });
+      await seedExtraction({
+        promotedToPairId: oldPairId,
+        invalidated: true,
+        sourceContentItemId: null,
+      });
+
+      // First run: retires the pair
+      const summary1 = await promoteCorpusExtractions(db);
+      expect(summary1.retired_no_replacement).toBeGreaterThanOrEqual(1);
+
+      // Second run: already-archived pair is excluded by the filter
+      const summary2 = await promoteCorpusExtractions(db);
+      // Must not double-retire the same pair
+      expect(summary2.retired).toBe(0);
+      expect(summary2.retired_no_replacement).toBe(0);
     }, 60_000);
   },
 );

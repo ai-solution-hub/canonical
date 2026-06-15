@@ -3,11 +3,12 @@
  *
  * ID-59 {59.22} — promoteCorpusExtractions core loop + atomic CAS + field map.
  * ID-59 {59.23} — embed-decouple + self-heal retry path (OQ-3).
+ * ID-59 {59.24} — OQ-2 active retirement pass (after the promote loop).
  *
  * Spec: specs/id-59-concurrent-edit-intent-arbitration/TECH-qa-corpus-promotion.md
- *       R1 steps 1, 2, 3, 4, 5, 7.
+ *       R1 steps 1, 2, 3, 4, 5, 6, 7.
  * Product invariants: INV-1, INV-3, INV-4, INV-5, INV-6, INV-7, INV-8,
- *                    INV-10, INV-11, INV-12, INV-23.
+ *                    INV-9, INV-10, INV-11, INV-12, INV-23.
  *
  * Auth discipline: the caller (HTTP route or pipeline) passes an authorised/
  * operator Supabase client. ALL DB access is via tryQuery() or the direct chain
@@ -34,6 +35,14 @@
  * INV-23 equation: for one run, published-this-run == promoted - embed_failed.
  *   promoted = CAS-wins + self-heal attempts (all paths that reach the embed step)
  *   embed_failed = subset of promoted whose embed or embed UPDATE failed
+ *
+ * OQ-2 active retirement (R1 step 6): after the promote loop, a retirement pass
+ * archives each invalidated-but-still-published pair. If a live replacement for
+ * the same source_content_item_id has been promoted, the old pair gets
+ * superseded_by=<replacementPairId>; otherwise (or when source_content_item_id
+ * IS NULL), archived without a replacement. The {64.15} history trigger
+ * auto-snapshots the transition — no app-side history insert needed.
+ * Loop-until-dry with a cap of 10 iterations guards page-limited query results.
  */
 
 import { tryQuery } from '@/lib/supabase/safe';
@@ -60,10 +69,15 @@ export interface SkipRecord {
  * {59.22}: considered, promoted, skipped, already_promoted.
  * {59.23}: embed_failed added; pass_through retired (self-heal rows now flow
  *          into embed accounting — promoted++ + embed_failed++ on failure).
- * {59.24}: retired, retired_no_replacement (not yet).
+ * {59.24}: retired, retired_no_replacement added.
  *
  * INV-23: published-this-run == promoted - embed_failed is an invariant
  * of this function for any single run.
+ *
+ * Retirement accounting (OQ-2 / R1.6):
+ *   total-retired = retired + retired_no_replacement   (disjoint sets)
+ *   retired               = pairs archived WITH a live replacement (superseded_by SET)
+ *   retired_no_replacement = pairs archived WITHOUT a replacement (superseded_by NULL)
  */
 export interface PromotionSummary {
   /** Total extractions the RPC returned (eligible set). */
@@ -85,6 +99,17 @@ export interface PromotionSummary {
    * published-this-run = promoted - embed_failed (INV-23).
    */
   embed_failed: number;
+  /**
+   * Pairs archived this run WITH a live replacement — superseded_by was set.
+   * (OQ-2, R1.6 "active retirement on invalidation")
+   */
+  retired: number;
+  /**
+   * Pairs archived this run WITHOUT a replacement — superseded_by left NULL.
+   * "correct-but-missing over wrong-but-present" (OQ-2 ratified posture).
+   * The count is the signal; there is no silent drop.
+   */
+  retired_no_replacement: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -122,7 +147,10 @@ export interface SupabaseClientLike {
  *   4.  Embed: generateEmbedding(question_text). On success: UPDATE pair
  *       SET question_embedding + publication_status='published' together
  *       (INV-12). On failure: leave draft+NULL, count embed_failed, continue.
- *   5. Return structured summary (INV-23 equation holds as invariant).
+ *   6.  Retirement pass (OQ-2): after the promote loop, archive invalidated
+ *       published pairs. A same-run replacement is available at this point
+ *       because it was created in step 3a above.
+ *   7. Return structured summary (INV-23 equation holds as invariant).
  *
  * @param client  Authorised/operator Supabase client (RLS-scoped; injected by
  *                the HTTP route or ID-45 pipeline).
@@ -313,13 +341,299 @@ export async function promoteCorpusExtractions(
     }
   }
 
+  // -------------------------------------------------------------------------
+  // Step 6 — OQ-2 active retirement pass (R1 step 6).
+  //
+  // Runs AFTER the promote loop so that any replacement pair created this run
+  // is available for superseded_by linkage (ordering is load-bearing).
+  // -------------------------------------------------------------------------
+  const { retired, retired_no_replacement } =
+    await retireSupersededPairs(client);
+
   return {
     considered: extractions.length,
     promoted,
     skipped,
     already_promoted,
     embed_failed,
+    retired,
+    retired_no_replacement,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Step 6 — OQ-2 retirement helper
+//
+// Finds each q_a_extractions row with:
+//   invalidated_at IS NOT NULL
+//   AND promoted_to_pair_id IS NOT NULL
+//   AND the linked pair is still publication_status='published'
+//
+// For each:
+//   - If a LIVE replacement extraction (invalidated_at IS NULL,
+//     promoted_to_pair_id IS NOT NULL) for the SAME source_content_item_id
+//     exists with a pair → archive OLD pair SET superseded_by=<replPairId>,
+//     publication_status='archived'. Count retired.
+//   - Else (no replacement OR source_content_item_id IS NULL) → archive OLD
+//     pair SET publication_status='archived' (superseded_by left NULL).
+//     Count retired_no_replacement.
+//
+// Idempotent: filters on publication_status='published'; already-archived
+// pairs are never returned.
+//
+// Loop-until-dry (capped at 10 iterations): guards against a page-limited
+// query leaving tail rows un-archived. Convergence is natural: each pass
+// reduces the published+invalidated set.
+//
+// PostgREST embed strategy: queries q_a_extractions and embeds
+// q_a_pairs!promoted_to_pair_id(id,publication_status) via the FK.
+// On PGRST200 (embed not available), falls back to two sequential reads:
+// extract promoted_to_pair_id list, then query q_a_pairs by id.
+//
+// Affected-row assertion: REST PATCH can silently no-op. We assert the
+// archive UPDATE affected 1 row — 0 rows is a defect, surfaced as an error.
+// ---------------------------------------------------------------------------
+interface RetirementCounts {
+  retired: number;
+  retired_no_replacement: number;
+}
+
+const RETIREMENT_ITERATION_CAP = 10;
+
+async function retireSupersededPairs(
+  client: SupabaseClientLike,
+): Promise<RetirementCounts> {
+  let retired = 0;
+  let retired_no_replacement = 0;
+  let iterations = 0;
+  let archivedThisPass: number;
+
+  do {
+    archivedThisPass = 0;
+    iterations++;
+
+    // -----------------------------------------------------------------------
+    // Fetch retirement candidates: invalidated extractions whose promoted pair
+    // is still published.
+    //
+    // Strategy A: PostgREST embedded resource (FK: promoted_to_pair_id → q_a_pairs).
+    // The select string `q_a_pairs!promoted_to_pair_id(id,publication_status)`
+    // performs an inner join — only returns rows where the FK resolves AND the
+    // linked pair matches the filter. On PGRST200 → fall back to strategy B.
+    // -----------------------------------------------------------------------
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let candidates: any[] = [];
+    let usedFallback = false;
+
+    // Strategy A: embed query
+    const embedQueryResult = await client
+      .from('q_a_extractions')
+      .select(
+        'id, source_content_item_id, promoted_to_pair_id, q_a_pairs!promoted_to_pair_id(id, publication_status)',
+      )
+      .not('invalidated_at', 'is', null)
+      .not('promoted_to_pair_id', 'is', null);
+
+    const embedError = embedQueryResult?.error ?? null;
+
+    if (
+      embedError &&
+      (embedError.code === 'PGRST200' ||
+        String(embedError.code).startsWith('PGRST'))
+    ) {
+      // Strategy B fallback: two sequential reads.
+      usedFallback = true;
+      const extractionsResult = await client
+        .from('q_a_extractions')
+        .select('id, source_content_item_id, promoted_to_pair_id')
+        .not('invalidated_at', 'is', null)
+        .not('promoted_to_pair_id', 'is', null);
+
+      const extractionsError = extractionsResult?.error ?? null;
+      if (extractionsError) {
+        throw new Error(
+          safeErrorMessage(
+            extractionsError,
+            'retireSupersededPairs: fallback extraction read failed',
+          ),
+        );
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const extractionRows: any[] = extractionsResult?.data ?? [];
+      if (extractionRows.length === 0) {
+        break;
+      }
+
+      const pairIds: string[] = extractionRows.map(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (e: any) => e.promoted_to_pair_id as string,
+      );
+
+      const pairsResult = await client
+        .from('q_a_pairs')
+        .select('id, publication_status')
+        .in('id', pairIds)
+        .eq('publication_status', 'published');
+
+      const pairsError = pairsResult?.error ?? null;
+      if (pairsError) {
+        throw new Error(
+          safeErrorMessage(
+            pairsError,
+            'retireSupersededPairs: fallback pairs read failed',
+          ),
+        );
+      }
+
+      const publishedPairs: Set<string> = new Set(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (pairsResult?.data ?? []).map((p: any) => p.id as string),
+      );
+
+      // Merge: only keep extractions whose pair is still published
+      candidates = extractionRows
+        .filter(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (e: any) => publishedPairs.has(e.promoted_to_pair_id as string),
+        )
+        .map(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (e: any) => ({
+            ...e,
+            // Normalise to the same shape as the embed path
+            'q_a_pairs!promoted_to_pair_id': {
+              id: e.promoted_to_pair_id,
+              publication_status: 'published',
+            },
+          }),
+        );
+    } else if (embedError) {
+      throw new Error(
+        safeErrorMessage(
+          embedError,
+          'retireSupersededPairs: retirement candidate query failed',
+        ),
+      );
+    } else {
+      // Strategy A succeeded: filter to only those whose embedded pair is published.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rawRows: any[] = embedQueryResult?.data ?? [];
+      candidates = rawRows.filter(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (e: any) => {
+          const embeddedPair = e['q_a_pairs!promoted_to_pair_id'];
+          return (
+            embeddedPair != null &&
+            embeddedPair.publication_status === 'published'
+          );
+        },
+      );
+    }
+
+    void usedFallback; // suppress unused-var lint; useful for operator debugging
+
+    if (candidates.length === 0) {
+      break;
+    }
+
+    // -----------------------------------------------------------------------
+    // For each candidate: find replacement, then archive.
+    // -----------------------------------------------------------------------
+    for (const candidate of candidates) {
+      const oldPairId: string = candidate.promoted_to_pair_id as string;
+      const sourceContentItemId: string | null =
+        (candidate.source_content_item_id as string | null) ?? null;
+
+      // -----------------------------------------------------------------------
+      // Find a live-promoted replacement for the same source_content_item_id.
+      // Only possible when source_content_item_id IS NOT NULL.
+      // -----------------------------------------------------------------------
+      let replacementPairId: string | null = null;
+
+      if (sourceContentItemId !== null) {
+        const replacementResult = await client
+          .from('q_a_extractions')
+          .select('promoted_to_pair_id')
+          .eq('source_content_item_id', sourceContentItemId)
+          .is('invalidated_at', null)
+          .not('promoted_to_pair_id', 'is', null)
+          .limit(1);
+
+        const replacementError = replacementResult?.error ?? null;
+        if (replacementError) {
+          throw new Error(
+            safeErrorMessage(
+              replacementError,
+              `retireSupersededPairs: replacement lookup failed for source_content_item_id=${sourceContentItemId}`,
+            ),
+          );
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const replacementRows: any[] = replacementResult?.data ?? [];
+        if (
+          replacementRows.length > 0 &&
+          replacementRows[0].promoted_to_pair_id
+        ) {
+          replacementPairId = replacementRows[0].promoted_to_pair_id as string;
+        }
+      }
+
+      // -----------------------------------------------------------------------
+      // Archive the old pair.
+      // Payload: publication_status='archived'; superseded_by=replacementPairId
+      // (null when no replacement found).
+      //
+      // REST PATCH silent no-op guard: assert affected-row count = 1.
+      // -----------------------------------------------------------------------
+      const archivePayload: Pick<
+        Database['public']['Tables']['q_a_pairs']['Update'],
+        'publication_status' | 'superseded_by'
+      > = {
+        publication_status: 'archived',
+        superseded_by: replacementPairId,
+      };
+
+      const archiveResult = await client
+        .from('q_a_pairs')
+        .update(archivePayload)
+        .eq('id', oldPairId)
+        .eq('publication_status', 'published')
+        .select('id');
+
+      const archiveError = archiveResult?.error ?? null;
+      if (archiveError) {
+        throw new Error(
+          safeErrorMessage(
+            archiveError,
+            `retireSupersededPairs: archive UPDATE failed for pair ${oldPairId}`,
+          ),
+        );
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const archiveRows: any[] = archiveResult?.data ?? [];
+      if (archiveRows.length === 0) {
+        // 0 rows: either already archived (concurrent run) or pair vanished.
+        // Surface as a defect-level signal — REST PATCH silent no-op gotcha.
+        throw new Error(
+          `retireSupersededPairs: archive UPDATE for pair ${oldPairId} affected 0 rows ` +
+            `(expected 1). Pair may have been concurrently archived or deleted.`,
+        );
+      }
+
+      // Archive succeeded: tally.
+      archivedThisPass++;
+      if (replacementPairId !== null) {
+        retired++;
+      } else {
+        retired_no_replacement++;
+      }
+    }
+  } while (archivedThisPass > 0 && iterations < RETIREMENT_ITERATION_CAP);
+
+  return { retired, retired_no_replacement };
 }
 
 // ---------------------------------------------------------------------------
