@@ -185,7 +185,7 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
       const paged = filtered.slice(searchOffset, searchOffset + searchLimit);
 
       // Map to SearchResult type for formatting — list/preview metadata only;
-      // verbatim fetch is the caller's follow-up get_content_item step (B-INV-33).
+      // verbatim fetch is the caller's follow-up `get` step (B-INV-33).
       const searchResults: SearchResult[] = paged.map(
         (r: Record<string, unknown>) => ({
           id: r.id as string,
@@ -653,7 +653,7 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
   //
   // Two-step retrieval (B-INV-33): `find` returns list/preview metadata (and
   // chunk excerpts) only — never verbatim item bodies; the caller's follow-up
-  // get_content_item step fetches verbatim content on accept. Declares an
+  // `get` step fetches verbatim content on accept. Declares an
   // outputSchema (M37) — the union of the three branch envelopes.
   // -------------------------------------------------------------------------
   defineTool(
@@ -661,7 +661,7 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
     'find',
     {
       title: 'Find Knowledge',
-      description: `Find content in the knowledge base — the single entry for search, Q&A lookup, section-level retrieval, and similar-item discovery. Returns ranked list/preview metadata (title, domain, summary, relevance); use get_content_item afterwards to fetch the verbatim content of an accepted result. Parameters: \`granularity\` ('item' default | 'chunk' for section-level breadcrumbs); \`type\` filters by content type (e.g. 'q_a_pair' to find reusable answers); \`scope\` filters by domain corpus (valid domains: ${domainList} — use the kb://taxonomy resource for the full subtopic list); \`similar_to\` finds published items similar to a given item id via vector cosine similarity (items above 95% similarity flagged as likely duplicates).`,
+      description: `Find content in the knowledge base — the single entry for search, Q&A lookup, section-level retrieval, and similar-item discovery. Returns ranked list/preview metadata (title, domain, summary, relevance); use \`get\` afterwards to fetch the verbatim content of an accepted result. Parameters: \`granularity\` ('item' default | 'chunk' for section-level breadcrumbs); \`type\` filters by content type (e.g. 'q_a_pair' to find reusable answers); \`scope\` filters by domain corpus (valid domains: ${domainList} — use the kb://taxonomy resource for the full subtopic list); \`similar_to\` finds published items similar to a given item id via vector cosine similarity (items above 95% similarity flagged as likely duplicates).`,
       outputSchema: FindResponseSchema,
       inputSchema: {
         query: z

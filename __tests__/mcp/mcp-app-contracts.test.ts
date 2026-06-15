@@ -80,7 +80,7 @@ interface ClientBidDashboardData {
   total_count: number;
   has_more: boolean;
   bids: ClientBidSummary[];
-  focused_bid_detail?: ClientBidDetailData;
+  focused_form_detail?: ClientBidDetailData;
 }
 
 interface ClientBidQuestionSummary {
@@ -392,24 +392,24 @@ describe('MCP App contract: ProcurementDashboardData', () => {
     expect(data.total_count).toBe(0);
   });
 
-  it('focused_bid_detail is optional', () => {
+  it('focused_form_detail is optional', () => {
     const data = makeBidDashboardData();
-    expect(data.focused_bid_detail).toBeUndefined();
+    expect(data.focused_form_detail).toBeUndefined();
   });
 
-  it('focused_bid_detail can be set with full detail', () => {
+  it('focused_form_detail can be set with full detail', () => {
     const data = makeBidDashboardData();
     const detail = makeBidDetail();
     // The server type uses Record<string, unknown>, the client uses ProcurementDetailData.
-    // The client app casts it: data.focused_bid_detail as unknown as ProcurementDetailData
+    // The client app casts it: data.focused_form_detail as unknown as ProcurementDetailData
     // So assigning a full ProcurementDetailData must be valid through the Record type.
-    (data as ServerBidDashboardData).focused_bid_detail =
+    (data as ServerBidDashboardData).focused_form_detail =
       detail as unknown as Record<string, unknown>;
-    expect((data as ServerBidDashboardData).focused_bid_detail).toBeDefined();
+    expect((data as ServerBidDashboardData).focused_form_detail).toBeDefined();
 
     // Verify the detail can be read back with client-expected fields
     const readBack = (data as ServerBidDashboardData)
-      .focused_bid_detail as unknown as ClientBidDetailData;
+      .focused_form_detail as unknown as ClientBidDetailData;
     expect(readBack.id).toBe('bid-001');
     expect(readBack.question_stats).toBeDefined();
     expect(readBack.question_stats!.total_questions).toBe(25);

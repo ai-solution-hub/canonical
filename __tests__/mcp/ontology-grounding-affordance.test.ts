@@ -145,11 +145,11 @@ describe('ID-71.11 prompts as thin orchestrators (B-INV-34)', () => {
 
   it('no registered prompt instructs a caller to use a retired tool name', async () => {
     const promptArgs: Record<string, Record<string, unknown>> = {
-      bid_briefing: { bid_name: 'Acme Council Framework' },
+      form_briefing: { form_name: 'Acme Council Framework' },
       draft_response: { question_text: 'Question?' },
       review_item: { item_id: '22222222-2222-4222-8222-222222222222' },
       sector_briefing: { domain: 'audit-content' },
-      bid_pipeline_review: {},
+      form_pipeline_review: {},
     };
     for (const reg of server.promptList) {
       const text = await renderPrompt(reg.name, promptArgs[reg.name] ?? {});

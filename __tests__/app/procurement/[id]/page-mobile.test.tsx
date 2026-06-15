@@ -23,7 +23,7 @@ import React from 'react';
 const {
   mockRouter,
   mockUseUserRole,
-  mockUseBidActions,
+  mockUseFormActions,
   mockFormatDateUK,
   mockGetDeadlineProximity,
   mockBidStateLabels,
@@ -44,7 +44,7 @@ const {
     canAdmin: false,
     loading: false,
   },
-  mockUseBidActions: vi.fn(),
+  mockUseFormActions: vi.fn(),
   mockFormatDateUK: vi.fn((d: string) => d),
   mockGetDeadlineProximity: vi.fn(),
   mockBidStateLabels: {
@@ -97,7 +97,7 @@ vi.mock('@/hooks/use-user-role', () => ({
 }));
 
 vi.mock('@/hooks/procurement/use-procurement-actions', () => ({
-  useBidActions: (args: { id: string }) => mockUseBidActions(args),
+  useFormActions: (args: { id: string }) => mockUseFormActions(args),
 }));
 
 vi.mock('@/hooks/procurement/use-procurement-readiness', () => ({
@@ -397,7 +397,7 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
     mockUseUserRole.canAdmin = false;
     mockFormatDateUK.mockImplementation((d: string) => d);
     mockGetDeadlineProximity.mockReturnValue(null);
-    mockUseBidActions.mockReturnValue(makeDefaultHookReturn());
+    mockUseFormActions.mockReturnValue(makeDefaultHookReturn());
   });
 
   afterEach(() => {
@@ -460,7 +460,7 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
 
   describe('MobileActionMenu renders null for terminal states', () => {
     it('does not show Actions button for won bids (terminal, no transitions)', () => {
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           procurementStatus: 'won',
           regularTransitions: [],
@@ -481,7 +481,7 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
     });
 
     it('does not show Actions button for lost bids (terminal, no transitions)', () => {
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           procurementStatus: 'lost',
           regularTransitions: [],
@@ -501,7 +501,7 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
     });
 
     it('does not show Actions button for withdrawn bids (terminal)', () => {
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           procurementStatus: 'withdrawn',
           regularTransitions: ['withdrawn'],
@@ -527,7 +527,7 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
   describe('MobileActionMenu shows status transitions', () => {
     it('shows transition labels for drafting state', async () => {
       const user = userEvent.setup();
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           procurementStatus: 'drafting',
           regularTransitions: ['in_review'],
@@ -547,7 +547,7 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
 
     it('shows multiple transitions for in_review state', async () => {
       const user = userEvent.setup();
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           procurementStatus: 'in_review',
           regularTransitions: ['ready_for_export', 'drafting'],
@@ -571,7 +571,7 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
     it('calls onStatusTransition when a transition item is clicked', async () => {
       const user = userEvent.setup();
       const mockHandleStatusTransition = vi.fn();
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           procurementStatus: 'drafting',
           regularTransitions: ['in_review'],
@@ -593,7 +593,7 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
 
     it('filters out withdrawn from mobile transitions', async () => {
       const user = userEvent.setup();
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           procurementStatus: 'in_review',
           regularTransitions: ['ready_for_export', 'withdrawn'],
@@ -620,7 +620,7 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
   describe('MobileActionMenu Record Outcome', () => {
     it('shows Record Outcome for submitted bids', async () => {
       const user = userEvent.setup();
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           procurementStatus: 'submitted',
           isSubmitted: true,
@@ -642,7 +642,7 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
     it('calls setShowOutcomeDialog when Record Outcome is clicked', async () => {
       const user = userEvent.setup();
       const mockSetShowOutcome = vi.fn();
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           procurementStatus: 'submitted',
           isSubmitted: true,
@@ -665,7 +665,7 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
 
     it('does not show Record Outcome for non-submitted bids', async () => {
       const user = userEvent.setup();
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           procurementStatus: 'drafting',
           isSubmitted: false,
@@ -694,7 +694,7 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
       const user = userEvent.setup();
       mockUseUserRole.role = 'admin';
       mockUseUserRole.canEdit = true;
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           regularTransitions: ['in_review'],
         }),
@@ -714,7 +714,7 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
     it('does not show Delete bid for editor users', async () => {
       const user = userEvent.setup();
       mockUseUserRole.role = 'editor';
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           regularTransitions: ['in_review'],
         }),
@@ -737,7 +737,7 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
       const user = userEvent.setup();
       mockUseUserRole.role = 'admin';
       mockUseUserRole.canEdit = true;
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           regularTransitions: ['in_review'],
         }),
@@ -765,7 +765,7 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
       const mockHandleDelete = vi.fn();
       mockUseUserRole.role = 'admin';
       mockUseUserRole.canEdit = true;
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           regularTransitions: ['in_review'],
           handleDelete: mockHandleDelete,
@@ -787,7 +787,7 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
     it('shows Actions button for admin even with no transitions (delete is available)', () => {
       mockUseUserRole.role = 'admin';
       mockUseUserRole.canEdit = true;
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           procurementStatus: 'won',
           regularTransitions: [],
@@ -812,7 +812,7 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
   describe('transition items disabled when transitioning', () => {
     it('disables transition menu items when transitioning is true', async () => {
       const user = userEvent.setup();
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           procurementStatus: 'in_review',
           regularTransitions: ['ready_for_export', 'drafting'],
@@ -851,7 +851,7 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
 
     it('does not disable transition items when transitioning is false', async () => {
       const user = userEvent.setup();
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           procurementStatus: 'drafting',
           regularTransitions: ['in_review'],
@@ -883,7 +883,7 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
   describe('MobileActionMenu export items', () => {
     it('shows export sub-menu when totalQuestions > 0', async () => {
       const user = userEvent.setup();
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           procurementStatus: 'drafting',
           regularTransitions: ['in_review'],
@@ -904,7 +904,7 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
 
     it('does not show export when totalQuestions is 0', async () => {
       const user = userEvent.setup();
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           procurementStatus: 'drafting',
           regularTransitions: ['in_review'],

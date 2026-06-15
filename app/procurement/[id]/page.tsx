@@ -65,7 +65,7 @@ import { QuestionReview } from '@/components/procurement/question-review';
 import { TenderUpload } from '@/components/procurement/tender-upload';
 import { TenderMetadataPrompt } from '@/components/procurement/tender-metadata-prompt';
 import { useUserRole } from '@/hooks/use-user-role';
-import { useBidActions } from '@/hooks/procurement/use-procurement-actions';
+import { useFormActions } from '@/hooks/procurement/use-procurement-actions';
 import { useBidExport } from '@/hooks/procurement/use-procurement-export';
 import { useBidReadiness } from '@/hooks/procurement/use-procurement-readiness';
 import { formatDateUK } from '@/lib/format';
@@ -131,7 +131,7 @@ export default function ProcurementDetailPage({
     isSubmitted,
     regularTransitions,
     tabs,
-  } = useBidActions({ id });
+  } = useFormActions({ id });
 
   const {
     readiness,

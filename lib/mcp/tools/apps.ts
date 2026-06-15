@@ -432,7 +432,7 @@ export async function registerAppTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 23. show_procurement_dashboard (App trigger tool — renders Procurement Dashboard MCP App)
   // -------------------------------------------------------------------------
-  const procurementDashboardUri = 'ui://bid-dashboard/app.html';
+  const procurementDashboardUri = 'ui://form-dashboard/app.html';
   defineAppTool(
     registerAppTool,
     server,
@@ -440,20 +440,20 @@ export async function registerAppTools(server: McpServer): Promise<void> {
     {
       title: 'Show Procurement Dashboard',
       description:
-        'Display an interactive bid dashboard showing active procurements with progress bars, deadline countdowns, and question completion stats. This tool renders a visual dashboard inside the conversation. Use it when the user asks about bid status, pipeline overview, or wants to see all active procurements at a glance.',
+        'Display an interactive form dashboard showing active procurements with progress bars, deadline countdowns, and question completion stats. This tool renders a visual dashboard inside the conversation. Use it when the user asks about form status, pipeline overview, or wants to see all active procurements at a glance.',
       inputSchema: {
-        bid_id: z
+        form_id: z
           .string()
           .uuid()
           .optional()
           .describe(
-            'Optionally focus on a specific bid (auto-expands that card)',
+            'Optionally focus on a specific form (auto-expands that card)',
           ),
       },
       annotations: READ_ONLY_ANNOTATIONS,
       _meta: { ui: { resourceUri: procurementDashboardUri } },
     },
-    async (args: { bid_id?: string }, extra: ToolExtra) => {
+    async (args: { form_id?: string }, extra: ToolExtra) => {
       try {
         const supabase = createMcpClient(extra.authInfo);
         const userId = getMcpUserId(extra.authInfo);
@@ -488,8 +488,8 @@ export async function registerAppTools(server: McpServer): Promise<void> {
           })),
         };
 
-        // If a specific bid_id is requested, fetch detail
-        if (args.bid_id) {
+        // If a specific form_id is requested, fetch detail
+        if (args.form_id) {
           // Post-T2: discriminator is application_types.key via JOIN, not the
           // dropped workspaces.type col. 'bid' maps to 'procurement'.
           const workspace = await sb(
@@ -498,7 +498,7 @@ export async function registerAppTools(server: McpServer): Promise<void> {
               .select(
                 'id, name, description, domain_metadata, application_types!inner(key)',
               )
-              .eq('id', args.bid_id)
+              .eq('id', args.form_id)
               .eq('application_types.key', 'procurement')
               .maybeSingle(),
             'mcp.tools.apps.workspace.load',
@@ -507,14 +507,14 @@ export async function registerAppTools(server: McpServer): Promise<void> {
           if (workspace) {
             const stats = await sb(
               supabase.rpc('get_form_question_stats', {
-                p_project_id: args.bid_id,
+                p_project_id: args.form_id,
               }),
               'mcp.tools.apps.workspace.stats',
             );
             const { sections, status_breakdown, confidence_breakdown } =
-              await fetchProcurementSections(supabase, args.bid_id);
+              await fetchProcurementSections(supabase, args.form_id);
             const meta = parseProcurementMetadata(workspace.domain_metadata);
-            (result as unknown as Record<string, unknown>).focused_bid_detail =
+            (result as unknown as Record<string, unknown>).focused_form_detail =
               {
                 id: workspace.id,
                 name: workspace.name ?? 'Untitled Procurement',

@@ -121,7 +121,7 @@ export interface ProcurementDashboardData {
     answered_questions: number;
     approved_questions: number;
   }>;
-  focused_bid_detail?: Record<string, unknown>;
+  focused_form_detail?: Record<string, unknown>;
 }
 
 export function formatProcurementDashboard(

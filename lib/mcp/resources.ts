@@ -3,26 +3,26 @@
  *
  * Resources (12):
  *   - kb://items/{id}    — Full content item with metadata
- *   - kb://bids/{id}     — Procurement with questions and responses
+ *   - kb://forms/{id}    — Procurement with questions and responses
  *   - kb://qa/{id}       — Q&A pair with standard/advanced answers
  *   - kb://coverage      — Current taxonomy coverage state
  *   - kb://dashboard     — Current dashboard state
  *   - kb://taxonomy      — Domains and subtopics
  *   - kb://entities      — Entity overview with types, counts, and top entities
  *   - ui://coverage-matrix/app.html   — Coverage Matrix MCP App (interactive UI)
- *   - ui://bid-dashboard/app.html     — Procurement Dashboard MCP App (interactive UI)
+ *   - ui://form-dashboard/app.html    — Procurement Dashboard MCP App (interactive UI)
  *   - ui://reorient-me/app.html       — Reorient Me MCP App (interactive UI)
  *   - ui://intelligence-feed/app.html — Intelligence Feed MCP App (interactive UI)
  *   - kb://quality-briefing           — Aggregated quality intelligence briefing
  *
  * Prompts (7):
  *   - reorient              — "What has changed since I was last active?"
- *   - bid_briefing          — "Give me a briefing on {bid_name}"
+ *   - form_briefing         — "Give me a briefing on {form_name}"
  *   - coverage_analysis     — "Analyse coverage gaps and suggest content to create"
- *   - draft_response        — "Draft a response to this bid question"
+ *   - draft_response        — "Draft a response to this form question"
  *   - review_item           — "Review this content item for quality"
  *   - sector_briefing       — "Domain-scoped briefing: KB content + SI + change reports"
- *   - bid_pipeline_review   — "Pipeline-wide action review: blockers + stalled drafts"
+ *   - form_pipeline_review  — "Pipeline-wide action review: blockers + stalled drafts"
  */
 import { z } from 'zod';
 import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -143,10 +143,10 @@ export async function registerResources(server: McpServer): Promise<void> {
     },
   );
 
-  // 2. kb://bids/{id} — Procurement workspace
+  // 2. kb://forms/{id} — Procurement workspace
   server.registerResource(
-    'bid_workspace',
-    new ResourceTemplate('kb://bids/{id}', {
+    'form_workspace',
+    new ResourceTemplate('kb://forms/{id}', {
       list: async (extra: Extra) => {
         try {
           const supabase = createMcpClient(extra.authInfo);
@@ -160,7 +160,7 @@ export async function registerResources(server: McpServer): Promise<void> {
               .eq('is_archived', false)
               .order('updated_at', { ascending: false })
               .limit(10),
-            'mcp.resources.bid_workspace.list',
+            'mcp.resources.form_workspace.list',
           );
 
           return {
@@ -176,7 +176,7 @@ export async function registerResources(server: McpServer): Promise<void> {
                 > | null;
                 const buyer = (meta?.buyer as string) ?? null;
                 return {
-                  uri: `kb://bids/${ws.id}`,
+                  uri: `kb://forms/${ws.id}`,
                   name: ws.name || 'Untitled Procurement',
                   description: buyer ? `Buyer: ${buyer}` : undefined,
                   mimeType: 'application/json',
@@ -185,13 +185,13 @@ export async function registerResources(server: McpServer): Promise<void> {
             ),
           };
         } catch (err) {
-          logger.error({ err }, 'Failed to list bid workspace resources');
+          logger.error({ err }, 'Failed to list form workspace resources');
           return { resources: [] };
         }
       },
     }),
     {
-      description: 'A bid workspace with questions and response progress',
+      description: 'A form workspace with questions and response progress',
       mimeType: 'application/json',
     },
     async (uri: URL, variables: Variables, extra: Extra) => {
@@ -230,7 +230,7 @@ export async function registerResources(server: McpServer): Promise<void> {
             .eq('workspace_id', procurementId)
             .order('section_sequence')
             .order('question_sequence'),
-          'mcp.resources.bid_workspace.questions',
+          'mcp.resources.form_workspace.questions',
         );
 
         return {
@@ -658,19 +658,19 @@ export async function registerResources(server: McpServer): Promise<void> {
     },
   );
 
-  // 9. ui://bid-dashboard/app.html — Procurement Dashboard MCP App
+  // 9. ui://form-dashboard/app.html — Procurement Dashboard MCP App
   registerAppResource(
     server,
     'Procurement Dashboard App',
-    'ui://bid-dashboard/app.html',
+    'ui://form-dashboard/app.html',
     { mimeType: RESOURCE_MIME_TYPE },
     async () => {
-      const { BID_DASHBOARD_HTML } = await getAppBundles();
-      if (!BID_DASHBOARD_HTML) {
+      const { FORM_DASHBOARD_HTML } = await getAppBundles();
+      if (!FORM_DASHBOARD_HTML) {
         return {
           contents: [
             {
-              uri: 'ui://bid-dashboard/app.html',
+              uri: 'ui://form-dashboard/app.html',
               mimeType: 'text/plain',
               text: 'Procurement Dashboard app not built.',
             },
@@ -680,9 +680,9 @@ export async function registerResources(server: McpServer): Promise<void> {
       return {
         contents: [
           {
-            uri: 'ui://bid-dashboard/app.html',
+            uri: 'ui://form-dashboard/app.html',
             mimeType: RESOURCE_MIME_TYPE,
-            text: BID_DASHBOARD_HTML,
+            text: FORM_DASHBOARD_HTML,
           },
         ],
       };
@@ -833,15 +833,15 @@ export function registerPrompts(server: McpServer): void {
     }),
   );
 
-  // 2. bid_briefing
+  // 2. form_briefing
   server.registerPrompt(
-    'bid_briefing',
+    'form_briefing',
     {
       title: 'Procurement Briefing',
       description:
-        'Get a comprehensive briefing on a specific bid including progress, gaps, and next steps.',
+        'Get a comprehensive briefing on a specific form including progress, gaps, and next steps.',
       argsSchema: {
-        bid_name: z.string().describe('Name or ID of the bid to brief on'),
+        form_name: z.string().describe('Name or ID of the form to brief on'),
       },
     },
     async (args) => ({
@@ -852,7 +852,7 @@ export function registerPrompts(server: McpServer): void {
             type: 'text',
             text:
               KB_SYSTEM_CONTEXT +
-              `Give me a comprehensive briefing on the bid "${args.bid_name}". Include the current status, question completion progress, any gaps or blockers, upcoming deadlines, and recommended next steps. First list bids to find the matching ID, then use get_procurement_detail. Use the list_active_procurement and get_procurement_detail tools.`,
+              `Give me a comprehensive briefing on the form "${args.form_name}". Include the current status, question completion progress, any gaps or blockers, upcoming deadlines, and recommended next steps. First list forms to find the matching ID, then use get_procurement_detail. Use the list_active_procurement and get_procurement_detail tools.`,
           },
         },
       ],
@@ -1023,17 +1023,17 @@ export function registerPrompts(server: McpServer): void {
     },
   );
 
-  // 7. bid_pipeline_review
+  // 7. form_pipeline_review
   //
-  // Pipeline-wide workflow review — blockers across bids, stalled drafts,
+  // Pipeline-wide workflow review — blockers across forms, stalled drafts,
   // recent activity, and a flat prioritised action list. Complements
-  // `/kb:bid-status` (per-bid read) with a cross-bid action framing.
+  // `/kb:form-status` (per-form read) with a cross-form action framing.
   server.registerPrompt(
-    'bid_pipeline_review',
+    'form_pipeline_review',
     {
       title: 'Procurement Pipeline Review',
       description:
-        'Workflow-oriented review of the active bid pipeline: blockers, stalled drafts, and prioritised next actions.',
+        'Workflow-oriented review of the active form pipeline: blockers, stalled drafts, and prioritised next actions.',
       argsSchema: {
         stale_threshold_days: z
           .string()
@@ -1053,15 +1053,15 @@ export function registerPrompts(server: McpServer): void {
               type: 'text',
               text:
                 KB_SYSTEM_CONTEXT +
-                'Produce a pipeline-wide action review for all active procurements. Focus on blockers, stalled drafts, and recent activity — NOT per-bid status (that lives in `/kb:bid-status`).\n\n' +
+                'Produce a pipeline-wide action review for all active procurements. Focus on blockers, stalled drafts, and recent activity — NOT per-form status (that lives in `/kb:form-status`).\n\n' +
                 'Tool sequence:\n\n' +
                 '1. **Pipeline overview.** `list_active_procurement(limit: 50)` — full list with deadlines and completion %.\n' +
-                '2. **Per-bid detail.** For each active bid, `get_procurement_detail(id: <bid_id>)` — extract:\n' +
+                '2. **Per-form detail.** For each active form, `get_procurement_detail(id: <form_id>)` — extract:\n' +
                 '   - Unanswered questions (status: unanswered)\n' +
                 '   - Questions with confidence = "no_content" (hard blockers — need new KB material)\n' +
                 '   - Questions with confidence = "needs_sme" (soft blockers — need expert input)\n' +
                 `   - Questions with draft responses updated more than ${staleDays} days ago (stalled drafts)\n` +
-                '3. **Recent activity.** From the per-bid detail, pull response `updated_at` timestamps and identify which bids have seen edits in the last 7 days vs which have gone silent.\n\n' +
+                '3. **Recent activity.** From the per-form detail, pull response `updated_at` timestamps and identify which forms have seen edits in the last 7 days vs which have gone silent.\n\n' +
                 'Structure the output as:\n\n' +
                 '## Procurement pipeline review — [DD/MM/YYYY]\n\n' +
                 '### Critical blockers (action today)\n' +
@@ -1071,11 +1071,11 @@ export function registerPrompts(server: McpServer): void {
                 '### SME input needed\n' +
                 '[Bulleted list: "ProcurementName — Question N: needs_sme on topic X."]\n\n' +
                 '### Recent activity\n' +
-                '- Active (edited in last 7 days): [BidA, BidB]\n' +
-                '- Silent (no edits in 7+ days): [BidC, BidD]\n\n' +
+                '- Active (edited in last 7 days): [FormA, FormB]\n' +
+                '- Silent (no edits in 7+ days): [FormC, FormD]\n\n' +
                 '### Prioritised next actions\n' +
-                '[Numbered 3-5 actions cutting across bids, ordered by deadline proximity × blocker severity.]\n\n' +
-                'Use UK English. DD/MM/YYYY. If the pipeline is empty, say so and suggest `/kb:bid-status` for historical context. If a bid has zero blockers, omit it from the blocker sections (still include in Recent activity).',
+                '[Numbered 3-5 actions cutting across forms, ordered by deadline proximity × blocker severity.]\n\n' +
+                'Use UK English. DD/MM/YYYY. If the pipeline is empty, say so and suggest `/kb:form-status` for historical context. If a form has zero blockers, omit it from the blocker sections (still include in Recent activity).',
             },
           },
         ],

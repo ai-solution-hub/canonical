@@ -36,15 +36,15 @@ interface ExtractedQuestion {
   category: string;
 }
 
-interface UseBidActionsParams {
+interface UseFormActionsParams {
   id: string;
 }
 
 // ---------------------------------------------------------------------------
-// useBidData — TanStack Query-based bid and questions fetching
+// useFormData — TanStack Query-based form and questions fetching
 // ---------------------------------------------------------------------------
 
-function useBidData(id: string) {
+function useFormData(id: string) {
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -119,10 +119,10 @@ function useBidData(id: string) {
 }
 
 // ---------------------------------------------------------------------------
-// useBidTransitions — status transition via useMutation
+// useFormTransitions — status transition via useMutation
 // ---------------------------------------------------------------------------
 
-function useBidTransitions(
+function useFormTransitions(
   bid: Procurement | null,
   id: string,
   queryClient: ReturnType<typeof useQueryClient>,
@@ -182,10 +182,10 @@ function useBidTransitions(
 }
 
 // ---------------------------------------------------------------------------
-// useBidDialogs — dialog open/close state (pure UI state, no changes)
+// useFormDialogs — dialog open/close state (pure UI state, no changes)
 // ---------------------------------------------------------------------------
 
-function useBidDialogs() {
+function useFormDialogs() {
   const [showCostEstimate, setShowCostEstimate] = useState(false);
   const [showOutcomeDialog, setShowOutcomeDialog] = useState(false);
   const [showKBReview, setShowKBReview] = useState(false);
@@ -276,10 +276,10 @@ function useQuestionExtraction(
 }
 
 // ---------------------------------------------------------------------------
-// useBidActions — composes the sub-hooks, preserving the original API
+// useFormActions — composes the sub-hooks, preserving the original API
 // ---------------------------------------------------------------------------
 
-export function useBidActions({ id }: UseBidActionsParams) {
+export function useFormActions({ id }: UseFormActionsParams) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -287,7 +287,7 @@ export function useBidActions({ id }: UseBidActionsParams) {
 
   // Data fetching (TanStack Query)
   const { bid, questions, stats, loading, fetchProcurement, fetchQuestions } =
-    useBidData(id);
+    useFormData(id);
 
   // Tab state — derived from URL ?tab= param for deep-link and refresh support
   const searchString = searchParams.toString();
@@ -313,7 +313,7 @@ export function useBidActions({ id }: UseBidActionsParams) {
   );
 
   // Status transitions (useMutation)
-  const { transitioning, handleStatusTransition } = useBidTransitions(
+  const { transitioning, handleStatusTransition } = useFormTransitions(
     bid,
     id,
     queryClient,
@@ -333,7 +333,7 @@ export function useBidActions({ id }: UseBidActionsParams) {
     setExtractedMetadata,
     deleteConfirmOpen,
     setDeleteConfirmOpen,
-  } = useBidDialogs();
+  } = useFormDialogs();
 
   // Question extraction flow
   const {

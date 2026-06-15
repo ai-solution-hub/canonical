@@ -2,7 +2,7 @@
  * Procurement tool registrations (5 tools):
  *   3. list_active_procurement
  *   6. get_procurement_detail
- *   7. get_bid_question
+ *   7. get_form_question
  *  15. cite_content
  *  16. get_content_effectiveness
  */
@@ -327,17 +327,20 @@ export async function registerProcurementTools(
   );
 
   // -------------------------------------------------------------------------
-  // 7. get_bid_question
+  // 7. get_form_question
   // -------------------------------------------------------------------------
   defineTool(
     server,
-    'get_bid_question',
+    'get_form_question',
     {
       title: 'Get Procurement Question',
       description:
-        'Get a specific bid question with its response text, confidence posture, and review status. Use this to see the detail of a particular question within a bid.',
+        'Get a specific form question with its response text, confidence posture, and review status. Use this to see the detail of a particular question within a form.',
       inputSchema: {
-        question_id: z.string().uuid().describe('The UUID of the bid question'),
+        question_id: z
+          .string()
+          .uuid()
+          .describe('The UUID of the form question'),
       },
       annotations: READ_ONLY_ANNOTATIONS,
     },

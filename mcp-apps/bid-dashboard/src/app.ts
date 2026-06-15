@@ -1038,7 +1038,7 @@ async function toggleBidExpansion(bidId: string): Promise<void> {
 
   try {
     const result = await app.callServerTool({
-      name: 'get_bid_detail',
+      name: 'get_procurement_detail',
       arguments: { id: bidId },
     });
 

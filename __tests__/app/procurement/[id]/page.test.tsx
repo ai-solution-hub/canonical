@@ -19,7 +19,7 @@ import React from 'react';
 const {
   mockRouter,
   mockUseUserRole,
-  mockUseBidActions,
+  mockUseFormActions,
   mockFormatDateUK,
   mockGetDeadlineProximity,
   mockBidStateLabels,
@@ -39,7 +39,7 @@ const {
     canAdmin: false,
     loading: false,
   },
-  mockUseBidActions: vi.fn(),
+  mockUseFormActions: vi.fn(),
   mockFormatDateUK: vi.fn((d: string) => d),
   mockGetDeadlineProximity: vi.fn(),
   mockBidStateLabels: {
@@ -91,7 +91,7 @@ vi.mock('@/hooks/use-user-role', () => ({
 }));
 
 vi.mock('@/hooks/procurement/use-procurement-actions', () => ({
-  useBidActions: (args: { id: string }) => mockUseBidActions(args),
+  useFormActions: (args: { id: string }) => mockUseFormActions(args),
 }));
 
 vi.mock('@/hooks/procurement/use-procurement-readiness', () => ({
@@ -353,7 +353,7 @@ describe('ProcurementDetailPage', () => {
     mockUseUserRole.canAdmin = false;
     mockFormatDateUK.mockImplementation((d: string) => d);
     mockGetDeadlineProximity.mockReturnValue(null);
-    mockUseBidActions.mockReturnValue(makeDefaultHookReturn());
+    mockUseFormActions.mockReturnValue(makeDefaultHookReturn());
   });
 
   afterEach(() => {
@@ -363,7 +363,9 @@ describe('ProcurementDetailPage', () => {
   // ---- Loading and null states ----
 
   it('renders skeleton when loading', () => {
-    mockUseBidActions.mockReturnValue(makeDefaultHookReturn({ loading: true }));
+    mockUseFormActions.mockReturnValue(
+      makeDefaultHookReturn({ loading: true }),
+    );
     const { container } = renderWithQuery(
       <ProcurementDetailPage params={mockParams} />,
     );
@@ -371,7 +373,7 @@ describe('ProcurementDetailPage', () => {
   });
 
   it('shows not-found state when bid is null', () => {
-    mockUseBidActions.mockReturnValue(
+    mockUseFormActions.mockReturnValue(
       makeDefaultHookReturn({ bid: null, procurementStatus: 'drafting' }),
     );
     renderWithQuery(<ProcurementDetailPage params={mockParams} />);
@@ -380,7 +382,7 @@ describe('ProcurementDetailPage', () => {
   });
 
   it('shows not-found state when procurementStatus is null', () => {
-    mockUseBidActions.mockReturnValue(
+    mockUseFormActions.mockReturnValue(
       makeDefaultHookReturn({ procurementStatus: null }),
     );
     renderWithQuery(<ProcurementDetailPage params={mockParams} />);
@@ -458,7 +460,7 @@ describe('ProcurementDetailPage', () => {
   // ---- Action buttons visibility ----
 
   it('shows transition buttons for editors', () => {
-    mockUseBidActions.mockReturnValue(
+    mockUseFormActions.mockReturnValue(
       makeDefaultHookReturn({
         regularTransitions: ['in_review'],
       }),
@@ -479,7 +481,7 @@ describe('ProcurementDetailPage', () => {
   });
 
   it('filters out withdrawn from transition buttons', () => {
-    mockUseBidActions.mockReturnValue(
+    mockUseFormActions.mockReturnValue(
       makeDefaultHookReturn({
         regularTransitions: ['in_review', 'withdrawn'],
       }),
@@ -533,7 +535,7 @@ describe('ProcurementDetailPage', () => {
 
   it('calls setActiveTab when clicking a tab', async () => {
     const mockSetActiveTab = vi.fn();
-    mockUseBidActions.mockReturnValue(
+    mockUseFormActions.mockReturnValue(
       makeDefaultHookReturn({ setActiveTab: mockSetActiveTab }),
     );
     const user = userEvent.setup();
@@ -558,7 +560,7 @@ describe('ProcurementDetailPage', () => {
   });
 
   it('shows upload prompt when zero questions', () => {
-    mockUseBidActions.mockReturnValue(
+    mockUseFormActions.mockReturnValue(
       makeDefaultHookReturn({ totalQuestions: 0 }),
     );
     renderWithQuery(<ProcurementDetailPage params={mockParams} />);
@@ -574,7 +576,7 @@ describe('ProcurementDetailPage', () => {
   // ---- Questions tab ----
 
   it('shows bulk actions in questions tab for editors with questions', () => {
-    mockUseBidActions.mockReturnValue(
+    mockUseFormActions.mockReturnValue(
       makeDefaultHookReturn({
         activeTab: 'questions',
         totalQuestions: 10,
@@ -589,7 +591,7 @@ describe('ProcurementDetailPage', () => {
   });
 
   it('shows Draft All button when procurementStatus is drafting', () => {
-    mockUseBidActions.mockReturnValue(
+    mockUseFormActions.mockReturnValue(
       makeDefaultHookReturn({
         activeTab: 'questions',
         totalQuestions: 10,
@@ -605,7 +607,7 @@ describe('ProcurementDetailPage', () => {
   // ---- Documents tab ----
 
   it('shows upload prompt when no documents', () => {
-    mockUseBidActions.mockReturnValue(
+    mockUseFormActions.mockReturnValue(
       makeDefaultHookReturn({
         activeTab: 'documents',
         bid: makeBid({ tender_documents: [] }),
@@ -618,7 +620,7 @@ describe('ProcurementDetailPage', () => {
   });
 
   it('lists uploaded documents', () => {
-    mockUseBidActions.mockReturnValue(
+    mockUseFormActions.mockReturnValue(
       makeDefaultHookReturn({
         activeTab: 'documents',
         bid: makeBid({
@@ -642,7 +644,7 @@ describe('ProcurementDetailPage', () => {
   // ---- Delete confirmation dialog ----
 
   it('renders delete confirmation dialog when open', () => {
-    mockUseBidActions.mockReturnValue(
+    mockUseFormActions.mockReturnValue(
       makeDefaultHookReturn({ deleteConfirmOpen: true }),
     );
     renderWithQuery(<ProcurementDetailPage params={mockParams} />);
@@ -653,7 +655,7 @@ describe('ProcurementDetailPage', () => {
 
   it('calls handleDeleteConfirmed when delete is confirmed', async () => {
     const mockHandleDeleteConfirmed = vi.fn();
-    mockUseBidActions.mockReturnValue(
+    mockUseFormActions.mockReturnValue(
       makeDefaultHookReturn({
         deleteConfirmOpen: true,
         handleDeleteConfirmed: mockHandleDeleteConfirmed,
@@ -668,7 +670,7 @@ describe('ProcurementDetailPage', () => {
   // ---- Outcome dialog ----
 
   it('shows Record Outcome button for submitted bids', () => {
-    mockUseBidActions.mockReturnValue(
+    mockUseFormActions.mockReturnValue(
       makeDefaultHookReturn({
         isSubmitted: true,
         procurementStatus: 'submitted',
@@ -685,7 +687,7 @@ describe('ProcurementDetailPage', () => {
   // ---- Extracted metadata prompt ----
 
   it('renders TenderMetadataPrompt when extractedMetadata is present', () => {
-    mockUseBidActions.mockReturnValue(
+    mockUseFormActions.mockReturnValue(
       makeDefaultHookReturn({
         extractedMetadata: {
           buyer_name: 'Test Buyer',
@@ -721,7 +723,7 @@ describe('ProcurementDetailPage', () => {
 
   describe('NextActionCard on Overview tab', () => {
     it('shows "Start answering questions" for draft bids', () => {
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           procurementStatus: 'draft',
           activeTab: 'overview',
@@ -740,7 +742,7 @@ describe('ProcurementDetailPage', () => {
     });
 
     it('shows "Start answering questions" for drafting bids', () => {
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           procurementStatus: 'drafting',
           activeTab: 'overview',
@@ -751,7 +753,7 @@ describe('ProcurementDetailPage', () => {
     });
 
     it('shows "Review responses before submission" for in_review bids', () => {
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           procurementStatus: 'in_review',
           activeTab: 'overview',
@@ -770,7 +772,7 @@ describe('ProcurementDetailPage', () => {
 
     it('shows "Record the outcome" for submitted bids', () => {
       const mockSetShowOutcome = vi.fn();
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           procurementStatus: 'submitted',
           activeTab: 'overview',
@@ -790,7 +792,7 @@ describe('ProcurementDetailPage', () => {
     });
 
     it('shows "Review responses for your knowledge base" for won bids', () => {
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           procurementStatus: 'won',
           activeTab: 'overview',
@@ -809,7 +811,7 @@ describe('ProcurementDetailPage', () => {
     it('does not show next action card for viewers', () => {
       mockUseUserRole.canEdit = false;
       mockUseUserRole.role = 'viewer';
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           procurementStatus: 'drafting',
           activeTab: 'overview',
@@ -822,7 +824,7 @@ describe('ProcurementDetailPage', () => {
     });
 
     it('does not show next action card for withdrawn bids', () => {
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           procurementStatus: 'withdrawn',
           activeTab: 'overview',
@@ -841,7 +843,7 @@ describe('ProcurementDetailPage', () => {
 
   describe('Overview tab thin-out (P1-3)', () => {
     it('does not render Knowledge-based Drafting card on Overview', () => {
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           activeTab: 'overview',
           procurementStatus: 'drafting',
@@ -856,7 +858,7 @@ describe('ProcurementDetailPage', () => {
     });
 
     it('still renders NextActionCard on Overview', () => {
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           activeTab: 'overview',
           procurementStatus: 'drafting',
@@ -867,7 +869,7 @@ describe('ProcurementDetailPage', () => {
     });
 
     it('still renders Submission Readiness on Overview', () => {
-      mockUseBidActions.mockReturnValue(
+      mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           activeTab: 'overview',
           procurementStatus: 'drafting',

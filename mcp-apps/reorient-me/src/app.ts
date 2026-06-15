@@ -319,7 +319,11 @@ function buildUrgentSection(items: UrgentItem[]): HTMLElement {
         btnDetail.className = 'btn btn--sm';
         btnDetail.textContent = 'Show bid detail';
         btnDetail.onclick = () =>
-          drillDown('get_bid_detail', { id: item.entity_id }, item.title);
+          drillDown(
+            'get_procurement_detail',
+            { id: item.entity_id },
+            item.title,
+          );
 
         actionsRow.appendChild(btnDraft);
         actionsRow.appendChild(btnDetail);
@@ -329,7 +333,11 @@ function buildUrgentSection(items: UrgentItem[]): HTMLElement {
         btnDetail.className = 'btn btn--sm btn--primary';
         btnDetail.textContent = 'Show bid detail';
         btnDetail.onclick = () =>
-          drillDown('get_bid_detail', { id: item.entity_id }, item.title);
+          drillDown(
+            'get_procurement_detail',
+            { id: item.entity_id },
+            item.title,
+          );
 
         const btnDraft = document.createElement('button');
         btnDraft.className = 'btn btn--sm';
@@ -445,7 +453,7 @@ function buildTeamChangesSection(changes: TeamChange[]): HTMLElement {
       btn.textContent = 'View bid';
       btn.onclick = () =>
         drillDown(
-          'get_bid_detail',
+          'get_procurement_detail',
           { id: first.workspace_id },
           first.entity_title,
         );
@@ -503,7 +511,7 @@ function buildRecentWorkSection(items: RecentWorkItem[]): HTMLElement {
       btn.textContent = 'View bid';
       btn.onclick = () =>
         drillDown(
-          'get_bid_detail',
+          'get_procurement_detail',
           { id: item.workspace_id },
           item.entity_title,
         );
@@ -576,7 +584,7 @@ function buildBidSummarySection(bids: BidBriefing[]): HTMLElement {
     btnDetail.className = 'btn btn--sm';
     btnDetail.textContent = 'Show detail';
     btnDetail.onclick = () =>
-      drillDown('get_bid_detail', { id: bid.id }, bid.name);
+      drillDown('get_procurement_detail', { id: bid.id }, bid.name);
     actionsRow.appendChild(btnDetail);
 
     // If there are gaps, add Draft Next Answer

@@ -74,7 +74,7 @@ vi.mock('@/lib/procurement/procurement-workflow', () => ({
 }));
 
 import { toast } from 'sonner';
-import { useBidActions } from '@/hooks/procurement/use-procurement-actions';
+import { useFormActions } from '@/hooks/procurement/use-procurement-actions';
 
 // ---------------------------------------------------------------------------
 // Test data
@@ -250,7 +250,7 @@ const STUB_PIPELINE_RUN_ID = 'bbccddee-ff00-4022-8033-112233445566';
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('useBidActions (TanStack Query)', () => {
+describe('useFormActions (TanStack Query)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     hoistedMockSearchParams.current = new URLSearchParams();
@@ -263,7 +263,7 @@ describe('useBidActions (TanStack Query)', () => {
   it('returns loading=true initially', () => {
     mockFetch.mockImplementation(() => new Promise(() => {})); // never resolves
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -276,7 +276,7 @@ describe('useBidActions (TanStack Query)', () => {
   it('populates bid data from query', async () => {
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -293,7 +293,7 @@ describe('useBidActions (TanStack Query)', () => {
   it('populates questions from query', async () => {
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -310,7 +310,7 @@ describe('useBidActions (TanStack Query)', () => {
   it('uses stats from questions query over bid query', async () => {
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -327,7 +327,7 @@ describe('useBidActions (TanStack Query)', () => {
       questions: { questions: [], stats: null },
     });
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -343,7 +343,7 @@ describe('useBidActions (TanStack Query)', () => {
   it('redirects to /bid on 404', async () => {
     mockFetchSuccess({ procurementStatus: 404 });
     const { Wrapper } = createWrapper();
-    renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -358,7 +358,7 @@ describe('useBidActions (TanStack Query)', () => {
   it('handleStatusTransition calls PATCH with correct body', async () => {
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -392,7 +392,7 @@ describe('useBidActions (TanStack Query)', () => {
   it('handleStatusTransition adds submission_date for submitted status', async () => {
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -423,7 +423,7 @@ describe('useBidActions (TanStack Query)', () => {
     mockCanTransition.mockReturnValue(false);
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -444,7 +444,7 @@ describe('useBidActions (TanStack Query)', () => {
     mockCanTransition.mockReturnValue(true);
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -483,7 +483,7 @@ describe('useBidActions (TanStack Query)', () => {
   it('handleDeleteConfirmed deletes and redirects', async () => {
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -513,7 +513,7 @@ describe('useBidActions (TanStack Query)', () => {
   it('handleMatchQuestions calls POST and shows success', async () => {
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -547,7 +547,7 @@ describe('useBidActions (TanStack Query)', () => {
   it('handleDraftAll shows queued toast on mutation success (deduplicated:false)', async () => {
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -613,7 +613,7 @@ describe('useBidActions (TanStack Query)', () => {
     });
 
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -635,7 +635,7 @@ describe('useBidActions (TanStack Query)', () => {
   it('handleDraftAll shows success toast on terminal status=completed (no failures)', async () => {
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -707,7 +707,7 @@ describe('useBidActions (TanStack Query)', () => {
     });
 
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -771,7 +771,7 @@ describe('useBidActions (TanStack Query)', () => {
     });
 
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -833,7 +833,7 @@ describe('useBidActions (TanStack Query)', () => {
     });
 
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -855,7 +855,7 @@ describe('useBidActions (TanStack Query)', () => {
   it('handleOutcomeRecorded closes dialog and opens KB review when candidates exist', async () => {
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -877,7 +877,7 @@ describe('useBidActions (TanStack Query)', () => {
         content_text: 'text',
       },
     ] as unknown as Parameters<
-      ReturnType<typeof useBidActions>['handleOutcomeRecorded']
+      ReturnType<typeof useFormActions>['handleOutcomeRecorded']
     >[1];
     act(() => {
       result.current.handleOutcomeRecorded('won', candidates);
@@ -891,7 +891,7 @@ describe('useBidActions (TanStack Query)', () => {
   it('handleOutcomeRecorded does not open KB review when no candidates', async () => {
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -911,7 +911,7 @@ describe('useBidActions (TanStack Query)', () => {
   it('handleKBIntegrationComplete closes dialog and shows toast', async () => {
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -939,7 +939,7 @@ describe('useBidActions (TanStack Query)', () => {
   it('clearExtractedMetadata clears metadata state', async () => {
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -959,7 +959,7 @@ describe('useBidActions (TanStack Query)', () => {
   it('handleUploadComplete sets extracted questions and navigates to questions tab via URL', async () => {
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -1013,7 +1013,7 @@ describe('useBidActions (TanStack Query)', () => {
   it('handleUploadComplete sets extracted metadata when present', async () => {
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -1041,7 +1041,7 @@ describe('useBidActions (TanStack Query)', () => {
   it('computes metadata, procurementStatus, and progress correctly', async () => {
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -1067,7 +1067,7 @@ describe('useBidActions (TanStack Query)', () => {
       bid: { ...MOCK_BID, status: null },
     });
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -1081,7 +1081,7 @@ describe('useBidActions (TanStack Query)', () => {
   it('returns null metadata when bid is null', () => {
     mockFetch.mockImplementation(() => new Promise(() => {})); // never resolves
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -1093,7 +1093,7 @@ describe('useBidActions (TanStack Query)', () => {
     mockGetAvailableTransitions.mockReturnValue(['in_review', 'withdrawn']);
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -1118,7 +1118,7 @@ describe('useBidActions (TanStack Query)', () => {
       'withdrawn',
     ]);
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -1136,7 +1136,7 @@ describe('useBidActions (TanStack Query)', () => {
   it('builds tabs with correct counts', async () => {
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -1200,7 +1200,7 @@ describe('useBidActions (TanStack Query)', () => {
     });
 
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -1288,7 +1288,7 @@ describe('useBidActions (TanStack Query)', () => {
     });
 
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -1342,7 +1342,7 @@ describe('useBidActions (TanStack Query)', () => {
     });
 
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -1379,7 +1379,7 @@ describe('useBidActions (TanStack Query)', () => {
   it('handleDelete opens delete confirmation dialog', async () => {
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -1401,7 +1401,7 @@ describe('useBidActions (TanStack Query)', () => {
   it('handleQuestionReviewConfirmed clears questions and refetches', async () => {
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -1445,7 +1445,7 @@ describe('useBidActions (TanStack Query)', () => {
   it('handleQuestionReviewCancelled clears state without refetch', async () => {
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -1487,7 +1487,7 @@ describe('useBidActions (TanStack Query)', () => {
   it('returns all expected properties', async () => {
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -1583,7 +1583,7 @@ describe('useBidActions (TanStack Query)', () => {
     });
 
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -1626,7 +1626,7 @@ describe('useBidActions (TanStack Query)', () => {
     });
 
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
@@ -1650,7 +1650,7 @@ describe('useBidActions (TanStack Query)', () => {
       hoistedMockSearchParams.current = new URLSearchParams('tab=questions');
       mockFetchSuccess();
       const { Wrapper } = createWrapper();
-      const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+      const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
         wrapper: Wrapper,
       });
 
@@ -1665,7 +1665,7 @@ describe('useBidActions (TanStack Query)', () => {
       hoistedMockSearchParams.current = new URLSearchParams('tab=documents');
       mockFetchSuccess();
       const { Wrapper } = createWrapper();
-      const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+      const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
         wrapper: Wrapper,
       });
 
@@ -1680,7 +1680,7 @@ describe('useBidActions (TanStack Query)', () => {
       hoistedMockSearchParams.current = new URLSearchParams();
       mockFetchSuccess();
       const { Wrapper } = createWrapper();
-      const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+      const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
         wrapper: Wrapper,
       });
 
@@ -1695,7 +1695,7 @@ describe('useBidActions (TanStack Query)', () => {
       hoistedMockSearchParams.current = new URLSearchParams('tab=invalid');
       mockFetchSuccess();
       const { Wrapper } = createWrapper();
-      const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+      const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
         wrapper: Wrapper,
       });
 
@@ -1710,7 +1710,7 @@ describe('useBidActions (TanStack Query)', () => {
     it('setActiveTab calls router.replace (not push) with ?tab= param', async () => {
       mockFetchSuccess();
       const { Wrapper } = createWrapper();
-      const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+      const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
         wrapper: Wrapper,
       });
 
@@ -1735,7 +1735,7 @@ describe('useBidActions (TanStack Query)', () => {
       hoistedMockSearchParams.current = new URLSearchParams('tab=questions');
       mockFetchSuccess();
       const { Wrapper } = createWrapper();
-      const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+      const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
         wrapper: Wrapper,
       });
 
@@ -1757,7 +1757,7 @@ describe('useBidActions (TanStack Query)', () => {
       );
       mockFetchSuccess();
       const { Wrapper } = createWrapper();
-      const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+      const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
         wrapper: Wrapper,
       });
 

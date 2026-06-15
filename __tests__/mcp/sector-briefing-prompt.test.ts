@@ -136,7 +136,7 @@ describe('MCP sector_briefing prompt', () => {
   it('leaves the previously registered prompts intact', () => {
     // Defensive: confirm WP1 did not accidentally replace an earlier prompt.
     expect(server.getPrompt('reorient')).toBeDefined();
-    expect(server.getPrompt('bid_briefing')).toBeDefined();
+    expect(server.getPrompt('form_briefing')).toBeDefined();
     expect(server.getPrompt('coverage_analysis')).toBeDefined();
     expect(server.getPrompt('draft_response')).toBeDefined();
     expect(server.getPrompt('review_item')).toBeDefined();

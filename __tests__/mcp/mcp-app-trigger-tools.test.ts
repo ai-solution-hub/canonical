@@ -860,7 +860,7 @@ describe('MCP App trigger tools #22-23', () => {
       expect(result.content[0].text).toContain('No active procurements found');
     });
 
-    it('fetches focused bid detail when bid_id is provided', async () => {
+    it('fetches focused form detail when form_id is provided', async () => {
       const handler = mockServer.getHandler('show_procurement_dashboard')!;
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
@@ -911,31 +911,31 @@ describe('MCP App trigger tools #22-23', () => {
         error: null,
       });
 
-      const result = (await handler({ bid_id: 'bid-001' }, extra)) as {
+      const result = (await handler({ form_id: 'bid-001' }, extra)) as {
         structuredContent: ProcurementDashboardData & {
-          focused_bid_detail: Record<string, unknown>;
+          focused_form_detail: Record<string, unknown>;
         };
       };
 
-      expect(result.structuredContent.focused_bid_detail).toBeDefined();
-      expect(result.structuredContent.focused_bid_detail.name).toBe(
+      expect(result.structuredContent.focused_form_detail).toBeDefined();
+      expect(result.structuredContent.focused_form_detail.name).toBe(
         'NHS Digital Transformation',
       );
-      expect(result.structuredContent.focused_bid_detail.buyer).toBe(
+      expect(result.structuredContent.focused_form_detail.buyer).toBe(
         'NHS England',
       );
-      expect(result.structuredContent.focused_bid_detail.reference_number).toBe(
-        'NHS-DT-2026',
-      );
       expect(
-        result.structuredContent.focused_bid_detail.question_stats,
+        result.structuredContent.focused_form_detail.reference_number,
+      ).toBe('NHS-DT-2026');
+      expect(
+        result.structuredContent.focused_form_detail.question_stats,
       ).toBeDefined();
       expect(
-        result.structuredContent.focused_bid_detail.sections,
+        result.structuredContent.focused_form_detail.sections,
       ).toBeDefined();
     });
 
-    it('does not include focused_bid_detail when bid_id is omitted', async () => {
+    it('does not include focused_form_detail when form_id is omitted', async () => {
       const handler = mockServer.getHandler('show_procurement_dashboard')!;
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
@@ -947,7 +947,7 @@ describe('MCP App trigger tools #22-23', () => {
         structuredContent: ProcurementDashboardData;
       };
 
-      expect(result.structuredContent.focused_bid_detail).toBeUndefined();
+      expect(result.structuredContent.focused_form_detail).toBeUndefined();
     });
 
     it('handles focused bid not found gracefully', async () => {
@@ -969,13 +969,13 @@ describe('MCP App trigger tools #22-23', () => {
       };
       supabase.from.mockReturnValue(mockChain);
 
-      const result = (await handler({ bid_id: 'nonexistent-id' }, extra)) as {
+      const result = (await handler({ form_id: 'nonexistent-id' }, extra)) as {
         structuredContent: ProcurementDashboardData;
       };
 
       // Should still return bids but no focused detail
       expect(result.structuredContent.bids).toHaveLength(2);
-      expect(result.structuredContent.focused_bid_detail).toBeUndefined();
+      expect(result.structuredContent.focused_form_detail).toBeUndefined();
     });
 
     it('returns Markdown text in content array', async () => {
@@ -1041,7 +1041,7 @@ describe('MCP App trigger tools #22-23', () => {
       expect(result.structuredContent.bids[0].deadline).toBeNull();
     });
 
-    it('should include sections in focused_bid_detail when bid_id provided', async () => {
+    it('should include sections in focused_form_detail when form_id provided', async () => {
       const handler = mockServer.getHandler('show_procurement_dashboard')!;
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
@@ -1092,13 +1092,13 @@ describe('MCP App trigger tools #22-23', () => {
         error: null,
       });
 
-      const result = (await handler({ bid_id: 'bid-001' }, extra)) as {
+      const result = (await handler({ form_id: 'bid-001' }, extra)) as {
         structuredContent: ProcurementDashboardData & {
-          focused_bid_detail: Record<string, unknown>;
+          focused_form_detail: Record<string, unknown>;
         };
       };
 
-      const detail = result.structuredContent.focused_bid_detail;
+      const detail = result.structuredContent.focused_form_detail;
       expect(detail).toBeDefined();
       expect(detail.sections).toBeDefined();
       expect(Array.isArray(detail.sections)).toBe(true);
@@ -1183,13 +1183,13 @@ describe('MCP App trigger tools #22-23', () => {
         error: null,
       });
 
-      const result = (await handler({ bid_id: 'bid-001' }, extra)) as {
+      const result = (await handler({ form_id: 'bid-001' }, extra)) as {
         structuredContent: ProcurementDashboardData & {
-          focused_bid_detail: Record<string, unknown>;
+          focused_form_detail: Record<string, unknown>;
         };
       };
 
-      const breakdown = result.structuredContent.focused_bid_detail
+      const breakdown = result.structuredContent.focused_form_detail
         .status_breakdown as Record<string, number>;
       expect(breakdown.ai_drafted).toBe(1);
       expect(breakdown.complete).toBe(1);
@@ -1273,13 +1273,13 @@ describe('MCP App trigger tools #22-23', () => {
         error: null,
       });
 
-      const result = (await handler({ bid_id: 'bid-001' }, extra)) as {
+      const result = (await handler({ form_id: 'bid-001' }, extra)) as {
         structuredContent: ProcurementDashboardData & {
-          focused_bid_detail: Record<string, unknown>;
+          focused_form_detail: Record<string, unknown>;
         };
       };
 
-      const breakdown = result.structuredContent.focused_bid_detail
+      const breakdown = result.structuredContent.focused_form_detail
         .confidence_breakdown as Record<string, number>;
       expect(breakdown.strong_match).toBe(1);
       expect(breakdown.needs_sme).toBe(2);
@@ -1328,13 +1328,13 @@ describe('MCP App trigger tools #22-23', () => {
         error: null,
       });
 
-      const result = (await handler({ bid_id: 'bid-001' }, extra)) as {
+      const result = (await handler({ form_id: 'bid-001' }, extra)) as {
         structuredContent: ProcurementDashboardData & {
-          focused_bid_detail: Record<string, unknown>;
+          focused_form_detail: Record<string, unknown>;
         };
       };
 
-      const detail = result.structuredContent.focused_bid_detail;
+      const detail = result.structuredContent.focused_form_detail;
       expect(detail.sections).toEqual([]);
       expect(detail.status_breakdown).toEqual({});
       expect(detail.confidence_breakdown).toEqual({});

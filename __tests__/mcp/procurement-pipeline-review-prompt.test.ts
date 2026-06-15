@@ -1,5 +1,5 @@
 /**
- * Verifies the MCP `bid_pipeline_review` prompt template.
+ * Verifies the MCP `form_pipeline_review` prompt template.
  *
  * Asserts registration, args schema (stale_threshold_days optional),
  * tool-name references (list_active_procurement + get_procurement_detail), the five
@@ -11,7 +11,7 @@ import type { z } from 'zod';
 import { registerPrompts } from '@/lib/mcp/resources';
 import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 
-describe('MCP bid_pipeline_review prompt', () => {
+describe('MCP form_pipeline_review prompt', () => {
   let server: ReturnType<typeof createMockMcpServer>;
 
   beforeEach(() => {
@@ -19,14 +19,14 @@ describe('MCP bid_pipeline_review prompt', () => {
     registerPrompts(server.server as never);
   });
 
-  it('registers a bid_pipeline_review prompt', () => {
-    const prompt = server.getPrompt('bid_pipeline_review');
+  it('registers a form_pipeline_review prompt', () => {
+    const prompt = server.getPrompt('form_pipeline_review');
     expect(prompt).toBeDefined();
     expect(prompt!.config.title).toBe('Procurement Pipeline Review');
   });
 
   it('declares an optional stale_threshold_days arg', () => {
-    const prompt = server.getPrompt('bid_pipeline_review');
+    const prompt = server.getPrompt('form_pipeline_review');
     const argsSchema = prompt!.config.argsSchema as Record<
       string,
       z.ZodTypeAny
@@ -38,32 +38,32 @@ describe('MCP bid_pipeline_review prompt', () => {
   });
 
   it('includes the KB system context', async () => {
-    const prompt = server.getPrompt('bid_pipeline_review');
+    const prompt = server.getPrompt('form_pipeline_review');
     const result = await prompt!.handler({});
     const text = result.messages[0]?.content.text ?? '';
     expect(text).toContain('Knowledge Hub');
     expect(text).toContain('UK English');
   });
 
-  it('references the two core bid tools', async () => {
-    const prompt = server.getPrompt('bid_pipeline_review');
+  it('references the two core form tools', async () => {
+    const prompt = server.getPrompt('form_pipeline_review');
     const result = await prompt!.handler({});
     const text = result.messages[0]?.content.text ?? '';
     expect(text).toContain('list_active_procurement');
     expect(text).toContain('get_procurement_detail');
   });
 
-  it('frames output as cross-bid action review, not per-bid status', async () => {
-    const prompt = server.getPrompt('bid_pipeline_review');
+  it('frames output as cross-form action review, not per-form status', async () => {
+    const prompt = server.getPrompt('form_pipeline_review');
     const result = await prompt!.handler({});
     const text = result.messages[0]?.content.text ?? '';
-    // Differentiator from /kb:bid-status
-    expect(text).toContain('NOT per-bid status');
-    expect(text).toContain('/kb:bid-status');
+    // Differentiator from /kb:form-status
+    expect(text).toContain('NOT per-form status');
+    expect(text).toContain('/kb:form-status');
   });
 
   it('specifies the 5 output sections', async () => {
-    const prompt = server.getPrompt('bid_pipeline_review');
+    const prompt = server.getPrompt('form_pipeline_review');
     const result = await prompt!.handler({});
     const text = result.messages[0]?.content.text ?? '';
     expect(text).toContain('### Critical blockers');
@@ -74,7 +74,7 @@ describe('MCP bid_pipeline_review prompt', () => {
   });
 
   it('references the confidence posture values the prompt must filter on', async () => {
-    const prompt = server.getPrompt('bid_pipeline_review');
+    const prompt = server.getPrompt('form_pipeline_review');
     const result = await prompt!.handler({});
     const text = result.messages[0]?.content.text ?? '';
     expect(text).toContain('no_content');
@@ -82,7 +82,7 @@ describe('MCP bid_pipeline_review prompt', () => {
   });
 
   it('defaults stale_threshold_days to 5 when omitted', async () => {
-    const prompt = server.getPrompt('bid_pipeline_review');
+    const prompt = server.getPrompt('form_pipeline_review');
     const result = await prompt!.handler({});
     const text = result.messages[0]?.content.text ?? '';
     expect(text).toContain('more than 5 days ago');
@@ -90,7 +90,7 @@ describe('MCP bid_pipeline_review prompt', () => {
   });
 
   it('honours a non-default stale_threshold_days', async () => {
-    const prompt = server.getPrompt('bid_pipeline_review');
+    const prompt = server.getPrompt('form_pipeline_review');
     const result = await prompt!.handler({ stale_threshold_days: '10' });
     const text = result.messages[0]?.content.text ?? '';
     expect(text).toContain('more than 10 days ago');
@@ -100,7 +100,7 @@ describe('MCP bid_pipeline_review prompt', () => {
 
   it('leaves all 6 prior prompts registered', () => {
     expect(server.getPrompt('reorient')).toBeDefined();
-    expect(server.getPrompt('bid_briefing')).toBeDefined();
+    expect(server.getPrompt('form_briefing')).toBeDefined();
     expect(server.getPrompt('coverage_analysis')).toBeDefined();
     expect(server.getPrompt('draft_response')).toBeDefined();
     expect(server.getPrompt('review_item')).toBeDefined();

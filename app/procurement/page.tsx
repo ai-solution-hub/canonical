@@ -60,7 +60,7 @@ const FILTER_STATES: Record<StatusFilter, ProcurementWorkflowState[] | null> = {
   completed: ['won', 'lost', 'withdrawn'],
 };
 
-export default function BidsPage() {
+export default function FormsPage() {
   const router = useRouter();
   const { canEdit } = useUserRole();
   const [bids, setProcurements] = useState<Procurement[]>([]);
