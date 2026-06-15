@@ -2,17 +2,17 @@
  * lib/q-a-pairs/promote-corpus.ts
  *
  * ID-59 {59.22} — promoteCorpusExtractions core loop + atomic CAS + field map.
+ * ID-59 {59.23} — embed-decouple + self-heal retry path (OQ-3).
  *
  * Spec: specs/id-59-concurrent-edit-intent-arbitration/TECH-qa-corpus-promotion.md
- *       R1 steps 1, 2, 3, 5.
- * Product invariants: INV-1, INV-4, INV-5, INV-6, INV-7, INV-8.
- *
- * THIS SLICE stops each promoted pair at publication_status='draft' with
- * question_embedding NULL. Embedding + publish is {59.23}.
+ *       R1 steps 1, 2, 3, 4, 5, 7.
+ * Product invariants: INV-1, INV-3, INV-4, INV-5, INV-6, INV-7, INV-8,
+ *                    INV-10, INV-11, INV-12, INV-23.
  *
  * Auth discipline: the caller (HTTP route or pipeline) passes an authorised/
- * operator Supabase client. ALL DB access is via tryQuery() — no service-role
- * escalation, RLS-scoped throughout (INV-14, INV-15). Direct import — no barrel.
+ * operator Supabase client. ALL DB access is via tryQuery() or the direct chain
+ * where tryQuery() wraps it — no service-role escalation, RLS-scoped throughout
+ * (INV-14, INV-15). Direct import — no barrel.
  *
  * Alternate question phrasings: q_a_extractions has no dedicated phrasings
  * column (the extraction_metadata JSONB is the only place per-extraction
@@ -21,10 +21,24 @@
  * relies on the column DEFAULT '{}' (an empty text[]). When ID-94.1/G4 lands
  * a dedicated column or well-known metadata key, update the INSERT payload
  * below — see the note near the INSERT.
+ *
+ * OQ-3 decouple: the extraction→pair LINK (CAS) is NOT conditional on
+ * embedding success. If embedding fails, the pair stays draft+NULL — which
+ * q_a_search correctly excludes (INV-11). The eligibility RPC re-selects
+ * linked-but-unembedded pairs next run → self-healing. The batch NEVER aborts
+ * for one embedding failure (INV-10).
+ *
+ * INV-12 invariant: `publication_status='published'` is ONLY set in the same
+ * UPDATE that sets `question_embedding`. Never one without the other.
+ *
+ * INV-23 equation: for one run, published-this-run == promoted - embed_failed.
+ *   promoted = CAS-wins + self-heal attempts (all paths that reach the embed step)
+ *   embed_failed = subset of promoted whose embed or embed UPDATE failed
  */
 
 import { tryQuery } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
+import { generateEmbedding } from '@/lib/ai/embed';
 import type { Database } from '@/supabase/types/database.types';
 
 // ---------------------------------------------------------------------------
@@ -41,28 +55,36 @@ export interface SkipRecord {
 }
 
 /**
- * Structured summary returned by promoteCorpusExtractions (R1 step 5).
+ * Structured summary returned by promoteCorpusExtractions (R1 step 7).
  *
- * Extended in {59.23} with embed_failed, and in {59.24} with retired /
- * retired_no_replacement.
+ * {59.22}: considered, promoted, skipped, already_promoted.
+ * {59.23}: embed_failed added; pass_through retired (self-heal rows now flow
+ *          into embed accounting — promoted++ + embed_failed++ on failure).
+ * {59.24}: retired, retired_no_replacement (not yet).
+ *
+ * INV-23: published-this-run == promoted - embed_failed is an invariant
+ * of this function for any single run.
  */
 export interface PromotionSummary {
   /** Total extractions the RPC returned (eligible set). */
   considered: number;
-  /** Extractions newly linked to a fresh pair this run. */
+  /**
+   * Extractions that reached the embed step this run.
+   * Includes both newly CAS-linked rows AND self-heal attempts (linked rows
+   * whose pair is still unembedded). embed_failed is the subset that failed;
+   * published-this-run = promoted − embed_failed (INV-23).
+   */
   promoted: number;
   /** Extractions skipped (unpromotable — e.g. no answer text). */
   skipped: SkipRecord[];
   /** Extractions where the CAS lost a race (concurrent run won; orphan cleaned). */
   already_promoted: number;
   /**
-   * Extractions that were already linked but whose pair is unembedded.
-   * These are passed through untouched — {59.23} will re-attempt embedding.
-   * They are not promoted (no new pair), not skipped (have usable content),
-   * not already_promoted (the link is real). The count is surfaced so the
-   * operator can see the embedding backlog.
+   * Extractions whose embedding failed this run (pair left draft+NULL).
+   * The eligibility RPC re-selects them next run → self-healing.
+   * published-this-run = promoted - embed_failed (INV-23).
    */
-  pass_through: number;
+  embed_failed: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -95,8 +117,12 @@ export interface SupabaseClientLike {
  *   2. SKIP rows with no usable answer text (INV-7).
  *   3a. For unpromoted rows: INSERT pair (draft, no embedding), then CAS-link.
  *       CAS 0 rows → delete orphan + count already_promoted.
- *   3d. For linked-but-unembedded rows: pass through; {59.23} embeds them.
- *   5. Return structured summary.
+ *   3d. For linked-but-unembedded rows: skip INSERT + CAS; jump to step 4
+ *       to re-attempt embedding on the existing pair (self-heal, OQ-3).
+ *   4.  Embed: generateEmbedding(question_text). On success: UPDATE pair
+ *       SET question_embedding + publication_status='published' together
+ *       (INV-12). On failure: leave draft+NULL, count embed_failed, continue.
+ *   5. Return structured summary (INV-23 equation holds as invariant).
  *
  * @param client  Authorised/operator Supabase client (RLS-scoped; injected by
  *                the HTTP route or ID-45 pipeline).
@@ -117,7 +143,6 @@ export async function promoteCorpusExtractions(
   );
 
   if (!eligibleResult.ok) {
-    // Surface the error — callers decide whether to retry or abort the batch.
     throw new Error(
       safeErrorMessage(
         eligibleResult.error,
@@ -134,7 +159,7 @@ export async function promoteCorpusExtractions(
   // -------------------------------------------------------------------------
   let promoted = 0;
   let already_promoted = 0;
-  let pass_through = 0;
+  let embed_failed = 0;
   const skipped: SkipRecord[] = [];
 
   // -------------------------------------------------------------------------
@@ -144,13 +169,25 @@ export async function promoteCorpusExtractions(
     const extractionId: string = extraction.id;
 
     // -----------------------------------------------------------------------
-    // Step 3d — linked-but-unembedded pass-through (R1 step 3d).
-    // The RPC returns these so {59.23} can re-embed them. In this slice they
-    // are neither promoted (no new pair) nor skipped; we count them as
-    // pass_through and continue. No INSERT, no CAS.
+    // Step 3d — linked-but-unembedded self-heal path (OQ-3).
+    //
+    // The RPC returns these rows so {59.23} can re-attempt embedding.
+    // The pair already exists and is already linked — skip INSERT + CAS.
+    // Jump straight to step 4 with the existing pair id.
     // -----------------------------------------------------------------------
     if (extraction.promoted_to_pair_id !== null) {
-      pass_through++;
+      const existingPairId: string = extraction.promoted_to_pair_id;
+      // Self-heal attempt counts as a promotion attempt this run (INV-23)
+      promoted++;
+      await embedAndPublish(
+        client,
+        extractionId,
+        existingPairId,
+        extraction.extracted_question_text,
+        () => {
+          embed_failed++;
+        },
+      );
       continue;
     }
 
@@ -177,7 +214,7 @@ export async function promoteCorpusExtractions(
     // the DB backstop on the link column.
     // -----------------------------------------------------------------------
 
-    // ---- 3a-i: INSERT the pair (draft, embedding omitted — {59.23} adds it) ----
+    // ---- 3a-i: INSERT the pair (draft, embedding omitted — step 4 adds it) ----
     //
     // Field map (INV-6):
     //   question_text             ← extracted_question_text
@@ -187,17 +224,13 @@ export async function promoteCorpusExtractions(
     //                                   q_a_extractions. Update when ID-94.1/G4
     //                                   adds a known phrasings key.
     //   origin_kind               ← 'extracted_from_corpus' (INV-4)
-    //   publication_status        ← 'draft' (embedding + publish is {59.23})
-    //   question_embedding        ← omitted/NULL ({59.23})
+    //   publication_status        ← 'draft' (step 4 publishes in same UPDATE as embed)
+    //   question_embedding        ← omitted/NULL (step 4 sets it)
     //   source_form_response_id   ← omitted (route-i pairs have no form lineage)
     //   source_question_id        ← omitted (route-i pairs have no form lineage)
     //   source_workspace_id       ← omitted (nullable/defaulted; mirrors
     //                               route-iii lines 155-164 which also omit it)
     //   superseded_by             ← omitted/NULL
-    //
-    // The payload is typed as the generated Insert type so a future
-    // alternate_question_phrasings: '{}' (string, not string[]) would be a
-    // compile error — preventing recurrence of the 22P02 bug class.
     const pairInsert: Database['public']['Tables']['q_a_pairs']['Insert'] = {
       question_text: extraction.extracted_question_text,
       answer_standard: answerText,
@@ -205,7 +238,7 @@ export async function promoteCorpusExtractions(
       // (text[] NOT NULL DEFAULT '{}') fills it. Update here for ID-94.1/G4.
       origin_kind: 'extracted_from_corpus',
       publication_status: 'draft',
-      // question_embedding intentionally omitted — {59.23} embeds + publishes
+      // question_embedding intentionally omitted — step 4 embeds + publishes
     };
     const insertResult = await tryQuery(
       client.from('q_a_pairs').insert(pairInsert).select('id').single(),
@@ -240,7 +273,6 @@ export async function promoteCorpusExtractions(
       .is('promoted_to_pair_id', null)
       .select('id');
 
-    // The chain is awaited directly (then); the resolved value has {data, error}.
     const casData: { id: string }[] | null = casResult?.data ?? null;
     const casError = casResult?.error ?? null;
 
@@ -266,9 +298,18 @@ export async function promoteCorpusExtractions(
       already_promoted++;
     } else {
       // ---- CAS won (1 row) — pair is linked ----
+      // Now attempt embedding. promoted++ BEFORE embed so the INV-23 equation
+      // holds regardless of embed outcome: promoted++ then possibly embed_failed++.
       promoted++;
-      // {59.23} will embed + publish this pair. It is left at draft + NULL
-      // embedding so q_a_search correctly excludes it until fully promoted.
+      await embedAndPublish(
+        client,
+        extractionId,
+        newPairId,
+        extraction.extracted_question_text,
+        () => {
+          embed_failed++;
+        },
+      );
     }
   }
 
@@ -277,6 +318,78 @@ export async function promoteCorpusExtractions(
     promoted,
     skipped,
     already_promoted,
-    pass_through,
+    embed_failed,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Step 4 — embed + publish helper (OQ-3 decouple)
+//
+// Attempts to generate an embedding for the question text and UPDATE the pair
+// with both question_embedding AND publication_status='published' in ONE
+// statement (INV-12: publish ONLY with embedding together — never one without
+// the other; a pair with published+NULL-embedding would be invisible to
+// q_a_search, violating INV-11).
+//
+// On ANY failure (generateEmbedding throws, or UPDATE returns 0 rows):
+//   - The pair remains draft + question_embedding NULL.
+//   - q_a_search correctly excludes it (INV-11 satisfied).
+//   - onFail() is called (caller increments embed_failed).
+//   - The loop CONTINUES — no batch abort (INV-10).
+//   - The eligibility RPC re-selects this linked-unembedded pair next run →
+//     self-healing (the link does NOT block retry).
+// ---------------------------------------------------------------------------
+async function embedAndPublish(
+  client: SupabaseClientLike,
+  extractionId: string,
+  pairId: string,
+  questionText: string,
+  onFail: () => void,
+): Promise<void> {
+  let embedding: number[];
+  try {
+    embedding = await generateEmbedding(questionText);
+  } catch {
+    // generateEmbedding threw — leave pair draft+NULL, self-heal next run.
+    onFail();
+    return;
+  }
+
+  // UPDATE pair SET question_embedding + publication_status='published' TOGETHER.
+  // INV-12: these two fields are ALWAYS set in the same UPDATE statement.
+  // Typed update payload — compile-check that field names match the schema.
+  const embedUpdatePayload: Pick<
+    Database['public']['Tables']['q_a_pairs']['Update'],
+    'question_embedding' | 'publication_status'
+  > = {
+    question_embedding: JSON.stringify(embedding),
+    publication_status: 'published',
+  };
+
+  const embedUpdateResult = await client
+    .from('q_a_pairs')
+    .update(embedUpdatePayload)
+    .eq('id', pairId)
+    .select('id');
+
+  const embedData: { id: string }[] | null = embedUpdateResult?.data ?? null;
+  const embedError = embedUpdateResult?.error ?? null;
+
+  if (embedError) {
+    // UPDATE failed — pair stays draft+NULL. Surface a note but don't throw.
+    // The Orchestrator / log consumer can see extractionId in the embed_failed count.
+    // In production, structured logging would capture extractionId + error here.
+    void extractionId; // reference to suppress unused-var lint on the param
+    onFail();
+    return;
+  }
+
+  const embedRowCount = (embedData ?? []).length;
+  if (embedRowCount === 0) {
+    // REST PATCH silent no-op — 0 rows means the pair was not found or
+    // a concurrent update already published it. Either way, count as
+    // embed_failed so the operator can see the discrepancy (INV-12 defence).
+    onFail();
+  }
+  // embedRowCount > 0: pair is now published with a non-null embedding. Success.
 }

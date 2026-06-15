@@ -1,11 +1,13 @@
 /**
- * Integration tests for promoteCorpusExtractions — ID-59 {59.22}
+ * Integration tests for promoteCorpusExtractions — ID-59 {59.22} + {59.23}
  *
  * Spec: specs/id-59-concurrent-edit-intent-arbitration/TECH-qa-corpus-promotion.md
- *       R1 steps 1, 2, 3, 5 (stops at draft; {59.23} adds embedding + publish).
+ *       R1 steps 1, 2, 3, 4, 5, 7.
  *
  * Scope:
  *   - Real CAS / idempotency / race proof against the staging Supabase instance.
+ *   - {59.23} self-heal: seed a linked-but-unembedded pair, run the function
+ *     with a real embed, assert it reaches published with non-null embedding.
  *   - Requires the {59.21} migration to be applied:
  *       20260614012600_id59_route_i_promotion_idempotency_index.sql
  *       20260614012601_id59_route_i_promotion_idempotency_rpc.sql
@@ -20,7 +22,7 @@
  * NOTE for the Orchestrator / Checker: this suite CANNOT be run offline.
  * It must be verified on staging (turayklvaunphgbgscat) where the {59.21}
  * migrations are applied. The parent should run this suite on staging before
- * marking {59.22} done.
+ * marking {59.23} done.
  *
  * FK-safe teardown: q_a_extractions DELETE (FK → q_a_pairs ON DELETE SET NULL)
  * then q_a_pairs DELETE; tracked via afterEach seeded-id lists.
@@ -74,7 +76,7 @@ if (RUN_INTEGRATION) {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
     throw new Error(
-      '{59.22} integration tests require NEXT_PUBLIC_SUPABASE_URL and ' +
+      '{59.22}/{59.23} integration tests require NEXT_PUBLIC_SUPABASE_URL and ' +
         'SUPABASE_SERVICE_ROLE_KEY in .env.local',
     );
   }
@@ -168,12 +170,13 @@ async function seedPair(opts: { embedded?: boolean } = {}): Promise<string> {
 // ---------------------------------------------------------------------------
 
 describe.skipIf(!RUN_INTEGRATION)(
-  'ID-59 {59.22} promoteCorpusExtractions — integration',
+  'ID-59 {59.22}/{59.23} promoteCorpusExtractions — integration',
   () => {
     // -----------------------------------------------------------------------
     // Test 1: basic promotion — live unlinked extraction gets a draft pair
+    //         then embed fires → pair reaches published with non-null embedding
     // -----------------------------------------------------------------------
-    it('promotes a live unlinked extraction to a draft pair with correct field map', async () => {
+    it('promotes a live unlinked extraction: field map correct, pair published with embedding', async () => {
       const extractionId = await seedExtraction({});
 
       const summary = await promoteCorpusExtractions(db);
@@ -193,7 +196,7 @@ describe.skipIf(!RUN_INTEGRATION)(
       if (ext?.promoted_to_pair_id) {
         seededPairIds.push(ext.promoted_to_pair_id);
 
-        // Verify field map on the created pair
+        // Verify field map + embed + publish on the created pair ({59.23})
         const { data: pair } = await db
           .from('q_a_pairs')
           .select(
@@ -204,18 +207,21 @@ describe.skipIf(!RUN_INTEGRATION)(
 
         // INV-4: origin_kind
         expect(pair?.origin_kind).toBe('extracted_from_corpus');
-        // This subtask stops at draft — {59.23} publishes + embeds
-        expect(pair?.publication_status).toBe('draft');
-        expect(pair?.question_embedding).toBeNull();
+        // {59.23}: embed fires → pair must be published with non-null embedding
+        expect(pair?.publication_status).toBe('published');
+        expect(pair?.question_embedding).not.toBeNull();
         // Route-i pairs have no form response lineage
         expect(pair?.source_form_response_id).toBeNull();
         expect(pair?.source_question_id).toBeNull();
-        // DB DEFAULT '{}' round-trips as an empty text[] (real PostgREST proof
-        // that omitting the field from the INSERT payload does NOT cause 22P02)
+        // DB DEFAULT '{}' round-trips as an empty text[]
         expect(pair?.alternate_question_phrasings).toEqual([]);
       }
 
       expect(summary.promoted).toBeGreaterThanOrEqual(1);
+      // embed_failed should be 0 in the happy path
+      expect(summary.embed_failed).toBe(0);
+      // INV-23: promoted - embed_failed == published-this-run (at least 1)
+      expect(summary.promoted - summary.embed_failed).toBeGreaterThanOrEqual(1);
     }, 60_000);
 
     // -----------------------------------------------------------------------
@@ -240,7 +246,7 @@ describe.skipIf(!RUN_INTEGRATION)(
       // Second run
       const summary2 = await promoteCorpusExtractions(db);
 
-      // No new promotions for already-linked extractions
+      // No new promotions for already-linked (and now published) extractions
       expect(summary2.promoted).toBeLessThanOrEqual(promotedBefore);
     }, 60_000);
 
@@ -268,31 +274,33 @@ describe.skipIf(!RUN_INTEGRATION)(
     }, 60_000);
 
     // -----------------------------------------------------------------------
-    // Test 4: linked-but-unembedded extraction → pass-through (not re-inserted)
+    // Test 4 ({59.23} self-heal): seed a linked-but-unembedded pair,
+    //   run the function with a real embed, assert it reaches published
+    //   with non-null embedding. (OQ-3 self-heal integration proof)
     // -----------------------------------------------------------------------
-    it('passes through linked-but-unembedded extraction without creating a new pair', async () => {
-      // Seed a draft pair (unembedded)
+    it('{59.23} self-heal: linked-but-unembedded pair gets embedded and published', async () => {
+      // Seed a draft pair (unembedded — simulates a prior run where embed failed)
       const existingPairId = await seedPair({ embedded: false });
       // Seed an extraction already linked to it (the unembedded-retry case)
       const extractionId = await seedExtraction({
         promotedToPairId: existingPairId,
       });
 
-      // Count q_a_pairs before
-      const { count: pairsBefore } = await db
+      // The pair should start as draft with null embedding
+      const { data: pairBefore } = await db
         .from('q_a_pairs')
-        .select('id', { count: 'exact' });
+        .select('publication_status, question_embedding')
+        .eq('id', existingPairId)
+        .single();
+      expect(pairBefore?.publication_status).toBe('draft');
+      expect(pairBefore?.question_embedding).toBeNull();
 
       const summary = await promoteCorpusExtractions(db);
 
-      // Count pairs after — must be same (no new pair for linked-unembedded)
-      const { count: pairsAfter } = await db
-        .from('q_a_pairs')
-        .select('id', { count: 'exact' });
+      // The function should have attempted embedding for this linked-unembedded row
+      expect(summary.promoted).toBeGreaterThanOrEqual(1);
 
-      expect(pairsAfter).toBe(pairsBefore);
-
-      // The extraction must still point at the original pair
+      // The extraction must still point at the original pair (link unchanged)
       const { data: ext } = await db
         .from('q_a_extractions')
         .select('promoted_to_pair_id')
@@ -300,7 +308,17 @@ describe.skipIf(!RUN_INTEGRATION)(
         .single();
       expect(ext?.promoted_to_pair_id).toBe(existingPairId);
 
-      expect(summary.pass_through).toBeGreaterThanOrEqual(1);
+      // The pair must now be published with a non-null embedding (INV-11/INV-12)
+      const { data: pairAfter } = await db
+        .from('q_a_pairs')
+        .select('publication_status, question_embedding')
+        .eq('id', existingPairId)
+        .single();
+      expect(pairAfter?.publication_status).toBe('published');
+      expect(pairAfter?.question_embedding).not.toBeNull();
+
+      // embed_failed should be 0 for this run (embed succeeded)
+      expect(summary.embed_failed).toBe(0);
     }, 60_000);
   },
 );
