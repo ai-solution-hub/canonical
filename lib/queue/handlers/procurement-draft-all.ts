@@ -153,7 +153,7 @@ export async function runBidDraftAllJob(
     .single();
 
   if (procurementError || !bid) {
-    throw new PermanentJobError(`bid_not_found: ${form_id}`);
+    throw new PermanentJobError(`form_not_found: ${form_id}`);
   }
 
   const procurementStatus = (bid.status as ProcurementWorkflowState) ?? 'draft';

@@ -29,17 +29,10 @@ export {
   formatContentItemChunks,
 } from './content';
 export {
-  formatDashboardSummary,
   formatActiveBids,
   type FreshnessReport,
-  formatFreshnessReport,
   formatReorientation,
-  type ExpiringContentItem,
-  type ExpiringEntityMention,
-  type ExpiringContentData,
-  formatExpiringContent,
   type ExposureResolution,
-  type ExposureLayerKey,
   type ExposureLayer,
   type WhereAreWeExposedData,
   formatWhereAreWeExposed,
@@ -57,8 +50,6 @@ export {
   formatContentEffectiveness,
 } from './procurements';
 export {
-  type QualitySummary,
-  formatQualitySummary,
   type CoverageGapResult,
   formatCoverageGaps,
   type AuditItem,
@@ -67,7 +58,6 @@ export {
   type DuplicatePairsResult,
   DuplicatePairsResponseSchema,
   formatDuplicatePairs,
-  formatQualityActions,
 } from './quality';
 export {
   type EntitySummaryResult,
@@ -75,9 +65,6 @@ export {
   type EntityOverview,
   formatEntitySummary,
   formatEntityOverview,
-  type CertificationReportEntry,
-  type CertificationReportData,
-  formatCertificationReport,
 } from './entities';
 export {
   type DeleteContentResult,
@@ -85,9 +72,6 @@ export {
   type GovernanceStatusItemResult,
   type GovernanceStatusUpdateResult,
   formatGovernanceStatusUpdate,
-  type GovernanceQueueItem,
-  type GovernanceQueueData,
-  formatGovernanceQueue,
   type GovernanceReviewAction,
   type GovernanceReviewActionResult,
   formatGovernanceReviewAction,
@@ -95,12 +79,6 @@ export {
   formatPublicationStatusUpdate,
 } from './governance';
 export {
-  type ReviewQueueToolItem,
-  type ReviewQueueToolData,
-  formatReviewQueue,
-  type ReviewAssignmentSummary,
-  type ReviewAssignmentsData,
-  formatReviewAssignments,
   type CreateReviewAssignmentResult,
   formatCreateReviewAssignment,
   type QueueFacet,

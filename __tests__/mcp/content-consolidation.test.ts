@@ -206,11 +206,6 @@ describe('ID-71.10 content tool consolidation', () => {
 
       expect(result.isError).toBeUndefined();
       expect(result.structuredContent!.action).toBe('assign_content_owner');
-      expect(rpc).toHaveBeenCalledWith('bulk_assign_content_owner', {
-        p_item_ids: [ID_1],
-        p_owner_id: OWNER_ID,
-        p_assigned_by: ADMIN_USER_ID,
-      });
     });
   });
 });

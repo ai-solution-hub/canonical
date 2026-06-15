@@ -27,7 +27,7 @@
  * `feedback_brief_quote_spec_verbatim`):
  *   - draftableStates = ['drafting', 'in_review', 'ready_for_export']
  *     (spec §4.3 + lib/procurement/procurement-workflow.ts:81-86).
- *   - PermanentJobError messages: `bid_not_found: <id>`, `bid_not_draftable: <state>`,
+ *   - PermanentJobError messages: `form_not_found: <id>`, `bid_not_draftable: <state>`,
  *     `form_questions_fetch_failed: <msg>`, `no_questions_in_bid`.
  *   - Per-question result statuses: 'drafted' | 'skipped' | 'failed'.
  *   - skip reasons: 'no_content', 'already_drafted'.
@@ -597,7 +597,7 @@ describe('runBidDraftAllJob — form_draft_all handler (§5.4.1)', () => {
       ).rejects.toThrow(/bid_not_draftable: matching/);
     });
 
-    it('bid not found → PermanentJobError("bid_not_found: <id>")', async () => {
+    it('bid not found → PermanentJobError("form_not_found: <id>")', async () => {
       configureSupabase(mockSupabase, {
         bid: { data: null, error: { message: 'No rows found' } },
         questions: { data: [], error: null },
@@ -628,7 +628,7 @@ describe('runBidDraftAllJob — form_draft_all handler (§5.4.1)', () => {
           fresh as unknown as SupabaseClient<Database>,
           AUTH_CONTEXT,
         ),
-      ).rejects.toThrow(`bid_not_found: ${BID_ID}`);
+      ).rejects.toThrow(`form_not_found: ${BID_ID}`);
     });
   });
 

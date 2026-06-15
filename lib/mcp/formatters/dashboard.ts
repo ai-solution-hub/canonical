@@ -1,11 +1,7 @@
 /**
  * Dashboard and reorientation formatters for MCP tool responses.
  */
-import type {
-  ActiveBidSummary,
-  DashboardData,
-  GroupedActivityItem,
-} from '@/lib/dashboard';
+import type { ActiveBidSummary } from '@/lib/dashboard';
 import type { ReorientData } from '@/types/reorient';
 import { formatDeadline, formatProgress } from './shared';
 import { formatDateUK } from '@/lib/format';
@@ -63,8 +59,11 @@ export interface ExposureResolution {
   label: string;
 }
 
-/** Stable, ordered layer keys for the five-layer framing. */
-export type ExposureLayerKey =
+/**
+ * Stable, ordered layer keys for the five-layer framing. Used only by
+ * `ExposureLayer` below, so it is not exported.
+ */
+type ExposureLayerKey =
   | 'data'
   | 'quality'
   | 'use_today'
@@ -121,114 +120,6 @@ export function formatWhereAreWeExposed(data: WhereAreWeExposedData): string {
 }
 
 // ---------------------------------------------------------------------------
-// Dashboard summary
-// ---------------------------------------------------------------------------
-
-export function formatDashboardSummary(data: DashboardData): string {
-  const lines: string[] = [
-    '# Knowledge Base Dashboard',
-    '',
-    '## Attention Required',
-    '',
-  ];
-
-  const attn = data.needs_attention;
-  const attentionItems: string[] = [];
-
-  if (attn.expired_content_count && attn.expired_content_count > 0) {
-    attentionItems.push(
-      `- ${attn.expired_content_count} expired content item${attn.expired_content_count === 1 ? '' : 's'}`,
-    );
-  }
-  if (attn.stale_content_count && attn.stale_content_count > 0) {
-    attentionItems.push(
-      `- ${attn.stale_content_count} stale content item${attn.stale_content_count === 1 ? '' : 's'}`,
-    );
-  }
-  if (attn.governance_review_count && attn.governance_review_count > 0) {
-    attentionItems.push(
-      `- ${attn.governance_review_count} governance review${attn.governance_review_count === 1 ? '' : 's'} pending`,
-    );
-  }
-  if (attn.quality_flag_count && attn.quality_flag_count > 0) {
-    attentionItems.push(
-      `- ${attn.quality_flag_count} quality flag${attn.quality_flag_count === 1 ? '' : 's'} unresolved`,
-    );
-  }
-  if (attn.unverified_count && attn.unverified_count > 0) {
-    attentionItems.push(
-      `- ${attn.unverified_count} unverified item${attn.unverified_count === 1 ? '' : 's'}`,
-    );
-  }
-
-  if (attentionItems.length === 0) {
-    lines.push('No items require immediate attention.');
-  } else {
-    lines.push(...attentionItems);
-  }
-
-  // Freshness breakdown
-  lines.push('', '## Content Freshness', '');
-  const f = data.freshness_summary;
-  const totalContent = f.fresh + f.aging + f.stale + f.expired;
-  lines.push(
-    `- **Fresh:** ${f.fresh} (${formatProgress(f.fresh, totalContent)})`,
-  );
-  lines.push(
-    `- **Aging:** ${f.aging} (${formatProgress(f.aging, totalContent)})`,
-  );
-  lines.push(
-    `- **Stale:** ${f.stale} (${formatProgress(f.stale, totalContent)})`,
-  );
-  lines.push(
-    `- **Expired:** ${f.expired} (${formatProgress(f.expired, totalContent)})`,
-  );
-  lines.push(`- **Total:** ${totalContent} items`);
-
-  // Active procurements
-  if (data.active_bids.length > 0) {
-    lines.push('', '## Active Bids', '');
-    for (const bid of data.active_bids) {
-      const progress = formatProgress(
-        bid.answered_questions,
-        bid.total_questions,
-      );
-      const deadline = formatDeadline(bid.deadline, bid.days_until_deadline);
-      lines.push(`### ${bid.name}`);
-      lines.push(`- **Buyer:** ${bid.buyer ?? 'Not specified'}`);
-      lines.push(`- **Status:** ${bid.status}`);
-      lines.push(`- **Deadline:** ${deadline}`);
-      lines.push(
-        `- **Progress:** ${bid.answered_questions}/${bid.total_questions} questions answered (${progress})`,
-      );
-      lines.push('');
-    }
-  } else {
-    lines.push('', '## Active Bids', '', 'No active procurements.');
-  }
-
-  // Recent activity
-  const activity = data.recent_activity as GroupedActivityItem[];
-  if (activity.length > 0) {
-    lines.push('', '## Recent Activity', '');
-    for (const item of activity.slice(0, 5)) {
-      const count = item.event_count > 1 ? ` (${item.event_count} events)` : '';
-      lines.push(`- ${item.summary}${count}`);
-    }
-  }
-
-  // Notifications
-  if (data.unread_notification_count > 0) {
-    lines.push(
-      '',
-      `**${data.unread_notification_count} unread notification${data.unread_notification_count === 1 ? '' : 's'}**`,
-    );
-  }
-
-  return lines.join('\n');
-}
-
-// ---------------------------------------------------------------------------
 // Active procurements list
 // ---------------------------------------------------------------------------
 
@@ -277,22 +168,6 @@ export interface FreshnessReport {
   aging: number;
   stale: number;
   expired: number;
-}
-
-export function formatFreshnessReport(data: FreshnessReport): string {
-  const total = data.fresh + data.aging + data.stale + data.expired;
-  const lines: string[] = [
-    '# Content Freshness Report',
-    '',
-    `**Total items:** ${total}`,
-    '',
-    `- **Fresh:** ${data.fresh} (${formatProgress(data.fresh, total)})`,
-    `- **Aging:** ${data.aging} (${formatProgress(data.aging, total)})`,
-    `- **Stale:** ${data.stale} (${formatProgress(data.stale, total)})`,
-    `- **Expired:** ${data.expired} (${formatProgress(data.expired, total)})`,
-  ];
-
-  return lines.join('\n');
 }
 
 // ---------------------------------------------------------------------------

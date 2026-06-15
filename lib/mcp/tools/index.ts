@@ -1,17 +1,19 @@
 /**
  * MCP tool registrations for the Knowledge Hub server.
  *
- * Registers 53 tools across 16 category files:
- *   - search.ts     (2): find, find_duplicates
+ * Registers 42 tools across 16 category files (canonical surface after the
+ * S357 Wave-1 consolidations — see scripts/mcp-eval/fixtures.ts, drift-guarded
+ * by mcp-fixture-sync.test.ts):
+ *   - search.ts     (2): find_duplicates, find
  *   - content.ts    (7): get, create_content_item, update_content_item, get_workspace_items, assign, get_document_versions, get_document_diff
  *   - procurement.ts (5): list_active_procurement, get_procurement_detail, get_form_question, cite_content, get_content_effectiveness
- *   - dashboard.ts  (4): get_dashboard_summary, get_reorientation, get_freshness_report, get_expiring_content
+ *   - dashboard.ts  (2): get_reorientation, where_are_we_exposed
  *   - quality.ts    (1): suggest_content_creation
- *   - governance.ts (5): delete_content_item, update_governance_status, update_publication_status, get_governance_queue, review_governance_item
+ *   - governance.ts (4): delete_content_item, update_governance_status, update_publication_status, review_governance_item
  *   - supersession.ts (1): supersede_content_item
- *   - review.ts     (3): get_review_queue, get_assignments_for_user, create_review_assignment
+ *   - review.ts     (2): whats_in_my_queue, create_review_assignment
  *   - ai.ts         (2): classify_content, generate_summary
- *   - entities.ts   (2): get_entity_relationships, get_certification_status
+ *   - entities.ts   (1): get_entity_relationships
  *   - templates.ts  (3): list_templates, get_template_coverage, get_template_gaps
  *   - apps.ts       (4): show_coverage_matrix, show_procurement_dashboard, show_reorient_me, show_intelligence_feed
  *   - intelligence.ts (2): get_intelligence_summary, trigger_intelligence_poll

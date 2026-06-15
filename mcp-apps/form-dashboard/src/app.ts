@@ -8,7 +8,7 @@ import {
 import type {
   BidDashboardData,
   BidSummary,
-  BidDetailData,
+  FormDetailData,
   BidQuestionSummary,
   BidQuestionDetailData,
   KBSearchResult,
@@ -60,7 +60,7 @@ app.ontoolresult = (result) => {
 
     // If a focused form detail was included, auto-expand it
     if (data.focused_form_detail) {
-      const detail = data.focused_form_detail as unknown as BidDetailData;
+      const detail = data.focused_form_detail as unknown as FormDetailData;
       expandedBid = {
         bidId: detail.id,
         loading: false,
@@ -627,7 +627,7 @@ function buildBreakdownSection(
 // -- Question list -----------------------------------------------------------
 
 function buildQuestionList(
-  detail: BidDetailData,
+  detail: FormDetailData,
   state: ExpandedBidState,
 ): HTMLElement {
   const container = createElement('div', { className: 'question-sections' });
@@ -1042,7 +1042,7 @@ async function toggleBidExpansion(bidId: string): Promise<void> {
       arguments: { id: bidId },
     });
 
-    const detail = result.structuredContent as unknown as BidDetailData;
+    const detail = result.structuredContent as unknown as FormDetailData;
     expandedBid = {
       bidId,
       loading: false,

@@ -5,7 +5,7 @@ export interface BidDashboardData {
   total_count: number;
   has_more: boolean;
   bids: BidSummary[];
-  focused_form_detail?: BidDetailData;
+  focused_form_detail?: FormDetailData;
 }
 
 export interface BidSummary {
@@ -61,7 +61,7 @@ export interface KBSearchResult {
 }
 
 /** Data shape from get_bid_detail drill-down */
-export interface BidDetailData {
+export interface FormDetailData {
   id: string;
   name: string;
   buyer: string | null;
@@ -101,7 +101,7 @@ export interface ExpandedQuestionState {
 export interface ExpandedBidState {
   bidId: string;
   loading: boolean;
-  detail: BidDetailData | null;
+  detail: FormDetailData | null;
   error?: string;
   expandedQuestion: ExpandedQuestionState | null;
 }

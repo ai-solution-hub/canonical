@@ -1300,6 +1300,10 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           .number()
           .optional()
           .describe('Items assigned (scope path)'),
+        requested: z
+          .number()
+          .optional()
+          .describe('IDs supplied for assignment (explicit item_ids path)'),
         updated: z
           .number()
           .optional()

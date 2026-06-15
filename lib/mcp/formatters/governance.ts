@@ -96,40 +96,17 @@ export function formatGovernanceStatusUpdate(
 }
 
 // ---------------------------------------------------------------------------
-// Governance queue listing (get_governance_queue)
+// Governance queue outputSchema (get_governance_queue tool retired in ID-71.9;
+// the response schema is retained as the canonical wire-shape contract,
+// exercised by the output-schema smoke test).
 // ---------------------------------------------------------------------------
 
-export interface GovernanceQueueItem {
-  id: string;
-  title: string | null;
-  suggested_title: string | null;
-  primary_domain: string | null;
-  governance_review_status: string | null;
-  governance_review_due: string | null;
-  governance_reviewer_id: string | null;
-  updated_by: string | null;
-  updated_at: string | null;
-}
-
-export interface GovernanceQueueData {
-  items: GovernanceQueueItem[];
-  total: number;
-  offset: number;
-  limit: number;
-  domain_filter: string | null;
-  /**
-   * S202 §5.2 T7 — optional publication-lifecycle filter. `null` when the
-   * caller omitted the param. Surfaces in the markdown header when set so
-   * users see exactly which slice of the queue they're looking at.
-   */
-  publication_status_filter?: string | null;
-}
-
 /**
- * Zod schema for `GovernanceQueueItem` — mirrors the interface exactly for
- * MCP `outputSchema` runtime validation.
+ * Zod schema for a single governance-queue row — mirrors the historical
+ * `get_governance_queue` item shape. Consumed only by
+ * `GovernanceQueueResponseSchema` below, so it is not exported.
  */
-export const GovernanceQueueItemSchema = z.object({
+const GovernanceQueueItemSchema = z.object({
   id: z.string(),
   title: z.string().nullable(),
   suggested_title: z.string().nullable(),
@@ -143,10 +120,8 @@ export const GovernanceQueueItemSchema = z.object({
 
 /**
  * Zod schema for the `get_governance_queue` structured response envelope.
- *
- * Note: the tool spreads `GovernanceQueueData` and appends `review_status_filter`
- * (a string array surfacing the resolved status set). The schema includes it so
- * validation covers the actual wire shape.
+ * `review_status_filter` surfaces the resolved status set the tool appended to
+ * the row payload, so the schema covers the actual wire shape.
  */
 export const GovernanceQueueResponseSchema = z.object({
   items: z.array(GovernanceQueueItemSchema),
@@ -157,55 +132,6 @@ export const GovernanceQueueResponseSchema = z.object({
   publication_status_filter: z.string().nullish(),
   review_status_filter: z.array(z.string()),
 });
-
-export function formatGovernanceQueue(data: GovernanceQueueData): string {
-  const { items, total, offset, domain_filter, publication_status_filter } =
-    data;
-
-  if (items.length === 0 && total === 0) {
-    const domainScope = domain_filter ? ` for domain "${domain_filter}"` : '';
-    const pubScope = publication_status_filter
-      ? ` in publication state "${publication_status_filter}"`
-      : '';
-    return `# Governance Queue\n\nGovernance queue is clear${domainScope}${pubScope} — no items pending review.`;
-  }
-
-  const start = offset + 1;
-  const end = Math.min(offset + items.length, total);
-  const filterParts: string[] = [];
-  if (domain_filter) {
-    filterParts.push(`domain: \`${domain_filter}\``);
-  }
-  if (publication_status_filter) {
-    filterParts.push(`publication_status: \`${publication_status_filter}\``);
-  }
-  const scopeNote =
-    filterParts.length > 0 ? ` (${filterParts.join(', ')})` : '';
-
-  const lines: string[] = [
-    `# Governance Queue`,
-    '',
-    `**${total} item${total === 1 ? '' : 's'} pending review**${scopeNote} — showing ${start}-${end}.`,
-    '',
-    '| # | Title | Domain | Due | Reviewer | Last Updated |',
-    '|---|-------|--------|-----|----------|--------------|',
-  ];
-
-  items.forEach((item, index) => {
-    const title = item.title ?? item.suggested_title ?? '(untitled)';
-    const domain = item.primary_domain ?? '—';
-    const due = item.governance_review_due
-      ? formatDateUK(item.governance_review_due)
-      : '—';
-    const reviewer = item.governance_reviewer_id ?? '(unassigned)';
-    const updated = item.updated_at ? formatDateUK(item.updated_at) : '—';
-    lines.push(
-      `| ${start + index} | ${title} | ${domain} | ${due} | ${reviewer} | ${updated} |`,
-    );
-  });
-
-  return lines.join('\n');
-}
 
 // ---------------------------------------------------------------------------
 // Governance review action (review_governance_item)
