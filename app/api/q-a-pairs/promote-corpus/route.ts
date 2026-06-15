@@ -24,6 +24,13 @@
 //
 // Direct import — no barrel (CLAUDE.md "No barrel re-exports").
 
+// Vercel Pro ceiling: 120 s. This route is RE-RUNNABLE — a corpus too large to
+// drain in one 120 s window converges over repeated invocations. The CAS link
+// (extraction → pair) and the self-heal eligibility query (linked-but-unembedded
+// rows re-selected each run) make repeated calls safe and idempotent. The ID-45
+// cutover operator re-invokes until embed_failed + pass-through reach 0.
+export const maxDuration = 120;
+
 import { NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';

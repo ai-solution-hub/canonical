@@ -21,10 +21,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import {
-  createMockSupabaseClient,
-  type MockSupabaseClient,
-} from '../../../../helpers/mock-supabase';
+import { createMockSupabaseClient } from '../../../../helpers/mock-supabase';
 import { configureAuth } from '../../../../helpers/mock-auth';
 import { createTestRequest } from '../../../../helpers/mock-next';
 
@@ -207,7 +204,6 @@ describe('POST /api/q-a-pairs/promote-corpus', () => {
 
     it('returns 500 with fallback message for non-Error throws', async () => {
       configureAuth(mockSupabase).asAdmin();
-      // eslint-disable-next-line @typescript-eslint/only-throw-error
       mockPromoteCorpusExtractions.mockRejectedValueOnce('string error');
 
       const response = await POST(makeRequest());

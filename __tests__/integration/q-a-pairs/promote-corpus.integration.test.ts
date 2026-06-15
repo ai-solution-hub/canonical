@@ -42,6 +42,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 
 import { promoteCorpusExtractions } from '@/lib/q-a-pairs/promote-corpus';
+import { generateEmbedding } from '@/lib/ai/embed';
 
 // ---------------------------------------------------------------------------
 // Environment bootstrap
@@ -510,6 +511,42 @@ describe.skipIf(!RUN_INTEGRATION)(
           expect(pair.publication_status).toBe('published');
           expect(pair.question_embedding).not.toBeNull();
         }
+      }
+
+      // INV-23 RPC gate: invoke q_a_search with one promoted pair's own question
+      // text to prove the pair is OBSERVABLY surfaced via the RPC (the ID-45
+      // cutover gate mechanism — not just predicate-satisfying in the table).
+      // A self-match gives high cosine similarity so the pair ranks top.
+      // Uses the first successfully published seeded pair.
+      if (promotedPairIds.length > 0 && summary.embed_failed === 0) {
+        // Fetch the question text for the first promoted pair
+        const { data: firstPair } = await db
+          .from('q_a_pairs')
+          .select('id, question_text')
+          .eq('id', promotedPairIds[0])
+          .single();
+
+        expect(firstPair).not.toBeNull();
+        const questionText = firstPair!.question_text;
+
+        // Generate the embedding for the self-match query (high cosine similarity → top rank)
+        const queryEmbedding = await generateEmbedding(questionText);
+
+        // Call q_a_search RPC — RETURNS TABLE(pair_id uuid, ...)
+        const { data: rpcRows, error: rpcError } = await db.rpc('q_a_search', {
+          p_query: questionText,
+          p_query_embedding: JSON.stringify(queryEmbedding),
+          p_limit: 20,
+        });
+
+        expect(rpcError).toBeNull();
+        expect(rpcRows).not.toBeNull();
+
+        // The promoted pair must appear in q_a_search results (the ID-45 cutover gate)
+        const returnedPairIds = (rpcRows ?? []).map(
+          (r: { pair_id: string }) => r.pair_id,
+        );
+        expect(returnedPairIds).toContain(promotedPairIds[0]);
       }
     }, 120_000);
   },
