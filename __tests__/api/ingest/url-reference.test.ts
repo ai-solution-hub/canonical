@@ -35,6 +35,13 @@ vi.mock('@/lib/auth', async () => {
   return { ...actual, getAuthorisedClient: vi.fn() };
 });
 
+// Rate-limit is mocked so the front-matter 429 branch (migrated from the
+// retired ingest-url.test.ts) is deterministic. Default: allowed.
+const { mockCheckRateLimit } = vi.hoisted(() => ({
+  mockCheckRateLimit: vi.fn(),
+}));
+vi.mock('@/lib/rate-limit', () => ({ checkRateLimit: mockCheckRateLimit }));
+
 vi.mock('@/lib/extraction/url-validation', () => ({
   validateUrl: vi.fn(() => ({ valid: true })),
 }));
@@ -127,6 +134,11 @@ describe('POST /api/ingest/url — reference-layer ingest (ID-110 {110.6})', () 
     vi.clearAllMocks();
     client = createMockSupabaseClient();
     configureEditorAuth(client);
+    mockCheckRateLimit.mockReturnValue({
+      allowed: true,
+      remaining: 9,
+      resetAt: Date.now() + 60_000,
+    });
     validateUrlMock.mockReturnValue({ valid: true });
     extractFromUrlMock.mockResolvedValue(makeExtracted());
     classifyTextMock.mockResolvedValue({
@@ -266,6 +278,65 @@ describe('POST /api/ingest/url — reference-layer ingest (ID-110 {110.6})', () 
       makeRequest({ url: 'https://example.com/a' }) as never,
     );
     expect(res.status).toBe(422);
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // Front-matter: auth + rate-limit + body validation.
+  //
+  // Migrated from the retired __tests__/api/ingest-url.test.ts (ID-110 {110.6}
+  // stale-test retirement). These behaviours are unchanged by the reference
+  // re-point — they all guard BEFORE any reference_ingest write — so they are
+  // re-asserted here against the current contract: a 4xx short-circuit must
+  // never reach the RPC. (SSRF-400 and url_already_exists are covered above.)
+  // -------------------------------------------------------------------------
+
+  it('returns 401 when the caller is unauthenticated', async () => {
+    getAuthorisedClientMock.mockResolvedValueOnce({
+      success: false,
+      reason: 'unauthenticated',
+    } as never);
+    const res = await POST(
+      makeRequest({ url: 'https://example.com/a' }) as never,
+    );
+    expect(res.status).toBe(401);
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 when the caller lacks the editor/admin role', async () => {
+    getAuthorisedClientMock.mockResolvedValueOnce({
+      success: false,
+      reason: 'forbidden',
+    } as never);
+    const res = await POST(
+      makeRequest({ url: 'https://example.com/a' }) as never,
+    );
+    expect(res.status).toBe(403);
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+
+  it('returns 429 when the per-user rate limit is exhausted', async () => {
+    mockCheckRateLimit.mockReturnValueOnce({
+      allowed: false,
+      remaining: 0,
+      resetAt: Date.now() + 60_000,
+    });
+    const res = await POST(
+      makeRequest({ url: 'https://example.com/a' }) as never,
+    );
+    expect(res.status).toBe(429);
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when the body omits the url field', async () => {
+    const res = await POST(makeRequest({}) as never);
+    expect(res.status).toBe(400);
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when the url is not a valid URL', async () => {
+    const res = await POST(makeRequest({ url: 'not-a-url' }) as never);
+    expect(res.status).toBe(400);
     expect(client.rpc).not.toHaveBeenCalled();
   });
 });
