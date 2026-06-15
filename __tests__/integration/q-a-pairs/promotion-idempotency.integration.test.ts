@@ -204,22 +204,27 @@ describe.skipIf(!RUN_INTEGRATION)(
     it('the partial index still allows many unlinked (NULL) extractions', async () => {
       // WHERE promoted_to_pair_id IS NOT NULL — NULL links are NOT constrained.
       await seedExtraction({ promotedToPairId: null });
-      const { error } = await db.from('q_a_extractions').insert({
-        extractor_kind: 'llm_extraction',
-        extracted_question_text: `idem-null2-${crypto.randomUUID()}`,
-        extracted_answer_text: 'null2',
-        promoted_to_pair_id: null,
-      });
-      // Track for cleanup if it inserted.
+      // Capture the second NULL-linked extraction id into seededExtractionIds so
+      // the FK-safe afterEach teardown deletes it by id — avoids the brittle
+      // unchecked .like(...).delete() cleanup that leaked rows into eligibility
+      // results for {59.22}/{59.23} tests (fold-in nit from {59.21} Checker).
+      const { data: null2Data, error } = await db
+        .from('q_a_extractions')
+        .insert({
+          extractor_kind: 'llm_extraction',
+          extracted_question_text: `idem-null2-${crypto.randomUUID()}`,
+          extracted_answer_text: 'null2',
+          promoted_to_pair_id: null,
+        })
+        .select('id')
+        .single();
+      if (null2Data?.id) {
+        seededExtractionIds.push(null2Data.id);
+      }
       expect(
         error,
         'two unlinked (NULL promoted_to_pair_id) extractions must both be allowed',
       ).toBeNull();
-      // Best-effort cleanup of the second NULL row (no id captured by seed helper).
-      await db
-        .from('q_a_extractions')
-        .delete()
-        .like('extracted_question_text', 'idem-null2-%');
     }, 60_000);
 
     // -------------------------------------------------------------------------
