@@ -72,6 +72,22 @@ export interface BrandingWriters {
   ) => Promise<void>;
 }
 
+/** Bounded-retry tuning for the Storage list/download calls (PI-11 fail-closed). */
+export interface StorageRetryOptions {
+  /** Total attempts including the first (default 3). */
+  attempts: number;
+  /** Base backoff in ms between attempts (default 250; linear). */
+  backoffMs: number;
+  /** Sleep seam — overridden in tests to avoid real waits. */
+  sleep: (ms: number) => Promise<void>;
+}
+
+const DEFAULT_STORAGE_RETRY: StorageRetryOptions = {
+  attempts: 3,
+  backoffMs: 250,
+  sleep: (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
+};
+
 /** Dependencies injected into the pure fetch core (testable seam). */
 export interface FetchClientBrandingDeps {
   env: FetchClientBrandingEnv;
@@ -80,6 +96,53 @@ export interface FetchClientBrandingDeps {
   writers: BrandingWriters;
   /** Structured logger (defaults to console). */
   log?: (message: string) => void;
+  /** Bounded retry for transient Storage failures (defaults to DEFAULT_STORAGE_RETRY). */
+  storageRetry?: Partial<StorageRetryOptions>;
+}
+
+/**
+ * Run a Supabase Storage call with a small bounded retry. A transient failure
+ * surfaces EITHER as a rejected promise (e.g. a Gateway Timeout) OR as a
+ * resolved `{ data, error }` carrying an error — retry on both. On exhaustion
+ * the LAST result is returned UNCHANGED (or the last thrown error re-thrown):
+ * the caller's existing error check then throws, so PI-11 fail-closed is
+ * preserved — we never swallow a final failure into a silent no-op.
+ */
+async function withStorageRetry<
+  T extends { error: { message: string } | null },
+>(
+  label: string,
+  call: () => Promise<T>,
+  options: StorageRetryOptions,
+  log: (message: string) => void,
+): Promise<T> {
+  const attempts = Math.max(1, options.attempts);
+  let lastResult: T | undefined;
+  let lastThrown: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const result = await call();
+      if (!result.error) return result;
+      lastResult = result;
+      lastThrown = undefined;
+    } catch (err) {
+      lastThrown = err;
+      lastResult = undefined;
+    }
+    if (attempt < attempts) {
+      const reason =
+        lastResult?.error?.message ??
+        (lastThrown instanceof Error ? lastThrown.message : String(lastThrown));
+      log(
+        `[fetch-client-branding] transient Storage failure on ${label} (attempt ${attempt}/${attempts}): ${reason} — retrying.`,
+      );
+      await options.sleep(options.backoffMs * attempt);
+    }
+  }
+  // Exhausted: re-throw the last thrown error, or return the last error-bearing
+  // result so the caller's check throws (fail-closed — never a silent no-op).
+  if (lastResult !== undefined) return lastResult;
+  throw lastThrown;
 }
 
 export type FetchClientBrandingResult =
@@ -95,6 +158,10 @@ export async function runClientBrandingFetch(
   deps: FetchClientBrandingDeps,
 ): Promise<FetchClientBrandingResult> {
   const log = deps.log ?? ((m: string) => console.log(m));
+  const retry: StorageRetryOptions = {
+    ...DEFAULT_STORAGE_RETRY,
+    ...deps.storageRetry,
+  };
   const id = deps.env.clientId?.trim() || DEFAULT_CLIENT_ID;
   const url = deps.env.supabaseUrl?.trim();
   const key = deps.env.serviceRoleKey?.trim();
@@ -171,7 +238,12 @@ export async function runClientBrandingFetch(
   // Download the branding bucket assets under branding/<id>/* and write each to
   // public/clients/<id>/<asset>. A Storage error here is fatal (no silent skip).
   const bucket = supabase.storage.from(BRANDING_BUCKET);
-  const { data: objects, error: listError } = await bucket.list(id);
+  const { data: objects, error: listError } = await withStorageRetry(
+    `list ${BRANDING_BUCKET}/${id}`,
+    () => bucket.list(id),
+    retry,
+    log,
+  );
   if (listError) {
     throw new FetchClientBrandingError(
       `Failed to list ${BRANDING_BUCKET}/${id} for client "${id}": ${listError.message}.`,
@@ -182,8 +254,12 @@ export async function runClientBrandingFetch(
   for (const object of objects ?? []) {
     if (!object.name) continue;
     const objectPath = `${id}/${object.name}`;
-    const { data: blob, error: downloadError } =
-      await bucket.download(objectPath);
+    const { data: blob, error: downloadError } = await withStorageRetry(
+      `download ${BRANDING_BUCKET}/${objectPath}`,
+      () => bucket.download(objectPath),
+      retry,
+      log,
+    );
     if (downloadError || !blob) {
       throw new FetchClientBrandingError(
         `Failed to download ${BRANDING_BUCKET}/${objectPath} for client "${id}": ${

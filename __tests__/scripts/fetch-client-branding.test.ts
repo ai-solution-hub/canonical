@@ -61,6 +61,13 @@ function mockSupabase(opts: {
   objects?: { name: string }[];
   listError?: { message: string };
   downloadError?: { message: string };
+  /**
+   * Per-call download outcomes (overrides downloadError when set), applied in
+   * order via mockResolvedValueOnce — drives transient-then-success retry cases.
+   * `error` entries model a transient Storage failure (e.g. a Gateway Timeout);
+   * `ok` entries resolve to a 4-byte blob.
+   */
+  downloadSequence?: ({ error: { message: string } } | { ok: true })[];
 }): SupabaseClient {
   const maybeSingle = vi
     .fn()
@@ -76,6 +83,24 @@ function mockSupabase(opts: {
     limit: vi.fn().mockReturnThis(),
     maybeSingle,
   };
+  const okBlob = () => ({
+    data: new Blob([new Uint8Array([1, 2, 3, 4])]),
+    error: null,
+  });
+  const download = vi.fn();
+  if (opts.downloadSequence) {
+    for (const step of opts.downloadSequence) {
+      download.mockResolvedValueOnce(
+        'error' in step ? { data: null, error: step.error } : okBlob(),
+      );
+    }
+    // Safety net for any calls beyond the scripted sequence.
+    download.mockResolvedValue(okBlob());
+  } else {
+    download.mockResolvedValue(
+      opts.downloadError ? { data: null, error: opts.downloadError } : okBlob(),
+    );
+  }
   const bucket = {
     list: vi
       .fn()
@@ -84,19 +109,16 @@ function mockSupabase(opts: {
           ? { data: null, error: opts.listError }
           : { data: opts.objects ?? [], error: null },
       ),
-    download: vi
-      .fn()
-      .mockResolvedValue(
-        opts.downloadError
-          ? { data: null, error: opts.downloadError }
-          : { data: new Blob([new Uint8Array([1, 2, 3, 4])]), error: null },
-      ),
+    download,
   };
   return {
     from: vi.fn().mockReturnValue(chain),
     storage: { from: vi.fn().mockReturnValue(bucket) },
   } as unknown as SupabaseClient;
 }
+
+/** Zero-wait retry config for tests (no real backoff). */
+const fastRetry = { attempts: 3, backoffMs: 0, sleep: async () => {} };
 
 function baseDeps(
   env: Partial<FetchClientBrandingDeps['env']>,
@@ -201,8 +223,35 @@ describe('runClientBrandingFetch — CASE 2 fail-closed (client build, must thro
       downloadError: { message: 'object not found' },
     });
     await expect(
-      runClientBrandingFetch(baseDeps(clientEnv, supabase, writers)),
+      runClientBrandingFetch({
+        ...baseDeps(clientEnv, supabase, writers),
+        storageRetry: fastRetry,
+      }),
     ).rejects.toThrow(/object not found/);
+  });
+
+  it('retries a transient download failure then STILL THROWS once attempts are exhausted (fail-closed)', async () => {
+    const writers = recordingWriters();
+    // Every attempt is a transient Gateway Timeout — retry must not mask it.
+    const supabase = mockSupabase({
+      config: validBrandingConfig(),
+      objects: [{ name: 'favicon.png' }],
+      downloadSequence: [
+        { error: { message: '504 Gateway Timeout' } },
+        { error: { message: '504 Gateway Timeout' } },
+        { error: { message: '504 Gateway Timeout' } },
+      ],
+    });
+    await expect(
+      runClientBrandingFetch({
+        ...baseDeps(clientEnv, supabase, writers),
+        storageRetry: fastRetry,
+      }),
+    ).rejects.toThrow(/504 Gateway Timeout/);
+    // All 3 attempts were made, and nothing was written (fail-closed).
+    const bucket = supabase.storage.from('branding');
+    expect(bucket.download).toHaveBeenCalledTimes(3);
+    expect(writers.assets).toHaveLength(0);
   });
 });
 
@@ -238,5 +287,40 @@ describe('runClientBrandingFetch — happy path (client build, writes files)', (
       'logo.webp',
     ]);
     expect(writers.assets.every((a) => a.size === 4)).toBe(true);
+  });
+
+  it('recovers when a transient download failure succeeds on retry (one asset, two attempts)', async () => {
+    const writers = recordingWriters();
+    // First attempt is a transient Gateway Timeout; second attempt succeeds.
+    const supabase = mockSupabase({
+      config: validBrandingConfig(),
+      objects: [{ name: 'favicon.png' }],
+      downloadSequence: [
+        { error: { message: '504 Gateway Timeout' } },
+        { ok: true },
+      ],
+    });
+    const result = await runClientBrandingFetch({
+      ...baseDeps(
+        {
+          clientId: 'examplia',
+          supabaseUrl: 'https://x.supabase.co',
+          serviceRoleKey: 'service-role-key',
+        },
+        supabase,
+        writers,
+      ),
+      storageRetry: fastRetry,
+    });
+    expect(result).toEqual({
+      status: 'written',
+      clientId: 'examplia',
+      assetCount: 1,
+    });
+    const bucket = supabase.storage.from('branding');
+    expect(bucket.download).toHaveBeenCalledTimes(2);
+    expect(writers.assets).toEqual([
+      { clientId: 'examplia', assetName: 'favicon.png', size: 4 },
+    ]);
   });
 });
