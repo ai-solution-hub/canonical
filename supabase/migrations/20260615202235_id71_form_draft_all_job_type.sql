@@ -50,7 +50,14 @@ BEGIN
         'template_analyse'::text,
         'bid_draft_all'::text,
         'form_draft_all'::text,
-        'batch_reclassify'::text
+        'batch_reclassify'::text,
+        -- §5.4.4 upload-markdown-batch: producer path RETIRED (ID-56.12 superseded
+        -- the manual markdown-upload flow; dropped from the TS JobType union), but
+        -- the DB CHECK DELIBERATELY RETAINS it — the constraint must stay a superset
+        -- of both the producer union AND extant data (270+ historical rows on
+        -- staging). Omitting it regresses the constraint + fails ADD on those rows
+        -- (SQLSTATE 23514). See lib/queue/envelope.ts design note.
+        'markdown_batch'::text
       ]));
   END IF;
 END

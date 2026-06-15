@@ -14,6 +14,56 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_call_events: {
+        Row: {
+          cache_read_tokens: number
+          cache_write_tokens: number
+          cost_usd: number
+          created_at: string
+          id: string
+          input_tokens: number
+          model: string
+          outcome_signal: Database["public"]["Enums"]["outcome_signal"]
+          output_tokens: number
+          tier: string
+          touchpoint_id: string
+        }
+        Insert: {
+          cache_read_tokens?: number
+          cache_write_tokens?: number
+          cost_usd?: number
+          created_at?: string
+          id?: string
+          input_tokens?: number
+          model: string
+          outcome_signal: Database["public"]["Enums"]["outcome_signal"]
+          output_tokens?: number
+          tier: string
+          touchpoint_id: string
+        }
+        Update: {
+          cache_read_tokens?: number
+          cache_write_tokens?: number
+          cost_usd?: number
+          created_at?: string
+          id?: string
+          input_tokens?: number
+          model?: string
+          outcome_signal?: Database["public"]["Enums"]["outcome_signal"]
+          output_tokens?: number
+          tier?: string
+          touchpoint_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_call_events_touchpoint_id_fkey"
+            columns: ["touchpoint_id"]
+            isOneToOne: false
+            referencedRelation: "eval_touchpoints"
+            referencedColumns: ["touchpoint_id"]
+          },
+        ]
+      }
       application_types: {
         Row: {
           created_at: string
@@ -1067,6 +1117,168 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      eval_baseline_audit: {
+        Row: {
+          action: string
+          actor: string
+          at: string
+          id: string
+          registry_version: number
+          touchpoint_id: string
+        }
+        Insert: {
+          action: string
+          actor: string
+          at?: string
+          id?: string
+          registry_version: number
+          touchpoint_id: string
+        }
+        Update: {
+          action?: string
+          actor?: string
+          at?: string
+          id?: string
+          registry_version?: number
+          touchpoint_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eval_baseline_audit_touchpoint_id_fkey"
+            columns: ["touchpoint_id"]
+            isOneToOne: false
+            referencedRelation: "eval_touchpoints"
+            referencedColumns: ["touchpoint_id"]
+          },
+        ]
+      }
+      eval_baselines: {
+        Row: {
+          id: string
+          metrics: Json
+          promoted_at: string
+          promoted_by: string
+          registry_version: number
+          thresholds: Json
+          touchpoint_id: string
+        }
+        Insert: {
+          id?: string
+          metrics?: Json
+          promoted_at?: string
+          promoted_by: string
+          registry_version: number
+          thresholds?: Json
+          touchpoint_id: string
+        }
+        Update: {
+          id?: string
+          metrics?: Json
+          promoted_at?: string
+          promoted_by?: string
+          registry_version?: number
+          thresholds?: Json
+          touchpoint_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eval_baselines_touchpoint_id_fkey"
+            columns: ["touchpoint_id"]
+            isOneToOne: false
+            referencedRelation: "eval_touchpoints"
+            referencedColumns: ["touchpoint_id"]
+          },
+        ]
+      }
+      eval_runs: {
+        Row: {
+          exit_class: number
+          id: string
+          metrics: Json
+          passed: boolean
+          run_at: string
+          severity_disposition: string
+          source: string
+          touchpoint_id: string
+        }
+        Insert: {
+          exit_class: number
+          id?: string
+          metrics?: Json
+          passed: boolean
+          run_at?: string
+          severity_disposition: string
+          source: string
+          touchpoint_id: string
+        }
+        Update: {
+          exit_class?: number
+          id?: string
+          metrics?: Json
+          passed?: boolean
+          run_at?: string
+          severity_disposition?: string
+          source?: string
+          touchpoint_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eval_runs_touchpoint_id_fkey"
+            columns: ["touchpoint_id"]
+            isOneToOne: false
+            referencedRelation: "eval_touchpoints"
+            referencedColumns: ["touchpoint_id"]
+          },
+        ]
+      }
+      eval_touchpoints: {
+        Row: {
+          contract_version: number
+          created_at: string
+          file_sha256: string | null
+          graduation_metric: string | null
+          grounding_shape: string
+          kind: string
+          owner: string
+          registry_version: number
+          severity_on_fail: string
+          suite_name: string
+          touchpoint_id: string
+          updated_at: string
+          variance_band: number
+        }
+        Insert: {
+          contract_version?: number
+          created_at?: string
+          file_sha256?: string | null
+          graduation_metric?: string | null
+          grounding_shape: string
+          kind: string
+          owner: string
+          registry_version?: number
+          severity_on_fail: string
+          suite_name: string
+          touchpoint_id: string
+          updated_at?: string
+          variance_band?: number
+        }
+        Update: {
+          contract_version?: number
+          created_at?: string
+          file_sha256?: string | null
+          graduation_metric?: string | null
+          grounding_shape?: string
+          kind?: string
+          owner?: string
+          registry_version?: number
+          severity_on_fail?: string
+          suite_name?: string
+          touchpoint_id?: string
+          updated_at?: string
+          variance_band?: number
+        }
+        Relationships: []
       }
       feed_articles: {
         Row: {
@@ -4587,6 +4799,34 @@ export type Database = {
           scope_tag: string[]
         }[]
       }
+      question_match_recompute: {
+        Args: {
+          p_anti_scope_tag: string[]
+          p_form_question_id: string
+          p_limit?: number
+          p_query: string
+          p_query_embedding: string
+          p_question_kind: string
+          p_scope_tag: string[]
+        }
+        Returns: number
+      }
+      question_match_search: {
+        Args: {
+          p_form_question_id: string
+          p_limit?: number
+          p_question_kind?: string
+        }
+        Returns: {
+          answer_standard_preview: string
+          embedding_score: number
+          fulltext_score: number
+          publication_status: string
+          q_a_pair_id: string
+          question_text_preview: string
+          scope_tag: string[]
+        }[]
+      }
       reap_stuck_jobs: { Args: { p_timeout_seconds: number }; Returns: number }
       recalculate_all_freshness: {
         Args: never
@@ -4809,6 +5049,7 @@ export type Database = {
     Enums: {
       cited_target_kind: "content_item" | "q_a_pair"
       citing_entity_kind: "form_response"
+      outcome_signal: "win" | "fail" | "loop" | "refusal"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -4938,6 +5179,7 @@ export const Constants = {
     Enums: {
       cited_target_kind: ["content_item", "q_a_pair"],
       citing_entity_kind: ["form_response"],
+      outcome_signal: ["win", "fail", "loop", "refusal"],
     },
   },
 } as const
