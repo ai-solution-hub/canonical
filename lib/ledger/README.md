@@ -28,7 +28,7 @@ intentional difference from upstream is the schema import specifier
 (`@task-view/schemas/*` → `@/lib/validation/{task-list,roadmap,backlog}-schema.ts`, which
 export the identical symbols). The bodies are byte-faithful.
 
-**Pinned release:** `v0.5.0-task-view` (the same `TASK_VIEW_TAG` used by
+**Pinned release:** `v0.8.0-task-view` (the same `TASK_VIEW_TAG` used by
 `scripts/regen-mirrors.sh` and the `ledger-mirror-parity` CI job). Re-vendored at ID-102.8
 (string-id flip): only `patch-apply.ts` carried a subtask-id seam change
 (`Number(subtaskIdRaw)` → digit-string `/^\d+$/` compare); `detect-schema.ts` is
