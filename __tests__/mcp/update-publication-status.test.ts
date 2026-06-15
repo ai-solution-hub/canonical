@@ -17,10 +17,9 @@
  *   - content_history — row written with change_type='publication_state' and
  *     canonical change_reason `Transition from ${from} to ${to}` (+ archive
  *     reason suffix).
- *   - Get-side widening — `get_governance_queue` accepts publication_status
- *     filter and ANDs it onto the existing query (verified in this file
- *     because it lives next to the new tool registration; the broader
- *     governance-queue-tools.test.ts continues to exercise the legacy params).
+ *
+ * (ID-71.9 retired `get_governance_queue` into `whats_in_my_queue`; the former
+ * get-side publication_status widening block was removed with the tool.)
  *
  * Pattern mirrors __tests__/mcp/governance-queue-tools.test.ts: hoisted mocks
  * for auth + supabase/safe, then a chainable mock query builder.
@@ -647,107 +646,5 @@ describe('update_publication_status — error paths', () => {
     });
     expect(res.isError).toBe(true);
     expect(res.content[0]?.text).toContain('connection refused');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// get_governance_queue widening — publication_status param
-// ---------------------------------------------------------------------------
-
-describe('get_governance_queue — publication_status filter (S202 §5.2 T7)', () => {
-  let mockServer: ReturnType<typeof createMockMcpServer>;
-
-  beforeEach(async () => {
-    vi.clearAllMocks();
-    mocks.checkMcpRole.mockResolvedValue('editor');
-    mocks.getMcpUserId.mockReturnValue(TEST_USER_ID);
-    mocks.getMcpUserRole.mockResolvedValue('editor');
-    mocks.tryQuery.mockResolvedValue({ ok: true, data: null });
-    mocks.sb.mockResolvedValue(null);
-
-    mockServer = createMockMcpServer();
-    await registerGovernanceTools(mockServer.server);
-  });
-
-  it('inputSchema declares optional publication_status enum', () => {
-    const tool = mockServer.getTool('get_governance_queue')!;
-    const schema = tool.config.inputSchema as Record<string, unknown>;
-    expect(schema).toHaveProperty('publication_status');
-  });
-
-  it('description mentions the publication_status filter and AND composition', () => {
-    const tool = mockServer.getTool('get_governance_queue')!;
-    const desc = tool.config.description as string;
-    expect(desc).toContain('publication_status');
-    // Spec §7.2: filters compose via AND; description should signal that.
-    expect(desc.toLowerCase()).toMatch(/and|compose/);
-  });
-
-  it('passes publication_status="in_review" to .eq() alongside the existing filters', async () => {
-    const q = chain({ data: [], error: null, count: 0 });
-    mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
-    const tool = mockServer.getTool('get_governance_queue')!;
-    await callTool(tool, {
-      limit: 20,
-      offset: 0,
-      publication_status: 'in_review',
-    });
-    // §5.5 Phase 4 — review-status filter switched from .eq('pending') to
-    // .in([...]). publication_status remains an .eq filter.
-    const inCalls = (q.in as ReturnType<typeof vi.fn>).mock.calls;
-    const eqCalls = (q.eq as ReturnType<typeof vi.fn>).mock.calls;
-    expect(inCalls).toContainEqual([
-      'governance_review_status',
-      ['pending', 'review_overdue'],
-    ]);
-    expect(eqCalls).toContainEqual(['publication_status', 'in_review']);
-  });
-
-  it('omits the .eq publication_status filter when the param is not supplied (backwards-compat)', async () => {
-    const q = chain({ data: [], error: null, count: 0 });
-    mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
-    const tool = mockServer.getTool('get_governance_queue')!;
-    await callTool(tool, { limit: 20, offset: 0 });
-    const calls = (q.eq as ReturnType<typeof vi.fn>).mock.calls as Array<
-      [string, unknown]
-    >;
-    const hasPubFilter = calls.some(([col]) => col === 'publication_status');
-    expect(hasPubFilter).toBe(false);
-  });
-
-  it('composes domain + publication_status filters via AND when both are supplied', async () => {
-    const q = chain({ data: [], error: null, count: 0 });
-    mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
-    const tool = mockServer.getTool('get_governance_queue')!;
-    await callTool(tool, {
-      limit: 20,
-      offset: 0,
-      domain: 'compliance',
-      publication_status: 'in_review',
-    });
-    // §5.5 Phase 4 — review-status filter via .in([...]); domain +
-    // publication_status remain .eq filters.
-    const inCalls = (q.in as ReturnType<typeof vi.fn>).mock.calls;
-    const eqCalls = (q.eq as ReturnType<typeof vi.fn>).mock.calls;
-    expect(inCalls).toContainEqual([
-      'governance_review_status',
-      ['pending', 'review_overdue'],
-    ]);
-    expect(eqCalls).toContainEqual(['primary_domain', 'compliance']);
-    expect(eqCalls).toContainEqual(['publication_status', 'in_review']);
-  });
-
-  it('surfaces the publication_status filter in structuredContent metadata', async () => {
-    const q = chain({ data: [], error: null, count: 0 });
-    mocks.createMcpClient.mockReturnValue({ from: vi.fn(() => q) });
-    const tool = mockServer.getTool('get_governance_queue')!;
-    const res = await callTool(tool, {
-      limit: 20,
-      offset: 0,
-      publication_status: 'in_review',
-    });
-    expect(res.structuredContent?.publication_status_filter).toBe('in_review');
-    // Domain not supplied — should be null in the result.
-    expect(res.structuredContent?.domain_filter).toBeNull();
   });
 });

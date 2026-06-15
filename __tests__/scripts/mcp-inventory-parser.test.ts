@@ -529,7 +529,7 @@ describe('Integration: full codebase extraction', () => {
         }
       }
 
-      // 46 tools. Pre-S357 baseline was 58 (historical lineage: 43 pre-S180 +
+      // 43 tools. Pre-S357 baseline was 58 (historical lineage: 43 pre-S180 +
       // governance/review/guides/change-report/supersession/list_user_workspaces/
       // update_publication_status/find_duplicate_candidates additions through S217).
       // S357 Wave-1 surface consolidation:
@@ -539,7 +539,8 @@ describe('Integration: full codebase extraction', () => {
       //   find_duplicate_candidates retained for the later dedup slice).
       // − 7 net (ID-71.8 M29/M4: 8 exposure reads → ONE `where_are_we_exposed`;
       //   suggest_content_creation KEPT). 53 → 46.
-      expect(allTools.length).toBe(46);
+      // − 3 net (ID-71.9 M30/OQ-5: 4 queue reads → ONE `whats_in_my_queue`). 46 → 43.
+      expect(allTools.length).toBe(43);
 
       // Every tool should have a non-empty name
       for (const tool of allTools) {

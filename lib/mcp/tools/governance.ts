@@ -1,10 +1,13 @@
 /**
- * Governance and lifecycle tool registrations (5 tools):
+ * Governance and lifecycle tool registrations (4 tools):
  *  25. delete_content_item
  *  30. update_governance_status
  *  31. update_publication_status (S202 §5.2 Phase 2 / T7)
- *  get_governance_queue (S180 WP3 / P0-23 A1; widened S202 §5.2 T7)
  *  review_governance_item (S180 WP3 / P0-23 B2)
+ *
+ * ID-71.9 (M30/OQ-5, B-INV-30) retired `get_governance_queue` into the
+ * consolidated `whats_in_my_queue` faceted queue (lib/mcp/tools/review.ts) —
+ * the governance facet. The /api/governance/review ROUTE layer is UNCHANGED.
  */
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -18,25 +21,19 @@ import { sb, tryQuery, isOk } from '@/lib/supabase/safe';
 import type { Database } from '@/supabase/types/database.types';
 import {
   formatDeleteContent,
-  formatGovernanceQueue,
   formatGovernanceReviewAction,
   formatGovernanceStatusUpdate,
   formatPublicationStatusUpdate,
 } from '@/lib/mcp/formatters';
 import type {
   DeleteContentResult,
-  GovernanceQueueData,
-  GovernanceQueueItem,
   GovernanceReviewAction,
   GovernanceReviewActionResult,
   GovernanceStatusItemResult,
   GovernanceStatusUpdateResult,
   PublicationStatusUpdateResult,
 } from '@/lib/mcp/formatters';
-import {
-  GovernanceQueueResponseSchema,
-  GovernanceReviewActionResultSchema,
-} from '@/lib/mcp/formatters/governance';
+import { GovernanceReviewActionResultSchema } from '@/lib/mcp/formatters/governance';
 import {
   type ToolExtra,
   toStructuredContent,
@@ -45,7 +42,6 @@ import {
   defineTool,
   DESTRUCTIVE_WRITE_ANNOTATIONS,
   NON_IDEMPOTENT_WRITE_ANNOTATIONS,
-  READ_ONLY_ANNOTATIONS,
   SAFE_WRITE_ANNOTATIONS,
 } from './shared';
 import {
@@ -865,180 +861,6 @@ export async function registerGovernanceTools(
             {
               type: 'text' as const,
               text: `Publication status update failed: ${message}.`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    },
-  );
-
-  // -------------------------------------------------------------------------
-  // get_governance_queue (read-only — editor+)
-  //
-  // Wraps GET /api/governance/review. Returns items pending governance
-  // review ordered by due date ascending. Optional post-query domain filter.
-  // S202 §5.2 T7: widened with optional `publication_status` filter that
-  // composes with the existing filters via AND. Backwards-compat preserved
-  // — existing callers (omitting the param) see no behaviour change.
-  // -------------------------------------------------------------------------
-  defineTool(
-    server,
-    'get_governance_queue',
-    {
-      title: 'Get Governance Queue',
-      outputSchema: GovernanceQueueResponseSchema,
-      description:
-        'List content items pending governance review. Returns each item with domain, due date, reviewer, and last-updated timestamp. Use this to triage the governance backlog via Claude (weekly cadence for most admins). By default the queue includes both `pending` (recent edits awaiting review) and `review_overdue` (cadence-elapsed items flagged by the §5.5 Phase 2 cron). Set `include_overdue=false` to restrict to `pending` only, or use `status_filter` for granular control (`pending`, `review_overdue`, or `all` for both). Optional `domain` filter restricts by `primary_domain`; optional `publication_status` filter restricts by publication lifecycle state (e.g. set `publication_status="in_review"` to surface items awaiting publication approval — a separate axis from change-management `governance_review_status`). All filters compose via AND. Editor or admin role required.',
-      inputSchema: {
-        limit: z
-          .number()
-          .int()
-          .min(1)
-          .max(100)
-          .default(20)
-          .describe('Maximum items to return (default 20, max 100)'),
-        offset: z
-          .number()
-          .int()
-          .min(0)
-          .default(0)
-          .describe('Offset for pagination (default 0)'),
-        domain: z
-          .string()
-          .optional()
-          .describe(
-            'Optional primary_domain filter applied at the query level (the underlying route does not support a domain filter — this tool extends the route).',
-          ),
-        publication_status: z
-          .enum(['draft', 'in_review', 'published', 'archived'])
-          .optional()
-          .describe(
-            'If set, restrict the queue to items in this publication state. Common usage: publication_status="in_review" to surface items awaiting publication approval (separate axis from change-management governance_review_status="pending").',
-          ),
-        // §5.5 Phase 4 — review-cadence widening (S208 WP1).
-        // Spec: docs/specs/p0-document-control-lifecycle-spec.md §8.3
-        // Defaults to TRUE so the tool surfaces both 'pending' (change-
-        // management) and 'review_overdue' (cadence-elapsed) items in one
-        // queue. Existing callers that didn't pass the param see a wider set
-        // — but only on databases that have any 'review_overdue' rows; on
-        // pre-§5.5 data the set is identical.
-        include_overdue: z
-          .boolean()
-          .optional()
-          .default(true)
-          .describe(
-            'When true (default), include items in BOTH pending and review_overdue states. When false, restrict to pending only (legacy change-management semantics). Ignored when status_filter is set.',
-          ),
-        status_filter: z
-          .enum(['pending', 'review_overdue', 'all'])
-          .optional()
-          .describe(
-            'Granular review-status filter. "pending" = change-management only (recent edits). "review_overdue" = cadence-elapsed only. "all" = both (same as include_overdue=true). When set, takes precedence over include_overdue.',
-          ),
-      },
-      annotations: READ_ONLY_ANNOTATIONS,
-    },
-    async (args, extra: ToolExtra) => {
-      try {
-        const role = await checkMcpRole(extra.authInfo, ['admin', 'editor']);
-        if (!role) {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: 'Permission denied: editor or admin role required to read the governance queue.',
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        const supabase = createMcpClient(extra.authInfo);
-
-        // §5.5 Phase 4 — resolve the review-status set. status_filter takes
-        // precedence over include_overdue when both are supplied. Default
-        // (neither set) → include_overdue=true → ['pending', 'review_overdue'].
-        let reviewStatuses: string[];
-        if (args.status_filter === 'pending') {
-          reviewStatuses = ['pending'];
-        } else if (args.status_filter === 'review_overdue') {
-          reviewStatuses = ['review_overdue'];
-        } else if (args.status_filter === 'all') {
-          reviewStatuses = ['pending', 'review_overdue'];
-        } else if (args.include_overdue === false) {
-          reviewStatuses = ['pending'];
-        } else {
-          // Default (include_overdue=true OR omitted) — both states.
-          reviewStatuses = ['pending', 'review_overdue'];
-        }
-
-        let query = supabase
-          .from('content_items')
-          .select(
-            'id, title, suggested_title, primary_domain, governance_review_status, governance_review_due, governance_reviewer_id, updated_by, updated_at',
-            { count: 'exact' },
-          )
-          .in('governance_review_status', reviewStatuses)
-          .order('governance_review_due', {
-            ascending: true,
-            nullsFirst: false,
-          })
-          .range(args.offset, args.offset + args.limit - 1);
-
-        if (args.domain) {
-          query = query.eq('primary_domain', args.domain);
-        }
-
-        // S202 §5.2 T7 — publication_status filter composes via AND with the
-        // existing filters. Omitted → no-op (backwards-compat preserved).
-        if (args.publication_status) {
-          query = query.eq('publication_status', args.publication_status);
-        }
-
-        const { data, error, count } = await query;
-
-        if (error) {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: `Failed to fetch governance queue: ${error.message}`,
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        const items = (data ?? []) as GovernanceQueueItem[];
-        const result: GovernanceQueueData = {
-          items,
-          total: count ?? items.length,
-          offset: args.offset,
-          limit: args.limit,
-          domain_filter: args.domain ?? null,
-          publication_status_filter: args.publication_status ?? null,
-        };
-
-        const markdown = formatGovernanceQueue(result);
-        return {
-          content: [{ type: 'text' as const, text: markdown }],
-          // §5.5 Phase 4 — surface the resolved review-status filter so
-          // downstream callers (and tests) can verify which statuses were
-          // queried. Always set: defaults to `['pending', 'review_overdue']`
-          // so the value is observable on the no-arg path too.
-          structuredContent: toStructuredContent({
-            ...result,
-            review_status_filter: reviewStatuses,
-          }),
-        };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `Governance queue read failed: ${message}`,
             },
           ],
           isError: true,

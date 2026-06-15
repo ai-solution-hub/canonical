@@ -1,17 +1,15 @@
 /**
- * Review workflow tool registrations (3 tools — S180 WP3 / P0-23 A1):
- *  get_review_queue
- *  get_assignments_for_user
- *  create_review_assignment
+ * Review workflow tool registrations (2 tools):
+ *  whats_in_my_queue       (ID-71.9 — M30/OQ-5, B-INV-30; ONE faceted queue
+ *                           concept over the lib/attention.ts producer
+ *                           substrate, content_quality | governance | all)
+ *  create_review_assignment (admin-only write — wraps POST /api/review/assignments)
  *
- * All three wrap existing API routes:
- *  - GET /api/review/queue
- *  - GET /api/review/assignments (listing)
- *  - POST /api/review/assignments (creation, admin-only)
+ * ID-71.9 retired into `whats_in_my_queue`: `get_review_queue`,
+ * `get_assignments_for_user` (this file), `get_governance_queue`
+ * (governance.ts), `get_dashboard_summary` (dashboard.ts). The /review +
+ * /api/governance/review ROUTE layer is UNCHANGED (OQ-5).
  *
- * The read tools require editor+ role. Non-admin callers of
- * `get_assignments_for_user` are auto-scoped to their own `reviewer_id`
- * regardless of the `reviewer_id` arg — mirrors API route behaviour.
  * `create_review_assignment` is admin-only.
  */
 import { z } from 'zod';
@@ -22,285 +20,109 @@ import {
   getMcpUserId,
   getMcpUserRole,
 } from '@/lib/mcp/auth';
-import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import {
-  formatReviewQueue,
-  formatReviewAssignments,
   formatCreateReviewAssignment,
+  formatWhatsInMyQueue,
 } from '@/lib/mcp/formatters';
 import type {
-  ReviewQueueToolData,
-  ReviewQueueToolItem,
-  ReviewAssignmentSummary,
-  ReviewAssignmentsData,
   CreateReviewAssignmentResult,
+  QueueFacet,
+  QueueItem,
+  WhatsInMyQueueData,
 } from '@/lib/mcp/formatters';
+import {
+  buildAttentionItems,
+  type AttentionItem,
+  type AttentionSourceData,
+} from '@/lib/attention';
 import {
   type ToolExtra,
   toStructuredContent,
+  getDashboardModule,
   defineTool,
   NON_IDEMPOTENT_WRITE_ANNOTATIONS,
   READ_ONLY_ANNOTATIONS,
 } from './shared';
 
+// ---------------------------------------------------------------------------
+// Facet mapping — which AttentionItem.type belongs to which queue facet.
+//
+// `source_document_change` is deliberately ABSENT (scoped OUT of v1 — it has
+// no producer in lib/attention.ts). `bid_deadline` and `unread_notifications`
+// are not queue-review items and are excluded from both facets.
+// ---------------------------------------------------------------------------
+
+const FACET_BY_TYPE: Record<string, 'content_quality' | 'governance'> = {
+  governance_review: 'governance',
+  quality_flag: 'content_quality',
+  stale_content: 'content_quality',
+  expired_content: 'content_quality',
+  unverified_content: 'content_quality',
+  coverage_gap: 'content_quality',
+  taxonomy_coverage: 'content_quality',
+  expiring_content_date: 'content_quality',
+  expiring_certification: 'content_quality',
+};
+
+function toQueueItem(
+  item: AttentionItem,
+  facet: 'content_quality' | 'governance',
+): QueueItem {
+  return {
+    id: item.id,
+    type: item.type,
+    facet,
+    severity: item.severity,
+    title: item.title,
+    detail: item.detail,
+    action_url: item.action_url,
+    action_label: item.action_label,
+    count: item.count,
+  };
+}
+
+// outputSchema (M37 forward standard, new entry).
+const QueueItemSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  facet: z.enum(['content_quality', 'governance']),
+  severity: z.string(),
+  title: z.string(),
+  detail: z.string(),
+  action_url: z.string(),
+  action_label: z.string(),
+  count: z.number().optional(),
+});
+
+const WhatsInMyQueueOutputSchema = {
+  facet: z.enum(['content_quality', 'governance', 'all']),
+  items: z.array(QueueItemSchema),
+  total: z.number(),
+  generated_at: z.string(),
+};
+
 export async function registerReviewTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
-  // get_review_queue (read-only — editor+)
+  // whats_in_my_queue (read-only — editor+)
+  //
+  // ONE queue concept distinguished by a facet, over the lib/attention.ts
+  // producer substrate (B-INV-30 / OQ-5). content-review and governance
+  // collapse into one entry; `source_document_change` is scoped OUT of v1.
   // -------------------------------------------------------------------------
   defineTool(
     server,
-    'get_review_queue',
+    'whats_in_my_queue',
     {
-      title: 'Get Review Queue',
+      title: `What's in my queue`,
+      outputSchema: WhatsInMyQueueOutputSchema,
       description:
-        'List content items in the review queue. Filter by verification status, domain, content type. Used by review / daily-briefing skills to triage what needs reviewer attention. Flagged status is not yet available via MCP — the web review queue covers that sub-workflow. Editor or admin role required.',
+        'Show what needs my attention as ONE queue, distinguished by a facet. `facet` selects content-quality items (freshness, quality flags, coverage gaps, unverified, expiring) vs governance items (pending governance review), or `all` for both. Items are sorted by severity. Use this to triage the work in front of you. Editor or admin role required.',
       inputSchema: {
-        status: z
-          .enum(['unverified', 'verified', 'flagged', 'draft', 'all'])
-          .default('unverified')
+        facet: z
+          .enum(['content_quality', 'governance', 'all'])
+          .default('all')
           .describe(
-            'Verification-status filter. Note: "flagged" returns a friendly not-yet-available message — use the web review queue for flagged items.',
-          ),
-        limit: z
-          .number()
-          .int()
-          .min(1)
-          .max(100)
-          .default(20)
-          .describe('Maximum items to return (default 20, max 100)'),
-        offset: z
-          .number()
-          .int()
-          .min(0)
-          .default(0)
-          .describe('Offset for pagination (default 0)'),
-        domain: z
-          .string()
-          .optional()
-          .describe('Optional primary_domain filter'),
-        content_type: z
-          .string()
-          .optional()
-          .describe('Optional content_type filter'),
-        sort: z
-          .enum(['created_at', 'confidence_asc', 'quality_score_asc'])
-          .optional()
-          .describe('Sort order (default created_at desc)'),
-      },
-      annotations: READ_ONLY_ANNOTATIONS,
-    },
-    async (args, extra: ToolExtra) => {
-      try {
-        const role = await checkMcpRole(extra.authInfo, ['admin', 'editor']);
-        if (!role) {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: 'Permission denied: editor or admin role required to read the review queue.',
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        if (args.status === 'flagged') {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: 'Flagged items view is not yet available via MCP. Use the web review queue (Status: Flagged) for flagged items — the route joins `ingestion_quality_log` and is not yet mirrored here. All other statuses (unverified, verified, draft, all) work as expected.',
-              },
-            ],
-          };
-        }
-
-        const supabase = createMcpClient(extra.authInfo);
-
-        // Mirror the non-flagged path of app/api/review/queue/route.ts.
-        // Column list matches the REVIEW_COLUMNS in the route but trimmed
-        // to the fields the formatter + structured payload actually consume.
-        const selectCols =
-          'id, title, suggested_title, primary_domain, content_type, quality_score, classification_confidence, verified_at, governance_review_status';
-
-        let query = supabase
-          .from('content_items')
-          .select(selectCols, { count: 'exact' });
-
-        // S202 §5.2 Phase 2.5 (T8b) — read filters target the new
-        // publication_status (NOT NULL post-S201). SELECT clause + response
-        // shape (lines 125, 191, 246) intentionally retain
-        // governance_review_status until Phase 1f NULLs the legacy column.
-        if (args.status === 'draft') {
-          query = query.eq('publication_status', 'draft');
-        } else {
-          query = query.neq('publication_status', 'draft');
-        }
-
-        if (args.status === 'unverified') {
-          query = query.is('verified_at', null);
-        } else if (args.status === 'verified') {
-          query = query.not('verified_at', 'is', null);
-        }
-
-        if (args.domain) {
-          query = query.eq('primary_domain', args.domain);
-        }
-        if (args.content_type) {
-          query = query.eq('content_type', args.content_type);
-        }
-
-        if (args.sort === 'confidence_asc') {
-          query = query.order('classification_confidence', {
-            ascending: true,
-            nullsFirst: true,
-          });
-        } else if (args.sort === 'quality_score_asc') {
-          query = query.order('quality_score', {
-            ascending: true,
-            nullsFirst: true,
-          });
-        } else {
-          query = query.order('created_at', { ascending: false });
-        }
-        query = query.order('id', { ascending: true });
-        query = query.range(args.offset, args.offset + args.limit - 1);
-
-        const { data, error, count } = await query;
-
-        if (error) {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: `Failed to fetch review queue: ${error.message}`,
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        const rows = (data ?? []) as Array<{
-          id: string;
-          title: string | null;
-          suggested_title: string | null;
-          primary_domain: string | null;
-          content_type: string | null;
-          quality_score: number | null;
-          classification_confidence: number | null;
-          verified_at: string | null;
-          governance_review_status: string | null;
-        }>;
-
-        // Batch-fetch last-reviewed dates from verification_history. This is
-        // a display nicety — a query failure degrades the output (items show
-        // no last-reviewed date) but must not fail the whole tool, so we
-        // surface the failure via `logBestEffortWarn` (Sentry breadcrumb +
-        // console.warn) rather than aborting the response.
-        const itemIds = rows.map((r) => r.id);
-        const reviewDates = new Map<string, string>();
-        if (itemIds.length > 0) {
-          const { data: vhData, error: vhError } = await supabase
-            .from('verification_history')
-            .select('content_item_id, performed_at')
-            .in('content_item_id', itemIds)
-            .order('performed_at', { ascending: false });
-          if (vhError) {
-            logBestEffortWarn(
-              'mcp.review.last_reviewed_lookup',
-              'verification_history lookup failed in get_review_queue',
-              { error: vhError.message, item_count: itemIds.length },
-            );
-          }
-          for (const row of (vhData ?? []) as Array<{
-            content_item_id: string;
-            performed_at: string;
-          }>) {
-            if (!reviewDates.has(row.content_item_id)) {
-              reviewDates.set(row.content_item_id, row.performed_at);
-            }
-          }
-        }
-
-        // Supplementary counts — match the route's progress-bar payload.
-        const [verifiedResult, flaggedResult] = await Promise.all([
-          supabase
-            .from('content_items')
-            .select('id', { count: 'exact', head: true })
-            .not('verified_at', 'is', null),
-          supabase
-            .from('ingestion_quality_log')
-            .select('content_item_id', { count: 'exact', head: true })
-            .eq('flag_type', 'review_needed')
-            .eq('resolved', false),
-        ]);
-
-        const items: ReviewQueueToolItem[] = rows.map((row) => ({
-          id: row.id,
-          title: row.title,
-          suggested_title: row.suggested_title,
-          primary_domain: row.primary_domain,
-          content_type: row.content_type,
-          quality_score: row.quality_score,
-          classification_confidence: row.classification_confidence,
-          verified_at: row.verified_at,
-          governance_review_status: row.governance_review_status,
-          last_reviewed_at: reviewDates.get(row.id) ?? null,
-        }));
-
-        const result: ReviewQueueToolData = {
-          items,
-          total: count ?? items.length,
-          verified_count: verifiedResult.count ?? 0,
-          flagged_count: flaggedResult.count ?? 0,
-          offset: args.offset,
-          limit: args.limit,
-          status: args.status,
-          domain_filter: args.domain ?? null,
-          content_type_filter: args.content_type ?? null,
-        };
-
-        const markdown = formatReviewQueue(result);
-        return {
-          content: [{ type: 'text' as const, text: markdown }],
-          structuredContent: toStructuredContent(result),
-        };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `Review queue read failed: ${message}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    },
-  );
-
-  // -------------------------------------------------------------------------
-  // get_assignments_for_user (read-only — editor+; non-admin auto-scoped)
-  // -------------------------------------------------------------------------
-  defineTool(
-    server,
-    'get_assignments_for_user',
-    {
-      title: 'Get Review Assignments',
-      description:
-        'List review assignments. Non-admin callers see only their own assignments regardless of the reviewer_id arg. Admin callers can query any reviewer or omit the filter to see all assignments. Filter by status: active (default) / completed / cancelled / all. Editor or admin role required.',
-      inputSchema: {
-        status: z
-          .enum(['active', 'completed', 'cancelled', 'all'])
-          .default('active')
-          .describe('Assignment status filter'),
-        reviewer_id: z
-          .string()
-          .uuid()
-          .optional()
-          .describe(
-            'Filter to a specific reviewer (admin-only — non-admin callers are always auto-scoped to themselves regardless of this value).',
+            'Which queue facet to show: content_quality, governance, or all (default all).',
           ),
       },
       annotations: READ_ONLY_ANNOTATIONS,
@@ -313,7 +135,7 @@ export async function registerReviewTools(server: McpServer): Promise<void> {
             content: [
               {
                 type: 'text' as const,
-                text: 'Permission denied: editor or admin role required to read review assignments.',
+                text: 'Permission denied: editor or admin role required to read the queue.',
               },
             ],
             isError: true,
@@ -323,55 +145,42 @@ export async function registerReviewTools(server: McpServer): Promise<void> {
         const supabase = createMcpClient(extra.authInfo);
         const userId = getMcpUserId(extra.authInfo);
         const userRole = await getMcpUserRole(extra.authInfo!);
+        const isAdmin = userRole === 'admin';
+        const facet = (args.facet ?? 'all') as QueueFacet;
 
-        let query = supabase
-          .from('review_assignments')
-          .select('*')
-          .order('created_at', { ascending: false });
+        // Read the attention source counts, then run the lib/attention.ts
+        // producers over them (greenfield read OVER the substrate, not a wrapper).
+        const { fetchUnifiedDashboardData } = await getDashboardModule();
+        const unified = await fetchUnifiedDashboardData(
+          supabase,
+          userId,
+          isAdmin,
+          userRole,
+        );
+        const sourceData: AttentionSourceData = {
+          ...unified.attention_sources,
+          active_bids: unified.active_bids,
+        };
+        const attentionItems = buildAttentionItems(sourceData);
 
-        // Non-admins are auto-scoped to self regardless of the arg — matches
-        // app/api/review/assignments/route.ts:55-57.
-        let scope: 'self' | 'all' | 'reviewer' = 'all';
-        let targetReviewerId: string | null = null;
-        if (userRole !== 'admin') {
-          if (userId) {
-            query = query.eq('reviewer_id', userId);
-          }
-          scope = 'self';
-          targetReviewerId = userId ?? null;
-        } else if (args.reviewer_id) {
-          query = query.eq('reviewer_id', args.reviewer_id);
-          scope = 'reviewer';
-          targetReviewerId = args.reviewer_id;
+        // Map each producer item to a facet; drop items with no queue facet
+        // (bid_deadline, unread_notifications, source_document_change).
+        const queueItems: QueueItem[] = [];
+        for (const item of attentionItems) {
+          const itemFacet = FACET_BY_TYPE[item.type];
+          if (!itemFacet) continue;
+          if (facet !== 'all' && itemFacet !== facet) continue;
+          queueItems.push(toQueueItem(item, itemFacet));
         }
 
-        if (args.status !== 'all') {
-          query = query.eq('status', args.status);
-        }
-
-        const { data, error } = await query;
-
-        if (error) {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: `Failed to fetch assignments: ${error.message}`,
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        const assignments = (data ?? []) as ReviewAssignmentSummary[];
-        const result: ReviewAssignmentsData = {
-          assignments,
-          status_filter: args.status,
-          scope,
-          target_reviewer_id: targetReviewerId,
+        const result: WhatsInMyQueueData = {
+          facet,
+          items: queueItems,
+          total: queueItems.length,
+          generated_at: new Date().toISOString(),
         };
 
-        const markdown = formatReviewAssignments(result);
+        const markdown = formatWhatsInMyQueue(result);
         return {
           content: [{ type: 'text' as const, text: markdown }],
           structuredContent: toStructuredContent(result),
@@ -382,7 +191,7 @@ export async function registerReviewTools(server: McpServer): Promise<void> {
           content: [
             {
               type: 'text' as const,
-              text: `Assignments read failed: ${message}`,
+              text: `Queue read failed: ${message}`,
             },
           ],
           isError: true,

@@ -80,7 +80,7 @@ export function loadEnv(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Canonical lists — 46 tools after S357 Wave-1 surface consolidation:
+// Canonical lists — 43 tools after S357 Wave-1 surface consolidation:
 // ID-71.7 (M27/B-INV-27) collapsed the search trio (search_knowledge_base /
 // search_qa_library / search_content_chunks) + find_similar_items into ONE `find`
 // entry; ID-71.10 (M32) collapsed get_content_item+get_content_items → `get` and
@@ -91,13 +91,16 @@ export function loadEnv(): void {
 // get_quality_summary, get_quality_briefing, get_quality_actions,
 // get_certification_status) into ONE `where_are_we_exposed` five-layer entry;
 // suggest_content_creation KEPT as the resolution affordance. 53 → 46 (−8 +1).
+// ID-71.9 (M30/OQ-5, B-INV-30) collapsed the 4 fragmented queue reads
+// (get_governance_queue, get_review_queue, get_assignments_for_user,
+// get_dashboard_summary) into ONE faceted `whats_in_my_queue` entry over the
+// lib/attention.ts producer substrate. 46 → 43 (−4 +1).
 // ---------------------------------------------------------------------------
 
-/** Canonical set of all 46 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
+/** Canonical set of all 43 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
 export const CANONICAL_TOOL_NAMES = [
   // ID-71.7 — ONE consolidated find/answer entry (search + QA + chunk + similar).
   'find', // 1
-  'get_dashboard_summary', // 4
   'get_reorientation', // 5
   // ID-71.8 — ONE consolidated five-layer exposure entry (was get_freshness_report,
   // get_expiring_content, get_coverage_gaps, audit_content, get_quality_summary,
@@ -135,11 +138,11 @@ export const CANONICAL_TOOL_NAMES = [
   'create_guide', // 46
   'update_guide', // 47
   'trigger_intelligence_poll', // 48
-  // S180 P0-23 — review + governance additions (5 new tools, 47 → 52).
-  'get_governance_queue', // 49
+  // S180 P0-23 — review + governance additions.
+  // ID-71.9 — ONE faceted queue entry (was get_governance_queue,
+  // get_review_queue, get_assignments_for_user, get_dashboard_summary).
+  'whats_in_my_queue',
   'review_governance_item', // 50
-  'get_review_queue', // 51
-  'get_assignments_for_user', // 52
   'create_review_assignment', // 53
   // S180 P1-35 — change-report tool (WP6, 52 → 53).
   'get_change_report', // 54
@@ -155,15 +158,15 @@ export const CANONICAL_TOOL_NAMES = [
   'find_duplicate_candidates',
 ] as const;
 
-export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 46 (ID-71.8: 53 − 8 + 1)
+export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 43 (ID-71.9: 46 − 4 + 1)
 
 /** Read-only tools (no side effects). */
 export const READ_ONLY_TOOLS = new Set([
   'find',
   'find_duplicate_candidates',
-  'get_dashboard_summary',
   'get_reorientation',
   'where_are_we_exposed', // ID-71.8 — five-layer exposure consolidation
+  'whats_in_my_queue', // ID-71.9 — faceted queue consolidation
   'list_active_procurement',
   'get_procurement_detail',
   'get_bid_question',
@@ -185,10 +188,6 @@ export const READ_ONLY_TOOLS = new Set([
   'get_intelligence_summary',
   'get_guide',
   'list_guides',
-  // S180 P0-23
-  'get_governance_queue',
-  'get_review_queue',
-  'get_assignments_for_user',
   // S180 P1-35
   'get_change_report',
   // S194 UI-simp WP4.2 — P1-34
@@ -527,7 +526,8 @@ export function getMinimalArgs(
     // ID-71.7 — consolidated find/answer entry (search + QA + chunk + similar).
     case 'find':
       return { query: 'test' };
-    case 'get_dashboard_summary':
+    case 'whats_in_my_queue':
+      // ID-71.9 — faceted queue; no args = all facets.
       return {};
     case 'list_active_procurement':
       return {};
@@ -649,14 +649,6 @@ export function getMinimalArgs(
     // Intelligence write tools
     case 'trigger_intelligence_poll':
       return {};
-
-    // S180 P0-23 review + governance read tools
-    case 'get_governance_queue':
-      return { limit: 20, offset: 0 };
-    case 'get_review_queue':
-      return { status: 'unverified', limit: 20, offset: 0 };
-    case 'get_assignments_for_user':
-      return { status: 'active' };
 
     // S180 P0-23 review + governance write tools. The review-verdict tool
     // requires an item currently in `pending` state — the eval item typically

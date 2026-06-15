@@ -1,23 +1,23 @@
 /**
- * Dashboard / orientation tool registrations (3 tools):
- *   2. get_dashboard_summary
- *   5. get_reorientation
- *      where_are_we_exposed  (ID-71.8 — M29/M4, B-INV-4/29; five-layer
- *                             exposure framing consolidating the former
- *                             freshness / coverage / quality / certification
- *                             reads with first-class resolution affordances)
+ * Dashboard / orientation tool registrations (2 tools):
+ *   get_reorientation
+ *   where_are_we_exposed  (ID-71.8 — M29/M4, B-INV-4/29; five-layer
+ *                          exposure framing consolidating the former
+ *                          freshness / coverage / quality / certification
+ *                          reads with first-class resolution affordances)
  *
  * ID-71.8 retired into `where_are_we_exposed`: `get_freshness_report`,
  * `get_expiring_content` (this file), `get_coverage_gaps`, `audit_content`,
  * `get_quality_summary`, `get_quality_briefing`, `get_quality_actions`
  * (quality.ts), `get_certification_status` (entities.ts).
+ * ID-71.9 retired `get_dashboard_summary` into the consolidated
+ * `whats_in_my_queue` faceted queue (lib/mcp/tools/review.ts).
  */
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createMcpClient, getMcpUserId, getMcpUserRole } from '@/lib/mcp/auth';
 import { sb } from '@/lib/supabase/safe';
 import {
-  formatDashboardSummary,
   formatReorientation,
   formatWhereAreWeExposed,
   truncateResponse,
@@ -31,7 +31,6 @@ import type {
 import {
   type ToolExtra,
   toStructuredContent,
-  getDashboardModule,
   getReorientModule,
   defineTool,
   READ_ONLY_ANNOTATIONS,
@@ -69,55 +68,7 @@ const WhereAreWeExposedOutputSchema = {
 
 export async function registerDashboardTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
-  // 2. get_dashboard_summary
-  // -------------------------------------------------------------------------
-  defineTool(
-    server,
-    'get_dashboard_summary',
-    {
-      title: 'Dashboard Summary',
-      description:
-        'Get an overview of the knowledge base health including items needing attention, content freshness breakdown, active procurements, and recent activity. Use this to understand the current state of the knowledge base at a glance.',
-      annotations: READ_ONLY_ANNOTATIONS,
-    },
-    async (extra: ToolExtra) => {
-      try {
-        const supabase = createMcpClient(extra.authInfo);
-        const userId = getMcpUserId(extra.authInfo);
-        const role = await getMcpUserRole(extra.authInfo!);
-        const isAdmin = role === 'admin';
-        const { fetchUnifiedDashboardData, unifiedToDashboardData } =
-          await getDashboardModule();
-        const unified = await fetchUnifiedDashboardData(
-          supabase,
-          userId,
-          isAdmin,
-          role,
-        );
-        const data = unifiedToDashboardData(unified);
-        const markdown = truncateResponse(formatDashboardSummary(data));
-
-        return {
-          content: [{ type: 'text' as const, text: markdown }],
-          structuredContent: toStructuredContent(data),
-        };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `Dashboard query failed: ${message}. The database function may be temporarily unavailable.`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    },
-  );
-
-  // -------------------------------------------------------------------------
-  // 5. get_reorientation
+  // get_reorientation
   // -------------------------------------------------------------------------
   defineTool(
     server,

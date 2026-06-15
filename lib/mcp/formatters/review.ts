@@ -242,3 +242,75 @@ export function formatCreateReviewAssignment(
 
   return lines.join('\n');
 }
+
+// ---------------------------------------------------------------------------
+// whats_in_my_queue — faceted queue (ID-71.9, B-INV-30 / M30 / OQ-5)
+//
+// ONE queue concept distinguished by a `facet` (content_quality vs
+// freshness/ownership governance), a GREENFIELD read OVER the already-merged
+// `lib/attention.ts` producer substrate. `source_document_change` is scoped
+// OUT of v1 (no producer exists).
+// ---------------------------------------------------------------------------
+
+export type QueueFacet = 'content_quality' | 'governance' | 'all';
+
+export interface QueueItem {
+  id: string;
+  /** The AttentionItem.type (e.g. governance_review, quality_flag). */
+  type: string;
+  /** Which facet this item belongs to (content_quality | governance). */
+  facet: 'content_quality' | 'governance';
+  severity: string;
+  title: string;
+  detail: string;
+  action_url: string;
+  action_label: string;
+  count?: number;
+}
+
+export interface WhatsInMyQueueData {
+  facet: QueueFacet;
+  items: QueueItem[];
+  total: number;
+  generated_at: string;
+}
+
+export function formatWhatsInMyQueue(data: WhatsInMyQueueData): string {
+  const lines: string[] = [
+    `# What's in my queue`,
+    '',
+    `Facet: **${data.facet}** — ${data.total} item${data.total === 1 ? '' : 's'}.`,
+    '',
+  ];
+
+  if (data.items.length === 0) {
+    lines.push('Your queue is clear for this facet.');
+    return lines.join('\n');
+  }
+
+  const byFacet: Record<string, QueueItem[]> = {
+    governance: [],
+    content_quality: [],
+  };
+  for (const item of data.items) {
+    byFacet[item.facet].push(item);
+  }
+
+  const facetTitles: Record<string, string> = {
+    governance: 'Governance',
+    content_quality: 'Content quality',
+  };
+
+  for (const facetKey of ['governance', 'content_quality']) {
+    const items = byFacet[facetKey];
+    if (items.length === 0) continue;
+    lines.push(`## ${facetTitles[facetKey]}`);
+    lines.push('');
+    for (const item of items) {
+      lines.push(`- **${item.title}** (${item.severity}) — ${item.detail}`);
+    }
+    lines.push('');
+  }
+
+  return lines.join('\n').trimEnd();
+}

@@ -102,6 +102,10 @@ export {
   formatReviewAssignments,
   type CreateReviewAssignmentResult,
   formatCreateReviewAssignment,
+  type QueueFacet,
+  type QueueItem,
+  type WhatsInMyQueueData,
+  formatWhatsInMyQueue,
 } from './review';
 export {
   type TemplateCoverageData,
