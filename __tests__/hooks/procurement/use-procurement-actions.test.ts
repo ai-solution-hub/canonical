@@ -226,7 +226,7 @@ function mockFetchSuccess(overrides?: {
         ok: true,
         json: async () => ({
           id: STUB_JOB_ID,
-          job_type: 'bid_draft_all',
+          job_type: 'form_draft_all',
           status: 'completed',
           result: {
             drafted: 8,
@@ -602,7 +602,7 @@ describe('useFormActions (TanStack Query)', () => {
           ok: true,
           json: async () => ({
             id: STUB_JOB_ID,
-            job_type: 'bid_draft_all',
+            job_type: 'form_draft_all',
             status: 'pending',
             result: null,
             error_message: null,
@@ -691,7 +691,7 @@ describe('useFormActions (TanStack Query)', () => {
           ok: true,
           json: async () => ({
             id: STUB_JOB_ID,
-            job_type: 'bid_draft_all',
+            job_type: 'form_draft_all',
             status: 'completed',
             result: {
               drafted: 5,
@@ -760,7 +760,7 @@ describe('useFormActions (TanStack Query)', () => {
           ok: true,
           json: async () => ({
             id: STUB_JOB_ID,
-            job_type: 'bid_draft_all',
+            job_type: 'form_draft_all',
             status: 'failed',
             result: null,
             error_message: 'bid_not_draftable: matching',
@@ -822,7 +822,7 @@ describe('useFormActions (TanStack Query)', () => {
           ok: true,
           json: async () => ({
             id: STUB_JOB_ID,
-            job_type: 'bid_draft_all',
+            job_type: 'form_draft_all',
             status: 'cancelled',
             result: null,
             error_message: null,
@@ -1189,7 +1189,7 @@ describe('useFormActions (TanStack Query)', () => {
           ok: true,
           json: async () => ({
             id: STUB_JOB_ID,
-            job_type: 'bid_draft_all',
+            job_type: 'form_draft_all',
             status: 'completed',
             result: { drafted: 1, skipped: 0, failed: 0, total_cost: 0 },
             error_message: null,
@@ -1277,7 +1277,7 @@ describe('useFormActions (TanStack Query)', () => {
           ok: true,
           json: async () => ({
             id: STUB_JOB_ID,
-            job_type: 'bid_draft_all',
+            job_type: 'form_draft_all',
             status: 'pending',
             result: null,
             error_message: null,

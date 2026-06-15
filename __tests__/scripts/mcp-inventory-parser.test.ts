@@ -437,15 +437,15 @@ describe('Prompt extraction', () => {
   it('extracts a prompt with argsSchema', () => {
     const source = `
       server.registerPrompt(
-        'bid_briefing',
+        'form_briefing',
         {
           title: 'Procurement Briefing',
-          description: 'Brief on a specific bid.',
+          description: 'Brief on a specific form.',
           argsSchema: {
-            bid_name: z.string().describe('Name of the bid'),
+            form_name: z.string().describe('Name of the form'),
           },
         },
-        async (args) => ({ messages: [{ role: 'user', content: { type: 'text', text: args.bid_name } }] }),
+        async (args) => ({ messages: [{ role: 'user', content: { type: 'text', text: args.form_name } }] }),
       );
     `;
 
@@ -453,11 +453,11 @@ describe('Prompt extraction', () => {
     expect(prompts).toHaveLength(1);
 
     const p = prompts[0];
-    expect(p.name).toBe('bid_briefing');
+    expect(p.name).toBe('form_briefing');
     expect(p.args).toHaveLength(1);
-    expect(p.args[0].name).toBe('bid_name');
+    expect(p.args[0].name).toBe('form_name');
     expect(p.args[0].type).toBe('string');
-    expect(p.args[0].description).toBe('Name of the bid');
+    expect(p.args[0].description).toBe('Name of the form');
   });
 });
 
@@ -597,7 +597,7 @@ describe('Integration: full codebase extraction', () => {
       const templates = resources.filter((r) => r.is_template);
       expect(templates.length).toBe(3);
       expect(templates.map((r) => r.uri).sort()).toEqual([
-        'kb://bids/{id}',
+        'kb://forms/{id}',
         'kb://items/{id}',
         'kb://qa/{id}',
       ]);
@@ -623,16 +623,16 @@ describe('Integration: full codebase extraction', () => {
 
       const names = prompts.map((p) => p.name);
       expect(names).toContain('reorient');
-      expect(names).toContain('bid_briefing');
+      expect(names).toContain('form_briefing');
       expect(names).toContain('coverage_analysis');
       expect(names).toContain('draft_response');
       expect(names).toContain('review_item');
       expect(names).toContain('sector_briefing');
-      expect(names).toContain('bid_pipeline_review');
+      expect(names).toContain('form_pipeline_review');
 
       // Prompts with argsSchema should have args
       const withArgs = prompts.filter((p) => p.args.length > 0);
-      expect(withArgs.length).toBe(5); // bid_briefing, draft_response, review_item, sector_briefing, bid_pipeline_review
+      expect(withArgs.length).toBe(5); // form_briefing, draft_response, review_item, sector_briefing, form_pipeline_review
 
       // Prompts without argsSchema should have empty args
       const reorient = prompts.find((p) => p.name === 'reorient')!;

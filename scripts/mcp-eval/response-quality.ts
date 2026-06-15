@@ -286,30 +286,30 @@ function getTokenChecks(knownUUIDs: KnownUUIDs): TokenCheck[] {
   return [
     {
       id: 'TE-01',
-      tool: 'search_knowledge_base',
+      tool: 'find',
       args: { query: 'ISO 27001' },
       expectedMin: 500,
       expectedMax: 5000,
       flagThreshold: 8000,
-      label: 'search_knowledge_base',
+      label: 'find',
     },
     {
       id: 'TE-02',
-      tool: 'get_dashboard_summary',
+      tool: 'whats_in_my_queue',
       args: {},
       expectedMin: 200,
       expectedMax: 4000,
       flagThreshold: 6000,
-      label: 'get_dashboard_summary',
+      label: 'whats_in_my_queue',
     },
     {
       id: 'TE-03',
-      tool: 'get_content_item',
+      tool: 'get',
       args: { id: knownUUIDs.contentItemId },
       expectedMin: 200,
       expectedMax: 3000,
       flagThreshold: 5000,
-      label: 'get_content_item',
+      label: 'get',
     },
     {
       id: 'TE-04',
@@ -333,21 +333,21 @@ function getTokenChecks(knownUUIDs: KnownUUIDs): TokenCheck[] {
     },
     {
       id: 'TE-06',
-      tool: 'get_coverage_gaps',
+      tool: 'where_are_we_exposed',
       args: {},
       expectedMin: 200,
       expectedMax: 4000,
       flagThreshold: 8000,
-      label: 'get_coverage_gaps',
+      label: 'where_are_we_exposed',
     },
     {
       id: 'TE-07',
-      tool: 'audit_content',
+      tool: 'where_are_we_exposed',
       args: { issue_type: 'no_domain' },
       expectedMin: 30,
       expectedMax: 5000,
       flagThreshold: 8000,
-      label: 'audit_content',
+      label: 'where_are_we_exposed',
     },
     {
       id: 'TE-08',
@@ -474,7 +474,7 @@ const SEARCH_RELEVANCE_CHECKS: SearchRelevanceCheck[] = [
   {
     id: 'RQ-01',
     query: 'data protection GDPR policies',
-    tool: 'search_knowledge_base',
+    tool: 'find',
     label: 'GDPR data protection',
     evaluate: (text: string) => {
       // Check that top results contain data-protection subtopic
@@ -505,7 +505,7 @@ const SEARCH_RELEVANCE_CHECKS: SearchRelevanceCheck[] = [
   {
     id: 'RQ-02',
     query: 'ISO 27001 certification ISMS',
-    tool: 'search_knowledge_base',
+    tool: 'find',
     label: 'ISO 27001 cross-domain',
     evaluate: (text: string) => {
       const textLower = text.toLowerCase();
@@ -535,7 +535,7 @@ const SEARCH_RELEVANCE_CHECKS: SearchRelevanceCheck[] = [
   {
     id: 'RQ-03',
     query: 'SLA response times',
-    tool: 'search_qa_library',
+    tool: 'find',
     label: 'SLA Q&A search',
     evaluate: (text: string) => {
       const textLower = text.toLowerCase();
@@ -563,7 +563,7 @@ const SEARCH_RELEVANCE_CHECKS: SearchRelevanceCheck[] = [
   {
     id: 'RQ-04',
     query: 'staff qualifications CVs',
-    tool: 'search_knowledge_base',
+    tool: 'find',
     label: 'Staff qualifications',
     evaluate: (text: string) => {
       const textLower = text.toLowerCase();
@@ -589,7 +589,7 @@ const SEARCH_RELEVANCE_CHECKS: SearchRelevanceCheck[] = [
   {
     id: 'RQ-05',
     query: 'quantum computing blockchain',
-    tool: 'search_knowledge_base',
+    tool: 'find',
     label: 'Negative test (irrelevant query)',
     evaluate: (text: string) => {
       // Should return 0-3 results with low relevance
@@ -684,7 +684,7 @@ function getStructuralChecks(knownUUIDs: KnownUUIDs): StructuralCheck[] {
     {
       id: 'RQ-10',
       label: 'Dashboard section headers',
-      tool: 'get_dashboard_summary',
+      tool: 'whats_in_my_queue',
       args: {},
       evaluate: (text: string) => {
         // Check for section headers (## or **bold**)
@@ -707,7 +707,7 @@ function getStructuralChecks(knownUUIDs: KnownUUIDs): StructuralCheck[] {
     {
       id: 'RQ-11',
       label: 'Search result formatting',
-      tool: 'search_knowledge_base',
+      tool: 'find',
       args: { query: 'data protection' },
       evaluate: (text: string) => {
         // Check for consistent item formatting — numbered list or bullet points with bold titles
@@ -752,7 +752,7 @@ function getStructuralChecks(knownUUIDs: KnownUUIDs): StructuralCheck[] {
     {
       id: 'RQ-12',
       label: 'Coverage gaps grouped by domain',
-      tool: 'get_coverage_gaps',
+      tool: 'where_are_we_exposed',
       args: {},
       evaluate: (text: string) => {
         // Check that gaps are grouped by domain — look for domain names as headers or bold labels

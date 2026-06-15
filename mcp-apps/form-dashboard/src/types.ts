@@ -37,7 +37,7 @@ export interface BidSection {
   questions: BidQuestionSummary[];
 }
 
-/** Data from get_bid_question drill-down (individual question) */
+/** Data from get_form_question drill-down (individual question) */
 export interface BidQuestionDetailData {
   id: string;
   question_text: string;

@@ -789,7 +789,7 @@ async function toggleQuestionExpansion(questionId: string): Promise<void> {
 
   try {
     const result = await app.callServerTool({
-      name: 'get_bid_question',
+      name: 'get_form_question',
       arguments: { question_id: questionId },
     });
 

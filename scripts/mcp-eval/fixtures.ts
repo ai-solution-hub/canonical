@@ -112,7 +112,7 @@ export const CANONICAL_TOOL_NAMES = [
   'where_are_we_exposed',
   'list_active_procurement', // 8
   'get_procurement_detail', // 9
-  'get_bid_question', // 10
+  'get_form_question', // 10
   'cite_content', // 11
   'get_content_effectiveness', // 12
   'get', // 13 (ID-71.10 — one-or-many; was get_content_item + get_content_items)
@@ -171,7 +171,7 @@ export const READ_ONLY_TOOLS = new Set([
   'whats_in_my_queue', // ID-71.9 — faceted queue consolidation
   'list_active_procurement',
   'get_procurement_detail',
-  'get_bid_question',
+  'get_form_question',
   'get_content_effectiveness',
   'get', // ID-71.10 — one-or-many (was get_content_item + get_content_items)
   'get_workspace_items',
@@ -230,12 +230,12 @@ export const AI_TOOLS = new Set([
 /** All 7 prompt names. */
 export const CANONICAL_PROMPT_NAMES = [
   'reorient',
-  'bid_briefing',
+  'form_briefing',
   'coverage_analysis',
   'draft_response',
   'review_item',
   'sector_briefing',
-  'bid_pipeline_review',
+  'form_pipeline_review',
 ] as const;
 
 export const PROMPT_COUNT = CANONICAL_PROMPT_NAMES.length; // 7
@@ -243,7 +243,7 @@ export const PROMPT_COUNT = CANONICAL_PROMPT_NAMES.length; // 7
 /** Resource template URIs (3 templates). */
 export const RESOURCE_TEMPLATE_URIS = [
   'kb://items/{id}',
-  'kb://bids/{id}',
+  'kb://forms/{id}',
   'kb://qa/{id}',
 ] as const;
 
@@ -255,7 +255,7 @@ export const STATIC_RESOURCE_URIS = [
   'kb://entities',
   'kb://quality-briefing',
   'ui://coverage-matrix/app.html',
-  'ui://bid-dashboard/app.html',
+  'ui://form-dashboard/app.html',
   'ui://reorient-me/app.html',
   'ui://intelligence-feed/app.html',
 ] as const;
@@ -541,7 +541,7 @@ export function getMinimalArgs(
       return {
         id: knownUUIDs.procurementId ?? '00000000-0000-0000-0000-000000000000',
       };
-    case 'get_bid_question':
+    case 'get_form_question':
       return {
         question_id:
           knownUUIDs.questionId ?? '00000000-0000-0000-0000-000000000000',

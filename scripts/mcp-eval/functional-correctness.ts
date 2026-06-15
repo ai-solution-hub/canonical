@@ -266,11 +266,7 @@ async function runSearchToolChecks(
 
   // FC-01: search ISO 27001 — >= 3 results, top result domain = security
   {
-    const result = await callTool(
-      'search_knowledge_base',
-      { query: 'ISO 27001' },
-      accessToken,
-    );
+    const result = await callTool('find', { query: 'ISO 27001' }, accessToken);
     if (result.errorMessage) {
       record(
         'Search Tools',
@@ -314,7 +310,7 @@ async function runSearchToolChecks(
   // FC-02: search ISO 27001 with domain filter — all results domain = security
   {
     const result = await callTool(
-      'search_knowledge_base',
+      'find',
       { query: 'ISO 27001', domain: 'security' },
       accessToken,
     );
@@ -362,7 +358,7 @@ async function runSearchToolChecks(
   // FC-03: negative test — quantum blockchain → 0-3 results
   {
     const result = await callTool(
-      'search_knowledge_base',
+      'find',
       { query: 'quantum blockchain' },
       accessToken,
     );
@@ -404,7 +400,7 @@ async function runSearchToolChecks(
   // FC-04: data protection GDPR — >= 3 results, keyword check
   {
     const result = await callTool(
-      'search_knowledge_base',
+      'find',
       { query: 'data protection GDPR' },
       accessToken,
     );
@@ -462,7 +458,7 @@ async function runSearchToolChecks(
   // FC-05: Q&A library search — results present with Q&A keywords
   {
     const result = await callTool(
-      'search_qa_library',
+      'find',
       { query: 'SLA response times' },
       accessToken,
     );
@@ -520,7 +516,7 @@ async function runSearchToolChecks(
   // FC-06: Q&A library search with limit — <= 3 results
   {
     const result = await callTool(
-      'search_qa_library',
+      'find',
       { query: 'SLA', limit: 3 },
       accessToken,
     );
@@ -625,14 +621,14 @@ async function runSearchToolChecks(
 async function runDashboardChecks(accessToken: string): Promise<void> {
   console.log('\nDashboard/Summary Tools');
 
-  // FC-10: get_dashboard_summary — total items > 0
+  // FC-10: whats_in_my_queue — total items > 0
   {
-    const result = await callTool('get_dashboard_summary', {}, accessToken);
+    const result = await callTool('whats_in_my_queue', {}, accessToken);
     if (result.errorMessage) {
       record(
         'Dashboard/Summary',
         'FC-10',
-        'get_dashboard_summary',
+        'whats_in_my_queue',
         'FAIL',
         result.errorMessage,
       );
@@ -649,7 +645,7 @@ async function runDashboardChecks(accessToken: string): Promise<void> {
         record(
           'Dashboard/Summary',
           'FC-10',
-          'get_dashboard_summary',
+          'whats_in_my_queue',
           'PASS',
           `Dashboard data present (${result.charCount} chars)`,
         );
@@ -657,7 +653,7 @@ async function runDashboardChecks(accessToken: string): Promise<void> {
         record(
           'Dashboard/Summary',
           'FC-10',
-          'get_dashboard_summary',
+          'whats_in_my_queue',
           'FAIL',
           'Dashboard missing item counts',
         );
@@ -665,14 +661,14 @@ async function runDashboardChecks(accessToken: string): Promise<void> {
     }
   }
 
-  // FC-11: get_quality_summary — keyword check for quality-related terms
+  // FC-11: where_are_we_exposed — keyword check for quality-related terms
   {
-    const result = await callTool('get_quality_summary', {}, accessToken);
+    const result = await callTool('where_are_we_exposed', {}, accessToken);
     if (result.errorMessage) {
       record(
         'Dashboard/Summary',
         'FC-11',
-        'get_quality_summary',
+        'where_are_we_exposed',
         'FAIL',
         result.errorMessage,
       );
@@ -688,7 +684,7 @@ async function runDashboardChecks(accessToken: string): Promise<void> {
         record(
           'Dashboard/Summary',
           'FC-11',
-          'get_quality_summary',
+          'where_are_we_exposed',
           'PASS',
           `Quality data with keywords present (${result.charCount} chars)`,
         );
@@ -696,7 +692,7 @@ async function runDashboardChecks(accessToken: string): Promise<void> {
         record(
           'Dashboard/Summary',
           'FC-11',
-          'get_quality_summary',
+          'where_are_we_exposed',
           'PASS',
           `Quality data present (${result.charCount} chars)`,
         );
@@ -704,7 +700,7 @@ async function runDashboardChecks(accessToken: string): Promise<void> {
         record(
           'Dashboard/Summary',
           'FC-11',
-          'get_quality_summary',
+          'where_are_we_exposed',
           'FAIL',
           'No meaningful quality summary returned',
         );
@@ -712,14 +708,14 @@ async function runDashboardChecks(accessToken: string): Promise<void> {
     }
   }
 
-  // FC-12: get_freshness_report — extract numeric counts, check non-zero
+  // FC-12: where_are_we_exposed — extract numeric counts, check non-zero
   {
-    const result = await callTool('get_freshness_report', {}, accessToken);
+    const result = await callTool('where_are_we_exposed', {}, accessToken);
     if (result.errorMessage) {
       record(
         'Dashboard/Summary',
         'FC-12',
-        'get_freshness_report',
+        'where_are_we_exposed',
         'FAIL',
         result.errorMessage,
       );
@@ -738,7 +734,7 @@ async function runDashboardChecks(accessToken: string): Promise<void> {
         record(
           'Dashboard/Summary',
           'FC-12',
-          'get_freshness_report',
+          'where_are_we_exposed',
           'PASS',
           `Freshness data with non-zero counts (${result.charCount} chars)`,
         );
@@ -746,7 +742,7 @@ async function runDashboardChecks(accessToken: string): Promise<void> {
         record(
           'Dashboard/Summary',
           'FC-12',
-          'get_freshness_report',
+          'where_are_we_exposed',
           'PASS',
           `Freshness data present (${result.charCount} chars)`,
         );
@@ -754,7 +750,7 @@ async function runDashboardChecks(accessToken: string): Promise<void> {
         record(
           'Dashboard/Summary',
           'FC-12',
-          'get_freshness_report',
+          'where_are_we_exposed',
           'PASS',
           `Report present (${result.charCount} chars)`,
         );
@@ -762,7 +758,7 @@ async function runDashboardChecks(accessToken: string): Promise<void> {
         record(
           'Dashboard/Summary',
           'FC-12',
-          'get_freshness_report',
+          'where_are_we_exposed',
           'FAIL',
           'No freshness data returned',
         );
@@ -829,10 +825,10 @@ async function runContentRetrievalChecks(
 ): Promise<void> {
   console.log('\nContent Retrieval');
 
-  // FC-20: get_content_item with known UUID — returns title and type info
+  // FC-20: get with known UUID — returns title and type info
   {
     const result = await callTool(
-      'get_content_item',
+      'get',
       { id: knownUUIDs.contentItemId },
       accessToken,
     );
@@ -840,7 +836,7 @@ async function runContentRetrievalChecks(
       record(
         'Content Retrieval',
         'FC-20',
-        'get_content_item known UUID',
+        'get known UUID',
         'FAIL',
         result.errorMessage,
       );
@@ -848,7 +844,7 @@ async function runContentRetrievalChecks(
       record(
         'Content Retrieval',
         'FC-20',
-        'get_content_item known UUID',
+        'get known UUID',
         'FAIL',
         `Tool error: ${result.text.slice(0, 100)}`,
       );
@@ -868,7 +864,7 @@ async function runContentRetrievalChecks(
         record(
           'Content Retrieval',
           'FC-20',
-          'get_content_item known UUID',
+          'get known UUID',
           'PASS',
           `Item data with type keywords (${result.charCount} chars)`,
         );
@@ -876,7 +872,7 @@ async function runContentRetrievalChecks(
         record(
           'Content Retrieval',
           'FC-20',
-          'get_content_item known UUID',
+          'get known UUID',
           'PASS',
           `Item data returned (${result.charCount} chars)`,
         );
@@ -884,7 +880,7 @@ async function runContentRetrievalChecks(
         record(
           'Content Retrieval',
           'FC-20',
-          'get_content_item known UUID',
+          'get known UUID',
           'PASS',
           `Content returned (${result.charCount} chars)`,
         );
@@ -892,7 +888,7 @@ async function runContentRetrievalChecks(
         record(
           'Content Retrieval',
           'FC-20',
-          'get_content_item known UUID',
+          'get known UUID',
           'FAIL',
           'Response too short or missing expected fields',
         );
@@ -900,10 +896,10 @@ async function runContentRetrievalChecks(
     }
   }
 
-  // FC-21: get_content_item with nonexistent UUID — returns "not found"
+  // FC-21: get with nonexistent UUID — returns "not found"
   {
     const result = await callTool(
-      'get_content_item',
+      'get',
       { id: '00000000-0000-0000-0000-000000000000' },
       accessToken,
     );
@@ -916,7 +912,7 @@ async function runContentRetrievalChecks(
         record(
           'Content Retrieval',
           'FC-21',
-          'get_content_item nonexistent UUID',
+          'get nonexistent UUID',
           'PASS',
           'Error response for nonexistent item',
         );
@@ -924,7 +920,7 @@ async function runContentRetrievalChecks(
         record(
           'Content Retrieval',
           'FC-21',
-          'get_content_item nonexistent UUID',
+          'get nonexistent UUID',
           'FAIL',
           result.errorMessage,
         );
@@ -940,7 +936,7 @@ async function runContentRetrievalChecks(
         record(
           'Content Retrieval',
           'FC-21',
-          'get_content_item nonexistent UUID',
+          'get nonexistent UUID',
           'PASS',
           'Correctly reports not found',
         );
@@ -948,7 +944,7 @@ async function runContentRetrievalChecks(
         record(
           'Content Retrieval',
           'FC-21',
-          'get_content_item nonexistent UUID',
+          'get nonexistent UUID',
           'FAIL',
           'No "not found" indication in response',
         );
@@ -956,10 +952,10 @@ async function runContentRetrievalChecks(
     }
   }
 
-  // FC-22: get_content_items with 2 known UUIDs — returns content for both
+  // FC-22: get with 2 known UUIDs — returns content for both
   {
     const result = await callTool(
-      'get_content_items',
+      'get',
       { ids: [knownUUIDs.contentItemId, evalItem.id] },
       accessToken,
     );
@@ -967,7 +963,7 @@ async function runContentRetrievalChecks(
       record(
         'Content Retrieval',
         'FC-22',
-        'get_content_items batch',
+        'get batch',
         'FAIL',
         result.errorMessage,
       );
@@ -975,7 +971,7 @@ async function runContentRetrievalChecks(
       record(
         'Content Retrieval',
         'FC-22',
-        'get_content_items batch',
+        'get batch',
         'FAIL',
         `Tool error: ${result.text.slice(0, 100)}`,
       );
@@ -985,7 +981,7 @@ async function runContentRetrievalChecks(
         record(
           'Content Retrieval',
           'FC-22',
-          'get_content_items batch',
+          'get batch',
           'PASS',
           `${itemCount} items returned for 2 UUIDs (${result.charCount} chars)`,
         );
@@ -993,7 +989,7 @@ async function runContentRetrievalChecks(
         record(
           'Content Retrieval',
           'FC-22',
-          'get_content_items batch',
+          'get batch',
           'PASS',
           `Batch content returned (${result.charCount} chars)`,
         );
@@ -1001,7 +997,7 @@ async function runContentRetrievalChecks(
         record(
           'Content Retrieval',
           'FC-22',
-          'get_content_items batch',
+          'get batch',
           'FAIL',
           'No meaningful batch content returned',
         );
@@ -1137,10 +1133,10 @@ async function runBidToolChecks(
     );
   }
 
-  // FC-32: get_bid_question with known question — keyword check
+  // FC-32: get_form_question with known question — keyword check
   if (knownUUIDs.questionId) {
     const result = await callTool(
-      'get_bid_question',
+      'get_form_question',
       { question_id: knownUUIDs.questionId },
       accessToken,
     );
@@ -1148,7 +1144,7 @@ async function runBidToolChecks(
       record(
         'Procurement Tools',
         'FC-32',
-        'get_bid_question known question',
+        'get_form_question known question',
         'FAIL',
         result.errorMessage,
       );
@@ -1156,7 +1152,7 @@ async function runBidToolChecks(
       record(
         'Procurement Tools',
         'FC-32',
-        'get_bid_question known question',
+        'get_form_question known question',
         'FAIL',
         `Tool error: ${result.text.slice(0, 100)}`,
       );
@@ -1170,7 +1166,7 @@ async function runBidToolChecks(
         record(
           'Procurement Tools',
           'FC-32',
-          'get_bid_question known question',
+          'get_form_question known question',
           'PASS',
           `Question data with keywords (${result.charCount} chars)`,
         );
@@ -1178,7 +1174,7 @@ async function runBidToolChecks(
         record(
           'Procurement Tools',
           'FC-32',
-          'get_bid_question known question',
+          'get_form_question known question',
           'PASS',
           `Question data returned (${result.charCount} chars)`,
         );
@@ -1186,7 +1182,7 @@ async function runBidToolChecks(
         record(
           'Procurement Tools',
           'FC-32',
-          'get_bid_question known question',
+          'get_form_question known question',
           'FAIL',
           'No meaningful question data returned',
         );
@@ -1196,7 +1192,7 @@ async function runBidToolChecks(
     record(
       'Procurement Tools',
       'FC-32',
-      'get_bid_question known question',
+      'get_form_question known question',
       'SKIP',
       'No bid question found',
     );
@@ -1210,15 +1206,15 @@ async function runBidToolChecks(
 async function runCoverageQualityChecks(accessToken: string): Promise<void> {
   console.log('\nCoverage/Quality Tools');
 
-  // FC-40: get_coverage_gaps — keyword check, store charCount for FC-41 comparison
+  // FC-40: where_are_we_exposed — keyword check, store charCount for FC-41 comparison
   let fc40CharCount = 0;
   {
-    const result = await callTool('get_coverage_gaps', {}, accessToken);
+    const result = await callTool('where_are_we_exposed', {}, accessToken);
     if (result.errorMessage) {
       record(
         'Coverage/Quality',
         'FC-40',
-        'get_coverage_gaps',
+        'where_are_we_exposed',
         'FAIL',
         result.errorMessage,
       );
@@ -1234,7 +1230,7 @@ async function runCoverageQualityChecks(accessToken: string): Promise<void> {
         record(
           'Coverage/Quality',
           'FC-40',
-          'get_coverage_gaps',
+          'where_are_we_exposed',
           'PASS',
           `Coverage gaps with keywords (${result.charCount} chars)`,
         );
@@ -1242,7 +1238,7 @@ async function runCoverageQualityChecks(accessToken: string): Promise<void> {
         record(
           'Coverage/Quality',
           'FC-40',
-          'get_coverage_gaps',
+          'where_are_we_exposed',
           'PASS',
           `Coverage gaps data (${result.charCount} chars)`,
         );
@@ -1250,7 +1246,7 @@ async function runCoverageQualityChecks(accessToken: string): Promise<void> {
         record(
           'Coverage/Quality',
           'FC-40',
-          'get_coverage_gaps',
+          'where_are_we_exposed',
           'FAIL',
           'No coverage gaps data returned',
         );
@@ -1258,10 +1254,10 @@ async function runCoverageQualityChecks(accessToken: string): Promise<void> {
     }
   }
 
-  // FC-41: get_coverage_gaps with min_items=100 — should produce more content than FC-40
+  // FC-41: where_are_we_exposed with min_items=100 — should produce more content than FC-40
   {
     const result = await callTool(
-      'get_coverage_gaps',
+      'where_are_we_exposed',
       { min_items: 100 },
       accessToken,
     );
@@ -1269,7 +1265,7 @@ async function runCoverageQualityChecks(accessToken: string): Promise<void> {
       record(
         'Coverage/Quality',
         'FC-41',
-        'get_coverage_gaps min_items=100',
+        'where_are_we_exposed min_items=100',
         'FAIL',
         result.errorMessage,
       );
@@ -1279,7 +1275,7 @@ async function runCoverageQualityChecks(accessToken: string): Promise<void> {
         record(
           'Coverage/Quality',
           'FC-41',
-          'get_coverage_gaps min_items=100',
+          'where_are_we_exposed min_items=100',
           'PASS',
           `More gaps than FC-40 (${result.charCount} vs ${fc40CharCount} chars)`,
         );
@@ -1287,7 +1283,7 @@ async function runCoverageQualityChecks(accessToken: string): Promise<void> {
         record(
           'Coverage/Quality',
           'FC-41',
-          'get_coverage_gaps min_items=100',
+          'where_are_we_exposed min_items=100',
           'PASS',
           `Gaps shown (${result.charCount} chars)`,
         );
@@ -1297,17 +1293,17 @@ async function runCoverageQualityChecks(accessToken: string): Promise<void> {
       record(
         'Coverage/Quality',
         'FC-41',
-        'get_coverage_gaps min_items=100',
+        'where_are_we_exposed min_items=100',
         'FAIL',
         'No gaps data returned with high min_items',
       );
     }
   }
 
-  // FC-42: audit_content with issue_type=no_domain — verify domain-related content
+  // FC-42: where_are_we_exposed with issue_type=no_domain — verify domain-related content
   {
     const result = await callTool(
-      'audit_content',
+      'where_are_we_exposed',
       { issue_type: 'no_domain' },
       accessToken,
     );
@@ -1315,7 +1311,7 @@ async function runCoverageQualityChecks(accessToken: string): Promise<void> {
       record(
         'Coverage/Quality',
         'FC-42',
-        'audit_content no_domain',
+        'where_are_we_exposed no_domain',
         'FAIL',
         result.errorMessage,
       );
@@ -1323,7 +1319,7 @@ async function runCoverageQualityChecks(accessToken: string): Promise<void> {
       record(
         'Coverage/Quality',
         'FC-42',
-        'audit_content no_domain',
+        'where_are_we_exposed no_domain',
         'FAIL',
         `Tool error: ${result.text.slice(0, 100)}`,
       );
@@ -1342,7 +1338,7 @@ async function runCoverageQualityChecks(accessToken: string): Promise<void> {
         record(
           'Coverage/Quality',
           'FC-42',
-          'audit_content no_domain',
+          'where_are_we_exposed no_domain',
           'PASS',
           `Audit response with domain/no-issues keywords (${result.charCount} chars)`,
         );
@@ -1350,7 +1346,7 @@ async function runCoverageQualityChecks(accessToken: string): Promise<void> {
         record(
           'Coverage/Quality',
           'FC-42',
-          'audit_content no_domain',
+          'where_are_we_exposed no_domain',
           'PASS',
           `Audit response (${result.charCount} chars)`,
         );
@@ -1358,7 +1354,7 @@ async function runCoverageQualityChecks(accessToken: string): Promise<void> {
         record(
           'Coverage/Quality',
           'FC-42',
-          'audit_content no_domain',
+          'where_are_we_exposed no_domain',
           'FAIL',
           'No meaningful audit response',
         );
@@ -1366,10 +1362,10 @@ async function runCoverageQualityChecks(accessToken: string): Promise<void> {
     }
   }
 
-  // FC-43: audit_content with thin_content filter — check for thin/short/length keywords
+  // FC-43: where_are_we_exposed with thin_content filter — check for thin/short/length keywords
   {
     const result = await callTool(
-      'audit_content',
+      'where_are_we_exposed',
       { issue_type: 'thin_content' },
       accessToken,
     );
@@ -1377,7 +1373,7 @@ async function runCoverageQualityChecks(accessToken: string): Promise<void> {
       record(
         'Coverage/Quality',
         'FC-43',
-        'audit_content thin_content',
+        'where_are_we_exposed thin_content',
         'FAIL',
         result.errorMessage,
       );
@@ -1396,7 +1392,7 @@ async function runCoverageQualityChecks(accessToken: string): Promise<void> {
         record(
           'Coverage/Quality',
           'FC-43',
-          'audit_content thin_content',
+          'where_are_we_exposed thin_content',
           'PASS',
           `Thin content audit response (${result.charCount} chars)`,
         );
@@ -1404,7 +1400,7 @@ async function runCoverageQualityChecks(accessToken: string): Promise<void> {
         record(
           'Coverage/Quality',
           'FC-43',
-          'audit_content thin_content',
+          'where_are_we_exposed thin_content',
           'PASS',
           `Audit data returned (${result.charCount} chars)`,
         );
@@ -1412,7 +1408,7 @@ async function runCoverageQualityChecks(accessToken: string): Promise<void> {
         record(
           'Coverage/Quality',
           'FC-43',
-          'audit_content thin_content',
+          'where_are_we_exposed thin_content',
           'FAIL',
           'No audit data returned',
         );
@@ -1420,14 +1416,18 @@ async function runCoverageQualityChecks(accessToken: string): Promise<void> {
     }
   }
 
-  // FC-44: find_all_duplicates — check for duplicate-related keywords
+  // FC-44: find_duplicates (scope:'all') — check for duplicate-related keywords
   {
-    const result = await callTool('find_all_duplicates', {}, accessToken);
+    const result = await callTool(
+      'find_duplicates',
+      { scope: 'all' },
+      accessToken,
+    );
     if (result.errorMessage) {
       record(
         'Coverage/Quality',
         'FC-44',
-        'find_all_duplicates',
+        'find_duplicates',
         'FAIL',
         result.errorMessage,
       );
@@ -1435,7 +1435,7 @@ async function runCoverageQualityChecks(accessToken: string): Promise<void> {
       record(
         'Coverage/Quality',
         'FC-44',
-        'find_all_duplicates',
+        'find_duplicates',
         'FAIL',
         `Tool error: ${result.text.slice(0, 100)}`,
       );
@@ -1450,7 +1450,7 @@ async function runCoverageQualityChecks(accessToken: string): Promise<void> {
         record(
           'Coverage/Quality',
           'FC-44',
-          'find_all_duplicates',
+          'find_duplicates',
           'PASS',
           `Duplicate check with keywords (${result.charCount} chars)`,
         );
@@ -1458,7 +1458,7 @@ async function runCoverageQualityChecks(accessToken: string): Promise<void> {
         record(
           'Coverage/Quality',
           'FC-44',
-          'find_all_duplicates',
+          'find_duplicates',
           'PASS',
           `Response present (${result.charCount} chars)`,
         );
@@ -1466,7 +1466,7 @@ async function runCoverageQualityChecks(accessToken: string): Promise<void> {
         record(
           'Coverage/Quality',
           'FC-44',
-          'find_all_duplicates',
+          'find_duplicates',
           'FAIL',
           'No response content',
         );
@@ -1636,7 +1636,7 @@ async function runWriteToolChecks(
         createdItemIds.push(createdId);
         // Verify the created item exists by fetching it
         const verifyResult = await callTool(
-          'get_content_item',
+          'get',
           { id: createdId },
           accessToken,
         );
@@ -1844,7 +1844,7 @@ async function runWriteToolChecks(
     } else {
       // Verify update by fetching the item
       const verifyResult = await callTool(
-        'get_content_item',
+        'get',
         { id: evalItem.id },
         accessToken,
       );
@@ -1854,10 +1854,10 @@ async function runWriteToolChecks(
           'FC-63',
           'update_content_item',
           'PASS',
-          'Update verified via get_content_item',
+          'Update verified via get',
         );
       } else if (!verifyResult.isError) {
-        // Notes may not appear in the formatted get_content_item response — still pass if update didn't error
+        // Notes may not appear in the formatted get response — still pass if update didn't error
         record(
           'Write Tools',
           'FC-63',

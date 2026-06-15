@@ -494,7 +494,7 @@ async function runErrorHandlingChecks(accessToken: string): Promise<void> {
     const response = await mcpRequest(
       'tools/call',
       {
-        name: 'get_content_item',
+        name: 'get',
         arguments: { id: '00000000-0000-0000-0000-000000000000' },
       },
       accessToken,
@@ -531,7 +531,7 @@ async function runErrorHandlingChecks(accessToken: string): Promise<void> {
     const response = await mcpRequest(
       'tools/call',
       {
-        name: 'get_content_item',
+        name: 'get',
         arguments: {},
       },
       accessToken,
@@ -570,7 +570,7 @@ async function runErrorHandlingChecks(accessToken: string): Promise<void> {
     const response = await mcpRequest(
       'tools/call',
       {
-        name: 'get_content_item',
+        name: 'get',
         arguments: { id: 12345 },
       },
       accessToken,
