@@ -348,7 +348,7 @@ function buildUrgentSection(items: UrgentItem[]): HTMLElement {
       btn.className = 'btn btn--sm btn--primary';
       btn.textContent = 'Show freshness report';
       btn.onclick = () =>
-        drillDown('get_freshness_report', {}, 'Freshness Report');
+        drillDown('where_are_we_exposed', {}, 'Freshness Report');
       actionsRow.appendChild(btn);
     } else if (item.type === 'review_pending') {
       const btn = document.createElement('button');
@@ -375,7 +375,7 @@ function buildUrgentSection(items: UrgentItem[]): HTMLElement {
       btn.className = 'btn btn--sm btn--primary';
       btn.textContent = 'Show quality issues';
       btn.onclick = () =>
-        drillDown('get_quality_summary', {}, 'Quality Summary');
+        drillDown('where_are_we_exposed', {}, 'Quality Summary');
       actionsRow.appendChild(btn);
     }
 
@@ -440,11 +440,7 @@ function buildTeamChangesSection(changes: TeamChange[]): HTMLElement {
       btn.textContent = 'View item';
       // We only open the first one if grouped
       btn.onclick = () =>
-        drillDown(
-          'get_content_item',
-          { id: first.entity_id },
-          first.entity_title,
-        );
+        drillDown('get', { id: first.entity_id }, first.entity_title);
     } else if (first.entity_type === 'bid_response' && first.workspace_id) {
       btn.textContent = 'View bid';
       btn.onclick = () =>
@@ -502,11 +498,7 @@ function buildRecentWorkSection(items: RecentWorkItem[]): HTMLElement {
     if (item.entity_type === 'content_item') {
       btn.textContent = 'View item';
       btn.onclick = () =>
-        drillDown(
-          'get_content_item',
-          { id: item.entity_id },
-          item.entity_title,
-        );
+        drillDown('get', { id: item.entity_id }, item.entity_title);
     } else if (item.entity_type === 'bid_response' && item.workspace_id) {
       btn.textContent = 'View bid';
       btn.onclick = () =>

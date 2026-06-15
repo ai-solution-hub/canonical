@@ -2,6 +2,12 @@
  * Entity tool registrations (1 tool):
  *  14. get_entity_relationships
  *
+ * ID-71.11 (M28, B-INV-28): `get_entity_relationships` is the ontology-grounding
+ * affordance of the ANSWERING outcome (O1 W1.3) — discoverable alongside `find`
+ * and the `kb://entities` overview resource, not mis-grouped under content
+ * management. Its description frames it as a grounding step ("ground an answer
+ * in the entity graph"); the handler logic is unchanged (behaviour-preserving).
+ *
  * ID-71.8 (M29/M4, B-INV-4/29) retired `get_certification_status` into the
  * consolidated `where_are_we_exposed` five-layer entry
  * (lib/mcp/tools/dashboard.ts) — certification/expiry status is now surfaced
@@ -32,7 +38,7 @@ export async function registerEntityTools(server: McpServer): Promise<void> {
     {
       title: 'Entity Relationships',
       description:
-        'Query entity relationships in the knowledge base. Find what certifications the company holds, what technologies are used, what sectors are served, and how entities connect to each other. Returns structured data from the entity graph at zero AI cost.',
+        'Ground an answer in the entity graph. A first-class grounding affordance of the answering outcome — use it alongside `find` to anchor what you say in structured facts: what certifications the company holds, what technologies are used, what sectors are served, and how entities connect to each other. Pairs with the `kb://entities` overview resource. Returns structured data from the entity graph at zero AI cost.',
       inputSchema: {
         entity_name: z
           .string()

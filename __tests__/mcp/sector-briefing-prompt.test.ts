@@ -49,34 +49,45 @@ describe('MCP sector_briefing prompt', () => {
     expect(text).toContain('UK English');
   });
 
-  it('references the full tool set a sector briefing needs', async () => {
+  it('orchestrates over the consolidated tool set (ID-71.11 thin-orchestrator)', async () => {
     const prompt = server.getPrompt('sector_briefing');
     const result = await prompt!.handler({ domain: 'audit-content' });
     const text = result.messages[0]?.content.text ?? '';
 
-    // All six tool name references must be present so the LLM composes the
-    // briefing against the intended data sources. This catches drift if any
-    // tool is renamed.
+    // The briefing composes against the consolidated Wave-1 surface: kept
+    // entries by name, the search trio collapsed into `find`, and the
+    // governance queue collapsed into `whats_in_my_queue` (governance facet).
     expect(text).toContain('list_guides');
-    expect(text).toContain('search_knowledge_base');
-    expect(text).toContain('search_qa_library');
+    expect(text).toContain('find(');
     expect(text).toContain('get_intelligence_summary');
     expect(text).toContain('get_change_report');
-    expect(text).toContain('get_governance_queue');
+    expect(text).toContain('whats_in_my_queue');
+    // Retired read names must not survive in the orchestration text.
+    expect(text).not.toContain('search_knowledge_base');
+    expect(text).not.toContain('search_qa_library');
+    expect(text).not.toContain('get_governance_queue');
+  });
+
+  it('reuses the consolidated find entry for both items and Q&A', async () => {
+    // The search trio (search_knowledge_base / search_qa_library /
+    // search_content_chunks) collapsed into one `find` entry — the briefing
+    // must reach Q&A via find(type: 'q_a_pair'), not a separate Q&A tool.
+    const prompt = server.getPrompt('sector_briefing');
+    const result = await prompt!.handler({ domain: 'audit-content' });
+    const text = result.messages[0]?.content.text ?? '';
+
+    expect(text).toContain('type: "q_a_pair"');
   });
 
   it('instructs graceful fallback when a later-shipping tool is unavailable', async () => {
-    // Two tool dependencies ship later in the same release train:
-    //   - get_change_report (WP6 / P1-35)
-    //   - get_governance_queue (WP3 / P0-23)
-    // If either is missing at invocation time, the prompt must instruct
-    // Claude to skip that step and continue with the remaining data sources.
+    // get_change_report (WP6 / P1-35) ships later in the same release train;
+    // if missing at invocation time the prompt must instruct Claude to skip
+    // that step and continue with the remaining data sources.
     const prompt = server.getPrompt('sector_briefing');
     const result = await prompt!.handler({ domain: 'audit-content' });
     const text = result.messages[0]?.content.text ?? '';
 
     expect(text).toContain('Change report tool not yet available');
-    expect(text).toContain('Governance queue tool not yet available');
   });
 
   it('interpolates the domain argument into the prompt body', async () => {

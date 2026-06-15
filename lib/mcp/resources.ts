@@ -504,13 +504,16 @@ export async function registerResources(server: McpServer): Promise<void> {
     },
   );
 
-  // 7. kb://entities — Entity overview
+  // 7. kb://entities — Entity overview (ontology-grounding entry on the
+  // answering surface; ID-71.11 / B-INV-28). Discoverable alongside `find`:
+  // the overview orients you in the entity graph, then `get_entity_relationships`
+  // grounds a specific answer in structured facts.
   server.registerResource(
     'entities',
     'kb://entities',
     {
       description:
-        'Overview of all entities in the knowledge base — entity types, counts per type, and top entities by mention count',
+        'Overview of all entities in the knowledge base — entity types, counts per type, and top entities by mention count. An ontology-grounding entry for the answering surface: use it alongside `find` to orient, then `get_entity_relationships` to ground a specific answer in the entity graph.',
       mimeType: 'application/json',
     },
     async (uri: URL, extra: Extra) => {
@@ -872,7 +875,7 @@ export function registerPrompts(server: McpServer): void {
             type: 'text',
             text:
               KB_SYSTEM_CONTEXT +
-              'Analyse the coverage of my knowledge base. Identify domains or topics with thin coverage and suggest specific content items to create to fill the gaps. Use the get_coverage_gaps tool to find prioritised gaps across taxonomy, templates, and guides, then use suggest_content_creation for actionable recommendations. Supplement with get_quality_summary and get_freshness_report for broader context.',
+              'Analyse the coverage of my knowledge base. Identify domains or topics with thin coverage and suggest specific content items to create to fill the gaps. Use the where_are_we_exposed tool to read the five exposure layers (the data you have, its quality, how you could use it today, the gaps, and the opportunities) — the gaps and quality layers surface prioritised coverage gaps across taxonomy, templates, and guides plus freshness and quality context in one read. Then use suggest_content_creation for actionable recommendations.',
           },
         },
       ],
@@ -898,7 +901,7 @@ export function registerPrompts(server: McpServer): void {
             type: 'text',
             text:
               KB_SYSTEM_CONTEXT +
-              `Draft a bid response to the following question, using relevant content from my knowledge base:\n\n"${args.question_text}"\n\nSearch the knowledge base and Q&A library for relevant content, then compose a well-structured response with citations. Use the search_knowledge_base and search_qa_library tools.`,
+              `Draft a bid response to the following question, using relevant content from my knowledge base:\n\n"${args.question_text}"\n\nSearch the knowledge base for relevant content, then compose a well-structured response with citations. Use the find tool — it searches knowledge-base items, Q&A pairs, and document chunks in one call (set the type/scope parameters to widen or narrow as needed). After finding candidate items, use get to fetch the verbatim content you cite.`,
           },
         },
       ],
@@ -937,7 +940,7 @@ export function registerPrompts(server: McpServer): void {
                 '---\n\n' +
                 governanceSkill +
                 '\n\n---\n\n' +
-                `Review the content item with ID "${args.item_id}" for quality, accuracy, and completeness. Apply the governance reference above when judging freshness state, quality score factors, and review-trigger conditions. Check: Is the classification correct? Is the summary accurate? Is the content up to date for its lifecycle type? Are there any quality issues or review triggers active? Use the get_content_item tool to fetch the item, then provide a detailed assessment with recommendations grounded in the governance model above.`,
+                `Review the content item with ID "${args.item_id}" for quality, accuracy, and completeness. Apply the governance reference above when judging freshness state, quality score factors, and review-trigger conditions. Check: Is the classification correct? Is the summary accurate? Is the content up to date for its lifecycle type? Are there any quality issues or review triggers active? Use the \`get\` tool (pass \`id\`) to fetch the verbatim item, then provide a detailed assessment with recommendations grounded in the governance model above.`,
             },
           },
         ],
@@ -989,14 +992,14 @@ export function registerPrompts(server: McpServer): void {
                 'Use these tools in sequence and compose a single structured briefing:\n\n' +
                 `1. **Domain content inventory.**\n` +
                 `   - \`list_guides(guide_type: undefined, domain_filter: "${args.domain}", published_only: true)\` — guide catalogue for the domain.\n` +
-                `   - \`search_knowledge_base(query: "${args.domain}", domain: "${args.domain}", limit: 10)\` — recent / high-relevance items.\n` +
-                `   - \`search_qa_library(query: "${args.domain}", limit: 5)\` — Q&A pairs.\n` +
+                `   - \`find(query: "${args.domain}", scope: "${args.domain}", limit: 10)\` — recent / high-relevance items.\n` +
+                `   - \`find(query: "${args.domain}", type: "q_a_pair", limit: 5)\` — reusable Q&A pairs (the \`find\` entry serves search, Q&A lookup, and chunk retrieval — set \`type\`/\`scope\` to widen or narrow).\n` +
                 `2. **Sector intelligence.**\n` +
                 `   - \`get_intelligence_summary(period: "${period}d", limit: 15)\` — recent SI feed highlights. Filter results to entries touching the domain (by matching the domain key or its synonyms against article tags / summary text). If the tool requires a workspace_id, call it for each active workspace and merge results.\n` +
                 `3. **Change report.**\n` +
                 `   - \`get_change_report(period_days: ${period}, domain: "${args.domain}")\` — structured additions / updates / removals for the domain. If the tool is unavailable, note "Change report tool not yet available" and continue.\n` +
                 `4. **Outstanding governance items.**\n` +
-                `   - \`get_governance_queue(limit: 10, domain: "${args.domain}")\` — pending governance reviews, domain-scoped. If the tool is unavailable, note "Governance queue tool not yet available" and continue.\n\n` +
+                `   - \`whats_in_my_queue(facet: "governance")\` — pending governance reviews (one queue, governance facet). Filter the returned items to the "${args.domain}" domain. Requires editor/admin role; if you lack permission or the queue is empty, note "No governance queue items for this domain" and continue.\n\n` +
                 'Structure the briefing as:\n\n' +
                 `## Sector briefing — ${args.domain} — [DD/MM/YYYY]\n\n` +
                 '### At a glance\n' +
