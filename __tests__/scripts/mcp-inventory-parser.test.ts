@@ -469,20 +469,22 @@ describe('Full file extraction (search.ts)', () => {
   const searchFile = resolve(TOOLS_DIR, 'search.ts');
 
   it.skipIf(!existsSync(searchFile))(
-    'extracts exactly 2 tools from search.ts (ID-71.7 consolidation)',
+    'extracts exactly 2 tools from search.ts (ID-71.7 + ID-71.10 consolidations)',
     () => {
       const source = readFileSync(searchFile, 'utf-8');
       const tools = parseToolFile(source, 'search.ts');
 
       // ID-71.7 (M27/B-INV-27) collapsed the former search trio
       // (search_knowledge_base / search_qa_library / search_content_chunks) +
-      // find_similar_items into ONE `find` entry. find_duplicate_candidates is
-      // retained (dedup consolidation = later M32 slice).
+      // find_similar_items into ONE `find` entry. ID-71.10 part 2 (M32/B-INV-32
+      // dedup) collapsed the dedup pair (find_duplicate_candidates +
+      // find_all_duplicates) into ONE parameterised `find_duplicates` entry,
+      // co-located here with `findSimilarItemsImpl`.
       expect(tools).toHaveLength(2);
 
       const names = tools.map((t) => t.name);
       expect(names).toContain('find');
-      expect(names).toContain('find_duplicate_candidates');
+      expect(names).toContain('find_duplicates');
 
       // Verify `find` carries the consolidated params.
       const find = tools.find((t) => t.name === 'find')!;
@@ -529,18 +531,19 @@ describe('Integration: full codebase extraction', () => {
         }
       }
 
-      // 43 tools. Pre-S357 baseline was 58 (historical lineage: 43 pre-S180 +
+      // 42 tools. Pre-S357 baseline was 58 (historical lineage: 43 pre-S180 +
       // governance/review/guides/change-report/supersession/list_user_workspaces/
       // update_publication_status/find_duplicate_candidates additions through S217).
       // S357 Wave-1 surface consolidation:
       // − 2 (ID-71.10 M32: get_content_item+get_content_items → `get`,
       //   assign_content_owner+bulk_assign_owner → `assign`)
-      // − 3 (ID-71.7 M27: search trio + find_similar_items → ONE `find`;
-      //   find_duplicate_candidates retained for the later dedup slice).
+      // − 3 (ID-71.7 M27: search trio + find_similar_items → ONE `find`).
       // − 7 net (ID-71.8 M29/M4: 8 exposure reads → ONE `where_are_we_exposed`;
       //   suggest_content_creation KEPT). 53 → 46.
       // − 3 net (ID-71.9 M30/OQ-5: 4 queue reads → ONE `whats_in_my_queue`). 46 → 43.
-      expect(allTools.length).toBe(43);
+      // − 1 net (ID-71.10 part 2 M32/B-INV-32 dedup: find_duplicate_candidates +
+      //   find_all_duplicates → ONE parameterised `find_duplicates`). 43 → 42.
+      expect(allTools.length).toBe(42);
 
       // Every tool should have a non-empty name
       for (const tool of allTools) {

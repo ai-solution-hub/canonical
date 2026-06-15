@@ -1,18 +1,22 @@
 /**
- * Search tool registrations (3 tools):
- *   1.  find                       — ONE outcome-shaped entry (ID-71.7, M27/M33/M37,
- *                                     B-INV-27/B-INV-33). Collapses the former search
- *                                     trio (search_knowledge_base / search_qa_library /
- *                                     search_content_chunks) + find_similar_items into
- *                                     `type` / `scope` / `granularity` / `similar_to`
- *                                     branches. Preserves the two-step list/preview →
- *                                     verbatim-on-accept retrieval contract (B-INV-33);
- *                                     declares an `outputSchema` (M37).
- *   20b. find_duplicate_candidates — admin dedup workflow (admin default: every state).
- *                                     NOT consolidated here — dedup consolidation is a
- *                                     later slice (M32 / {71.10}); it continues to share
- *                                     `findSimilarItemsImpl` with `find`'s similar_to
- *                                     branch.
+ * Search tool registrations (2 tools):
+ *   1.  find            — ONE outcome-shaped entry (ID-71.7, M27/M33/M37,
+ *                         B-INV-27/B-INV-33). Collapses the former search trio
+ *                         (search_knowledge_base / search_qa_library /
+ *                         search_content_chunks) + find_similar_items into
+ *                         `type` / `scope` / `granularity` / `similar_to`
+ *                         branches. Preserves the two-step list/preview →
+ *                         verbatim-on-accept retrieval contract (B-INV-33);
+ *                         declares an `outputSchema` (M37).
+ *   20b. find_duplicates — ONE parameterised admin-dedup entry (ID-71.10, M32,
+ *                         B-INV-32 dedup portion + B-INV-37). Collapses the
+ *                         former dedup pair (find_duplicate_candidates
+ *                         single-item + find_all_duplicates whole-KB batch) into
+ *                         a `scope: 'item' | 'all'` tool. The 'item' branch
+ *                         continues to share `findSimilarItemsImpl` with
+ *                         `find`'s similar_to branch; the 'all' branch scans via
+ *                         the find_duplicate_pairs RPC. Declares an
+ *                         `outputSchema` (union of the two branch envelopes).
  */
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -23,6 +27,7 @@ import {
   formatQASearchResults,
   formatSimilarItems,
   formatChunkSearchResults,
+  formatDuplicatePairs,
   truncateResponse,
 } from '@/lib/mcp/formatters';
 import type {
@@ -30,8 +35,12 @@ import type {
   SimilarItem,
   SimilarItemsResult,
   ChunkSearchResult,
+  DuplicatePairsResult,
 } from '@/lib/mcp/formatters';
-import { FindResponseSchema } from '@/lib/mcp/formatters/search';
+import {
+  FindResponseSchema,
+  FindDuplicatesResponseSchema,
+} from '@/lib/mcp/formatters/search';
 import {
   type ToolExtra,
   toStructuredContent,
@@ -373,45 +382,171 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
   }
 
   // -------------------------------------------------------------------------
-  // 20b. find_duplicate_candidates — admin dedup workflow (every state default)
-  //
-  // LLM semantic-discovery (published-only similar items) is now served by the
-  // consolidated `find` tool's `similar_to` branch (ID-71.7). This admin-dedup
-  // surface is NOT consolidated here — dedup consolidation is a later slice
-  // (M32 / {71.10}). It continues to share `findSimilarItemsImpl` with `find`.
+  // Internal: batch-scope dedup scan (whole-KB duplicate pairs). Substrate for
+  // `find_duplicates`'s `scope: 'all'` branch — collapses the former
+  // `find_all_duplicates` registration (was lib/mcp/tools/quality.ts; ID-71.10
+  // M32 / B-INV-32). Scans the entire knowledge base for high-similarity pairs
+  // via the `find_duplicate_pairs` RPC; excludes archived items.
+  // -------------------------------------------------------------------------
+  type DuplicateScanArgs = {
+    threshold?: number;
+    domain?: string;
+    limit?: number;
+  };
+
+  async function runDuplicatePairsScan(
+    args: DuplicateScanArgs,
+    extra: ToolExtra,
+  ) {
+    try {
+      const supabase = createMcpClient(extra.authInfo);
+      const threshold = args.threshold ?? 0.95;
+      const limit = args.limit ?? 50;
+      const domain = args.domain || undefined;
+
+      const { data: pairs, error } = await supabase.rpc(
+        'find_duplicate_pairs',
+        {
+          similarity_threshold: threshold,
+          p_domain: domain,
+          limit_count: limit,
+        },
+      );
+
+      if (error) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Duplicate scan failed: ${error.message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      const result: DuplicatePairsResult = {
+        count: (pairs ?? []).length,
+        threshold,
+        domain_filter: args.domain || undefined,
+        pairs: (pairs ?? []).map((p: Record<string, unknown>) => ({
+          item_a: {
+            id: p.id1 as string,
+            title: (p.title1 as string) ?? 'Untitled',
+            content_type: (p.type1 as string | null) ?? null,
+            domain: (p.domain1 as string | null) ?? null,
+          },
+          item_b: {
+            id: p.id2 as string,
+            title: (p.title2 as string) ?? 'Untitled',
+            content_type: (p.type2 as string | null) ?? null,
+            domain: (p.domain2 as string | null) ?? null,
+          },
+          similarity: p.similarity as number,
+        })),
+      };
+
+      const markdown = truncateResponse(formatDuplicatePairs(result));
+      return {
+        content: [{ type: 'text' as const, text: markdown }],
+        structuredContent: toStructuredContent(result),
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Duplicate scan failed: ${message}.`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // 20b. find_duplicates — ONE parameterised admin-dedup entry (ID-71.10 M32,
+  // B-INV-32 dedup portion + B-INV-37). Collapses the former dedup pair —
+  // `find_duplicate_candidates` (single-item) + `find_all_duplicates`
+  // (whole-KB batch) — into one `scope`-parameterised tool:
+  //   - scope: 'item' (requires `id`) → single-item dedup, admin visibility
+  //     default. Continues to share `findSimilarItemsImpl` with `find`'s
+  //     similar_to branch — the shared engine stays intact.
+  //   - scope: 'all' (default) → whole-KB batch scan via runDuplicatePairsScan.
+  // Admin dedup spans every publication state (item) / non-archived (all),
+  // gated by per-user RLS on the underlying RPCs. LLM semantic discovery
+  // (published content only) remains on the `find` tool's `similar_to` param.
+  // Declares `outputSchema` (B-INV-37 — new entry; union of the two branch
+  // envelopes). No AI cost — uses the existing embedding index.
   // -------------------------------------------------------------------------
   defineTool(
     server,
-    'find_duplicate_candidates',
+    'find_duplicates',
     {
-      title: 'Find Duplicate Candidates (Admin)',
+      title: 'Find Duplicates (Admin)',
       description:
-        "Find content items similar to a given item across every publication state — draft, in_review, published, AND archived. Useful for admin dedup workflows where you need to detect duplicates of items that aren't (yet) published. Items above 95% similarity are flagged as likely duplicates. For LLM semantic discovery (published content only), use the `find` tool with the `similar_to` parameter. Uses the existing embedding index — no AI cost.",
+        "Detect duplicate content for admin dedup workflows, using high-similarity vector matching against the existing embedding index (no AI cost). Set `scope: 'item'` with an `id` to find items similar to ONE given item across every publication state (draft, in_review, published, AND archived). Set `scope: 'all'` (default) to scan the ENTIRE knowledge base for duplicate pairs (excludes archived). Items above 95% similarity are flagged as likely duplicates. For LLM semantic discovery (published content only), use the `find` tool with the `similar_to` parameter.",
       inputSchema: {
+        scope: z
+          .enum(['item', 'all'])
+          .optional()
+          .describe(
+            "Dedup scope. 'item' (requires `id`) finds duplicates of a single item across every publication state. 'all' (default) scans the whole knowledge base for duplicate pairs.",
+          ),
+        // scope: 'item' params
         id: z
           .string()
           .uuid()
-          .describe('The UUID of the content item to find similar items for'),
-        threshold: z
-          .number()
           .optional()
-          .describe('Minimum cosine similarity (default: 0.8, range: 0.5–1.0)'),
-        limit: z
-          .number()
-          .optional()
-          .describe('Maximum results (default: 10, max: 25)'),
-        // §5.2 Phase 3 (S216 W3) — publication visibility filter.
+          .describe(
+            "scope: 'item' only — the UUID of the content item to find duplicates of.",
+          ),
         visibility_filter: z
           .enum(['default', 'all', 'admin'])
           .optional()
           .describe(
-            'Publication visibility filter. Default: "admin" (every state including archived — matches dedup-against-every-state semantics). Override with "default" for published-only or "all" for draft + in_review + published (non-archived).',
+            'scope: \'item\' only — publication visibility filter. Default: "admin" (every state including archived). Override with "default" for published-only or "all" for draft + in_review + published (non-archived).',
+          ),
+        // shared / scope: 'all' params
+        threshold: z
+          .number()
+          .optional()
+          .describe(
+            "Minimum cosine similarity. scope: 'item' default 0.8 (range 0.5–1.0); scope: 'all' default 0.95 (range 0.7–0.99).",
+          ),
+        domain: z
+          .string()
+          .optional()
+          .describe("scope: 'all' only — filter pairs by primary domain."),
+        limit: z
+          .number()
+          .optional()
+          .describe(
+            "Maximum results. scope: 'item' default 10 (max 25); scope: 'all' default 50 (max 200).",
           ),
       },
+      outputSchema: FindDuplicatesResponseSchema,
       annotations: READ_ONLY_ANNOTATIONS,
     },
-    async (args, extra: ToolExtra) =>
-      findSimilarItemsImpl(args as SimilarItemsArgs, extra, 'admin'),
+    async (args, extra: ToolExtra) => {
+      const scope = (args.scope as 'item' | 'all' | undefined) ?? 'all';
+      if (scope === 'item') {
+        if (!args.id) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: "scope: 'item' requires an `id` (the UUID of the content item to find duplicates of).",
+              },
+            ],
+            isError: true,
+          };
+        }
+        return findSimilarItemsImpl(args as SimilarItemsArgs, extra, 'admin');
+      }
+      return runDuplicatePairsScan(args as DuplicateScanArgs, extra);
+    },
   );
 
   // -------------------------------------------------------------------------

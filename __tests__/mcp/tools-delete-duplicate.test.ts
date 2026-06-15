@@ -76,7 +76,7 @@ interface ToolResult {
   isError?: boolean;
 }
 
-describe('delete_content_item and find_all_duplicates', () => {
+describe('delete_content_item and find_duplicates (scope: all)', () => {
   let mockServer: ReturnType<typeof createMockMcpServer>;
   const extra = { authInfo: { token: 'test' } };
 
@@ -85,16 +85,17 @@ describe('delete_content_item and find_all_duplicates', () => {
     mockServer = createMockMcpServer();
     const { registerGovernanceTools } =
       await import('@/lib/mcp/tools/governance');
-    const { registerQualityTools } = await import('@/lib/mcp/tools/quality');
+    // ID-71.10 part 2 — the batch dedup read moved from quality.ts
+    // (find_all_duplicates) to the consolidated `find_duplicates` entry
+    // (scope: 'all') in search.ts.
+    const { registerSearchTools } = await import('@/lib/mcp/tools/search');
     await registerGovernanceTools(
       mockServer.server as unknown as Parameters<
         typeof registerGovernanceTools
       >[0],
     );
-    await registerQualityTools(
-      mockServer.server as unknown as Parameters<
-        typeof registerQualityTools
-      >[0],
+    await registerSearchTools(
+      mockServer.server as unknown as Parameters<typeof registerSearchTools>[0],
     );
   });
 
@@ -196,9 +197,9 @@ describe('delete_content_item and find_all_duplicates', () => {
     });
   });
 
-  describe('find_all_duplicates', () => {
+  describe('find_duplicates (scope: all)', () => {
     it('calls find_duplicate_pairs RPC and formats enhanced results', async () => {
-      const handler = mockServer.getHandler('find_all_duplicates')!;
+      const handler = mockServer.getHandler('find_duplicates')!;
       mocks.mockSupabaseClient.rpc.mockResolvedValueOnce({
         data: [
           {
@@ -217,7 +218,7 @@ describe('delete_content_item and find_all_duplicates', () => {
       });
 
       const result = (await handler(
-        { threshold: 0.9, domain: 'D1' },
+        { scope: 'all', threshold: 0.9, domain: 'D1' },
         extra as Record<string, unknown>,
       )) as ToolResult;
       expect(result.structuredContent!.count).toBe(1);

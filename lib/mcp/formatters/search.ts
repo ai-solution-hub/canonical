@@ -4,6 +4,7 @@
 import { z } from 'zod';
 import { formatContentType } from '@/lib/format';
 import { truncate } from './shared';
+import { DuplicatePairsResponseSchema } from './quality';
 
 // ---------------------------------------------------------------------------
 // Search results
@@ -303,6 +304,22 @@ export const FindResponseSchema = z.union([
   SearchResponseSchema,
   ChunkSearchResponseSchema,
   SimilarItemsResponseSchema,
+]);
+
+// ---------------------------------------------------------------------------
+// `find_duplicates` consolidated output schema (ID-71.10 / M32, B-INV-32/37)
+//
+// ONE parameterised `find_duplicates` entry collapses the prior dedup pair
+// (find_duplicate_candidates + find_all_duplicates). Its `outputSchema` is the
+// union of the two branch envelopes the `scope` param selects:
+//   - scope: 'item' → SimilarItemsResponseSchema (single-item admin dedup,
+//     shares findSimilarItemsImpl with `find`'s similar_to branch).
+//   - scope: 'all'  → DuplicatePairsResponseSchema (batch KB scan).
+// Declared on the new entry only (B-INV-37 — no retrofit onto retiring tools).
+// ---------------------------------------------------------------------------
+export const FindDuplicatesResponseSchema = z.union([
+  SimilarItemsResponseSchema,
+  DuplicatePairsResponseSchema,
 ]);
 
 export function formatSimilarItems(data: SimilarItemsResult): string {

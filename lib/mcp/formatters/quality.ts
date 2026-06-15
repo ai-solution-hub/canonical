@@ -1,6 +1,7 @@
 /**
  * Quality, coverage, audit, and quality actions formatters for MCP tool responses.
  */
+import { z } from 'zod';
 import { formatContentType } from '@/lib/format';
 import type { QualityActionsResult } from '@/lib/quality/quality-actions';
 
@@ -199,6 +200,31 @@ export interface DuplicatePairsResult {
   domain_filter?: string;
   pairs: DuplicatePair[];
 }
+
+/**
+ * Zod schema for the `find_duplicates` (scope: all) batch-scan response
+ * envelope — mirrors `DuplicatePairsResult` for the consolidated entry's
+ * `outputSchema` runtime validation (ID-71.10 / B-INV-37).
+ */
+const DuplicatePairItemSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  content_type: z.string().nullable(),
+  domain: z.string().nullable(),
+});
+
+export const DuplicatePairsResponseSchema = z.object({
+  count: z.number(),
+  threshold: z.number(),
+  domain_filter: z.string().optional(),
+  pairs: z.array(
+    z.object({
+      item_a: DuplicatePairItemSchema,
+      item_b: DuplicatePairItemSchema,
+      similarity: z.number(),
+    }),
+  ),
+});
 
 export function formatDuplicatePairs(data: DuplicatePairsResult): string {
   const lines: string[] = [

@@ -80,7 +80,7 @@ export function loadEnv(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Canonical lists — 43 tools after S357 Wave-1 surface consolidation:
+// Canonical lists — 42 tools after S357 Wave-1 surface consolidation:
 // ID-71.7 (M27/B-INV-27) collapsed the search trio (search_knowledge_base /
 // search_qa_library / search_content_chunks) + find_similar_items into ONE `find`
 // entry; ID-71.10 (M32) collapsed get_content_item+get_content_items → `get` and
@@ -95,9 +95,13 @@ export function loadEnv(): void {
 // (get_governance_queue, get_review_queue, get_assignments_for_user,
 // get_dashboard_summary) into ONE faceted `whats_in_my_queue` entry over the
 // lib/attention.ts producer substrate. 46 → 43 (−4 +1).
+// ID-71.10 PART 2 (M32, B-INV-32 dedup portion + B-INV-37) collapsed the dedup
+// pair (find_duplicate_candidates single-item + find_all_duplicates whole-KB
+// batch) into ONE parameterised `find_duplicates` entry (scope: 'item' | 'all')
+// in lib/mcp/tools/search.ts. 43 → 42 (−2 +1).
 // ---------------------------------------------------------------------------
 
-/** Canonical set of all 43 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
+/** Canonical set of all 42 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
 export const CANONICAL_TOOL_NAMES = [
   // ID-71.7 — ONE consolidated find/answer entry (search + QA + chunk + similar).
   'find', // 1
@@ -118,7 +122,9 @@ export const CANONICAL_TOOL_NAMES = [
   'assign', // 17 (ID-71.10 — one-or-many; was assign_content_owner + bulk_assign_owner)
   'get_document_versions', // 18
   'get_document_diff', // 19
-  'find_all_duplicates', // 25
+  // ID-71.10 PART 2 — ONE parameterised dedup entry (scope: 'item' | 'all');
+  // was find_duplicate_candidates (single-item) + find_all_duplicates (batch).
+  'find_duplicates',
   'suggest_content_creation', // 26 (KEPT — ID-71.8 resolution affordance, B-INV-4)
   'classify_content', // 29
   'generate_summary', // 30
@@ -152,18 +158,14 @@ export const CANONICAL_TOOL_NAMES = [
   'list_user_workspaces', // 56
   // S202 §5.2 Phase 2 / T7 — publication-lifecycle MCP surface (56 → 57).
   'update_publication_status', // 57
-  // S217 W1B — admin dedup surface (split from LLM-discovery). Retained through
-  // both ID-71.7 (find consolidation) and ID-71.10 (get/assign) — dedup
-  // consolidation is a later slice.
-  'find_duplicate_candidates',
 ] as const;
 
-export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 43 (ID-71.9: 46 − 4 + 1)
+export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 42 (ID-71.10 part 2: 43 − 2 + 1)
 
 /** Read-only tools (no side effects). */
 export const READ_ONLY_TOOLS = new Set([
   'find',
-  'find_duplicate_candidates',
+  'find_duplicates', // ID-71.10 part 2 — consolidated dedup entry
   'get_reorientation',
   'where_are_we_exposed', // ID-71.8 — five-layer exposure consolidation
   'whats_in_my_queue', // ID-71.9 — faceted queue consolidation
@@ -173,7 +175,6 @@ export const READ_ONLY_TOOLS = new Set([
   'get_content_effectiveness',
   'get', // ID-71.10 — one-or-many (was get_content_item + get_content_items)
   'get_workspace_items',
-  'find_all_duplicates',
   'suggest_content_creation',
   'get_entity_relationships',
   'list_templates',
@@ -552,8 +553,9 @@ export function getMinimalArgs(
       return { entity_type: 'certification' };
     case 'get_content_effectiveness':
       return { content_item_id: knownUUIDs.contentItemId };
-    case 'find_duplicate_candidates':
-      return { id: knownUUIDs.contentItemId };
+    case 'find_duplicates':
+      // ID-71.10 part 2 — default scope 'all' (whole-KB batch scan, no args).
+      return { scope: 'all' };
     case 'get_workspace_items':
       return {
         workspace_id:
@@ -575,8 +577,6 @@ export function getMinimalArgs(
         workspace_id:
           knownUUIDs.procurementId ?? '00000000-0000-0000-0000-000000000000',
       };
-    case 'find_all_duplicates':
-      return {};
     case 'list_templates':
       return {};
     case 'get_template_coverage':

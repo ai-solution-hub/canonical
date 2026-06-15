@@ -124,7 +124,7 @@ describe('MCP tool annotation coverage (P0-19 regression guard)', () => {
     tools = await collectAllTools();
   });
 
-  it('registers exactly 43 tools across all 16 modules', () => {
+  it('registers exactly 42 tools across all 16 modules', () => {
     // This guards against accidental duplicate registrations or a module
     // silently no-oping (e.g. a lazy-import failure inside registerAppTools).
     // 53 = 58 − 2 (ID-71.10 M32: get_content_item+get_content_items → `get`,
@@ -138,7 +138,10 @@ describe('MCP tool annotation coverage (P0-19 regression guard)', () => {
     // 43 = 46 − 4 + 1 (ID-71.9 M30/OQ-5: the 4 fragmented queue reads
     // get_governance_queue/get_review_queue/get_assignments_for_user/
     // get_dashboard_summary → ONE faceted `whats_in_my_queue`).
-    expect(tools.length).toBe(43);
+    // 42 = 43 − 2 + 1 (ID-71.10 part 2 M32/B-INV-32 dedup: the dedup pair
+    // find_duplicate_candidates + find_all_duplicates → ONE parameterised
+    // `find_duplicates` (scope: 'item' | 'all')).
+    expect(tools.length).toBe(42);
   });
 
   it('every registered tool declares all four ToolAnnotations fields', () => {

@@ -65,6 +65,7 @@ export {
   type AuditResult,
   formatAuditResult,
   type DuplicatePairsResult,
+  DuplicatePairsResponseSchema,
   formatDuplicatePairs,
   formatQualityActions,
 } from './quality';
