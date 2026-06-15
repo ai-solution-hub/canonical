@@ -124,10 +124,12 @@ describe('MCP tool annotation coverage (P0-19 regression guard)', () => {
     tools = await collectAllTools();
   });
 
-  it('registers exactly 58 tools across all 16 modules', () => {
+  it('registers exactly 56 tools across all 16 modules', () => {
     // This guards against accidental duplicate registrations or a module
     // silently no-oping (e.g. a lazy-import failure inside registerAppTools).
-    expect(tools.length).toBe(58);
+    // 56 = 58 − 2 (ID-71.10 M32 collapsed get_content_item+get_content_items
+    // into `get`, and assign_content_owner+bulk_assign_owner into `assign`).
+    expect(tools.length).toBe(56);
   });
 
   it('every registered tool declares all four ToolAnnotations fields', () => {

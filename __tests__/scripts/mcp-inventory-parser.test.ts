@@ -523,12 +523,14 @@ describe('Integration: full codebase extraction', () => {
         }
       }
 
-      // 58 = 43 pre-S180 + 2 governance additions + 3 review tools +
+      // 56 = 43 pre-S180 + 2 governance additions + 3 review tools +
       // 4 guides (added to CATEGORY_ORDER in WP6 — was a pre-S180 oversight)
       // + 1 change-report + 1 supersession (S186) + 1 bulk_assign_owner (S194)
       // + 1 list_user_workspaces (S194) + 1 update_publication_status (S202 §5.2 T7)
-      // + 1 find_duplicate_candidates (S217 W1B — split LLM-discovery vs admin-dedup).
-      expect(allTools.length).toBe(58);
+      // + 1 find_duplicate_candidates (S217 W1B — split LLM-discovery vs admin-dedup)
+      // − 2 (ID-71.10 M32: get_content_item+get_content_items → `get`,
+      //   assign_content_owner+bulk_assign_owner → `assign`).
+      expect(allTools.length).toBe(56);
 
       // Every tool should have a non-empty name
       for (const tool of allTools) {

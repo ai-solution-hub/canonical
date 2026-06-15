@@ -142,9 +142,9 @@ beforeEach(() => {
 // get_content_item: chunks fetch
 // ---------------------------------------------------------------------------
 
-describe('get_content_item chunks fetch', () => {
+describe('get (single) chunks fetch', () => {
   it('returns Document Sections markdown and chunks array when chunks are present', async () => {
-    const handler = mockServer.getHandler('get_content_item')!;
+    const handler = mockServer.getHandler('get')!;
 
     const itemRow = {
       id: 'item-123',
@@ -218,9 +218,13 @@ describe('get_content_item chunks fetch', () => {
     expect(result.content[0].text).toContain('Review');
 
     expect(result.structuredContent).toBeDefined();
-    const chunks = result.structuredContent!.chunks as Array<
-      Record<string, unknown>
+    // ID-71.10: single `get` returns { mode:'single', item:{...chunks} }.
+    expect(result.structuredContent!.mode).toBe('single');
+    const singleItem = result.structuredContent!.item as Record<
+      string,
+      unknown
     >;
+    const chunks = singleItem.chunks as Array<Record<string, unknown>>;
     expect(chunks).toHaveLength(3);
     expect(chunks[0].id).toBe('chunk-a');
     expect(chunks[2].heading_text).toBe('Review');
@@ -233,7 +237,7 @@ describe('get_content_item chunks fetch', () => {
   // formatter guards must render such a row as "(preamble)" without
   // throwing and still expose it in structuredContent.
   it('renders a cocoindex-emitted chunk (null heading_text + null heading_level) as "(preamble)" without throwing', async () => {
-    const handler = mockServer.getHandler('get_content_item')!;
+    const handler = mockServer.getHandler('get')!;
 
     const itemRow = {
       id: 'item-cc',
@@ -289,9 +293,11 @@ describe('get_content_item chunks fetch', () => {
     expect(result.content[0].text).toContain('(preamble)');
 
     // Null headings survive into structuredContent (heading_path coerced []).
-    const chunks = result.structuredContent!.chunks as Array<
-      Record<string, unknown>
+    const singleItem = result.structuredContent!.item as Record<
+      string,
+      unknown
     >;
+    const chunks = singleItem.chunks as Array<Record<string, unknown>>;
     expect(chunks).toHaveLength(1);
     expect(chunks[0].heading_text).toBeNull();
     expect(chunks[0].heading_level).toBeNull();
@@ -299,7 +305,7 @@ describe('get_content_item chunks fetch', () => {
   });
 
   it('returns the item with an empty chunks array when chunk fetch fails (non-fatal)', async () => {
-    const handler = mockServer.getHandler('get_content_item')!;
+    const handler = mockServer.getHandler('get')!;
 
     const itemRow = {
       id: 'item-456',
@@ -345,7 +351,11 @@ describe('get_content_item chunks fetch', () => {
     // No Document Sections section when chunks are empty
     expect(result.content[0].text).not.toContain('## Document Sections');
 
-    const structuredChunks = result.structuredContent!.chunks as unknown[];
+    const singleItem = result.structuredContent!.item as Record<
+      string,
+      unknown
+    >;
+    const structuredChunks = singleItem.chunks as unknown[];
     expect(Array.isArray(structuredChunks)).toBe(true);
     expect(structuredChunks).toHaveLength(0);
   });

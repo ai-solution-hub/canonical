@@ -76,7 +76,9 @@ const ITEM_ID_2 = '00000000-0000-4000-8000-000000000011';
 let mockServer: ReturnType<typeof createMockMcpServer>;
 
 function getAssignOwnerTool(): MockToolRegistration | undefined {
-  return mockServer.getTool('assign_content_owner');
+  // ID-71.10 M32: assign_content_owner consolidated into `assign` (one-or-many).
+  // The explicit `item_ids` path preserved here is the former assign_content_owner.
+  return mockServer.getTool('assign');
 }
 
 function createMockExtra(
@@ -110,14 +112,16 @@ describe('assign_content_owner MCP tool', () => {
     await registerContentTools(mockServer.server);
   });
 
-  it('registers the assign_content_owner tool', () => {
+  it('registers the consolidated assign tool', () => {
     const tool = getAssignOwnerTool();
     expect(tool).toBeDefined();
     expect(tool!.config).toHaveProperty('title', 'Assign Content Owner');
     expect(tool!.config).toHaveProperty('annotations');
     const annotations = tool!.config.annotations as Record<string, boolean>;
     expect(annotations.readOnlyHint).toBe(false);
-    expect(annotations.idempotentHint).toBe(true);
+    // ID-71.10: merged tool covers the non-idempotent scope-filter path, so the
+    // consolidated `assign` carries NON_IDEMPOTENT_WRITE_ANNOTATIONS.
+    expect(annotations.idempotentHint).toBe(false);
     expect(annotations.destructiveHint).toBe(false);
   });
 

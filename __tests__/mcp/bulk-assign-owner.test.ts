@@ -181,8 +181,10 @@ const ITEM_2 = '20000000-0000-4000-8000-000000000002';
 let mockServer: ReturnType<typeof createMockMcpServer>;
 
 function getBulkAssignTool(): MockToolRegistration {
-  const tool = mockServer.getTool('bulk_assign_owner');
-  if (!tool) throw new Error('bulk_assign_owner not registered');
+  // ID-71.10 M32: bulk_assign_owner consolidated into `assign` (one-or-many).
+  // The scope-filter path preserved here is the former bulk_assign_owner.
+  const tool = mockServer.getTool('assign');
+  if (!tool) throw new Error('assign (scope path) not registered');
   return tool;
 }
 

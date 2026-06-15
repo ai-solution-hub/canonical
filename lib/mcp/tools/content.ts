@@ -1,12 +1,10 @@
 /**
- * Content item tool registrations (9 tools):
- *   4. get_content_item
+ * Content item tool registrations (7 tools):
+ *      get            (one-or-many; consolidates get_content_item + get_content_items, ID-71.10)
  *  12. create_content_item
  *  19. update_content_item
- *  21. get_content_items
  *      get_workspace_items
- *  31. assign_content_owner
- *  32. bulk_assign_owner
+ *      assign         (one-or-many; consolidates assign_content_owner + bulk_assign_owner, ID-71.10)
  *  33. get_document_versions
  *  35. get_document_diff
  */
@@ -53,7 +51,7 @@ import { logger } from '@/lib/logger';
 
 // ---------------------------------------------------------------------------
 // Shared helper: fetch content items by ID array and format as batch result.
-// Used by get_content_items and get_workspace_items.
+// Used by the `get` batch branch and get_workspace_items.
 // ---------------------------------------------------------------------------
 
 async function fetchAndFormatContentItems(
@@ -114,24 +112,105 @@ async function fetchAndFormatContentItems(
 
 export async function registerContentTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
-  // 4. get_content_item
+  // get (one-or-many) — consolidates get_content_item + get_content_items
+  // (ID-71.10, M32, B-INV-32). Preserves the two-step list/preview → verbatim
+  // retrieval contract (B-INV-33): a single `id` returns the verbatim item
+  // (with document-section chunks — the "accept" step); an `ids` array returns
+  // batch list/preview detail (content truncated, no chunks — the "list" step).
+  // outputSchema declared per B-INV-37 (new entry only).
   // -------------------------------------------------------------------------
   defineTool(
     server,
-    'get_content_item',
+    'get',
     {
-      title: 'Get Content Item',
+      title: 'Get Content',
       description:
-        'Retrieve a specific content item from the knowledge base by its ID. Returns the full item including title, type, domain, summary, keywords, freshness status, content text, and entity relationships. For Q&A pairs, includes standard and advanced answers. Use this after searching to get the complete details of a specific item. Use get_entity_relationships to explore connected entities.',
+        'Retrieve one or many content items from the knowledge base. Pass `id` for a single item — returns the verbatim item including title, type, domain, summary, keywords, freshness status, full content text, and its document-section chunks (the accept step of the two-step retrieval). Pass `ids` (an array, max 50) for a batch list/preview — returns the same fields per item with content truncated and chunks omitted, ideal for auditing or reviewing several items in one call. Provide exactly one of `id` or `ids`. Use this after searching; use get_entity_relationships to explore connected entities.',
       inputSchema: {
         id: z
           .string()
           .uuid()
-          .describe('The UUID of the content item to retrieve'),
+          .optional()
+          .describe('The UUID of a single content item to retrieve verbatim'),
+        ids: z
+          .array(z.string().uuid())
+          .min(1)
+          .max(50)
+          .optional()
+          .describe(
+            'Array of content item UUIDs to fetch as a batch list/preview (max: 50)',
+          ),
+      },
+      outputSchema: {
+        mode: z
+          .enum(['single', 'batch'])
+          .describe('Which retrieval shape was returned'),
+        item: z
+          .record(z.string(), z.unknown())
+          .nullable()
+          .describe(
+            'The verbatim item with chunks (single mode; null in batch mode)',
+          ),
+        count: z
+          .number()
+          .describe('Number of items returned (batch mode; 1 in single mode)'),
+        items: z
+          .array(z.record(z.string(), z.unknown()))
+          .describe(
+            'The list/preview items (batch mode; empty in single mode)',
+          ),
+        not_found: z
+          .array(z.string())
+          .describe('Requested IDs that were not found (batch mode)'),
       },
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
+      // Exactly-one-of guard (one-or-many param).
+      const hasId = args.id !== undefined;
+      const hasIds = args.ids !== undefined;
+      if (hasId === hasIds) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: 'Provide exactly one of `id` (single verbatim item) or `ids` (batch list/preview).',
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      // ---- Batch branch (formerly get_content_items) ----
+      if (hasIds) {
+        try {
+          const supabase = createMcpClient(extra.authInfo);
+          const result = await fetchAndFormatContentItems(supabase, args.ids!);
+
+          const markdown = truncateResponse(formatBatchContentItems(result));
+          return {
+            content: [{ type: 'text' as const, text: markdown }],
+            structuredContent: toStructuredContent({
+              mode: 'batch' as const,
+              item: null,
+              ...result,
+            }),
+          };
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Unknown error';
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Batch fetch failed: ${message}.`,
+              },
+            ],
+            isError: true,
+          };
+        }
+      }
+
+      // ---- Single branch (formerly get_content_item) ----
       try {
         const supabase = createMcpClient(extra.authInfo);
 
@@ -140,7 +219,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           .select(
             'id, title, suggested_title, content_type, primary_domain, primary_subtopic, summary, ai_keywords, freshness, classification_confidence, source_url, content, created_at, updated_at, governance_review_status, priority',
           )
-          .eq('id', args.id)
+          .eq('id', args.id!)
           .single();
 
         if (error || !item) {
@@ -183,7 +262,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             .select(
               'id, heading_text, heading_level, heading_path, position, char_count, word_count',
             )
-            .eq('content_item_id', args.id)
+            .eq('content_item_id', args.id!)
             .order('position'),
           'mcp.content.get_item.chunks',
         );
@@ -226,7 +305,13 @@ export async function registerContentTools(server: McpServer): Promise<void> {
 
         return {
           content: [{ type: 'text' as const, text: markdown }],
-          structuredContent: toStructuredContent(structuredItem),
+          structuredContent: toStructuredContent({
+            mode: 'single' as const,
+            item: structuredItem,
+            count: 1,
+            items: [],
+            not_found: [],
+          }),
         };
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
@@ -1031,47 +1116,6 @@ export async function registerContentTools(server: McpServer): Promise<void> {
   );
 
   // -------------------------------------------------------------------------
-  // 21. get_content_items (batch)
-  // -------------------------------------------------------------------------
-  defineTool(
-    server,
-    'get_content_items',
-    {
-      title: 'Get Content Items (Batch)',
-      description:
-        'Fetch multiple content items by ID array in a single call. Eliminates the need for multiple get_content_item calls when auditing or reviewing several items. Returns the same detail level as get_content_item for each item. Maximum 50 IDs per call.',
-      inputSchema: {
-        ids: z
-          .array(z.string().uuid())
-          .min(1)
-          .max(50)
-          .describe('Array of content item UUIDs to fetch (max: 50)'),
-      },
-      annotations: READ_ONLY_ANNOTATIONS,
-    },
-    async (args, extra: ToolExtra) => {
-      try {
-        const supabase = createMcpClient(extra.authInfo);
-        const result = await fetchAndFormatContentItems(supabase, args.ids);
-
-        const markdown = truncateResponse(formatBatchContentItems(result));
-        return {
-          content: [{ type: 'text' as const, text: markdown }],
-          structuredContent: toStructuredContent(result),
-        };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
-        return {
-          content: [
-            { type: 'text' as const, text: `Batch fetch failed: ${message}.` },
-          ],
-          isError: true,
-        };
-      }
-    },
-  );
-
-  // -------------------------------------------------------------------------
   // get_workspace_items
   // -------------------------------------------------------------------------
   defineTool(
@@ -1154,114 +1198,31 @@ export async function registerContentTools(server: McpServer): Promise<void> {
   );
 
   // -------------------------------------------------------------------------
-  // 31. assign_content_owner (write tool — admin only)
+  // assign (one-or-many) — consolidates assign_content_owner + bulk_assign_owner
+  // (ID-71.10, M32, B-INV-32). The one-or-many axis: assign by an explicit
+  // `item_ids` array (the former assign_content_owner) OR assign by a `scope`
+  // filter (domain/subtopic/content_type — the former bulk_assign_owner, with
+  // dry-run, cursor pagination, skip-if-owned, audit trail). Provide exactly
+  // one of `item_ids` or `scope`. Both paths preserve per-user RLS
+  // (createMcpClient), the admin gate, and the canonical 'owner_change' audit
+  // provenance. outputSchema declared per B-INV-37 (new entry only).
   // -------------------------------------------------------------------------
   defineTool(
     server,
-    'assign_content_owner',
+    'assign',
     {
       title: 'Assign Content Owner',
       description:
-        'Assign or change the content owner for one or more items. The owner receives targeted notifications when their content becomes stale or needs governance review. Requires admin role. Use this to delegate content maintenance responsibility to specific team members.',
+        'Assign or change the content owner for one or many items. Provide `item_ids` (1-50 explicit UUIDs) for a direct assignment, OR `scope` (a domain/subtopic/content_type filter) to assign every matching item — the scope path supports dry-run preview, skip-if-owned with force_override opt-in, cursor pagination for scopes >500 items, and a per-item audit trail. Provide exactly one of `item_ids` or `scope`. Requires admin role. Use the scope path for "assign all unowned Healthcare content to Sarah" workflows. The owner receives targeted notifications when their content becomes stale or needs governance review.',
       inputSchema: {
         item_ids: z
           .array(z.string().uuid())
           .min(1)
           .max(50)
-          .describe('Content item IDs to assign (1-50)'),
-        owner_id: z.string().uuid().describe('User ID of the new owner'),
-      },
-      annotations: SAFE_WRITE_ANNOTATIONS,
-    },
-    async (args, extra: ToolExtra) => {
-      try {
-        const role = await checkMcpRole(extra.authInfo, ['admin']);
-        if (!role) {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: 'Permission denied: admin role required to assign content owners.',
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        const supabase = createMcpClient(extra.authInfo);
-        const userId = getMcpUserId(extra.authInfo);
-
-        // Call the bulk_assign_content_owner RPC
-        const { data: updatedCount, error } = await supabase.rpc(
-          'bulk_assign_content_owner',
-          {
-            p_item_ids: args.item_ids,
-            p_owner_id: args.owner_id,
-            p_assigned_by: userId,
-          },
-        );
-
-        if (error) {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: `Failed to assign content owner: ${error.message}`,
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        const count = updatedCount ?? 0;
-        const notFoundCount = args.item_ids.length - count;
-
-        let message = `Successfully assigned ownership of ${count} item${count === 1 ? '' : 's'} to user ${args.owner_id}.`;
-        if (notFoundCount > 0) {
-          message += ` ${notFoundCount} item${notFoundCount === 1 ? '' : 's'} not found or unchanged.`;
-        }
-        message +=
-          '\n\nThe owner will receive targeted notifications when their content becomes stale or needs governance review.';
-
-        return {
-          content: [{ type: 'text' as const, text: message }],
-          structuredContent: toStructuredContent({
-            action: 'assign_content_owner',
-            owner_id: args.owner_id,
-            requested: args.item_ids.length,
-            updated: count,
-            not_found: notFoundCount,
-          }),
-        };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `Failed to assign content owner: ${message}. Ensure you have admin permissions.`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    },
-  );
-
-  // -------------------------------------------------------------------------
-  // 32. bulk_assign_owner (non-idempotent write — admin only)
-  // -------------------------------------------------------------------------
-  defineTool(
-    server,
-    'bulk_assign_owner',
-    {
-      title: 'Bulk Assign Content Owner',
-      description:
-        'Assign a content owner to items matching a scope filter (domain, subtopic, content_type). ' +
-        'Supports dry-run preview, skip-if-owned default with force_override opt-in, ' +
-        'cursor pagination for scopes >500 items, and per-item audit trail. ' +
-        'Requires admin role. Use this for "assign all unowned Healthcare content to Sarah" workflows.',
-      inputSchema: {
+          .optional()
+          .describe(
+            'Explicit content item IDs to assign (1-50). Provide this OR scope.',
+          ),
         scope: z
           .object({
             domain: z
@@ -1285,8 +1246,9 @@ export async function registerContentTools(server: McpServer): Promise<void> {
                 'Only assign items with no current owner (default: true)',
               ),
           })
+          .optional()
           .describe(
-            'Scope filter. Apply mode (dry_run: false) requires at least one of domain, subtopic, or content_type. ' +
+            'Scope filter (provide this OR item_ids). Apply mode (dry_run: false) requires at least one of domain, subtopic, or content_type. ' +
               'dry_run: true accepts empty scope for whole-KB inspection.',
           ),
         owner_id: z
@@ -1297,39 +1259,152 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           .boolean()
           .default(false)
           .describe(
-            'When true AND unowned_only is false, overwrite existing owners. ' +
+            'Scope path only. When true AND unowned_only is false, overwrite existing owners. ' +
               'When false (default), items with an existing owner are skipped even if unowned_only is false.',
           ),
         notify: z
           .boolean()
           .default(true)
           .describe(
-            'Send a notification to the new owner on successful apply. Default true. Set false to suppress.',
+            'Scope path only. Send a notification to the new owner on successful apply. Default true. Set false to suppress.',
           ),
         batch_mode: z
           .boolean()
           .default(false)
           .describe(
-            'When true, send a single summary notification instead of per-item. ' +
+            'Scope path only. When true, send a single summary notification instead of per-item. ' +
               'Useful for large scope applies.',
           ),
         cursor: z
           .string()
           .optional()
           .describe(
-            'Opaque pagination cursor returned by previous call when assigned_count === 500. ' +
+            'Scope path only. Opaque pagination cursor returned by previous call when assigned_count === 500. ' +
               'Supplying it continues from where the previous call stopped.',
           ),
         dry_run: z
           .boolean()
           .default(false)
           .describe(
-            'Preview affected items without writing. Empty scope permitted in dry_run for whole-KB inspection.',
+            'Scope path only. Preview affected items without writing. Empty scope permitted in dry_run for whole-KB inspection.',
           ),
+      },
+      outputSchema: {
+        action: z
+          .enum(['assign_content_owner', 'bulk_assign_owner'])
+          .describe(
+            'Which assignment path ran: explicit item_ids vs scope filter',
+          ),
+        owner_id: z.string().describe('The assigned owner UUID'),
+        assigned_count: z
+          .number()
+          .optional()
+          .describe('Items assigned (scope path)'),
+        updated: z
+          .number()
+          .optional()
+          .describe('Items updated (explicit item_ids path)'),
+        not_found: z
+          .number()
+          .optional()
+          .describe('Requested IDs not found or unchanged (explicit path)'),
+        dry_run: z.boolean().optional().describe('Preview-only (scope path)'),
       },
       annotations: NON_IDEMPOTENT_WRITE_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
+      // Exactly-one-of guard (one-or-many param).
+      const hasItemIds = args.item_ids !== undefined;
+      const hasScope = args.scope !== undefined;
+      if (hasItemIds === hasScope) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: 'Provide exactly one of `item_ids` (explicit assignment) or `scope` (filter-based assignment).',
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      // ---- Explicit item_ids branch (formerly assign_content_owner) ----
+      if (hasItemIds) {
+        try {
+          const role = await checkMcpRole(extra.authInfo, ['admin']);
+          if (!role) {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: 'Permission denied: admin role required to assign content owners.',
+                },
+              ],
+              isError: true,
+            };
+          }
+
+          const supabase = createMcpClient(extra.authInfo);
+          const userId = getMcpUserId(extra.authInfo);
+          const itemIds = args.item_ids!;
+
+          // Call the bulk_assign_content_owner RPC
+          const { data: updatedCount, error } = await supabase.rpc(
+            'bulk_assign_content_owner',
+            {
+              p_item_ids: itemIds,
+              p_owner_id: args.owner_id,
+              p_assigned_by: userId,
+            },
+          );
+
+          if (error) {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: `Failed to assign content owner: ${error.message}`,
+                },
+              ],
+              isError: true,
+            };
+          }
+
+          const count = updatedCount ?? 0;
+          const notFoundCount = itemIds.length - count;
+
+          let message = `Successfully assigned ownership of ${count} item${count === 1 ? '' : 's'} to user ${args.owner_id}.`;
+          if (notFoundCount > 0) {
+            message += ` ${notFoundCount} item${notFoundCount === 1 ? '' : 's'} not found or unchanged.`;
+          }
+          message +=
+            '\n\nThe owner will receive targeted notifications when their content becomes stale or needs governance review.';
+
+          return {
+            content: [{ type: 'text' as const, text: message }],
+            structuredContent: toStructuredContent({
+              action: 'assign_content_owner',
+              owner_id: args.owner_id,
+              requested: itemIds.length,
+              updated: count,
+              not_found: notFoundCount,
+            }),
+          };
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Unknown error';
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Failed to assign content owner: ${message}. Ensure you have admin permissions.`,
+              },
+            ],
+            isError: true,
+          };
+        }
+      }
+
+      // ---- Scope-filter branch (formerly bulk_assign_owner) ----
       try {
         // 1. Admin gate
         const role = await checkMcpRole(extra.authInfo, ['admin']);
@@ -1348,15 +1423,13 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         const supabase = createMcpClient(extra.authInfo);
         const actingUserId = getMcpUserId(extra.authInfo);
 
-        const {
-          scope,
-          owner_id: ownerId,
-          force_override: forceOverride,
-          notify,
-          batch_mode: batchMode,
-          cursor,
-          dry_run: dryRun,
-        } = args;
+        const scope = args.scope!;
+        const ownerId = args.owner_id;
+        const forceOverride = args.force_override;
+        const notify = args.notify;
+        const batchMode = args.batch_mode;
+        const cursor = args.cursor;
+        const dryRun = args.dry_run;
 
         // Reject empty scope on apply mode (Zod .refine() equivalent)
         const hasScopeFilter =

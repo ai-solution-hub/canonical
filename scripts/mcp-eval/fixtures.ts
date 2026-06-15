@@ -80,10 +80,12 @@ export function loadEnv(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Canonical lists — updated to 58 tools (S217 W1B adds find_duplicate_candidates)
+// Canonical lists — updated to 56 tools (ID-71.10 M32: get_content_item +
+// get_content_items collapse to `get`; assign_content_owner + bulk_assign_owner
+// collapse to `assign`. 58 → 56.)
 // ---------------------------------------------------------------------------
 
-/** Canonical set of all 58 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
+/** Canonical set of all 56 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
 export const CANONICAL_TOOL_NAMES = [
   'search_knowledge_base', // 1
   'search_qa_library', // 2
@@ -97,15 +99,13 @@ export const CANONICAL_TOOL_NAMES = [
   'get_bid_question', // 10
   'cite_content', // 11
   'get_content_effectiveness', // 12
-  'get_content_item', // 13
+  'get', // 13 (ID-71.10 — one-or-many; was get_content_item + get_content_items)
   'create_content_item', // 14
   'update_content_item', // 15
-  'get_content_items', // 16
-  'get_workspace_items', // 17
-  'assign_content_owner', // 18
-  'bulk_assign_owner', // 19
-  'get_document_versions', // 20
-  'get_document_diff', // 21
+  'get_workspace_items', // 16
+  'assign', // 17 (ID-71.10 — one-or-many; was assign_content_owner + bulk_assign_owner)
+  'get_document_versions', // 18
+  'get_document_diff', // 19
   'get_quality_summary', // 22
   'get_coverage_gaps', // 23
   'audit_content', // 24
@@ -149,10 +149,10 @@ export const CANONICAL_TOOL_NAMES = [
   'update_publication_status', // 57
   // S217 W1B — split LLM-discovery surface from admin dedup surface (57 → 58).
   // Authority: archived `.specs/publication-lifecycle-state-machine-spec.md` §5.3.2.
-  'find_duplicate_candidates', // 58
+  'find_duplicate_candidates', // 56 (was 58 pre-ID-71.10 collapse)
 ] as const;
 
-export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 58
+export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 56
 
 /** Read-only tools (no side effects). */
 export const READ_ONLY_TOOLS = new Set([
@@ -169,8 +169,7 @@ export const READ_ONLY_TOOLS = new Set([
   'get_procurement_detail',
   'get_bid_question',
   'get_content_effectiveness',
-  'get_content_item',
-  'get_content_items',
+  'get', // ID-71.10 — one-or-many (was get_content_item + get_content_items)
   'get_workspace_items',
   'get_quality_summary',
   'get_coverage_gaps',
@@ -212,8 +211,7 @@ export const WRITE_TOOLS = new Set([
   'update_content_item', // 19
   'delete_content_item', // 25
   'update_governance_status', // 30
-  'assign_content_owner', // 31
-  'bulk_assign_owner', // 32
+  'assign', // ID-71.10 — one-or-many (was assign_content_owner + bulk_assign_owner)
   'create_guide',
   'update_guide',
   'trigger_intelligence_poll',
@@ -539,7 +537,8 @@ export function getMinimalArgs(
       return {};
     case 'list_active_procurement':
       return {};
-    case 'get_content_item':
+    case 'get':
+      // ID-71.10 one-or-many: single `id` exercises the verbatim/two-step path.
       return { id: knownUUIDs.contentItemId };
     case 'get_reorientation':
       return {};
@@ -572,8 +571,6 @@ export function getMinimalArgs(
       return { id: knownUUIDs.contentItemId };
     case 'find_duplicate_candidates':
       return { id: knownUUIDs.contentItemId };
-    case 'get_content_items':
-      return { ids: [knownUUIDs.contentItemId] };
     case 'get_workspace_items':
       return {
         workspace_id:
@@ -654,7 +651,8 @@ export function getMinimalArgs(
       };
     case 'update_governance_status':
       return { item_ids: [evalItemId], status: 'draft' };
-    case 'assign_content_owner':
+    case 'assign':
+      // ID-71.10 one-or-many: explicit `item_ids` exercises the direct path.
       return {
         item_ids: [evalItemId],
         owner_id: '00000000-0000-0000-0000-000000000000',
