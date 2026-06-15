@@ -194,6 +194,15 @@ export function inferLayer(input: LayerInferenceInput): LayerSuggestion {
   }
 
   // Rule 6: Source-based fallback
+  //
+  // NOTE (ID-110): The manual URL-paste route (POST /api/ingest/url) no longer
+  // calls inferLayer — it writes the reference layer directly. This branch is
+  // NOT dead, however: the batch-reclassify queue handler still maps
+  // `platform === 'web'` → `'url_import'` and passes it here
+  // (lib/queue/handlers/batch-reclassify.ts:910/918), and /api/items accepts an
+  // `ingestion_source: 'url_import'` (app/api/items/route.ts:281). Retained as a
+  // live content_items classification path; do not remove without re-pointing
+  // those callers.
   if (input.ingestionSource === 'url_import') {
     return {
       suggestedLayer: LAYER_RESEARCH,
