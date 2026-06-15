@@ -6,8 +6,9 @@
  * a mocked Supabase client (no live DB, no disk). Mirrors test-philosophy:
  * assert observable behaviour (no-op vs throw vs files written), not internals.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { createMockSupabaseClient } from '@/__tests__/helpers/mock-supabase';
 import {
   runClientBrandingFetch,
   FetchClientBrandingError,
@@ -69,52 +70,50 @@ function mockSupabase(opts: {
    */
   downloadSequence?: ({ error: { message: string } } | { ok: true })[];
 }): SupabaseClient {
-  const maybeSingle = vi
-    .fn()
-    .mockResolvedValue(
-      opts.rowError
-        ? { data: null, error: opts.rowError }
-        : opts.config === undefined
-          ? { data: null, error: null }
-          : { data: { config: opts.config }, error: null },
-    );
-  const chain = {
-    select: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockReturnThis(),
-    maybeSingle,
-  };
+  const client = createMockSupabaseClient();
+
+  // tenant_config read: from('tenant_config').select().limit().maybeSingle()
+  client._chain.maybeSingle.mockResolvedValue(
+    opts.rowError
+      ? { data: null, error: opts.rowError }
+      : opts.config === undefined
+        ? { data: null, error: null }
+        : { data: { config: opts.config }, error: null },
+  );
+
+  // branding bucket: storage.from('branding') -> { list, download }
   const okBlob = () => ({
     data: new Blob([new Uint8Array([1, 2, 3, 4])]),
     error: null,
   });
-  const download = vi.fn();
+  // storage.from() is callable via the SupabaseClient view; the returned bucket
+  // is the shared mock's storageBucket whose list/download are vi.fn mocks.
+  const bucket = (client as unknown as SupabaseClient).storage.from(
+    'branding',
+  ) as unknown as {
+    list: typeof client._chain.maybeSingle;
+    download: typeof client._chain.maybeSingle;
+  };
+  bucket.list.mockResolvedValue(
+    opts.listError
+      ? { data: null, error: opts.listError }
+      : { data: opts.objects ?? [], error: null },
+  );
   if (opts.downloadSequence) {
     for (const step of opts.downloadSequence) {
-      download.mockResolvedValueOnce(
+      bucket.download.mockResolvedValueOnce(
         'error' in step ? { data: null, error: step.error } : okBlob(),
       );
     }
     // Safety net for any calls beyond the scripted sequence.
-    download.mockResolvedValue(okBlob());
+    bucket.download.mockResolvedValue(okBlob());
   } else {
-    download.mockResolvedValue(
+    bucket.download.mockResolvedValue(
       opts.downloadError ? { data: null, error: opts.downloadError } : okBlob(),
     );
   }
-  const bucket = {
-    list: vi
-      .fn()
-      .mockResolvedValue(
-        opts.listError
-          ? { data: null, error: opts.listError }
-          : { data: opts.objects ?? [], error: null },
-      ),
-    download,
-  };
-  return {
-    from: vi.fn().mockReturnValue(chain),
-    storage: { from: vi.fn().mockReturnValue(bucket) },
-  } as unknown as SupabaseClient;
+
+  return client as unknown as SupabaseClient;
 }
 
 /** Zero-wait retry config for tests (no real backoff). */
