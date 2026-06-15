@@ -86,3 +86,58 @@ REVOKE EXECUTE ON FUNCTION
 GRANT  EXECUTE ON FUNCTION
   public.question_match_recompute(uuid, text, extensions.vector, text, text[], text[], integer)
   TO authenticated, service_role;
+
+-- -----------------------------------------------------------------------------
+-- Reader: question_match_search (STABLE) — {57.7}. Reads the MATERIALISED candidate
+-- edges for a form-question, returns the STORED per-method scores (no re-scoring),
+-- re-checks publication at read (no stale surfacing), ranks by the 0.6/0.4 blend over
+-- stored scores with a deterministic q_a_pair_id tie-break.
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.question_match_search(
+  p_form_question_id uuid,
+  p_question_kind    text    DEFAULT NULL,   -- optional kind filter (PRODUCT A6/B4)
+  p_limit            integer DEFAULT 20      -- C4, mirrors q_a_search p_limit DEFAULT 20
+)
+RETURNS TABLE (
+  q_a_pair_id               uuid,
+  question_text_preview     text,
+  answer_standard_preview   text,
+  embedding_score           numeric(5,4),
+  fulltext_score            numeric(5,4),
+  scope_tag                 text[],
+  publication_status        text
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+BEGIN
+  RETURN QUERY
+  -- Reads the MATERIALISED candidate edges for this form-question (05-qa-flow.md §7.2:
+  -- question_matches RECORDS the ranked candidates). Returns the STORED per-method scores;
+  -- no live re-scoring. The join to q_a_pairs supplies preview + pass-through columns only.
+  SELECT
+    qm.q_a_pair_id,
+    LEFT(qap.question_text, 200)                 AS question_text_preview,
+    LEFT(COALESCE(qap.answer_standard, ''), 200) AS answer_standard_preview,
+    qm.embedding_score,                          -- STORED score (set by the writer, §E)
+    qm.fulltext_score,                           -- STORED score (set by the writer, §E)
+    qap.scope_tag,
+    qap.publication_status
+  FROM public.question_matches qm
+  JOIN public.q_a_pairs qap ON qap.id = qm.q_a_pair_id
+  WHERE qm.form_question_id = p_form_question_id                 -- C1: candidates FOR this fq
+    AND (p_question_kind IS NULL OR qm.question_kind = p_question_kind)
+    AND qap.publication_status = 'published'      -- B6 re-checked at read (no stale surfacing)
+  -- D4 default ranking/blend over the STORED scores; C3 deterministic tie-break.
+  ORDER BY (COALESCE(qm.embedding_score, 0) * 0.6 + COALESCE(qm.fulltext_score, 0) * 0.4) DESC,
+           qm.q_a_pair_id
+  LIMIT p_limit;
+END;
+$$;
+
+ALTER FUNCTION public.question_match_search(uuid, text, integer) OWNER TO postgres;
+REVOKE EXECUTE ON FUNCTION public.question_match_search(uuid, text, integer) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.question_match_search(uuid, text, integer)
+  TO authenticated, service_role;
