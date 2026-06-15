@@ -423,7 +423,6 @@ async function retireSupersededPairs(
     // -----------------------------------------------------------------------
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let candidates: any[] = [];
-    let usedFallback = false;
 
     // Strategy A: embed query
     const embedQueryResult = await client
@@ -442,7 +441,6 @@ async function retireSupersededPairs(
         String(embedError.code).startsWith('PGRST'))
     ) {
       // Strategy B fallback: two sequential reads.
-      usedFallback = true;
       const extractionsResult = await client
         .from('q_a_extractions')
         .select('id, source_content_item_id, promoted_to_pair_id')
@@ -531,8 +529,6 @@ async function retireSupersededPairs(
       );
     }
 
-    void usedFallback; // suppress unused-var lint; useful for operator debugging
-
     if (candidates.length === 0) {
       break;
     }
@@ -615,12 +611,13 @@ async function retireSupersededPairs(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const archiveRows: any[] = archiveResult?.data ?? [];
       if (archiveRows.length === 0) {
-        // 0 rows: either already archived (concurrent run) or pair vanished.
-        // Surface as a defect-level signal — REST PATCH silent no-op gotcha.
-        throw new Error(
-          `retireSupersededPairs: archive UPDATE for pair ${oldPairId} affected 0 rows ` +
-            `(expected 1). Pair may have been concurrently archived or deleted.`,
-        );
+        // 0 rows: a concurrent run already archived this pair (CAS matched 0
+        // rows because publication_status is no longer 'published').
+        //
+        // Mirrors the {59.22}:320 CAS-0-row graceful pattern in the promote
+        // loop: treat as already-retired-by-concurrent-run → skip, do not
+        // count, do not throw. P IS retired; we just didn't do it this run.
+        continue;
       }
 
       // Archive succeeded: tally.

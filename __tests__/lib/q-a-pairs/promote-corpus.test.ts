@@ -834,6 +834,65 @@ describe('promoteCorpusExtractions — {59.24} OQ-2 active retirement pass', () 
   });
 
   // -------------------------------------------------------------------------
+  // Retirement scenario 4b (CAS concurrent-archive race): the archive UPDATE
+  // returns 0 rows because a concurrent run already archived the same pair.
+  //
+  // This must NOT throw — it must gracefully `continue` (the pair IS retired,
+  // just not by this run). Mirrors the {59.22}:320 CAS-0-row pattern.
+  //
+  // Mock call order:
+  //   RPC → [] (no promote candidates)
+  //   then #1 → retirement candidates (one candidate with published pair)
+  //   then #2 → replacement lookup (live replacement exists)
+  //   then #3 → archive UPDATE → 0 rows (concurrent run beat us)
+  //   then #4 → second-pass candidates → empty (loop exits)
+  // -------------------------------------------------------------------------
+  it('{59.24} Scenario 4b (concurrent-archive race): 0-row archive UPDATE → no throw, retired===0, retired_no_replacement===0', async () => {
+    // Promote loop: no candidates
+    supabase.rpc.mockResolvedValueOnce({ data: [], error: null });
+
+    // Retirement pass — iter 1:
+    // then #1: candidate query → one candidate (pair still shows as published)
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [makeRetirementCandidate()],
+          error: null,
+        }),
+    );
+
+    // then #2: replacement lookup → live replacement found
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [{ promoted_to_pair_id: UUID_NEW_PAIR_REPLACEMENT }],
+          error: null,
+        }),
+    );
+
+    // then #3: archive UPDATE → 0 rows, no error (concurrent run already archived)
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    // then #4: second-pass candidate query → empty (loop exits)
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    // Must NOT throw — concurrent archive is a benign race, not a defect.
+    const result = await promoteCorpusExtractions(supabase);
+
+    // The pair was NOT archived by THIS run — no count increment.
+    expect(result.retired).toBe(0);
+    expect(result.retired_no_replacement).toBe(0);
+
+    // Promote loop was idle
+    expect(result.promoted).toBe(0);
+    expect(result.considered).toBe(0);
+  });
+
+  // -------------------------------------------------------------------------
   // Retirement scenario 5: ordering proof — retirement runs AFTER the promote
   // loop. A same-run promoted extraction creates its replacement pair BEFORE
   // the retirement pass runs, so superseded_by can point at it.
