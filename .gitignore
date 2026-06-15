@@ -134,3 +134,11 @@ scripts/.propagation-catalog.json
 # Local session ephemera (Lavish review artifacts, user scratch dir)
 .lavish/
 .user-scratch/
+
+# Client branding overlay (ID-68.22): deploy-time fetch output is never
+# re-committed to the public tree. default.json is the only tracked client
+# config; private client JSON + assets land here at build via
+# scripts/fetch-client-branding.ts (ID-95) and must stay untracked.
+/lib/branding/clients/*.json
+!/lib/branding/clients/default.json
+/public/clients/*

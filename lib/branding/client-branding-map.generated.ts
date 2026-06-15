@@ -7,9 +7,7 @@
 // With no overlay present the loader resolves the "default" entry.
 
 import branding0 from '@/lib/branding/clients/default.json';
-import branding1 from '@/lib/branding/clients/example-client.json';
 
 export const CLIENT_BRANDING_MAP: Record<string, unknown> = {
   "default": branding0,
-  "example-client": branding1,
 };
