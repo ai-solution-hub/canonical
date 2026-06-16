@@ -1,0 +1,196 @@
+# ID-104.17 — Nightly eval lane (B-INV-13 / T13).
+#
+# Runs `bun run scripts/eval-runner.ts --all` against the FULL registered
+# touchpoint set on a daily off-peak schedule. Distinct from the push-gated
+# `mcp-eval` matrix in ci.yml (which gates PRs on a paths-filtered subset).
+# This lane is NOT PR-blocking — regressions surface on /admin/refinement
+# for operator triage.
+#
+# Spec: ${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-104-eval-engine/TECH.md §T13
+#       PRODUCT.md B-INV-13 — nightly lane runs full registered set; results
+#       land in eval_runs + surface on /admin/refinement.
+#
+# Required secrets / vars (Staging environment scope —
+# per docs/runbooks/github-environments.md §2):
+#   Secrets:
+#     SUPABASE_SERVICE_ROLE_KEY   — staging service-role key (runner + server)
+#     SUPABASE_PUBLISHABLE_KEY    — staging anon/publishable key (server boot)
+#     ANTHROPIC_API_KEY           — real Anthropic calls (L3/L4 suites)
+#     OPENAI_API_KEY              — embedding calls (search suite)
+#     POSTGRES_PASSWORD           — lib/env-server.ts validation at server boot
+#     CRON_SECRET                 — lib/env-server.ts validation at server boot
+#     TEST_USER_1_PASSWORD        — mcp-eval suites authenticate as TEST_USER_1
+#     SENTRY_AUTH_TOKEN           — Next.js build (Sentry plugin; optional)
+#   Vars:
+#     SUPABASE_URL                — staging project URL
+#     NEXT_PUBLIC_APP_URL         — client env at build / runtime
+#     NEXT_PUBLIC_CLIENT_ID       — client env at build / runtime
+#     AI_SUMMARY_MODEL            — server env (lib/env-server.ts)
+#     AI_EMBEDDING_MODEL          — embedding calls
+#     AI_EMBEDDING_DIMS           — embedding calls
+#     CLASSIFICATION_BATCH_SIZE   — server env (lib/env-server.ts)
+#     SENTRY_ORG / SENTRY_PROJECT — Sentry build plugin (optional)
+#     TEST_USER_1_EMAIL           — mcp-eval fixtures authenticate as TEST_USER_1
+#
+# Workflow-injection mitigation: all github context + secret values arrive
+# via the job-level `env:` block, never inline ${{ }} in run: steps
+# (mirrors staging-reference-refresh.yml + onprem-deploy.yml pattern).
+#
+# Cost mitigation: off-peak UTC schedule; staging-targeted (not prod);
+# the runner's `--touchpoint` scope flag + existing `--skip-ai`/`--skip-search`
+# policy can bound cost for manual workflow_dispatch reruns.
+
+name: Eval nightly
+
+on:
+  schedule:
+    # Daily at 03:00 UTC — off-peak, after supabase-advisors (02:00 UTC) and
+    # before typical EU business hours. Runs Mon–Sun.
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  # One nightly run at a time — no cancellation (queue instead) so a
+  # manual dispatch never clobbers an in-flight scheduled run.
+  group: eval-nightly
+  cancel-in-progress: false
+
+jobs:
+  eval:
+    name: Eval — full registered set (--all)
+    runs-on: ubuntu-latest
+    # Staging env scope — carries staging Supabase secrets + TEST_USER_1
+    # credentials (per docs/runbooks/github-environments.md §2).
+    # Case-sensitive: must exactly match `Staging`.
+    environment: Staging
+    timeout-minutes: 45
+    permissions:
+      contents: read
+
+    # Workflow-injection mitigation: all secrets arrive via env, never
+    # inline ${{ }} in run: blocks.
+    env:
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
+        ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+      NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
+      AI_SUMMARY_MODEL: ${{ vars.AI_SUMMARY_MODEL }}
+      AI_EMBEDDING_MODEL: ${{ vars.AI_EMBEDDING_MODEL }}
+      AI_EMBEDDING_DIMS: ${{ vars.AI_EMBEDDING_DIMS }}
+      CLASSIFICATION_BATCH_SIZE: ${{ vars.CLASSIFICATION_BATCH_SIZE }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+      SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+      TEST_USER_1_EMAIL: ${{ vars.TEST_USER_1_EMAIL }}
+      TEST_USER_1_PASSWORD: ${{ secrets.TEST_USER_1_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: "1.3.4"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build (Next.js — staging)
+        # The mcp-eval suites (l1/l3/l4) in --all make HTTP calls to the
+        # locally booted server; we must build before starting it.
+        # NODE_OPTIONS guards against heap exhaustion on the GH runner.
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+          VERCEL_GIT_COMMIT_SHA: ${{ github.sha }}
+        run: bun run build
+
+      - name: Start Next.js server (background)
+        # Server must be up before the eval runner fires — health-check loop
+        # below confirms readiness (mirrors the mcp-eval CI job pattern).
+        run: |
+          set -euo pipefail
+          bun run start > /tmp/eval-server.log 2>&1 &
+          echo $! > /tmp/eval-server.pid
+
+          for i in $(seq 1 30); do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -X POST \
+                 -H "Content-Type: application/json" \
+                 -d '{}' \
+                 http://localhost:3000/api/mcp/streamable-http || echo "000")
+            if [ "$HTTP_CODE" != "000" ]; then
+              echo "Server up after ${i}s (HTTP $HTTP_CODE)"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "Server failed to start within 30s" >&2
+              echo "----- /tmp/eval-server.log -----" >&2
+              cat /tmp/eval-server.log >&2
+              exit 1
+            fi
+            sleep 1
+          done
+
+      - name: Run eval — full registered set
+        # Runs every registered touchpoint via --all; --source nightly tags
+        # rows written to eval_runs so the /admin/refinement surface can
+        # filter by lane. Exit class: 0 = all pass, 1 = warn, 2 = block.
+        # continue-on-error: true ensures the server-stop + artefact-upload
+        # steps always run even when the runner exits 1/2 (warn/block).
+        id: eval_run
+        run: |
+          set -euo pipefail
+          bun run scripts/eval-runner.ts --all --source nightly
+        continue-on-error: true
+
+      - name: Log runner verdict
+        # Records the step outcome so it appears in the GH Actions log.
+        # Exit class: success = 0 (all pass); failure = 1 (warn) or 2 (block).
+        # The canonical result record is the eval_runs rows in Supabase —
+        # visible on /admin/refinement for operator triage.
+        if: always()
+        env:
+          EVAL_OUTCOME: ${{ steps.eval_run.outcome }}
+        run: |
+          set -euo pipefail
+          if [ "$EVAL_OUTCOME" = "success" ]; then
+            echo "Eval runner: exit 0 — all touchpoints passed."
+          else
+            echo "Eval runner: non-zero exit — warn or block regression detected."
+            echo "Results recorded in eval_runs; surface visible on /admin/refinement."
+          fi
+          echo "Outcome: $EVAL_OUTCOME"
+
+      - name: Stop Next.js server
+        if: always()
+        run: |
+          if [ -f /tmp/eval-server.pid ]; then
+            kill "$(cat /tmp/eval-server.pid)" 2>/dev/null || true
+          fi
+
+      - name: Upload server log (nightly run artefact)
+        # Always upload — the server log is the primary artefact for
+        # diagnosing both server-boot failures and eval-script errors.
+        # Results themselves land in eval_runs (Supabase); no local JSON summary.
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: eval-nightly-server-log-${{ github.run_id }}
+          path: /tmp/eval-server.log
+          retention-days: 30
+          if-no-files-found: ignore
