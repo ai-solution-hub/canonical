@@ -727,8 +727,8 @@ export async function postAdminNearDupConfirmUnique(
 
 import type { PublicationBulkActionBody } from '@/lib/validation/schemas';
 
-/** Per-item result statuses emitted by the bulk-action endpoint. */
-export type PublicationBulkActionResultStatus =
+/** Per-item result statuses emitted by the bulk-action endpoint (internal — consumed by `PublicationBulkActionResult` below). */
+type PublicationBulkActionResultStatus =
   | 'success'
   | 'conflict'
   | 'forbidden'

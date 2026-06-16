@@ -1,11 +1,11 @@
 {
-  "$schema-note": "bl-279 reduction (was S334 ID-59-wave rebaseline 108/75) \u2014 exports 108\u2192107 (-1): fetchItemHistoryList now consumed by components/item-detail/version-history.tsx (TanStack list-path migration; the {59.12} fetcher was baselined awaiting-consumer and is now wired). types 75\u219273 (-2): ItemHistoryEntry imported by the same component, ItemHistoryListResponse referenced via the fetcher return type \u2014 both wire shapes now have a consumer. Legitimate count DROP per ci.md \u00a76.3 (reduction, not raise); verified by bun run ci:knip-check showing exactly -1/-2, zero offsetting additions. NB knip.config.ts registers __tests__/** as vitest entries so test imports DO count as consumers. Counts-only baseline for scripts/check-knip-baseline.ts. Each key maps to the per-file array name in knip --reporter json. CI fails if any current count exceeds the matching baseline. Update procedure: docs/runbooks/ci.md \u00a76.",
-  "capturedAt": "2026-06-10",
-  "capturedFromCommit": "bl-279 version-history TanStack list-path migration",
+  "$schema-note": "S367 RAISE exports 107->110 (+3); types held at 73 (prune). The id71-id104 branch (ID-104 eval-engine W3-W5 + ID-71 Wave-1) settled the export surface; current export count is 110. Verified the S367 W5 work ({104.19} deferred-organs register, {104.20} contract no-dup guard) added ZERO unused exports: deferred-organs.ts is fully consumed by the patterns/proposals routes + tests, and __tests__/** exports are not counted. The +3 export delta over the bl-279 (2026-06-10) baseline is awaiting-consumer / migration-residual: fetchPipelineRun (lib/query/fetchers.ts) is the fetcher for the GET /api/pipeline-runs/[id] poller (queryKeys.pipelineRuns.detail retained) orphaned by the {104.15} cost-tab pipeline_runs->ai_call_events re-point; plus eval/intelligence wire shapes (BaselineThreshold, GoldStandardBase, FlagResolutionType) that gain consumers as ID-71 Wave 2/3 + the deferred-organs follow-up (bl-329) land. PRUNE-CANDIDATES tracked for a dedicated knip pass: fetchPipelineRun + the full pipeline_runs deprecation surface. types kept at 73 by un-exporting the internal-only PublicationBulkActionResultStatus (used in-file by PublicationBulkActionResult). Counts-only baseline (no per-symbol snapshot) so the delta is attributed by surface, not enumerated. Prior context: bl-279 was a DROP to 107/73. NB knip.config.ts registers __tests__/** as vitest entries so test imports DO count as consumers. Counts-only baseline for scripts/check-knip-baseline.ts; each key maps to the per-file array name in knip --reporter json. CI fails if any current count exceeds the matching baseline. Update procedure: docs/runbooks/ci.md section 6.",
+  "capturedAt": "2026-06-16",
+  "capturedFromCommit": "id71-id104 S367 ID-104 close + ID-71 Wave-1b knip resolution",
   "counts": {
     "dependencies": 0,
     "devDependencies": 0,
-    "exports": 107,
+    "exports": 110,
     "types": 73,
     "unlisted": 3,
     "binaries": 0,
