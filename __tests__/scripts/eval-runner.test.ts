@@ -6,6 +6,10 @@
  * quality-fail (1) and infra-error (2) kept DISTINCT; an unregistered touchpoint
  * yields a 'not registered' reason and exit 2.
  *
+ * ID-104.18 (T19/B-INV-19): a touchpoint declaring `graduation_metric` reports
+ * its current value in `TouchpointRunResult.graduationMetricValue`; a touchpoint
+ * with no declaration reports `null` cleanly — no error, no empty-string noise.
+ *
  * The runner separates the PURE disposition logic (returns an exit class) from
  * the `process.exit()` call, so these tests assert the exit class as a value
  * without killing the test process.
@@ -14,6 +18,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { Database } from '@/supabase/types/database.types';
+import type { GraduationMetricValue } from '@/lib/eval/graduation';
 import type { Touchpoint } from '@/lib/eval/registry';
 import {
   EXIT_PASS,
@@ -26,6 +31,21 @@ import {
 } from '@/scripts/eval-runner';
 
 import { createMockSupabaseClient } from '@/__tests__/helpers/mock-supabase';
+
+// ---------------------------------------------------------------------------
+// graduation module mock — metricFor is mocked so eval-runner tests do not
+// have to orchestrate the multi-table call sequence metricFor requires.
+// ---------------------------------------------------------------------------
+
+vi.mock('@/lib/eval/graduation', () => ({
+  metricFor: vi.fn().mockResolvedValue(null),
+}));
+
+/** Configure metricFor to return a specific value for the next call. */
+async function configureMetricFor(value: GraduationMetricValue | null) {
+  const mod = await import('@/lib/eval/graduation');
+  vi.mocked(mod.metricFor).mockResolvedValueOnce(value);
+}
 
 /**
  * The shared Supabase mock, cast to the production client type so it can be
@@ -506,5 +526,121 @@ describe('exit-class purity', () => {
 
     expect(exitSpy).not.toHaveBeenCalled();
     exitSpy.mockRestore();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ID-104.18 — graduation metric wiring (T19/B-INV-19)
+// A touchpoint declaring graduation_metric reports its current value in the
+// run result; a touchpoint with no declaration reports null cleanly.
+// ---------------------------------------------------------------------------
+
+describe('graduation metric wiring (T19/B-INV-19)', () => {
+  it('includes the graduation metric value in the run result when a touchpoint declares one', async () => {
+    const supabase = mockDb();
+    // loadBaseline → null (first run, no baseline).
+    supabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+    // eval_runs insert → ok.
+    supabase._chain.single.mockResolvedValueOnce({
+      data: { id: 'run-gm-1' },
+      error: null,
+    });
+
+    // metricFor returns a win_rate value computed from on-platform rows.
+    const expectedMetricValue: GraduationMetricValue = {
+      touchpoint_id: 'classification',
+      metric: 'win_rate',
+      value: 0.8,
+      sample_size: 10,
+      computed_in_house: true,
+    };
+    await configureMetricFor(expectedMetricValue);
+
+    const tp = touchpoint({ graduation_metric: 'win_rate' });
+    const result = await runEvalTouchpoint(
+      supabase,
+      tp,
+      async () => passingSuite({ domain_accuracy: 0.9 }),
+      'ci',
+    );
+
+    // The run still passes the quality gate.
+    expect(result.exitClass).toBe(EXIT_PASS);
+    expect(result.passed).toBe(true);
+    // The graduation metric value is included in the result (T19).
+    expect(result.graduationMetricValue).toEqual(expectedMetricValue);
+  });
+
+  it('reports graduationMetricValue as null when the touchpoint declares no graduation_metric (clean — no error)', async () => {
+    const supabase = mockDb();
+    // loadBaseline → null.
+    supabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+    // eval_runs insert → ok.
+    supabase._chain.single.mockResolvedValueOnce({
+      data: { id: 'run-gm-2' },
+      error: null,
+    });
+
+    // metricFor returns null (default mock: touchpoint has no graduation_metric).
+    // No configureMetricFor call needed — the mock default is null.
+
+    const tp = touchpoint({ graduation_metric: null });
+    const result = await runEvalTouchpoint(
+      supabase,
+      tp,
+      async () => passingSuite({ domain_accuracy: 0.9 }),
+      'nightly',
+    );
+
+    // Quality gate still passes.
+    expect(result.exitClass).toBe(EXIT_PASS);
+    expect(result.passed).toBe(true);
+    // No graduation metric — nothing to report, null cleanly (B-INV-19).
+    expect(result.graduationMetricValue).toBeNull();
+  });
+
+  it('preserves graduation metric value alongside an infra failure (exit 2 still wins)', async () => {
+    const supabase = mockDb();
+    // eval_runs insert for infra path → ok.
+    supabase._chain.single.mockResolvedValueOnce({
+      data: { id: 'run-gm-3' },
+      error: null,
+    });
+
+    // Even when the suite itself fails (infra), metricFor still runs and its
+    // value is still surfaced in the result (the metric reflects history, not
+    // the current run's suite outcome).
+    const expectedMetricValue: GraduationMetricValue = {
+      touchpoint_id: 'classification',
+      metric: 'progressive_trust',
+      value: 0.5,
+      sample_size: 4,
+      computed_in_house: true,
+    };
+    await configureMetricFor(expectedMetricValue);
+
+    const tp = touchpoint({ graduation_metric: 'progressive_trust' });
+    const result = await runEvalTouchpoint(
+      supabase,
+      tp,
+      async () => ({
+        ok: false as const,
+        kind: 'infra' as const,
+        reason: 'Anthropic 529',
+      }),
+      'nightly',
+    );
+
+    // Infra failure still exits 2.
+    expect(result.exitClass).toBe(EXIT_RUNNER_ERROR);
+    expect(result.severityDisposition).toBe('infra');
+    // The graduation metric value from history is still surfaced.
+    expect(result.graduationMetricValue).toEqual(expectedMetricValue);
   });
 });

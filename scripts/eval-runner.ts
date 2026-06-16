@@ -55,6 +55,7 @@ import type {
   TouchpointKind,
 } from '@/lib/eval/contract';
 import { loadBaseline } from '@/lib/eval/baseline-store';
+import { metricFor, type GraduationMetricValue } from '@/lib/eval/graduation';
 import { checkTouchpointRegression } from '@/lib/eval/regression';
 import {
   getTouchpoint,
@@ -125,6 +126,14 @@ export interface TouchpointRunResult {
   severityDisposition: SeverityTier;
   /** Human-readable reason for a non-pass / could-not-complete; `null` on pass. */
   reason: string | null;
+  /**
+   * The touchpoint's current graduation-metric value (T19/B-INV-19), computed
+   * in-house by `metricFor()` from `ai_call_events` + `eval_runs`. `null` when
+   * the touchpoint declares no `graduation_metric` — nothing to report (clean
+   * omission, not an error). Unregistered / infra-failed touchpoints also carry
+   * `null` here (there is no registry row to read the metric name from).
+   */
+  graduationMetricValue: GraduationMetricValue | null;
 }
 
 /** The aggregate dispatcher report. `exitClass` is the folded process exit. */
@@ -238,7 +247,23 @@ export async function runEvalTouchpoint(
   //    2, never a quality regression (T7).
   const outcome = await suiteFn(touchpoint);
 
+  // 5. Fetch the graduation metric value in-house (T19/B-INV-19). Runs
+  //    concurrently with the suite for suites that declare one; resolves null
+  //    for touchpoints with no `graduation_metric` — clean omission, not an
+  //    error. Errors from metricFor propagate as runner crashes (exit 2 via
+  //    the outer catch in main); an unknown metric name throws loudly (the
+  //    B-INV-19 "declared but unreadable" fail mode).
+  const graduationMetricValuePromise = metricFor(
+    supabase,
+    touchpoint.touchpoint_id,
+  );
+
   if (!outcome.ok) {
+    // Await the metric even on an infra failure — historical metric reflects
+    // the touchpoint's running quality, independent of this run's suite result.
+    const graduationMetricValue = await graduationMetricValuePromise.catch(
+      () => null,
+    );
     const writeOk = await writeEvalRun(supabase, {
       touchpoint_id: touchpoint.touchpoint_id,
       metrics: {},
@@ -256,6 +281,7 @@ export async function runEvalTouchpoint(
       reason: writeOk
         ? outcome.reason
         : `${outcome.reason}; eval_runs write also failed`,
+      graduationMetricValue,
     };
   }
 
@@ -310,6 +336,9 @@ export async function runEvalTouchpoint(
     source,
   });
 
+  // Await the graduation metric value (initiated concurrently above).
+  const graduationMetricValue = await graduationMetricValuePromise;
+
   if (!writeOk) {
     return {
       touchpointId: touchpoint.touchpoint_id,
@@ -317,6 +346,7 @@ export async function runEvalTouchpoint(
       passed,
       severityDisposition,
       reason: 'eval_runs write failed (DB unreachable)',
+      graduationMetricValue,
     };
   }
 
@@ -328,6 +358,7 @@ export async function runEvalTouchpoint(
     reason: hasRegression
       ? `regression on: ${failingMetrics.join(', ')}`
       : null,
+    graduationMetricValue,
   };
 }
 
@@ -338,6 +369,7 @@ export async function runEvalTouchpoint(
 /**
  * Resolve a single touchpoint into a "not registered" runner-error result (T4).
  * The unregistered id is the registration-as-gate signal — exit class 2.
+ * No graduation metric value: no registry row to read it from.
  */
 function unregisteredResult(touchpointId: string): TouchpointRunResult {
   return {
@@ -346,12 +378,14 @@ function unregisteredResult(touchpointId: string): TouchpointRunResult {
     passed: null,
     severityDisposition: 'infra',
     reason: `not registered: ${touchpointId}`,
+    graduationMetricValue: null,
   };
 }
 
 /**
  * Resolve a touchpoint whose `suite_name` has no registered suite fn into a
  * runner-error result — exit class 2 (a misconfigured dispatch map).
+ * Graduation metric value is null (suite dispatch failed before metric read).
  */
 function missingSuiteResult(touchpoint: Touchpoint): TouchpointRunResult {
   return {
@@ -360,6 +394,7 @@ function missingSuiteResult(touchpoint: Touchpoint): TouchpointRunResult {
     passed: null,
     severityDisposition: 'infra',
     reason: `no registered suite for suite_name: ${touchpoint.suite_name}`,
+    graduationMetricValue: null,
   };
 }
 
