@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   api: {
     Tables: {
       [_ in never]: never
@@ -3613,6 +3618,10 @@ export type Database = {
       }
     }
     Functions: {
+      _test_delete_broken_auth_user: {
+        Args: { probe_id: string }
+        Returns: undefined
+      }
       bulk_delete_tags: {
         Args: { p_tags: string[]; p_type: string }
         Returns: number
@@ -3653,6 +3662,24 @@ export type Database = {
             }
           }
         | { Args: { search_terms: string[] }; Returns: string[] }
+      find_duplicate_pairs: {
+        Args: {
+          limit_count?: number
+          p_domain?: string
+          similarity_threshold?: number
+        }
+        Returns: {
+          domain1: string
+          domain2: string
+          id1: string
+          id2: string
+          similarity: number
+          title1: string
+          title2: string
+          type1: string
+          type2: string
+        }[]
+      }
       find_duplicate_tags: {
         Args: { p_type: string }
         Returns: {
@@ -3753,6 +3780,16 @@ export type Database = {
       }
       get_author_analysis: { Args: { p_author_name: string }; Returns: Json }
       get_content_gaps: { Args: never; Returns: Json }
+      get_content_win_rate: {
+        Args: { p_content_item_id: string }
+        Returns: {
+          losing_citations: number
+          pending_citations: number
+          total_citations: number
+          win_rate: number
+          winning_citations: number
+        }[]
+      }
       get_coverage_matrix: {
         Args: { p_layer?: string }
         Returns: {
@@ -3876,6 +3913,26 @@ export type Database = {
           summary: string
           type: string
           user_id: string
+        }[]
+      }
+      get_guide_content: {
+        Args: { p_guide_slug: string }
+        Returns: {
+          content_brief: string
+          content_captured_date: string
+          content_freshness: string
+          content_id: string
+          content_layer: string
+          content_title: string
+          content_type: string
+          content_verified_at: string
+          expected_layer: string
+          is_required: boolean
+          section_description: string
+          section_id: string
+          section_name: string
+          section_order: number
+          subtopic_filter: string
         }[]
       }
       get_guide_coverage: {
@@ -9383,4 +9440,3 @@ export const Constants = {
     },
   },
 } as const
-

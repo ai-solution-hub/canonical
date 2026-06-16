@@ -1184,14 +1184,14 @@ jobs:
         run: |
           supabase gen types typescript \
             --project-id "$STAGING_PROJECT_REF" \
-            --schema public \
+            --schema public,api \
             > /tmp/database.types.generated.ts
 
       - name: Diff against checked-in types
         run: |
           if ! diff -q supabase/types/database.types.ts /tmp/database.types.generated.ts; then
             echo "::error::Generated Supabase types differ from supabase/types/database.types.ts."
-            echo "::error::Run: /opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts"
+            echo "::error::Run: /opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public,api > supabase/types/database.types.ts"
             diff -u supabase/types/database.types.ts /tmp/database.types.generated.ts | head -200
             exit 1
           fi
