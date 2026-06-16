@@ -56,7 +56,7 @@ its `publicRoutes` allowlist or they silently redirect to `/login`.
 
 ## Environment & Database
 
-- `.env.local` targets the persistent staging Supabase branch (`turayklvaunphgbgscat`);
+- `.env.local` targets the persistent client staging Supabase branch (`turayklvaunphgbgscat`);
   prod-targeted CLI work opts in via `--env=prod`. Runbook:
   `${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/local-development.md`.
 - Schema is canonically the generated types (`Tables<'x'>` / `Enums<'x'>` from
@@ -152,11 +152,10 @@ open the nested `.mempalace/palace`, collection `mempalace_drawers`, for a speci
 conversation).
 
 <!-- gitnexus:start -->
+<!-- gitnexus:keep -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **knowledge-hub** (14761 symbols, 34714 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
-
-> Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
+This project is indexed by GitNexus as **knowledge-hub**. Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 ## Always Do
 
