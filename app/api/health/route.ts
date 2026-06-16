@@ -54,6 +54,7 @@ export async function GET() {
       supabase: supabaseOk,
       env: envOk,
       timestamp,
+      version: process.env.NEXT_PUBLIC_RELEASE_VERSION ?? 'unknown',
     },
     { status: statusCode },
   );

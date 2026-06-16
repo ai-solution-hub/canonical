@@ -13,6 +13,19 @@ const nextConfig: NextConfig = {
   // entry did not reliably copy lib/ai/skills/*.md into Vercel serverless
   // function bundles (App Router source-path glob mismatch + __dirname
   // resolution drift) and was the root cause of MCP classify_content ENOENT.
+  env: {
+    // Build-time version stamp — read by /api/health to surface the running
+    // release. Fallback chain: explicit env (set by CI/CD) → Vercel commit SHA
+    // → 'dev' (local / no stamp). Read via process.env (not serverEnv) for the
+    // same reason the Sentry block below uses process.env: next.config.ts runs
+    // at build orchestration time and importing serverEnv would force a Zod
+    // parse of every required server var — needlessly tight coupling for an
+    // optional build-time stamp.
+    NEXT_PUBLIC_RELEASE_VERSION:
+      process.env.NEXT_PUBLIC_RELEASE_VERSION ??
+      process.env.VERCEL_GIT_COMMIT_SHA ??
+      'dev',
+  },
   images: {
     formats: ['image/avif', 'image/webp'],
     remotePatterns: [

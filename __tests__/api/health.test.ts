@@ -201,4 +201,27 @@ describe('GET /api/health', () => {
     const parsed = new Date(body.timestamp);
     expect(parsed.toISOString()).toBe(body.timestamp);
   });
+
+  it('returns version from NEXT_PUBLIC_RELEASE_VERSION when set', async () => {
+    setEnvVars({ NEXT_PUBLIC_RELEASE_VERSION: 'v1.2.3' });
+
+    mockSelect.mockResolvedValueOnce({ count: 1, error: null });
+
+    const response = await healthGET();
+    const body = await response.json();
+
+    expect(body.version).toBe('v1.2.3');
+  });
+
+  it('returns version "unknown" when NEXT_PUBLIC_RELEASE_VERSION is absent', async () => {
+    setEnvVars();
+    delete process.env.NEXT_PUBLIC_RELEASE_VERSION;
+
+    mockSelect.mockResolvedValueOnce({ count: 1, error: null });
+
+    const response = await healthGET();
+    const body = await response.json();
+
+    expect(body.version).toBe('unknown');
+  });
 });
