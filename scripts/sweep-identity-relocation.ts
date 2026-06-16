@@ -17,10 +17,15 @@
  *   6. OQ-E evidence — which code/tests read docs/ontology/ (PC-24 input).
  *
  * Denylist resolution (PC-31 — canonical copy lives in the PRIVATE docs-site
- * repo; this script NEVER reads the Actions secret):
- *   1. `--denylist <path>` flag.
- *   2. `$KH_PRIVATE_DOCS_DIR/ops/identity-denylist.json`.
- *   3. Sibling default: `<main-checkout-parent>/knowledge-hub-docs-site/ops/
+ * repo; the Actions secret holds the full JSON; ID-114.9 demotes the DS bridge
+ * to fallback):
+ *   1. `--denylist <path>` flag (explicit override — highest priority).
+ *   2. `$KH_CLIENT_NAME_DENYLIST` env var (JSON content — written to a tmp file;
+ *      PRIMARY MAIN-resolvable candidate; used in CI and by operators who export
+ *      the secret locally; never commits client names to this repo).
+ *   3. `$KH_PRIVATE_DOCS_DIR/ops/identity-denylist.json` (demoted to fallback —
+ *      requires the private docs-site checkout; kept for local dev convenience).
+ *   4. Sibling default: `<main-checkout-parent>/knowledge-hub-docs-site/ops/
  *      identity-denylist.json` (main checkout root derived from
  *      `git rev-parse --git-common-dir`, so agent worktrees resolve correctly).
  *
@@ -50,7 +55,14 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 
 // ---------------------------------------------------------------------------
@@ -181,10 +193,25 @@ function resolveDenylistPath(
   if (flag) {
     candidates.push({ source: '--denylist flag', path: resolve(flag) });
   }
+  // PRIMARY (ID-114.9): KH_CLIENT_NAME_DENYLIST env var holds the full JSON
+  // content (the same value as the homonymous GitHub Actions secret). When set,
+  // write it to a process-scoped tmp file so downstream code gets a path.
+  // The tmp file is never committed and holds no data beyond this process lifetime.
+  const inlineJson = process.env.KH_CLIENT_NAME_DENYLIST;
+  if (inlineJson) {
+    const tmpDir = mkdtempSync(join(tmpdir(), 'kh-denylist-'));
+    const tmpPath = join(tmpDir, 'identity-denylist.json');
+    writeFileSync(tmpPath, inlineJson, 'utf8');
+    candidates.push({
+      source: 'KH_CLIENT_NAME_DENYLIST env (inline JSON)',
+      path: tmpPath,
+    });
+  }
+  // FALLBACK (demoted by ID-114.9): private docs-site checkout path.
   const envDir = process.env.KH_PRIVATE_DOCS_DIR;
   if (envDir) {
     candidates.push({
-      source: 'KH_PRIVATE_DOCS_DIR env',
+      source: 'KH_PRIVATE_DOCS_DIR env (fallback)',
       path: join(envDir, 'ops', 'identity-denylist.json'),
     });
   }
@@ -214,7 +241,7 @@ function resolveDenylistPath(
   );
   for (const c of candidates) console.error(`  - [${c.source}] ${c.path}`);
   console.error(
-    'Provide --denylist <path> or set KH_PRIVATE_DOCS_DIR to the docs-site checkout.',
+    'Set KH_CLIENT_NAME_DENYLIST to the JSON content, provide --denylist <path>, or set KH_PRIVATE_DOCS_DIR to the docs-site checkout.',
   );
   process.exit(1);
 }

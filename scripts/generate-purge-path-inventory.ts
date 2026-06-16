@@ -36,10 +36,13 @@
  * denylist token values. Stem-bearing paths (branding, deleted scripts, the
  * hook migration) are TEMPLATED at runtime from the client-name stem token in
  * the canonical denylist, which lives in the PRIVATE docs-site repo and is
- * resolved exactly like scripts/sweep-identity-relocation.ts:
- *   1. `--denylist <path>` flag.
- *   2. `$KH_PRIVATE_DOCS_DIR/ops/identity-denylist.json`.
- *   3. Sibling default: `<main-checkout-parent>/knowledge-hub-docs-site/ops/
+ * resolved exactly like scripts/sweep-identity-relocation.ts (ID-114.9 —
+ * docs-site bridge demoted to fallback):
+ *   1. `--denylist <path>` flag (explicit override — highest priority).
+ *   2. `$KH_CLIENT_NAME_DENYLIST` env var (JSON content — written to a tmp
+ *      file; PRIMARY MAIN-resolvable candidate; never commits client names).
+ *   3. `$KH_PRIVATE_DOCS_DIR/ops/identity-denylist.json` (demoted to fallback).
+ *   4. Sibling default: `<main-checkout-parent>/knowledge-hub-docs-site/ops/
  *      identity-denylist.json` (main checkout root via
  *      `git rev-parse --git-common-dir`, so agent worktrees resolve).
  *
@@ -59,7 +62,8 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
 // ---------------------------------------------------------------------------
@@ -347,10 +351,24 @@ function trackedAtHeadSet(): Set<string> {
 function resolveDenylistPath(flag: string | undefined): string {
   const candidates: { source: string; path: string }[] = [];
   if (flag) candidates.push({ source: '--denylist flag', path: resolve(flag) });
+  // PRIMARY (ID-114.9): KH_CLIENT_NAME_DENYLIST env var holds the full JSON
+  // content (the same value as the homonymous GitHub Actions secret). When set,
+  // write it to a process-scoped tmp file so downstream code gets a path.
+  const inlineJson = process.env.KH_CLIENT_NAME_DENYLIST;
+  if (inlineJson) {
+    const tmpDir = mkdtempSync(join(tmpdir(), 'kh-denylist-'));
+    const tmpPath = join(tmpDir, 'identity-denylist.json');
+    writeFileSync(tmpPath, inlineJson, 'utf8');
+    candidates.push({
+      source: 'KH_CLIENT_NAME_DENYLIST env (inline JSON)',
+      path: tmpPath,
+    });
+  }
+  // FALLBACK (demoted by ID-114.9): private docs-site checkout path.
   const envDir = process.env.KH_PRIVATE_DOCS_DIR;
   if (envDir) {
     candidates.push({
-      source: 'KH_PRIVATE_DOCS_DIR env',
+      source: 'KH_PRIVATE_DOCS_DIR env (fallback)',
       path: join(envDir, 'ops', 'identity-denylist.json'),
     });
   }
@@ -377,7 +395,7 @@ function resolveDenylistPath(flag: string | undefined): string {
   );
   for (const c of candidates) console.error(`  - [${c.source}] ${c.path}`);
   console.error(
-    'Provide --denylist <path> or set KH_PRIVATE_DOCS_DIR to the docs-site checkout.',
+    'Set KH_CLIENT_NAME_DENYLIST to the JSON content, provide --denylist <path>, or set KH_PRIVATE_DOCS_DIR to the docs-site checkout.',
   );
   process.exit(1);
 }

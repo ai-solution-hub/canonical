@@ -5,12 +5,18 @@
 # counterparty name from the private denylist. Prevents IP leaks like the
 # near-miss where a migration filename contained a client name (friction F8).
 #
-# Denylist: ${KH_PRIVATE_DOCS_DIR}/.config/ip-denylist.txt
+# Denylist resolution (ID-114.9 — docs-site bridge demoted to fallback):
+#   1. $KH_IP_DENYLIST_PATH — explicit path to the txt file (PRIMARY;
+#      set locally or in CI; no docs-site dependency; file is git-ignored /
+#      expected-absent in the public tree — absent = silent no-op).
+#   2. ${KH_PRIVATE_DOCS_DIR}/.config/ip-denylist.txt (FALLBACK — requires
+#      the private docs-site checkout; kept for local dev convenience).
+#
+# Denylist file format (txt):
 #   - one term per line, case-insensitive substring match
 #   - lines starting with # are comments; blank lines ignored
-#   - file lives in the PRIVATE docs-site repo so the names themselves are
-#     never committed to the public knowledge-hub repo
-# If the denylist file is absent, this hook is a silent no-op.
+#   - file lives outside the public repo so client names are never committed
+# If the resolved denylist file is absent, this hook is a silent no-op.
 #
 # Matched against: .tool_input.file_path (Write/Edit) and
 # .tool_input.command (Bash) — filenames and command text are both leak
@@ -20,7 +26,12 @@
 
 set -euo pipefail
 
-DENYLIST="${KH_PRIVATE_DOCS_DIR:-}/.config/ip-denylist.txt"
+# Resolve denylist path: PRIMARY = KH_IP_DENYLIST_PATH; FALLBACK = DS bridge.
+if [ -n "${KH_IP_DENYLIST_PATH:-}" ]; then
+  DENYLIST="$KH_IP_DENYLIST_PATH"
+else
+  DENYLIST="${KH_PRIVATE_DOCS_DIR:-}/.config/ip-denylist.txt"
+fi
 [ -f "$DENYLIST" ] || exit 0
 
 INPUT=$(cat)
@@ -34,7 +45,8 @@ while IFS= read -r term; do
 BLOCKED: tool input contains a denylisted client/IP term (matched a line in
 the private ip-denylist). Client names must never appear in filenames, branch
 names, commands, or committed artifacts in this repo. Rename using a neutral
-slug. (WS-A7 IP-leak guard; denylist: \$KH_PRIVATE_DOCS_DIR/.config/ip-denylist.txt)
+slug. (WS-A7 IP-leak guard; denylist resolved from \$KH_IP_DENYLIST_PATH or
+\$KH_PRIVATE_DOCS_DIR/.config/ip-denylist.txt)
 MSG
     exit 2
   fi
