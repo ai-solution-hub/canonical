@@ -1,83 +1,27 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
-import { tryQuery } from '@/lib/supabase/safe';
-import { logBestEffortWarn } from '@/lib/supabase/telemetry';
+import { queryKeys } from '@/lib/query/query-keys';
+import { fetchEvalCostAggregate } from '@/lib/query/fetchers';
 
 // ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface CostAggregate {
-  totalCost: number | null;
-  runCount: number;
-}
-
-// ---------------------------------------------------------------------------
-// CostTabStub — labelled-interim tab ("Interim — Wave B")
+// CostTabStub — live aggregate over `ai_call_events` (ID-104 T17 / B-INV-17)
+//
+// Re-pointed from the interim `pipeline_runs.cost` read to a real aggregate
+// over `ai_call_events` keyed by `touchpoint_id`. The "Interim — Wave B"
+// banner is kept until per-touchpoint drill-down is wired in a later wave.
 // ---------------------------------------------------------------------------
 
 export default function CostTabStub() {
-  const [data, setData] = useState<CostAggregate | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-
-  useEffect(() => {
-    async function fetchCostAggregate() {
-      try {
-        const supabase = createClient();
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-        const result = await tryQuery<{ cost: number | null }[]>(
-          supabase
-            .from('pipeline_runs')
-            .select('cost')
-            .gte('started_at', thirtyDaysAgo.toISOString()),
-          'provenance.cost_tab.fetch',
-        );
-
-        if (!result.ok) {
-          logBestEffortWarn(
-            'provenance.cost_tab.fetch',
-            'Failed to fetch pipeline cost aggregate',
-            { err: result.error.message },
-          );
-          setError(true);
-          setLoading(false);
-          return;
-        }
-
-        const rows = result.data ?? [];
-        const costs = rows
-          .map((r) => r.cost)
-          .filter((c): c is number => c !== null);
-
-        setData({
-          totalCost:
-            costs.length > 0 ? costs.reduce((sum, c) => sum + c, 0) : null,
-          runCount: rows.length,
-        });
-      } catch (err) {
-        logBestEffortWarn(
-          'provenance.cost_tab.fetch',
-          'Failed to fetch pipeline cost aggregate',
-          { err: err instanceof Error ? err.message : String(err) },
-        );
-        setError(true);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchCostAggregate();
-  }, []);
+  const { data, isLoading, isError } = useQuery({
+    queryKey: queryKeys.eval.costAggregate,
+    queryFn: fetchEvalCostAggregate,
+  });
 
   return (
     <div className="space-y-4">
-      {/* Labelled-interim banner */}
+      {/* Labelled-interim banner — retained until per-touchpoint drill-down (Wave C) */}
       <div
         className="rounded-lg border border-border bg-muted/50 px-4 py-3"
         data-testid="stub-label"
@@ -86,41 +30,42 @@ export default function CostTabStub() {
           Interim — Wave B
         </p>
         <p className="mt-1 text-sm text-muted-foreground">
-          Per-touchpoint cost tracking will be available in a future update.
+          Per-touchpoint cost drill-down will be available in a future update.
         </p>
       </div>
 
-      {/* Cost aggregate */}
+      {/* Cost aggregate from ai_call_events */}
       <div className="rounded-lg border bg-card p-6">
-        {loading ? (
+        {isLoading ? (
           <div className="flex items-center justify-center py-4">
             <Loader2
               className="size-5 animate-spin text-muted-foreground"
               aria-label="Loading cost data"
             />
           </div>
-        ) : error ? (
+        ) : isError ? (
           <p className="text-sm text-muted-foreground">
             Could not load cost data. Please try again later.
           </p>
-        ) : !data || data.totalCost === null ? (
+        ) : !data || data.totalCostUsd === null ? (
           <p className="text-sm text-muted-foreground">
-            No cost data recorded in the last 30 days.
+            No cost data recorded yet.
           </p>
         ) : (
           <div className="space-y-2">
             <h3 className="text-sm font-medium text-foreground">
-              Last 30 days
+              AI call cost
             </h3>
             <div className="flex items-baseline gap-2">
               <span className="text-2xl font-semibold tabular-nums text-foreground">
-                ${data.totalCost.toFixed(4)}
-              </span>
-              <span className="text-sm text-muted-foreground">
-                across {data.runCount} pipeline{' '}
-                {data.runCount === 1 ? 'run' : 'runs'}
+                ${data.totalCostUsd.toFixed(4)}
               </span>
             </div>
+            <p className="text-sm text-muted-foreground">
+              across {data.callCount} {data.callCount === 1 ? 'call' : 'calls'}{' '}
+              / {data.touchpointCount}{' '}
+              {data.touchpointCount === 1 ? 'touchpoint' : 'touchpoints'}
+            </p>
           </div>
         )}
       </div>

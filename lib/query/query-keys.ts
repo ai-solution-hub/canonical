@@ -398,4 +398,15 @@ export const queryKeys = {
       ['admin', 'near-dup-pairs', threshold, domain ?? null] as const,
     pair: (pairId: string) => ['admin', 'near-dup-pair', pairId] as const,
   },
+
+  // ---------------------------------------------------------------------------
+  // Eval engine (ID-104) — cost aggregate + future refinement keys
+  // ---------------------------------------------------------------------------
+  // {104.15}: cost rollup over `ai_call_events` keyed by touchpoint_id (T17).
+  // {104.16}: refinement keys appended after this block (parallel Subtask).
+  eval: {
+    all: ['eval'] as const,
+    /** Aggregate cost over all `ai_call_events` rows (T17 / B-INV-17). */
+    costAggregate: ['eval', 'cost-aggregate'] as const,
+  },
 } as const;

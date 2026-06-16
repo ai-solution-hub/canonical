@@ -592,6 +592,71 @@ export async function fetchAdminNearDupPairs(
   );
 }
 
+// ---------------------------------------------------------------------------
+// Eval cost aggregate (ID-104 {104.15} — T17 / B-INV-17)
+// ---------------------------------------------------------------------------
+//
+// Aggregates `cost_usd`, call count, and distinct touchpoint count from
+// `ai_call_events`. Used by `CostTabStub` to re-point from the interim
+// `pipeline_runs.cost` read to real persisted AI-call data.
+//
+// Supabase safety: `tryQuery()` from `@/lib/supabase/safe` — no raw
+// `.from().select()` with unchecked error (ESLint `local/no-unchecked-supabase-error`).
+
+import { createClient } from '@/lib/supabase/client';
+import { tryQuery } from '@/lib/supabase/safe';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
+
+/** Shape returned by `fetchEvalCostAggregate`. */
+export interface EvalCostAggregateResult {
+  /** Sum of `cost_usd` across all `ai_call_events` rows; null when no rows exist. */
+  totalCostUsd: number | null;
+  /** Total number of `ai_call_events` rows. */
+  callCount: number;
+  /** Number of distinct `touchpoint_id` values recorded. */
+  touchpointCount: number;
+}
+
+/**
+ * Aggregate cost data from `ai_call_events` (M4 — T17 / B-INV-17).
+ *
+ * Reads all rows; no date filter (unlike the interim `pipeline_runs` read).
+ * Failure is returned as a thrown error so TanStack Query's `isError` flag
+ * surfaces it correctly — this is observability data, not a critical path.
+ */
+export async function fetchEvalCostAggregate(): Promise<EvalCostAggregateResult> {
+  const supabase = createClient();
+
+  const result = await tryQuery<
+    { cost_usd: number | null; touchpoint_id: string }[]
+  >(
+    supabase.from('ai_call_events').select('cost_usd, touchpoint_id'),
+    'eval.cost_aggregate.fetch',
+  );
+
+  if (!result.ok) {
+    logBestEffortWarn(
+      'eval.cost_aggregate.fetch',
+      'Failed to fetch eval cost aggregate',
+      { err: result.error.message },
+    );
+    throw result.error;
+  }
+
+  const rows = result.data ?? [];
+  const costs = rows
+    .map((r) => r.cost_usd)
+    .filter((c): c is number => c !== null);
+  const distinctTouchpoints = new Set(rows.map((r) => r.touchpoint_id)).size;
+
+  return {
+    totalCostUsd:
+      costs.length > 0 ? costs.reduce((sum, c) => sum + c, 0) : null,
+    callCount: rows.length,
+    touchpointCount: distinctTouchpoints,
+  };
+}
+
 /** Fetch a single near-duplicate pair detail (both rows + similarity). */
 export async function fetchAdminNearDupPair(
   pairId: string,
