@@ -550,18 +550,19 @@ async function runSearchToolChecks(
     }
   }
 
-  // FC-07: find_similar_items with known UUID — check descending similarity scores
+  // FC-07: find with similar_to (ID-71.7 — collapsed from find_similar_items)
+  // — check descending similarity scores for a known content item UUID
   {
     const result = await callTool(
-      'find_similar_items',
-      { id: knownUUIDs.contentItemId },
+      'find',
+      { similar_to: knownUUIDs.contentItemId },
       accessToken,
     );
     if (result.errorMessage) {
       record(
         'Search Tools',
         'FC-07',
-        'find_similar_items known UUID',
+        'find similar_to known UUID',
         'FAIL',
         result.errorMessage,
       );
@@ -569,7 +570,7 @@ async function runSearchToolChecks(
       record(
         'Search Tools',
         'FC-07',
-        'find_similar_items known UUID',
+        'find similar_to known UUID',
         'FAIL',
         `Tool error: ${result.text.slice(0, 100)}`,
       );
@@ -589,7 +590,7 @@ async function runSearchToolChecks(
         record(
           'Search Tools',
           'FC-07',
-          'find_similar_items known UUID',
+          'find similar_to known UUID',
           'PASS',
           `${percentages.length} scores in descending order (${result.charCount} chars)`,
         );
@@ -597,7 +598,7 @@ async function runSearchToolChecks(
         record(
           'Search Tools',
           'FC-07',
-          'find_similar_items known UUID',
+          'find similar_to known UUID',
           'PASS',
           `Results returned (${result.charCount} chars)`,
         );
@@ -606,7 +607,7 @@ async function runSearchToolChecks(
       record(
         'Search Tools',
         'FC-07',
-        'find_similar_items known UUID',
+        'find similar_to known UUID',
         'FAIL',
         'No similar items returned',
       );

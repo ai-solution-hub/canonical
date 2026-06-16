@@ -142,9 +142,10 @@ describe('find_duplicates registration (ID-71.10 dedup consolidation)', () => {
     expect(mockServer.getTool('find_all_duplicates')).toBeUndefined();
   });
 
-  it('declares an outputSchema on the new entry (B-INV-37)', () => {
+  it('omits outputSchema because FindDuplicatesResponseSchema is a z.union — the MCP SDK normalizeObjectSchema returns undefined for unions causing undefined._zod crash in validateToolOutput (SDK union gap, B-INV-37 deferred)', () => {
     const tool = mockServer.getTool('find_duplicates');
-    expect(tool!.config.outputSchema).toBeDefined();
+    // outputSchema intentionally absent until SDK gains union support.
+    expect(tool!.config.outputSchema).toBeUndefined();
   });
 
   it('exposes a scope parameter covering item and all dedup branches', () => {

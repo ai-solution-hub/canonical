@@ -106,6 +106,7 @@ function configureMock(options: {
       eq: vi.fn().mockReturnThis(),
       is: vi.fn().mockReturnThis(),
       order: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
       then: vi.fn((resolve: (v: unknown) => void) => resolve(response)),
     };
     return chain;

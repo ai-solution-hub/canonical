@@ -175,9 +175,10 @@ describe('find tool — consolidation (B-INV-27)', () => {
     );
   });
 
-  it('declares an outputSchema (M37 forward standard for new entries)', () => {
+  it('omits outputSchema because FindResponseSchema is a z.union — the MCP SDK normalizeObjectSchema returns undefined for unions causing undefined._zod crash in validateToolOutput (SDK union gap, M37 deferred)', () => {
     const tool = mockServer.getTool('find');
-    expect(tool!.config.outputSchema).toBeDefined();
+    // outputSchema intentionally absent until SDK gains union support.
+    expect(tool!.config.outputSchema).toBeUndefined();
   });
 });
 

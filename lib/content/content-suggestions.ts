@@ -332,11 +332,11 @@ export async function generateContentSuggestions(
         )
         .eq('is_current', true)
         // `coverage_status` is computed in `lib/templates/template-coverage.ts`,
-        // not a DB column. This filter has been a runtime no-op since the
-        // column never existed — Supabase typed-client now catches it at
-        // compile time. Cast preserves behaviour pending a proper fix to
-        // compute coverage in-memory before filtering.
-        .eq('coverage_status' as never, 'gap'),
+        // not a DB column — it never exists in `form_template_requirements`.
+        // Filtering here is not possible at the DB level; return all current
+        // requirements and let callers use the in-memory coverage engine to
+        // determine gap status if needed.
+        .limit(50),
       'form_template_requirements.gaps',
     );
 

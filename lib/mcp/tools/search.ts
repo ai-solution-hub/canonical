@@ -37,10 +37,12 @@ import type {
   ChunkSearchResult,
   DuplicatePairsResult,
 } from '@/lib/mcp/formatters';
-import {
-  FindResponseSchema,
-  FindDuplicatesResponseSchema,
-} from '@/lib/mcp/formatters/search';
+// FindResponseSchema and FindDuplicatesResponseSchema are z.union schemas.
+// The MCP SDK's normalizeObjectSchema() returns undefined for union schemas,
+// causing safeParseAsync(undefined, …) to crash on undefined._zod. Union
+// outputSchemas cannot be declared until the SDK gains union support — omit
+// the outputSchema registration here; the schemas remain exported from
+// lib/mcp/formatters/search for consumer use (e.g. typed client SDKs).
 import {
   type ToolExtra,
   toStructuredContent,
@@ -526,7 +528,9 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
             "Maximum results. scope: 'item' default 10 (max 25); scope: 'all' default 50 (max 200).",
           ),
       },
-      outputSchema: FindDuplicatesResponseSchema,
+      // outputSchema omitted: FindDuplicatesResponseSchema is z.union — the
+      // MCP SDK normalizeObjectSchema() returns undefined for unions, causing
+      // a crash on undefined._zod in validateToolOutput (SDK union gap).
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
@@ -662,7 +666,9 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
     {
       title: 'Find Knowledge',
       description: `Find content in the knowledge base — the single entry for search, Q&A lookup, section-level retrieval, and similar-item discovery. Returns ranked list/preview metadata (title, domain, summary, relevance); use \`get\` afterwards to fetch the verbatim content of an accepted result. Parameters: \`granularity\` ('item' default | 'chunk' for section-level breadcrumbs); \`type\` filters by content type (e.g. 'q_a_pair' to find reusable answers); \`scope\` filters by domain corpus (valid domains: ${domainList} — use the kb://taxonomy resource for the full subtopic list); \`similar_to\` finds published items similar to a given item id via vector cosine similarity (items above 95% similarity flagged as likely duplicates).`,
-      outputSchema: FindResponseSchema,
+      // outputSchema omitted: FindResponseSchema is z.union — the MCP SDK
+      // normalizeObjectSchema() returns undefined for unions, causing a crash
+      // on undefined._zod in validateToolOutput (SDK union gap).
       inputSchema: {
         query: z
           .string()
