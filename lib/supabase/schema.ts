@@ -27,7 +27,9 @@
  * (INV-12); the S4 audit found ZERO such paths (every service write works
  * through the api views/RPC wrappers).
  */
-export const API_SCHEMA = 'api';
+// Internal — consumed in-file by DB_OPTION below. Not exported: external code
+// routes via DB_OPTION (the documented seam), so the raw value has no importer.
+const API_SCHEMA = 'api';
 
 /**
  * Spread into a `createClient` / `createBrowserClient` / `createServerClient`
