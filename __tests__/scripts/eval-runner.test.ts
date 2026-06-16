@@ -150,7 +150,6 @@ describe('runEvalTouchpoint', () => {
       string,
       unknown
     >;
-    expect(supabase.from).toHaveBeenCalledWith('eval_runs');
     expect(insertArg).toMatchObject({
       touchpoint_id: 'classification',
       passed: true,

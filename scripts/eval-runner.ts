@@ -447,3 +447,58 @@ export function parseRunnerArgs(args: string[]): ParsedRunnerArgs {
 
   return { scope, source };
 }
+
+/**
+ * Direct-invocation CLI entry point. The ONLY place `process.exit` lives
+ * (exit-code purity — `runEvals` computes the exit class as a return value so
+ * tests can assert it without killing the test process).
+ *
+ * Flow: parse CLI args → build the suite registry (imported from
+ * `eval-register-suites`) → run → exit with the runner's exit class (0/1/2).
+ */
+export async function main(): Promise<void> {
+  // Lazy import avoids circular deps when eval-register-suites imports
+  // eval-runner types, and keeps the module graph deterministic at test time.
+  const { createClient } = await import('@supabase/supabase-js');
+  const { buildSuiteRegistry } = await import('@/scripts/eval-register-suites');
+  const type = await import('@/supabase/types/database.types');
+  void type; // types-only import, no runtime effect needed
+
+  const url =
+    process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? process.env['SUPABASE_URL'];
+  const key = process.env['SUPABASE_SERVICE_ROLE_KEY'];
+  if (!url || !key) {
+    console.error(
+      'eval-runner: missing NEXT_PUBLIC_SUPABASE_URL/SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY',
+    );
+    process.exit(EXIT_RUNNER_ERROR);
+  }
+
+  // `createClient` here is a script-level client (service-role key) — not the
+  // browser client used in Next.js routes; scripts always use the service role.
+  // `as unknown` cast needed: the generated Database type lives in
+  // supabase/types/database.types.ts which the sandbox denies at build time;
+  // the runner's DB access goes through sb()/tryQuery() which carry the type
+  // internally, so the cast is safe at the production call site.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createClient<any>(url, key, {
+    auth: { persistSession: false },
+  });
+
+  const { scope, source } = parseRunnerArgs(process.argv.slice(2));
+  const suites = buildSuiteRegistry();
+
+  const report = await runEvals(supabase, { scope, suites, source });
+  process.exit(report.exitClass);
+}
+
+// Bun: invoke when this file is the entry point (not when imported as a module).
+if (import.meta.main) {
+  main().catch((err: unknown) => {
+    console.error(
+      'eval-runner: fatal error:',
+      err instanceof Error ? err.message : String(err),
+    );
+    process.exit(EXIT_RUNNER_ERROR);
+  });
+}

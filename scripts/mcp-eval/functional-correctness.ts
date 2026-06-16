@@ -3113,3 +3113,61 @@ main().catch((err) => {
   }
   process.exit(2);
 });
+
+// ---------------------------------------------------------------------------
+// eval-runner integration (T23 / B-INV-23) — orchestration wiring only.
+// The check logic above (runSearchToolChecks, runDashboardChecks, etc.) is
+// UNCHANGED — only the orchestration around it is rebuilt (spec §Area G).
+// main() above continues to drive the direct CLI invocation path.
+// ---------------------------------------------------------------------------
+
+import type { SuiteRunOutcome } from '@/scripts/eval-runner';
+
+/**
+ * Suite adapter for the central eval-runner ({104.14} / T23). Runs the L4
+ * functional-correctness checks — same logic as main() but without
+ * process.exit — and returns a {@link SuiteRunOutcome} the runner folds into
+ * its gate disposition. Called by the runner via the suite registry.
+ */
+export async function runAsEvalSuite(): Promise<SuiteRunOutcome> {
+  results.length = 0;
+
+  try {
+    loadEnv();
+    const { accessToken, supabase } = await getAuthToken();
+    const staleCount = await cleanupStaleEvalItems(supabase);
+    if (staleCount > 0) {
+      console.log(`  [l4] cleaned up ${staleCount} stale eval item(s)`);
+    }
+    const knownUUIDs = await getKnownUUIDs(supabase);
+    const evalItem = await createEvalItem(supabase);
+    try {
+      await runSearchToolChecks(accessToken, knownUUIDs);
+      await runDashboardChecks(accessToken);
+      await runContentRetrievalChecks(accessToken, knownUUIDs, evalItem);
+      await runBidToolChecks(accessToken, knownUUIDs);
+      await runCoverageQualityChecks(accessToken);
+      await runEntityToolChecks(accessToken, knownUUIDs);
+      await runWriteToolChecks(accessToken, evalItem, knownUUIDs);
+      await runAppTemplateChecks(accessToken);
+      await runGuideToolChecks(accessToken);
+    } finally {
+      try {
+        await deleteEvalItem(supabase, evalItem.id);
+      } catch {
+        // best-effort cleanup — non-fatal for the suite outcome
+      }
+    }
+  } catch (err) {
+    return {
+      ok: false,
+      kind: 'infra',
+      reason: `l4 setup failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+
+  const total = results.length;
+  const passed = results.filter((r) => r.status === 'PASS').length;
+  const pass_rate = total > 0 ? passed / total : 1;
+  return { ok: true, metrics: { pass_rate, total, passed } };
+}

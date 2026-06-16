@@ -784,3 +784,57 @@ main().catch((err) => {
   }
   process.exit(2);
 });
+
+// ---------------------------------------------------------------------------
+// eval-runner integration (T23 / B-INV-23) — orchestration wiring only.
+// The check logic above (runDiscoveryChecks, runToolCallChecks,
+// runErrorHandlingChecks) is UNCHANGED — only the orchestration around it is
+// rebuilt (spec §Area G). main() above continues to drive the CLI entry point.
+// ---------------------------------------------------------------------------
+
+import type { SuiteRunOutcome } from '@/scripts/eval-runner';
+
+/**
+ * Suite adapter for the central eval-runner ({104.14} / T23). Runs the L1
+ * protocol-compliance checks — same logic as main() but without process.exit —
+ * and returns a {@link SuiteRunOutcome} the runner folds into its gate
+ * disposition. Called by the runner via the suite registry; NOT called by
+ * main() (which continues to serve the direct CLI invocation path).
+ */
+export async function runAsEvalSuite(): Promise<SuiteRunOutcome> {
+  // Clear module-level state so each runner dispatch starts clean.
+  results.length = 0;
+
+  try {
+    loadEnv();
+    const { accessToken, supabase } = await getAuthToken();
+    const staleCount = await cleanupStaleEvalItems(supabase);
+    if (staleCount > 0) {
+      console.log(`  [l1] cleaned up ${staleCount} stale eval item(s)`);
+    }
+    const knownUUIDs = await getKnownUUIDs(supabase);
+    const evalItem = await createEvalItem(supabase);
+    try {
+      await runDiscoveryChecks(accessToken);
+      await runToolCallChecks(accessToken, knownUUIDs, evalItem);
+      await runErrorHandlingChecks(accessToken);
+    } finally {
+      try {
+        await deleteEvalItem(supabase, evalItem.id);
+      } catch {
+        // best-effort cleanup — non-fatal for the suite outcome
+      }
+    }
+  } catch (err) {
+    return {
+      ok: false,
+      kind: 'infra',
+      reason: `l1 setup failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+
+  const total = results.length;
+  const passed = results.filter((r) => r.status === 'PASS').length;
+  const pass_rate = total > 0 ? passed / total : 1;
+  return { ok: true, metrics: { pass_rate, total, passed } };
+}

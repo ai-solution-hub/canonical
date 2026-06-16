@@ -1128,3 +1128,53 @@ main().catch((err) => {
   }
   process.exit(2);
 });
+
+// ---------------------------------------------------------------------------
+// eval-runner integration (T23 / B-INV-23) — orchestration wiring only.
+// The check logic above (runTokenEfficiencyChecks, runSearchRelevanceChecks,
+// runStructuralQualityChecks) is UNCHANGED — only the orchestration around it
+// is rebuilt (spec §Area G). main() above continues to drive the CLI path.
+// ---------------------------------------------------------------------------
+
+import type { SuiteRunOutcome } from '@/scripts/eval-runner';
+
+/**
+ * Suite adapter for the central eval-runner ({104.14} / T23). Runs the L3
+ * response-quality checks — same logic as main() but without process.exit —
+ * and returns a {@link SuiteRunOutcome} the runner folds into its gate
+ * disposition. Called by the runner via the suite registry.
+ */
+export async function runAsEvalSuite(): Promise<SuiteRunOutcome> {
+  results.length = 0;
+
+  try {
+    loadEnv();
+    const { accessToken, supabase } = await getAuthToken();
+    const knownUUIDs = await getKnownUUIDs(supabase);
+
+    await runTokenEfficiencyChecks(accessToken, knownUUIDs);
+    // Skip search checks in runner invocation: avoids blocking on
+    // search-index state and keeps the gate deterministic.
+    for (const check of SEARCH_RELEVANCE_CHECKS) {
+      record(
+        'Search Relevance',
+        check.id,
+        check.label,
+        'SKIP',
+        'skipped in runner mode',
+      );
+    }
+    await runStructuralQualityChecks(accessToken, knownUUIDs);
+  } catch (err) {
+    return {
+      ok: false,
+      kind: 'infra',
+      reason: `l3 setup failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+
+  const total = results.length;
+  const passed = results.filter((r) => r.status === 'PASS').length;
+  const pass_rate = total > 0 ? passed / total : 1;
+  return { ok: true, metrics: { pass_rate, total, passed } };
+}
