@@ -1,0 +1,85 @@
+# ID-115 S10 — api Data API grant-guard + coverage drift check.
+#
+# Spins the local Supabase stack, applies all migrations (`db reset`), and runs
+# the two catalog-based guards on any PR that touches the migrations or the
+# generator/guard scripts:
+#
+#   1. `generate-api-views.ts --check` — the committed _api_views_and_rpcs
+#      migration is byte-identical to what the generator produces from the live
+#      catalog (idempotency + every view security_invoker + no api DEFINER +
+#      per-fn REVOKE-FROM-PUBLIC self-checks). A public table/column/RPC added
+#      without regenerating fails here.
+#   2. `check-api-view-coverage.ts` — coverage drift (every public base table is
+#      surfaced or internal-allow-listed, INV-16), security_invoker (INV-3),
+#      least-privilege grants (INV-10), set_config sole anon-exec (INV-20).
+#
+# NOTE: the legacy `migration-revoke-guard.yml` is RETAINED (not renamed) — it
+# still validly guards `public` SECURITY DEFINER hygiene (its diff-time REVOKE
+# lint is non-load-bearing now that public is unexposed, but its weekly cron
+# audit of anon-exec public functions remains meaningful). R7 self-block does
+# NOT occur: that guard keys on `CREATE FUNCTION public.` and ignores ID-115's
+# `api.` functions (verified).
+#
+# Spec: specs/id-115-data-api-schema-isolation PLAN S10 / TECH (g) / INV-2,3,10,16,20.
+
+name: API Grant Guard
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/config.toml"
+      - ".github/workflows/api-grant-guard.yml"
+      - "scripts/generate-api-views.ts"
+      - "scripts/check-api-view-coverage.ts"
+  workflow_dispatch: {}
+
+concurrency:
+  group:
+    api-grant-guard-${{ github.event_name }}-${{
+    github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api-grant-guard:
+    name: api grant-guard + coverage drift
+    if:
+      github.event_name != 'pull_request' || github.event.pull_request.draft ==
+      false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".node-version"
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start local stack + apply all migrations
+        # Brings up the local stack (incl. Postgres on 54322) and applies every
+        # migration in order. The guards only need the DB catalog. NOTE: no prior
+        # workflow spins a local stack in this repo — verify on first CI run.
+        run: supabase start
+      - name: Generator drift + self-checks (--check)
+        env:
+          API_VIEWS_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: bun run scripts/generate-api-views.ts --check
+      - name: api coverage + grant-hygiene guard
+        env:
+          API_VIEWS_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: bun run scripts/check-api-view-coverage.ts
+      - name: Stop local stack
+        if: always()
+        run: supabase stop --no-backup || true

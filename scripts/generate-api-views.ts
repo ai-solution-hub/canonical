@@ -67,7 +67,7 @@ type Role = (typeof ROLES)[number];
  * that never appear as a `.from('literal')` but are reached via `.from(variable)`
  * (SURFACE.md §3). Each MUST be a public BASE TABLE (asserted below).
  */
-const SURFACE_TABLES: readonly string[] = [
+export const SURFACE_TABLES: readonly string[] = [
   'ai_call_events',
   'application_types',
   'change_reports',
@@ -596,4 +596,4 @@ function main(): void {
   );
 }
 
-main();
+if (import.meta.main) main();
