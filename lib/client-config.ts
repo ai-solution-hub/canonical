@@ -295,15 +295,17 @@ function brandAssetExists(urlPath: string): boolean {
 
 /**
  * Assert that every branding asset path in a parsed config resolves to a real
- * file under `public/`. Called by {@link loadBranding} — i.e. at `next build`
- * time, AFTER `scripts/fetch-client-branding.ts` has downloaded the bucket
- * assets to `public/clients/<id>/`.
+ * file under `public/`. Called by `scripts/fetch-client-branding.ts` at BUILD
+ * time, AFTER it downloads the bucket assets to `public/clients/<id>/` — the
+ * fail-closed guardrail (a typo'd path or a config↔bucket mismatch fails the
+ * build, not a 404 in prod).
  *
- * Deliberately NOT a `BrandingConfigSchema` refinement: the fetch script parses
- * the DB config *before* those assets exist on disk, so a schema-level fs check
- * would fail the very build it is meant to enable (the asset is about to be
- * written). Enforcing it here keeps the fail-closed guardrail (a typo'd path
- * fails the build, not a 404 in prod) but only once the assets are present.
+ * Deliberately NOT called by {@link loadBranding}: `BRANDING = loadBranding()`
+ * also runs at module-eval under `next start`, so an fs throw there would 500
+ * every route (a missing asset must degrade to a 404, never crash the server).
+ * And it is NOT a `BrandingConfigSchema` refinement: the fetch script parses the
+ * DB config *before* the assets exist on disk, so a schema-level fs check would
+ * fail the very build it is meant to enable.
  */
 export function assertBrandAssetsExist(branding: BrandingConfig): void {
   const assetFields: ReadonlyArray<readonly [string, string | undefined]> = [
@@ -624,7 +626,6 @@ export function loadBranding(idOverride?: string): BrandingConfig {
   }
 
   const parsed = BrandingConfigSchema.parse(raw);
-  assertBrandAssetsExist(parsed);
   const report = validateBrandingContrast(parsed);
   for (const w of report.warnings) {
     // Build-time warning — printed to the build log so it's visible in

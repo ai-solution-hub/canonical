@@ -37,8 +37,10 @@ import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
+  assertBrandAssetsExist,
   BrandingConfigSchema,
   validateBrandingContrast,
+  type BrandingConfig,
 } from '@/lib/client-config';
 
 const DEFAULT_CLIENT_ID = 'default';
@@ -147,7 +149,12 @@ async function withStorageRetry<
 
 export type FetchClientBrandingResult =
   | { status: 'noop'; reason: 'default-client' | 'missing-credentials' }
-  | { status: 'written'; clientId: string; assetCount: number };
+  | {
+      status: 'written';
+      clientId: string;
+      assetCount: number;
+      branding: BrandingConfig;
+    };
 
 /**
  * Core fetch logic. Pure over its injected deps — no direct process.env, no
@@ -205,7 +212,7 @@ export async function runClientBrandingFetch(
 
   // Validate the document against the SAME schema + contrast gate the loader
   // uses at build time, so a malformed config fails here rather than later.
-  let branding;
+  let branding: BrandingConfig;
   try {
     branding = BrandingConfigSchema.parse(row.config);
   } catch (err) {
@@ -277,7 +284,7 @@ export async function runClientBrandingFetch(
       assetCount === 1 ? '' : 's'
     } to public/clients/${id}/.`,
   );
-  return { status: 'written', clientId: id, assetCount };
+  return { status: 'written', clientId: id, assetCount, branding };
 }
 
 // ---------------------------------------------------------------------------
@@ -314,6 +321,11 @@ async function main(): Promise<void> {
   if (result.status === 'noop') {
     process.exit(0);
   }
+  // status === 'written' — verify the referenced assets actually landed on disk
+  // (fail-closed at BUILD time, AFTER download). Deliberately NOT in
+  // loadBranding(): that also runs at `next start`, where a missing asset must
+  // degrade to a 404 on that asset, never crash every route at module-eval.
+  assertBrandAssetsExist(result.branding);
 }
 
 // Guard so importing the exported helpers (e.g. from Vitest) does not run the

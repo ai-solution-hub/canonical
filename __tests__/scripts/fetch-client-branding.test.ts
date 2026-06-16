@@ -276,6 +276,7 @@ describe('runClientBrandingFetch — happy path (client build, writes files)', (
       status: 'written',
       clientId: 'examplia',
       assetCount: 2,
+      branding: expect.objectContaining({ clientId: 'examplia' }),
     });
     expect(writers.json).toHaveLength(1);
     expect(writers.json[0].clientId).toBe('examplia');
@@ -315,6 +316,7 @@ describe('runClientBrandingFetch — happy path (client build, writes files)', (
       status: 'written',
       clientId: 'examplia',
       assetCount: 1,
+      branding: expect.objectContaining({ clientId: 'examplia' }),
     });
     const bucket = supabase.storage.from('branding');
     expect(bucket.download).toHaveBeenCalledTimes(2);
