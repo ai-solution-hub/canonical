@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   parseOklch,
   oklchToRelativeLuminance,
@@ -7,6 +7,7 @@ import {
   deriveDarkVariant,
   derivePrimaryForeground,
   BrandingConfigSchema,
+  assertBrandAssetsExist,
   type BrandingConfig,
   type OklchComponents,
 } from '@/lib/client-config';
@@ -334,5 +335,52 @@ describe('BrandingConfigSchema', () => {
     expect(result.homepageUrl).toBe('https://example.com');
     expect(result.logoMaxWidthPx).toBe(200);
     expect(result.logoAspectRatio).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// assertBrandAssetsExist (build-time loader fs guardrail — relocated out of the
+// schema so scripts/fetch-client-branding.ts can parse the DB config BEFORE the
+// bucket assets are downloaded to disk).
+// ---------------------------------------------------------------------------
+
+describe('assertBrandAssetsExist', () => {
+  // brandAssetExists() short-circuits to `true` when `window` is defined (the
+  // browser bundle skips the fs check). The default test env is jsdom, so stub
+  // `window` away to exercise the real node fs path this guardrail runs under at
+  // build time.
+  beforeEach(() => {
+    vi.stubGlobal('window', undefined);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const validConfig = {
+    clientId: 'test',
+    productName: 'Test Product',
+    productShortName: 'Test',
+    organisationName: 'Test Org',
+    tagline: 'A test tagline',
+    supportEmail: 'test@example.com',
+    brandPrimaryColour: 'oklch(0.5 0.1 200)',
+    logoUrl: '/favicon.svg',
+    logoAlt: 'Test logo',
+    faviconSvgUrl: '/favicon.svg',
+    faviconPngUrl: '/favicon.png',
+  };
+
+  it('passes when every asset path resolves to a file under public/', () => {
+    expect(() =>
+      assertBrandAssetsExist(BrandingConfigSchema.parse(validConfig)),
+    ).not.toThrow();
+  });
+
+  it('throws naming the offending field when an asset path is missing', () => {
+    const parsed = BrandingConfigSchema.parse({
+      ...validConfig,
+      faviconPngUrl: '/clients/does-not-exist/missing.png',
+    });
+    expect(() => assertBrandAssetsExist(parsed)).toThrow(/faviconPngUrl/);
   });
 });

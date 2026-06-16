@@ -267,10 +267,10 @@ export function parseOklch(s: string): OklchComponents | null {
 // ---------------------------------------------------------------------------
 
 /**
- * Check that a brand asset path (e.g. `/clients/example-client/logo.webp`) resolves to
- * a real file under `public/`. Used by the schema `.refine()` on every URL
- * field so a typo in the JSON fails the build rather than producing a 404
- * broken-image in production.
+ * Check that a brand asset path (e.g. `/clients/acme/logo.webp`) resolves to
+ * a real file under `public/`. Used by {@link assertBrandAssetsExist}, the
+ * build-time loader step, so a typo in the JSON fails the build rather than
+ * producing a 404 broken-image in production.
  *
  * In browser contexts (`typeof window !== 'undefined'`), returns `true` —
  * the validation already ran at build time. This avoids importing `fs`/`path`
@@ -290,6 +290,40 @@ function brandAssetExists(urlPath: string): boolean {
     return fsMod.statSync(abs).isFile();
   } catch {
     return false;
+  }
+}
+
+/**
+ * Assert that every branding asset path in a parsed config resolves to a real
+ * file under `public/`. Called by {@link loadBranding} — i.e. at `next build`
+ * time, AFTER `scripts/fetch-client-branding.ts` has downloaded the bucket
+ * assets to `public/clients/<id>/`.
+ *
+ * Deliberately NOT a `BrandingConfigSchema` refinement: the fetch script parses
+ * the DB config *before* those assets exist on disk, so a schema-level fs check
+ * would fail the very build it is meant to enable (the asset is about to be
+ * written). Enforcing it here keeps the fail-closed guardrail (a typo'd path
+ * fails the build, not a 404 in prod) but only once the assets are present.
+ */
+export function assertBrandAssetsExist(branding: BrandingConfig): void {
+  const assetFields: ReadonlyArray<readonly [string, string | undefined]> = [
+    ['logoUrl', branding.logoUrl],
+    ['logoUrlDark', branding.logoUrlDark],
+    ['faviconSvgUrl', branding.faviconSvgUrl],
+    ['faviconPngUrl', branding.faviconPngUrl],
+  ];
+  const missing = assetFields
+    .filter(([, value]) => value != null && !brandAssetExists(value))
+    .map(
+      ([field, value]) =>
+        `${field} (${value}) does not resolve to a file under public/`,
+    );
+  if (missing.length > 0) {
+    throw new Error(
+      `Branding asset validation failed — check the paths or the branding bucket:\n  - ${missing.join(
+        '\n  - ',
+      )}`,
+    );
   }
 }
 
@@ -355,18 +389,9 @@ export const BrandingConfigSchema = z.object({
     })
     .optional(),
   /** Path to the light-mode logo, relative to public/. */
-  logoUrl: z.string().startsWith('/').refine(brandAssetExists, {
-    message:
-      'logoUrl does not resolve to a file under public/. Check the path.',
-  }),
+  logoUrl: z.string().startsWith('/'),
   /** Optional dark-mode logo. If omitted, the light-mode logo is used. */
-  logoUrlDark: z
-    .string()
-    .startsWith('/')
-    .refine(brandAssetExists, {
-      message: 'logoUrlDark does not resolve to a file under public/.',
-    })
-    .optional(),
+  logoUrlDark: z.string().startsWith('/').optional(),
   /** Logo alt text — accessibility. UK English. */
   logoAlt: z.string().min(1).max(200),
   /** Max rendered width of the header logo in pixels. */
@@ -374,22 +399,9 @@ export const BrandingConfigSchema = z.object({
   /** Logo aspect ratio (width / height). Defaults to 3.0. */
   logoAspectRatio: z.number().positive().max(10).optional().default(3),
   /** Favicon SVG path relative to public/. Optional — not all clients have one. */
-  faviconSvgUrl: z
-    .string()
-    .startsWith('/')
-    .endsWith('.svg')
-    .refine(brandAssetExists, {
-      message: 'faviconSvgUrl does not resolve to a file under public/.',
-    })
-    .optional(),
+  faviconSvgUrl: z.string().startsWith('/').endsWith('.svg').optional(),
   /** Favicon PNG path relative to public/. */
-  faviconPngUrl: z
-    .string()
-    .startsWith('/')
-    .endsWith('.png')
-    .refine(brandAssetExists, {
-      message: 'faviconPngUrl does not resolve to a file under public/.',
-    }),
+  faviconPngUrl: z.string().startsWith('/').endsWith('.png'),
   /** Per-client entity classification disambiguation rules. */
   classificationDisambiguation: z
     .object({
@@ -612,6 +624,7 @@ export function loadBranding(idOverride?: string): BrandingConfig {
   }
 
   const parsed = BrandingConfigSchema.parse(raw);
+  assertBrandAssetsExist(parsed);
   const report = validateBrandingContrast(parsed);
   for (const w of report.warnings) {
     // Build-time warning — printed to the build log so it's visible in
