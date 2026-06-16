@@ -1,0 +1,540 @@
+[
+  {
+    "question_id": "eval-bid-001",
+    "question_text": "Describe your organisation's approach to data protection and GDPR compliance. Please include details of your registration with the Information Commissioner's Office, your Data Protection Officer arrangements, and how you ensure ongoing compliance with the UK GDPR and Data Protection Act 2018.",
+    "word_limit": 500,
+    "section_name": "Information Governance",
+    "reference_response": "Example Client Limited maintains a comprehensive approach to data protection and GDPR compliance, underpinned by our ISO 27001 certification and Cyber Essentials Plus accreditation.\n\nICO Registration and Governance\n\nWe are registered with the UK Information Commissioner's Office and maintain our registration on an ongoing basis. Our designated Data Protection Officer oversees all data protection matters and ensures that our processing activities remain compliant with the UK GDPR and Data Protection Act 2018.\n\nCompliance Framework\n\nOur data protection compliance framework is built upon the seven foundational principles of UK GDPR: lawfulness, fairness and transparency; purpose limitation; data minimisation; accuracy; storage limitation; integrity and confidentiality; and accountability. We maintain Records of Processing Activities in accordance with GDPR Article 30, which detail the purpose of processing, categories of data subjects, and retention periods for all personal data we handle.\n\nWe conduct Data Protection Impact Assessments (DPIAs) for any new processing activities that are likely to result in a high risk to individuals, in line with ICO guidance. Our DPIA process is initiated early in project planning to ensure that data protection considerations are embedded from the outset.\n\nStaff Training and Awareness\n\nAll employees receive data protection and security awareness training upon commencement of employment, with mandatory annual refresher training thereafter. Completion of training is logged and monitored to ensure full compliance. Additional specialist training is provided to system administrators and staff with privileged access to personal data.\n\nBreach Management\n\nWe maintain a documented incident management procedure that outlines the steps to be taken in the event of a personal data breach, including notification to the ICO within 72 hours where required, and communication with affected individuals in accordance with our statutory obligations.\n\nThird-Party Management\n\nAll employees, contractors, and temporary staff sign contracts containing confidentiality and non-disclosure agreements. Where we engage sub-processors, appropriate Data Processing Agreements are in place to ensure the same level of data protection is maintained throughout our supply chain.",
+    "human_scores": {
+      "completeness": 5,
+      "evidence_strength": 5,
+      "compliance_language": 5,
+      "structure": 5,
+      "overall": 5
+    },
+    "expected_kb_items_used": [
+      "375f6679-6744-4918-9d07-9f6c5afdc420",
+      "8c01e620-1761-483b-ad03-9550bdb03568",
+      "37e48833-90c0-492c-ba02-11d9b0b50de1",
+      "9b53f658-acd6-42f3-8745-5e2c3b04133a",
+      "e1ab4e9e-9ac2-4d6c-8f88-a97b18b66e86",
+      "0efd19a0-259e-429e-888c-9f545782aff0"
+    ],
+    "notes": "Tests comprehensive GDPR response drawing from multiple KB sources. Exemplar response — highest possible scores. Validates citation of ICO registration, DPO, DPIA, Article 30, and training content."
+  },
+  {
+    "question_id": "eval-bid-002",
+    "question_text": "Please provide details of your organisation's information security certifications and accreditations. For each certification, confirm the scope, certifying body, and current validity.",
+    "word_limit": 300,
+    "section_name": "Security Certifications",
+    "reference_response": "Example Client Limited holds the following information security certifications and accreditations:\n\nISO 27001:2022 — Information Security Management System\nOur ISO 27001 certification covers our information security management system across all business operations, including the design, development, and delivery of digital services and audit platforms. The certification is independently audited and maintained on an annual surveillance cycle.\n\nCyber Essentials Plus\nWe hold Cyber Essentials Plus certification, the highest level of the NCSC-backed scheme. This involves an independent, hands-on technical verification of our security controls, including vulnerability testing of our internet-facing systems. Our certification is renewed annually.\n\nISO 9001 — Quality Management System\nOur ISO 9001 certification demonstrates our commitment to consistent quality management across all service delivery processes.\n\nAll certificates are available for inspection upon request, and current validity can be independently verified through the respective certification bodies.",
+    "human_scores": {
+      "completeness": 5,
+      "evidence_strength": 5,
+      "compliance_language": 5,
+      "structure": 5,
+      "overall": 5
+    },
+    "expected_kb_items_used": [
+      "3b80e08d-08f2-485b-98b4-5140644476f5",
+      "8bea7d5d-7257-4684-94b5-06dff35f962c",
+      "b464405b-ce10-492d-b976-f93a4cd9bb0a",
+      "39482f91-6b04-4fe2-b581-cfdb3a407dd9"
+    ],
+    "notes": "Short-form response testing concise certification listing. Tests ability to pull from both Example Client-specific and reference certification content. Under 300 word limit."
+  },
+  {
+    "question_id": "eval-bid-003",
+    "question_text": "What measures do you have in place to protect data in transit and at rest? Please describe the encryption standards used, including algorithms, key management practices, and how you ensure the confidentiality of data transmitted over public networks.",
+    "word_limit": 500,
+    "section_name": "Data Encryption",
+    "reference_response": "Example Client Limited employs robust encryption measures to protect data both in transit and at rest, in accordance with current NCSC guidance and industry best practice.\n\nData in Transit\n\nAll data transmitted between our systems and client environments is protected using TLS 1.2 or higher. Our web-based audit platform and all API endpoints enforce HTTPS with strong cipher suites. Data transmitted over public or untrusted networks is always protected by strong encryption algorithms, ensuring that interception or eavesdropping is not feasible.\n\nWhere data is transferred via email or file exchange, we utilise encrypted channels and advise clients on secure transfer methods. Our interfaces for data transfer are documented and secured using industry-standard protocols.\n\nData at Rest\n\nCustomer data stored in our databases and backup systems is encrypted at rest using AES-256 encryption. This applies to all production databases, backup storage, and any offline media. Our hosting infrastructure at our UK primary data centre provides additional physical security controls to complement our encryption measures.\n\nAll employee laptops are encrypted using full-disk encryption, and we maintain a clear desk and clear screen policy to prevent unauthorised access to data on endpoint devices.\n\nKey Management\n\nEncryption keys are managed in accordance with our ISO 27001-certified information security management system. Keys are rotated on a scheduled basis and access to key material is restricted to authorised personnel only, following the principle of least privilege.\n\nAnonymisation and Minimisation\n\nWhere appropriate, we employ data anonymisation capabilities in live environments to further reduce risk. We adhere to data minimisation principles, ensuring that only the minimum necessary personal data is collected and processed.",
+    "human_scores": {
+      "completeness": 5,
+      "evidence_strength": 4,
+      "compliance_language": 5,
+      "structure": 5,
+      "overall": 5
+    },
+    "expected_kb_items_used": [
+      "d2f72f9f-03ea-45f3-b0ae-affdae0fd847",
+      "8195aa14-fb46-4312-a35b-95f151ea94d8",
+      "75cc56ce-fe3b-4649-b0fb-b8ec281854a5",
+      "7e3baab1-f836-40ca-a74e-64b73bed6a2c",
+      "4e0e89b2-48a0-4cc6-af6e-d4249560fc38",
+      "973727f0-cf14-4e0c-9490-900f14beadcf"
+    ],
+    "notes": "Tests encryption-specific content synthesis. Evidence strength is 4 not 5 because some algorithm specifics come from general knowledge rather than explicit KB entries."
+  },
+  {
+    "question_id": "eval-bid-004",
+    "question_text": "Describe your organisation's access control policies and procedures. How do you ensure that access to systems and data is restricted to authorised personnel only?",
+    "word_limit": 400,
+    "section_name": "Access Control",
+    "reference_response": "Example Client Limited operates a comprehensive access control framework aligned with our ISO 27001 certification and the principle of least privilege.\n\nRole-Based Access Control\n\nAccess to all systems, networks, and data is granted on a role-based basis, ensuring that individuals only have access to the information and systems necessary for their specific duties. All user accounts are attributable to uniquely identifiable individuals to maintain accountability and support audit trail requirements.\n\nAccess Reviews\n\nElevated access rights are reviewed on a regular basis, with privileged account access subject to quarterly reviews. Standard user access is reviewed at least annually. When staff change roles or leave the organisation, access is promptly revoked or modified in accordance with our joiners, movers, and leavers procedures.\n\nAuthentication Controls\n\nWe enforce sufficiently complex password criteria across all networks, operating systems, and applications. Where supported, our systems offer Single Sign-On (SSO) integration via SAML to integrate with client identity management systems. Multi-factor authentication is mandated for all administrative and privileged access.\n\nPhysical Access\n\nPhysical access to our office premises, server rooms, and workstations is controlled through secure entry mechanisms. Third-party and visitor access to secure locations is managed through a documented sign-in process with escort requirements. Additional security controls are in place for sensitive areas.\n\nDeveloper Access Separation\n\nDevelopers are restricted from having direct access to live production environments. Segregation of duties matrices are maintained to ensure that no single individual can both develop and deploy changes without appropriate oversight.\n\nAudit Logging\n\nWe retain comprehensive audit logs recording privileged user access activities, authorised and unauthorised access attempts, and system exceptions.",
+    "human_scores": {
+      "completeness": 5,
+      "evidence_strength": 5,
+      "compliance_language": 5,
+      "structure": 5,
+      "overall": 5
+    },
+    "expected_kb_items_used": [
+      "3248a73b-1f24-419b-a763-9787fdf36e62",
+      "cfea98a1-8d12-4e9a-bfbc-bbcaa9f15952",
+      "f60a3630-cb22-4a24-8915-4249a524e8b4",
+      "c96a4e55-c03f-43a4-b5bf-4a0aa48f728b",
+      "4fc1f8b3-39c2-4597-8beb-5cf5b770b23f",
+      "7ff4a4bc-e157-4b54-98bc-a9d9e5a62774"
+    ],
+    "notes": "Tests access control domain with multiple Q&A library entries. Rich KB coverage area — should produce strong evidence-backed response."
+  },
+  {
+    "question_id": "eval-bid-005",
+    "question_text": "Explain how your organisation protects its systems against malware and cyber threats. Include details of your vulnerability management programme, penetration testing regime, and incident detection capabilities.",
+    "word_limit": 500,
+    "section_name": "Cyber Security",
+    "reference_response": "Example Client Limited maintains a multi-layered approach to cyber security, underpinned by our Cyber Essentials Plus certification and ISO 27001 information security management system.\n\nMalware Protection\n\nWe deploy comprehensive anti-malware software across all systems, with definitions updated automatically to ensure protection against the latest threats. Installation of unauthorised software is prevented through endpoint management controls, and USB ports are locked down on all corporate devices to mitigate the risk of malware introduction via removable media.\n\nVulnerability Management\n\nTimely patching is a cornerstone of our security posture. Critical security patches are applied promptly upon release, with a documented patching schedule for all systems and applications. We maintain a register of all software components and monitor for known vulnerabilities, ensuring that no unsupported or unmaintained third-party components are present in our production environments.\n\nPenetration Testing\n\nOur systems undergo regular vulnerability scanning and penetration testing. Internally developed applications, including web applications, are subject to penetration testing at least annually, conducted by qualified independent testers using industry-recognised methodologies. Findings are remediated according to risk severity, with critical issues addressed immediately.\n\nIncident Detection and Response\n\nWe employ intrusion detection systems and security monitoring to identify potential security breaches. Our dedicated security team monitors for anomalous activity and maintains documented incident response procedures. Security incidents are escalated through a defined severity framework, ensuring appropriate and timely response.\n\nSecure Development Practices\n\nOur software developers are trained in secure coding methods and practices. Application code is tested for security vulnerabilities prior to release, and our development activities are undertaken through the implementation of secure development standards. Development and testing environments are adequately separated from live production environments.\n\nBoundary Protection\n\nAll systems with connections to untrusted networks are protected by boundary security controls, including firewalls and network segmentation. System and network environments are logically separated to ensure the segregation of production and non-production systems.",
+    "human_scores": {
+      "completeness": 5,
+      "evidence_strength": 5,
+      "compliance_language": 5,
+      "structure": 5,
+      "overall": 5
+    },
+    "expected_kb_items_used": [
+      "48b3e226-2d32-4670-b426-49f00c673efb",
+      "769e9b4c-e840-41f4-bf21-a00122f22fde",
+      "99728b25-dd34-4441-a486-58e0b14cdad6",
+      "5bcb9053-d857-4d8e-acd0-25fb6a907e84",
+      "5694d82d-260a-4ebd-91a4-14282684459c",
+      "12104418-c3e9-45c0-bbee-ef730fdd9e51"
+    ],
+    "notes": "Tests broad cyber security synthesis from NCSC 10 Steps reference and multiple Q&A library entries. One of the richest KB coverage areas."
+  },
+  {
+    "question_id": "eval-bid-006",
+    "question_text": "Please provide an overview of your organisation, including company size, structure, and relevant experience in delivering digital services to the public sector.",
+    "word_limit": 400,
+    "section_name": "Company Information",
+    "reference_response": "Example Client Limited is a UK-based SME specialising in the design, development, and delivery of digital services to the public sector. We are a small-to-medium enterprise as defined by the UK Government's SME criteria, with fewer than 250 employees.\n\nCompany Profile\n\nEstablished as a limited company registered with Companies House, Example Client Limited brings extensive experience in delivering bespoke digital solutions, with particular expertise in audit and compliance platforms for the education sector. Our company registration and VAT details are available upon request, and we hold a D-U-N-S number for international business identification.\n\nSector Experience\n\nOur primary markets include local government, education, and the wider public sector. We have delivered digital audit and compliance platforms to numerous clients, including local authorities, safeguarding partnerships, and multi-academy trusts. Our named client references and case studies demonstrate a track record of successful delivery in these sectors.\n\nTeam Structure\n\nOur team comprises experienced professionals across development, design, project management, and client support functions. Key personnel are identified for each project engagement, ensuring continuity and accountability throughout the contract lifecycle.\n\nValues and Approach\n\nExample Client Limited is committed to delivering social value through our work, with a focus on equal opportunity, wellbeing, and tackling economic inequality. Our company values emphasise transparency, quality, and a client-centred approach to service delivery.",
+    "human_scores": {
+      "completeness": 5,
+      "evidence_strength": 4,
+      "compliance_language": 4,
+      "structure": 5,
+      "overall": 4
+    },
+    "expected_kb_items_used": [
+      "0d6d527d-371c-42c8-a536-fc8a9812ae0c",
+      "0190b303-7f7b-4e9b-b168-ce42803e8ae6",
+      "2fb906ab-395d-407a-89e2-2b21a862bbf4",
+      "4425d08f-4b18-4041-aaf1-482fae18427f",
+      "da331dda-fe1f-4d80-8072-2e787539003c",
+      "171ecac2-531e-469d-83a6-ead3c2b4a995"
+    ],
+    "notes": "Tests corporate info synthesis. Evidence strength 4 because some details are necessarily general. Tests ability to present company profile in procurement context."
+  },
+  {
+    "question_id": "eval-bid-007",
+    "question_text": "Describe your business continuity and disaster recovery arrangements. What are your Recovery Time Objective (RTO) and Recovery Point Objective (RPO)?",
+    "word_limit": 500,
+    "section_name": "Business Continuity",
+    "reference_response": "Example Client Limited maintains comprehensive business continuity and disaster recovery (BCDR) arrangements to ensure the continued availability of our services.\n\nBusiness Continuity Planning\n\nOur business continuity plans are documented, regularly reviewed, and subject to testing at planned intervals and upon any significant organisational or environmental changes. The plans cover all critical business functions and are designed to ensure that service delivery can be maintained or rapidly resumed following a disruptive event.\n\nDisaster Recovery Infrastructure\n\nOur production systems are hosted at our UK primary data centre, which provides Tier III+ resilience including redundant power supplies, environmental controls, and physical security. We utilise a separate backup data centre located off-site to reduce the risk from environmental threats such as fire, flood, and power failure.\n\nBackup Strategy\n\nBackups are performed on a scheduled basis and stored securely at our off-site facility. Backup integrity is regularly verified through restoration testing. Our backup regime is designed to support our published Recovery Point Objective.\n\nRecovery Objectives\n\nOur Recovery Time Objective (RTO) defines the maximum acceptable time to restore services following an incident. Our Recovery Point Objective (RPO) defines the maximum acceptable data loss measured in time. These objectives are documented in our service level agreements and are tested through regular disaster recovery exercises.\n\nIncident Management\n\nWe have a dedicated team appropriately trained to manage information security incidents, including scenarios requiring invocation of our disaster recovery procedures. Our incident management process includes defined escalation procedures, communication protocols, and post-incident review to ensure continuous improvement.\n\nThird-Party Validation\n\nOur BCDR arrangements are validated by third-party audit as part of our ISO 27001 certification cycle, providing independent assurance of our recovery capabilities.",
+    "human_scores": {
+      "completeness": 4,
+      "evidence_strength": 4,
+      "compliance_language": 5,
+      "structure": 5,
+      "overall": 4
+    },
+    "expected_kb_items_used": [
+      "9d149777-f3cf-4343-ada6-cca72656a35e",
+      "55e91d1e-02d5-44aa-ac68-f845c3ba9ec0",
+      "9d0d05a7-f710-49aa-9540-e6dfbee47291",
+      "0d6bf3d9-105b-49bd-8948-1b1933106c1d",
+      "973727f0-cf14-4e0c-9490-900f14beadcf",
+      "e171d04d-a08b-4257-805f-09e33ec728b4"
+    ],
+    "notes": "Tests BCDR synthesis. Completeness 4 because specific RTO/RPO numeric values are not stated — the response handles this appropriately by referencing SLA documentation rather than fabricating numbers."
+  },
+  {
+    "question_id": "eval-bid-008",
+    "question_text": "What is the typical timeline for implementation of your system? Please include key milestones, resource requirements from the client, and any critical dependencies.",
+    "word_limit": 400,
+    "section_name": "Implementation Plan",
+    "reference_response": "Example Client Limited follows a structured implementation methodology designed to ensure successful deployment with minimal disruption to the client organisation.\n\nTypical Implementation Timeline\n\nOur standard implementation timeline encompasses the following phases:\n\nPhase 1 — Discovery and Configuration (Weeks 1-2)\nInitial scoping, requirements gathering, and system configuration. This phase includes stakeholder engagement, data migration planning, and environment setup.\n\nPhase 2 — Configuration and Testing (Weeks 3-4)\nSystem customisation, integration testing, and user acceptance testing. Client administrators are given access to the staging environment for review and feedback.\n\nPhase 3 — Training and Go-Live (Weeks 5-6)\nComprehensive training for administrators and end users, followed by a managed go-live with dedicated support. Our training programme covers both system operation and ongoing administration.\n\nPhase 4 — Post-Launch Support (Weeks 7-8)\nEnhanced support period with daily check-ins, issue resolution, and optimisation based on initial usage patterns.\n\nClient Resource Requirements\n\nSuccessful implementation requires the following commitments from the client:\n- A designated project lead with authority to make decisions\n- Subject matter experts for content review and validation\n- IT contact for any integration or network requirements\n- Availability for scheduled training sessions\n\nKey Success Factors\n\nOur experience has identified several critical success factors: early stakeholder engagement, clear communication channels, timely decision-making, and adequate time allocation for user training. We assign a dedicated project manager and point of contact for the duration of the implementation.",
+    "human_scores": {
+      "completeness": 5,
+      "evidence_strength": 4,
+      "compliance_language": 4,
+      "structure": 5,
+      "overall": 4
+    },
+    "expected_kb_items_used": [
+      "c9ed2c7f-b473-40f7-80d6-099558b82073",
+      "dc27eadf-8de1-45e6-9580-8ed91afebddf",
+      "09fac297-d6fa-44a9-a28f-fda6327694b1",
+      "613702eb-d293-4e90-b991-558c5a72524b",
+      "1835df14-2770-4cab-a6ff-7b27007e1b3f"
+    ],
+    "notes": "Tests implementation/deployment content synthesis. Evidence strength 4 as specific timelines may need adaptation. Tests milestone structuring ability."
+  },
+  {
+    "question_id": "eval-bid-009",
+    "question_text": "What support arrangements do you offer? Please detail your service level agreements, including response times by severity level, support hours, and escalation procedures.",
+    "word_limit": 500,
+    "section_name": "Support and Service Levels",
+    "reference_response": "Example Client Limited provides a comprehensive support service underpinned by clearly defined service level agreements.\n\nSupport Hours\n\nOur standard support service operates during UK business hours. Extended and out-of-hours support arrangements are available by agreement for critical systems.\n\nSeverity Levels and Response Times\n\nWe operate a tiered severity classification for support issues:\n\n- Severity 1 (Critical): Complete service outage or data loss affecting all users. Response within 1 hour, with continuous effort to resolution.\n- Severity 2 (High): Significant functionality impaired, no workaround available. Response within 4 hours during support hours.\n- Severity 3 (Medium): Partial functionality impaired, workaround available. Response within 1 business day.\n- Severity 4 (Low): Minor issue or enhancement request. Response within 3 business days.\n\nSupport Channels\n\nClients can raise support requests through multiple channels including our dedicated helpdesk portal, email, and telephone. All requests are logged in our issue management system with a unique reference number for tracking.\n\nEscalation Procedures\n\nOur escalation framework ensures that issues are addressed at the appropriate level:\n- Level 1: Initial triage and resolution by our support team\n- Level 2: Escalation to specialist technical staff\n- Level 3: Escalation to senior management and, where necessary, third-party vendor engagement\n\nClients are provided with named escalation contacts and can invoke the escalation procedure directly if response times are not being met.\n\nAccount Management\n\nEach client is assigned a dedicated account manager who provides a single point of contact for all service-related matters, conducts regular service reviews, and ensures that service level targets are being met.\n\nService Credits\n\nWhere agreed service levels are not met, service credits may be applied in accordance with the terms of the contract. Our performance measures are reported transparently to provide visibility of our service delivery.\n\nComplaint Procedures\n\nIn the event that a client is dissatisfied with any aspect of our service, our documented complaint procedure provides a structured process for resolution.",
+    "human_scores": {
+      "completeness": 5,
+      "evidence_strength": 5,
+      "compliance_language": 5,
+      "structure": 5,
+      "overall": 5
+    },
+    "expected_kb_items_used": [
+      "9cba7408-1d76-41d0-b4b3-6c5ea1d150b1",
+      "f31ba6df-44fc-4340-949b-d02bd775fa47",
+      "a9a8a019-8b4d-4267-a211-0ac8322092f7",
+      "ec448b61-83bb-48fa-8958-9b2532ee5a59",
+      "13af3bd9-e5c6-4a07-a1d2-41277812b216",
+      "baa69530-6608-49a7-9e05-067a2f38bb76",
+      "cbaa7ad1-4475-4087-95bb-c1000972d34a"
+    ],
+    "notes": "Tests SLA/support content — one of the richest KB areas. Should produce comprehensive, well-structured response drawing from multiple dedicated support content items."
+  },
+  {
+    "question_id": "eval-bid-010",
+    "question_text": "Describe your approach to managing risks during the implementation of a new system. How do you identify, assess, and mitigate project risks?",
+    "word_limit": 400,
+    "section_name": "Risk Management",
+    "reference_response": "Example Client Limited employs a structured approach to risk management throughout every implementation project, drawing on our extensive experience delivering digital services to the public sector.\n\nRisk Identification\n\nAt the outset of each project, we conduct a comprehensive risk assessment in collaboration with the client. This includes identification of technical risks (integration challenges, data migration complexity), organisational risks (change management, stakeholder engagement), and operational risks (resource availability, timeline dependencies). Our risk register is established during the discovery phase and maintained as a living document throughout the project.\n\nRisk Assessment and Prioritisation\n\nEach identified risk is assessed against two dimensions: likelihood and impact. Risks are scored and prioritised to ensure that mitigation efforts are focused on the highest-priority items. We use a standardised risk matrix that is shared with the client project team for transparency.\n\nMitigation Strategies\n\nOur risk mitigation approach includes:\n- Phased implementation to reduce complexity and enable early validation\n- Regular checkpoint meetings with client stakeholders to identify emerging risks\n- Dedicated project management oversight with clear escalation paths\n- Contingency planning for critical path activities\n- Parallel running periods where appropriate to reduce go-live risk\n\nOngoing Monitoring\n\nRisks are reviewed at every project meeting and formally reassessed at each phase gate. New risks are added to the register as they are identified, and mitigations are adjusted based on project progress. Our project manager provides regular risk reports to the client project board.\n\nLessons Learned\n\nFollowing each implementation, we conduct a lessons-learned review to capture risk management insights and continuously improve our approach for future projects.",
+    "human_scores": {
+      "completeness": 5,
+      "evidence_strength": 4,
+      "compliance_language": 5,
+      "structure": 5,
+      "overall": 4
+    },
+    "expected_kb_items_used": [
+      "e0a87af5-4134-4297-b0a3-ab40f0659e32",
+      "11653860-0e23-46e9-a2e6-834a1d6e8cb4",
+      "f82e2dc8-c57f-46df-a021-09d8778ad6e3",
+      "e729e486-bbf1-425b-8388-efc704390604"
+    ],
+    "notes": "Tests methodology/approach content. Evidence strength 4 because the KB has relatively fewer items in this area — the response synthesises well but draws on limited source material."
+  },
+  {
+    "question_id": "eval-bid-011",
+    "question_text": "Please confirm your organisation's insurance arrangements, including Professional Indemnity, Public Liability, Employers' Liability, and Cyber Liability cover. State the level of cover for each.",
+    "word_limit": 250,
+    "section_name": "Insurance",
+    "reference_response": "Example Client Limited maintains comprehensive business insurance as follows:\n\nProfessional Indemnity Insurance\nWe hold current Professional Indemnity insurance providing cover for claims arising from professional advice, services, or designs provided to our clients.\n\nPublic and Product Liability Insurance\nWe maintain Public and Product Liability insurance in excess of the statutory minimum requirements.\n\nEmployers' Liability Insurance\nWe hold current Employers' Liability insurance as required by law, providing cover for all employees.\n\nCyber Liability Insurance\nWe hold specific Cyber Liability insurance to cover data breach incidents, providing additional protection beyond our standard Professional Indemnity cover. This policy covers costs associated with breach notification, forensic investigation, and regulatory fines.\n\nAll insurance policies are reviewed annually and certificates of insurance are available for inspection upon request. Policy details including specific cover levels can be provided as part of the due diligence process.",
+    "human_scores": {
+      "completeness": 4,
+      "evidence_strength": 4,
+      "compliance_language": 5,
+      "structure": 5,
+      "overall": 4
+    },
+    "expected_kb_items_used": [
+      "f046c16c-a379-4ca2-98dc-34ce20cb7a35",
+      "8f494977-67ef-4434-ba71-de88d3ebf5d7",
+      "78d2f21b-e08e-4042-bff6-0bde5e878f0b",
+      "49804dc1-1862-49cb-a23f-d350139e88b4"
+    ],
+    "notes": "Short-form response (250 word limit). Completeness 4 because specific cover amounts are not stated — appropriate for a fixture where exact figures may vary. Tests concise corporate info retrieval."
+  },
+  {
+    "question_id": "eval-bid-012",
+    "question_text": "Describe your organisation's safeguarding policies and procedures. How do you ensure that personnel working with children and young people are appropriately vetted? Please reference relevant statutory guidance.",
+    "word_limit": 500,
+    "section_name": "Safeguarding",
+    "reference_response": "Example Client Limited takes its safeguarding responsibilities extremely seriously and maintains robust policies and procedures aligned with current statutory guidance.\n\nSafeguarding Policy Framework\n\nOur safeguarding policies are developed in accordance with the requirements of Working Together to Safeguard Children 2026 and Keeping Children Safe in Education 2025 (KCSiE). These policies are reviewed annually and updated to reflect changes in legislation and statutory guidance.\n\nPersonnel Vetting and Screening\n\nAll employees undergo comprehensive background screening as part of our recruitment process. This includes:\n- Enhanced Disclosure and Barring Service (EDBS) checks for all staff who may have contact with children or young people, or access to their data\n- Right-to-work verification\n- Reference checks covering a minimum of two previous employers\n- Qualification verification where relevant to the role\n\nAdditional enhanced screening is performed for staff in privileged roles, including those with administrative access to systems containing children's data. Our personnel screening and vetting policy is documented and available for inspection.\n\nTraining and Awareness\n\nAll staff receive safeguarding awareness training upon induction, with annual refresher training thereafter. Staff working directly with education sector clients receive additional specialist training on recognising and reporting safeguarding concerns in accordance with KCSiE requirements.\n\nConfidentiality and Data Handling\n\nAll employees sign contracts containing confidentiality clauses, and our data protection policies include specific provisions for the handling of children's personal data. Staff with access to organisation data, including contractors and temporary staff, undergo the same level of background screening as permanent employees.\n\nReporting and Escalation\n\nOur safeguarding procedures include clear reporting channels for concerns, with a designated safeguarding lead who acts as the point of contact for all safeguarding matters.",
+    "human_scores": {
+      "completeness": 5,
+      "evidence_strength": 5,
+      "compliance_language": 5,
+      "structure": 5,
+      "overall": 5
+    },
+    "expected_kb_items_used": [
+      "b290b62e-8f32-4cb8-b945-27087fecb611",
+      "0edb6a7a-e5e2-4d32-879b-58536dcf0d81",
+      "a3adb4ae-a389-44da-bdc3-539f2d1db7ce",
+      "e9437dc8-ea3a-4ded-bbc7-096e4a4f130a",
+      "50ff278d-f4c3-471a-b845-2982f70a209d",
+      "f18212f0-8907-4057-97eb-ca8e52d15a1a"
+    ],
+    "notes": "Tests safeguarding content — critical for education sector bids. References statutory guidance (Working Together, KCSiE). Strong KB coverage area with both reference articles and Q&A content."
+  },
+  {
+    "question_id": "eval-bid-013",
+    "question_text": "Explain how the system is compatible for use on phones and mobile devices. Please confirm supported browsers and operating systems.",
+    "word_limit": 250,
+    "section_name": "Technical Compatibility",
+    "reference_response": "Our audit platform is designed as a fully responsive web application, ensuring a consistent and accessible experience across all devices.\n\nMobile Compatibility\n\nThe system is built using responsive design principles, automatically adapting its layout and interface to suit the screen size of the device being used. Users can access the full functionality of the platform from smartphones and tablets without the need to install a separate application.\n\nSupported Browsers\n\nThe system is compatible with all major modern web browsers, including:\n- Google Chrome (latest two versions)\n- Mozilla Firefox (latest two versions)\n- Microsoft Edge (latest two versions)\n- Apple Safari (latest two versions)\n\nSupported Operating Systems\n\nThe platform operates on all major operating systems, including:\n- Windows 10 and above\n- macOS 12 and above\n- iOS 15 and above\n- Android 12 and above\n- ChromeOS\n\nAccessibility\n\nOur platform meets WCAG 2.1 AA accessibility standards, ensuring that users with disabilities can access and use the system effectively across all supported devices and browsers.",
+    "human_scores": {
+      "completeness": 5,
+      "evidence_strength": 4,
+      "compliance_language": 4,
+      "structure": 5,
+      "overall": 4
+    },
+    "expected_kb_items_used": [
+      "11e8fdca-6b3a-457f-97bd-c7f5c309d40d",
+      "1aed079b-c99e-43a4-a036-c418b7609585",
+      "893b55c2-0aa4-43c3-bba4-8c6f065345d6",
+      "cc27df5b-3a42-4256-b103-c245a109bba2"
+    ],
+    "notes": "Short-form technical question. Tests product-feature/usability and technical content. Compliance language 4 as this is more technical than procurement-formal."
+  },
+  {
+    "question_id": "eval-bid-014",
+    "question_text": "Describe your organisation's approach to social value. How do you contribute to the social, economic, and environmental wellbeing of the communities you serve? Please reference the Social Value Model themes where applicable.",
+    "word_limit": 500,
+    "section_name": "Social Value",
+    "reference_response": "Example Client Limited is committed to delivering meaningful social value through our operations and service delivery, aligned with the Crown Commercial Service Social Value Model themes.\n\nTheme 1: COVID-19 Recovery\n\nWe have supported our clients and communities through the ongoing recovery from the pandemic by providing digital solutions that enable remote working, online collaboration, and continued service delivery. Our cloud-based platforms have enabled organisations to maintain audit and compliance activities without the need for physical presence.\n\nTheme 2: Tackling Economic Inequality\n\nAs a UK-based SME, we contribute to tackling economic inequality through local employment, skills development, and investment in our workforce. We actively seek to create opportunities within our supply chain for other small businesses and social enterprises.\n\nTheme 3: Fighting Climate Change\n\nOur digital-first approach inherently reduces the environmental impact of the services we deliver. By replacing paper-based audit processes with digital workflows, we help our clients reduce their carbon footprint. We continuously seek to minimise our own environmental impact through sustainable business practices.\n\nTheme 4: Equal Opportunity\n\nExample Client Limited is committed to equal opportunity in all aspects of our business. We maintain policies that promote diversity and inclusion in our workforce, and our digital platforms are designed to meet WCAG 2.1 AA accessibility standards to ensure equal access for all users regardless of disability.\n\nTheme 5: Wellbeing\n\nWe invest in the wellbeing of our staff through flexible working arrangements, professional development opportunities, and a supportive working environment. Our services are designed to reduce administrative burden on public sector workers, contributing to improved workplace wellbeing for our clients' staff.\n\nMeasurement and Reporting\n\nWe are committed to transparently measuring and reporting on our social value contributions, and we work with clients to identify specific social value objectives for each contract.",
+    "human_scores": {
+      "completeness": 5,
+      "evidence_strength": 4,
+      "compliance_language": 5,
+      "structure": 5,
+      "overall": 5
+    },
+    "expected_kb_items_used": [
+      "7232aecc-8569-4b1a-9f53-69954a38de50",
+      "c7fc5f57-3a0b-4ec9-b4ed-b7ab404471d6",
+      "65f9895f-1cf9-4aa3-8715-1bbea04cce45",
+      "77c1681d-9942-43c3-8a6d-ad088d63d6c9",
+      "3bba2ed4-fc1e-4f7b-8d87-764dfedcc8b7",
+      "3ebf26a8-fa09-4e5f-b3c9-1fd1fc9a565b",
+      "6e546137-d596-4516-b8f7-004afc6febd2"
+    ],
+    "notes": "Tests social value content across multiple compliance/standards entries. References CCS Social Value Model themes. Evidence strength 4 because some responses require synthesis beyond explicit KB content."
+  },
+  {
+    "question_id": "eval-bid-015",
+    "question_text": "Please provide details of your sub-contractor management process. What due diligence do you perform on sub-contractors, and how do you ensure they meet the same security and data protection standards as your own organisation?",
+    "word_limit": 400,
+    "section_name": "Supply Chain Management",
+    "reference_response": "Example Client Limited maintains a rigorous sub-contractor management process aligned with NCSC Supply Chain Security principles and our ISO 27001 requirements.\n\nSub-Contractor Usage\n\nWe maintain transparency regarding our use of sub-contractors. Where sub-contractors are engaged, their scope of work and the specific parts of the service they deliver are clearly documented and communicated to the client. In accordance with the Public Contracts Regulations 2015, we ensure full compliance with supply chain transparency requirements.\n\nDue Diligence Process\n\nBefore engaging any sub-contractor, we conduct comprehensive due diligence including:\n- Assessment of their information security policies and certifications\n- Verification of relevant insurance cover\n- Review of their data protection arrangements and ICO registration\n- Background checks on key personnel who will have access to client data\n- Assessment of their business continuity arrangements\n\nContractual Controls\n\nAll sub-contractors are bound by contractual obligations that mirror our own security and data protection commitments, including:\n- Data Processing Agreements in compliance with UK GDPR requirements\n- Confidentiality and non-disclosure agreements\n- Right-to-audit clauses permitting inspection of their security controls\n- Defined security incident notification requirements\n\nOngoing Management\n\nSub-contractor performance and compliance is monitored on an ongoing basis. We conduct periodic reviews of their security posture and require notification of any material changes to their operations that could affect the security of our clients' data.\n\nSupply Chain Risk Management\n\nIn line with the NCSC's 12 Principles for Managing Supplier Risk, we maintain a risk-based approach to supply chain security, with enhanced scrutiny applied to sub-contractors who handle personal data or have access to client systems.",
+    "human_scores": {
+      "completeness": 5,
+      "evidence_strength": 5,
+      "compliance_language": 5,
+      "structure": 5,
+      "overall": 5
+    },
+    "expected_kb_items_used": [
+      "0a56f922-4aa9-464f-9f08-d3cdca38ddff",
+      "1109c632-9ff4-4651-9517-eb2560475555",
+      "9a5b4557-7baa-4191-b62f-45ebfa815f1b",
+      "5c19b0d0-93f9-4034-9615-00eaaa1c9286",
+      "6f1ea649-daa6-441d-9ae9-6c407545fe25"
+    ],
+    "notes": "Tests supply chain management — references NCSC Supply Chain Security principles and Public Contracts Regulations 2015. Good mix of reference articles and Q&A library content."
+  },
+  {
+    "question_id": "eval-bid-016",
+    "question_text": "Where is customer data stored? Please confirm the physical location of all data centres used, whether any data is stored or processed outside the UK, and the security measures in place at each facility.",
+    "word_limit": 400,
+    "section_name": "Data Location and Hosting",
+    "reference_response": "Example Client Limited stores and processes all customer data within the United Kingdom. We do not transfer, store, or process customer data outside the UK or the European Economic Area.\n\nPrimary Data Centre\n\nOur primary hosting infrastructure is located at our UK primary data centre in London Docklands. our UK primary data centre provides enterprise-grade physical security and environmental controls, including:\n- 24/7 on-site security with CCTV monitoring\n- Multi-factor physical access controls with biometric authentication\n- Redundant power supplies with UPS and diesel generator backup\n- Advanced fire detection and suppression systems\n- Precision environmental controls for temperature and humidity\n- Flood protection measures\n\nBackup and Disaster Recovery\n\nBackup data is stored at a geographically separate UK data centre to provide resilience against site-specific incidents. This secondary facility maintains equivalent physical security standards to our primary data centre.\n\nData Sovereignty\n\nAll customer data remains within UK jurisdiction at all times. Where we utilise cloud infrastructure components, these are configured to use UK-based regions only. We can provide written confirmation that no customer data is stored or processed outside the United Kingdom.\n\nThird-Party Data Centre Management\n\nOur data centre facilities are managed by established providers with relevant certifications including ISO 27001 and SOC 2. We maintain documented agreements with our hosting providers that include data location guarantees, security requirements, and right-to-audit provisions.",
+    "human_scores": {
+      "completeness": 5,
+      "evidence_strength": 5,
+      "compliance_language": 5,
+      "structure": 5,
+      "overall": 5
+    },
+    "expected_kb_items_used": [
+      "973727f0-cf14-4e0c-9490-900f14beadcf",
+      "fe09282a-1d64-4ef6-b844-d895f1364f1c",
+      "ba921871-df0e-44c6-acda-367f6561a1bd",
+      "375fd043-2f85-4e97-ab7e-eae76b47f49b",
+      "392d690d-76c1-470e-8379-eb6ae961e3a5",
+      "d65235bf-58cd-4cb2-a7bb-0e48bd5780e0"
+    ],
+    "notes": "Tests data location/hosting content. Strong evidence from our UK data centre provider fact sheet and multiple Q&A entries. Critical for public sector bids requiring UK data residency."
+  },
+  {
+    "question_id": "eval-bid-017",
+    "question_text": "Do you conduct regular security audits of your information security and data protection arrangements? Please detail the scope, frequency, and methodology of your audit programme.",
+    "word_limit": 300,
+    "section_name": "Security Auditing",
+    "reference_response": "Example Client Limited maintains a comprehensive security audit programme as a core element of our ISO 27001-certified information security management system.\n\nAudit Scope\n\nOur security audit programme covers all aspects of our information security and data protection arrangements, including:\n- Technical security controls and infrastructure\n- Data protection policies and their implementation\n- Access control procedures and compliance\n- Business continuity and disaster recovery arrangements\n- Staff training and awareness compliance\n- Third-party and supplier security\n\nAudit Frequency\n\nWe conduct internal security audits on a rolling basis throughout the year, with each area reviewed at least annually. Our ISO 27001 certification is subject to annual surveillance audits by our independent certification body, with a full re-certification audit every three years.\n\nPenetration testing is conducted at least annually by qualified independent testers, with additional testing performed following significant system changes.\n\nMethodology\n\nOur audit methodology follows the ISO 27001 internal audit framework, supplemented by NCSC guidance and industry best practice. An independent function reviews our security processes and systems for compliance with our published policies and applicable regulatory requirements.\n\nFindings from all audits are tracked through to resolution, with management reviews conducted to ensure continuous improvement of our security posture.",
+    "human_scores": {
+      "completeness": 5,
+      "evidence_strength": 5,
+      "compliance_language": 5,
+      "structure": 5,
+      "overall": 5
+    },
+    "expected_kb_items_used": [
+      "f8ee8a08-5063-4803-92c1-f2513b68e6c0",
+      "c2ea398b-ed1a-41d9-8a73-9987c1fa22e0",
+      "ba14e54a-38b4-4a81-822d-d965930fa34c",
+      "16b8f44e-7d19-4270-8498-7da73caf2217",
+      "bbbc5a87-39e5-4b8a-ad6e-d777513c1aac"
+    ],
+    "notes": "Short-form response (300 word limit). Tests compliance/audit content. Strong KB coverage with dedicated audit Q&A entries."
+  },
+  {
+    "question_id": "eval-bid-018",
+    "question_text": "Please give an overview of the system's purpose and how it will work. If you are providing a service, please detail what it involves, how it is managed, and the benefits to the end user.",
+    "word_limit": 750,
+    "section_name": "Solution Overview",
+    "reference_response": "Example Client Limited provides a comprehensive digital audit and compliance platform designed specifically for the public sector, with particular expertise in safeguarding and education.\n\nSystem Purpose\n\nOur platform enables organisations to conduct, manage, and report on statutory audits and compliance assessments through a single, centralised digital system. The system replaces traditional paper-based and spreadsheet-driven audit processes with a streamlined, automated workflow that improves efficiency, accuracy, and oversight.\n\nCore Functionality\n\nThe platform provides the following key capabilities:\n\nAudit Management\n- Self-registration for audit participants, reducing administrative overhead\n- Dynamic audit creation with configurable question sets that can be tailored to different groups or requirements\n- Full audit trail recording all changes, with version history for complete transparency\n- Automated invitations and reminders to ensure timely completion\n- Support for multiple audit types including Section 11, Section 175, and bespoke compliance audits\n\nAction Planning\n- Automatic generation of action plans based on audit responses\n- Multi-Academy Trust (MAT) aggregated action plans for education sector clients\n- Progress tracking with status updates and deadline management\n\nReporting and Analysis\n- Comprehensive reporting suite with configurable dashboards\n- Export functionality for data in standard formats\n- Trend analysis across audit cycles for longitudinal comparison\n- Print and email capabilities for offline distribution\n\nMulti-Department Support\n- A single platform instance can support multiple departments or organisations\n- Role-based access ensures data segregation between organisational units\n- Centralised administration with delegated management capabilities\n\nService Management\n\nOur service is fully managed by our experienced team:\n\n- Dedicated account manager for each client\n- Ongoing platform configuration and maintenance\n- Regular system updates and feature enhancements\n- Comprehensive support via multiple channels (helpdesk, email, telephone)\n- Proactive notification of system maintenance and releases\n\nAdded Value Services\n\nIncluded at no extra cost, our standard service encompasses:\n- Initial system configuration and data migration\n- Comprehensive training for administrators and end users\n- Ongoing technical support during UK business hours\n- Regular platform updates incorporating new features and security patches\n- Annual account review with strategic recommendations\n\nBenefits to End Users\n\nThe platform delivers tangible benefits to all stakeholders:\n\nFor Administrators: Reduced administrative burden, real-time visibility of completion rates, automated chasing and reminders, and centralised reporting.\n\nFor Audit Participants: Intuitive, user-friendly interface accessible from any device, ability to save and return to in-progress audits, and clear guidance throughout the process.\n\nFor Senior Leaders: Strategic oversight through aggregated reporting, evidence-based decision making, and demonstrable compliance with statutory requirements.\n\nKeeping Children Safe in Education Compliance\n\nOur platform is specifically designed to support compliance with the latest Keeping Children Safe in Education (KCSiE) guidance, enabling education providers to demonstrate their safeguarding arrangements through a structured, auditable process.\n\nAccessibility\n\nThe system meets WCAG 2.1 AA accessibility standards and is compatible with assistive technologies, ensuring equal access for all users regardless of disability.",
+    "human_scores": {
+      "completeness": 5,
+      "evidence_strength": 5,
+      "compliance_language": 4,
+      "structure": 5,
+      "overall": 5
+    },
+    "expected_kb_items_used": [
+      "c8d0f04f-1961-419c-92e1-1043dc37b019",
+      "5e5809e6-194d-4558-8c92-85ae7417c52b",
+      "90904dd6-aac6-46f0-9d5d-5dd3786739d4",
+      "41af549c-82f6-44ae-8de4-118aaad34923",
+      "13485e92-a8b3-473f-bfbb-b2594879f69b",
+      "db263f97-4cfd-4e41-a748-f5820970e8b5",
+      "fae87e25-9680-49cb-bc34-84632af9c368",
+      "b147a3f3-ea04-4c91-8873-14e31e7a3600"
+    ],
+    "notes": "Longest response (750 word limit). Tests comprehensive product overview synthesis from many product-feature entries. Compliance language 4 — appropriately more descriptive/marketing than formal procurement language."
+  },
+  {
+    "question_id": "eval-bid-019",
+    "question_text": "How do you manage staff security clearance checks? Please describe your vetting procedures for employees who will have access to sensitive data, including any enhanced checks for privileged roles.",
+    "word_limit": 300,
+    "section_name": "Personnel Security",
+    "reference_response": "Example Client Limited operates a robust personnel security framework to ensure that all staff with access to sensitive data are appropriately vetted.\n\nPre-Employment Screening\n\nAll prospective employees undergo comprehensive verification checks prior to commencement, including:\n- Identity verification and right-to-work checks\n- Employment history verification covering a minimum period\n- Criminal record checks appropriate to the role\n- Qualification verification where relevant\n- Credit checks where appropriate for the role\n\nEnhanced Checks for Privileged Roles\n\nStaff in privileged roles — including system administrators, developers with access to production data, and those with elevated system permissions — undergo additional enhanced screening. This includes Enhanced DBS checks and, where applicable, security vetting to the appropriate level for the client engagement.\n\nOngoing Compliance\n\nSecurity clearance is not a one-off exercise. We conduct periodic re-screening at defined intervals and require employees to disclose any changes in circumstances that may affect their security status. Staff with security responsibilities are required to maintain appropriate qualifications and certifications (such as CISSP or CISM).\n\nContractual Obligations\n\nAll employees sign contracts containing confidentiality clauses and are required to acknowledge our information security and acceptable use policies. The consequences of policy breaches are clearly documented and enforced.",
+    "human_scores": {
+      "completeness": 5,
+      "evidence_strength": 5,
+      "compliance_language": 5,
+      "structure": 5,
+      "overall": 5
+    },
+    "expected_kb_items_used": [
+      "e48b762c-6c1d-4517-98db-0aa95285f5bf",
+      "7d441c28-3c41-4fe3-ad68-342620c3276e",
+      "de9ca7cf-988a-4678-bbf4-4def4b04dc42",
+      "05919897-add7-4da5-9aab-e65adb5d61dd",
+      "79d83291-f7b7-4292-b09c-8f8751114316",
+      "b18299d7-b995-49a3-9aab-da3b78150c90"
+    ],
+    "notes": "Tests corporate/staffing content. Concise response under 300 words. Good KB coverage with multiple Q&A entries about vetting and screening."
+  },
+  {
+    "question_id": "eval-bid-020",
+    "question_text": "What training and support do you provide during and after implementation? Please describe the training methodology, who receives training, and ongoing support arrangements.",
+    "word_limit": 400,
+    "section_name": "Training and Support",
+    "reference_response": "Example Client Limited provides comprehensive training and support throughout the implementation lifecycle and beyond.\n\nTraining During Implementation\n\nOur training programme is delivered in phases aligned with the implementation timeline:\n\nAdministrator Training\nLocal administrators receive in-depth training covering system configuration, user management, audit creation and management, reporting, and ongoing administration tasks. Training is delivered through a combination of live workshops and recorded materials for future reference.\n\nEnd-User Training\nEnd users receive focused training on their specific workflows, including how to complete audits, respond to actions, and navigate the platform. Training is designed to be accessible and is delivered in manageable sessions to maximise retention.\n\nTrain-the-Trainer\nWhere appropriate, we offer a train-the-trainer model, equipping designated client staff to deliver ongoing training to new users within their organisation.\n\nTraining Methodology\n\nOur training approach includes:\n- Live, interactive sessions (delivered remotely or on-site as required)\n- Step-by-step user guides and quick-reference materials\n- Video tutorials for common tasks\n- Sandbox environments for hands-on practice\n- Follow-up sessions to address questions arising from initial use\n\nOngoing Support\n\nFollowing go-live, clients have access to our standard support service:\n- Dedicated helpdesk accessible via portal, email, and telephone\n- Defined response times by severity level\n- Account manager for strategic queries and service reviews\n- Regular system updates with advance notification\n- Knowledge base of frequently asked questions and guidance articles\n\nPost-Implementation Review\n\nWe conduct a formal post-implementation review to assess training effectiveness and identify any additional support needs. Further training sessions can be arranged as required, particularly when new features are released or when new staff join the client organisation.",
+    "human_scores": {
+      "completeness": 5,
+      "evidence_strength": 4,
+      "compliance_language": 4,
+      "structure": 5,
+      "overall": 4
+    },
+    "expected_kb_items_used": [
+      "f314d09e-b80d-463c-81c7-32824b734f73",
+      "d42ccbca-942c-4b7a-b302-55d1ae6ad870",
+      "70e5d543-d859-47ea-86e3-0c927b003a27",
+      "0ba98f4a-766e-4531-88c9-7c346e39ee0f",
+      "3ea67136-5670-4475-82d4-c166d049cc21"
+    ],
+    "notes": "Tests support/helpdesk content synthesis with implementation/training content. Evidence strength 4 as training methodology details extend beyond explicit KB content."
+  },
+  {
+    "question_id": "eval-bid-021",
+    "question_text": "Describe how you ensure system availability and uptime. What are your published availability targets, and how do you manage planned and unplanned maintenance?",
+    "word_limit": 300,
+    "section_name": "System Availability",
+    "reference_response": "Example Client Limited is committed to delivering high system availability, underpinned by our robust hosting infrastructure and operational procedures.\n\nAvailability Targets\n\nOur published system availability targets are defined in our service level agreements. We measure availability on a monthly basis, excluding scheduled maintenance windows, and report transparently against our targets.\n\nInfrastructure Resilience\n\nOur systems are hosted at our UK primary data centre, which provides Tier III+ resilience with redundant power, cooling, and network connectivity. Our architecture is designed with redundancy at each layer to minimise single points of failure.\n\nPlanned Maintenance\n\nPlanned maintenance is scheduled during off-peak hours and clients are notified in advance through our standard communication channels. We provide early awareness and notification of system maintenance, development releases, and technical updates to ensure minimal disruption.\n\nUnplanned Maintenance\n\nIn the event of an unplanned outage, our incident management procedures are invoked immediately. Clients are notified of the issue, expected resolution time, and provided with regular updates until service is restored. Post-incident reviews are conducted for all significant outages.\n\nPerformance Monitoring\n\nWe employ continuous monitoring of system performance and availability, enabling proactive identification and resolution of potential issues before they impact service delivery.",
+    "human_scores": {
+      "completeness": 4,
+      "evidence_strength": 4,
+      "compliance_language": 5,
+      "structure": 5,
+      "overall": 4
+    },
+    "expected_kb_items_used": [
+      "8520e87c-e52e-4e23-b734-2b4ba7daf653",
+      "4cc188d4-4253-472a-bbb4-58f5f58cd1c2",
+      "6bbe9164-23f1-48cd-8418-718340d212f7",
+      "973727f0-cf14-4e0c-9490-900f14beadcf"
+    ],
+    "notes": "Tests system availability content. Completeness 4 because specific uptime percentage targets are referenced to SLA rather than stated explicitly."
+  },
+  {
+    "question_id": "eval-bid-022",
+    "question_text": "Please detail your implementation plan including key milestones, quality thresholds, and service user/commissioner sign-off points. Describe how you will work with us to ensure a successful transition.",
+    "word_limit": 1000,
+    "section_name": "Mobilisation and Transition",
+    "reference_response": "Example Client Limited proposes the following implementation plan, designed to ensure a structured, transparent, and collaborative transition to our platform.\n\nImplementation Methodology\n\nOur implementation approach is based on an agile methodology adapted for public sector requirements, combining iterative delivery with the governance and documentation standards expected in formal procurement. We assign a dedicated project manager who serves as your single point of contact throughout the implementation.\n\nPhase 1: Discovery and Planning (Weeks 1-3)\n\nObjective: Establish project foundations and detailed requirements.\n\nKey Activities:\n- Kick-off meeting with key stakeholders\n- Detailed requirements gathering workshops\n- Review of existing processes and data\n- Data migration assessment and planning\n- Risk assessment and mitigation planning\n- Detailed project plan and milestone schedule\n\nQuality Threshold: Signed-off requirements document and project plan.\nSign-off Point: Commissioner approval of project plan and timeline.\n\nPhase 2: Configuration and Customisation (Weeks 4-7)\n\nObjective: Configure the platform to meet agreed requirements.\n\nKey Activities:\n- System configuration based on agreed requirements\n- Question set creation and customisation for different groups\n- Branding and identity customisation\n- Integration configuration (SSO, data feeds as required)\n- Data migration execution (if applicable)\n- Internal quality assurance testing\n\nQuality Threshold: All configured features pass internal QA against requirements.\nSign-off Point: Client review and approval of configured system in staging environment.\n\nPhase 3: User Acceptance Testing (Weeks 8-9)\n\nObjective: Validate the system meets client expectations.\n\nKey Activities:\n- Client access to staging environment\n- Structured UAT programme with test scripts\n- Issue logging and resolution\n- Performance and accessibility testing\n- Data migration validation\n\nQuality Threshold: Zero critical or high-severity defects; all UAT test cases passed.\nSign-off Point: Formal UAT sign-off by designated client authority.\n\nPhase 4: Training (Weeks 10-11)\n\nObjective: Equip all users with the skills to use the platform effectively.\n\nKey Activities:\n- Administrator training (detailed, hands-on workshops)\n- End-user training sessions (tailored to role)\n- Train-the-trainer sessions where appropriate\n- Distribution of user guides and reference materials\n- Sandbox environment for practice\n\nQuality Threshold: Training satisfaction scores above agreed minimum; all designated users have completed training.\nSign-off Point: Training completion confirmed by client project lead.\n\nPhase 5: Go-Live (Week 12)\n\nObjective: Managed transition to live service.\n\nKey Activities:\n- Final pre-go-live checks\n- Production environment deployment\n- DNS and access configuration\n- Communication to end users\n- Go-live support with enhanced monitoring\n\nQuality Threshold: All pre-go-live checks passed; monitoring confirms normal operation.\nSign-off Point: Go-live confirmation by client project lead.\n\nPhase 6: Hypercare and Stabilisation (Weeks 13-16)\n\nObjective: Ensure smooth operation and address any initial issues.\n\nKey Activities:\n- Enhanced support with daily check-ins\n- Rapid response to any issues\n- Usage monitoring and optimisation recommendations\n- Collection of user feedback\n- Post-implementation review preparation\n\nQuality Threshold: Service level targets met throughout hypercare period.\nSign-off Point: Post-implementation review and formal transition to standard support.\n\nGovernance and Communication\n\nThroughout the implementation, we maintain the following governance arrangements:\n- Weekly progress reports with RAG status against milestones\n- Fortnightly steering group meetings with senior stakeholders\n- Risk and issue logs maintained and shared transparently\n- Change control process for any scope variations\n\nResource Requirements from the Client\n\nSuccessful delivery requires the following client commitments:\n- Named project lead with decision-making authority\n- Subject matter experts for requirements validation and UAT\n- IT representative for integration and infrastructure matters\n- Stakeholders available for sign-off at each gate\n- Adequate time allocation for training attendance\n\nKey Success Factors\n\nOur experience delivering similar implementations has identified the following critical success factors:\n- Early and sustained stakeholder engagement\n- Clear decision-making processes and timely approvals\n- Realistic timelines with contingency built in\n- Open and honest communication between both parties\n- Commitment to the agreed governance framework\n\nRisk Management\n\nWe maintain a project risk register from day one, reviewed at each progress meeting. Standard mitigations are in place for common implementation risks, with bespoke mitigations developed for project-specific risks identified during the discovery phase.",
+    "human_scores": {
+      "completeness": 5,
+      "evidence_strength": 4,
+      "compliance_language": 5,
+      "structure": 5,
+      "overall": 5
+    },
+    "expected_kb_items_used": [
+      "e729e486-bbf1-425b-8388-efc704390604",
+      "11653860-0e23-46e9-a2e6-834a1d6e8cb4",
+      "c9ed2c7f-b473-40f7-80d6-099558b82073",
+      "09fac297-d6fa-44a9-a28f-fda6327694b1",
+      "613702eb-d293-4e90-b991-558c5a72524b",
+      "e0a87af5-4134-4297-b0a3-ab40f0659e32",
+      "1835df14-2770-4cab-a6ff-7b27007e1b3f"
+    ],
+    "notes": "Longest question (1000 word limit). Tests comprehensive implementation plan synthesis. Evidence strength 4 as specific phase details extend beyond explicit KB content. Tests structured milestone presentation with sign-off gates."
+  },
+  {
+    "question_id": "eval-bid-023",
+    "question_text": "Would you be able to provide three business references if we were to ask for them? Please confirm the sectors and approximate contract values.",
+    "word_limit": 200,
+    "section_name": "References",
+    "reference_response": "Yes, Example Client Limited is able to provide three business references upon request.\n\nOur reference clients span the public sector, with particular depth in:\n- Local government safeguarding partnerships\n- Multi-academy trusts and education providers\n- Local authority audit and compliance programmes\n\nOur named clients and case studies demonstrate successful delivery of digital audit and compliance platforms across these sectors. Contract values range from small-scale single-department deployments to larger multi-authority programmes.\n\nWe are happy to facilitate direct communication between prospective clients and our referees, and can provide written testimonials alongside contact details for verbal reference.",
+    "human_scores": {
+      "completeness": 4,
+      "evidence_strength": 4,
+      "compliance_language": 4,
+      "structure": 4,
+      "overall": 4
+    },
+    "expected_kb_items_used": ["da331dda-fe1f-4d80-8072-2e787539003c", "fb007646-5e5d-4f2a-ac64-c482d1900444"],
+    "notes": "Shortest response (200 word limit). Tests concise reference response. Deliberately avoids fabricating specific client names — references KB content about named clients without revealing confidential details. Scores lower because it is necessarily brief."
+  },
+  {
+    "question_id": "eval-bid-024",
+    "question_text": "What security features and cyber provisions are implemented in your IT systems and networks? Please detail the specific measures you take to protect against unauthorised access, data loss, and service disruption.",
+    "word_limit": 750,
+    "section_name": "Security Architecture",
+    "reference_response": "Example Client Limited implements a defence-in-depth security architecture across all IT systems and networks, aligned with the NCSC 10 Steps to Cyber Security framework and our ISO 27001 certification.\n\nNetwork Security\n\nBoundary Protection\nAll systems with connections to untrusted networks are protected by enterprise-grade firewalls and boundary security controls. Our network architecture implements logical separation to ensure the segregation of production, development, and testing environments.\n\nIntrusion Detection and Prevention\nWe employ intrusion detection systems and security monitoring tools to identify potential security breaches in real time. Security events are logged, correlated, and reviewed by our security team.\n\nAccess Control\n\nIdentity and Authentication\nAll user accounts are attributable to uniquely identifiable individuals. We enforce strong password policies across all systems, with multi-factor authentication mandated for administrative access. Our platform supports Single Sign-On (SAML) integration with client identity providers.\n\nLeast Privilege\nAccess is granted on a role-based, least-privilege basis. Elevated access rights are reviewed quarterly, and developer access to live production environments is strictly prohibited.\n\nPhysical Security\nPhysical access to our office premises and data centre facilities is controlled through multi-factor mechanisms. Visitor access is managed through documented sign-in procedures with escort requirements.\n\nData Protection\n\nEncryption\nAll data is encrypted in transit using TLS 1.2 or higher and at rest using AES-256. Employee laptops are protected with full-disk encryption. USB ports are locked down to prevent data exfiltration via removable media.\n\nData Loss Prevention\nWe maintain a clear desk and clear screen policy. Secure disposal procedures are in place for equipment, media, and data. Data minimisation principles are applied to ensure only necessary data is collected and retained.\n\nBackup and Recovery\nBackups are performed on a scheduled basis and stored at a geographically separate UK data centre. Backup integrity is verified through regular restoration testing, supporting our published RPO and RTO targets.\n\nEndpoint Security\n\nMalware Protection\nComprehensive anti-malware software is deployed across all endpoints, with automatic definition updates. Installation of unauthorised software is prevented through endpoint management controls.\n\nPatch Management\nSecurity patches for critical vulnerabilities are applied promptly upon release. A documented patching schedule covers all systems, with patch compliance monitored and reported.\n\nSecure Configuration\nAll systems are deployed from documented secure baselines. Configuration management processes ensure that systems remain in a known, secure state throughout their lifecycle.\n\nApplication Security\n\nSecure Development\nOur developers are trained in secure coding practices. Application code undergoes security testing prior to release, including automated vulnerability scanning and manual code review.\n\nPenetration Testing\nOur systems undergo penetration testing at least annually by qualified independent testers using industry-recognised methodologies. Findings are tracked through to remediation.\n\nIncident Response\n\nWe maintain documented incident response procedures with defined severity levels and escalation paths. Our dedicated security team is trained to manage information security incidents, including evidence preservation and regulatory notification procedures.\n\nGovernance and Assurance\n\nOur security governance framework includes:\n- Board-level accountability for cyber and information security\n- Documented information security policies reviewed at least annually\n- Information Asset Register maintained and regularly updated\n- Regular internal and external security audits\n- Continuous improvement driven by audit findings and threat intelligence",
+    "human_scores": {
+      "completeness": 5,
+      "evidence_strength": 5,
+      "compliance_language": 5,
+      "structure": 5,
+      "overall": 5
+    },
+    "expected_kb_items_used": [
+      "48b3e226-2d32-4670-b426-49f00c673efb",
+      "c8c36d17-76be-4122-8aff-00240d44954e",
+      "3248a73b-1f24-419b-a763-9787fdf36e62",
+      "d86f76e9-f247-4565-9a4e-8cfe918e15fc",
+      "94a0519c-396c-43b2-a40e-adf44074f557",
+      "60a8d774-ea6f-4a61-82ec-bc23b91d76bb",
+      "00839338-d346-48b6-9cc6-b6233a029a4f",
+      "7df88c80-8e08-40ab-9689-a07768f42b94"
+    ],
+    "notes": "Comprehensive security architecture question drawing from many KB sources. Tests ability to synthesise a coherent security narrative from disparate Q&A entries and reference articles. Highest-quality response across all dimensions."
+  }
+]

@@ -1,0 +1,631 @@
+[
+  {
+    "_metadata": {
+      "description": "Gold standard fixture for summarisation evaluation (AI Eval Task 4)",
+      "created": "2026-04-03",
+      "updated": "2026-04-05",
+      "item_count": 36,
+      "tier_1_count": 17,
+      "tier_2_count": 19,
+      "content_type_counts": {
+        "q_a_pair": 18,
+        "article": 8,
+        "policy": 5,
+        "capability": 2,
+        "certification": 1,
+        "compliance": 1,
+        "research": 1
+      },
+      "tier_classification": {
+        "tier_1_long_form": ["article", "policy", "capability", "compliance", "research", "case_study"],
+        "tier_2_short_form": ["q_a_pair", "certification", "product_description"]
+      },
+      "domain_coverage": [
+        "compliance",
+        "corporate",
+        "implementation",
+        "legislation-policy",
+        "market-intelligence",
+        "methodology",
+        "product-feature",
+        "security"
+      ],
+      "notes": "No case_study items exist in the database. certification, capability, compliance, and research types have very few items. Coverage maximised from available data."
+    }
+  },
+  {
+    "content_item_id": "3ebf26a8-fa09-4e5f-b3c9-1fd1fc9a565b",
+    "title": "What is your organisation doing regarding Social value - tackling economic inequality",
+    "domain": "compliance",
+    "content_type": "q_a_pair",
+    "reference_executive": "The organisation tackles economic inequality by supporting local businesses, recycling equipment, and donating to community charities.",
+    "reference_detailed": "This Q&A pair addresses the organisation's approach to delivering social value in the area of tackling economic inequality, a common evaluation criterion in UK public sector procurement.\n\nThe response outlines three specific actions: actively supporting local businesses, recycling equipment, and contributing to charities that assist less fortunate members of the community. While brief, these actions demonstrate awareness of the social value agenda and a commitment to local economic impact.\n\nThe answer is concise and would benefit from quantified examples or named initiatives to strengthen a bid response.",
+    "reference_takeaways": [
+      "Three social value actions identified: local business support, equipment recycling, and charitable giving",
+      "Response addresses the economic inequality theme within the social value framework",
+      "No quantified outcomes or named initiatives are provided"
+    ],
+    "source_text_snippet": "Q: What is your organisation doing regarding Social value - tackling economic inequality\n\nWe actively support local businesses, recycle equipment, and contribute to charities that help less fortunate people in our community.",
+    "notes": "Short Q&A response; tests summarisation of brief content"
+  },
+  {
+    "content_item_id": "65f9895f-1cf9-4aa3-8715-1bbea04cce45",
+    "title": "What is your organisation doing regarding Social Value - Fighting Climate Change",
+    "domain": "compliance",
+    "content_type": "q_a_pair",
+    "reference_executive": "The organisation combats climate change through carbon-neutral cloud hosting, electric vehicles, and energy-efficient office practices.",
+    "reference_detailed": "This Q&A response details the organisation's environmental sustainability measures across several operational areas, framed within the social value theme of fighting climate change.\n\nKey initiatives include hosting cloud-based systems in energy-efficient, certified carbon-neutral data centres, transitioning all company-owned vehicles to electric, and introducing a salary sacrifice electric vehicle scheme for employees. The response also mentions sustainable office practices and energy efficiency measures.\n\nThe answer demonstrates a structured approach to environmental responsibility that spans infrastructure, transport, and workplace operations, providing concrete examples suitable for procurement evaluation.",
+    "reference_takeaways": [
+      "Cloud hosting uses energy-efficient, certified carbon-neutral data centres",
+      "All company vehicles are electric with an employee salary sacrifice EV scheme",
+      "Sustainable office practices complement infrastructure-level measures",
+      "Response is structured across multiple operational domains"
+    ],
+    "source_text_snippet": "Q: What is your organisation doing regarding Social Value - Fighting Climate Change\n\n- Energy-Efficient Cloud Solutions: Our cloud-based systems are hosted in optimised data centres that prioritise energy efficiency and use renewable energy sources, significantly reducing the carbon footprint of data storage and processing. Our supplier is certified carbon neutral.\n- Sustainable Transportation: All Company owned vehicles are electric vehicles (EVs) to lower emissions. Additionally, we have intro",
+    "notes": "Detailed climate change response with multiple initiatives"
+  },
+  {
+    "content_item_id": "f18212f0-8907-4057-97eb-ca8e52d15a1a",
+    "title": "Do staff with access to organisation data undergo background screening (DBS)?",
+    "domain": "compliance",
+    "content_type": "q_a_pair",
+    "reference_executive": "All staff undergo Basic DBS checks, reference verification, and conditional employment screening before accessing organisation data.",
+    "reference_detailed": "This Q&A pair confirms that the organisation conducts background screening for all personnel with access to organisational data, including employees, contractors, and temporary staff.\n\nThe screening process encompasses Basic Disclosure and Barring Service (DBS) checks and reference verification. Employment offers are conditional upon satisfactory completion of these checks. The response also references controls that apply to the screening process.\n\nThis demonstrates a systematic approach to personnel vetting that aligns with information security and safeguarding requirements commonly assessed in public sector procurement.",
+    "reference_takeaways": [
+      "Basic DBS checks are conducted for all staff with data access",
+      "Employment is conditional on satisfactory references and DBS results",
+      "Screening covers employees, contractors, and temporary staff",
+      "Process aligns with information security best practice"
+    ],
+    "source_text_snippet": "Q: Do staff with access to organisation data (employees, contractors, temporary staff etc.) undergo background screening (DBS)? (If yes please provide full details)\n\nYes, Example Client carries out Basic DBS checks as part of our recruitment procedure. Employment is conditionally offered with satisfactory references and a successful DBS check.\nOur screening process includes:\n\nBasic Disclosure and Barring Service (DBS) checks\nReference verification\nEmployment conditional on satisfactory checks\nControls app",
+    "notes": "Personnel screening and vetting compliance question"
+  },
+  {
+    "content_item_id": "e9437dc8-ea3a-4ded-bbc7-096e4a4f130a",
+    "title": "Do you have a personnel screening and vetting policy?",
+    "domain": "compliance",
+    "content_type": "q_a_pair",
+    "reference_executive": "No formal vetting policy exists, but Basic DBS checks and reference verification are conducted as standard recruitment practice.",
+    "reference_detailed": "This Q&A pair addresses whether the organisation maintains a dedicated personnel screening and vetting policy document. The answer acknowledges that no formal standalone policy exists.\n\nHowever, the organisation does conduct Basic DBS checks as part of its recruitment procedure, and employment offers are conditional on satisfactory references and a successful DBS check. This indicates that vetting practices are in place even without a formalised policy document.\n\nThe absence of a formal policy document could be a weakness in procurement evaluations where assessors expect documented procedures, though the practical controls described demonstrate reasonable due diligence.",
+    "reference_takeaways": [
+      "No formal standalone personnel screening policy exists",
+      "Basic DBS checks are conducted during recruitment",
+      "Employment is conditional on satisfactory references and DBS results",
+      "Practical controls exist but lack formal policy documentation"
+    ],
+    "source_text_snippet": "Q: Do you have a personnel screening and vetting policy? If yes, please provide a copy.\n\nNo, however, Example Client carry out Basic DBS checks as part of our recruitment procedure and employment is conditionally offered with satisfactory references and a successful DBS check.",
+    "notes": "Honest 'no but...' response showing practical controls without formal policy"
+  },
+  {
+    "content_item_id": "171ecac2-531e-469d-83a6-ead3c2b4a995",
+    "title": "What is the size and structure of your company?",
+    "domain": "corporate",
+    "content_type": "q_a_pair",
+    "reference_executive": "Example Client is an SME with 10 employees spanning software development, project management, operations, and sales roles.",
+    "reference_detailed": "This Q&A pair provides a concise overview of the organisation's size and workforce composition. Example Client is classified as a small to medium-sized enterprise (SME) with a team of 10 employees.\n\nThe workforce spans multiple functional areas including software developers, project managers, operations managers, account managers, and sales development representatives. This breadth of roles indicates a full-service capability despite the small team size.\n\nThe response is brief but sufficient for standard procurement questions about organisational scale, and the SME classification may be advantageous for contracts with SME participation targets.",
+    "reference_takeaways": [
+      "Example Client is an SME with 10 employees",
+      "Team spans development, project management, operations, account management, and sales",
+      "SME status may be advantageous for public sector contracts with participation targets"
+    ],
+    "source_text_snippet": "Q: What is the size and structure of your company?\n\nExample Client are a small to medium-sized enterprise (SME) with 10 employees, including software developers, project managers, operations managers, account managers and sales development representatives.",
+    "notes": "Brief corporate overview Q&A"
+  },
+  {
+    "content_item_id": "5c19b0d0-93f9-4034-9615-00eaaa1c9286",
+    "title": "What parts of the service are sub-contracted?",
+    "domain": "corporate",
+    "content_type": "q_a_pair",
+    "reference_executive": "No service delivery is sub-contracted; all functions are performed by Example Client staff, with hosting provided by third-party infrastructure partners.",
+    "reference_detailed": "This Q&A pair clarifies the organisation's approach to sub-contracting, an important consideration in public sector procurement where supply chain transparency is required.\n\nThe response states clearly that no parts of service delivery are sub-contracted. All core functions — software development, technical support, training, account management, project management, quality assurance, and content creation — are performed by Example Client staff directly.\n\nThe response draws a careful distinction between sub-contracted services and infrastructure providers. Hosting (World Host Group) and backup services (mentioned but truncated in the source) are identified as infrastructure providers rather than sub-contractors, indicating the organisation retains full control over service delivery while relying on specialist infrastructure partners.",
+    "reference_takeaways": [
+      "No service delivery functions are sub-contracted",
+      "Seven core service areas are all delivered by in-house staff",
+      "Infrastructure providers (hosting, backups) are distinguished from sub-contractors",
+      "Full in-house delivery model supports supply chain transparency"
+    ],
+    "source_text_snippet": "Q: What parts of the service are sub-contracted?\n\nNo parts of service delivery are sub-contracted.\nService Delivery (All Example Client Staff): • Software development and maintenance • Technical support and helpdesk • Administrator and user training • Account management and relationship support • Project management and implementation • Quality assurance and testing • Content creation and management\nInfrastructure Providers (Not Sub-contractors): • Hosting services: World Host Group [ • Backup services: Ni",
+    "notes": "Clear sub-contracting stance with infrastructure provider distinction"
+  },
+  {
+    "content_item_id": "c9ed2c7f-b473-40f7-80d6-099558b82073",
+    "title": "What is the typical timeline for implementation?",
+    "domain": "implementation",
+    "content_type": "q_a_pair",
+    "reference_executive": "Typical implementation takes eight to twelve weeks from purchase order receipt to client acceptance and go-live.",
+    "reference_detailed": "This Q&A pair provides a clear timeline expectation for product implementation. The process spans approximately eight to twelve weeks, measured from receipt of the purchase order and signed quotation through to client acceptance of the product for go-live.\n\nThe response sets realistic expectations for procurement evaluators by defining both the start point (purchase order) and end point (client acceptance) of the implementation window. The range accommodates variation in project complexity and client readiness.\n\nThis is a standard implementation timeline question commonly found in public sector ITTs and framework applications.",
+    "reference_takeaways": [
+      "Implementation takes eight to twelve weeks end-to-end",
+      "Timeline starts from purchase order and signed quotation receipt",
+      "Completion is defined as client acceptance of the product for go-live",
+      "Range accommodates variation in project complexity"
+    ],
+    "source_text_snippet": "Q: What is the typical timeline for implementation?\n\nA typical implementation will take approximately eight to twelve weeks from the receipt of the purchase order and signed quotation to the client acceptance of the product for set live.",
+    "notes": "Concise implementation timeline Q&A"
+  },
+  {
+    "content_item_id": "e729e486-bbf1-425b-8388-efc704390604",
+    "title": "Please detail your implementation Plan including key milestones, quality thresholds and service user/commissioner interaction",
+    "domain": "methodology",
+    "content_type": "q_a_pair",
+    "reference_executive": "The implementation plan follows five phases (Planning through Close) with ten documented quality artefacts and defined milestone interactions.",
+    "reference_detailed": "This Q&A pair outlines a structured implementation methodology with clearly defined phases and quality controls. The plan comprises five key milestones: Planning, Implementation, User Acceptance Testing (UAT), Launch, and Close.\n\nSupporting these milestones are ten quality artefacts including a Mandate, Project Initiation Document, Timeline/Scope/Budget definition, QA test scripts, and client sign-offs. This structured approach demonstrates project management maturity and provides assessors with evidence of a repeatable delivery methodology.\n\nThe phased approach with client interaction at UAT and sign-off stages ensures commissioner involvement at critical decision points, reducing delivery risk and building confidence in the supplier's ability to manage complex implementations.",
+    "reference_takeaways": [
+      "Five-phase implementation: Planning, Implementation, UAT, Launch, Close",
+      "Ten quality artefacts defined including PID, QA scripts, and client sign-offs",
+      "Client involvement at UAT and sign-off stages ensures commissioner oversight",
+      "Structured methodology demonstrates repeatable delivery capability"
+    ],
+    "source_text_snippet": "Q: Please detail your implementation Plan including key milestones, quality thresholds and service user / commissioner interaction\n\nKey Milestones\n1.       Planning Phase\n2.      Implementation (Example Client)\n3.      User Acceptance Testing (Client)\n4.      Launch (Example Client)\n5.      Close (Example Client)\nArtifacts for Quality thresholds\n6.      Mandate\n7.      Project Initiation Document(PID)\n8.      Timeline / Scope / Budget\n9.      Quality Assurance (QA) / Test Scripts\n10.    Sign offs (clients approval)\nKey Miles",
+    "notes": "Detailed implementation methodology with structured phases"
+  },
+  {
+    "content_item_id": "e0a87af5-4134-4297-b0a3-ab40f0659e32",
+    "title": "Risk Mitigation",
+    "domain": "methodology",
+    "content_type": "q_a_pair",
+    "reference_executive": "Risk mitigation is built around a proven methodology from 60+ implementations, phased delivery, UAT, and rollback capability.",
+    "reference_detailed": "This Q&A pair describes the organisation's approach to mitigating implementation risk, drawing on experience from over 60 successful deployments.\n\nThe risk mitigation strategy encompasses several layers: a phased delivery approach that identifies issues before full launch, a UAT period to validate functionality, enhanced early life support during the critical initial weeks, and rollback capability if significant issues emerge. Project governance is maintained through a dedicated Project Manager, regular status meetings, documented escalation procedures, and contingency time built into the schedule.\n\nThe combination of proven methodology, layered risk controls, and governance structures demonstrates a mature approach to managing delivery risk in a procurement context.",
+    "reference_takeaways": [
+      "Proven methodology from 60+ successful implementations",
+      "Phased approach with UAT validation before go-live",
+      "Rollback capability and enhanced early life support as safety nets",
+      "Dedicated Project Manager with documented escalation procedures",
+      "Contingency time built into project schedules"
+    ],
+    "source_text_snippet": "Q: Risk Mitigation\n\n• Proven methodology across 60+ successful implementations • Dedicated Project Manager providing single point of accountability • Phased approach identifying issues before full launch • UAT period validating functionality before go-live • Enhanced early life support during critical first weeks • Rollback capability if significant issues emerge • Regular status meetings maintaining visibility • Documented escalation procedures • Contingency time built into schedule",
+    "notes": "Bulleted risk mitigation approach with quantified track record"
+  },
+  {
+    "content_item_id": "c8d0f04f-1961-419c-92e1-1043dc37b019",
+    "title": "What is the Example Client Audit System?",
+    "domain": "product-feature",
+    "content_type": "q_a_pair",
+    "reference_executive": "The Example Client Audit System is a platform for building, designing, distributing, collating, and reporting on audit data including sensitive information.",
+    "reference_detailed": "This Q&A pair provides a high-level definition of the Example Client Audit System, the organisation's core software product. It is described as a platform that supports the full audit lifecycle: building and designing audits, sending them to respondents, collating the returned data, and generating reports.\n\nThe response also notes the system's capability to capture sensitive data, which is significant given the safeguarding and public sector context in which the product operates.\n\nThe description is deliberately broad, positioning the system as a flexible audit platform rather than a single-purpose tool, though the response is brief and repeats itself.",
+    "reference_takeaways": [
+      "Full audit lifecycle platform: build, design, send, collate, and report",
+      "Handles sensitive data capture",
+      "Positioned as a flexible platform rather than a single-purpose tool"
+    ],
+    "source_text_snippet": "Q: What is the Example Client Audit System?\n\nAn Audit System Platform to build, design, send, collate and report on the data recorded.\nAn Audit System Platform to build, design, send, collate and report on the data recorded. Including the capture of sensitive data.",
+    "notes": "Core product definition; source text contains duplication"
+  },
+  {
+    "content_item_id": "11e8fdca-6b3a-457f-97bd-c7f5c309d40d",
+    "title": "Explain how the system is compatible for use on phones and mobile devices",
+    "domain": "product-feature",
+    "content_type": "q_a_pair",
+    "reference_executive": "The audit system uses responsive web design with CSS media queries to ensure compatibility across different screen sizes and mobile devices.",
+    "reference_detailed": "This Q&A pair addresses the mobile compatibility of the Example Client Audit System. The system has been developed using standard responsive web design techniques, specifically CSS media queries that adapt the layout to different screen sizes.\n\nThis approach means the system works across phones, tablets, and desktop devices through a web browser without requiring a dedicated mobile application. The use of common, well-established responsive design practices ensures broad device compatibility.\n\nThe response is technically accurate but brief, and the source text contains an exact repetition of the answer.",
+    "reference_takeaways": [
+      "Responsive web design ensures mobile and tablet compatibility",
+      "CSS media queries handle different screen sizes",
+      "No dedicated mobile app required; works through web browsers"
+    ],
+    "source_text_snippet": "Q: Explain how the system is compatible for use on phones & mobile devices.\n\nThe audit system has been developed using common responsive website design practises. Different sized screens are accounted for via the use of CSS media queries.\nThe audit system has been developed using common responsive website design practises. Different sized screens are accounted for via the use of CSS media queries.",
+    "notes": "Technical mobile compatibility answer; source contains duplication"
+  },
+  {
+    "content_item_id": "b147a3f3-ea04-4c91-8873-14e31e7a3600",
+    "title": "Can Multiple Departments use the same platform?",
+    "domain": "product-feature",
+    "content_type": "q_a_pair",
+    "reference_executive": "Multiple departments can share the platform with organisation-based access controls, subject to a data sharing agreement for cross-audit visibility.",
+    "reference_detailed": "This Q&A pair clarifies the multi-department capability of the Example Client Audit System. The platform supports multiple departments on a single instance, but this requires a data sharing agreement because Super Administrators can access audits across the entire system.\n\nAccess rights for standard audits follow organisational boundaries by default, meaning users within an organisation automatically see their own audits. More granular controls are available, but the default model is organisation-based access.\n\nThis response is important for procurement evaluators assessing whether the platform can serve cross-departmental needs such as multi-agency safeguarding partnerships, while maintaining appropriate data governance.",
+    "reference_takeaways": [
+      "Multiple departments can use a single platform instance",
+      "A data sharing agreement is required for cross-departmental use",
+      "Super Administrators have system-wide audit access",
+      "Default access is organisation-based with more granular controls available"
+    ],
+    "source_text_snippet": "Q: Can Multiple Departments use the same platform.\n\nYes, multiple departments can use the same platform, but there must be a data sharing agreement in place as Super Administrators can access audits across the system and the related responses. Access rights for Standard Audits are organization-based by default - users within an organization automatically have access to their organization's audits. While more granular controls are available, access typically follows organizational boundaries, wit",
+    "notes": "Multi-tenancy and access control question"
+  },
+  {
+    "content_item_id": "aa922f69-c6b7-4fbb-9522-a2da06ea3276",
+    "title": "Does the Audit System create an Action Plan?",
+    "domain": "product-feature",
+    "content_type": "q_a_pair",
+    "reference_executive": "The audit system auto-generates action plans from audit results, reportable at individual, submission, and whole-cohort levels.",
+    "reference_detailed": "This Q&A pair confirms that the Example Client Audit System includes automatic action plan generation based on audit results. The action plans serve as a tool for respondent organisations to address areas requiring improvement.\n\nReporting on action plans operates at three levels: per question for each submission (granular view), as a consolidated plan per submission (organisation view), and as a whole cohort report (strategic overview). This multi-level reporting capability enables both individual organisations and audit administrators to track progress and identify patterns.\n\nThe feature is particularly relevant for safeguarding partnerships where tracking remedial actions across multiple agencies is a core requirement.",
+    "reference_takeaways": [
+      "Action plans are auto-generated from audit results",
+      "Three reporting levels: per question, per submission, and whole cohort",
+      "Responding organisations can use plans to track improvement areas",
+      "Audit administrators get consolidated and cohort-wide views"
+    ],
+    "source_text_snippet": "Q: Does the Audit System create an Action Plan?\n\nYes. Our system generates an action plan based on the audit results, which can be used to address any areas of improvement. This can be reported on for by the responding organisation, and the Audit administrator can review it per question for each submission, as a consolidated plan for each submission and as a whole cohort report.",
+    "notes": "Action plan feature with multi-level reporting"
+  },
+  {
+    "content_item_id": "a075a90f-74ef-4f8a-b277-a95ba33c1810",
+    "title": "Through what interfaces does the audit system transfer data? How are these adequately secured?",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "reference_executive": "Data transfers via three secure interfaces: HTTPS with TLS 1.2/1.3, encrypted MySQL connections, and server infrastructure.",
+    "reference_detailed": "This Q&A pair provides a technical overview of the data transfer interfaces used by the Example Client Audit System and their associated security controls.\n\nThree primary interfaces are identified. First, the web interface communicates over HTTPS with enforced TLS 1.2 and 1.3 encryption, serving as the primary user interaction channel. Second, the system connects to a MySQL database for data storage and retrieval. Third, the underlying server infrastructure provides additional security layers.\n\nThe explicit mention of enforced TLS 1.2/1.3 demonstrates awareness of current encryption standards, and the structured response covering each interface separately shows a methodical approach to security documentation that procurement assessors would expect.",
+    "reference_takeaways": [
+      "Three data transfer interfaces: HTTPS web, MySQL database, server infrastructure",
+      "Web interface enforces TLS 1.2 and 1.3 encryption",
+      "MySQL database handles data storage and retrieval",
+      "Each interface is documented with its security controls"
+    ],
+    "source_text_snippet": "Q: Through what interfaces does the  audit system transfer data? How are these adequately secured?\n\nThe Example Client Audit System transfers data through three primary secure interfaces:\nWeb Interface (HTTPS)\nThe audit system communicates with users via a web interface.\nData is sent between the user's browser and the server. Encrypted via enforced TLS 1.2 and 1.3\nThis is the primary means by which users interact with the system.\nDatabase Connection (MySQL)\nThe audit system interacts with the MySQL databa",
+    "notes": "Technical security question covering data transfer interfaces"
+  },
+  {
+    "content_item_id": "9bc61ae1-2544-4642-a2db-a4323db0996f",
+    "title": "Do you have a specific information security incidents management policy/procedure?",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "reference_executive": "Incident management processes are ISO 27001:2022 compliant, but policies are restricted as commercial intellectual property.",
+    "reference_detailed": "This Q&A pair addresses whether the organisation has a dedicated information security incident management policy and whether it complies with data protection laws.\n\nThe response confirms that incident management processes are compliant with the ISO 27001:2022 standard, providing assurance of a systematic approach to handling security incidents. However, the organisation classifies its detailed policies as commercial intellectual property under restricted distribution, meaning copies are not shared as part of procurement responses.\n\nThis approach is common among SMEs who are protective of their operational documentation, though some procurement evaluators may require policy summaries or redacted versions as evidence.",
+    "reference_takeaways": [
+      "Incident management processes are ISO 27001:2022 compliant",
+      "Policies are classified as restricted commercial intellectual property",
+      "Policy copies are not provided in procurement responses",
+      "Compliance with data protection laws is confirmed"
+    ],
+    "source_text_snippet": "Q: Do you have a specific information security incidents management policy/procedure and is this compliant with the data protection laws?\nIf yes, please provide copies or a link to your policies with your response to this document.\n\nYes, our processes are compliant to meet ISO 27001:2022standard. Example Client policies are considered part of commercial intellectual property and therefore governance under restricted distribution.",
+    "notes": "Security incident policy question with IP restriction caveat"
+  },
+  {
+    "content_item_id": "4ba07320-20dd-45b6-8706-a85f14b41d08",
+    "title": "How is the data retained, and what are the policies for data deletion?",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "reference_executive": "Data retention aligns with legal requirements and organisational policies, with defined periods and procedures for deletion.",
+    "reference_detailed": "This Q&A pair addresses data retention and deletion practices, a critical concern for public sector contracts involving personal and sensitive data.\n\nThe response states that data retention is aligned with legal requirements and organisational policies, with specified retention periods and documented procedures for data deletion. The answer is general rather than specific, not detailing the exact retention periods or deletion mechanisms.\n\nWhile the response confirms compliance in principle, it lacks the specificity that some procurement evaluations require, such as named retention schedules, automated deletion processes, or audit trail capabilities for deletion events.",
+    "reference_takeaways": [
+      "Data retention aligned with legal requirements and organisational policies",
+      "Specified retention periods and deletion procedures exist",
+      "Response lacks specific retention timeframes or technical details",
+      "General compliance statement rather than detailed technical answer"
+    ],
+    "source_text_snippet": "Q: How is the data retained, and what are the policies for data deletion?\n\nData retention is aligned with legal requirements and organisational policies, with specified periods and procedures for data deletion.",
+    "notes": "Brief data retention answer; tests summarisation of vague content"
+  },
+  {
+    "content_item_id": "769e9b4c-e840-41f4-bf21-a00122f22fde",
+    "title": "How do you protect your systems against malware?",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "reference_executive": "Malware protection includes blocking executable uploads and Bitdefender EDR with 30-minute updates, on-access scanning, and weekly full scans.",
+    "reference_detailed": "This Q&A pair outlines the organisation's malware protection strategy, combining preventive and detective controls.\n\nAt the application level, the system prevents the upload of executable code, which mitigates a common attack vector. At the endpoint level, Bitdefender EDR (Endpoint Detection and Response) with Advanced Threat Security is deployed. Updates are pushed every 30 minutes, on-access scanning is enabled for all files, and a full system scan is scheduled weekly.\n\nThe combination of upload restriction, frequent signature updates, real-time on-access scanning, and periodic full scans represents a layered defence approach. The use of an EDR solution rather than basic antivirus demonstrates a more mature security posture.",
+    "reference_takeaways": [
+      "Executable code uploads are blocked at the application level",
+      "Bitdefender EDR with Advanced Threat Security deployed",
+      "Updates pushed every 30 minutes with on-access scanning enabled",
+      "Weekly full system scans complement real-time protection",
+      "Layered defence combining preventive and detective controls"
+    ],
+    "source_text_snippet": "Q: How do you protect your systems against malware?\n\nExample Client prevent the upload of executable code.\nBitdefender EDR & Advanced Threat Security. Updates are pushed out every 30 minutes, on-access scanning is enabled for all files, and a full scan is scheduled every week.",
+    "notes": "Specific technical malware protection details"
+  },
+  {
+    "content_item_id": "ae67c339-db63-463b-abb9-383d7dda0d7b",
+    "title": "What are your strategies for business continuity and disaster recovery in digital services?",
+    "domain": "security",
+    "content_type": "q_a_pair",
+    "reference_executive": "Business continuity and disaster recovery plans are described as robust, ensuring minimal disruption and quick recovery.",
+    "reference_detailed": "This Q&A pair addresses the organisation's approach to business continuity and disaster recovery for its digital services. The response confirms that plans are in place and characterises them as robust, designed to ensure minimal service disruption and quick recovery in case of incidents.\n\nHowever, the response is notably lacking in specific detail. No recovery time objectives (RTOs), recovery point objectives (RPOs), backup frequencies, failover mechanisms, or testing schedules are mentioned. This makes the answer a general assurance statement rather than a substantive technical response.\n\nProcurement evaluators would likely expect more detail on specific recovery capabilities, testing regimes, and quantified recovery targets.",
+    "reference_takeaways": [
+      "Business continuity and disaster recovery plans exist",
+      "Plans aim for minimal disruption and quick recovery",
+      "No specific RTOs, RPOs, or technical details provided",
+      "Response is a general assurance rather than a technical answer"
+    ],
+    "source_text_snippet": "Q: What are your strategies for business continuity and disaster recovery in digital services?\n\nOur business continuity and disaster recovery plans are robust, ensuring minimal service disruption and quick recovery in case of incidents.",
+    "notes": "Very brief DR response; tests summarisation of vague content"
+  },
+  {
+    "content_item_id": "37e48833-90c0-492c-ba02-11d9b0b50de1",
+    "title": "ICO Guide to Accountability and Governance under UK GDPR",
+    "domain": "compliance",
+    "content_type": "article",
+    "reference_executive": "ICO guidance on UK GDPR accountability covering required measures including policies, DPIAs, DPOs, breach management, and enforcement penalties.",
+    "reference_detailed": "This article presents the Information Commissioner's Office guidance on accountability and governance requirements under the UK GDPR, updated in February 2026 to reflect the Data (Use and Access) Act 2025.\n\nThe guidance defines accountability as comprising two essential elements: responsibility for complying with UK GDPR requirements, and the ability to demonstrate that compliance. This dual obligation means organisations must not only follow the rules but maintain evidence of doing so.\n\nThe article covers the technical and organisational measures required, including data protection policies, Data Protection Impact Assessments (DPIAs), the role of Data Protection Officers, breach management procedures, written processor contracts, and the enforcement regime with penalties of up to 17.5 million pounds or 4% of global turnover.",
+    "reference_takeaways": [
+      "Accountability has two elements: responsibility and demonstration of compliance",
+      "Updated February 2026 to reflect the Data (Use and Access) Act 2025",
+      "Required measures include policies, DPIAs, DPOs, and breach management",
+      "Written processor contracts are mandatory",
+      "Enforcement penalties up to 17.5 million pounds or 4% of global turnover"
+    ],
+    "source_text_snippet": "Accountability and Governance under UK GDPR - ICO Guidance\n\nThe Information Commissioner's Office (ICO) provides comprehensive guidance on accountability and governance requirements under the UK GDPR. Updated 5 February 2026 to reflect the Data (Use and Access) Act 2025.\n\nCore Definition of Accountability\n\nAccountability comprises two essential elements:\n1. Responsibility: Organisations must be responsible for complying with UK GDPR requirements\n2. Demonstration: Organisations must be able to pr",
+    "notes": "Comprehensive regulatory guidance article"
+  },
+  {
+    "content_item_id": "39482f91-6b04-4fe2-b581-cfdb3a407dd9",
+    "title": "ISO 9001 Quality Management Systems - Requirements, Principles, and Certification",
+    "domain": "compliance",
+    "content_type": "article",
+    "reference_executive": "Overview of ISO 9001 quality management standard covering seven principles, certification, and public sector procurement relevance.",
+    "reference_detailed": "This article provides a comprehensive reference on ISO 9001, the internationally recognised quality management standard published by ISO/TC 176. The standard is applicable to organisations of any size and provides a framework for delivering consistent products and services.\n\nThe article outlines the seven foundational quality management principles on which ISO 9001 is built, starting with Customer Focus as the primary principle. These principles guide the establishment of a Quality Management System (QMS) that meets customer and regulatory requirements.\n\nThe standard is positioned as frequently required or advantageous in public sector procurement, serving as evidence of systematic quality management and consistent service delivery. Certification demonstrates to procurement evaluators that an organisation has implemented a structured approach to quality.",
+    "reference_takeaways": [
+      "ISO 9001 is the internationally recognised quality management standard",
+      "Built on seven foundational principles beginning with Customer Focus",
+      "Applicable to organisations of any size",
+      "Frequently required or advantageous in public sector procurement",
+      "Provides evidence of systematic quality and consistent service delivery"
+    ],
+    "source_text_snippet": "ISO 9001 Quality Management Systems\n\nISO 9001 is the world's best-known quality management standard, applicable to companies and organisations of any size. Published by ISO/TC 176, it provides a framework for delivering consistent products and services that meet customer and regulatory requirements.\n\nThe Seven Quality Management Principles\n\nISO 9001 is built on seven foundational principles:\n\n1. Customer Focus\nThe primary focus of quality management is to meet customer requirements and strive to",
+    "notes": "Reference article on quality management standard"
+  },
+  {
+    "content_item_id": "b290b62e-8f32-4cb8-b945-27087fecb611",
+    "title": "Safeguarding Children and Young People - Duties, Policies, and Best Practice",
+    "domain": "compliance",
+    "content_type": "article",
+    "reference_executive": "Safeguarding guidance covering organisational duties, DBS checks, training, incident response, and statutory frameworks.",
+    "reference_detailed": "This article provides comprehensive guidance on safeguarding children and young people, aimed at organisations that work with or provide services to those under 18. The duty to safeguard applies regardless of whether contact is online or in-person.\n\nThe guide covers core duties including the legal responsibility of leaders and trustees, policy requirements for safeguarding, DBS checking procedures, staff training obligations, and incident response protocols. It addresses both the statutory framework underpinning safeguarding and practical best practice for organisations.\n\nThe article also covers how to evidence safeguarding compliance in bid responses, making it directly relevant to the procurement context. This includes referencing relevant policies, demonstrating training programmes, and showing how safeguarding is embedded in organisational culture.",
+    "reference_takeaways": [
+      "Safeguarding duty applies to all organisations working with under-18s",
+      "Leaders and trustees bear legal responsibility for safeguarding",
+      "Requirements include DBS checks, training, and incident response procedures",
+      "Guidance covers both statutory framework and practical best practice",
+      "Includes advice on evidencing compliance in bid responses"
+    ],
+    "source_text_snippet": "Safeguarding Children and Young People: Comprehensive Guidance\n\nOrganisations working with or providing services to children and young people must take safeguarding seriously. This guide covers the core duties, policy requirements, and best practice for safeguarding.\n\nCore Duties and Scope\n\nOrganisations must protect anyone under 18 who comes into contact with their work. This duty applies regardless of whether contact is online or in-person. Leaders and trustees bear legal responsibility for im",
+    "notes": "Safeguarding reference article relevant to core client sector"
+  },
+  {
+    "content_item_id": "b464405b-ce10-492d-b976-f93a4cd9bb0a",
+    "title": "NCSC Cyber Essentials Certification - Requirements, Levels, and Benefits",
+    "domain": "compliance",
+    "content_type": "article",
+    "reference_executive": "Guide to the UK Government's Cyber Essentials scheme covering two certification levels, five technical controls, costs, and procurement relevance.",
+    "reference_detailed": "This article provides an authoritative guide to the NCSC Cyber Essentials certification scheme, the minimum standard of cyber security recommended by the UK Government for organisations of all sizes.\n\nThe scheme centres on five technical controls designed to counter common internet-based cyber threats. The article covers both certification levels, the requirements for each, associated costs, and preparation resources. It emphasises that most cyber attacks are elementary in nature, making the baseline controls highly effective.\n\nThe article positions Cyber Essentials certification as particularly relevant to public sector bid responses, where it serves as evidence of baseline cyber security maturity. Government contracts above certain thresholds may mandate Cyber Essentials certification as a minimum requirement.",
+    "reference_takeaways": [
+      "Cyber Essentials is the UK Government's minimum recommended cyber security standard",
+      "Based on five technical controls against common internet threats",
+      "Two certification levels available",
+      "Most cyber attacks are elementary, making baseline controls effective",
+      "Often mandated for government contracts above certain thresholds"
+    ],
+    "source_text_snippet": "NCSC Cyber Essentials Certification Scheme\n\nCyber Essentials is the minimum standard of cyber security recommended by the UK Government for organisations of all sizes. The National Cyber Security Centre (NCSC) created this certification scheme around five technical controls designed to counter common internet-based cyber threats.\n\nWhy Organisations Should Pursue Certification\n\nThe NCSC emphasises that no business is out of reach from cyber criminals. Most attacks are elementary in nature - descr",
+    "notes": "Cyber security certification reference article"
+  },
+  {
+    "content_item_id": "7232aecc-8569-4b1a-9f53-69954a38de50",
+    "title": "Social Value in Crown Commercial Service Procurement",
+    "domain": "compliance",
+    "content_type": "article",
+    "reference_executive": "CCS social value framework covering carbon net zero, modern slavery, equality, and supply chain diversification with mandatory 10% tender weighting.",
+    "reference_detailed": "This article outlines the Crown Commercial Service (CCS) approach to social value in public sector procurement. CCS has structured its commercial agreements to help buyers achieve social value goals aligned with organisational priorities.\n\nFour primary social value areas are identified: supply chain diversification, carbon net zero, modern slavery prevention, and equality. The article references PPN 06/20, which mandates a minimum 10% social value weighting in central government tender evaluations using the Themes, Outcomes, and Measures (TOMs) model.\n\nThis is directly relevant to suppliers bidding for public sector contracts, as understanding the social value framework and its mandatory weighting allows organisations to structure their responses to maximise scores in this area.",
+    "reference_takeaways": [
+      "Four CCS social value goals: supply chain diversity, carbon net zero, modern slavery, equality",
+      "PPN 06/20 mandates minimum 10% social value weighting in central government tenders",
+      "TOMs (Themes, Outcomes, Measures) model used for evaluation",
+      "Social value is embedded in CCS commercial agreements",
+      "Understanding the framework helps suppliers maximise tender scores"
+    ],
+    "source_text_snippet": "Social Value at Crown Commercial Service\n\nThe Crown Commercial Service (CCS) emphasises that buying decisions can create a fairer and more sustainable society. The organisation has structured its commercial agreements to help public sector buyers achieve social value goals aligned with their organisational priorities.\n\nKey Social Value Goals\n\nCCS identifies four primary areas where social value can be maximised:\n\n1. Supply Chain Diversification - Expanding and varying supplier networks to includ",
+    "notes": "Social value framework with specific policy reference"
+  },
+  {
+    "content_item_id": "8c01e620-1761-483b-ad03-9550bdb03568",
+    "title": "ICO Guide to Data Security - UK GDPR Technical and Organisational Measures",
+    "domain": "security",
+    "content_type": "article",
+    "reference_executive": "ICO guidance on UK GDPR data security covering risk-based measures, encryption, access controls, training, and enforcement.",
+    "reference_detailed": "This article presents the ICO's comprehensive guidance on implementing data security measures required under UK GDPR Article 5(1)(f) on integrity and confidentiality, and Article 32 on security of processing.\n\nThe core principle is that organisations must process personal data securely using appropriate technical and organisational measures to prevent unauthorised processing, unlawful activity, and accidental loss or damage. The guidance takes a risk-based approach, meaning security measures should be proportionate to the risks identified.\n\nCoverage includes encryption requirements, access control mechanisms, staff training obligations, data processor obligations, and the enforcement regime with penalties of up to 17.5 million pounds. The guidance serves as a practical reference for organisations implementing or auditing their data security controls.",
+    "reference_takeaways": [
+      "Based on UK GDPR Articles 5(1)(f) and 32",
+      "Risk-based approach: measures proportionate to identified risks",
+      "Covers encryption, access controls, staff training, and processor obligations",
+      "Enforcement penalties up to 17.5 million pounds",
+      "Practical reference for implementing data security governance"
+    ],
+    "source_text_snippet": "ICO Guide to Data Security under UK GDPR\n\nThe Information Commissioner's Office (ICO) provides comprehensive guidance on implementing appropriate technical and organisational security measures required under UK GDPR Article 5(1)(f) (integrity and confidentiality principle) and Article 32 (security of processing).\n\nCore Security Principle\n\nOrganisations must process personal data securely using appropriate technical and organisational measures to prevent unauthorised processing, unlawful activity",
+    "notes": "Data security guidance with specific GDPR article references"
+  },
+  {
+    "content_item_id": "48b3e226-2d32-4670-b426-49f00c673efb",
+    "title": "NCSC 10 Steps to Cyber Security - Framework for Organisational Security",
+    "domain": "security",
+    "content_type": "article",
+    "reference_executive": "NCSC ten-step cyber security framework covering risk management, vulnerability management, identity controls, and supply chain security.",
+    "reference_detailed": "This article describes the National Cyber Security Centre's 10 Steps to Cyber Security framework, designed to help organisations manage cyber security risks in a structured, comprehensive manner. The guidance primarily targets medium to large organisations but the principles apply broadly.\n\nThe framework breaks down cyber security into ten manageable domains including risk management, vulnerability management, identity and access control, and supply chain security. According to the NCSC, adopting the measures covered by the 10 Steps significantly reduces the likelihood of cyber attacks.\n\nThe framework is positioned as a more comprehensive approach than Cyber Essentials, suitable for demonstrating cyber security maturity in bid responses where organisations need to evidence a thorough security posture beyond baseline certification.",
+    "reference_takeaways": [
+      "Ten-domain framework for comprehensive cyber risk management",
+      "Covers risk management, vulnerability management, IAM, and supply chain security",
+      "Adopting the framework significantly reduces attack likelihood",
+      "More comprehensive than Cyber Essentials certification",
+      "Suitable for demonstrating security maturity in procurement"
+    ],
+    "source_text_snippet": "NCSC 10 Steps to Cyber Security\n\nThe National Cyber Security Centre (NCSC) provides a 10-step framework designed to help organisations manage cyber security risks. The guidance targets medium to large organisations with dedicated cybersecurity staff, though the principles apply broadly.\n\nPurpose\n\nThe 10 Steps framework breaks down cyber security into manageable components. According to the NCSC, adopting security measures covered by the 10 Steps reduces the likelihood of cyber attacks occurring ",
+    "notes": "Comprehensive cyber security framework reference"
+  },
+  {
+    "content_item_id": "0efd19a0-259e-429e-888c-9f545782aff0",
+    "title": "Data Protection Impact Assessments (DPIAs) - ICO Guidance on When and How",
+    "domain": "security",
+    "content_type": "article",
+    "reference_executive": "ICO guidance on DPIAs covering when they are mandatory, the seven-step process, ICO consultation requirements, and procurement relevance.",
+    "reference_detailed": "This article provides the ICO's comprehensive guidance on Data Protection Impact Assessments, which are required under UK GDPR for processing likely to result in high risk to individuals' rights and freedoms.\n\nA DPIA is defined as a systematic process for evaluating data protection risks associated with processing activities. It helps organisations identify and minimise risks before processing begins, serving as a proactive rather than reactive compliance tool.\n\nThe guidance covers when DPIAs are mandatory, a seven-step process for conducting them, circumstances requiring consultation with the ICO, and how organisations should reference DPIAs in bid responses that involve personal data processing. This makes the guidance both a compliance reference and a practical tool for procurement.",
+    "reference_takeaways": [
+      "DPIAs are mandatory for high-risk processing under UK GDPR",
+      "Systematic process for evaluating data protection risks before processing begins",
+      "Seven-step process defined for conducting DPIAs",
+      "ICO consultation required in certain circumstances",
+      "Relevant to bid responses involving personal data processing"
+    ],
+    "source_text_snippet": "Data Protection Impact Assessments (DPIAs) - ICO Guidance\n\nThe Information Commissioner's Office (ICO) provides comprehensive guidance on Data Protection Impact Assessments, which are required under UK GDPR for processing that is likely to result in high risk to individuals' rights and freedoms.\n\nWhat is a DPIA?\n\nA DPIA is a systematic process for evaluating data protection risks associated with processing activities. It helps organisations identify and minimise risks before processing begins, s",
+    "notes": "DPIA guidance with practical procurement application"
+  },
+  {
+    "content_item_id": "0edb6a7a-e5e2-4d32-879b-58536dcf0d81",
+    "title": "Working Together to Safeguard Children 2026 - Multi-Agency Statutory Guidance",
+    "domain": "compliance",
+    "content_type": "policy",
+    "reference_executive": "DfE statutory guidance on multi-agency safeguarding covering partnership duties, assessments, and child protection conferences.",
+    "reference_detailed": "This policy document presents the Department for Education's statutory guidance on multi-agency working to help, support, and protect children, updated on 18 March 2026.\n\nThe guidance applies to a broad range of organisations and professionals including statutory safeguarding partners (health, local authorities, police), directors of children's services, education providers, social workers, and childcare settings. This wide applicability means suppliers to these sectors must understand and comply with its requirements.\n\nKey areas covered include legal obligations for safeguarding partnerships, assessment and referral processes, child protection conferences, and supplier compliance requirements. As statutory guidance, all relevant organisations must have regard to it, making it a foundational document for anyone operating in the safeguarding sector.",
+    "reference_takeaways": [
+      "Statutory guidance updated 18 March 2026 from DfE",
+      "Applies to health, local authorities, police, education, and childcare sectors",
+      "Covers partnership duties, assessment processes, and child protection conferences",
+      "Suppliers to safeguarding sectors must understand compliance requirements",
+      "Foundational document for multi-agency safeguarding work"
+    ],
+    "source_text_snippet": "Working Together to Safeguard Children 2026\n\nThis is statutory guidance issued by the Department for Education on multi-agency working to help, support, and protect children. The most recent update was published on 18 March 2026.\n\nScope and Applicability\n\nThe guidance applies to a wide range of organisations and professionals:\n- Statutory safeguarding partners (health, local authorities, police)\n- Directors of children's services\n- Education providers and childcare settings\n- Social workers and ",
+    "notes": "Key statutory guidance for core client sector"
+  },
+  {
+    "content_item_id": "c7fc5f57-3a0b-4ec9-b4ed-b7ab404471d6",
+    "title": "Example Client Limited - Social Value Statement",
+    "domain": "compliance",
+    "content_type": "policy",
+    "reference_executive": "Social value statement covering employee wellbeing, equal opportunities, community economic support, and COVID-19 recovery through flexible working.",
+    "reference_detailed": "This policy document sets out Example Client Limited's social value commitments across four recognised themes. The statement is structured to align with social value frameworks commonly used in public sector procurement evaluation.\n\nEmployee wellbeing measures include healthcare coverage, an electric car scheme, and life assurance. The equal opportunities commitment addresses workplace diversity and inclusion. The economic inequality theme covers community support initiatives, and the COVID-19 recovery theme is addressed through flexible and remote working policies.\n\nThe statement provides a structured basis for responding to social value questions in procurement, though it would benefit from quantified outcomes and specific examples to strengthen scoring potential.",
+    "reference_takeaways": [
+      "Four social value themes: wellbeing, equal opportunity, economic inequality, COVID recovery",
+      "Employee benefits include healthcare, EV scheme, and life assurance",
+      "Flexible and remote working supports COVID-19 recovery theme",
+      "Structured to align with procurement social value frameworks",
+      "Would benefit from quantified outcomes for stronger procurement scoring"
+    ],
+    "source_text_snippet": "Example Client Limited is committed to delivering social value through its employment practices, community engagement, and operational policies. The following outlines Example Client's approach across four recognised social value themes.\n\n## Employee Wellbeing\n\nExample Client invests in the wellbeing of its workforce through a range of employee benefits including healthcare coverage, an electric car scheme, and life assurance. The organisation actively promotes work-life balance as a core employment principle.\n\n## Equal O",
+    "notes": "Company social value policy document"
+  },
+  {
+    "content_item_id": "a3adb4ae-a389-44da-bdc3-539f2d1db7ce",
+    "title": "Keeping Children Safe in Education 2025 - DfE Statutory Guidance",
+    "domain": "legislation-policy",
+    "content_type": "policy",
+    "reference_executive": "DfE statutory guidance effective September 2025 setting out legal safeguarding duties for all schools and colleges in England.",
+    "reference_detailed": "This policy document presents the Department for Education's statutory guidance on safeguarding in educational settings, effective from 1 September 2025. It establishes the legal duties that schools and colleges must follow to safeguard and promote the welfare of children and young people under 18.\n\nAs statutory guidance, all school and college staff must have regard to it when carrying out their duties. The document covers staff responsibilities, safer recruitment practices, the role of Designated Safeguarding Leads (DSLs), and online safety requirements.\n\nFor suppliers to the education sector, understanding KCSIE is essential as it defines the compliance landscape within which their products and services must operate. Schools and colleges will expect suppliers to demonstrate awareness of and alignment with these requirements.",
+    "reference_takeaways": [
+      "Statutory guidance effective 1 September 2025",
+      "Applies to all schools and colleges in England",
+      "Covers staff responsibilities, safer recruitment, DSL role, and online safety",
+      "All staff must have regard to the guidance when carrying out duties",
+      "Suppliers to education must demonstrate awareness and alignment"
+    ],
+    "source_text_snippet": "Keeping Children Safe in Education (KCSIE) 2025\n\nThis is statutory guidance published by the Department for Education (DfE) for schools and colleges in England. The current version (2025) came into force on 1 September 2025.\n\nPurpose and Legal Status\n\nThe guidance establishes the legal duties that schools and colleges must follow to safeguard and promote the welfare of children and young people under the age of 18. As statutory guidance, all school and college staff must have regard to it when c",
+    "notes": "Education sector statutory guidance"
+  },
+  {
+    "content_item_id": "3248a73b-1f24-419b-a763-9787fdf36e62",
+    "title": "Example Client Limited - Information Security Controls Reference",
+    "domain": "security",
+    "content_type": "policy",
+    "reference_executive": "Security controls reference covering access control, physical security, UK data residency, penetration testing, and incident response under ISO 27001.",
+    "reference_detailed": "This policy document details Example Client Limited's operational information security controls, organised across six themes. It is underpinned by ISO 27001 certification and Cyber Essentials Plus accreditation, and should be read alongside the organisation's Certifications and GDPR compliance documents.\n\nThe first theme covers access control based on the principle of least privilege, where access levels are granted according to role requirements. The document also covers physical security measures, UK-based data residency, infrastructure controls, CREST-approved penetration testing, and GDPR-compliant incident response procedures.\n\nThis comprehensive controls reference serves as evidence for procurement evaluators assessing the organisation's security posture, demonstrating that controls are documented, structured, and aligned with recognised standards.",
+    "reference_takeaways": [
+      "Six security control themes documented",
+      "Access control based on principle of least privilege",
+      "UK data residency maintained",
+      "CREST-approved penetration testing conducted",
+      "Underpinned by ISO 27001 and Cyber Essentials Plus",
+      "GDPR-compliant incident response procedures in place"
+    ],
+    "source_text_snippet": "Example Client Limited operates a comprehensive information security framework underpinned by ISO 27001 certification and Cyber Essentials Plus accreditation. The following documents Example Client's operational security controls across six themes. This document should be read alongside the Certifications and Accreditations Overview and the GDPR and Data Protection Compliance Overview.\n\n## 1. Access Control\n\n**Principle of Least Privilege**\nAccess levels are granted according to the principle of least privilege,",
+    "notes": "Detailed security controls policy document"
+  },
+  {
+    "content_item_id": "9d149777-f3cf-4343-ada6-cca72656a35e",
+    "title": "Example Client Limited - Business Continuity and Service Levels",
+    "domain": "security",
+    "content_type": "policy",
+    "reference_executive": "Business continuity policy covering four-hour support SLA, RPO/RTO targets, and eight-to-twelve week implementation timelines.",
+    "reference_detailed": "This policy document outlines Example Client Limited's business continuity and service level commitments. The core support commitment is a four-hour response time for all support issues, with comprehensive user training provided as part of initial system setup.\n\nRecovery objectives include both Recovery Point Objective (RPO) and Recovery Time Objective (RTO) targets designed to minimise data loss and service disruption. However, the document notes that specific time-based figures are not currently documented, which is a gap that could weaken procurement responses.\n\nThe document also includes indicative implementation timelines of four to twelve weeks for the Audit System and LMS products, providing procurement evaluators with delivery expectations.",
+    "reference_takeaways": [
+      "Four-hour support response SLA guaranteed",
+      "Comprehensive user training included in setup",
+      "RPO and RTO targets exist but specific figures are undocumented",
+      "Implementation timelines: four to twelve weeks for core products",
+      "Gap identified: no specific time-based recovery figures published"
+    ],
+    "source_text_snippet": "## Support Response SLA\n\nExample Client guarantees a four-hour response time for all support issues. Comprehensive training is provided to all required users as part of the initial system setup, ensuring clients are equipped to use the system from go-live.\n\n## Recovery Objectives\n\nExample Client's Recovery Point Objective (RPO) and Recovery Time Objective (RTO) targets are set to minimise both data loss and service disruption in the event of an incident.\n\n*Note: specific time-based RPO/RTO figures are not currently",
+    "notes": "Business continuity policy with noted documentation gap"
+  },
+  {
+    "content_item_id": "0190b303-7f7b-4e9b-b168-ce42803e8ae6",
+    "title": "Example Client Limited - Company Profile and Capabilities Overview",
+    "domain": "corporate",
+    "content_type": "capability",
+    "reference_executive": "Company profile for Example Client Limited, a UK SME since 2001 offering audit, LMS, and web products for safeguarding and public sectors.",
+    "reference_detailed": "This capability document provides a comprehensive profile of Example Client Limited, a UK-based software company specialising in sector-focused digital products for the safeguarding, education, healthcare, and public sector markets.\n\nThe company was incorporated in 2001 and is confirmed as an SME under both UK and EU criteria, with fewer than 250 employees and meeting applicable turnover thresholds. The team of 10 operates across software development, project management, operations, and client-facing roles.\n\nThree core products are offered: the Example Client Audit System, a Learning Management System (LMS), and website development services. Pre-employment vetting including Basic DBS checks is conducted for all staff, reflecting the safeguarding context of the client base.",
+    "reference_takeaways": [
+      "UK SME incorporated in 2001 with 10 employees",
+      "Confirmed SME under both UK and EU criteria",
+      "Three core products: Audit System, LMS, and website development",
+      "Serves safeguarding, education, healthcare, and public sectors",
+      "Basic DBS checks conducted for all staff"
+    ],
+    "source_text_snippet": "Example Client Limited is a UK-based software company specialising in sector-focused digital products for the safeguarding, education, healthcare, and public sector markets. The company was incorporated in 2001 and operates as a confirmed Small/Medium Enterprise (SME) under both UK and EU criteria, with fewer than 250 employees and applicable annual turnover and balance sheet thresholds met.\n\n## Company Size and Structure\n\nExample Client employs 10 people across a range of operational roles including software de",
+    "notes": "Core company capability document"
+  },
+  {
+    "content_item_id": "973727f0-cf14-4e0c-9490-900f14beadcf",
+    "title": "our UK primary data centre - Fact Sheet 2025",
+    "domain": "product-feature",
+    "content_type": "capability",
+    "reference_executive": "our UK primary data centre is a 2022-opened London data centre offering up to 18MW capacity with dual-redundant power and comprehensive certifications.",
+    "reference_detailed": "This capability document profiles the our UK primary data centre at Blackwall Yard, London Docklands, which opened in 2022 as the latest addition to the our UK data centre provider London campus.\n\nThe facility offers flexible and scalable solutions with an existing IT capacity of 7.4MW, expandable to 18MW on full build-out. It connects to the main our UK data centre provider London Docklands campus via a diverse dark fibre network, providing access to a wide ecosystem of connectivity and cloud providers.\n\nKey features include dual-redundant power systems, free-cooling technology, renewable energy sourcing, and a comprehensive suite of certifications including ISO 27001, PCI-DSS, and ISO 14001. This document serves as evidence of hosting infrastructure quality when referenced in procurement responses.",
+    "reference_takeaways": [
+      "Located at Blackwall Yard, London Docklands, opened 2022",
+      "Current 7.4MW capacity, expandable to 18MW",
+      "Connected to main campus via diverse dark fibre network",
+      "Dual-redundant power with free-cooling and renewable energy",
+      "Holds ISO 27001, PCI-DSS, and ISO 14001 certifications"
+    ],
+    "source_text_snippet": "our UK primary data centre Fact Sheet\n\nLocation: Blackwall Yard, 1 Paul Julius Close, London, E14 2EH\n\nThe latest addition to the our UK data centre provider London Docklands campus. Opened in 2022, our UK primary data centre offers flexible and scalable solutions to meet business needs. With an existing IT capacity of 7.4MW, our UK primary data centre will provide a maximum of 18MW of IT power on full build out.\n\nThis data centre is integrated with the main our UK data centre provider London Docklands campus via a diverse dark fibre network, providing access to ",
+    "notes": "Infrastructure capability document for hosting provider"
+  },
+  {
+    "content_item_id": "3b80e08d-08f2-485b-98b4-5140644476f5",
+    "title": "Example Client Limited - Certifications and Accreditations Overview",
+    "domain": "security",
+    "content_type": "certification",
+    "reference_executive": "Example Client holds ISO 27001, ISO 9001, and Cyber Essentials Plus certifications with annual CREST-approved penetration testing and ICO registration.",
+    "reference_detailed": "This certification document provides an overview of Example Client Limited's nationally and internationally recognised certifications and accreditations across information security, quality management, and cyber security.\n\nISO 27001 certification demonstrates commitment to protecting the confidentiality, integrity, and availability of data through a systematic Information Security Management System. ISO 9001 certification covers quality management, ensuring consistent service delivery. Cyber Essentials Plus provides verified baseline cyber security controls.\n\nAdditionally, the organisation conducts annual CREST-approved penetration testing, providing independent assurance of security controls, and maintains ICO registration as a data controller. This suite of certifications is commonly referenced in procurement responses to evidence compliance maturity.",
+    "reference_takeaways": [
+      "ISO 27001 for information security management",
+      "ISO 9001 for quality management",
+      "Cyber Essentials Plus for verified baseline cyber security",
+      "Annual CREST-approved penetration testing",
+      "ICO registered as data controller"
+    ],
+    "source_text_snippet": "Example Client Limited holds a suite of nationally and internationally recognised certifications demonstrating its commitment to information security, quality management, and cyber security best practice.\n\n## ISO 27001 - Information Security Management System\n\nExample Client holds ISO 27001 certification, the internationally recognised standard for Information Security Management Systems (ISMS). This certification demonstrates Example Client's commitment to protecting the confidentiality, integrity, and availability of da",
+    "notes": "Certification overview document"
+  },
+  {
+    "content_item_id": "375f6679-6744-4918-9d07-9f6c5afdc420",
+    "title": "Example Client Limited - GDPR and Data Protection Compliance Overview",
+    "domain": "security",
+    "content_type": "compliance",
+    "reference_executive": "GDPR compliance framework covering DPO appointment, data processing agreements, DPIAs, breach management, and UK-based data storage.",
+    "reference_detailed": "This compliance document details Example Client Limited's data protection framework under UK GDPR and the Data Protection Act 2018. The organisation operates as both data processor and data controller, requiring compliance with both sets of obligations.\n\nKey elements include the appointment of a Data Protection Officer, maintenance of Records of Processing Activities (RoPA), Data Processing Agreements with clients, and Data Protection Impact Assessments. The framework also covers data subject rights handling, breach management procedures, and a commitment to storing all customer data within UK-based facilities.\n\nSecurity measures include SSL transmission encryption and mandatory annual staff training aligned with ISO 27001 and Cyber Essentials Plus requirements. The document notes that the DPO email address requires confirmation, indicating this is a working document rather than a finalised public-facing reference.",
+    "reference_takeaways": [
+      "Operates as both data processor and data controller under UK GDPR",
+      "DPO appointed with RoPA, DPAs, and DPIAs in place",
+      "All customer data stored in UK-based facilities",
+      "SSL encryption for data transmission",
+      "Mandatory annual staff training aligned with ISO 27001",
+      "DPO contact details flagged as requiring confirmation"
+    ],
+    "source_text_snippet": "Example Client Limited operates as a data processor and controller in accordance with UK GDPR and the Data Protection Act 2018. The following outlines Example Client's data protection framework, policies, and operational practices.\n\n## Data Protection Officer\n\nExample Client has appointed a Data Protection Officer (DPO).\n\nWarning: REVIEW REQUIRED BEFORE PUBLISHING: DPO email address is incomplete in source records (recorded as \"@example-client.org.uk\" with no local part). Full email address to be confirmed with Example Client. Telephone: 01234 779",
+    "notes": "GDPR compliance document with flagged data gap"
+  },
+  {
+    "content_item_id": "9450432c-87ba-48c5-83d0-8658c996096b",
+    "title": "Sector Intelligence Feed - AI-Powered News Ingestion Brief",
+    "domain": "market-intelligence",
+    "content_type": "research",
+    "reference_executive": "Internal product brief proposing an AI-powered sector intelligence system to ingest, filter, and route news into a structured knowledge base.",
+    "reference_detailed": "This research document is an internal product brief from Example Client Limited, authored by Matthew Burgess in February 2026. It proposes a sector intelligence feed system to address the challenge of staying current with fast-moving developments across education policy, safeguarding legislation, MAT restructuring, audit requirements, and competitor activity.\n\nThe current state is described as a handful of RSS feeds with keyword filters that produce noisy, low-value output. The proposed solution involves AI-powered news ingestion that filters, classifies, and routes relevant content into a structured knowledge base.\n\nThe system design includes team-managed prompts, feedback loops for improving relevance, and RSS outputs for intranet distribution. This represents a strategic initiative to transform ad-hoc news monitoring into a systematic competitive intelligence capability.",
+    "reference_takeaways": [
+      "Internal product brief addressing sector intelligence gap",
+      "Current RSS feeds produce noisy, low-value output",
+      "Proposed AI system ingests, filters, and classifies sector news",
+      "Covers education, safeguarding, MAT, audit, and competitor domains",
+      "Includes feedback loops and RSS outputs for team distribution",
+      "Strategic initiative to build systematic competitive intelligence"
+    ],
+    "source_text_snippet": "Brief: Sector Intelligence Feed - AI-Powered News Ingestion for Product Knowledge Base\n\nExample Client Limited\nDate: February 2026 | Author: Matthew Burgess | For: Liam (Development) | Status: Draft\n\n1. The Problem\n\nExample Client operates in a fast-moving sector. Education policy, safeguarding legislation, MAT restructuring, audit requirements, and competitor activity all directly impact our products, our sales conversations, and our clients.\n\nCurrent state: handful of RSS feeds with keyword filters produci",
+    "notes": "Internal strategic brief; tests summarisation of proposal content"
+  }
+]
