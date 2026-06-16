@@ -1,7 +1,7 @@
 name: "Resolve private docs (KH_PRIVATE_DOCS_DIR)"
 description:
   "Mints a GitHub-App installation token, checks out knowledge-hub-docs-site
-  into ${{ runner.temp }}/kh-private-docs, and exports KH_PRIVATE_DOCS_DIR for
+  into $RUNNER_TEMP/kh-private-docs, and exports KH_PRIVATE_DOCS_DIR for
   downstream steps. The single CI resolution route for the private-docs bridge
   knob (ID-68 TECH PC-28) — consumers never implement their own resolution (Inv
   28). Opt-in lanes only: no PR-blocking CI job may use this action (Inv 30)."
