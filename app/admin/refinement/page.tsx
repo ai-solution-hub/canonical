@@ -60,30 +60,37 @@ export default async function AdminRefinementPage() {
   }
 
   // Fetch graduation metric values in parallel for touchpoints that declare one
-  // (T19/B-INV-19). Touchpoints with no `graduation_metric` resolve to null —
-  // clean omission surfaced as a dash in the table. Errors are caught per-
-  // touchpoint so a single bad row does not break the whole page render.
-  const graduationMetricMap: Record<string, GraduationMetricValue | null> = {};
+  // (T19/B-INV-19). A declared metric that cannot be read — an unknown metric
+  // name (the B-INV-19 "declared but unreadable" loud-fail the runner exits 2
+  // on) or a transient DB error — is surfaced DISTINCTLY as 'unreadable', NOT
+  // collapsed into the same dash as a touchpoint that declares nothing. Caught
+  // per-touchpoint so one bad row never breaks the whole page render.
+  const graduationMetricMap: Record<
+    string,
+    GraduationMetricValue | 'unreadable'
+  > = {};
   await Promise.all(
     touchpoints
       .filter((tp) => tp.graduation_metric !== null)
       .map(async (tp) => {
         const value = await metricFor(supabase, tp.touchpoint_id).catch(
-          () => null,
+          () => 'unreadable' as const,
         );
-        graduationMetricMap[tp.touchpoint_id] = value;
+        // A declared touchpoint resolving null (registry inconsistency) is also
+        // "declared but no readable value" — fold into 'unreadable'.
+        graduationMetricMap[tp.touchpoint_id] = value ?? 'unreadable';
       }),
   );
 
   return (
     <main className="p-6 max-w-5xl mx-auto">
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold text-[var(--foreground)]">
+        <h1 className="text-2xl font-semibold text-foreground">
           Refinement Registry
         </h1>
-        <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+        <p className="mt-1 text-sm text-muted-foreground">
           Registry version:{' '}
-          <span className="font-mono font-medium text-[var(--foreground)]">
+          <span className="font-mono font-medium text-foreground">
             {registryVersion}
           </span>{' '}
           &mdash; {touchpoints.length} touchpoint
@@ -92,17 +99,17 @@ export default async function AdminRefinementPage() {
       </header>
 
       {touchpoints.length === 0 ? (
-        <p className="text-sm text-[var(--muted-foreground)]">
+        <p className="text-sm text-muted-foreground">
           No touchpoints registered yet. Run{' '}
-          <code className="font-mono text-xs bg-[var(--muted)] px-1 py-0.5 rounded">
+          <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">
             bun run scripts/eval-runner.ts --all
           </code>{' '}
           to bootstrap the registry.
         </p>
       ) : (
-        <div className="border border-[var(--border)] rounded-md overflow-hidden">
+        <div className="border border-border rounded-md overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-[var(--muted)] text-[var(--muted-foreground)]">
+            <thead className="bg-muted text-muted-foreground">
               <tr>
                 <th className="text-left px-4 py-2 font-medium" scope="col">
                   Touchpoint ID
@@ -142,38 +149,37 @@ export default async function AdminRefinementPage() {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[var(--border)]">
+            <tbody className="divide-y divide-border">
               {touchpoints.map((tp) => {
                 const signalCount = signalCountMap[tp.touchpoint_id] ?? 0;
-                const graduationMetric =
-                  graduationMetricMap[tp.touchpoint_id] ?? null;
+                const graduationMetric = graduationMetricMap[tp.touchpoint_id];
                 const baseUrl = `/api/refinement/touchpoints/${encodeURIComponent(tp.touchpoint_id)}`;
                 return (
                   <tr
                     key={tp.touchpoint_id}
-                    className="bg-[var(--card)] hover:bg-[var(--accent)] transition-colors"
+                    className="bg-card hover:bg-accent transition-colors"
                   >
-                    <td className="px-4 py-3 font-mono text-xs text-[var(--foreground)] align-top">
+                    <td className="px-4 py-3 font-mono text-xs text-foreground align-top">
                       {tp.touchpoint_id}
                     </td>
-                    <td className="px-4 py-3 text-[var(--foreground)] align-top">
+                    <td className="px-4 py-3 text-foreground align-top">
                       {tp.kind}
                     </td>
-                    <td className="px-4 py-3 text-[var(--foreground)] align-top">
+                    <td className="px-4 py-3 text-foreground align-top">
                       {tp.owner}
                     </td>
-                    <td className="px-4 py-3 text-[var(--foreground)] align-top">
+                    <td className="px-4 py-3 text-foreground align-top">
                       {tp.suite_name}
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-[var(--foreground)] align-top">
+                    <td className="px-4 py-3 text-right tabular-nums text-foreground align-top">
                       {tp.contract_version}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums align-top">
                       <span
                         className={
                           signalCount > 0
-                            ? 'text-[var(--foreground)]'
-                            : 'text-[var(--muted-foreground)]'
+                            ? 'text-foreground'
+                            : 'text-muted-foreground'
                         }
                         aria-label={`${signalCount} unprocessed signal${signalCount === 1 ? '' : 's'}`}
                       >
@@ -181,20 +187,28 @@ export default async function AdminRefinementPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums align-top">
-                      {graduationMetric !== null ? (
+                      {graduationMetric === undefined ? (
                         <span
-                          className="text-[var(--foreground)]"
+                          className="text-muted-foreground"
+                          aria-label="No graduation metric declared"
+                        >
+                          &mdash;
+                        </span>
+                      ) : graduationMetric === 'unreadable' ? (
+                        <span
+                          className="text-destructive"
+                          aria-label="Declared graduation metric is unreadable"
+                          title="Declared graduation metric could not be computed (B-INV-19 declared-but-unreadable)"
+                        >
+                          err
+                        </span>
+                      ) : (
+                        <span
+                          className="text-foreground"
                           aria-label={`${graduationMetric.metric}: ${(graduationMetric.value * 100).toFixed(1)}%`}
                           title={`${graduationMetric.metric} (${graduationMetric.sample_size} samples)`}
                         >
                           {(graduationMetric.value * 100).toFixed(1)}%
-                        </span>
-                      ) : (
-                        <span
-                          className="text-[var(--muted-foreground)]"
-                          aria-label="No graduation metric declared"
-                        >
-                          &mdash;
                         </span>
                       )}
                     </td>
@@ -211,7 +225,7 @@ export default async function AdminRefinementPage() {
                           <li key={endpoint}>
                             <a
                               href={`${baseUrl}/${endpoint}`}
-                              className="text-[var(--primary)] underline-offset-2 hover:underline"
+                              className="text-primary underline-offset-2 hover:underline"
                               target="_blank"
                               rel="noreferrer"
                             >
@@ -229,7 +243,7 @@ export default async function AdminRefinementPage() {
         </div>
       )}
 
-      <footer className="mt-6 text-xs text-[var(--muted-foreground)]">
+      <footer className="mt-6 text-xs text-muted-foreground">
         <p>
           Admin-only &mdash; non-admins are redirected to /login.
           Cross-touchpoint dashboard is a named follow-up (ID-104 deferred

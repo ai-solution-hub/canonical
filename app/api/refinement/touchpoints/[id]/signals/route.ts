@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
+import { tryQuery } from '@/lib/supabase/safe';
 
 export const maxDuration = 30;
 
@@ -26,17 +27,20 @@ export async function GET(
 
     const { id: touchpointId } = await params;
 
-    const { data, error } = await supabase
-      .from('ai_call_events')
-      .select(
-        'id, touchpoint_id, model, tier, input_tokens, output_tokens, cost_usd, outcome_signal, created_at',
-      )
-      .eq('touchpoint_id', touchpointId)
-      .order('created_at', { ascending: false });
+    const result = await tryQuery(
+      supabase
+        .from('ai_call_events')
+        .select(
+          'id, touchpoint_id, model, tier, input_tokens, output_tokens, cost_usd, outcome_signal, created_at',
+        )
+        .eq('touchpoint_id', touchpointId)
+        .order('created_at', { ascending: false }),
+      'refinement.touchpoints.signals',
+    );
 
-    if (error) {
+    if (!result.ok) {
       logger.error(
-        { err: error, op: 'refinement.touchpoints.signals' },
+        { err: result.error, op: 'refinement.touchpoints.signals' },
         'Failed to load signals for touchpoint',
       );
       return NextResponse.json(
@@ -47,7 +51,7 @@ export async function GET(
 
     return NextResponse.json({
       touchpoint_id: touchpointId,
-      signals: data ?? [],
+      signals: result.data ?? [],
     });
   } catch (err) {
     return NextResponse.json(

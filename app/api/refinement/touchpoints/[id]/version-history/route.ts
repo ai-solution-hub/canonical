@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
+import { tryQuery } from '@/lib/supabase/safe';
 
 export const maxDuration = 30;
 
@@ -29,17 +30,20 @@ export async function GET(
 
     const { id: touchpointId } = await params;
 
-    const { data, error } = await supabase
-      .from('eval_touchpoints')
-      .select(
-        'touchpoint_id, contract_version, registry_version, kind, owner, suite_name',
-      )
-      .eq('touchpoint_id', touchpointId)
-      .maybeSingle();
+    const result = await tryQuery(
+      supabase
+        .from('eval_touchpoints')
+        .select(
+          'touchpoint_id, contract_version, registry_version, kind, owner, suite_name',
+        )
+        .eq('touchpoint_id', touchpointId)
+        .maybeSingle(),
+      'refinement.touchpoints.version-history',
+    );
 
-    if (error) {
+    if (!result.ok) {
       logger.error(
-        { err: error, op: 'refinement.touchpoints.version-history' },
+        { err: result.error, op: 'refinement.touchpoints.version-history' },
         'Failed to load version history for touchpoint',
       );
       return NextResponse.json(
@@ -48,20 +52,21 @@ export async function GET(
       );
     }
 
-    if (!data) {
+    if (!result.data) {
       return NextResponse.json(
         { error: `Touchpoint not registered: ${touchpointId}` },
         { status: 404 },
       );
     }
 
+    const row = result.data;
     return NextResponse.json({
-      touchpoint_id: data.touchpoint_id,
-      contract_version: data.contract_version,
-      registry_version: data.registry_version,
-      kind: data.kind,
-      owner: data.owner,
-      suite_name: data.suite_name,
+      touchpoint_id: row.touchpoint_id,
+      contract_version: row.contract_version,
+      registry_version: row.registry_version,
+      kind: row.kind,
+      owner: row.owner,
+      suite_name: row.suite_name,
     });
   } catch (err) {
     return NextResponse.json(

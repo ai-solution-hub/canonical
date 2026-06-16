@@ -247,12 +247,14 @@ export async function runEvalTouchpoint(
   //    2, never a quality regression (T7).
   const outcome = await suiteFn(touchpoint);
 
-  // 5. Fetch the graduation metric value in-house (T19/B-INV-19). Runs
-  //    concurrently with the suite for suites that declare one; resolves null
-  //    for touchpoints with no `graduation_metric` — clean omission, not an
-  //    error. Errors from metricFor propagate as runner crashes (exit 2 via
-  //    the outer catch in main); an unknown metric name throws loudly (the
-  //    B-INV-19 "declared but unreadable" fail mode).
+  // 5. Fetch the graduation metric value in-house (T19/B-INV-19). Initiated
+  //    AFTER the suite resolves (step 1) but WITHOUT await, so it overlaps the
+  //    regression check + eval_runs write (steps 2–4) and is awaited at the
+  //    end — not concurrent with the suite itself. Resolves null for
+  //    touchpoints with no `graduation_metric` — clean omission, not an error.
+  //    Errors from metricFor propagate as runner crashes (exit 2 via the outer
+  //    catch in main); an unknown metric name throws loudly (the B-INV-19
+  //    "declared but unreadable" fail mode).
   const graduationMetricValuePromise = metricFor(
     supabase,
     touchpoint.touchpoint_id,
