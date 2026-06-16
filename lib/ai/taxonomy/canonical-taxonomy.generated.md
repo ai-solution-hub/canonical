@@ -162,7 +162,7 @@ Education sector — schools, colleges, universities, Ofsted, DfE requirements, 
 
 #### 12. PRODUCTS-SERVICES
 
-example-client Design product portfolio — LMS, Websites, Advanced Audits, and associated services.
+{CLIENT_ORGANISATION_NAME} Design product portfolio — LMS, Websites, Advanced Audits, and associated services.
 
 ---
 
