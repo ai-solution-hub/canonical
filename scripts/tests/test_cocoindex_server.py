@@ -610,6 +610,18 @@ class TestLifespanOnlyBoot:
         _stop_cocoindex_default_env()
 
         fake_pool = MagicMock(name="fake_asyncpg_pool")
+        # The lifespan-only boot awaits TWO pool coroutines, so both must be
+        # AsyncMock or `await <plain MagicMock>` raises `TypeError: object
+        # MagicMock can't be used in 'await' expression` (worker flagged crashed
+        # → worker_is_healthy() False → the G1 assertion below fails):
+        #   1. `await pool.fetch(...)` — flow._generate_client_alias_snapshot
+        #      (the {101.10} alias-cache prime in kh_pipeline_lifespan, run on
+        #      boot BEFORE the yield). Return [] = the graceful dev/CI path:
+        #      PIPELINE_CLIENT_ORG is unset here so the fail-closed branch is
+        #      skipped and prime_alias_cache_from_db_rows([]) installs the
+        #      baseline-only map — a CLEAN, healthy idle boot.
+        #   2. `await pool.close()` — kh_pipeline_lifespan teardown.
+        fake_pool.fetch = AsyncMock(return_value=[])
         fake_pool.close = AsyncMock()
 
         lifespan_entered = threading.Event()
