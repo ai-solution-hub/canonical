@@ -7,7 +7,7 @@
 -- the api-grant-guard drift check (ID-115 S10) fails CI on an un-mirrored table.
 --
 -- Views:     60 security_invoker 1:1 views (explicit cols, FK verbatim).
--- Functions: 65 INVOKER entrypoints/wrappers (search_path=public,extensions).
+-- Functions: 69 INVOKER entrypoints/wrappers (search_path=public,extensions).
 -- Grants:    views fail-closed (explicit GRANT, anon<=SELECT); functions REVOKE
 --            EXECUTE FROM PUBLIC then GRANT mirrored roles (set_config sole anon-exec).
 -- =============================================================================
@@ -1325,8 +1325,21 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON api.workspaces TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON api.workspaces TO service_role;
 
 -- ----------------------------------------------------------------------------
--- RPC ENTRYPOINTS (65)
+-- RPC ENTRYPOINTS (69)
 -- ----------------------------------------------------------------------------
+-- api._test_delete_broken_auth_user(probe_id uuid)  [INVOKER wrapper over SECURITY DEFINER public fn]
+DROP FUNCTION IF EXISTS api._test_delete_broken_auth_user(probe_id uuid);
+CREATE FUNCTION api._test_delete_broken_auth_user(probe_id uuid)
+  RETURNS void
+  LANGUAGE sql
+  SECURITY INVOKER
+  SET search_path = public, extensions
+AS $api$
+  SELECT public._test_delete_broken_auth_user(probe_id => probe_id);
+$api$;
+REVOKE EXECUTE ON FUNCTION api._test_delete_broken_auth_user(probe_id uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION api._test_delete_broken_auth_user(probe_id uuid) TO service_role;
+
 -- api.bulk_delete_tags(p_tags text[], p_type text)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.bulk_delete_tags(p_tags text[], p_type text);
 CREATE FUNCTION api.bulk_delete_tags(p_tags text[], p_type text)
@@ -1444,6 +1457,19 @@ $api$;
 REVOKE EXECUTE ON FUNCTION api.filter_by_keywords(search_terms text[]) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION api.filter_by_keywords(search_terms text[]) TO authenticated, service_role;
 
+-- api.find_duplicate_pairs(similarity_threshold numeric, p_domain text, limit_count integer)  [INVOKER entrypoint]
+DROP FUNCTION IF EXISTS api.find_duplicate_pairs(similarity_threshold numeric, p_domain text, limit_count integer);
+CREATE FUNCTION api.find_duplicate_pairs(similarity_threshold numeric DEFAULT 0.95, p_domain text DEFAULT NULL::text, limit_count integer DEFAULT 50)
+  RETURNS TABLE(id1 uuid, title1 text, type1 character varying, domain1 character varying, id2 uuid, title2 text, type2 character varying, domain2 character varying, similarity numeric)
+  LANGUAGE sql
+  SECURITY INVOKER
+  SET search_path = public, extensions
+AS $api$
+  SELECT * FROM public.find_duplicate_pairs(similarity_threshold => similarity_threshold, p_domain => p_domain, limit_count => limit_count);
+$api$;
+REVOKE EXECUTE ON FUNCTION api.find_duplicate_pairs(similarity_threshold numeric, p_domain text, limit_count integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION api.find_duplicate_pairs(similarity_threshold numeric, p_domain text, limit_count integer) TO authenticated, service_role;
+
 -- api.find_duplicate_tags(p_type text)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.find_duplicate_tags(p_type text);
 CREATE FUNCTION api.find_duplicate_tags(p_type text)
@@ -1560,6 +1586,19 @@ AS $api$
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_content_gaps() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION api.get_content_gaps() TO authenticated, service_role;
+
+-- api.get_content_win_rate(p_content_item_id uuid)  [INVOKER entrypoint]
+DROP FUNCTION IF EXISTS api.get_content_win_rate(p_content_item_id uuid);
+CREATE FUNCTION api.get_content_win_rate(p_content_item_id uuid)
+  RETURNS TABLE(total_citations bigint, winning_citations bigint, losing_citations bigint, pending_citations bigint, win_rate numeric)
+  LANGUAGE sql
+  SECURITY INVOKER
+  SET search_path = public, extensions
+AS $api$
+  SELECT * FROM public.get_content_win_rate(p_content_item_id => p_content_item_id);
+$api$;
+REVOKE EXECUTE ON FUNCTION api.get_content_win_rate(p_content_item_id uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION api.get_content_win_rate(p_content_item_id uuid) TO authenticated, service_role;
 
 -- api.get_coverage_matrix(p_layer text)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_coverage_matrix(p_layer text);
@@ -1716,6 +1755,19 @@ AS $api$
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_grouped_activity_feed(p_limit integer, p_is_admin boolean, p_before timestamp with time zone) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION api.get_grouped_activity_feed(p_limit integer, p_is_admin boolean, p_before timestamp with time zone) TO authenticated, service_role;
+
+-- api.get_guide_content(p_guide_slug text)  [INVOKER entrypoint]
+DROP FUNCTION IF EXISTS api.get_guide_content(p_guide_slug text);
+CREATE FUNCTION api.get_guide_content(p_guide_slug text)
+  RETURNS TABLE(section_id uuid, section_name text, section_description text, section_order integer, expected_layer text, subtopic_filter text, is_required boolean, content_id uuid, content_title text, content_type text, content_layer text, content_brief text, content_freshness text, content_verified_at timestamp with time zone, content_captured_date timestamp with time zone)
+  LANGUAGE sql
+  SECURITY INVOKER
+  SET search_path = public, extensions
+AS $api$
+  SELECT * FROM public.get_guide_content(p_guide_slug => p_guide_slug);
+$api$;
+REVOKE EXECUTE ON FUNCTION api.get_guide_content(p_guide_slug text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION api.get_guide_content(p_guide_slug text) TO authenticated, service_role;
 
 -- api.get_guide_coverage()  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_guide_coverage();

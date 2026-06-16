@@ -149,6 +149,7 @@ const SURFACE_RPCS: readonly string[] = [
   'count_auth_users',
   'delete_tag',
   'filter_by_keywords',
+  'find_duplicate_pairs',
   'find_duplicate_tags',
   'find_exact_duplicates',
   'find_related_items',
@@ -158,6 +159,7 @@ const SURFACE_RPCS: readonly string[] = [
   'get_author_analysis',
   'get_check_constraint_values',
   'get_content_gaps',
+  'get_content_win_rate',
   'get_coverage_matrix',
   'get_coverage_summary',
   'get_dashboard_attention_counts',
@@ -171,6 +173,7 @@ const SURFACE_RPCS: readonly string[] = [
   'get_form_question_stats_batch',
   'get_freshness_breakdown',
   'get_grouped_activity_feed',
+  'get_guide_content',
   'get_guide_coverage',
   'get_item_workspaces',
   'get_items_needing_layer',
@@ -216,8 +219,17 @@ const MISSING_RPCS: readonly string[] = [
  * SECURITY DEFINER `.rpc()`-reachable fns NOT in the SURFACE.md §2 list because
  * the scan excluded lib/mcp/plugin-bundle.ts. They MUST get api INVOKER wrappers
  * (INV-6). reference_ingest is also reached at app/api/ingest/url/route.ts:208.
+ *
+ * _test_delete_broken_auth_user (S156 WP-1 test helper, SECURITY DEFINER, GRANT
+ * service_role only) is reached by the integration suite's serviceClient, which
+ * also threads DB_OPTION → routes `.rpc()` to `api` post-cutover. Wrapping it
+ * (rather than rewriting the test to `.schema('public')`) keeps the ID-115 S9
+ * "zero per-call-site rewrites" invariant and mirrors api.count_auth_users — a
+ * sibling SECDEF auth helper already wrapped with REVOKE-PUBLIC + service_role
+ * GRANT, so anon cannot reach it.
  */
 const EXTRA_DEFINER_RPCS: readonly string[] = [
+  '_test_delete_broken_auth_user',
   'q_a_search',
   'q_a_get_verbatim',
   'question_match_search',
