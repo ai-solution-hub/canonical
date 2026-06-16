@@ -16,6 +16,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { DB_OPTION } from '@/lib/supabase/schema';
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -81,7 +82,9 @@ describe.skipIf(!isEvalEnabled)('Search Eval (test cases)', () => {
       throw new Error('Missing OPENAI_API_KEY for search eval');
     }
 
+    // ID-115 (S9): route to the exposed api schema
     const supabase = createClient(url, key, {
+      ...DB_OPTION,
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const openai = new OpenAI({ apiKey: openaiKey });

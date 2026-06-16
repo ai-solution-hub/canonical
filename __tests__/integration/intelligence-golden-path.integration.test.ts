@@ -24,7 +24,9 @@ import { serviceClient } from './helpers/service-client';
 import { getTestUserId } from './helpers/auth-session';
 import { classifyContent } from '@/lib/ai/classify';
 import { fetchIntelligenceSummary } from '@/lib/intelligence/summary';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/supabase/types/database.types';
+import { DB_OPTION } from '@/lib/supabase/schema';
 
 // ---------------------------------------------------------------------------
 // Env var gating
@@ -995,12 +997,14 @@ const hasViewerCredentials =
 describe.skipIf(!ENABLED || !hasViewerCredentials)(
   'SI RLS Verification (Viewer Role)',
   () => {
-    let viewerClient: ReturnType<typeof createClient>;
+    let viewerClient: SupabaseClient<Database>;
 
     it('Authenticate as viewer', async () => {
-      viewerClient = createClient(
+      // ID-115 (S9): route to the exposed api schema
+      viewerClient = createClient<Database>(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+        { ...DB_OPTION },
       );
 
       const { error } = await viewerClient.auth.signInWithPassword({

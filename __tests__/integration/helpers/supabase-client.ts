@@ -11,6 +11,7 @@ import {
   createMockSupabaseClient,
   type MockSupabaseClient,
 } from '../../helpers/mock-supabase';
+import { DB_OPTION } from '@/lib/supabase/schema';
 
 // Re-export mock helpers for use in integration tests
 export { createMockSupabaseClient, type MockSupabaseClient };
@@ -107,5 +108,6 @@ export async function createLiveServiceClient() {
 
   // Dynamic import to avoid requiring @supabase/supabase-js when only running mock tests
   const { createClient } = await import('@supabase/supabase-js');
-  return createClient(url, key);
+  // ID-115 (S9): route to the exposed `api` schema (public is unexposed post-cutover).
+  return createClient(url, key, { ...DB_OPTION });
 }

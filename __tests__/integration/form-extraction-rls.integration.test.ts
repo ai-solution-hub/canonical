@@ -129,7 +129,9 @@ async function createViewerScopedClient() {
   const password = process.env.TEST_USER_3_PASSWORD;
   if (!url || !anonKey || !password) return null;
   const { createClient } = await import('@supabase/supabase-js');
-  const viewer = createClient(url, anonKey);
+  const { DB_OPTION } = await import('@/lib/supabase/schema');
+  // ID-115 (S9): route to the exposed api schema
+  const viewer = createClient(url, anonKey, { ...DB_OPTION });
   const { error } = await viewer.auth.signInWithPassword({
     email: 'test.user3@test-kb-aish.co.uk',
     password,

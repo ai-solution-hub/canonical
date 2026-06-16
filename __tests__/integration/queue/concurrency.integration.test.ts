@@ -66,6 +66,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
+import { DB_OPTION } from '@/lib/supabase/schema';
 import { serviceClient } from '../helpers/service-client';
 
 // Idempotency-key prefix unique to this test run. Used both to scope
@@ -125,8 +126,13 @@ beforeAll(async () => {
   // invocations in Promise.all run on independent HTTP connections,
   // which on the database side become independent transactions. This is
   // what AC-11 requires ("two separate transactions").
-  clientA = createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-  clientB = createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  // ID-115 (S9): route to the exposed api schema
+  clientA = createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    ...DB_OPTION,
+  });
+  clientB = createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    ...DB_OPTION,
+  });
 
   // Cross-run isolation: scrub orphan pending rows older than 10 minutes on
   // the persistent staging branch. AC-11 asserts global cardinality

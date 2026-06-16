@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { DB_OPTION } from '@/lib/supabase/schema';
 
 /**
  * Create a Supabase client using the service role key.
@@ -16,5 +17,6 @@ export function createServiceClient(): SupabaseClient {
     );
   }
 
-  return createClient(url, key);
+  // ID-115 (S9): route to the exposed `api` schema (public is unexposed post-cutover).
+  return createClient(url, key, { ...DB_OPTION });
 }

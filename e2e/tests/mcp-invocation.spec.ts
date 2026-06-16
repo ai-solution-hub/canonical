@@ -137,6 +137,7 @@
 import { test, expect } from '../fixtures';
 import { createServiceClient } from '../fixtures/supabase';
 import { createClient } from '@supabase/supabase-js';
+import { DB_OPTION } from '@/lib/supabase/schema';
 import precomputedEmbeddings from '../fixtures/embeddings.json';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -181,7 +182,10 @@ function parseMcpBody(body: string): JsonRpcResponse {
 }
 
 async function getUserAccessToken(): Promise<string> {
-  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  // ID-115 (S9): route to the exposed api schema
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    ...DB_OPTION,
+  });
   const { data, error } = await supabase.auth.signInWithPassword({
     email: TEST_USER_EMAIL,
     password: TEST_USER_PASSWORD,

@@ -39,6 +39,7 @@ import { config } from 'dotenv';
 import { resolve } from 'path';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
+import { DB_OPTION } from '@/lib/supabase/schema';
 
 // ---------------------------------------------------------------------------
 // Environment bootstrap
@@ -87,7 +88,8 @@ if (RUN_INTEGRATION) {
     );
   }
 
-  db = createClient<Database>(url, key);
+  // ID-115 (S9): route to the exposed api schema
+  db = createClient<Database>(url, key, { ...DB_OPTION });
 }
 
 // ---------------------------------------------------------------------------

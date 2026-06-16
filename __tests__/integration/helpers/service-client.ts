@@ -13,6 +13,7 @@ import { config } from 'dotenv';
 import { resolve } from 'path';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
+import { DB_OPTION } from '@/lib/supabase/schema';
 
 // Load .env and .env.local from project root.
 // Worktrees under .claude/worktrees/<name>/ don't have their own .env files,
@@ -55,7 +56,11 @@ if (!url || !key) {
  * Service-role Supabase client for integration tests.
  * Bypasses RLS — all test data must be cleaned up in afterAll.
  */
+// ID-115 (S9): route to the exposed `api` schema at runtime (public is
+// unexposed post-cutover); the `Database` generic stays on the `public` base
+// types via the `DB_OPTION` seam (see lib/supabase/schema.ts).
 export const serviceClient: SupabaseClient<Database> = createClient<Database>(
   url,
   key,
+  { ...DB_OPTION },
 );

@@ -12,6 +12,7 @@
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'fs';
+import { DB_OPTION } from '@/lib/supabase/schema';
 import { resolveEvalFixture } from '@/lib/eval/fixtures';
 import { rougeL } from '@/lib/eval/metrics';
 
@@ -87,7 +88,9 @@ describe.skipIf(!isEvalEnabled)('Summarisation Eval (gold standard)', () => {
       );
     }
 
+    // ID-115 (S9): route to the exposed api schema
     const supabase = createClient(url, key, {
+      ...DB_OPTION,
       auth: { persistSession: false, autoRefreshToken: false },
     });
 

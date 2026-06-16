@@ -11,6 +11,7 @@
  * in e2e/fixtures/test-data-fixture.ts.
  */
 import { createClient } from '@supabase/supabase-js';
+import { DB_OPTION } from '@/lib/supabase/schema';
 import { sweepOrphanFixtures } from './fixtures/admin-dedup-fixture-helpers';
 import { createServiceClient } from './fixtures/supabase';
 import { TEST_USERS } from './fixtures/test-data';
@@ -153,7 +154,8 @@ async function globalSetup(): Promise<void> {
   // Finding 5.3.
   const anonUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
-  const anonClient = createClient(anonUrl, anonKey);
+  // ID-115 (S9): route to the exposed api schema
+  const anonClient = createClient(anonUrl, anonKey, { ...DB_OPTION });
 
   const passwordEnvByLabel: Record<string, string> = {
     admin: 'TEST_USER_1_PASSWORD',

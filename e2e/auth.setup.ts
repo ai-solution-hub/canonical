@@ -1,5 +1,6 @@
 import { test as setup, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
+import { DB_OPTION } from '@/lib/supabase/schema';
 
 /**
  * Authenticate a test user via the Supabase API and save browser state.
@@ -23,7 +24,8 @@ async function loginAndSave(
     );
   }
 
-  const supabase = createClient(supabaseUrl, supabaseAnonKey);
+  // ID-115 (S9): route to the exposed api schema
+  const supabase = createClient(supabaseUrl, supabaseAnonKey, { ...DB_OPTION });
 
   const email = process.env[emailEnv] || defaultEmail;
   const password = process.env[passwordEnv] || defaultPassword;

@@ -21,6 +21,7 @@
 
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { readFileSync } from 'fs';
+import { DB_OPTION } from '@/lib/supabase/schema';
 import { resolveEvalFixture } from '@/lib/eval/fixtures';
 import {
   parseArgs,
@@ -326,7 +327,9 @@ describe.skipIf(!isEvalEnabled)('Classification Eval (gold standard)', () => {
       );
     }
 
+    // ID-115 (S9): route to the exposed api schema
     const supabase = createClient(url, key, {
+      ...DB_OPTION,
       auth: { persistSession: false, autoRefreshToken: false },
     });
 

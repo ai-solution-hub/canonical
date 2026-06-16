@@ -17,6 +17,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { readFileSync, existsSync, unlinkSync } from 'fs';
 import { resolve, join } from 'path';
+import { DB_OPTION } from '@/lib/supabase/schema';
 import { resolveEvalFixture } from '@/lib/eval/fixtures';
 import {
   loadBaseline,
@@ -537,7 +538,9 @@ describe.skipIf(!isEvalEnabled)(
         );
       }
 
+      // ID-115 (S9): route to the exposed api schema
       const supabase = createClient(url, key, {
+        ...DB_OPTION,
         auth: { persistSession: false, autoRefreshToken: false },
       });
 

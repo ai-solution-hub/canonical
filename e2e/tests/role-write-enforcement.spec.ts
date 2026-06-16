@@ -124,6 +124,7 @@
 // `workerData.procurementId` and no longer inline-seeds a workspaces row.
 import { expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
+import { DB_OPTION } from '@/lib/supabase/schema';
 import type { BrowserContext, Page } from '@playwright/test';
 import { createServiceClient } from '../fixtures/supabase';
 import { test as dataTest } from '../fixtures/test-data-fixture';
@@ -170,7 +171,8 @@ async function getViewerUserId(): Promise<string> {
       'Missing TEST_USER_3_EMAIL or TEST_USER_3_PASSWORD env vars (viewer fixture user).',
     );
   }
-  const c = createClient(url, anon);
+  // ID-115 (S9): route to the exposed api schema
+  const c = createClient(url, anon, { ...DB_OPTION });
   const { data, error } = await c.auth.signInWithPassword({
     email: VIEWER_EMAIL,
     password: VIEWER_PASSWORD,

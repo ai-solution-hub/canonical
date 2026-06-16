@@ -118,6 +118,7 @@ import {
   type CachedSessions,
 } from './helpers/auth-session';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { DB_OPTION } from '@/lib/supabase/schema';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import type {
   McpServer,
@@ -432,7 +433,8 @@ beforeAll(async () => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
 
-  const adminClient = createSupabaseClient(url, anonKey);
+  // ID-115 (S9): route to the exposed api schema (public is unexposed post-cutover).
+  const adminClient = createSupabaseClient(url, anonKey, { ...DB_OPTION });
   const adminSignIn = await adminClient.auth.signInWithPassword({
     email: 'test.user1@test-kb-aish.co.uk',
     password: process.env.TEST_USER_1_PASSWORD!,
@@ -444,7 +446,7 @@ beforeAll(async () => {
   }
   mcpAdminToken = adminSignIn.data.session.access_token;
 
-  const editorClient = createSupabaseClient(url, anonKey);
+  const editorClient = createSupabaseClient(url, anonKey, { ...DB_OPTION });
   const editorSignIn = await editorClient.auth.signInWithPassword({
     email: 'test.user2@test-kb-aish.co.uk',
     password: process.env.TEST_USER_2_PASSWORD!,

@@ -159,6 +159,7 @@
 import { test, expect } from '../fixtures';
 import { createServiceClient } from '../fixtures/supabase';
 import { createClient } from '@supabase/supabase-js';
+import { DB_OPTION } from '@/lib/supabase/schema';
 import crypto from 'node:crypto';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -251,7 +252,10 @@ async function initOAuthFlow(
 }
 
 async function getUserAccessToken(): Promise<string> {
-  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  // ID-115 (S9): route to the exposed api schema
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    ...DB_OPTION,
+  });
   const { data, error } = await supabase.auth.signInWithPassword({
     email: TEST_USER_EMAIL,
     password: TEST_USER_PASSWORD,
@@ -327,7 +331,10 @@ test.describe('8.0.1 OAuth consent flow', () => {
     // Best-effort revoke any lingering grant for this client by the test user,
     // then delete the OAuth client. Both are idempotent.
     try {
-      const userSupabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      // ID-115 (S9): route to the exposed api schema
+      const userSupabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        ...DB_OPTION,
+      });
       await userSupabase.auth.signInWithPassword({
         email: TEST_USER_EMAIL,
         password: TEST_USER_PASSWORD,

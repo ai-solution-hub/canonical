@@ -36,6 +36,7 @@ import { config } from 'dotenv';
 import { resolve } from 'path';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
+import { DB_OPTION } from '@/lib/supabase/schema';
 
 // ---------------------------------------------------------------------------
 // Environment bootstrap (same walk-up pattern as the sibling suite).
@@ -74,7 +75,8 @@ if (RUN_INTEGRATION) {
         'SUPABASE_SERVICE_ROLE_KEY in .env.local',
     );
   }
-  db = createClient<Database>(url, key);
+  // ID-115 (S9): route to the exposed api schema
+  db = createClient<Database>(url, key, { ...DB_OPTION });
 }
 
 // ---------------------------------------------------------------------------
@@ -85,7 +87,8 @@ function createAnonClient(): SupabaseClient<Database> | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !anonKey) return null;
-  return createClient<Database>(url, anonKey);
+  // ID-115 (S9): route to the exposed api schema
+  return createClient<Database>(url, anonKey, { ...DB_OPTION });
 }
 
 // ---------------------------------------------------------------------------
