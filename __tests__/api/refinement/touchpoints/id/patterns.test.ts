@@ -142,6 +142,8 @@ describe('GET /api/refinement/touchpoints/[id]/patterns', () => {
       expect(body.patterns).toHaveLength(0);
       // Stable shape: deferred flag present so follow-up task ({104.19}) can fill it
       expect(body.deferred).toBe(true);
+      // Anchor names the deferred organ it backs ({104.19} / B-INV-24).
+      expect(body.deferred_organs).toEqual(['pattern_detector']);
     });
   });
 });

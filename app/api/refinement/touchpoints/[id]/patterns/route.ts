@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { deferredOrgansForAnchor } from '@/lib/eval/deferred-organs';
 
 export const maxDuration = 30;
 
@@ -30,6 +31,9 @@ export async function GET(
       touchpoint_id: touchpointId,
       patterns: [],
       deferred: true,
+      // The deferred organ this empty anchor backs ({104.19} / B-INV-24):
+      // the cross-touchpoint pattern detector fills this body.
+      deferred_organs: deferredOrgansForAnchor('patterns'),
     });
   } catch (err) {
     return NextResponse.json(

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { deferredOrgansForAnchor } from '@/lib/eval/deferred-organs';
 
 export const maxDuration = 30;
 
@@ -30,6 +31,9 @@ export async function GET(
       touchpoint_id: touchpointId,
       proposals: [],
       deferred: true,
+      // The deferred organs this empty anchor backs ({104.19} / B-INV-24):
+      // the parallel A/B runner + the auto-rollback registry fill this body.
+      deferred_organs: deferredOrgansForAnchor('proposals'),
     });
   } catch (err) {
     return NextResponse.json(
