@@ -461,8 +461,6 @@ export async function main(): Promise<void> {
   // eval-runner types, and keeps the module graph deterministic at test time.
   const { createClient } = await import('@supabase/supabase-js');
   const { buildSuiteRegistry } = await import('@/scripts/eval-register-suites');
-  const type = await import('@/supabase/types/database.types');
-  void type; // types-only import, no runtime effect needed
 
   const url =
     process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? process.env['SUPABASE_URL'];
