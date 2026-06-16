@@ -10,6 +10,7 @@ import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import type { Database } from '@/supabase/types/database.types';
 import { sb } from '@/lib/supabase/safe';
 import { clientEnv } from '@/lib/env-client';
+import { DB_OPTION } from '@/lib/supabase/schema';
 
 /**
  * Creates a per-user Supabase client from an OAuth bearer token.
@@ -24,6 +25,7 @@ export function createMcpUserClient(bearerToken: string) {
     clientEnv.NEXT_PUBLIC_SUPABASE_URL,
     clientEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     {
+      ...DB_OPTION,
       global: {
         headers: { Authorization: `Bearer ${bearerToken}` },
       },

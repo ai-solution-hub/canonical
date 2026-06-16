@@ -9,9 +9,14 @@ enabled = true
 # Port to use for the API URL.
 port = 54321
 # Schemas to expose in your API. Tables, views and stored procedures in this schema will get API
-# endpoints. `public` and `graphql_public` schemas are included by default.
-schemas = ["public", "graphql_public"]
-# Extra schemas to add to the search_path of every request.
+# endpoints. ID-115: `api` is the ONLY exposed Data API schema — `public` and `graphql_public` are
+# dropped, making `public` a structural PGRST106 boundary (PRODUCT INV-1/INV-2), not grant-vigilance.
+# Mirror on each remote (Dashboard → Settings → API exposed-schemas, or Management API `db_schema`).
+schemas = ["api"]
+# Extra schemas to add to the search_path of every request. `public` stays here (orthogonal to
+# exposure) so the security_invoker views' `FROM public.<t>` and the INVOKER RPC bodies resolve
+# unqualified public.* refs at request time. Removing `public` from `schemas` (above) is the
+# boundary; keeping it in the search_path keeps the view/RPC plumbing working.
 extra_search_path = ["public", "extensions"]
 # The maximum number of rows returns from a view, table, or stored procedure. Limits payload size
 # for accidental or malicious requests.

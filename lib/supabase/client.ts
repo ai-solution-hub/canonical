@@ -2,6 +2,7 @@ import { createBrowserClient } from '@supabase/ssr';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 import { clientEnv } from '@/lib/env-client';
+import { DB_OPTION } from '@/lib/supabase/schema';
 
 // Singleton browser client. The Supabase auth helpers / @supabase/ssr docs
 // recommend a single browser client per tab — multiple instances waste
@@ -22,6 +23,7 @@ export function createClient(): SupabaseClient<Database> {
     browserClient = createBrowserClient<Database>(
       clientEnv.NEXT_PUBLIC_SUPABASE_URL,
       clientEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+      { ...DB_OPTION },
     );
   }
   return browserClient;

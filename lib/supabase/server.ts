@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import type { Database } from '@/supabase/types/database.types';
 import { clientEnv } from '@/lib/env-client';
 import { serverEnv } from '@/lib/env-server';
+import { DB_OPTION } from '@/lib/supabase/schema';
 
 /**
  * Server-side Supabase client for API routes and Server Components (with
@@ -21,6 +22,7 @@ export async function createClient() {
     clientEnv.NEXT_PUBLIC_SUPABASE_URL,
     clientEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     {
+      ...DB_OPTION,
       cookies: {
         getAll() {
           return cookieStore.getAll();
@@ -60,6 +62,7 @@ export function createServiceClient() {
     clientEnv.NEXT_PUBLIC_SUPABASE_URL,
     serverEnv.SUPABASE_SERVICE_ROLE_KEY,
     {
+      ...DB_OPTION,
       auth: {
         persistSession: false,
         autoRefreshToken: false,

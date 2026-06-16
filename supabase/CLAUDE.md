@@ -19,7 +19,10 @@
 - **No client/counterparty names in migration filenames or any committed artifact**
   (IP leak) — enforced by the `ip-leak-filename-guard` hook against the private
   denylist (`$KH_PRIVATE_DOCS_DIR/.config/ip-denylist.txt`).
-- **Types regen after schema change:**
-  `/opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts`
-  — never edit `database.types.ts` manually. JSONB domain overrides:
-  `supabase/types/database-overrides.ts`.
+- **Types regen after schema change (ID-115: `--schema public,api`):**
+  `/opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public,api > supabase/types/database.types.ts`
+  — both schemas, deterministic order (`public` then `api`). `public` carries the
+  base-table row shapes the app consumes (clients route to `api` at runtime but
+  stay typed against `public` — see `lib/supabase/schema.ts`); `api` is generated
+  for the drift check + docs. Never edit `database.types.ts` manually. JSONB
+  domain overrides: `supabase/types/database-overrides.ts`.
