@@ -49,33 +49,21 @@ describe('resolveEvalFixture (PC-7 step 3)', () => {
     expect(() => resolveEvalFixture('entity')).not.toThrow();
   });
 
-  it('resolves the summarisation fixture under KH_PRIVATE_DOCS_DIR/eval-fixtures', () => {
-    process.env[KNOB] = '/checkouts/knowledge-hub-docs-site';
+  it('resolves the summarisation fixture to the public eval-gold path', () => {
     expect(resolveEvalFixture('summarisation')).toBe(
-      resolve(
-        '/checkouts/knowledge-hub-docs-site',
-        'eval-fixtures/summarisation-eval-gold-standard.json',
-      ),
+      resolve(PUBLIC_DIR, 'summarisation-eval-gold-standard.json'),
     );
   });
 
-  it('resolves the procurement-drafting fixture under KH_PRIVATE_DOCS_DIR/eval-fixtures', () => {
-    process.env[KNOB] = '/checkouts/knowledge-hub-docs-site';
+  it('resolves the procurement-drafting fixture to the public eval-gold path', () => {
     expect(resolveEvalFixture('procurement-drafting')).toBe(
-      resolve(
-        '/checkouts/knowledge-hub-docs-site',
-        'eval-fixtures/procurement-drafting-eval-gold-standard.json',
-      ),
+      resolve(PUBLIC_DIR, 'procurement-drafting-eval-gold-standard.json'),
     );
   });
 
-  it('throws the Inv 29 actionable error naming the knob when unset for a private fixture', () => {
-    expect(() => resolveEvalFixture('summarisation')).toThrowError(
-      /KH_PRIVATE_DOCS_DIR/,
-    );
-    expect(() => resolveEvalFixture('procurement-drafting')).toThrowError(
-      /KH_PRIVATE_DOCS_DIR/,
-    );
+  it('resolves public fixtures without the bridge knob set', () => {
+    expect(() => resolveEvalFixture('summarisation')).not.toThrow();
+    expect(() => resolveEvalFixture('procurement-drafting')).not.toThrow();
   });
 
   it('throws on an unknown fixture name, listing the known names', () => {
