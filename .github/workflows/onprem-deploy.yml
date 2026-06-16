@@ -89,6 +89,26 @@ on:
         required: false
         type: boolean
         default: true
+      source_sha:
+        # ID-113.6 release re-tag: the full or abbreviated commit SHA of a
+        # known-good image already published as ${IMAGE}:sha-<sha>. When set
+        # alongside release_version, the `tag-release` job aliases that image
+        # to the vX.Y.Z tag WITHOUT a rebuild. Leave blank for a normal
+        # build-and-deploy dispatch.
+        description:
+          "Known-good commit SHA to re-tag (e.g. abc1234); leave blank for
+          normal build"
+        required: false
+        default: ""
+      release_version:
+        # Semantic version string, e.g. v1.2.3. Paired with source_sha — the
+        # tag-release job aliases ${IMAGE}:sha-<source_sha> to
+        # ${IMAGE}:<release_version>. No rebuild; content-addressable alias only.
+        description:
+          "Release version tag to publish (e.g. v1.2.3); leave blank for normal
+          build"
+        required: false
+        default: ""
   push:
     branches: [main, staging] # main → prod deploy; staging → staging deploy (bl-222, S309). Branch-guarded per job below.
     # NO paths: filter (ID-86 / bl-236) — GitHub inspects only the first 300
@@ -500,4 +520,76 @@ jobs:
             echo "- **Deploy:** triggered on \`${COOLIFY_APP_UUID}\` (staging host pulls the pinned tag; never builds on-host)"
             echo "- **Burn guard (architectural, ID-83 / bl-221):** boot is decoupled — the worker boots lifespan-only and never walks the corpus, so this deploy/restart is burn-safe regardless of \`COCOINDEX_SOURCE_PATH\` (the walk fires only via on-demand POST /walk). This Action still leaves SOURCE_PATH to Coolify env (informational, no longer burn-critical)."
             echo "- **Reminder:** this Action is the **SOLE deploy trigger** — Coolify git-auto-deploy MUST stay disabled (see \`docs/runbooks/onprem-b1-deploy.md\` §B2)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # RELEASE RE-TAG — ID-113.6: alias a known-good sha- image to a vX.Y.Z tag
+  # at release cut. NO rebuild — content-addressable alias only (TECH PI-10
+  # option (a): docker pull → docker tag → docker push).
+  #
+  # TRIGGER: workflow_dispatch ONLY with BOTH source_sha AND release_version
+  # inputs set. A branch push (push: [main, staging]) NEVER reaches this job
+  # (the `if:` guards against it). A plain dispatch (source_sha/release_version
+  # blank) also skips this job via the same guard.
+  #
+  # ROLLBACK: re-point Coolify to a prior vX.Y.Z tag (a runbook step, {113.9})
+  # — no rebuild required because the tag is a content-addressable alias of the
+  # original sha- image.
+  #
+  # AUTHENTICATION: reuses the same docker/login-action + GITHUB_TOKEN pattern
+  # as the build-and-push-cocoindex job (ghcr.io, packages: write permission).
+  #
+  # INJECTION SAFETY: source_sha and release_version are mapped into the shell
+  # env (never interpolated directly inside run:), matching the injection-safe
+  # pattern used throughout this workflow.
+  # ───────────────────────────────────────────────────────────────────────────
+  tag-release:
+    name: Re-tag known-good sha- image as vX.Y.Z (release cut, no rebuild)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Guard: only fire on workflow_dispatch where BOTH release inputs are
+    # provided. This job is completely inert on push: [main, staging] events
+    # and on plain dispatches (source_sha / release_version left blank).
+    if: >-
+      github.event_name == 'workflow_dispatch' && github.event.inputs.source_sha
+      != '' && github.event.inputs.release_version != ''
+    steps:
+      - name: Log in to ghcr.io
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3 (pinned 2026-05-31)
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull known-good sha- image, tag as vX.Y.Z, push (no rebuild)
+        env:
+          # Map dynamic inputs into the shell env — NEVER interpolate ${{ }}
+          # directly inside run: (injection-safe, matching the deploy-job pattern).
+          SOURCE_SHA: ${{ github.event.inputs.source_sha }}
+          RELEASE_VERSION: ${{ github.event.inputs.release_version }}
+        run: |
+          set -euo pipefail
+          SOURCE_TAG="${IMAGE}:sha-${SOURCE_SHA}"
+          RELEASE_TAG="${IMAGE}:${RELEASE_VERSION}"
+          echo "Pulling ${SOURCE_TAG} …"
+          docker pull "${SOURCE_TAG}"
+          echo "Tagging as ${RELEASE_TAG} …"
+          docker tag "${SOURCE_TAG}" "${RELEASE_TAG}"
+          echo "Pushing ${RELEASE_TAG} …"
+          docker push "${RELEASE_TAG}"
+          echo "Published ${RELEASE_TAG} (content-addressable alias of ${SOURCE_TAG}; no rebuild)"
+
+      - name: Release re-tag summary
+        env:
+          SOURCE_SHA: ${{ github.event.inputs.source_sha }}
+          RELEASE_VERSION: ${{ github.event.inputs.release_version }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### onprem-deploy — release re-tag (ID-113.6)"
+            echo ""
+            echo "- **Source image:** \`${IMAGE}:sha-${SOURCE_SHA}\` (known-good, already published)"
+            echo "- **Release tag:** \`${IMAGE}:${RELEASE_VERSION}\` (content-addressable alias — no rebuild)"
+            echo "- **Rollback:** re-point Coolify \`COCOINDEX_IMAGE_TAG\` to a prior \`vX.Y.Z\` tag; no rebuild required"
+            echo "- **Note:** Coolify pinning to \`${RELEASE_VERSION}\` is a runbook step ({113.9}) — this job ONLY publishes the alias"
           } >> "$GITHUB_STEP_SUMMARY"
