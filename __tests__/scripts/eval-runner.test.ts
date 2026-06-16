@@ -11,7 +11,9 @@
  * without killing the test process.
  */
 import { describe, expect, it, vi } from 'vitest';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
+import type { Database } from '@/supabase/types/database.types';
 import type { Touchpoint } from '@/lib/eval/registry';
 import {
   EXIT_PASS,
@@ -24,6 +26,17 @@ import {
 } from '@/scripts/eval-runner';
 
 import { createMockSupabaseClient } from '@/__tests__/helpers/mock-supabase';
+
+/**
+ * The shared Supabase mock, cast to the production client type so it can be
+ * passed to runner functions typed `SupabaseClient<Database>`, while tests still
+ * drive it through the `_chain` mock API (preserved by the intersection).
+ */
+function mockDb(): SupabaseClient<Database> &
+  ReturnType<typeof createMockSupabaseClient> {
+  return createMockSupabaseClient() as unknown as SupabaseClient<Database> &
+    ReturnType<typeof createMockSupabaseClient>;
+}
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -100,7 +113,7 @@ describe('foldExitClass', () => {
 
 describe('runEvalTouchpoint', () => {
   it('exits 0 and writes passed=true when metrics hold against the baseline', async () => {
-    const supabase = createMockSupabaseClient();
+    const supabase = mockDb();
     // Active baseline load (.maybeSingle) — domain_accuracy baseline 0.80.
     supabase._chain.maybeSingle.mockResolvedValueOnce({
       data: {
@@ -147,7 +160,7 @@ describe('runEvalTouchpoint', () => {
   });
 
   it('exits 1 (quality fail) with severity_disposition=block when a block-severity regression beyond the variance band occurs', async () => {
-    const supabase = createMockSupabaseClient();
+    const supabase = mockDb();
     supabase._chain.maybeSingle.mockResolvedValueOnce({
       data: {
         touchpoint_id: 'classification',
@@ -189,7 +202,7 @@ describe('runEvalTouchpoint', () => {
   });
 
   it('exits 0 — NOT 1 — when a regression occurs but severity_on_fail is warn (recorded, gate still passes)', async () => {
-    const supabase = createMockSupabaseClient();
+    const supabase = mockDb();
     supabase._chain.maybeSingle.mockResolvedValueOnce({
       data: {
         touchpoint_id: 'search',
@@ -239,7 +252,7 @@ describe('runEvalTouchpoint', () => {
   });
 
   it('exits 2 (infra) — NOT 1 — when the suite reports a transient-provider failure (Anthropic 529)', async () => {
-    const supabase = createMockSupabaseClient();
+    const supabase = mockDb();
     supabase._chain.single.mockResolvedValueOnce({
       data: { id: 'run-4' },
       error: null,
@@ -269,7 +282,7 @@ describe('runEvalTouchpoint', () => {
   });
 
   it('exits 0 with passed=true on the first run when no baseline has been promoted yet', async () => {
-    const supabase = createMockSupabaseClient();
+    const supabase = mockDb();
     // loadBaseline → null (no baseline).
     supabase._chain.maybeSingle.mockResolvedValueOnce({
       data: null,
@@ -293,7 +306,7 @@ describe('runEvalTouchpoint', () => {
   });
 
   it('exits 2 (runner error) when the eval_runs write itself fails (DB unreachable)', async () => {
-    const supabase = createMockSupabaseClient();
+    const supabase = mockDb();
     supabase._chain.maybeSingle.mockResolvedValueOnce({
       data: null,
       error: null,
@@ -322,7 +335,7 @@ describe('runEvalTouchpoint', () => {
 
 describe('runEvals', () => {
   it('dispatches every registered touchpoint and folds an aggregate EXIT_PASS when all pass', async () => {
-    const supabase = createMockSupabaseClient();
+    const supabase = mockDb();
     // listTouchpoints → two registered touchpoints.
     supabase._chain.order.mockReturnValueOnce(
       Promise.resolve({
@@ -357,7 +370,7 @@ describe('runEvals', () => {
   });
 
   it('folds to EXIT_RUNNER_ERROR (2) — DISTINCT from a quality fail — for an unregistered --touchpoint', async () => {
-    const supabase = createMockSupabaseClient();
+    const supabase = mockDb();
     // getTouchpoint(unregistered) → maybeSingle null.
     supabase._chain.maybeSingle.mockResolvedValueOnce({
       data: null,
@@ -376,7 +389,7 @@ describe('runEvals', () => {
   });
 
   it('keeps quality-fail (1) and infra-error (2) DISTINCT across a mixed run — the infra error dominates the fold', async () => {
-    const supabase = createMockSupabaseClient();
+    const supabase = mockDb();
     supabase._chain.order.mockReturnValueOnce(
       Promise.resolve({
         data: [
@@ -431,7 +444,7 @@ describe('runEvals', () => {
   });
 
   it('exits 2 when a touchpoint references a suite_name with no registered suite fn', async () => {
-    const supabase = createMockSupabaseClient();
+    const supabase = mockDb();
     supabase._chain.maybeSingle.mockResolvedValueOnce({
       data: touchpoint({
         touchpoint_id: 'classification',
@@ -478,10 +491,9 @@ describe('exit-class purity', () => {
   it('computes the exit class as a return value — runEvals never calls process.exit', async () => {
     const exitSpy = vi
       .spyOn(process, 'exit')
-      // @ts-expect-error — stub the never-returning signature for the test.
       .mockImplementation((() => undefined) as never);
 
-    const supabase = createMockSupabaseClient();
+    const supabase = mockDb();
     supabase._chain.maybeSingle.mockResolvedValueOnce({
       data: null,
       error: null,

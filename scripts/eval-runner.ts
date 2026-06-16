@@ -48,7 +48,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { Database, TablesInsert } from '@/supabase/types/database.types';
-import type { AgentEvalContract, SeverityTier } from '@/lib/eval/contract';
+import type {
+  AgentEvalContract,
+  GroundingShape,
+  SeverityTier,
+  TouchpointKind,
+} from '@/lib/eval/contract';
 import { loadBaseline } from '@/lib/eval/baseline-store';
 import { checkTouchpointRegression } from '@/lib/eval/regression';
 import {
@@ -176,13 +181,16 @@ export function foldExitClass(
  * `variance_band` (plus the other contract fields for completeness).
  */
 function touchpointContract(touchpoint: Touchpoint): AgentEvalContract {
+  // eval_touchpoints columns are CHECK-constrained TEXT, so database.types.ts
+  // surfaces them as `string`; registerTouchpoint() validates them against the
+  // contract unions on write (B-INV-3), so narrowing them here is sound.
   return {
     touchpoint_id: touchpoint.touchpoint_id,
-    kind: touchpoint.kind,
+    kind: touchpoint.kind as TouchpointKind,
     owner: touchpoint.owner,
     suite_name: touchpoint.suite_name,
-    grounding_shape: touchpoint.grounding_shape,
-    severity_on_fail: touchpoint.severity_on_fail,
+    grounding_shape: touchpoint.grounding_shape as GroundingShape,
+    severity_on_fail: touchpoint.severity_on_fail as SeverityTier,
     variance_band: touchpoint.variance_band,
     graduation_metric: touchpoint.graduation_metric ?? undefined,
   };
@@ -278,7 +286,9 @@ export async function runEvalTouchpoint(
   //    ({104.7}). Each failing metric contributes one severity result at the
   //    touchpoint's configured tier.
   const runDisposition = disposition(
-    failingMetrics.map(() => ({ severity: touchpoint.severity_on_fail })),
+    failingMetrics.map(() => ({
+      severity: touchpoint.severity_on_fail as SeverityTier,
+    })),
   );
 
   const hasRegression = failingMetrics.length > 0;
