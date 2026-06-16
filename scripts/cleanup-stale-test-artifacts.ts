@@ -16,8 +16,8 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { createClient } from '@supabase/supabase-js';
 import { config as loadDotenv } from 'dotenv';
+import { createLooseScriptClient } from '@/scripts/lib/supabase-script-client';
 import { MCP_EVAL_SEED_METADATA_FLAG } from './mcp-eval/seed-data';
 
 for (const envFile of ['.env.local', '.env']) {
@@ -83,7 +83,9 @@ if (!supabaseUrl.includes(STAGING_PROJECT_REF)) {
 }
 
 const cutoffIso = new Date(Date.now() - minAgeMinutes * 60_000).toISOString();
-const supabase = createClient(supabaseUrl, serviceRoleKey, {
+// <any>: dynamic `.from(table)` over a runtime table list — intentionally loose
+// (see supabase-script-client.ts).
+const supabase = createLooseScriptClient(supabaseUrl, serviceRoleKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 function isPersistentMcpEvalSeed(metadata: unknown): boolean {

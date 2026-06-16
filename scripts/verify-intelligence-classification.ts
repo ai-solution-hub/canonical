@@ -16,7 +16,7 @@
  *   1 — >20% of items are unclassified (pipeline issue)
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 
 // ---------------------------------------------------------------------------
 // Env loading (standalone script — no Next.js context)
@@ -374,7 +374,7 @@ async function main(): Promise<void> {
 
   assertEnvFlag(env, supabaseUrl);
 
-  const supabase = createClient(supabaseUrl, supabaseKey, {
+  const supabase = createScriptClient(supabaseUrl, supabaseKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 

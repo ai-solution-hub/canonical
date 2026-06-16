@@ -28,7 +28,7 @@
  *   bun run scripts/propagate-cert-metadata.ts --help         # show help
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createLooseScriptClient } from '@/scripts/lib/supabase-script-client';
 import { parseArgs } from 'util';
 import path from 'path';
 import fs from 'fs';
@@ -123,7 +123,9 @@ if (!supabaseUrl || !supabaseKey) {
 
 assertEnvFlag(args.env ?? '', supabaseUrl);
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+// <any>: writes JSONB metadata as Record<string,unknown> — intentionally loose
+// (see supabase-script-client.ts).
+const supabase = createLooseScriptClient(supabaseUrl, supabaseKey);
 
 // ── Constants ──────────────────────────────────────────────────────────────
 

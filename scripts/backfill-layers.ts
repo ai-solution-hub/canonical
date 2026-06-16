@@ -14,10 +14,10 @@
  *   bun run scripts/backfill-layers.ts --apply --limit 50
  */
 
-import { createClient } from '@supabase/supabase-js';
 import { parseArgs } from 'util';
 import path from 'path';
 import fs from 'fs';
+import { createLooseScriptClient } from '@/scripts/lib/supabase-script-client';
 import { inferLayer } from '../lib/layer-inference';
 import type { LayerInferenceInput } from '../lib/layer-inference';
 
@@ -112,7 +112,9 @@ if (!supabaseUrl || !supabaseKey) {
 
 assertEnvFlag(args.env ?? '', supabaseUrl);
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+// <any>: calls the dead `get_items_needing_layer` rpc (fallback path), not in
+// the typed schema — intentionally loose (see supabase-script-client.ts).
+const supabase = createLooseScriptClient(supabaseUrl, supabaseKey);
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

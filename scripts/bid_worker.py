@@ -23,7 +23,7 @@ import tempfile
 import time
 from datetime import datetime, timezone
 
-from supabase import create_client, Client
+from supabase import create_client, Client, ClientOptions
 
 POLL_INTERVAL = 2  # seconds
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -51,7 +51,9 @@ def get_supabase() -> Client:
             file=sys.stderr,
         )
         sys.exit(1)
-    return create_client(url, key)
+    # ID-115 (S8): route from_/rpc to the exposed `api` schema (public is
+    # unexposed post-cutover). Storage is a separate API and is unaffected.
+    return create_client(url, key, options=ClientOptions(schema="api"))
 
 
 def extract_docx_questions(supabase: Client, payload: dict) -> dict:

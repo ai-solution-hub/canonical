@@ -17,7 +17,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { createClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 
 const PROJECT_ROOT = join(__dirname, '..');
 // DB-derived artefact homed in MAIN ({114.6}). Both bundle-plugin.ts validate()
@@ -223,7 +223,7 @@ async function fetchTaxonomy(env: string): Promise<{
 
   assertEnvFlag(env, supabaseUrl);
 
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = createScriptClient(supabaseUrl, supabaseKey);
 
   const { data: domains, error: dErr } = await supabase
     .from('taxonomy_domains')

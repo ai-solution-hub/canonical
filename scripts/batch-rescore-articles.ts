@@ -11,7 +11,7 @@
  *   bun run scripts/batch-rescore-articles.ts --limit 10
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import { scoreRelevance } from '@/lib/intelligence/relevance-scorer';
 import type { CompanyContext } from '@/lib/intelligence/types';
 import { getIntelligenceWorkspaceContext } from '@/lib/intelligence/workspace-context';
@@ -101,7 +101,7 @@ async function main() {
     process.exit(1);
   }
 
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = createScriptClient(supabaseUrl, supabaseKey);
 
   // 1. Query articles that need re-scoring
   let query = supabase

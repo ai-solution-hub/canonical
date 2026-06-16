@@ -11,7 +11,7 @@
  *   bun run scripts/batch_generate_summaries.ts --dry-run
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createLooseScriptClient } from '@/scripts/lib/supabase-script-client';
 import { callSummaryAI } from '@/lib/ai/summarise';
 import type { SummaryData } from '@/types/content';
 
@@ -186,7 +186,9 @@ async function main(): Promise<void> {
   assertEnvFlag(env, supabaseUrl);
 
   const model = process.env.AI_SUMMARY_MODEL || 'claude-sonnet-4-6';
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  // <any>: writes JSONB summary_data as Record<string,unknown> — intentionally
+  // loose (see supabase-script-client.ts).
+  const supabase = createLooseScriptClient(supabaseUrl, supabaseKey);
 
   // ── Fetch items needing summaries ──
 

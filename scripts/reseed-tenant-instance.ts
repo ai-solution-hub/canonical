@@ -31,7 +31,9 @@
  *
  * Spec: specs/id-95-per-client-topology/TECH.md §T-C.
  */
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { type SupabaseClient } from '@supabase/supabase-js';
+
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 
 const SIGNUP_POLICY_TABLE = 'signup_policy';
 const TENANT_CONFIG_TABLE = 'tenant_config';
@@ -209,7 +211,7 @@ export function createServiceRoleClient(): SupabaseClient {
       'SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set to run the re-seed manifest.',
     );
   }
-  return createClient(url, key, { auth: { persistSession: false } });
+  return createScriptClient(url, key, { auth: { persistSession: false } });
 }
 
 // Guard so importing the exported helpers (e.g. from Vitest) does not run any

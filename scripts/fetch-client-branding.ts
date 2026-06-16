@@ -35,7 +35,8 @@
  */
 import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { type SupabaseClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import {
   assertBrandAssetsExist,
   BrandingConfigSchema,
@@ -315,7 +316,7 @@ async function main(): Promise<void> {
       serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
     },
     createSupabaseClient: (url, key) =>
-      createClient(url, key, { auth: { persistSession: false } }),
+      createScriptClient(url, key, { auth: { persistSession: false } }),
     writers: diskWriters(),
   });
   if (result.status === 'noop') {

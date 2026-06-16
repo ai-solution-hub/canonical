@@ -13,6 +13,7 @@
  */
 
 import { normaliseTag } from '../lib/validation/schemas';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 
 // ── Synonym merge mappings ───────────────────────────────────────────────────
 
@@ -136,7 +137,6 @@ if (process.argv[1]?.endsWith('cleanup-tags.ts')) {
 }
 
 async function runCli() {
-  const { createClient } = await import('@supabase/supabase-js');
   const { parseArgs } = await import('util');
   const path = await import('path');
   const fs = await import('fs');
@@ -228,7 +228,7 @@ Options:
 
   assertEnvFlag(args.env ?? '', supabaseUrl);
 
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = createScriptClient(supabaseUrl, supabaseKey);
 
   // ── Main logic ─────────────────────────────────────────────────────────
 

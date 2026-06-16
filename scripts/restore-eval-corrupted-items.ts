@@ -31,8 +31,8 @@
  */
 
 import { readFileSync } from 'fs';
-import { createClient } from '@supabase/supabase-js';
-import type { Database, Json } from '@/supabase/types/database.types';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
+import type { Json } from '@/supabase/types/database.types';
 
 // ─────────────────────────────────
 // Env loading (same pattern as eval)
@@ -166,7 +166,7 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
-  const supabase = createClient<Database>(url, key, {
+  const supabase = createScriptClient(url, key, {
     auth: { persistSession: false },
   });
 

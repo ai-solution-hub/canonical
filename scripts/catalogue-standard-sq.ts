@@ -20,7 +20,7 @@
  *   bun run scripts/catalogue_standard_sq.ts --dry-run --skip-embeddings  # preview only
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import path from 'path';
 import fs from 'fs';
 
@@ -2192,7 +2192,7 @@ async function main(): Promise<void> {
 
   assertEnvFlag(env, supabaseUrl);
 
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = createScriptClient(supabaseUrl, supabaseKey);
 
   // ── Check for existing rows (idempotency) ──
 

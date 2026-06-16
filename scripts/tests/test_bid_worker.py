@@ -81,9 +81,12 @@ class TestGetSupabase:
 
         client = get_supabase()
 
-        mock_create.assert_called_once_with(
-            "https://test.supabase.co", "test-secret-key"
-        )
+        # ID-115 (S8): client routes to the exposed `api` schema (public is
+        # unexposed post-cutover). Storage is a separate API and is unaffected.
+        mock_create.assert_called_once()
+        args, kwargs = mock_create.call_args
+        assert args == ("https://test.supabase.co", "test-secret-key")
+        assert kwargs["options"].schema == "api"
 
 
 # ── process_job ──────────────────────────────────────────────────────────────

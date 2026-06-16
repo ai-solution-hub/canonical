@@ -41,7 +41,7 @@
  *   anon/authenticated have no execute privilege.
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import { parseArgs } from 'util';
 import path from 'path';
 import fs from 'fs';
@@ -179,7 +179,7 @@ function assertEnvFlag(env: string, url: string): void {
 
 assertEnvFlag(envFlag, supabaseUrl);
 
-const supabase = createClient(supabaseUrl, supabaseKey, {
+const supabase = createScriptClient(supabaseUrl, supabaseKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 

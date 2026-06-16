@@ -12,7 +12,8 @@
 
 import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { type SupabaseClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import type { Database } from '@/supabase/types/database.types';
 
 // ── Env loading (mirrors kb-search.ts) ──
@@ -255,7 +256,7 @@ async function main() {
 
   assertEnvFlag(env, supabaseUrl);
 
-  const supabase = createClient<Database>(supabaseUrl, supabaseKey);
+  const supabase = createScriptClient(supabaseUrl, supabaseKey);
 
   console.log(`\n📐 Template Coverage Threshold Calibration`);
   console.log(`   Template: ${templateName}`);

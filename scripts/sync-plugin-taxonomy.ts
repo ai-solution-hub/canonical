@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import { VALID_CONTENT_TYPES } from '../lib/validation/schemas';
 
 const PROJECT_ROOT = join(__dirname, '..');
@@ -79,7 +79,7 @@ async function fetchTaxonomyFromDB(
 
   assertEnvFlag(env, supabaseUrl);
 
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = createScriptClient(supabaseUrl, supabaseKey);
 
   const { data: domains, error: dErr } = await supabase
     .from('taxonomy_domains')

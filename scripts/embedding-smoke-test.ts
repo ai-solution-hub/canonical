@@ -32,7 +32,7 @@
  * `dangerouslyDisableSandbox: true` when invoked via the Bash tool.
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import { parseArgs } from 'util';
 import path from 'path';
 import fs from 'fs';
@@ -137,7 +137,7 @@ function assertEnvFlag(env: string, url: string | undefined): void {
   }
 }
 
-type SupabaseScriptClient = ReturnType<typeof createClient>;
+type SupabaseScriptClient = ReturnType<typeof createScriptClient>;
 
 function getSupabaseClient(env: string): SupabaseScriptClient {
   const supabaseUrl =
@@ -156,7 +156,7 @@ function getSupabaseClient(env: string): SupabaseScriptClient {
 
   assertEnvFlag(env, supabaseUrl);
 
-  return createClient(supabaseUrl, supabaseKey);
+  return createScriptClient(supabaseUrl, supabaseKey);
 }
 
 // ── Cosine similarity (pure; unit-tested) ──────────────────────────────────

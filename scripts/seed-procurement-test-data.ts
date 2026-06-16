@@ -12,7 +12,7 @@
  *   bun run scripts/seed-bid-test-data.ts --clean      # remove existing test bid first
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import { parseArgs } from 'util';
 import path from 'path';
 import fs from 'fs';
@@ -95,7 +95,7 @@ if (!supabaseUrl || !supabaseKey) {
   process.exit(1);
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createScriptClient(supabaseUrl, supabaseKey);
 
 // ── Test data constants ────────────────────────────────────────────────────
 

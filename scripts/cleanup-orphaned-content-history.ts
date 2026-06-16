@@ -13,7 +13,7 @@
  *   - Requires a service-role key
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 
 const STAGING_PROJECT_REF = 'turayklvaunphgbgscat';
 const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
@@ -49,7 +49,7 @@ if (!supabaseUrl.includes(STAGING_PROJECT_REF)) {
   );
 }
 
-const supabase = createClient(supabaseUrl, serviceRoleKey, {
+const supabase = createScriptClient(supabaseUrl, serviceRoleKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 

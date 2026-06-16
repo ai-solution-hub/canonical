@@ -27,7 +27,8 @@
 import { createInterface } from 'node:readline/promises';
 import { config } from 'dotenv';
 import { resolve } from 'node:path';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { type SupabaseClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import {
   cleanupAdminDedupFixtures,
   cleanupAllAdminDedupFixtures,
@@ -388,7 +389,7 @@ async function main(): Promise<void> {
   }
 
   const { url, key } = validateEnv();
-  const supabase = createClient(url, key);
+  const supabase = createScriptClient(url, key);
 
   if (args.cleanupAll) {
     await operationCleanupAll(supabase, args);

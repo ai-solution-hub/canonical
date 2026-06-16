@@ -16,9 +16,9 @@
  * Run via: bun run scripts/generate-entity-aliases-snapshot.ts
  */
 
-import { createClient } from '@supabase/supabase-js';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 
 const PROJECT_ROOT = join(import.meta.dir, '..');
 const OUTPUT_PATH = join(
@@ -47,7 +47,7 @@ async function main() {
   }
   const supabaseKey = getEnvVar('SUPABASE_SERVICE_ROLE_KEY');
 
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = createScriptClient(supabaseUrl, supabaseKey);
 
   // Active alias rows only. Columns mirror loadAliases()
   // (lib/entities/entity-aliases.ts:58-61) plus `provenance` for context. The

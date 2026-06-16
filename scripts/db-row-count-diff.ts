@@ -59,7 +59,8 @@
  *     to `--output-dir` (default: cwd) for CI consumption
  */
 
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { type SupabaseClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import fs from 'fs';
 import path from 'path';
 
@@ -776,10 +777,12 @@ async function main(args: CliArgs): Promise<number> {
     return EXIT_QUERY_FAILED;
   }
 
-  const sourceClient = createClient(sourceCreds.url, sourceCreds.key, {
+  const sourceClient = createScriptClient(sourceCreds.url, sourceCreds.key, {
+    db: { schema: 'public' },
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const targetClient = createClient(targetCreds.url, targetCreds.key, {
+  const targetClient = createScriptClient(targetCreds.url, targetCreds.key, {
+    db: { schema: 'public' },
     auth: { persistSession: false, autoRefreshToken: false },
   });
 

@@ -16,8 +16,7 @@
 
 import { config } from 'dotenv';
 import { resolve } from 'path';
-import { createClient } from '@supabase/supabase-js';
-import type { Database } from '@/supabase/types/database.types';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import {
   generateFixtures,
   cleanupAllFixtures,
@@ -55,7 +54,7 @@ if (!url || !key) {
   process.exit(3);
 }
 
-const client = createClient<Database>(url, key);
+const client = createScriptClient(url, key);
 
 // ── CLI parsing ─────────────────────────────────────────────────────────
 

@@ -7,8 +7,9 @@
  * removed by MCP eval cleanup. The eval matrix consumes them after this script
  * runs once before L1/L3/L4 fan-out.
  */
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { type SupabaseClient } from '@supabase/supabase-js';
 
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import type { Database, Json } from '@/supabase/types/database.types';
 import {
   generateEmbedding,
@@ -142,7 +143,7 @@ async function main(): Promise<void> {
   const serviceRoleKey = getRequiredEnv('SUPABASE_SERVICE_ROLE_KEY');
   getRequiredEnv('OPENAI_API_KEY');
 
-  const supabase = createClient<Database>(supabaseUrl, serviceRoleKey, {
+  const supabase = createScriptClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 

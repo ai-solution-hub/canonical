@@ -19,10 +19,10 @@
  *   bun run scripts/backfill-temporal-bridge.ts --dry-run      # preview without writing
  */
 
-import { createClient } from '@supabase/supabase-js';
 import { parseArgs } from 'util';
 import path from 'path';
 import fs from 'fs';
+import { createLooseScriptClient } from '@/scripts/lib/supabase-script-client';
 import { reconcileTemporalReferences } from '../lib/entities/temporal-reconciliation';
 import {
   tokenMatch,
@@ -129,7 +129,9 @@ if (!supabaseUrl || !supabaseKey) {
 
 assertEnvFlag(args.env ?? '', supabaseUrl);
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+// <any>: loose client posture preserved from the pre-cutover bare createClient
+// (see supabase-script-client.ts).
+const supabase = createLooseScriptClient(supabaseUrl, supabaseKey);
 
 // ── Sort refs so effective dates come before expiry ─────────────────────
 

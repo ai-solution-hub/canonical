@@ -29,7 +29,8 @@
 
 import { readFileSync, existsSync } from 'fs';
 import { resolveEvalFixture } from '../lib/eval/fixtures';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { type SupabaseClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import { createInterface } from 'readline';
 import { accuracy } from '../lib/eval/metrics';
 import {
@@ -214,7 +215,7 @@ function createServiceClient() {
     process.exit(1);
   }
 
-  return createClient(url, key, {
+  return createScriptClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }

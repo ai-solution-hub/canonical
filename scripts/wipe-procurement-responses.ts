@@ -31,7 +31,7 @@
  *   bun run scripts/wipe-bid-responses.ts --env=prod                  # WIPE PROD (interactive confirm)
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createLooseScriptClient } from '@/scripts/lib/supabase-script-client';
 import { parseArgs } from 'util';
 import { createInterface } from 'readline';
 import path from 'path';
@@ -173,7 +173,9 @@ if (ENV_FLAG === 'prod' && !supabaseUrl.includes(PROD_PROJECT_REF)) {
   process.exit(1);
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+// <any>: dynamic `.from(table)` over a runtime table list — intentionally loose
+// (see supabase-script-client.ts).
+const supabase = createLooseScriptClient(supabaseUrl, supabaseKey);
 
 // ── Prod confirmation prompt ───────────────────────────────────────────────
 

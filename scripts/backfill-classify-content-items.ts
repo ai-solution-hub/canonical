@@ -37,7 +37,8 @@
  *   1 — Fatal error (missing --workspace-id, env, DB unreachable, etc.)
  */
 
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { type SupabaseClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -340,7 +341,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const supabase = createClient(supabaseUrl, supabaseKey, {
+  const supabase = createScriptClient(supabaseUrl, supabaseKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 

@@ -24,7 +24,7 @@
  *   docs/operations/cutover-report-s182.md § 8.1
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import { generateEmbedding, MAX_EMBEDDING_CHARS } from '../lib/ai/embed';
 
 interface OrphanRow {
@@ -76,7 +76,7 @@ async function main(): Promise<void> {
 
   const includeUnclassified = process.argv.includes('--include-unclassified');
 
-  const supabase = createClient(supabaseUrl, supabaseKey, {
+  const supabase = createScriptClient(supabaseUrl, supabaseKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 

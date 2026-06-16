@@ -26,7 +26,8 @@
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { execSync } from 'child_process';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { type SupabaseClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import { resolveEvalFixture } from '../lib/eval/fixtures';
 import { rougeL, rouge1 } from '../lib/eval/metrics';
 import type { Database } from '@/supabase/types/database.types';
@@ -162,7 +163,7 @@ function createServiceClient(env: string) {
 
   assertEnvFlag(env, url);
 
-  return createClient<Database>(url, key, {
+  return createScriptClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }

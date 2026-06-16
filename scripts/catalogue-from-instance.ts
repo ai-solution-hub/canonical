@@ -23,12 +23,11 @@
  * Inv-22 (T10 read shape), Inv-23 (no workspace_id), Inv-24 (admin/editor gate).
  */
 
-import { createClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
 import { createInterface } from 'node:readline';
 import path from 'node:path';
 import fs from 'node:fs';
-import type { Database } from '@/supabase/types/database.types';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import { tryQuery } from '@/lib/supabase/safe';
 import {
   readInstanceFields,
@@ -170,7 +169,7 @@ async function main(): Promise<void> {
   }
   assertEnvFlag(env, supabaseUrl);
 
-  const supabase = createClient<Database>(supabaseUrl, supabaseKey);
+  const supabase = createScriptClient(supabaseUrl, supabaseKey);
   const anthropic = new Anthropic();
 
   // ── Read the instance (read-only) ──

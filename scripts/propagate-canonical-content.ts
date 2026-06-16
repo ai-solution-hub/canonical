@@ -33,10 +33,9 @@
  * Spec: PLAN.md §"D-2 PI-18 worker mechanism" (id-95-per-client-topology);
  * contract: scripts/propagation/payload-contract.ts.
  */
-import { createClient } from '@supabase/supabase-js';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import type { Database } from '@/supabase/types/database.types';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import {
   PAYLOAD_CONTRACT,
   type PayloadTableContract,
@@ -566,7 +565,7 @@ export function makeClient(
   url: string,
   serviceRoleKey: string,
 ): PropagationClient {
-  return createClient<Database>(url, serviceRoleKey, {
+  return createScriptClient(url, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   }) as unknown as PropagationClient;
 }

@@ -14,8 +14,7 @@
  *   bun run scripts/batch_populate_topics.ts
  */
 
-import { createClient } from '@supabase/supabase-js';
-import type { Database } from '../supabase/types/database.types';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 
 // ── Env loading ──
 
@@ -139,7 +138,7 @@ async function main(): Promise<void> {
 
   assertEnvFlag(env, supabaseUrl);
 
-  const supabase = createClient<Database>(supabaseUrl, supabaseKey, {
+  const supabase = createScriptClient(supabaseUrl, supabaseKey, {
     global: {
       fetch: (url, init) =>
         fetch(url, { ...init, signal: AbortSignal.timeout(300_000) }),

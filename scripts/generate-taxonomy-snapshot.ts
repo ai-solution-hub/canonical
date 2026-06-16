@@ -10,9 +10,9 @@
  * Or as part of: bun run sync:taxonomy
  */
 
-import { createClient } from '@supabase/supabase-js';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createLooseScriptClient } from '@/scripts/lib/supabase-script-client';
 
 const PROJECT_ROOT = join(import.meta.dir, '..');
 const OUTPUT_PATH = join(
@@ -45,7 +45,9 @@ async function main() {
   }
   const supabaseKey = getEnvVar('SUPABASE_SERVICE_ROLE_KEY');
 
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  // <any>: calls the dead `get_check_constraint_values` rpc (fallback path),
+  // not in the typed schema — intentionally loose (see supabase-script-client.ts).
+  const supabase = createLooseScriptClient(supabaseUrl, supabaseKey);
 
   // Fetch active domains
   const { data: domains, error: domainError } = await supabase

@@ -22,10 +22,10 @@
  * Claude Code sandbox. Production invocation is unaffected.
  */
 
-import { createClient } from '@supabase/supabase-js';
 import { parseArgs } from 'util';
 import path from 'path';
 import fs from 'fs';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 
 // ── Env loading (worktree-aware, matches backfill-chunks.ts) ───────────────
 
@@ -262,7 +262,7 @@ async function main() {
   assertNotRetiredProject(supabaseUrl);
   assertEnvFlag(args.env, supabaseUrl);
 
-  const supabase = createClient(supabaseUrl!, supabaseKey!);
+  const supabase = createScriptClient(supabaseUrl!, supabaseKey!);
 
   console.log('='.repeat(60));
   console.log('Content History v1 Backfill');

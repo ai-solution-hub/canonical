@@ -20,7 +20,8 @@
 
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { type SupabaseClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import OpenAI from 'openai';
 import type { Database } from '@/supabase/types/database.types';
 import { precisionAtK } from '../lib/eval/metrics';
@@ -119,7 +120,7 @@ function createServiceClient() {
     process.exit(1);
   }
 
-  return createClient<Database>(url, key, {
+  return createScriptClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }

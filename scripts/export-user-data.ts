@@ -31,7 +31,8 @@
  * per CLAUDE.md "Bun fetch hangs on HTTP 204" gotcha.
  */
 
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { type SupabaseClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import { createHash } from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -1139,7 +1140,7 @@ async function main(): Promise<number> {
 
   assertEnvFlag(args.env, supabaseUrl);
 
-  const client = createClient(supabaseUrl, supabaseKey, {
+  const client = createScriptClient(supabaseUrl, supabaseKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 

@@ -21,7 +21,7 @@
  *     bun run scripts/normalise-entities.ts --apply --env=prod
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import { canonicalise } from '@/lib/entities/entity-dedup';
 import { resolveAlias, loadAliases } from '@/lib/entities/entity-aliases';
 
@@ -162,7 +162,7 @@ async function main() {
 
   assertEnvFlag(cli.env, supabaseUrl);
 
-  const supabase = createClient(supabaseUrl, supabaseKey, {
+  const supabase = createScriptClient(supabaseUrl, supabaseKey, {
     auth: { persistSession: false },
   });
 

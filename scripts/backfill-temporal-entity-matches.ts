@@ -13,11 +13,11 @@
  *   bun run scripts/backfill-temporal-entity-matches.ts --item-id UUID    # process single item
  */
 
-import { createClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
 import { parseArgs } from 'util';
 import path from 'path';
 import fs from 'fs';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 
 // ── Env loading (handles worktrees) ────────────────────────────────────────
 
@@ -117,7 +117,7 @@ if (!supabaseUrl || !supabaseKey) {
 
 assertEnvFlag(args.env ?? '', supabaseUrl);
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createScriptClient(supabaseUrl, supabaseKey);
 
 // ── Anthropic client ─────────────────────────────────────────────────────
 

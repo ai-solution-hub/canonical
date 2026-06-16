@@ -24,10 +24,10 @@
  *   bun run scripts/backfill-context-snippets.ts --help         # show help
  */
 
-import { createClient } from '@supabase/supabase-js';
 import { parseArgs } from 'util';
 import path from 'path';
 import fs from 'fs';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 
 // ── Env loading (handles worktrees) ────────────────────────────────────────
 
@@ -122,7 +122,7 @@ if (!supabaseUrl || !supabaseKey) {
 
 assertEnvFlag(args.env ?? '', supabaseUrl);
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createScriptClient(supabaseUrl, supabaseKey);
 
 // ── Types ──────────────────────────────────────────────────────────────────
 

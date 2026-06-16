@@ -28,7 +28,8 @@
  * fine inside the sandbox — no .update() / .insert() / .delete() calls.
  */
 
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { type SupabaseClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import { parseArgs } from 'util';
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { dirname, resolve } from 'path';
@@ -352,7 +353,7 @@ export function createSb(env = ''): {
   assertEnvFlag(env, url);
 
   const workspaceId = extractProjectId(url);
-  const sb = createClient(url, key, {
+  const sb = createScriptClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   return { sb, workspaceId };

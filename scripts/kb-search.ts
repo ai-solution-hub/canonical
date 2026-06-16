@@ -15,7 +15,7 @@
 import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import OpenAI from 'openai';
-import { createClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 
 // ── Env loading ──
 
@@ -297,7 +297,7 @@ async function main(): Promise<void> {
 
   assertEnvFlag(env, supabaseUrl);
 
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = createScriptClient(supabaseUrl, supabaseKey);
   const openai = new OpenAI({ apiKey: openaiKey });
 
   // 1. Generate embedding

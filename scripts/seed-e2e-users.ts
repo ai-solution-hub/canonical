@@ -72,7 +72,7 @@
  *   and demo DB rebuild runbooks must reference this step.
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import { parseArgs } from 'util';
 import path from 'path';
 import fs from 'fs';
@@ -178,7 +178,7 @@ if (!supabaseUrl || !supabaseKey) {
   process.exit(EXIT_GENERIC_ERROR);
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey, {
+const supabase = createScriptClient(supabaseUrl, supabaseKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 

@@ -36,7 +36,8 @@
  *   1 — Fatal error (missing env, --env=prod mismatch, DB unreachable, etc.)
  */
 
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { type SupabaseClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
@@ -355,7 +356,7 @@ async function main(): Promise<void> {
   console.log(`Output path: ${args.output}`);
   console.log(`Limit: ${args.limit ?? 'unlimited'}`);
 
-  const supabase = createClient(supabaseUrl, supabaseKey, {
+  const supabase = createScriptClient(supabaseUrl, supabaseKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 

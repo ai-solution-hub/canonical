@@ -21,7 +21,8 @@
 
 import { readFileSync, existsSync } from 'fs';
 import { resolveEvalFixture } from '../lib/eval/fixtures';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { type SupabaseClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import { rougeL } from '../lib/eval/metrics';
 import type { Database } from '@/supabase/types/database.types';
 import {
@@ -137,7 +138,7 @@ function createServiceClient(env: string) {
 
   assertEnvFlag(env, url);
 
-  return createClient<Database>(url, key, {
+  return createScriptClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }

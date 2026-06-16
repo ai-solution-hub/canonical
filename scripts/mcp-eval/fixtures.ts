@@ -9,7 +9,8 @@
  */
 import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { type SupabaseClient } from '@supabase/supabase-js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import {
   MCP_EVAL_SEED_ITEMS,
   MCP_EVAL_SEED_METADATA_FLAG,
@@ -285,7 +286,7 @@ export async function getAuthToken(): Promise<{
     );
   }
 
-  const supabase = createClient(url, anonKey);
+  const supabase = createScriptClient(url, anonKey);
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,

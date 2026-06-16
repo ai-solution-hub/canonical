@@ -23,7 +23,7 @@
  * invoked via the Bash tool.
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createLooseScriptClient } from '@/scripts/lib/supabase-script-client';
 import { parseArgs } from 'util';
 import path from 'path';
 import fs from 'fs';
@@ -129,7 +129,7 @@ function assertEnvFlag(env: string, url: string | undefined): void {
   }
 }
 
-type SupabaseScriptClient = ReturnType<typeof createClient>;
+type SupabaseScriptClient = ReturnType<typeof createLooseScriptClient>;
 
 function getSupabaseClient(env: string): SupabaseScriptClient {
   const supabaseUrl =
@@ -148,7 +148,9 @@ function getSupabaseClient(env: string): SupabaseScriptClient {
 
   assertEnvFlag(env, supabaseUrl);
 
-  return createClient(supabaseUrl, supabaseKey);
+  // <any>: complex `.select()` strings the typed parser rejects — intentionally
+  // loose (see supabase-script-client.ts).
+  return createLooseScriptClient(supabaseUrl, supabaseKey);
 }
 
 // ── Snapshot record ────────────────────────────────────────────────────────
@@ -290,7 +292,7 @@ async function main() {
     }
     if (!data || data.length === 0) break;
 
-    const ids = data.map((row) => (row as { id: string }).id);
+    const ids = data.map((row) => (row as unknown as { id: string }).id);
     const [entityNames, chunkCounts] = await Promise.all([
       namesBy(supabase, ids),
       countBy(supabase, 'content_chunks', ids),
@@ -298,7 +300,7 @@ async function main() {
 
     const lines: string[] = [];
     for (const row of data) {
-      const r = row as {
+      const r = row as unknown as {
         id: string;
         title: string;
         content: string;

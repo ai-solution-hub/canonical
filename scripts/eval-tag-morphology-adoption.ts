@@ -24,12 +24,11 @@
  * Spec: docs/specs/p1-tag-morphology-library-adoption-spec.md §3.5.
  */
 
-import { createClient } from '@supabase/supabase-js';
 import { parseArgs } from 'util';
 import path from 'path';
 import fs from 'fs';
 import { normaliseTag } from '../lib/validation/schemas';
-import type { Database } from '../supabase/types/database.types';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 
 // ── Env loading (handles worktrees) ────────────────────────────────────────
 
@@ -143,7 +142,7 @@ Examples:
   // tag_morphology_drift_flags is a new table not yet in database.types.ts;
   // we cast the supabase client to any for that table only (CLAUDE.md
   // gotcha: "Do not regen types mid-session").
-  const supabase = createClient<Database>(supabaseUrl, supabaseKey);
+  const supabase = createScriptClient(supabaseUrl, supabaseKey);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabaseUntyped = supabase as any;
 

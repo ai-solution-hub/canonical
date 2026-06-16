@@ -17,11 +17,11 @@
  *   bun run scripts/backfill-source-documents.ts --apply --limit 5
  */
 
-import { createClient } from '@supabase/supabase-js';
 import { createHash } from 'crypto';
 import { parseArgs } from 'util';
 import path from 'path';
 import fs from 'fs';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 
 // ── Env loading (handles worktrees) ──────────────────────────────────────────
 
@@ -113,7 +113,7 @@ if (!supabaseUrl || !supabaseKey) {
 
 assertEnvFlag(args.env ?? '', supabaseUrl);
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createScriptClient(supabaseUrl, supabaseKey);
 
 // Fallback admin user UUID for items with no created_by
 const FALLBACK_ADMIN_ID = '2873f7a6-5c20-4b1e-b8d5-3cee6ad7e831';

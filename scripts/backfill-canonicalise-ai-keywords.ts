@@ -24,12 +24,11 @@
  * Spec: docs/specs/p0-tag-canonicalisation-classify-time-spec.md ss7.1.
  */
 
-import { createClient } from '@supabase/supabase-js';
 import { parseArgs } from 'util';
 import path from 'path';
 import fs from 'fs';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import { normaliseTag } from '../lib/validation/schemas';
-import type { Database } from '../supabase/types/database.types';
 
 // ── Env loading (handles worktrees) ────────────────────────────────────────
 
@@ -150,7 +149,7 @@ Examples:
 
   assertEnvFlag(values.env ?? '', supabaseUrl);
 
-  const supabase = createClient<Database>(supabaseUrl, supabaseKey);
+  const supabase = createScriptClient(supabaseUrl, supabaseKey);
 
   console.log('='.repeat(60));
   console.log('BACKFILL: Canonicalise ai_keywords');
