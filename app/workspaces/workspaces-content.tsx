@@ -4,17 +4,31 @@ import Link from 'next/link';
 import {
   useLauncherTypes,
   formatTypeCount,
+  type ApplicationTypeRowWire,
 } from '@/hooks/workspaces/use-application-types';
 
 interface WorkspacesContentProps {
   counts: Record<string, number>;
+  /**
+   * SSR seed: the raw application_types rows pre-fetched by the Server Component
+   * (WorkspacesPage). Threaded into useLauncherTypes() as initialData so the
+   * launcher grid renders identically on the SSR paint and the first client
+   * render — eliminating the hydration mismatch ID-29.7 introduced.
+   */
+  initialApplicationTypes: readonly ApplicationTypeRowWire[];
 }
 
-export function WorkspacesContent({ counts }: WorkspacesContentProps) {
-  // ID-29.7: migrated from static getLauncherTypes() to useLauncherTypes() hook.
-  // On first paint the hook returns [] (loading); existing grid container renders
-  // empty until the hook resolves (~50ms from cache). Acceptable per TECH.md R-1 / AC-3a.
-  const { data: launcherTypes = [] } = useLauncherTypes();
+export function WorkspacesContent({
+  counts,
+  initialApplicationTypes,
+}: WorkspacesContentProps) {
+  // ID-29.7: DB-driven launcher types via useLauncherTypes(). The Server
+  // Component pre-fetches the rows and passes them as the initialData seed, so
+  // the grid is fully populated on the first paint (server AND client) — no
+  // empty-then-populated hydration mismatch.
+  const { data: launcherTypes = [] } = useLauncherTypes(
+    initialApplicationTypes,
+  );
 
   return (
     <>

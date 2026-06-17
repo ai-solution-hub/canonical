@@ -26,7 +26,17 @@ vi.mock('next/link', () => ({
 
 import { WorkspacesContent } from '@/app/workspaces/workspaces-content';
 import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
-import { stubApplicationTypesFetch } from '@/__tests__/helpers/workspace-type-fixtures';
+import {
+  stubApplicationTypesFetch,
+  SEED_APPLICATION_TYPE_ROWS,
+} from '@/__tests__/helpers/workspace-type-fixtures';
+
+// Post-ID-29.7 SSR-hydration fix: WorkspacesContent now requires an
+// `initialApplicationTypes` seed (the rows the Server Component pre-fetches).
+// Supplying the same seed the fetch stub returns keeps the hook's initialData
+// and any refetch identical — mirroring production, where the SSR seed and the
+// client refetch resolve to the same DB rows (no hydration mismatch).
+const SEED = SEED_APPLICATION_TYPE_ROWS;
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -43,7 +53,7 @@ describe('WorkspacesContent', () => {
   });
 
   it('renders page description', () => {
-    render(<WorkspacesContent counts={{}} />, {
+    render(<WorkspacesContent counts={{}} initialApplicationTypes={SEED} />, {
       wrapper: createQueryWrapper().Wrapper,
     });
     // Header is rendered on first paint regardless of hook state.
@@ -56,9 +66,13 @@ describe('WorkspacesContent', () => {
 
   it('renders Bids type card with count', async () => {
     // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
-    render(<WorkspacesContent counts={{ procurement: 3 }} />, {
-      wrapper: createQueryWrapper().Wrapper,
-    });
+    render(
+      <WorkspacesContent
+        counts={{ procurement: 3 }}
+        initialApplicationTypes={SEED}
+      />,
+      { wrapper: createQueryWrapper().Wrapper },
+    );
     await waitFor(() => {
       expect(screen.getByText('Procurements')).toBeInTheDocument();
     });
@@ -66,7 +80,7 @@ describe('WorkspacesContent', () => {
   });
 
   it('renders Sales Proposals as coming soon', async () => {
-    render(<WorkspacesContent counts={{}} />, {
+    render(<WorkspacesContent counts={{}} initialApplicationTypes={SEED} />, {
       wrapper: createQueryWrapper().Wrapper,
     });
     await waitFor(() => {
@@ -79,9 +93,13 @@ describe('WorkspacesContent', () => {
   });
 
   it('links Bids card to /bid', async () => {
-    render(<WorkspacesContent counts={{ procurement: 1 }} />, {
-      wrapper: createQueryWrapper().Wrapper,
-    });
+    render(
+      <WorkspacesContent
+        counts={{ procurement: 1 }}
+        initialApplicationTypes={SEED}
+      />,
+      { wrapper: createQueryWrapper().Wrapper },
+    );
     await waitFor(() => {
       const link = screen.getByRole('link', { name: /procurements/i });
       expect(link).toHaveAttribute('href', '/procurement');
@@ -89,7 +107,7 @@ describe('WorkspacesContent', () => {
   });
 
   it('marks coming soon cards as aria-disabled', async () => {
-    render(<WorkspacesContent counts={{}} />, {
+    render(<WorkspacesContent counts={{}} initialApplicationTypes={SEED} />, {
       wrapper: createQueryWrapper().Wrapper,
     });
     await waitFor(() => {
@@ -103,9 +121,13 @@ describe('WorkspacesContent', () => {
 
   it('shows singular "bid" for count of 1', async () => {
     // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
-    render(<WorkspacesContent counts={{ procurement: 1 }} />, {
-      wrapper: createQueryWrapper().Wrapper,
-    });
+    render(
+      <WorkspacesContent
+        counts={{ procurement: 1 }}
+        initialApplicationTypes={SEED}
+      />,
+      { wrapper: createQueryWrapper().Wrapper },
+    );
     await waitFor(() => {
       expect(screen.getByText('1 active procurement')).toBeInTheDocument();
     });
@@ -113,9 +135,13 @@ describe('WorkspacesContent', () => {
 
   it('hides count text when count is 0 but includes in aria-label', async () => {
     // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
-    render(<WorkspacesContent counts={{ procurement: 0 }} />, {
-      wrapper: createQueryWrapper().Wrapper,
-    });
+    render(
+      <WorkspacesContent
+        counts={{ procurement: 0 }}
+        initialApplicationTypes={SEED}
+      />,
+      { wrapper: createQueryWrapper().Wrapper },
+    );
     await waitFor(() => {
       // Confirm the hook resolved (Procurements card present)
       expect(screen.getByText('Procurements')).toBeInTheDocument();

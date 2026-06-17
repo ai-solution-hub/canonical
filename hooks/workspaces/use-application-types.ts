@@ -31,8 +31,9 @@ import { fetchJson } from '@/lib/query/fetchers';
 // ---------------------------------------------------------------------------
 
 /** Shape returned by GET /api/application-types. Mirrors application_types Row
- *  from `supabase/types/database.types.ts` (selected columns only). */
-interface ApplicationTypeRowWire {
+ *  from `supabase/types/database.types.ts` (selected columns only). Exported so
+ *  Server Components can type the rows they pre-fetch for the `initialData` seed. */
+export interface ApplicationTypeRowWire {
   readonly key: string;
   readonly label: string;
   readonly label_plural: string | null;
@@ -188,8 +189,19 @@ function toWorkspaceTypeConfig(
 
 const APPLICATION_TYPES_STALE_TIME_MS = 5 * 60_000;
 
+/**
+ * Wire shape for SSR seed data — the raw rows GET /api/application-types returns,
+ * fetched server-side (e.g. in a Server Component) and threaded through as
+ * `initialData`. This makes the first client render deterministic and identical
+ * to the SSR paint, eliminating the empty-grid → populated-grid hydration
+ * mismatch (ID-29.7 fallout). The seed feeds the shared query cache, so all three
+ * public hooks (which share `queryKey`) see it.
+ */
+export type ApplicationTypesSeed = readonly ApplicationTypeRowWire[];
+
 function useApplicationTypesQuery<T>(
   select: (rows: ApplicationTypeRowWire[]) => T,
+  initialData?: ApplicationTypesSeed,
 ) {
   return useQuery({
     queryKey: queryKeys.applicationTypes.list,
@@ -197,6 +209,12 @@ function useApplicationTypesQuery<T>(
       fetchJson<ApplicationTypeRowWire[]>('/api/application-types'),
     select,
     staleTime: APPLICATION_TYPES_STALE_TIME_MS,
+    // When the server pre-fetched the rows, seed the cache so SSR and the first
+    // client render produce identical markup (no hydration mismatch). The cast
+    // is safe: `select` and consumers only read fields, never mutate.
+    initialData: initialData
+      ? (initialData as ApplicationTypeRowWire[])
+      : undefined,
   });
 }
 
@@ -225,12 +243,19 @@ export function useWorkspaceType(type: string) {
 /**
  * Returns application types that should appear on the launcher page.
  * Preserves getLauncherTypes() semantics: route !== null || !available.
+ *
+ * @param initialData Optional SSR seed (raw wire rows fetched server-side). When
+ *   supplied, the launcher grid renders the cards on the first paint — both
+ *   server-side and on the first client render — so there is no empty-then-
+ *   populated hydration mismatch (ID-29.7 fallout).
  */
-export function useLauncherTypes() {
-  return useApplicationTypesQuery((rows) =>
-    rows
-      .map(toWorkspaceTypeConfig)
-      .filter((t) => t.route !== null || !t.available),
+export function useLauncherTypes(initialData?: ApplicationTypesSeed) {
+  return useApplicationTypesQuery(
+    (rows) =>
+      rows
+        .map(toWorkspaceTypeConfig)
+        .filter((t) => t.route !== null || !t.available),
+    initialData,
   );
 }
 

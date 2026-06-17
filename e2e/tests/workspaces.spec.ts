@@ -101,11 +101,25 @@ test.describe('Workspaces page', { tag: '@smoke' }, () => {
       { timeout: 10000 },
     );
 
-    // The Sales Proposals card has aria-label containing "coming soon"
-    const comingSoonCard = page.locator('[aria-label*="coming soon"]').first();
+    // Target the Sales Proposals coming-soon card by its full, stable
+    // aria-label (`${labelPlural} — coming soon`, built in workspaces-content.tsx).
+    // NOTE 1: the DB seeds several coming-soon application_types
+    // (competitor_research, product_guide, training_onboarding, sales_proposal),
+    // so a bare `[aria-label*="coming soon"]`.first() would resolve to whichever
+    // sorts first alphabetically (Competitor Research) — not Sales Proposals.
+    // NOTE 2: scope via the AX region (getByRole('region', {name:'Workspaces'}))
+    // — in Next.js 16 / React 19 dev mode a raw CSS/aria-label selector matches
+    // the card twice (the hydrated card AND a duplicate inside the <div id="S:1">
+    // streaming-suspense template). The accessibility tree only sees the hydrated
+    // one, so region-scoping resolves the strict-mode duplicate. Same rationale
+    // as the description assertion above (~line 34).
+    const workspacesRegion = page.getByRole('region', { name: 'Workspaces' });
+    const comingSoonCard = workspacesRegion.getByLabel(
+      'Sales Proposals — coming soon',
+    );
     await expect(comingSoonCard).toBeVisible();
 
-    // Card contains heading "Sales Proposals"
+    // Card contains heading "Sales Proposals" (application_types.label_plural)
     await expect(
       comingSoonCard.getByRole('heading', { name: 'Sales Proposals' }),
     ).toBeVisible();
@@ -132,23 +146,41 @@ test.describe('Workspaces page', { tag: '@smoke' }, () => {
       { timeout: 10000 },
     );
 
-    const bidsCard = page.locator('a[aria-label^="Procurements"]').first();
-    const comingSoonCard = page.locator('[aria-label*="coming soon"]').first();
+    // Scope all card lookups via the AX region — in Next.js 16 / React 19 dev
+    // mode the grid is rendered twice (hydrated tree + <div id="S:1"> streaming-
+    // suspense template); the accessibility tree only exposes the hydrated copy,
+    // so region-scoping avoids strict-mode duplicate matches and reads the real
+    // laid-out boxes. (Same rationale as the description assertion ~line 34.)
+    const workspacesRegion = page.getByRole('region', { name: 'Workspaces' });
 
-    await expect(bidsCard).toBeVisible();
-    await expect(comingSoonCard).toBeVisible();
+    // Assert the responsive-grid property on the first two cards in DOM order.
+    // They are always the first two grid cells (row 1, columns 1 & 2), so this
+    // is independent of how many application_types the DB seeds or their sort
+    // order — unlike pinning two specific named cards, which shift rows/columns
+    // as the seed list grows.
+    const cards = workspacesRegion.locator('div.grid > [aria-label]');
 
-    const bidsBox = await bidsCard.boundingBox();
-    const comingSoonBox = await comingSoonCard.boundingBox();
+    // Both the active Procurements card and the Sales Proposals coming-soon card
+    // must render (proves the SSR-seeded grid hydrated with its full card set).
+    await expect(
+      workspacesRegion.locator('a[aria-label^="Procurements"]'),
+    ).toBeVisible();
+    await expect(
+      workspacesRegion.getByLabel('Sales Proposals — coming soon'),
+    ).toBeVisible();
 
-    if (bidsBox && comingSoonBox) {
+    const firstBox = await cards.nth(0).boundingBox();
+    const secondBox = await cards.nth(1).boundingBox();
+
+    if (firstBox && secondBox) {
       if (isMobileViewport(page)) {
-        // Mobile: cards stack vertically
-        expect(comingSoonBox.y).toBeGreaterThan(bidsBox.y + bidsBox.height - 1);
+        // Mobile (single column): cards stack vertically.
+        expect(secondBox.y).toBeGreaterThan(firstBox.y + firstBox.height - 1);
       } else {
-        // Desktop: cards sit side by side (similar y positions)
-        expect(Math.abs(comingSoonBox.y - bidsBox.y)).toBeLessThan(50);
-        expect(comingSoonBox.x).toBeGreaterThan(bidsBox.x);
+        // Desktop (multi-column): the first two cards sit side by side on the
+        // same row (similar y, increasing x).
+        expect(Math.abs(secondBox.y - firstBox.y)).toBeLessThan(50);
+        expect(secondBox.x).toBeGreaterThan(firstBox.x);
       }
     }
   });
