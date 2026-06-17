@@ -3622,6 +3622,10 @@ export type Database = {
         Args: { probe_id: string }
         Returns: undefined
       }
+      _test_insert_broken_auth_user: {
+        Args: { probe_email: string; probe_id: string }
+        Returns: undefined
+      }
       bulk_delete_tags: {
         Args: { p_tags: string[]; p_type: string }
         Returns: number
@@ -3780,6 +3784,18 @@ export type Database = {
       }
       get_author_analysis: { Args: { p_author_name: string }; Returns: Json }
       get_content_gaps: { Args: never; Returns: Json }
+      get_content_owner_stats: {
+        Args: never
+        Returns: {
+          aging_count: number
+          expired_count: number
+          fresh_count: number
+          owner_id: string
+          stale_count: number
+          total_items: number
+          unverified_count: number
+        }[]
+      }
       get_content_win_rate: {
         Args: { p_content_item_id: string }
         Returns: {
@@ -4240,6 +4256,27 @@ export type Database = {
       rename_tag: {
         Args: { p_new: string; p_old: string; p_type: string }
         Returns: number
+      }
+      search_for_form_response: {
+        Args: {
+          include_superseded?: boolean
+          limit_count?: number
+          query_embedding: string
+          query_text?: string
+          visibility_filter?: string
+        }
+        Returns: {
+          ai_keywords: string[]
+          brief: string
+          content: string
+          content_type: string
+          detail: string
+          id: string
+          primary_domain: string
+          primary_subtopic: string
+          similarity: number
+          title: string
+        }[]
       }
       set_config: {
         Args: { is_local: boolean; setting: string; value: string }
