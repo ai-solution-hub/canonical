@@ -88,7 +88,6 @@
         ".claude",
         "lib/mcp/plugin-bundle.ts",
         "supabase/types/database.types.ts",
-        "~/.git-credentials",
         "~/.claude/.sentinels",
         "~/.gitnexus"
       ]
