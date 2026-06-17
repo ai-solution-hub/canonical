@@ -1004,7 +1004,6 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           'primary_domain',
           'primary_subtopic',
           'priority',
-          'notes',
           'expiry_date',
           'lifecycle_type',
         ] as const;
@@ -1050,7 +1049,42 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           .eq('id', args.id)
           .single();
 
-        if (fetchError || !current) {
+        if (fetchError) {
+          // Distinguish a bad/unknown field from a genuinely missing row. A
+          // dropped or non-existent column surfaces as Postgres undefined_column
+          // (42703) or PostgREST schema-cache miss (PGRST204) — that is a request
+          // error, not a not-found. Only a no-rows `.single()` (PGRST116) means
+          // the item itself does not exist.
+          const code = fetchError.code ?? '';
+          const message = fetchError.message ?? '';
+          const isColumnError =
+            code === '42703' ||
+            code === 'PGRST204' ||
+            /column/i.test(message) ||
+            /does not exist/i.test(message);
+          if (isColumnError) {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: `Invalid field in update: ${message}. Check the field names against the allowed update fields.`,
+                },
+              ],
+              isError: true,
+            };
+          }
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Content item not found: ${args.id}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        if (!current) {
           return {
             content: [
               {

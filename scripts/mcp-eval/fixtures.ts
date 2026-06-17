@@ -614,9 +614,11 @@ export function getMinimalArgs(
         form_response_id: '00000000-0000-0000-0000-000000000000',
       };
     case 'update_content_item':
+      // `notes` was dropped in ID-64.13 (migration 20260612102255); use a
+      // surviving allowed field so the protocol fixture stays a real update.
       return {
         id: evalItemId,
-        fields: { notes: '[MCP-EVAL] Protocol compliance test' },
+        fields: { priority: 'medium' },
       };
     case 'delete_content_item':
       // Will be tested separately with a dedicated item

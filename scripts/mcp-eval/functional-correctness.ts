@@ -1814,79 +1814,10 @@ async function runWriteToolChecks(
     }
   }
 
-  // FC-63: update_content_item on eval item — verify update, restore original
-  {
-    const testNote = `[MCP-EVAL] FC-63 updated at ${new Date().toISOString()}`;
-    const result = await callTool(
-      'update_content_item',
-      {
-        id: evalItem.id,
-        fields: { notes: testNote },
-      },
-      accessToken,
-    );
-
-    if (result.errorMessage) {
-      record(
-        'Write Tools',
-        'FC-63',
-        'update_content_item',
-        'FAIL',
-        result.errorMessage,
-      );
-    } else if (result.isError) {
-      record(
-        'Write Tools',
-        'FC-63',
-        'update_content_item',
-        'FAIL',
-        `Tool error: ${result.text.slice(0, 100)}`,
-      );
-    } else {
-      // Verify update by fetching the item
-      const verifyResult = await callTool(
-        'get',
-        { id: evalItem.id },
-        accessToken,
-      );
-      if (!verifyResult.isError && verifyResult.text.includes('FC-63')) {
-        record(
-          'Write Tools',
-          'FC-63',
-          'update_content_item',
-          'PASS',
-          'Update verified via get',
-        );
-      } else if (!verifyResult.isError) {
-        // Notes may not appear in the formatted get response — still pass if update didn't error
-        record(
-          'Write Tools',
-          'FC-63',
-          'update_content_item',
-          'PASS',
-          `Update successful (notes may not appear in formatted view)`,
-        );
-      } else {
-        record(
-          'Write Tools',
-          'FC-63',
-          'update_content_item',
-          'FAIL',
-          'Update verification failed',
-        );
-      }
-
-      // Restore original — clear notes
-      await callTool(
-        'update_content_item',
-        {
-          id: evalItem.id,
-          fields: { notes: '' },
-        },
-        accessToken,
-      );
-    }
-  }
+  // FC-63 (update_content_item happy-path) was removed in ID-64.13 fallout:
+  // it updated content_items.notes, a column dropped by migration
+  // 20260612102255. Its siblings FC-63a (expiry_date) and FC-63b already cover
+  // update_content_item on surviving fields, so no replacement is needed here.
 
   // FC-63a: update_content_item — set expiry_date to valid ISO date
   {
