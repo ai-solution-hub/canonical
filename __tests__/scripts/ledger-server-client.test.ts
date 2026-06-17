@@ -967,33 +967,43 @@ describe.skipIf(!CLONE_PRESENT)('ID-90.25 flag-ON parity (real server)', () => {
   // so flag-ON `--whole-file` and flag-OFF emit byte-identical minimal-diff
   // bytes (post-OQ-LS-2 the two shapes already converged). This asserts that
   // NO-OP equivalence — the flag does not change where or how bytes are written.
-  it('flip-task --whole-file flag-ON takes the local path and equals flag-OFF bytes', () => {
-    const dirOff = fixtureDir();
-    const dirOn = fixtureDir();
-    const off = runLedgerCli(dirOff, ['flip-task', FIRST_TASK_ID, 'pending'], {
-      serverOn: false,
-    });
-    const on = runLedgerCli(
-      dirOn,
-      ['flip-task', FIRST_TASK_ID, 'pending', '--whole-file'],
-      { serverOn: true },
-    );
-    const offWhole = runLedgerCli(
-      dirOff,
-      ['flip-task', FIRST_TASK_ID, 'pending', '--whole-file'],
-      { serverOn: false },
-    );
+  // 3 serialized subprocess spawns + 2 server round-trips exceed the default
+  // 5s vitest testTimeout under CI load — give this case a 20s budget.
+  it(
+    'flip-task --whole-file flag-ON takes the local path and equals flag-OFF bytes',
+    { timeout: 20_000 },
+    () => {
+      const dirOff = fixtureDir();
+      const dirOn = fixtureDir();
+      const off = runLedgerCli(
+        dirOff,
+        ['flip-task', FIRST_TASK_ID, 'pending'],
+        {
+          serverOn: false,
+        },
+      );
+      const on = runLedgerCli(
+        dirOn,
+        ['flip-task', FIRST_TASK_ID, 'pending', '--whole-file'],
+        { serverOn: true },
+      );
+      const offWhole = runLedgerCli(
+        dirOff,
+        ['flip-task', FIRST_TASK_ID, 'pending', '--whole-file'],
+        { serverOn: false },
+      );
 
-    expect(off.exitCode).toBe(0);
-    expect(on.exitCode).toBe(0);
-    expect(offWhole.exitCode).toBe(0);
-    // Byte-identical whole-file output across the flag boundary.
-    const bytesOff = readFileSync(join(dirOff, 'task-list.json'));
-    const bytesOn = readFileSync(join(dirOn, 'task-list.json'));
-    expect(bytesOn.equals(bytesOff)).toBe(true);
-    // Envelope parity too (the NO-OP flag emits the same success shape).
-    expect(on.envelope?.result).toEqual(offWhole.envelope?.result);
-  });
+      expect(off.exitCode).toBe(0);
+      expect(on.exitCode).toBe(0);
+      expect(offWhole.exitCode).toBe(0);
+      // Byte-identical whole-file output across the flag boundary.
+      const bytesOff = readFileSync(join(dirOff, 'task-list.json'));
+      const bytesOn = readFileSync(join(dirOn, 'task-list.json'));
+      expect(bytesOn.equals(bytesOff)).toBe(true);
+      // Envelope parity too (the NO-OP flag emits the same success shape).
+      expect(on.envelope?.result).toEqual(offWhole.envelope?.result);
+    },
+  );
 
   // ID-90.26 — `delete-backlog` flag-ON must reach flag-OFF parity through
   // the SERVER TRANSPORT. The pre-fix defect nested `serverIntent` inside the
