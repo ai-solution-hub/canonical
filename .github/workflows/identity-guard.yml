@@ -317,9 +317,6 @@ jobs:
           ':(exclude,literal)scripts/tests/test_eval_holder_rule.py'
           ':(exclude,literal)scripts/tests/test_workspace_resolver.py'
           ':(exclude,literal)supabase/config.toml'
-          ':(exclude,literal)supabase/migrations/20260419212103_cutover_fix_guide_domain_and_restore_mat_auditing.sql'
-          ':(exclude,literal)supabase/migrations/20260424202806_capture_signup_domain_hook.sql'
-          ':(exclude,literal)supabase/migrations/20260428122626_user_profiles_mirror.sql'
           ':(exclude,literal)supabase/types/database.types.ts'
           )
 
