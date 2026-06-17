@@ -64,7 +64,7 @@ loadEnvFile(join(PROJECT_ROOT, '.env'));
 //
 // SECURITY: token VALUES are never embedded in this file or emitted to stdout.
 
-interface DenylistToken {
+export interface DenylistToken {
   value: string;
   case_insensitive: boolean;
   class: string;
@@ -123,7 +123,7 @@ function resolveDenylistPath(): string | null {
 
 /**
  * Loads the denylist tokens, or returns null if no denylist source is reachable.
- * Caller is responsible for fail-loud behaviour on a detected leak without a denylist.
+ * Caller must invoke assertDenylistReachable before writing any artefact.
  */
 function loadDenylistTokens(): DenylistToken[] | null {
   const path = resolveDenylistPath();
@@ -133,14 +133,37 @@ function loadDenylistTokens(): DenylistToken[] | null {
 }
 
 /**
+ * Fail-loud de-ID guard (PC-31 / PI-1). Throws when no client-name denylist
+ * source is reachable — a null or empty token list — so the generator can
+ * never materialise the public taxonomy artefact without a confirmed
+ * redaction source. Without a denylist we cannot prove the DB-sourced
+ * content is free of client-name terms, so emitting it would be a silent
+ * de-ID hole (ID-68.36).
+ *
+ * Asserts `tokens` is a non-empty DenylistToken[] for the caller on return.
+ */
+export function assertDenylistReachable(
+  tokens: DenylistToken[] | null,
+): asserts tokens is DenylistToken[] {
+  if (!tokens || tokens.length === 0) {
+    throw new Error(
+      'FATAL: No client-name denylist source reachable ' +
+        '(KH_CLIENT_NAME_DENYLIST, KH_PRIVATE_DOCS_DIR, or sibling ' +
+        'knowledge-hub-docs-site checkout). De-ID redaction cannot be ' +
+        'applied, so the taxonomy artefact will not be written. Set a ' +
+        'denylist source and re-run.',
+    );
+  }
+}
+
+/**
  * Replaces each denylist token found in `text` with a neutral placeholder.
- * Uses `{CLIENT_ORGANISATION_NAME}` for org/name tokens and
- * `{CLIENT_PRODUCT_NAME}` for product tokens based on token class.
- * Falls back to `{CLIENT_NAME}` when class is unrecognised.
+ * Uses `{CLIENT_PRODUCT_NAME}` for product-class tokens and
+ * `{CLIENT_ORGANISATION_NAME}` for every other class.
  *
  * Returns the redacted string; is a no-op when tokens is null/empty.
  */
-function redactClientTerms(
+export function redactClientTerms(
   text: string,
   tokens: DenylistToken[] | null,
 ): string {
@@ -156,19 +179,6 @@ function redactClientTerms(
     result = result.replace(new RegExp(escaped, flags), placeholder);
   }
   return result;
-}
-
-/**
- * Returns true if any denylist token appears in `text`.
- * Used to detect leaks when no denylist source is reachable.
- */
-function containsClientTerm(text: string, tokens: DenylistToken[]): boolean {
-  for (const token of tokens) {
-    const flags = token.case_insensitive ? 'i' : '';
-    const escaped = token.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    if (new RegExp(escaped, flags).test(text)) return true;
-  }
-  return false;
 }
 
 // ── DB fetch ──
@@ -348,51 +358,24 @@ function writeArtefact(filePath: string, section: string): boolean {
 async function main() {
   console.log('Generating classification prompt taxonomy from DB...');
 
-  // Load denylist tokens for de-ID redaction (PC-31 / PI-1).
-  // Denylist is required whenever DB content might contain client-name terms.
-  // If no denylist source is reachable we proceed but perform a post-generation
-  // leak check using a read of the already-indexed denylist — if that also
-  // fails, the generator fails loud rather than emitting a potential leak.
+  // Load denylist tokens for de-ID redaction (PC-31 / PI-1) and fail loud if
+  // no source is reachable. The DB-sourced taxonomy content may contain
+  // client-name terms; without a denylist we cannot redact them, so writing
+  // the public artefact would be a silent de-ID hole (ID-68.36).
   const denylistTokens = loadDenylistTokens();
-
-  if (!denylistTokens) {
-    console.warn(
-      'WARNING: No denylist source reachable (KH_CLIENT_NAME_DENYLIST, ' +
-        'KH_PRIVATE_DOCS_DIR, or sibling knowledge-hub-docs-site checkout). ' +
-        'Generation will proceed but will fail if client terms are detected ' +
-        'in the generated output.',
-    );
-  } else {
-    console.log(
-      `  Loaded denylist (${denylistTokens.length} tokens) for PC-31 redaction`,
-    );
-  }
+  assertDenylistReachable(denylistTokens);
+  console.log(
+    `  Loaded denylist (${denylistTokens.length} tokens) for PC-31 redaction`,
+  );
 
   const envFlag = parseEnvFlag(process.argv.slice(2));
   const { domains, subtopics } = await fetchTaxonomy(envFlag);
 
-  const totalSubtopics = subtopics.length;
   console.log(
-    `  Fetched ${domains.length} domains, ${totalSubtopics} subtopics from DB`,
+    `  Fetched ${domains.length} domains, ${subtopics.length} subtopics from DB`,
   );
 
   const section = generateTaxonomySection(domains, subtopics, denylistTokens);
-
-  // Post-generation leak check: if no denylist was available during redaction,
-  // attempt to load it now for a final safety scan. If terms are found and we
-  // cannot redact, fail loud (non-zero exit) — never emit a silent leak.
-  if (!denylistTokens) {
-    const fallbackTokens = loadDenylistTokens();
-    if (fallbackTokens && containsClientTerm(section, fallbackTokens)) {
-      console.error(
-        'FATAL: Generated taxonomy section contains client-name terms and ' +
-          'de-ID redaction was not applied (denylist was not reachable at ' +
-          'generation time). Set KH_CLIENT_NAME_DENYLIST or KH_PRIVATE_DOCS_DIR ' +
-          'and re-run. No artefact written.',
-      );
-      process.exit(1);
-    }
-  }
 
   const changed = writeArtefact(PROMPT_PATH, section);
 
@@ -403,7 +386,11 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// Guard the entry point so importing this module (e.g. from tests that
+// exercise the pure redaction/guard functions) does not execute main().
+if (import.meta.main) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
