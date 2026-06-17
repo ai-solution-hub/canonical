@@ -7,7 +7,7 @@
 -- the api-grant-guard drift check (ID-115 S10) fails CI on an un-mirrored table.
 --
 -- Views:     60 security_invoker 1:1 views (explicit cols, FK verbatim).
--- Functions: 69 INVOKER entrypoints/wrappers (search_path=public,extensions).
+-- Functions: 72 INVOKER entrypoints/wrappers (search_path=public,extensions).
 -- Grants:    views fail-closed (explicit GRANT, anon<=SELECT); functions REVOKE
 --            EXECUTE FROM PUBLIC then GRANT mirrored roles (set_config sole anon-exec).
 -- =============================================================================
@@ -1325,7 +1325,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON api.workspaces TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON api.workspaces TO service_role;
 
 -- ----------------------------------------------------------------------------
--- RPC ENTRYPOINTS (69)
+-- RPC ENTRYPOINTS (72)
 -- ----------------------------------------------------------------------------
 -- api._test_delete_broken_auth_user(probe_id uuid)  [INVOKER wrapper over SECURITY DEFINER public fn]
 DROP FUNCTION IF EXISTS api._test_delete_broken_auth_user(probe_id uuid);
@@ -1339,6 +1339,19 @@ AS $api$
 $api$;
 REVOKE EXECUTE ON FUNCTION api._test_delete_broken_auth_user(probe_id uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION api._test_delete_broken_auth_user(probe_id uuid) TO service_role;
+
+-- api._test_insert_broken_auth_user(probe_id uuid, probe_email text)  [INVOKER wrapper over SECURITY DEFINER public fn]
+DROP FUNCTION IF EXISTS api._test_insert_broken_auth_user(probe_id uuid, probe_email text);
+CREATE FUNCTION api._test_insert_broken_auth_user(probe_id uuid, probe_email text)
+  RETURNS void
+  LANGUAGE sql
+  SECURITY INVOKER
+  SET search_path = public, extensions
+AS $api$
+  SELECT public._test_insert_broken_auth_user(probe_id => probe_id, probe_email => probe_email);
+$api$;
+REVOKE EXECUTE ON FUNCTION api._test_insert_broken_auth_user(probe_id uuid, probe_email text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION api._test_insert_broken_auth_user(probe_id uuid, probe_email text) TO service_role;
 
 -- api.bulk_delete_tags(p_tags text[], p_type text)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.bulk_delete_tags(p_tags text[], p_type text);
@@ -1586,6 +1599,19 @@ AS $api$
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_content_gaps() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION api.get_content_gaps() TO authenticated, service_role;
+
+-- api.get_content_owner_stats()  [INVOKER entrypoint]
+DROP FUNCTION IF EXISTS api.get_content_owner_stats();
+CREATE FUNCTION api.get_content_owner_stats()
+  RETURNS TABLE(owner_id uuid, total_items integer, fresh_count integer, aging_count integer, stale_count integer, expired_count integer, unverified_count integer)
+  LANGUAGE sql
+  SECURITY INVOKER
+  SET search_path = public, extensions
+AS $api$
+  SELECT * FROM public.get_content_owner_stats();
+$api$;
+REVOKE EXECUTE ON FUNCTION api.get_content_owner_stats() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION api.get_content_owner_stats() TO authenticated, service_role;
 
 -- api.get_content_win_rate(p_content_item_id uuid)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_content_win_rate(p_content_item_id uuid);
@@ -2171,6 +2197,19 @@ AS $api$
 $api$;
 REVOKE EXECUTE ON FUNCTION api.rename_tag(p_old text, p_new text, p_type text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION api.rename_tag(p_old text, p_new text, p_type text) TO authenticated, service_role;
+
+-- api.search_for_form_response(query_embedding vector, query_text text, limit_count integer, include_superseded boolean, visibility_filter character varying)  [INVOKER entrypoint]
+DROP FUNCTION IF EXISTS api.search_for_form_response(query_embedding vector, query_text text, limit_count integer, include_superseded boolean, visibility_filter character varying);
+CREATE FUNCTION api.search_for_form_response(query_embedding vector, query_text text DEFAULT ''::text, limit_count integer DEFAULT 10, include_superseded boolean DEFAULT false, visibility_filter character varying DEFAULT 'default'::character varying)
+  RETURNS TABLE(id uuid, title text, content text, brief text, detail text, primary_domain character varying, primary_subtopic character varying, content_type character varying, ai_keywords text[], similarity numeric)
+  LANGUAGE sql
+  SECURITY INVOKER
+  SET search_path = public, extensions
+AS $api$
+  SELECT * FROM public.search_for_form_response(query_embedding => query_embedding, query_text => query_text, limit_count => limit_count, include_superseded => include_superseded, visibility_filter => visibility_filter);
+$api$;
+REVOKE EXECUTE ON FUNCTION api.search_for_form_response(query_embedding vector, query_text text, limit_count integer, include_superseded boolean, visibility_filter character varying) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION api.search_for_form_response(query_embedding vector, query_text text, limit_count integer, include_superseded boolean, visibility_filter character varying) TO authenticated, service_role;
 
 -- api.set_config(setting text, value text, is_local boolean)  [INVOKER wrapper over SECURITY DEFINER public fn]
 DROP FUNCTION IF EXISTS api.set_config(setting text, value text, is_local boolean);
