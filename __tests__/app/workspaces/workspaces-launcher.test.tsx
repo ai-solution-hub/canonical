@@ -16,7 +16,10 @@ import '@testing-library/jest-dom/vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { WorkspacesContent } from '@/app/workspaces/workspaces-content';
 import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
-import { stubApplicationTypesFetch } from '@/__tests__/helpers/workspace-type-fixtures';
+import {
+  stubApplicationTypesFetch,
+  SEED_APPLICATION_TYPE_ROWS,
+} from '@/__tests__/helpers/workspace-type-fixtures';
 
 // Mock next/link to render a plain anchor for test assertions
 vi.mock('next/link', () => ({
@@ -35,6 +38,12 @@ vi.mock('next/link', () => ({
   ),
 }));
 
+// Post-ID-29.7 SSR-hydration fix: WorkspacesContent requires the
+// `initialApplicationTypes` seed (the rows the Server Component pre-fetches),
+// threaded into useLauncherTypes() as initialData — same pattern as the
+// sibling workspaces-content.test.tsx.
+const SEED = SEED_APPLICATION_TYPE_ROWS;
+
 describe('WorkspacesContent (launcher)', () => {
   beforeEach(() => {
     stubApplicationTypesFetch();
@@ -46,7 +55,7 @@ describe('WorkspacesContent (launcher)', () => {
   });
 
   it('renders the page heading and description', () => {
-    render(<WorkspacesContent counts={{}} />, {
+    render(<WorkspacesContent counts={{}} initialApplicationTypes={SEED} />, {
       wrapper: createQueryWrapper().Wrapper,
     });
     // Header is rendered on first paint regardless of hook state.
@@ -61,7 +70,7 @@ describe('WorkspacesContent (launcher)', () => {
   });
 
   it('renders type cards for bid and proposal', async () => {
-    render(<WorkspacesContent counts={{}} />, {
+    render(<WorkspacesContent counts={{}} initialApplicationTypes={SEED} />, {
       wrapper: createQueryWrapper().Wrapper,
     });
     await waitFor(() => {
@@ -76,9 +85,15 @@ describe('WorkspacesContent (launcher)', () => {
 
   it('shows correct count text for active procurements', async () => {
     // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
-    render(<WorkspacesContent counts={{ procurement: 3 }} />, {
-      wrapper: createQueryWrapper().Wrapper,
-    });
+    render(
+      <WorkspacesContent
+        counts={{ procurement: 3 }}
+        initialApplicationTypes={SEED}
+      />,
+      {
+        wrapper: createQueryWrapper().Wrapper,
+      },
+    );
     await waitFor(() => {
       expect(screen.getByText('3 active procurements')).toBeInTheDocument();
     });
@@ -86,9 +101,15 @@ describe('WorkspacesContent (launcher)', () => {
 
   it('shows singular count text for 1 active procurement', async () => {
     // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
-    render(<WorkspacesContent counts={{ procurement: 1 }} />, {
-      wrapper: createQueryWrapper().Wrapper,
-    });
+    render(
+      <WorkspacesContent
+        counts={{ procurement: 1 }}
+        initialApplicationTypes={SEED}
+      />,
+      {
+        wrapper: createQueryWrapper().Wrapper,
+      },
+    );
     await waitFor(() => {
       expect(screen.getByText('1 active procurement')).toBeInTheDocument();
     });
@@ -96,9 +117,15 @@ describe('WorkspacesContent (launcher)', () => {
 
   it('does not show count text when count is zero', async () => {
     // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
-    render(<WorkspacesContent counts={{ procurement: 0 }} />, {
-      wrapper: createQueryWrapper().Wrapper,
-    });
+    render(
+      <WorkspacesContent
+        counts={{ procurement: 0 }}
+        initialApplicationTypes={SEED}
+      />,
+      {
+        wrapper: createQueryWrapper().Wrapper,
+      },
+    );
     await waitFor(() => {
       // Confirm the hook resolved
       expect(screen.getByText('Procurements')).toBeInTheDocument();
@@ -108,9 +135,15 @@ describe('WorkspacesContent (launcher)', () => {
 
   it('links the bid card to /bid', async () => {
     // Post-T2: counts key is the application_types.key ('procurement', not 'bid')
-    render(<WorkspacesContent counts={{ procurement: 5 }} />, {
-      wrapper: createQueryWrapper().Wrapper,
-    });
+    render(
+      <WorkspacesContent
+        counts={{ procurement: 5 }}
+        initialApplicationTypes={SEED}
+      />,
+      {
+        wrapper: createQueryWrapper().Wrapper,
+      },
+    );
     await waitFor(() => {
       const bidLink = screen.getByRole('link', {
         name: /Procurements/,
@@ -120,7 +153,7 @@ describe('WorkspacesContent (launcher)', () => {
   });
 
   it('marks coming soon cards as aria-disabled', async () => {
-    render(<WorkspacesContent counts={{}} />, {
+    render(<WorkspacesContent counts={{}} initialApplicationTypes={SEED} />, {
       wrapper: createQueryWrapper().Wrapper,
     });
     await waitFor(() => {
@@ -133,7 +166,7 @@ describe('WorkspacesContent (launcher)', () => {
   });
 
   it('applies reduced opacity to coming soon cards', async () => {
-    render(<WorkspacesContent counts={{}} />, {
+    render(<WorkspacesContent counts={{}} initialApplicationTypes={SEED} />, {
       wrapper: createQueryWrapper().Wrapper,
     });
     await waitFor(() => {
@@ -146,7 +179,7 @@ describe('WorkspacesContent (launcher)', () => {
   });
 
   it('shows "Coming soon" badge on unavailable types', async () => {
-    render(<WorkspacesContent counts={{}} />, {
+    render(<WorkspacesContent counts={{}} initialApplicationTypes={SEED} />, {
       wrapper: createQueryWrapper().Wrapper,
     });
     await waitFor(() => {
@@ -158,7 +191,7 @@ describe('WorkspacesContent (launcher)', () => {
   });
 
   it('does not render coming soon types as links', async () => {
-    render(<WorkspacesContent counts={{}} />, {
+    render(<WorkspacesContent counts={{}} initialApplicationTypes={SEED} />, {
       wrapper: createQueryWrapper().Wrapper,
     });
     await waitFor(() => {
