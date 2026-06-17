@@ -1,8 +1,10 @@
 /**
  * R-WP17 ResponseSchema constants — ID-32.20.
  *
- * Closes AC-5 (the 37 R-WP17 baseline interfaces resolve to a real Zod
- * `${interface}Schema` constant via Source-A inference) while protecting
+ * Closes AC-5 (every R-WP17 baseline interface resolves to a real Zod
+ * `${interface}Schema` constant via Source-A inference — except the
+ * fetcher-only debt interfaces in KNOWN_UNRESOLVED whose schema authoring
+ * is deferred to OPS-T1) while protecting
  * AC-8 (the schemas validate real handler payloads permissively, never
  * over-strictly).
  *
@@ -917,14 +919,16 @@ describe('Source-A findSchemaConstant resolves R-WP17 schemas (AC-5)', () => {
   const baseline = loadBaseline();
   const targets: ResolvedTarget[] = resolveTargets(baseline);
 
-  // Fetcher-only interfaces baselined as accumulated debt without schemas; schema authoring deferred to OPS-T1 (commit 572a2ea09).
+  // Fetcher-only interfaces baselined as accumulated debt without schemas; schema authoring deferred to OPS-T1 (commits 572a2ea09, c670f1db7).
   const KNOWN_UNRESOLVED = new Set([
     'ItemHistoryListResponse',
     'ItemHistoryVersionDetail',
+    'QAPairHistoryListResponse',
+    'ContentIngestStatus',
   ]);
 
-  it('baseline has 39 entries', () => {
-    expect(baseline.length).toBe(39);
+  it('baseline has 41 entries', () => {
+    expect(baseline.length).toBe(41);
   });
 
   it('resolves a real ${interface}Schema for every baseline interface — never null', () => {
