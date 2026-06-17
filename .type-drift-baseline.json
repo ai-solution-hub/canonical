@@ -42,6 +42,12 @@
     }
   },
   {
+    "interface": "QAPairHistoryListResponse",
+    "declaredAt": {
+      "file": "lib/query/fetchers.ts"
+    }
+  },
+  {
     "interface": "DedupQueueResponse",
     "declaredAt": {
       "file": "lib/query/fetchers.ts"
@@ -229,6 +235,12 @@
   },
   {
     "interface": "NearDupPairDetail",
+    "declaredAt": {
+      "file": "lib/query/fetchers.ts"
+    }
+  },
+  {
+    "interface": "ContentIngestStatus",
     "declaredAt": {
       "file": "lib/query/fetchers.ts"
     }
