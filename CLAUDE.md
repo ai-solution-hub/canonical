@@ -143,8 +143,7 @@ Mempalace MCP is the canonical memory system (`mempalace_diary_read/write`,
 filter errors (`Error finding id` — upstream #1665, HNSW↔sqlite drift after bulk add/delete;
 affects MCP **and** CLI) — search without the wing filter and filter results client-side.
 
-**On-demand historic stores** (deliberately kept OUT of the main palace so current-content
-search stays clean — S355): the `knowledge-hub-archive` repo is mined into a separate palace,
+**On-demand historic stores**: the `knowledge-hub-archive` repo is mined into a separate palace,
 searchable via `mempalace --palace ~/.mempalace-archive search "…"` (CLI only; point-in-time /
 possibly-superseded — verify against current docs-site before trusting); the full pre-S355
 ~350k transcript history is cold in `~/mempalace-backup-PRE-PATHA-20260612.tar.gz` (extract →
@@ -159,6 +158,7 @@ This project is indexed by GitNexus as **knowledge-hub**. Use the GitNexus MCP t
 
 ## Always Do
 
+- **MUST pass `repo: 'knowledge-hub'` to all gitnexus MCP tool calls.**
 - **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
 - **MUST run `detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows. For regression review, compare against the default branch: `detect_changes({scope: "compare", base_ref: "main"})`.
 - **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.

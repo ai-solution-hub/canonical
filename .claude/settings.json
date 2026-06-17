@@ -7,6 +7,7 @@
     "knowledge-hub@local": false,
     "sentry@claude-plugins-official": false
   },
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "allow": [
       "Bash(supabase *)",
@@ -20,7 +21,9 @@
       "Bash(mkdir -p ~/.claude/.sentinels)",
       "Bash(touch ~/.claude/.sentinels/*)"
     ],
-    "deny": ["Read(supabase/types/database.types.ts)", "Read(lib/mcp/plugin-bundle.ts)"]
+    "additionalDirectories": ["~/Documents/development/knowledge-hub-docs-site/**"],
+    "deny": ["Read(supabase/types/database.types.ts)", "Read(lib/mcp/plugin-bundle.ts)"],
+    "defaultMode": "bypassPermissions"
   },
   "hooks": {
     "PreToolUse": [
@@ -30,6 +33,10 @@
           {
             "type": "command",
             "command": "CMD=$(jq -r '.tool_input.command' 2>/dev/null); if echo \"$CMD\" | grep -qE '(^|[[:space:]]|;|&&|\\|\\|)cd[[:space:]]+/Users/liamj/Documents/development/knowledge-hub(/|[[:space:]]|$|;)'; then echo 'BLOCKED: bash command contains cd to the knowledge-hub repo. This causes commits to leak to the wrong branch. Drop the cd prefix; use relative paths from your CWD (sibling repos like knowledge-hub-docs-site are NOT blocked).' >&2; exit 2; fi"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/rtk-readonly-gate.sh\""
           },
           {
             "type": "command",
@@ -64,15 +71,26 @@
       }
     ]
   },
+  "worktree": {
+    "symlinkDirectories": ["node_modules", ".venv", ".bin"]
+  },
   "sandbox": {
+    "network": {
+      "allowUnixSockets": ["/tmp/cmux.sock", "/private/tmp/cmux.sock"],
+      "allowedDomains": ["github.com", "*.github.com", "codeload.github.com", "objects.githubusercontent.com"],
+      "allowLocalBinding": true
+    },
     "filesystem": {
       "allowWrite": [
-        "/Users/liamj/Documents/development/knowledge-hub/.claude/cmux-events",
-        "/Users/liamj/Documents/development/knowledge-hub-docs-site",
-        "/Users/liamj/Documents/development/knowledge-hub-docs-site/.claude",
+        "~/Documents/development/knowledge-hub/.claude/cmux-events",
+        "~/Documents/development/knowledge-hub-docs-site/**",
+        "~/Documents/development/knowledge-hub-docs-site/.claude",
         ".claude",
         "lib/mcp/plugin-bundle.ts",
-        "supabase/types/database.types.ts"
+        "supabase/types/database.types.ts",
+        "~/.git-credentials",
+        "~/.claude/.sentinels",
+        "~/.gitnexus"
       ]
     }
   }
