@@ -59,18 +59,33 @@ import { parseArgs } from 'node:util';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 
+import { resolvePrivateDocsDir } from '@/lib/private-docs';
+
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const MANAGEMENT_API_BASE = 'https://api.supabase.com/v1';
 const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
 const STAGING_PROJECT_REF = 'turayklvaunphgbgscat';
 
-const BASELINE_PATH = path.join(
-  'docs',
-  'audits',
-  'kh-production-readiness-phase-1',
-  'supabase-advisor-baseline.json',
-);
+// The advisor baseline lists prod security + performance findings, so it
+// must NOT live in the (soon-public) repo. It is relocated to the PRIVATE
+// docs-site at `ops/supabase-advisor-baseline.json` (sibling of the
+// identity denylist), resolved via the KH_PRIVATE_DOCS_DIR bridge:
+//   - local: the sibling knowledge-hub-docs-site checkout;
+//   - CI: the resolve-private-docs action mints an App token + exports it.
+// Resolved LAZILY (never at module top-level) so this file stays importable
+// for unit-testing the pure helpers (toBaselineRecord, diffAgainstBaseline)
+// without the knob set.
+const BASELINE_DISPLAY =
+  '<KH_PRIVATE_DOCS_DIR>/ops/supabase-advisor-baseline.json';
+
+function baselinePath(): string {
+  return path.join(
+    resolvePrivateDocsDir(),
+    'ops',
+    'supabase-advisor-baseline.json',
+  );
+}
 
 const EXIT_OK = 0;
 const EXIT_NEW_FINDINGS = 1;
@@ -183,7 +198,7 @@ Exit codes:
   1  new findings (PR-blocking)
   2  infrastructure failure (API, auth, baseline IO)
 
-Baseline file: ${BASELINE_PATH}
+Baseline file: ${BASELINE_DISPLAY}
 `);
     process.exit(EXIT_OK);
   }
@@ -351,15 +366,16 @@ export function diffAgainstBaseline(
 // ── Baseline IO ────────────────────────────────────────────────────────────
 
 function loadBaseline(): BaselineRecord[] {
-  if (!existsSync(BASELINE_PATH)) {
+  const p = baselinePath();
+  if (!existsSync(p)) {
     console.error(
-      `Baseline file not found: ${BASELINE_PATH}\n` +
+      `Baseline file not found: ${p}\n` +
         `Run with --capture-baseline to create it.`,
     );
     process.exit(EXIT_INFRA_ERROR);
   }
   try {
-    const text = readFileSync(BASELINE_PATH, 'utf-8');
+    const text = readFileSync(p, 'utf-8');
     const parsed = JSON.parse(text);
     if (!Array.isArray(parsed)) {
       throw new Error(
@@ -369,17 +385,17 @@ function loadBaseline(): BaselineRecord[] {
     return parsed as BaselineRecord[];
   } catch (err) {
     console.error(
-      `Failed to read baseline ${BASELINE_PATH}: ` +
-        `${(err as Error).message}`,
+      `Failed to read baseline ${p}: ` + `${(err as Error).message}`,
     );
     process.exit(EXIT_INFRA_ERROR);
   }
 }
 
 function writeBaseline(records: BaselineRecord[]): void {
+  const p = baselinePath();
   const text = `${JSON.stringify(records, null, 2)}\n`;
-  writeFileSync(BASELINE_PATH, text, 'utf-8');
-  console.log(`Wrote ${records.length} records to ${BASELINE_PATH}`);
+  writeFileSync(p, text, 'utf-8');
+  console.log(`Wrote ${records.length} records to ${p}`);
 }
 
 // ── Reporting ──────────────────────────────────────────────────────────────
@@ -406,7 +422,7 @@ function reportDiff(diff: DiffResult, totalLive: number): void {
     console.error(
       `\nFix the underlying issue, OR re-baseline if the finding is\n` +
         `already known/accepted by re-running with --capture-baseline\n` +
-        `and committing the updated ${BASELINE_PATH}.`,
+        `and committing the updated ${BASELINE_DISPLAY}.`,
     );
   }
 
