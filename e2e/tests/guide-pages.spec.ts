@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures';
+import { attachConsoleGate, type ConsoleGate } from '../helpers/console-gate';
 
 /**
  * Flow: Guide Pages
@@ -16,6 +17,15 @@ import { test, expect } from '../fixtures';
 // ---------------------------------------------------------------------------
 
 test.describe('Guide listing redirect', { tag: '@smoke' }, () => {
+  // bl-336: opt-in browser-error gate (see e2e/helpers/console-gate.ts).
+  let gate: ConsoleGate;
+  test.beforeEach(({ authenticatedPage }) => {
+    gate = attachConsoleGate(authenticatedPage);
+  });
+  test.afterEach(() => {
+    gate.assertNoConsoleViolations();
+  });
+
   test('/guide redirects to /coverage?tab=guides', async ({
     authenticatedPage: page,
   }) => {
@@ -36,6 +46,15 @@ test.describe('Guide listing redirect', { tag: '@smoke' }, () => {
 // ---------------------------------------------------------------------------
 
 test.describe('Guide detail page', { tag: '@smoke' }, () => {
+  // bl-336: opt-in browser-error gate (see e2e/helpers/console-gate.ts).
+  let gate: ConsoleGate;
+  test.beforeEach(({ authenticatedPage }) => {
+    gate = attachConsoleGate(authenticatedPage);
+  });
+  test.afterEach(() => {
+    gate.assertNoConsoleViolations();
+  });
+
   test('guide detail page loads with guide name and metadata', async ({
     authenticatedPage: page,
   }) => {

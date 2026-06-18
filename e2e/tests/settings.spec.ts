@@ -3,6 +3,7 @@ import {
   getSettingsNav,
   navigateToSettingsSection,
 } from '../helpers/responsive';
+import { attachConsoleGate, type ConsoleGate } from '../helpers/console-gate';
 
 /**
  * Flow 9: Settings
@@ -13,6 +14,16 @@ import {
  */
 
 test.describe('Settings page', { tag: '@smoke' }, () => {
+  // bl-336: opt-in browser-error gate. Registered first so it attaches before
+  // the navigation beforeEach below, covering the initial /settings load.
+  let gate: ConsoleGate;
+  test.beforeEach(({ authenticatedPage }) => {
+    gate = attachConsoleGate(authenticatedPage);
+  });
+  test.afterEach(() => {
+    gate.assertNoConsoleViolations();
+  });
+
   test.beforeEach(async ({ authenticatedPage: page }) => {
     await page.goto('/settings');
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
@@ -159,6 +170,15 @@ test.describe('Settings page', { tag: '@smoke' }, () => {
 });
 
 test.describe('Settings — section content', { tag: '@smoke' }, () => {
+  // bl-336: opt-in browser-error gate (see e2e/helpers/console-gate.ts).
+  let gate: ConsoleGate;
+  test.beforeEach(({ authenticatedPage }) => {
+    gate = attachConsoleGate(authenticatedPage);
+  });
+  test.afterEach(() => {
+    gate.assertNoConsoleViolations();
+  });
+
   test('profile section shows user information', async ({
     authenticatedPage: page,
   }) => {
@@ -209,6 +229,15 @@ test.describe(
   'Settings — navigation via site header',
   { tag: '@smoke' },
   () => {
+    // bl-336: opt-in browser-error gate (see e2e/helpers/console-gate.ts).
+    let gate: ConsoleGate;
+    test.beforeEach(({ authenticatedPage }) => {
+      gate = attachConsoleGate(authenticatedPage);
+    });
+    test.afterEach(() => {
+      gate.assertNoConsoleViolations();
+    });
+
     test('settings button in header navigates to settings page', async ({
       authenticatedPage: page,
     }) => {

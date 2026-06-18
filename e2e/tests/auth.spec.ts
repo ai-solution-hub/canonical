@@ -2,6 +2,7 @@ import { test as baseTest, expect } from '@playwright/test';
 import { test as authTest } from '../fixtures';
 import { getVisibleNavLinks, isMobileViewport } from '../helpers/responsive';
 import { hideDevOverlays } from '../helpers/dev-overlays';
+import { attachConsoleGate, type ConsoleGate } from '../helpers/console-gate';
 
 /**
  * Flow 0: Authentication
@@ -17,6 +18,16 @@ baseTest.describe(
   () => {
     // Override project storageState to get a fresh, unauthenticated context
     baseTest.use({ storageState: { cookies: [], origins: [] } });
+
+    // bl-336: opt-in browser-error gate (see e2e/helpers/console-gate.ts).
+    // Registered first so it attaches before the page navigates.
+    let gate: ConsoleGate;
+    baseTest.beforeEach(({ page }) => {
+      gate = attachConsoleGate(page);
+    });
+    baseTest.afterEach(() => {
+      gate.assertNoConsoleViolations();
+    });
 
     // Suppress dev overlays that may block pointer events on unauthenticated pages
     baseTest.beforeEach(async ({ page }) => {

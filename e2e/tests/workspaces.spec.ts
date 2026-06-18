@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures';
 import { isMobileViewport } from '../helpers/responsive';
+import { attachConsoleGate, type ConsoleGate } from '../helpers/console-gate';
 
 /**
  * Flow: Workspaces Launcher
@@ -15,6 +16,15 @@ import { isMobileViewport } from '../helpers/responsive';
 // ---------------------------------------------------------------------------
 
 test.describe('Workspaces page', { tag: '@smoke' }, () => {
+  // bl-336: opt-in browser-error gate (see e2e/helpers/console-gate.ts).
+  let gate: ConsoleGate;
+  test.beforeEach(({ authenticatedPage }) => {
+    gate = attachConsoleGate(authenticatedPage);
+  });
+  test.afterEach(() => {
+    gate.assertNoConsoleViolations();
+  });
+
   test('workspaces page loads with heading and description', async ({
     authenticatedPage: page,
   }) => {
@@ -191,6 +201,15 @@ test.describe('Workspaces page', { tag: '@smoke' }, () => {
 // ---------------------------------------------------------------------------
 
 test.describe('Workspaces -- viewer access', { tag: '@smoke' }, () => {
+  // bl-336: opt-in browser-error gate (see e2e/helpers/console-gate.ts).
+  let gate: ConsoleGate;
+  test.beforeEach(({ viewerPage }) => {
+    gate = attachConsoleGate(viewerPage);
+  });
+  test.afterEach(() => {
+    gate.assertNoConsoleViolations();
+  });
+
   test('viewer can access workspaces page', async ({ viewerPage: page }) => {
     await page.goto('/workspaces');
 

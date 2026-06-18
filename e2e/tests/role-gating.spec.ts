@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures';
 import { getSettingsNav, isMobileViewport } from '../helpers/responsive';
+import { attachConsoleGate, type ConsoleGate } from '../helpers/console-gate';
 
 /**
  * Role-Gating Tests
@@ -11,6 +12,15 @@ import { getSettingsNav, isMobileViewport } from '../helpers/responsive';
  */
 
 test.describe('Viewer role restrictions', { tag: '@smoke' }, () => {
+  // bl-336: opt-in browser-error gate (see e2e/helpers/console-gate.ts).
+  let gate: ConsoleGate;
+  test.beforeEach(({ viewerPage }) => {
+    gate = attachConsoleGate(viewerPage);
+  });
+  test.afterEach(() => {
+    gate.assertNoConsoleViolations();
+  });
+
   test('viewer cannot see Review in navigation', async ({
     viewerPage: page,
   }) => {
@@ -60,6 +70,15 @@ test.describe('Viewer role restrictions', { tag: '@smoke' }, () => {
 });
 
 test.describe('Editor role access', { tag: '@smoke' }, () => {
+  // bl-336: opt-in browser-error gate (see e2e/helpers/console-gate.ts).
+  let gate: ConsoleGate;
+  test.beforeEach(({ editorPage }) => {
+    gate = attachConsoleGate(editorPage);
+  });
+  test.afterEach(() => {
+    gate.assertNoConsoleViolations();
+  });
+
   test('editor can access the review page', async ({ editorPage: page }) => {
     await page.goto('/review');
 
@@ -89,6 +108,15 @@ test.describe('Editor role access', { tag: '@smoke' }, () => {
 });
 
 test.describe('Admin role full access', { tag: '@smoke' }, () => {
+  // bl-336: opt-in browser-error gate (see e2e/helpers/console-gate.ts).
+  let gate: ConsoleGate;
+  test.beforeEach(({ authenticatedPage }) => {
+    gate = attachConsoleGate(authenticatedPage);
+  });
+  test.afterEach(() => {
+    gate.assertNoConsoleViolations();
+  });
+
   test('admin can access the review page', async ({
     authenticatedPage: page,
   }) => {

@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures';
+import { attachConsoleGate, type ConsoleGate } from '../helpers/console-gate';
 
 /**
  * Coverage Dashboard tests
@@ -14,6 +15,16 @@ import { test, expect } from '../fixtures';
  */
 
 test.describe('Coverage page', { tag: '@smoke' }, () => {
+  // bl-336: opt-in browser-error gate — fail on uncaught exceptions and
+  // console.error/warning, with only the [branding] contrast warn allowlisted.
+  let gate: ConsoleGate;
+  test.beforeEach(({ authenticatedPage }) => {
+    gate = attachConsoleGate(authenticatedPage);
+  });
+  test.afterEach(() => {
+    gate.assertNoConsoleViolations();
+  });
+
   // ---------------------------------------------------------------------------
   // 1. Page loads with header + subtitle
   // ---------------------------------------------------------------------------
