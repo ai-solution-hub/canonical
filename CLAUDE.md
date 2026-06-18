@@ -11,7 +11,7 @@ in the main CLAUDE.md file.** @./.ast-dataflow/CLAUDE.md
 
 ## Project Overview
 
-Knowledge Hub is a knowledge base platform where the core value is high-quality,
+Canonical (formerly Knowledge Hub) is a knowledge base platform where the core value is high-quality,
 structured data accessible by AI. First domain applications: procurement + sector
 intelligence for UK SMBs; next is Sales Proposals.
 **Team:** Liam (product owner, non-developer — verification gates are his eyes on the
@@ -56,7 +56,7 @@ its `publicRoutes` allowlist or they silently redirect to `/login`.
 
 ## Environment & Database
 
-- `.env.local` targets the persistent client staging Supabase branch;
+- `.env.local` targets the Platform Supabase DB (`zjqbrdctesqvouboziae`), which is currently acting as both prod & staging;
   prod-targeted CLI work opts in via `--env=prod`. Runbook:
   `${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/local-development.md`.
 - Schema is canonically the generated types (`Tables<'x'>` / `Enums<'x'>` from
@@ -121,8 +121,8 @@ staging-refresh, github-environments, onprem-b1-deploy), `design/` (Warm Meridia
 
 - Vercel (Next.js) + IONOS VPS/Coolify for the ingestion pipeline
   (`onprem-deploy.yml`); staging URL
-  https://knowledge-hub-git-staging-tw-group.vercel.app; `staging` branch is
-  deploy-only. GitHub: https://github.com/ai-solution-hub/canonical (private).
+  https://canonical-git-staging-tw-group.vercel.app; `staging` branch is
+  deploy-only. GitHub: https://github.com/ai-solution-hub/canonical.
 - PR-blocking CI (`ci.yml`): 8 parallel jobs; draft PRs skip CI. Topology +
   failure-mode table: `${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/ci.md`.
   Side workflows incl. `migration-revoke-guard`, `schema-parity`,
@@ -154,11 +154,11 @@ conversation).
 <!-- gitnexus:keep -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **knowledge-hub**. Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **canonical**. Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 ## Always Do
 
-- **MUST pass `repo: 'knowledge-hub'` to all gitnexus MCP tool calls.**
+- **MUST pass `repo: 'canonical'` to all gitnexus MCP tool calls.**
 - **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
 - **MUST run `detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows. For regression review, compare against the default branch: `detect_changes({scope: "compare", base_ref: "main"})`.
 - **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
@@ -176,10 +176,10 @@ This project is indexed by GitNexus as **knowledge-hub**. Use the GitNexus MCP t
 
 | Resource | Use for |
 |----------|---------|
-| `gitnexus://repo/knowledge-hub/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/knowledge-hub/clusters` | All functional areas |
-| `gitnexus://repo/knowledge-hub/processes` | All execution flows |
-| `gitnexus://repo/knowledge-hub/process/{name}` | Step-by-step execution trace |
+| `gitnexus://repo/canonical/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/canonical/clusters` | All functional areas |
+| `gitnexus://repo/canonical/processes` | All execution flows |
+| `gitnexus://repo/canonical/process/{name}` | Step-by-step execution trace |
 
 ## CLI
 

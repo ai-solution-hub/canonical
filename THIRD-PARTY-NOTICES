@@ -1,16 +1,16 @@
 THIRD-PARTY SOFTWARE NOTICES AND ATTRIBUTIONS
 =============================================
 
-This product, Knowledge Hub ("canonical"), incorporates and/or redistributes
+This product, Canonical (formerly Knowledge Hub), incorporates and/or redistributes
 third-party open-source software. This file discharges the attribution and
 source-availability obligations of those components — in particular the
 copyleft (GPL / LGPL / MPL) obligations triggered when the on-premise
 ingestion image and the application bundle are deployed to a client.
 
-Knowledge Hub ("canonical") is source-available but NOT open-source: all
+Canonical is source-available but NOT open-source: all
 rights reserved, no project licence is granted (the repository is published
 for transparency, not reuse). The notices below cover THIRD-PARTY code only;
-they neither grant nor alter any licence to Knowledge Hub itself.
+they neither grant nor alter any licence to Canonical itself.
 
 Two redistribution surfaces ship third-party code to clients:
 
