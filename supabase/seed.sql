@@ -127,26 +127,27 @@ VALUES (
 ON CONFLICT (id) DO NOTHING;
 
 -- 2b. Test guide (used by guide-related features and E2E tests)
-INSERT INTO public.guides (id, slug, name, description, guide_type, created_by)
+INSERT INTO public.guides (id, slug, name, description, guide_type, is_published, created_by)
 VALUES (
   'c0000000-0000-4000-8000-000000000001',
   'ci-test-guide',
   'CI Test Guide',
   'Deterministic guide for CI tests. Seeded by seed.sql.',
   'sector',
+  true,
   'a0000000-0000-4000-8000-000000000001'
 )
 ON CONFLICT (id) DO NOTHING;
 
--- 2c. Test guide section
+-- 2c. Test guide sections — >=3 so the guide-detail Table of Contents renders.
+-- GuideTableOfContents (components/guide/guide-table-of-contents.tsx) has
+-- minSections=3 and returns null below that, so guide-pages.spec.ts @smoke
+-- ("shows table of contents when sections exist") needs at least three.
 INSERT INTO public.guide_sections (id, guide_id, section_name, description, display_order)
-VALUES (
-  'c0000000-0000-4000-8000-000000000002',
-  'c0000000-0000-4000-8000-000000000001',
-  'Overview',
-  'Deterministic guide section for CI tests.',
-  0
-)
+VALUES
+  ('c0000000-0000-4000-8000-000000000002', 'c0000000-0000-4000-8000-000000000001', 'Overview', 'Deterministic guide section for CI tests.', 0),
+  ('c0000000-0000-4000-8000-000000000003', 'c0000000-0000-4000-8000-000000000001', 'Market Landscape', 'Deterministic guide section for CI tests.', 1),
+  ('c0000000-0000-4000-8000-000000000004', 'c0000000-0000-4000-8000-000000000001', 'Key Considerations', 'Deterministic guide section for CI tests.', 2)
 ON CONFLICT (id) DO NOTHING;
 
 -- 2d. Test feed prompt (requires workspace + created_by)
