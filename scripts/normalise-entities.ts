@@ -22,6 +22,7 @@
  */
 
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
+import { prodProjectRef } from '@/scripts/lib/project-refs';
 import { canonicalise } from '@/lib/entities/entity-dedup';
 import { resolveAlias, loadAliases } from '@/lib/entities/entity-aliases';
 
@@ -90,8 +91,6 @@ function parseArgs(): CliArgs {
 
 // ── --env=prod opt-in ────────────────────────────────────────────────────────
 
-const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
-
 /**
  * --env=prod opt-in: assert SUPABASE_URL is prod-pointed.
  *
@@ -100,9 +99,9 @@ const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
  * because --apply mass-rewrites entity_mentions + entity_relationships.
  */
 function assertEnvFlag(env: string, url: string | undefined): void {
-  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+  if (env === 'prod' && !(url ?? '').includes(prodProjectRef())) {
     console.error(
-      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+      `--env=prod set but SUPABASE_URL does not include '${prodProjectRef()}'.\n` +
         `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<prod-svc-key> bun run scripts/normalise-entities.ts --apply --env=prod`,
     );
     process.exit(1);

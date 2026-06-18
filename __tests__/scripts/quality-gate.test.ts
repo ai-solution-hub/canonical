@@ -450,8 +450,8 @@ describe('extractProjectId', () => {
     expect(extractProjectId('https://mgrmucazfiibsomdmndh.supabase.co')).toBe(
       'mgrmucazfiibsomdmndh',
     );
-    expect(extractProjectId('https://rovrymhhffssilaftdwd.supabase.co')).toBe(
-      'rovrymhhffssilaftdwd',
+    expect(extractProjectId('https://exampleprojectref000.supabase.co')).toBe(
+      'exampleprojectref000',
     );
   });
 

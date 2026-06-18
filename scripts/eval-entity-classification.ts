@@ -27,6 +27,7 @@ import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
+import { prodProjectRef } from '@/scripts/lib/project-refs';
 import { createInterface } from 'readline';
 import type { Database } from '@/supabase/types/database.types';
 import { resolveEvalFixture } from '../lib/eval/fixtures';
@@ -722,12 +723,11 @@ async function main() {
 
   // --env=prod opt-in: assert SUPABASE_URL is prod-pointed (per WP-S5.2 spec v1.1 §7.1).
   // This script reads / re-classifies prod entities — wrong env corrupts metadata.
-  const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
   const envUrl =
     process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  if (envFlag === 'prod' && !(envUrl ?? '').includes(PROD_PROJECT_REF)) {
+  if (envFlag === 'prod' && !(envUrl ?? '').includes(prodProjectRef())) {
     console.error(
-      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+      `--env=prod set but SUPABASE_URL does not include '${prodProjectRef()}'.\n` +
         `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<prod-svc-key> bun run scripts/eval-entity-classification.ts --env=prod`,
     );
     process.exit(1);

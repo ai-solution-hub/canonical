@@ -11,7 +11,7 @@
  *    Tests run against the actual database (staging in the first instance)."
  *
  *   - Drives the production lib/queue/* + cron route through the real
- *     Supabase staging branch (`turayklvaunphgbgscat`). NO mocked supabase.
+ *     Supabase staging branch. NO mocked supabase.
  *   - Asserts on observable DB state transitions (status, attempts,
  *     error_message, completed_at, updated_at columns) — not on internal
  *     call signatures or mock-spy assertions, except where AC-8 explicitly

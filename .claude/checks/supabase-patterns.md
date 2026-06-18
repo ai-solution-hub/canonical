@@ -11,7 +11,7 @@ request validation, error handling, and migrations.
 1. **Never manually edit `supabase/types/database.types.ts`.** This file is auto-generated
    by the Supabase CLI. Any manual edits will be overwritten. If the schema changes,
    regenerate types with:
-   `/opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts`
+   `/opt/homebrew/bin/supabase gen types typescript --project-id <prod-project-ref> --schema public > supabase/types/database.types.ts`
 
 2. **Always use `getAuthenticatedClient()` from `lib/auth.ts` for API route
    authentication.** This function returns both the authenticated `user` and a typed

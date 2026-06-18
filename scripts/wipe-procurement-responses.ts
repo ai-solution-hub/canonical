@@ -12,9 +12,9 @@
  *
  * **REQUIRED ENV FLAG (D-22 fix per WP-S5.2 spec v1.1 §6.2 + §9):**
  *   --env=staging  Default safe target post-flip. Asserts SUPABASE_URL
- *                  contains `turayklvaunphgbgscat`.
+ *                  contains the client staging project ref (STAGING_PROJECT_REF).
  *   --env=prod     DANGEROUS — only with explicit confirmation prompt.
- *                  Asserts SUPABASE_URL contains `rovrymhhffssilaftdwd`.
+ *                  Asserts SUPABASE_URL contains the client prod project ref (PROD_PROJECT_REF).
  *
  * The script FAILS FAST if neither flag is passed.
  *
@@ -32,6 +32,7 @@
  */
 
 import { createLooseScriptClient } from '@/scripts/lib/supabase-script-client';
+import { prodProjectRef, stagingProjectRef } from '@/scripts/lib/project-refs';
 import { parseArgs } from 'util';
 import { createInterface } from 'readline';
 import path from 'path';
@@ -85,8 +86,8 @@ if (args.help) {
 Usage: bun run scripts/wipe-bid-responses.ts --env=<staging|prod> [options]
 
 Required:
-  --env=staging  Wipe staging (asserts URL contains \`turayklvaunphgbgscat\`)
-  --env=prod     Wipe prod   (asserts URL contains \`rovrymhhffssilaftdwd\`,
+  --env=staging  Wipe staging (asserts URL points at the client staging project, STAGING_PROJECT_REF)
+  --env=prod     Wipe prod   (asserts URL points at the client prod project, PROD_PROJECT_REF,
                  requires interactive "wipe prod" confirmation)
 
 Options:
@@ -106,12 +107,11 @@ const CONVERT = args.convert!;
 const SKIP_DELAY = args.yes!;
 const ENV_FLAG = args.env!;
 
-// Project-ref constants for env-flag assertion (D-22 fix per WP-S5.2 spec
-// v1.1 §6.2 + §9). Hardcoded per spec §7.1 so the script does NOT swap
-// env values — the flag only ASSERTS the env-resolved URL points at the
-// expected env. Operator must provide creds via env vars.
-const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
-const STAGING_PROJECT_REF = 'turayklvaunphgbgscat';
+// Project refs for env-flag assertion (D-22 fix per WP-S5.2 spec v1.1 §6.2 +
+// §9). The flag does NOT swap env values — it only ASSERTS the env-resolved
+// URL points at the expected env. Refs are runtime-supplied via the
+// STAGING_PROJECT_REF / PROD_PROJECT_REF env vars (see scripts/lib/project-refs.ts);
+// the operator must also provide creds via env vars.
 
 // ── Supabase client ────────────────────────────────────────────────────────
 
@@ -150,23 +150,23 @@ if (ENV_FLAG !== 'staging' && ENV_FLAG !== 'prod') {
 }
 
 // Assert URL matches the named env.
-if (ENV_FLAG === 'staging' && !supabaseUrl.includes(STAGING_PROJECT_REF)) {
+if (ENV_FLAG === 'staging' && !supabaseUrl.includes(stagingProjectRef())) {
   console.error(
-    `ERROR: --env=staging set but SUPABASE_URL does not include '${STAGING_PROJECT_REF}'.\n` +
+    `ERROR: --env=staging set but SUPABASE_URL does not include '${stagingProjectRef()}'.\n` +
       `Current SUPABASE_URL: ${supabaseUrl}\n` +
       'Update .env.local to point at staging or pass an explicit override:\n' +
-      `  SUPABASE_URL=https://${STAGING_PROJECT_REF}.supabase.co \\\n` +
+      `  SUPABASE_URL=https://${stagingProjectRef()}.supabase.co \\\n` +
       '    SUPABASE_SERVICE_ROLE_KEY=<staging-svc-key> \\\n' +
       '    bun run scripts/wipe-bid-responses.ts --env=staging',
   );
   process.exit(1);
 }
-if (ENV_FLAG === 'prod' && !supabaseUrl.includes(PROD_PROJECT_REF)) {
+if (ENV_FLAG === 'prod' && !supabaseUrl.includes(prodProjectRef())) {
   console.error(
-    `ERROR: --env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+    `ERROR: --env=prod set but SUPABASE_URL does not include '${prodProjectRef()}'.\n` +
       `Current SUPABASE_URL: ${supabaseUrl}\n` +
       'Override with explicit prod creds:\n' +
-      `  SUPABASE_URL=https://${PROD_PROJECT_REF}.supabase.co \\\n` +
+      `  SUPABASE_URL=https://${prodProjectRef()}.supabase.co \\\n` +
       '    SUPABASE_SERVICE_ROLE_KEY=<prod-svc-key> \\\n' +
       '    bun run scripts/wipe-bid-responses.ts --env=prod',
   );

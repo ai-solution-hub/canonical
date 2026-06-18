@@ -10,7 +10,7 @@ canonical, a PINNED override of a longer name by run 2, NULL-op_id chaining, and
 Inv-14).
 
 They require TWO real pipeline runs against a DB and MUST NOT run against the
-parent's shared staging branch (`turayklvaunphgbgscat`). Per TECH §5
+parent's shared staging branch. Per TECH §5
 "Integration-test guard", they are tagged for a CONTROLLED run (a local Supabase
 stack or a dedicated ephemeral branch) the parent orchestrates — NEVER as part
 of the default `python3 -m pytest scripts/tests/` sweep, and NEVER against
@@ -53,8 +53,8 @@ import pytest
 # a future reader cannot miss why the gate exists.
 _INTEGRATION_ENABLED = bool(os.getenv("KH_RUN_STAGE5_INTEGRATION"))
 _SKIP_REASON = (
-    "cross-run integration — controlled DB run only, not shared staging "
-    "(turayklvaunphgbgscat). Set KH_RUN_STAGE5_INTEGRATION=1 + "
+    "cross-run integration — controlled DB run only, not shared staging. "
+    "Set KH_RUN_STAGE5_INTEGRATION=1 + "
     "KH_STAGE5_INTEGRATION_DSN=<disposable-db> to enable (ID-81 TECH §5)."
 )
 
@@ -76,10 +76,11 @@ def _require_disposable_dsn() -> str:
             "KH_STAGE5_INTEGRATION_DSN is unset — refusing to guess a DB. Point "
             "it at a DISPOSABLE local stack or ephemeral branch (NOT staging)."
         )
-    if "turayklvaunphgbgscat" in dsn:
+    shared_staging_ref = os.getenv("STAGING_PROJECT_REF")
+    if shared_staging_ref and shared_staging_ref in dsn:
         raise RuntimeError(
             "KH_STAGE5_INTEGRATION_DSN points at the SHARED STAGING branch "
-            "(turayklvaunphgbgscat) — these cross-run integration tests MUST NOT "
+            "(STAGING_PROJECT_REF) — these cross-run integration tests MUST NOT "
             "run against shared staging (ID-81 TECH §5). Use a disposable DB."
         )
     return dsn

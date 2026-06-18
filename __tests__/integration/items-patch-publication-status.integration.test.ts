@@ -15,7 +15,7 @@
  *   - publication_status CHECK rejecting unknown enum values at the DB.
  *
  * This test runs the production PATCH handler (`app/api/items/[id]/route.ts`)
- * against the live `rovrymhhffssilaftdwd` DB with a real signed-in admin
+ * against the live production DB with a real signed-in admin
  * session (cookie-store pattern, mirroring
  * `review-cadence-lifecycle.integration.test.ts`).
  *

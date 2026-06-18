@@ -28,6 +28,7 @@ import { createInterface } from 'node:readline';
 import path from 'node:path';
 import fs from 'node:fs';
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
+import { prodProjectRef } from '@/scripts/lib/project-refs';
 import { tryQuery } from '@/lib/supabase/safe';
 import {
   readInstanceFields,
@@ -106,12 +107,10 @@ function parseCliArgs(): CliArgs {
   return { formTemplateId, templateType, confirm, env };
 }
 
-const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
-
 function assertEnvFlag(env: string, url: string | undefined): void {
-  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+  if (env === 'prod' && !(url ?? '').includes(prodProjectRef())) {
     console.error(
-      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.`,
+      `--env=prod set but SUPABASE_URL does not include '${prodProjectRef()}'.`,
     );
     process.exit(1);
   }

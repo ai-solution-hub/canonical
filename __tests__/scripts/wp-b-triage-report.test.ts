@@ -33,7 +33,10 @@ describe('CSV_COLUMNS', () => {
   });
 
   it('exposes the prod project ref so --env=prod guard can compare', () => {
-    expect(PROD_PROJECT_REF).toBe('rovrymhhffssilaftdwd');
+    // Assert the SHAPE of a Supabase project ref (20 lowercase alphanumerics),
+    // not the client-specific literal — the concrete ref is runtime-supplied
+    // and is not committed to this public repo (ID-68 / theme 12).
+    expect(PROD_PROJECT_REF).toMatch(/^[a-z0-9]{20}$/);
   });
 });
 

@@ -28,7 +28,7 @@
 --
 -- DERIVATION:
 --   Faithful current-shape DDL extracted from the LIVE staging schema
---   (turayklvaunphgbgscat) via `supabase db dump --linked --schema public`,
+--   (the staging branch) via `supabase db dump --linked --schema public`,
 --   cross-checked against the defining migrations:
 --     - taxonomy_domains / taxonomy_subtopics / layer_vocabulary:
 --         20260416102457_pre_squash_reconciliation.sql

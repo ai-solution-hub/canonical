@@ -60,12 +60,15 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 
 import { resolvePrivateDocsDir } from '@/lib/private-docs';
+import {
+  platformProjectRef,
+  prodProjectRef,
+  stagingProjectRef,
+} from '@/scripts/lib/project-refs';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const MANAGEMENT_API_BASE = 'https://api.supabase.com/v1';
-const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
-const STAGING_PROJECT_REF = 'turayklvaunphgbgscat';
 
 // The advisor baseline lists prod security + performance findings, so it
 // must NOT live in the (soon-public) repo. It is relocated to the PRIVATE
@@ -191,7 +194,7 @@ Usage:
 
 Required env vars:
   SUPABASE_ACCESS_TOKEN  Personal Access Token (project read access)
-  PROJECT_REF            Project ref (optional; defaults to prod 'rovrymhhffssilaftdwd')
+  PROJECT_REF            Project ref (optional; defaults to the Platform CI project)
 
 Exit codes:
   0  pass; no new findings vs baseline
@@ -215,25 +218,26 @@ function resolveProjectRef(flags: CliFlags): string {
   // Precedence: --project-ref > $PROJECT_REF > default-by-env-flag.
   if (flags.projectRef) return flags.projectRef;
   if (process.env.PROJECT_REF) return process.env.PROJECT_REF;
-  if (flags.env === 'staging') return STAGING_PROJECT_REF;
-  // Default for 'prod' and 'auto' (advisor data is meaningful only when
-  // run against prod — staging is data-empty per
-  // feedback_supabase_branch_data_empty.md).
-  return PROD_PROJECT_REF;
+  if (flags.env === 'staging') return stagingProjectRef();
+  if (flags.env === 'prod') return prodProjectRef();
+  // Default for 'auto': the Platform CI project (canonical's own dev/CI DB).
+  // Client prod/staging refs are supplied explicitly (--project-ref or
+  // $PROJECT_REF) when advisor-linting a specific client DB.
+  return platformProjectRef();
 }
 
 function assertEnvFlag(env: string, projectRef: string): void {
-  if (env === 'prod' && projectRef !== PROD_PROJECT_REF) {
+  if (env === 'prod' && projectRef !== prodProjectRef()) {
     console.error(
       `Refusing to run: --env=prod set but PROJECT_REF='${projectRef}' ` +
-        `(expected '${PROD_PROJECT_REF}').`,
+        `(expected the configured prod project ref).`,
     );
     process.exit(EXIT_INFRA_ERROR);
   }
-  if (env === 'staging' && projectRef !== STAGING_PROJECT_REF) {
+  if (env === 'staging' && projectRef !== stagingProjectRef()) {
     console.error(
       `Refusing to run: --env=staging set but PROJECT_REF='${projectRef}' ` +
-        `(expected '${STAGING_PROJECT_REF}').`,
+        `(expected the configured staging project ref).`,
     );
     process.exit(EXIT_INFRA_ERROR);
   }

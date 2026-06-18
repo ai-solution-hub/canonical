@@ -2,7 +2,7 @@
 #
 # Replaces staging-live-mirror.yml (WP-CI.RES.2, ESCALATING at v7).
 # Refreshes 13 reference/lookup tables from prod into the persistent
-# staging branch (turayklvaunphgbgscat) via pg_dump -Fc | pg_restore.
+# staging branch via pg_dump -Fc | pg_restore.
 # Zero PII surface — no scrub step, no auth.* table handling.
 #
 # Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-ci-res7-staging-data-strategy-spec.md

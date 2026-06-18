@@ -2,7 +2,7 @@
 # https://supabase.com/docs/guides/local-development/cli/config
 # A string used to distinguish different Supabase projects on the same host. Defaults to the
 # working directory name when running `supabase init`.
-project_id = "knowledge-hub"
+project_id = "canonical"
 
 [api]
 enabled = true
@@ -68,7 +68,9 @@ enabled = true
 sql_paths = ["./seed.sql"]
 
 [remotes.staging]
-project_id = "turayklvaunphgbgscat"
+# Points at the Platform dev/CI project (canonical's own). Client project refs
+# are per-client and never committed (ID-68 / theme 12).
+project_id = "zjqbrdctesqvouboziae"
 
 [remotes.staging.db.seed]
 enabled = true

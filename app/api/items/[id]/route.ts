@@ -354,8 +354,8 @@ async function patchHandler(
       // as required (number), so we cast the payload to the Insert shape
       // — the trigger fills it transactionally.
       // `change_type='publication_state'` was added to the CHECK enum in
-      // commit eeb8ae25 (verified in pre-flight against `rovrymhhffssilaftdwd`
-      // and `turayklvaunphgbgscat`).
+      // commit eeb8ae25 (verified in pre-flight against the production
+      // project and the staging branch).
       const changeReasonText =
         `Transition from ${fromStatus} to ${newStatus}` +
         (archiveReason ? ` (reason: ${archiveReason})` : '');

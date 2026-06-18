@@ -7,7 +7,7 @@
  * CLI-only with future UI).
  *
  * Drives the production lib/queue/* + batch-reclassify route + cron worker
- * through the real Supabase staging branch (`turayklvaunphgbgscat`).
+ * through the real Supabase staging branch.
  * Discipline:
  *   - NO mocked supabase. NO mocked queue lib.
  *   - Mocks ONLY the dispatch boundary (`runJobByType`) where AC-2/AC-5

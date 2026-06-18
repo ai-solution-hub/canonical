@@ -31,6 +31,7 @@ import { readFileSync, existsSync } from 'fs';
 import { resolveEvalFixture } from '../lib/eval/fixtures';
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
+import { prodProjectRef } from '@/scripts/lib/project-refs';
 import { createInterface } from 'readline';
 import { accuracy } from '../lib/eval/metrics';
 import {
@@ -182,8 +183,6 @@ export function parseArgs(args: string[]): ParsedArgs {
 
 // ── --env=prod opt-in ──────────────────────────────────────────────
 
-const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
-
 /**
  * --env=prod opt-in: assert SUPABASE_URL is prod-pointed.
  *
@@ -193,9 +192,9 @@ const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
  *     bun run scripts/eval-classification.ts --env=prod
  */
 export function assertEnvFlag(env: string, url: string | undefined): void {
-  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+  if (env === 'prod' && !(url ?? '').includes(prodProjectRef())) {
     console.error(
-      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+      `--env=prod set but SUPABASE_URL does not include '${prodProjectRef()}'.\n` +
         `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<prod-svc-key> bun run scripts/eval-classification.ts --env=prod`,
     );
     process.exit(1);

@@ -8,8 +8,8 @@
  * only DB that currently holds curated canonical data — STAGING.
  *
  * It is the REVERSE direction of the worker's normal platform -> client fan-out:
- *   source = STAGING   (turayklvaunphgbgscat)
- *   target = PLATFORM  (zjqbrdctesqvouboziae, "knowledge-hub-platform")
+ *   source = STAGING   (the client staging project)
+ *   target = PLATFORM  (the canonical platform dev/CI project)
  *
  * WHY A WRAPPER AND NOT A RAW WORKER INVOCATION:
  *  - The DIRECTION is hard-locked here (source=staging, target=platform) so an

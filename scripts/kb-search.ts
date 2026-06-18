@@ -16,6 +16,7 @@ import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import OpenAI from 'openai';
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
+import { prodProjectRef } from '@/scripts/lib/project-refs';
 
 // ── Env loading ──
 
@@ -209,7 +210,7 @@ Options:
   --include-superseded     Include superseded rows (default — diagnostic CLI)
   --exclude-superseded     Hide superseded rows (match app default)
   --env=prod               Asserts SUPABASE_URL points at current prod
-                           ('rovrymhhffssilaftdwd'). Override invocation:
+                           (the client production project; ref from PROD_PROJECT_REF). Override invocation:
                            SUPABASE_URL=<prod-url> SUPABASE_PUBLISHABLE_KEY=<key>
                            bun run scripts/kb-search.ts "query" --env=prod
   --help, -h               Show this help message
@@ -225,8 +226,6 @@ Examples:
 
 // ── --env=prod opt-in ──
 
-const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
-
 /**
  * --env=prod opt-in: assert SUPABASE_URL is prod-pointed.
  *
@@ -236,9 +235,9 @@ const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
  *     bun run scripts/kb-search.ts "<query>" --env=prod
  */
 function assertEnvFlag(env: string, url: string | undefined): void {
-  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+  if (env === 'prod' && !(url ?? '').includes(prodProjectRef())) {
     console.error(
-      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+      `--env=prod set but SUPABASE_URL does not include '${prodProjectRef()}'.\n` +
         `Run: SUPABASE_URL=<prod-url> SUPABASE_PUBLISHABLE_KEY=<prod-key> bun run scripts/kb-search.ts "<query>" --env=prod`,
     );
     process.exit(1);

@@ -48,8 +48,7 @@
  *   - `bun run seed:e2e-users` has been run against the target DB.
  *   - Schema includes the §6.6 archive-state trigger + the
  *     `content_history.change_type='publication_state'` CHECK extension
- *     (live on `rovrymhhffssilaftdwd` and the staging branch
- *     `turayklvaunphgbgscat`).
+ *     (live on the production project and the staging branch).
  *
  * Runs via: `bun run test:integration -- publication-bulk-action`
  *   (NOT picked up by `bun run test`; integration runner only — see

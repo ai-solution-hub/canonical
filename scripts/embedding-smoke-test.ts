@@ -33,6 +33,7 @@
  */
 
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
+import { prodProjectRef } from '@/scripts/lib/project-refs';
 import { parseArgs } from 'util';
 import path from 'path';
 import fs from 'fs';
@@ -107,7 +108,7 @@ Options:
   --content-type TYPE    Restrict to one content_type bucket
   --output PATH          Write per-item JSONL results to the given path
   --verbose              Show content diffs for items below threshold
-  --env=prod             Asserts SUPABASE_URL points at prod ('rovrymhhffssilaftdwd')
+  --env=prod             Asserts SUPABASE_URL points at prod (the client production project)
   --help                 Show this help
 `);
     process.exit(0);
@@ -125,12 +126,10 @@ Options:
 
 // ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
 
-const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
-
 function assertEnvFlag(env: string, url: string | undefined): void {
-  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+  if (env === 'prod' && !(url ?? '').includes(prodProjectRef())) {
     console.error(
-      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+      `--env=prod set but SUPABASE_URL does not include '${prodProjectRef()}'.\n` +
         `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/embedding-smoke-test.ts --env=prod`,
     );
     process.exit(1);

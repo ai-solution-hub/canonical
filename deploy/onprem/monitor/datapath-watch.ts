@@ -33,7 +33,7 @@
  * GOTCHA-A — BLOCKING schema/code mismatch (FLAGGED here; NOT fixed in this file):
  *
  *   The live `pipeline_runs_status_check` CHECK constraint (confirmed by
- *   `pg_constraint` introspection on staging `turayklvaunphgbgscat`) is:
+ *   `pg_constraint` introspection on the staging branch) is:
  *     CHECK (status = ANY (ARRAY[
  *       'running','completed','completed_with_errors','failed']))
  *   — it does NOT include `'in_progress'`. But the flow-start emit

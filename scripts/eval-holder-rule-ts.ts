@@ -52,6 +52,7 @@ import { spawn } from 'child_process';
 import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Json } from '@/supabase/types/database.types';
+import { prodProjectRef } from '@/scripts/lib/project-refs';
 
 // ──────────────────────────────────────────
 // Env loading (same pattern as other eval scripts)
@@ -404,7 +405,7 @@ Options:
   --item-ids=<csv>  Comma-separated item ID prefixes (default: all holds items).
   --dry-run         Run/parity mode: report the plan without classifying/LLM.
   --env=prod        Asserts SUPABASE_URL points at current prod
-                    ('rovrymhhffssilaftdwd'). Override invocation:
+                    (the client production project; ref from PROD_PROJECT_REF). Override invocation:
                     SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key>
                     bun run scripts/eval-holder-rule-ts.ts --mode=run --env=prod
   --help            Show this help message.
@@ -425,8 +426,6 @@ Examples:
 // --env=prod opt-in
 // ──────────────────────────────────────────
 
-const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
-
 /**
  * --env=prod opt-in: assert SUPABASE_URL is prod-pointed.
  *
@@ -435,9 +434,9 @@ const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
  * script because --mode=run is destructive (rebuilds entity_mentions).
  */
 function assertEnvFlag(env: string, url: string | undefined): void {
-  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+  if (env === 'prod' && !(url ?? '').includes(prodProjectRef())) {
     logError(
-      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+      `--env=prod set but SUPABASE_URL does not include '${prodProjectRef()}'.\n` +
         `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<prod-svc-key> bun run scripts/eval-holder-rule-ts.ts --mode=run --env=prod`,
     );
     process.exit(2);

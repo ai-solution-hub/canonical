@@ -12,6 +12,7 @@
  */
 
 import { createLooseScriptClient } from '@/scripts/lib/supabase-script-client';
+import { prodProjectRef } from '@/scripts/lib/project-refs';
 import { callSummaryAI } from '@/lib/ai/summarise';
 import type { SummaryData } from '@/types/content';
 
@@ -83,8 +84,6 @@ function parseArgs(): {
 
 // ── --env=prod opt-in ──
 
-const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
-
 /**
  * --env=prod opt-in: assert SUPABASE_URL is prod-pointed.
  *
@@ -93,9 +92,9 @@ const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
  * prod content_items at AI cost; running against a wrong env wastes spend.
  */
 function assertEnvFlag(env: string, url: string | undefined): void {
-  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+  if (env === 'prod' && !(url ?? '').includes(prodProjectRef())) {
     console.error(
-      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+      `--env=prod set but SUPABASE_URL does not include '${prodProjectRef()}'.\n` +
         `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<prod-svc-key> bun run scripts/batch-generate-summaries.ts --env=prod`,
     );
     process.exit(1);

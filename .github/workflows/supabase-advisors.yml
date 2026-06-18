@@ -88,14 +88,14 @@ jobs:
       - name: Run advisor lint
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          PROJECT_REF: rovrymhhffssilaftdwd
+          PROJECT_REF: ${{ secrets.PLATFORM_PROJECT_REF }}
           CAPTURE_BASELINE:
             ${{ github.event.inputs.capture_baseline || 'false' }}
         run: |
           if [ "$CAPTURE_BASELINE" = "true" ]; then
-            bun run scripts/run-supabase-advisors.ts --env=prod --capture-baseline
+            bun run scripts/run-supabase-advisors.ts --env=auto --capture-baseline
           else
-            bun run scripts/run-supabase-advisors.ts --env=prod
+            bun run scripts/run-supabase-advisors.ts --env=auto
           fi
 
       - name: Upload captured advisor baseline

@@ -14,6 +14,7 @@ import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
+import { prodProjectRef } from '@/scripts/lib/project-refs';
 import type { Database } from '@/supabase/types/database.types';
 
 // ── Env loading (mirrors kb-search.ts) ──
@@ -135,7 +136,7 @@ Options:
   --min N            Minimum strong threshold (default: 0.40)
   --max N            Maximum strong threshold (default: 0.80)
   --step N           Threshold step size (default: 0.05)
-  --env=prod         Asserts SUPABASE_URL points at prod ('rovrymhhffssilaftdwd')
+  --env=prod         Asserts SUPABASE_URL points at prod (the client production project)
   --help, -h         Show this help message`);
       process.exit(0);
     }
@@ -146,12 +147,10 @@ Options:
 
 // ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
 
-const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
-
 function assertEnvFlag(env: string, url: string | undefined): void {
-  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+  if (env === 'prod' && !(url ?? '').includes(prodProjectRef())) {
     console.error(
-      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+      `--env=prod set but SUPABASE_URL does not include '${prodProjectRef()}'.\n` +
         `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/calibrate-coverage-thresholds.ts --env=prod`,
     );
     process.exit(1);

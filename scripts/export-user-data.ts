@@ -33,6 +33,7 @@
 
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
+import { prodProjectRef, stagingProjectRef } from '@/scripts/lib/project-refs';
 import { createHash } from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -41,12 +42,6 @@ import { z } from 'zod';
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-
-/** Per WP-S5.3 D-21 pattern. */
-const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
-
-/** Per WP-S5.3 D-21 pattern. */
-const STAGING_PROJECT_REF = 'turayklvaunphgbgscat';
 
 /** Hard cap on auth.admin.listUsers pagination during email lookup. */
 const EMAIL_LOOKUP_MAX_PAGES = 50;
@@ -267,17 +262,17 @@ export function assertEnvFlag(
   env: CliArgs['env'],
   url: string | undefined,
 ): void {
-  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+  if (env === 'prod' && !(url ?? '').includes(prodProjectRef())) {
     console.error(
-      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+      `--env=prod set but SUPABASE_URL does not include '${prodProjectRef()}'.\n` +
         `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> ` +
         `bun run scripts/export-user-data.ts --env=prod ...`,
     );
     process.exit(EXIT_EXPORT_ERROR);
   }
-  if (env === 'staging' && !(url ?? '').includes(STAGING_PROJECT_REF)) {
+  if (env === 'staging' && !(url ?? '').includes(stagingProjectRef())) {
     console.error(
-      `--env=staging set but SUPABASE_URL does not include '${STAGING_PROJECT_REF}'.\n` +
+      `--env=staging set but SUPABASE_URL does not include '${stagingProjectRef()}'.\n` +
         `.env.local should point at staging by default post-WP-S5.2. ` +
         `Run: cat .env.local | grep SUPABASE_URL to verify.`,
     );

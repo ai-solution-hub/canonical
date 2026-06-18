@@ -38,6 +38,7 @@
 
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
+import { prodProjectRef, stagingProjectRef } from '@/scripts/lib/project-refs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
@@ -45,11 +46,15 @@ import { dirname } from 'node:path';
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Project ref for prod r — matches `backfill-classify-content-items.ts`. */
-export const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+/**
+ * Project refs, runtime-supplied via env (PROD_PROJECT_REF / STAGING_PROJECT_REF)
+ * so no client ref is committed (ID-68 / theme 12). Evaluated at import because
+ * the triage guards need both; unit tests get synthetic values from
+ * __tests__/setup.ts.
+ */
+export const PROD_PROJECT_REF = prodProjectRef();
 
-/** Project ref for the persistent staging branch. */
-export const STAGING_PROJECT_REF = 'turayklvaunphgbgscat';
+export const STAGING_PROJECT_REF = stagingProjectRef();
 
 /**
  * CSV column order — locked per spec §6.7. Phase 0c parses this exact order

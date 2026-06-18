@@ -87,8 +87,8 @@
  *     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, SUPABASE_SERVICE_ROLE_KEY,
  *     TEST_USER_1_PASSWORD, TEST_USER_2_PASSWORD.
  *   - Migration `20260427141627_publication_status_indexes_and_trigger.sql`
- *     applied on the target DB (verified live on `rovrymhhffssilaftdwd`
- *     and on the staging branch `turayklvaunphgbgscat`).
+ *     applied on the target DB (verified live on the production project
+ *     and on the staging branch).
  *   - `bun run seed:e2e-users` has been run against the target DB.
  *
  * Runs via: `bun run test:integration -- archive-trigger-coverage`

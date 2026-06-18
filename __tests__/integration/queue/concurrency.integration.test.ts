@@ -17,7 +17,7 @@
  * concurrent worker invocations on the same pending row. The only way
  * to validate the locking contract is against the real database — a
  * mocked Supabase client cannot exercise PostgreSQL row-level locks, so
- * this suite hits the persistent staging branch (`turayklvaunphgbgscat`)
+ * this suite hits the persistent staging branch
  * via two independent service-role clients.
  *
  * Two independent clients = two independent PostgREST connections =

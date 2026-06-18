@@ -14,9 +14,7 @@
  */
 
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
-
-const STAGING_PROJECT_REF = 'turayklvaunphgbgscat';
-const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+import { platformProjectRef } from '@/scripts/lib/project-refs';
 
 const allowCleanup = process.env.ALLOW_ORPHAN_CONTENT_HISTORY_CLEANUP === '1';
 const supabaseUrl =
@@ -37,16 +35,18 @@ if (!supabaseUrl || !serviceRoleKey) {
   process.exit(2);
 }
 
-if (supabaseUrl.includes(PROD_PROJECT_REF)) {
-  console.error('Refusing cleanup: SUPABASE_URL points at production.');
-  process.exit(2);
-}
-
-if (!supabaseUrl.includes(STAGING_PROJECT_REF)) {
-  console.warn(
-    `Warning: SUPABASE_URL does not contain expected staging ref ${STAGING_PROJECT_REF}. ` +
-      'Continuing because explicit cleanup flag is set; verify CI environment scoping if this is unexpected.',
+// Runs against the Platform CI project by default. Refuse any other target
+// unless the operator explicitly names a client staging DB via
+// STAGING_PROJECT_REF (per-client refs are never committed — see
+// scripts/lib/project-refs.ts).
+const explicitStaging = process.env.STAGING_PROJECT_REF;
+const onStagingTarget =
+  !!explicitStaging && supabaseUrl.includes(explicitStaging);
+if (!onStagingTarget && !supabaseUrl.includes(platformProjectRef())) {
+  console.error(
+    'Refusing cleanup: SUPABASE_URL is neither the Platform CI project nor a matching STAGING_PROJECT_REF target.',
   );
+  process.exit(2);
 }
 
 const supabase = createScriptClient(supabaseUrl, serviceRoleKey, {

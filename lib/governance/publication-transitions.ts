@@ -8,8 +8,8 @@
  * - MCP `update_publication_status` tool (T7)
  *
  * Pure TypeScript — no Supabase calls, no environment dependencies. Easy to
- * unit-test and to audit against the SQL CHECK enum on production project
- * `rovrymhhffssilaftdwd`.
+ * unit-test and to audit against the SQL CHECK enum on the production
+ * project.
  *
  * Spec: docs/specs/publication-lifecycle-state-machine-spec.md §3.2, §3.4, §8.3
  * Plan: docs/plans/§5.2-phase-1-2-2.5-plan.md T5

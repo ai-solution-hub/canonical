@@ -5,7 +5,7 @@
  * 8, 9. AC-10 (UI flow) is the E2E spec at e2e/tests/bid-draft-all.spec.ts.
  *
  * Drives the production lib/queue/* + draft-all route + cron worker through
- * the real Supabase staging branch (`turayklvaunphgbgscat`). Discipline:
+ * the real Supabase staging branch. Discipline:
  *   - NO mocked supabase. NO mocked queue lib.
  *   - Mocks ONLY the dispatch boundary (`runJobByType`) where AC-2/AC-5
  *     specifically need to fault-inject Anthropic 429 / 5xx responses, OR

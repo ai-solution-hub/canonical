@@ -120,7 +120,7 @@ const SEEDED_TABLES: PayloadTableContract[] = PAYLOAD_CONTRACT.filter(
   (c) => c.table !== 'reference_items',
 );
 
-const STAGING_URL = 'https://turayklvaunphgbgscat.supabase.co';
+const STAGING_URL = 'https://examplestagingref000.supabase.co';
 const STAGING_KEY = 'staging-service-role-key';
 const PLATFORM_URL = 'https://zjqbrdctesqvouboziae.supabase.co';
 const PLATFORM_KEY = 'platform-service-role-key';

@@ -1,7 +1,7 @@
 /**
  * §5.2 Phase 1 T1+T2 — publication_status migration integration test.
  *
- * Verifies that the production live DB (`rovrymhhffssilaftdwd`) has:
+ * Verifies that the production live DB has:
  *   1. The `publication_status` column on `content_items` with the spec
  *      CHECK constraint enforcing the 4-value enum.
  *   2. The four-step backfill mapping produced exactly the cohort counts
@@ -37,7 +37,7 @@
 import { describe, it, expect } from 'vitest';
 import { serviceClient } from './helpers/service-client';
 
-// Pre-flight cohort counts captured 27/04/2026 against `rovrymhhffssilaftdwd`
+// Pre-flight cohort counts captured 27/04/2026 against the production project
 // before T2 ran. The migration steps (in spec §10.1 SQL order, draft wins
 // over archived/superseded):
 //   Step 1 governance_review_status='draft'  → 'draft'   :    0 rows  (immutable post-backfill — no draft rows existed)

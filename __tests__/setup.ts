@@ -36,6 +36,13 @@ const TEST_ENV_DEFAULTS: Record<string, string> = {
   ANTHROPIC_API_KEY: 'sk-ant-test',
   OPENAI_API_KEY: 'sk-test',
   CRON_SECRET: 'test-cron-secret',
+  // Supabase project refs — synthetic 20-char values so the fail-loud getters
+  // in scripts/lib/project-refs.ts resolve under unit tests (ID-68). Real
+  // values (e.g. CI's PLATFORM_PROJECT_REF secret) win via the if-not-set
+  // guard below; client prod/staging refs are never committed.
+  PLATFORM_PROJECT_REF: 'exampleplatformref00',
+  STAGING_PROJECT_REF: 'examplestagingref000',
+  PROD_PROJECT_REF: 'exampleprodref000000',
 };
 for (const [k, v] of Object.entries(TEST_ENV_DEFAULTS)) {
   if (!process.env[k]) {

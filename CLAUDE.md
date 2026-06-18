@@ -56,7 +56,7 @@ its `publicRoutes` allowlist or they silently redirect to `/login`.
 
 ## Environment & Database
 
-- `.env.local` targets the persistent client staging Supabase branch (`turayklvaunphgbgscat`);
+- `.env.local` targets the persistent client staging Supabase branch;
   prod-targeted CLI work opts in via `--env=prod`. Runbook:
   `${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/local-development.md`.
 - Schema is canonically the generated types (`Tables<'x'>` / `Enums<'x'>` from

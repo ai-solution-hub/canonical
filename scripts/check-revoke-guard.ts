@@ -45,7 +45,7 @@
  *
  * **Required env vars (mode=cron only):**
  *   - SUPABASE_ACCESS_TOKEN — PAT with project read access (same as WP-G4.5/G4.6)
- *   - PROJECT_REF — defaults to prod (rovrymhhffssilaftdwd)
+ *   - PROJECT_REF — defaults to the client prod project ref (from PROD_PROJECT_REF)
  *   - SENTRY_AUTH_TOKEN — optional; when present, drift events are pushed
  *     to Sentry. When absent, drift events log to stderr only. NEVER
  *     initialise Sentry SDK with `silent: true` (memory
@@ -78,11 +78,11 @@
 import { parseArgs } from 'node:util';
 import { spawnSync } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
+import { prodProjectRef } from '@/scripts/lib/project-refs';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const MANAGEMENT_API_BASE = 'https://api.supabase.com/v1';
-const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
 const SPEC_PATH =
   'docs/audits/kh-production-readiness-phase-1/specs/wp-ops43.3-revoke-guard-spec.md';
 
@@ -212,7 +212,7 @@ Usage:
 
 Required env vars (cron mode only):
   SUPABASE_ACCESS_TOKEN  Personal Access Token with project read access
-  PROJECT_REF            Project ref (default: ${PROD_PROJECT_REF} = prod)
+  PROJECT_REF            Project ref (default: the client prod project ref from PROD_PROJECT_REF)
   SENTRY_AUTH_TOKEN      Optional; when present, drift events push to Sentry
 
 Exit codes:
@@ -933,7 +933,7 @@ async function runCron(flags: CliFlags): Promise<number> {
     console.error(`Missing SUPABASE_ACCESS_TOKEN env var. See script header.`);
     return EXIT_INFRA_ERROR;
   }
-  const projectRef = process.env.PROJECT_REF || PROD_PROJECT_REF;
+  const projectRef = process.env.PROJECT_REF || prodProjectRef();
 
   console.log(
     `REVOKE-guard cron audit (WP-OPS-43.3)\n` +

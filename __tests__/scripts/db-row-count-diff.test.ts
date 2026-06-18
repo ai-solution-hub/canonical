@@ -489,18 +489,21 @@ describe('resolveCredentials', () => {
 
   it('uses SUPABASE_URL fallback when ref matches', () => {
     const env = {
-      NEXT_PUBLIC_SUPABASE_URL: 'https://rovrymhhffssilaftdwd.supabase.co',
+      NEXT_PUBLIC_SUPABASE_URL: 'https://exampleprodref000000.supabase.co',
       SUPABASE_SERVICE_ROLE_KEY: 'k',
     };
     expect(resolveCredentials('prod', 'source', env)).toEqual({
-      url: 'https://rovrymhhffssilaftdwd.supabase.co',
+      url: 'https://exampleprodref000000.supabase.co',
       key: 'k',
     });
   });
 
   it('does NOT use SUPABASE_URL fallback when ref mismatches', () => {
+    // A URL whose project ref does NOT match the requested side's expected ref:
+    // a synthetic placeholder ref suffices (the specific value is irrelevant —
+    // the assertion is that a non-matching ref yields null/null).
     const env = {
-      NEXT_PUBLIC_SUPABASE_URL: 'https://rovrymhhffssilaftdwd.supabase.co',
+      NEXT_PUBLIC_SUPABASE_URL: 'https://exampleprojectref000.supabase.co',
       SUPABASE_SERVICE_ROLE_KEY: 'k',
     };
     expect(resolveCredentials('staging', 'source', env)).toEqual({

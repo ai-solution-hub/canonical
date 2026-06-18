@@ -29,8 +29,9 @@ POLL_INTERVAL = 2  # seconds
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Per WP-S5.3 D-21 F-1: --env=prod flag asserts SUPABASE_URL contains
-# the prod project ref before entering the polling loop.
-PROD_PROJECT_URL_FRAGMENT = "rovrymhhffssilaftdwd"
+# the prod project ref before entering the polling loop. The ref is sourced
+# from PROD_PROJECT_REF (env) — per-client and never committed (ID-68).
+PROD_PROJECT_URL_FRAGMENT = os.environ.get("PROD_PROJECT_REF")
 
 # Ensure scripts directory is on sys.path for local imports
 if SCRIPT_DIR not in sys.path:
@@ -317,6 +318,12 @@ def main():
     args = parser.parse_args()
 
     if args.env == "prod":
+        if not PROD_PROJECT_URL_FRAGMENT:
+            sys.exit(
+                "--env=prod set but PROD_PROJECT_REF is unset — cannot assert "
+                "the prod target. Set PROD_PROJECT_REF=<prod-project-ref> (the "
+                "client prod DB you are targeting; never committed)."
+            )
         url = os.environ.get("SUPABASE_URL", "")
         if PROD_PROJECT_URL_FRAGMENT not in url:
             sys.exit(

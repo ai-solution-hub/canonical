@@ -18,6 +18,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
+import { prodProjectRef } from '@/scripts/lib/project-refs';
 
 const PROJECT_ROOT = join(__dirname, '..');
 // DB-derived artefact homed in MAIN ({114.6}). Both bundle-plugin.ts validate()
@@ -198,8 +199,6 @@ interface SubtopicRow {
 
 // ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
 
-const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
-
 function parseEnvFlag(argv: string[]): string {
   const eqArg = argv.find((a) => a.startsWith('--env='));
   if (eqArg) return eqArg.slice('--env='.length);
@@ -209,9 +208,9 @@ function parseEnvFlag(argv: string[]): string {
 }
 
 function assertEnvFlag(env: string, url: string | undefined): void {
-  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+  if (env === 'prod' && !(url ?? '').includes(prodProjectRef())) {
     console.error(
-      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+      `--env=prod set but SUPABASE_URL does not include '${prodProjectRef()}'.\n` +
         `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/generate-classification-prompt-taxonomy.ts --env=prod`,
     );
     process.exit(1);

@@ -2,7 +2,7 @@
 # WP-CI.RES.7 — Staging reference-table refresh orchestrator (Path (ii)).
 #
 # Refreshes 6 FK-safe reference/lookup tables from production into the persistent
-# staging Supabase branch (turayklvaunphgbgscat) via pg_dump -Fc | pg_restore.
+# staging Supabase branch via pg_dump -Fc | pg_restore.
 # Zero PII surface — no scrub step required.
 #
 # Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-ci-res7-staging-data-strategy-spec.md

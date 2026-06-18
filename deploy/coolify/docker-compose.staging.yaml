@@ -16,8 +16,8 @@
 #   three deliberate divergences (see "STAGING DIVERGENCES" below).
 #
 # STAGING DIVERGENCES from deploy/coolify/docker-compose.production.yaml (the prod source):
-#   1. Supabase target = the STAGING branch `turayklvaunphgbgscat` (NOT prod
-#      `rovrymhhffssilaftdwd`). Wired purely via Coolify env (SUPABASE_* / COCOINDEX_DB_DSN);
+#   1. Supabase target = the STAGING branch (NOT the prod project). Wired purely via
+#      Coolify env (SUPABASE_* / COCOINDEX_DB_DSN);
 #      NO ref is hardcoded here — the operator pastes staging-branch values per the runbook.
 #   2. A SEPARATE staging corpus + engine volume (`cocoindex-state-staging`, distinct
 #      from prod's `cocoindex-state`) so staging ingest never touches the live prod corpus.
@@ -116,7 +116,7 @@ services:
       # COCOINDEX_DB_DSN is the asyncpg STAGING-Supabase pooler string (NOT the LMDB path).
       # Boot-required: flow.py:_build_dsn() needs it during @coco.lifespan asyncpg pool
       # creation, before /health can serve. For staging this MUST point at the
-      # `turayklvaunphgbgscat` branch — build it from the staging POSTGRES_PASSWORD and the
+      # staging branch — build it from the staging POSTGRES_PASSWORD and the
       # region-qualified pooler host (aws-<n>-eu-west-2.pooler.supabase.com); see the runbook
       # and docs/runbooks/cocoindex-deploy.md §0.1. Value injected by Coolify.
       COCOINDEX_DB_DSN: ${COCOINDEX_DB_DSN}
@@ -162,7 +162,7 @@ services:
       IMAGE_SHA: ${COCOINDEX_IMAGE_TAG}
 
       # --- Supabase / API secrets (STAGING values, injected by Coolify) ---
-      # SUPABASE_* MUST be the staging-branch (turayklvaunphgbgscat) values, NOT prod.
+      # SUPABASE_* MUST be the staging-branch values, NOT prod.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       SUPABASE_URL: ${SUPABASE_URL}

@@ -14,6 +14,13 @@ concurrency:
     github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+# PLATFORM_PROJECT_REF — this repo's own dev/CI Supabase project, the only
+# project ref CI targets. Client prod/staging refs are per-client and never
+# committed (ID-68 / theme 12). Sourced from a repo secret and exposed to every
+# job/step so the scripts/lib/project-refs.ts guards resolve.
+env:
+  PLATFORM_PROJECT_REF: ${{ secrets.PLATFORM_PROJECT_REF }}
+
 jobs:
   quality-precheck:
     # WP-CI.RES.1 (S15) — Pattern A 4-way file-shard. Quality precheck runs the
@@ -329,8 +336,7 @@ jobs:
     # mcp-eval-seed, mcp-eval matrix, integration all run in parallel within
     # one workflow run). cancel-in-progress: false queues instead of
     # cancelling — Dependabot PR throughput trades latency for fixture
-    # isolation against the shared staging Supabase branch
-    # (`turayklvaunphgbgscat`).
+    # isolation against the shared CI Supabase project.
     concurrency:
       group: integration-staging-e2e
       cancel-in-progress: false
@@ -919,8 +925,8 @@ jobs:
     # Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-ci-res3-integration-tier-ci-spec.md
     # Closes roadmap §9.16.12 Phase 1.
     #
-    # Runs `bun run test:integration` against the staging Supabase branch
-    # (`turayklvaunphgbgscat`) with real Anthropic + OpenAI calls. Exercises
+    # Runs `bun run test:integration` against the CI Supabase project
+    # with real Anthropic + OpenAI calls. Exercises
     # production code paths unit tests cannot: RLS policies, real auth flows,
     # AI-pipeline classification + embedding, migration triggers, cookie-store
     # auth-helper resolution.
@@ -1117,9 +1123,10 @@ jobs:
     # from `type-drift-parity` (which gates fetcher-only interface regressions via
     # the ast-dataflow CLI, not the Supabase schema).
     #
-    # Uses the persistent Staging branch (`turayklvaunphgbgscat`) — Liam RATIFIED
-    # staging (OQ-4), mirroring `schema-parity.yml`. STAGING_PROJECT_REF is a
-    # workflow-level constant to sidestep the `.temp/project-ref` drift gotcha
+    # Regenerates against the Platform CI project (PLATFORM_PROJECT_REF, a
+    # workflow-level env sourced from a repo secret) — CI targets Platform only;
+    # client refs are per-client and never committed (ID-68). The workflow-level
+    # env also sidesteps the `.temp/project-ref` drift gotcha
     # (CLAUDE.md "Always cat supabase/.temp/project-ref before any push").
     #
     # Diff, not regenerate-and-commit: the auto-commit pattern bypasses review for
@@ -1129,12 +1136,11 @@ jobs:
     # is a SEPARATE file the generated types never contain, so the diff is
     # override-blind by construction — no override-aware diff path needed.
     #
-    # FIRST-RUN RISK: the committed types file may have been prod-generated
-    # (CLAUDE.md's regen command targets prod `rovrymhhffssilaftdwd`); a
-    # staging-generated diff fails spuriously if staging != prod schema. Mitigation:
-    # `schema-parity.yml` confirms prod <-> staging parity, or regenerate the
-    # committed file from staging. Do NOT switch the project-ref to prod to dodge
-    # this — Liam ratified staging.
+    # FIRST-RUN RISK: the committed types file must be generated from the same
+    # canonical baseline schema the Platform project carries; the diff fails
+    # spuriously if the committed file was generated against a different schema.
+    # Mitigation: `schema-parity.yml` confirms cross-project schema parity, or
+    # regenerate the committed file from the Platform project.
     #
     # Spec: docs/specs/id-16-ast-dataflow-tool/type-safety-pipeline/TECH.md OQ6 (lines 640-679).
     name: Supabase generated types parity
@@ -1150,7 +1156,6 @@ jobs:
       contents: read
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      STAGING_PROJECT_REF: turayklvaunphgbgscat
 
     steps:
       - name: Checkout
@@ -1178,12 +1183,12 @@ jobs:
             sudo install -m 0755 /tmp/supabase-go /usr/local/bin/supabase-go
           fi
 
-      - name: Generate types from staging branch
-        # STAGING_PROJECT_REF is a static workflow constant (not external context)
-        # — safe to reference in run:.
+      - name: Generate types from the Platform project
+        # PLATFORM_PROJECT_REF is a workflow-level env (repo secret, not external
+        # context) — safe to reference in run:.
         run: |
           supabase gen types typescript \
-            --project-id "$STAGING_PROJECT_REF" \
+            --project-id "$PLATFORM_PROJECT_REF" \
             --schema public,api \
             > /tmp/database.types.generated.ts
 
@@ -1191,7 +1196,7 @@ jobs:
         run: |
           if ! diff -q supabase/types/database.types.ts /tmp/database.types.generated.ts; then
             echo "::error::Generated Supabase types differ from supabase/types/database.types.ts."
-            echo "::error::Run: /opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public,api > supabase/types/database.types.ts"
+            echo "::error::Run: supabase gen types typescript --project-id \"$PLATFORM_PROJECT_REF\" --schema public,api > supabase/types/database.types.ts"
             diff -u supabase/types/database.types.ts /tmp/database.types.generated.ts | head -200
             exit 1
           fi

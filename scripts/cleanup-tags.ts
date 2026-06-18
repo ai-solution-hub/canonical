@@ -14,6 +14,7 @@
 
 import { normaliseTag } from '../lib/validation/schemas';
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
+import { prodProjectRef } from '@/scripts/lib/project-refs';
 
 // ── Synonym merge mappings ───────────────────────────────────────────────────
 
@@ -173,12 +174,10 @@ async function runCli() {
 
   // ── --env=prod opt-in (WP-S5.3 D-21 F-1) ───────────────────────────────
 
-  const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
-
   function assertEnvFlag(env: string, url: string | undefined): void {
-    if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+    if (env === 'prod' && !(url ?? '').includes(prodProjectRef())) {
       console.error(
-        `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `--env=prod set but SUPABASE_URL does not include '${prodProjectRef()}'.\n` +
           `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/cleanup-tags.ts --env=prod`,
       );
       process.exit(1);
@@ -203,7 +202,7 @@ Usage: bun run scripts/cleanup-tags.ts [options]
 Options:
   --apply       Write changes to the database (default is dry run)
   --env=prod    Asserts SUPABASE_URL points at current prod
-                ('${PROD_PROJECT_REF}'). Override invocation:
+                (the client production project; ref from PROD_PROJECT_REF). Override invocation:
                 SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key>
                 bun run scripts/cleanup-tags.ts --env=prod
   --help        Show this help

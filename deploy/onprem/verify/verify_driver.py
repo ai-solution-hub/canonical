@@ -57,7 +57,7 @@ Run (from the repo checkout root — PEP 420 namespace import)::
     COCOINDEX_URL_VERIFY_URL=https://example.com/ \
     COCOINDEX_WORKER_URL=https://<staging-worker> \
     CRON_SECRET=<redacted> \
-    NEXT_PUBLIC_SUPABASE_URL=https://turayklvaunphgbgscat.supabase.co \
+    NEXT_PUBLIC_SUPABASE_URL=https://<staging-project-ref>.supabase.co \
     SUPABASE_SERVICE_ROLE_KEY=<redacted> \
     PULLMD_SERVICE_URL=http://<pullmd-container-ip>:3000 \
     python3 -m deploy.onprem.verify.verify_driver

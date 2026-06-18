@@ -22,8 +22,8 @@
  *
  * **Usage:**
  *   bun run scripts/verify-user-profiles-parity.ts                     # auto env (trust SUPABASE_URL)
- *   bun run scripts/verify-user-profiles-parity.ts --env=prod          # asserts URL contains rovrymhhffssilaftdwd
- *   bun run scripts/verify-user-profiles-parity.ts --env=staging       # asserts URL contains turayklvaunphgbgscat
+ *   bun run scripts/verify-user-profiles-parity.ts --env=prod          # asserts URL points at the client prod project (PROD_PROJECT_REF)
+ *   bun run scripts/verify-user-profiles-parity.ts --env=staging       # asserts URL points at the client staging project (STAGING_PROJECT_REF)
  *   bun run scripts/verify-user-profiles-parity.ts --spot-check=5      # check 5 random users instead of 3
  *
  * **Exit codes (per WP-G3.4 spec §5.2):**
@@ -42,12 +42,10 @@
  */
 
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
+import { prodProjectRef, stagingProjectRef } from '@/scripts/lib/project-refs';
 import { parseArgs } from 'util';
 import path from 'path';
 import fs from 'fs';
-
-const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
-const STAGING_PROJECT_REF = 'turayklvaunphgbgscat';
 
 const EXIT_OK = 0;
 const EXIT_GENERIC_ERROR = 1;
@@ -148,22 +146,22 @@ if (!supabaseUrl || !supabaseKey) {
 
 // ── Env-flag assertion (WP-S5.3 §7.1 template) ─────────────────────────────
 //
-// --env=prod => SUPABASE_URL must include rovrymhhffssilaftdwd
-// --env=staging => SUPABASE_URL must include turayklvaunphgbgscat
+// --env=prod => SUPABASE_URL must include the client prod project ref (PROD_PROJECT_REF)
+// --env=staging => SUPABASE_URL must include the client staging project ref (STAGING_PROJECT_REF)
 // --env=auto => no assertion (trust the env)
 
 function assertEnvFlag(env: string, url: string): void {
-  if (env === 'prod' && !url.includes(PROD_PROJECT_REF)) {
+  if (env === 'prod' && !url.includes(prodProjectRef())) {
     console.error(
-      `❌ --env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+      `❌ --env=prod set but SUPABASE_URL does not include '${prodProjectRef()}'.\n` +
         `   Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> ` +
         `bun run scripts/verify-user-profiles-parity.ts --env=prod`,
     );
     process.exit(EXIT_GENERIC_ERROR);
   }
-  if (env === 'staging' && !url.includes(STAGING_PROJECT_REF)) {
+  if (env === 'staging' && !url.includes(stagingProjectRef())) {
     console.error(
-      `❌ --env=staging set but SUPABASE_URL does not include '${STAGING_PROJECT_REF}'.\n` +
+      `❌ --env=staging set but SUPABASE_URL does not include '${stagingProjectRef()}'.\n` +
         `   Run: SUPABASE_URL=<staging-url> SUPABASE_SERVICE_ROLE_KEY=<key> ` +
         `bun run scripts/verify-user-profiles-parity.ts --env=staging`,
     );

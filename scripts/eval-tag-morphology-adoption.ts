@@ -29,6 +29,7 @@ import path from 'path';
 import fs from 'fs';
 import { normaliseTag } from '../lib/validation/schemas';
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
+import { prodProjectRef } from '@/scripts/lib/project-refs';
 
 // ── Env loading (handles worktrees) ────────────────────────────────────────
 
@@ -80,12 +81,10 @@ interface EvalSummary {
 
 // ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
 
-const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
-
 function assertEnvFlag(env: string, url: string | undefined): void {
-  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+  if (env === 'prod' && !(url ?? '').includes(prodProjectRef())) {
     console.error(
-      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+      `--env=prod set but SUPABASE_URL does not include '${prodProjectRef()}'.\n` +
         `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/eval-tag-morphology-adoption.ts --env=prod`,
     );
     process.exit(1);
@@ -111,7 +110,7 @@ Usage: bun run scripts/eval-tag-morphology-adoption.ts [options]
 Options:
   --insert-flags   Insert disagreements into tag_morphology_drift_flags
   --limit N        Process at most N content_items rows
-  --env=prod       Asserts SUPABASE_URL points at prod ('${PROD_PROJECT_REF}')
+  --env=prod       Asserts SUPABASE_URL points at prod (the client production project)
   --help           Show this help
 
 Examples:

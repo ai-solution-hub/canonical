@@ -61,16 +61,13 @@
 
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
+import { prodProjectRef, stagingProjectRef } from '@/scripts/lib/project-refs';
 import fs from 'fs';
 import path from 'path';
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-
-/** Mirror of WP-G3.4 verify-user-profiles-parity.ts:49-50. */
-const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
-const STAGING_PROJECT_REF = 'turayklvaunphgbgscat';
 
 /** Exit codes per AC. */
 export const EXIT_OK = 0;
@@ -578,7 +575,7 @@ export function resolveCredentials(
   const fallbackKey = env.SUPABASE_SERVICE_ROLE_KEY ?? null;
   if (fallbackUrl && fallbackKey) {
     const expectedRef =
-      side === 'prod' ? PROD_PROJECT_REF : STAGING_PROJECT_REF;
+      side === 'prod' ? prodProjectRef() : stagingProjectRef();
     if (fallbackUrl.includes(expectedRef)) {
       return { url: fallbackUrl, key: fallbackKey };
     }
@@ -746,33 +743,33 @@ async function main(args: CliArgs): Promise<number> {
   }
 
   // Defensive ref assertion.
-  if (args.source === 'prod' && !sourceCreds.url.includes(PROD_PROJECT_REF)) {
+  if (args.source === 'prod' && !sourceCreds.url.includes(prodProjectRef())) {
     console.error(
-      `db-row-count-diff: --source=prod but URL does not include '${PROD_PROJECT_REF}'.`,
+      `db-row-count-diff: --source=prod but URL does not include '${prodProjectRef()}'.`,
     );
     return EXIT_QUERY_FAILED;
   }
   if (
     args.source === 'staging' &&
-    !sourceCreds.url.includes(STAGING_PROJECT_REF)
+    !sourceCreds.url.includes(stagingProjectRef())
   ) {
     console.error(
-      `db-row-count-diff: --source=staging but URL does not include '${STAGING_PROJECT_REF}'.`,
+      `db-row-count-diff: --source=staging but URL does not include '${stagingProjectRef()}'.`,
     );
     return EXIT_QUERY_FAILED;
   }
-  if (args.target === 'prod' && !targetCreds.url.includes(PROD_PROJECT_REF)) {
+  if (args.target === 'prod' && !targetCreds.url.includes(prodProjectRef())) {
     console.error(
-      `db-row-count-diff: --target=prod but URL does not include '${PROD_PROJECT_REF}'.`,
+      `db-row-count-diff: --target=prod but URL does not include '${prodProjectRef()}'.`,
     );
     return EXIT_QUERY_FAILED;
   }
   if (
     args.target === 'staging' &&
-    !targetCreds.url.includes(STAGING_PROJECT_REF)
+    !targetCreds.url.includes(stagingProjectRef())
   ) {
     console.error(
-      `db-row-count-diff: --target=staging but URL does not include '${STAGING_PROJECT_REF}'.`,
+      `db-row-count-diff: --target=staging but URL does not include '${stagingProjectRef()}'.`,
     );
     return EXIT_QUERY_FAILED;
   }

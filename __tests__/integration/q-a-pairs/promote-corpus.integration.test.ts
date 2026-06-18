@@ -20,7 +20,7 @@
  *     __tests__/integration/q-a-pairs/promote-corpus.integration.test.ts
  *
  * NOTE for the Orchestrator / Checker: this suite CANNOT be run offline.
- * It must be verified on staging (turayklvaunphgbgscat) where the {59.21}
+ * It must be verified on the staging branch where the {59.21}
  * migrations are applied. The parent should run this suite on staging before
  * marking {59.23} done.
  *

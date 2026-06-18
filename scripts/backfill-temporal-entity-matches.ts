@@ -18,6 +18,7 @@ import { parseArgs } from 'util';
 import path from 'path';
 import fs from 'fs';
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
+import { prodProjectRef } from '@/scripts/lib/project-refs';
 
 // ── Env loading (handles worktrees) ────────────────────────────────────────
 
@@ -64,12 +65,10 @@ const { values: args } = parseArgs({
 
 // ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
 
-const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
-
 function assertEnvFlag(env: string, url: string | undefined): void {
-  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+  if (env === 'prod' && !(url ?? '').includes(prodProjectRef())) {
     console.error(
-      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+      `--env=prod set but SUPABASE_URL does not include '${prodProjectRef()}'.\n` +
         `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/backfill-temporal-entity-matches.ts --env=prod`,
     );
     process.exit(1);
@@ -85,7 +84,7 @@ Options:
   --dry-run      Preview matches without writing to database
   --item-id UUID Process a single item by ID
   --env=prod     Asserts SUPABASE_URL points at current prod
-                 ('${PROD_PROJECT_REF}'). Override invocation:
+                 (the client production project; ref from PROD_PROJECT_REF). Override invocation:
                  SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key>
                  bun run scripts/backfill-temporal-entity-matches.ts --env=prod
   --help         Show this help

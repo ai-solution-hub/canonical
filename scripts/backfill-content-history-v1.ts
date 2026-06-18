@@ -26,6 +26,7 @@ import { parseArgs } from 'util';
 import path from 'path';
 import fs from 'fs';
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
+import { prodProjectRef } from '@/scripts/lib/project-refs';
 
 // ── Env loading (worktree-aware, matches backfill-chunks.ts) ───────────────
 
@@ -109,7 +110,7 @@ Options:
   --limit N         Max items to process (0 = all eligible).
   --batch-size N    Insert batch size (1-100, default 50).
   --env=prod        Asserts SUPABASE_URL points at current prod
-                    (\`rovrymhhffssilaftdwd\`). Override invocation:
+                    (the client production project; ref from PROD_PROJECT_REF). Override invocation:
                     SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key>
                     bun run scripts/backfill-content-history-v1.ts --env=prod
   --help            Show this help.
@@ -123,7 +124,8 @@ Script aborts if the URL points at the legacy retired project
 
 // Legacy retired project — was temporary prod 17/04–22/04 post-S182 cutover;
 // recommended pause ≥26/04 / delete ≥03/05 per MEMORY. The current prod
-// project is `rovrymhhffssilaftdwd` (post-S187 cutover-back). This guard
+// project is the client production project (ref from PROD_PROJECT_REF;
+// post-S187 cutover-back). This guard
 // refuses to run against the legacy project so a stale .env.local from
 // the cutover window cannot accidentally hit a phantom DB.
 //
@@ -132,13 +134,12 @@ Script aborts if the URL points at the legacy retired project
 // S186 WP-A likely already complete in current prod, but the script is
 // preserved for future similar workflows.)
 const RETIRED_PROJECT_REF = 'mgrmucazfiibsomdmndh';
-const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
 
 export function assertNotRetiredProject(url: string | undefined): void {
   if (!url) return; // env validation raises elsewhere
   if (url.includes(RETIRED_PROJECT_REF)) {
     console.error(
-      `Refusing to run: SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL points at the legacy retired project (${RETIRED_PROJECT_REF}). Update .env.local to the current production project (${PROD_PROJECT_REF}) before retrying.`,
+      `Refusing to run: SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL points at the legacy retired project (${RETIRED_PROJECT_REF}). Update .env.local to the current production project (${prodProjectRef()}) before retrying.`,
     );
     process.exit(1);
   }
@@ -153,9 +154,9 @@ export function assertNotRetiredProject(url: string | undefined): void {
  *     bun run scripts/backfill-content-history-v1.ts --env=prod
  */
 export function assertEnvFlag(env: string, url: string | undefined): void {
-  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+  if (env === 'prod' && !(url ?? '').includes(prodProjectRef())) {
     console.error(
-      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+      `--env=prod set but SUPABASE_URL does not include '${prodProjectRef()}'.\n` +
         `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<prod-svc-key> bun run scripts/backfill-content-history-v1.ts --env=prod`,
     );
     process.exit(1);

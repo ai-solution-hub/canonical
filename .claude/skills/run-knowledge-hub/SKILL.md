@@ -19,7 +19,8 @@ If either diverges from this recipe, those are authoritative — update this fil
 - **App:** Knowledge Hub — Next.js 16 (App Router) via Turbopack.
 - **Port:** `3000`. **URL to observe:** `http://localhost:3000`.
 - **Backend:** Supabase. Local dev hits the **staging** branch by default
-  (`turayklvaunphgbgscat`) — never prod. Prod is opt-in only.
+  (the staging project ref recorded in `.env.local`) — never prod. Prod is
+  opt-in only.
 
 ## Prerequisites
 
@@ -43,13 +44,13 @@ Run once after a clone, after a lockfile change, or when modules are missing.
 ## Step 2 — Environment (`.env.local`, staging by default)
 
 The app reads `.env.local`. Post-flip, **staging is the default** — the file
-points at the staging Supabase branch `turayklvaunphgbgscat`. The launch- and
-runtime-critical variables:
+points at the staging Supabase branch. The launch- and
+runtime-critical variables (use the staging values recorded in `.env.local`):
 
 ```text
 # Supabase — STAGING (default)
-SUPABASE_URL=https://turayklvaunphgbgscat.supabase.co
-NEXT_PUBLIC_SUPABASE_URL=https://turayklvaunphgbgscat.supabase.co
+SUPABASE_URL=https://<staging-project-ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_URL=https://<staging-project-ref>.supabase.co
 SUPABASE_PUBLISHABLE_KEY=sb_publishable_T_9lvCgslAlyw2gCCpVbKQ_NZWmym5R
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_T_9lvCgslAlyw2gCCpVbKQ_NZWmym5R
 SUPABASE_SERVICE_ROLE_KEY=<staging service-role JWT>
@@ -77,8 +78,8 @@ the CLI link. The CLI link is independent of `.env.local` and can silently go
 stale (or point at prod from a prior session), so link explicitly:
 
 ```bash
-/opt/homebrew/bin/supabase link --project-ref turayklvaunphgbgscat
-cat supabase/.temp/project-ref   # expect: turayklvaunphgbgscat
+/opt/homebrew/bin/supabase link --project-ref <staging-project-ref>
+cat supabase/.temp/project-ref   # expect: the staging project ref from .env.local
 ```
 
 Worktree subagents inherit no link state (`supabase/.temp/` is gitignored), so
@@ -118,7 +119,7 @@ edit `.env.local` to prod for a routine local launch.
 
 ```bash
 bun install                                                      # deps (first run / lockfile change)
-/opt/homebrew/bin/supabase link --project-ref turayklvaunphgbgscat   # staging link (CLI work)
+/opt/homebrew/bin/supabase link --project-ref <staging-project-ref>  # staging link (CLI work)
 bun dev                                                          # Turbopack → http://localhost:3000
 # observe http://localhost:3000
 ```

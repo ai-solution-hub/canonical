@@ -24,6 +24,7 @@
  */
 
 import { createLooseScriptClient } from '@/scripts/lib/supabase-script-client';
+import { prodProjectRef } from '@/scripts/lib/project-refs';
 import { parseArgs } from 'util';
 import path from 'path';
 import fs from 'fs';
@@ -100,7 +101,7 @@ Options:
   --no-embeddings      Skip the 1024-dim vector field (lightweight mode)
   --limit N            Limit total rows (0 = all)
   --batch-size N       Page size (default 500, max 1000)
-  --env=prod           Asserts SUPABASE_URL points at prod ('rovrymhhffssilaftdwd')
+  --env=prod           Asserts SUPABASE_URL points at prod (the client production project)
   --help               Show this help
 `);
     process.exit(0);
@@ -117,12 +118,10 @@ Options:
 
 // ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
 
-const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
-
 function assertEnvFlag(env: string, url: string | undefined): void {
-  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+  if (env === 'prod' && !(url ?? '').includes(prodProjectRef())) {
     console.error(
-      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+      `--env=prod set but SUPABASE_URL does not include '${prodProjectRef()}'.\n` +
         `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/snapshot-content-state.ts --env=prod`,
     );
     process.exit(1);

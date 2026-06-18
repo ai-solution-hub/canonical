@@ -143,8 +143,8 @@ describe('assertNotRetiredProject (D-19 fix: retired ref is now mgrmucazfiibsomd
     expect(errorSpy).toHaveBeenCalled();
   });
 
-  it('does not exit for current production URL (rovrymhhffssilaftdwd)', () => {
-    assertNotRetiredProject('https://rovrymhhffssilaftdwd.supabase.co');
+  it('does not exit for a current (non-retired) production URL', () => {
+    assertNotRetiredProject('https://exampleprojectref000.supabase.co');
     expect(exitSpy).not.toHaveBeenCalled();
   });
 
@@ -180,12 +180,12 @@ describe('assertEnvFlag (D-19 + D-23 --env=prod opt-in)', () => {
   });
 
   it('does nothing when env=prod AND url contains prod ref', () => {
-    assertEnvFlag('prod', 'https://rovrymhhffssilaftdwd.supabase.co');
+    assertEnvFlag('prod', 'https://exampleprodref000000.supabase.co');
     expect(exitSpy).not.toHaveBeenCalled();
   });
 
   it('exits with code 1 when env=prod but url does NOT contain prod ref', () => {
-    assertEnvFlag('prod', 'https://turayklvaunphgbgscat.supabase.co');
+    assertEnvFlag('prod', 'https://someotherref00000000.supabase.co');
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(errorSpy).toHaveBeenCalled();
   });
