@@ -17,7 +17,7 @@
 #     (pulled by the {66.8} compose); only the cocoindex image is KH-built, so
 #     this workflow builds exactly ONE image.
 #   * NO KH application-code changes — it packages scripts/cocoindex_pipeline/*.py
-#     unchanged; the build config is faithful to cloudrun/cloudbuild-cocoindex.yaml
+#     unchanged; the build config preserves the original Cloud Build setup
 #     (same google-22 builder, GOOGLE_ENTRYPOINT, runtime, Python version).
 #   * NEXT_PUBLIC_CLIENT_ID is NOT a B1-host concern (OQ-66-6 — Vercel-side bake).
 #
@@ -240,7 +240,7 @@ jobs:
           cp -R scripts "${CTX}/scripts"
           cp requirements.txt "${CTX}/requirements.txt"
           echo "Pruned build context:"; ls -A "${CTX}"
-          # Same builder/env as cloudrun/cloudbuild-cocoindex.yaml. `-m` invocation
+          # Same builder/env as the original Cloud Build config. `-m` invocation
           # is load-bearing (FX-8): the buildpack runtime does not add /workspace
           # to sys.path on bare-script invocation, so `scripts.cocoindex_pipeline`
           # qualified imports need `python3 -m`.
