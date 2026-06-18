@@ -70,7 +70,7 @@ describe('dispatchTaxonomySync', () => {
 
     const [url, opts] = fetchMock.mock.calls[0];
     expect(url).toBe(
-      'https://api.github.com/repos/ai-solution-hub/knowledge-hub/dispatches',
+      'https://api.github.com/repos/ai-solution-hub/canonical/dispatches',
     );
     expect(opts.method).toBe('POST');
     expect(opts.headers).toMatchObject({

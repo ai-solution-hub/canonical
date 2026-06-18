@@ -122,7 +122,7 @@ staging-refresh, github-environments, onprem-b1-deploy), `design/` (Warm Meridia
 - Vercel (Next.js) + IONOS VPS/Coolify for the ingestion pipeline
   (`onprem-deploy.yml`); staging URL
   https://knowledge-hub-git-staging-tw-group.vercel.app; `staging` branch is
-  deploy-only. GitHub: https://github.com/ai-solution-hub/knowledge-hub (private).
+  deploy-only. GitHub: https://github.com/ai-solution-hub/canonical (private).
 - PR-blocking CI (`ci.yml`): 8 parallel jobs; draft PRs skip CI. Topology +
   failure-mode table: `${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/ci.md`.
   Side workflows incl. `migration-revoke-guard`, `schema-parity`,
