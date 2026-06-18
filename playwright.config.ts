@@ -34,9 +34,9 @@ export default defineConfig({
   //     dev process.
   //   - per-action / per-navigation timeouts on `use`: cap individual waits
   //     so a hung response fails fast rather than starving the per-test 30s.
-  // Hydration-mismatch root-cause investigation is a separate ticket
-  // (BUG-S19-HYD; see docs/reference/product-backlog.md) — DO NOT touch
-  // app/ or lib/ from this WP per S19 prompt.
+  // Hydration-mismatch root-cause investigation is tracked as backlog item
+  // bl-337 (BUG-S19-HYD) — resolved via suppressHydrationWarning on the
+  // dashboard activity-feed relative-time spans.
   globalTimeout: process.env.CI ? 12 * 60_000 : undefined,
   maxFailures: process.env.CI ? 5 : 0,
   use: {

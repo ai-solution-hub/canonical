@@ -324,9 +324,14 @@ export function DashboardActivityFeed({
                         <span aria-hidden="true"> &middot; </span>
                       )}
                       {!userName && group.count > 1 && timestamp && (
-                        <>{timestamp}</>
+                        // suppressHydrationWarning: relative time (BUG-S19-HYD,
+                        // bl-337) — formatDistanceToNow can resolve to a
+                        // different minute boundary between SSR and CSR.
+                        <span suppressHydrationWarning>{timestamp}</span>
                       )}
-                      {userName && timestamp && <>{timestamp}</>}
+                      {userName && timestamp && (
+                        <span suppressHydrationWarning>{timestamp}</span>
+                      )}
                     </p>
                   </div>
                 </Link>
