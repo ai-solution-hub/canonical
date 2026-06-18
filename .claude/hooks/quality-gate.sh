@@ -1,5 +1,5 @@
 #!/bin/bash
-# quality-gate.sh — Always-green Stop hook for Knowledge Hub project
+# quality-gate.sh — Always-green Stop hook for Canonical project
 # Runs tests + lint after code changes, blocks if either fails.
 #
 # Parallel session awareness: When multiple Claude sessions share the working
@@ -19,7 +19,7 @@ fi
 # (e.g. knowledge-hub-ui-ux-simplification, knowledge-hub-knowledge-platform)
 # inspect their own tree, not main's. Falls back to main if git rev-parse
 # fails (e.g. outside a repo).
-PROJECT_DIR=$(git rev-parse --show-toplevel 2>/dev/null || echo "/Users/liamj/Documents/development/knowledge-hub")
+PROJECT_DIR=$(git rev-parse --show-toplevel 2>/dev/null || echo "/Users/liamj/Documents/development/canonical")
 export PATH="/Users/liamj/.bun/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:$PATH"
 
 # Check for code changes (unstaged + staged)

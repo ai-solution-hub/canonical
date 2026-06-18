@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Tier 2.2 PreToolUse hook (ID-19.3 + FX-2 from ID-28.2 S62C).
 #
-# Blocks `git -C <abs knowledge-hub path>` for MUTATING subcommands.
+# Blocks `git -C <abs canonical path>` for MUTATING subcommands.
 # ALLOWS read-only subcommands (status, log, show, diff, branch --list,
 # worktree list, etc.) so orchestrators can inspect sibling worktrees
 # without working around the hook.
@@ -19,22 +19,22 @@ set -euo pipefail
 INPUT=$(cat)
 CMD=$(echo "$INPUT" | jq -r '.tool_input.command' 2>/dev/null || true)
 
-# Phase 1: detect `git -C <abs knowledge-hub path>` shape. If not matched,
+# Phase 1: detect `git -C <abs canonical path>` shape. If not matched,
 # this hook has nothing to do.
 # Boundary `(/|[[:space:]]|$)` so sibling repos (knowledge-hub-docs-site,
 # knowledge-hub-archive) no longer false-positive (WS-A2 fix, 2026-06-12).
-if ! echo "$CMD" | grep -qE 'git[[:space:]]+-C[[:space:]]+/Users/liamj/Documents/development/knowledge-hub(/[^[:space:]]*)?([[:space:]]|$)'; then
+if ! echo "$CMD" | grep -qE 'git[[:space:]]+-C[[:space:]]+/Users/liamj/Documents/development/canonical(/[^[:space:]]*)?([[:space:]]|$)'; then
   exit 0
 fi
 
 # Phase 2: extract the subcommand following the path.
 # Format: `git -C <path> <subcommand> [args...]`
 SUBCMD=$(echo "$CMD" \
-  | sed -nE 's|.*git[[:space:]]+-C[[:space:]]+/Users/liamj/Documents/development/knowledge-hub(/[^[:space:]]*)?[[:space:]]+([^[:space:]]+).*|\2|p' \
+  | sed -nE 's|.*git[[:space:]]+-C[[:space:]]+/Users/liamj/Documents/development/canonical(/[^[:space:]]*)?[[:space:]]+([^[:space:]]+).*|\2|p' \
   | head -n1)
 
 if [ -z "$SUBCMD" ]; then
-  echo "BLOCKED: git -C with knowledge-hub absolute path but no parseable subcommand. Use a relative path or run git from the worktree CWD." >&2
+  echo "BLOCKED: git -C with canonical absolute path but no parseable subcommand. Use a relative path or run git from the worktree CWD." >&2
   exit 2
 fi
 
@@ -90,7 +90,7 @@ case "$SUBCMD" in
 esac
 
 if [ "$MUTATING" -eq 1 ]; then
-  echo "BLOCKED: git -C with knowledge-hub absolute path and mutating subcommand '$SUBCMD'. Sub-agents must run mutating git from their worktree CWD, not via -C to the main repo (Tier 2.2 hook ID-19.3 + FX-2). Read-only subcommands (status, log, show, diff, branch --list, worktree list, remote -v, config --get, etc.) are allowed." >&2
+  echo "BLOCKED: git -C with canonical absolute path and mutating subcommand '$SUBCMD'. Sub-agents must run mutating git from their worktree CWD, not via -C to the main repo (Tier 2.2 hook ID-19.3 + FX-2). Read-only subcommands (status, log, show, diff, branch --list, worktree list, remote -v, config --get, etc.) are allowed." >&2
   exit 2
 fi
 
