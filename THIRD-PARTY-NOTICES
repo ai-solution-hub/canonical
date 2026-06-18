@@ -7,9 +7,10 @@ source-availability obligations of those components — in particular the
 copyleft (GPL / LGPL / MPL) obligations triggered when the on-premise
 ingestion image and the application bundle are deployed to a client.
 
-Knowledge Hub itself is licensed under the GNU Affero General Public License
-v3.0 (see the LICENSE file at the repository root). The notices below cover
-THIRD-PARTY code only; they do not alter the license of Knowledge Hub.
+Knowledge Hub ("canonical") is source-available but NOT open-source: all
+rights reserved, no project licence is granted (the repository is published
+for transparency, not reuse). The notices below cover THIRD-PARTY code only;
+they neither grant nor alter any licence to Knowledge Hub itself.
 
 Two redistribution surfaces ship third-party code to clients:
 
