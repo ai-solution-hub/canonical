@@ -31,7 +31,17 @@ import { expect, type Page, type ConsoleMessage } from '@playwright/test';
  *   on. Allowlisted by the `[branding] ` prefix only — real errors elsewhere
  *   still fail the gate.
  */
-const ALLOWED_CONSOLE_PREFIXES: readonly string[] = ['[branding] '];
+const ALLOWED_CONSOLE_PREFIXES: readonly string[] = [
+  '[branding] ',
+  // Browser-emitted subresource load failures (e.g. "Failed to load resource:
+  // the server responded with a status of 404 (Not Found)"). These are
+  // network-level noise from the browser, NOT the app-thrown-error class this
+  // gate targets — and error-path smoke tests deliberately produce them (e.g.
+  // guide-pages "nonexistent guide shows error state", which navigates to a 404
+  // by design). Genuine uncaught exceptions still fail the gate via
+  // page.on('pageerror'); app-logged console.error/warning still fails it too.
+  'Failed to load resource:',
+];
 
 /** Console levels the gate treats as violations. */
 const GATED_CONSOLE_TYPES: ReadonlySet<string> = new Set(['error', 'warning']);
