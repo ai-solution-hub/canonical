@@ -1037,9 +1037,14 @@ jobs:
           TEST_USER_3_EMAIL: ${{ vars.TEST_USER_3_EMAIL }}
           TEST_USER_3_PASSWORD: ${{ secrets.TEST_USER_3_PASSWORD }}
           # INTEGRATION_INTELLIGENCE and KH_RUN_INTEGRATION are intentionally
-          # NOT set — they default-off-skip ~28 cases and parity with
-          # local-dev `bun run test:integration` is preserved (spec §2.2,
-          # D-CI.RES.3-7).
+          # NOT set — they default-off-skip ~128 cases (cocoindex 76 /
+          # q-a-pairs 27 / intelligence-golden-path 25), preserving parity with
+          # local-dev `bun run test:integration` (spec §2.2, D-CI.RES.3-7).
+          # cocoindex additionally needs COCOINDEX_STAGING_URL +
+          # COCOINDEX_SOURCE_PATH + COCOINDEX_FIXTURE_STAGING_URL (sidecar).
+          # Enabling the two flags would run the 52 Supabase+AI cases on
+          # existing CI creds but adds real Anthropic/OpenAI spend per run —
+          # deferred (bl-338; nightly cocoindex lane tracked separately).
         # `tee` so the log appears live in the GH Actions step UI as it
         # streams, not just post-failure (spec §2.8).
         # `set -o pipefail` ensures the pipeline returns the test runner's
@@ -1047,6 +1052,15 @@ jobs:
         run: |
           set -o pipefail
           bun run test:integration 2>&1 | tee /tmp/integration.log
+      - name: Integration coverage summary (bl-338)
+        # Visibility-only: a green run masks the ~128 env-gated cases. Emit the
+        # vitest skip summary + the gated-suite list as a GH notice. Non-fatal
+        # (always(), separate step, no exit-code change) so it never affects the
+        # gate.
+        if: always()
+        run: |
+          SKIP_LINE=$(grep -iE 'Tests?[[:space:]]+.*skipped' /tmp/integration.log 2>/dev/null | tail -1 || true)
+          echo "::notice title=Integration coverage (bl-338)::${SKIP_LINE:-no skip summary in log}. Env-gated suites NOT run in CI: cocoindex (sidecar-gated), intelligence-golden-path + q-a-pairs (flags off). ~128 cases gated — see bl-338."
       - name: Cleanup orphaned content_history rows (staging)
         if: always()
         env:
