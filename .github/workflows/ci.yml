@@ -1369,4 +1369,4 @@ jobs:
         if: always()
         uses: vercel/repository-dispatch/actions/status@30f760c6640485cd92f8c785ef361382555fb712 # v1
         with:
-          name: "Vercel - knowledge-hub: ci-summary"
+          name: "Vercel - canonical: ci-summary"
