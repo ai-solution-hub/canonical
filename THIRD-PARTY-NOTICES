@@ -1,0 +1,224 @@
+THIRD-PARTY SOFTWARE NOTICES AND ATTRIBUTIONS
+=============================================
+
+This product, Knowledge Hub ("canonical"), incorporates and/or redistributes
+third-party open-source software. This file discharges the attribution and
+source-availability obligations of those components — in particular the
+copyleft (GPL / LGPL / MPL) obligations triggered when the on-premise
+ingestion image and the application bundle are deployed to a client.
+
+Knowledge Hub itself is licensed under the GNU Affero General Public License
+v3.0 (see the LICENSE file at the repository root). The notices below cover
+THIRD-PARTY code only; they do not alter the license of Knowledge Hub.
+
+Two redistribution surfaces ship third-party code to clients:
+
+  1. The on-premise CocoIndex ingestion image (Python). Direct dependencies
+     are pinned in `requirements.txt`. This image is buildpack-built ({66.7})
+     with no apt layer, so some system tools (notably pandoc) are bundled
+     INSIDE Python wheels rather than installed from the OS package manager.
+  2. The Vercel-hosted Next.js application (JavaScript/TypeScript). Runtime
+     dependencies are declared under `dependencies` in `package.json`.
+
+How licenses and versions below were determined:
+  - JS components: SPDX id and resolved version read from each package's
+    own `node_modules/<pkg>/package.json` "license"/"version" fields.
+  - Python components: SPDX id and version read from installed package
+    metadata (`pip show`). Where a package's PyPI metadata omits a license
+    field, the license was taken from the upstream project repository / PyPI
+    classifier and is annotated "(verified via upstream repo / PyPI)".
+  - Where `requirements.txt` pins a floor (`>=`) rather than an exact version,
+    the EXACT version shipped is resolver-determined at image-build time. The
+    version recorded below is the one resolved in the reference build
+    environment; the authoritative shipped version for any given client image
+    is the one frozen in that image's lockfile / `pip freeze`.
+
+================================================================================
+SECTION 1 — COPYLEFT COMPONENTS (GPL / LGPL / MPL)
+================================================================================
+These components carry source-availability obligations. For each, the
+Corresponding Source for the exact version shipped is available at the upstream
+location noted. On request, we will also provide the Corresponding Source for
+the version contained in a specific delivered image.
+
+--------------------------------------------------------------------------------
+Component:            pandoc (bundled static binary)
+SPDX-License:         GPL-2.0-or-later
+Shipped via:          pypandoc_binary (PyPI) — see requirements.txt lines 29-33.
+                      The pypandoc_binary WHEEL's own wrapper code is MIT, but the
+                      wheel BUNDLES a statically-linked pandoc executable, and that
+                      pandoc binary is GPL-2.0-or-later. The GPL obligation below
+                      attaches to the bundled binary, not to the MIT wrapper.
+Why bundled:          The CocoIndex image is buildpack-built with no apt layer, so
+                      no system pandoc exists; docx_utils._resolve_pandoc_path()
+                      locates the bundled binary via pypandoc.get_pandoc_path()
+                      ({80.3}). Used for Track-Changes resolution in docx_utils.py.
+Version shipped:      pandoc binary as bundled by the resolved pypandoc_binary
+                      release (requirements pin: pypandoc_binary>=1.13). In the
+                      reference environment pypandoc_binary==1.17 bundles pandoc
+                      3.9.0.1. The exact pandoc version for a given client image
+                      is reported by `pandoc --version` inside that image.
+Upstream source:      https://github.com/jgm/pandoc
+Corresponding-Source: The pandoc source for the bundled version is the matching
+                      tag at https://github.com/jgm/pandoc/releases (e.g. tag
+                      "3.9.0.1" for the reference build). The wheel that bundles
+                      it: https://pypi.org/project/pypandoc-binary/
+                      (sdist + per-platform wheels include provenance).
+License text:         https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
+
+--------------------------------------------------------------------------------
+Component:            docxtpl (python-docx-template)
+SPDX-License:         LGPL-2.1-only   (weak copyleft)
+Shipped via:          requirements.txt line 28 (docxtpl>=0.19.0). Python source
+                      dependency of the docx generation path.
+Version shipped:      Resolver-determined (floor >=0.19.0); reference environment
+                      resolves docxtpl==0.20.2 (confirmed via `pip show docxtpl`,
+                      License: LGPL-2.1-only).
+Upstream source:      https://github.com/elapouya/python-docx-template
+Corresponding-Source: https://pypi.org/project/docxtpl/ (sdist contains full
+                      source) and the matching tag at the GitHub repo above.
+License text:         https://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt
+Note:                 LGPL-2.1 is weak copyleft. docxtpl is used unmodified as a
+                      library import; no modifications to docxtpl are distributed.
+
+--------------------------------------------------------------------------------
+Component:            @vercel/analytics
+SPDX-License:         MPL-2.0   (weak, file-level copyleft)
+Shipped via:          package.json runtime dependency; bundled into the Vercel
+                      Next.js client app delivered to clients.
+Version shipped:      1.6.1 (resolved in node_modules).
+Upstream source:      https://github.com/vercel/analytics
+Corresponding-Source: https://www.npmjs.com/package/@vercel/analytics/v/1.6.1
+                      (the published tarball contains the source) and the matching
+                      tag at the GitHub repo above.
+License text:         https://www.mozilla.org/en-US/MPL/2.0/
+Note:                 MPL-2.0 copyleft is per-file. The component is used
+                      unmodified; no modified MPL files are distributed.
+
+--------------------------------------------------------------------------------
+Component:            dompurify
+SPDX-License:         MPL-2.0 OR Apache-2.0   (dual-licensed; we elect Apache-2.0)
+Shipped via:          package.json runtime dependency; bundled into the client app.
+Version shipped:      3.4.3 (resolved in node_modules).
+Upstream source:      https://github.com/cure53/DOMPurify
+Corresponding-Source: https://www.npmjs.com/package/dompurify/v/3.4.3 and the
+                      matching tag at the GitHub repo above.
+License text:         Apache-2.0: https://www.apache.org/licenses/LICENSE-2.0
+                      (alternative MPL-2.0: https://www.mozilla.org/en-US/MPL/2.0/)
+Note:                 Dual-licensed. We rely on it under Apache-2.0 (permissive);
+                      the MPL-2.0 option is listed for completeness.
+
+--------------------------------------------------------------------------------
+Component:            @axe-core/playwright   (NOT shipped — development only)
+SPDX-License:         MPL-2.0
+Scope:                devDependency in package.json. Used for accessibility tests
+                      in CI only; it is NOT bundled into the client application or
+                      the on-prem image, so it carries no per-client redistribution
+                      obligation. Listed here for transparency.
+Upstream source:      https://github.com/dequelabs/axe-core-npm
+
+================================================================================
+SECTION 2 — PERMISSIVE-LICENSE COMPONENTS (attribution)
+================================================================================
+The following components are redistributed under permissive licenses (MIT,
+Apache-2.0, BSD, ISC). Their copyright notices and permission notices are
+retained as required. Versions are the resolved/reference versions; SPDX ids
+are from package metadata unless annotated.
+
+-- Python (on-premise CocoIndex ingestion image; requirements.txt) ------------
+  cocoindex[postgres]   1.0.7    Apache-2.0    https://github.com/cocoindex-io/cocoindex
+  docling               >=2,<3   MIT           https://github.com/docling-project/docling
+  faiss-cpu             1.14.2   MIT           https://github.com/facebookresearch/faiss
+  litellm               >=1.40   MIT           https://github.com/BerriAI/litellm
+  anthropic             0.79.0   MIT           https://github.com/anthropics/anthropic-sdk-python
+  openai                2.21.0   Apache-2.0    https://github.com/openai/openai-python
+  pydantic              2.12.5   MIT           https://github.com/pydantic/pydantic
+  python-docx           >=1.1.2  MIT           https://github.com/python-openxml/python-docx
+  trafilatura           2.0.0    Apache-2.0    https://github.com/adbar/trafilatura
+  requests              2.33.0   Apache-2.0    https://github.com/psf/requests
+  extruct               0.18.0   BSD-3-Clause  https://github.com/scrapinghub/extruct  (verified via upstream repo)
+  beautifulsoup4        >=4.12   MIT           https://www.crummy.com/software/BeautifulSoup/
+  lxml                  >=5.0    BSD-3-Clause  https://github.com/lxml/lxml
+  pdfplumber            0.11.9   MIT           https://github.com/jsvine/pdfplumber  (verified via upstream repo; pip metadata empty)
+  openpyxl              3.1.5    MIT           https://foss.heptapod.net/openpyxl/openpyxl
+  inflect               7.5.0    MIT           https://github.com/jaraco/inflect  (verified via upstream repo; pip metadata empty)
+  python-dotenv         >=1.1.0  BSD-3-Clause  https://github.com/theskumar/python-dotenv
+  supabase              >=2.0.0  MIT           https://github.com/supabase/supabase-py
+  bert-score            >=0.3.13 MIT           https://github.com/Tiiiger/bert_score
+  aiohttp               >=3.9    Apache-2.0    https://github.com/aio-libs/aiohttp
+  asyncpg               >=0.30   Apache-2.0    https://github.com/MagicStack/asyncpg
+  httpx                 0.28.1   BSD-3-Clause  https://github.com/encode/httpx
+  tenacity              9.1.4    Apache-2.0    https://github.com/jd/tenacity
+  tiktoken              >=0.7.0  MIT           https://github.com/openai/tiktoken
+  pytest                >=8.0.0  MIT           https://github.com/pytest-dev/pytest  (test dependency)
+
+-- JavaScript / TypeScript (Vercel app; package.json runtime dependencies) ----
+  @anthropic-ai/sdk             0.96.0    MIT           https://github.com/anthropics/anthropic-sdk-typescript
+  @hookform/resolvers           5.2.2     MIT           https://github.com/react-hook-form/resolvers
+  @mendable/firecrawl-js        4.23.0    MIT           https://github.com/mendableai/firecrawl
+  @modelcontextprotocol/ext-apps 1.7.1    MIT           https://github.com/modelcontextprotocol/typescript-sdk
+  @modelcontextprotocol/sdk     1.29.0    MIT           https://github.com/modelcontextprotocol/typescript-sdk
+  @mozilla/readability          0.6.0     Apache-2.0    https://github.com/mozilla/readability
+  @react-pdf/renderer           4.5.1     MIT           https://github.com/diegomura/react-pdf
+  @sentry/nextjs                10.53.1   MIT           https://github.com/getsentry/sentry-javascript
+  @supabase/ssr                 0.10.3    MIT           https://github.com/supabase/ssr
+  @supabase/supabase-js         2.105.4   MIT           https://github.com/supabase/supabase-js
+  @tailwindcss/typography       0.5.19    MIT           https://github.com/tailwindlabs/tailwindcss-typography
+  @tanstack/react-query         5.100.10  MIT           https://github.com/TanStack/query
+  @tanstack/react-query-devtools 5.100.10 MIT           https://github.com/TanStack/query
+  @tanstack/react-virtual       3.13.24   MIT           https://github.com/TanStack/virtual
+  @tiptap/* (suite)             3.23.4    MIT           https://github.com/ueberdosis/tiptap
+  @vercel/analytics             1.6.1     MPL-2.0       (see Section 1)
+  class-variance-authority      0.7.1     Apache-2.0    https://github.com/joe-bell/cva
+  clsx                          2.1.1     MIT           https://github.com/lukeed/clsx
+  cmdk                          1.1.1     MIT           https://github.com/pacocoursey/cmdk
+  date-fns                      4.1.0     MIT           https://github.com/date-fns/date-fns
+  diff                          9.0.0     BSD-3-Clause  https://github.com/kpdecker/jsdiff
+  docx                          9.6.1     MIT           https://github.com/dolanmiu/docx
+  dompurify                     3.4.3     MPL-2.0/Apache-2.0 (see Section 1)
+  exceljs                       4.4.0     MIT           https://github.com/exceljs/exceljs
+  gray-matter                   4.0.3     MIT           https://github.com/jonschlinkert/gray-matter
+  lucide-react                  0.575.0   ISC           https://github.com/lucide-icons/lucide
+  mammoth                       1.12.0    BSD-2-Clause  https://github.com/mwilliamson/mammoth.js
+  mcp-handler                   1.1.0     Apache-2.0    https://github.com/vercel/mcp-handler
+  motion                        12.38.0   MIT           https://github.com/motiondivision/motion
+  next                          16.2.6    MIT           https://github.com/vercel/next.js
+  next-themes                   0.4.6     MIT           https://github.com/pacocoursey/next-themes
+  node-html-parser              7.1.0     MIT           https://github.com/taoqf/node-html-parser
+  openai                        6.37.0    Apache-2.0    https://github.com/openai/openai-node
+  pino                          10.3.1    MIT           https://github.com/pinojs/pino
+  pluralize                     8.0.0     MIT           https://github.com/plurals/pluralize
+  radix-ui                      1.4.3     MIT           https://github.com/radix-ui/primitives
+  react                         19.2.6    MIT           https://github.com/facebook/react
+  react-dom                     19.2.6    MIT           https://github.com/facebook/react
+  react-dropzone                15.0.0    MIT           https://github.com/react-dropzone/react-dropzone
+  react-hook-form               7.75.0    MIT           https://github.com/react-hook-form/react-hook-form
+  react-markdown                10.1.0    MIT           https://github.com/remarkjs/react-markdown
+  react-pdf                     10.4.1    MIT           https://github.com/wojtekmaj/react-pdf
+  react-resizable-panels        4.11.1    MIT           https://github.com/bvaughn/react-resizable-panels
+  remark-gfm                    4.0.1     MIT           https://github.com/remarkjs/remark-gfm
+  rss-parser                    3.13.0    MIT           https://github.com/rbren/rss-parser
+  server-only                   0.0.1     MIT           https://github.com/vercel/next.js
+  sharp                         0.34.5    Apache-2.0    https://github.com/lovell/sharp
+  sonner                        2.0.7     MIT           https://github.com/emilkowalski/sonner
+  tailwind-merge                3.6.0     MIT           https://github.com/dcastil/tailwind-merge
+  ts-morph                      28.0.0    MIT           https://github.com/dsherret/ts-morph
+  turndown                      7.2.4     MIT           https://github.com/mixmark-io/turndown
+  turndown-plugin-gfm           1.0.2     MIT           https://github.com/mixmark-io/turndown-plugin-gfm
+  unpdf                         1.6.2     MIT           https://github.com/unjs/unpdf
+  y-prosemirror                 1.3.7     MIT           https://github.com/yjs/y-prosemirror
+  yjs                           13.6.30   MIT           https://github.com/yjs/yjs
+  zod                           4.4.3     MIT           https://github.com/colinhacks/zod
+
+--------------------------------------------------------------------------------
+Notes
+  - This list covers DIRECT dependencies shipped to clients. Each component may
+    in turn pull permissive (MIT/Apache/BSD/ISC) transitive dependencies; their
+    notices are carried within their respective published packages.
+  - Development-only dependencies (devDependencies in package.json; pytest in
+    requirements.txt) are not redistributed to clients. The one weak-copyleft
+    dev dependency (@axe-core/playwright, MPL-2.0) is noted in Section 1.
+  - Full per-component license texts are included within each package as
+    distributed (node_modules/<pkg>/LICENSE, Python wheel METADATA/LICENSE).
+  - To request the Corresponding Source for a copyleft component as contained in
+    a specific delivered build, contact the distributor of that build.
