@@ -31,10 +31,12 @@ function requireRef(name: string): string {
 }
 
 /** This repo's own dev/CI Supabase project (canonical platform). */
-export const platformProjectRef = (): string => requireRef('PLATFORM_PROJECT_REF');
+export const platformProjectRef = (): string =>
+  requireRef('PLATFORM_PROJECT_REF');
 
 /** Staging project of the client DB an operator is targeting (runtime-supplied). */
-export const stagingProjectRef = (): string => requireRef('STAGING_PROJECT_REF');
+export const stagingProjectRef = (): string =>
+  requireRef('STAGING_PROJECT_REF');
 
 /** Production project of the client DB an operator is targeting (runtime-supplied). */
 export const prodProjectRef = (): string => requireRef('PROD_PROJECT_REF');
