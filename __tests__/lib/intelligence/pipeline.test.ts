@@ -50,7 +50,6 @@ vi.mock('@/lib/intelligence/feed-poller', () => ({
 }));
 vi.mock('@/lib/intelligence/content-extractor', () => ({
   extractContent: vi.fn(),
-  normaliseUrl: vi.fn((url: string) => url),
   checkFirecrawlApiKey: vi.fn(),
   // OPS-57: pipeline now branches on isGoogleNewsUrl + resolveGoogleNewsUrl
   // before normalising for feed_articles.external_url. Tests in this file
@@ -58,6 +57,12 @@ vi.mock('@/lib/intelligence/content-extractor', () => ({
   // circuit the branch.
   isGoogleNewsUrl: vi.fn(() => false),
   resolveGoogleNewsUrl: vi.fn((url: string) => Promise.resolve(url)),
+}));
+// {112.11}: normaliseUrl relocated to @/lib/extraction/url-normalise. The
+// pipeline now imports it from there, so the call must be mocked at the new
+// module home (identity pass-through, matching the previous behaviour).
+vi.mock('@/lib/extraction/url-normalise', () => ({
+  normaliseUrl: vi.fn((url: string) => url),
 }));
 vi.mock('@/lib/intelligence/relevance-scorer', () => ({
   embeddingPreFilter: vi.fn(),
@@ -152,6 +157,8 @@ describe('processFeedSource', () => {
     const { pollFeed } = await import('@/lib/intelligence/feed-poller');
     const contentExtractor =
       await import('@/lib/intelligence/content-extractor');
+    // {112.11}: normaliseUrl lives in @/lib/extraction/url-normalise.
+    const urlNormalise = await import('@/lib/extraction/url-normalise');
 
     const googleNewsUrl = 'https://news.google.com/articles/CBMiabc123';
     const resolvedUrl = 'https://www.bbc.co.uk/news/uk-12345';
@@ -162,7 +169,7 @@ describe('processFeedSource', () => {
     vi.mocked(contentExtractor.resolveGoogleNewsUrl).mockResolvedValue(
       resolvedUrl,
     );
-    vi.mocked(contentExtractor.normaliseUrl).mockImplementation(
+    vi.mocked(urlNormalise.normaliseUrl).mockImplementation(
       (url: string) => url,
     );
 
@@ -231,14 +238,14 @@ describe('processFeedSource', () => {
     // branch ran before normalisation. Reverting the OPS-57 fix removes
     // resolveGoogleNewsUrl from the item path and normaliseUrl ends up
     // called with the raw Google News URL instead, failing this expect.
-    expect(vi.mocked(contentExtractor.normaliseUrl)).toHaveBeenCalledWith(
+    expect(vi.mocked(urlNormalise.normaliseUrl)).toHaveBeenCalledWith(
       resolvedUrl,
     );
 
     // 3. Strong regression guard: normaliseUrl must NEVER receive the raw
     // Google News wrapper on the item path. This catches partial reverts
     // (e.g. resolveGoogleNewsUrl called but its return value not used).
-    expect(vi.mocked(contentExtractor.normaliseUrl)).not.toHaveBeenCalledWith(
+    expect(vi.mocked(urlNormalise.normaliseUrl)).not.toHaveBeenCalledWith(
       googleNewsUrl,
     );
 
@@ -247,8 +254,8 @@ describe('processFeedSource', () => {
     // monotonic counter — shared across all mock.fn instances).
     const resolveOrders = vi.mocked(contentExtractor.resolveGoogleNewsUrl).mock
       .invocationCallOrder;
-    const normaliseCalls = vi.mocked(contentExtractor.normaliseUrl).mock.calls;
-    const normaliseOrders = vi.mocked(contentExtractor.normaliseUrl).mock
+    const normaliseCalls = vi.mocked(urlNormalise.normaliseUrl).mock.calls;
+    const normaliseOrders = vi.mocked(urlNormalise.normaliseUrl).mock
       .invocationCallOrder;
     expect(resolveOrders.length).toBeGreaterThan(0);
     const resolveCallOrder = resolveOrders[0];
@@ -268,7 +275,7 @@ describe('processFeedSource', () => {
     vi.mocked(contentExtractor.resolveGoogleNewsUrl).mockImplementation(
       (url: string) => Promise.resolve(url),
     );
-    vi.mocked(contentExtractor.normaliseUrl).mockImplementation(
+    vi.mocked(urlNormalise.normaliseUrl).mockImplementation(
       (url: string) => url,
     );
   });

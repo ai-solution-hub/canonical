@@ -46,9 +46,11 @@ vi.mock('@/lib/extraction/url-validation', () => ({
   validateUrl: vi.fn(() => ({ valid: true })),
 }));
 
-vi.mock('@/lib/intelligence/content-extractor', () => ({
-  // Identity normalisation is sufficient for the route tests; the real
-  // normaliseUrl is unit-tested in its own suite.
+// {112.11}: normaliseUrl relocated from content-extractor to
+// @/lib/extraction/url-normalise. The route imports it from the new home.
+// Identity normalisation is sufficient for the route tests; the real
+// normaliseUrl is unit-tested in its own suite.
+vi.mock('@/lib/extraction/url-normalise', () => ({
   normaliseUrl: vi.fn((u: string) => u),
 }));
 

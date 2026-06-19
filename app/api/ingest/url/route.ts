@@ -12,7 +12,7 @@ import type { Database, Json } from '@/supabase/types/database.types';
 import { parseBody } from '@/lib/validation';
 import { IngestUrlBodySchema } from '@/lib/validation/ingest-schemas';
 import { validateUrl } from '@/lib/extraction/url-validation';
-import { normaliseUrl } from '@/lib/intelligence/content-extractor';
+import { normaliseUrl } from '@/lib/extraction/url-normalise';
 import { logger, updateRequestContext, withRequestContext } from '@/lib/logger';
 
 export const maxDuration = 60;

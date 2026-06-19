@@ -7,11 +7,11 @@ import { getIntelligenceWorkspaceContext } from './workspace-context';
 import { pollFeed, pollWebSource } from './feed-poller';
 import {
   extractContent,
-  normaliseUrl,
   checkFirecrawlApiKey,
   isGoogleNewsUrl,
   resolveGoogleNewsUrl,
 } from './content-extractor';
+import { normaliseUrl } from '@/lib/extraction/url-normalise';
 import { embeddingPreFilter, scoreRelevance } from './relevance-scorer';
 import { generateArticleSummary } from './article-summariser';
 import { generateEmbedding } from '@/lib/ai/embed';
