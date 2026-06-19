@@ -78,7 +78,7 @@ vi.mock('@/lib/intelligence/rate-limiter', () => ({
   RateLimitError: class RateLimitError extends Error {},
 }));
 
-import { normaliseUrl } from '@/lib/intelligence/content-extractor';
+import { normaliseUrl } from '@/lib/extraction/url-normalise';
 
 // ---------------------------------------------------------------------------
 // Deterministic id derivation (mirror of flow.py's uuid5 mint)

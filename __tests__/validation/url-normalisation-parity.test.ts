@@ -2,7 +2,7 @@
  * URL-Normalisation Parity Guard (D-8, ID-75.7)
  *
  * Runs every case in scripts/tests/fixtures/url_normalisation_parity.json
- * against the TS `normaliseUrl` (lib/intelligence/content-extractor.ts).
+ * against the TS `normaliseUrl` (lib/extraction/url-normalise.ts).
  * The SAME fixture is consumed by scripts/tests/test_url_normalise.py
  * against the Python port `normalise_url`
  * (scripts/cocoindex_pipeline/url_normalise.py) — the fixture is the single
@@ -36,7 +36,7 @@ vi.mock('@/lib/intelligence/rate-limiter', () => ({
   RateLimitError: class RateLimitError extends Error {},
 }));
 
-import { normaliseUrl } from '@/lib/intelligence/content-extractor';
+import { normaliseUrl } from '@/lib/extraction/url-normalise';
 
 const FIXTURE_PATH = join(
   __dirname,

@@ -13,10 +13,13 @@ vi.mock('@/lib/intelligence/feed-poller', () => ({
 }));
 vi.mock('@/lib/intelligence/content-extractor', () => ({
   extractContent: vi.fn(),
-  normaliseUrl: vi.fn((url: string) => url),
   isGoogleNewsUrl: vi.fn(() => false),
   resolveGoogleNewsUrl: vi.fn((url: string) => Promise.resolve(url)),
   checkFirecrawlApiKey: vi.fn(),
+}));
+// {112.11}: normaliseUrl relocated to @/lib/extraction/url-normalise.
+vi.mock('@/lib/extraction/url-normalise', () => ({
+  normaliseUrl: vi.fn((url: string) => url),
 }));
 vi.mock('@/lib/intelligence/relevance-scorer', () => ({
   embeddingPreFilter: vi.fn(),
