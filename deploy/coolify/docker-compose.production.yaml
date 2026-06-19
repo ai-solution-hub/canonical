@@ -60,11 +60,14 @@ services:
     # HTTPS ingress (ID-88.1) — Traefik path-scoped routing via the coolify-proxy.
     #
     # Inv-13: /stage is deliberately NOT routed — it stays compose-internal only.
-    # This path scope (exactly /walk + /health) IS the public-exposure guard now
-    # that an FQDN exists: /walk is bearer-gated by the app itself (the route
-    # validates `Authorization: Bearer ${CRON_SECRET}`), and /health is
-    # intentionally public-readable (liveness only — no data). Any other path
-    # (incl. /stage) gets no router and Traefik 404s it at the edge.
+    # This path scope (exactly /walk + /health + /extract) IS the public-exposure
+    # guard now that an FQDN exists: /walk is bearer-gated by the app itself (the
+    # route validates `Authorization: Bearer ${CRON_SECRET}`), /extract is
+    # bearer-gated on its OWN dedicated `Authorization: Bearer ${EXTRACT_API_TOKEN}`
+    # ({112.6}, a different blast radius from CRON_SECRET) and self-enforces a
+    # 20 MB per-route body cap, and /health is intentionally public-readable
+    # (liveness only — no data). Any other path (incl. /stage) gets no router and
+    # Traefik 404s it at the edge.
     #
     # The coolify-proxy (Traefik) is already attached to this app's compose
     # network, so labels alone route — NO compose `networks:` change is needed.
@@ -78,7 +81,7 @@ services:
     # --------------------------------------------------------------------------
     labels:
       - traefik.enable=true
-      - traefik.http.routers.kh-cocoindex-prod-walk.rule=Host(`kh-pipeline.aisolutionhub.co.uk`) && (PathPrefix(`/walk`) || PathPrefix(`/health`))
+      - traefik.http.routers.kh-cocoindex-prod-walk.rule=Host(`kh-pipeline.aisolutionhub.co.uk`) && (PathPrefix(`/walk`) || PathPrefix(`/health`) || PathPrefix(`/extract`))
       - traefik.http.routers.kh-cocoindex-prod-walk.entrypoints=https
       - traefik.http.routers.kh-cocoindex-prod-walk.tls=true
       - traefik.http.routers.kh-cocoindex-prod-walk.tls.certresolver=letsencrypt
@@ -136,6 +139,14 @@ services:
       # Value injected by Coolify ({66.10}).
       PIPELINE_RUN_WEBHOOK_URL: ${PIPELINE_RUN_WEBHOOK_URL}
       CRON_SECRET: ${CRON_SECRET}
+
+      # --- /extract pure-cleaner bearer ({112.6}) ---
+      # DEDICATED bearer for the Traefik-reachable POST /extract route — a
+      # SEPARATE secret from CRON_SECRET (different blast radius: CRON_SECRET
+      # gates the corpus-walk trigger; EXTRACT_API_TOKEN gates only the
+      # stateless HTML cleaner). The route fails CLOSED (401) when this is unset.
+      # Value injected by Coolify ({66.10}); never a literal here.
+      EXTRACT_API_TOKEN: ${EXTRACT_API_TOKEN}
 
       # --- Image forensic-correlation key (bl-271) ---
       # flow.py:2923 reads os.environ["IMAGE_SHA"] -> threaded to the webhook ->

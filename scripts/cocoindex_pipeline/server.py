@@ -48,9 +48,19 @@ import os
 import signal
 import sys
 import threading
+import time
 import uuid
 from pathlib import Path
 from typing import Any
+
+# `scripts.cocoindex_pipeline.extract` is the single in-house Trafilatura
+# cleaner ({112.5}). The `POST /extract` route ({112.6}) calls it over HTTP so
+# the synchronous TS manual route reaches the IDENTICAL cleaning behaviour the
+# cocoindex worker uses in-process — one cleaner, two seams (PI-4 / PI-9). The
+# import is module-top (not lazy) because the cleaner has no cocoindex
+# ContextKey registration side-effect — unlike flow.py, importing it here is
+# free of the test-collection registry hazard documented above.
+from scripts.cocoindex_pipeline.extract import apply_quality_gate, clean_html
 
 # `cocoindex` is imported at module top so `server.coco` is a stable patch
 # target for the boot-path guard in test_cocoindex_server.py. Under ID-83 /
@@ -132,6 +142,63 @@ def reset_walk_state() -> None:
             # Released from a thread that did not acquire it (test teardown) —
             # tolerate, the goal is simply a clean unlocked state.
             pass
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# /extract rate-limit state ({112.6} Property 3 — best-effort hardening)
+# ──────────────────────────────────────────────────────────────────────────
+#
+# `POST /extract` becomes Traefik-reachable (unlike the compose-internal /stage),
+# so the app-wide 50 MB `client_max_size` premise dies and the route needs its
+# own hardening: a tight per-route body cap (enforced in `_extract_handler`) PLUS
+# a minimal per-process rate-limit guard. There is no existing rate-limit
+# primitive in this aiohttp sidecar (no middleware, no limiter), so this is a
+# deliberately minimal fixed-window counter — NOT heavy infra. It is a
+# defence-in-depth backstop on top of the bearer gate (the only authorised caller
+# is the KH app itself), bounding accidental floods, not a multi-tenant quota.
+#
+# A single process-global window suffices: this is a single-tenant backend
+# pipeline sidecar, not a multi-user service. The counter resets every
+# `_RATE_LIMIT_WINDOW_SECONDS`; once `_RATE_LIMIT_MAX_REQUESTS` is reached within
+# a window, further requests get 429 until the window rolls over. Guarded by a
+# Lock because aiohttp handlers can interleave on the event loop and the walk
+# worker runs on its own thread.
+
+_EXTRACT_BODY_CAP_BYTES = 20 * 1024 * 1024  # aligned to lib/extraction/url.ts:30
+_RATE_LIMIT_WINDOW_SECONDS = 60.0
+_RATE_LIMIT_MAX_REQUESTS = 120
+
+_RATE_LIMIT_LOCK = threading.Lock()
+_rate_limit_window_start = 0.0
+_rate_limit_count = 0
+
+
+def _rate_limit_allows() -> bool:
+    """Return True if a fresh `/extract` request is within the per-window budget.
+
+    Minimal fixed-window guard (see module comment above): on the first call of
+    a new window it resets the counter; within a window it increments and
+    rejects once `_RATE_LIMIT_MAX_REQUESTS` is exceeded. Best-effort, process-
+    local — a flood backstop layered on the bearer gate, not a precise quota.
+    """
+    global _rate_limit_window_start, _rate_limit_count
+    now = time.monotonic()
+    with _RATE_LIMIT_LOCK:
+        if now - _rate_limit_window_start >= _RATE_LIMIT_WINDOW_SECONDS:
+            _rate_limit_window_start = now
+            _rate_limit_count = 0
+        if _rate_limit_count >= _RATE_LIMIT_MAX_REQUESTS:
+            return False
+        _rate_limit_count += 1
+        return True
+
+
+def reset_rate_limit_state() -> None:
+    """Reset the `/extract` rate-limit window — test-only clean-slate helper."""
+    global _rate_limit_window_start, _rate_limit_count
+    with _RATE_LIMIT_LOCK:
+        _rate_limit_window_start = 0.0
+        _rate_limit_count = 0
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -484,6 +551,119 @@ async def _walk_handler(request: web.Request) -> web.Response:
     )
 
 
+async def _extract_handler(request: web.Request) -> web.Response:
+    """POST /extract — the PURE-CLEANER HTTP seam ({112.6}, PI-4 / PI-9).
+
+    Lets the synchronous TypeScript manual route reach the IDENTICAL in-house
+    Trafilatura cleaner the cocoindex worker uses in-process: read the POSTed
+    HTML, call `clean_html` + `apply_quality_gate`, return
+    `{text, verdict, warnings}` (Task ID-112 TECH Hand-off #2 / S366).
+
+    FOUR ratified properties, all load-bearing:
+
+    1. PURE CLEANER, NO fetch / NO SSRF here. The CALLER fetches the HTML (its
+       own SSRF surface — the Vercel route's `validateUrl`); this endpoint only
+       cleans the bytes it is handed. A REJECT verdict (content too short) is a
+       200 SUCCESS carrying the REJECT verdict — NOT a 503 and NOT a 4xx at this
+       layer (the manual route in {112.10} maps REJECT→422; this endpoint just
+       reports the verdict).
+
+    2. DEDICATED bearer `EXTRACT_API_TOKEN` (NOT `CRON_SECRET` — different blast
+       radius). Mirrors the /walk fail-closed bearer pattern: a missing/wrong
+       bearer → 401; if EXTRACT_API_TOKEN is unset the route fails CLOSED with
+       401 (never an unauthenticated extract). A CRON_SECRET-valued bearer is
+       NOT accepted.
+
+    3. HARDENED per-route 20 MB body cap (aligned to the manual route's
+       `MAX_CONTENT_SIZE`, lib/extraction/url.ts:30) — TIGHTER than the app-wide
+       50 MB `client_max_size`, which was justified as compose-internal-only and
+       dies once /extract is Traefik-reachable. Enforced both on the declared
+       `Content-Length` (cheap up-front guard) AND on the actual bytes read off
+       the wire (an absent/understated header cannot bypass it). Over-cap → 413.
+       A minimal per-process rate-limit guard (best-effort, see
+       `_rate_limit_allows`) returns 429 once the window budget is exceeded.
+
+    4. A clean REJECT (200 + verdict) is distinct from MALFORMED input (a 4xx):
+       an empty body is a named 400, never confused with a too-short page (200
+       REJECT).
+    """
+    # (1) Auth — dedicated EXTRACT_API_TOKEN bearer. Fail closed if unset
+    #     (never allow an unauthenticated extract). CRON_SECRET is deliberately
+    #     NOT consulted here — a different blast radius (Property 2).
+    extract_token = os.environ.get("EXTRACT_API_TOKEN")
+    if not extract_token:
+        return web.json_response(
+            {"error": "EXTRACT_API_TOKEN is unset — /extract auth unavailable"},
+            status=401,
+        )
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header != f"Bearer {extract_token}":
+        return web.json_response(
+            {"error": "missing or invalid bearer token"}, status=401
+        )
+
+    # (2) Rate-limit guard (Property 3, best-effort) — a flood backstop layered
+    #     on the bearer gate. Over-budget → 429, before any body read.
+    if not _rate_limit_allows():
+        return web.json_response(
+            {"error": "rate limit exceeded — retry later"}, status=429
+        )
+
+    # (3) Body cap (Property 3) — cheap up-front Content-Length guard first, so
+    #     an honestly-declared over-cap body is rejected without reading 20 MB.
+    declared = request.content_length
+    if declared is not None and declared > _EXTRACT_BODY_CAP_BYTES:
+        return web.json_response(
+            {
+                "error": (
+                    f"request body exceeds the {_EXTRACT_BODY_CAP_BYTES}-byte "
+                    "/extract cap"
+                )
+            },
+            status=413,
+        )
+
+    # Read the body, but never trust the header: read one byte past the cap and
+    # reject if the ACTUAL bytes exceed it (an absent/understated Content-Length
+    # cannot smuggle an over-cap body past the up-front guard).
+    raw = await request.content.read(_EXTRACT_BODY_CAP_BYTES + 1)
+    if len(raw) > _EXTRACT_BODY_CAP_BYTES:
+        return web.json_response(
+            {
+                "error": (
+                    f"request body exceeds the {_EXTRACT_BODY_CAP_BYTES}-byte "
+                    "/extract cap"
+                )
+            },
+            status=413,
+        )
+
+    # (4) Malformed input — an empty body is a client-correctable named 400,
+    #     distinct from a too-short-but-present page (a 200 REJECT below).
+    if not raw.strip():
+        return web.json_response(
+            {"error": "request body must contain HTML to clean"}, status=400
+        )
+
+    html = raw.decode("utf-8", errors="replace")
+
+    # (5) Pure-cleaner core: clean → gate → report. NO fetch, NO SSRF (Property
+    #     1). An optional `url` query param feeds Trafilatura's link/metadata
+    #     resolution; it is NOT fetched.
+    url = request.query.get("url")
+    text = clean_html(html, url=url)
+    gate = apply_quality_gate(text)
+
+    # A REJECT (too short) is a 200 carrying the verdict — NOT a 4xx (Property
+    # 1); the manual route maps REJECT→422 downstream. `warnings` is always a
+    # list (empty on OK/REJECT, one entry on WARN).
+    warnings = [gate.warning] if gate.warning is not None else []
+    return web.json_response(
+        {"text": text, "verdict": gate.verdict.value, "warnings": warnings},
+        status=200,
+    )
+
+
 # ──────────────────────────────────────────────────────────────────────────
 # Application factory
 # ──────────────────────────────────────────────────────────────────────────
@@ -501,18 +681,23 @@ def build_app() -> web.Application:
       - POST /walk   — bearer-gated on-demand corpus walk trigger (ID-83 /
         bl-221). Adding /walk does NOT touch /health — a walk request cannot
         flip the liveness probe.
+      - POST /extract — bearer-gated PURE-CLEANER HTTP seam ({112.6}): HTML in →
+        `{text, verdict, warnings}` out, NO fetch / NO SSRF. Hardened with a
+        per-route 20 MB body cap (tighter than the app-wide 50 MB) because —
+        unlike /stage + /walk — it IS Traefik-reachable.
 
     `client_max_size` is set EXPLICITLY to 50 MB: aiohttp's invisible default
     is 1 MB, which a future large /stage fixture (multi-MB PDF/DOCX — the
     largest current fixture is already 510 KB) would silently trip. 50 MB is
-    deliberate headroom, and the size cap is not a public-exposure concern:
-    the route is compose-internal only — never published outside the Docker
-    network (Inv-13).
+    deliberate headroom for the compose-internal /stage + /walk routes (Inv-13).
+    The Traefik-reachable /extract route does NOT inherit this headroom — it
+    enforces its own TIGHTER 20 MB per-route cap inside `_extract_handler`.
     """
     app = web.Application(client_max_size=50 * 1024 * 1024)
     app.router.add_get("/health", _health_handler)
     app.router.add_post("/stage", _stage_handler)
     app.router.add_post("/walk", _walk_handler)
+    app.router.add_post("/extract", _extract_handler)
     return app
 
 
