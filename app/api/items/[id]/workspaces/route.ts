@@ -11,6 +11,7 @@ import {
   WorkspaceCreateBodySchema,
 } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
+import { tryQuery } from '@/lib/supabase/safe';
 
 export const maxDuration = 30;
 
@@ -142,15 +143,16 @@ export async function POST(
       }
 
       // Assign the new workspace to the item
-      const { error: assignError } = await supabase
-        .from('content_item_workspaces')
-        .insert({
+      const assignResult = await tryQuery(
+        supabase.from('content_item_workspaces').insert({
           content_item_id: id,
           workspace_id: workspace.id,
-        });
+        }),
+        'content_item_workspaces.assign',
+      );
 
-      if (assignError) {
-        logger.error({ err: assignError }, 'Failed to assign workspace');
+      if (!assignResult.ok) {
+        logger.error({ err: assignResult.error }, 'Failed to assign workspace');
         return NextResponse.json(
           { error: 'Workspace created but failed to assign to item' },
           { status: 500 },
@@ -167,19 +169,22 @@ export async function POST(
     const { workspace_id, action } = parsed.data;
 
     if (action === 'assign') {
-      const { error } = await supabase.from('content_item_workspaces').insert({
-        content_item_id: id,
-        workspace_id,
-      });
+      const assignResult = await tryQuery(
+        supabase.from('content_item_workspaces').insert({
+          content_item_id: id,
+          workspace_id,
+        }),
+        'content_item_workspaces.assign',
+      );
 
-      if (error) {
-        if (error.code === '23505') {
+      if (!assignResult.ok) {
+        if (assignResult.error.code === '23505') {
           return NextResponse.json(
             { error: 'Workspace already assigned to this item' },
             { status: 409 },
           );
         }
-        logger.error({ err: error }, 'Failed to assign workspace');
+        logger.error({ err: assignResult.error }, 'Failed to assign workspace');
         return NextResponse.json(
           { error: 'Failed to assign workspace' },
           { status: 500 },
