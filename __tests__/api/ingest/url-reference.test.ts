@@ -52,7 +52,20 @@ vi.mock('@/lib/intelligence/content-extractor', () => ({
   normaliseUrl: vi.fn((u: string) => u),
 }));
 
-vi.mock('@/lib/extraction/url', () => ({ extractFromUrl: vi.fn() }));
+// {112.10}: the route now owns the SSRF-gated fetch (fetchForExtraction) +
+// local metadata (extractHtmlMetadata) and hands HTML to the B1 /extract pure
+// cleaner (cleanViaWorker). PDF stays in-process via extractPdfText.
+vi.mock('@/lib/extraction/url', () => ({
+  fetchForExtraction: vi.fn(),
+  extractHtmlMetadata: vi.fn(),
+}));
+vi.mock('@/lib/extraction/clean-via-worker', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/lib/extraction/clean-via-worker')
+  >('@/lib/extraction/clean-via-worker');
+  return { ...actual, cleanViaWorker: vi.fn() };
+});
+vi.mock('@/lib/extraction/pdf', () => ({ extractPdfText: vi.fn() }));
 vi.mock('@/lib/ai/embed', () => ({
   generateEmbedding: vi.fn(async () => [0.1, 0.2, 0.3]),
 }));
@@ -61,12 +74,20 @@ vi.mock('@/lib/ai/classify', () => ({ classifyText: vi.fn() }));
 import { POST } from '@/app/api/ingest/url/route';
 import { getAuthorisedClient } from '@/lib/auth';
 import { validateUrl } from '@/lib/extraction/url-validation';
-import { extractFromUrl } from '@/lib/extraction/url';
+import { fetchForExtraction, extractHtmlMetadata } from '@/lib/extraction/url';
+import {
+  cleanViaWorker,
+  ExtractEndpointError,
+} from '@/lib/extraction/clean-via-worker';
+import { extractPdfText } from '@/lib/extraction/pdf';
 import { classifyText } from '@/lib/ai/classify';
 
 const getAuthorisedClientMock = vi.mocked(getAuthorisedClient);
 const validateUrlMock = vi.mocked(validateUrl);
-const extractFromUrlMock = vi.mocked(extractFromUrl);
+const fetchForExtractionMock = vi.mocked(fetchForExtraction);
+const extractHtmlMetadataMock = vi.mocked(extractHtmlMetadata);
+const cleanViaWorkerMock = vi.mocked(cleanViaWorker);
+const extractPdfTextMock = vi.mocked(extractPdfText);
 const classifyTextMock = vi.mocked(classifyText);
 
 const EDITOR_USER_ID = 'b0000000-0000-4000-8000-000000000bbb';
@@ -83,17 +104,15 @@ function makeRequest(body: unknown): Request {
   });
 }
 
-function makeExtracted(over: Record<string, unknown> = {}) {
+/** Default HTML metadata the route derives locally (no Readability). */
+function makeHtmlMetadata(over: Record<string, unknown> = {}) {
   return {
     title: 'Example Page',
-    content: 'x'.repeat(800),
     author: '',
     excerpt: 'A short excerpt.',
     ogImage: '',
     ogDescription: '',
     ogDate: '',
-    extractionMethod: 'readability' as const,
-    contentLength: 800,
     ...over,
   };
 }
@@ -140,7 +159,18 @@ describe('POST /api/ingest/url — reference-layer ingest (ID-110 {110.6})', () 
       resetAt: Date.now() + 60_000,
     });
     validateUrlMock.mockReturnValue({ valid: true });
-    extractFromUrlMock.mockResolvedValue(makeExtracted());
+    // Default: an HTML fetch landing on the same URL, cleaned to 800 chars (OK).
+    fetchForExtractionMock.mockResolvedValue({
+      kind: 'html',
+      html: '<html><body><article>content</article></body></html>',
+      finalUrl: 'https://example.com/a',
+    });
+    extractHtmlMetadataMock.mockReturnValue(makeHtmlMetadata());
+    cleanViaWorkerMock.mockResolvedValue({
+      text: 'x'.repeat(800),
+      verdict: 'ok',
+      warnings: [],
+    });
     classifyTextMock.mockResolvedValue({
       primary_domain: 'cyber-security',
       primary_subtopic: 'iso-27001',
@@ -171,6 +201,64 @@ describe('POST /api/ingest/url — reference-layer ingest (ID-110 {110.6})', () 
     expect(json.title).toBe('Example Page');
     expect(json.source_url).toBe('https://example.com/a');
     expect(json.dedup_status).toBe('clean');
+  });
+
+  it('cleans HTML via the B1 /extract endpoint and records trafilatura provenance (PI-9/PI-11)', async () => {
+    const res = await POST(
+      makeRequest({ url: 'https://example.com/a' }) as never,
+    );
+    expect(res.status).toBe(200);
+
+    // The route fetched the HTML itself, then handed it to cleanViaWorker with
+    // the post-redirect final URL (NOT re-fetched on B1).
+    expect(cleanViaWorkerMock).toHaveBeenCalledWith(
+      '<html><body><article>content</article></body></html>',
+      'https://example.com/a',
+    );
+
+    // extraction_metadata.extractor carries 'trafilatura' so the {112.9} RPC
+    // derivation writes extraction_method='trafilatura' (was 'readability').
+    const rpcArgs = client.rpc.mock.calls[0][1] as {
+      p_mime_type: string;
+      p_body: string;
+      p_extraction_metadata: Record<string, unknown>;
+    };
+    expect(rpcArgs.p_extraction_metadata).toMatchObject({
+      extractor: 'trafilatura',
+      via: 'app_sync_url_import',
+    });
+    // text/html mime for the HTML path; body is the Trafilatura-cleaned text.
+    expect(rpcArgs.p_mime_type).toBe('text/html');
+    expect(rpcArgs.p_body).toBe('x'.repeat(800));
+  });
+
+  it('surfaces a WARN-verdict warning from /extract on the response (PI-5)', async () => {
+    cleanViaWorkerMock.mockResolvedValueOnce({
+      text: 'x'.repeat(200),
+      verdict: 'warn',
+      warnings: ['Limited text extracted from this page.'],
+    });
+    const res = await POST(
+      makeRequest({ url: 'https://example.com/a' }) as never,
+    );
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.warnings).toEqual(
+      expect.arrayContaining(['Limited text extracted from this page.']),
+    );
+  });
+
+  it('returns a recoverable 503 (NOT 500) when /extract is unreachable — no Readability fallback (SOFT-COUPLE)', async () => {
+    cleanViaWorkerMock.mockRejectedValueOnce(
+      new ExtractEndpointError('/extract endpoint unreachable: ECONNREFUSED'),
+    );
+    const res = await POST(
+      makeRequest({ url: 'https://example.com/a' }) as never,
+    );
+    expect(res.status).toBe(503);
+    // No in-process Readability fallback (it would keep @mozilla/readability
+    // alive past the {112.13} deletion) and NO reference written.
+    expect(client.rpc).not.toHaveBeenCalled();
   });
 
   it('OMITS the dropped content_items affordances from the response (TECH §3.3)', async () => {
@@ -227,11 +315,20 @@ describe('POST /api/ingest/url — reference-layer ingest (ID-110 {110.6})', () 
     expect(rpcArgs.p_filename.length).toBeGreaterThan(0);
   });
 
-  it('sets mime_type application/pdf for unpdf extraction, text/html otherwise', async () => {
-    extractFromUrlMock.mockResolvedValueOnce(
-      makeExtracted({ extractionMethod: 'unpdf', pageCount: 3 }),
-    );
+  it('keeps the PDF path in-process via unpdf (application/pdf, extractor unpdf) — never calls /extract', async () => {
+    fetchForExtractionMock.mockResolvedValueOnce({
+      kind: 'pdf',
+      buffer: new Uint8Array([1, 2, 3]).buffer,
+      finalUrl: 'https://example.com/a.pdf',
+    });
+    extractPdfTextMock.mockResolvedValueOnce({
+      text: 'y'.repeat(800),
+      pageCount: 3,
+    });
     await POST(makeRequest({ url: 'https://example.com/a.pdf' }) as never);
+    // PDF body cleaned in-process — the pure cleaner is HTML-only.
+    expect(extractPdfTextMock).toHaveBeenCalledTimes(1);
+    expect(cleanViaWorkerMock).not.toHaveBeenCalled();
     const rpcArgs = client.rpc.mock.calls[0][1] as {
       p_mime_type: string;
       p_extraction_metadata: Record<string, unknown>;
@@ -270,10 +367,12 @@ describe('POST /api/ingest/url — reference-layer ingest (ID-110 {110.6})', () 
     expect(client.rpc).not.toHaveBeenCalled();
   });
 
-  it('returns 422 when extraction yields under 100 characters', async () => {
-    extractFromUrlMock.mockResolvedValueOnce(
-      makeExtracted({ content: 'tiny', contentLength: 4 }),
-    );
+  it('returns 422 when /extract returns a REJECT verdict (content too short) — distinct from the 503 outage', async () => {
+    cleanViaWorkerMock.mockResolvedValueOnce({
+      text: 'tiny',
+      verdict: 'reject',
+      warnings: [],
+    });
     const res = await POST(
       makeRequest({ url: 'https://example.com/a' }) as never,
     );
@@ -291,7 +390,7 @@ describe('POST /api/ingest/url — reference-layer ingest (ID-110 {110.6})', () 
   // never reach the RPC. (SSRF-400 and url_already_exists are covered above.)
   // -------------------------------------------------------------------------
 
-  it('returns 401 when the caller is unauthenticated', async () => {
+  it('returns authFailureResponse (401) BEFORE any extraction call when unauthenticated', async () => {
     getAuthorisedClientMock.mockResolvedValueOnce({
       success: false,
       reason: 'unauthenticated',
@@ -300,6 +399,9 @@ describe('POST /api/ingest/url — reference-layer ingest (ID-110 {110.6})', () 
       makeRequest({ url: 'https://example.com/a' }) as never,
     );
     expect(res.status).toBe(401);
+    // The auth gate short-circuits before any fetch/clean — never reaches B1.
+    expect(fetchForExtractionMock).not.toHaveBeenCalled();
+    expect(cleanViaWorkerMock).not.toHaveBeenCalled();
     expect(client.rpc).not.toHaveBeenCalled();
   });
 

@@ -105,29 +105,104 @@ export const POST = withRequestContext(async (request: NextRequest) => {
 
     // 6. Extract content from URL (lazy imports for serverless) — OQ-B body
     // producer. reference_items.body is NOT NULL.
-    const { extractFromUrl } = await import('@/lib/extraction/url');
-    const extracted = await extractFromUrl(url);
-
-    // 7. Quality gate (TECH §4.4)
+    //
+    // {112.10}: the route owns the SSRF-gated fetch (`fetchForExtraction`,
+    // which keeps `validateUrl` + the 20 MB cap + redirect re-validation) and
+    // then hands HTML to the B1 `/extract` PURE CLEANER via `cleanViaWorker`
+    // (Trafilatura, in-house parity with the cocoindex worker). The PDF branch
+    // stays IN-PROCESS via unpdf. There is deliberately NO in-process
+    // Readability fallback — a fallback would keep @mozilla/readability alive
+    // past the {112.13} deletion (PI-1/PI-2/PI-9).
+    const { fetchForExtraction, extractHtmlMetadata } =
+      await import('@/lib/extraction/url');
     const warnings: string[] = [];
-    if (extracted.contentLength < 100) {
+
+    // `body` is the cleaned text; `extractor` drives the {112.9} RPC derivation
+    // of extraction_method; the metadata fields populate the source_documents
+    // provenance row.
+    let body: string;
+    let title: string;
+    let summarySource: string | null;
+    let extractor: 'trafilatura' | 'unpdf';
+    let mimeType: string;
+    let pageCount: number | undefined;
+
+    let fetched: Awaited<ReturnType<typeof fetchForExtraction>>;
+    try {
+      fetched = await fetchForExtraction(url);
+    } catch (err) {
+      // A blocked redirect / over-cap / upstream fetch failure is a content
+      // problem with the requested URL, not an extraction-service outage.
       return NextResponse.json(
-        {
-          error:
-            'Could not extract meaningful content from this page (less than 100 characters)',
-        },
+        { error: safeErrorMessage(err, 'Failed to fetch URL') },
         { status: 422 },
       );
     }
-    if (extracted.contentLength < 500) {
-      warnings.push(
-        'Limited text extracted from this page. The content may be incomplete.',
-      );
+
+    if (fetched.kind === 'pdf') {
+      // PDF: clean in-process via unpdf (the pure cleaner is HTML-only).
+      const { extractPdfText } = await import('@/lib/extraction/pdf');
+      const pdf = await extractPdfText(fetched.buffer);
+      body = pdf.text;
+      title = '';
+      summarySource = null;
+      extractor = 'unpdf';
+      mimeType = 'application/pdf';
+      pageCount = pdf.pageCount;
+    } else {
+      // HTML: hand the already-fetched bytes to the B1 /extract pure cleaner.
+      // SOFT COUPLE (load-bearing): an unreachable endpoint / non-2xx / unset
+      // config throws `ExtractEndpointError` → recoverable 503 (NOT a 500, and
+      // NO Readability fallback). The 503 (outage) is DISTINCT from the 422
+      // REJECT verdict (content too short) handled below.
+      const { cleanViaWorker, ExtractEndpointError } =
+        await import('@/lib/extraction/clean-via-worker');
+      let cleaned;
+      try {
+        cleaned = await cleanViaWorker(fetched.html, fetched.finalUrl);
+      } catch (err) {
+        if (err instanceof ExtractEndpointError) {
+          logger.warn(
+            { err, op: 'ingest_url', stage: 'extract_endpoint' },
+            '/extract cleaner unavailable',
+          );
+          return NextResponse.json(
+            {
+              error:
+                'Content extraction is temporarily unavailable. Please retry shortly.',
+            },
+            { status: 503 },
+          );
+        }
+        throw err;
+      }
+
+      // 7. Quality gate (TECH §4.4 / PI-5) — driven by the endpoint verdict:
+      // REJECT → 422 (preserves the prior <100-char 422), WARN → warning.
+      if (cleaned.verdict === 'reject') {
+        return NextResponse.json(
+          {
+            error:
+              'Could not extract meaningful content from this page (less than 100 characters)',
+          },
+          { status: 422 },
+        );
+      }
+      if (cleaned.warnings.length > 0) {
+        warnings.push(...cleaned.warnings);
+      }
+
+      const meta = extractHtmlMetadata(fetched.html);
+      body = cleaned.text;
+      title = meta.title;
+      summarySource = meta.excerpt || meta.ogDescription || null;
+      extractor = 'trafilatura';
+      mimeType = 'text/html';
     }
 
     // 8. Embedding for reference_items.embedding
     const { generateEmbedding } = await import('@/lib/ai/embed');
-    const embeddingText = `${extracted.title}\n\n${extracted.content}`;
+    const embeddingText = `${title}\n\n${body}`;
     let embeddingValue: string | null = null;
     try {
       const embeddingArray = await generateEmbedding(embeddingText);
@@ -149,8 +224,8 @@ export const POST = withRequestContext(async (request: NextRequest) => {
       const { classifyText } = await import('@/lib/ai/classify');
       const classified = await classifyText({
         supabase,
-        title: extracted.title,
-        content: extracted.content,
+        title,
+        content: body,
       });
       primaryDomain = classified.primary_domain;
       primarySubtopic = classified.primary_subtopic;
@@ -161,23 +236,23 @@ export const POST = withRequestContext(async (request: NextRequest) => {
 
     // 10. Provenance fields for the source_documents row (TECH §1.4/§1.5).
     // filename guarded non-empty (source_documents.filename NOT NULL — ENG-FIX).
+    // mimeType + extractor are resolved at the extraction branch above:
+    // HTML → text/html + 'trafilatura' (PI-11: drives the {112.9} RPC
+    // derivation of extraction_method); PDF → application/pdf + 'unpdf'.
     const filename = deriveFilename(normalised);
-    const mimeType =
-      extracted.extractionMethod === 'unpdf' ? 'application/pdf' : 'text/html';
-    const fileSize = Buffer.byteLength(extracted.content);
-    const contentHash = createHash('sha256')
-      .update(extracted.content)
-      .digest('hex');
+    const fileSize = Buffer.byteLength(body);
+    const contentHash = createHash('sha256').update(body).digest('hex');
     const extractionMetadata: Json = {
-      extractor: extracted.extractionMethod,
+      extractor,
       via: 'app_sync_url_import',
-      ...(extracted.pageCount && { page_count: extracted.pageCount }),
+      ...(pageCount && { page_count: pageCount }),
     };
 
-    // summary: extractFromUrl gives an excerpt / ogDescription; references carry
-    // the feed-declared summary, so the excerpt is the closest manual-path
-    // equivalent (a full generateSummary pass is content_items-only).
-    const summary = extracted.excerpt || extracted.ogDescription || null;
+    // summary: the HTML path derives an excerpt / og:description locally; PDF
+    // has none. References carry the feed-declared summary, so the excerpt is
+    // the closest manual-path equivalent (a full generateSummary pass is
+    // content_items-only).
+    const summary = summarySource;
 
     // 11. Write the evidence pair via the owner-gated reference_ingest RPC
     // (atomic sd + ri, server-side uuid5 PKs, ON CONFLICT idempotency).
@@ -190,8 +265,8 @@ export const POST = withRequestContext(async (request: NextRequest) => {
     // truth (migration 20260614010200).
     const ingestArgs = {
       p_source_url: normalised,
-      p_title: extracted.title || filename,
-      p_body: extracted.content,
+      p_title: title || filename,
+      p_body: body,
       p_summary: summary,
       p_primary_domain: primaryDomain,
       p_primary_subtopic: primarySubtopic,
