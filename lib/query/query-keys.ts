@@ -33,6 +33,18 @@ export const queryKeys = {
       ['content-items', 'ingest-poll', sourceFile] as const,
   },
 
+  // References (global, workspace-less reference layer — ID-75 / ID-111).
+  // Distinct from `contentItems` (content_items-shaped); references never
+  // promote into content_items. `list`/`search`/`detail` map to the
+  // reference_list / reference_search / reference_get_verbatim RPCs.
+  references: {
+    all: ['references'] as const,
+    list: (filters: Record<string, unknown>) =>
+      ['references', 'list', filters] as const,
+    detail: (id: string) => ['references', 'detail', id] as const,
+    search: (query: string) => ['references', 'search', query] as const,
+  },
+
   // Review
   review: {
     all: ['review'] as const,
