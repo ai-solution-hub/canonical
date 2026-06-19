@@ -1726,8 +1726,9 @@ class TestUrlPerItemFailureIsolation:
     """{75.11} BI-19: URL-branch per-item containment at the mount boundary.
 
     Drives the REAL `flow.app_main` over a 2-URL passed ledger [URL A whose
-    PullMD fetch 5xxes, URL B that fetches cleanly] through the same faithful
-    inline `mount_each` stand-in the localfs precedent uses:
+    raw-HTML fetch 5xxes ({112.7} HTML route), URL B that fetches cleanly]
+    through the same faithful inline `mount_each` stand-in the localfs
+    precedent uses:
 
       - URL A lands ZERO rows (no sd, no ri) while sibling URL B's sd+ri
         pair lands — one URL's fault never aborts the batch (BI-19),
@@ -1735,7 +1736,7 @@ class TestUrlPerItemFailureIsolation:
       - the terminal webhook threads
         item_failures == {'forms': 0, 'content': 0, 'url': 1},
       - ONE `cocoindex.stage_error` with stage='ingest_item' is emitted,
-      - a SECOND walk (PullMD recovered) re-runs URL A and lands its rows —
+      - a SECOND walk (the fetch recovered) re-runs URL A and lands its rows —
         a failed item declared nothing, so the next enumeration retries it,
       - the callable mounted for the URL fan-out is a NAMED closure
         `bound_ingest_url` with real `__name__`/`__qualname__` — NEVER a
@@ -1816,29 +1817,40 @@ class TestUrlPerItemFailureIsolation:
         )
         monkeypatch.setattr(flow.coco, "use_context", lambda key: pool)
 
-        # ── PullMD: URL A 5xxes while `fail_urls` holds it; B succeeds.
-        # `_pullmd_http_get` is log-then-raise RuntimeError on HTTP failure —
-        # mirror that exact production shape (adapters.py).
+        # ── HTML fetch (ID-112.7): URL A's raw-HTML GET 5xxes while
+        # `fail_urls` holds it; B fetches clean HTML. `_fetch_url_bytes`
+        # `raise_for_status()`es on HTTP failure — mirror that production shape
+        # (a fetch error contained per-item at the BI-19 mount boundary). The
+        # success case returns realistic HTML so the REAL in-process
+        # `clean_html` produces a body that clears the {112.5} quality gate.
         harness = {"fail_urls": {self._URL_A}}
 
-        class _PullmdResult:
-            def __init__(self, url: str) -> None:
-                self.markdown = f"# Fetched\n\n{url}"
-                self.x_source = "trafilatura"
-                self.x_quality = 0.9
-                self.share_id = "abcd1234"
+        _CLEAN_HTML_BODY = (
+            b"<html><body><main><article><h1>Fetched guide</h1><p>"
+            + b"Substantive procurement guidance body content. " * 8
+            + b"</p></article></main></body></html>"
+        )
 
-        async def _fake_pullmd_fetch(url: str, content_epoch: str):
+        async def _fake_fetch_url_bytes(url: str) -> bytes:
             if url in harness["fail_urls"]:
                 raise RuntimeError(
-                    f"pullmd extraction failed for {url}: "
+                    f"html fetch failed for {url}: "
                     "status=502 body='upstream fetch error'"
                 )
-            return _PullmdResult(url)
+            return _CLEAN_HTML_BODY
 
-        monkeypatch.setattr(flow, "_pullmd_fetch", _fake_pullmd_fetch)
+        monkeypatch.setattr(flow, "_fetch_url_bytes", _fake_fetch_url_bytes)
 
-        # No network: never HEAD-sniff; both URLs take the PullMD route.
+        # The PullMD seam is RETIRED on the HTML route ({112.7}) — assert it is
+        # never reached (a call here would be a regression).
+        async def _forbidden_pullmd_fetch(url: str, content_epoch: str):
+            raise AssertionError(
+                "_pullmd_fetch must not be called on the HTML route ({112.7})"
+            )
+
+        monkeypatch.setattr(flow, "_pullmd_fetch", _forbidden_pullmd_fetch)
+
+        # No network: never HEAD-sniff; both URLs take the HTML route.
         async def _never_pdf(url: str) -> bool:
             return False
 
@@ -1958,13 +1970,13 @@ class TestUrlPerItemFailureIsolation:
         monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(tmp_path))
         return harness
 
-    def test_pullmd_5xx_lands_zero_rows_siblings_land_later_walk_retries(
+    def test_html_fetch_5xx_lands_zero_rows_siblings_land_later_walk_retries(
         self, tmp_path, monkeypatch
     ):
         harness = self._build_harness(tmp_path, monkeypatch)
         targets = harness["targets"]
 
-        # ── Walk 1: URL A 5xxes; URL B is clean. Must NOT raise. ──
+        # ── Walk 1: URL A's HTML fetch 5xxes; URL B is clean. Must NOT raise. ──
         asyncio.run(flow.app_main())
 
         ri_rows = targets["reference_items"].rows
@@ -1999,12 +2011,12 @@ class TestUrlPerItemFailureIsolation:
         ]
         assert len(ingest_item_errors) == 1
         assert ingest_item_errors[0]["error_class"] == "RuntimeError"
-        assert "pullmd extraction failed" in ingest_item_errors[0]["error_message"]
+        assert "html fetch failed" in ingest_item_errors[0]["error_message"]
 
         # 5. Only B was backlinked on walk 1.
         assert len(harness["backlinks"]) == 1
 
-        # ── Walk 2: PullMD recovered — the failed item declared NOTHING on
+        # ── Walk 2: the fetch recovered — the failed item declared NOTHING on
         # walk 1, so re-enumeration re-runs it and its rows land (BI-19). ──
         harness["fail_urls"].clear()
         asyncio.run(flow.app_main())
@@ -2012,7 +2024,7 @@ class TestUrlPerItemFailureIsolation:
         ri_urls = sorted(r["source_url"] for r in targets["reference_items"].rows)
         assert self._URL_A in ri_urls, (
             "a later walk must retry the previously-failed URL — its "
-            "reference_items row should land once PullMD recovers"
+            "reference_items row should land once the fetch recovers"
         )
         terminal_walk_2 = harness["webhook_calls"][-1]
         assert terminal_walk_2["status"] == "completed"
