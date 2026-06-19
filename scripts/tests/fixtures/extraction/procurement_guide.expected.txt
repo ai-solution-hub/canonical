@@ -1,0 +1,16 @@
+UK SMB Procurement Frameworks: A Practical Guide
+Public sector procurement in the United Kingdom is governed by a framework of regulations that small and medium-sized businesses must understand before bidding. The Procurement Act 2023 consolidated several earlier regimes and introduced a single set of principles intended to make competition fairer and more transparent for suppliers of every size.
+The first practical step for any SMB is registration on the relevant supplier portals. Without an active registration, a business cannot receive tender notifications or submit a compliant response. Most contracting authorities publish their opportunities on a central digital platform, and suppliers are expected to monitor it routinely rather than waiting for direct invitations.
+Frameworks differ from one-off contracts in an important way. A framework agreement establishes the terms under which future call-off contracts may be awarded, often over a multi-year period. Being appointed to a framework does not guarantee work, but it does place a supplier on a shortlist from which buyers may select without re-running a full open competition.
+Preparing a competitive bid
+A competitive bid rests on three pillars: technical capability, commercial value, and social value. Evaluators score each pillar against published criteria, and the weighting between them varies considerably between sectors. SMBs frequently underestimate the social-value component, which in some competitions can account for a tenth or more of the total available marks.
+Evidence matters more than assertion. A bid that claims relevant experience without citing named, verifiable case studies will score poorly against one that demonstrates outcomes with figures, dates, and references. Where confidentiality permits, including measurable results from comparable engagements is the single most effective way to lift a technical score.
+| Sector | Technical | Commercial | Social value |
+|---|---|---|---|
+| Construction | 50% | 40% | 10% |
+| Professional services | 60% | 30% | 10% |
+| Facilities management | 45% | 35% | 20% |
+The table above is illustrative only; always read the specific invitation-to-tender document, because each authority sets its own weights. Treat any generic guidance as a starting point and never as a substitute for the published evaluation methodology in the live opportunity.
+After submission
+Once a bid is submitted, the standstill period gives unsuccessful suppliers a window to request feedback before the contract is signed. SMBs should always request a debrief, even after a win, because the evaluator commentary is the cheapest market research available and directly informs the next submission.
+In summary, success in public procurement is rarely the product of a single brilliant bid. It is the compounding result of disciplined registration, careful reading of each methodology, and systematic learning from every debrief, win or lose.
