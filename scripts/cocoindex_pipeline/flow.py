@@ -57,6 +57,7 @@ from urllib.parse import urlsplit
 
 import aiohttp
 import asyncpg
+import charset_normalizer  # robust bytes→str decode for fetched HTML (ID-112.7)
 import cocoindex as coco
 import httpx
 
@@ -100,6 +101,16 @@ from scripts.cocoindex_pipeline.canonicalisation import (
     prime_alias_cache_from_db_rows,
 )
 from scripts.cocoindex_pipeline.entity_context import extract_entity_context
+# ID-112.7 — the worker HTML branch cleans fetched HTML IN-PROCESS via the
+# single shared Trafilatura cleaner ({112.5}), replacing the retired PullMD
+# fetch+extract hop (PI-1). NO HTTP hop to POST /extract — the worker IS the
+# caller (TECH §B2 topology); it owns the fetch behind the step-1 `validate_url`
+# SSRF gate (PI-3 — the cleaner itself is a pure HTML→text function, no fetch).
+from scripts.cocoindex_pipeline.extract import (
+    GateVerdict,
+    apply_quality_gate,
+    clean_html,
+)
 from scripts.cocoindex_pipeline.extraction import (
     TruncatedExtractionError,
     classify_pydantic_error,
@@ -2686,11 +2697,64 @@ async def _ingest_url_body(
         file_size = len(pdf_bytes)
         content_hash = hashlib.sha256(pdf_bytes).hexdigest()
     else:
-        # HTML route: epoch-keyed PullMD fetch (D-4 / {75.9}).
-        result = await _pullmd_fetch(item.url, item.content_epoch)
-        markdown = result.markdown
-        extraction_method = _pullmd_extraction_method(result.x_source)
-        pullmd_share_id = result.share_id
+        # HTML route (ID-112.7, PI-1): SSRF-validated GET → in-process
+        # Trafilatura clean ({112.5} `clean_html`) → content-length gate. The
+        # PullMD fetch+extract hop is RETIRED here — `_fetch_url_bytes` reuses
+        # the SAME SSRF-validated GET as the PDF branch (step 1's `validate_url`
+        # already gated this URL for every route), so no new SSRF surface is
+        # introduced; the cleaner is a pure HTML→text function (no fetch).
+        html_bytes = await _fetch_url_bytes(item.url)
+        # Decode bytes→str robustly: a naive utf-8 decode mangles legacy-encoded
+        # pages. `charset_normalizer` (a Trafilatura dependency) sniffs the
+        # encoding; if it finds none, fall back to utf-8 with replacement so a
+        # short/garbled page degrades into the REJECT gate rather than raising.
+        best = charset_normalizer.from_bytes(html_bytes).best()
+        raw_html = (
+            str(best)
+            if best is not None
+            else html_bytes.decode("utf-8", errors="replace")
+        )
+        cleaned = clean_html(raw_html, url=item.url)
+        gate = apply_quality_gate(cleaned)
+        if gate.verdict is GateVerdict.REJECT:
+            # PI-5 / BI-19: too-short extraction is a per-item failure. Mirror
+            # the step-1 SSRF rejection shape — a structured error log then a
+            # `return` BEFORE any `declare_row`, so ZERO partial rows land and
+            # the next walk re-runs the item (memo miss on a failure-aborted
+            # run). Siblings are unaffected.
+            _logger.error(
+                json.dumps(
+                    {
+                        "event": "cocoindex.url_extraction_rejected",
+                        "op_id": str(op_id),
+                        "source_url": item.url,
+                        "cleaned_length": len(cleaned),
+                    }
+                )
+            )
+            return  # ZERO rows — siblings unaffected (BI-19)
+        if gate.verdict is GateVerdict.WARN:
+            # PI-5: limited content — surface a structured warning and PROCEED
+            # (the row still lands; the manual route's parity is a warning, not
+            # a rejection, below the 500-char threshold).
+            _logger.warning(
+                json.dumps(
+                    {
+                        "event": "cocoindex.url_extraction_warning",
+                        "op_id": str(op_id),
+                        "source_url": item.url,
+                        "cleaned_length": len(cleaned),
+                        "warning": gate.warning,
+                    }
+                )
+            )
+        # The downstream variable stays `markdown` but now holds clean TEXT —
+        # clean text is exactly what feeds classification, embedding, and the
+        # `reference_items.body` write (Markdown was never load-bearing on the
+        # URL path; PI-1). `pullmd_share_id` stays None (in-house extractor, no
+        # share id; the column is nullable).
+        markdown = cleaned
+        extraction_method = "trafilatura"
         mime_type = "text/html"
         encoded = markdown.encode()
         file_size = len(encoded)

@@ -5,24 +5,32 @@ Faithful-mount harness precedent: ``TestSourceDocumentProvenanceWritePath``
 shared conftest cocoindex stubs; targets are ``_FakeTarget`` doubles; only the
 network/LLM seams are stubbed. No external DB, no env vars, no Rust engine.
 
+ID-112.7 re-point: the HTML branch fetches raw HTML via ``_fetch_url_bytes``
+and cleans it IN-PROCESS via the shared Trafilatura cleaner (``clean_html`` +
+``apply_quality_gate``), retiring the PullMD fetch+extract hop on this datapath
+(PI-1). ``_pullmd_fetch`` is no longer reached on the HTML route — these tests
+assert that, and that the cleaned TEXT (not Markdown) is the canonical body
+with ``extraction_method == "trafilatura"`` and a NULL ``pullmd_share_id``.
+
 WHAT THIS PROVES (TECH §3 WP-C steps 1-8 + §4 BI-mapping):
 
   - Landing a URL declares EXACTLY the sd+ri pair with the BI-3/BI-4 field
     contract and ZERO ``ci_target`` interactions (BI-1 — structurally
     impossible: ``ingest_url`` has no ci/qa/em/cc target in its signature).
+  - The HTML body is the boilerplate-stripped clean text from ``clean_html``,
+    ``extraction_method == "trafilatura"``, ``pullmd_share_id`` is NULL, and
+    ``_pullmd_fetch`` is NEVER called on the HTML route (PI-1 / ID-112.7).
+  - A too-short extraction is a structured per-item failure
+    (``cocoindex.url_extraction_rejected``) that lands ZERO partial rows
+    (PI-5 / BI-19).
   - Landing twice declares the SAME deterministic uuid5 PKs — declare_row is
-    a PK-keyed UPSERT, so the DB count stays 1 (BI-2).
-  - A changed ``content_epoch`` re-fetches and updates the body UNDER THE
-    SAME PK (BI-2 / D-4 update-in-place).
+    a PK-keyed UPSERT, so the DB count stays 1 (BI-2 / PI-8).
   - A PDF URL routes to Docling over fetched bytes — PullMD is never called
     (BI-20 / D-12).
   - An SSRF-rejected URL lands ZERO rows and writes one
     ``ingestion_quality_log`` row + a structured log (BI-21 / D-9).
   - The D-7 backlink UPDATE hits ALL ledger rows for a 2-workspace URL
     (BI-10 / BI-8).
-  - An unknown PullMD X-Source degrades ``extraction_method`` to None with a
-    structured warning — never an unmapped ``pullmd_<unknown>`` insert
-    (CHECK-enum safety; re-implements the {75.9}-retired guard).
   - Module-source guard: flow.py NEVER seeds a ``"ci:"`` uuid5 from a URL
     (BI-1/BI-2 acceptance — the only ``"ci:"`` seeds are rel_path-derived).
 
@@ -51,6 +59,16 @@ import pytest
 from conftest import fresh_flow_module
 
 from scripts.cocoindex_pipeline.url_source import UrlItem
+
+# ID-112.7 — the realistically-sized HTML fixture shared with the {112.5}
+# cleaner unit test. `clean_html` strips its nav/cookie boilerplate down to the
+# article body (~2.9k chars ⇒ an OK gate verdict).
+_FIXTURE_HTML = (
+    Path(__file__).resolve().parent
+    / "fixtures"
+    / "extraction"
+    / "procurement_guide.html"
+).read_bytes()
 
 
 def _flow_module():
@@ -146,29 +164,37 @@ def _wire(
     flow: object,
     monkeypatch: pytest.MonkeyPatch,
     *,
-    markdown: str = "# Fetched body\n\nMarkdown from PullMD.",
-    x_source: str | None = "readability",
-    share_id: str | None = "abcd1234",
+    html_bytes: bytes = _FIXTURE_HTML,
 ) -> dict:
     """Stub the network/LLM seams; return the recording handles.
 
     Mirrors ``TestSourceDocumentProvenanceWritePath._stub_extractors``: only
-    the seams (PullMD HTTP, Docling, classifier, embedder, PDF sniff, DB pool)
-    are stubbed — the body under test is the REAL ``ingest_url``.
+    the seams (raw-HTML fetch, classifier, embedder, PDF sniff, DB pool) are
+    stubbed — the body under test is the REAL ``ingest_url`` (incl. the REAL
+    in-process ``clean_html`` + ``apply_quality_gate`` from {112.5}).
+
+    ID-112.7: the HTML route now fetches raw HTML via ``_fetch_url_bytes`` and
+    cleans it in-process. ``_pullmd_fetch`` is stubbed to RAISE — any HTML-path
+    call to it is a regression (the seam was retired), and ``pullmd_calls``
+    stays empty in the happy path.
     """
-    adapters = sys.modules[flow.extract_source_provenance.__module__]
     pullmd_calls: list[tuple[str, str]] = []
 
-    async def _fake_pullmd_fetch(url: str, content_epoch: str):
+    async def _forbidden_pullmd_fetch(url: str, content_epoch: str):
         pullmd_calls.append((url, content_epoch))
-        return adapters.PullmdResult(
-            markdown=markdown,
-            x_source=x_source,
-            x_quality=0.9,
-            share_id=share_id,
+        raise AssertionError(
+            "_pullmd_fetch must not be called on the HTML route (ID-112.7)"
         )
 
-    monkeypatch.setattr(flow, "_pullmd_fetch", _fake_pullmd_fetch)
+    monkeypatch.setattr(flow, "_pullmd_fetch", _forbidden_pullmd_fetch)
+
+    fetch_calls: list[str] = []
+
+    async def _fake_fetch_url_bytes(url: str) -> bytes:
+        fetch_calls.append(url)
+        return html_bytes
+
+    monkeypatch.setattr(flow, "_fetch_url_bytes", _fake_fetch_url_bytes)
 
     async def _fake_classification(content_text: str):
         return {
@@ -193,7 +219,11 @@ def _wire(
     pool = _FakePool()
     monkeypatch.setattr(flow.coco, "use_context", lambda key: pool)
 
-    return {"pullmd_calls": pullmd_calls, "pool": pool}
+    return {
+        "pullmd_calls": pullmd_calls,
+        "fetch_calls": fetch_calls,
+        "pool": pool,
+    }
 
 
 def _ingest(
@@ -227,11 +257,17 @@ class TestUrlLandingDeclaresEvidencePair:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         flow = _flow_module()
-        markdown = "# Fetched body\n\nMarkdown from PullMD."
-        handles = _wire(flow, monkeypatch, markdown=markdown)
+        handles = _wire(flow, monkeypatch)
         item = _make_item()
         run_op_id = uuid.uuid4()
         counter = _FakeStageCounter()
+
+        # The expected body is the REAL in-process clean of the fixture — the
+        # cleaner is under test, so derive the expectation from it (not a
+        # hand-copied string) to keep this behaviour-first.
+        expected_body = flow.clean_html(
+            _FIXTURE_HTML.decode("utf-8"), url=item.url
+        )
 
         ri, sd = _ingest(flow, item, op_id=run_op_id, stage_counter=counter)
 
@@ -239,7 +275,7 @@ class TestUrlLandingDeclaresEvidencePair:
         assert len(sd.rows) == 1, "expected one source_documents row"
         assert len(ri.rows) == 1, "expected one reference_items row"
 
-        encoded = markdown.encode()
+        encoded = expected_body.encode()
         ns = flow._KH_PIPELINE_DOC_NS
 
         # BI-4: source_documents carries the URL identity + provenance.
@@ -255,15 +291,27 @@ class TestUrlLandingDeclaresEvidencePair:
         assert sd_row["mime_type"] == "text/html"
         assert sd_row["file_size"] == len(encoded)
         assert sd_row["content_hash"] == hashlib.sha256(encoded).hexdigest()
-        assert sd_row["extraction_method"] == "pullmd_readability"
-        assert sd_row["pullmd_share_id"] == "abcd1234"
+        # ID-112.7: in-house Trafilatura clean — no pullmd provenance.
+        assert sd_row["extraction_method"] == "trafilatura"
+        assert sd_row["pullmd_share_id"] is None, (
+            "the in-house cleaner mints no share id; the column is left NULL"
+        )
         assert sd_row["op_id"] == run_op_id
 
         # BI-3: the full reference_items contract.
         ri_row = ri.rows[0]
         assert ri_row["id"] == uuid.uuid5(ns, f"ri:{item.url}")
         assert ri_row["title"] == "Insight article"
-        assert ri_row["body"] == markdown, "PullMD markdown is the canonical body"
+        # PI-1: the body is the boilerplate-stripped clean TEXT from clean_html.
+        assert ri_row["body"] == expected_body, (
+            "the cleaned Trafilatura text is the canonical body (PI-1)"
+        )
+        assert "Accept all cookies" not in ri_row["body"], (
+            "nav/cookie boilerplate must be stripped from the body"
+        )
+        assert "Procurement Act 2023" in ri_row["body"], (
+            "the article substance must survive the clean"
+        )
         assert ri_row["summary"] == "A short AI summary."
         assert ri_row["source_url"] == item.url
         assert ri_row["published_at"] == datetime.fromisoformat(
@@ -288,8 +336,11 @@ class TestUrlLandingDeclaresEvidencePair:
         assert "created_at" not in ri_row
         assert "updated_at" not in ri_row
 
-        # D-4: the fetch is epoch-keyed.
-        assert handles["pullmd_calls"] == [(item.url, item.content_epoch)]
+        # ID-112.7: the HTML route fetches raw bytes; PullMD is never reached.
+        assert handles["fetch_calls"] == [item.url]
+        assert handles["pullmd_calls"] == [], (
+            "_pullmd_fetch must never be called on the HTML route (PI-1)"
+        )
 
         # Inv-17 stage counters (WP-C step 8).
         assert counter.counts == {
@@ -346,55 +397,70 @@ class TestUrlLandingDeclaresEvidencePair:
             _ingest(flow, _make_item(published_at="not-a-date"))
 
 
-# ── Idempotency + epoch-keyed update-in-place (BI-2 / D-4) ───────────────────
+# ── Idempotency + update-in-place (BI-2 / D-4 / PI-8) ────────────────────────
 
 
-class TestUrlIdempotencyAndEpoch:
+class TestUrlIdempotencyAndUpdate:
     def test_landing_twice_declares_same_pks(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Same item landed twice ⇒ identical PKs — declare_row UPSERTs, so
-        the DB row count stays 1 (BI-2)."""
+        """Same item landed twice ⇒ identical uuid5 PKs — declare_row UPSERTs,
+        so the DB row count stays 1 (BI-2 / PI-8). The PKs are URL-seeded and
+        UNCHANGED by the ID-112.7 datapath re-point."""
         flow = _flow_module()
         _wire(flow, monkeypatch)
         item = _make_item()
 
+        ns = flow._KH_PIPELINE_DOC_NS
         ri1, sd1 = _ingest(flow, item)
         ri2, sd2 = _ingest(flow, item)
 
         assert sd1.rows[0]["id"] == sd2.rows[0]["id"]
         assert ri1.rows[0]["id"] == ri2.rows[0]["id"]
+        # PI-8: the uuid5 seeds are URL-derived, unaffected by the cutover.
+        assert sd1.rows[0]["id"] == uuid.uuid5(ns, f"sd:{item.url}")
+        assert ri1.rows[0]["id"] == uuid.uuid5(ns, f"ri:{item.url}")
 
-    def test_changed_epoch_updates_body_under_same_pk(
+    def test_changed_page_content_updates_body_under_same_pk(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        """A re-fetch that returns CHANGED HTML re-cleans the body and
+        recomputes the hash UNDER THE SAME PK (BI-2 / D-4 update-in-place).
+        The body now tracks the fetched HTML content (ID-112.7), not the
+        PullMD epoch key."""
         flow = _flow_module()
-        adapters = sys.modules[flow.extract_source_provenance.__module__]
 
-        bodies = {"e1": "# Body v1", "e2": "# Body v2 (re-fetched)"}
+        pages = {
+            "v1": b"<html><body><main><article><h1>Alpha guide</h1>"
+            + b"<p>" + b"First version body content. " * 40 + b"</p>"
+            + b"</article></main></body></html>",
+            "v2": b"<html><body><main><article><h1>Beta guide</h1>"
+            + b"<p>" + b"Second version, fully re-fetched body. " * 40 + b"</p>"
+            + b"</article></main></body></html>",
+        }
+        which = {"page": "v1"}
 
-        async def _epoch_pullmd(url: str, content_epoch: str):
-            return adapters.PullmdResult(
-                markdown=bodies[content_epoch],
-                x_source="readability",
-                x_quality=0.9,
-                share_id="abcd1234",
-            )
+        async def _fetch_changing(url: str) -> bytes:
+            return pages[which["page"]]
 
         _wire(flow, monkeypatch)  # base seams (classifier/embedder/pool/sniff)
-        monkeypatch.setattr(flow, "_pullmd_fetch", _epoch_pullmd)
+        monkeypatch.setattr(flow, "_fetch_url_bytes", _fetch_changing)
 
-        ri1, sd1 = _ingest(flow, _make_item(content_epoch="e1"))
-        ri2, sd2 = _ingest(flow, _make_item(content_epoch="e2"))
+        item = _make_item()
+        which["page"] = "v1"
+        ri1, sd1 = _ingest(flow, item)
+        which["page"] = "v2"
+        ri2, sd2 = _ingest(flow, item)
 
-        # Same PKs — the UPSERT updates in place (D-4)…
+        # Same PKs — the UPSERT updates in place (D-4 / PI-8)…
         assert ri1.rows[0]["id"] == ri2.rows[0]["id"]
         assert sd1.rows[0]["id"] == sd2.rows[0]["id"]
-        # …with the re-fetched body + recomputed hash riding the new declare.
-        assert ri1.rows[0]["body"] == "# Body v1"
-        assert ri2.rows[0]["body"] == "# Body v2 (re-fetched)"
+        # …with the re-cleaned body + recomputed hash riding the new declare.
+        assert "First version body content." in ri1.rows[0]["body"]
+        assert "Second version" in ri2.rows[0]["body"]
+        assert ri1.rows[0]["body"] != ri2.rows[0]["body"]
         assert sd2.rows[0]["content_hash"] == hashlib.sha256(
-            b"# Body v2 (re-fetched)"
+            ri2.rows[0]["body"].encode()
         ).hexdigest()
 
 
@@ -607,25 +673,92 @@ class TestUrlBacklink:
         )
 
 
-# ── Unknown X-Source degrade guard ({75.9} re-implementation) ────────────────
+# ── Quality gate on the HTML route (PI-5 / BI-19 — ID-112.7) ─────────────────
 
 
-class TestUnknownXSourceDegrade:
-    def test_unknown_x_source_degrades_to_none_with_structured_warning(
+class TestHtmlQualityGate:
+    """The in-process content-length gate ({112.5} `apply_quality_gate`) on the
+    re-pointed HTML datapath: a REJECT lands ZERO rows with a structured
+    per-item failure (BI-19 parity with the SSRF gate); a WARN proceeds."""
+
+    # A page whose extractable body cleans to < 100 chars ⇒ REJECT.
+    _SHORT_HTML = (
+        b"<html><head><title>Stub</title></head><body>"
+        b"<main><article><p>Too short.</p></article></main>"
+        b"</body></html>"
+    )
+
+    def test_too_short_extraction_is_structured_failure_with_zero_rows(
         self,
         monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         flow = _flow_module()
-        _wire(flow, monkeypatch, x_source="mystery_engine")
+        handles = _wire(flow, monkeypatch, html_bytes=self._SHORT_HTML)
+        item = _make_item()
+        run_op_id = uuid.uuid4()
+
+        # Sanity: the fixture really does trip the REJECT threshold via the
+        # REAL cleaner — this is a behaviour gate, not a mocked verdict.
+        cleaned = flow.clean_html(self._SHORT_HTML.decode("utf-8"), url=item.url)
+        assert flow.apply_quality_gate(cleaned).verdict is flow.GateVerdict.REJECT
+
+        with caplog.at_level(logging.ERROR, logger=flow.__name__):
+            ri, sd = _ingest(flow, item, op_id=run_op_id)
+
+        # BI-19: ZERO partial rows — the rejected item declares nothing, so the
+        # next walk re-runs it (memo miss on a failure-aborted run).
+        assert ri.rows == [], "a REJECT verdict must land no reference_items row"
+        assert sd.rows == [], "a REJECT verdict must land no source_documents row"
+        # The HTML WAS fetched (the gate runs post-fetch), but PullMD never ran.
+        assert handles["fetch_calls"] == [item.url]
+        assert handles["pullmd_calls"] == []
+
+        # Structured per-item failure — same shape as the SSRF rejection log.
+        events = [
+            json.loads(r.message)
+            for r in caplog.records
+            if r.message.startswith("{")
+        ]
+        reject_events = [
+            e
+            for e in events
+            if e.get("event") == "cocoindex.url_extraction_rejected"
+        ]
+        assert len(reject_events) == 1, (
+            "expected one structured url_extraction_rejected event"
+        )
+        assert reject_events[0]["source_url"] == item.url
+        assert reject_events[0]["op_id"] == str(run_op_id)
+
+    def test_limited_content_warns_but_still_lands_the_row(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        # A body that cleans to 100 <= len < 500 ⇒ WARN (lands, with a log).
+        warn_html = (
+            b"<html><body><main><article><p>"
+            + b"Limited but present procurement guidance. " * 4
+            + b"</p></article></main></body></html>"
+        )
+        flow = _flow_module()
+        handles = _wire(flow, monkeypatch, html_bytes=warn_html)
+        item = _make_item()
+
+        cleaned = flow.clean_html(warn_html.decode("utf-8"), url=item.url)
+        assert flow.apply_quality_gate(cleaned).verdict is flow.GateVerdict.WARN, (
+            "fixture must trip the WARN band for this test to be meaningful"
+        )
 
         with caplog.at_level(logging.WARNING, logger=flow.__name__):
-            _ri, sd = _ingest(flow, _make_item())
+            ri, sd = _ingest(flow, item)
 
-        assert sd.rows[0]["extraction_method"] is None, (
-            "an unknown X-Source must degrade extraction_method to None — "
-            "pullmd_<unknown> would violate the CHECK enum on insert"
-        )
+        # WARN proceeds: the row still lands with the trafilatura provenance.
+        assert len(ri.rows) == 1 and len(sd.rows) == 1
+        assert sd.rows[0]["extraction_method"] == "trafilatura"
+        assert handles["pullmd_calls"] == []
+
         events = [
             json.loads(r.message)
             for r in caplog.records
@@ -634,10 +767,19 @@ class TestUnknownXSourceDegrade:
         warn_events = [
             e
             for e in events
-            if e.get("event") == "cocoindex.pullmd_unknown_x_source"
+            if e.get("event") == "cocoindex.url_extraction_warning"
         ]
         assert len(warn_events) == 1
-        assert warn_events[0]["x_source"] == "mystery_engine"
+        assert warn_events[0]["source_url"] == item.url
+
+
+# ── Pullmd extraction-method mapping (live until {112.13} terminal deletion) ──
+
+
+class TestPullmdExtractionMethodMapping:
+    """`_pullmd_extraction_method` is dead on the HTML datapath after {112.7}
+    but stays in the module until the terminal pullmd deletion ({112.13}) —
+    these unit-level guards keep its CHECK-enum-safety contract pinned."""
 
     def test_known_x_sources_map_to_pullmd_methods(self) -> None:
         flow = _flow_module()
