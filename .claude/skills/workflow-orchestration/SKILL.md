@@ -1,7 +1,7 @@
 ---
 name: workflow-orchestration
 description:
-  Operationalises the Knowledge Hub SDLC workflow for the main session, which IS the Orchestrator. Loaded at session start to drive the ID-N Task / ID-N.M Subtask lifecycle: decomposes work, dispatches Planner / Executor / Checker / Curator sub-agents, gates each subtask behind verification, routes findings, owns sequential cherry-pick merges. Use whenever the main session needs to orchestrate Knowledge Hub work.
+  Operationalises the Canonical Platform SDLC workflow for the main session, which IS the Orchestrator. Loaded at session start to drive the ID-N Task / ID-N.M Subtask lifecycle: decomposes work, dispatches Planner / Executor / Checker / Curator sub-agents, gates each subtask behind verification, routes findings, owns sequential cherry-pick merges. Use whenever the main session needs to orchestrate Canonical work.
 allowed-tools: Read, Bash, Grep, Glob, Edit, Write, Skill, Agent
 ---
 
@@ -390,7 +390,7 @@ exact clash the single mutex exists to prevent.
 
 | Field | Shape | Load-bearing for |
 |---|---|---|
-| `last_updated` (roadmap file-level) | Single-line `kh-{track}-S{N} {wave} close-out — {short marker}` | Freshness guard on roadmap only. |
+| `last_updated` (roadmap file-level) | Single-line `ca-{track}-S{N} {wave} close-out — {short marker}` | Freshness guard on roadmap only. |
 | Subtask `details` `<info added on …>` blocks | Multi-line narrative permitted; structured journal blocks per PRODUCT inv 13 | Per-Subtask traceability. THE canonical home for session-by-session narrative (commits, test counts, OQ ratifications, Checker verdicts, Curator decisions). |
 | Task `description` | One paragraph: compact what+why, ≤1500 chars; rationale → `docs/` + `cross_doc_links` pointer, not inlined; updated only on scope amendment | Cross-doc cross-reference target. NOT a journal. |
 | Subtask `description` | One-sentence summary, ≤250 chars; not a copy of `details` | Subtask scan label. |

@@ -6,8 +6,8 @@
   `supabase link --project-ref <correct>` if drifted. The main repo's link persists
   across sessions and can drift to **prod** — unverified pushes land there silently.
   `supabase/.temp/` is gitignored, so worktrees inherit NO link state: a worktree
-  agent's first action MUST be `supabase link --project-ref <staging-project-ref>`
-  (staging — the ref from `.env.local`).
+  agent's first action MUST be `supabase link --project-ref <platform-project-ref>`
+  (platform development DB - currently used as staging/prod — the ref from `.env.local`).
 - **`supabase db push` prompts interactively** — never run it in a background shell
   (it hangs); run foreground and answer the prompt.
 - **Function search_path:** all new PL/pgSQL functions MUST include
@@ -20,7 +20,7 @@
   (IP leak) — enforced by the `ip-leak-filename-guard` hook against the private
   denylist (`$KH_PRIVATE_DOCS_DIR/.config/ip-denylist.txt`).
 - **Types regen after schema change (ID-115: `--schema public,api`):**
-  `/opt/homebrew/bin/supabase gen types typescript --project-id <prod-project-ref> --schema public,api > supabase/types/database.types.ts`
+  `/opt/homebrew/bin/supabase gen types typescript --project-id <platform-project-ref> --schema public,api > supabase/types/database.types.ts`
   — both schemas, deterministic order (`public` then `api`). `public` carries the
   base-table row shapes the app consumes (clients route to `api` at runtime but
   stay typed against `public` — see `lib/supabase/schema.ts`); `api` is generated
