@@ -119,8 +119,10 @@ export async function GET(
     }
 
     // ── Fetch relationships ──────────────────────────────────────────
-    // Chain: escape PostgREST metacharacters first, then escape double-quotes for .eq."..." syntax
-    const escaped = escapePostgrestValue(decodedName).replace(/"/g, '\\"');
+    // Chain: escape PostgREST metacharacters first, then escape backslashes and double-quotes for .eq."..." syntax
+    const escaped = escapePostgrestValue(decodedName)
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"');
     const { data: relRows, error: relError } = await supabase
       .from('entity_relationships')
       .select('source_entity, relationship_type, target_entity, confidence')
