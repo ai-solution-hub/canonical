@@ -330,6 +330,21 @@ describe('ReferenceDetailPage', () => {
     expect(mockNotFound).toHaveBeenCalled();
   });
 
+  it('calls notFound() when the id is not a valid uuid (B-5), before any DB call', async () => {
+    mockCreateClient.mockResolvedValue(
+      makeClient({ rpcResult: { data: [], error: null } }),
+    );
+
+    await expect(
+      ReferenceDetailPage({
+        params: Promise.resolve({ id: 'not-a-real-uuid' }),
+      }).then((element) => render(element)),
+    ).rejects.toThrow('NEXT_NOT_FOUND');
+    expect(mockNotFound).toHaveBeenCalled();
+    // The malformed id is rejected before the I/O seam is even opened.
+    expect(mockCreateClient).not.toHaveBeenCalled();
+  });
+
   // ---- Transport error -> error + retry, never blank, never notFound ----
 
   it('renders an error state with a retry affordance on a non-not-found RPC error', async () => {

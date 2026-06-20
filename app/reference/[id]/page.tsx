@@ -22,6 +22,18 @@ type ReferenceGetVerbatimRow =
   Database['public']['Functions']['reference_get_verbatim']['Returns'][number];
 
 /**
+ * A reference id must be shaped like a Postgres `uuid` (8-4-4-4-12 hex). A
+ * malformed id can never match a row, and passing it to `reference_get_verbatim`
+ * raises a Postgres `22P02` cast error (not PGRST116), which would otherwise fall
+ * to the error+retry state. Gate the format up front so an invalid id renders the
+ * standard 404 surface (PRODUCT.md B-5: "the id is not a valid uuid → 404"), with
+ * no wasted RPC round-trip. Deliberately loose (not RFC-4122 strict) to mirror
+ * exactly what the `::uuid` cast accepts.
+ */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
  * `/reference/[id]` — read-only reference detail page (ID-111.7).
  *
  * Primary read: the `reference_get_verbatim` RPC (returns a one-row array).
@@ -46,6 +58,13 @@ export default async function ReferenceDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+
+  // PRODUCT.md B-5 — an id that is not a valid uuid is "not found", not an
+  // error. Gate before any DB work so a malformed id never reaches the RPC.
+  if (!UUID_RE.test(id)) {
+    notFound();
+  }
+
   const supabase = await createClient();
 
   // PRIMARY read — reference_get_verbatim returns a single-row array.
