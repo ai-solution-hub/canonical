@@ -5,6 +5,8 @@ Spec: docs/specs/p0-bm-phase3-qa-library-importer-markdown-spec.md ss6.3, ss10.1
 
 import sys
 import os
+import re
+from urllib.parse import urlparse
 
 # Add scripts dir to path so we can import the module
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -61,7 +63,11 @@ class TestHtmlCellToMarkdown:
             '<p><a href="https://example.com">Link text</a></p>'
         )
         assert "[Link text]" in result
-        assert "https://example.com" in result
+        match = re.search(r"\[[^\]]+\]\(([^)]+)\)", result)
+        assert match is not None
+        parsed = urlparse(match.group(1))
+        assert parsed.scheme == "https"
+        assert parsed.hostname == "example.com"
 
     def test_handles_empty_input(self):
         """Empty input returns empty string."""
