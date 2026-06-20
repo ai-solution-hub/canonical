@@ -142,7 +142,7 @@ export function useFilterData({ isOpen }: UseFilterDataParams) {
         p_limit: 50,
       });
       if (error || !data) return [];
-      return (data ?? []).map(
+      return data.map(
         (row: {
           canonical_name: string;
           entity_type: string;
