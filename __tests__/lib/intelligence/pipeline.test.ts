@@ -163,9 +163,17 @@ describe('processFeedSource', () => {
     const googleNewsUrl = 'https://news.google.com/articles/CBMiabc123';
     const resolvedUrl = 'https://www.bbc.co.uk/news/uk-12345';
 
-    vi.mocked(contentExtractor.isGoogleNewsUrl).mockImplementation((url) =>
-      url.includes('news.google.com'),
-    );
+    vi.mocked(contentExtractor.isGoogleNewsUrl).mockImplementation((url) => {
+      try {
+        const { hostname } = new URL(url);
+        return (
+          hostname === 'news.google.com' ||
+          hostname.endsWith('.news.google.com')
+        );
+      } catch {
+        return false;
+      }
+    });
     vi.mocked(contentExtractor.resolveGoogleNewsUrl).mockResolvedValue(
       resolvedUrl,
     );
