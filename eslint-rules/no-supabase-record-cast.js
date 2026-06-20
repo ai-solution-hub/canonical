@@ -461,7 +461,7 @@ function isArrayElementOfSupabaseOrigin(castNode, varName, enclosingBody) {
             iterable = iterable.left;
           }
           // Check if iterable is an Identifier declared from Supabase
-          if (iterable && iterable.type === 'Identifier' && enclosingBody) {
+          if (iterable && iterable.type === 'Identifier') {
             if (declarationIsSupabaseOrigin(enclosingBody, iterable.name)) {
               return true;
             }
