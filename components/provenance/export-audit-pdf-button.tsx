@@ -17,16 +17,29 @@ function defaultTo(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function sanitizeDateInput(value: string): string {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : '';
+}
+
 export default function ExportAuditPdfButton() {
   const [from, setFrom] = useState(defaultFrom);
   const [to, setTo] = useState(defaultTo);
 
   function handleExport() {
-    const url = `/api/admin/provenance/export/verification-history?from=${from}&to=${to}`;
+    const safeFrom = sanitizeDateInput(from);
+    const safeTo = sanitizeDateInput(to);
+
+    if (!safeFrom || !safeTo) {
+      toast.error('Please select valid dates before exporting');
+      return;
+    }
+
+    const params = new URLSearchParams({ from: safeFrom, to: safeTo });
+    const url = `/api/admin/provenance/export/verification-history?${params.toString()}`;
     // Use an anchor to let the browser handle the download
     const a = document.createElement('a');
     a.href = url;
-    a.download = `verification-history-${from}-to-${to}.pdf`;
+    a.download = `verification-history-${safeFrom}-to-${safeTo}.pdf`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -43,7 +56,7 @@ export default function ExportAuditPdfButton() {
           id="export-from"
           type="date"
           value={from}
-          onChange={(e) => setFrom(e.target.value)}
+          onChange={(e) => setFrom(sanitizeDateInput(e.target.value))}
           className="h-8 w-[150px] text-xs"
         />
       </div>
@@ -56,7 +69,7 @@ export default function ExportAuditPdfButton() {
           id="export-to"
           type="date"
           value={to}
-          onChange={(e) => setTo(e.target.value)}
+          onChange={(e) => setTo(sanitizeDateInput(e.target.value))}
           className="h-8 w-[150px] text-xs"
         />
       </div>
