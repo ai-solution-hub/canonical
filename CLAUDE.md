@@ -106,8 +106,7 @@ subcommands for writes (run `bun scripts/ledger-cli.ts` for usage).
 Resolve the checkout via `KH_PRIVATE_DOCS_DIR` (sibling clone locally; GitHub-App token
 checkout in CI — `.github/actions/resolve-private-docs/`). Under
 `${KH_PRIVATE_DOCS_DIR}/src/content/docs/`: `reference/state-of-the-product.md`,
-`reference/skill-routing-map.md`, `reference/documentation-inventory.md` (full doc
-inventory), `reference/test-philosophy.md`, `runbooks/` (ci, local-development,
+`reference/skill-routing-map.md`, `reference/test-philosophy.md`, `runbooks/` (ci, local-development,
 staging-refresh, github-environments, onprem-b1-deploy), `design/` (Warm Meridian),
 `continuation-prompts/`, `specs/`.
 

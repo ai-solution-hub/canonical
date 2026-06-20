@@ -120,15 +120,15 @@ entities.json
 /.cocoindex_code/
 
 # Ledger-mirror regen cache (scripts/regen-mirrors.sh — task-view clones)
-/.cache/
+.cache/
 lib/branding/client-branding-map.generated.ts
 .type-drift-report.md
 
 # ID-95 PI-15: client-provenance entity_aliases snapshot is point-of-use generated (deploy), never committed
 scripts/tests/fixtures/entity_aliases_snapshot.json
 
-# ID-95 PI-18 {95.13}: canonical-content propagation catalog holds service-role
-# DSNs (config-as-data, out-of-band operator input) — MUST NEVER be committed
+# ID-95 PI-18 {95.13}
+# DSNs
 scripts/.propagation-catalog.json
 
 # Local session ephemera (Lavish review artifacts, user scratch dir)

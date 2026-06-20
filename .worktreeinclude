@@ -3,7 +3,31 @@
 # AND are gitignored (tracked files are never duplicated).
 # Docs: https://code.claude.com/docs/en/worktrees#copy-gitignored-files-into-worktrees
 
+# Dependencies
+node_modules/
+.next/
+
+# Environment
 .env.local
+
+# Session-driver-cmux
+.claude/cmux-events/
+.claude/cmux-briefs/
+.claude/scheduled_tasks.lock
+
+# Agent browser state
+.agent-browser/
+
+# Playwright MCP
+.playwright-mcp/
+
+# Playwright E2E
+playwright-report/
+test-results/
+e2e/.auth/
+
+# Supabase local
+supabase/.temp/
 
 # Code-intelligence
 .gitnexus/**
@@ -11,3 +35,10 @@
 # Memory
 mempalace.yaml
 entities.json
+
+# Task View Ledger Config
+.cache/
+
+# Local session ephemera (Lavish review artifacts, user scratch dir)
+.lavish/
+.user-scratch/

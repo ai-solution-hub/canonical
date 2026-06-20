@@ -91,6 +91,10 @@ in-flight discoveries the previous Executor / Checker left behind that may
 have been omitted from the continuation prompt. Prefer `get … details` /
 `get … status_note` over `show` for large done tasks.
 
+NB: For viewing multiple backlog items use the following approach - no prefix required (e.g., BL-, bl-):
+
+`Bash(for id in 323 324 304; do echo "==================== $id ===================="; bun scripts/ledger-cli.ts get backlog $id 2>&1; echo; do…)`
+
 ### 2c: Sandbox / allowlist carryover
 
 Read the prior handoff's `Sandbox / allowlist carryover` section and surface it at
