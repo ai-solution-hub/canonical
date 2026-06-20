@@ -47,7 +47,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7.0.0
 
       - name: Install postgresql-17 client
         # CLAUDE.md gotcha: pg_dump version must match server PG major
