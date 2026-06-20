@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   htmlToPlainText,
   countWords,
@@ -76,6 +76,38 @@ describe('htmlToPlainText', () => {
   it('handles HTML with only whitespace text', () => {
     // DOMParser preserves whitespace in textContent — downstream consumers trim
     expect(htmlToPlainText('<p>   </p>').trim()).toBe('');
+  });
+});
+
+describe('htmlToPlainText (server-side regex fallback)', () => {
+  // Force the non-window branch so the regex fallback runs (jsdom otherwise
+  // takes the DOMParser path). Guards CodeQL alert #8
+  // (js/incomplete-multi-character-sanitization).
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function serverHtmlToPlainText(html: string): string {
+    vi.stubGlobal('window', undefined);
+    return htmlToPlainText(html);
+  }
+
+  it('strips tags that would recombine after a single pass', () => {
+    // Single-pass /<[^>]*>/g leaves a fresh tag; the loop must fully strip.
+    expect(serverHtmlToPlainText('<scr<script>ipt>alert(1)')).not.toContain(
+      '<script',
+    );
+  });
+
+  it('drops an unclosed tag fragment with no closing bracket', () => {
+    // "<script src=x" has no ">" so the tag regex cannot match it.
+    expect(serverHtmlToPlainText('hello <script src=x')).toBe('hello');
+    expect(serverHtmlToPlainText('<img onerror=alert(1)')).toBe('');
+  });
+
+  it('converts block tags to newlines and decodes entities', () => {
+    expect(serverHtmlToPlainText('<p>a</p><p>b</p>')).toBe('a\nb');
+    expect(serverHtmlToPlainText('x &amp; y &lt;ok&gt;')).toBe('x & y <ok>');
   });
 });
 
