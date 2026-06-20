@@ -47,7 +47,7 @@ import type { CitationEntry, QualityData } from '@/types/procurement-metadata';
  * hydration on reload likewise failed.
  */
 export function normaliseForComparison(content: string): string {
-  const text = content
+  let text = content
     // Replace block-level closing tags with a space to preserve word boundaries
     .replace(/<\/(p|div|h[1-6]|li|br)>/gi, ' ')
     .replace(/<br\s*\/?>/gi, ' ')
