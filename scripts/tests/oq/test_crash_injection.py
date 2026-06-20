@@ -238,6 +238,8 @@ def test_kill9_after_emit_returns_no_loss(tmp_path: Path):
     try:
         os.kill(proc.pid, 9)  # already exited — harmless; models kill-9 timing
     except ProcessLookupError:
+        # Expected if the worker already exited after communicate(); this test
+        # intentionally models kill-9 timing immediately after a successful emit.
         pass
     # Fresh read: the record is durably present and verifies (no loss).
     question_file = tmp_path / "questions" / f"{oq_id}.json"

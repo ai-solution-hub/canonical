@@ -312,7 +312,7 @@ function detectTableFormat(rawHeaders: string[]): TableFormat | null {
     return 'draft_5col'; // Pattern B: no advanced column
   }
 
-  // Generic fallback: question + standard (with or without advanced)
+  // Generic fallback: at this point question + standard are guaranteed.
   if (hasAdvanced) return 'audit_6col';
   return 'generic_qa';
 }
