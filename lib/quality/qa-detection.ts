@@ -313,12 +313,8 @@ function detectTableFormat(rawHeaders: string[]): TableFormat | null {
   }
 
   // Generic fallback: question + standard (with or without advanced)
-  if (hasQuestion && hasStandard) {
-    if (hasAdvanced) return 'audit_6col';
-    return 'generic_qa';
-  }
-
-  return null;
+  if (hasAdvanced) return 'audit_6col';
+  return 'generic_qa';
 }
 
 // ---------------------------------------------------------------------------
