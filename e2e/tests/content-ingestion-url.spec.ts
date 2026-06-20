@@ -99,13 +99,12 @@ async function deleteReferenceByUrl(url: string): Promise<void> {
   }
 }
 
-// bl-119: full reference-contract E2E suite (Orchestrator-flagged).
-// Skipped until the reference-item READ surface (browse / detail route) ships;
-// see SKIP RATIONALE above. The body is authored against the live reference
-// contract — NOT the dead content_items shape — so it can be un-skipped with
-// the read round-trip added back.
-test.describe
-  .skip('Content ingestion -- 8.0.5 URL ingestion (reference layer)', () => {
+// bl-119: full reference-contract E2E suite — UN-SKIPPED (ID-111.11).
+// The reference-item READ surface now ships (ID-111.7 /reference/[id] detail +
+// ID-111.8 success-card "View reference" link + ID-111.10 /reference browse),
+// so the create → read round-trip the SKIP RATIONALE blocked on is exercised
+// below (step 5b). Discharges bl-119.
+test.describe('Content ingestion -- 8.0.5 URL ingestion (reference layer)', () => {
   test.beforeEach(async () => {
     await deleteReferenceByUrl(TARGET_URL);
   });
@@ -192,6 +191,26 @@ test.describe
       .eq('source_url', normalisedUrl);
     expect(contentCountErr).toBeNull();
     expect(contentCount).toBe(0);
+
+    // 5b. Create → read round-trip (bl-119 / ID-111.11). The success card
+    //     surfaces a "View reference" link to the landed reference's own detail
+    //     page; following it must render the verbatim reference — title (h1) and
+    //     extracted body (canary sentinel via the shared ContentRenderer). This
+    //     is the read-side assertion the SKIP RATIONALE blocked on.
+    const viewReferenceLink = page.getByRole('link', {
+      name: /View reference/i,
+    });
+    await expect(viewReferenceLink).toBeVisible({ timeout: 15_000 });
+    await viewReferenceLink.click();
+    await expect(page).toHaveURL(new RegExp(`/reference/${referenceId}$`), {
+      timeout: 15_000,
+    });
+    await expect(
+      page.getByRole('heading', { level: 1, name: EXPECTED_TITLE }),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.getByText(SENTINEL, { exact: false }).first(),
+    ).toBeVisible();
 
     // 6. Re-submit the same URL via the API (preserves session cookies).
     //    Dedup contract: `{ url_already_exists: true, existing_item }` and no

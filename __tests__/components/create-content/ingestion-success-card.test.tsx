@@ -3,9 +3,13 @@
  *
  * Covers the reference variant (kind: 'reference') added under ID-110 {110.7}:
  * it renders the title, summary, domain/subtopic badges, warnings and a
- * copyable referenceId, and deliberately renders NONE of the content-variant
- * affordances (suggestedLayer Select, contentType badge, /item/<id> link) —
- * because no reference-detail page exists, so any such link would 404 (OQ-N).
+ * copyable referenceId. Under ID-111.8 the reference-detail page (/reference/
+ * <id>) now exists (ID-111.7), discharging OQ-N: the variant renders an
+ * additive "View reference" link when referenceId is a non-empty string, while
+ * still NOT rendering any content-variant affordances (suggestedLayer Select,
+ * contentType badge, /item/<id> link). The link is guarded — an empty
+ * referenceId keeps the copyable-id-only behaviour and never links to a bare
+ * /reference/ (which would 404).
  *
  * The default content variant is asserted unchanged to protect the second
  * consumer (upload-tab-content.tsx) found via gitnexus_impact.
@@ -132,6 +136,76 @@ describe('IngestionSuccessCard — reference variant (ID-110 {110.7})', () => {
     // Reference variant rendered WITHOUT a provider wrapper above; reaching
     // this assertion proves useLayerVocabulary was not invoked.
     expect(() => renderReference()).not.toThrow();
+  });
+});
+
+describe('IngestionSuccessCard — reference "View reference" link (ID-111.8 — discharges OQ-N)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function renderReference(
+    overrides: Partial<{
+      referenceId: string;
+      title: string;
+      summary: string;
+      domain: string;
+      subtopic: string;
+      warnings: string[];
+    }> = {},
+  ) {
+    return render(
+      <IngestionSuccessCard
+        kind="reference"
+        referenceId={overrides.referenceId ?? 'ri-1234-abcd'}
+        title={overrides.title ?? 'Procurement Reform Act 2023 — Guidance'}
+        summary={overrides.summary ?? 'A government guidance note on the Act.'}
+        domain={overrides.domain ?? 'Procurement'}
+        subtopic={overrides.subtopic ?? 'Legislation'}
+        warnings={overrides.warnings}
+      />,
+    );
+  }
+
+  it('renders a "View reference" link to /reference/<id> for a non-empty referenceId', () => {
+    renderReference({ referenceId: 'ri-9999-zzzz' });
+    const viewLink = screen.getByRole('link', { name: /view reference/i });
+    expect(viewLink).toHaveAttribute('href', '/reference/ri-9999-zzzz');
+  });
+
+  it('retains the copyable referenceId alongside the View reference link (additive, not a replacement)', () => {
+    renderReference({ referenceId: 'ri-9999-zzzz' });
+    // Both affordances co-exist: the View reference link AND the copyable id.
+    expect(
+      screen.getByRole('link', { name: /view reference/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('ri-9999-zzzz')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /copy reference id/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('renders NO link and never links to a bare /reference/ when referenceId is empty (B-10 guard)', () => {
+    // Empty referenceId is the IngestionSuccessCard fallback (referenceId ?? '');
+    // the guard must keep copyable-id-only behaviour and emit no link that would
+    // 404 against a bare /reference/.
+    render(
+      <IngestionSuccessCard
+        kind="reference"
+        referenceId=""
+        title="A reference with no id"
+        summary="Saved, but the id was not returned."
+      />,
+    );
+    expect(
+      screen.queryByRole('link', { name: /view reference/i }),
+    ).not.toBeInTheDocument();
+    const links = screen.queryAllByRole('link');
+    for (const link of links) {
+      const href = link.getAttribute('href') ?? '';
+      // No link may point at /reference/ (bare or with an empty segment).
+      expect(href).not.toMatch(/^\/reference(\/|$)/);
+    }
   });
 });
 

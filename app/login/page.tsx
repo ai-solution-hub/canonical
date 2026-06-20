@@ -39,6 +39,18 @@ export default function LoginPage() {
         )
       : '/';
 
+  function getSafeRedirect(target: string | null): string {
+    if (!target) return '/';
+
+    // Only allow same-origin relative paths.
+    // Reject protocol-relative URLs (`//...`) and backslash-prefixed variants.
+    if (!target.startsWith('/') || target.startsWith('//') || target.startsWith('/\\')) {
+      return '/';
+    }
+
+    return target;
+  }
+
   // --- State ---
   const [step, setStep] = useState<LoginStep>('email');
   const [email, setEmail] = useState('');
@@ -158,7 +170,9 @@ export default function LoginPage() {
     // Using router.push() would trigger a client-side navigation where the
     // proxy may not yet see the freshly-set session cookies.
     // Honour redirect param if present (e.g. OAuth consent flow).
-    window.location.href = safeRedirectTo;
+
+    window.location.href = getSafeRedirect(redirectTo);
+
   }
 
   async function handleSendMagicLink() {
