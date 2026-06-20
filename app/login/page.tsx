@@ -44,7 +44,11 @@ export default function LoginPage() {
 
     // Only allow same-origin relative paths.
     // Reject protocol-relative URLs (`//...`) and backslash-prefixed variants.
-    if (!target.startsWith('/') || target.startsWith('//') || target.startsWith('/\\')) {
+    if (
+      !target.startsWith('/') ||
+      target.startsWith('//') ||
+      target.startsWith('/\\')
+    ) {
       return '/';
     }
 
@@ -172,7 +176,6 @@ export default function LoginPage() {
     // Honour redirect param if present (e.g. OAuth consent flow).
 
     window.location.href = getSafeRedirect(redirectTo);
-
   }
 
   async function handleSendMagicLink() {
