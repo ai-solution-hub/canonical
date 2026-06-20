@@ -6,7 +6,7 @@ import {
 } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
-import { escapePostgrestValue } from '@/lib/supabase/escape';
+import { escapePostgrestQuotedValue } from '@/lib/supabase/escape';
 
 export const maxDuration = 30;
 
@@ -119,10 +119,8 @@ export async function GET(
     }
 
     // ── Fetch relationships ──────────────────────────────────────────
-    // Chain: escape PostgREST metacharacters first, then escape backslashes and double-quotes for .eq."..." syntax
-    const escaped = escapePostgrestValue(decodedName)
-      .replace(/\\/g, '\\\\')
-      .replace(/"/g, '\\"');
+    // Quote-safe escaping for the .eq."..." operands below (see escape.ts).
+    const escaped = escapePostgrestQuotedValue(decodedName);
     const { data: relRows, error: relError } = await supabase
       .from('entity_relationships')
       .select('source_entity, relationship_type, target_entity, confidence')

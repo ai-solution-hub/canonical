@@ -12,14 +12,26 @@ export function htmlToPlainText(html: string): string {
     return doc.body.textContent ?? '';
   }
 
-  // Server-side fallback: strip tags and decode common entities
-  return html
+  // Server-side fallback: strip tags and decode common entities.
+  let text = html
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(
       /<\/(p|div|h[1-6]|li|tr|blockquote|section|article|header|footer)>/gi,
       '\n',
-    )
-    .replace(/<[^>]*>/g, '')
+    );
+  // Strip tags in a loop so that removing one match cannot let its neighbours
+  // recombine into a fresh tag (e.g. "<scr<script>ipt>") — single-pass
+  // stripping is incomplete sanitization (CodeQL js/incomplete-multi-character-
+  // sanitization). Each pass strictly shrinks the string, so this terminates.
+  let prev: string;
+  do {
+    prev = text;
+    text = text.replace(/<[^>]*>/g, '');
+  } while (text !== prev);
+  // Drop any leftover unclosed tag fragment (e.g. "<script src=x" with no ">"),
+  // which the tag regex above cannot match — otherwise "<script" could survive.
+  text = text.replace(/<[^>]*$/g, '');
+  return text
     .replace(/&nbsp;/g, ' ')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')

@@ -180,12 +180,12 @@ export function ResponseActions({
           </Tooltip>
 
           {/* ── Separator between generate and tools groups ── */}
-          {!isApproved && (
+          {!(hasDraft && isApproved) && (
             <Separator orientation="vertical" className="mx-0.5 h-5" />
           )}
 
           {/* ── Tools group: More (Author Manually / Flag) ── */}
-          {!isApproved && (
+          {!(hasDraft && isApproved) && (
             <DropdownMenu>
               <Tooltip>
                 <TooltipTrigger asChild>
