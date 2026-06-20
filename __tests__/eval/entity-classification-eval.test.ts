@@ -65,7 +65,6 @@ function normaliseForComparison(name: string): string {
     .replace(/['']/g, "'")
     .replace(/[""]/g, '"')
     .replace(/\.$/, '')
-    .replace(/\blimited\b/g, 'limited')
     .replace(/\bltd\.?\b/g, 'limited');
 }
 

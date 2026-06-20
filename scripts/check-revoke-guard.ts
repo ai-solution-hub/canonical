@@ -106,13 +106,12 @@ const CREATE_FUNCTION_RE =
   /CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+public\.([a-zA-Z_][a-zA-Z0-9_]*|"[^"]+")\s*\(/gi;
 
 /**
- * REVOKE EXECUTE ON FUNCTION matcher. Verbatim from spec §2.3. The capture
- * group `FROM [^;]+?` is split on `,` and trimmed; the matcher accepts a
- * REVOKE iff the grantee list contains `anon` (with or without `PUBLIC`,
- * with or without `authenticated`).
+ * REVOKE EXECUTE ON FUNCTION matcher (prefix only). We intentionally stop at
+ * the opening `(` and parse args via paren-balancing in code to avoid
+ * catastrophic backtracking on nested/ambiguous argument text.
  */
 const REVOKE_FUNCTION_RE =
-  /REVOKE\s+EXECUTE\s+ON\s+FUNCTION\s+public\.([a-zA-Z_][a-zA-Z0-9_]*|"[^"]+")\s*\(([^)]*(?:\([^)]*\)[^)]*)*)\)\s+FROM\s+([^;]+?)(?:;|\s*$)/gim;
+  /REVOKE\s+EXECUTE\s+ON\s+FUNCTION\s+public\.([a-zA-Z_][a-zA-Z0-9_]*|"[^"]+")\s*\(/gim;
 
 // ── Types ──────────────────────────────────────────────────────────────────
 

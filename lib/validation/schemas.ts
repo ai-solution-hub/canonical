@@ -132,6 +132,25 @@ export const SearchBodySchema = z.object({
     .transform((v) => Math.max(1, Math.min(100, v))),
 });
 
+/**
+ * POST /api/search/reference — reference-scoped semantic search (ID-111 B-13/B-14).
+ *
+ * Distinct from `SearchBodySchema` (content_items-scoped /api/search): the
+ * `reference_search` RPC takes only `p_query` + `p_query_embedding` + `p_limit`
+ * — it has NO similarity-threshold parameter (the RPC applies its own internal
+ * `embedding*0.6 + fulltext*0.4` blend and returns the raw score columns), so
+ * this schema deliberately omits `threshold`. `limit` mirrors the RPC's
+ * `DEFAULT 20` and is clamped to [1, 100] like the content-search schema.
+ */
+export const ReferenceSearchBodySchema = z.object({
+  query: z.string().trim().min(1, 'Query is required').max(2000),
+  limit: z
+    .number()
+    .int()
+    .default(20)
+    .transform((v) => Math.max(1, Math.min(100, v))),
+});
+
 /** POST /api/embed */
 export const EmbedBodySchema = z.object({
   text: z.string().trim().min(1, 'Text is required').max(100_000),

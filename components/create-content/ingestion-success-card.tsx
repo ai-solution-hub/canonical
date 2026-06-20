@@ -37,15 +37,16 @@ export interface IngestionSuccessCardProps {
    * Which landing this card describes. `content` (default) is the historic
    * content_items landing — title links to /item/<id>, shows the contentType
    * badge and the layer-suggestion control. `reference` is the ID-110
-   * manual-URL reference_items landing — there is no reference-detail page, so
-   * it omits the link/badge/layer controls and surfaces a copyable referenceId
-   * instead (OQ-N).
+   * manual-URL reference_items landing — it omits the contentType badge and
+   * layer controls and surfaces a copyable referenceId, plus (since ID-111.7
+   * shipped the /reference/<id> detail page) a "View reference" link.
    */
   kind?: 'content' | 'reference';
   itemId?: string;
   /**
-   * The reference_items id for the reference variant. Rendered verbatim as a
-   * copyable value (no detail page exists to link to).
+   * The reference_items id for the reference variant. Rendered as a copyable
+   * value and, when non-empty, as the target of the "View reference" link
+   * (/reference/<id>).
    */
   referenceId?: string;
   title: string;
@@ -70,8 +71,9 @@ export interface IngestionSuccessCardProps {
  * Dispatches on `kind`: the `reference` variant (ID-110 manual-URL imports
  * landing in reference_items) is structurally distinct from the historic
  * `content` variant — it must not render a layer Select, a contentType badge
- * or a /item/<id> link (no reference-detail page exists; such a link would 404
- * — OQ-N). Splitting the variants keeps the content variant's
+ * or a /item/<id> link (reference_items have no content_items detail page).
+ * It does link to the reference's own detail page (/reference/<id>, shipped
+ * under ID-111.7). Splitting the variants keeps the content variant's
  * `useLayerVocabulary` call unconditional and means the reference variant has
  * no vocabulary-context dependency.
  */
@@ -103,10 +105,11 @@ interface ReferenceSuccessCardProps {
 /**
  * Reference variant — manual-URL imports landing in reference_items (ID-110).
  *
- * Renders the title, summary, domain/subtopic badges, warnings and a copyable
- * reference id. Deliberately omits the contentType badge, the layer-suggestion
- * Select and any /item/<id> "view item" link: no reference-detail page exists,
- * so the only durable affordance is copying the reference id for later lookup.
+ * Renders the title, summary, domain/subtopic badges, warnings, a copyable
+ * reference id and — when referenceId is non-empty — a "View reference" link to
+ * the /reference/<id> detail page (ID-111.7). Deliberately omits the
+ * contentType badge, the layer-suggestion Select and any /item/<id> "view item"
+ * link: reference_items have no content_items detail page.
  */
 function ReferenceSuccessCard({
   referenceId,
@@ -174,8 +177,8 @@ function ReferenceSuccessCard({
             </div>
           )}
 
-          {/* Copyable reference id — the only durable lookup affordance, as no
-              reference-detail page exists (OQ-N). */}
+          {/* Copyable reference id — a durable lookup affordance retained
+              alongside the "View reference" link below. */}
           <div className="mt-3">
             <p className="text-xs text-muted-foreground">Reference ID</p>
             <div className="mt-1 flex items-center gap-2">
@@ -195,8 +198,19 @@ function ReferenceSuccessCard({
             </div>
           </div>
 
-          {/* Actions — no "view item" link (no reference-detail page). */}
+          {/* Actions. The "View reference" link points at the reference's own
+              detail page (/reference/<id>, ID-111.7); guarded on a non-empty
+              referenceId so an empty id never links to a bare /reference/ (which
+              would 404) — copyable-id-only behaviour is retained in that case. */}
           <div className="mt-4 flex items-center gap-2">
+            {referenceId && (
+              <Button asChild size="sm" variant="outline" className="gap-1.5">
+                <Link href={`/reference/${referenceId}`}>
+                  View reference
+                  <ExternalLink className="size-3" aria-hidden="true" />
+                </Link>
+              </Button>
+            )}
             <Button asChild size="sm" variant="ghost" className="gap-1.5">
               <Link href="/item/new">
                 <Plus className="size-3" aria-hidden="true" />

@@ -459,7 +459,9 @@ function formatInValue(value: unknown): string {
   if (value === null || value === undefined) return 'null';
   if (typeof value === 'number') return String(value);
   // PostgREST in-list string values are double-quoted.
-  return `"${String(value).replace(/"/g, '\\"')}"`;
+  // Escape backslashes first, then quotes, to avoid incomplete escaping.
+  const escaped = String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  return `"${escaped}"`;
 }
 
 /**

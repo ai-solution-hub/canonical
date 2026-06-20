@@ -50,24 +50,18 @@ export function normaliseForComparison(content: string): string {
   let text = content
     // Replace block-level closing tags with a space to preserve word boundaries
     .replace(/<\/(p|div|h[1-6]|li|br)>/gi, ' ')
-    .replace(/<br\s*\/?>/gi, ' ');
-
-  // Strip all remaining tags. Apply repeatedly so malformed/overlapping
-  // multi-character patterns cannot re-form tag-like content after one pass.
-  let previous: string;
-  do {
-    previous = text;
-    text = text.replace(/<[^>]+>/g, '');
-  } while (text !== previous);
-
-  text = text
-    // Decode common HTML entities so marked vs Tiptap output matches
+    .replace(/<br\s*\/?>/gi, ' ')
+    // Strip all remaining tags
+    .replace(/<[^>]+>/g, '')
+    // Decode common HTML entities so marked vs Tiptap output matches.
+    // Important: decode ampersand last to avoid double-unescaping
+    // (e.g. "&amp;lt;" -> "&lt;" -> "<").
     .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
     // Collapse whitespace runs and trim
     .replace(/\s+/g, ' ')
     .trim();
