@@ -47,12 +47,20 @@ import type { CitationEntry, QualityData } from '@/types/procurement-metadata';
  * hydration on reload likewise failed.
  */
 export function normaliseForComparison(content: string): string {
-  const text = content
+  let text = content
     // Replace block-level closing tags with a space to preserve word boundaries
     .replace(/<\/(p|div|h[1-6]|li|br)>/gi, ' ')
-    .replace(/<br\s*\/?>/gi, ' ')
-    // Strip all remaining tags
-    .replace(/<[^>]+>/g, '')
+    .replace(/<br\s*\/?>/gi, ' ');
+
+  // Strip all remaining tags. Apply repeatedly so malformed/overlapping
+  // multi-character patterns cannot re-form tag-like content after one pass.
+  let previous: string;
+  do {
+    previous = text;
+    text = text.replace(/<[^>]+>/g, '');
+  } while (text !== previous);
+
+  text = text
     // Decode common HTML entities so marked vs Tiptap output matches
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
