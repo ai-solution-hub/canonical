@@ -13,13 +13,6 @@
 #      surfaced or internal-allow-listed, INV-16), security_invoker (INV-3),
 #      least-privilege grants (INV-10), set_config sole anon-exec (INV-20).
 #
-# NOTE: the legacy `migration-revoke-guard.yml` is RETAINED (not renamed) — it
-# still validly guards `public` SECURITY DEFINER hygiene (its diff-time REVOKE
-# lint is non-load-bearing now that public is unexposed, but its weekly cron
-# audit of anon-exec public functions remains meaningful). R7 self-block does
-# NOT occur: that guard keys on `CREATE FUNCTION public.` and ignores ID-115's
-# `api.` functions (verified).
-#
 # Spec: specs/id-115-data-api-schema-isolation PLAN S10 / TECH (g) / INV-2,3,10,16,20.
 
 name: API Grant Guard

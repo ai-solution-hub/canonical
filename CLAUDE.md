@@ -124,8 +124,8 @@ staging-refresh, github-environments, onprem-b1-deploy), `design/` (Warm Meridia
   deploy-only. GitHub: https://github.com/ai-solution-hub/canonical.
 - PR-blocking CI (`ci.yml`): 8 parallel jobs; draft PRs skip CI. Topology +
   failure-mode table: `${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/ci.md`.
-  Side workflows incl. `migration-revoke-guard`, `schema-parity`,
-  `task-view-vendor-drift` (re-vendor reminder when ledger schemas change).
+  Side workflows incl. `schema-parity`, `task-view-vendor-drift` (re-vendor
+  reminder when ledger schemas change).
 
 ## GitNexus — Code Intelligence
 

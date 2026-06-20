@@ -86,10 +86,10 @@ describe('KBIntegrationReview', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal('fetch', vi.fn());
-    // Mock stripMarkdown: strip HTML angle brackets (for legacy fixture data)
-    // and common markdown syntax (`*`, `_`, `#`) for assertion stability.
+    // Mock stripMarkdown: strip both HTML tags (for legacy fixture data) and
+    // common markdown syntax (`*`, `_`, `#`) for assertion stability.
     mockStripMarkdown.mockImplementation((text: string) =>
-      text.replace(/[<>]/g, '').replace(/[*_`#]/g, ''),
+      text.replace(/<[^>]*>/g, '').replace(/[*_`#]/g, ''),
     );
   });
 
