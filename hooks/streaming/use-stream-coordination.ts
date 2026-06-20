@@ -53,13 +53,15 @@ export function normaliseForComparison(content: string): string {
     .replace(/<br\s*\/?>/gi, ' ')
     // Strip all remaining tags
     .replace(/<[^>]+>/g, '')
-    // Decode common HTML entities so marked vs Tiptap output matches
+    // Decode common HTML entities so marked vs Tiptap output matches.
+    // Important: decode ampersand last to avoid double-unescaping
+    // (e.g. "&amp;lt;" -> "&lt;" -> "<").
     .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
     // Collapse whitespace runs and trim
     .replace(/\s+/g, ' ')
     .trim();
