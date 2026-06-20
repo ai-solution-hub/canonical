@@ -233,7 +233,9 @@ export function useBidResponseActions({
       if (isMobile || !editorInstanceRef.current) {
         // Mobile / no editor fallback — copy to clipboard
         try {
-          const plainText = html.replace(/<[^>]+>/g, '');
+          const container = document.createElement('div');
+          container.innerHTML = html;
+          const plainText = container.textContent ?? '';
           await navigator.clipboard.writeText(plainText);
           toast.success('Copied to clipboard — paste into your response');
         } catch {
