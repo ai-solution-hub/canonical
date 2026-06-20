@@ -18,11 +18,26 @@ type LoginStep =
   | 'forgot-sent';
 
 export default function LoginPage() {
+  function getSafeRedirectPath(redirect: string | null): string {
+    if (!redirect) return '/';
+    if (!redirect.startsWith('/') || redirect.startsWith('//')) return '/';
+
+    try {
+      const parsed = new URL(redirect, window.location.origin);
+      if (parsed.origin !== window.location.origin) return '/';
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    } catch {
+      return '/';
+    }
+  }
+
   // Read redirect param for post-login navigation (e.g. OAuth consent flow)
-  const redirectTo =
+  const safeRedirectTo =
     typeof window !== 'undefined'
-      ? new URLSearchParams(window.location.search).get('redirect')
-      : null;
+      ? getSafeRedirectPath(
+          new URLSearchParams(window.location.search).get('redirect'),
+        )
+      : '/';
 
   function getSafeRedirect(target: string | null): string {
     if (!target) return '/';
@@ -155,7 +170,9 @@ export default function LoginPage() {
     // Using router.push() would trigger a client-side navigation where the
     // proxy may not yet see the freshly-set session cookies.
     // Honour redirect param if present (e.g. OAuth consent flow).
+
     window.location.href = getSafeRedirect(redirectTo);
+
   }
 
   async function handleSendMagicLink() {
