@@ -166,7 +166,10 @@ export function useBatchCreate(): UseBatchCreateReturn {
 
         for (const pair of pairs) {
           // Trim to first 100 chars for the search to avoid overly long queries
-          const searchTerm = pair.question.slice(0, 100).replace(/%/g, '\\%');
+          // Escape LIKE special characters: backslash, % and _
+          const searchTerm = pair.question
+            .slice(0, 100)
+            .replace(/[\\%_]/g, '\\$&');
           const { data } = await supabase
             .from('content_items')
             .select('id, title')
