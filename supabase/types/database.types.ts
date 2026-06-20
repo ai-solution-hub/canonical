@@ -4235,6 +4235,30 @@ export type Database = {
           title: string
         }[]
       }
+      reference_list: {
+        Args: {
+          p_ingestion_source?: string
+          p_limit?: number
+          p_offset?: number
+          p_primary_domain?: string
+          p_primary_subtopic?: string
+          p_published_from?: string
+          p_published_to?: string
+        }
+        Returns: {
+          body_preview: string
+          ingestion_source: string
+          layer: string
+          primary_domain: string
+          primary_subtopic: string
+          published_at: string
+          reference_id: string
+          source_document_id: string
+          source_url: string
+          summary_preview: string
+          title: string
+        }[]
+      }
       reference_search: {
         Args: { p_limit?: number; p_query: string; p_query_embedding: string }
         Returns: {
@@ -9173,6 +9197,30 @@ export type Database = {
           source_document_id: string
           source_url: string
           summary: string
+          title: string
+        }[]
+      }
+      reference_list: {
+        Args: {
+          p_ingestion_source?: string
+          p_limit?: number
+          p_offset?: number
+          p_primary_domain?: string
+          p_primary_subtopic?: string
+          p_published_from?: string
+          p_published_to?: string
+        }
+        Returns: {
+          body_preview: string
+          ingestion_source: string
+          layer: string
+          primary_domain: string
+          primary_subtopic: string
+          published_at: string
+          reference_id: string
+          source_document_id: string
+          source_url: string
+          summary_preview: string
           title: string
         }[]
       }
