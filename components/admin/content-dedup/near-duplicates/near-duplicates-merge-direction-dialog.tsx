@@ -92,7 +92,7 @@ export function NearDuplicatesMergeDirectionDialog({
       <DialogContent>
         {open ? (
           <DialogBody
-            key={`${left.id}-${right.id}-${open ? 'open' : 'closed'}`}
+            key={`${left.id}-${right.id}-open`}
             onOpenChange={onOpenChange}
             left={left}
             right={right}
