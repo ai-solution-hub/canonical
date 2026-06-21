@@ -142,3 +142,8 @@ scripts/.propagation-catalog.json
 /lib/branding/clients/*.json
 !/lib/branding/clients/default.json
 /public/clients/*
+
+# jscpd raw report + parser output are regenerable via: bun run dupe-check;
+# the *.md analysis files (AUDIT-REPORT + per-area audits) are the tracked deliverable.
+docs/reports/jscpd-report/*.json
+docs/reports/jscpd-report/parse-analysis.py
