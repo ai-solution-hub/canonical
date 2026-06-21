@@ -141,9 +141,9 @@ async function extractDocxText(buffer: Buffer): Promise<{ text: string }> {
 }
 
 // Note: `updatePipelineProgress` extracted to `@/lib/pipeline/update-progress`
-// (S212 W2 Pattern E retrofit) so EP2's markdown-batch orchestrator can
-// share the same silent-catch / service-client wiring. The 10 mid-flight
-// call sites in this file now call the imported helper.
+// (S212 W2 Pattern E retrofit) so the Pattern E consumers (batch_reclassify,
+// folder-drop) can share the same silent-catch / service-client wiring. The
+// 10 mid-flight call sites in this file now call the imported helper.
 
 export async function POST(request: NextRequest) {
   let pipelineRunId: string | null = null;

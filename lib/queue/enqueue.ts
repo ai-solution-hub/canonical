@@ -198,7 +198,7 @@ export async function enqueueQueueJob<TBody extends Record<string, unknown>>(
   // that doesn't carry the `[k: string]: Json | undefined` index signature
   // `Json` requires. The cast is safe — `queueJobPayloadSchema.parse()`
   // round-trips the same shape — and matches the existing codebase pattern
-  // (see `lib/pipeline/start-run.ts:107`, `lib/ingest/markdown-orchestrator.ts:496`).
+  // (see `lib/pipeline/start-run.ts:107`, `lib/queue/handlers/batch-reclassify.ts:948`).
   const insertPayload = {
     job_type: args.jobType,
     status: 'pending' as JobStatus,

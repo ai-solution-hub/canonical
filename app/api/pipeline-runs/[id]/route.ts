@@ -1,7 +1,8 @@
 // app/api/pipeline-runs/[id]/route.ts
 //
-// GET single pipeline_runs row by id. Used by the EP2 markdown-batch UI
-// to poll for mid-flight progress (Pattern E). Auth: admin OR editor.
+// GET single pipeline_runs row by id. Used by the Pattern E consumers
+// (batch_reclassify, folder-drop) to poll for mid-flight progress.
+// Auth: admin OR editor.
 // Non-admins can only read rows they created (eq('created_by', user.id)),
 // matching the list endpoint's filter at app/api/pipeline-runs/route.ts:46.
 //

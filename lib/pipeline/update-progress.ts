@@ -1,9 +1,10 @@
 // lib/pipeline/update-progress.ts
 //
 // Mid-flight pipeline_runs progress UPDATE helper. Extracted from
-// `app/api/upload/route.ts:142-164` (EP3 file_upload pipeline) so EP2's
-// markdown-batch orchestrator can write the same shape against the same
-// row column without duplicating the silent-catch / service-client wiring.
+// `app/api/upload/route.ts:142-164` (EP3 file_upload pipeline) so the
+// Pattern E consumers (batch_reclassify, folder-drop) can write the same
+// shape against the same row column without duplicating the silent-catch /
+// service-client wiring.
 //
 // Companion to:
 //   - lib/pipeline/start-run.ts   (at-start INSERT — Pattern E §7.2)
