@@ -199,11 +199,3 @@ function calculatePassCost(
     (outputTokens / 1_000_000) * rates.output
   );
 }
-
-/**
- * Format a USD cost for display. Uses $ (USD) since Anthropic pricing is in USD.
- */
-export function formatCostUSD(cost: number): string {
-  if (cost < 0.01) return '<$0.01';
-  return `$${cost.toFixed(2)}`;
-}

@@ -3,7 +3,6 @@ import {
   estimateTokens,
   estimateQuestionCost,
   estimateBatchCost,
-  formatCostUSD,
 } from '@/lib/coverage/cost-estimation';
 
 // ──────────────────────────────────────────
@@ -203,31 +202,5 @@ describe('estimateBatchCost', () => {
     ]);
 
     expect(result.breakdown[0].contentItemCount).toBe(5);
-  });
-});
-
-// ──────────────────────────────────────────
-// formatCostUSD
-// ──────────────────────────────────────────
-
-describe('formatCostUSD', () => {
-  it('formats normal costs with two decimal places', () => {
-    expect(formatCostUSD(1.5)).toBe('$1.50');
-    expect(formatCostUSD(0.25)).toBe('$0.25');
-    expect(formatCostUSD(10.99)).toBe('$10.99');
-  });
-
-  it('returns <$0.01 for very small costs', () => {
-    expect(formatCostUSD(0.001)).toBe('<$0.01');
-    expect(formatCostUSD(0.009)).toBe('<$0.01');
-    expect(formatCostUSD(0)).toBe('<$0.01');
-  });
-
-  it('formats costs at the threshold correctly', () => {
-    expect(formatCostUSD(0.01)).toBe('$0.01');
-  });
-
-  it('handles large costs', () => {
-    expect(formatCostUSD(100.456)).toBe('$100.46');
   });
 });
