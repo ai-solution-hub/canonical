@@ -1179,18 +1179,18 @@ jobs:
 
       - name: Install Supabase CLI
         run: |
-          # Upstream dropped the un-versioned *.deb asset (latest now ships only
-          # version-stamped *.deb, e.g. supabase_2.101.0_linux_amd64.deb). The
-          # un-versioned *.tar.gz is still published at releases/latest/download/,
-          # so install the binary from the tarball to keep "always latest" without
-          # pinning a version. See PR fixing the persistent 404 on this step.
+          # Install the CLI binary from the version-stamped *.tar.gz asset.
+          # PINNED to v2.107.0 deliberately: an unpinned `releases/latest` lets an
+          # upstream CLI release silently change `supabase gen types` output and
+          # flip the types-parity diff out from under us. Bump this version on
+          # purpose (and review the parity impact) rather than tracking latest.
           #
           # CLI v2.102.0+ ships TWO co-located binaries inside the tarball:
           # `supabase` (a thin shim) and `supabase-go` (the real CLI the shim
           # forwards to). Installing only the shim makes it fail at runtime with
           # "Could not find the supabase-go binary". Install both; the second is
           # conditional so older tarballs (shim-only) keep working.
-          curl -fsSL https://github.com/supabase/cli/releases/latest/download/supabase_linux_amd64.tar.gz -o /tmp/supabase.tar.gz
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.107.0/supabase_2.107.0_linux_amd64.tar.gz -o /tmp/supabase.tar.gz
           tar -xzf /tmp/supabase.tar.gz -C /tmp
           sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
           if [ -f /tmp/supabase-go ]; then
