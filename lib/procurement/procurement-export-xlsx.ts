@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 import { enGB } from 'date-fns/locale';
 import { countWords, wordCountPercentage } from '@/lib/editor-utils';
 import { stripMarkdown } from '@/lib/content/strip-markdown';
+import { BRANDING } from '@/lib/client-config';
 import type {
   ExportQuestion,
   ExportBidMetadata,
@@ -437,7 +438,7 @@ export async function generateBidXlsx(
     : questions.filter((q) => q.response_text !== null);
 
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'Knowledge Hub';
+  workbook.creator = BRANDING.productName;
   workbook.created = new Date();
 
   // Sheet 1: Procurement Responses

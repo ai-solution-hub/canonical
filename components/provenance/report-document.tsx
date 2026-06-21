@@ -7,6 +7,7 @@
 
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import { BRANDING } from '@/lib/client-config';
 
 // ──────────────────────────────────────────
 // Types
@@ -258,7 +259,7 @@ function Footer({ from, to }: { from: string; to: string }) {
     <Text
       style={styles.footer}
       render={({ pageNumber, totalPages }) =>
-        `Knowledge Hub verification history \u2014 ${formatDateUK(from)}\u2013${formatDateUK(to)} \u2014 Page ${pageNumber} of ${totalPages}`
+        `${BRANDING.productName} verification history \u2014 ${formatDateUK(from)}\u2013${formatDateUK(to)} \u2014 Page ${pageNumber} of ${totalPages}`
       }
       fixed
     />
@@ -274,7 +275,7 @@ export default function ReportDocument({
   from,
   to,
   generatedBy,
-  organisationName = 'Knowledge Hub',
+  organisationName = BRANDING.productName,
 }: ReportDocumentProps) {
   // Group rows by day
   const dayGroups = new Map<string, VerificationRow[]>();

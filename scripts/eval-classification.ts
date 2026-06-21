@@ -416,7 +416,7 @@ async function classifyFixtureItem(
   // Dynamic imports — avoids loading these modules in cached mode.
   const { getAnthropicClient, getAIModel } = await import('../lib/anthropic');
   const { loadSkill } = await import('../lib/ai/skills/loader');
-  const { CLIENT_CONFIG, buildDisambiguationBlock } =
+  const { CLIENT_CONFIG, BRANDING, buildDisambiguationBlock } =
     await import('../lib/client-config');
   const { extractToolResult } = await import('../lib/ai-parse');
 
@@ -478,7 +478,11 @@ async function classifyFixtureItem(
       .replaceAll(
         '{CLIENT_PRODUCT_SHORT}',
         CLIENT_CONFIG.entity_examples.product_short,
-      );
+      )
+      // {PRODUCT_NAME} = this platform's product name (BRANDING.productName),
+      // routed through the same pass as the {CLIENT_*} placeholders. Mirrors
+      // lib/ai/classify.ts so the eval harness cannot drift (ID-119.5).
+      .replaceAll('{PRODUCT_NAME}', BRANDING.productName);
 
   const prompt =
     resolveClientPlaceholders(

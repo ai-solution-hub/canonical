@@ -1,6 +1,6 @@
 # Entity Type Reference
 
-This document provides detailed definitions for the 12 entity types used in Knowledge Hub
+This document provides detailed definitions for the 12 entity types used in {PRODUCT_NAME}
 content classification. Load this alongside the main classification skill when entity
 extraction accuracy is critical.
 
