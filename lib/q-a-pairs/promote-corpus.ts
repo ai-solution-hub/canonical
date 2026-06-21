@@ -4,9 +4,13 @@
  * ID-59 {59.22} — promoteCorpusExtractions core loop + atomic CAS + field map.
  * ID-59 {59.23} — embed-decouple + self-heal retry path (OQ-3).
  * ID-59 {59.24} — OQ-2 active retirement pass (after the promote loop).
+ * ID-59 {59.29} — corpus sidecar-emit leg (emit-then-publish) + bl-323 fold:
+ *                 unified per-extraction failure record (embed | sidecar).
  *
  * Spec: specs/id-59-concurrent-edit-intent-arbitration/TECH-qa-corpus-promotion.md
  *       R1 steps 1, 2, 3, 4, 5, 6, 7.
+ *       specs/id-59-concurrent-edit-intent-arbitration/TECH-qa-sidecar-canonical.md
+ *       R1 (corpus-promotion emit leg; maps INV-9/INV-10/INV-11).
  * Product invariants: INV-1, INV-3, INV-4, INV-5, INV-6, INV-7, INV-8,
  *                    INV-9, INV-10, INV-11, INV-12, INV-23.
  *
@@ -45,9 +49,19 @@
  * Loop-until-dry with a cap of 10 iterations guards page-limited query results.
  */
 
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+
 import { tryQuery } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
 import { generateEmbedding } from '@/lib/ai/embed';
+import {
+  qaSidecarRelPath,
+  sdUuid5,
+  serialiseCarriedSet,
+  type CarriedSet,
+} from '@/lib/q-a-pairs/sidecar-path';
+import { writeFileFirstWithRestore } from '@/lib/edit-intent/write-back';
 import type { Database } from '@/supabase/types/database.types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -62,6 +76,37 @@ export type SkipReason = 'no_answer_text';
 export interface SkipRecord {
   extractionId: string;
   reason: SkipReason;
+}
+
+/**
+ * Reason a single promotion attempt FAILED this run (distinct from a skip — the
+ * extraction WAS promotable and reached the embed/emit step, but could not be
+ * fully published). Both leave the pair in the retryable `draft` state; the
+ * eligibility RPC re-selects it next run → self-healing.
+ *
+ *   'embed_failed'   — generateEmbedding threw, or the embed UPDATE no-op'd.
+ *   'sidecar_failed' — the corpus sidecar file could not be written / linked
+ *                      (INV-11: never a silent DB-only published-without-a-file
+ *                      pair). emit-then-publish means the publish is ABORTED, so
+ *                      the pair stays draft, exactly like an embed failure.
+ */
+export type PromotionFailureReason = 'embed_failed' | 'sidecar_failed';
+
+/**
+ * Structured per-extraction failure record (INV-11; folds bl-323).
+ *
+ * Replaces the old operator embed-failure-ONLY log: ONE unified record now
+ * carries every failed promotion attempt with the extraction id, the pair id
+ * that was being published, and the failure reason. The Orchestrator / log
+ * consumer reads `failures` to see exactly which extractions did not publish
+ * this run and why — no silent drop, no embed-only blind spot.
+ */
+export interface PromotionFailureRecord {
+  extractionId: string;
+  /** The pair id being published (a freshly-CAS-linked pair, or the existing
+   *  self-heal pair). bl-323: the failure record always names the pair. */
+  newPairId: string;
+  reason: PromotionFailureReason;
 }
 
 /**
@@ -111,6 +156,21 @@ export interface PromotionSummary {
    * The count is the signal; there is no silent drop.
    */
   retired_no_replacement: number;
+  /**
+   * Extractions whose corpus sidecar could not be emitted this run (TECH R1.3,
+   * INV-11; folds bl-323). emit-then-publish: a sidecar failure ABORTS the
+   * publish, so the pair stays draft+NULL (NOT a published-without-a-file pair)
+   * and the eligibility RPC re-selects it next run → self-healing, exactly like
+   * embed_failed. Idle mode (COCOINDEX_SOURCE_PATH unset) is NOT counted here —
+   * a DB-only publish that self-heals on the next bound walk is not a failure.
+   */
+  sidecar_failed: number;
+  /**
+   * Unified per-extraction failure log (INV-11; folds bl-323). One record per
+   * failed promotion attempt — embed OR sidecar — each naming the extraction,
+   * the pair, and the reason. Replaces the old embed-failure-only operator log.
+   */
+  failures: PromotionFailureRecord[];
 }
 
 // ---------------------------------------------------------------------------
@@ -156,6 +216,11 @@ export interface SupabaseClientLike {
  *       CAS 0 rows → delete orphan + count already_promoted.
  *   3d. For linked-but-unembedded rows: skip INSERT + CAS; jump to step 4
  *       to re-attempt embedding on the existing pair (self-heal, OQ-3).
+ *   5.  Emit sidecar (TECH R1, CAS-won branch only): write the carried-set
+ *       `__qa__/<pairId>.md` + set source_document_id, THEN publish
+ *       (emit-then-publish). A sidecar failure aborts the publish (pair stays
+ *       draft, count sidecar_failed, self-heal next run). Idle mode
+ *       (COCOINDEX_SOURCE_PATH unset) → DB-only publish, NOT a failure.
  *   4.  Embed: generateEmbedding(question_text). On success: UPDATE pair
  *       SET question_embedding + publication_status='published' together
  *       (INV-12). On failure: leave draft+NULL, count embed_failed, continue.
@@ -198,7 +263,10 @@ export async function promoteCorpusExtractions(
   let promoted = 0;
   let already_promoted = 0;
   let embed_failed = 0;
+  let sidecar_failed = 0;
   const skipped: SkipRecord[] = [];
+  // INV-11 / bl-323: unified per-extraction failure log (embed OR sidecar).
+  const failures: PromotionFailureRecord[] = [];
 
   // -------------------------------------------------------------------------
   // Per-extraction loop
@@ -224,6 +292,11 @@ export async function promoteCorpusExtractions(
         extraction.extracted_question_text,
         () => {
           embed_failed++;
+          failures.push({
+            extractionId,
+            newPairId: existingPairId,
+            reason: 'embed_failed',
+          });
         },
       );
       continue;
@@ -336,9 +409,50 @@ export async function promoteCorpusExtractions(
       already_promoted++;
     } else {
       // ---- CAS won (1 row) — pair is linked ----
-      // Now attempt embedding. promoted++ BEFORE embed so the INV-23 equation
-      // holds regardless of embed outcome: promoted++ then possibly embed_failed++.
+      // promoted++ BEFORE the emit/embed steps so the INV-23 equation holds
+      // regardless of outcome: promoted++ then possibly sidecar_failed++ /
+      // embed_failed++.
       promoted++;
+
+      // ---- Step 5 — emit-then-publish (TECH R1.1/R1.3 option a, RECOMMENDED) ----
+      //
+      // Emit the sidecar (write the carried-set file + set source_document_id)
+      // BEFORE embedAndPublish. A sidecar failure ABORTS the publish: the pair
+      // stays draft+NULL — the SAME retryable state the embed-decouple already
+      // produces (INV-11: never a published-without-a-file pair). The
+      // eligibility RPC re-selects it next run → self-healing.
+      //
+      // Idle mode (COCOINDEX_SOURCE_PATH unset, write-back.ts precedent) is NOT
+      // a failure: emitCorpusSidecar returns 'idle', the file leg is skipped,
+      // and we fall through to a DB-only publish that self-heals on the next
+      // bound walk.
+      // Carried set = the pair's state at promotion time. The corpus INSERT
+      // (3a-i) sets ONLY question_text + answer_standard; answer_advanced /
+      // scope_tag / anti_scope_tag are the q_a_pairs DB defaults (null, omitted
+      // from the file) and alternate_question_phrasings is the DEFAULT '{}'
+      // (an empty text[]). Pass the empty array explicitly — CarriedSet requires
+      // it and serialiseCarriedSet would emit "undefined" otherwise.
+      const emitOutcome = await emitCorpusSidecar(client, newPairId, {
+        question_text: extraction.extracted_question_text,
+        answer_standard: answerText,
+        alternate_question_phrasings: [],
+      });
+
+      if (emitOutcome === 'failed') {
+        // Sidecar leg failed — abort the publish (pair stays draft+NULL).
+        sidecar_failed++;
+        failures.push({
+          extractionId,
+          newPairId,
+          reason: 'sidecar_failed',
+        });
+        continue;
+      }
+
+      // Emit succeeded ('written') or was skipped in idle mode ('idle').
+      // Either way the pair is safe to publish: 'written' means the file +
+      // linkage are in place; 'idle' means there is no file leg to write and the
+      // bound re-walk self-heals later.
       await embedAndPublish(
         client,
         extractionId,
@@ -346,6 +460,11 @@ export async function promoteCorpusExtractions(
         extraction.extracted_question_text,
         () => {
           embed_failed++;
+          failures.push({
+            extractionId,
+            newPairId,
+            reason: 'embed_failed',
+          });
         },
       );
     }
@@ -368,7 +487,134 @@ export async function promoteCorpusExtractions(
     embed_failed,
     retired,
     retired_no_replacement,
+    sidecar_failed,
+    failures,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Step 5 — corpus sidecar emit helper (TECH R1; maps INV-9, INV-11; folds bl-323)
+//
+// Writes the pair's `__qa__/<pairId>.md` carried-set sidecar AND sets
+// q_a_pairs.source_document_id, as ONE file-first + compensating-restore save
+// reusing the shared writeFileFirstWithRestore primitive ({59.28}).
+//
+// KEY ON THE PAIR PK (newPairId), NOT the extraction id: a pair has ONE
+// canonical sidecar path regardless of which leg emits it. {59.30}'s
+// materialise path keys on pairId too — load-bearing for {59.32} round-trip
+// idempotency.
+//
+// Carried set ONLY (INV-2): question_text + answer_standard (the corpus
+// extraction's fields). answer_advanced / scope_tag / anti_scope_tag /
+// alternate_question_phrasings are the q_a_pairs DB defaults at promotion time
+// (null / null / null / '{}'), so they are absent / empty in the file — NO
+// lifecycle keys ever (INV-9).
+//
+// source_document_id = sdUuid5(relPath) — the TS mirror of the Python `sd:`
+// uuid5, so the bound re-walk re-mints the SAME source_documents.id and the
+// linkage is stable (INV-20). FK-LESS by design (M1 / BUG-E precedent) — the
+// row it points at appears on the next walk; there is no FK to violate.
+//
+// Affected-row assertion: the source_document_id UPDATE is asserted to affect
+// exactly 1 row — a 0-row REST PATCH is a silent failure (mirrors the CAS /
+// embed / archive affected-row discipline elsewhere in this file). A 0-row or
+// errored UPDATE rejects out of writeFileFirstWithRestore, which then restores
+// the file and re-raises → the caller counts sidecar_failed and aborts publish.
+//
+// New-file mint caveat: writeFileFirstWithRestore snapshots prior bytes via
+// readFile and does not create parent dirs — it was built for the content-edit
+// case where the file already exists. The corpus leg MINTS a fresh sidecar, so
+// this helper first ensures the `__qa__/` dir exists and the target file exists
+// (an empty touch) so the snapshot+restore primitive can be reused unchanged.
+// Surfaced for the Checker; {59.30}'s materialise path faces the same mint.
+// ---------------------------------------------------------------------------
+
+/**
+ * Outcome of an emit attempt.
+ *   'written' — the sidecar file + source_document_id linkage are in place.
+ *   'idle'    — COCOINDEX_SOURCE_PATH unset; no file leg written (DB-only
+ *               publish self-heals on the next bound walk). NOT a failure.
+ *   'failed'  — the file write or the linkage UPDATE failed; the pair must NOT
+ *               be published (emit-then-publish abort, INV-11).
+ */
+type SidecarEmitOutcome = 'written' | 'idle' | 'failed';
+
+async function emitCorpusSidecar(
+  client: SupabaseClientLike,
+  newPairId: string,
+  carried: CarriedSet,
+): Promise<SidecarEmitOutcome> {
+  // ── Idle mode: no source-binding folder → skip the file leg (DB-only) ───────
+  // Mirrors writeBackFileFirst's idle fall-through (write-back.ts:317-320): the
+  // save still lands and the next bound walk self-heals. NOT a sidecar_failed.
+  const sourceRoot = process.env.COCOINDEX_SOURCE_PATH;
+  if (!sourceRoot) {
+    return 'idle';
+  }
+
+  const relPath = qaSidecarRelPath(newPairId);
+  const absPath = join(sourceRoot, relPath);
+  const newContent = serialiseCarriedSet(carried);
+  const sourceDocumentId = sdUuid5(relPath);
+
+  try {
+    // New-file mint: ensure the `__qa__/` dir + an empty target exist so the
+    // shared snapshot→write→applyDbLeg→restore primitive (built for the edit
+    // case) can be reused unchanged. Idempotent — flag 'wx' is NOT used so a
+    // re-emit over an existing sidecar (next-run self-heal) does not throw here.
+    await mkdir(dirname(absPath), { recursive: true });
+    await ensureFileExists(absPath);
+
+    // ── applyDbLeg: link the pair to the (re-mintable) source_documents row ───
+    // UPDATE q_a_pairs SET source_document_id = sdUuid5(relPath) WHERE id =
+    // newPairId. Assert affected-row count = 1 (0-row PATCH = silent failure).
+    const applyDbLeg = async () => {
+      const linkResult = await client
+        .from('q_a_pairs')
+        .update({ source_document_id: sourceDocumentId })
+        .eq('id', newPairId)
+        .select('id');
+
+      const linkError = linkResult?.error ?? null;
+      if (linkError) {
+        throw new Error(
+          safeErrorMessage(
+            linkError,
+            `emitCorpusSidecar: source_document_id UPDATE failed for pair ${newPairId}`,
+          ),
+        );
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const linkRows: any[] = linkResult?.data ?? [];
+      if (linkRows.length !== 1) {
+        throw new Error(
+          `emitCorpusSidecar: source_document_id UPDATE affected ${linkRows.length} rows (expected 1) for pair ${newPairId}`,
+        );
+      }
+    };
+
+    await writeFileFirstWithRestore({ absPath, newContent, applyDbLeg });
+    return 'written';
+  } catch {
+    // File write OR the linkage UPDATE failed (writeFileFirstWithRestore has
+    // already restored the file on a DB-leg failure). Signal the caller to
+    // abort the publish — the pair stays draft and self-heals next run.
+    return 'failed';
+  }
+}
+
+/**
+ * Touch an empty file if it does not already exist, so the snapshot leg of the
+ * reused writeFileFirstWithRestore primitive (which reads prior bytes) has a
+ * file to read on a fresh mint. Uses the 'a' (append) flag: it creates the file
+ * when absent and is a no-op for content when it already exists, so a re-emit
+ * over an existing sidecar is preserved for writeFileFirstWithRestore to
+ * snapshot+overwrite.
+ */
+async function ensureFileExists(absPath: string): Promise<void> {
+  // flag 'a': create-if-absent, never truncate. An empty newContent string
+  // appends nothing, so an existing file is left intact for the snapshot.
+  await writeFile(absPath, '', { encoding: 'utf8', flag: 'a' });
 }
 
 // ---------------------------------------------------------------------------

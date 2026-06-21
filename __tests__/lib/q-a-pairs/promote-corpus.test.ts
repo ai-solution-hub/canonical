@@ -1,8 +1,11 @@
 /**
  * Unit tests for promoteCorpusExtractions — ID-59 {59.22} + {59.23} + {59.24}
+ *                                                  + {59.29} (sidecar emit)
  *
  * Spec: specs/id-59-concurrent-edit-intent-arbitration/TECH-qa-corpus-promotion.md
  *       R1 steps 1, 2, 3, 4, 5, 6, 7
+ *       specs/id-59-concurrent-edit-intent-arbitration/TECH-qa-sidecar-canonical.md
+ *       R1 (corpus-promotion emit leg)
  * Product invariants tested: INV-1, INV-3, INV-4, INV-5, INV-6, INV-7, INV-8,
  *                            INV-9, INV-10, INV-11, INV-12 + INV-23 equation
  *
@@ -10,7 +13,10 @@
  * the mock Supabase calls made — NOT implementation internals.
  *
  * Mock discipline: createMockSupabaseClient() from the shared helper — never
- * hand-roll Supabase mocks (per __tests__/CLAUDE.md + test-philosophy).
+ * hand-roll Supabase mocks (per __tests__/CLAUDE.md + test-philosophy). The
+ * {59.29} sidecar-emit tests write to a REAL temp directory (a stand-in for
+ * COCOINDEX_SOURCE_PATH) so the carried-set file contents are proven against
+ * actual bytes on disk, mirroring the {59.9} write-back.test.ts pattern.
  *
  * generateEmbedding is stubbed via vi.hoisted() per __tests__/CLAUDE.md hoisting
  * rules — module-level mock variables must be initialised with vi.hoisted().
@@ -18,9 +24,17 @@
  * @vitest-environment node
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
+import { mkdtemp, readFile, rm, access, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { MockSupabaseClient } from '@/__tests__/helpers/mock-supabase';
 import { createMockSupabaseClient } from '@/__tests__/helpers/mock-supabase';
+import {
+  qaSidecarRelPath,
+  sdUuid5,
+  parseCarriedSet,
+} from '@/lib/q-a-pairs/sidecar-path';
 
 // ---------------------------------------------------------------------------
 // vi.hoisted — mock factory must be initialised before vi.mock() is hoisted
@@ -1018,5 +1032,317 @@ describe('promoteCorpusExtractions — {59.24} OQ-2 active retirement pass', () 
     );
     expect(archiveCall).toBeDefined();
     expect(archiveCall![0].superseded_by).toBe(UUID_NEW_PAIR_REPLACEMENT);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test suite — {59.29} corpus sidecar-emit leg (TECH R1; INV-9/INV-10/INV-11;
+//             folds bl-323). emit-THEN-publish ordering.
+//
+// These are file-backed behaviour tests: the sidecar file is written to a REAL
+// temp directory (a stand-in for COCOINDEX_SOURCE_PATH) so the carried-set
+// bytes on disk are asserted directly — NOT a mock (mirrors the {59.9}
+// write-back.test.ts proofs). The DB legs stay on the shared Supabase mock so
+// each failure mode is forced deterministically.
+//
+// CAS-won emit-then-publish DB-call order (COCOINDEX_SOURCE_PATH set):
+//   rpc                              → eligible set
+//   single                           → INSERT pair returns new pair id
+//   then #1                          → CAS UPDATE (1 row)
+//   then #2                          → source_document_id UPDATE (emit DB leg)
+//   then #3                          → embed UPDATE (publish)
+// ---------------------------------------------------------------------------
+
+describe('promoteCorpusExtractions — {59.29} corpus sidecar-emit leg (emit-then-publish)', () => {
+  let supabase: MockSupabaseClient;
+  let sourceRoot: string;
+  const priorSourcePath = process.env.COCOINDEX_SOURCE_PATH;
+
+  beforeEach(async () => {
+    supabase = createMockSupabaseClient();
+    vi.clearAllMocks();
+    mockGenerateEmbedding.mockResolvedValue(STUB_EMBEDDING);
+    sourceRoot = await mkdtemp(join(tmpdir(), 'kh-corpus-sidecar-'));
+    process.env.COCOINDEX_SOURCE_PATH = sourceRoot;
+  });
+
+  afterEach(async () => {
+    if (priorSourcePath === undefined) {
+      delete process.env.COCOINDEX_SOURCE_PATH;
+    } else {
+      process.env.COCOINDEX_SOURCE_PATH = priorSourcePath;
+    }
+    await rm(sourceRoot, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
+
+  // -------------------------------------------------------------------------
+  // Happy path: a successful promotion writes the sidecar .md (carried set
+  // ONLY — NO lifecycle keys) AND sets source_document_id = sdUuid5(relPath),
+  // keyed on the PAIR PK. The pair is then published (embed UPDATE fires).
+  // (INV-9 / INV-11; seed = newPairId consistency with {59.30})
+  // -------------------------------------------------------------------------
+  it('writes the carried-set sidecar (no lifecycle keys) keyed on the pair PK + sets source_document_id, then publishes', async () => {
+    const extraction = makeExtraction({
+      id: UUID_A,
+      extracted_question_text: 'What is the procurement threshold?',
+      extracted_answer_text: 'The threshold is £25,000.',
+    });
+
+    supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
+    // INSERT pair → new pair id
+    supabase._chain.single.mockResolvedValueOnce({
+      data: { id: UUID_NEW_PAIR },
+      error: null,
+    });
+    // then #1: CAS UPDATE → 1 row
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: extraction.id }], error: null }),
+    );
+    // then #2: source_document_id UPDATE (emit DB leg) → 1 row
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: UUID_NEW_PAIR }], error: null }),
+    );
+    // then #3: embed UPDATE (publish) → 1 row
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: UUID_NEW_PAIR }], error: null }),
+    );
+
+    const result: PromotionSummary = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
+
+    expect(result.promoted).toBe(1);
+    expect(result.sidecar_failed).toBe(0);
+    expect(result.embed_failed).toBe(0);
+    expect(result.failures).toHaveLength(0);
+
+    // The sidecar is keyed on the PAIR PK (newPairId), NOT the extraction id.
+    const relPath = qaSidecarRelPath(UUID_NEW_PAIR);
+    expect(relPath).not.toContain(UUID_A); // not keyed on the extraction id
+    const onDisk = await readFile(join(sourceRoot, relPath), 'utf8');
+
+    // Carried set round-trips: question + standard answer present.
+    const carried = parseCarriedSet(onDisk);
+    expect(carried.question_text).toBe('What is the procurement threshold?');
+    expect(carried.answer_standard).toBe('The threshold is £25,000.');
+
+    // INV-9 / INV-11: NO lifecycle keys anywhere in the written file.
+    for (const forbidden of [
+      'edit_intent',
+      'valid_from',
+      'valid_to',
+      'source_document_id',
+      'publication_status',
+      'created_at',
+      'updated_at',
+      'question_embedding',
+    ]) {
+      expect(onDisk).not.toContain(forbidden);
+    }
+
+    // source_document_id UPDATE carries sdUuid5(relPath) for the pair PK.
+    const updateCalls = supabase._chain.update.mock.calls as Array<
+      [Record<string, unknown>]
+    >;
+    const linkCall = updateCalls.find(
+      (call) => 'source_document_id' in call[0],
+    );
+    expect(linkCall).toBeDefined();
+    expect(linkCall![0].source_document_id).toBe(sdUuid5(relPath));
+
+    // Publish happened (emit succeeded first): embed UPDATE fired.
+    const embedCall = updateCalls.find(
+      (call) => call[0]?.publication_status === 'published',
+    );
+    expect(embedCall).toBeDefined();
+    expect(mockGenerateEmbedding).toHaveBeenCalledTimes(1);
+  });
+
+  // -------------------------------------------------------------------------
+  // Sidecar failure (file leg) ABORTS publish: the pair stays draft (NOT
+  // published-without-a-file), sidecar_failed increments, the failure record
+  // carries extractionId + newPairId (bl-323), and embed is never attempted.
+  // Forced via the source_document_id UPDATE returning 0 rows (silent no-op
+  // → affected-row assertion → restore → 'failed').
+  // -------------------------------------------------------------------------
+  it('sidecar failure aborts publish (pair stays draft), increments sidecar_failed, records extractionId+newPairId (bl-323), no embed', async () => {
+    const extraction = makeExtraction({ id: UUID_A });
+
+    supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
+    supabase._chain.single.mockResolvedValueOnce({
+      data: { id: UUID_NEW_PAIR },
+      error: null,
+    });
+    // then #1: CAS UPDATE → 1 row
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: extraction.id }], error: null }),
+    );
+    // then #2: source_document_id UPDATE → 0 rows (silent no-op → emit fails)
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    const result: PromotionSummary = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
+
+    // promoted++ happened (INV-23 attempt), but the publish was aborted.
+    expect(result.promoted).toBe(1);
+    expect(result.sidecar_failed).toBe(1);
+    expect(result.embed_failed).toBe(0);
+
+    // bl-323 unified failure record.
+    expect(result.failures).toContainEqual({
+      extractionId: UUID_A,
+      newPairId: UUID_NEW_PAIR,
+      reason: 'sidecar_failed',
+    });
+
+    // The pair was NOT published — embed was never attempted (emit-then-publish).
+    expect(mockGenerateEmbedding).not.toHaveBeenCalled();
+    const updateCalls = supabase._chain.update.mock.calls as Array<
+      [Record<string, unknown>]
+    >;
+    const embedCall = updateCalls.find(
+      (call) => call[0]?.publication_status === 'published',
+    );
+    expect(embedCall).toBeUndefined();
+  });
+
+  // -------------------------------------------------------------------------
+  // Self-heal after a sidecar failure: a subsequent run re-selects the
+  // linked-but-unembedded pair (RPC returns it with promoted_to_pair_id set)
+  // and succeeds — the embed UPDATE publishes it. Proves the draft pair is
+  // retryable, not stuck (INV-11 self-healing).
+  // -------------------------------------------------------------------------
+  it('self-heals next run: a linked-but-unembedded pair re-selected by the RPC publishes via the embed path', async () => {
+    // Run 2 input: the pair from a prior sidecar-failed run is now linked.
+    const extraction = makeExtraction({
+      id: UUID_A,
+      promoted_to_pair_id: UUID_EXISTING_PAIR,
+    });
+
+    supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
+    // Self-heal path: NO INSERT, NO CAS, NO emit — straight to embed UPDATE.
+    // then #1: embed UPDATE → 1 row (publish)
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: UUID_EXISTING_PAIR }], error: null }),
+    );
+
+    const result: PromotionSummary = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
+
+    expect(result.promoted).toBe(1);
+    expect(result.embed_failed).toBe(0);
+    expect(result.sidecar_failed).toBe(0);
+    expect(result.failures).toHaveLength(0);
+
+    // No new pair INSERT (the pair already exists from the prior run).
+    expect(supabase._chain.insert).not.toHaveBeenCalled();
+    // Published this run.
+    const updateCalls = supabase._chain.update.mock.calls as Array<
+      [Record<string, unknown>]
+    >;
+    const embedCall = updateCalls.find(
+      (call) => call[0]?.publication_status === 'published',
+    );
+    expect(embedCall).toBeDefined();
+  });
+
+  // -------------------------------------------------------------------------
+  // File-write failure (not just the DB leg): COCOINDEX_SOURCE_PATH points at
+  // a regular FILE, so mkdir/writeFile under it throws ENOTDIR. The emit fails
+  // → publish aborted → sidecar_failed, no embed. Proves the real file-write
+  // failure path (not only the affected-row assertion).
+  // -------------------------------------------------------------------------
+  it('real file-write failure (source path is a file, not a dir) → sidecar_failed, publish aborted', async () => {
+    // Point COCOINDEX_SOURCE_PATH at a regular file inside the temp dir.
+    const filePath = join(sourceRoot, 'not-a-dir');
+    await writeFile(filePath, 'x', 'utf8');
+    process.env.COCOINDEX_SOURCE_PATH = filePath;
+
+    const extraction = makeExtraction({ id: UUID_A });
+    supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
+    supabase._chain.single.mockResolvedValueOnce({
+      data: { id: UUID_NEW_PAIR },
+      error: null,
+    });
+    // then #1: CAS UPDATE → 1 row
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: extraction.id }], error: null }),
+    );
+
+    const result: PromotionSummary = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
+
+    expect(result.sidecar_failed).toBe(1);
+    expect(result.failures).toContainEqual({
+      extractionId: UUID_A,
+      newPairId: UUID_NEW_PAIR,
+      reason: 'sidecar_failed',
+    });
+    expect(mockGenerateEmbedding).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // Idle mode: COCOINDEX_SOURCE_PATH unset → publish proceeds DB-only, no
+  // sidecar file, NOT counted sidecar_failed (idle ≠ failure). The bound
+  // re-walk self-heals later. (write-back.ts idle precedent; TECH R2.4)
+  // -------------------------------------------------------------------------
+  it('idle mode (COCOINDEX_SOURCE_PATH unset): publishes DB-only, no sidecar file, NOT sidecar_failed', async () => {
+    delete process.env.COCOINDEX_SOURCE_PATH;
+
+    const extraction = makeExtraction({ id: UUID_A });
+    supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
+    supabase._chain.single.mockResolvedValueOnce({
+      data: { id: UUID_NEW_PAIR },
+      error: null,
+    });
+    // then #1: CAS UPDATE → 1 row
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: extraction.id }], error: null }),
+    );
+    // then #2: embed UPDATE (publish) → 1 row — NO source_document_id UPDATE
+    // is fired in idle mode (the emit DB leg is skipped).
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: UUID_NEW_PAIR }], error: null }),
+    );
+
+    const result: PromotionSummary = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
+
+    expect(result.promoted).toBe(1);
+    expect(result.sidecar_failed).toBe(0);
+    expect(result.failures).toHaveLength(0);
+
+    // Published DB-only.
+    expect(mockGenerateEmbedding).toHaveBeenCalledTimes(1);
+    const updateCalls = supabase._chain.update.mock.calls as Array<
+      [Record<string, unknown>]
+    >;
+    expect(
+      updateCalls.find((call) => call[0]?.publication_status === 'published'),
+    ).toBeDefined();
+    // No source_document_id linkage UPDATE in idle mode.
+    expect(
+      updateCalls.find((call) => 'source_document_id' in call[0]),
+    ).toBeUndefined();
+
+    // No sidecar file was written under the (now-restored) temp root.
+    await expect(
+      access(join(sourceRoot, qaSidecarRelPath(UUID_NEW_PAIR))),
+    ).rejects.toThrow();
   });
 });
