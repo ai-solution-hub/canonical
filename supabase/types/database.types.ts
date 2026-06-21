@@ -7181,6 +7181,7 @@ export type Database = {
           question_embedding: string | null
           question_text: string
           scope_tag: string[]
+          source_document_id: string | null
           source_form_response_id: string | null
           source_question_id: string | null
           source_workspace_id: string | null
@@ -7202,6 +7203,7 @@ export type Database = {
           question_embedding?: string | null
           question_text: string
           scope_tag?: string[]
+          source_document_id?: string | null
           source_form_response_id?: string | null
           source_question_id?: string | null
           source_workspace_id?: string | null
@@ -7223,6 +7225,7 @@ export type Database = {
           question_embedding?: string | null
           question_text?: string
           scope_tag?: string[]
+          source_document_id?: string | null
           source_form_response_id?: string | null
           source_question_id?: string | null
           source_workspace_id?: string | null
