@@ -87,6 +87,10 @@ const _SEARCH_QUERIES_SCHEMA = {
 const EXTRACT_QUESTIONS_TOOL = {
   name: 'extract_questions' as const,
   description: 'Store the extracted questions from the tender document',
+  // Grounding shape: forced_tool_strict (B-INV-35,
+  // AI_TOUCHPOINT_GROUNDING['extract-questions.extractQuestions']). strict:true
+  // + recursive additionalProperties:false guarantees the tool_use.input shape.
+  strict: true as const,
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -104,14 +108,21 @@ const EXTRACT_QUESTIONS_TOOL = {
                 properties: {
                   question_text: { type: 'string' as const },
                   question_sequence: { type: 'integer' as const },
-                  word_limit: { type: 'integer' as const },
-                  evaluation_weight: { type: 'number' as const },
+                  word_limit: { type: ['integer', 'null'] as const },
+                  evaluation_weight: { type: ['number', 'null'] as const },
                   category: {
                     type: 'string' as const,
                     enum: ['mandatory', 'desirable', 'informational'],
                   },
                 },
-                required: ['question_text', 'question_sequence'] as string[],
+                required: [
+                  'question_text',
+                  'question_sequence',
+                  'word_limit',
+                  'evaluation_weight',
+                  'category',
+                ] as string[],
+                additionalProperties: false as const,
               },
             },
           },
@@ -120,10 +131,12 @@ const EXTRACT_QUESTIONS_TOOL = {
             'section_sequence',
             'questions',
           ] as string[],
+          additionalProperties: false as const,
         },
       },
     },
     required: ['sections'] as string[],
+    additionalProperties: false as const,
   },
 };
 
@@ -283,6 +296,9 @@ const TENDER_METADATA_TOOL: Anthropic.Messages.Tool = {
   name: 'extract_tender_metadata',
   description:
     'Extract bid metadata (buyer, deadline, reference, value) from a tender document.',
+  // Grounding shape: forced_tool_strict (B-INV-35,
+  // AI_TOUCHPOINT_GROUNDING['extract-questions.extractTenderMetadata']).
+  strict: true,
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -444,6 +460,9 @@ export async function generateSearchQueries(
       {
         name: 'search_queries',
         description: 'Return the generated search queries',
+        // Grounding shape: forced_tool_strict (B-INV-35,
+        // AI_TOUCHPOINT_GROUNDING['extract-questions.generateSearchQueries']).
+        strict: true,
         input_schema: {
           type: 'object' as const,
           properties: {
@@ -458,6 +477,7 @@ export async function generateSearchQueries(
             },
           },
           required: ['queries', 'primary_topic', 'content_types_needed'],
+          additionalProperties: false,
         },
       },
     ],

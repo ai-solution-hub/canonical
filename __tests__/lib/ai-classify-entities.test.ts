@@ -272,7 +272,7 @@ describe('classifyContent — entity extraction', () => {
       ).toHaveProperty('target');
     });
 
-    it('does not require entities or relationships in the tool schema', async () => {
+    it('grounds the classification tool as forced_tool_strict (B-INV-35)', async () => {
       mockCreate.mockResolvedValueOnce(
         createToolUseResponse(baseClassificationInput),
       );
@@ -287,9 +287,14 @@ describe('classifyContent — entity extraction', () => {
       const callArgs = mockCreate.mock.calls[0][0];
       const tool = callArgs.tools[0];
 
-      // entities and relationships should NOT be in the required array
-      expect(tool.input_schema.required).not.toContain('entities');
-      expect(tool.input_schema.required).not.toContain('relationships');
+      // Strict grounding: the tool is strict and its object schema is closed.
+      // Under strict mode every property is required (the model still emits
+      // empty arrays for entities/relationships when none are found), so the
+      // schema documents required keys, not mandatory content.
+      expect(tool.strict).toBe(true);
+      expect(tool.input_schema.additionalProperties).toBe(false);
+      expect(tool.input_schema.required).toContain('entities');
+      expect(tool.input_schema.required).toContain('relationships');
     });
 
     it('includes entity type enum with all expected values', async () => {

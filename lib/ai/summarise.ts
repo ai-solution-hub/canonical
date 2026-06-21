@@ -59,6 +59,9 @@ const MAX_CONTENT_LENGTH = 100_000;
 const SUMMARY_TOOL = {
   name: 'return_summary',
   description: 'Return the generated summary',
+  // Grounding shape: forced_tool_strict (B-INV-35,
+  // AI_TOUCHPOINT_GROUNDING['summarise.callSummaryAI']).
+  strict: true,
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -77,6 +80,7 @@ const SUMMARY_TOOL = {
       },
     },
     required: ['executive', 'detailed', 'takeaways'] as string[],
+    additionalProperties: false,
   },
 } as const;
 

@@ -151,6 +151,9 @@ Available KB content summaries:
 ${matchedContent.map((c, i) => `${i + 1}. [${c.content_type}] ${c.title}: ${c.summary}`).join('\n')}`,
       },
     ],
+    // Grounding shape: structured_output (B-INV-35,
+    // AI_TOUCHPOINT_GROUNDING['draft.analyseQuestion']). Pass 1 stays structured
+    // and separate from Pass 2's citations — the two are never combined.
     output_config: {
       format: {
         type: 'json_schema' as const,
@@ -186,6 +189,12 @@ ${matchedContent.map((c, i) => `${i + 1}. [${c.content_type}] ${c.title}: ${c.su
 
 // ──────────────────────────────────────────
 // Pass 2: Response Drafting with Citations (Opus)
+//
+// Grounding shape: citations (B-INV-35,
+// AI_TOUCHPOINT_GROUNDING['draft.draftResponse']). KB entries are passed as
+// `search_result` blocks with citations enabled; the call NEVER sets
+// `output_config.format` — citations and structured outputs are mutually
+// exclusive in the Claude API, which is why this is a distinct pass from Pass 1.
 // ──────────────────────────────────────────
 
 interface Pass2Result {

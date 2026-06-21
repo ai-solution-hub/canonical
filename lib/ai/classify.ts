@@ -1040,8 +1040,11 @@ export async function validateEntities(
     temperature: 0,
     tools: [
       {
+        // Grounding shape: forced_tool_strict (B-INV-35,
+        // AI_TOUCHPOINT_GROUNDING['classify.validateEntities']).
         name: 'return_entity_validation',
         description: 'Return validated entity list with verdicts',
+        strict: true,
         input_schema: {
           type: 'object' as const,
           properties: {
@@ -1068,12 +1071,15 @@ export async function validateEntities(
                   'type',
                   'canonical_name',
                   'verdict',
+                  'original_type',
                   'reason',
                 ],
+                additionalProperties: false,
               },
             },
           },
           required: ['validated_entities'],
+          additionalProperties: false,
         },
       },
     ],
@@ -1298,8 +1304,11 @@ export async function classifyText(
     max_tokens: 500,
     tools: [
       {
+        // Grounding shape: forced_tool_strict (B-INV-35,
+        // AI_TOUCHPOINT_GROUNDING['classify.classifyText']).
         name: 'return_classification',
         description: 'Return the primary domain and subtopic for this content',
+        strict: true,
         input_schema: {
           type: 'object' as const,
           properties: {
@@ -1307,6 +1316,7 @@ export async function classifyText(
             primary_subtopic: { type: 'string' },
           },
           required: ['primary_domain', 'primary_subtopic'],
+          additionalProperties: false,
         },
       },
     ],
@@ -1419,8 +1429,15 @@ export async function classifyContent(
     max_tokens: 2500,
     tools: [
       {
+        // Grounding shape: forced_tool_strict (B-INV-35,
+        // AI_TOUCHPOINT_GROUNDING['classify.classifyContent']). strict:true
+        // requires every property to be listed in `required` and every object
+        // node to close additionalProperties; optional fields are expressed as
+        // nullable (`['string','null']`) and required, so the model always
+        // emits a defined-or-null value rather than omitting the key.
         name: 'return_classification',
         description: 'Return the classification result',
+        strict: true,
         input_schema: {
           type: 'object' as const,
           properties: {
@@ -1469,6 +1486,7 @@ export async function classifyContent(
                   },
                 },
                 required: ['name', 'type', 'canonical_name'],
+                additionalProperties: false,
               },
             },
             relationships: {
@@ -1501,13 +1519,14 @@ export async function classifyContent(
                     description: 'Canonical name of the target entity',
                   },
                   source_scope: {
-                    type: 'string',
-                    enum: ['internal', 'external'],
+                    type: ['string', 'null'],
+                    enum: ['internal', 'external', null],
                     description:
-                      "Holder scope for certification `holds`/`complies_with`/`evidences` relations only. Set 'internal' ONLY when the certification is held by the document author's OWN internal function, declared with an explicit first-person possessive ('our'/'we'/'our own') and with NO supplier/third-party disclaimer in scope (e.g. \"Our internal IT team is compliant to ISO 27001\"). Set 'external' when a supplier/third-party disclaimer scopes the certification, or the internal function belongs to a named third party. OMIT the field entirely for bare/non-possessive phrasing or any ambiguous case — do not guess.",
+                      "Holder scope for certification `holds`/`complies_with`/`evidences` relations only. Set 'internal' ONLY when the certification is held by the document author's OWN internal function, declared with an explicit first-person possessive ('our'/'we'/'our own') and with NO supplier/third-party disclaimer in scope (e.g. \"Our internal IT team is compliant to ISO 27001\"). Set 'external' when a supplier/third-party disclaimer scopes the certification, or the internal function belongs to a named third party. Set null for bare/non-possessive phrasing or any ambiguous case — do not guess.",
                   },
                 },
-                required: ['source', 'relationship', 'target'],
+                required: ['source', 'relationship', 'target', 'source_scope'],
+                additionalProperties: false,
               },
             },
             temporal_references: {
@@ -1539,19 +1558,26 @@ export async function classifyContent(
                       'The canonical name of the entity this date relates to (e.g. "ISO 27001" for an ISO 27001 certification expiry date, "GDPR" for a GDPR effective date). Use the same canonical_name form as in the entities array. Null if the date is not related to a specific extracted entity.',
                   },
                 },
-                required: ['date', 'context', 'context_type'],
+                required: ['date', 'context', 'context_type', 'related_entity'],
+                additionalProperties: false,
               },
             },
           },
           required: [
             'primary_domain',
             'primary_subtopic',
+            'secondary_domain',
+            'secondary_subtopic',
+            'entities',
+            'relationships',
+            'temporal_references',
             'ai_keywords',
             'summary',
             'suggested_title',
             'classification_confidence',
             'classification_reasoning',
           ],
+          additionalProperties: false,
         },
       },
     ],

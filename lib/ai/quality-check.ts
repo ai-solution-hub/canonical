@@ -139,6 +139,8 @@ Check for:
 3. Whether all key aspects of the question are addressed`,
       },
     ],
+    // Grounding shape: structured_output (B-INV-35,
+    // AI_TOUCHPOINT_GROUNDING['quality-check.runAIQualityCheck']).
     output_config: {
       format: {
         type: 'json_schema' as const,

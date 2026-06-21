@@ -381,8 +381,11 @@ export async function generateChangeReport(
     max_tokens: isDaily ? 2000 : 4000,
     tools: [
       {
+        // Grounding shape: forced_tool_strict (B-INV-35,
+        // AI_TOUCHPOINT_GROUNDING['change-reports.generateChangeReport']).
         name: 'return_digest',
         description: 'Return the generated digest',
+        strict: true,
         input_schema: {
           type: 'object' as const,
           properties: {
@@ -406,10 +409,12 @@ export async function generateChangeReport(
                         why_notable: { type: 'string' },
                       },
                       required: ['id', 'why_notable'],
+                      additionalProperties: false,
                     },
                   },
                 },
                 required: ['domain', 'summary', 'key_themes', 'top_items'],
+                additionalProperties: false,
               },
             },
             narrative_summary: { type: 'string' },
@@ -428,10 +433,16 @@ export async function generateChangeReport(
                   },
                 },
                 required: ['domain', 'subtopic', 'suggestion', 'priority'],
+                additionalProperties: false,
               },
             },
           },
-          required: ['domain_summaries', 'narrative_summary'],
+          required: [
+            'domain_summaries',
+            'narrative_summary',
+            'content_opportunities',
+          ],
+          additionalProperties: false,
         },
       },
     ],

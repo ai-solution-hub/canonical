@@ -80,18 +80,17 @@ export async function extractStructuredContent(
 
   const fullPrompt = `${userPrompt || defaultPrompt}
 
-## JSON Schema
-\`\`\`json
-${JSON.stringify(schema, null, 2)}
-\`\`\`
-
 ## Document Title
 ${item.title || 'Untitled'}
 
 ## Document Content
 ${contentSlice}`;
 
-  // Call Claude
+  // Call Claude.
+  // Grounding shape: structured_output (B-INV-35,
+  // AI_TOUCHPOINT_GROUNDING['extract-content.extractStructuredContent']). The
+  // caller-supplied JSON Schema is enforced server-side via output_config.format
+  // rather than asked-for in prose, so the response is grounded structured JSON.
   const model = getAIModel();
   const anthropic = getAnthropicClient();
 
@@ -100,6 +99,12 @@ ${contentSlice}`;
     max_tokens: 4096,
     system: systemPrompt,
     messages: [{ role: 'user', content: fullPrompt }],
+    output_config: {
+      format: {
+        type: 'json_schema' as const,
+        schema: schema as Record<string, unknown>,
+      },
+    },
   });
 
   // Extract the text content
@@ -116,13 +121,11 @@ ${contentSlice}`;
     );
   }
 
-  // Parse the JSON from Claude's response
+  // Parse the JSON from Claude's response. output_config.format guarantees the
+  // text block is schema-conformant JSON, so no prose/fence stripping is needed.
   let result: unknown;
   try {
-    const text = textBlock.text;
-    const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    const jsonStr = jsonMatch ? jsonMatch[1].trim() : text.trim();
-    result = JSON.parse(jsonStr);
+    result = JSON.parse(textBlock.text);
   } catch {
     throw new AIServiceError(
       'Failed to parse structured output from Claude',

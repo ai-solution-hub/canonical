@@ -130,7 +130,11 @@ export async function analyseVision(
     );
   }
 
-  // Send to Claude with the PDF as a document content block
+  // Send to Claude with the PDF as a document content block.
+  // Grounding shape: n/a (B-INV-35,
+  // AI_TOUCHPOINT_GROUNDING['vision.analyseVision']). This touchpoint produces a
+  // free-form prose description of the document; there is no structured schema
+  // or citation grounding to apply, so it declares the `n/a` shape.
   const anthropic = getAnthropicClient();
   const model = getAIModel();
   const displayTitle = item.suggested_title || item.title || 'Untitled';

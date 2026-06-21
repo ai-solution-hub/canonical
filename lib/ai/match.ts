@@ -16,6 +16,11 @@ export interface MatchResult {
 
 /**
  * Assess confidence posture based on search result similarity scores.
+ *
+ * Grounding shape: n/a (B-INV-35,
+ * AI_TOUCHPOINT_GROUNDING['match.assessConfidence']). This touchpoint is pure
+ * scoring/deduplication over precomputed similarity values — it makes no AI
+ * call, so it carries the `n/a` grounding shape.
  */
 export function assessConfidence(matches: MatchResult[]): ConfidencePosture {
   const strongMatches = matches.filter(
