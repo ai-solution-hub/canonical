@@ -137,6 +137,26 @@ function resolveWorkerConfig(): { workerUrl: string; cronSecret: string } {
       'COCOINDEX_WORKER_URL is unset — folder-drop ingest is unavailable',
     );
   }
+  // Validate the scheme so a malformed or non-http(s) URL fails loudly here
+  // rather than silently at fetch time.
+  let parsedWorkerUrl: URL;
+  try {
+    parsedWorkerUrl = new URL(workerUrl);
+  } catch {
+    throw new FolderDropError(
+      'config',
+      `COCOINDEX_WORKER_URL is not a valid URL (${workerUrl}) — folder-drop ingest is unavailable`,
+    );
+  }
+  if (
+    parsedWorkerUrl.protocol !== 'http:' &&
+    parsedWorkerUrl.protocol !== 'https:'
+  ) {
+    throw new FolderDropError(
+      'config',
+      `COCOINDEX_WORKER_URL must use http(s) (${parsedWorkerUrl.protocol}) — folder-drop ingest is unavailable`,
+    );
+  }
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) {
     throw new FolderDropError(
