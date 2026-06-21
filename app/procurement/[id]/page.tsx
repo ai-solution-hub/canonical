@@ -341,7 +341,7 @@ export default function ProcurementDetailPage({
 
       {/* Extracted metadata prompt */}
       {extractedMetadata && (
-        <div className="mt-4 rounded-lg border border-[var(--color-highlight-border)] bg-[var(--color-highlight-bg)] p-4">
+        <div className="mt-4 rounded-lg border border-[var(--highlight-border)] bg-[var(--highlight-bg)] p-4">
           <TenderMetadataPrompt
             metadata={extractedMetadata}
             procurementId={id}

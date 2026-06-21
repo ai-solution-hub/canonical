@@ -50,7 +50,7 @@ export function ItemCompletenessChecklist({
           >
             {item.complete ? (
               <CheckCircle2
-                className="size-3.5 text-[var(--color-status-success)]"
+                className="size-3.5 text-[var(--status-success)]"
                 aria-hidden="true"
               />
             ) : (

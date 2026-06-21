@@ -88,20 +88,20 @@ export function ReadinessChecklist({
           {readiness.ready ? (
             <>
               <ShieldCheck
-                className="size-5 text-[var(--color-status-success)]"
+                className="size-5 text-[var(--status-success)]"
                 aria-hidden="true"
               />
-              <h2 className="text-sm font-semibold text-[var(--color-status-success)]">
+              <h2 className="text-sm font-semibold text-[var(--status-success)]">
                 Ready to export
               </h2>
             </>
           ) : (
             <>
               <AlertTriangle
-                className="size-5 text-[var(--color-status-warning)]"
+                className="size-5 text-[var(--status-warning)]"
                 aria-hidden="true"
               />
-              <h2 className="text-sm font-semibold text-[var(--color-status-warning)]">
+              <h2 className="text-sm font-semibold text-[var(--status-warning)]">
                 {failedCount} {failedCount === 1 ? 'criterion' : 'criteria'} not
                 met
               </h2>
@@ -153,12 +153,12 @@ export function ReadinessChecklist({
           <li key={criterion.name} className="flex items-start gap-2">
             {criterion.passed ? (
               <CheckCircle
-                className="mt-0.5 size-4 shrink-0 text-[var(--color-status-success)]"
+                className="mt-0.5 size-4 shrink-0 text-[var(--status-success)]"
                 aria-label="Passed"
               />
             ) : (
               <XCircle
-                className="mt-0.5 size-4 shrink-0 text-[var(--color-status-error)]"
+                className="mt-0.5 size-4 shrink-0 text-[var(--status-error)]"
                 aria-label="Failed"
               />
             )}
@@ -222,7 +222,7 @@ export function ReadinessChecklist({
                         className="flex items-center gap-1.5 text-xs text-muted-foreground"
                       >
                         <span
-                          className="text-[var(--color-status-error)]"
+                          className="text-[var(--status-error)]"
                           aria-hidden="true"
                         >
                           &bull;
@@ -256,7 +256,7 @@ export function ReadinessBadge({ readiness, isLoading }: ReadinessBadgeProps) {
   if (readiness.ready) {
     return (
       <span
-        className="inline-flex items-center gap-1 rounded-full bg-[var(--color-freshness-fresh-bg)] px-2 py-0.5 text-xs font-medium text-[var(--color-freshness-fresh)]"
+        className="inline-flex items-center gap-1 rounded-full bg-[var(--freshness-fresh-bg)] px-2 py-0.5 text-xs font-medium text-[var(--freshness-fresh)]"
         title="All readiness criteria met"
       >
         <CheckCircle className="size-3" aria-hidden="true" />
@@ -268,7 +268,7 @@ export function ReadinessBadge({ readiness, isLoading }: ReadinessBadgeProps) {
   const failedCount = readiness.criteria.filter((c) => !c.passed).length;
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full bg-[var(--color-freshness-aging-bg)] px-2 py-0.5 text-xs font-medium text-[var(--color-freshness-aging)]"
+      className="inline-flex items-center gap-1 rounded-full bg-[var(--freshness-aging-bg)] px-2 py-0.5 text-xs font-medium text-[var(--freshness-aging)]"
       title={`${failedCount} readiness ${failedCount === 1 ? 'criterion' : 'criteria'} not met`}
     >
       <AlertTriangle className="size-3" aria-hidden="true" />

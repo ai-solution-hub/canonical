@@ -33,6 +33,12 @@
 
 ## Token registration
 
-- [ ] New CSS variables defined in both `:root` and `.dark` blocks in `app/globals.css`
-- [ ] New tokens registered in `@theme inline` block for Tailwind utility access (e.g.,
-      `--color-freshness-fresh: var(--color-freshness-fresh)`)
+- [ ] New CSS variables defined in both `:root` and `.dark` blocks (core tokens in
+      `app/globals.css`; application status/domain tokens in
+      `app/styles/domain-tokens.css`)
+- [ ] Token names follow the F3 convention (ID-119): definitions are **bare**
+      (`--freshness-fresh`), never `--color-`-prefixed
+- [ ] New tokens registered in `@theme inline` for Tailwind utility access — the LHS keeps
+      the `--color-` prefix (it names the generated `bg-*`/`text-*` utility class), the
+      RHS reads the bare definition (e.g.
+      `--color-freshness-fresh: var(--freshness-fresh)`)

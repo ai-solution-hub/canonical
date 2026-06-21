@@ -94,44 +94,43 @@
   --radius: 0.5rem;
 
   /* Progress & review */
-  --color-progress: oklch(0.65 0.16 55);
-  --color-success: oklch(0.55 0.15 160);
+  --progress: oklch(0.65 0.16 55);
 
   /* Progress bar fill (warm sand — non-actionable, harmonises with palette) */
-  --color-progress-bar: oklch(0.65 0.12 70);
+  --progress-bar: oklch(0.65 0.12 70);
 
   /* Progress bar colour transitions (sand to teal at complete) */
-  --color-progress-mid: oklch(0.58 0.1 65);
-  --color-progress-complete: oklch(0.55 0.15 160);
+  --progress-mid: oklch(0.58 0.1 65);
+  --progress-complete: oklch(0.55 0.15 160);
 
   /* Review card directional feedback */
-  --color-review-skip: oklch(0.7 0.08 15);
-  --color-review-read: oklch(0.55 0.15 160);
-  --color-review-star: oklch(0.7 0.15 85);
+  --review-skip: oklch(0.7 0.08 15);
+  --review-read: oklch(0.55 0.15 160);
+  --review-star: oklch(0.7 0.15 85);
 
   /* Highlight card */
-  --color-highlight-bg: oklch(0.96 0.03 55);
-  --color-highlight-border: oklch(0.85 0.06 55);
+  --highlight-bg: oklch(0.96 0.03 55);
+  --highlight-border: oklch(0.85 0.06 55);
 
   /* Star & priority colours */
-  --color-star: oklch(0.795 0.184 86.047);
-  --color-priority-high: oklch(0.637 0.237 25.331);
-  --color-priority-medium: oklch(0.769 0.188 70.08);
-  --color-priority-low: oklch(0.723 0.191 261.348);
+  --star: oklch(0.795 0.184 86.047);
+  --priority-high: oklch(0.637 0.237 25.331);
+  --priority-medium: oklch(0.769 0.188 70.08);
+  --priority-low: oklch(0.723 0.191 261.348);
 
   /* Status colours */
-  --color-status-success: oklch(0.65 0.2 160);
-  --color-status-warning: oklch(0.75 0.18 70);
-  --color-status-error: oklch(0.63 0.24 25);
-  --color-status-info: oklch(0.65 0.16 55);
+  --status-success: oklch(0.65 0.2 160);
+  --status-warning: oklch(0.75 0.18 70);
+  --status-error: oklch(0.63 0.24 25);
+  --status-info: oklch(0.65 0.16 55);
 
   /* Search highlight mark */
-  --color-highlight-mark: oklch(0.925 0.12 55);
+  --highlight-mark: oklch(0.925 0.12 55);
 
   /* Publish action colours (generic UI action — kept in core; domain status/badge tokens
      live in app/styles/domain-tokens.css per ID-119 F2) */
-  --color-action-publish: oklch(0.55 0.14 55);
-  --color-action-publish-hover: oklch(0.5 0.15 55);
+  --action-publish: oklch(0.55 0.14 55);
+  --action-publish-hover: oklch(0.5 0.15 55);
 
   /* Accessibility variable defaults */
   --a11y-letter-spacing: normal;
@@ -215,43 +214,42 @@
   --chart-5: oklch(0.65 0.12 275);
 
   /* Progress & review (dark) */
-  --color-progress: oklch(0.72 0.14 55);
-  --color-success: oklch(0.45 0.12 160);
+  --progress: oklch(0.72 0.14 55);
 
   /* Progress bar fill (dark) */
-  --color-progress-bar: oklch(0.55 0.1 70);
+  --progress-bar: oklch(0.55 0.1 70);
 
   /* Progress bar colour transitions (dark) */
-  --color-progress-mid: oklch(0.45 0.08 65);
-  --color-progress-complete: oklch(0.45 0.12 160);
+  --progress-mid: oklch(0.45 0.08 65);
+  --progress-complete: oklch(0.45 0.12 160);
 
   /* Review card directional feedback (dark) */
-  --color-review-skip: oklch(0.35 0.08 15);
-  --color-review-read: oklch(0.35 0.12 160);
-  --color-review-star: oklch(0.4 0.12 85);
+  --review-skip: oklch(0.35 0.08 15);
+  --review-read: oklch(0.35 0.12 160);
+  --review-star: oklch(0.4 0.12 85);
 
   /* Highlight card (dark) */
-  --color-highlight-bg: oklch(0.22 0.03 55);
-  --color-highlight-border: oklch(0.3 0.05 55);
+  --highlight-bg: oklch(0.22 0.03 55);
+  --highlight-border: oklch(0.3 0.05 55);
 
   /* Status colours (dark) */
-  --color-status-success: oklch(0.72 0.17 160);
-  --color-status-warning: oklch(0.82 0.15 70);
-  --color-status-error: oklch(0.7 0.19 22);
-  --color-status-info: oklch(0.72 0.14 55);
+  --status-success: oklch(0.72 0.17 160);
+  --status-warning: oklch(0.82 0.15 70);
+  --status-error: oklch(0.7 0.19 22);
+  --status-info: oklch(0.72 0.14 55);
 
   /* Search highlight mark (dark) */
-  --color-highlight-mark: oklch(0.35 0.08 55);
+  --highlight-mark: oklch(0.35 0.08 55);
 
   /* Star & priority colours (dark) */
-  --color-star: oklch(0.855 0.15 86.047);
-  --color-priority-high: oklch(0.704 0.191 22.216);
-  --color-priority-medium: oklch(0.82 0.15 70.08);
-  --color-priority-low: oklch(0.78 0.15 261.348);
+  --star: oklch(0.855 0.15 86.047);
+  --priority-high: oklch(0.704 0.191 22.216);
+  --priority-medium: oklch(0.82 0.15 70.08);
+  --priority-low: oklch(0.78 0.15 261.348);
 
   /* Publish action colours (dark) */
-  --color-action-publish: oklch(0.65 0.14 55);
-  --color-action-publish-hover: oklch(0.6 0.15 55);
+  --action-publish: oklch(0.65 0.14 55);
+  --action-publish-hover: oklch(0.6 0.15 55);
 
   /* Component shadows (dark) */
   --shadow-review-bar: 0 -2px 10px oklch(0.1 0.014 48 / 0.15);
@@ -279,31 +277,31 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-success: var(--success);
-  --color-progress-bar: var(--color-progress-bar);
-  --color-progress-mid: var(--color-progress-mid);
-  --color-progress-complete: var(--color-progress-complete);
-  --color-review-skip: var(--color-review-skip);
-  --color-review-read: var(--color-review-read);
-  --color-review-star: var(--color-review-star);
-  --color-highlight-bg: var(--color-highlight-bg);
-  --color-highlight-border: var(--color-highlight-border);
-  --color-star: var(--color-star);
-  --color-priority-high: var(--color-priority-high);
-  --color-priority-medium: var(--color-priority-medium);
-  --color-priority-low: var(--color-priority-low);
-  --color-status-success: var(--color-status-success);
-  --color-status-warning: var(--color-status-warning);
-  --color-status-error: var(--color-status-error);
-  --color-status-info: var(--color-status-info);
-  --color-highlight-mark: var(--color-highlight-mark);
+  --color-progress-bar: var(--progress-bar);
+  --color-progress-mid: var(--progress-mid);
+  --color-progress-complete: var(--progress-complete);
+  --color-review-skip: var(--review-skip);
+  --color-review-read: var(--review-read);
+  --color-review-star: var(--review-star);
+  --color-highlight-bg: var(--highlight-bg);
+  --color-highlight-border: var(--highlight-border);
+  --color-star: var(--star);
+  --color-priority-high: var(--priority-high);
+  --color-priority-medium: var(--priority-medium);
+  --color-priority-low: var(--priority-low);
+  --color-status-success: var(--status-success);
+  --color-status-warning: var(--status-warning);
+  --color-status-error: var(--status-error);
+  --color-status-info: var(--status-info);
+  --color-highlight-mark: var(--highlight-mark);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
 
-  --color-action-publish: var(--color-action-publish);
-  --color-action-publish-hover: var(--color-action-publish-hover);
+  --color-action-publish: var(--action-publish);
+  --color-action-publish-hover: var(--action-publish-hover);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

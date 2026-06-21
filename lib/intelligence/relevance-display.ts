@@ -19,10 +19,10 @@ export function getRelevanceLabel(score: number | null): string {
 export function getRelevanceColourClass(score: number | null): string {
   if (score === null) return '';
   if (score >= 0.8)
-    return 'bg-[var(--color-relevance-high)] text-[var(--color-relevance-high-text)]';
+    return 'bg-[var(--relevance-high)] text-[var(--relevance-high-text)]';
   if (score >= 0.5)
-    return 'bg-[var(--color-relevance-medium)] text-[var(--color-relevance-medium-text)]';
+    return 'bg-[var(--relevance-medium)] text-[var(--relevance-medium-text)]';
   if (score >= 0.2)
-    return 'bg-[var(--color-relevance-low)] text-[var(--color-relevance-low-text)]';
-  return 'bg-[var(--color-relevance-irrelevant)] text-[var(--color-relevance-irrelevant-text)]';
+    return 'bg-[var(--relevance-low)] text-[var(--relevance-low-text)]';
+  return 'bg-[var(--relevance-irrelevant)] text-[var(--relevance-irrelevant-text)]';
 }
