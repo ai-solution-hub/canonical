@@ -110,29 +110,33 @@
   --radius: 0.5rem;
 
   /* Knowledge Hub domain colours — badge backgrounds (light) */
-  --domain-security-bg: oklch(0.93 0.04 220);
-  --domain-security-text: oklch(0.35 0.12 220);
-  --domain-compliance-bg: oklch(0.93 0.04 275);
-  --domain-compliance-text: oklch(0.35 0.12 275);
-  --domain-implementation-bg: oklch(0.93 0.04 155);
-  --domain-implementation-text: oklch(0.35 0.12 155);
-  --domain-support-bg: oklch(0.93 0.04 85);
-  --domain-support-text: oklch(0.4 0.12 85);
-  --domain-corporate-bg: oklch(0.93 0.02 200);
-  --domain-corporate-text: oklch(0.4 0.08 200);
-  --domain-product-bg: oklch(0.93 0.04 145);
-  --domain-product-text: oklch(0.35 0.12 145);
-  --domain-methodology-bg: oklch(0.93 0.04 340);
-  --domain-methodology-text: oklch(0.38 0.12 340);
+  --domain-security-bg: oklch(0.93 0.04 var(--hue-domain-security));
+  --domain-security-text: oklch(0.35 0.12 var(--hue-domain-security));
+  --domain-compliance-bg: oklch(0.93 0.04 var(--hue-domain-compliance));
+  --domain-compliance-text: oklch(0.35 0.12 var(--hue-domain-compliance));
+  --domain-implementation-bg: oklch(0.93 0.04 var(--hue-domain-implementation));
+  --domain-implementation-text: oklch(
+    0.35 0.12 var(--hue-domain-implementation)
+  );
+  --domain-support-bg: oklch(0.93 0.04 var(--hue-domain-support));
+  --domain-support-text: oklch(0.4 0.12 var(--hue-domain-support));
+  --domain-corporate-bg: oklch(0.93 0.02 var(--hue-domain-corporate));
+  --domain-corporate-text: oklch(0.4 0.08 var(--hue-domain-corporate));
+  --domain-product-bg: oklch(0.93 0.04 var(--hue-domain-product));
+  --domain-product-text: oklch(0.35 0.12 var(--hue-domain-product));
+  --domain-methodology-bg: oklch(0.93 0.04 var(--hue-domain-methodology));
+  --domain-methodology-text: oklch(0.38 0.12 var(--hue-domain-methodology));
 
   /* Knowledge Hub domain surface colours (home page cards) */
-  --domain-security-surface: oklch(0.96 0.02 220);
-  --domain-compliance-surface: oklch(0.96 0.02 275);
-  --domain-implementation-surface: oklch(0.96 0.02 155);
-  --domain-support-surface: oklch(0.96 0.02 85);
-  --domain-corporate-surface: oklch(0.95 0.01 200);
-  --domain-product-surface: oklch(0.96 0.02 145);
-  --domain-methodology-surface: oklch(0.96 0.02 340);
+  --domain-security-surface: oklch(0.96 0.02 var(--hue-domain-security));
+  --domain-compliance-surface: oklch(0.96 0.02 var(--hue-domain-compliance));
+  --domain-implementation-surface: oklch(
+    0.96 0.02 var(--hue-domain-implementation)
+  );
+  --domain-support-surface: oklch(0.96 0.02 var(--hue-domain-support));
+  --domain-corporate-surface: oklch(0.95 0.01 var(--hue-domain-corporate));
+  --domain-product-surface: oklch(0.96 0.02 var(--hue-domain-product));
+  --domain-methodology-surface: oklch(0.96 0.02 var(--hue-domain-methodology));
 
   /* Progress & review */
   --color-progress: oklch(0.65 0.16 55);
@@ -172,171 +176,183 @@
   /* === Semantic status tokens (Warm Meridian) === */
 
   /* Freshness */
-  --color-freshness-fresh: oklch(0.55 0.15 160);
-  --color-freshness-fresh-bg: oklch(0.93 0.04 160);
-  --color-freshness-aging: oklch(0.6 0.14 70);
-  --color-freshness-aging-bg: oklch(0.97 0.02 70);
-  --color-freshness-stale: oklch(0.55 0.2 20);
-  --color-freshness-stale-bg: oklch(0.95 0.03 20);
-  --color-freshness-expired: oklch(0.5 0.2 20);
-  --color-freshness-expired-bg: oklch(0.95 0.03 20);
+  --color-freshness-fresh: var(--green-solid);
+  --color-freshness-fresh-bg: var(--green-tint);
+  --color-freshness-aging: var(--amber-solid);
+  --color-freshness-aging-bg: var(--amber-tint);
+  --color-freshness-stale: var(--red-solid);
+  --color-freshness-stale-bg: var(--red-tint);
+  --color-freshness-expired: var(--red-solid-deep);
+  --color-freshness-expired-bg: var(--red-tint);
 
   /* Confidence */
-  --color-confidence-strong: oklch(0.55 0.15 160);
-  --color-confidence-strong-bg: oklch(0.93 0.04 160);
-  --color-confidence-strong-border: oklch(0.8 0.06 160);
-  --color-confidence-partial: oklch(0.6 0.14 70);
-  --color-confidence-partial-bg: oklch(0.97 0.02 70);
-  --color-confidence-partial-border: oklch(0.82 0.06 70);
-  --color-confidence-needs-sme: oklch(0.55 0.12 240);
-  --color-confidence-needs-sme-bg: oklch(0.95 0.02 240);
-  --color-confidence-needs-sme-border: oklch(0.8 0.06 240);
-  --color-confidence-none: oklch(0.55 0.014 48);
-  --color-confidence-none-bg: oklch(0.95 0.01 48);
-  --color-confidence-none-border: oklch(0.82 0.014 48);
+  --color-confidence-strong: var(--green-solid);
+  --color-confidence-strong-bg: var(--green-tint);
+  --color-confidence-strong-border: var(--green-border);
+  --color-confidence-partial: var(--amber-solid);
+  --color-confidence-partial-bg: var(--amber-tint);
+  --color-confidence-partial-border: var(--amber-border);
+  --color-confidence-needs-sme: var(--blue-solid);
+  --color-confidence-needs-sme-bg: var(--blue-tint);
+  --color-confidence-needs-sme-border: var(--blue-border);
+  --color-confidence-none: var(--stone-500);
+  --color-confidence-none-bg: var(--stone-100);
+  --color-confidence-none-border: var(--stone-300);
 
   /* Low-confidence review indicator */
-  --color-confidence-low: oklch(0.55 0.2 20);
-  --color-confidence-low-bg: oklch(0.95 0.03 20);
-  --color-confidence-low-border: oklch(0.82 0.06 20);
+  --color-confidence-low: var(--red-solid);
+  --color-confidence-low-bg: var(--red-tint);
+  --color-confidence-low-border: var(--red-border);
 
   /* Priority tier badges */
-  --color-priority-tier-critical: oklch(0.55 0.2 20);
-  --color-priority-tier-critical-bg: oklch(0.95 0.03 20);
-  --color-priority-tier-high: oklch(0.6 0.14 70);
-  --color-priority-tier-high-bg: oklch(0.97 0.02 70);
-  --color-priority-tier-medium: oklch(0.55 0.12 240);
-  --color-priority-tier-medium-bg: oklch(0.95 0.02 240);
-  --color-priority-tier-low: oklch(0.55 0.014 48);
-  --color-priority-tier-low-bg: oklch(0.95 0.01 48);
+  --color-priority-tier-critical: var(--red-solid);
+  --color-priority-tier-critical-bg: var(--red-tint);
+  --color-priority-tier-high: var(--amber-solid);
+  --color-priority-tier-high-bg: var(--amber-tint);
+  --color-priority-tier-medium: var(--blue-solid);
+  --color-priority-tier-medium-bg: var(--blue-tint);
+  --color-priority-tier-low: var(--stone-500);
+  --color-priority-tier-low-bg: var(--stone-100);
 
   /* Bid status */
-  --color-bid-draft: oklch(0.55 0.014 48);
-  --color-bid-draft-bg: oklch(0.95 0.01 48);
-  --color-bid-draft-border: oklch(0.82 0.014 48);
-  --color-bid-draft-dot: oklch(0.55 0.014 48);
-  --color-bid-discovery: oklch(0.55 0.12 240);
-  --color-bid-discovery-bg: oklch(0.95 0.02 240);
-  --color-bid-discovery-border: oklch(0.8 0.06 240);
+  --color-bid-draft: var(--stone-500);
+  --color-bid-draft-bg: var(--stone-100);
+  --color-bid-draft-border: var(--stone-300);
+  --color-bid-draft-dot: var(--stone-500);
+  --color-bid-discovery: var(--blue-solid);
+  --color-bid-discovery-bg: var(--blue-tint);
+  --color-bid-discovery-border: var(--blue-border);
   --color-bid-discovery-dot: oklch(0.55 0.12 240);
-  --color-bid-active: oklch(0.6 0.14 70);
-  --color-bid-active-bg: oklch(0.97 0.02 70);
-  --color-bid-active-border: oklch(0.82 0.06 70);
+  --color-bid-active: var(--amber-solid);
+  --color-bid-active-bg: var(--amber-tint);
+  --color-bid-active-border: var(--amber-border);
   --color-bid-active-dot: oklch(0.6 0.14 70);
   --color-bid-in-review: oklch(0.55 0.12 290);
-  --color-bid-in-review-bg: oklch(0.95 0.02 290);
-  --color-bid-in-review-border: oklch(0.8 0.06 290);
+  --color-bid-in-review-bg: var(--violet-tint);
+  --color-bid-in-review-border: var(--violet-border);
   --color-bid-in-review-dot: oklch(0.55 0.12 290);
-  --color-bid-export-ready: oklch(0.55 0.15 195);
-  --color-bid-export-ready-bg: oklch(0.93 0.04 195);
-  --color-bid-export-ready-border: oklch(0.8 0.06 195);
+  --color-bid-export-ready: var(--teal-solid);
+  --color-bid-export-ready-bg: var(--teal-tint);
+  --color-bid-export-ready-border: var(--teal-border);
   --color-bid-export-ready-dot: oklch(0.55 0.15 195);
-  --color-bid-submitted: oklch(0.5 0.15 160);
-  --color-bid-submitted-bg: oklch(0.93 0.04 160);
-  --color-bid-submitted-border: oklch(0.8 0.06 160);
+  --color-bid-submitted: var(--green-solid-deep);
+  --color-bid-submitted-bg: var(--green-tint);
+  --color-bid-submitted-border: var(--green-border);
   --color-bid-submitted-dot: oklch(0.5 0.15 160);
-  --color-bid-won: oklch(0.5 0.15 160);
-  --color-bid-won-bg: oklch(0.93 0.04 160);
-  --color-bid-won-border: oklch(0.8 0.06 160);
-  --color-bid-lost: oklch(0.55 0.2 20);
-  --color-bid-lost-bg: oklch(0.95 0.03 20);
-  --color-bid-lost-border: oklch(0.82 0.06 20);
-  --color-bid-withdrawn: oklch(0.55 0.014 48);
-  --color-bid-withdrawn-bg: oklch(0.95 0.01 48);
-  --color-bid-withdrawn-border: oklch(0.82 0.014 48);
+  --color-bid-won: var(--green-solid-deep);
+  --color-bid-won-bg: var(--green-tint);
+  --color-bid-won-border: var(--green-border);
+  --color-bid-lost: var(--red-solid);
+  --color-bid-lost-bg: var(--red-tint);
+  --color-bid-lost-border: var(--red-border);
+  --color-bid-withdrawn: var(--stone-500);
+  --color-bid-withdrawn-bg: var(--stone-100);
+  --color-bid-withdrawn-border: var(--stone-300);
   --color-bid-overdue: oklch(0.5 0.2 20);
-  --color-bid-overdue-bg: oklch(0.95 0.03 20);
-  --color-bid-overdue-border: oklch(0.82 0.06 20);
+  --color-bid-overdue-bg: var(--red-tint);
+  --color-bid-overdue-border: var(--red-border);
 
   /* Governance */
-  --color-governance-pending: oklch(0.6 0.14 70);
-  --color-governance-pending-bg: oklch(0.97 0.02 70);
+  --color-governance-pending: var(--amber-solid);
+  --color-governance-pending-bg: var(--amber-tint);
   --color-governance-pending-border: oklch(0.88 0.04 70);
-  --color-governance-approved: oklch(0.55 0.15 160);
-  --color-governance-approved-bg: oklch(0.93 0.04 160);
+  --color-governance-approved: var(--green-solid);
+  --color-governance-approved-bg: var(--green-tint);
   --color-governance-approved-border: oklch(0.82 0.06 160);
   --color-governance-changes: oklch(0.6 0.16 45);
   --color-governance-changes-bg: oklch(0.97 0.02 45);
   --color-governance-changes-border: oklch(0.88 0.04 45);
-  --color-governance-reverted: oklch(0.55 0.2 20);
-  --color-governance-reverted-bg: oklch(0.95 0.03 20);
+  --color-governance-reverted: var(--red-solid);
+  --color-governance-reverted-bg: var(--red-tint);
   --color-governance-reverted-border: oklch(0.88 0.04 20);
-  --color-governance-draft: oklch(0.55 0.014 48);
-  --color-governance-draft-bg: oklch(0.95 0.01 48);
+  --color-governance-draft: var(--stone-500);
+  --color-governance-draft-bg: var(--stone-100);
   --color-governance-draft-border: oklch(0.88 0.01 48);
 
   /* Streaming phases */
-  --color-phase-analysing: oklch(0.55 0.12 240);
-  --color-phase-drafting: oklch(0.55 0.15 290);
-  --color-phase-quality: oklch(0.6 0.14 70);
-  --color-phase-saving: oklch(0.55 0.12 240);
-  --color-phase-done: oklch(0.55 0.15 160);
-  --color-phase-done-bg: oklch(0.93 0.04 160);
-  --color-phase-done-border: oklch(0.8 0.06 160);
-  --color-phase-active-bg: oklch(0.95 0.02 240);
-  --color-phase-active-border: oklch(0.8 0.06 240);
+  --color-phase-analysing: var(--blue-solid);
+  --color-phase-drafting: var(--violet-solid);
+  --color-phase-quality: var(--amber-solid);
+  --color-phase-saving: var(--blue-solid);
+  --color-phase-done: var(--green-solid);
+  --color-phase-done-bg: var(--green-tint);
+  --color-phase-done-border: var(--green-border);
+  --color-phase-active-bg: var(--blue-tint);
+  --color-phase-active-border: var(--blue-border);
 
   /* Template field review */
-  --color-template-unreviewed: oklch(0.55 0.12 240);
-  --color-template-unreviewed-bg: oklch(0.95 0.02 240);
-  --color-template-confirmed: oklch(0.55 0.15 160);
-  --color-template-confirmed-bg: oklch(0.93 0.04 160);
-  --color-template-rejected: oklch(0.55 0.014 48);
-  --color-template-rejected-bg: oklch(0.95 0.01 48);
-  --color-template-manual: oklch(0.6 0.14 70);
-  --color-template-manual-bg: oklch(0.97 0.02 70);
-  --color-template-unmapped: oklch(0.55 0.2 20);
-  --color-template-unmapped-bg: oklch(0.95 0.03 20);
+  --color-template-unreviewed: var(--blue-solid);
+  --color-template-unreviewed-bg: var(--blue-tint);
+  --color-template-confirmed: var(--green-solid);
+  --color-template-confirmed-bg: var(--green-tint);
+  --color-template-rejected: var(--stone-500);
+  --color-template-rejected-bg: var(--stone-100);
+  --color-template-manual: var(--amber-solid);
+  --color-template-manual-bg: var(--amber-tint);
+  --color-template-unmapped: var(--red-solid);
+  --color-template-unmapped-bg: var(--red-tint);
 
   /* Quality score thresholds */
-  --color-quality-good: oklch(0.55 0.15 160);
-  --color-quality-good-bg: oklch(0.93 0.04 160);
-  --color-quality-moderate: oklch(0.6 0.14 70);
-  --color-quality-moderate-bg: oklch(0.97 0.02 70);
-  --color-quality-severity-warning: oklch(0.6 0.14 70);
-  --color-quality-severity-info: oklch(0.55 0.12 240);
+  --color-quality-good: var(--green-solid);
+  --color-quality-good-bg: var(--green-tint);
+  --color-quality-moderate: var(--amber-solid);
+  --color-quality-moderate-bg: var(--amber-tint);
+  --color-quality-severity-warning: var(--amber-solid);
+  --color-quality-severity-info: var(--blue-solid);
 
   /* Tag frequency tiers */
   --color-tag-rare: oklch(0.6 0.014 48);
-  --color-tag-rare-bg: oklch(0.95 0.01 48);
-  --color-tag-core: oklch(0.55 0.15 160);
-  --color-tag-core-bg: oklch(0.93 0.04 160);
+  --color-tag-rare-bg: var(--stone-100);
+  --color-tag-core: var(--green-solid);
+  --color-tag-core-bg: var(--green-tint);
 
   /* Verified */
-  --color-verified: oklch(0.55 0.15 160);
-  --color-verified-bg: oklch(0.93 0.04 160);
+  --color-verified: var(--green-solid);
+  --color-verified-bg: var(--green-tint);
 
   /* Entity type badge colours */
-  --color-entity-organisation-bg: oklch(0.93 0.04 240);
-  --color-entity-organisation-text: oklch(0.35 0.12 240);
-  --color-entity-certification-bg: oklch(0.93 0.04 160);
-  --color-entity-certification-text: oklch(0.35 0.12 160);
-  --color-entity-regulation-bg: oklch(0.93 0.04 20);
-  --color-entity-regulation-text: oklch(0.35 0.15 20);
-  --color-entity-framework-bg: oklch(0.93 0.04 300);
-  --color-entity-framework-text: oklch(0.35 0.12 300);
-  --color-entity-capability-bg: oklch(0.93 0.04 70);
-  --color-entity-capability-text: oklch(0.4 0.12 70);
-  --color-entity-person-bg: oklch(0.93 0.04 350);
-  --color-entity-person-text: oklch(0.38 0.12 350);
-  --color-entity-technology-bg: oklch(0.93 0.04 195);
-  --color-entity-technology-text: oklch(0.35 0.12 195);
-  --color-entity-project-bg: oklch(0.93 0.04 275);
-  --color-entity-project-text: oklch(0.35 0.12 275);
-  --color-entity-sector-bg: oklch(0.93 0.04 55);
-  --color-entity-sector-text: oklch(0.4 0.12 55);
-  --color-entity-product-bg: oklch(0.93 0.04 170);
-  --color-entity-product-text: oklch(0.35 0.12 170);
+  --color-entity-organisation-bg: oklch(
+    0.93 0.04 var(--hue-entity-organisation)
+  );
+  --color-entity-organisation-text: oklch(
+    0.35 0.12 var(--hue-entity-organisation)
+  );
+  --color-entity-certification-bg: oklch(
+    0.93 0.04 var(--hue-entity-certification)
+  );
+  --color-entity-certification-text: oklch(
+    0.35 0.12 var(--hue-entity-certification)
+  );
+  --color-entity-regulation-bg: oklch(0.93 0.04 var(--hue-entity-regulation));
+  --color-entity-regulation-text: oklch(0.35 0.15 var(--hue-entity-regulation));
+  --color-entity-framework-bg: oklch(0.93 0.04 var(--hue-entity-framework));
+  --color-entity-framework-text: oklch(0.35 0.12 var(--hue-entity-framework));
+  --color-entity-capability-bg: oklch(0.93 0.04 var(--hue-entity-capability));
+  --color-entity-capability-text: oklch(0.4 0.12 var(--hue-entity-capability));
+  --color-entity-person-bg: oklch(0.93 0.04 var(--hue-entity-person));
+  --color-entity-person-text: oklch(0.38 0.12 var(--hue-entity-person));
+  --color-entity-technology-bg: oklch(0.93 0.04 var(--hue-entity-technology));
+  --color-entity-technology-text: oklch(0.35 0.12 var(--hue-entity-technology));
+  --color-entity-project-bg: oklch(0.93 0.04 var(--hue-entity-project));
+  --color-entity-project-text: oklch(0.35 0.12 var(--hue-entity-project));
+  --color-entity-sector-bg: oklch(0.93 0.04 var(--hue-entity-sector));
+  --color-entity-sector-text: oklch(0.4 0.12 var(--hue-entity-sector));
+  --color-entity-product-bg: oklch(0.93 0.04 var(--hue-entity-product));
+  --color-entity-product-text: oklch(0.35 0.12 var(--hue-entity-product));
 
   /* Relevance score (article review) */
-  --color-relevance-high: oklch(0.93 0.04 160);
-  --color-relevance-high-text: oklch(0.35 0.12 160);
-  --color-relevance-medium: oklch(0.93 0.04 70);
-  --color-relevance-medium-text: oklch(0.4 0.12 70);
-  --color-relevance-low: oklch(0.93 0.04 55);
-  --color-relevance-low-text: oklch(0.4 0.14 55);
-  --color-relevance-irrelevant: oklch(0.95 0.03 20);
-  --color-relevance-irrelevant-text: oklch(0.35 0.15 20);
+  --color-relevance-high: oklch(0.93 0.04 var(--hue-relevance-high));
+  --color-relevance-high-text: oklch(0.35 0.12 var(--hue-relevance-high));
+  --color-relevance-medium: oklch(0.93 0.04 var(--hue-relevance-medium));
+  --color-relevance-medium-text: oklch(0.4 0.12 var(--hue-relevance-medium));
+  --color-relevance-low: oklch(0.93 0.04 var(--hue-relevance-low));
+  --color-relevance-low-text: oklch(0.4 0.14 var(--hue-relevance-low));
+  --color-relevance-irrelevant: oklch(
+    0.95 0.03 var(--hue-relevance-irrelevant)
+  );
+  --color-relevance-irrelevant-text: oklch(
+    0.35 0.15 var(--hue-relevance-irrelevant)
+  );
 
   /* Source intelligence badge */
   --color-source-si-text: oklch(0.45 0.12 195);
@@ -344,9 +360,9 @@
   --color-source-si-border: oklch(0.8 0.06 195);
 
   /* Draft / publish action colours */
-  --color-draft-badge-bg: oklch(0.93 0.04 70);
+  --color-draft-badge-bg: var(--amber-tint-strong);
   --color-draft-badge-text: oklch(0.5 0.14 70);
-  --color-draft-badge-border: oklch(0.82 0.06 70);
+  --color-draft-badge-border: var(--amber-border);
   --color-action-publish: oklch(0.55 0.14 55);
   --color-action-publish-hover: oklch(0.5 0.15 55);
 
@@ -425,29 +441,31 @@
   --success: oklch(0.45 0.12 160);
 
   /* Knowledge Hub domain colours — badge (dark) */
-  --domain-security-bg: oklch(0.25 0.06 220);
-  --domain-security-text: oklch(0.8 0.1 220);
-  --domain-compliance-bg: oklch(0.25 0.06 275);
-  --domain-compliance-text: oklch(0.8 0.1 275);
-  --domain-implementation-bg: oklch(0.25 0.06 155);
-  --domain-implementation-text: oklch(0.8 0.1 155);
-  --domain-support-bg: oklch(0.25 0.06 85);
-  --domain-support-text: oklch(0.82 0.1 85);
-  --domain-corporate-bg: oklch(0.25 0.03 200);
-  --domain-corporate-text: oklch(0.75 0.06 200);
-  --domain-product-bg: oklch(0.25 0.06 145);
-  --domain-product-text: oklch(0.8 0.1 145);
-  --domain-methodology-bg: oklch(0.25 0.06 340);
-  --domain-methodology-text: oklch(0.8 0.1 340);
+  --domain-security-bg: oklch(0.25 0.06 var(--hue-domain-security));
+  --domain-security-text: oklch(0.8 0.1 var(--hue-domain-security));
+  --domain-compliance-bg: oklch(0.25 0.06 var(--hue-domain-compliance));
+  --domain-compliance-text: oklch(0.8 0.1 var(--hue-domain-compliance));
+  --domain-implementation-bg: oklch(0.25 0.06 var(--hue-domain-implementation));
+  --domain-implementation-text: oklch(0.8 0.1 var(--hue-domain-implementation));
+  --domain-support-bg: oklch(0.25 0.06 var(--hue-domain-support));
+  --domain-support-text: oklch(0.82 0.1 var(--hue-domain-support));
+  --domain-corporate-bg: oklch(0.25 0.03 var(--hue-domain-corporate));
+  --domain-corporate-text: oklch(0.75 0.06 var(--hue-domain-corporate));
+  --domain-product-bg: oklch(0.25 0.06 var(--hue-domain-product));
+  --domain-product-text: oklch(0.8 0.1 var(--hue-domain-product));
+  --domain-methodology-bg: oklch(0.25 0.06 var(--hue-domain-methodology));
+  --domain-methodology-text: oklch(0.8 0.1 var(--hue-domain-methodology));
 
   /* Knowledge Hub domain surface colours (dark) */
-  --domain-security-surface: oklch(0.2 0.03 220);
-  --domain-compliance-surface: oklch(0.2 0.03 275);
-  --domain-implementation-surface: oklch(0.2 0.03 155);
-  --domain-support-surface: oklch(0.2 0.03 85);
-  --domain-corporate-surface: oklch(0.2 0.02 200);
-  --domain-product-surface: oklch(0.2 0.03 145);
-  --domain-methodology-surface: oklch(0.2 0.03 340);
+  --domain-security-surface: oklch(0.2 0.03 var(--hue-domain-security));
+  --domain-compliance-surface: oklch(0.2 0.03 var(--hue-domain-compliance));
+  --domain-implementation-surface: oklch(
+    0.2 0.03 var(--hue-domain-implementation)
+  );
+  --domain-support-surface: oklch(0.2 0.03 var(--hue-domain-support));
+  --domain-corporate-surface: oklch(0.2 0.02 var(--hue-domain-corporate));
+  --domain-product-surface: oklch(0.2 0.03 var(--hue-domain-product));
+  --domain-methodology-surface: oklch(0.2 0.03 var(--hue-domain-methodology));
 
   /* Chart colours (dark) */
   --chart-1: oklch(0.72 0.14 55);
@@ -491,174 +509,93 @@
   --color-priority-medium: oklch(0.82 0.15 70.08);
   --color-priority-low: oklch(0.78 0.15 261.348);
 
-  /* === Semantic status tokens — dark mode === */
-
-  /* Freshness (dark) */
-  --color-freshness-fresh: oklch(0.7 0.13 160);
-  --color-freshness-fresh-bg: oklch(0.25 0.06 160);
-  --color-freshness-aging: oklch(0.72 0.12 70);
-  --color-freshness-aging-bg: oklch(0.25 0.04 70);
-  --color-freshness-stale: oklch(0.7 0.17 20);
-  --color-freshness-stale-bg: oklch(0.25 0.05 20);
-  --color-freshness-expired: oklch(0.65 0.17 20);
-  --color-freshness-expired-bg: oklch(0.25 0.05 20);
-
   /* Confidence (dark) */
-  --color-confidence-strong: oklch(0.7 0.13 160);
-  --color-confidence-strong-bg: oklch(0.25 0.06 160);
-  --color-confidence-strong-border: oklch(0.35 0.08 160);
-  --color-confidence-partial: oklch(0.72 0.12 70);
-  --color-confidence-partial-bg: oklch(0.25 0.04 70);
-  --color-confidence-partial-border: oklch(0.35 0.06 70);
-  --color-confidence-needs-sme: oklch(0.7 0.1 240);
-  --color-confidence-needs-sme-bg: oklch(0.25 0.04 240);
-  --color-confidence-needs-sme-border: oklch(0.35 0.06 240);
-  --color-confidence-none: oklch(0.65 0.012 48);
-  --color-confidence-none-bg: oklch(0.25 0.016 48);
+  --color-confidence-none: var(--stone-400);
+  --color-confidence-none-bg: var(--stone-800);
   --color-confidence-none-border: oklch(0.35 0.014 48);
 
-  /* Low-confidence review indicator (dark) */
-  --color-confidence-low: oklch(0.7 0.17 20);
-  --color-confidence-low-bg: oklch(0.25 0.05 20);
-  --color-confidence-low-border: oklch(0.35 0.06 20);
-
   /* Priority tier badges (dark) */
-  --color-priority-tier-critical: oklch(0.7 0.17 20);
-  --color-priority-tier-critical-bg: oklch(0.25 0.05 20);
-  --color-priority-tier-high: oklch(0.72 0.12 70);
-  --color-priority-tier-high-bg: oklch(0.25 0.04 70);
-  --color-priority-tier-medium: oklch(0.7 0.1 240);
-  --color-priority-tier-medium-bg: oklch(0.25 0.04 240);
-  --color-priority-tier-low: oklch(0.65 0.012 48);
-  --color-priority-tier-low-bg: oklch(0.25 0.016 48);
+  --color-priority-tier-low: var(--stone-400);
+  --color-priority-tier-low-bg: var(--stone-800);
 
   /* Bid status (dark) */
-  --color-bid-draft: oklch(0.65 0.012 48);
-  --color-bid-draft-bg: oklch(0.25 0.016 48);
+  --color-bid-draft: var(--stone-400);
+  --color-bid-draft-bg: var(--stone-800);
   --color-bid-draft-border: oklch(0.35 0.014 48);
-  --color-bid-draft-dot: oklch(0.55 0.014 48);
-  --color-bid-discovery: oklch(0.7 0.1 240);
-  --color-bid-discovery-bg: oklch(0.25 0.04 240);
-  --color-bid-discovery-border: oklch(0.35 0.06 240);
+  --color-bid-draft-dot: var(--stone-500);
   --color-bid-discovery-dot: oklch(0.6 0.1 240);
-  --color-bid-active: oklch(0.72 0.12 70);
-  --color-bid-active-bg: oklch(0.25 0.04 70);
-  --color-bid-active-border: oklch(0.35 0.06 70);
   --color-bid-active-dot: oklch(0.6 0.12 70);
   --color-bid-in-review: oklch(0.7 0.1 290);
-  --color-bid-in-review-bg: oklch(0.25 0.04 290);
-  --color-bid-in-review-border: oklch(0.35 0.06 290);
   --color-bid-in-review-dot: oklch(0.6 0.1 290);
-  --color-bid-export-ready: oklch(0.7 0.13 195);
-  --color-bid-export-ready-bg: oklch(0.25 0.06 195);
-  --color-bid-export-ready-border: oklch(0.35 0.08 195);
   --color-bid-export-ready-dot: oklch(0.55 0.13 195);
-  --color-bid-submitted: oklch(0.65 0.13 160);
-  --color-bid-submitted-bg: oklch(0.25 0.06 160);
-  --color-bid-submitted-border: oklch(0.35 0.08 160);
   --color-bid-submitted-dot: oklch(0.55 0.13 160);
-  --color-bid-won: oklch(0.65 0.13 160);
-  --color-bid-won-bg: oklch(0.25 0.06 160);
-  --color-bid-won-border: oklch(0.35 0.08 160);
-  --color-bid-lost: oklch(0.7 0.17 20);
-  --color-bid-lost-bg: oklch(0.25 0.05 20);
-  --color-bid-lost-border: oklch(0.35 0.06 20);
-  --color-bid-withdrawn: oklch(0.65 0.012 48);
-  --color-bid-withdrawn-bg: oklch(0.25 0.016 48);
+  --color-bid-withdrawn: var(--stone-400);
+  --color-bid-withdrawn-bg: var(--stone-800);
   --color-bid-withdrawn-border: oklch(0.35 0.014 48);
   --color-bid-overdue: oklch(0.7 0.17 20);
-  --color-bid-overdue-bg: oklch(0.25 0.05 20);
-  --color-bid-overdue-border: oklch(0.35 0.06 20);
 
   /* Governance (dark) */
-  --color-governance-pending: oklch(0.72 0.12 70);
-  --color-governance-pending-bg: oklch(0.25 0.04 70);
   --color-governance-pending-border: oklch(0.35 0.06 70);
-  --color-governance-approved: oklch(0.7 0.13 160);
-  --color-governance-approved-bg: oklch(0.25 0.06 160);
   --color-governance-approved-border: oklch(0.35 0.08 160);
   --color-governance-changes: oklch(0.72 0.14 45);
   --color-governance-changes-bg: oklch(0.25 0.05 45);
   --color-governance-changes-border: oklch(0.35 0.06 45);
-  --color-governance-reverted: oklch(0.7 0.17 20);
-  --color-governance-reverted-bg: oklch(0.25 0.05 20);
   --color-governance-reverted-border: oklch(0.35 0.06 20);
-  --color-governance-draft: oklch(0.65 0.012 48);
-  --color-governance-draft-bg: oklch(0.25 0.016 48);
+  --color-governance-draft: var(--stone-400);
+  --color-governance-draft-bg: var(--stone-800);
   --color-governance-draft-border: oklch(0.35 0.01 48);
 
-  /* Streaming phases (dark) */
-  --color-phase-analysing: oklch(0.7 0.1 240);
-  --color-phase-drafting: oklch(0.7 0.13 290);
-  --color-phase-quality: oklch(0.72 0.12 70);
-  --color-phase-saving: oklch(0.7 0.1 240);
-  --color-phase-done: oklch(0.7 0.13 160);
-  --color-phase-done-bg: oklch(0.25 0.06 160);
-  --color-phase-done-border: oklch(0.35 0.08 160);
-  --color-phase-active-bg: oklch(0.25 0.04 240);
-  --color-phase-active-border: oklch(0.35 0.06 240);
-
   /* Template field review (dark) */
-  --color-template-unreviewed: oklch(0.7 0.1 240);
-  --color-template-unreviewed-bg: oklch(0.25 0.04 240);
-  --color-template-confirmed: oklch(0.7 0.13 160);
-  --color-template-confirmed-bg: oklch(0.25 0.06 160);
-  --color-template-rejected: oklch(0.65 0.012 48);
-  --color-template-rejected-bg: oklch(0.25 0.016 48);
-  --color-template-manual: oklch(0.72 0.12 70);
-  --color-template-manual-bg: oklch(0.25 0.04 70);
-  --color-template-unmapped: oklch(0.7 0.17 20);
-  --color-template-unmapped-bg: oklch(0.25 0.05 20);
-
-  /* Quality score thresholds (dark) */
-  --color-quality-good: oklch(0.7 0.13 160);
-  --color-quality-good-bg: oklch(0.25 0.06 160);
-  --color-quality-moderate: oklch(0.72 0.12 70);
-  --color-quality-moderate-bg: oklch(0.25 0.04 70);
-  --color-quality-severity-warning: oklch(0.72 0.12 70);
-  --color-quality-severity-info: oklch(0.7 0.1 240);
+  --color-template-rejected: var(--stone-400);
+  --color-template-rejected-bg: var(--stone-800);
 
   /* Tag frequency tiers (dark) */
   --color-tag-rare: oklch(0.55 0.014 48);
   --color-tag-rare-bg: oklch(0.22 0.01 48);
-  --color-tag-core: oklch(0.7 0.13 160);
-  --color-tag-core-bg: oklch(0.25 0.06 160);
-
-  /* Verified (dark) */
-  --color-verified: oklch(0.7 0.13 160);
-  --color-verified-bg: oklch(0.25 0.06 160);
 
   /* Entity type badge colours (dark) */
-  --color-entity-organisation-bg: oklch(0.25 0.06 240);
-  --color-entity-organisation-text: oklch(0.8 0.1 240);
-  --color-entity-certification-bg: oklch(0.25 0.06 160);
-  --color-entity-certification-text: oklch(0.8 0.1 160);
-  --color-entity-regulation-bg: oklch(0.25 0.05 20);
-  --color-entity-regulation-text: oklch(0.8 0.12 20);
-  --color-entity-framework-bg: oklch(0.25 0.06 300);
-  --color-entity-framework-text: oklch(0.8 0.1 300);
-  --color-entity-capability-bg: oklch(0.25 0.04 70);
-  --color-entity-capability-text: oklch(0.82 0.1 70);
-  --color-entity-person-bg: oklch(0.25 0.06 350);
-  --color-entity-person-text: oklch(0.8 0.1 350);
-  --color-entity-technology-bg: oklch(0.25 0.06 195);
-  --color-entity-technology-text: oklch(0.8 0.1 195);
-  --color-entity-project-bg: oklch(0.25 0.06 275);
-  --color-entity-project-text: oklch(0.8 0.1 275);
-  --color-entity-sector-bg: oklch(0.25 0.04 55);
-  --color-entity-sector-text: oklch(0.82 0.1 55);
-  --color-entity-product-bg: oklch(0.25 0.06 170);
-  --color-entity-product-text: oklch(0.8 0.1 170);
+  --color-entity-organisation-bg: oklch(
+    0.25 0.06 var(--hue-entity-organisation)
+  );
+  --color-entity-organisation-text: oklch(
+    0.8 0.1 var(--hue-entity-organisation)
+  );
+  --color-entity-certification-bg: oklch(
+    0.25 0.06 var(--hue-entity-certification)
+  );
+  --color-entity-certification-text: oklch(
+    0.8 0.1 var(--hue-entity-certification)
+  );
+  --color-entity-regulation-bg: oklch(0.25 0.05 var(--hue-entity-regulation));
+  --color-entity-regulation-text: oklch(0.8 0.12 var(--hue-entity-regulation));
+  --color-entity-framework-bg: oklch(0.25 0.06 var(--hue-entity-framework));
+  --color-entity-framework-text: oklch(0.8 0.1 var(--hue-entity-framework));
+  --color-entity-capability-bg: oklch(0.25 0.04 var(--hue-entity-capability));
+  --color-entity-capability-text: oklch(0.82 0.1 var(--hue-entity-capability));
+  --color-entity-person-bg: oklch(0.25 0.06 var(--hue-entity-person));
+  --color-entity-person-text: oklch(0.8 0.1 var(--hue-entity-person));
+  --color-entity-technology-bg: oklch(0.25 0.06 var(--hue-entity-technology));
+  --color-entity-technology-text: oklch(0.8 0.1 var(--hue-entity-technology));
+  --color-entity-project-bg: oklch(0.25 0.06 var(--hue-entity-project));
+  --color-entity-project-text: oklch(0.8 0.1 var(--hue-entity-project));
+  --color-entity-sector-bg: oklch(0.25 0.04 var(--hue-entity-sector));
+  --color-entity-sector-text: oklch(0.82 0.1 var(--hue-entity-sector));
+  --color-entity-product-bg: oklch(0.25 0.06 var(--hue-entity-product));
+  --color-entity-product-text: oklch(0.8 0.1 var(--hue-entity-product));
 
   /* Relevance score (dark) */
-  --color-relevance-high: oklch(0.25 0.06 160);
-  --color-relevance-high-text: oklch(0.8 0.1 160);
-  --color-relevance-medium: oklch(0.25 0.04 70);
-  --color-relevance-medium-text: oklch(0.82 0.1 70);
-  --color-relevance-low: oklch(0.25 0.04 55);
-  --color-relevance-low-text: oklch(0.82 0.1 55);
-  --color-relevance-irrelevant: oklch(0.25 0.05 20);
-  --color-relevance-irrelevant-text: oklch(0.8 0.12 20);
+  --color-relevance-high: oklch(0.25 0.06 var(--hue-relevance-high));
+  --color-relevance-high-text: oklch(0.8 0.1 var(--hue-relevance-high));
+  --color-relevance-medium: oklch(0.25 0.04 var(--hue-relevance-medium));
+  --color-relevance-medium-text: oklch(0.82 0.1 var(--hue-relevance-medium));
+  --color-relevance-low: oklch(0.25 0.04 var(--hue-relevance-low));
+  --color-relevance-low-text: oklch(0.82 0.1 var(--hue-relevance-low));
+  --color-relevance-irrelevant: oklch(
+    0.25 0.05 var(--hue-relevance-irrelevant)
+  );
+  --color-relevance-irrelevant-text: oklch(
+    0.8 0.12 var(--hue-relevance-irrelevant)
+  );
 
   /* Source intelligence badge (dark) */
   --color-source-si-text: oklch(0.75 0.1 195);
@@ -666,9 +603,7 @@
   --color-source-si-border: oklch(0.35 0.06 195);
 
   /* Draft / publish action colours (dark) */
-  --color-draft-badge-bg: oklch(0.25 0.04 70);
   --color-draft-badge-text: oklch(0.75 0.12 70);
-  --color-draft-badge-border: oklch(0.35 0.06 70);
   --color-action-publish: oklch(0.65 0.14 55);
   --color-action-publish-hover: oklch(0.6 0.15 55);
 
