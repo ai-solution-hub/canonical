@@ -112,4 +112,36 @@ describe('useContentIngestPolling', () => {
     expect(result.current.status).toBe('idle');
     expect(result.current.sourceFile).toBeNull();
   });
+
+  it('transitions pending → timeout once POLL_TIMEOUT_MS elapses with no row', async () => {
+    // The row never lands; the poll must give up after the deadline rather
+    // than spin forever. shouldAdvanceTime lets TanStack Query's refetch
+    // promises settle while fake timers own the clock (mirrors
+    // use-notifications.test.ts).
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      mockFetchStatus.mockResolvedValue({ ingested: false, itemId: null });
+
+      const { result } = renderHook(() => useContentIngestPolling(), {
+        wrapper: createWrapper(),
+      });
+
+      act(() => {
+        result.current.start('never-lands.pdf');
+      });
+
+      await waitFor(() => expect(result.current.status).toBe('pending'));
+
+      // Advance past the 5-min deadline; the next refetchInterval evaluation
+      // observes Date.now() > deadline and flips the terminal timeout flag.
+      await act(async () => {
+        vi.advanceTimersByTime(5 * 60 * 1000 + 2500);
+      });
+
+      await waitFor(() => expect(result.current.status).toBe('timeout'));
+      expect(result.current.itemId).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
