@@ -109,12 +109,12 @@ describe('estimateQuestionCost', () => {
     // For a question with substantial content, most cost should come from pass 2
     const result = estimateQuestionCost(100, 10000);
 
-    // Rough check: pass 2 uses Opus at $15/M input and $75/M output
-    // Pass 2 input: ~10400 tokens * $15/M = ~$0.156
-    // Pass 2 output: 2000 tokens * $75/M = ~$0.15
-    // Total pass 2 max: ~$0.306
+    // Rough check: pass 2 uses Opus at $5/M input and $25/M output (bl-284 corrected rates)
+    // Pass 2 input: ~10400 tokens * $5/M = ~$0.052
+    // Pass 2 output: 2000 tokens * $25/M = ~$0.05
+    // Total pass 2 max: ~$0.102 (~87% of the ~$0.117 costMax)
     // This should be the majority of the total costMax
-    expect(result.costMax).toBeGreaterThan(0.2);
+    expect(result.costMax).toBeGreaterThan(0.1);
   });
 });
 
