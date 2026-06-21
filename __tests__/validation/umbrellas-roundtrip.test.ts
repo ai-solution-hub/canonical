@@ -28,7 +28,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { UmbrellasSchema } from '@/lib/validation/umbrellas-schema';
 
 const FIXTURE_PATH = resolve(__dirname, '../fixtures/ledger/umbrellas.json');

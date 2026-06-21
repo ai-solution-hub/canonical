@@ -2,7 +2,6 @@
  * Governance and delete/archive formatters for MCP tool responses.
  */
 import { z } from 'zod';
-import { formatDateUK } from '@/lib/format';
 
 // ---------------------------------------------------------------------------
 // Delete/Archive result

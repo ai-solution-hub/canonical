@@ -30,7 +30,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { BacklogSchema } from '@/lib/validation/backlog-schema';
 
