@@ -6,7 +6,8 @@
  * conditions), §5.2 (continue-with-partial), §10 D-9 (cooperative
  * cancellation), §7.3 (handler module migration step).
  *
- * Source-of-truth for the loop body: literal extraction from
+ * This handler is now the live owner of the batch-reclassify loop body. It
+ * originated as a literal extraction from the since-retired CLI
  * `scripts/batch-reclassify.ts:943-1242` (the CLI's per-item processing
  * loop), with these adjustments:
  *
@@ -25,11 +26,11 @@
  *   - Cooperative cancellation between items every 10 items (per spec
  *     D-9; cadence fixed in this candidate, configurable in follow-up).
  *   - The `bridgeTemporalReferencesToEntities` and per-item entity
- *     write logic preserved verbatim from CLI L1135-1202.
+ *     write logic preserved verbatim from the retired CLI's L1135-1202.
  *   - Eval-driven prompt rules preserved surgically (per
  *     `feedback_eval_prompt_rules_surgical`) — system prompt + user
- *     message + CLASSIFICATION_TOOL schema copied verbatim from
- *     CLI L176-193 + L341-492 + L966-984.
+ *     message + CLASSIFICATION_TOOL schema carried over verbatim from
+ *     the retired CLI's L176-193 + L341-492 + L966-984.
  *
  * The handler is invoked from `lib/queue/dispatch.ts` `case 'batch_reclassify':`.
  */
@@ -62,7 +63,7 @@ import type { Database, Json } from '@/supabase/types/database.types';
  * `processing_queue.payload.body` per the envelope contract in
  * `docs/specs/background-queue-infra-spec.md` §3.1.
  *
- * Mirrors the existing CLI's `CliArgs` interface
+ * Originated from the retired CLI's `CliArgs` interface
  * (`scripts/batch-reclassify.ts:65-73`) minus the `execute` flag (the
  * queued path is always execute — dry-run is a UI-side preview, not a
  * queued job).
@@ -75,29 +76,30 @@ export interface BatchReclassifyBody extends Record<string, unknown> {
    *  `content_items` row in the workspace. */
   workspace_id: string;
   /** Optional taxonomy domain filter — only items currently in this
-   *  domain are reclassified. Matches the CLI's `--domain` flag
-   *  (`scripts/batch-reclassify.ts:101-103`). When undefined or empty,
-   *  all domains are processed. */
+   *  domain are reclassified. Carried over from the retired CLI's
+   *  `--domain` flag (`scripts/batch-reclassify.ts:101-103`). When
+   *  undefined or empty, all domains are processed. */
   domain?: string | null;
   /** Optional cap on the number of items to process. 0 = no limit
-   *  (process all). Matches the CLI's `--limit` flag
+   *  (process all). Carried over from the retired CLI's `--limit` flag
    *  (`scripts/batch-reclassify.ts:86-88`). Default: 0. */
   limit: number;
   /** When true, ALL items pass the filter regardless of current
    *  classification state (otherwise: only unclassified, low-confidence,
-   *  or garbled-keyword items pass). Matches the CLI's `--force` flag
-   *  (`scripts/batch-reclassify.ts:97-98`). Default: false. */
+   *  or garbled-keyword items pass). Carried over from the retired CLI's
+   *  `--force` flag (`scripts/batch-reclassify.ts:97-98`). Default: false. */
   force: boolean;
   /** When true, only entity extraction runs (classification fields are
-   *  not updated). Matches the CLI's `--entities-only` flag
-   *  (`scripts/batch-reclassify.ts:99-100`). Default: false. */
+   *  not updated). Carried over from the retired CLI's `--entities-only`
+   *  flag (`scripts/batch-reclassify.ts:99-100`). Default: false. */
   entities_only: boolean;
   /** Per-batch concurrency, capped at 3 to respect Anthropic rate
-   *  limits (matches CLI's batchSize cap at L113-115). Default: 1. */
+   *  limits (carried over from the retired CLI's batchSize cap at
+   *  L113-115). Default: 1. */
   batch_size: number;
   /** Anthropic model identifier. Default: `'claude-sonnet-4-6'`
-   *  (matches `AI_SUMMARY_MODEL` env-var default at
-   *  `scripts/batch-reclassify.ts:524`). */
+   *  (carried over from the retired CLI's `AI_SUMMARY_MODEL` env-var
+   *  default at `scripts/batch-reclassify.ts:524`). */
   model_tier: string;
 }
 
@@ -106,7 +108,7 @@ export interface BatchReclassifyBody extends Record<string, unknown> {
  * `processing_queue.result` AND to `pipeline_runs.result` (per spec §6.3
  * Pattern 2 finalisation).
  *
- * Shape mirrors today's CLI's final summary at
+ * Shape carried over from the retired CLI's final summary at
  * `scripts/batch-reclassify.ts:1244-1294`.
  */
 export interface BatchReclassifyResult extends Record<string, unknown> {
@@ -173,11 +175,12 @@ export interface BatchReclassifyAuthContext {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers — copied verbatim from `scripts/batch-reclassify.ts` per spec §7.3.
+// Helpers — carried over verbatim from the retired CLI
+// `scripts/batch-reclassify.ts` per spec §7.3.
 // ---------------------------------------------------------------------------
 
 // Content type priority ordering (q_a_pair first — bulk of garbled items).
-// Verbatim from `scripts/batch-reclassify.ts:137-152`.
+// Verbatim from the retired CLI `scripts/batch-reclassify.ts:137-152`.
 const CONTENT_TYPE_PRIORITY = [
   'q_a_pair',
   'case_study',
@@ -195,16 +198,17 @@ const CONTENT_TYPE_PRIORITY = [
   'other',
 ];
 
-// Sonnet pricing (per token). Verbatim from `scripts/batch-reclassify.ts:155-156`.
+// Sonnet pricing (per token). Verbatim from the retired CLI
+// `scripts/batch-reclassify.ts:155-156`.
 const SONNET_INPUT_PRICE = 3.0 / 1_000_000;
 const SONNET_OUTPUT_PRICE = 15.0 / 1_000_000;
 
 // Garbled keyword pattern: same word repeated 3+ times with hyphens.
-// Verbatim from `scripts/batch-reclassify.ts:158-160`.
+// Verbatim from the retired CLI `scripts/batch-reclassify.ts:158-160`.
 const GARBLED_KEYWORD_REGEX = /(\b\w+(?:-\w+)*)\1{2,}|(\b\w+\b)(?:-\2){2,}/;
 
 // System prompt for classification + entity extraction.
-// Verbatim from `scripts/batch-reclassify.ts:176-193`.
+// Verbatim from the retired CLI `scripts/batch-reclassify.ts:176-193`.
 const SYSTEM_PROMPT = `You are an expert knowledge base classifier for a UK SMB bid management platform.
 Your task is to classify content items — primarily Q&A pairs extracted from bid
 library documents, plus policies, case studies, certifications, capability
@@ -278,13 +282,14 @@ function contentTypeSortKey(contentType: string | null): number {
 }
 
 /** Check if an item has garbled keywords (pre-v4.0 classification artefact).
- *  Verbatim from `scripts/batch-reclassify.ts:277-280`. */
+ *  Verbatim from the retired CLI `scripts/batch-reclassify.ts:277-280`. */
 function hasGarbledKeywords(keywords: string[] | null): boolean {
   if (!keywords || keywords.length === 0) return false;
   return keywords.some((kw) => GARBLED_KEYWORD_REGEX.test(kw));
 }
 
-// Tool schema for Claude. Verbatim from `scripts/batch-reclassify.ts:341-492`.
+// Tool schema for Claude. Verbatim from the retired CLI
+// `scripts/batch-reclassify.ts:341-492`.
 const CLASSIFICATION_TOOL: Anthropic.Tool = {
   name: 'return_classification_with_entities',
   description:
@@ -444,8 +449,9 @@ const CANCEL_POLL_CADENCE = 10;
 
 /**
  * Loads taxonomy domains + subtopics into a string suitable for the user
- * message. Mirrors `loadTaxonomy()` at `scripts/batch-reclassify.ts:290-337`,
- * but throws PermanentJobError instead of `process.exit(1)` (per spec §4.3).
+ * message. Carried over from `loadTaxonomy()` in the retired CLI
+ * `scripts/batch-reclassify.ts:290-337`, but throws PermanentJobError
+ * instead of `process.exit(1)` (per spec §4.3).
  */
 async function loadTaxonomy(
   supabase: SupabaseClient<Database>,
@@ -591,9 +597,10 @@ export async function runBatchReclassifyJob(
 
   // ------------------------------------------------------------------
   // 3. Fetch candidate content_items.
-  //    Mirror CLI L582-714 (`scripts/batch-reclassify.ts:582-714`) with
-  //    the dry-run preview branch removed entirely — queued mode is
-  //    always execute-semantics (per spec §4.4 step 6).
+  //    Carried over from the retired CLI's L582-714
+  //    (`scripts/batch-reclassify.ts:582-714`) with the dry-run preview
+  //    branch removed entirely — queued mode is always execute-semantics
+  //    (per spec §4.4 step 6).
   // ------------------------------------------------------------------
   let candidates: ContentRow[];
 

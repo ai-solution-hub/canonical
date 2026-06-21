@@ -75,8 +75,8 @@ Disposition table (symbol → class → covering / new test):
                                     content_item_id) UniqueViolation, RED-before).
   _extract_pdf / _extract_xlsx /
    _extract_docx (orchestrator)(2) REAL reader bodies run by test_form_extractors.py
-                                    (corpus-fixture walks) + test_extract_docx_tables.py +
-                                    test_docx_cell_to_markdown.py + test_xlsx_zero_archetype.py.
+                                    (corpus-fixture walks) + test_docx_cell_to_markdown.py +
+                                    test_xlsx_zero_archetype.py.
                                     The orchestrator's OWN dispatch body runs real in
                                     test_form_extractor_orchestrator.py (only the per-format
                                     readers are faked there — the seam below the dispatcher).
