@@ -18,6 +18,56 @@
   --stone-800: oklch(0.25 0.016 48);
   --stone-900: oklch(0.18 0.014 48);
 
+  /* Functional status ramps (F1a, ID-119) — role steps reproduce existing literals.
+     Additive only: nothing references these yet (rewire is F1b/119.2). .dark swaps the
+     same ramp names below. */
+  --green-solid: oklch(0.55 0.15 160);
+  --green-solid-deep: oklch(0.5 0.15 160);
+  --green-border: oklch(0.8 0.06 160);
+  --green-tint: oklch(0.93 0.04 160);
+  --amber-solid: oklch(0.6 0.14 70);
+  --amber-border: oklch(0.82 0.06 70);
+  --amber-tint: oklch(0.97 0.02 70);
+  --amber-tint-strong: oklch(0.93 0.04 70);
+  --red-solid: oklch(0.55 0.2 20);
+  --red-solid-deep: oklch(0.5 0.2 20);
+  --red-border: oklch(0.82 0.06 20);
+  --red-tint: oklch(0.95 0.03 20);
+  --blue-solid: oklch(0.55 0.12 240);
+  --blue-border: oklch(0.8 0.06 240);
+  --blue-tint: oklch(0.95 0.02 240);
+  --violet-solid: oklch(0.55 0.15 290);
+  --violet-border: oklch(0.8 0.06 290);
+  --violet-tint: oklch(0.95 0.02 290);
+  --teal-solid: oklch(0.55 0.15 195);
+  --teal-border: oklch(0.8 0.06 195);
+  --teal-tint: oklch(0.93 0.04 195);
+
+  /* Categorical hue primitives (F1a, ID-119) — one hue degree per entity/domain/relevance
+     category badge, extracted from the existing badge literals. Values only: badge defs are
+     converted to oklch(L C var(--hue-…)) in F1b/119.2. Additive only. */
+  --hue-entity-organisation: 240;
+  --hue-entity-certification: 160;
+  --hue-entity-regulation: 20;
+  --hue-entity-framework: 300;
+  --hue-entity-capability: 70;
+  --hue-entity-person: 350;
+  --hue-entity-technology: 195;
+  --hue-entity-project: 275;
+  --hue-entity-sector: 55;
+  --hue-entity-product: 170;
+  --hue-domain-security: 220;
+  --hue-domain-compliance: 275;
+  --hue-domain-implementation: 155;
+  --hue-domain-support: 85;
+  --hue-domain-corporate: 200;
+  --hue-domain-product: 145;
+  --hue-domain-methodology: 340;
+  --hue-relevance-high: 160;
+  --hue-relevance-medium: 70;
+  --hue-relevance-low: 55;
+  --hue-relevance-irrelevant: 20;
+
   /* Semantic tokens (light mode) — shadcn compatible */
   --background: oklch(0.94 0.01 48);
   --foreground: oklch(0.25 0.016 48);
@@ -319,6 +369,31 @@
 }
 
 .dark {
+  /* Functional status ramps (F1a, ID-119) — same names, dark values derived from the
+     existing .dark status literals. Pre-stages the "dark = swap the ramps" collapse that
+     F1b/119.2 completes. Additive only: nothing references these yet. */
+  --green-solid: oklch(0.7 0.13 160);
+  --green-solid-deep: oklch(0.65 0.13 160);
+  --green-border: oklch(0.35 0.08 160);
+  --green-tint: oklch(0.25 0.06 160);
+  --amber-solid: oklch(0.72 0.12 70);
+  --amber-border: oklch(0.35 0.06 70);
+  --amber-tint: oklch(0.25 0.04 70);
+  --amber-tint-strong: oklch(0.25 0.04 70);
+  --red-solid: oklch(0.7 0.17 20);
+  --red-solid-deep: oklch(0.65 0.17 20);
+  --red-border: oklch(0.35 0.06 20);
+  --red-tint: oklch(0.25 0.05 20);
+  --blue-solid: oklch(0.7 0.1 240);
+  --blue-border: oklch(0.35 0.06 240);
+  --blue-tint: oklch(0.25 0.04 240);
+  --violet-solid: oklch(0.7 0.13 290);
+  --violet-border: oklch(0.35 0.06 290);
+  --violet-tint: oklch(0.25 0.04 290);
+  --teal-solid: oklch(0.7 0.13 195);
+  --teal-border: oklch(0.35 0.08 195);
+  --teal-tint: oklch(0.25 0.06 195);
+
   --background: oklch(0.18 0.014 48);
   --foreground: oklch(0.95 0.01 48);
 
