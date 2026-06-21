@@ -404,6 +404,62 @@ def test_longest_prefix_winner_route_is_returned(tmp_path: Path) -> None:
     assert parent == Resolution(workspace_id=ACME_UUID, route="content")
 
 
+# ──────────────────────────────────────────────────────────────────────────
+# ID-59 {59.26} — qa_sidecar route + frozen `__qa__/` reserved prefix
+# (TECH-qa-sidecar-canonical.md P1, PRODUCT INV-4)
+# ──────────────────────────────────────────────────────────────────────────
+
+
+def test_qa_sidecar_prefix_resolves_qa_sidecar_route(tmp_path: Path) -> None:
+    """INV-4 / P1: a manifest mapping `{path_prefix: "__qa__/", route:
+    "qa_sidecar"}` resolves a `__qa__/foo.md` path to `route == "qa_sidecar"`.
+
+    The frozen `__qa__/` reserved prefix (ID-45 {45.3} freezes it) routes to
+    the third sidecar branch by the EXISTING longest-prefix-wins resolver —
+    `resolve_route` is unchanged; only the `RouteKind` Literal widened."""
+    manifest_path = _write_manifest(
+        tmp_path,
+        {
+            "schema_version": 1,
+            "mappings": [
+                {"path_prefix": "acme-bids/", "workspace_id": str(ACME_UUID)},
+                {
+                    "path_prefix": "__qa__/",
+                    "workspace_id": str(EXAMPLE_UUID),
+                    "route": "qa_sidecar",
+                },
+            ],
+        },
+    )
+    manifest = load_workspace_manifest(manifest_path)
+    result = resolve_route(manifest, "__qa__/foo.md")
+    assert result == Resolution(workspace_id=EXAMPLE_UUID, route="qa_sidecar")
+    # The untagged sibling prefix stays on the content route (no cross-talk).
+    assert resolve_route(manifest, "acme-bids/notes.md").route == "content"
+
+
+def test_invalid_qa_route_typo_rejected_at_load_time(tmp_path: Path) -> None:
+    """P1: a bogus `route` value (e.g. the `"qa_sidcar"` typo) is a load-time
+    error — `Literal` + `extra="forbid"` make it a `ValidationError` →
+    `ManifestLoadError` at the manifest-load gate (never a silent default,
+    never a silent route to content)."""
+    manifest_path = _write_manifest(
+        tmp_path,
+        {
+            "schema_version": 1,
+            "mappings": [
+                {
+                    "path_prefix": "__qa__/",
+                    "workspace_id": str(EXAMPLE_UUID),
+                    "route": "qa_sidcar",  # typo — must be rejected at parse time
+                },
+            ],
+        },
+    )
+    with pytest.raises(ManifestLoadError):
+        load_workspace_manifest(manifest_path)
+
+
 def test_resolve_workspace_shim_equivalence() -> None:
     """(e) `resolve_workspace(m, p) == resolve_route(m, p).workspace_id` for
     every mapped path — the shim contract — and the exception contract is

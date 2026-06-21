@@ -1961,6 +1961,51 @@ async def _ingest_file_body(
         )
         return
 
+    if route == "qa_sidecar":
+        # ID-59 {59.26} (TECH-qa-sidecar P1): the frozen `__qa__/` reserved
+        # prefix forks here. `resolution` is always non-None — "qa_sidecar" is
+        # only reachable via a successful `resolve_route` (the defaults above are
+        # "content"). The branch receives ONLY `sd_target` + `qa_target` (NOT
+        # ci/cc/em/er): the type system makes the INV-5 "no content rows"
+        # guarantee STRUCTURAL, mirroring how `_ingest_form_branch` receives only
+        # ft/ftf.
+        assert resolution is not None
+        await _ingest_qa_sidecar_branch(
+            file,
+            rel_path,
+            sd_target,
+            qa_target,
+            op_id=op_id,
+            _bump=_bump,
+            resolution=resolution,
+        )
+        return
+
+    # ── INV-5 defensive belt (TECH-qa-sidecar P1.5 / S297 BUG-B): a path under
+    # the frozen `__qa__/` reserved prefix that resolves to "content" means the
+    # operator forgot the `{path_prefix:"__qa__/", route:"qa_sidecar"}` manifest
+    # mapping — the sidecar is about to be ingested as junk content
+    # (content_items + chunks + entity_mentions for a Q&A sidecar). WARN loudly
+    # so the mis-wire is visible; do NOT mutate the route (the manifest is the
+    # source of truth — silently rerouting would mask the operator error).
+    if rel_path.startswith("__qa__/"):
+        _logger.warning(
+            json.dumps(
+                {
+                    "event": "cocoindex.ingest.qa_sidecar_route_missing",
+                    "rel_path": rel_path,
+                    "resolved_route": route,
+                    "detail": (
+                        "path under the frozen __qa__/ reserved prefix resolved "
+                        "to 'content' — operator likely forgot the "
+                        "{path_prefix:'__qa__/', route:'qa_sidecar'} manifest "
+                        "mapping; it will be ingested as junk content (S297 "
+                        "BUG-B hazard)"
+                    ),
+                }
+            )
+        )
+
     await _ingest_content_branch(
         file,
         rel_path,
@@ -2398,6 +2443,125 @@ async def _ingest_content_branch(
                     }
                 )
             )
+
+
+async def _ingest_qa_sidecar_branch(
+    file: "coco.resources.file.FileLike",  # type: ignore[name-defined]
+    rel_path: str,
+    sd_target: Any,
+    qa_target: Any,
+    *,
+    op_id: "uuid.UUID",
+    _bump: Any,
+    resolution: Resolution,
+) -> None:
+    """Q&A-sidecar branch — ID-59 {59.26} (TECH-qa-sidecar-canonical P1).
+
+    The third walk branch, reached EXCLUSIVELY via the `_ingest_file_body` fork
+    when the manifest tags a path's prefix `route:"qa_sidecar"` (the frozen
+    `__qa__/` reserved prefix — ID-45 {45.3} freezes it). Extracted from the
+    content branch's Q&A-relevant statements ONLY: it mints the INV-8 linkage
+    anchor (`source_documents`) and the `q_a_extractions` tier, and NOTHING ELSE.
+
+    Touches ONLY `sd_target` + `qa_target` — it has NO ci/cc/em/er target in its
+    signature, making the PRODUCT INV-5 "no content rows" guarantee STRUCTURAL
+    (a `content_items` / `content_chunks` / `entity_mentions` / content-embedding
+    write is impossible here, mirroring how `_ingest_form_branch` cannot touch
+    the content targets). A re-ingest over a folder with N `__qa__/` sidecars
+    adds ZERO content_items for those N files (INV-5's load-bearing skip).
+
+    INV-5 nuance (TECH P1, resolved against PRODUCT INV-5's imprecise literal):
+    the branch DOES mint exactly ONE `source_documents` row — the INV-8 linkage
+    anchor (`q_a_pairs.source_document_id` points at it). That row is NOT a
+    `content_items` row. INV-5's real guarantee is ZERO content_items /
+    content_chunks / entity_mentions / content embedding.
+
+    INV-6 / COCO.10 two-tier memo (preserved unchanged): the outer file-tier
+    memo is `convert_binary_to_markdown(file)` on the `FileLike` handle (same as
+    the content branch); the inner `extract_qa_form(content_text)` is a
+    content-hash-keyed `@coco.fn(memo=True)` extractor, so a metadata-only touch
+    (mtime/owner change, no byte change) hits memo → the LLM is NOT re-called.
+    `_bump` is the dispatcher's stage-counter closure, threaded through unchanged
+    so the Inv-17 stage-count semantics do not shift.
+
+    `resolution` carries the resolved workspace; it is accepted to mirror the
+    `_ingest_form_branch` call shape (the fork passes it on every routed branch)
+    even though the workspace-AGNOSTIC sd/qa canonical layer does not consume it.
+    """
+    # ── Stage 2: binary → markdown (per-MIME adapter) ───────────────────────
+    # The sidecar IS markdown, so the conversion is the identity-ish text read.
+    # This is ALSO the outer-tier memo boundary (INV-6): an unchanged-bytes
+    # re-touch skips the @coco.fn body → no re-extract. `_bump` mirrors the
+    # content branch's binary_conversion bump exactly.
+    content_text = await convert_binary_to_markdown(file)
+    _bump("binary_conversion")  # Inv-17: one binary→markdown conversion
+
+    # ── Deterministic per-DOCUMENT uuid5 linkage anchor (INV-8 / INV-20) ─────
+    # The SAME `sd:`-seeded derivation the content branch uses (`:2039`
+    # analogue), so the linkage anchor is stable across re-walks and folder
+    # reorgs — `q_a_pairs.source_document_id` (M1 / {59.27}) points here.
+    source_document_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"sd:{rel_path}")
+
+    # `content_fingerprint` is an ASYNC METHOD on FileLike returning bytes;
+    # await + hex so it lands in the `content_hash` text column (same as the
+    # content branch's source_documents declare).
+    content_fingerprint = (await file.content_fingerprint()).hex()
+
+    # ── Mint the INV-8 linkage anchor: ONE source_documents row. This is NOT a
+    # content_items row (the content branch's `:2066-2088` analogue, minus the
+    # pullmd provenance fan-out the sidecar path never resolves). ──────────────
+    sd_target.declare_row(
+        row={
+            "id": source_document_id,
+            "storage_path": rel_path,
+            "content_hash": content_fingerprint,
+            "filename": file.file_path.path.name,
+            "mime_type": "text/markdown",  # the sidecar is always markdown (P1)
+            "file_size": await file.size(),
+            "op_id": op_id,
+        }
+    )
+    _bump("postgres_upsert")  # Inv-17: source_documents row upsert
+
+    # ── Inner extraction tier (INV-6): the UNCHANGED `extract_qa_form`. ──────
+    # Content-hash-keyed @coco.fn(memo=True) — a metadata-only touch hits memo
+    # and the LLM is not re-called. Identical extractor the content path calls.
+    qa_form = await extract_qa_form(content_text)
+    _bump("llm_extraction")  # Inv-17: one Q&A extraction pass for this sidecar
+
+    # ── q_a_extractions declare loop (`:2196-2228` analogue) with the ONE
+    # critical difference: `source_content_item_id = None`. No content_item is
+    # minted on this branch, so the linkage column (nullable, flow.py:1185) is
+    # explicitly NULL — the INV-5 "no content_items" guarantee made visible at
+    # the write site. PK is still the stable `qa:`-seeded uuid5 (idempotent
+    # across re-walk). ────────────────────────────────────────────────────────
+    qa_pairs = _field(qa_form, "qa_pairs", []) or []
+    for idx, pair in enumerate(qa_pairs):
+        qa_target.declare_row(
+            row={
+                "id": uuid.uuid5(_KH_PIPELINE_DOC_NS, f"qa:{rel_path}:{idx}"),
+                # INV-5: no content_item minted for a sidecar — the column is
+                # nullable; this is the structural "no content rows" marker.
+                "source_content_item_id": None,
+                "extractor_kind": "llm_extraction",
+                "extracted_question_text": _field(pair, "question_text", ""),
+                "extracted_answer_text": _field(pair, "answer_text"),
+                "expected_response_kind": _field(pair, "expected_response_kind"),
+                "evaluation_criteria": _field(pair, "evaluation_criteria"),
+                "evidence_requirements": _field(pair, "evidence_requirements", []),
+                "scope_tags": _field(pair, "scope_tags", []),
+                "alternate_question_phrasings": _field(
+                    pair, "question_phrasings", []
+                ),
+                "extraction_metadata": {
+                    "extraction_kind": _field(qa_form, "extraction_kind", "q_a_form"),
+                    "qa_index": idx,
+                    "rel_path": rel_path,
+                },
+                "op_id": op_id,
+            }
+        )
+        _bump("postgres_upsert")  # Inv-17: one q_a_extractions row upsert
 
 
 # ── ID-75 WP-C — URL-source per-item component (`ingest_url`) ────────────────

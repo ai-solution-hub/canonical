@@ -678,3 +678,201 @@ class TestRouteLessManifestBackwardCompat:
         assert out["ftf"].rows == []
         assert calls["convert"] == 1
         assert calls["classification"] == 1
+
+
+class TestQaSidecarRouteWritesSidecarTargetsOnly:
+    """ID-59 {59.26} (TECH-qa-sidecar P1): a `__qa__/` file on the
+    ``route:"qa_sidecar"`` prefix mints ONE source_documents row (the INV-8
+    linkage anchor) + N q_a_extractions rows (``source_content_item_id IS
+    NULL``) — and ZERO content_items / content_chunks / entity_mentions
+    (PRODUCT INV-5). A sibling ``content``-route file on the SAME walk still
+    mints content_items (the branches are mutually exclusive)."""
+
+    def test_qa_sidecar_mints_sd_and_qa_only_zero_content_rows(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        flow = _flow_module()
+        calls = _observe_path_a_seams(flow, monkeypatch)
+
+        # Two Q&A pairs so the qa: uuid5 PK + the source_content_item_id=None
+        # INV-5 marker are exercised on more than one row.
+        async def _two_pair_qa(content_text: str):
+            return {
+                "qa_pairs": [
+                    {"question_text": "Q1?", "answer_text": "A1."},
+                    {"question_text": "Q2?", "answer_text": "A2."},
+                ]
+            }
+
+        monkeypatch.setattr(flow, "extract_qa_form", _two_pair_qa)
+
+        # The content branch must NEVER run for a qa_sidecar file — guard the
+        # form extractor too (structural mutual exclusion).
+        async def _must_not_run(file: object):
+            raise AssertionError(
+                "extract_form_structure must NEVER run on the qa_sidecar route"
+            )
+
+        monkeypatch.setattr(flow, "extract_form_structure", _must_not_run)
+
+        ws = uuid.uuid4()
+        manifest = _make_manifest("__qa__/", ws, route="qa_sidecar")
+        rel_path = "__qa__/foo.md"
+        fake_file = _FakeFile(rel_path, data=b"# Q&A\n\nbody")
+
+        out = _drive_ingest(flow, fake_file, manifest=manifest)
+
+        # ── INV-8: exactly ONE source_documents row, the `sd:`-seeded anchor. ─
+        assert len(out["sd"].rows) == 1, "qa_sidecar mints ONE source_documents row"
+        sd_row = out["sd"].rows[0]
+        assert sd_row["id"] == uuid.uuid5(
+            flow._KH_PIPELINE_DOC_NS, f"sd:{rel_path}"
+        ), "source_documents PK is the stable sd:-seeded uuid5 (INV-8/INV-20)"
+        assert sd_row["storage_path"] == rel_path
+        assert sd_row["mime_type"] == "text/markdown"
+
+        # ── INV-5: ZERO content_items / content_chunks / entity_mentions. ─────
+        assert out["ci"].rows == [], "qa_sidecar mints ZERO content_items (INV-5)"
+        assert out["cc"].rows == [], "qa_sidecar mints ZERO content_chunks (INV-5)"
+        assert out["em"].rows == [], "qa_sidecar mints ZERO entity_mentions (INV-5)"
+        # Zero form rows either — the qa_sidecar branch is not the form branch.
+        assert out["ft"].rows == []
+        assert out["ftf"].rows == []
+
+        # ── N q_a_extractions, each with source_content_item_id IS NULL. ──────
+        assert len(out["qa"].rows) == 2, "one q_a_extractions row per Q&A pair"
+        for idx, qa_row in enumerate(out["qa"].rows):
+            assert qa_row["source_content_item_id"] is None, (
+                "a sidecar mints NO content_item — source_content_item_id must "
+                "be NULL (the INV-5 structural marker)"
+            )
+            assert qa_row["id"] == uuid.uuid5(
+                flow._KH_PIPELINE_DOC_NS, f"qa:{rel_path}:{idx}"
+            ), "q_a_extractions PK is the stable qa:-seeded uuid5 (idempotent)"
+
+        # ── Two-tier extraction shape preserved (INV-6 / COCO.10): the outer
+        # tier is convert_binary_to_markdown(file); the inner tier routes
+        # through the memoised extract_qa_form extractor — NOT a direct
+        # Anthropic call. The other Path-A LLM passes never run for a sidecar. ─
+        assert calls["convert"] == 1, (
+            "outer file-tier memo boundary is convert_binary_to_markdown (INV-6)"
+        )
+        assert calls["classification"] == 0, "no classification pass for a sidecar"
+        assert calls["entities"] == 0, "no entity-mention pass for a sidecar"
+        assert calls["embed"] == 0, "no content embedding for a sidecar (INV-5)"
+
+    def test_walk_with_qa_sidecar_and_content_sibling_routes_each_branch(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A walk over `__qa__/foo.md` + `bar.md`: `bar.md` mints content_items
+        (existing content path), `__qa__/foo.md` mints ZERO content_items but
+        ONE source_documents + N q_a_extractions. Proves the third branch does
+        not regress the content branch on the same manifest."""
+        flow = _flow_module()
+
+        async def _one_pair_qa(content_text: str):
+            return {"qa_pairs": [{"question_text": "Q?", "answer_text": "A."}]}
+
+        # Build a manifest mapping BOTH a content prefix and the qa_sidecar
+        # prefix — the two files on the same walk fork to different branches.
+        from scripts.cocoindex_pipeline.workspace_resolver import (
+            WorkspaceManifest,
+            WorkspaceMapping,
+        )
+
+        content_ws = uuid.uuid4()
+        qa_ws = uuid.uuid4()
+        manifest = WorkspaceManifest(
+            schema_version=1,
+            mappings=[
+                WorkspaceMapping(
+                    path_prefix="docs/", workspace_id=content_ws, route="content"
+                ),
+                WorkspaceMapping(
+                    path_prefix="__qa__/", workspace_id=qa_ws, route="qa_sidecar"
+                ),
+            ],
+        )
+
+        # ── Content sibling: docs/bar.md → content branch mints content_items. ─
+        calls_content = _observe_path_a_seams(flow, monkeypatch)
+        monkeypatch.setattr(flow, "extract_qa_form", _one_pair_qa)
+        out_content = _drive_ingest(
+            flow, _FakeFile("docs/bar.md", data=b"# Bar\n\nbody"), manifest=manifest
+        )
+        assert len(out_content["ci"].rows) == 1, "docs/bar.md mints content_items"
+        assert len(out_content["sd"].rows) == 1
+        assert calls_content["classification"] == 1, "content branch ran for bar.md"
+
+        # ── Sidecar: __qa__/foo.md → ZERO content_items, ONE sd + N qa. ───────
+        calls_qa = _observe_path_a_seams(flow, monkeypatch)
+        monkeypatch.setattr(flow, "extract_qa_form", _one_pair_qa)
+        out_qa = _drive_ingest(
+            flow, _FakeFile("__qa__/foo.md", data=b"# QA\n\nbody"), manifest=manifest
+        )
+        assert out_qa["ci"].rows == [], "__qa__/foo.md mints ZERO content_items"
+        assert out_qa["cc"].rows == []
+        assert out_qa["em"].rows == []
+        assert len(out_qa["sd"].rows) == 1, "__qa__/foo.md mints ONE source_documents"
+        assert len(out_qa["qa"].rows) == 1
+        assert out_qa["qa"].rows[0]["source_content_item_id"] is None
+        assert calls_qa["classification"] == 0, "no content classification for sidecar"
+
+    def test_qa_sidecar_route_typo_rejected_at_manifest_load(
+        self, tmp_path: Path
+    ) -> None:
+        """A `RouteKind` typo (`"qa_sidcar"`) on a `__qa__/` mapping is a
+        load-time `ManifestLoadError` (Literal + extra="forbid") — never a
+        silent default to content."""
+        from scripts.cocoindex_pipeline.workspace_resolver import (
+            ManifestLoadError,
+            load_workspace_manifest,
+        )
+
+        manifest_path = tmp_path / ".kh-workspace-map.json"
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "mappings": [
+                        {
+                            "path_prefix": "__qa__/",
+                            "workspace_id": "11111111-1111-4111-8111-111111111111",
+                            "route": "qa_sidcar",  # typo
+                        }
+                    ],
+                }
+            )
+        )
+        with pytest.raises(ManifestLoadError):
+            load_workspace_manifest(manifest_path)
+
+    def test_qa_sidecar_missing_mapping_warns_then_content_branch(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Defensive belt (P1.5 / S297 BUG-B): a `__qa__/`-prefixed path that
+        resolves to ``content`` (operator forgot the qa_sidecar mapping) is a
+        junk-content hazard. The fork WARNS loudly and routes the content
+        branch (the manifest stays the source of truth — no silent reroute)."""
+        flow = _flow_module()
+        calls = _observe_path_a_seams(flow, monkeypatch)
+
+        warnings: list[str] = []
+        monkeypatch.setattr(flow._logger, "warning", lambda msg: warnings.append(msg))
+
+        ws = uuid.uuid4()
+        # Maps `__qa__/` to CONTENT (the mis-wire) — the operator forgot
+        # route:"qa_sidecar".
+        manifest = _make_manifest("__qa__/", ws, route="content")
+        out = _drive_ingest(
+            flow, _FakeFile("__qa__/foo.md", data=b"# QA\n\nbody"), manifest=manifest
+        )
+
+        # It fell through to the content branch (junk-content hazard realised),
+        # but LOUDLY: a qa_sidecar_route_missing warning was emitted.
+        assert len(out["ci"].rows) == 1, "the mis-wired sidecar lands as content"
+        belt = [w for w in warnings if "qa_sidecar_route_missing" in w]
+        assert belt, (
+            "a __qa__/ path resolving to content must emit a loud "
+            "qa_sidecar_route_missing warning (S297 BUG-B defensive belt)"
+        )

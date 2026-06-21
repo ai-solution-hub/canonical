@@ -8,9 +8,10 @@ folder→workspace resolution function used by Path B / Path C.
 
 Public API:
 
-- `RouteKind` — `Literal["content", "forms"]` route discriminator (ID-80.6,
-  80.2 §B.2: the manifest per-prefix route tag IS the Path-A/Path-B fork
-  point — RATIFIED OQ-80.2-B).
+- `RouteKind` — `Literal["content", "forms", "qa_sidecar"]` route
+  discriminator (ID-80.6, 80.2 §B.2: the manifest per-prefix route tag IS the
+  Path-A/Path-B fork point — RATIFIED OQ-80.2-B; ID-59 {59.26} adds the
+  `"qa_sidecar"` route for the frozen `__qa__/` reserved prefix).
 - `WorkspaceMapping` — one `{path_prefix, workspace_id, route}` entry
   (`route` defaults to `"content"` — existing manifests parse unchanged).
 - `WorkspaceManifest` — versioned container of mappings.
@@ -49,10 +50,19 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 # Route discriminator (ID-80.6, 80.2 §B.2 — RATIFIED OQ-80.2-B): the manifest
-# per-prefix `route` tag is the Path-A (content) / Path-B (forms) fork point.
-# `Literal` + `extra="forbid"` make any typo a load-time `ValidationError`
-# → `ManifestLoadError` at the manifest-load gate (loud abort at flow start).
-RouteKind = Literal["content", "forms"]
+# per-prefix `route` tag is the Path-A (content) / Path-B (forms) / Q&A-sidecar
+# fork point. `Literal` + `extra="forbid"` make any typo a load-time
+# `ValidationError` → `ManifestLoadError` at the manifest-load gate (loud abort
+# at flow start).
+#
+# ID-59 {59.26} (TECH-qa-sidecar P1): `"qa_sidecar"` is the third route — a
+# manifest mapping `{path_prefix: "__qa__/", route: "qa_sidecar"}` routes a
+# reserved-prefix Q&A sidecar to the sidecar branch (source_documents + the
+# q_a_extractions tier ONLY; ZERO content rows — PRODUCT INV-5). The `__qa__/`
+# prefix string is FROZEN against this route (ID-45 {45.3} freezes it).
+# `resolve_route` needs NO change: it returns `winner.route` verbatim, so a
+# `"qa_sidecar"` mapping forks by longest-prefix exactly like `"forms"`.
+RouteKind = Literal["content", "forms", "qa_sidecar"]
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -126,7 +136,7 @@ class WorkspaceMapping(BaseModel):
     workspace_id: UUID = Field(..., description="Workspace UUID this prefix resolves to.")
     route: RouteKind = Field(
         default="content",
-        description="Fork discriminator: 'content' (Path-A, default) or 'forms' (Path-B blank form instruments).",
+        description="Fork discriminator: 'content' (Path-A, default), 'forms' (Path-B blank form instruments), or 'qa_sidecar' (ID-59 {59.26} reserved __qa__/ Q&A sidecars).",
     )
 
 
