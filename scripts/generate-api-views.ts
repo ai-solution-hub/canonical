@@ -212,6 +212,12 @@ const SURFACE_RPCS: readonly string[] = [
  * cannot wrap a function that does not exist. Tracked for a separate cleanup.
  */
 const MISSING_RPCS: readonly string[] = [
+  // Deliberately dual-listed: each also appears in SURFACE_RPCS above. The
+  // RPC_NAMES filter (`SURFACE_RPCS.filter((n) => !MISSING_RPCS.includes(n))`)
+  // subtracts these out, so they are SKIPPED from wrapper generation. Do NOT
+  // remove an entry here without first confirming the function exists in the
+  // `api` schema — dropping it un-skips the name and emits a wrapper around a
+  // non-existent function (a broken view that fails the §2 SURFACE checks).
   'get_check_constraint_values',
   'get_dashboard_summary',
   'get_items_needing_layer',
