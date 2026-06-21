@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -46,7 +47,12 @@ export function CompanyProfileCard({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <h3 className="truncate text-base font-semibold text-foreground">
-                {profile.name}
+                <Link
+                  href={`/intelligence/profiles/${profile.id}`}
+                  className="hover:text-muted-foreground"
+                >
+                  {profile.name}
+                </Link>
               </h3>
               {profile.is_primary && (
                 <Badge variant="default" className="shrink-0 gap-1 text-xs">
