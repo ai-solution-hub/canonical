@@ -161,8 +161,8 @@ function normaliseForComparison(name: string): string {
     .toLowerCase()
     .trim()
     .replace(/\s+/g, ' ')
-    .replace(/['']/g, "'")
-    .replace(/[""]/g, '"')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
     .replace(/\.$/, '')
     .replace(/\bltd\.?\b/g, 'limited');
 }
