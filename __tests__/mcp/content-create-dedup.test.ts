@@ -1,6 +1,14 @@
 /**
  * MCP `create_content_item` dedup soft-block + admin override
  * (WP1 / spec §6 D1, D2).
+ *
+ * ID-71.16: the create-leg no longer writes a direct `content_items.insert`
+ * (the canonical store materialises the row via the pipeline). The dedup
+ * soft-block BEHAVIOUR is unchanged — exact-hash match stamps
+ * `dedup_status='suspected_duplicate'` + the existing id — but it is now
+ * observed on the tool's structured response + markdown (the behaviour-visible
+ * surface) rather than on the removed insert payload. Source-less creates
+ * route through stageAndWalk, so these assertions key off the response.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
@@ -43,8 +51,12 @@ const mocks = vi.hoisted(() => {
       .mockReturnValue('a0000000-0000-4000-8000-000000000001'),
     checkMcpRole: vi.fn(),
     generateEmbedding: vi.fn().mockResolvedValue(new Array(1024).fill(0)),
-    classifyContent: vi.fn().mockResolvedValue(undefined),
-    generateSummary: vi.fn().mockResolvedValue(undefined),
+    recordPipelineRun: vi.fn().mockResolvedValue(undefined),
+    stageAndWalk: vi.fn().mockResolvedValue({
+      destPath: 'agent-create/new-item.md',
+      stageRequestId: 'req-123',
+      sourceFile: 'new-item.md',
+    }),
   };
 });
 
@@ -62,8 +74,6 @@ vi.mock('@/lib/mcp/tools/shared', async () => {
   return {
     ...actual,
     getGenerateEmbedding: vi.fn().mockResolvedValue(mocks.generateEmbedding),
-    getClassifyContent: vi.fn().mockResolvedValue(mocks.classifyContent),
-    getGenerateSummary: vi.fn().mockResolvedValue(mocks.generateSummary),
   };
 });
 
@@ -71,17 +81,20 @@ vi.mock('@/lib/supabase/server', () => ({
   createServiceClient: vi.fn(() => mocks.mockSupabaseClient),
 }));
 
-vi.mock('@/lib/layer-inference', () => ({
-  inferLayer: vi.fn().mockReturnValue({
-    suggestedLayer: 'capability',
-    reason: '',
-    confidence: 'high',
-  }),
+vi.mock('@/lib/pipeline/record-run', () => ({
+  recordPipelineRun: mocks.recordPipelineRun,
 }));
 
-vi.mock('@/lib/guide-section-mapping', () => ({
-  suggestGuideSections: vi.fn().mockResolvedValue([]),
-}));
+// Source-less creates stage the markdown content as a file.
+vi.mock('@/lib/upload/folder-drop', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/lib/upload/folder-drop')
+  >('@/lib/upload/folder-drop');
+  return {
+    ...actual,
+    stageAndWalk: mocks.stageAndWalk,
+  };
+});
 
 // Import after mocks
 import { registerContentTools } from '@/lib/mcp/tools/content';
@@ -101,13 +114,12 @@ const MOCK_AUTH_INFO = {
 };
 
 const EXISTING_ID = 'd4e5f6a7-b8c9-4012-8def-345678901234';
-const NEW_ITEM_ID = 'a1b2c3d4-e5f6-4789-8abc-def012345678';
 
 const LONG_CONTENT =
   'This is sufficiently long markdown content that exceeds the 50-character minimum for dedup hash checks. It describes our organisation capability.';
 
 // ---------------------------------------------------------------------------
-// Tests
+// Tests — dedup soft-block observed on the tool's response surface.
 // ---------------------------------------------------------------------------
 
 describe('MCP create_content_item — dedup soft-block', () => {
@@ -116,7 +128,6 @@ describe('MCP create_content_item — dedup soft-block', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
 
-    // Re-register default implementations cleared by clearAllMocks
     mocks.mockSupabaseClient.from.mockReturnValue(mocks.chain);
     mocks.mockSupabaseClient.rpc.mockResolvedValue({ data: [], error: null });
     mocks.chain.select.mockReturnValue(mocks.chain);
@@ -130,22 +141,18 @@ describe('MCP create_content_item — dedup soft-block', () => {
     if (!tool) throw new Error('create_content_item not registered');
     createTool = tool.handler;
 
-    // Default: editor role
     mocks.checkMcpRole.mockResolvedValue('editor');
-
-    // Default insert returns the new item
-    mocks.chain.single.mockResolvedValue({
-      data: {
-        id: NEW_ITEM_ID,
-        title: 'New Item',
-        content_type: 'capability',
-      },
-      error: null,
+    mocks.recordPipelineRun.mockResolvedValue(undefined);
+    mocks.stageAndWalk.mockResolvedValue({
+      destPath: 'agent-create/new-item.md',
+      stageRequestId: 'req-123',
+      sourceFile: 'new-item.md',
     });
   });
 
   it('stamps dedup_status=suspected_duplicate on exact hash match', async () => {
-    // Mock find_exact_duplicates returning a match
+    // checkExactDuplicate's find_exact_duplicates RPC returns a match (the
+    // first — and for a source-less create, only — rpc call).
     mocks.mockSupabaseClient.rpc.mockResolvedValueOnce({
       data: [{ id: EXISTING_ID, title: 'Existing Item' }],
       error: null,
@@ -162,15 +169,11 @@ describe('MCP create_content_item — dedup soft-block', () => {
 
     expect(result.isError).toBeFalsy();
 
-    const insertCall = mocks.chain.insert.mock.calls[0][0];
-    expect(insertCall.dedup_status).toBe('suspected_duplicate');
-    expect(insertCall.metadata.suspected_duplicate_of).toBe(EXISTING_ID);
-
-    // Markdown response mentions the flag
+    // Markdown response mentions the flag.
     expect(result.content[0].text).toContain('Dedup');
     expect(result.content[0].text).toContain('suspected_duplicate');
 
-    // Structured content mirrors the stamp
+    // Structured content surfaces the stamp.
     expect(result.structuredContent.dedup_status).toBe('suspected_duplicate');
     expect(result.structuredContent.suspected_duplicate_of).toBe(EXISTING_ID);
   });
@@ -187,11 +190,6 @@ describe('MCP create_content_item — dedup soft-block', () => {
     );
 
     expect(result.isError).toBeFalsy();
-
-    const insertCall = mocks.chain.insert.mock.calls[0][0];
-    expect(insertCall.dedup_status).toBe('clean');
-    expect(insertCall.metadata?.suspected_duplicate_of).toBeUndefined();
-
     expect(result.structuredContent.dedup_status).toBe('clean');
     expect(result.structuredContent.suspected_duplicate_of).toBeNull();
   });
@@ -214,8 +212,6 @@ describe('MCP create_content_item — dedup soft-block', () => {
     );
 
     expect(result.isError).toBeFalsy();
-    const insertCall = mocks.chain.insert.mock.calls[0][0];
-    expect(insertCall.dedup_status).toBe('clean');
     expect(result.structuredContent.dedup_status).toBe('clean');
   });
 
@@ -236,10 +232,9 @@ describe('MCP create_content_item — dedup soft-block', () => {
       { authInfo: MOCK_AUTH_INFO },
     );
 
-    // No 403 — silent-ignore per spec §6 D2
+    // No 403 — silent-ignore per spec §6 D2; the stamp is still applied.
     expect(result.isError).toBeFalsy();
-    const insertCall = mocks.chain.insert.mock.calls[0][0];
-    expect(insertCall.dedup_status).toBe('suspected_duplicate');
-    expect(insertCall.metadata.suspected_duplicate_of).toBe(EXISTING_ID);
+    expect(result.structuredContent.dedup_status).toBe('suspected_duplicate');
+    expect(result.structuredContent.suspected_duplicate_of).toBe(EXISTING_ID);
   });
 });

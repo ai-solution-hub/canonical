@@ -38,15 +38,12 @@ import {
   type ToolExtra,
   toStructuredContent,
   getGenerateEmbedding,
-  getClassifyContent,
-  getGenerateSummary,
   defineTool,
   READ_ONLY_ANNOTATIONS,
   SAFE_WRITE_ANNOTATIONS,
   NON_IDEMPOTENT_WRITE_ANNOTATIONS,
 } from './shared';
 import { slugifyDomain } from '@/lib/ai/classify';
-import { extractAnswerFromContent } from '@/lib/procurement-library-ingest/extract-answer';
 import { logger } from '@/lib/logger';
 
 // ---------------------------------------------------------------------------
@@ -479,13 +476,6 @@ export async function registerContentTools(server: McpServer): Promise<void> {
 
         const supabase = createMcpClient(extra.authInfo);
         const userId = getMcpUserId(extra.authInfo);
-        // S202 §5.2 Phase 2.5 (T8a): isDraft derivation prefers the new
-        // `publication_status` field; back-compat accepts the legacy
-        // `governance_review_status` field per spec §10.6 transition window.
-        const isDraft =
-          args.publication_status === 'draft' ||
-          args.governance_review_status === 'draft';
-
         // Admin-only dedup override (spec §6 D2). Silent-ignore for
         // editors even though the flag is exposed on the input schema.
         const skipDedup = args.skip_dedup === true && role === 'admin';
@@ -516,350 +506,289 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           );
         }
 
-        // Skip embedding for drafts — generated on publish to save API cost
-        let embedding: number[] | null = null;
-        if (!isDraft) {
-          try {
-            const generateEmbedding = await getGenerateEmbedding();
-            // Truncate to MAX_EMBEDDING_CHARS so long-content payloads (the
-            // MCP `content` schema accepts up to 500_000 chars) stay within
-            // the text-embedding-3-large 8,192-token cap. Mirrors the
-            // truncation pattern in `lib/ai/classify.ts` — slice the
-            // combined `title + ' ' + content` string at MAX_EMBEDDING_CHARS
-            // rather than capping content separately. Previous hardcoded
-            // 5000-char cap silently degraded recall for live Claude
-            // Desktop MCP-created items at 5k+ chars (MCP-EMBED-1).
-            const { MAX_EMBEDDING_CHARS } = await import('@/lib/ai/embed');
-            const rawEmbeddingText = args.title + ' ' + args.content;
-            const embeddingText =
-              rawEmbeddingText.length > MAX_EMBEDDING_CHARS
-                ? rawEmbeddingText.slice(0, MAX_EMBEDDING_CHARS)
-                : rawEmbeddingText;
-            embedding = await generateEmbedding(embeddingText);
-          } catch (error) {
-            // Embedding failure is non-fatal — item is still created but invisible to search
-            logger.error({ err: error }, 'Failed to generate embeddings');
-          }
-        }
-
-        // Build metadata with optional batch_tag and dedup ref. The legacy
-        // `source_document` blob is gone — provenance now lives on the typed
-        // columns `source_url`, `source_file`, `source_document_id` per
-        // S205 WP-A1 (spec §3.1 / §5.2).
-        const metadata: Record<string, string> = {};
-        if (args.batch_tag) metadata.batch_tag = args.batch_tag;
-        if (dedupStamp.suspected_duplicate_of) {
-          metadata.suspected_duplicate_of = dedupStamp.suspected_duplicate_of;
-        }
-
         // S206 WP-A Phase 2 (AC3.1) — resolve content owner. Admin caller
         // may supply an explicit owner UUID; non-admins are silent-forced
-        // to their own userId via the helper.
+        // to their own userId via the helper. Retained for the pipeline_runs
+        // audit `result` payload below (the create-leg no longer writes a row
+        // directly, but the audit record still attributes the create).
         const ownerId = resolveContentOwnerId({
           explicit: args.content_owner_id,
           role,
           userId,
         });
 
-        const insertData = {
-          title: args.title,
-          suggested_title: args.title,
-          content: args.content,
-          content_type: args.content_type,
-          platform: 'manual',
-          captured_date: new Date().toISOString(),
-          created_by: userId,
-          content_owner_id: ownerId,
-          // Typed provenance column. Read by
-          // ensure_v1_history_at_commit() to set
-          // content_history.change_reason='initial_ingest'.
-          ingestion_source: 'mcp_create',
-          dedup_status: dedupStamp.dedup_status,
-          ...(args.primary_domain && {
-            primary_domain: slugifyDomain(args.primary_domain),
-          }),
-          ...(args.primary_subtopic && {
-            primary_subtopic: slugifyDomain(args.primary_subtopic),
-          }),
-          ...(args.priority && { priority: args.priority }),
-          ...(embedding && { embedding: JSON.stringify(embedding) }),
-          ...(isDraft && { publication_status: 'draft' }),
-          // S205 WP-A1: typed provenance columns (spec §5.2 step 3).
-          ...(args.source_url && { source_url: args.source_url }),
-          ...(args.source_file && { source_file: args.source_file }),
-          ...(args.source_document_id && {
-            source_document_id: args.source_document_id,
-          }),
-          ...(Object.keys(metadata).length > 0 && {
-            metadata: metadata as unknown as Json,
-          }),
-          // P0-BM Phase 3 spec ss4.6 Path 4: populate answer_standard for
-          // q_a_pair so first PATCH edit does not destroy creation content
-          // (bug B2 fix). MCP callers may send composite "Q: {q}\n\n{answer}"
-          // content; extract the answer portion only to avoid double-prefix.
-          ...(args.content_type === 'q_a_pair' && args.content
-            ? { answer_standard: extractAnswerFromContent(args.content) }
-            : {}),
-        } satisfies Record<
-          string,
-          unknown
-        > as Database['public']['Tables']['content_items']['Insert'];
-
-        const { data: item, error } = await supabase
-          .from('content_items')
-          .insert(insertData)
-          .select('id, title, content_type')
-          .single();
-
-        if (error || !item) {
-          // S205 WP-A2 (spec §5.3 step 5): record the failed insert before
-          // bailing so the dashboard sees the run.
-          // S207 WP4 (OPS-38): use the service-role client to bypass the
-          // admin-only `pipeline_runs_insert` RLS policy. The RLS-scoped
-          // `supabase` client cannot write the audit row when the caller is
-          // an editor, so editor failures were silently lost. Mirrors S206
-          // WP4 auth-fail (L376-378) and outer-catch (L797-799) patterns.
-          // recordPipelineRun is never-throws so this is safe even if the
-          // audit insert itself fails.
-          const { createServiceClient } = await import('@/lib/supabase/server');
-          await recordPipelineRun({
-            supabase: createServiceClient(),
-            pipelineName: 'mcp_create_content_item',
-            status: 'failed',
-            itemsProcessed: 1,
-            itemsCreated: null,
-            errorMessage:
-              error?.message ?? 'content_items insert returned no row',
-            result: {
-              source_url: args.source_url ?? null,
-              source_file: args.source_file ?? null,
-              source_document_id: args.source_document_id ?? null,
-              batch_tag: args.batch_tag ?? null,
-              dedup_status: dedupStamp.dedup_status,
-              skipped_reason: null,
-            } as Json,
-          });
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: `Failed to create item: ${error?.message ?? 'Unknown error'}`,
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        // S207 WP-A4 Task 3.4: S186 WP-E app-level v1 content_history
-        // insert removed — the deferred trigger
-        // `trg_content_items_ensure_v1_history` is now the single authority
-        // for v1 history rows. See spec
-        // docs/specs/ingest-path-consistency-spec.md §3.4 AC4.3.
-
-        const created: CreatedItem = {
-          id: item.id,
-          title: item.title ?? args.title,
-          content_type: item.content_type ?? args.content_type,
-        };
-
-        // Layer inference — suggest and store a layer
-        let suggestedLayerKey: string | undefined;
-        if (!isDraft) {
-          try {
-            const { inferLayer } = await import('@/lib/layer-inference');
-            const suggestion = inferLayer({
-              contentType: args.content_type,
-              contentLength: args.content.length,
-              ingestionSource: 'manual',
-              hasBrief: false,
-              hasDetail: false,
-              hasReference: false,
-              isBidDiscovered: false,
-              title: args.title,
-            });
-            suggestedLayerKey = suggestion.suggestedLayer;
-
-            // Store the suggested layer in the dedicated column
-            await supabase
-              .from('content_items')
-              .update({
-                layer: suggestion.suggestedLayer,
-              } as Database['public']['Tables']['content_items']['Update'])
-              .eq('id', item.id);
-          } catch (layerErr) {
-            // Non-fatal — item is still usable without a layer
-            logger.error({ err: layerErr }, 'MCP layer inference failed');
-          }
-        }
-
-        // AI processing — awaited to avoid serverless truncation
-        const warnings: string[] = [];
-
-        if (!isDraft) {
-          try {
-            const classifyContent = await getClassifyContent();
-            await classifyContent({
-              supabase,
-              itemId: item.id,
-              force: true,
-              userId,
-            });
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Unknown error';
-            warnings.push(`Classification failed: ${msg}`);
-            logger.error(
-              { err },
-              `MCP create_content_item classification failed for ${item.id}`,
-            );
-          }
-
-          try {
-            const generateSummary = await getGenerateSummary();
-            await generateSummary({
-              supabase,
-              itemId: item.id,
-              force: true,
-              userId,
-            });
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Unknown error';
-            warnings.push(`Summary generation failed: ${msg}`);
-            logger.error(
-              { err },
-              `MCP create_content_item summary failed for ${item.id}`,
-            );
-          }
-
-          // Chunking removed (ID-56.11): cocoindex is the sole content_chunks
-          // writer and re-ingests the corpus natively (TECH §1 single-path).
-          // No app-side chunk regeneration on MCP create_content_item.
-        }
-
-        // Guide section suggestion — fetch classified item then match
-        let guideSectionSuggestions: {
-          guideId: string;
-          guideName: string;
-          guideSlug: string;
-          sectionId: string;
-          sectionName: string;
-          sectionOrder: number;
-          isRequired: boolean;
-          matchStrength: string;
-          matchReason: string;
-        }[] = [];
-        if (!isDraft) {
-          try {
-            const classifiedItem = await sb(
-              supabase
-                .from('content_items')
-                .select(
-                  'primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, metadata',
-                )
-                .eq('id', item.id)
-                .single(),
-              'mcp.content.classified_item',
-            );
-
-            if (classifiedItem?.primary_domain) {
-              const { suggestGuideSections } =
-                await import('@/lib/guide-section-mapping');
-              const matches = await suggestGuideSections(supabase, {
-                primaryDomain: classifiedItem.primary_domain,
-                primarySubtopic: classifiedItem.primary_subtopic || '',
-                secondaryDomain: classifiedItem.secondary_domain || undefined,
-                secondarySubtopic:
-                  classifiedItem.secondary_subtopic || undefined,
-                layer: suggestedLayerKey || undefined,
-                contentType: classifiedItem.content_type || args.content_type,
-              });
-              guideSectionSuggestions = matches;
-            }
-          } catch (guideErr) {
-            logger.error(
-              { err: guideErr },
-              'MCP guide section suggestion failed',
-            );
-            // Non-fatal — item is still usable without guide section suggestions
-          }
-        }
-
-        // S205 WP-A2 (spec §3.2 / §5.3): record the pipeline run on the
-        // success path. Status mapping per AC2.3:
-        //   warnings.length > 0 → 'completed_with_errors'
-        //   warnings.length === 0 → 'completed'
-        // Draft branch records skipped_reason='draft' per AC2.5 so dashboards
-        // can distinguish draft creates from full-pipeline creates.
-        // S208 WP3 (OPS-40): use the service-role client to bypass the
-        // admin-only `pipeline_runs_insert` RLS policy, mirroring the
-        // pre-success failed-insert (L529-557, OPS-38), auth-fail (L376-378),
-        // and outer-catch (L797-799) patterns. Closes AC2.1 parity across
-        // all four invocation paths.
-        const pipelineStatus: PipelineRunStatus =
-          warnings.length > 0 ? 'completed_with_errors' : 'completed';
-        const { createServiceClient: createServiceClientForSuccess } =
-          await import('@/lib/supabase/server');
-        await recordPipelineRun({
-          supabase: createServiceClientForSuccess(),
-          pipelineName: 'mcp_create_content_item',
-          status: pipelineStatus,
-          itemsProcessed: 1,
-          itemsCreated: [item.id],
-          errorMessage: warnings.length > 0 ? warnings.join('; ') : null,
-          result: {
+        // The pipeline_runs `result` payload is shared across both create
+        // legs (ID-71.16). It mirrors the prior direct-insert audit shape so
+        // dashboards keep parity (S205 WP-A2 / AC2.3).
+        const buildRunResult = (skippedReason: string | null): Json =>
+          ({
             source_url: args.source_url ?? null,
             source_file: args.source_file ?? null,
             source_document_id: args.source_document_id ?? null,
             batch_tag: args.batch_tag ?? null,
+            content_owner_id: ownerId,
             dedup_status: dedupStamp.dedup_status,
-            skipped_reason: isDraft ? 'draft' : null,
-          } as Json,
-        });
+            skipped_reason: skippedReason,
+          }) as Json;
 
-        const draftNote = isDraft
-          ? '\n\n**Status:** Draft — excluded from search. Use `update_governance_status` to publish when ready.'
-          : '';
-        const layerNote = suggestedLayerKey
-          ? `\n\n**Layer:** ${suggestedLayerKey} (auto-assigned)`
-          : '';
-        const guideNote =
-          guideSectionSuggestions.length > 0
-            ? `\n\n**Guide sections:** ${guideSectionSuggestions.map((gs) => `${gs.guideName} > ${gs.sectionName}`).join(', ')}`
-            : '';
         const dedupNote =
           dedupStamp.dedup_status === 'suspected_duplicate'
             ? `\n\n**Dedup:** Flagged as \`suspected_duplicate\` — matches existing item ${dedupStamp.suspected_duplicate_of}${dedupExistingTitle ? ` ("${dedupExistingTitle}")` : ''}. Admin may resolve via the dedup review workflow.`
             : '';
-        const warningNote =
-          warnings.length > 0
-            ? `\n\n**Warnings:**\n${warnings.map((w) => `- ${w}`).join('\n')}`
-            : '';
+
+        // ─────────────────────────────────────────────────────────────────
+        // ID-71.16 write-to-canonical-store create-leg (B-INV-6 + B-INV-12;
+        // PRODUCT §OQ-1 Option A — RATIFIED FILE-BACKED, OQ-71.16-1). The
+        // single direct `content_items.insert` is replaced by a
+        // provenance-class-routed create-leg: the canonical store (the
+        // reference layer for URLs, the cocoindex source-binding folder for
+        // source-less creates) owns row materialisation, not this in-request
+        // tool. Net-new uncontrolled DB ingestion is the WS-6 anti-goal.
+        // ─────────────────────────────────────────────────────────────────
+
+        if (args.source_url) {
+          // URL branch — route through the owner-gated `reference_ingest`
+          // evidence-pair RPC (atomic source_documents + reference_items,
+          // server-side uuid5 PKs). This is the SAME seam
+          // app/api/ingest/url/route.ts uses. B-25 HARD INVARIANT: the
+          // reference_ingest RPC signature MUST NOT be altered — call it
+          // as-is. UNCHANGED behaviour vs the ratified URL-create contract.
+          const warnings: string[] = [];
+
+          // Embedding for reference_items.embedding — truncate the combined
+          // title + content to MAX_EMBEDDING_CHARS (text-embedding-3-large
+          // 8,192-token cap), mirroring the in-handler truncation pattern.
+          let embeddingValue: string | null = null;
+          try {
+            const generateEmbedding = await getGenerateEmbedding();
+            const { MAX_EMBEDDING_CHARS } = await import('@/lib/ai/embed');
+            const rawEmbeddingText = args.title + ' ' + args.content;
+            const embeddingText =
+              rawEmbeddingText.length > MAX_EMBEDDING_CHARS
+                ? rawEmbeddingText.slice(0, MAX_EMBEDDING_CHARS)
+                : rawEmbeddingText;
+            const embeddingArray = await generateEmbedding(embeddingText);
+            embeddingValue = JSON.stringify(embeddingArray);
+          } catch (error) {
+            // Non-fatal — the reference lands without an embedding (the
+            // column is nullable; a backfill can re-derive it).
+            warnings.push('Embedding generation failed');
+            logger.error(
+              { err: error },
+              'MCP create_content_item (url) embedding failed',
+            );
+          }
+
+          // Classification — POPULATE-UNLESS-ERROR. Caller-supplied domain /
+          // subtopic win; otherwise classify the pasted content (mirrors the
+          // url route). Nullable at the DB, so a failure passes NULL.
+          let primaryDomain: string | null = args.primary_domain
+            ? slugifyDomain(args.primary_domain)
+            : null;
+          let primarySubtopic: string | null = args.primary_subtopic
+            ? slugifyDomain(args.primary_subtopic)
+            : null;
+          if (!primaryDomain) {
+            try {
+              const { classifyText } = await import('@/lib/ai/classify');
+              const classified = await classifyText({
+                supabase,
+                title: args.title,
+                content: args.content,
+              });
+              primaryDomain = classified.primary_domain;
+              primarySubtopic = classified.primary_subtopic;
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : 'Unknown error';
+              warnings.push(`Classification failed: ${msg}`);
+            }
+          }
+
+          // Provenance fields for the source_documents row (filename NOT
+          // NULL). The pasted content is the reference body.
+          const filename = `${slugifyDomain(args.title) || 'reference'}.md`;
+          const fileSize = Buffer.byteLength(args.content);
+          const contentHash = createHash('sha256')
+            .update(args.content)
+            .digest('hex');
+          const extractionMetadata: Json = {
+            extractor: 'mcp_create',
+            via: 'mcp_create_content_item',
+          };
+
+          // B-25: the exact `reference_ingest` arg shape used by the url
+          // route. The generated RPC Args type marks several nullable params
+          // as required `string`; the RPC body inserts each straight into a
+          // NULLABLE column, so we cast at this boundary (DB is source of
+          // truth, migration 20260619130100).
+          const ingestArgs = {
+            p_source_url: args.source_url,
+            p_title: args.title,
+            p_body: args.content,
+            p_summary: null,
+            p_primary_domain: primaryDomain,
+            p_primary_subtopic: primarySubtopic,
+            p_embedding: embeddingValue,
+            p_published_at: null,
+            p_filename: filename,
+            p_mime_type: 'text/markdown',
+            p_file_size: fileSize,
+            p_content_hash: contentHash,
+            p_extraction_metadata: extractionMetadata,
+          };
+          const ingested = await sb(
+            supabase.rpc(
+              'reference_ingest',
+              ingestArgs as unknown as Database['public']['Functions']['reference_ingest']['Args'],
+            ),
+            'mcp.content.reference_ingest',
+          );
+
+          const row = Array.isArray(ingested) ? ingested[0] : ingested;
+          if (!row) {
+            const { createServiceClient } =
+              await import('@/lib/supabase/server');
+            await recordPipelineRun({
+              supabase: createServiceClient(),
+              pipelineName: 'mcp_create_content_item',
+              status: 'failed',
+              itemsProcessed: 1,
+              itemsCreated: null,
+              errorMessage: 'reference_ingest returned no row',
+              result: buildRunResult(null),
+            });
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: 'Failed to create item: reference_ingest returned no row',
+                },
+              ],
+              isError: true,
+            };
+          }
+
+          // S205 WP-A2 / AC2.3 — record the run (service-role client bypasses
+          // the admin-only pipeline_runs_insert RLS policy, OPS-40 parity).
+          const pipelineStatus: PipelineRunStatus =
+            warnings.length > 0 ? 'completed_with_errors' : 'completed';
+          const { createServiceClient } = await import('@/lib/supabase/server');
+          await recordPipelineRun({
+            supabase: createServiceClient(),
+            pipelineName: 'mcp_create_content_item',
+            status: pipelineStatus,
+            itemsProcessed: 1,
+            itemsCreated: [row.reference_id],
+            errorMessage: warnings.length > 0 ? warnings.join('; ') : null,
+            result: buildRunResult(null),
+          });
+
+          const created: CreatedItem = {
+            id: row.reference_id,
+            title: row.title ?? args.title,
+            content_type: args.content_type,
+          };
+          const warningNote =
+            warnings.length > 0
+              ? `\n\n**Warnings:**\n${warnings.map((w) => `- ${w}`).join('\n')}`
+              : '';
+          const referenceNote =
+            '\n\n**Stored as:** reference (evidence layer) — landed via the canonical reference seam. The pipeline keeps it queryable; it is not a directly-edited content item.';
+          const markdown =
+            formatCreatedItem(created) +
+            referenceNote +
+            dedupNote +
+            warningNote;
+          return {
+            content: [{ type: 'text' as const, text: markdown }],
+            structuredContent: toStructuredContent({
+              ...created,
+              status: 'created',
+              source_url: row.source_url ?? args.source_url,
+              source_file: null,
+              source_document_id: row.source_document_id ?? null,
+              already_existed: row.already_existed ?? false,
+              warnings: warnings.length > 0 ? warnings : undefined,
+              dedup_status: dedupStamp.dedup_status,
+              suspected_duplicate_of: dedupStamp.suspected_duplicate_of ?? null,
+            }),
+          };
+        }
+
+        // Source-less branch (no source_url — i.e. source_file-only,
+        // source_document_id-only, or no-provenance): write the markdown
+        // `content` arg AS A FILE into the cocoindex source-binding folder via
+        // `stageAndWalk` (the SAME primitive folder-drop {56.12} uses). It
+        // drops the bytes (/stage) then triggers an incremental walk (/walk);
+        // the pipeline content branch then mints source_documents(storage_path)
+        // + the linked content_items row — the canonical-store guarantee so a
+        // future re-ingest re-derives the item.
+        //
+        // BEHAVIOUR (PRODUCT §OQ-1 Option A downside): the source-less create
+        // is propose-into-store / EVENTUALLY-CONSISTENT. stageAndWalk returns
+        // the source_file correlation key, NOT a content_items row id; the row
+        // materialises on the pipeline walk. The response mirrors the
+        // folder-drop status-poll contract (the caller polls content_items by
+        // source_file via the same status surface).
+        const { stageAndWalk, assertCorpusRelativeDestPath } =
+          await import('@/lib/upload/folder-drop');
+        const path = await import('path');
+
+        // Distinct corpus subdir so agent-originated drops are legible vs the
+        // UI 'folder-drop/' subdir. The filename is a slug of the title; the
+        // basename becomes content_items.source_file (the poll key).
+        const AGENT_CREATE_SUBDIR = 'agent-create';
+        const slug = slugifyDomain(args.title);
+        const filename = `${slug || `agent-create-${Date.now()}`}.md`;
+        const destPath = path.posix.join(AGENT_CREATE_SUBDIR, filename);
+        // Fail a mis-wire loudly before the bytes leave the process.
+        assertCorpusRelativeDestPath(destPath);
+
+        const dropResult = await stageAndWalk({
+          bytes: new TextEncoder().encode(args.content),
+          filename,
+          destPath,
+          titlePrefix: '',
+          contentType: 'text/markdown',
+        });
+
+        // S205 WP-A2 / AC2.3 — record the run on the success path (service-role
+        // client bypasses the admin-only pipeline_runs_insert RLS policy).
+        const { createServiceClient: createServiceClientForDrop } =
+          await import('@/lib/supabase/server');
+        await recordPipelineRun({
+          supabase: createServiceClientForDrop(),
+          pipelineName: 'mcp_create_content_item',
+          status: 'completed',
+          itemsProcessed: 1,
+          // The row id is not known yet (pipeline materialises it); the
+          // source_file correlation key stands in for itemsCreated here.
+          itemsCreated: [dropResult.sourceFile],
+          errorMessage: null,
+          result: buildRunResult('materialising_via_pipeline'),
+        });
+
+        const created: CreatedItem = {
+          id: dropResult.sourceFile,
+          title: args.title,
+          content_type: args.content_type,
+        };
+        const materialisingNote = `\n\n**Status:** Materialising via the canonical pipeline — the content was staged to the source-binding folder as \`${dropResult.destPath}\` and will become queryable once the ingest walk completes. Poll \`content_items\` by \`source_file = "${dropResult.sourceFile}"\` to confirm.`;
         const markdown =
-          formatCreatedItem(created) +
-          draftNote +
-          layerNote +
-          guideNote +
-          dedupNote +
-          warningNote;
+          formatCreatedItem(created) + materialisingNote + dedupNote;
         return {
           content: [{ type: 'text' as const, text: markdown }],
           structuredContent: toStructuredContent({
-            ...created,
-            // V2-L2 fix: non-draft creates default to 'published' via the
-            // content_items.publication_status DB DEFAULT. Returning 'null'
-            // misled the LLM caller about post-create state.
-            publication_status: isDraft ? 'draft' : 'published',
-            batch_tag: args.batch_tag ?? null,
-            // S205 WP-A1: surface typed provenance columns so callers can
-            // verify what was persisted (replaces metadata.source_document).
-            source_url: args.source_url ?? null,
-            source_file: args.source_file ?? null,
+            // No synchronous content_items row id — the pipeline mints it.
+            id: null,
+            title: args.title,
+            content_type: args.content_type,
+            status: 'materialising_via_pipeline',
+            // The correlation key the caller polls on (mirrors folder-drop).
+            source_file: dropResult.sourceFile,
+            dest_path: dropResult.destPath,
+            source_url: null,
             source_document_id: args.source_document_id ?? null,
-            suggested_layer: suggestedLayerKey ?? null,
-            guide_sections:
-              guideSectionSuggestions.length > 0
-                ? guideSectionSuggestions
-                : undefined,
-            warnings: warnings.length > 0 ? warnings : undefined,
             dedup_status: dedupStamp.dedup_status,
             suspected_duplicate_of: dedupStamp.suspected_duplicate_of ?? null,
           }),
