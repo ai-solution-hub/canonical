@@ -25,6 +25,7 @@ import { format } from 'date-fns';
 import { enGB } from 'date-fns/locale';
 import { countWords } from '@/lib/editor-utils';
 import { stripMarkdown } from '@/lib/content/strip-markdown';
+import { BRANDING } from '@/lib/client-config';
 import type {
   ExportQuestion,
   ExportBidMetadata,
@@ -825,7 +826,7 @@ export async function generateBidDocx(
     includeCitations = true,
     includeUnanswered = true,
     useAdvancedVariant = false,
-    companyName = 'Knowledge Hub',
+    companyName = BRANDING.productName,
   } = options;
 
   // Filter questions if not including unanswered

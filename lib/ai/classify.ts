@@ -1199,6 +1199,11 @@ async function buildClassificationPrompt(taxonomyStr: string): Promise<string> {
   // across BOTH skill files. The entity-types reference also carries these
   // placeholders, so it must run through the same substitution — otherwise the
   // literal tokens would leak into the prompt.
+  // The four {CLIENT_*} placeholders carry the client's own org/product names
+  // (sourced from CLIENT_CONFIG.entity_examples). {PRODUCT_NAME} is distinct:
+  // it is THIS platform's product name (BRANDING.productName), routed through
+  // the same single-pass substitution so the skill files no longer hardcode it
+  // (ID-119.5 / TECH §6). The value is config-sourced but unchanged.
   const resolveClientPlaceholders = (text: string): string =>
     text
       .replaceAll(
@@ -1216,7 +1221,8 @@ async function buildClassificationPrompt(taxonomyStr: string): Promise<string> {
       .replaceAll(
         '{CLIENT_PRODUCT_SHORT}',
         CLIENT_CONFIG.entity_examples.product_short,
-      );
+      )
+      .replaceAll('{PRODUCT_NAME}', BRANDING.productName);
 
   return (
     resolveClientPlaceholders(

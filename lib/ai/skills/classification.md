@@ -11,7 +11,7 @@ decisive and confident in your classifications.
 
 ## Taxonomy Structure
 
-The Knowledge Hub uses a **domain → subtopic** hierarchy. Each content item receives:
+The {PRODUCT_NAME} uses a **domain → subtopic** hierarchy. Each content item receives:
 
 - **Primary domain + subtopic** (required): The single best-fitting classification
 - **Secondary domain + subtopic** (optional): A second relevant classification when

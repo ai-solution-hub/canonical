@@ -6,6 +6,7 @@ import { useItemProvenance } from '@/hooks/provenance/use-item-provenance';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import PerItemField from '@/components/provenance/per-item-field';
+import { BRANDING } from '@/lib/client-config';
 import { formatDateUK } from '@/lib/format';
 
 // ---------------------------------------------------------------------------
@@ -280,7 +281,7 @@ export default function PerItemTab() {
                         <div className="flex items-baseline justify-between gap-2">
                           <span className="font-medium">
                             {draft.attribution.kind === 'claude'
-                              ? 'Drafted by Knowledge Hub'
+                              ? `Drafted by ${BRANDING.productName}`
                               : `Drafted by ${draft.attribution.label}`}
                           </span>
                           {draft.draftedAt && (

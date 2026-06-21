@@ -6,6 +6,7 @@ import { Compass, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useHydrated } from '@/hooks/use-hydrated';
+import { BRANDING } from '@/lib/client-config';
 import { createClient } from '@/lib/supabase/client';
 import {
   PRIMARY_FOCUS_OPTIONS,
@@ -126,7 +127,7 @@ export function DashboardFirstRunCard({ role }: DashboardFirstRunCardProps) {
       {/* Title and description */}
       <div className="flex max-w-md flex-col gap-2">
         <h2 className="text-lg font-semibold text-foreground">
-          Welcome to Knowledge Hub
+          Welcome to {BRANDING.productName}
         </h2>
         <p className="text-sm text-muted-foreground">
           Let&apos;s get your company knowledge organised.

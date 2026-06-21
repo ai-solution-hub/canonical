@@ -4,6 +4,7 @@ import { getValidTypeValues } from '@/lib/workspace-types';
 import { logger } from '@/lib/logger/client';
 import { validateWebUrl } from '@/lib/intelligence/url-validation';
 import { CONTENT_TYPE_VALUES } from '@/lib/ontology/content-type-registry';
+import { BRANDING } from '@/lib/client-config';
 
 // ──────────────────────────────────────────
 // Tag morphology — domain uncountable registration
@@ -1067,7 +1068,7 @@ export const DocxExportBodySchema = z.object({
   include_citations: z.boolean().default(true),
   include_unanswered: z.boolean().default(true),
   use_advanced_variant: z.boolean().default(false),
-  company_name: z.string().max(200).default('Knowledge Hub'),
+  company_name: z.string().max(200).default(BRANDING.productName),
 });
 
 /** POST /api/bids/:id/export/xlsx */

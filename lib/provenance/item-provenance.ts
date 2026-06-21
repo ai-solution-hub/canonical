@@ -8,6 +8,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 import { sb, SupabaseError } from '@/lib/supabase/safe';
+import { BRANDING } from '@/lib/client-config';
 import { PIPELINE_SYSTEM_USER_ID } from '@/lib/intelligence/types';
 import { resolveUserDisplayNames } from '@/lib/users/display-names';
 
@@ -79,7 +80,7 @@ function resolveAttribution(
 ): DraftAttribution {
   // null or pipeline system user = AI-drafted
   if (!draftedBy || draftedBy === PIPELINE_SYSTEM_USER_ID) {
-    return { kind: 'claude', label: 'Knowledge Hub', userId: draftedBy };
+    return { kind: 'claude', label: BRANDING.productName, userId: draftedBy };
   }
 
   // Human user
