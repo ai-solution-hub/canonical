@@ -139,6 +139,69 @@ const Q_HEADING = '## Question';
 const A_STANDARD_HEADING = '## Answer (standard)';
 const A_ADVANCED_HEADING = '## Answer (advanced)';
 
+const KNOWN_HEADINGS = [
+  Q_HEADING,
+  A_STANDARD_HEADING,
+  A_ADVANCED_HEADING,
+] as const;
+
+// ── Reversible heading-escaping ({59.34}, bl-350) ─────────────────────────────
+// splitBodySections detects a section boundary by STRICT whole-line equality
+// (`isKnownHeading`), so a CARRIED field value whose body contains a BARE line
+// exactly equal to a known heading would mis-split on parse — truncating the
+// field and spilling a spurious section ({59.32} could only BOUND this). We make
+// the round-trip lossless with a minimal, reversible backslash-prefix escape:
+//
+//   serialise: a body line that — IGNORING any leading backslashes — is exactly
+//              a known heading gets ONE more leading backslash:
+//                `## Question`    -> `\## Question`
+//                `\## Question`   -> `\\## Question`   (escape-the-escape)
+//   parse:     such an escaped line (one-or-more backslashes + a known heading)
+//              has exactly ONE leading backslash stripped on read.
+//
+// A line is treated as a section boundary ONLY when it is a bare (zero-backslash)
+// known heading (`isKnownHeading`), so escaping triggers EXCLUSIVELY on a
+// colliding line and the output for every NON-colliding pair stays byte-identical
+// (the {59.32} golden byte-pin is unaffected). Human-readable + LLM-benign.
+//
+// The pattern anchors the WHOLE line: `^(\\*)(<heading>)$`. The heading alts are
+// fixed literals (no regex metacharacters beyond the parens in
+// "## Answer (standard)", which are escaped below), so the match is exact.
+const HEADING_ALTERNATION = KNOWN_HEADINGS.map((h) =>
+  h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+).join('|');
+const ESCAPABLE_HEADING_LINE = new RegExp(`^(\\\\*)(${HEADING_ALTERNATION})$`);
+
+/**
+ * Escape every body line that — ignoring leading backslashes — is exactly a
+ * known heading, by prepending one backslash. Non-colliding lines are returned
+ * verbatim, so a body with no colliding line is byte-identical to its input.
+ */
+function escapeHeadingCollisions(body: string): string {
+  return body
+    .split('\n')
+    .map((line) => (ESCAPABLE_HEADING_LINE.test(line) ? `\\${line}` : line))
+    .join('\n');
+}
+
+/**
+ * Inverse of `escapeHeadingCollisions`: strip exactly one leading backslash from
+ * any line that is one-or-more backslashes followed by a known heading. A bare
+ * (zero-backslash) known heading is never reached here — it was consumed as a
+ * section boundary by `splitBodySections` — so this only un-escapes the escaped
+ * forms, fully reversing the serialise-side escape at every backslash depth.
+ */
+function unescapeHeadingCollisions(body: string): string {
+  return body
+    .split('\n')
+    .map((line) =>
+      ESCAPABLE_HEADING_LINE.test(line) && line.startsWith('\\')
+        ? line.slice(1)
+        : line,
+    )
+    .join('\n');
+}
+
 /**
  * Serialise the CARRIED set to the canonical sidecar markdown.
  *
@@ -177,14 +240,20 @@ export function serialiseCarriedSet(pair: CarriedSet): string {
     FRONTMATTER_FENCE,
   ].join('\n');
 
+  // Escape any bare-heading collision in each field body so a value that
+  // contains a line exactly equal to a section heading does not mis-split on
+  // parse ({59.34}). Non-colliding bodies pass through unchanged (byte-identical
+  // output for normal pairs — the {59.32} golden byte-pin is preserved).
   const sections = [
-    `${Q_HEADING}\n\n${pair.question_text}`,
-    `${A_STANDARD_HEADING}\n\n${pair.answer_standard}`,
+    `${Q_HEADING}\n\n${escapeHeadingCollisions(pair.question_text)}`,
+    `${A_STANDARD_HEADING}\n\n${escapeHeadingCollisions(pair.answer_standard)}`,
   ];
   // INV "when present": the advanced answer section is emitted only when the
   // pair carries a non-null answer_advanced — round-trips back to `undefined`.
   if (pair.answer_advanced != null) {
-    sections.push(`${A_ADVANCED_HEADING}\n\n${pair.answer_advanced}`);
+    sections.push(
+      `${A_ADVANCED_HEADING}\n\n${escapeHeadingCollisions(pair.answer_advanced)}`,
+    );
   }
 
   return `${frontmatter}\n\n${sections.join('\n\n')}\n`;
@@ -309,11 +378,21 @@ function splitBodySections(body: string): Map<string, string> {
 
   const flush = () => {
     if (currentHeading !== null) {
-      sections.set(currentHeading, trimSectionBody(buffer.join('\n')));
+      // Strip the serialiser's separators, then reverse the heading-escaping so
+      // a bare-heading body line is restored to its original text ({59.34}). A
+      // bare (zero-backslash) heading was already consumed as a boundary below,
+      // so only the escaped forms are un-escaped here.
+      sections.set(
+        currentHeading,
+        unescapeHeadingCollisions(trimSectionBody(buffer.join('\n'))),
+      );
     }
   };
 
   for (const line of lines) {
+    // A line is a section boundary ONLY when it is a bare (un-escaped) known
+    // heading — an escaped collision (`\## Question`) is body content and is
+    // un-escaped by `flush`, never treated as a boundary.
     if (isKnownHeading(line)) {
       flush();
       currentHeading = line;

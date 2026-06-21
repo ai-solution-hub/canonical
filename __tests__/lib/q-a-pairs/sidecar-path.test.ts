@@ -223,3 +223,183 @@ describe('serialiseCarriedSet / parseCarriedSet — INV-2 carried-set round-trip
     ).toThrow(/Answer \(standard\)/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// {59.34} (bl-350) — heading-in-content round-trip: reversible heading-escaping.
+//
+// Spec: specs/id-59-concurrent-edit-intent-arbitration/TECH-qa-sidecar-canonical.md
+//       (NEW-OQ-26-2 body shape) + the {59.32} documented limitation this leg
+//       resolves. Product invariant: INV-16 (carried byte-for-byte round-trip)
+//       extended to cover the pathological bare-heading-in-content case that
+//       {59.32} could only BOUND, not fix.
+//
+// ROOT CAUSE (now fixed): splitBodySections used STRICT whole-line equality, so
+// a carried field value whose body contained a BARE line exactly equal to a
+// known section heading mis-split as a section boundary. The fix escapes only a
+// COLLIDING body line (a line that, ignoring leading backslashes, is exactly a
+// known heading) with a single leading backslash on serialise, and strips
+// exactly one leading backslash from such lines on parse — reversible, and
+// "escape-the-escape" so a value that already looks like the escaped form round-
+// trips too. Behaviour-first: these assert the round-trip BEHAVIOUR, not the
+// concrete backslash byte form.
+// ---------------------------------------------------------------------------
+describe('serialiseCarriedSet / parseCarriedSet — {59.34} bare-heading-in-content round-trip', () => {
+  // (a) Each carried free-text field, in turn, contains a BARE line that is
+  // exactly a known section heading. Each must round-trip losslessly now.
+  const bareHeadingCases: Array<{ name: string; pair: CarriedSet }> = [
+    {
+      name: 'question_text contains a bare "## Question" line',
+      pair: {
+        question_text:
+          'Intro to the question.\n\n## Question\n\nThis line is bare-heading content, not a boundary.',
+        answer_standard: 'The standard answer.',
+        alternate_question_phrasings: [],
+      },
+    },
+    {
+      name: 'answer_standard contains a bare "## Question" line',
+      pair: {
+        question_text: 'Outer question?',
+        answer_standard:
+          'Intro line.\n\n## Question\n\nThis line LOOKS like a heading but is answer content.',
+        alternate_question_phrasings: [],
+      },
+    },
+    {
+      name: 'answer_standard contains a bare "## Answer (standard)" line',
+      pair: {
+        question_text: 'Outer question?',
+        answer_standard:
+          'A standard answer that quotes its own\n\n## Answer (standard)\n\nheading on a bare line.',
+        alternate_question_phrasings: [],
+      },
+    },
+    {
+      name: 'answer_advanced contains a bare "## Answer (standard)" line',
+      pair: {
+        question_text: 'Outer question?',
+        answer_standard: 'The standard answer.',
+        answer_advanced:
+          'Advanced intro.\n\n## Answer (standard)\n\nNested-looking heading inside the advanced body.',
+        alternate_question_phrasings: [],
+      },
+    },
+    {
+      name: 'answer_advanced contains a bare "## Answer (advanced)" line',
+      pair: {
+        question_text: 'Outer question?',
+        answer_standard: 'The standard answer.',
+        answer_advanced:
+          'Advanced intro.\n\n## Answer (advanced)\n\nThe advanced body quoting its own heading.',
+        alternate_question_phrasings: [],
+      },
+    },
+    {
+      name: 'every free-text field contains a different bare heading at once',
+      pair: {
+        question_text: 'Q intro.\n\n## Answer (advanced)\n\nQ outro.',
+        answer_standard: 'A-std intro.\n\n## Question\n\nA-std outro.',
+        answer_advanced: 'A-adv intro.\n\n## Answer (standard)\n\nA-adv outro.',
+        alternate_question_phrasings: ['a phrasing', 'another'],
+        scope_tag: 'procurement',
+        anti_scope_tag: 'sales',
+      },
+    },
+    {
+      name: 'a body that is ONLY a bare heading line (no surrounding content)',
+      pair: {
+        question_text: '## Question',
+        answer_standard: '## Answer (standard)',
+        answer_advanced: '## Answer (advanced)',
+        alternate_question_phrasings: [],
+      },
+    },
+  ];
+
+  for (const { name, pair } of bareHeadingCases) {
+    it(`(a) round-trips losslessly when ${name}`, () => {
+      const parsed = parseCarriedSet(serialiseCarriedSet(pair));
+      expect(parsed).toEqual(pair);
+    });
+  }
+
+  // (b) Escape-the-escape: a body line that is LITERALLY the escaped form of a
+  // heading must round-trip exactly — escaping is fully reversible at every
+  // backslash depth, so a value the user wrote that already looks like the
+  // escape output is never silently un-escaped into a heading-collision.
+  const escapeTheEscapeCases: string[] = [
+    '\\## Question', // one backslash — looks like the escaped form
+    '\\## Answer (standard)',
+    '\\## Answer (advanced)',
+    '\\\\## Question', // two backslashes — escaped escape
+    '\\\\\\## Answer (advanced)', // three backslashes
+  ];
+
+  for (const escaped of escapeTheEscapeCases) {
+    it(`(b) escape-the-escape: a bare ${JSON.stringify(escaped)} body line round-trips exactly`, () => {
+      const pair: CarriedSet = {
+        question_text: `Before.\n\n${escaped}\n\nAfter.`,
+        answer_standard: `Std before.\n\n${escaped}\n\nStd after.`,
+        answer_advanced: escaped,
+        alternate_question_phrasings: [],
+      };
+      const parsed = parseCarriedSet(serialiseCarriedSet(pair));
+      expect(parsed).toEqual(pair);
+    });
+  }
+
+  // (c) N-time idempotency: serialise(parse(serialise(x))) === serialise(x) for
+  // the COLLIDING inputs — the escaped form is a stable fixpoint with no churn
+  // or oscillation across repeated round-trips (the re-promote write-back is a
+  // true no-op for an unchanged colliding pair).
+  it('(c) N-time idempotency: serialise(parse(serialise(x))) is a stable fixpoint for colliding inputs', () => {
+    // NB: anti_scope_tag is OMITTED, not set to null — the existing "when
+    // present" tag semantics parse an explicit null back to an ABSENT key, so a
+    // `null` here would make the deep-equal below spuriously fail on the codec,
+    // not the heading-escaping under test. (scope_tag is present to keep the
+    // frontmatter exercised.)
+    const colliding: CarriedSet = {
+      question_text: 'Q intro.\n\n## Answer (advanced)\n\nQ outro.',
+      answer_standard:
+        'A-std intro.\n\n## Question\n\nA-std outro.\n\n\\## Answer (standard)\n\ndeeper.',
+      answer_advanced: 'A-adv.\n\n## Answer (standard)\n\nbody.',
+      alternate_question_phrasings: ['p1'],
+      scope_tag: 'procurement',
+    };
+
+    const s0 = serialiseCarriedSet(colliding);
+    let current = s0;
+    for (let i = 0; i < 4; i++) {
+      const reSerialised = serialiseCarriedSet(parseCarriedSet(current));
+      expect(reSerialised).toBe(s0); // byte-identical fixpoint, no drift
+      // …and the parsed carried set stays deep-equal to the original.
+      expect(parseCarriedSet(reSerialised)).toEqual(colliding);
+      current = reSerialised;
+    }
+  });
+
+  // (d) Regression guard: NON-colliding pairs stay BYTE-IDENTICAL — escaping
+  // triggers ONLY on a colliding line, so the existing serialiser output (and
+  // the {59.32} golden byte-pin) is unchanged for every normal pair. A body
+  // line that is NOT bare (deeper level, trailing text, inline) is NOT escaped.
+  it('(d) regression guard: a NON-colliding pair serialises byte-identically (no spurious escaping)', () => {
+    const safe: CarriedSet = {
+      question_text:
+        'A question mentioning ### Question (deeper level) inline.',
+      answer_standard:
+        'An answer with `## Answer (standard)` in a code span and a ' +
+        '## Answer (standard) heading that has trailing text so it is not bare.',
+      answer_advanced:
+        'Advanced body referencing #### Answer (advanced) at a deeper level.',
+      alternate_question_phrasings: ['phrase about ## Question wording'],
+    };
+    // The serialised output must contain NO backslash-escaped heading — nothing
+    // here is a bare, whole-line, exact-match heading, so nothing is escaped.
+    const md = serialiseCarriedSet(safe);
+    expect(md).not.toContain('\\## Question');
+    expect(md).not.toContain('\\## Answer (standard)');
+    expect(md).not.toContain('\\## Answer (advanced)');
+    // And it still round-trips losslessly.
+    expect(parseCarriedSet(md)).toEqual(safe);
+  });
+});

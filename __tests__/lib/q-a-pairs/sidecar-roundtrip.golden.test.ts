@@ -224,67 +224,62 @@ describe('{59.32} golden fixture — sidecar round-trip (edit -> disk -> read ->
 });
 
 // ---------------------------------------------------------------------------
-// {59.28}-CARRIED heading-in-content edge case ({59.32} brief: "prove
-// splitBodySections handles it OR explicitly document the limitation").
+// {59.28}-CARRIED heading-in-content round-trip — NOW LOSSLESS ({59.34}, bl-350).
 //
-// FINDING (documented, not silently worked around): parseCarriedSet's
-// splitBodySections uses STRICT WHOLE-LINE equality in isKnownHeading. A CARRIED
-// field VALUE that contains a BARE `## Question` / `## Answer (standard)` /
-// `## Answer (advanced)` line — one that, after serialisation, sits on its own
-// line and exactly equals a section heading — is mis-parsed as a NEW section
-// boundary. The round-trip is therefore LOSSY for that pathological value.
+// HISTORY: {59.32} could only BOUND this — parseCarriedSet's splitBodySections
+// used STRICT WHOLE-LINE equality in isKnownHeading, so a CARRIED field VALUE
+// containing a BARE `## Question` / `## Answer (standard)` / `## Answer
+// (advanced)` line (one that, after serialisation, sat on its own line and
+// exactly equalled a section heading) was mis-parsed as a NEW section boundary
+// and the round-trip was LOSSY for that pathological value.
 //
-// This is an ACCEPTED v1 LIMITATION, not a regression — the carried fields are
-// Q&A question/answer prose where a line that is EXACTLY `## Answer (standard)`
-// and nothing else is rare/pathological. A robust fix (escaping bare headings,
-// or a length-prefixed/fenced body encoding) is tracked as a follow-up
-// (OQ-32-1, surfaced to the Curator for a backlog item). These tests
-// CHARACTERISE the current behaviour so the limitation is visible and any future
-// fix flips them deliberately.
+// FIXED in {59.34}: serialiseCarriedSet now escapes a colliding body line with a
+// reversible backslash prefix (escape-the-escape) and parseCarriedSet un-escapes
+// it on read, so a section boundary is detected ONLY for a bare (un-escaped)
+// known heading. The round-trip is now LOSSLESS for the previously-pathological
+// values — these tests, which {59.32} authored to CHARACTERISE the limitation,
+// are flipped here to assert the lossless guarantee (the "future fix flips them
+// deliberately" path that block documented). The full property contract lives in
+// __tests__/lib/q-a-pairs/sidecar-path.test.ts; these are the golden-fixture
+// regression anchors at the round-trip boundary.
 // ---------------------------------------------------------------------------
-describe('{59.32} edge case — heading-in-content (documented limitation, strict-equality isKnownHeading)', () => {
-  it('LIMITATION: answer_standard containing a BARE "## Question" line does NOT round-trip', () => {
-    const pathological: CarriedSet = {
+describe('{59.34} heading-in-content — bare headings now round-trip losslessly (was {59.32} limitation)', () => {
+  it('answer_standard containing a BARE "## Question" line round-trips losslessly', () => {
+    const pair: CarriedSet = {
       question_text: 'Outer question?',
       answer_standard:
         'Intro line.\n\n## Question\n\nThis line LOOKS like a heading but is answer content.',
       alternate_question_phrasings: [],
     };
-    const round = parseCarriedSet(serialiseCarriedSet(pathological));
-    // The bare `## Question` inside the answer is mis-read as a section
-    // boundary: the content after it is mis-assigned to question_text and the
-    // answer is truncated. The round-trip is LOSSY (the documented limitation).
-    expect(round).not.toEqual(pathological);
-    expect(round.answer_standard).toBe('Intro line.');
-    expect(round.question_text).toBe(
-      'This line LOOKS like a heading but is answer content.',
-    );
+    // The bare `## Question` inside the answer is no longer mis-read as a section
+    // boundary — it is escaped on serialise and restored on parse, so the answer
+    // is preserved intact and question_text is untouched.
+    const round = parseCarriedSet(serialiseCarriedSet(pair));
+    expect(round).toEqual(pair);
   });
 
-  it('LIMITATION: answer_advanced containing a BARE "## Answer (standard)" line does NOT round-trip', () => {
-    const pathological: CarriedSet = {
+  it('answer_advanced containing a BARE "## Answer (standard)" line round-trips losslessly', () => {
+    const pair: CarriedSet = {
       question_text: 'Outer question?',
       answer_standard: 'The standard answer.',
       answer_advanced:
         'Advanced intro.\n\n## Answer (standard)\n\nNested-looking heading inside the advanced body.',
       alternate_question_phrasings: [],
     };
-    const round = parseCarriedSet(serialiseCarriedSet(pathological));
-    expect(round).not.toEqual(pathological);
-    // The bare heading inside answer_advanced clobbers answer_standard.
-    expect(round.answer_standard).toBe(
-      'Nested-looking heading inside the advanced body.',
-    );
+    // The bare heading inside answer_advanced no longer clobbers answer_standard.
+    const round = parseCarriedSet(serialiseCarriedSet(pair));
+    expect(round).toEqual(pair);
   });
 
-  it('BOUNDED: the limitation is NARROW — a non-bare inline heading round-trips fine', () => {
-    // The limitation is ONLY the bare, whole-line, exact-match case. A heading
-    // that is NOT exactly a known section heading — a deeper level (`### …`),
-    // indented, or with trailing text — is NOT a false boundary and round-trips
-    // losslessly. This bounds the blast radius of the documented limitation.
+  it('a non-bare inline heading ALSO round-trips fine (escaping triggers only on bare collisions)', () => {
+    // A heading that is NOT exactly a known section heading — a deeper level
+    // (`### …`), indented, or with trailing text — was never a false boundary
+    // and round-trips losslessly WITHOUT being escaped (the fix triggers only on
+    // bare, whole-line, exact-match collisions). This proves the fix did not
+    // widen its blast radius onto non-colliding content.
     // NB: null scope tags round-trip to ABSENT keys (the same "when present"
-    // semantics as answer_advanced), so the fixture omits them — the BOUNDED
-    // proof is about the heading-detection blast radius, not the tag codec.
+    // semantics as answer_advanced), so the fixture omits them — the proof is
+    // about the heading-detection blast radius, not the tag codec.
     const safe: CarriedSet = {
       question_text:
         'A question mentioning ### Question (deeper level) inline.',
@@ -297,7 +292,7 @@ describe('{59.32} edge case — heading-in-content (documented limitation, stric
     };
     // None of these lines is EXACTLY a known heading (deeper level / trailing
     // text / inside a phrasing array which never goes through the body split),
-    // so the round-trip is lossless.
+    // so none is escaped and the round-trip is lossless.
     expect(parseCarriedSet(serialiseCarriedSet(safe))).toEqual(safe);
   });
 });
