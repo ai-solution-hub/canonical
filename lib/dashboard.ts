@@ -63,6 +63,48 @@ export interface GroupedActivityItem extends ActivityItem {
   event_count: number;
 }
 
+/** Raw row shape returned by the `get_grouped_activity_feed` RPC. */
+export interface GroupedActivityRow {
+  id: string;
+  type: string;
+  entity_type: string;
+  entity_id: string;
+  summary: string;
+  user_id: string | null;
+  latest_at: string | null;
+  earliest_at: string | null;
+  event_count: number;
+}
+
+/**
+ * Project a `get_grouped_activity_feed` RPC row into the client
+ * `GroupedActivityItem` shape (collapsing `latest_at` -> `created_at`).
+ *
+ * Canonical mapper shared by the unified dashboard aggregator and
+ * `GET /api/activity` — both previously inlined this identical projection.
+ */
+export function mapGroupedActivityRow(
+  row: GroupedActivityRow,
+): GroupedActivityItem {
+  return {
+    id: row.id,
+    type: row.type,
+    entity_type: row.entity_type,
+    entity_id: row.entity_id,
+    summary: row.summary,
+    user_id: row.user_id,
+    created_at: row.latest_at,
+    latest_at: row.latest_at,
+    earliest_at: row.earliest_at,
+    event_count: row.event_count,
+  };
+}
+
+/** Map a raw `get_grouped_activity_feed` payload into `GroupedActivityItem[]`. */
+export function mapGroupedActivityRows(data: unknown): GroupedActivityItem[] {
+  return ((data ?? []) as GroupedActivityRow[]).map(mapGroupedActivityRow);
+}
+
 // ---------------------------------------------------------------------------
 // Urgency helpers
 // ---------------------------------------------------------------------------
@@ -437,30 +479,7 @@ export async function fetchUnifiedDashboardData(
     if (error) {
       errors.push('recent_activity query failed');
     } else if (data) {
-      recent_activity = (
-        data as Array<{
-          id: string;
-          type: string;
-          entity_type: string;
-          entity_id: string;
-          summary: string;
-          user_id: string | null;
-          latest_at: string | null;
-          earliest_at: string | null;
-          event_count: number;
-        }>
-      ).map((row) => ({
-        id: row.id,
-        type: row.type,
-        entity_type: row.entity_type,
-        entity_id: row.entity_id,
-        summary: row.summary,
-        user_id: row.user_id,
-        created_at: row.latest_at,
-        latest_at: row.latest_at,
-        earliest_at: row.earliest_at,
-        event_count: row.event_count,
-      }));
+      recent_activity = mapGroupedActivityRows(data);
     }
   } else {
     errors.push('recent_activity query failed');

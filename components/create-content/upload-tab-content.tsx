@@ -26,7 +26,7 @@ import {
   type IngestionStep,
 } from '@/components/create-content/ingestion-progress';
 import { IngestionSuccessCard } from '@/components/create-content/ingestion-success-card';
-import { useContentIngestPolling } from '@/hooks/useContentIngestPolling';
+import { useContentIngestPolling } from '@/hooks/use-content-ingest-polling';
 import { DedupWarning } from '@/components/shared/dedup-warning';
 import { ReuploadBanner } from '@/components/source-document/reupload-banner';
 import { UploadReviewStep } from '@/components/create-content/upload-review-step';

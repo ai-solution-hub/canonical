@@ -5,6 +5,7 @@ import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { sb } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
 import { parseSearchParams } from '@/lib/validation';
+import type { WorkspaceFlag } from '@/lib/intelligence/flags';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -21,34 +22,6 @@ const FlagListParamsSchema = z.object({
     .default(false),
   flag_type: z.enum(['false_positive', 'false_negative']).optional(),
 });
-
-/**
- * Shape returned to the client for each flag.
- * Flattens the joined feed_articles / feed_sources context so the UI
- * does not need to walk nested objects.
- */
-export interface WorkspaceFlagRow {
-  id: string;
-  feed_article_id: string;
-  flag_type: string;
-  flagged_by: string;
-  notes: string | null;
-  resolved: boolean;
-  resolved_at: string | null;
-  resolved_by: string | null;
-  resolved_notes: string | null;
-  resolution_type: string | null;
-  prompt_version_id: string | null;
-  created_at: string;
-  // Joined context
-  article_title: string | null;
-  article_external_url: string | null;
-  article_relevance_score: number | null;
-  article_relevance_reasoning: string | null;
-  article_relevance_category: string | null;
-  article_passed: boolean | null;
-  source_name: string | null;
-}
 
 /**
  * GET /api/intelligence/workspaces/:id/flags
@@ -103,7 +76,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     // Flatten the joined shape for the client. Supabase returns nested
     // relations as objects when the FK is one-to-one (here both
     // feed_articles and feed_sources).
-    const flags: WorkspaceFlagRow[] = (rows ?? []).map(
+    const flags: WorkspaceFlag[] = (rows ?? []).map(
       (row: Record<string, unknown>) => {
         const article = row.feed_articles as {
           title: string | null;
@@ -119,7 +92,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
         return {
           id: row.id as string,
           feed_article_id: row.feed_article_id as string,
-          flag_type: row.flag_type as string,
+          flag_type: row.flag_type as WorkspaceFlag['flag_type'],
           flagged_by: row.flagged_by as string,
           notes: (row.notes as string | null) ?? null,
           resolved: row.resolved as boolean,

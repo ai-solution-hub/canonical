@@ -1,4 +1,4 @@
-// __tests__/hooks/useContentIngestPolling.test.tsx
+// __tests__/hooks/use-content-ingest-polling.test.tsx
 /**
  * Unit tests for the folder-drop ingest polling hook ({56.12}, ID-56 Path B).
  *
@@ -18,7 +18,7 @@ vi.mock('@/lib/query/fetchers', () => ({
   fetchContentIngestStatus: mockFetchStatus,
 }));
 
-import { useContentIngestPolling } from '@/hooks/useContentIngestPolling';
+import { useContentIngestPolling } from '@/hooks/use-content-ingest-polling';
 
 function createWrapper() {
   const queryClient = new QueryClient({

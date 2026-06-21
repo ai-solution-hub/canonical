@@ -3,38 +3,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
 import { fetchJson } from '@/lib/query/fetchers';
+import type { WorkspaceFlag } from '@/lib/intelligence/flags';
 
-/**
- * One workspace-level flag, as returned by
- * `GET /api/intelligence/workspaces/:id/flags`.
- *
- * Mirrors the `WorkspaceFlagRow` interface defined inside the API route
- * (`app/api/intelligence/workspaces/[id]/flags/route.ts`). The route flattens
- * the joined `feed_articles` / `feed_sources` relations before serialising,
- * so the consumer never has to walk nested objects.
- */
-export interface WorkspaceFlag {
-  id: string;
-  feed_article_id: string;
-  flag_type: 'false_positive' | 'false_negative';
-  flagged_by: string;
-  notes: string | null;
-  resolved: boolean;
-  resolved_at: string | null;
-  resolved_by: string | null;
-  resolved_notes: string | null;
-  resolution_type: string | null;
-  prompt_version_id: string | null;
-  created_at: string;
-  // Joined article + source context (flattened by the API).
-  article_title: string | null;
-  article_external_url: string | null;
-  article_relevance_score: number | null;
-  article_relevance_reasoning: string | null;
-  article_relevance_category: string | null;
-  article_passed: boolean | null;
-  source_name: string | null;
-}
+// Re-export so existing consumers can keep importing `WorkspaceFlag` from this
+// hook; the canonical home is `@/lib/intelligence/flags`.
+export type { WorkspaceFlag } from '@/lib/intelligence/flags';
 
 /** Optional client-side filters for the workspace flags query. */
 /** @public */

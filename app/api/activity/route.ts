@@ -4,6 +4,7 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseSearchParams } from '@/lib/validation';
 import { ActivityParamsSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
+import { mapGroupedActivityRows } from '@/lib/dashboard';
 
 export const maxDuration = 30;
 
@@ -56,31 +57,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Map RPC response: latest_at -> created_at (matches ActivityItem interface)
-    const activities = (
-      (data ?? []) as Array<{
-        id: string;
-        type: string;
-        entity_type: string;
-        entity_id: string;
-        summary: string;
-        user_id: string | null;
-        latest_at: string | null;
-        earliest_at: string | null;
-        event_count: number;
-      }>
-    ).map((row) => ({
-      id: row.id,
-      type: row.type,
-      entity_type: row.entity_type,
-      entity_id: row.entity_id,
-      summary: row.summary,
-      user_id: row.user_id,
-      created_at: row.latest_at,
-      latest_at: row.latest_at,
-      earliest_at: row.earliest_at,
-      event_count: row.event_count,
-    }));
+    // Map RPC rows -> GroupedActivityItem (shared mapper; canonical home @/lib/dashboard).
+    const activities = mapGroupedActivityRows(data);
 
     return NextResponse.json({
       activities,

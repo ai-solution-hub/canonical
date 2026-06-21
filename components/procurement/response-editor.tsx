@@ -1,19 +1,11 @@
 'use client';
 
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import { Markdown } from '@tiptap/markdown';
-import CharacterCount from '@tiptap/extension-character-count';
-import Placeholder from '@tiptap/extension-placeholder';
-import LinkExt from '@tiptap/extension-link';
-import { Table } from '@tiptap/extension-table';
-import { TableRow } from '@tiptap/extension-table-row';
-import { TableCell } from '@tiptap/extension-table-cell';
-import { TableHeader } from '@tiptap/extension-table-header';
 import { useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { EditorToolbar } from '@/components/item-detail/editor-toolbar';
 import { cn } from '@/lib/utils';
+import { buildExtensions } from '@/lib/editor/build-extensions';
 
 export type { Editor };
 
@@ -40,28 +32,7 @@ export function ResponseEditor({
   onEditorReady,
 }: ResponseEditorProps) {
   const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        link: false,
-      }),
-      Markdown,
-      // S152B WP14 #16: `limit` removed. The previous `limit: wordLimit * 6`
-      // caused Tiptap to silently truncate overflowing content from the FRONT
-      // on every `setContent` — so a streamed AI draft that exceeded the cap
-      // would lose its opening paragraphs. The word limit is now a soft,
-      // warning-only indicator shown in the footer (`isOverLimit` branch).
-      CharacterCount.configure({
-        wordCounter: (text) => text.split(/\s+/).filter(Boolean).length,
-      }),
-      Placeholder.configure({ placeholder }),
-      LinkExt.configure({ openOnClick: false }),
-      // Table extensions are load-bearing — without them, @tiptap/markdown
-      // silently drops GFM tables at parse time (see content-editor.tsx:38-40).
-      Table.configure({ resizable: false }),
-      TableRow,
-      TableHeader,
-      TableCell,
-    ],
+    extensions: buildExtensions(placeholder),
     content,
     contentType: 'markdown',
     editable: !readOnly,

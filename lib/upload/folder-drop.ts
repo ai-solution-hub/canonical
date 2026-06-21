@@ -12,7 +12,7 @@
 //      staging one file processes only the new file.
 //
 // The UI then polls `content_items` filtered by `source_file` = the dropped
-// filename (see `hooks/useContentIngestPolling.ts`) until the row appears.
+// filename (see `hooks/use-content-ingest-polling.ts`) until the row appears.
 //
 // destPath contract (INV-1, mirrors `lib/edit-intent/write-back.ts`
 // `resolveAbsolutePath`): the corpus-relative POSIX path is consumed VERBATIM —

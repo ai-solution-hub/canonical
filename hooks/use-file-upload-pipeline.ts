@@ -30,7 +30,7 @@ const UPLOAD_STEPS: IngestionStep[] = [
  * to, so the steps are necessarily illustrative and the timer is retained here.
  *
  * The folder-drop async path (Path B) does NOT use this timer: it drives its
- * progress from REAL poll state via `hooks/useContentIngestPolling.ts`
+ * progress from REAL poll state via `hooks/use-content-ingest-polling.ts`
  * (content_items.source_file correlation) instead of a cosmetic interval.
  * Migrating the synchronous path off cosmetic stepping would require a
  * server-side progress surface for /api/upload (a separate work item) — see the

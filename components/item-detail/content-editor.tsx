@@ -1,15 +1,6 @@
 'use client';
 
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import { Markdown } from '@tiptap/markdown';
-import CharacterCount from '@tiptap/extension-character-count';
-import Placeholder from '@tiptap/extension-placeholder';
-import LinkExt from '@tiptap/extension-link';
-import { Table } from '@tiptap/extension-table';
-import { TableRow } from '@tiptap/extension-table-row';
-import { TableCell } from '@tiptap/extension-table-cell';
-import { TableHeader } from '@tiptap/extension-table-header';
 import { useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { EditorToolbar } from '@/components/item-detail/editor-toolbar';
@@ -18,44 +9,17 @@ import {
   shouldBlockSave,
 } from '@/lib/editor/save-safety';
 import { cn } from '@/lib/utils';
+import { buildExtensions } from '@/lib/editor/build-extensions';
 
 // Re-export for call sites/tests that still reach for these here. The
-// canonical home is `@/lib/editor/save-safety`.
+// canonical homes are `@/lib/editor/save-safety` and
+// `@/lib/editor/build-extensions`.
 export {
   SAVE_SAFETY_MIN_RATIO,
   SAVE_SAFETY_BLOCK_MESSAGE,
   shouldBlockSave,
 } from '@/lib/editor/save-safety';
-
-/**
- * Canonical Tiptap extension list for the ContentEditor.
- *
- * Exported so tests can exercise the SAME schema the production component
- * registers, rather than a duplicated array that could drift. This is the
- * single source of truth for which nodes/marks the editor supports.
- *
- * The four `Table*` extensions (added in S169) are load-bearing — without
- * them, `@tiptap/markdown` silently drops GFM tables at parse time because
- * the schema has no `table`/`tableRow`/`tableCell`/`tableHeader` nodes.
- * Reproducer: item 08726af7-27ec-4540-bf24-9f8332f22b17.
- */
-export function buildExtensions(placeholder = 'Start writing...') {
-  return [
-    StarterKit.configure({
-      link: false,
-    }),
-    Markdown,
-    CharacterCount.configure({
-      wordCounter: (text) => text.split(/\s+/).filter(Boolean).length,
-    }),
-    Placeholder.configure({ placeholder }),
-    LinkExt.configure({ openOnClick: false }),
-    Table.configure({ resizable: false }),
-    TableRow,
-    TableHeader,
-    TableCell,
-  ];
-}
+export { buildExtensions } from '@/lib/editor/build-extensions';
 
 interface ContentEditorProps {
   content: string;
