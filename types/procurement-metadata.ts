@@ -14,8 +14,8 @@ export interface CitationEntry {
   end_block_index: number;
 }
 
-/** Citation data from the drafting pipeline */
-export interface CitationsData {
+/** Citation data from the drafting pipeline (intra-file: ProcurementResponseMetadata.citations_data) */
+interface CitationsData {
   citations: CitationEntry[];
   source_content_ids: string[];
 }

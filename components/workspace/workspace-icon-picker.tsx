@@ -66,11 +66,6 @@ const ICON_LABELS: Record<WorkspaceIconName, string> = {
   zap: 'Lightning Bolt',
 };
 
-/** Resolve an icon name string to a lucide-react component */
-export function getWorkspaceIcon(name: string): LucideIcon {
-  return ICON_MAP[name as WorkspaceIconName] ?? Folder;
-}
-
 interface WorkspaceIconPickerProps {
   value: string;
   onChange: (icon: string) => void;

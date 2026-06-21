@@ -107,8 +107,8 @@ export interface TranscriptSegment {
   read_time_minutes: number;
 }
 
-/** Highlight category types */
-export type HighlightCategory =
+/** Highlight category types (intra-file: TranscriptHighlight.category) */
+type HighlightCategory =
   | 'insight'
   | 'prediction'
   | 'framework'

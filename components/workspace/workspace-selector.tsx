@@ -251,22 +251,3 @@ export function WorkspaceSelector({
     </div>
   );
 }
-
-/** Small coloured badge for cards/rows */
-export function WorkspaceBadge({
-  name,
-  color,
-}: {
-  name: string;
-  color: string;
-}) {
-  return (
-    <span className="inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium leading-none">
-      <span
-        className="size-1.5 shrink-0 rounded-full"
-        style={{ backgroundColor: color }}
-      />
-      <span className="truncate max-w-[80px]">{name}</span>
-    </span>
-  );
-}

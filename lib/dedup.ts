@@ -37,7 +37,7 @@ export interface DedupResult {
  * callers should fall through to title-norm or skip dedup entirely.
  * Reference: cross-system-dedup-spec.md §6 Risks.
  */
-export const DEDUP_MIN_CONTENT_LENGTH = 50;
+const DEDUP_MIN_CONTENT_LENGTH = 50;
 
 /** Outcome of the shared dedup gate used by every TS entry point. */
 /** @public */

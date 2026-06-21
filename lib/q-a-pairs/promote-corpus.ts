@@ -70,10 +70,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 // ---------------------------------------------------------------------------
 
 /** Reason a single extraction was not promoted in this run. */
-export type SkipReason = 'no_answer_text';
+type SkipReason = 'no_answer_text';
 
 /** Per-extraction skip record (INV-7). */
-export interface SkipRecord {
+interface SkipRecord {
   extractionId: string;
   reason: SkipReason;
 }
@@ -90,7 +90,7 @@ export interface SkipRecord {
  *                      pair). emit-then-publish means the publish is ABORTED, so
  *                      the pair stays draft, exactly like an embed failure.
  */
-export type PromotionFailureReason = 'embed_failed' | 'sidecar_failed';
+type PromotionFailureReason = 'embed_failed' | 'sidecar_failed';
 
 /**
  * Structured per-extraction failure record (INV-11; folds bl-323).
@@ -101,7 +101,7 @@ export type PromotionFailureReason = 'embed_failed' | 'sidecar_failed';
  * consumer reads `failures` to see exactly which extractions did not publish
  * this run and why — no silent drop, no embed-only blind spot.
  */
-export interface PromotionFailureRecord {
+interface PromotionFailureRecord {
   extractionId: string;
   /** The pair id being published (a freshly-CAS-linked pair, or the existing
    *  self-heal pair). bl-323: the failure record always names the pair. */
