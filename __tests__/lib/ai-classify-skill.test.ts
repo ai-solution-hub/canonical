@@ -480,6 +480,21 @@ describe('Classification skill placeholder interpolation', () => {
     expect(interpolated).not.toContain('{CLIENT_PRODUCT_NAME}');
   });
 
+  it('replaces {PRODUCT_NAME} with the configured product name', () => {
+    // ID-119.5 routed the hardcoded product name onto BRANDING.productName via a
+    // {PRODUCT_NAME} placeholder in classification.md (resolved by classify.ts /
+    // eval-classification.ts). The skill must carry it and it must interpolate.
+    expect(skillContent).toContain('{PRODUCT_NAME}');
+
+    const interpolated = skillContent.replaceAll(
+      '{PRODUCT_NAME}',
+      'Knowledge Hub',
+    );
+
+    expect(interpolated).toContain('Knowledge Hub');
+    expect(interpolated).not.toContain('{PRODUCT_NAME}');
+  });
+
   it('produces a prompt with no unreplaced placeholders after full interpolation', () => {
     const sampleTaxonomy = '- security: cyber-security';
     const sampleDisambiguation = '- Product is a SOFTWARE PRODUCT.';
@@ -490,7 +505,8 @@ describe('Classification skill placeholder interpolation', () => {
       .replaceAll('{CLIENT_ORGANISATION_NAME}', 'Example Organisation Limited')
       .replaceAll('{CLIENT_ORGANISATION_SHORT}', 'Example Org')
       .replaceAll('{CLIENT_PRODUCT_NAME}', 'Example Product')
-      .replaceAll('{CLIENT_PRODUCT_SHORT}', 'product');
+      .replaceAll('{CLIENT_PRODUCT_SHORT}', 'product')
+      .replaceAll('{PRODUCT_NAME}', 'Knowledge Hub');
 
     // No unreplaced placeholders should remain
     const placeholderPattern = /\{[A-Z_]+\}/g;
@@ -508,7 +524,8 @@ describe('Classification skill placeholder interpolation', () => {
       .replaceAll('{CLIENT_ORGANISATION_NAME}', 'Example Organisation Limited')
       .replaceAll('{CLIENT_ORGANISATION_SHORT}', 'Example Org')
       .replaceAll('{CLIENT_PRODUCT_NAME}', 'Example Product')
-      .replaceAll('{CLIENT_PRODUCT_SHORT}', 'product');
+      .replaceAll('{CLIENT_PRODUCT_SHORT}', 'product')
+      .replaceAll('{PRODUCT_NAME}', 'Knowledge Hub');
 
     // Key section headings should remain intact
     expect(interpolated).toContain('# Classification Skill');

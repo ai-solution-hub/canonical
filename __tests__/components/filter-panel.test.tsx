@@ -125,6 +125,9 @@ vi.mock('@/lib/client-config', () => ({
   isFeatureEnabled: (...args: unknown[]) => mockIsFeatureEnabled(...args),
   CLIENT_CONFIG: { features: {}, layer_vocabulary: [] },
   FALLBACK_LAYERS: [],
+  // schemas.ts reads BRANDING.productName at module load (ID-119.5 DocxExportBody
+  // company_name default), pulled in transitively via taxonomy.ts.
+  BRANDING: { productName: 'Knowledge Hub', productShortName: 'Knowledge Hub' },
 }));
 
 vi.mock('@/contexts/layer-vocabulary-context', () => ({
