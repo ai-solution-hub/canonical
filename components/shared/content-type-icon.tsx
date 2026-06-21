@@ -61,8 +61,3 @@ export function ContentTypeIcon({
     />
   );
 }
-
-/** Get the Lucide icon component for a content type (useful outside JSX) */
-export function getContentTypeIcon(contentType: string): LucideIcon {
-  return ICON_MAP[contentType] ?? HelpCircle;
-}

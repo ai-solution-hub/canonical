@@ -62,7 +62,7 @@ export const MAX_DIFF_ENTRIES = 2000;
  * Each pattern captures the heading text (or relevant parts of it).
  * Tested against individual lines of text.
  */
-export const HEADING_PATTERNS: RegExp[] = [
+const HEADING_PATTERNS: RegExp[] = [
   /^#{1,6}\s+(.+)$/, // Markdown headings: # Heading, ## Sub, etc.
   /^(\d+\.[\d.]*)\s+(.+)$/, // Numbered sections: 1. / 1.1 / 1.1.1
   /^([A-Z][A-Z\s]{2,})$/, // ALL CAPS headings (min 3 chars to avoid false positives)

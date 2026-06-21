@@ -50,7 +50,7 @@ import { applyRequestContextToSentry } from './sentry-bridge';
  * Module-level singleton — cross-request leakage is impossible because
  * AsyncLocalStorage is per-execution-context, not per-thread.
  */
-export const requestContextStorage = new AsyncLocalStorage<RequestContext>();
+const requestContextStorage = new AsyncLocalStorage<RequestContext>();
 
 /**
  * Returns the current request's context, or `undefined` if the calling

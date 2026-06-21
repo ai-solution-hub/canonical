@@ -29,7 +29,6 @@ export const EDITABLE_VIA_VALUES = [
   'seed_data',
 ] as const;
 export const STATUS_VALUES = ['active', 'planned', 'needed'] as const;
-export const LAYER_VALUES = [1, 2, 3, 4, 5, 6] as const;
 
 const BaselineValueSchema = z.object({
   // Accepts snake_case (canonical), kebab-case (mirrors existing TS module names

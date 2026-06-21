@@ -82,4 +82,4 @@ export async function validateWebUrl(url: string): Promise<void> {
   }
 }
 
-export { USER_AGENT, HTML_CONTENT_TYPES };
+export { USER_AGENT };
