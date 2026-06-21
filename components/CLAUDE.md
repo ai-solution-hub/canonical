@@ -26,6 +26,11 @@ Design system: **Warm Meridian** — spec
     vars): drop the def prefix, repoint the `@theme inline` RHS, and repoint every inline
     `var()` consumer. The full `bg-*`/`text-*` utility-class rename (Option B) is deferred
     to backlog **`bl-349`** (bundled with the rebrand visual pass).
+  - **Full reference:** the three-tier token architecture (primitives → semantic/domain →
+    consumption), dark-mode ramp-swap mechanics, how to add a status colour or categorical
+    hue, and the config-driven product-name / brand-colour path are documented in the
+    docs-site design section:
+    `${KH_PRIVATE_DOCS_DIR}/src/content/docs/design/token-system.md`.
 - **React compiler memoisation:** destructure nested properties before using in
   `useCallback` deps (`const { fn } = data;` not `data.fn`).
 - **Stable empty array/object defaults in hook returns:** inline `data?.foo ?? []`
