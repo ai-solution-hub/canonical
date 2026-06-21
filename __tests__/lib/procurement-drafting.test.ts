@@ -37,9 +37,9 @@ vi.mock('@/lib/anthropic', () => ({
         string,
         { input: number; output: number; cache_read: number }
       > = {
-        'claude-opus-4-6': { input: 15, output: 75, cache_read: 1.5 },
+        'claude-opus-4-6': { input: 5, output: 25, cache_read: 0.5 },
         'claude-sonnet-4-5': { input: 3, output: 15, cache_read: 0.3 },
-        'claude-haiku-4-5': { input: 0.8, output: 4, cache_read: 0.08 },
+        'claude-haiku-4-5': { input: 1, output: 5, cache_read: 0.1 },
       };
       const r = rates[model] ?? rates['claude-sonnet-4-5'];
       const inputTokens =
@@ -231,8 +231,8 @@ describe('estimateCost', () => {
       input_tokens: 1000,
       output_tokens: 500,
     });
-    // (1000 / 1_000_000) * 15 + (500 / 1_000_000) * 75 = 0.015 + 0.0375 = 0.0525
-    expect(cost).toBeCloseTo(0.0525, 6);
+    // (1000 / 1_000_000) * 5 + (500 / 1_000_000) * 25 = 0.005 + 0.0125 = 0.0175
+    expect(cost).toBeCloseTo(0.0175, 6);
   });
 
   it('calculates Sonnet cost correctly', () => {
@@ -251,9 +251,9 @@ describe('estimateCost', () => {
       cache_read_input_tokens: 200,
     });
     // Non-cached input: 800 tokens, cached: 200 tokens
-    // (800 / 1_000_000) * 15 + (500 / 1_000_000) * 75 + (200 / 1_000_000) * 1.5
-    // = 0.012 + 0.0375 + 0.0003 = 0.0498
-    expect(cost).toBeCloseTo(0.0498, 6);
+    // (800 / 1_000_000) * 5 + (500 / 1_000_000) * 25 + (200 / 1_000_000) * 0.5
+    // = 0.004 + 0.0125 + 0.0001 = 0.0166
+    expect(cost).toBeCloseTo(0.0166, 6);
   });
 
   it('falls back to Sonnet rates for unknown models', () => {

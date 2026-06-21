@@ -1,7 +1,7 @@
 /**
  * Shared Anthropic model pricing constants (USD per million tokens).
  *
- * Canonical source for all cost calculations. Updated March 2026.
+ * Canonical source for all cost calculations. Updated 2026-06-21.
  * cache_write = 1.25x input price per Anthropic pricing.
  *
  * Imported by:
@@ -19,10 +19,10 @@ export interface ModelPricing {
 
 export const COST_PER_MILLION: Record<string, ModelPricing> = {
   'claude-opus-4-6': {
-    input: 15,
-    output: 75,
-    cache_read: 1.5,
-    cache_write: 18.75,
+    input: 5,
+    output: 25,
+    cache_read: 0.5,
+    cache_write: 6.25,
   },
   'claude-sonnet-4-5': {
     input: 3,
@@ -37,9 +37,9 @@ export const COST_PER_MILLION: Record<string, ModelPricing> = {
     cache_write: 3.75,
   },
   'claude-haiku-4-5': {
-    input: 0.8,
-    output: 4,
-    cache_read: 0.08,
-    cache_write: 1.0,
+    input: 1,
+    output: 5,
+    cache_read: 0.1,
+    cache_write: 1.25,
   },
 };

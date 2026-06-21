@@ -23,23 +23,23 @@ describe('estimateCost (real function)', () => {
   });
 
   it('computes claude-opus-4-6 cost from input/output tokens', () => {
-    // Opus 4.6: $15 per M input, $75 per M output
-    // 2000 input + 1000 output = 0.002 * 15 + 0.001 * 75 = 0.03 + 0.075 = 0.105
+    // Opus 4.6: $5 per M input, $25 per M output
+    // 2000 input + 1000 output = 0.002 * 5 + 0.001 * 25 = 0.01 + 0.025 = 0.035
     const cost = estimateCost('claude-opus-4-6', {
       input_tokens: 2000,
       output_tokens: 1000,
     });
-    expect(cost).toBeCloseTo(0.105, 6);
+    expect(cost).toBeCloseTo(0.035, 6);
   });
 
   it('computes claude-haiku-4-5 cost from input/output tokens', () => {
-    // Haiku 4.5: $0.80 per M input, $4 per M output
-    // 5000 input + 2000 output = 0.005 * 0.8 + 0.002 * 4 = 0.004 + 0.008 = 0.012
+    // Haiku 4.5: $1 per M input, $5 per M output
+    // 5000 input + 2000 output = 0.005 * 1 + 0.002 * 5 = 0.005 + 0.01 = 0.015
     const cost = estimateCost('claude-haiku-4-5', {
       input_tokens: 5000,
       output_tokens: 2000,
     });
-    expect(cost).toBeCloseTo(0.012, 6);
+    expect(cost).toBeCloseTo(0.015, 6);
   });
 
   it('subtracts cache_read tokens from input billing', () => {
