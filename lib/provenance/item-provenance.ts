@@ -7,7 +7,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
-import { sb } from '@/lib/supabase/safe';
+import { sb, SupabaseError } from '@/lib/supabase/safe';
 import { PIPELINE_SYSTEM_USER_ID } from '@/lib/intelligence/types';
 import { resolveUserDisplayNames } from '@/lib/users/display-names';
 
@@ -172,6 +172,15 @@ export async function getItemProvenance(
       .contains('source_content_ids', [itemId]),
   ]);
 
+  // The count query is a raw response (not wrapped by sb(), which discards
+  // .count for head:true). Surface its error the SAME way sb() does — throw a
+  // SupabaseError — so a DB failure is loud, not silently coerced to 0.
+  if (countResponse.error) {
+    throw new SupabaseError(
+      countResponse.error,
+      'provenance.item.totalDraftCount',
+    );
+  }
   const totalDraftCount = countResponse.count ?? 0;
 
   // 5. Resolve display names for drafted_by users
