@@ -25,6 +25,12 @@
 import { join } from 'node:path';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
+import {
+  missingBornEvaluableArtefacts,
+  isBornEvaluable,
+  type TouchpointChange,
+} from '@/scripts/lib/mcp-parser';
+import type { AgentEvalContract, TouchpointKind } from '@/lib/eval/contract';
 
 const PROJECT_ROOT = join(__dirname, '../../..');
 
@@ -134,5 +140,68 @@ describe('recordAiCall grep-guard — real-tree sweep', () => {
         .map((f) => f.replace(`${PROJECT_ROOT}/`, ''))
         .join(', ')}`,
     ).toHaveLength(0);
+  });
+});
+
+/**
+ * ID-71 M38 born-evaluable forcing function (B-INV-38/13/40), the third leg
+ * extending the `recordAiCall` grep-guard above to the skill + inline AI
+ * touchpoint kinds. Where the grep-guard fails an instrumented file that omits
+ * the `recordAiCall(` literal, this fails a skill/inline touchpoint CHANGE that
+ * omits any of the three forced accompaniments — a create-skill/update-skill
+ * invocation, an eval/fixture update, AND a bound ID-104 AgentEvalContract
+ * (imported directly from `@/lib/eval/contract`, no barrel). The detector
+ * (`missingBornEvaluableArtefacts`) is shared with the MCP fixture-sync and
+ * inventory-parser guards so all four surfaces enforce ONE forcing function.
+ */
+describe('M38 born-evaluable forcing function (skill + inline touchpoints)', () => {
+  const BOUND_CONTRACT: AgentEvalContract = {
+    touchpoint_id: 'reorient-briefing',
+    kind: 'skill',
+    owner: 'platform',
+    suite_name: 'l4',
+    grounding_shape: 'n/a',
+    severity_on_fail: 'warn',
+    variance_band: 0.02,
+  };
+
+  const SKILL_AND_INLINE: TouchpointKind[] = ['skill', 'inline'];
+
+  it.each(SKILL_AND_INLINE)(
+    'PASSES a %s touchpoint change shipping all three forced artefacts',
+    (kind) => {
+      const change: TouchpointChange = {
+        kind,
+        skillInvoked: true,
+        evalOrFixtureUpdated: true,
+        boundContract: { ...BOUND_CONTRACT, kind },
+      };
+      expect(missingBornEvaluableArtefacts(change)).toEqual([]);
+      expect(isBornEvaluable(change)).toBe(true);
+    },
+  );
+
+  it.each(SKILL_AND_INLINE)(
+    'FAILS a %s touchpoint change lacking a bound AgentEvalContract',
+    (kind) => {
+      const change: TouchpointChange = {
+        kind,
+        skillInvoked: true,
+        evalOrFixtureUpdated: true,
+        boundContract: null,
+      };
+      expect(missingBornEvaluableArtefacts(change)).toEqual(['bound-contract']);
+      expect(isBornEvaluable(change)).toBe(false);
+    },
+  );
+
+  it('FAILS an inline touchpoint change that omits the skill invocation', () => {
+    const change: TouchpointChange = {
+      kind: 'inline',
+      skillInvoked: false,
+      evalOrFixtureUpdated: true,
+      boundContract: { ...BOUND_CONTRACT, kind: 'inline' },
+    };
+    expect(missingBornEvaluableArtefacts(change)).toEqual(['skill-invocation']);
   });
 });

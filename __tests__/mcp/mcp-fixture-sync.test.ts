@@ -11,6 +11,11 @@ import {
   STATIC_RESOURCE_URIS,
   RESOURCE_TEMPLATE_URIS,
 } from '../../scripts/mcp-eval/fixtures';
+import {
+  missingBornEvaluableArtefacts,
+  type TouchpointChange,
+} from '../../scripts/lib/mcp-parser';
+import type { AgentEvalContract } from '@/lib/eval/contract';
 
 const PROJECT_ROOT = join(__dirname, '../..');
 const TOOLS_DIR = join(PROJECT_ROOT, 'lib/mcp/tools');
@@ -315,5 +320,74 @@ describe('Classification Skill Inlined Content', () => {
       content,
       'inlined.generated.ts must contain the Holder Disambiguation rule ported from classification-prompt.md',
     ).toContain('Holder Disambiguation');
+  });
+});
+
+/**
+ * ID-71 M38 born-evaluable forcing function (B-INV-38/13/40), extending the
+ * fixture-sync precedent above. The fixture-sync guards FAIL a tool/prompt that
+ * is in source but absent from the canonical fixtures; this block FAILS a
+ * tool/prompt CHANGE that lacks the three forced accompaniments — a
+ * create-skill/update-skill invocation, an eval/fixture update, AND a bound
+ * ID-104 AgentEvalContract. The detector (`missingBornEvaluableArtefacts`) is
+ * the pure forcing-function shared with `mcp-inventory-parser.test.ts` and the
+ * ID-104 recordAiCall grep-guard.
+ */
+describe('M38 born-evaluable forcing function (tool + prompt surfaces)', () => {
+  const BOUND_CONTRACT: AgentEvalContract = {
+    touchpoint_id: 'find',
+    kind: 'tool',
+    owner: 'platform',
+    suite_name: 'l3',
+    grounding_shape: 'forced_tool_strict',
+    severity_on_fail: 'block',
+    variance_band: 0.02,
+  };
+
+  it('PASSES a tool change shipping skill + eval/fixture + bound contract', () => {
+    const change: TouchpointChange = {
+      kind: 'tool',
+      skillInvoked: true,
+      evalOrFixtureUpdated: true,
+      boundContract: BOUND_CONTRACT,
+    };
+    expect(missingBornEvaluableArtefacts(change)).toEqual([]);
+  });
+
+  it('PASSES a prompt change shipping skill + eval/fixture + bound contract', () => {
+    const change: TouchpointChange = {
+      kind: 'prompt',
+      skillInvoked: true,
+      evalOrFixtureUpdated: true,
+      boundContract: { ...BOUND_CONTRACT, kind: 'prompt' },
+    };
+    expect(missingBornEvaluableArtefacts(change)).toEqual([]);
+  });
+
+  it('FAILS a tool change with no skill, eval/fixture, or contract', () => {
+    const change: TouchpointChange = {
+      kind: 'tool',
+      skillInvoked: false,
+      evalOrFixtureUpdated: false,
+      boundContract: null,
+    };
+    expect(missingBornEvaluableArtefacts(change)).toEqual([
+      'skill-invocation',
+      'eval-fixture-update',
+      'bound-contract',
+    ]);
+  });
+
+  it('FAILS a prompt change that updates the eval but omits skill + contract', () => {
+    const change: TouchpointChange = {
+      kind: 'prompt',
+      skillInvoked: false,
+      evalOrFixtureUpdated: true,
+      boundContract: null,
+    };
+    expect(missingBornEvaluableArtefacts(change)).toEqual([
+      'skill-invocation',
+      'bound-contract',
+    ]);
   });
 });

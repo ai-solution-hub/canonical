@@ -6,8 +6,21 @@
  * highly regular registration patterns used in lib/mcp/tools/*.ts and
  * lib/mcp/resources.ts.
  *
+ * Also exposes the ID-71 M38 born-evaluable forcing-function detector
+ * (`missingBornEvaluableArtefacts`) — a pure function over a touchpoint-change
+ * descriptor that the guard tests (`mcp-fixture-sync.test.ts`,
+ * `mcp-inventory-parser.test.ts`, and the ID-104 `recordAiCall` grep-guard)
+ * exercise. It consumes the ID-104-owned {@link AgentEvalContract} (direct
+ * import, no barrel) to validate the bound-contract leg. (B-INV-38/13/40.)
+ *
  * @module scripts/lib/mcp-parser
  */
+
+import {
+  agentEvalContractSchema,
+  type AgentEvalContract,
+  type TouchpointKind,
+} from '@/lib/eval/contract';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -926,4 +939,101 @@ function parsePromptBlock(block: string): PromptEntry | null {
   }
 
   return { name, title, description, args };
+}
+
+// ---------------------------------------------------------------------------
+// ID-71 M38 — born-evaluable forcing-function detector (B-INV-38/13/40)
+// ---------------------------------------------------------------------------
+
+/**
+ * The three forcing-function artefacts a touchpoint change MUST carry to be
+ * born-evaluable. Identifiers are stable strings so the guard tests (and any
+ * failure message) name exactly which leg is absent.
+ *
+ *   - `skill-invocation` — a `create-skill` / `update-skill` invocation
+ *     accompanies the change (B-INV-38: a tooling change forces a skill update).
+ *   - `eval-fixture-update` — an eval and/or fixture update accompanies the
+ *     change (B-INV-38: the change is reflected in the eval/fixture surface).
+ *   - `bound-contract` — a valid, bound ID-104 {@link AgentEvalContract} ships
+ *     with the change (B-INV-13/40: the touchpoint is born against an eval, not
+ *     gated by its schema alone).
+ */
+export type BornEvaluableArtefact =
+  | 'skill-invocation'
+  | 'eval-fixture-update'
+  | 'bound-contract';
+
+/**
+ * The complete set, in canonical order — the guard fails a change missing ANY
+ * of these.
+ */
+export const BORN_EVALUABLE_ARTEFACTS: readonly BornEvaluableArtefact[] = [
+  'skill-invocation',
+  'eval-fixture-update',
+  'bound-contract',
+] as const;
+
+/**
+ * A description of a single touchpoint change, as the guard sees it. `kind`
+ * widens the forcing function beyond the MCP fixture-sync precedent (which only
+ * saw tools) to prompts, plugin skills, and inline AI touchpoints (B-INV-38).
+ *
+ * The three artefact legs are evidence the changeset carries the forced
+ * accompaniments:
+ *   - `skillInvoked` — a `create-skill` / `update-skill` invocation is present.
+ *   - `evalOrFixtureUpdated` — an eval and/or fixture update is present.
+ *   - `boundContract` — the ID-104 contract bound to the touchpoint, or `null`
+ *     when none is bound. A supplied contract is validated against
+ *     `agentEvalContractSchema`; a malformed/placeholder contract counts as
+ *     UNbound (it does not satisfy the born-evaluable leg).
+ */
+export interface TouchpointChange {
+  kind: TouchpointKind;
+  skillInvoked: boolean;
+  evalOrFixtureUpdated: boolean;
+  boundContract: AgentEvalContract | null;
+}
+
+/**
+ * Pure detector (M38 forcing function). Returns the forcing-function artefacts
+ * MISSING from a touchpoint change, in {@link BORN_EVALUABLE_ARTEFACTS} order.
+ * An EMPTY array means the change is born-evaluable (all three legs present);
+ * a non-empty array is the guard's FAIL signal naming each absent leg.
+ *
+ * Modelled on the `recordAiCall` grep-guard's `touchpointOmitsRecordAiCall` and
+ * the contract-consumption guard's `declaresAgentEvalContract`: a pure function
+ * over its input so the failing direction can be unit-proved with synthetic
+ * changes across every {@link TouchpointKind}, with no reliance on the live tree
+ * carrying a non-compliant change.
+ */
+export function missingBornEvaluableArtefacts(
+  change: TouchpointChange,
+): BornEvaluableArtefact[] {
+  const missing: BornEvaluableArtefact[] = [];
+
+  if (!change.skillInvoked) missing.push('skill-invocation');
+  if (!change.evalOrFixtureUpdated) missing.push('eval-fixture-update');
+  if (!hasBoundContract(change.boundContract)) missing.push('bound-contract');
+
+  return missing;
+}
+
+/**
+ * Whether a touchpoint change is born-evaluable — carries ALL three
+ * forcing-function artefacts. Convenience predicate over
+ * {@link missingBornEvaluableArtefacts}.
+ */
+export function isBornEvaluable(change: TouchpointChange): boolean {
+  return missingBornEvaluableArtefacts(change).length === 0;
+}
+
+/**
+ * The bound-contract leg: a contract counts as bound only when it is present
+ * AND validates against the ID-104 `agentEvalContractSchema` (T2 boundary). A
+ * `null` contract, or one that fails strict validation (e.g. a placeholder
+ * missing a mandatory field), does NOT satisfy the leg.
+ */
+function hasBoundContract(contract: AgentEvalContract | null): boolean {
+  if (contract === null) return false;
+  return agentEvalContractSchema.safeParse(contract).success;
 }
