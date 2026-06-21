@@ -25,9 +25,8 @@ interface DisputeRow {
 // ---------------------------------------------------------------------------
 
 const STATUS_STYLES: Record<string, string> = {
-  open: 'bg-[var(--color-status-warning)]/15 text-[var(--color-status-warning)]',
-  resolved:
-    'bg-[var(--color-status-success)]/15 text-[var(--color-status-success)]',
+  open: 'bg-[var(--status-warning)]/15 text-[var(--status-warning)]',
+  resolved: 'bg-[var(--status-success)]/15 text-[var(--status-success)]',
   rejected: 'bg-muted text-muted-foreground',
 };
 

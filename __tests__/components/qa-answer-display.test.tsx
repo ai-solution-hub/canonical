@@ -119,7 +119,7 @@ describe('QAAnswerDisplay — verification border', () => {
     expect(cards.length).toBeGreaterThanOrEqual(2);
     for (const card of cards) {
       expect(card).toHaveClass('border-l-[3px]');
-      expect(card).toHaveClass('border-l-[var(--color-status-warning)]');
+      expect(card).toHaveClass('border-l-[var(--status-warning)]');
     }
   });
 
@@ -130,7 +130,7 @@ describe('QAAnswerDisplay — verification border', () => {
     expect(cards.length).toBeGreaterThanOrEqual(2);
     for (const card of cards) {
       expect(card).toHaveClass('border-l-[3px]');
-      expect(card).toHaveClass('border-l-[var(--color-status-success)]');
+      expect(card).toHaveClass('border-l-[var(--status-success)]');
     }
   });
 
@@ -139,7 +139,7 @@ describe('QAAnswerDisplay — verification border', () => {
     const { container } = render(<QAAnswerDisplay {...makeProps({ item })} />);
     const cards = container.querySelectorAll('.rounded-xl');
     for (const card of cards) {
-      expect(card).toHaveClass('border-l-[var(--color-status-warning)]');
+      expect(card).toHaveClass('border-l-[var(--status-warning)]');
     }
   });
 
@@ -149,7 +149,7 @@ describe('QAAnswerDisplay — verification border', () => {
     const { container } = render(<QAAnswerDisplay {...makeProps({ item })} />);
     const cards = container.querySelectorAll('.rounded-xl');
     for (const card of cards) {
-      expect(card).toHaveClass('border-l-[var(--color-status-warning)]');
+      expect(card).toHaveClass('border-l-[var(--status-warning)]');
     }
   });
 });
@@ -872,8 +872,8 @@ describe('QAAnswerDisplay — empty and fallback states', () => {
     const { container } = render(<QAAnswerDisplay {...makeProps({ item })} />);
     const cards = container.querySelectorAll('.rounded-xl');
     expect(cards).toHaveLength(1);
-    expect(cards[0]).not.toHaveClass('border-l-[var(--color-status-warning)]');
-    expect(cards[0]).not.toHaveClass('border-l-[var(--color-status-success)]');
+    expect(cards[0]).not.toHaveClass('border-l-[var(--status-warning)]');
+    expect(cards[0]).not.toHaveClass('border-l-[var(--status-success)]');
   });
 
   it('does not render verification border on empty state card', () => {
@@ -885,8 +885,8 @@ describe('QAAnswerDisplay — empty and fallback states', () => {
     const { container } = render(<QAAnswerDisplay {...makeProps({ item })} />);
     const cards = container.querySelectorAll('.rounded-xl');
     expect(cards).toHaveLength(1);
-    expect(cards[0]).not.toHaveClass('border-l-[var(--color-status-warning)]');
-    expect(cards[0]).not.toHaveClass('border-l-[var(--color-status-success)]');
+    expect(cards[0]).not.toHaveClass('border-l-[var(--status-warning)]');
+    expect(cards[0]).not.toHaveClass('border-l-[var(--status-success)]');
   });
 });
 

@@ -7,7 +7,25 @@ Design system: **Warm Meridian** — spec
 
 - **New components go in their domain subdir, never at components/ root.**
 - **No raw Tailwind colours:** always semantic tokens; define new ones in
-  `app/globals.css` per the spec.
+  `app/globals.css` (core) or `app/styles/domain-tokens.css` (application status/domain)
+  per the spec.
+- **Token-naming convention (F3, ID-119):**
+  - **shadcn semantic tokens are bare** — `--background`, `--foreground`, `--primary`,
+    `--success`, `--destructive`, `--border`, … (never `--color-`-prefixed).
+  - **Functional ramps are scoped `--<family>-<role>`** — `--green-solid`, `--red-tint`,
+    `--amber-border`, … (the F1 primitive layer; tune a colour once, light + dark ripple).
+  - **Application status / domain token _definitions_ are bare** — `--bid-won`,
+    `--status-success`, `--freshness-fresh`, `--relevance-high`, … The redundant `--color-`
+    prefix survives ONLY as the `@theme inline` **LHS** that names the generated utility
+    class (`--color-bid-won: var(--bid-won)` → emits `bg-bid-won`/`text-bid-won`). Inline
+    consumers reference the bare name: `bg-[var(--status-success)]`, not `var(--color-…)`.
+  - **`--domain-*` content-classification tokens keep their name** (`--domain-security-bg`,
+    …) — consumed via dynamic inline `var(--domain-${key}-bg|text|surface)`, so they were
+    never `--color-`-prefixed and are untouched by F3.
+  - Renaming a CSS custom property is a **literal sweep** (GitNexus does not index CSS
+    vars): drop the def prefix, repoint the `@theme inline` RHS, and repoint every inline
+    `var()` consumer. The full `bg-*`/`text-*` utility-class rename (Option B) is deferred
+    to backlog **`bl-349`** (bundled with the rebrand visual pass).
 - **React compiler memoisation:** destructure nested properties before using in
   `useCallback` deps (`const { fn } = data;` not `data.fn`).
 - **Stable empty array/object defaults in hook returns:** inline `data?.foo ?? []`

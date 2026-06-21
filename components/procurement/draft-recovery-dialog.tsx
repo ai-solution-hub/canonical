@@ -91,7 +91,7 @@ export function DraftRecoveryDialog({
 
   return (
     <div
-      className="flex items-center gap-3 rounded-lg border border-[var(--color-highlight-border)] bg-[var(--color-highlight-bg)] px-4 py-3"
+      className="flex items-center gap-3 rounded-lg border border-[var(--highlight-border)] bg-[var(--highlight-bg)] px-4 py-3"
       role="alert"
       aria-live="polite"
     >

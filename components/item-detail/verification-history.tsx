@@ -52,7 +52,7 @@ const ACTION_CONFIG: Record<
   verify: {
     icon: CheckCircle2,
     label: 'Verified',
-    colourClass: 'text-[var(--color-status-success)]',
+    colourClass: 'text-[var(--status-success)]',
   },
   unverify: {
     icon: XCircle,
@@ -62,7 +62,7 @@ const ACTION_CONFIG: Record<
   flag: {
     icon: AlertTriangle,
     label: 'Flagged',
-    colourClass: 'text-[var(--color-status-warning)]',
+    colourClass: 'text-[var(--status-warning)]',
   },
 };
 

@@ -253,8 +253,8 @@ export function QAAnswerDisplay({
 }: QAAnswerDisplayProps) {
   const isVerified = !!item.verified_at;
   const borderClass = isVerified
-    ? 'border-l-[3px] border-l-[var(--color-status-success)]'
-    : 'border-l-[3px] border-l-[var(--color-status-warning)]';
+    ? 'border-l-[3px] border-l-[var(--status-success)]'
+    : 'border-l-[3px] border-l-[var(--status-warning)]';
 
   const editingField = inlineEdit?.editingField ?? null;
   const isEditingStandard = editingField === 'answer_standard';
@@ -300,11 +300,11 @@ export function QAAnswerDisplay({
         <div
           data-testid="qa-answer-panel-standard"
           className={cn(
-            'rounded-xl border border-[var(--color-highlight-border)] bg-[var(--color-highlight-bg)]',
+            'rounded-xl border border-[var(--highlight-border)] bg-[var(--highlight-bg)]',
             borderClass,
           )}
         >
-          <div className="flex items-center justify-between border-b border-[var(--color-highlight-border)] px-4 py-2.5">
+          <div className="flex items-center justify-between border-b border-[var(--highlight-border)] px-4 py-2.5">
             <div className="flex items-center gap-2">
               <span
                 id={standardLabelId}
@@ -375,11 +375,11 @@ export function QAAnswerDisplay({
         <div
           data-testid="qa-answer-panel-advanced"
           className={cn(
-            'rounded-xl border border-[var(--color-highlight-border)] bg-[var(--color-highlight-bg)]',
+            'rounded-xl border border-[var(--highlight-border)] bg-[var(--highlight-bg)]',
             borderClass,
           )}
         >
-          <div className="flex items-center justify-between border-b border-[var(--color-highlight-border)] px-4 py-2.5">
+          <div className="flex items-center justify-between border-b border-[var(--highlight-border)] px-4 py-2.5">
             <div className="flex items-center gap-2">
               <span
                 id={advancedLabelId}

@@ -63,193 +63,181 @@
   --domain-methodology-surface: oklch(0.96 0.02 var(--hue-domain-methodology));
 
   /* Freshness */
-  --color-freshness-fresh: var(--green-solid);
-  --color-freshness-fresh-bg: var(--green-tint);
-  --color-freshness-aging: var(--amber-solid);
-  --color-freshness-aging-bg: var(--amber-tint);
-  --color-freshness-stale: var(--red-solid);
-  --color-freshness-stale-bg: var(--red-tint);
-  --color-freshness-expired: var(--red-solid-deep);
-  --color-freshness-expired-bg: var(--red-tint);
+  --freshness-fresh: var(--green-solid);
+  --freshness-fresh-bg: var(--green-tint);
+  --freshness-aging: var(--amber-solid);
+  --freshness-aging-bg: var(--amber-tint);
+  --freshness-stale: var(--red-solid);
+  --freshness-stale-bg: var(--red-tint);
+  --freshness-expired: var(--red-solid-deep);
+  --freshness-expired-bg: var(--red-tint);
 
   /* Confidence */
-  --color-confidence-strong: var(--green-solid);
-  --color-confidence-strong-bg: var(--green-tint);
-  --color-confidence-strong-border: var(--green-border);
-  --color-confidence-partial: var(--amber-solid);
-  --color-confidence-partial-bg: var(--amber-tint);
-  --color-confidence-partial-border: var(--amber-border);
-  --color-confidence-needs-sme: var(--blue-solid);
-  --color-confidence-needs-sme-bg: var(--blue-tint);
-  --color-confidence-needs-sme-border: var(--blue-border);
-  --color-confidence-none: var(--stone-500);
-  --color-confidence-none-bg: var(--stone-100);
-  --color-confidence-none-border: var(--stone-300);
+  --confidence-strong: var(--green-solid);
+  --confidence-strong-bg: var(--green-tint);
+  --confidence-strong-border: var(--green-border);
+  --confidence-partial: var(--amber-solid);
+  --confidence-partial-bg: var(--amber-tint);
+  --confidence-partial-border: var(--amber-border);
+  --confidence-needs-sme: var(--blue-solid);
+  --confidence-needs-sme-bg: var(--blue-tint);
+  --confidence-needs-sme-border: var(--blue-border);
+  --confidence-none: var(--stone-500);
+  --confidence-none-bg: var(--stone-100);
+  --confidence-none-border: var(--stone-300);
 
   /* Low-confidence review indicator */
-  --color-confidence-low: var(--red-solid);
-  --color-confidence-low-bg: var(--red-tint);
-  --color-confidence-low-border: var(--red-border);
+  --confidence-low: var(--red-solid);
+  --confidence-low-bg: var(--red-tint);
+  --confidence-low-border: var(--red-border);
 
   /* Priority tier badges */
-  --color-priority-tier-critical: var(--red-solid);
-  --color-priority-tier-critical-bg: var(--red-tint);
-  --color-priority-tier-high: var(--amber-solid);
-  --color-priority-tier-high-bg: var(--amber-tint);
-  --color-priority-tier-medium: var(--blue-solid);
-  --color-priority-tier-medium-bg: var(--blue-tint);
-  --color-priority-tier-low: var(--stone-500);
-  --color-priority-tier-low-bg: var(--stone-100);
+  --priority-tier-critical: var(--red-solid);
+  --priority-tier-critical-bg: var(--red-tint);
+  --priority-tier-high: var(--amber-solid);
+  --priority-tier-high-bg: var(--amber-tint);
+  --priority-tier-medium: var(--blue-solid);
+  --priority-tier-medium-bg: var(--blue-tint);
+  --priority-tier-low: var(--stone-500);
+  --priority-tier-low-bg: var(--stone-100);
 
   /* Bid status */
-  --color-bid-draft: var(--stone-500);
-  --color-bid-draft-bg: var(--stone-100);
-  --color-bid-draft-border: var(--stone-300);
-  --color-bid-draft-dot: var(--stone-500);
-  --color-bid-discovery: var(--blue-solid);
-  --color-bid-discovery-bg: var(--blue-tint);
-  --color-bid-discovery-border: var(--blue-border);
-  --color-bid-discovery-dot: oklch(0.55 0.12 240);
-  --color-bid-active: var(--amber-solid);
-  --color-bid-active-bg: var(--amber-tint);
-  --color-bid-active-border: var(--amber-border);
-  --color-bid-active-dot: oklch(0.6 0.14 70);
-  --color-bid-in-review: oklch(0.55 0.12 290);
-  --color-bid-in-review-bg: var(--violet-tint);
-  --color-bid-in-review-border: var(--violet-border);
-  --color-bid-in-review-dot: oklch(0.55 0.12 290);
-  --color-bid-export-ready: var(--teal-solid);
-  --color-bid-export-ready-bg: var(--teal-tint);
-  --color-bid-export-ready-border: var(--teal-border);
-  --color-bid-export-ready-dot: oklch(0.55 0.15 195);
-  --color-bid-submitted: var(--green-solid-deep);
-  --color-bid-submitted-bg: var(--green-tint);
-  --color-bid-submitted-border: var(--green-border);
-  --color-bid-submitted-dot: oklch(0.5 0.15 160);
-  --color-bid-won: var(--green-solid-deep);
-  --color-bid-won-bg: var(--green-tint);
-  --color-bid-won-border: var(--green-border);
-  --color-bid-lost: var(--red-solid);
-  --color-bid-lost-bg: var(--red-tint);
-  --color-bid-lost-border: var(--red-border);
-  --color-bid-withdrawn: var(--stone-500);
-  --color-bid-withdrawn-bg: var(--stone-100);
-  --color-bid-withdrawn-border: var(--stone-300);
-  --color-bid-overdue: oklch(0.5 0.2 20);
-  --color-bid-overdue-bg: var(--red-tint);
-  --color-bid-overdue-border: var(--red-border);
+  --bid-draft: var(--stone-500);
+  --bid-draft-bg: var(--stone-100);
+  --bid-draft-border: var(--stone-300);
+  --bid-draft-dot: var(--stone-500);
+  --bid-discovery: var(--blue-solid);
+  --bid-discovery-bg: var(--blue-tint);
+  --bid-discovery-border: var(--blue-border);
+  --bid-discovery-dot: oklch(0.55 0.12 240);
+  --bid-active: var(--amber-solid);
+  --bid-active-bg: var(--amber-tint);
+  --bid-active-border: var(--amber-border);
+  --bid-active-dot: oklch(0.6 0.14 70);
+  --bid-in-review: oklch(0.55 0.12 290);
+  --bid-in-review-bg: var(--violet-tint);
+  --bid-in-review-border: var(--violet-border);
+  --bid-in-review-dot: oklch(0.55 0.12 290);
+  --bid-export-ready: var(--teal-solid);
+  --bid-export-ready-bg: var(--teal-tint);
+  --bid-export-ready-border: var(--teal-border);
+  --bid-export-ready-dot: oklch(0.55 0.15 195);
+  --bid-submitted: var(--green-solid-deep);
+  --bid-submitted-bg: var(--green-tint);
+  --bid-submitted-border: var(--green-border);
+  --bid-submitted-dot: oklch(0.5 0.15 160);
+  --bid-won: var(--green-solid-deep);
+  --bid-won-bg: var(--green-tint);
+  --bid-won-border: var(--green-border);
+  --bid-lost: var(--red-solid);
+  --bid-lost-bg: var(--red-tint);
+  --bid-lost-border: var(--red-border);
+  --bid-withdrawn: var(--stone-500);
+  --bid-withdrawn-bg: var(--stone-100);
+  --bid-withdrawn-border: var(--stone-300);
+  --bid-overdue: oklch(0.5 0.2 20);
+  --bid-overdue-bg: var(--red-tint);
+  --bid-overdue-border: var(--red-border);
 
   /* Governance */
-  --color-governance-pending: var(--amber-solid);
-  --color-governance-pending-bg: var(--amber-tint);
-  --color-governance-pending-border: oklch(0.88 0.04 70);
-  --color-governance-approved: var(--green-solid);
-  --color-governance-approved-bg: var(--green-tint);
-  --color-governance-approved-border: oklch(0.82 0.06 160);
-  --color-governance-changes: oklch(0.6 0.16 45);
-  --color-governance-changes-bg: oklch(0.97 0.02 45);
-  --color-governance-changes-border: oklch(0.88 0.04 45);
-  --color-governance-reverted: var(--red-solid);
-  --color-governance-reverted-bg: var(--red-tint);
-  --color-governance-reverted-border: oklch(0.88 0.04 20);
-  --color-governance-draft: var(--stone-500);
-  --color-governance-draft-bg: var(--stone-100);
-  --color-governance-draft-border: oklch(0.88 0.01 48);
+  --governance-pending: var(--amber-solid);
+  --governance-pending-bg: var(--amber-tint);
+  --governance-pending-border: oklch(0.88 0.04 70);
+  --governance-approved: var(--green-solid);
+  --governance-approved-bg: var(--green-tint);
+  --governance-approved-border: oklch(0.82 0.06 160);
+  --governance-changes: oklch(0.6 0.16 45);
+  --governance-changes-bg: oklch(0.97 0.02 45);
+  --governance-changes-border: oklch(0.88 0.04 45);
+  --governance-reverted: var(--red-solid);
+  --governance-reverted-bg: var(--red-tint);
+  --governance-reverted-border: oklch(0.88 0.04 20);
+  --governance-draft: var(--stone-500);
+  --governance-draft-bg: var(--stone-100);
+  --governance-draft-border: oklch(0.88 0.01 48);
 
   /* Streaming phases */
-  --color-phase-analysing: var(--blue-solid);
-  --color-phase-drafting: var(--violet-solid);
-  --color-phase-quality: var(--amber-solid);
-  --color-phase-saving: var(--blue-solid);
-  --color-phase-done: var(--green-solid);
-  --color-phase-done-bg: var(--green-tint);
-  --color-phase-done-border: var(--green-border);
-  --color-phase-active-bg: var(--blue-tint);
-  --color-phase-active-border: var(--blue-border);
+  --phase-analysing: var(--blue-solid);
+  --phase-drafting: var(--violet-solid);
+  --phase-quality: var(--amber-solid);
+  --phase-saving: var(--blue-solid);
+  --phase-done: var(--green-solid);
+  --phase-done-bg: var(--green-tint);
+  --phase-done-border: var(--green-border);
+  --phase-active-bg: var(--blue-tint);
+  --phase-active-border: var(--blue-border);
 
   /* Template field review */
-  --color-template-unreviewed: var(--blue-solid);
-  --color-template-unreviewed-bg: var(--blue-tint);
-  --color-template-confirmed: var(--green-solid);
-  --color-template-confirmed-bg: var(--green-tint);
-  --color-template-rejected: var(--stone-500);
-  --color-template-rejected-bg: var(--stone-100);
-  --color-template-manual: var(--amber-solid);
-  --color-template-manual-bg: var(--amber-tint);
-  --color-template-unmapped: var(--red-solid);
-  --color-template-unmapped-bg: var(--red-tint);
+  --template-unreviewed: var(--blue-solid);
+  --template-unreviewed-bg: var(--blue-tint);
+  --template-confirmed: var(--green-solid);
+  --template-confirmed-bg: var(--green-tint);
+  --template-rejected: var(--stone-500);
+  --template-rejected-bg: var(--stone-100);
+  --template-manual: var(--amber-solid);
+  --template-manual-bg: var(--amber-tint);
+  --template-unmapped: var(--red-solid);
+  --template-unmapped-bg: var(--red-tint);
 
   /* Quality score thresholds */
-  --color-quality-good: var(--green-solid);
-  --color-quality-good-bg: var(--green-tint);
-  --color-quality-moderate: var(--amber-solid);
-  --color-quality-moderate-bg: var(--amber-tint);
-  --color-quality-severity-warning: var(--amber-solid);
-  --color-quality-severity-info: var(--blue-solid);
+  --quality-good: var(--green-solid);
+  --quality-good-bg: var(--green-tint);
+  --quality-moderate: var(--amber-solid);
+  --quality-moderate-bg: var(--amber-tint);
+  --quality-severity-warning: var(--amber-solid);
+  --quality-severity-info: var(--blue-solid);
 
   /* Tag frequency tiers */
-  --color-tag-rare: oklch(0.6 0.014 48);
-  --color-tag-rare-bg: var(--stone-100);
-  --color-tag-core: var(--green-solid);
-  --color-tag-core-bg: var(--green-tint);
+  --tag-rare: oklch(0.6 0.014 48);
+  --tag-rare-bg: var(--stone-100);
+  --tag-core: var(--green-solid);
+  --tag-core-bg: var(--green-tint);
 
   /* Verified */
-  --color-verified: var(--green-solid);
-  --color-verified-bg: var(--green-tint);
+  --verified: var(--green-solid);
+  --verified-bg: var(--green-tint);
 
   /* Entity type badge colours */
-  --color-entity-organisation-bg: oklch(
-    0.93 0.04 var(--hue-entity-organisation)
-  );
-  --color-entity-organisation-text: oklch(
-    0.35 0.12 var(--hue-entity-organisation)
-  );
-  --color-entity-certification-bg: oklch(
-    0.93 0.04 var(--hue-entity-certification)
-  );
-  --color-entity-certification-text: oklch(
-    0.35 0.12 var(--hue-entity-certification)
-  );
-  --color-entity-regulation-bg: oklch(0.93 0.04 var(--hue-entity-regulation));
-  --color-entity-regulation-text: oklch(0.35 0.15 var(--hue-entity-regulation));
-  --color-entity-framework-bg: oklch(0.93 0.04 var(--hue-entity-framework));
-  --color-entity-framework-text: oklch(0.35 0.12 var(--hue-entity-framework));
-  --color-entity-capability-bg: oklch(0.93 0.04 var(--hue-entity-capability));
-  --color-entity-capability-text: oklch(0.4 0.12 var(--hue-entity-capability));
-  --color-entity-person-bg: oklch(0.93 0.04 var(--hue-entity-person));
-  --color-entity-person-text: oklch(0.38 0.12 var(--hue-entity-person));
-  --color-entity-technology-bg: oklch(0.93 0.04 var(--hue-entity-technology));
-  --color-entity-technology-text: oklch(0.35 0.12 var(--hue-entity-technology));
-  --color-entity-project-bg: oklch(0.93 0.04 var(--hue-entity-project));
-  --color-entity-project-text: oklch(0.35 0.12 var(--hue-entity-project));
-  --color-entity-sector-bg: oklch(0.93 0.04 var(--hue-entity-sector));
-  --color-entity-sector-text: oklch(0.4 0.12 var(--hue-entity-sector));
-  --color-entity-product-bg: oklch(0.93 0.04 var(--hue-entity-product));
-  --color-entity-product-text: oklch(0.35 0.12 var(--hue-entity-product));
+  --entity-organisation-bg: oklch(0.93 0.04 var(--hue-entity-organisation));
+  --entity-organisation-text: oklch(0.35 0.12 var(--hue-entity-organisation));
+  --entity-certification-bg: oklch(0.93 0.04 var(--hue-entity-certification));
+  --entity-certification-text: oklch(0.35 0.12 var(--hue-entity-certification));
+  --entity-regulation-bg: oklch(0.93 0.04 var(--hue-entity-regulation));
+  --entity-regulation-text: oklch(0.35 0.15 var(--hue-entity-regulation));
+  --entity-framework-bg: oklch(0.93 0.04 var(--hue-entity-framework));
+  --entity-framework-text: oklch(0.35 0.12 var(--hue-entity-framework));
+  --entity-capability-bg: oklch(0.93 0.04 var(--hue-entity-capability));
+  --entity-capability-text: oklch(0.4 0.12 var(--hue-entity-capability));
+  --entity-person-bg: oklch(0.93 0.04 var(--hue-entity-person));
+  --entity-person-text: oklch(0.38 0.12 var(--hue-entity-person));
+  --entity-technology-bg: oklch(0.93 0.04 var(--hue-entity-technology));
+  --entity-technology-text: oklch(0.35 0.12 var(--hue-entity-technology));
+  --entity-project-bg: oklch(0.93 0.04 var(--hue-entity-project));
+  --entity-project-text: oklch(0.35 0.12 var(--hue-entity-project));
+  --entity-sector-bg: oklch(0.93 0.04 var(--hue-entity-sector));
+  --entity-sector-text: oklch(0.4 0.12 var(--hue-entity-sector));
+  --entity-product-bg: oklch(0.93 0.04 var(--hue-entity-product));
+  --entity-product-text: oklch(0.35 0.12 var(--hue-entity-product));
 
   /* Relevance score (article review) */
-  --color-relevance-high: oklch(0.93 0.04 var(--hue-relevance-high));
-  --color-relevance-high-text: oklch(0.35 0.12 var(--hue-relevance-high));
-  --color-relevance-medium: oklch(0.93 0.04 var(--hue-relevance-medium));
-  --color-relevance-medium-text: oklch(0.4 0.12 var(--hue-relevance-medium));
-  --color-relevance-low: oklch(0.93 0.04 var(--hue-relevance-low));
-  --color-relevance-low-text: oklch(0.4 0.14 var(--hue-relevance-low));
-  --color-relevance-irrelevant: oklch(
-    0.95 0.03 var(--hue-relevance-irrelevant)
-  );
-  --color-relevance-irrelevant-text: oklch(
-    0.35 0.15 var(--hue-relevance-irrelevant)
-  );
+  --relevance-high: oklch(0.93 0.04 var(--hue-relevance-high));
+  --relevance-high-text: oklch(0.35 0.12 var(--hue-relevance-high));
+  --relevance-medium: oklch(0.93 0.04 var(--hue-relevance-medium));
+  --relevance-medium-text: oklch(0.4 0.12 var(--hue-relevance-medium));
+  --relevance-low: oklch(0.93 0.04 var(--hue-relevance-low));
+  --relevance-low-text: oklch(0.4 0.14 var(--hue-relevance-low));
+  --relevance-irrelevant: oklch(0.95 0.03 var(--hue-relevance-irrelevant));
+  --relevance-irrelevant-text: oklch(0.35 0.15 var(--hue-relevance-irrelevant));
 
   /* Source intelligence badge */
-  --color-source-si-text: oklch(0.45 0.12 195);
-  --color-source-si-bg: oklch(0.93 0.04 195);
-  --color-source-si-border: oklch(0.8 0.06 195);
+  --source-si-text: oklch(0.45 0.12 195);
+  --source-si-bg: oklch(0.93 0.04 195);
+  --source-si-border: oklch(0.8 0.06 195);
 
   /* Draft badge colours */
-  --color-draft-badge-bg: var(--amber-tint-strong);
-  --color-draft-badge-text: oklch(0.5 0.14 70);
-  --color-draft-badge-border: var(--amber-border);
+  --draft-badge-bg: var(--amber-tint-strong);
+  --draft-badge-text: oklch(0.5 0.14 70);
+  --draft-badge-border: var(--amber-border);
 }
 
 .dark {
@@ -281,100 +269,88 @@
   --domain-methodology-surface: oklch(0.2 0.03 var(--hue-domain-methodology));
 
   /* Confidence (dark) */
-  --color-confidence-none: var(--stone-400);
-  --color-confidence-none-bg: var(--stone-800);
-  --color-confidence-none-border: oklch(0.35 0.014 48);
+  --confidence-none: var(--stone-400);
+  --confidence-none-bg: var(--stone-800);
+  --confidence-none-border: oklch(0.35 0.014 48);
 
   /* Priority tier badges (dark) */
-  --color-priority-tier-low: var(--stone-400);
-  --color-priority-tier-low-bg: var(--stone-800);
+  --priority-tier-low: var(--stone-400);
+  --priority-tier-low-bg: var(--stone-800);
 
   /* Bid status (dark) */
-  --color-bid-draft: var(--stone-400);
-  --color-bid-draft-bg: var(--stone-800);
-  --color-bid-draft-border: oklch(0.35 0.014 48);
-  --color-bid-draft-dot: var(--stone-500);
-  --color-bid-discovery-dot: oklch(0.6 0.1 240);
-  --color-bid-active-dot: oklch(0.6 0.12 70);
-  --color-bid-in-review: oklch(0.7 0.1 290);
-  --color-bid-in-review-dot: oklch(0.6 0.1 290);
-  --color-bid-export-ready-dot: oklch(0.55 0.13 195);
-  --color-bid-submitted-dot: oklch(0.55 0.13 160);
-  --color-bid-withdrawn: var(--stone-400);
-  --color-bid-withdrawn-bg: var(--stone-800);
-  --color-bid-withdrawn-border: oklch(0.35 0.014 48);
-  --color-bid-overdue: oklch(0.7 0.17 20);
+  --bid-draft: var(--stone-400);
+  --bid-draft-bg: var(--stone-800);
+  --bid-draft-border: oklch(0.35 0.014 48);
+  --bid-draft-dot: var(--stone-500);
+  --bid-discovery-dot: oklch(0.6 0.1 240);
+  --bid-active-dot: oklch(0.6 0.12 70);
+  --bid-in-review: oklch(0.7 0.1 290);
+  --bid-in-review-dot: oklch(0.6 0.1 290);
+  --bid-export-ready-dot: oklch(0.55 0.13 195);
+  --bid-submitted-dot: oklch(0.55 0.13 160);
+  --bid-withdrawn: var(--stone-400);
+  --bid-withdrawn-bg: var(--stone-800);
+  --bid-withdrawn-border: oklch(0.35 0.014 48);
+  --bid-overdue: oklch(0.7 0.17 20);
 
   /* Governance (dark) */
-  --color-governance-pending-border: oklch(0.35 0.06 70);
-  --color-governance-approved-border: oklch(0.35 0.08 160);
-  --color-governance-changes: oklch(0.72 0.14 45);
-  --color-governance-changes-bg: oklch(0.25 0.05 45);
-  --color-governance-changes-border: oklch(0.35 0.06 45);
-  --color-governance-reverted-border: oklch(0.35 0.06 20);
-  --color-governance-draft: var(--stone-400);
-  --color-governance-draft-bg: var(--stone-800);
-  --color-governance-draft-border: oklch(0.35 0.01 48);
+  --governance-pending-border: oklch(0.35 0.06 70);
+  --governance-approved-border: oklch(0.35 0.08 160);
+  --governance-changes: oklch(0.72 0.14 45);
+  --governance-changes-bg: oklch(0.25 0.05 45);
+  --governance-changes-border: oklch(0.35 0.06 45);
+  --governance-reverted-border: oklch(0.35 0.06 20);
+  --governance-draft: var(--stone-400);
+  --governance-draft-bg: var(--stone-800);
+  --governance-draft-border: oklch(0.35 0.01 48);
 
   /* Template field review (dark) */
-  --color-template-rejected: var(--stone-400);
-  --color-template-rejected-bg: var(--stone-800);
+  --template-rejected: var(--stone-400);
+  --template-rejected-bg: var(--stone-800);
 
   /* Tag frequency tiers (dark) */
-  --color-tag-rare: oklch(0.55 0.014 48);
-  --color-tag-rare-bg: oklch(0.22 0.01 48);
+  --tag-rare: oklch(0.55 0.014 48);
+  --tag-rare-bg: oklch(0.22 0.01 48);
 
   /* Entity type badge colours (dark) */
-  --color-entity-organisation-bg: oklch(
-    0.25 0.06 var(--hue-entity-organisation)
-  );
-  --color-entity-organisation-text: oklch(
-    0.8 0.1 var(--hue-entity-organisation)
-  );
-  --color-entity-certification-bg: oklch(
-    0.25 0.06 var(--hue-entity-certification)
-  );
-  --color-entity-certification-text: oklch(
-    0.8 0.1 var(--hue-entity-certification)
-  );
-  --color-entity-regulation-bg: oklch(0.25 0.05 var(--hue-entity-regulation));
-  --color-entity-regulation-text: oklch(0.8 0.12 var(--hue-entity-regulation));
-  --color-entity-framework-bg: oklch(0.25 0.06 var(--hue-entity-framework));
-  --color-entity-framework-text: oklch(0.8 0.1 var(--hue-entity-framework));
-  --color-entity-capability-bg: oklch(0.25 0.04 var(--hue-entity-capability));
-  --color-entity-capability-text: oklch(0.82 0.1 var(--hue-entity-capability));
-  --color-entity-person-bg: oklch(0.25 0.06 var(--hue-entity-person));
-  --color-entity-person-text: oklch(0.8 0.1 var(--hue-entity-person));
-  --color-entity-technology-bg: oklch(0.25 0.06 var(--hue-entity-technology));
-  --color-entity-technology-text: oklch(0.8 0.1 var(--hue-entity-technology));
-  --color-entity-project-bg: oklch(0.25 0.06 var(--hue-entity-project));
-  --color-entity-project-text: oklch(0.8 0.1 var(--hue-entity-project));
-  --color-entity-sector-bg: oklch(0.25 0.04 var(--hue-entity-sector));
-  --color-entity-sector-text: oklch(0.82 0.1 var(--hue-entity-sector));
-  --color-entity-product-bg: oklch(0.25 0.06 var(--hue-entity-product));
-  --color-entity-product-text: oklch(0.8 0.1 var(--hue-entity-product));
+  --entity-organisation-bg: oklch(0.25 0.06 var(--hue-entity-organisation));
+  --entity-organisation-text: oklch(0.8 0.1 var(--hue-entity-organisation));
+  --entity-certification-bg: oklch(0.25 0.06 var(--hue-entity-certification));
+  --entity-certification-text: oklch(0.8 0.1 var(--hue-entity-certification));
+  --entity-regulation-bg: oklch(0.25 0.05 var(--hue-entity-regulation));
+  --entity-regulation-text: oklch(0.8 0.12 var(--hue-entity-regulation));
+  --entity-framework-bg: oklch(0.25 0.06 var(--hue-entity-framework));
+  --entity-framework-text: oklch(0.8 0.1 var(--hue-entity-framework));
+  --entity-capability-bg: oklch(0.25 0.04 var(--hue-entity-capability));
+  --entity-capability-text: oklch(0.82 0.1 var(--hue-entity-capability));
+  --entity-person-bg: oklch(0.25 0.06 var(--hue-entity-person));
+  --entity-person-text: oklch(0.8 0.1 var(--hue-entity-person));
+  --entity-technology-bg: oklch(0.25 0.06 var(--hue-entity-technology));
+  --entity-technology-text: oklch(0.8 0.1 var(--hue-entity-technology));
+  --entity-project-bg: oklch(0.25 0.06 var(--hue-entity-project));
+  --entity-project-text: oklch(0.8 0.1 var(--hue-entity-project));
+  --entity-sector-bg: oklch(0.25 0.04 var(--hue-entity-sector));
+  --entity-sector-text: oklch(0.82 0.1 var(--hue-entity-sector));
+  --entity-product-bg: oklch(0.25 0.06 var(--hue-entity-product));
+  --entity-product-text: oklch(0.8 0.1 var(--hue-entity-product));
 
   /* Relevance score (dark) */
-  --color-relevance-high: oklch(0.25 0.06 var(--hue-relevance-high));
-  --color-relevance-high-text: oklch(0.8 0.1 var(--hue-relevance-high));
-  --color-relevance-medium: oklch(0.25 0.04 var(--hue-relevance-medium));
-  --color-relevance-medium-text: oklch(0.82 0.1 var(--hue-relevance-medium));
-  --color-relevance-low: oklch(0.25 0.04 var(--hue-relevance-low));
-  --color-relevance-low-text: oklch(0.82 0.1 var(--hue-relevance-low));
-  --color-relevance-irrelevant: oklch(
-    0.25 0.05 var(--hue-relevance-irrelevant)
-  );
-  --color-relevance-irrelevant-text: oklch(
-    0.8 0.12 var(--hue-relevance-irrelevant)
-  );
+  --relevance-high: oklch(0.25 0.06 var(--hue-relevance-high));
+  --relevance-high-text: oklch(0.8 0.1 var(--hue-relevance-high));
+  --relevance-medium: oklch(0.25 0.04 var(--hue-relevance-medium));
+  --relevance-medium-text: oklch(0.82 0.1 var(--hue-relevance-medium));
+  --relevance-low: oklch(0.25 0.04 var(--hue-relevance-low));
+  --relevance-low-text: oklch(0.82 0.1 var(--hue-relevance-low));
+  --relevance-irrelevant: oklch(0.25 0.05 var(--hue-relevance-irrelevant));
+  --relevance-irrelevant-text: oklch(0.8 0.12 var(--hue-relevance-irrelevant));
 
   /* Source intelligence badge (dark) */
-  --color-source-si-text: oklch(0.75 0.1 195);
-  --color-source-si-bg: oklch(0.25 0.04 195);
-  --color-source-si-border: oklch(0.35 0.06 195);
+  --source-si-text: oklch(0.75 0.1 195);
+  --source-si-bg: oklch(0.25 0.04 195);
+  --source-si-border: oklch(0.35 0.06 195);
 
   /* Draft badge colours (dark) */
-  --color-draft-badge-text: oklch(0.75 0.12 70);
+  --draft-badge-text: oklch(0.75 0.12 70);
 }
 
 /* Register domain theme values for Tailwind v4. Concatenated into the same cascade as the
@@ -383,164 +359,164 @@
    are byte-identical to the pre-split output (B-2). */
 @theme inline {
   /* Semantic status tokens — Tailwind utility registration */
-  --color-freshness-fresh: var(--color-freshness-fresh);
-  --color-freshness-fresh-bg: var(--color-freshness-fresh-bg);
-  --color-freshness-aging: var(--color-freshness-aging);
-  --color-freshness-aging-bg: var(--color-freshness-aging-bg);
-  --color-freshness-stale: var(--color-freshness-stale);
-  --color-freshness-stale-bg: var(--color-freshness-stale-bg);
-  --color-freshness-expired: var(--color-freshness-expired);
-  --color-freshness-expired-bg: var(--color-freshness-expired-bg);
+  --color-freshness-fresh: var(--freshness-fresh);
+  --color-freshness-fresh-bg: var(--freshness-fresh-bg);
+  --color-freshness-aging: var(--freshness-aging);
+  --color-freshness-aging-bg: var(--freshness-aging-bg);
+  --color-freshness-stale: var(--freshness-stale);
+  --color-freshness-stale-bg: var(--freshness-stale-bg);
+  --color-freshness-expired: var(--freshness-expired);
+  --color-freshness-expired-bg: var(--freshness-expired-bg);
 
-  --color-confidence-strong: var(--color-confidence-strong);
-  --color-confidence-strong-bg: var(--color-confidence-strong-bg);
-  --color-confidence-strong-border: var(--color-confidence-strong-border);
-  --color-confidence-partial: var(--color-confidence-partial);
-  --color-confidence-partial-bg: var(--color-confidence-partial-bg);
-  --color-confidence-partial-border: var(--color-confidence-partial-border);
-  --color-confidence-needs-sme: var(--color-confidence-needs-sme);
-  --color-confidence-needs-sme-bg: var(--color-confidence-needs-sme-bg);
-  --color-confidence-needs-sme-border: var(--color-confidence-needs-sme-border);
-  --color-confidence-none: var(--color-confidence-none);
-  --color-confidence-none-bg: var(--color-confidence-none-bg);
-  --color-confidence-none-border: var(--color-confidence-none-border);
-  --color-confidence-low: var(--color-confidence-low);
-  --color-confidence-low-bg: var(--color-confidence-low-bg);
-  --color-confidence-low-border: var(--color-confidence-low-border);
+  --color-confidence-strong: var(--confidence-strong);
+  --color-confidence-strong-bg: var(--confidence-strong-bg);
+  --color-confidence-strong-border: var(--confidence-strong-border);
+  --color-confidence-partial: var(--confidence-partial);
+  --color-confidence-partial-bg: var(--confidence-partial-bg);
+  --color-confidence-partial-border: var(--confidence-partial-border);
+  --color-confidence-needs-sme: var(--confidence-needs-sme);
+  --color-confidence-needs-sme-bg: var(--confidence-needs-sme-bg);
+  --color-confidence-needs-sme-border: var(--confidence-needs-sme-border);
+  --color-confidence-none: var(--confidence-none);
+  --color-confidence-none-bg: var(--confidence-none-bg);
+  --color-confidence-none-border: var(--confidence-none-border);
+  --color-confidence-low: var(--confidence-low);
+  --color-confidence-low-bg: var(--confidence-low-bg);
+  --color-confidence-low-border: var(--confidence-low-border);
 
-  --color-priority-tier-critical: var(--color-priority-tier-critical);
-  --color-priority-tier-critical-bg: var(--color-priority-tier-critical-bg);
-  --color-priority-tier-high: var(--color-priority-tier-high);
-  --color-priority-tier-high-bg: var(--color-priority-tier-high-bg);
-  --color-priority-tier-medium: var(--color-priority-tier-medium);
-  --color-priority-tier-medium-bg: var(--color-priority-tier-medium-bg);
-  --color-priority-tier-low: var(--color-priority-tier-low);
-  --color-priority-tier-low-bg: var(--color-priority-tier-low-bg);
+  --color-priority-tier-critical: var(--priority-tier-critical);
+  --color-priority-tier-critical-bg: var(--priority-tier-critical-bg);
+  --color-priority-tier-high: var(--priority-tier-high);
+  --color-priority-tier-high-bg: var(--priority-tier-high-bg);
+  --color-priority-tier-medium: var(--priority-tier-medium);
+  --color-priority-tier-medium-bg: var(--priority-tier-medium-bg);
+  --color-priority-tier-low: var(--priority-tier-low);
+  --color-priority-tier-low-bg: var(--priority-tier-low-bg);
 
-  --color-bid-draft: var(--color-bid-draft);
-  --color-bid-draft-bg: var(--color-bid-draft-bg);
-  --color-bid-draft-border: var(--color-bid-draft-border);
-  --color-bid-draft-dot: var(--color-bid-draft-dot);
-  --color-bid-discovery: var(--color-bid-discovery);
-  --color-bid-discovery-bg: var(--color-bid-discovery-bg);
-  --color-bid-discovery-border: var(--color-bid-discovery-border);
-  --color-bid-discovery-dot: var(--color-bid-discovery-dot);
-  --color-bid-active: var(--color-bid-active);
-  --color-bid-active-bg: var(--color-bid-active-bg);
-  --color-bid-active-border: var(--color-bid-active-border);
-  --color-bid-active-dot: var(--color-bid-active-dot);
-  --color-bid-in-review: var(--color-bid-in-review);
-  --color-bid-in-review-bg: var(--color-bid-in-review-bg);
-  --color-bid-in-review-border: var(--color-bid-in-review-border);
-  --color-bid-in-review-dot: var(--color-bid-in-review-dot);
-  --color-bid-export-ready: var(--color-bid-export-ready);
-  --color-bid-export-ready-bg: var(--color-bid-export-ready-bg);
-  --color-bid-export-ready-border: var(--color-bid-export-ready-border);
-  --color-bid-export-ready-dot: var(--color-bid-export-ready-dot);
-  --color-bid-submitted: var(--color-bid-submitted);
-  --color-bid-submitted-bg: var(--color-bid-submitted-bg);
-  --color-bid-submitted-border: var(--color-bid-submitted-border);
-  --color-bid-submitted-dot: var(--color-bid-submitted-dot);
-  --color-bid-won: var(--color-bid-won);
-  --color-bid-won-bg: var(--color-bid-won-bg);
-  --color-bid-won-border: var(--color-bid-won-border);
-  --color-bid-lost: var(--color-bid-lost);
-  --color-bid-lost-bg: var(--color-bid-lost-bg);
-  --color-bid-lost-border: var(--color-bid-lost-border);
-  --color-bid-withdrawn: var(--color-bid-withdrawn);
-  --color-bid-withdrawn-bg: var(--color-bid-withdrawn-bg);
-  --color-bid-withdrawn-border: var(--color-bid-withdrawn-border);
-  --color-bid-overdue: var(--color-bid-overdue);
-  --color-bid-overdue-bg: var(--color-bid-overdue-bg);
-  --color-bid-overdue-border: var(--color-bid-overdue-border);
+  --color-bid-draft: var(--bid-draft);
+  --color-bid-draft-bg: var(--bid-draft-bg);
+  --color-bid-draft-border: var(--bid-draft-border);
+  --color-bid-draft-dot: var(--bid-draft-dot);
+  --color-bid-discovery: var(--bid-discovery);
+  --color-bid-discovery-bg: var(--bid-discovery-bg);
+  --color-bid-discovery-border: var(--bid-discovery-border);
+  --color-bid-discovery-dot: var(--bid-discovery-dot);
+  --color-bid-active: var(--bid-active);
+  --color-bid-active-bg: var(--bid-active-bg);
+  --color-bid-active-border: var(--bid-active-border);
+  --color-bid-active-dot: var(--bid-active-dot);
+  --color-bid-in-review: var(--bid-in-review);
+  --color-bid-in-review-bg: var(--bid-in-review-bg);
+  --color-bid-in-review-border: var(--bid-in-review-border);
+  --color-bid-in-review-dot: var(--bid-in-review-dot);
+  --color-bid-export-ready: var(--bid-export-ready);
+  --color-bid-export-ready-bg: var(--bid-export-ready-bg);
+  --color-bid-export-ready-border: var(--bid-export-ready-border);
+  --color-bid-export-ready-dot: var(--bid-export-ready-dot);
+  --color-bid-submitted: var(--bid-submitted);
+  --color-bid-submitted-bg: var(--bid-submitted-bg);
+  --color-bid-submitted-border: var(--bid-submitted-border);
+  --color-bid-submitted-dot: var(--bid-submitted-dot);
+  --color-bid-won: var(--bid-won);
+  --color-bid-won-bg: var(--bid-won-bg);
+  --color-bid-won-border: var(--bid-won-border);
+  --color-bid-lost: var(--bid-lost);
+  --color-bid-lost-bg: var(--bid-lost-bg);
+  --color-bid-lost-border: var(--bid-lost-border);
+  --color-bid-withdrawn: var(--bid-withdrawn);
+  --color-bid-withdrawn-bg: var(--bid-withdrawn-bg);
+  --color-bid-withdrawn-border: var(--bid-withdrawn-border);
+  --color-bid-overdue: var(--bid-overdue);
+  --color-bid-overdue-bg: var(--bid-overdue-bg);
+  --color-bid-overdue-border: var(--bid-overdue-border);
 
-  --color-governance-pending: var(--color-governance-pending);
-  --color-governance-pending-bg: var(--color-governance-pending-bg);
-  --color-governance-pending-border: var(--color-governance-pending-border);
-  --color-governance-approved: var(--color-governance-approved);
-  --color-governance-approved-bg: var(--color-governance-approved-bg);
-  --color-governance-approved-border: var(--color-governance-approved-border);
-  --color-governance-changes: var(--color-governance-changes);
-  --color-governance-changes-bg: var(--color-governance-changes-bg);
-  --color-governance-changes-border: var(--color-governance-changes-border);
-  --color-governance-reverted: var(--color-governance-reverted);
-  --color-governance-reverted-bg: var(--color-governance-reverted-bg);
-  --color-governance-reverted-border: var(--color-governance-reverted-border);
-  --color-governance-draft: var(--color-governance-draft);
-  --color-governance-draft-bg: var(--color-governance-draft-bg);
-  --color-governance-draft-border: var(--color-governance-draft-border);
+  --color-governance-pending: var(--governance-pending);
+  --color-governance-pending-bg: var(--governance-pending-bg);
+  --color-governance-pending-border: var(--governance-pending-border);
+  --color-governance-approved: var(--governance-approved);
+  --color-governance-approved-bg: var(--governance-approved-bg);
+  --color-governance-approved-border: var(--governance-approved-border);
+  --color-governance-changes: var(--governance-changes);
+  --color-governance-changes-bg: var(--governance-changes-bg);
+  --color-governance-changes-border: var(--governance-changes-border);
+  --color-governance-reverted: var(--governance-reverted);
+  --color-governance-reverted-bg: var(--governance-reverted-bg);
+  --color-governance-reverted-border: var(--governance-reverted-border);
+  --color-governance-draft: var(--governance-draft);
+  --color-governance-draft-bg: var(--governance-draft-bg);
+  --color-governance-draft-border: var(--governance-draft-border);
 
-  --color-phase-analysing: var(--color-phase-analysing);
-  --color-phase-drafting: var(--color-phase-drafting);
-  --color-phase-quality: var(--color-phase-quality);
-  --color-phase-saving: var(--color-phase-saving);
-  --color-phase-done: var(--color-phase-done);
-  --color-phase-done-bg: var(--color-phase-done-bg);
-  --color-phase-done-border: var(--color-phase-done-border);
-  --color-phase-active-bg: var(--color-phase-active-bg);
-  --color-phase-active-border: var(--color-phase-active-border);
+  --color-phase-analysing: var(--phase-analysing);
+  --color-phase-drafting: var(--phase-drafting);
+  --color-phase-quality: var(--phase-quality);
+  --color-phase-saving: var(--phase-saving);
+  --color-phase-done: var(--phase-done);
+  --color-phase-done-bg: var(--phase-done-bg);
+  --color-phase-done-border: var(--phase-done-border);
+  --color-phase-active-bg: var(--phase-active-bg);
+  --color-phase-active-border: var(--phase-active-border);
 
-  --color-template-unreviewed: var(--color-template-unreviewed);
-  --color-template-unreviewed-bg: var(--color-template-unreviewed-bg);
-  --color-template-confirmed: var(--color-template-confirmed);
-  --color-template-confirmed-bg: var(--color-template-confirmed-bg);
-  --color-template-rejected: var(--color-template-rejected);
-  --color-template-rejected-bg: var(--color-template-rejected-bg);
-  --color-template-manual: var(--color-template-manual);
-  --color-template-manual-bg: var(--color-template-manual-bg);
-  --color-template-unmapped: var(--color-template-unmapped);
-  --color-template-unmapped-bg: var(--color-template-unmapped-bg);
+  --color-template-unreviewed: var(--template-unreviewed);
+  --color-template-unreviewed-bg: var(--template-unreviewed-bg);
+  --color-template-confirmed: var(--template-confirmed);
+  --color-template-confirmed-bg: var(--template-confirmed-bg);
+  --color-template-rejected: var(--template-rejected);
+  --color-template-rejected-bg: var(--template-rejected-bg);
+  --color-template-manual: var(--template-manual);
+  --color-template-manual-bg: var(--template-manual-bg);
+  --color-template-unmapped: var(--template-unmapped);
+  --color-template-unmapped-bg: var(--template-unmapped-bg);
 
-  --color-quality-good: var(--color-quality-good);
-  --color-quality-good-bg: var(--color-quality-good-bg);
-  --color-quality-moderate: var(--color-quality-moderate);
-  --color-quality-moderate-bg: var(--color-quality-moderate-bg);
-  --color-quality-severity-warning: var(--color-quality-severity-warning);
-  --color-quality-severity-info: var(--color-quality-severity-info);
+  --color-quality-good: var(--quality-good);
+  --color-quality-good-bg: var(--quality-good-bg);
+  --color-quality-moderate: var(--quality-moderate);
+  --color-quality-moderate-bg: var(--quality-moderate-bg);
+  --color-quality-severity-warning: var(--quality-severity-warning);
+  --color-quality-severity-info: var(--quality-severity-info);
 
-  --color-tag-rare: var(--color-tag-rare);
-  --color-tag-rare-bg: var(--color-tag-rare-bg);
-  --color-tag-core: var(--color-tag-core);
-  --color-tag-core-bg: var(--color-tag-core-bg);
+  --color-tag-rare: var(--tag-rare);
+  --color-tag-rare-bg: var(--tag-rare-bg);
+  --color-tag-core: var(--tag-core);
+  --color-tag-core-bg: var(--tag-core-bg);
 
-  --color-verified: var(--color-verified);
-  --color-verified-bg: var(--color-verified-bg);
+  --color-verified: var(--verified);
+  --color-verified-bg: var(--verified-bg);
 
-  --color-entity-organisation-bg: var(--color-entity-organisation-bg);
-  --color-entity-organisation-text: var(--color-entity-organisation-text);
-  --color-entity-certification-bg: var(--color-entity-certification-bg);
-  --color-entity-certification-text: var(--color-entity-certification-text);
-  --color-entity-regulation-bg: var(--color-entity-regulation-bg);
-  --color-entity-regulation-text: var(--color-entity-regulation-text);
-  --color-entity-framework-bg: var(--color-entity-framework-bg);
-  --color-entity-framework-text: var(--color-entity-framework-text);
-  --color-entity-capability-bg: var(--color-entity-capability-bg);
-  --color-entity-capability-text: var(--color-entity-capability-text);
-  --color-entity-person-bg: var(--color-entity-person-bg);
-  --color-entity-person-text: var(--color-entity-person-text);
-  --color-entity-technology-bg: var(--color-entity-technology-bg);
-  --color-entity-technology-text: var(--color-entity-technology-text);
-  --color-entity-project-bg: var(--color-entity-project-bg);
-  --color-entity-project-text: var(--color-entity-project-text);
-  --color-entity-sector-bg: var(--color-entity-sector-bg);
-  --color-entity-sector-text: var(--color-entity-sector-text);
-  --color-entity-product-bg: var(--color-entity-product-bg);
-  --color-entity-product-text: var(--color-entity-product-text);
+  --color-entity-organisation-bg: var(--entity-organisation-bg);
+  --color-entity-organisation-text: var(--entity-organisation-text);
+  --color-entity-certification-bg: var(--entity-certification-bg);
+  --color-entity-certification-text: var(--entity-certification-text);
+  --color-entity-regulation-bg: var(--entity-regulation-bg);
+  --color-entity-regulation-text: var(--entity-regulation-text);
+  --color-entity-framework-bg: var(--entity-framework-bg);
+  --color-entity-framework-text: var(--entity-framework-text);
+  --color-entity-capability-bg: var(--entity-capability-bg);
+  --color-entity-capability-text: var(--entity-capability-text);
+  --color-entity-person-bg: var(--entity-person-bg);
+  --color-entity-person-text: var(--entity-person-text);
+  --color-entity-technology-bg: var(--entity-technology-bg);
+  --color-entity-technology-text: var(--entity-technology-text);
+  --color-entity-project-bg: var(--entity-project-bg);
+  --color-entity-project-text: var(--entity-project-text);
+  --color-entity-sector-bg: var(--entity-sector-bg);
+  --color-entity-sector-text: var(--entity-sector-text);
+  --color-entity-product-bg: var(--entity-product-bg);
+  --color-entity-product-text: var(--entity-product-text);
 
-  --color-relevance-high: var(--color-relevance-high);
-  --color-relevance-high-text: var(--color-relevance-high-text);
-  --color-relevance-medium: var(--color-relevance-medium);
-  --color-relevance-medium-text: var(--color-relevance-medium-text);
-  --color-relevance-low: var(--color-relevance-low);
-  --color-relevance-low-text: var(--color-relevance-low-text);
-  --color-relevance-irrelevant: var(--color-relevance-irrelevant);
-  --color-relevance-irrelevant-text: var(--color-relevance-irrelevant-text);
+  --color-relevance-high: var(--relevance-high);
+  --color-relevance-high-text: var(--relevance-high-text);
+  --color-relevance-medium: var(--relevance-medium);
+  --color-relevance-medium-text: var(--relevance-medium-text);
+  --color-relevance-low: var(--relevance-low);
+  --color-relevance-low-text: var(--relevance-low-text);
+  --color-relevance-irrelevant: var(--relevance-irrelevant);
+  --color-relevance-irrelevant-text: var(--relevance-irrelevant-text);
 
-  --color-source-si-text: var(--color-source-si-text);
-  --color-source-si-bg: var(--color-source-si-bg);
-  --color-source-si-border: var(--color-source-si-border);
+  --color-source-si-text: var(--source-si-text);
+  --color-source-si-bg: var(--source-si-bg);
+  --color-source-si-border: var(--source-si-border);
 
-  --color-draft-badge-bg: var(--color-draft-badge-bg);
-  --color-draft-badge-text: var(--color-draft-badge-text);
-  --color-draft-badge-border: var(--color-draft-badge-border);
+  --color-draft-badge-bg: var(--draft-badge-bg);
+  --color-draft-badge-text: var(--draft-badge-text);
+  --color-draft-badge-border: var(--draft-badge-border);
 }

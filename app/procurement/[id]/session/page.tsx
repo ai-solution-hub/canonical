@@ -427,7 +427,7 @@ export default function ProcurementSessionPage({
 
           {/* Collapsible current question — essential context for response drafting */}
           {currentQuestion && (
-            <details className="mt-2 rounded-lg border border-[var(--color-highlight-border)] bg-[var(--color-highlight-bg)]">
+            <details className="mt-2 rounded-lg border border-[var(--highlight-border)] bg-[var(--highlight-bg)]">
               <summary className="cursor-pointer px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Current question
               </summary>
@@ -473,7 +473,7 @@ export default function ProcurementSessionPage({
                   }}
                 />
                 {currentQuestion && (
-                  <div className="rounded-lg border border-[var(--color-highlight-border)] bg-[var(--color-highlight-bg)] p-4">
+                  <div className="rounded-lg border border-[var(--highlight-border)] bg-[var(--highlight-bg)] p-4">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       Current Question
                     </p>
@@ -519,7 +519,7 @@ export default function ProcurementSessionPage({
 
           {/* Current question display */}
           {currentQuestion && (
-            <div className="mt-4 rounded-lg border border-[var(--color-highlight-border)] bg-[var(--color-highlight-bg)] p-4">
+            <div className="mt-4 rounded-lg border border-[var(--highlight-border)] bg-[var(--highlight-bg)] p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Current Question
               </p>

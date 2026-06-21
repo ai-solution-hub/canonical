@@ -86,7 +86,7 @@ export function VerificationBadge({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 text-xs text-[var(--color-status-success)]',
+        'inline-flex items-center gap-1 text-xs text-[var(--status-success)]',
         className,
       )}
       role={liveRegion ? 'status' : 'img'}
