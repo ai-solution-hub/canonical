@@ -275,16 +275,49 @@ export async function promoteCorpusExtractions(
     const extractionId: string = extraction.id;
 
     // -----------------------------------------------------------------------
-    // Step 3d — linked-but-unembedded self-heal path (OQ-3).
+    // Step 3d — linked-but-unembedded RE-PROMOTION / self-heal path (OQ-3 +
+    // {59.31} TECH R3, the S233 SIDECAR-REOPENED gate).
     //
-    // The RPC returns these rows so {59.23} can re-attempt embedding.
-    // The pair already exists and is already linked — skip INSERT + CAS.
-    // Jump straight to step 4 with the existing pair id.
+    // The RPC returns these rows so the pair can re-converge after a re-walk:
+    //   - {59.23} self-heal: re-attempt the embedding on an unembedded pair.
+    //   - {59.31} re-promote: re-sync the CARRIED set from the (re-walked)
+    //     extraction onto the existing pair, restricted to the carried fields
+    //     so the NOT-CARRIED lifecycle set is NEVER touched (INV-9, the S233
+    //     gate). On a question_text change the embedding is NULL'd in the SAME
+    //     carried UPDATE (the explicit, documented INV-10 mark-stale exception)
+    //     so q_a_search has no published+stale-vector window — the pair re-
+    //     embeds on the very next step via the existing self-heal embed path.
+    //
+    // The pair already exists and is already linked — skip INSERT + CAS
+    // (INV-3: re-promotion NEVER mints a duplicate; the promoted_to_pair_id
+    // anchor + source_document_id jointly key the pair).
     // -----------------------------------------------------------------------
     if (extraction.promoted_to_pair_id !== null) {
       const existingPairId: string = extraction.promoted_to_pair_id;
-      // Self-heal attempt counts as a promotion attempt this run (INV-23)
+      // Re-promotion attempt counts as a promotion attempt this run (INV-23).
       promoted++;
+
+      // ---- {59.31} carried-only re-sync (INV-2/9) + mark-stale (INV-10) ----
+      // A 0-row or errored carried UPDATE is the REST PATCH silent-no-op guard
+      // (assert affected-row = 1): the re-sync did not land (pair vanished /
+      // concurrent change), so this is a SOFT failure — count embed_failed,
+      // log the failure record, and DO NOT embed (the pair self-heals next
+      // run). The batch never throws for this (mirrors the embed soft-fail).
+      const reSynced = await repromoteCarriedFields(
+        client,
+        existingPairId,
+        extraction,
+      );
+      if (!reSynced) {
+        embed_failed++;
+        failures.push({
+          extractionId,
+          newPairId: existingPairId,
+          reason: 'embed_failed',
+        });
+        continue;
+      }
+
       await embedAndPublish(
         client,
         extractionId,
@@ -569,9 +602,16 @@ async function emitCorpusSidecar(
     // UPDATE q_a_pairs SET source_document_id = sdUuid5(relPath) WHERE id =
     // newPairId. Assert affected-row count = 1 (0-row PATCH = silent failure).
     const applyDbLeg = async () => {
+      // {59.29} nit fold: typed Pick payload — compile-checks the field name
+      // and matches the carried/archive/embed UPDATE-payload convention in
+      // this file (no inline literal).
+      const linkPayload: Pick<
+        Database['public']['Tables']['q_a_pairs']['Update'],
+        'source_document_id'
+      > = { source_document_id: sourceDocumentId };
       const linkResult = await client
         .from('q_a_pairs')
-        .update({ source_document_id: sourceDocumentId })
+        .update(linkPayload)
         .eq('id', newPairId)
         .select('id');
 
@@ -615,6 +655,134 @@ async function ensureFileExists(absPath: string): Promise<void> {
   // flag 'a': create-if-absent, never truncate. An empty newContent string
   // appends nothing, so an existing file is left intact for the snapshot.
   await writeFile(absPath, '', { encoding: 'utf8', flag: 'a' });
+}
+
+// ---------------------------------------------------------------------------
+// {59.31} — re-walk carried-only re-promotion (TECH R3; maps INV-1/2/3/9/10)
+//
+// When the eligibility RPC returns an extraction whose pair ALREADY exists
+// (promoted_to_pair_id set), a re-walk ({59.26}) has UPSERTed the same-PK
+// extraction row with the re-extracted carried text. This helper re-converges
+// the linked pair by re-syncing ONLY the CARRIED set — the NOT-CARRIED
+// lifecycle set (publication_status, superseded_by, source_workspace_id,
+// edit_intent, valid_from/valid_to, created_at/updated_at, source_document_id)
+// is STRUCTURALLY excluded from the payload (the S233 gate, INV-9).
+//
+// The payload is a typed `Pick<…Update, CARRIED_REPROMOTE_FIELDS>` so the
+// exclusion is COMPILE-CHECKED: adding a not-carried key to the literal is a
+// type error (mirrors the typed Pick payloads at the embed/archive sites).
+//
+// Mark-stale (INV-10, OQ-25-2): the helper first reads the pair's stored
+// question_text and compares it to the re-extracted value; on inequality it
+// adds `question_embedding: null` to the SAME carried UPDATE — the ONLY
+// permitted not-carried touch, and the explicit INV-10 exception. q_a_search
+// (published AND question_embedding IS NOT NULL) then excludes the pair until
+// the very next embed step re-embeds it, so there is no wrong-vector window.
+//
+// Carried fields re-synced are exactly those the extraction carries:
+//   question_text  ← extracted_question_text   (NOT NULL on both)
+//   answer_standard ← extracted_answer_text     (only when non-empty — the pair
+//                     column is NOT NULL, so a NULL/blank re-extraction is left
+//                     untouched rather than violating the constraint)
+//   alternate_question_phrasings ← alternate_question_phrasings (text[])
+// answer_advanced / scope_tag / anti_scope_tag have no extraction source and
+// are NOT in the payload (re-sync touches only what the re-extraction provides;
+// the S233 gate is about NOT touching lifecycle, not about writing every
+// carried column).
+//
+// Affected-row assertion: a 0-row or errored UPDATE returns false (the REST
+// PATCH silent-no-op guard) — the caller routes that into the existing soft
+// embed_failed accounting (no batch throw, self-heals next run).
+// ---------------------------------------------------------------------------
+
+/** The CARRIED fields the re-promotion UPDATE may set (compile-checked
+ *  exclusion of the not-carried lifecycle set). `question_embedding` is the
+ *  ONLY not-carried key permitted, and ONLY as the mark-stale NULL rider —
+ *  it is added to the payload type via an intersection at the call site, not
+ *  listed here, so the carried boundary stays self-documenting. */
+type CarriedRepromoteFields =
+  | 'question_text'
+  | 'answer_standard'
+  | 'alternate_question_phrasings';
+
+/**
+ * Re-sync the carried set from a re-walked extraction onto its existing pair.
+ * Returns true when the carried UPDATE affected exactly 1 row; false on a
+ * 0-row silent no-op or a DB error (the caller treats false as a soft failure).
+ *
+ * @param client         Authorised/operator Supabase client (RLS-scoped).
+ * @param existingPairId The linked pair's id (extraction.promoted_to_pair_id).
+ * @param extraction     The re-walked extraction row (carries the new text).
+ */
+async function repromoteCarriedFields(
+  client: SupabaseClientLike,
+  existingPairId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  extraction: any,
+): Promise<boolean> {
+  // ── Read the stored question_text for the mark-stale comparison (INV-10) ──
+  const storedResult = await client
+    .from('q_a_pairs')
+    .select('question_text')
+    .eq('id', existingPairId)
+    .single();
+
+  const storedError = storedResult?.error ?? null;
+  if (storedError) {
+    // The pair could not be read — treat as a soft re-sync failure.
+    return false;
+  }
+  const storedQuestionText: string | null =
+    (storedResult?.data as { question_text: string } | null)?.question_text ??
+    null;
+
+  // ── Build the CARRIED-ONLY payload (typed Pick — compile-checked exclusion).
+  const reExtractedQuestion: string = extraction.extracted_question_text;
+  const reExtractedAnswer: string | null = extraction.extracted_answer_text;
+
+  const carriedPayload: Pick<
+    Database['public']['Tables']['q_a_pairs']['Update'],
+    CarriedRepromoteFields
+  > = {
+    question_text: reExtractedQuestion,
+    alternate_question_phrasings: Array.isArray(
+      extraction.alternate_question_phrasings,
+    )
+      ? (extraction.alternate_question_phrasings as string[])
+      : [],
+  };
+  // answer_standard is NOT NULL on the pair — only re-sync a non-empty answer.
+  if (reExtractedAnswer && reExtractedAnswer.trim().length > 0) {
+    carriedPayload.answer_standard = reExtractedAnswer;
+  }
+
+  // ── Mark-stale rider (INV-10): NULL the embedding ONLY on a question change.
+  // question_embedding is the single permitted not-carried touch; the
+  // intersection type keeps the literal exhaustive-checked while making the
+  // exception explicit at the write site.
+  const markStale = storedQuestionText !== reExtractedQuestion;
+  const updatePayload: typeof carriedPayload &
+    Pick<
+      Database['public']['Tables']['q_a_pairs']['Update'],
+      'question_embedding'
+    > = markStale
+    ? { ...carriedPayload, question_embedding: null }
+    : carriedPayload;
+
+  // ── Carried UPDATE — assert affected-row = 1 (REST PATCH silent-no-op guard).
+  const updateResult = await client
+    .from('q_a_pairs')
+    .update(updatePayload)
+    .eq('id', existingPairId)
+    .select('id');
+
+  const updateError = updateResult?.error ?? null;
+  if (updateError) {
+    return false;
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updatedRows: any[] = updateResult?.data ?? [];
+  return updatedRows.length === 1;
 }
 
 // ---------------------------------------------------------------------------
