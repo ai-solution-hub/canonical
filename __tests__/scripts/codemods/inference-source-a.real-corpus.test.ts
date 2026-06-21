@@ -36,7 +36,7 @@ import {
   createCodemodProject,
   enumerateRouteFiles,
   inferSchema,
-} from '@/scripts/codemods/infer-schema';
+} from '@/scripts/codemods/wrap-define-route';
 
 // bl-245 (S321): the real-corpus suites resolve types across the full ts-morph
 // project — the 5000ms Vitest default false-reds under parallel-wave machine load
