@@ -61,6 +61,83 @@ import type { Database } from '@/supabase/types/database.types';
  */
 export type ApplyDbLeg = () => Promise<void>;
 
+/**
+ * {59.28} — the file-first ordering core, extracted from `writeBackFileFirst`
+ * so the content-leg adapter AND both Q&A sidecar emit legs ({59.29}/{59.30})
+ * share ONE ordering primitive (NEW-OQ-26-1: the DRY extraction, not a
+ * Q&A-local duplicate).
+ *
+ * Invariant (file-first, compensating-restore): given an ALREADY-resolved
+ * absolute path, snapshot → write file → applyDbLeg → restore-on-DB-failure.
+ *   1. snapshot prior file bytes;
+ *   2. write the new bytes to the EXACT path; on file-write failure -> throw
+ *      BEFORE applyDbLeg, so the DB is never touched (one failure state);
+ *   3. applyDbLeg; on DB-leg failure AFTER a successful file write -> RESTORE
+ *      the prior bytes (read-then-restore compensating write) so neither leg is
+ *      left applied. The restore is best-effort: if it degrades, collect a
+ *      warning but ALWAYS re-raise the original DB error so the user sees ONE
+ *      save outcome (the failure), never a swallowed error.
+ *
+ * Returns the non-fatal `warnings` accrued on the happy path (currently always
+ * empty — a degraded restore only ever surfaces on the thrown error's
+ * `writeBackWarnings`, since a DB failure always rejects). The CALLER owns path
+ * resolution and the file-backed/idle-mode decision; this core only runs once
+ * a write target is known.
+ */
+export interface WriteFileFirstWithRestoreParams {
+  /** The resolved on-disk path to rewrite (caller-resolved; consumed verbatim). */
+  absPath: string;
+  /** The new canonical bytes to write to the file. */
+  newContent: string;
+  /** The DB leg. Runs exactly once, AFTER a successful file write. */
+  applyDbLeg: ApplyDbLeg;
+}
+
+export async function writeFileFirstWithRestore(
+  params: WriteFileFirstWithRestoreParams,
+): Promise<{ warnings: readonly string[] }> {
+  const { absPath, newContent, applyDbLeg } = params;
+
+  // ── (1) Snapshot prior bytes ────────────────────────────────────────────────
+  const priorBytes = await readFile(absPath, 'utf8');
+
+  // ── (2) Write the file leg to the EXACT existing path ───────────────────────
+  // On failure this throws BEFORE the DB leg — one failure state, DB untouched.
+  await writeFile(absPath, newContent, 'utf8');
+
+  // ── (3) DB leg; compensating restore on failure ────────────────────────────
+  const warnings: string[] = [];
+  try {
+    await applyDbLeg();
+  } catch (dbErr) {
+    // RESTORE: read-then-restore the snapshot so neither leg is left applied.
+    // The restore is best-effort — if IT degrades (folder vanished, disk
+    // full), collect a warning but ALWAYS re-raise the original DB error so
+    // the user sees ONE save outcome (the failure), never a swallowed error.
+    try {
+      await writeFile(absPath, priorBytes, 'utf8');
+    } catch (restoreErr) {
+      warnings.push(
+        'Save failed and the file could not be restored to its prior state — ' +
+          'the next ingest will reconcile it from disk.',
+      );
+      const augmented =
+        dbErr instanceof Error
+          ? dbErr
+          : new Error(typeof dbErr === 'string' ? dbErr : 'Save failed');
+      (augmented as Error & { writeBackWarnings?: readonly string[] }).cause =
+        restoreErr;
+      (
+        augmented as Error & { writeBackWarnings?: readonly string[] }
+      ).writeBackWarnings = warnings;
+      throw augmented;
+    }
+    throw dbErr;
+  }
+
+  return { warnings };
+}
+
 export interface WriteBackParams {
   supabase: SupabaseClient<Database>;
   /** content_item PK — used only to resolve the linked source_document. */
@@ -242,42 +319,18 @@ export async function writeBackFileFirst(
     return { applied: true, fileBacked: false, warnings: [] };
   }
 
-  // ── (1) Snapshot prior bytes ────────────────────────────────────────────────
-  const priorBytes = await readFile(absPath, 'utf8');
-
-  // ── (2) Write the file leg to the EXACT existing path ───────────────────────
-  // On failure this throws BEFORE the DB leg — one failure state, DB untouched.
-  await writeFile(absPath, newContent, 'utf8');
-
-  // ── (3) DB leg; compensating restore on failure ────────────────────────────
-  const warnings: string[] = [];
-  try {
-    await applyDbLeg();
-  } catch (dbErr) {
-    // RESTORE: read-then-restore the snapshot so neither leg is left applied.
-    // The restore is best-effort — if IT degrades (folder vanished, disk
-    // full), collect a warning but ALWAYS re-raise the original DB error so
-    // the user sees ONE save outcome (the failure), never a swallowed error.
-    try {
-      await writeFile(absPath, priorBytes, 'utf8');
-    } catch (restoreErr) {
-      warnings.push(
-        'Save failed and the file could not be restored to its prior state — ' +
-          'the next ingest will reconcile it from disk.',
-      );
-      const augmented =
-        dbErr instanceof Error
-          ? dbErr
-          : new Error(typeof dbErr === 'string' ? dbErr : 'Save failed');
-      (augmented as Error & { writeBackWarnings?: readonly string[] }).cause =
-        restoreErr;
-      (
-        augmented as Error & { writeBackWarnings?: readonly string[] }
-      ).writeBackWarnings = warnings;
-      throw augmented;
-    }
-    throw dbErr;
-  }
+  // ── File-first ordering core ({59.28} extraction) ───────────────────────────
+  // snapshot -> write -> applyDbLeg -> restore-on-DB-failure. Extracted to
+  // `writeFileFirstWithRestore` so the Q&A sidecar emit legs ({59.29}/{59.30})
+  // share the IDENTICAL ordering primitive; the content adapter's observable
+  // behaviour is unchanged (its tests are the regression gate). On a degraded
+  // restore the original DB error is re-raised with `writeBackWarnings`; on
+  // success the (currently always empty) warnings flow out on the result.
+  const { warnings } = await writeFileFirstWithRestore({
+    absPath,
+    newContent,
+    applyDbLeg,
+  });
 
   return { applied: true, fileBacked: true, warnings };
 }
