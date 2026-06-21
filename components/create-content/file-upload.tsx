@@ -23,7 +23,7 @@ const ACCEPT = {
   'text/plain': ['.txt'],
 };
 
-export interface UploadFileSuggestedLayer {
+interface UploadFileSuggestedLayer {
   suggestedLayer: string;
   reason: string;
   confidence: string;

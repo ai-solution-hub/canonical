@@ -284,30 +284,6 @@ function hasGarbledKeywords(keywords: string[] | null): boolean {
   return keywords.some((kw) => GARBLED_KEYWORD_REGEX.test(kw));
 }
 
-// Editorial note patterns in content. Verbatim from
-// `scripts/batch-reclassify.ts:163-173`.
-const EDITORIAL_NOTE_PATTERNS = [
-  /^N\.?B\.?\s/i,
-  /^MAKE\s+SURE/i,
-  /^TODO\s*:/i,
-  /^NOTE\s*:/i,
-  /^IMPORTANT\s*:/i,
-  /^FIXME\s*:/i,
-  /^\[.*EDITORIAL.*\]/i,
-  /^ACTION\s*:/i,
-  /^REMINDER\s*:/i,
-];
-
-/** Check if content starts with editorial notes. Verbatim from
- *  `scripts/batch-reclassify.ts:283-286`. */
-function hasEditorialNotes(content: string): boolean {
-  const trimmed = content.trim();
-  return EDITORIAL_NOTE_PATTERNS.some((pattern) => pattern.test(trimmed));
-}
-
-// Re-export hasEditorialNotes for external testing if needed.
-export { hasGarbledKeywords, hasEditorialNotes, contentTypeSortKey };
-
 // Tool schema for Claude. Verbatim from `scripts/batch-reclassify.ts:341-492`.
 const CLASSIFICATION_TOOL: Anthropic.Tool = {
   name: 'return_classification_with_entities',
