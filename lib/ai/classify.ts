@@ -7,6 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Json } from '@/supabase/types/database.types';
 import { getAnthropicClient, getAIModel, estimateCost } from '@/lib/anthropic';
 import { extractToolResult } from '@/lib/ai-parse';
+import { assertSuccessfulStop } from '@/lib/ai/stop-reason';
 import { generateEmbedding, MAX_EMBEDDING_CHARS } from '@/lib/ai/embed';
 import { stripMarkdown } from '@/lib/content/strip-markdown';
 import { AIServiceError } from '@/lib/ai/errors';
@@ -1092,6 +1093,11 @@ export async function validateEntities(
     ],
   });
 
+  // B-INV-36: surface refusal / max_tokens explicitly before reading the tool
+  // result, so a refused or truncated validation reports its real cause rather
+  // than a generic "no tool call" error.
+  assertSuccessfulStop(response, 'classify.validateEntities');
+
   // Track and log token usage
   const usage = response.usage;
   const cost = estimateCost(PASS_2_MODEL, {
@@ -1333,6 +1339,9 @@ ${contentForClassification}`,
       },
     ],
   });
+
+  // B-INV-36: surface refusal / max_tokens explicitly before reading the tool result.
+  assertSuccessfulStop(response, 'classify.classifyText');
 
   const result = extractToolResult<{
     primary_domain: string;
@@ -1595,6 +1604,9 @@ ${contentForClassification}`,
       },
     ],
   });
+
+  // B-INV-36: surface refusal / max_tokens explicitly before reading the tool result.
+  assertSuccessfulStop(response, 'classify.classifyContent');
 
   // Track Pass 1 token usage and cost
   const pass1Usage = response.usage;

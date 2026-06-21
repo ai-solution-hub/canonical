@@ -8,6 +8,7 @@ import type { Database } from '@/supabase/types/database.types';
 import { getAnthropicClient, getAIModel, estimateCost } from '@/lib/anthropic';
 import { toJson } from '@/lib/validation/jsonb';
 import { AIServiceError } from '@/lib/ai/errors';
+import { assertSuccessfulStop } from '@/lib/ai/stop-reason';
 
 // ──────────────────────────────────────────
 // Types
@@ -107,18 +108,15 @@ ${contentSlice}`;
     },
   });
 
+  // B-INV-36: surface refusal / max_tokens explicitly first — on a refusal the
+  // content is empty, so this must run before the no-text check to report the
+  // real cause rather than a misleading "no response".
+  assertSuccessfulStop(response, 'extract-content.extractStructuredContent');
+
   // Extract the text content
   const textBlock = response.content.find((b) => b.type === 'text');
   if (!textBlock || textBlock.type !== 'text') {
     throw new AIServiceError('No text response from Claude', 500);
-  }
-
-  // Check for truncated output
-  if (response.stop_reason === 'max_tokens') {
-    throw new AIServiceError(
-      'Extraction output was truncated — try a simpler schema or shorter content',
-      413,
-    );
   }
 
   // Parse the JSON from Claude's response. output_config.format guarantees the

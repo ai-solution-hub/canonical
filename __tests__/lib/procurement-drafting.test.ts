@@ -304,21 +304,16 @@ describe('analyseQuestion (Pass 1)', () => {
     expect(result.analysis.tone).toBe('formal');
   });
 
-  it('returns default analysis when API returns invalid JSON', async () => {
+  it('surfaces malformed structured output instead of silently defaulting (B-INV-36)', async () => {
     mockCreate.mockResolvedValueOnce(
       buildMockApiResponse('this is not valid json {{{', 500, 200),
     );
 
-    const result = await analyseQuestion(sampleQuestion, sampleContent);
-
-    // Falls back to defaults
-    expect(result.analysis.primary_topic).toBe(
-      sampleQuestion.question_text.slice(0, 100),
-    );
-    expect(result.analysis.content_types_needed).toEqual([]);
-    expect(result.analysis.response_structure.suggested_headings).toEqual([]);
-    expect(result.analysis.key_points_to_cover).toEqual([]);
-    expect(result.analysis.tone).toBe('formal');
+    // No silent fallback: a parse failure on a successful stop is surfaced to
+    // the caller rather than masked by a hollow default analysis.
+    await expect(
+      analyseQuestion(sampleQuestion, sampleContent),
+    ).rejects.toThrow();
   });
 
   it('includes token usage and cost in result', async () => {

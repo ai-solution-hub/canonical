@@ -16,6 +16,8 @@ import {
   getModelForTier,
   estimateCost,
 } from '@/lib/anthropic';
+import { assertSuccessfulStop } from '@/lib/ai/stop-reason';
+import { AIServiceError } from '@/lib/ai/errors';
 
 /** Minimal question shape for quality checks */
 export interface QualityCheckQuestion {
@@ -149,23 +151,35 @@ Check for:
     },
   });
 
+  // B-INV-36: surface refusal / max_tokens explicitly rather than returning a
+  // zero-score default that hides the failure as a passing-looking review.
+  assertSuccessfulStop(aiCheck, 'quality-check.runAIQualityCheck');
+
   // Structured Outputs guarantees valid JSON in response.content[0].text
   const textBlock = aiCheck.content.find((b) => b.type === 'text');
-  let aiResult: AIQualityResult = {
-    unsupported_claims: [],
-    suggestions: [
-      'Quality check could not parse AI response — manual review recommended',
-    ],
-    overall_score: 0,
-  };
+  if (!textBlock || textBlock.type !== 'text') {
+    throw new AIServiceError(
+      'Quality check returned no text response from the model',
+      500,
+      {
+        code: 'AI_NO_OUTPUT',
+        data: { touchpoint: 'quality-check.runAIQualityCheck' },
+      },
+    );
+  }
 
-  if (textBlock?.type === 'text') {
-    try {
-      aiResult = JSON.parse(textBlock.text);
-    } catch {
-      // Structured Outputs should guarantee valid JSON, but handle edge cases
-      // (e.g., stop_reason: 'max_tokens' or content filtering)
-    }
+  let aiResult: AIQualityResult;
+  try {
+    aiResult = JSON.parse(textBlock.text) as AIQualityResult;
+  } catch {
+    throw new AIServiceError(
+      'Quality check returned malformed structured output',
+      500,
+      {
+        code: 'AI_PARSE_FAILED',
+        data: { touchpoint: 'quality-check.runAIQualityCheck' },
+      },
+    );
   }
 
   const inputTokens = aiCheck.usage.input_tokens;

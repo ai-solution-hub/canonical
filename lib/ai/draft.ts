@@ -23,6 +23,8 @@ import {
   type QualityCheckQuestion,
 } from '@/lib/ai/quality-check';
 import { loadSkill } from '@/lib/ai/skills/loader';
+import { assertSuccessfulStop } from '@/lib/ai/stop-reason';
+import { AIServiceError } from '@/lib/ai/errors';
 
 // ──────────────────────────────────────────
 // Types
@@ -162,21 +164,34 @@ ${matchedContent.map((c, i) => `${i + 1}. [${c.content_type}] ${c.title}: ${c.su
     },
   });
 
-  const textBlock = response.content.find((b) => b.type === 'text');
-  let analysis: QuestionAnalysis = {
-    primary_topic: question.question_text.slice(0, 100),
-    content_types_needed: [],
-    response_structure: { suggested_headings: [], word_allocation: [] },
-    key_points_to_cover: [],
-    tone: 'formal',
-  };
+  // B-INV-36: surface refusal / max_tokens explicitly — never swallow them
+  // behind a default analysis. A refused or truncated Pass 1 would otherwise
+  // silently degrade the whole draft with a hollow default structure.
+  assertSuccessfulStop(response, 'draft.analyseQuestion');
 
-  if (textBlock?.type === 'text') {
-    try {
-      analysis = JSON.parse(textBlock.text);
-    } catch {
-      // Fall through to default
-    }
+  const textBlock = response.content.find((b) => b.type === 'text');
+  if (!textBlock || textBlock.type !== 'text') {
+    throw new AIServiceError(
+      'Question analysis returned no text response from the model',
+      500,
+      { code: 'AI_NO_OUTPUT', data: { touchpoint: 'draft.analyseQuestion' } },
+    );
+  }
+
+  // output_config.format guarantees schema-conformant JSON. A parse failure on a
+  // successful stop is a real failure, not a default-and-continue case.
+  let analysis: QuestionAnalysis;
+  try {
+    analysis = JSON.parse(textBlock.text) as QuestionAnalysis;
+  } catch {
+    throw new AIServiceError(
+      'Question analysis returned malformed structured output',
+      500,
+      {
+        code: 'AI_PARSE_FAILED',
+        data: { touchpoint: 'draft.analyseQuestion' },
+      },
+    );
   }
 
   const inputTokens = response.usage.input_tokens;

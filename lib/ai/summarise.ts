@@ -12,6 +12,7 @@ import type { SummaryResponse } from '@/lib/validation/ai-schemas';
 import { toJson } from '@/lib/validation/jsonb';
 import type { SummaryData } from '@/types/content';
 import { AIServiceError } from '@/lib/ai/errors';
+import { assertSuccessfulStop } from '@/lib/ai/stop-reason';
 import { logger } from '@/lib/logger';
 
 // ──────────────────────────────────────────
@@ -137,13 +138,9 @@ ${content}`;
     messages: [{ role: 'user', content: prompt }],
   });
 
-  // Check for truncated output
-  if (response.stop_reason === 'max_tokens') {
-    throw new AIServiceError(
-      'Content too long for summary generation — response was truncated',
-      413,
-    );
-  }
+  // B-INV-36: surface refusal / max_tokens explicitly (log + throw), never
+  // swallow them. extractToolResult below throws if no tool_use block is present.
+  assertSuccessfulStop(response, 'summarise.callSummaryAI');
 
   const parsed = extractToolResult<SummaryResponse>(
     response,

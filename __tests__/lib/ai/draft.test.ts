@@ -221,8 +221,9 @@ describe('Procurement Drafting Pipeline', () => {
       expect(result.cost).toBeGreaterThan(0);
     });
 
-    it('falls back to default analysis when JSON parsing fails', async () => {
+    it('surfaces malformed structured output instead of silently defaulting (B-INV-36)', async () => {
       mockCreate.mockResolvedValueOnce({
+        stop_reason: 'end_turn',
         content: [{ type: 'text', text: 'not valid json' }],
         usage: {
           input_tokens: 100,
@@ -232,13 +233,45 @@ describe('Procurement Drafting Pipeline', () => {
         },
       });
 
-      const result = await analyseQuestion(testQuestion, testContent);
+      // No silent fallback: a parse failure on a successful stop is surfaced.
+      await expect(
+        analyseQuestion(testQuestion, testContent),
+      ).rejects.toThrow();
+    });
 
-      // Falls back to default with question text slice
-      expect(result.analysis.primary_topic).toBe(
-        testQuestion.question_text.slice(0, 100),
-      );
-      expect(result.analysis.tone).toBe('formal');
+    it('surfaces a model refusal at Pass 1 (B-INV-36)', async () => {
+      mockCreate.mockResolvedValueOnce({
+        stop_reason: 'refusal',
+        stop_details: { type: 'refusal', category: 'cyber' },
+        content: [],
+        usage: {
+          input_tokens: 100,
+          output_tokens: 0,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 0,
+        },
+      });
+
+      await expect(
+        analyseQuestion(testQuestion, testContent),
+      ).rejects.toThrow();
+    });
+
+    it('surfaces a max_tokens truncation at Pass 1 (B-INV-36)', async () => {
+      mockCreate.mockResolvedValueOnce({
+        stop_reason: 'max_tokens',
+        content: [{ type: 'text', text: '{"primary_topic": "partial' }],
+        usage: {
+          input_tokens: 100,
+          output_tokens: 1024,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 0,
+        },
+      });
+
+      await expect(
+        analyseQuestion(testQuestion, testContent),
+      ).rejects.toThrow();
     });
 
     it('includes word limit and section in the prompt', async () => {

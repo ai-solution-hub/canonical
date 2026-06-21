@@ -4,6 +4,7 @@ import { TenderExtractedMetadataSchema } from '@/lib/validation/schemas';
 import type { TenderExtractedMetadata } from '@/types/procurement-metadata';
 import mammoth from 'mammoth';
 import { logger } from '@/lib/logger';
+import { assertSuccessfulStop } from '@/lib/ai/stop-reason';
 
 /**
  * JSON Schema for tender question extraction from PDF documents.
@@ -228,6 +229,9 @@ You MUST call the extract_questions tool with your results.`,
     tool_choice: { type: 'tool', name: 'extract_questions' },
   });
 
+  // B-INV-36: surface refusal / max_tokens explicitly before reading the tool result.
+  assertSuccessfulStop(response, 'extract-questions.extractQuestions');
+
   return extractToolResult(response);
 }
 
@@ -283,6 +287,9 @@ You MUST call the extract_questions tool with your results.`,
     tools: [EXTRACT_QUESTIONS_TOOL],
     tool_choice: { type: 'tool', name: 'extract_questions' },
   });
+
+  // B-INV-36: surface refusal / max_tokens explicitly before reading the tool result.
+  assertSuccessfulStop(response, 'extract-questions.extractQuestions');
 
   return extractToolResult(response);
 }
@@ -430,6 +437,11 @@ You MUST call the extract_tender_metadata tool with your results.`,
     tool_choice: { type: 'tool', name: 'extract_tender_metadata' },
   });
 
+  // B-INV-36: surface refusal / max_tokens explicitly — a refused or truncated
+  // call must not collapse into a silent `null` indistinguishable from
+  // "no metadata found".
+  assertSuccessfulStop(response, 'extract-questions.extractTenderMetadata');
+
   const toolBlock = response.content.find((b) => b.type === 'tool_use');
   if (!toolBlock || toolBlock.type !== 'tool_use') {
     return null;
@@ -483,6 +495,9 @@ export async function generateSearchQueries(
     ],
     tool_choice: { type: 'tool', name: 'search_queries' },
   });
+
+  // B-INV-36: surface refusal / max_tokens explicitly before reading the tool result.
+  assertSuccessfulStop(response, 'extract-questions.generateSearchQueries');
 
   const toolBlock = response.content.find((block) => block.type === 'tool_use');
   if (!toolBlock || toolBlock.type !== 'tool_use') {

@@ -8,6 +8,7 @@ import type { Database } from '@/supabase/types/database.types';
 import { getAnthropicClient, getAIModel } from '@/lib/anthropic';
 import { toJson } from '@/lib/validation/jsonb';
 import { AIServiceError } from '@/lib/ai/errors';
+import { assertSuccessfulStop } from '@/lib/ai/stop-reason';
 
 // ──────────────────────────────────────────
 // Types
@@ -162,6 +163,11 @@ export async function analyseVision(
       },
     ],
   });
+
+  // B-INV-36: surface refusal / max_tokens explicitly first — on a refusal the
+  // content is empty, so this runs before the no-text check to report the real
+  // cause rather than a misleading "no response" or a truncated analysis.
+  assertSuccessfulStop(response, 'vision.analyseVision');
 
   // Extract text response
   const textBlock = response.content.find((b) => b.type === 'text');
