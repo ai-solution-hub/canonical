@@ -882,15 +882,14 @@ class TestRetryCountWebhookEmission:
     def test_emit_includes_retry_count_when_provided(self):
         # Inv-23 verbatim: a transient retry happened; webhook reports it.
         active_session_cls = self._active_stub()
-        if active_session_cls is None or not hasattr(
-            active_session_cls, "last_json"
-        ):
+        if active_session_cls is None:
             import pytest  # noqa: PLC0415
 
-            pytest.skip(
-                "active aiohttp stub does not expose last_json — sibling "
-                "stub pattern not in residence under this test ordering"
-            )
+            pytest.skip("cocoindex stub not resident")
+        if not hasattr(active_session_cls, "last_json"):
+            import pytest  # noqa: PLC0415
+
+            pytest.skip("stub lacks last_json attribute")
 
         payload = self._emit(retry_count=1)
         assert payload is not None
@@ -901,14 +900,14 @@ class TestRetryCountWebhookEmission:
         # so the Vercel route can distinguish "field omitted" from
         # "explicitly zero retries" at the result-envelope layer.
         active_session_cls = self._active_stub()
-        if active_session_cls is None or not hasattr(
-            active_session_cls, "last_json"
-        ):
+        if active_session_cls is None:
             import pytest  # noqa: PLC0415
 
-            pytest.skip(
-                "active aiohttp stub does not expose last_json"
-            )
+            pytest.skip("cocoindex stub not resident")
+        if not hasattr(active_session_cls, "last_json"):
+            import pytest  # noqa: PLC0415
+
+            pytest.skip("stub lacks last_json attribute")
 
         payload = self._emit(retry_count=0)
         assert payload is not None
@@ -920,14 +919,14 @@ class TestRetryCountWebhookEmission:
         # `retryCount: null`) so the Vercel route's existing back-compat
         # branch leaves `result.retry_count` unset.
         active_session_cls = self._active_stub()
-        if active_session_cls is None or not hasattr(
-            active_session_cls, "last_json"
-        ):
+        if active_session_cls is None:
             import pytest  # noqa: PLC0415
 
-            pytest.skip(
-                "active aiohttp stub does not expose last_json"
-            )
+            pytest.skip("cocoindex stub not resident")
+        if not hasattr(active_session_cls, "last_json"):
+            import pytest  # noqa: PLC0415
+
+            pytest.skip("stub lacks last_json attribute")
 
         payload = self._emit()
         assert payload is not None
@@ -939,14 +938,14 @@ class TestRetryCountWebhookEmission:
         # higher counts under operator-tuned thresholds. The emitter
         # must not truncate or coerce.
         active_session_cls = self._active_stub()
-        if active_session_cls is None or not hasattr(
-            active_session_cls, "last_json"
-        ):
+        if active_session_cls is None:
             import pytest  # noqa: PLC0415
 
-            pytest.skip(
-                "active aiohttp stub does not expose last_json"
-            )
+            pytest.skip("cocoindex stub not resident")
+        if not hasattr(active_session_cls, "last_json"):
+            import pytest  # noqa: PLC0415
+
+            pytest.skip("stub lacks last_json attribute")
 
         payload = self._emit(retry_count=7)
         assert payload is not None
