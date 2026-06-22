@@ -1,12 +1,14 @@
-import { NextResponse } from 'next/server';
+import { defineRoute } from "@/lib/api/define-route";
 import {
-  getAuthenticatedClient,
-  rateLimitResponse,
-  authFailureResponse,
+    authFailureResponse,
+    getAuthenticatedClient,
+    rateLimitResponse,
 } from '@/lib/auth';
-import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
+import { checkRateLimit } from '@/lib/rate-limit';
+import { NextResponse } from 'next/server';
+import { z } from "zod";
 
 export const maxDuration = 30;
 
@@ -139,11 +141,8 @@ function groupByGuide(rows: GuideSectionRow[]): GuideCoverage[] {
 // GET /api/coverage/guides
 // ---------------------------------------------------------------------------
 
-/**
- * Returns guide coverage data — per-guide section checklists with content
- * counts and freshness summaries.
- */
-export async function GET() {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async () => {
   try {
     const auth = await getAuthenticatedClient();
     if (!auth.success) return authFailureResponse(auth);
@@ -194,4 +193,4 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+});

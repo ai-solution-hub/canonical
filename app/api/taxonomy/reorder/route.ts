@@ -1,20 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { enqueueTaxonomySync } from '@/lib/taxonomy/sync-trigger';
 import { parseBody } from '@/lib/validation';
 import { TaxonomyReorderSchema } from '@/lib/validation/schemas';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
-/**
- * POST /api/taxonomy/reorder
- *
- * Batch update display orders for domains or subtopics.
- * When reordering subtopics, validates that all IDs belong to the specified domain.
- * Admin-only.
- */
-export async function POST(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient(['admin']);
     if (!auth.success) return authFailureResponse(auth);
@@ -73,4 +69,4 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

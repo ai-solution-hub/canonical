@@ -65,6 +65,7 @@ vi.setConfig({ testTimeout: 60_000 });
 import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
+import { Project } from 'ts-morph';
 import {
   createCodemodProject,
   enumerateRouteFiles,
@@ -86,6 +87,30 @@ import type { RouteShape } from '../../../scripts/codemods/types';
 const CORPUS_TIMEOUT_MS = 120_000;
 
 const REPO_ROOT = resolve(__dirname, '../../..');
+
+const FIXTURE_DIR = resolve(__dirname, 'fixtures/wrap-define-route');
+
+/**
+ * Load a codemod fixture into a virtual ts-morph Project under a synthetic
+ * `app/api/.../route.ts` path so the classifier's path discriminators fire.
+ *
+ * AC-3/6/7 originally asserted against live `app/api/` routes (activity,
+ * items). Once ID-50 wrapped the corpus those routes are already-wrapped, so
+ * their unwrapped-route preconditions no longer hold on the live tree. The
+ * fixtures provide stable, unwrapped inputs of the exact shapes these criteria
+ * require (AUTH_PLAIN z.unknown-fallback; AUTH_PLAIN+WRC), decoupling the
+ * criteria from mutable corpus state — the live partition stays covered by
+ * AC-2 / AC-4 / AC-5.
+ */
+function loadFixtureRoute(fixtureName: string, syntheticName: string) {
+  const source = readFileSync(resolve(FIXTURE_DIR, fixtureName), 'utf8');
+  const project = new Project({ useInMemoryFileSystem: true });
+  const sf = project.createSourceFile(
+    resolve(REPO_ROOT, `app/api/${syntheticName}/route.ts`),
+    source,
+  );
+  return { project, sf };
+}
 
 /**
  * Restrict an enumerated route set to the PRODUCTION `app/api/` corpus.
@@ -206,15 +231,14 @@ describe('OPS-T1 codemod acceptance gate — dry-run criteria (Subtask 32.16)', 
     // method is wrapped, `buildRouteRecords()` classifies it SKIPPED with
     // no needs-manual entry.
     //
-    // We prove the predicate on the live corpus' ALREADY-wrapped routes (if
-    // any exist post-partial-migration) AND prove the mechanism directly:
-    // rewrite a MECHANISABLE route in-memory, re-classify it, and assert the
-    // second pass yields SKIPPED. This is the behaviour AC-3 guarantees.
-    const project = createCodemodProject();
-    const target = resolve(REPO_ROOT, 'app/api/activity/route.ts');
-    const sf = project.getSourceFile(target);
-    expect(sf, 'expected app/api/activity/route.ts in the corpus').toBeTruthy();
-    if (!sf) return;
+    // Proven on a stable unwrapped fixture: rewrite a MECHANISABLE route
+    // in-memory, re-classify it, and assert the second pass yields SKIPPED.
+    // (Post-ID-50 the live corpus is already wrapped, so the predicate is
+    // exercised against the fixture rather than a live route.)
+    const { project, sf } = loadFixtureRoute(
+      'auth-plain.ts',
+      '__ac3_auth_plain__',
+    );
 
     const methods = getExportedMethods(sf);
     expect(methods.length).toBeGreaterThan(0);
@@ -340,11 +364,10 @@ describe('OPS-T1 codemod acceptance gate — dry-run criteria (Subtask 32.16)', 
     // POST-REWRITE TEXT of a real z.unknown()-fallback route, rendered
     // in-memory (no save). Fresh project so this criterion's mutation does
     // not leak into AC-7.
-    const project = createCodemodProject();
-    const target = resolve(REPO_ROOT, 'app/api/activity/route.ts');
-    const sf = project.getSourceFile(target);
-    expect(sf, 'expected app/api/activity/route.ts in the corpus').toBeTruthy();
-    if (!sf) return;
+    const { project, sf } = loadFixtureRoute(
+      'auth-plain.ts',
+      '__ac6_auth_plain__',
+    );
 
     const methods = getExportedMethods(sf);
     const method = methods[0]!;
@@ -356,10 +379,10 @@ describe('OPS-T1 codemod acceptance gate — dry-run criteria (Subtask 32.16)', 
     rewriteSingleMethod(sf, method, schema);
     const printed = sf.getFullText();
     expect(printed).toContain('// TODO(OPS-T1): author ResponseSchema');
-    // Disk untouched — we never called saveSync().
-    expect(readFileSync(target, 'utf8')).not.toContain(
-      '// TODO(OPS-T1): author ResponseSchema',
-    );
+    // The fixture on disk is never mutated (in-memory rewrite only).
+    expect(
+      readFileSync(resolve(FIXTURE_DIR, 'auth-plain.ts'), 'utf8'),
+    ).not.toContain('// TODO(OPS-T1): author ResponseSchema');
   });
 
   it('AC-7: withRequestContext remains the OUTERMOST wrapper after rewrite (withRequestContext(defineRoute(...)))', () => {
@@ -367,11 +390,10 @@ describe('OPS-T1 codemod acceptance gate — dry-run criteria (Subtask 32.16)', 
     // outermost: `withRequestContext(defineRoute(Schema, ...))`. Assert on
     // the POST-REWRITE TEXT of a real +WRC route (in-memory, no save).
     // Fresh project, isolated from AC-6.
-    const project = createCodemodProject();
-    const target = resolve(REPO_ROOT, 'app/api/items/route.ts');
-    const sf = project.getSourceFile(target);
-    expect(sf, 'expected app/api/items/route.ts in the corpus').toBeTruthy();
-    if (!sf) return;
+    const { project, sf } = loadFixtureRoute(
+      'auth-plain-with-wrc.ts',
+      '__ac7_auth_plain_wrc__',
+    );
 
     const shape = classifyRoute(sf);
     // Precondition for this criterion: the route is a single-method +WRC
@@ -391,8 +413,10 @@ describe('OPS-T1 codemod acceptance gate — dry-run criteria (Subtask 32.16)', 
         `export const ${method} = withRequestContext\\(\\s*defineRoute\\(`,
       ),
     );
-    // Disk untouched.
-    expect(readFileSync(target, 'utf8')).not.toContain('defineRoute(');
+    // The fixture on disk is never mutated (in-memory rewrite only).
+    expect(
+      readFileSync(resolve(FIXTURE_DIR, 'auth-plain-with-wrc.ts'), 'utf8'),
+    ).not.toContain('defineRoute(');
   });
 });
 

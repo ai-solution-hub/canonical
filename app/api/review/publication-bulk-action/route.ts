@@ -38,23 +38,25 @@
  * @see .planning/.archive/.specs/publication-approval-gate-spec.md §4.3 for verbatim
  *      iteration pseudocode and §4.4 for response-shape contract.
  */
-import { NextRequest, NextResponse } from 'next/server';
+import { defineRoute } from '@/lib/api/define-route';
 import {
-  getAuthorisedClient,
   authFailureResponse,
+  getAuthorisedClient,
   rateLimitResponse,
 } from '@/lib/auth';
-import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
-import { parseBody } from '@/lib/validation';
-import { PublicationBulkActionBodySchema } from '@/lib/validation/schemas';
 import {
-  computeAllowedTransitions,
   applyTransitionSideEffects,
+  computeAllowedTransitions,
   type PublicationStatus,
 } from '@/lib/governance/publication-transitions';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { sb } from '@/lib/supabase/safe';
+import { parseBody } from '@/lib/validation';
+import { PublicationBulkActionBodySchema } from '@/lib/validation/schemas';
 import type { Database } from '@/supabase/types/database.types';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
@@ -85,7 +87,8 @@ interface PublicationBulkActionResponse {
   results: PublicationBulkActionResult[];
 }
 
-export async function POST(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     // -----------------------------------------------------------------
     // Auth + role check — admin + editor permitted (PR-1: §5.2 RBAC
@@ -305,4 +308,4 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

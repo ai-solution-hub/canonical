@@ -1,29 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { defineRoute } from '@/lib/api/define-route';
 import {
-  getAuthorisedClient,
   authFailureResponse,
+  getAuthorisedClient,
   rateLimitResponse,
 } from '@/lib/auth';
-import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
+import { checkRateLimit } from '@/lib/rate-limit';
+import { createServiceClient } from '@/lib/supabase/server';
 import { parseBody } from '@/lib/validation';
 import { EntityMergeBodySchema } from '@/lib/validation/schemas';
-import { createServiceClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
-/**
- * POST /api/entities/merge — merge multiple entities into one canonical form.
- *
- * Transaction:
- * 1. Update canonical_name on entity_mentions for all source entities → target
- * 2. Set entity_type_override to the chosen type
- * 3. Update source_entity / target_entity on entity_relationships
- * 4. Delete duplicate mention rows (same canonical_name + entity_type + content_item_id)
- *
- * Auth: admin only.
- */
-export async function POST(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient(['admin']);
     if (!auth.success) return authFailureResponse(auth);
@@ -82,4 +74,4 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

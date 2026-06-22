@@ -129,7 +129,10 @@ describe('GET /api/review/assignments', () => {
         filter_domains: ['H&S'],
         filter_content_types: [],
         filter_freshness: [],
+        filter_date_from: null,
+        filter_date_to: null,
         item_count: 5,
+        due_date: null,
       },
     ];
 
@@ -153,11 +156,31 @@ describe('GET /api/review/assignments', () => {
     configureRole(mockSupabase, 'admin');
 
     const mockAssignments = [
-      { id: VALID_UUID, reviewer_id: REVIEWER_UUID, status: 'active' },
+      {
+        id: VALID_UUID,
+        reviewer_id: REVIEWER_UUID,
+        status: 'active',
+        notes: null,
+        filter_domains: [],
+        filter_content_types: [],
+        filter_freshness: [],
+        filter_date_from: null,
+        filter_date_to: null,
+        item_count: 0,
+        due_date: null,
+      },
       {
         id: '00000000-0000-4000-8000-000000000003',
         reviewer_id: 'test-user-id',
         status: 'active',
+        notes: null,
+        filter_domains: [],
+        filter_content_types: [],
+        filter_freshness: [],
+        filter_date_from: null,
+        filter_date_to: null,
+        item_count: 0,
+        due_date: null,
       },
     ];
 
@@ -188,7 +211,19 @@ describe('GET /api/review/assignments', () => {
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
-            { id: VALID_UUID, reviewer_id: REVIEWER_UUID, status: 'completed' },
+            {
+              id: VALID_UUID,
+              reviewer_id: REVIEWER_UUID,
+              status: 'completed',
+              notes: null,
+              filter_domains: [],
+              filter_content_types: [],
+              filter_freshness: [],
+              filter_date_from: null,
+              filter_date_to: null,
+              item_count: 0,
+              due_date: null,
+            },
           ],
           error: null,
         }),

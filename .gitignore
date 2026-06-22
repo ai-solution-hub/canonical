@@ -125,6 +125,10 @@ entities.json
 lib/branding/client-branding-map.generated.ts
 .type-drift-report.md
 
+# OPS-T1 codemod dry-run / needs-manual reports — regenerable via
+# scripts/codemods/wrap-define-route.ts (override dir via CODEMOD_OUTPUT_DIR)
+docs/generated/
+
 # ID-95 PI-15: client-provenance entity_aliases snapshot is point-of-use generated (deploy), never committed
 scripts/tests/fixtures/entity_aliases_snapshot.json
 

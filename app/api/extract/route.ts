@@ -1,19 +1,22 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { AIServiceError } from '@/lib/ai/errors';
+import { extractStructuredContent } from '@/lib/ai/extract-content';
+import { defineRoute } from '@/lib/api/define-route';
 import {
-  getAuthorisedClient,
   authFailureResponse,
+  getAuthorisedClient,
   rateLimitResponse,
 } from '@/lib/auth';
-import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { ExtractBodySchema } from '@/lib/validation/schemas';
-import { extractStructuredContent } from '@/lib/ai/extract-content';
-import { AIServiceError } from '@/lib/ai/errors';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 60;
 
-export async function POST(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);
@@ -46,4 +49,4 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

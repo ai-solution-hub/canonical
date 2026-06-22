@@ -1,18 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthenticatedClient } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
-import { parseSearchParams } from '@/lib/validation';
-import { ChangeReportListParamsSchema } from '@/lib/validation/schemas';
-import {
-  parseJsonbArray,
-  ChangeReportDomainSummarySchema,
-} from '@/lib/validation/jsonb';
-import type { ChangeReport } from '@/types/change-reports';
 import { logger } from '@/lib/logger';
+import { parseSearchParams } from '@/lib/validation';
+import {
+  ChangeReportDomainSummarySchema,
+  parseJsonbArray,
+} from '@/lib/validation/jsonb';
+import { ChangeReportListParamsSchema } from '@/lib/validation/schemas';
+import type { ChangeReport } from '@/types/change-reports';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
-export async function GET(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     // Auth check
     const auth = await getAuthenticatedClient();
@@ -69,4 +72,4 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

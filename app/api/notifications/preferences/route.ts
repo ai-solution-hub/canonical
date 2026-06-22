@@ -1,9 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { sb } from '@/lib/supabase/safe';
 import { parseBody } from '@/lib/validation';
 import { NotificationPreferencesPutBodySchema } from '@/lib/validation/schemas';
-import { sb } from '@/lib/supabase/safe';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 10;
 
@@ -22,7 +24,8 @@ const DEFAULT_PREFERENCES = {
 // GET - fetch current user's notification preferences
 // ---------------------------------------------------------------------------
 
-export async function GET() {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async () => {
   try {
     const auth = await getAuthorisedClient();
     if (!auth.success) return authFailureResponse(auth);
@@ -51,13 +54,14 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+});
 
 // ---------------------------------------------------------------------------
 // PUT - upsert notification preferences for the current user
 // ---------------------------------------------------------------------------
 
-export async function PUT(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const PUT = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient();
     if (!auth.success) return authFailureResponse(auth);
@@ -91,4 +95,4 @@ export async function PUT(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

@@ -18,16 +18,18 @@
  *   window      — { range, since }
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
-import { tryQuery, isOk } from '@/lib/supabase/safe';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { safeErrorMessage } from '@/lib/error';
+import { isOk, tryQuery } from '@/lib/supabase/safe';
 import {
   createWarningsCollector,
   warningsEnvelope,
 } from '@/lib/supabase/warnings';
 import { parseSearchParams } from '@/lib/validation';
 import { AdminProvenancePipelineRunsParamsSchema } from '@/lib/validation/schemas';
-import { safeErrorMessage } from '@/lib/error';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 15;
 
@@ -71,7 +73,8 @@ export interface PipelineRollupEntry {
 // Route handler
 // ──────────────────────────────────────────
 
-export async function GET(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient(['admin']);
     if (!auth.success) return authFailureResponse(auth);
@@ -193,7 +196,7 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});
 
 // ──────────────────────────────────────────
 // Rollup computation

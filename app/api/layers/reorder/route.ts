@@ -1,18 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { enqueueTaxonomySync } from '@/lib/taxonomy/sync-trigger';
 import { parseBody } from '@/lib/validation';
 import { LayerReorderSchema } from '@/lib/validation/schemas';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
-/**
- * PUT /api/layers/reorder
- *
- * Batch update display_order for multiple layers. Admin-only.
- */
-export async function PUT(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const PUT = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient(['admin']);
     if (!auth.success) return authFailureResponse(auth);
@@ -51,4 +49,4 @@ export async function PUT(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

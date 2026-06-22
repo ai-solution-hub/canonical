@@ -1,19 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '@/supabase/types/database.types';
+import { defineRoute } from '@/lib/api/define-route';
 import {
+  authFailureResponse,
   getAuthenticatedClient,
   getAuthorisedClient,
-  authFailureResponse,
   rateLimitResponse,
 } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { sb } from '@/lib/supabase/safe';
 import { parseBody } from '@/lib/validation';
 import { QuestionCreateBodySchema } from '@/lib/validation/schemas';
+import type { Database } from '@/supabase/types/database.types';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { sb } from '@/lib/supabase/safe';
-import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -42,253 +43,259 @@ const BatchQuestionCreateSchema = z.object({
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** GET /api/bids/:id/questions -- list all questions for a bid */
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
-    const auth = await getAuthenticatedClient();
-    if (!auth.success) return authFailureResponse(auth);
-    const { supabase } = auth;
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(
+  z.unknown(),
+  async (
+    _request: NextRequest,
+    { params }: { params: Promise<{ id: string }> },
+  ) => {
+    try {
+      const auth = await getAuthenticatedClient();
+      if (!auth.success) return authFailureResponse(auth);
+      const { supabase } = auth;
 
-    const { id } = await params;
-    if (!UUID_RE.test(id)) {
-      return NextResponse.json(
-        { error: 'Invalid bid ID -- must be a valid UUID' },
-        { status: 400 },
-      );
-    }
-
-    // Verify bid exists.
-    // Post-T2: discriminator via application_types JOIN.
-    const { data: bid, error: procurementError } = await supabase
-      .from('workspaces')
-      .select('id, application_types!inner(key)')
-      .eq('id', id)
-      .eq('application_types.key', 'procurement')
-      .single();
-
-    if (procurementError || !bid) {
-      return NextResponse.json(
-        { error: 'Procurement not found' },
-        { status: 404 },
-      );
-    }
-
-    // Fetch questions ordered by section then question sequence.
-    // Post-T2: `form_questions.workspace_id` → `workspace_id`.
-    const { data: questions, error: questionsError } = await supabase
-      .from('form_questions')
-      .select(
-        'id, workspace_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, matched_content_ids, status, has_variants, assigned_to, created_by, created_at, updated_at',
-      )
-      .eq('workspace_id', id)
-      .order('section_sequence', { ascending: true })
-      .order('question_sequence', { ascending: true });
-
-    if (questionsError) {
-      logger.error({ err: questionsError }, 'Failed to fetch bid questions');
-      return NextResponse.json(
-        { error: 'Failed to fetch bid questions' },
-        { status: 500 },
-      );
-    }
-
-    // For each question, fetch response preview via left join
-    const questionIds = (questions ?? []).map((q) => q.id);
-    let responsePreviews: Record<
-      string,
-      { id: string; review_status: string; word_count: number }
-    > = {};
-    const warnings: string[] = [];
-
-    if (questionIds.length > 0) {
-      const { data: responses, error: responsesError } = await supabase
-        .from('form_responses')
-        .select('id, question_id, review_status, response_text')
-        .in('question_id', questionIds);
-
-      if (responsesError) {
-        logger.error(
-          { err: responsesError },
-          'Failed to fetch response previews',
-        );
-        warnings.push(
-          'Response previews could not be loaded; questions may appear unanswered. ' +
-            safeErrorMessage(responsesError, 'response preview fetch failed'),
+      const { id } = await params;
+      if (!UUID_RE.test(id)) {
+        return NextResponse.json(
+          { error: 'Invalid bid ID -- must be a valid UUID' },
+          { status: 400 },
         );
       }
 
-      if (responses) {
-        responsePreviews = Object.fromEntries(
-          responses.map(
-            (r: {
-              id: string;
-              question_id: string;
-              review_status: string;
-              response_text: string | null;
-            }) => [
-              r.question_id,
-              {
-                id: r.id,
-                review_status: r.review_status,
-                word_count: r.response_text
-                  ? r.response_text.split(/\s+/).filter(Boolean).length
-                  : 0,
-              },
-            ],
-          ),
+      // Verify bid exists.
+      // Post-T2: discriminator via application_types JOIN.
+      const { data: bid, error: procurementError } = await supabase
+        .from('workspaces')
+        .select('id, application_types!inner(key)')
+        .eq('id', id)
+        .eq('application_types.key', 'procurement')
+        .single();
+
+      if (procurementError || !bid) {
+        return NextResponse.json(
+          { error: 'Procurement not found' },
+          { status: 404 },
         );
       }
-    }
 
-    // Enrich questions with response preview
-    const enrichedQuestions = (questions ?? []).map((q) => ({
-      ...q,
-      response: responsePreviews[q.id] ?? null,
-    }));
-
-    // Fetch question stats via RPC.
-    // NB: RPC signature `p_project_id` retained — RPC is part of an SQL function
-    // signature that lives in a migration and is renamed separately (T4 scope).
-    const { data: stats, error: statsError } = await supabase.rpc(
-      'get_form_question_stats',
-      {
-        p_project_id: id,
-      },
-    );
-
-    if (statsError) {
-      logger.error({ err: statsError }, 'Failed to fetch bid question stats');
-      warnings.push(
-        'Question stats could not be loaded. ' +
-          safeErrorMessage(statsError, 'stats RPC failed'),
-      );
-    }
-
-    const responseBody: Record<string, unknown> = {
-      questions: enrichedQuestions,
-      stats: stats?.[0] ?? null,
-    };
-    if (warnings.length > 0) responseBody.warnings = warnings;
-    return NextResponse.json(responseBody);
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to fetch bid questions') },
-      { status: 500 },
-    );
-  }
-}
-
-/** POST /api/bids/:id/questions -- add a single question or batch of questions */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
-    const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth.success) return authFailureResponse(auth);
-    const { user, supabase } = auth;
-
-    const { id } = await params;
-    if (!UUID_RE.test(id)) {
-      return NextResponse.json(
-        { error: 'Invalid bid ID -- must be a valid UUID' },
-        { status: 400 },
-      );
-    }
-
-    const { allowed } = checkRateLimit(`questions:${user.id}`, 30, 60_000);
-    if (!allowed) return rateLimitResponse();
-
-    const raw = await request.json();
-
-    // Verify bid exists.
-    // Post-T2: discriminator via application_types JOIN.
-    const { data: bid, error: procurementError } = await supabase
-      .from('workspaces')
-      .select('id, application_types!inner(key)')
-      .eq('id', id)
-      .eq('application_types.key', 'procurement')
-      .single();
-
-    if (procurementError || !bid) {
-      return NextResponse.json(
-        { error: 'Procurement not found' },
-        { status: 404 },
-      );
-    }
-
-    // Try batch format first (from QuestionReview component)
-    const batchParsed = parseBody(BatchQuestionCreateSchema, raw);
-    if (batchParsed.success) {
-      return handleBatchInsert(
-        supabase,
-        id,
-        user.id,
-        batchParsed.data.questions,
-      );
-    }
-
-    // Fall back to single question format
-    const parsed = parseBody(QuestionCreateBodySchema, raw);
-    if (!parsed.success) return parsed.response;
-
-    // Get the max question_sequence for this bid to assign next sequence number.
-    // Post-T2: `form_questions.workspace_id` → `workspace_id`.
-    const maxSeqResult = await sb(
-      supabase
+      // Fetch questions ordered by section then question sequence.
+      // Post-T2: `form_questions.workspace_id` → `workspace_id`.
+      const { data: questions, error: questionsError } = await supabase
         .from('form_questions')
-        .select('question_sequence')
+        .select(
+          'id, workspace_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, matched_content_ids, status, has_variants, assigned_to, created_by, created_at, updated_at',
+        )
         .eq('workspace_id', id)
-        .order('question_sequence', { ascending: false })
-        .limit(1),
-      'bids.questions.list.maxSequence',
-    );
+        .order('section_sequence', { ascending: true })
+        .order('question_sequence', { ascending: true });
 
-    const nextSequence =
-      maxSeqResult.length > 0
-        ? (maxSeqResult[0].question_sequence ?? 0) + 1
-        : 1;
+      if (questionsError) {
+        logger.error({ err: questionsError }, 'Failed to fetch bid questions');
+        return NextResponse.json(
+          { error: 'Failed to fetch bid questions' },
+          { status: 500 },
+        );
+      }
 
-    const { section_name, question_text, word_limit, evaluation_weight } =
-      parsed.data;
+      // For each question, fetch response preview via left join
+      const questionIds = (questions ?? []).map((q) => q.id);
+      let responsePreviews: Record<
+        string,
+        { id: string; review_status: string; word_count: number }
+      > = {};
+      const warnings: string[] = [];
 
-    // Post-T2: `form_questions.workspace_id` → `workspace_id` on insert + select.
-    const { data: created, error: insertError } = await supabase
-      .from('form_questions')
-      .insert({
-        workspace_id: id,
-        section_name: section_name ?? null,
-        question_text,
-        question_sequence: nextSequence,
-        section_sequence: 0,
-        word_limit: word_limit ?? null,
-        evaluation_weight: evaluation_weight ?? null,
-        created_by: user.id,
-      })
-      .select(
-        'id, workspace_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, matched_content_ids, assigned_to, created_by, created_at, updated_at',
-      )
-      .single();
+      if (questionIds.length > 0) {
+        const { data: responses, error: responsesError } = await supabase
+          .from('form_responses')
+          .select('id, question_id, review_status, response_text')
+          .in('question_id', questionIds);
 
-    if (insertError) {
-      logger.error({ err: insertError }, 'Failed to create bid question');
+        if (responsesError) {
+          logger.error(
+            { err: responsesError },
+            'Failed to fetch response previews',
+          );
+          warnings.push(
+            'Response previews could not be loaded; questions may appear unanswered. ' +
+              safeErrorMessage(responsesError, 'response preview fetch failed'),
+          );
+        }
+
+        if (responses) {
+          responsePreviews = Object.fromEntries(
+            responses.map(
+              (r: {
+                id: string;
+                question_id: string;
+                review_status: string;
+                response_text: string | null;
+              }) => [
+                r.question_id,
+                {
+                  id: r.id,
+                  review_status: r.review_status,
+                  word_count: r.response_text
+                    ? r.response_text.split(/\s+/).filter(Boolean).length
+                    : 0,
+                },
+              ],
+            ),
+          );
+        }
+      }
+
+      // Enrich questions with response preview
+      const enrichedQuestions = (questions ?? []).map((q) => ({
+        ...q,
+        response: responsePreviews[q.id] ?? null,
+      }));
+
+      // Fetch question stats via RPC.
+      // NB: RPC signature `p_project_id` retained — RPC is part of an SQL function
+      // signature that lives in a migration and is renamed separately (T4 scope).
+      const { data: stats, error: statsError } = await supabase.rpc(
+        'get_form_question_stats',
+        {
+          p_project_id: id,
+        },
+      );
+
+      if (statsError) {
+        logger.error({ err: statsError }, 'Failed to fetch bid question stats');
+        warnings.push(
+          'Question stats could not be loaded. ' +
+            safeErrorMessage(statsError, 'stats RPC failed'),
+        );
+      }
+
+      const responseBody: Record<string, unknown> = {
+        questions: enrichedQuestions,
+        stats: stats?.[0] ?? null,
+      };
+      if (warnings.length > 0) responseBody.warnings = warnings;
+      return NextResponse.json(responseBody);
+    } catch (err) {
       return NextResponse.json(
-        { error: 'Failed to create bid question' },
+        { error: safeErrorMessage(err, 'Failed to fetch bid questions') },
         { status: 500 },
       );
     }
+  },
+);
 
-    return NextResponse.json(created, { status: 201 });
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to create bid question') },
-      { status: 500 },
-    );
-  }
-}
+// TODO(OPS-T1): author ResponseSchema
+export const POST = defineRoute(
+  z.unknown(),
+  async (
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> },
+  ) => {
+    try {
+      const auth = await getAuthorisedClient(['admin', 'editor']);
+      if (!auth.success) return authFailureResponse(auth);
+      const { user, supabase } = auth;
+
+      const { id } = await params;
+      if (!UUID_RE.test(id)) {
+        return NextResponse.json(
+          { error: 'Invalid bid ID -- must be a valid UUID' },
+          { status: 400 },
+        );
+      }
+
+      const { allowed } = checkRateLimit(`questions:${user.id}`, 30, 60_000);
+      if (!allowed) return rateLimitResponse();
+
+      const raw = await request.json();
+
+      // Verify bid exists.
+      // Post-T2: discriminator via application_types JOIN.
+      const { data: bid, error: procurementError } = await supabase
+        .from('workspaces')
+        .select('id, application_types!inner(key)')
+        .eq('id', id)
+        .eq('application_types.key', 'procurement')
+        .single();
+
+      if (procurementError || !bid) {
+        return NextResponse.json(
+          { error: 'Procurement not found' },
+          { status: 404 },
+        );
+      }
+
+      // Try batch format first (from QuestionReview component)
+      const batchParsed = parseBody(BatchQuestionCreateSchema, raw);
+      if (batchParsed.success) {
+        return handleBatchInsert(
+          supabase,
+          id,
+          user.id,
+          batchParsed.data.questions,
+        );
+      }
+
+      // Fall back to single question format
+      const parsed = parseBody(QuestionCreateBodySchema, raw);
+      if (!parsed.success) return parsed.response;
+
+      // Get the max question_sequence for this bid to assign next sequence number.
+      // Post-T2: `form_questions.workspace_id` → `workspace_id`.
+      const maxSeqResult = await sb(
+        supabase
+          .from('form_questions')
+          .select('question_sequence')
+          .eq('workspace_id', id)
+          .order('question_sequence', { ascending: false })
+          .limit(1),
+        'bids.questions.list.maxSequence',
+      );
+
+      const nextSequence =
+        maxSeqResult.length > 0
+          ? (maxSeqResult[0].question_sequence ?? 0) + 1
+          : 1;
+
+      const { section_name, question_text, word_limit, evaluation_weight } =
+        parsed.data;
+
+      // Post-T2: `form_questions.workspace_id` → `workspace_id` on insert + select.
+      const { data: created, error: insertError } = await supabase
+        .from('form_questions')
+        .insert({
+          workspace_id: id,
+          section_name: section_name ?? null,
+          question_text,
+          question_sequence: nextSequence,
+          section_sequence: 0,
+          word_limit: word_limit ?? null,
+          evaluation_weight: evaluation_weight ?? null,
+          created_by: user.id,
+        })
+        .select(
+          'id, workspace_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, matched_content_ids, assigned_to, created_by, created_at, updated_at',
+        )
+        .single();
+
+      if (insertError) {
+        logger.error({ err: insertError }, 'Failed to create bid question');
+        return NextResponse.json(
+          { error: 'Failed to create bid question' },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json(created, { status: 201 });
+    } catch (err) {
+      return NextResponse.json(
+        { error: safeErrorMessage(err, 'Failed to create bid question') },
+        { status: 500 },
+      );
+    }
+  },
+);
 
 /** Handle batch insert of questions from QuestionReview */
 async function handleBatchInsert(

@@ -1,23 +1,15 @@
-import { NextResponse } from 'next/server';
-import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthenticatedClient } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { resolveUserDisplayNames } from '@/lib/users/display-names';
 import type { ContentOwnerStats } from '@/types/owner';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
-/**
- * GET /api/content-owners/stats
- *
- * Returns content ownership statistics enriched with display names.
- * Available to all authenticated users.
- *
- * S156 WP-2: display-name resolution now uses the
- * `get_user_display_names` SQL function (single round trip, batch
- * resolved) instead of the old `auth.admin.getUserById` loop which
- * silently degraded for pipeline-owned content.
- */
-export async function GET() {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async () => {
   try {
     const auth = await getAuthenticatedClient();
     if (!auth.success) return authFailureResponse(auth);
@@ -65,4 +57,4 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+});

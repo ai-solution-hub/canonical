@@ -1,20 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
-import { sb } from '@/lib/supabase/safe';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { sb } from '@/lib/supabase/safe';
 import { enqueueTaxonomySync } from '@/lib/taxonomy/sync-trigger';
 import { parseBody } from '@/lib/validation';
 import { LayerCreateSchema } from '@/lib/validation/schemas';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
-/**
- * GET /api/layers
- *
- * List all layers including inactive (admin-only).
- * Used by the admin UI to manage layer vocabulary.
- */
-export async function GET() {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async () => {
   try {
     const auth = await getAuthorisedClient(['admin']);
     if (!auth.success) return authFailureResponse(auth);
@@ -41,14 +38,10 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+});
 
-/**
- * POST /api/layers
- *
- * Create a new layer. Admin-only.
- */
-export async function POST(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient(['admin']);
     if (!auth.success) return authFailureResponse(auth);
@@ -111,4 +104,4 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

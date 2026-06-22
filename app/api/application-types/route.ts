@@ -12,12 +12,14 @@
  * Columns selected: key, label, label_plural, description, default_icon, default_colour.
  * Ordered by label ascending.
  */
-import { NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
-/** GET /api/application-types — list all application types */
-export async function GET() {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async () => {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor', 'viewer']);
     if (!auth.success) return authFailureResponse(auth);
@@ -44,4 +46,4 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+});

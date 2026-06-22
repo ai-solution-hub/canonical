@@ -11,15 +11,17 @@
  * Spec: docs/specs/p1-tag-morphology-library-adoption-spec.md §3.5.4
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
-import { sb, SupabaseError } from '@/lib/supabase/safe';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { sb, SupabaseError } from '@/lib/supabase/safe';
 import { parseBody, parseSearchParams } from '@/lib/validation';
 import {
-  TagMorphologyFlagsQuerySchema,
   TagMorphologyFlagsBulkInsertSchema,
+  TagMorphologyFlagsQuerySchema,
 } from '@/lib/validation/schemas';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 // `tag_morphology_drift_flags` is a new table (migration 20260424222432)
 // not yet present in the auto-generated database.types.ts. Per CLAUDE.md
@@ -39,7 +41,8 @@ type DriftFlag = {
   decision_rationale: string | null;
 };
 
-export async function GET(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);
@@ -92,9 +95,10 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});
 
-export async function POST(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);
@@ -137,4 +141,4 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});
