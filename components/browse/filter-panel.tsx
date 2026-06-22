@@ -409,6 +409,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
                         }))
                       }
                       className="h-8 text-sm"
+                      aria-describedby="filter-date-format-hint"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
@@ -429,8 +430,15 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
                         }))
                       }
                       className="h-8 text-sm"
+                      aria-describedby="filter-date-format-hint"
                     />
                   </div>
+                  <p
+                    id="filter-date-format-hint"
+                    className="text-xs text-muted-foreground"
+                  >
+                    Format follows your browser locale (e.g. DD/MM/YYYY)
+                  </p>
                 </div>
               </FilterSection>
 

@@ -13,26 +13,26 @@ describe('BrandLogo', () => {
 
   it('renders alt text from BRANDING.logoAlt', () => {
     render(<BrandLogo />);
-    const images = screen.getAllByAltText('Knowledge Hub logo');
+    const images = screen.getAllByAltText('Canonical logo');
     expect(images.length).toBe(2);
   });
 
   it('renders aria-label on wrapping span', () => {
     render(<BrandLogo />);
-    const wrapper = screen.getByLabelText('Knowledge Hub logo');
+    const wrapper = screen.getByLabelText('Canonical logo');
     expect(wrapper).toBeDefined();
   });
 
   it('renders sr-only product name in full variant', () => {
     render(<BrandLogo variant="full" />);
-    const srOnly = screen.getByText('Knowledge Hub');
+    const srOnly = screen.getByText('Canonical');
     expect(srOnly).toBeDefined();
     expect(srOnly.className).toContain('sr-only');
   });
 
   it('does not render sr-only product name in compact variant', () => {
     render(<BrandLogo variant="compact" />);
-    expect(screen.queryByText('Knowledge Hub')).toBeNull();
+    expect(screen.queryByText('Canonical')).toBeNull();
   });
 
   it('applies dark:hidden and dark:block classes for variant switching', () => {
@@ -46,7 +46,7 @@ describe('BrandLogo', () => {
 
   it('applies custom className when provided', () => {
     render(<BrandLogo className="custom-class" />);
-    const wrapper = screen.getByLabelText('Knowledge Hub logo');
+    const wrapper = screen.getByLabelText('Canonical logo');
     expect(wrapper.className).toContain('custom-class');
   });
 });
