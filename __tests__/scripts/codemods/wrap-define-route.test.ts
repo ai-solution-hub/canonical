@@ -291,16 +291,35 @@ const FIXTURE_TABLE: ReadonlyArray<{
     title: 'param-body.ts fixture classifies as PARAM_BODY',
   },
   {
+    fixture: 'param-body-with-wrc.ts',
+    path: '/repo/app/api/items/[id]/classify/route.ts',
+    expected: 'PARAM_BODY+WRC',
+    title: 'param-body-with-wrc.ts fixture classifies as PARAM_BODY+WRC',
+  },
+  {
     fixture: 'body-validated.ts',
     path: '/repo/app/api/search/route.ts',
     expected: 'BODY_VALIDATED',
     title: 'body-validated.ts fixture classifies as BODY_VALIDATED',
   },
   {
+    fixture: 'body-validated-with-wrc.ts',
+    path: '/repo/app/api/search/route.ts',
+    expected: 'BODY_VALIDATED+WRC',
+    title:
+      'body-validated-with-wrc.ts fixture classifies as BODY_VALIDATED+WRC',
+  },
+  {
     fixture: 'param-only.ts',
     path: '/repo/app/api/entities/[canonical_name]/route.ts',
     expected: 'PARAM',
     title: 'param-only.ts fixture classifies as PARAM',
+  },
+  {
+    fixture: 'param-with-wrc.ts',
+    path: '/repo/app/api/entities/[canonical_name]/route.ts',
+    expected: 'PARAM+WRC',
+    title: 'param-with-wrc.ts fixture classifies as PARAM+WRC',
   },
   // Multi-method NEEDS-REVIEW shapes
   {
@@ -401,11 +420,13 @@ describe('wrap-define-route classifier — fixture corpus (Subtask 32.7)', () =>
   // authoring the Source A fall-back fixture
   // (`with-baseline-but-no-schema-constant.ts`); Subtask 32.17 bumped to 17
   // by adding the JSDoc-poisoned PARAM and MULTI_PARAM regression fixtures
-  // (`param-only-jsdoc-poisoned.ts`, `multi-param-jsdoc-poisoned.ts`). The
-  // count and the table get updated in the same commit so this guard always
-  // reflects the on-disk fixture set.
-  it('covers the 17-fixture corpus (TECH §4 baseline of 14 plus Subtask 32.8 fall-back plus Subtask 32.17 JSDoc-poisoned regressions)', () => {
-    expect(FIXTURE_TABLE).toHaveLength(17);
+  // (`param-only-jsdoc-poisoned.ts`, `multi-param-jsdoc-poisoned.ts`);
+  // bl-147 bumped to 20 by adding +WRC variants for PARAM_BODY, BODY_VALIDATED,
+  // and PARAM (`param-body-with-wrc.ts`, `body-validated-with-wrc.ts`,
+  // `param-with-wrc.ts`). The count and the table get updated in the same
+  // commit so this guard always reflects the on-disk fixture set.
+  it('covers the 20-fixture corpus (TECH §4 baseline of 14 plus Subtask 32.8 fall-back plus Subtask 32.17 JSDoc-poisoned regressions plus bl-147 +WRC variants)', () => {
+    expect(FIXTURE_TABLE).toHaveLength(20);
   });
 
   it.each(FIXTURE_TABLE)('$title', ({ fixture, path, expected }) => {
@@ -1948,6 +1969,24 @@ const APPLY_FIXTURE_TABLE: ReadonlyArray<{
   {
     fixture: 'auth-plain-with-wrc.ts',
     routePath: 'app/api/activity/route.ts',
+    disposition: 'NEEDS_REVIEW',
+    methods: ['GET'],
+  },
+  {
+    fixture: 'param-body-with-wrc.ts',
+    routePath: 'app/api/items/[id]/notes/route.ts',
+    disposition: 'NEEDS_REVIEW',
+    methods: ['POST'],
+  },
+  {
+    fixture: 'body-validated-with-wrc.ts',
+    routePath: 'app/api/embed/route.ts',
+    disposition: 'NEEDS_REVIEW',
+    methods: ['POST'],
+  },
+  {
+    fixture: 'param-with-wrc.ts',
+    routePath: 'app/api/entities/[canonical_name]/summary/route.ts',
     disposition: 'NEEDS_REVIEW',
     methods: ['GET'],
   },
