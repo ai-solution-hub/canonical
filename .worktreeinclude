@@ -43,7 +43,8 @@ mempalace.yaml
 entities.json
 
 # Task View Ledger Config
-.cache/
+.cache/ledger-server/**
+.cache/task-view-v0.*.0-task-view/
 
 # Local session ephemera (Lavish review artifacts, user scratch dir)
 .lavish/

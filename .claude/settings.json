@@ -3,9 +3,7 @@
     "KH_PRIVATE_DOCS_DIR": "/Users/liamj/Documents/development/knowledge-hub-docs-site"
   },
   "enabledPlugins": {
-    "firecrawl@claude-plugins-official": false,
-    "knowledge-hub@local": false,
-    "sentry@claude-plugins-official": false
+    "knowledge-hub@local": false
   },
   "permissions": {
     "allow": [
@@ -75,7 +73,7 @@
   },
   "sandbox": {
     "network": {
-      "allowUnixSockets": ["/tmp/cmux.sock", "/private/tmp/cmux.sock"],
+      "allowUnixSockets": ["/tmp/cmux.sock", "/private/tmp/cmux.sock", "~/.local/state/cmux/cmux.sock"],
       "allowedDomains": ["github.com", "*.github.com", "codeload.github.com", "objects.githubusercontent.com"],
       "allowLocalBinding": true
     },
@@ -84,7 +82,7 @@
         "~/Documents/development/canonical/.claude/cmux-events",
         "~/Documents/development/knowledge-hub-docs-site/**",
         "~/Documents/development/knowledge-hub-docs-site/.claude",
-        ".claude",
+        ".claude/**",
         "lib/mcp/plugin-bundle.ts",
         "supabase/types/database.types.ts",
         "~/.claude/.sentinels",
