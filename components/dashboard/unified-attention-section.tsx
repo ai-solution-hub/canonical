@@ -160,7 +160,11 @@ function AttentionItemCard({
           <Link
             href={item.action_url}
             className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 rounded-sm"
-            aria-label={`${item.title} — ${item.action_label}`}
+            aria-label={
+              item.count != null
+                ? `${item.action_label} (${item.count} item${item.count === 1 ? '' : 's'}) — ${item.title}`
+                : `${item.action_label} — ${item.title}`
+            }
           >
             {item.action_label}
             <ArrowRight className="size-3" />
