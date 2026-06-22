@@ -13,8 +13,8 @@
  *  - Lazy import of computeDocumentDiff and analyseDocumentImpact
  *  - Fetch old document's extracted_text from source_documents
  *  - Call computeDocumentDiff(oldId, newId, oldText, newText)
- *  - Store diff rows in source_document_diffs
- *  - Call analyseDocumentImpact(client, newDocumentId)
+ *  - Call analyseDocumentImpact(client, newDocumentId, diffResult.entries)
+ *    (ID-117.11: entries passed in-memory; source_document_diffs no longer written)
  *  - Call sendSourceDocumentUpdateNotifications if items are affected
  *  - Graceful degradation: errors are caught, upload still succeeds
  */
@@ -209,16 +209,18 @@ describe('Upload diff path — analyseDocumentImpact', () => {
     const { analyseDocumentImpact } =
       await import('@/lib/source-documents/source-document-impact');
 
-    // source_documents.select().eq().single() → doc with no parent
-    mockClient._chain.single.mockResolvedValueOnce({
+    // source_documents.select().eq().maybeSingle() → doc with no parent
+    mockClient._chain.maybeSingle.mockResolvedValueOnce({
       data: { id: 'new-doc', filename: 'test.docx', parent_id: null },
       error: null,
     });
 
+    // ID-117.11: pass in-memory entries directly (empty — no diffs)
     const impact = await analyseDocumentImpact(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mockClient as any,
       'new-doc',
+      [],
     );
 
     expect(impact.total_affected_items).toBe(0);
@@ -229,21 +231,18 @@ describe('Upload diff path — analyseDocumentImpact', () => {
     const { analyseDocumentImpact } =
       await import('@/lib/source-documents/source-document-impact');
 
-    // source_documents.select().eq().single() → doc with parent
-    mockClient._chain.single.mockResolvedValueOnce({
+    // source_documents.select().eq().maybeSingle() → doc with parent
+    mockClient._chain.maybeSingle.mockResolvedValueOnce({
       data: { id: 'new-doc', filename: 'test.docx', parent_id: 'old-doc' },
       error: null,
     });
 
-    // source_document_diffs.select().eq().eq().in() → no diffs
-    mockClient._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
-    );
-
+    // ID-117.11: pass empty entries directly — no source_document_diffs fetch
     const impact = await analyseDocumentImpact(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mockClient as any,
       'new-doc',
+      [],
     );
 
     expect(impact.total_affected_items).toBe(0);

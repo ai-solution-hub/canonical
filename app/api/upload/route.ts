@@ -900,7 +900,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Trigger diff computation for re-uploads
-    let diffAvailable = false;
+    // ID-117.11: diff_available stays false (source_document_diffs table dropped
+    // in {117.13}); kept as boolean type so the conditional spread below compiles.
+    let diffAvailable: boolean = false;
     if (reuploadInfo?.match_type === 'new_version' && sourceDocumentId) {
       try {
         const { computeDocumentDiff } =
@@ -924,30 +926,14 @@ export async function POST(request: NextRequest) {
             extractedText,
           );
 
-          // Store diff results
+          // Run impact analysis using in-memory diff entries
+          // (ID-117.11 decouple: source_document_diffs table is being dropped
+          // in {117.13}; no INSERT into that table; pass entries directly)
           if (diffResult.entries.length > 0) {
-            const diffRows = diffResult.entries.map((entry) => ({
-              old_document_id: oldDoc.id,
-              new_document_id: sourceDocumentId,
-              diff_type: entry.diff_type,
-              diff_mode: entry.diff_mode ?? diffResult.diff_mode,
-              old_question: entry.old_question ?? null,
-              new_question: entry.new_question ?? null,
-              old_content: entry.old_content ?? null,
-              new_content: entry.new_content ?? null,
-              similarity_score: entry.similarity_score ?? null,
-              section_header: entry.section_header ?? null,
-              status: 'pending_review',
-            }));
-
-            await serviceClient.from('source_document_diffs').insert(diffRows);
-
-            diffAvailable = true;
-
-            // Run impact analysis
             const impact = await analyseDocumentImpact(
               serviceClient,
               sourceDocumentId,
+              diffResult.entries,
             );
 
             // Send notifications to affected content owners
@@ -1054,7 +1040,7 @@ export async function POST(request: NextRequest) {
       ...(guideSectionSuggestions && {
         guide_section_suggestions: guideSectionSuggestions,
       }),
-      ...(diffAvailable && { diff_available: true }),
+      ...(diffAvailable ? { diff_available: true } : {}),
       message: extractedText
         ? 'File uploaded, text extracted, and AI processing complete.'
         : 'File uploaded but text extraction failed. The file is stored and available for manual processing.',

@@ -7,10 +7,15 @@
  * document version using deterministic substring matching.
  *
  * Phase 4.3 of Content Lifecycle spec.
+ *
+ * ID-117.11 REHOME decouple: accepts in-memory DiffEntry[] directly instead of
+ * re-fetching from source_document_diffs. The back-write of affected_content_item_id
+ * into that table is also removed — the table is being dropped in {117.13}.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
+import type { DiffEntry } from '@/lib/source-documents/document-diff';
 import { sb } from '@/lib/supabase/safe';
 
 export interface ImpactItem {
@@ -32,14 +37,17 @@ export interface ImpactAnalysis {
  * Analyse the impact of a newly uploaded source document version.
  *
  * 1. Follows the parent_id chain to find the previous version.
- * 2. Fetches diff entries (modified/removed) from source_document_diffs.
+ * 2. Uses the caller-supplied diff entries (modified/removed only).
  * 3. Matches each diff entry to content items linked to the old document.
- * 4. Updates affected_content_item_id on matched diff entries.
- * 5. Returns the full impact analysis result.
+ * 4. Returns the full impact analysis result.
+ *
+ * No longer reads or writes source_document_diffs (ID-117.11 decouple;
+ * table is dropped in {117.13}).
  */
 export async function analyseDocumentImpact(
   supabase: SupabaseClient<Database>,
   newDocumentId: string,
+  entries: DiffEntry[],
 ): Promise<ImpactAnalysis> {
   // 1. Get the new document and its parent (previous version)
   const newDoc = await sb(
@@ -63,20 +71,12 @@ export async function analyseDocumentImpact(
 
   const previousVersionId = newDoc.parent_id;
 
-  // 2. Get diff entries for this document pair (modified and removed only)
-  const diffs = await sb(
-    supabase
-      .from('source_document_diffs')
-      .select(
-        'id, diff_type, old_question, old_content, new_question, new_content',
-      )
-      .eq('old_document_id', previousVersionId)
-      .eq('new_document_id', newDocumentId)
-      .in('diff_type', ['modified', 'removed']),
-    'source_document_diffs.forPair',
+  // 2. Filter the caller-supplied entries to modified and removed only
+  const relevantEntries = entries.filter(
+    (e) => e.diff_type === 'modified' || e.diff_type === 'removed',
   );
 
-  if (!diffs || diffs.length === 0) {
+  if (relevantEntries.length === 0) {
     return {
       document_id: newDocumentId,
       document_filename: newDoc.filename,
@@ -109,8 +109,8 @@ export async function analyseDocumentImpact(
   const impactItems: ImpactItem[] = [];
   const matchedItemIds = new Set<string>();
 
-  for (const diff of diffs) {
-    const questionText = diff.old_question?.toLowerCase().trim() ?? '';
+  for (const entry of relevantEntries) {
+    const questionText = entry.old_question?.toLowerCase().trim() ?? '';
     if (!questionText) continue;
 
     // Find the best matching content item
@@ -122,12 +122,12 @@ export async function analyseDocumentImpact(
     matchedItemIds.add(match.id);
 
     const impactType: ImpactItem['impact_type'] =
-      diff.diff_type === 'removed' ? 'source_removed' : 'needs_update';
+      entry.diff_type === 'removed' ? 'source_removed' : 'needs_update';
 
     const diffDetail =
-      diff.diff_type === 'removed'
-        ? `Q&A pair removed: "${truncate(diff.old_question ?? '', 80)}"`
-        : `Q&A pair modified: "${truncate(diff.old_question ?? '', 80)}"`;
+      entry.diff_type === 'removed'
+        ? `Q&A pair removed: "${truncate(entry.old_question ?? '', 80)}"`
+        : `Q&A pair modified: "${truncate(entry.old_question ?? '', 80)}"`;
 
     impactItems.push({
       content_item_id: match.id,
@@ -135,12 +135,6 @@ export async function analyseDocumentImpact(
       impact_type: impactType,
       diff_detail: diffDetail,
     });
-
-    // 5. Update the diff entry with the matched content item ID
-    await supabase
-      .from('source_document_diffs')
-      .update({ affected_content_item_id: match.id })
-      .eq('id', diff.id);
   }
 
   return {
