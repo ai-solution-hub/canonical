@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getAuthorisedClient } from '@/lib/auth';
+import { getAuthorisedClient } from '@/lib/auth/client';
 import { NearDuplicatesPairListClient } from '@/components/admin/content-dedup/near-duplicates/near-duplicates-pair-list';
 
 /**

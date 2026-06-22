@@ -14,7 +14,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import React from 'react';
 import { renderToBuffer } from '@react-pdf/renderer';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
 import { sb } from '@/lib/supabase/safe';
 import { parseSearchParams } from '@/lib/validation';
 import { VerificationHistoryExportParamsSchema } from '@/lib/validation/schemas';

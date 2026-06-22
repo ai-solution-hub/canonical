@@ -22,7 +22,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
 
 // PipelineRunRow is declared elsewhere (lib/query/fetchers.ts per the
 // baseline) and has NO co-located Schema constant. The fixture deliberately

@@ -3,7 +3,7 @@ import {
   getAuthenticatedClient,
   rateLimitResponse,
   authFailureResponse,
-} from '@/lib/auth';
+} from '@/lib/auth/client';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';

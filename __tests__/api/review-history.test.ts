@@ -33,7 +33,7 @@ const mockSupabase = createMockSupabaseClient();
 const mockGetAuthorisedClient = vi.fn();
 const mockAuthFailureResponse = vi.fn();
 
-vi.mock('@/lib/auth', () => ({
+vi.mock('@/lib/auth/client', () => ({
   getAuthorisedClient: (...args: unknown[]) => mockGetAuthorisedClient(...args),
   authFailureResponse: (...args: unknown[]) => mockAuthFailureResponse(...args),
 }));

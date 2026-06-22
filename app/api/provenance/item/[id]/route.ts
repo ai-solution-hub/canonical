@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
 import { getItemProvenance } from '@/lib/provenance/item-provenance';
 import { logger } from '@/lib/logger';
 

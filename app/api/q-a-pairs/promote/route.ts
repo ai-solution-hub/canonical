@@ -24,7 +24,7 @@
 // cross-workspace write.
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
 import { tryQuery } from '@/lib/supabase/safe';
 import { parseBody } from '@/lib/validation';
 import { safeErrorMessage } from '@/lib/error';

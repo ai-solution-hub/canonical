@@ -17,9 +17,11 @@ import {
 
 const mockSupabase: MockSupabaseClient = createMockSupabaseClient();
 
-vi.mock('@/lib/auth', async () => {
+vi.mock('@/lib/auth/client', async () => {
   const actual =
-    await vi.importActual<typeof import('@/lib/auth')>('@/lib/auth');
+    await vi.importActual<typeof import('@/lib/auth/client')>(
+      '@/lib/auth/client',
+    );
   return {
     ...actual,
     getAuthorisedClient: vi.fn(),
@@ -44,7 +46,7 @@ vi.mock('@react-pdf/renderer', () => ({
 }));
 
 import { GET } from '@/app/api/admin/provenance/export/verification-history/route';
-import { getAuthorisedClient } from '@/lib/auth';
+import { getAuthorisedClient } from '@/lib/auth/client';
 import { recordPipelineRun } from '@/lib/pipeline/record-run';
 
 const getAuthorisedClientMock = vi.mocked(getAuthorisedClient);

@@ -1,6 +1,6 @@
 // app/api/intelligence/workspaces/[id]/sources/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBodyAsync } from '@/lib/validation';
 import { FeedSourceCreateSchema } from '@/lib/validation/schemas';

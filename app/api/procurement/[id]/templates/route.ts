@@ -4,7 +4,7 @@ import {
   getAuthorisedClient,
   authFailureResponse,
   rateLimitResponse,
-} from '@/lib/auth';
+} from '@/lib/auth/client';
 import { isEncryptedDocx } from '@/lib/docx-utils';
 import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';

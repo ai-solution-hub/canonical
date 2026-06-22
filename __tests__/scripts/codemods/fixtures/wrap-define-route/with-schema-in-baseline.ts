@@ -21,7 +21,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
 
 // Synthetic schema constant mirroring the Source-A name-convention lookup
 // target (`${interfaceName}Schema`). Subtask 32.8 will resolve the real

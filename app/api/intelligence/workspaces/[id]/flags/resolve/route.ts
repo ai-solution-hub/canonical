@@ -1,7 +1,7 @@
 // app/api/intelligence/workspaces/[id]/flags/resolve/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
 import { sb } from '@/lib/supabase/safe';
 import {
   createWarningsCollector,

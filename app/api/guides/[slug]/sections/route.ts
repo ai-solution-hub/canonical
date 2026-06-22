@@ -3,7 +3,7 @@ import {
   getAuthenticatedClient,
   getAuthorisedClient,
   authFailureResponse,
-} from '@/lib/auth';
+} from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import {
@@ -12,7 +12,7 @@ import {
 } from '@/lib/validation/guide-schemas';
 import { fetchActiveLayerKeys } from '@/lib/validation/layer-schemas';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { rateLimitResponse } from '@/lib/auth';
+import { rateLimitResponse } from '@/lib/auth/client';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 import { logger } from '@/lib/logger';

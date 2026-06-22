@@ -37,9 +37,11 @@ const mockDispatchResult = vi.hoisted(() => ({
 
 const mockSupabase: MockSupabaseClient = createMockSupabaseClient();
 
-vi.mock('@/lib/auth', async () => {
+vi.mock('@/lib/auth/client', async () => {
   const actual =
-    await vi.importActual<typeof import('@/lib/auth')>('@/lib/auth');
+    await vi.importActual<typeof import('@/lib/auth/client')>(
+      '@/lib/auth/client',
+    );
   return {
     ...actual,
     getAuthorisedClient: vi.fn(),
@@ -66,7 +68,7 @@ vi.mock('@sentry/nextjs', () => ({
 // ---------------------------------------------------------------------------
 
 import { POST } from '@/app/api/admin/taxonomy-sync/route';
-import { getAuthorisedClient } from '@/lib/auth';
+import { getAuthorisedClient } from '@/lib/auth/client';
 import { recordPipelineRun } from '@/lib/pipeline/record-run';
 import { dispatchTaxonomySync } from '@/lib/integrations/github-dispatch';
 import * as Sentry from '@sentry/nextjs';

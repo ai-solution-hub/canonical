@@ -35,7 +35,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { join } from 'node:path';
 import { writeFile } from 'node:fs/promises';
 import { z } from 'zod';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
 import { tryQuery, isOk, type PostgrestLike } from '@/lib/supabase/safe';
 import { parseBody } from '@/lib/validation';
 import { safeErrorMessage } from '@/lib/error';

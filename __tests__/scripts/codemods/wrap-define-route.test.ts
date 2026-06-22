@@ -964,7 +964,7 @@ describe('wrap-define-route rewriteSingleMethod — Subtask 32.10', () => {
        */
 
       import { NextRequest, NextResponse } from 'next/server';
-      import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+      import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
       import { defineRoute } from "@/lib/api/define-route";
       import { InsightsResponseSchema } from "@/lib/validation/schemas";
 
@@ -1003,7 +1003,7 @@ describe('wrap-define-route rewriteSingleMethod — Subtask 32.10', () => {
        */
 
       import { NextRequest, NextResponse } from 'next/server';
-      import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+      import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
       import { withRequestContext } from '@/lib/logger';
       import { defineRoute } from "@/lib/api/define-route";
       import { ActivityFeedResponseSchema } from "@/lib/validation/schemas";
@@ -1053,7 +1053,7 @@ describe('wrap-define-route rewriteSingleMethod — Subtask 32.10', () => {
 
       import { NextRequest, NextResponse } from 'next/server';
       import { z } from 'zod';
-      import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+      import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
       import { parseBody } from '@/lib/validation';
       import { defineRoute } from "@/lib/api/define-route";
       import { ClassifyItemResponseSchema } from "@/lib/validation/schemas";
@@ -1105,7 +1105,7 @@ describe('wrap-define-route rewriteSingleMethod — Subtask 32.10', () => {
 
       import { NextRequest, NextResponse } from 'next/server';
       import { z } from 'zod';
-      import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+      import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
       import { parseBody } from '@/lib/validation';
       import { defineRoute } from "@/lib/api/define-route";
       import { SearchResponseSchema } from "@/lib/validation/schemas";
@@ -1154,7 +1154,7 @@ describe('wrap-define-route rewriteSingleMethod — Subtask 32.10', () => {
        */
 
       import { NextRequest, NextResponse } from 'next/server';
-      import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+      import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
       import { defineRoute } from "@/lib/api/define-route";
       import { EntityResponseSchema } from "@/lib/validation/schemas";
 
@@ -1203,7 +1203,7 @@ describe('wrap-define-route rewriteSingleMethod — Subtask 32.10', () => {
     const project = new Project({ useInMemoryFileSystem: true });
     const sourceWithImport = `
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
 import { defineRoute } from '@/lib/api/define-route';
 
 export async function GET(_request: NextRequest) {
@@ -1369,7 +1369,7 @@ describe('wrap-define-route rewriteSingleMethod — schema-expression imports (S
     const source = `
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
 
 export async function GET(_request: NextRequest) {
   const auth = await getAuthorisedClient(['admin']);
@@ -1395,7 +1395,7 @@ export async function GET(_request: NextRequest) {
     const source = `
 import { NextRequest, NextResponse } from 'next/server';
 import { ActivityParamsSchema } from '@/lib/validation/schemas';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
 
 export async function GET(_request: NextRequest) {
   const auth = await getAuthorisedClient(['admin']);
@@ -1828,7 +1828,7 @@ describe('wrap-define-route isAlreadyWrapped — Subtask 32.13 (PRODUCT §4 idem
     const sourceWrcWrapped = `
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
 import { withRequestContext } from '@/lib/logger';
 import { defineRoute } from '@/lib/api/define-route';
 
@@ -2196,7 +2196,7 @@ function makeRouteSource(
  * substring scan.
  */
 const BARE_WRAPPED_ROUTE_SOURCE = `import { NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
 import { logger, withRequestContextBare } from '@/lib/logger';
 
 export const maxDuration = 30;
@@ -2244,7 +2244,7 @@ describe('wrap-define-route — withRequestContextBare safety (S262 fix B1)', ()
     const sf = makeRouteSource(
       '/repo/app/api/activity/route.ts',
       `import { NextResponse, type NextRequest } from 'next/server';
-import { getAuthorisedClient } from '@/lib/auth';
+import { getAuthorisedClient } from '@/lib/auth/client';
 import { withRequestContext } from '@/lib/logger';
 
 export const GET = withRequestContext(async (_request: NextRequest) => {
@@ -2264,7 +2264,7 @@ export const GET = withRequestContext(async (_request: NextRequest) => {
     const sf = makeRouteSource(
       '/repo/app/api/notes/route.ts',
       `import { NextResponse } from 'next/server';
-import { getAuthorisedClient } from '@/lib/auth';
+import { getAuthorisedClient } from '@/lib/auth/client';
 
 /**
  * Historically this route was wrapped with withRequestContext but is now bare.

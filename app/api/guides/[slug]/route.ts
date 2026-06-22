@@ -3,12 +3,12 @@ import {
   getAuthenticatedClient,
   getAuthorisedClient,
   authFailureResponse,
-} from '@/lib/auth';
+} from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { guideUpdateSchema } from '@/lib/validation/guide-schemas';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { rateLimitResponse } from '@/lib/auth';
+import { rateLimitResponse } from '@/lib/auth/client';
 import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;

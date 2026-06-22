@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import {
   getAuthenticatedClient,
   authFailureResponse,
-} from '@/lib/auth';
+} from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { listAvailableTemplates } from '@/lib/templates/template-coverage';
 

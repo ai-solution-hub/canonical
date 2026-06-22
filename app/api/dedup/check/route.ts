@@ -3,7 +3,7 @@ import {
   getAuthorisedClient,
   authFailureResponse,
   rateLimitResponse,
-} from '@/lib/auth';
+} from '@/lib/auth/client';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { checkForDuplicates } from '@/lib/dedup/content-dedup';
 import { safeErrorMessage } from '@/lib/error';

@@ -5,7 +5,7 @@
  * Invalidates the client's sessions and refresh tokens immediately.
  */
 import { NextResponse } from 'next/server';
-import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth';
+import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth/client';
 import { parseBody } from '@/lib/validation';
 import { RevokeSchema } from '@/lib/validation/schemas';
 import { safeErrorMessage } from '@/lib/error';

@@ -1,7 +1,7 @@
 // app/api/intelligence/trigger-poll/route.ts
 import { NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
 import { runPipeline } from '@/lib/intelligence/pipeline';
 
 export async function POST() {

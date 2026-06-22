@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
 import { fetchReorientData } from '@/lib/reorient';
 import { safeErrorMessage } from '@/lib/error';
 

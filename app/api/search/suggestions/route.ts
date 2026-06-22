@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth';
+import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth/client';
 import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;

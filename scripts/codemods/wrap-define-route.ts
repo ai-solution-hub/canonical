@@ -508,7 +508,7 @@ export function classifyRoute(sf: SourceFile): RouteShape {
   // import. Both helpers are covered per TECH §8.4.
   const hasAuth = sf.getImportDeclarations().some((decl) => {
     const moduleSpecifier = decl.getModuleSpecifierValue();
-    if (!moduleSpecifier.includes('@/lib/auth')) return false;
+    if (!moduleSpecifier.includes('@/lib/auth/client')) return false;
     return decl
       .getNamedImports()
       .some((named) =>

@@ -4,7 +4,7 @@ import {
   getAuthorisedClient,
   authFailureResponse,
   rateLimitResponse,
-} from '@/lib/auth';
+} from '@/lib/auth/client';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { sb } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';

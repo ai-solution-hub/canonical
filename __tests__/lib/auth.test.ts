@@ -49,7 +49,7 @@ vi.mock('next/headers', () => ({
   }),
 }));
 
-import { getAuthenticatedClient, getAuthorisedClient } from '@/lib/auth';
+import { getAuthenticatedClient, getAuthorisedClient } from '@/lib/auth/client';
 
 describe('lib/auth helpers', () => {
   beforeEach(() => {

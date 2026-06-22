@@ -3,7 +3,7 @@ import {
   getAuthenticatedClient,
   getAuthorisedClient,
   authFailureResponse,
-} from '@/lib/auth';
+} from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody, parseSearchParams } from '@/lib/validation';
 import {

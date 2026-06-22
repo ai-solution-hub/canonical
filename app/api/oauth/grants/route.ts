@@ -5,7 +5,7 @@
  * Used by the Connected Apps section of the settings page.
  */
 import { NextResponse } from 'next/server';
-import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth';
+import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 
 export const maxDuration = 30;

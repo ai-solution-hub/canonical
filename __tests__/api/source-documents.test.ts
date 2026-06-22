@@ -14,7 +14,7 @@ vi.mock('@/lib/supabase/server', () => ({
   createServiceClient: () => mockServiceClient,
 }));
 
-vi.mock('@/lib/auth', () => ({
+vi.mock('@/lib/auth/client', () => ({
   getAuthenticatedClient: vi.fn().mockResolvedValue({
     success: true,
     supabase: createMockSupabaseClient(),

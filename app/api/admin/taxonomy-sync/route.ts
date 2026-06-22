@@ -19,7 +19,7 @@
 
 import { NextResponse } from 'next/server';
 import * as Sentry from '@sentry/nextjs';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
 import { sb } from '@/lib/supabase/safe';
 import { computeTaxonomyHash } from '@/lib/taxonomy/sync-trigger';
 import { dispatchTaxonomySync } from '@/lib/integrations/github-dispatch';

@@ -3,7 +3,7 @@ import {
   getAuthenticatedClient,
   getAuthorisedClient,
   authFailureResponse,
-} from '@/lib/auth';
+} from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { createServiceClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/logger';

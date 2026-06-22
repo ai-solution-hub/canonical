@@ -13,7 +13,7 @@
  * Ordered by label ascending.
  */
 import { NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 
 /** GET /api/application-types — list all application types */

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { buildGuideSectionUpdateSchema } from '@/lib/validation/guide-schemas';
 import { fetchActiveLayerKeys } from '@/lib/validation/layer-schemas';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { rateLimitResponse } from '@/lib/auth';
+import { rateLimitResponse } from '@/lib/auth/client';
 import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;

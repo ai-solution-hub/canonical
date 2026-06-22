@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
 import { CLIENT_CONFIG } from '@/lib/client-config';
 import { logger } from '@/lib/logger';
 import { enqueueQueueJob } from '@/lib/queue/enqueue';
