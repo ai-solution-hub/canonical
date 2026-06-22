@@ -41,104 +41,138 @@ type DriftFlag = {
   decision_rationale: string | null;
 };
 
-// TODO(OPS-T1): author ResponseSchema
-export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
-  try {
-    const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth.success) return authFailureResponse(auth);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabase = auth.supabase as any;
+// GET returns `{ flags, total, limit, offset }` where `flags` is an array of
+// DriftFlag rows (mirrors the local DriftFlag type field-for-field — see above;
+// `decision` is the constrained enum, the three decided_* columns are nullable).
+const DriftFlagSchema = z.object({
+  id: z.string(),
+  stored_tag: z.string(),
+  proposed_canonical: z.string(),
+  usage_count: z.number(),
+  affected_content_ids: z.array(z.string()),
+  detected_at: z.string(),
+  decision: z.enum(['pending', 'accept', 'add_override', 'dismiss']),
+  decided_by: z.string().nullable(),
+  decided_at: z.string().nullable(),
+  decision_rationale: z.string().nullable(),
+});
+const GetTagMorphologyFlagsResponseSchema = z.object({
+  flags: z.array(DriftFlagSchema),
+  total: z.number(),
+  limit: z.number(),
+  offset: z.number(),
+});
 
-    const parsed = parseSearchParams(
-      TagMorphologyFlagsQuerySchema,
-      request.nextUrl.searchParams,
-    );
-    if (!parsed.success) return parsed.response;
-    const { decision, limit = 100, offset = 0 } = parsed.data;
+export const GET = defineRoute(
+  GetTagMorphologyFlagsResponseSchema,
+  async (request: NextRequest) => {
+    try {
+      const auth = await getAuthorisedClient(['admin', 'editor']);
+      if (!auth.success) return authFailureResponse(auth);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const supabase = auth.supabase as any;
 
-    let query = supabase
-      .from('tag_morphology_drift_flags')
-      .select(
-        'id, stored_tag, proposed_canonical, usage_count, affected_content_ids, detected_at, decision, decided_by, decided_at, decision_rationale',
-        { count: 'exact' },
-      )
-      .order('usage_count', { ascending: false })
-      .order('detected_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+      const parsed = parseSearchParams(
+        TagMorphologyFlagsQuerySchema,
+        request.nextUrl.searchParams,
+      );
+      if (!parsed.success) return parsed.response;
+      const { decision, limit = 100, offset = 0 } = parsed.data;
 
-    if (decision) {
-      query = query.eq('decision', decision);
-    }
+      let query = supabase
+        .from('tag_morphology_drift_flags')
+        .select(
+          'id, stored_tag, proposed_canonical, usage_count, affected_content_ids, detected_at, decision, decided_by, decided_at, decision_rationale',
+          { count: 'exact' },
+        )
+        .order('usage_count', { ascending: false })
+        .order('detected_at', { ascending: false })
+        .range(offset, offset + limit - 1);
 
-    // `sb()` extracts only `data`; this route also needs `count` (for paginated
-    // total). We invoke the query once, throw `SupabaseError` on failure (same
-    // error class `sb()` throws — see `lib/supabase/safe.ts`), and read both
-    // `data` and `count` from the resolved response. POST below uses `sb()`
-    // directly because it does not need `count`.
-    const result = await query;
-    if (result.error) {
-      throw new SupabaseError(
-        result.error,
-        'tag_morphology_drift_flags.select',
+      if (decision) {
+        query = query.eq('decision', decision);
+      }
+
+      // `sb()` extracts only `data`; this route also needs `count` (for paginated
+      // total). We invoke the query once, throw `SupabaseError` on failure (same
+      // error class `sb()` throws — see `lib/supabase/safe.ts`), and read both
+      // `data` and `count` from the resolved response. POST below uses `sb()`
+      // directly because it does not need `count`.
+      const result = await query;
+      if (result.error) {
+        throw new SupabaseError(
+          result.error,
+          'tag_morphology_drift_flags.select',
+        );
+      }
+
+      return NextResponse.json({
+        flags: (result.data ?? []) as DriftFlag[],
+        total: result.count ?? 0,
+        limit,
+        offset,
+      });
+    } catch (err) {
+      return NextResponse.json(
+        { error: safeErrorMessage(err, 'Failed to list tag morphology flags') },
+        { status: 500 },
       );
     }
+  },
+);
 
-    return NextResponse.json({
-      flags: (result.data ?? []) as DriftFlag[],
-      total: result.count ?? 0,
-      limit,
-      offset,
-    });
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to list tag morphology flags') },
-      { status: 500 },
-    );
-  }
+// POST returns the upsert summary: `{ inserted, total }` (both counts).
+const PostTagMorphologyFlagsResponseSchema = z.object({
+  inserted: z.number(),
+  total: z.number(),
 });
 
-// TODO(OPS-T1): author ResponseSchema
-export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
-  try {
-    const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth.success) return authFailureResponse(auth);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabase = auth.supabase as any;
+export const POST = defineRoute(
+  PostTagMorphologyFlagsResponseSchema,
+  async (request: NextRequest) => {
+    try {
+      const auth = await getAuthorisedClient(['admin', 'editor']);
+      if (!auth.success) return authFailureResponse(auth);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const supabase = auth.supabase as any;
 
-    const raw = await request.json();
-    const parsed = parseBody(TagMorphologyFlagsBulkInsertSchema, raw);
-    if (!parsed.success) return parsed.response;
-    const { flags } = parsed.data;
+      const raw = await request.json();
+      const parsed = parseBody(TagMorphologyFlagsBulkInsertSchema, raw);
+      if (!parsed.success) return parsed.response;
+      const { flags } = parsed.data;
 
-    // Upsert on (stored_tag, proposed_canonical) — re-runs of the eval refresh
-    // usage_count + affected_content_ids without resetting an existing decision.
-    const inserted = (await sb(
-      supabase
-        .from('tag_morphology_drift_flags')
-        .upsert(
-          flags.map((f) => ({
-            stored_tag: f.stored_tag,
-            proposed_canonical: f.proposed_canonical,
-            usage_count: f.usage_count,
-            affected_content_ids: f.affected_content_ids,
-          })),
-          {
-            onConflict: 'stored_tag,proposed_canonical',
-            ignoreDuplicates: false,
-          },
-        )
-        .select('id'),
-      'tag_morphology_drift_flags.upsert',
-    )) as { id: string }[];
+      // Upsert on (stored_tag, proposed_canonical) — re-runs of the eval refresh
+      // usage_count + affected_content_ids without resetting an existing decision.
+      const inserted = (await sb(
+        supabase
+          .from('tag_morphology_drift_flags')
+          .upsert(
+            flags.map((f) => ({
+              stored_tag: f.stored_tag,
+              proposed_canonical: f.proposed_canonical,
+              usage_count: f.usage_count,
+              affected_content_ids: f.affected_content_ids,
+            })),
+            {
+              onConflict: 'stored_tag,proposed_canonical',
+              ignoreDuplicates: false,
+            },
+          )
+          .select('id'),
+        'tag_morphology_drift_flags.upsert',
+      )) as { id: string }[];
 
-    return NextResponse.json({
-      inserted: inserted.length,
-      total: flags.length,
-    });
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to insert tag morphology flags') },
-      { status: 500 },
-    );
-  }
-});
+      return NextResponse.json({
+        inserted: inserted.length,
+        total: flags.length,
+      });
+    } catch (err) {
+      return NextResponse.json(
+        {
+          error: safeErrorMessage(err, 'Failed to insert tag morphology flags'),
+        },
+        { status: 500 },
+      );
+    }
+  },
+);

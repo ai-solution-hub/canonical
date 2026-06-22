@@ -15,109 +15,140 @@ import { z } from 'zod';
 
 export const maxDuration = 15;
 
-// TODO(OPS-T1): author ResponseSchema
-export const GET = defineRoute(z.unknown(), async () => {
-  try {
-    const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth.success) return authFailureResponse(auth);
-
-    const profile = await getOrganisationProfile(auth.supabase);
-    return NextResponse.json({ profile });
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to fetch organisation profile') },
-      { status: 500 },
-    );
-  }
+/** The public organisation-profile shape (mirrors `OrganisationProfile` in
+ *  lib/organisation-profile.ts and the GET/PUT column selection). GET wraps it
+ *  `.nullable()` (no primary profile → null); PUT always returns the row. */
+const OrganisationProfileSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  website_url: z.string().nullable(),
+  sectors: z.array(z.string()),
+  services: z.array(z.string()),
+  certifications: z.array(z.string()),
+  geographic_scope: z.array(z.string()),
+  target_customers: z.string().nullable(),
+  value_proposition: z.string().nullable(),
+  key_topics: z.array(z.string()),
 });
 
-// TODO(OPS-T1): author ResponseSchema
-export const PUT = defineRoute(z.unknown(), async (request: NextRequest) => {
-  try {
-    const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth.success) return authFailureResponse(auth);
-    const { supabase, user } = auth;
+const GetOrganisationProfileResponseSchema = z.object({
+  profile: OrganisationProfileSchema.nullable(),
+});
 
-    const raw = await request.json();
-    const parsed = parseBody(OrganisationProfileUpsertSchema, raw);
-    if (!parsed.success) return parsed.response;
+export const GET = defineRoute(
+  GetOrganisationProfileResponseSchema,
+  async () => {
+    try {
+      const auth = await getAuthorisedClient(['admin', 'editor']);
+      if (!auth.success) return authFailureResponse(auth);
 
-    const { data: validated } = parsed;
-    const existing = await getFullPrimaryProfile(supabase);
-
-    // Resolve slug — auto-generate from name, handle UNIQUE collisions
-    const slug = await resolveUniqueSlug(
-      supabase,
-      generateSlug(validated.name),
-      existing?.id,
-    );
-
-    // Normalise empty-string website_url to null for consistent DB storage
-    const websiteUrl = validated.website_url?.trim() || null;
-
-    if (existing) {
-      // Update existing primary profile
-      const data = await sb(
-        supabase
-          .from('company_profiles')
-          .update({
-            name: validated.name,
-            slug,
-            description: validated.description ?? null,
-            website_url: websiteUrl,
-            sectors: validated.sectors,
-            services: validated.services,
-            certifications: validated.certifications,
-            geographic_scope: validated.geographic_scope,
-            target_customers: validated.target_customers ?? null,
-            value_proposition: validated.value_proposition ?? null,
-            key_topics: validated.key_topics,
-          })
-          .eq('id', existing.id)
-          .select(
-            'id, name, description, website_url, sectors, services, certifications, geographic_scope, target_customers, value_proposition, key_topics',
-          )
-          .single(),
+      const profile = await getOrganisationProfile(auth.supabase);
+      return NextResponse.json({ profile });
+    } catch (err) {
+      return NextResponse.json(
+        {
+          error: safeErrorMessage(err, 'Failed to fetch organisation profile'),
+        },
+        { status: 500 },
       );
-
-      return NextResponse.json({ profile: data });
-    } else {
-      // Create new primary profile
-      const data = await sb(
-        supabase
-          .from('company_profiles')
-          .insert({
-            name: validated.name,
-            slug,
-            description: validated.description ?? null,
-            website_url: websiteUrl,
-            sectors: validated.sectors,
-            services: validated.services,
-            certifications: validated.certifications,
-            geographic_scope: validated.geographic_scope,
-            competitors: [],
-            target_customers: validated.target_customers ?? null,
-            value_proposition: validated.value_proposition ?? null,
-            key_topics: validated.key_topics,
-            is_active: true,
-            is_primary: true,
-            created_by: user.id,
-          })
-          .select(
-            'id, name, description, website_url, sectors, services, certifications, geographic_scope, target_customers, value_proposition, key_topics',
-          )
-          .single(),
-      );
-
-      return NextResponse.json({ profile: data }, { status: 201 });
     }
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to save organisation profile') },
-      { status: 500 },
-    );
-  }
+  },
+);
+
+const PutOrganisationProfileResponseSchema = z.object({
+  profile: OrganisationProfileSchema,
 });
+
+export const PUT = defineRoute(
+  PutOrganisationProfileResponseSchema,
+  async (request: NextRequest) => {
+    try {
+      const auth = await getAuthorisedClient(['admin', 'editor']);
+      if (!auth.success) return authFailureResponse(auth);
+      const { supabase, user } = auth;
+
+      const raw = await request.json();
+      const parsed = parseBody(OrganisationProfileUpsertSchema, raw);
+      if (!parsed.success) return parsed.response;
+
+      const { data: validated } = parsed;
+      const existing = await getFullPrimaryProfile(supabase);
+
+      // Resolve slug — auto-generate from name, handle UNIQUE collisions
+      const slug = await resolveUniqueSlug(
+        supabase,
+        generateSlug(validated.name),
+        existing?.id,
+      );
+
+      // Normalise empty-string website_url to null for consistent DB storage
+      const websiteUrl = validated.website_url?.trim() || null;
+
+      if (existing) {
+        // Update existing primary profile
+        const data = await sb(
+          supabase
+            .from('company_profiles')
+            .update({
+              name: validated.name,
+              slug,
+              description: validated.description ?? null,
+              website_url: websiteUrl,
+              sectors: validated.sectors,
+              services: validated.services,
+              certifications: validated.certifications,
+              geographic_scope: validated.geographic_scope,
+              target_customers: validated.target_customers ?? null,
+              value_proposition: validated.value_proposition ?? null,
+              key_topics: validated.key_topics,
+            })
+            .eq('id', existing.id)
+            .select(
+              'id, name, description, website_url, sectors, services, certifications, geographic_scope, target_customers, value_proposition, key_topics',
+            )
+            .single(),
+        );
+
+        return NextResponse.json({ profile: data });
+      } else {
+        // Create new primary profile
+        const data = await sb(
+          supabase
+            .from('company_profiles')
+            .insert({
+              name: validated.name,
+              slug,
+              description: validated.description ?? null,
+              website_url: websiteUrl,
+              sectors: validated.sectors,
+              services: validated.services,
+              certifications: validated.certifications,
+              geographic_scope: validated.geographic_scope,
+              competitors: [],
+              target_customers: validated.target_customers ?? null,
+              value_proposition: validated.value_proposition ?? null,
+              key_topics: validated.key_topics,
+              is_active: true,
+              is_primary: true,
+              created_by: user.id,
+            })
+            .select(
+              'id, name, description, website_url, sectors, services, certifications, geographic_scope, target_customers, value_proposition, key_topics',
+            )
+            .single(),
+        );
+
+        return NextResponse.json({ profile: data }, { status: 201 });
+      }
+    } catch (err) {
+      return NextResponse.json(
+        { error: safeErrorMessage(err, 'Failed to save organisation profile') },
+        { status: 500 },
+      );
+    }
+  },
+);
 
 // ---------------------------------------------------------------------------
 // Helpers

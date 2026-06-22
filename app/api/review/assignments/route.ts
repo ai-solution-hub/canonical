@@ -81,175 +81,232 @@ export const GET = defineRoute(
   },
 );
 
-// TODO(OPS-T1): author ResponseSchema
-export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
-  try {
-    const auth = await getAuthorisedClient(['admin']);
-    if (!auth.success) return authFailureResponse(auth);
-    const { user, supabase } = auth;
+/** A `review_assignments` row as returned by `.select('*').single()` on
+ *  create (POST) / update (PATCH). Both methods return `{ assignment: <row> }`. */
+const ReviewAssignmentRowSchema = z.object({
+  id: z.string(),
+  reviewer_id: z.string(),
+  assigned_by: z.string().nullable(),
+  assignment_type: z.string().nullable().optional(),
+  filter_domains: z.array(z.string()).nullable(),
+  filter_content_types: z.array(z.string()).nullable(),
+  filter_freshness: z.array(z.string()).nullable(),
+  filter_date_from: z.string().nullable().optional(),
+  filter_date_to: z.string().nullable().optional(),
+  item_count: z.number().nullable(),
+  status: z.string(),
+  notes: z.string().nullable(),
+  due_date: z.string().nullable().optional(),
+  completed_at: z.string().nullable().optional(),
+  created_at: z.string().nullable().optional(),
+});
 
-    const { allowed } = checkRateLimit(
-      `review-assignments-create:${user.id}`,
-      10,
-      60_000,
-    );
-    if (!allowed) return rateLimitResponse();
+const PostReviewAssignmentResponseSchema = z.object({
+  assignment: ReviewAssignmentRowSchema,
+});
 
-    const raw = await request.json();
-    const parsed = parseBody(ReviewAssignmentBodySchema, raw);
-    if (!parsed.success) return parsed.response;
+export const POST = defineRoute(
+  PostReviewAssignmentResponseSchema,
+  async (request: NextRequest) => {
+    try {
+      const auth = await getAuthorisedClient(['admin']);
+      if (!auth.success) return authFailureResponse(auth);
+      const { user, supabase } = auth;
 
-    const {
-      reviewer_id,
-      filter_domains,
-      filter_content_types,
-      filter_freshness,
-      filter_date_from,
-      filter_date_to,
-      due_date,
-      notes,
-    } = parsed.data;
-
-    // Compute item_count by running a count query with the filter criteria
-    let countQuery = supabase
-      .from('content_items')
-      .select('id', { count: 'exact', head: true });
-
-    if (filter_domains.length > 0) {
-      countQuery = countQuery.in('primary_domain', filter_domains);
-    }
-    if (filter_content_types.length > 0) {
-      countQuery = countQuery.in('content_type', filter_content_types);
-    }
-    if (filter_freshness.length > 0) {
-      countQuery = countQuery.in('freshness', filter_freshness);
-    }
-    if (filter_date_from) {
-      countQuery = countQuery.gte('captured_date', filter_date_from);
-    }
-    if (filter_date_to) {
-      countQuery = countQuery.lte('captured_date', filter_date_to);
-    }
-
-    const { count: itemCount, error: countError } = await countQuery;
-
-    if (countError) {
-      logger.error({ err: countError }, 'Failed to count matching items');
-      return NextResponse.json(
-        { error: 'Failed to compute item count for assignment' },
-        { status: 500 },
+      const { allowed } = checkRateLimit(
+        `review-assignments-create:${user.id}`,
+        10,
+        60_000,
       );
-    }
+      if (!allowed) return rateLimitResponse();
 
-    // Insert the assignment
-    const { data: rawAssignment, error: insertError } = await supabase
-      .from('review_assignments')
-      .insert({
+      const raw = await request.json();
+      const parsed = parseBody(ReviewAssignmentBodySchema, raw);
+      if (!parsed.success) return parsed.response;
+
+      const {
         reviewer_id,
-        assigned_by: user.id,
-        assignment_type: 'manual',
         filter_domains,
         filter_content_types,
         filter_freshness,
-        filter_date_from: filter_date_from ?? null,
-        filter_date_to: filter_date_to ?? null,
-        item_count: itemCount ?? 0,
-        due_date: due_date ?? null,
-        notes: notes ?? null,
-      })
-      .select('*')
-      .single();
+        filter_date_from,
+        filter_date_to,
+        due_date,
+        notes,
+      } = parsed.data;
 
-    if (insertError || !rawAssignment) {
-      logger.error({ err: insertError }, 'Failed to create review assignment');
+      // Compute item_count by running a count query with the filter criteria
+      let countQuery = supabase
+        .from('content_items')
+        .select('id', { count: 'exact', head: true });
+
+      if (filter_domains.length > 0) {
+        countQuery = countQuery.in('primary_domain', filter_domains);
+      }
+      if (filter_content_types.length > 0) {
+        countQuery = countQuery.in('content_type', filter_content_types);
+      }
+      if (filter_freshness.length > 0) {
+        countQuery = countQuery.in('freshness', filter_freshness);
+      }
+      if (filter_date_from) {
+        countQuery = countQuery.gte('captured_date', filter_date_from);
+      }
+      if (filter_date_to) {
+        countQuery = countQuery.lte('captured_date', filter_date_to);
+      }
+
+      const { count: itemCount, error: countError } = await countQuery;
+
+      if (countError) {
+        logger.error({ err: countError }, 'Failed to count matching items');
+        return NextResponse.json(
+          { error: 'Failed to compute item count for assignment' },
+          { status: 500 },
+        );
+      }
+
+      // Insert the assignment
+      const { data: rawAssignment, error: insertError } = await supabase
+        .from('review_assignments')
+        .insert({
+          reviewer_id,
+          assigned_by: user.id,
+          assignment_type: 'manual',
+          filter_domains,
+          filter_content_types,
+          filter_freshness,
+          filter_date_from: filter_date_from ?? null,
+          filter_date_to: filter_date_to ?? null,
+          item_count: itemCount ?? 0,
+          due_date: due_date ?? null,
+          notes: notes ?? null,
+        })
+        .select('*')
+        .single();
+
+      if (insertError || !rawAssignment) {
+        logger.error(
+          { err: insertError },
+          'Failed to create review assignment',
+        );
+        return NextResponse.json(
+          { error: 'Failed to create review assignment' },
+          { status: 500 },
+        );
+      }
+
+      // Create notification for the assignee
+      try {
+        await createNotification({
+          supabase,
+          userId: reviewer_id,
+          type: 'governance_review_needed',
+          entityType: 'content_item',
+          entityId: rawAssignment.id,
+          title: 'New review assignment',
+          message: notes
+            ? `Review assignment: ${notes}`
+            : `You have been assigned ${itemCount ?? 0} items to review.`,
+        });
+      } catch (notifErr) {
+        // Non-fatal — log but don't fail the assignment creation
+        logger.warn(
+          { err: notifErr },
+          'Failed to create assignment notification',
+        );
+      }
+
+      return NextResponse.json({ assignment: rawAssignment }, { status: 201 });
+    } catch (err) {
       return NextResponse.json(
-        { error: 'Failed to create review assignment' },
+        { error: safeErrorMessage(err, 'Failed to create review assignment') },
         { status: 500 },
       );
     }
+  },
+);
 
-    // Create notification for the assignee
+/** PATCH returns `{ assignment: <updated review_assignments row> }`. The
+ *  update select returns the full row at runtime, but only id/status are
+ *  guaranteed on every 2xx path — the rest are nullable DB columns. */
+const PatchReviewAssignmentResponseSchema = z.object({
+  assignment: z.object({
+    id: z.string(),
+    status: z.string(),
+    reviewer_id: z.string().optional(),
+    assigned_by: z.string().nullable().optional(),
+    assignment_type: z.string().nullable().optional(),
+    filter_domains: z.array(z.string()).nullable().optional(),
+    filter_content_types: z.array(z.string()).nullable().optional(),
+    filter_freshness: z.array(z.string()).nullable().optional(),
+    filter_date_from: z.string().nullable().optional(),
+    filter_date_to: z.string().nullable().optional(),
+    item_count: z.number().nullable().optional(),
+    notes: z.string().nullable().optional(),
+    due_date: z.string().nullable().optional(),
+    completed_at: z.string().nullable().optional(),
+    created_at: z.string().nullable().optional(),
+  }),
+});
+
+export const PATCH = defineRoute(
+  PatchReviewAssignmentResponseSchema,
+  async (request: NextRequest) => {
     try {
-      await createNotification({
-        supabase,
-        userId: reviewer_id,
-        type: 'governance_review_needed',
-        entityType: 'content_item',
-        entityId: rawAssignment.id,
-        title: 'New review assignment',
-        message: notes
-          ? `Review assignment: ${notes}`
-          : `You have been assigned ${itemCount ?? 0} items to review.`,
-      });
-    } catch (notifErr) {
-      // Non-fatal — log but don't fail the assignment creation
-      logger.warn(
-        { err: notifErr },
-        'Failed to create assignment notification',
+      const auth = await getAuthorisedClient(['admin', 'editor']);
+      if (!auth.success) return authFailureResponse(auth);
+      const { user, supabase } = auth;
+
+      const { allowed } = checkRateLimit(
+        `review-assignments-update:${user.id}`,
+        20,
+        60_000,
       );
-    }
+      if (!allowed) return rateLimitResponse();
 
-    return NextResponse.json({ assignment: rawAssignment }, { status: 201 });
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to create review assignment') },
-      { status: 500 },
-    );
-  }
-});
+      const raw = await request.json();
+      const parsed = parseBody(ReviewAssignmentUpdateSchema, raw);
+      if (!parsed.success) return parsed.response;
 
-// TODO(OPS-T1): author ResponseSchema
-export const PATCH = defineRoute(z.unknown(), async (request: NextRequest) => {
-  try {
-    const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth.success) return authFailureResponse(auth);
-    const { user, supabase } = auth;
+      const { id, status } = parsed.data;
 
-    const { allowed } = checkRateLimit(
-      `review-assignments-update:${user.id}`,
-      20,
-      60_000,
-    );
-    if (!allowed) return rateLimitResponse();
+      const updateData: ReviewAssignmentUpdate = { status };
+      if (status === 'completed') {
+        updateData.completed_at = new Date().toISOString();
+      }
 
-    const raw = await request.json();
-    const parsed = parseBody(ReviewAssignmentUpdateSchema, raw);
-    if (!parsed.success) return parsed.response;
+      const { data: rawUpdated, error: updateError } = await supabase
+        .from('review_assignments')
+        .update(updateData)
+        .eq('id', id)
+        .select('*')
+        .single();
 
-    const { id, status } = parsed.data;
+      if (updateError) {
+        logger.error(
+          { err: updateError },
+          'Failed to update review assignment',
+        );
+        return NextResponse.json(
+          { error: 'Failed to update review assignment' },
+          { status: 500 },
+        );
+      }
 
-    const updateData: ReviewAssignmentUpdate = { status };
-    if (status === 'completed') {
-      updateData.completed_at = new Date().toISOString();
-    }
+      if (!rawUpdated) {
+        return NextResponse.json(
+          { error: 'Assignment not found' },
+          { status: 404 },
+        );
+      }
 
-    const { data: rawUpdated, error: updateError } = await supabase
-      .from('review_assignments')
-      .update(updateData)
-      .eq('id', id)
-      .select('*')
-      .single();
-
-    if (updateError) {
-      logger.error({ err: updateError }, 'Failed to update review assignment');
+      return NextResponse.json({ assignment: rawUpdated });
+    } catch (err) {
       return NextResponse.json(
-        { error: 'Failed to update review assignment' },
+        { error: safeErrorMessage(err, 'Failed to update review assignment') },
         { status: 500 },
       );
     }
-
-    if (!rawUpdated) {
-      return NextResponse.json(
-        { error: 'Assignment not found' },
-        { status: 404 },
-      );
-    }
-
-    return NextResponse.json({ assignment: rawUpdated });
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to update review assignment') },
-      { status: 500 },
-    );
-  }
-});
+  },
+);
