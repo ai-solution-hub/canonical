@@ -240,18 +240,22 @@ export async function updateNotificationPreferences(
 }
 
 // ---------------------------------------------------------------------------
-// Pipeline runs — single-row polling (S212 W2 Pattern E)
+// Pipeline runs — read row shape
 // ---------------------------------------------------------------------------
 //
-// A Pattern E pipeline generates a pipeline_run_id client-side BEFORE firing
-// the mutation that starts it, then polls `GET /api/pipeline-runs/[id]` on a
-// 1.5s interval to surface progress (`progress.detail`,
-// `progress.files_completed/files_total`) until the mutation resolves.
-// `fetchPipelineRun` tolerates 404 by returning null so the polling query can
-// survive the racy at-start window where the server's INSERT hasn't landed
-// yet (~sub-100ms after mutation send).
+// The generic single-run READ poller (`fetchPipelineRun` + the
+// `GET /api/pipeline-runs/[id]` route + `queryKeys.pipelineRuns`) was retired
+// (gh-security item-J): {56.12} shipped a dedicated folder-drop status route
+// (`app/api/ingest/folder-drop/status`) and the generic trio lost its only
+// consumer. The `pipeline_runs` table, its server-side writes, and the LIST
+// endpoint (`GET /api/pipeline-runs`) remain live.
+//
+// `PipelineRunRow` is retained as the R-WP17 type-drift source for
+// `PipelineRunRowSchema` (lib/validation/schemas.ts), which guards the
+// `pipeline_runs` read-shape — including the status<->CHECK-constraint parity
+// invariant (bl-224 / S309).
 
-/** Row shape returned by GET /api/pipeline-runs/[id]. */
+/** Row shape of a `pipeline_runs` row (read-shape of record for R-WP17). */
 /** @public */
 export interface PipelineRunRow {
   id: string;
@@ -286,26 +290,6 @@ export interface PipelineRunRow {
   created_at: string | null;
   created_by: string | null;
   result: unknown;
-}
-
-/**
- * Fetch a single `pipeline_runs` row by id. Returns `null` on 404 so polling
- * can tolerate the racy at-start window where the row has not yet been
- * inserted by the server (Pattern E: client generates the id BEFORE the
- * import mutation; the server's at-start INSERT lands shortly after).
- *
- * Any other error status throws an `ApiError` so the caller can surface
- * the failure (auth/role/network/server).
- */
-export async function fetchPipelineRun(
-  id: string,
-): Promise<PipelineRunRow | null> {
-  try {
-    return await fetchJson<PipelineRunRow>(`/api/pipeline-runs/${id}`);
-  } catch (err) {
-    if (err instanceof ApiError && err.status === 404) return null;
-    throw err;
-  }
 }
 
 export async function mutationFetchJson<T>(

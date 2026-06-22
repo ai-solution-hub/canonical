@@ -369,15 +369,6 @@ export const queryKeys = {
   // Taxonomy sync (drift-detection banner, P0-TX)
   taxonomySyncStatus: ['taxonomy-sync-status'] as const,
 
-  // Pipeline runs — single-row polling (Pattern E, S212 W2). The list
-  // endpoint's cache lives under `admin.pipelineRunsRecent` below; this entry
-  // covers the GET /api/pipeline-runs/[id] poller used by Pattern E pipelines
-  // mid-flight.
-  pipelineRuns: {
-    all: ['pipeline-runs'] as const,
-    detail: (id: string) => ['pipeline-runs', 'detail', id] as const,
-  },
-
   // Admin monitoring (pipeline_runs dashboard tile, S152B WP4)
   admin: {
     all: ['admin'] as const,
