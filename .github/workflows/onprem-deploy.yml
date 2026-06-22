@@ -147,7 +147,7 @@ jobs:
       relevant: ${{ steps.diff.outputs.relevant }}
     steps:
       - name: Checkout (full history — the before..sha diff needs both ends)
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4 (pinned 2026-05-31)
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v4 (pinned 2026-05-31)
         with:
           fetch-depth: 0
 
@@ -211,7 +211,7 @@ jobs:
     timeout-minutes: 75 # Docling install + cocoindex Rust wheel + model layer (cloudbuild budgets 60m)
     steps:
       - name: Checkout (build context = repo root)
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4 (pinned 2026-05-31)
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v4 (pinned 2026-05-31)
 
       - name: Log in to ghcr.io
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3 (pinned 2026-05-31)
