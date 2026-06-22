@@ -7,7 +7,7 @@ precise file-and-line answers that GitNexus (graph-level) and Knip (binary reach
 cannot give: exact call sites, column access sites, string-literal AST context,
 barrel-chain tracing, and type-position blast radius.
 
-**CLI:** `bun scripts/ast-dataflow-cli.ts <query> [args]`
+**CLI:** `bun run ast-dataflow <query> [args]` (entry point `tools/ast-dataflow/cli.ts`)
 
 ## Skill catalogue
 

@@ -75,7 +75,7 @@ gitnexus_context({name: '<symbolName>'})
 
 # Step 1b: AST-level caller sweep (catches callers not indexed by GitNexus)
 # ast-dataflow callers <symbolName>
-bun scripts/ast-dataflow-cli.ts callers <symbolName>
+bun run ast-dataflow callers <symbolName>
 ```
 
 Consult `.gitnexus/CLAUDE.md` for GitNexus tool usage conventions. Consult `.ast-dataflow/CLAUDE.md` for ast-dataflow query selection and CLI invocation patterns. Do not copy guide content inline — follow the linked files.

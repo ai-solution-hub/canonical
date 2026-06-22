@@ -372,7 +372,7 @@ bun run lint || fail=1
 #    design-tokens raw colours / bare-catch / barrel re-exports — fail=1 on hit
 # 5. Conditional, ONLY if the axis fired this run:
 #    scope-containment -> git diff --name-only {short-sha}~1 {short-sha}
-#    rename-sweep      -> bun scripts/ast-dataflow-cli.ts string-literal-uses {renamed-symbol}
+#    rename-sweep      -> bun run ast-dataflow string-literal-uses {renamed-symbol}
 exit $fail
 ```
 

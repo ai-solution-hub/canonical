@@ -57,7 +57,7 @@ containment; a missing `gitnexus_impact` verdict in the Executor's journal block
 `scope-containment: FAIL`.
 
 **Curator.** Caller-count pre-grep before triage: `gitnexus_context` +
-`bun scripts/ast-dataflow-cli.ts callers <symbolName>`; ≥10 callers across ≥3 modules
+`bun run ast-dataflow callers <symbolName>`; ≥10 callers across ≥3 modules
 signals roadmap (Branch B), fewer/narrower signals backlog (Branch C).
 
 ## KH quality bars
