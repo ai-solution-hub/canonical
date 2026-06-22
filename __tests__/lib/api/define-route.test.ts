@@ -28,7 +28,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { defineRoute } from '@/lib/api/define-route';
-import { logger } from '@/lib/logger';
+import { logger, withRequestContext } from '@/lib/logger';
 
 function makeRequest(): NextRequest {
   return new NextRequest(new URL('/api/test', 'http://localhost:3000'), {
@@ -74,7 +74,7 @@ describe('defineRoute — INV-PT pass-through (handler returns a Response)', () 
     const Schema = z.object({ items: z.array(z.string()), total: z.number() });
     const payload = { items: ['alpha', 'beta'], total: 2 };
 
-    const route = defineRoute(Schema, async () =>
+    const route = defineRoute(Schema, async (_request: NextRequest) =>
       NextResponse.json(payload, { status: 200 }),
     );
     const response = await route(makeRequest());
@@ -89,7 +89,7 @@ describe('defineRoute — INV-PT pass-through (handler returns a Response)', () 
     // NextResponse error. Under INV-PT the wrapper is transparent — no parse,
     // no re-wrap.
     const Schema = z.object({ items: z.array(z.string()) });
-    const route = defineRoute(Schema, async () =>
+    const route = defineRoute(Schema, async (_request: NextRequest) =>
       NextResponse.json({ error: 'unauthorised' }, { status: 401 }),
     );
 
@@ -101,7 +101,7 @@ describe('defineRoute — INV-PT pass-through (handler returns a Response)', () 
 
   it('passes a 500 error envelope through unchanged (no schema parse)', async () => {
     const Schema = z.object({ items: z.array(z.string()) });
-    const route = defineRoute(Schema, async () =>
+    const route = defineRoute(Schema, async (_request: NextRequest) =>
       NextResponse.json({ error: 'boom' }, { status: 500 }),
     );
 
@@ -112,7 +112,7 @@ describe('defineRoute — INV-PT pass-through (handler returns a Response)', () 
 
   it('passes a 3xx redirect through with status + Location intact (no schema parse)', async () => {
     const Schema = z.object({ items: z.array(z.string()) });
-    const route = defineRoute(Schema, async () =>
+    const route = defineRoute(Schema, async (_request: NextRequest) =>
       NextResponse.redirect(new URL('http://localhost:3000/login'), 307),
     );
 
@@ -127,7 +127,7 @@ describe('defineRoute — INV-PT pass-through (handler returns a Response)', () 
     const Schema = z.object({ items: z.array(z.string()) });
     const route = defineRoute(
       Schema,
-      async () => new NextResponse(null, { status: 204 }),
+      async (_request: NextRequest) => new NextResponse(null, { status: 204 }),
     );
 
     const response = await route(makeRequest());
@@ -138,7 +138,7 @@ describe('defineRoute — INV-PT pass-through (handler returns a Response)', () 
     const Schema = z.object({ items: z.array(z.string()) });
     const route = defineRoute(
       Schema,
-      async () =>
+      async (_request: NextRequest) =>
         new NextResponse('data: hello\n\n', {
           status: 200,
           headers: { 'content-type': 'text/event-stream' },
@@ -156,7 +156,7 @@ describe('defineRoute — INV-PT pass-through (handler returns a Response)', () 
     const Schema = z.object({ items: z.array(z.string()) });
     const route = defineRoute(
       Schema,
-      async () =>
+      async (_request: NextRequest) =>
         new NextResponse('plain text body', {
           status: 200,
           headers: { 'content-type': 'text/plain' },
@@ -172,7 +172,7 @@ describe('defineRoute — INV-PT pass-through (handler returns a Response)', () 
     // Negative control: a 4xx with a drifting JSON body must pass through, not
     // throw — only 2xx JSON is validated.
     const Schema = z.object({ count: z.number() });
-    const route = defineRoute(Schema, async () =>
+    const route = defineRoute(Schema, async (_request: NextRequest) =>
       NextResponse.json({ count: 'not-a-number' }, { status: 422 }),
     );
 
@@ -189,7 +189,9 @@ describe('defineRoute — raw (non-Response) payload arm', () => {
 
   it('validates a raw payload and JSON-wraps it on success (200)', async () => {
     const Schema = z.object({ id: z.string() });
-    const route = defineRoute(Schema, async () => ({ id: 'abc' }));
+    const route = defineRoute(Schema, async (_request: NextRequest) => ({
+      id: 'abc',
+    }));
 
     const response = await route(makeRequest());
     expect(response.status).toBe(200);
@@ -201,7 +203,7 @@ describe('defineRoute — raw (non-Response) payload arm', () => {
     const Schema = z.object({ id: z.string() });
     const route = defineRoute(
       Schema,
-      async () =>
+      async (_request: NextRequest) =>
         ({ id: 'abc', extra: 'stripped' }) as unknown as z.infer<typeof Schema>,
     );
 
@@ -215,11 +217,17 @@ describe('defineRoute — raw (non-Response) payload arm', () => {
     let observedRequest: NextRequest | undefined;
     let observedCtx: unknown;
 
-    const route = defineRoute(Schema, async (request, ctx) => {
-      observedRequest = request;
-      observedCtx = ctx;
-      return { id: 'abc' };
-    });
+    const route = defineRoute(
+      Schema,
+      async (
+        request: NextRequest,
+        ctx: { params: Promise<{ id: string }> },
+      ) => {
+        observedRequest = request;
+        observedCtx = ctx;
+        return { id: 'abc' };
+      },
+    );
 
     const request = makeRequest();
     const ctx = { params: Promise.resolve({ id: 'abc' }) };
@@ -230,13 +238,81 @@ describe('defineRoute — raw (non-Response) payload arm', () => {
   });
 });
 
+describe('defineRoute — generic ctx type (ID-50.3 contravariance fix)', () => {
+  beforeEach(() => {
+    setLoudTestEnv();
+  });
+
+  it('accepts a zero-parameter collection handler and is callable with no args', async () => {
+    const Schema = z.object({ ok: z.literal(true) });
+    // Design B preserves the handler's exact arity: a zero-param handler yields
+    // a zero-arg wrapped export. (Type-level: `GET()` with no args compiles.)
+    const GET = defineRoute(Schema, async () =>
+      NextResponse.json({ ok: true }),
+    );
+
+    const response = await GET();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true });
+  });
+
+  it('accepts a dynamic { params } handler with a narrow Promise<{ id }> ctx and no cast', async () => {
+    const Schema = z.object({ id: z.string() });
+    // This narrow ctx annotation is exactly the shape that produced the 118
+    // TS2345 contravariance errors against the old fixed RouteHandlerContext.
+    // Under Design B it type-checks with no cast.
+    const GET = defineRoute(
+      Schema,
+      async (
+        _request: NextRequest,
+        ctx: { params: Promise<{ id: string }> },
+      ) => {
+        const { id } = await ctx.params;
+        return NextResponse.json({ id });
+      },
+    );
+
+    const response = await GET(makeRequest(), {
+      params: Promise.resolve({ id: 'item-42' }),
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ id: 'item-42' });
+  });
+
+  it('composes under withRequestContext(defineRoute(...)) for a dynamic route with NO cast', async () => {
+    const Schema = z.object({ id: z.string() });
+    // The +WRC composition: withRequestContext's dynamic overload expects a
+    // handler typed (request, ctx: { params: Promise<TParams> }). The generic
+    // defineRoute return is byte-identical, so this composes without any `as`
+    // cast — the end-to-end proof the contravariance is resolved.
+    const GET = withRequestContext(
+      defineRoute(
+        Schema,
+        async (
+          _request: NextRequest,
+          ctx: { params: Promise<{ id: string }> },
+        ) => {
+          const { id } = await ctx.params;
+          return NextResponse.json({ id });
+        },
+      ),
+    );
+
+    const response = await GET(makeRequest(), {
+      params: Promise.resolve({ id: 'wrc-7' }),
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ id: 'wrc-7' });
+  });
+});
+
 describe('defineRoute — INV-FP failure policy (drifting 2xx JSON body)', () => {
   const Schema = z.object({ items: z.array(z.string()), total: z.number() });
   const driftingPayload = { items: ['x'], total: 'not-a-number' };
 
   it('LOUD under NODE_ENV=test: throws on a drifting 2xx JSON body (Response arm)', async () => {
     setLoudTestEnv();
-    const route = defineRoute(Schema, async () =>
+    const route = defineRoute(Schema, async (_request: NextRequest) =>
       NextResponse.json(driftingPayload, { status: 200 }),
     );
 
@@ -247,7 +323,8 @@ describe('defineRoute — INV-FP failure policy (drifting 2xx JSON body)', () =>
     setLoudTestEnv();
     const route = defineRoute(
       Schema,
-      async () => driftingPayload as unknown as z.infer<typeof Schema>,
+      async (_request: NextRequest) =>
+        driftingPayload as unknown as z.infer<typeof Schema>,
     );
 
     await expect(route(makeRequest())).rejects.toThrow();
@@ -258,7 +335,7 @@ describe('defineRoute — INV-FP failure policy (drifting 2xx JSON body)', () =>
     // A CI runner with NODE_ENV=production + CI=true must still throw.
     vi.stubEnv('NODE_ENV', 'production');
     vi.stubEnv('CI', 'true');
-    const route = defineRoute(Schema, async () =>
+    const route = defineRoute(Schema, async (_request: NextRequest) =>
       NextResponse.json(driftingPayload, { status: 200 }),
     );
 
@@ -272,7 +349,10 @@ describe('defineRoute — INV-FP failure policy (drifting 2xx JSON body)', () =>
     vi.spyOn(logger, 'error').mockImplementation(() => {});
 
     const original = NextResponse.json(driftingPayload, { status: 200 });
-    const route = defineRoute(Schema, async () => original);
+    const route = defineRoute(
+      Schema,
+      async (_request: NextRequest) => original,
+    );
 
     const response = await route(makeRequest());
     // The original, unmodified response is returned — same status and body.
@@ -285,7 +365,7 @@ describe('defineRoute — INV-FP failure policy (drifting 2xx JSON body)', () =>
     setProdEnv();
     const errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => {});
 
-    const route = defineRoute(Schema, async () =>
+    const route = defineRoute(Schema, async (_request: NextRequest) =>
       NextResponse.json(driftingPayload, { status: 200 }),
     );
     await route(makeRequest());
@@ -304,7 +384,8 @@ describe('defineRoute — INV-FP failure policy (drifting 2xx JSON body)', () =>
 
     const route = defineRoute(
       Schema,
-      async () => driftingPayload as unknown as z.infer<typeof Schema>,
+      async (_request: NextRequest) =>
+        driftingPayload as unknown as z.infer<typeof Schema>,
     );
 
     const response = await route(makeRequest());
