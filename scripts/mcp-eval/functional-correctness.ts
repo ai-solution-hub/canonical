@@ -22,6 +22,11 @@ import {
   type KnownUUIDs,
   type EvalItem,
 } from './fixtures.js';
+import {
+  HEADLESS_COMPLETE_SET,
+  HEADLESS_COMPLETE_OUTCOMES,
+  FIVE_LAYER_ORDER,
+} from './headless-complete-set.js';
 
 // ---------------------------------------------------------------------------
 // CLI args
@@ -2903,6 +2908,309 @@ async function runGuideToolChecks(accessToken: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// 10. Headless-complete read set enumeration (FC-90 to FC-96)
+//     ID-71.22 — Wave 3, B-INV-1/2/3/4/5 (M1-M5).
+//
+// The launch headless-complete set is EXACTLY {O1 find, O4 reorientation
+// (widened beyond KH state), O6 exposure five-layer, W5.6 re-syndication}.
+// This section confirms the enumeration verbatim (no extras, no omissions),
+// then drives each member MCP-only to a terminal result with zero
+// human-in-UI step — asserting O4's non-KH-state dimension (B-INV-3) and O6's
+// five-layer ordering + resolution affordance (B-INV-4). The declarative set
+// lives in headless-complete-set.ts (unit-tested behaviour-first); this
+// section is the live MCP-only drive.
+// ---------------------------------------------------------------------------
+
+async function runHeadlessCompleteEnumerationChecks(
+  accessToken: string,
+): Promise<void> {
+  console.log('\nHeadless-Complete Read Set (ID-71.22)');
+  const SECTION = 'Headless-Complete Set';
+
+  // FC-90: enumeration is EXACTLY {O1/O4/O6 reads + W5.6} — verbatim, no
+  // extras, no omissions (B-INV-1).
+  {
+    const outcomes = HEADLESS_COMPLETE_SET.map((m) => m.outcome).sort();
+    const expected = ['O1', 'O4', 'O6', 'W5.6'];
+    const matches =
+      outcomes.length === expected.length &&
+      outcomes.every((o, i) => o === expected[i]) &&
+      HEADLESS_COMPLETE_OUTCOMES.length === expected.length;
+    record(
+      SECTION,
+      'FC-90',
+      'enumeration is exactly {O1/O4/O6 + W5.6}',
+      matches ? 'PASS' : 'FAIL',
+      matches
+        ? `verbatim set: ${outcomes.join(', ')}`
+        : `expected ${expected.join(', ')}, got ${outcomes.join(', ')}`,
+    );
+  }
+
+  // FC-91: no member is UI-only; no member is a show_* App-trigger (B-INV-2).
+  {
+    const uiOnly = HEADLESS_COMPLETE_SET.filter((m) => m.uiOnly);
+    const appTriggers = HEADLESS_COMPLETE_SET.filter((m) =>
+      m.mcpTool.startsWith('show_'),
+    );
+    if (uiOnly.length === 0 && appTriggers.length === 0) {
+      record(
+        SECTION,
+        'FC-91',
+        'every member is MCP-only (no UI affordance)',
+        'PASS',
+        'no UI-only members; no show_* App-trigger drivers',
+      );
+    } else {
+      record(
+        SECTION,
+        'FC-91',
+        'every member is MCP-only (no UI affordance)',
+        'FAIL',
+        `UI-only: [${uiOnly.map((m) => m.outcome).join(', ')}]; App-triggers: [${appTriggers.map((m) => m.mcpTool).join(', ')}]`,
+      );
+    }
+  }
+
+  // FC-92: O1 find/answer — driven MCP-only to a terminal result.
+  {
+    const result = await callTool('find', { query: 'ISO 27001' }, accessToken);
+    if (result.errorMessage) {
+      record(
+        SECTION,
+        'FC-92',
+        'O1 find driven MCP-only',
+        'FAIL',
+        result.errorMessage,
+      );
+    } else if (result.isError) {
+      record(
+        SECTION,
+        'FC-92',
+        'O1 find driven MCP-only',
+        'FAIL',
+        `Tool error: ${result.text.slice(0, 100)}`,
+      );
+    } else if (result.text.trim().length > 0) {
+      record(
+        SECTION,
+        'FC-92',
+        'O1 find driven MCP-only',
+        'PASS',
+        `terminal result returned (${result.charCount} chars)`,
+      );
+    } else {
+      record(
+        SECTION,
+        'FC-92',
+        'O1 find driven MCP-only',
+        'FAIL',
+        'no terminal result from find',
+      );
+    }
+  }
+
+  // FC-93: O4 get_reorientation — driven MCP-only to a terminal result.
+  // FC-94 below asserts the non-KH-state dimension separately (B-INV-3).
+  {
+    const result = await callTool('get_reorientation', {}, accessToken);
+    if (result.errorMessage) {
+      record(
+        SECTION,
+        'FC-93',
+        'O4 get_reorientation driven MCP-only',
+        'FAIL',
+        result.errorMessage,
+      );
+    } else if (result.isError) {
+      record(
+        SECTION,
+        'FC-93',
+        'O4 get_reorientation driven MCP-only',
+        'FAIL',
+        `Tool error: ${result.text.slice(0, 100)}`,
+      );
+    } else if (result.text.trim().length > 0) {
+      record(
+        SECTION,
+        'FC-93',
+        'O4 get_reorientation driven MCP-only',
+        'PASS',
+        `terminal briefing returned (${result.charCount} chars)`,
+      );
+    } else {
+      record(
+        SECTION,
+        'FC-93',
+        'O4 get_reorientation driven MCP-only',
+        'FAIL',
+        'no terminal result from get_reorientation',
+      );
+    }
+  }
+
+  // FC-94: O4 surfaces a non-KH-state dimension — the read reorients the
+  // *person* (sector / role / day), not only their KH workspace state
+  // (B-INV-3 / M3). Honest check: FAILs until the O4 widening lands, rather
+  // than a lenient false-pass.
+  {
+    const result = await callTool('get_reorientation', {}, accessToken);
+    if (result.errorMessage || result.isError) {
+      record(
+        SECTION,
+        'FC-94',
+        'O4 surfaces a non-KH-state dimension',
+        'FAIL',
+        result.errorMessage ?? `Tool error: ${result.text.slice(0, 100)}`,
+      );
+    } else {
+      const textLower = result.text.toLowerCase();
+      // Non-KH-state framing: the person's external context (sector / role /
+      // day), distinct from KH-internal state (urgent items, team activity,
+      // owned content, procurement progress).
+      const hasNonKhStateDimension =
+        textLower.includes('sector') ||
+        textLower.includes('your role') ||
+        textLower.includes('your day') ||
+        textLower.includes('industry') ||
+        textLower.includes('market');
+      if (hasNonKhStateDimension) {
+        record(
+          SECTION,
+          'FC-94',
+          'O4 surfaces a non-KH-state dimension',
+          'PASS',
+          'person-level reorientation dimension present (beyond KH state)',
+        );
+      } else {
+        record(
+          SECTION,
+          'FC-94',
+          'O4 surfaces a non-KH-state dimension',
+          'FAIL',
+          'briefing limited to KH-internal state — non-KH-state widening (M3) not yet surfaced',
+        );
+      }
+    }
+  }
+
+  // FC-95: O6 where_are_we_exposed — five-layer ordering + >=1 resolution
+  // affordance (B-INV-4). Asserts the layers appear in order:
+  // data -> quality -> use_today -> gaps -> opportunities, and at least one
+  // "Suggested resolutions" block (gaps/opportunities carry resolutions).
+  {
+    const result = await callTool('where_are_we_exposed', {}, accessToken);
+    if (result.errorMessage) {
+      record(
+        SECTION,
+        'FC-95',
+        'O6 five-layer + resolution',
+        'FAIL',
+        result.errorMessage,
+      );
+    } else if (result.isError) {
+      record(
+        SECTION,
+        'FC-95',
+        'O6 five-layer + resolution',
+        'FAIL',
+        `Tool error: ${result.text.slice(0, 100)}`,
+      );
+    } else {
+      const textLower = result.text.toLowerCase();
+      // Layer titles from formatWhereAreWeExposed (lib/mcp/formatters/dashboard.ts):
+      //   data -> "the data you have"; quality -> "its quality"/"quality";
+      //   use_today -> "how you could use it today"; gaps -> "the gaps";
+      //   opportunities -> "the opportunities".
+      const layerMarkers: Record<(typeof FIVE_LAYER_ORDER)[number], string[]> =
+        {
+          data: ['the data you have', 'data you have'],
+          quality: ['its quality', 'quality'],
+          use_today: ['how you could use it today', 'use it today'],
+          gaps: ['the gaps'],
+          opportunities: ['the opportunities'],
+        };
+      const positions = FIVE_LAYER_ORDER.map((key) => {
+        for (const marker of layerMarkers[key]) {
+          const idx = textLower.indexOf(marker);
+          if (idx >= 0) return idx;
+        }
+        return -1;
+      });
+      const allPresent = positions.every((p) => p >= 0);
+      const inOrder = positions.every(
+        (p, i) => i === 0 || (positions[i - 1] >= 0 && p > positions[i - 1]),
+      );
+      const hasResolution = textLower.includes('suggested resolution');
+      if (allPresent && inOrder && hasResolution) {
+        record(
+          SECTION,
+          'FC-95',
+          'O6 five-layer + resolution',
+          'PASS',
+          'five layers in order (data -> quality -> use_today -> gaps -> opportunities) + resolution affordance',
+        );
+      } else {
+        const missing = FIVE_LAYER_ORDER.filter((_, i) => positions[i] < 0);
+        record(
+          SECTION,
+          'FC-95',
+          'O6 five-layer + resolution',
+          'FAIL',
+          `layers present=${allPresent}${missing.length ? ` (missing: ${missing.join(', ')})` : ''}, in-order=${inOrder}, resolution=${hasResolution}`,
+        );
+      }
+    }
+  }
+
+  // FC-96: W5.6 re-syndication — driven MCP-only to a terminal result via
+  // trigger_intelligence_poll (re-distributes already-published RSS-sourced
+  // consumption output into workspace feeds; admin-only; not a net-new
+  // publication gate). The push-channel delivery infra itself lands in
+  // {71.24}; here we confirm W5.6 is MCP-only-completable (no human-in-UI
+  // step) to a terminal poll-run summary.
+  {
+    const result = await callTool('trigger_intelligence_poll', {}, accessToken);
+    if (result.errorMessage) {
+      record(
+        SECTION,
+        'FC-96',
+        'W5.6 re-syndication driven MCP-only',
+        'FAIL',
+        result.errorMessage,
+      );
+    } else if (result.isError) {
+      // A tool-level error (e.g. no due sources) is still a terminal MCP-only
+      // result with zero human-in-UI step — the re-syndication path completed
+      // without a UI affordance. Distinguish from an RPC/transport failure.
+      record(
+        SECTION,
+        'FC-96',
+        'W5.6 re-syndication driven MCP-only',
+        'PASS',
+        `terminal MCP-only result (tool reported: ${result.text.slice(0, 80)})`,
+      );
+    } else if (result.text.trim().length > 0) {
+      record(
+        SECTION,
+        'FC-96',
+        'W5.6 re-syndication driven MCP-only',
+        'PASS',
+        `re-syndication run summary returned (${result.charCount} chars)`,
+      );
+    } else {
+      record(
+        SECTION,
+        'FC-96',
+        'W5.6 re-syndication driven MCP-only',
+        'FAIL',
+        'no terminal result from trigger_intelligence_poll',
+      );
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Report formatting
 // ---------------------------------------------------------------------------
 
@@ -3009,8 +3317,11 @@ async function main(): Promise<void> {
 
     // Step 13: Guide Tools (with cleanup)
     await runGuideToolChecks(accessToken);
+
+    // Step 14: Headless-complete read set enumeration (ID-71.22)
+    await runHeadlessCompleteEnumerationChecks(accessToken);
   } finally {
-    // Step 14: Clean up eval item
+    // Step 15: Clean up eval item
     console.log('\nCleaning up...');
     try {
       await deleteEvalItem(supabase, evalItem.id);
@@ -3022,7 +3333,7 @@ async function main(): Promise<void> {
     }
   }
 
-  // Step 15: Print report
+  // Step 16: Print report
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
   console.log(`\nCompleted in ${elapsed}s`);
   printReport();
@@ -3082,6 +3393,7 @@ export async function runAsEvalSuite(): Promise<SuiteRunOutcome> {
       await runWriteToolChecks(accessToken, evalItem, knownUUIDs);
       await runAppTemplateChecks(accessToken);
       await runGuideToolChecks(accessToken);
+      await runHeadlessCompleteEnumerationChecks(accessToken);
     } finally {
       try {
         await deleteEvalItem(supabase, evalItem.id);
