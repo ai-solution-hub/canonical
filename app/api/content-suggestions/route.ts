@@ -9,32 +9,65 @@ import { z } from 'zod';
 
 export const maxDuration = 30;
 
-// TODO(OPS-T1): author ResponseSchema
-export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
-  try {
-    const auth = await getAuthenticatedClient();
-    if (!auth.success) return authFailureResponse(auth);
-    const { supabase } = auth;
+// Mirrors the ContentSuggestion interface from @/lib/content/content-suggestions.
+const ContentSuggestionsResponseSchema = z.array(
+  z.object({
+    id: z.string(),
+    suggestion_type: z.enum([
+      'empty_subtopic',
+      'thin_coverage',
+      'stale_only',
+      'template_gap',
+      'missing_layer',
+    ]),
+    priority: z.enum(['critical', 'high', 'medium', 'low']),
+    domain: z.string(),
+    subtopic: z.string(),
+    title: z.string(),
+    description: z.string(),
+    suggested_content_type: z.string().optional(),
+    suggested_layer: z.string().optional(),
+    related_template: z.string().optional(),
+    item_count: z.number(),
+    freshness_breakdown: z
+      .object({
+        fresh: z.number(),
+        aging: z.number(),
+        stale: z.number(),
+        expired: z.number(),
+      })
+      .optional(),
+  }),
+);
 
-    const parsed = parseSearchParams(
-      ContentSuggestionsParamsSchema,
-      request.nextUrl.searchParams,
-    );
-    if (!parsed.success) return parsed.response;
-    const { limit, domain } = parsed.data;
+export const GET = defineRoute(
+  ContentSuggestionsResponseSchema,
+  async (request: NextRequest) => {
+    try {
+      const auth = await getAuthenticatedClient();
+      if (!auth.success) return authFailureResponse(auth);
+      const { supabase } = auth;
 
-    const suggestions = await generateContentSuggestions({
-      supabase,
-      maxSuggestions: limit,
-      domainFilter: domain,
-      includeTemplateGaps: true,
-    });
+      const parsed = parseSearchParams(
+        ContentSuggestionsParamsSchema,
+        request.nextUrl.searchParams,
+      );
+      if (!parsed.success) return parsed.response;
+      const { limit, domain } = parsed.data;
 
-    return NextResponse.json(suggestions);
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Content suggestions failed') },
-      { status: 500 },
-    );
-  }
-});
+      const suggestions = await generateContentSuggestions({
+        supabase,
+        maxSuggestions: limit,
+        domainFilter: domain,
+        includeTemplateGaps: true,
+      });
+
+      return NextResponse.json(suggestions);
+    } catch (err) {
+      return NextResponse.json(
+        { error: safeErrorMessage(err, 'Content suggestions failed') },
+        { status: 500 },
+      );
+    }
+  },
+);

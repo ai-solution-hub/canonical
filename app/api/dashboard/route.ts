@@ -11,8 +11,58 @@ import { z } from 'zod';
 
 export const maxDuration = 30;
 
-// TODO(OPS-T1): author ResponseSchema
-export const GET = defineRoute(z.unknown(), async () => {
+// GroupedActivityItem (extends ActivityItem) from @/lib/dashboard.
+const DashboardGroupedActivityItemSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  entity_type: z.string(),
+  entity_id: z.string(),
+  summary: z.string(),
+  user_id: z.string().nullable(),
+  created_at: z.string().nullable(),
+  latest_at: z.string().nullable(),
+  earliest_at: z.string().nullable(),
+  event_count: z.number(),
+});
+
+// ActiveBidSummary from @/lib/dashboard.
+const DashboardActiveBidSummarySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  buyer: z.string().nullable(),
+  status: z.string(),
+  deadline: z.string().nullable(),
+  days_until_deadline: z.number().nullable(),
+  total_questions: z.number(),
+  answered_questions: z.number(),
+  approved_questions: z.number(),
+});
+
+// DashboardData (@/lib/dashboard) spread + warnings[] envelope. Count fields
+// mirror the DashboardData interface's declared `number | null`.
+const DashboardResponseSchema = z.object({
+  needs_attention: z.object({
+    governance_review_count: z.number().nullable(),
+    unverified_count: z.number().nullable(),
+    quality_flag_count: z.number().nullable(),
+    stale_content_count: z.number().nullable(),
+    expired_content_count: z.number().nullable(),
+  }),
+  active_bids: z.array(DashboardActiveBidSummarySchema),
+  freshness_summary: z.object({
+    fresh: z.number(),
+    aging: z.number(),
+    stale: z.number(),
+    expired: z.number(),
+  }),
+  unread_notification_count: z.number(),
+  recent_activity: z.array(DashboardGroupedActivityItemSchema),
+  user_role: z.string(),
+  errors: z.array(z.string()),
+  warnings: z.array(z.string()),
+});
+
+export const GET = defineRoute(DashboardResponseSchema, async () => {
   try {
     const auth = await getAuthenticatedClient();
     if (!auth.success) return authFailureResponse(auth);

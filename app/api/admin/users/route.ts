@@ -61,8 +61,20 @@ async function fetchLastSignInMap(
   return lastSignInById;
 }
 
-// TODO(OPS-T1): author ResponseSchema
-export const GET = defineRoute(z.unknown(), async () => {
+// Mirrors the UserWithRole interface field-for-field. `email` is coerced to ''
+// (never null) and `display_name`/`last_sign_in_at` are explicitly string|null.
+const AdminUsersResponseSchema = z.array(
+  z.object({
+    id: z.string(),
+    email: z.string(),
+    display_name: z.string().nullable(),
+    role: z.string(),
+    created_at: z.string(),
+    last_sign_in_at: z.string().nullable(),
+  }),
+);
+
+export const GET = defineRoute(AdminUsersResponseSchema, async () => {
   try {
     const auth = await getAuthorisedClient(['admin']);
     if (!auth.success) return authFailureResponse(auth);

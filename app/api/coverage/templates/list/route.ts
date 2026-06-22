@@ -10,8 +10,19 @@ import { z } from "zod";
 
 export const maxDuration = 30;
 
-// TODO(OPS-T1): author ResponseSchema
-export const GET = defineRoute(z.unknown(), async () => {
+const TemplateListResponseSchema = z.object({
+  templates: z.array(
+    z.object({
+      template_name: z.string(),
+      template_version: z.string().nullable(),
+      template_type: z.string(),
+      requirement_count: z.number(),
+      is_current: z.boolean(),
+    }),
+  ),
+});
+
+export const GET = defineRoute(TemplateListResponseSchema, async () => {
   try {
     const auth = await getAuthenticatedClient();
     if (!auth.success) return authFailureResponse(auth);

@@ -87,225 +87,248 @@ interface PublicationBulkActionResponse {
   results: PublicationBulkActionResult[];
 }
 
-// TODO(OPS-T1): author ResponseSchema
-export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
-  try {
-    // -----------------------------------------------------------------
-    // Auth + role check — admin + editor permitted (PR-1: §5.2 RBAC
-    // matrix preserved). Per-item role-gate happens inside the loop.
-    // -----------------------------------------------------------------
-    const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth.success) return authFailureResponse(auth);
-    const { user, supabase, role } = auth;
+// Mirrors PublicationBulkActionResponse / PublicationBulkActionResult above.
+// PublicationStatus = 'draft' | 'in_review' | 'published' | 'archived'.
+const PublicationBulkActionResultSchema = z.object({
+  id: z.string(),
+  status: z.enum(['success', 'conflict', 'forbidden', 'not_found', 'error']),
+  previousStatus: z
+    .enum(['draft', 'in_review', 'published', 'archived'])
+    .optional(),
+  newStatus: z.enum(['draft', 'in_review', 'published', 'archived']).optional(),
+  reason: z.string().optional(),
+  error: z.string().optional(),
+});
 
-    // -----------------------------------------------------------------
-    // Rate limit: 20 req/min (D-8 RATIFIED S217 close-out — matches the
-    // `POST /api/items/` mutation baseline, NOT the authored 10).
-    // -----------------------------------------------------------------
-    const { allowed } = checkRateLimit(
-      `review-publication-bulk:${user.id}`,
-      20,
-      60_000,
-    );
-    if (!allowed) return rateLimitResponse();
+const PublicationBulkActionResponseSchema = z.object({
+  action: z.enum(['approve', 'return_to_draft']),
+  totalRequested: z.number(),
+  successCount: z.number(),
+  failureCount: z.number(),
+  results: z.array(PublicationBulkActionResultSchema),
+});
 
-    // -----------------------------------------------------------------
-    // Body validation. Use `parseBody` per
-    // `feedback_validation_sweep_safeparse_ban` — inline schema-parse calls
-    // in route files are banned by the validation-sweep guard test.
-    // -----------------------------------------------------------------
-    const raw = await request.json();
-    const validated = parseBody(PublicationBulkActionBodySchema, raw);
-    if (!validated.success) return validated.response;
-    const { ids, action } = validated.data;
+export const POST = defineRoute(
+  PublicationBulkActionResponseSchema,
+  async (request: NextRequest) => {
+    try {
+      // -----------------------------------------------------------------
+      // Auth + role check — admin + editor permitted (PR-1: §5.2 RBAC
+      // matrix preserved). Per-item role-gate happens inside the loop.
+      // -----------------------------------------------------------------
+      const auth = await getAuthorisedClient(['admin', 'editor']);
+      if (!auth.success) return authFailureResponse(auth);
+      const { user, supabase, role } = auth;
 
-    // Map action → target publication_status. Both transitions are valid
-    // out of 'in_review' per the §5.2 transition matrix (admin + editor).
-    const newStatus: PublicationStatus =
-      action === 'approve' ? 'published' : 'draft';
+      // -----------------------------------------------------------------
+      // Rate limit: 20 req/min (D-8 RATIFIED S217 close-out — matches the
+      // `POST /api/items/` mutation baseline, NOT the authored 10).
+      // -----------------------------------------------------------------
+      const { allowed } = checkRateLimit(
+        `review-publication-bulk:${user.id}`,
+        20,
+        60_000,
+      );
+      if (!allowed) return rateLimitResponse();
 
-    // -----------------------------------------------------------------
-    // Per-item iteration. SEQUENTIAL (not Promise.all) — parallel
-    // iteration would multiply the read-after-write race window per item;
-    // sequential preserves a clear fetch-then-update order per row.
-    // Acceptable cost given the 50-item cap (~2.5s typical, well under
-    // the 30s Vercel function budget).
-    // -----------------------------------------------------------------
-    const results: PublicationBulkActionResult[] = [];
-    let successCount = 0;
-    let failureCount = 0;
+      // -----------------------------------------------------------------
+      // Body validation. Use `parseBody` per
+      // `feedback_validation_sweep_safeparse_ban` — inline schema-parse calls
+      // in route files are banned by the validation-sweep guard test.
+      // -----------------------------------------------------------------
+      const raw = await request.json();
+      const validated = parseBody(PublicationBulkActionBodySchema, raw);
+      if (!validated.success) return validated.response;
+      const { ids, action } = validated.data;
 
-    for (const id of ids) {
-      // Step 1: Fetch current state. SELECTs the columns the
-      // content_history insert will need (title/content/brief/detail/
-      // reference) so we don't need a second round-trip later. Mirrors
-      // PATCH route line 224-237 exactly.
-      const { data: current, error: fetchErr } = await supabase
-        .from('content_items')
-        .select(
-          'id, publication_status, title, content, brief, detail, reference',
-        )
-        .eq('id', id)
-        .maybeSingle();
+      // Map action → target publication_status. Both transitions are valid
+      // out of 'in_review' per the §5.2 transition matrix (admin + editor).
+      const newStatus: PublicationStatus =
+        action === 'approve' ? 'published' : 'draft';
 
-      if (fetchErr) {
-        results.push({ id, status: 'error', error: fetchErr.message });
-        failureCount++;
-        continue;
-      }
-      if (!current) {
-        // Either truly missing or RLS-hidden from the caller. Both surface
-        // identically per spec §7.1 — `'not_found'` is the canonical
-        // status for "row is not visible to this caller".
-        results.push({ id, status: 'not_found' });
-        failureCount++;
-        continue;
-      }
+      // -----------------------------------------------------------------
+      // Per-item iteration. SEQUENTIAL (not Promise.all) — parallel
+      // iteration would multiply the read-after-write race window per item;
+      // sequential preserves a clear fetch-then-update order per row.
+      // Acceptable cost given the 50-item cap (~2.5s typical, well under
+      // the 30s Vercel function budget).
+      // -----------------------------------------------------------------
+      const results: PublicationBulkActionResult[] = [];
+      let successCount = 0;
+      let failureCount = 0;
 
-      const fromStatus = current.publication_status as PublicationStatus;
+      for (const id of ids) {
+        // Step 1: Fetch current state. SELECTs the columns the
+        // content_history insert will need (title/content/brief/detail/
+        // reference) so we don't need a second round-trip later. Mirrors
+        // PATCH route line 224-237 exactly.
+        const { data: current, error: fetchErr } = await supabase
+          .from('content_items')
+          .select(
+            'id, publication_status, title, content, brief, detail, reference',
+          )
+          .eq('id', id)
+          .maybeSingle();
 
-      // Step 2: Pre-loop fromStatus guard (§5.3 / D-10).
-      // Defence-in-depth on top of the `.eq('publication_status',
-      // 'in_review')` UPDATE filter at step 4. Without this guard,
-      // `action='return_to_draft'` against a 'published' row would
-      // silently flip live content to draft (because
-      // `computeAllowedTransitions('published', 'admin')` returns
-      // ['archived', 'draft']). With the guard, any row whose
-      // `fromStatus !== 'in_review'` returns `{ status: 'conflict' }`
-      // regardless of role or action. AC-bulk-2.5 + AC-bulk-2.10.
-      if (fromStatus !== 'in_review') {
-        results.push({
-          id,
-          status: 'conflict',
-          previousStatus: fromStatus,
-          reason: `Pre-loop guard: fromStatus '${fromStatus}' is not 'in_review'; bulk endpoint only transitions out of 'in_review'.`,
-        });
-        failureCount++;
-        continue;
-      }
+        if (fetchErr) {
+          results.push({ id, status: 'error', error: fetchErr.message });
+          failureCount++;
+          continue;
+        }
+        if (!current) {
+          // Either truly missing or RLS-hidden from the caller. Both surface
+          // identically per spec §7.1 — `'not_found'` is the canonical
+          // status for "row is not visible to this caller".
+          results.push({ id, status: 'not_found' });
+          failureCount++;
+          continue;
+        }
 
-      // Step 3: Role-gate via `computeAllowedTransitions`.
-      // Same helper as the per-row PATCH — preserves the §5.2 RBAC matrix
-      // verbatim (PR-1). For 'in_review' the matrix returns
-      // ['published', 'draft'] for admin + editor and [] for viewer; the
-      // role gate at the route boundary already excluded viewer, so this
-      // path is reachable only in role-set drift edge cases.
-      const allowed = computeAllowedTransitions(fromStatus, role);
-      if (allowed.length === 0 || !allowed.includes(newStatus)) {
-        results.push({
-          id,
-          status: 'forbidden',
-          previousStatus: fromStatus,
-          reason: `Role '${role}' cannot transition '${fromStatus}' -> '${newStatus}'`,
-        });
-        failureCount++;
-        continue;
-      }
+        const fromStatus = current.publication_status as PublicationStatus;
 
-      // Step 4: Optimistic-concurrency UPDATE.
-      // `.eq('publication_status', fromStatus)` is the optimistic
-      // concurrency guard — if a concurrent writer raced ahead and
-      // changed the state, this UPDATE matches zero rows and `.single()`
-      // returns PGRST116. Mirrors PATCH route line 299-322.
-      //
-      // `applyTransitionSideEffects` extends the base payload with
-      // `publication_status: newStatus` and (for archive transitions
-      // only) archive metadata. For the `in_review → {published, draft}`
-      // transitions the bulk endpoint covers, no archive metadata is
-      // touched — same path as the per-row PATCH for these targets.
-      const { data: updated, error: updateErr } = await supabase
-        .from('content_items')
-        .update(
-          applyTransitionSideEffects(
-            {
-              publication_status: newStatus,
-              updated_by: user.id,
-            },
-            fromStatus,
-            newStatus,
-            user.id,
-          ) as Database['public']['Tables']['content_items']['Update'],
-        )
-        .eq('id', id)
-        .eq('publication_status', fromStatus)
-        .select('id, publication_status')
-        .single();
-
-      if (updateErr) {
-        if (updateErr.code === 'PGRST116') {
-          // Race-loss: row's publication_status changed between fetch
-          // and update.
+        // Step 2: Pre-loop fromStatus guard (§5.3 / D-10).
+        // Defence-in-depth on top of the `.eq('publication_status',
+        // 'in_review')` UPDATE filter at step 4. Without this guard,
+        // `action='return_to_draft'` against a 'published' row would
+        // silently flip live content to draft (because
+        // `computeAllowedTransitions('published', 'admin')` returns
+        // ['archived', 'draft']). With the guard, any row whose
+        // `fromStatus !== 'in_review'` returns `{ status: 'conflict' }`
+        // regardless of role or action. AC-bulk-2.5 + AC-bulk-2.10.
+        if (fromStatus !== 'in_review') {
           results.push({
             id,
             status: 'conflict',
             previousStatus: fromStatus,
-            reason: 'Concurrent state change detected.',
+            reason: `Pre-loop guard: fromStatus '${fromStatus}' is not 'in_review'; bulk endpoint only transitions out of 'in_review'.`,
           });
           failureCount++;
           continue;
         }
-        results.push({ id, status: 'error', error: updateErr.message });
-        failureCount++;
-        continue;
+
+        // Step 3: Role-gate via `computeAllowedTransitions`.
+        // Same helper as the per-row PATCH — preserves the §5.2 RBAC matrix
+        // verbatim (PR-1). For 'in_review' the matrix returns
+        // ['published', 'draft'] for admin + editor and [] for viewer; the
+        // role gate at the route boundary already excluded viewer, so this
+        // path is reachable only in role-set drift edge cases.
+        const allowed = computeAllowedTransitions(fromStatus, role);
+        if (allowed.length === 0 || !allowed.includes(newStatus)) {
+          results.push({
+            id,
+            status: 'forbidden',
+            previousStatus: fromStatus,
+            reason: `Role '${role}' cannot transition '${fromStatus}' -> '${newStatus}'`,
+          });
+          failureCount++;
+          continue;
+        }
+
+        // Step 4: Optimistic-concurrency UPDATE.
+        // `.eq('publication_status', fromStatus)` is the optimistic
+        // concurrency guard — if a concurrent writer raced ahead and
+        // changed the state, this UPDATE matches zero rows and `.single()`
+        // returns PGRST116. Mirrors PATCH route line 299-322.
+        //
+        // `applyTransitionSideEffects` extends the base payload with
+        // `publication_status: newStatus` and (for archive transitions
+        // only) archive metadata. For the `in_review → {published, draft}`
+        // transitions the bulk endpoint covers, no archive metadata is
+        // touched — same path as the per-row PATCH for these targets.
+        const { data: updated, error: updateErr } = await supabase
+          .from('content_items')
+          .update(
+            applyTransitionSideEffects(
+              {
+                publication_status: newStatus,
+                updated_by: user.id,
+              },
+              fromStatus,
+              newStatus,
+              user.id,
+            ) as Database['public']['Tables']['content_items']['Update'],
+          )
+          .eq('id', id)
+          .eq('publication_status', fromStatus)
+          .select('id, publication_status')
+          .single();
+
+        if (updateErr) {
+          if (updateErr.code === 'PGRST116') {
+            // Race-loss: row's publication_status changed between fetch
+            // and update.
+            results.push({
+              id,
+              status: 'conflict',
+              previousStatus: fromStatus,
+              reason: 'Concurrent state change detected.',
+            });
+            failureCount++;
+            continue;
+          }
+          results.push({ id, status: 'error', error: updateErr.message });
+          failureCount++;
+          continue;
+        }
+        void updated;
+
+        // Step 5: content_history INSERT via `sb()` (fail-fast).
+        //
+        // `change_reason` carries the BULK literal (`'bulk_approve'` /
+        // `'bulk_return_to_draft'`) — distinct from the per-row PATCH
+        // phrasing `'Transition from in_review to published'`. This is the
+        // primary motivation for a server-side bulk endpoint vs a client
+        // loop-over-PATCH (spec §2.3 — audit-trail semantic preservation).
+        //
+        // `version` is set automatically by the
+        // `auto_version_content_history` BEFORE INSERT trigger; payload
+        // omits it. The Insert TS type marks `version` required, so the
+        // payload is cast to the table's Insert shape — same pattern as
+        // PATCH route line 355.
+        //
+        // change_reason is always present, satisfying the S153 guard test
+        // (`feedback_content_history_change_reason_mandatory`).
+        const changeReasonLiteral =
+          action === 'approve' ? 'bulk_approve' : 'bulk_return_to_draft';
+
+        await sb(
+          supabase.from('content_history').insert({
+            content_item_id: id,
+            title: current.title ?? '',
+            content: current.content ?? '',
+            brief: current.brief ?? null,
+            detail: current.detail ?? null,
+            reference: current.reference ?? null,
+            change_summary: `Publication status: ${fromStatus} -> ${newStatus}`,
+            change_reason: changeReasonLiteral,
+            change_type: 'publication_state',
+            created_by: user.id,
+          } as Database['public']['Tables']['content_history']['Insert']),
+          'review.publication_bulk_action.history_insert',
+        );
+
+        results.push({
+          id,
+          status: 'success',
+          previousStatus: fromStatus,
+          newStatus,
+        });
+        successCount++;
       }
-      void updated;
 
-      // Step 5: content_history INSERT via `sb()` (fail-fast).
-      //
-      // `change_reason` carries the BULK literal (`'bulk_approve'` /
-      // `'bulk_return_to_draft'`) — distinct from the per-row PATCH
-      // phrasing `'Transition from in_review to published'`. This is the
-      // primary motivation for a server-side bulk endpoint vs a client
-      // loop-over-PATCH (spec §2.3 — audit-trail semantic preservation).
-      //
-      // `version` is set automatically by the
-      // `auto_version_content_history` BEFORE INSERT trigger; payload
-      // omits it. The Insert TS type marks `version` required, so the
-      // payload is cast to the table's Insert shape — same pattern as
-      // PATCH route line 355.
-      //
-      // change_reason is always present, satisfying the S153 guard test
-      // (`feedback_content_history_change_reason_mandatory`).
-      const changeReasonLiteral =
-        action === 'approve' ? 'bulk_approve' : 'bulk_return_to_draft';
-
-      await sb(
-        supabase.from('content_history').insert({
-          content_item_id: id,
-          title: current.title ?? '',
-          content: current.content ?? '',
-          brief: current.brief ?? null,
-          detail: current.detail ?? null,
-          reference: current.reference ?? null,
-          change_summary: `Publication status: ${fromStatus} -> ${newStatus}`,
-          change_reason: changeReasonLiteral,
-          change_type: 'publication_state',
-          created_by: user.id,
-        } as Database['public']['Tables']['content_history']['Insert']),
-        'review.publication_bulk_action.history_insert',
+      const response: PublicationBulkActionResponse = {
+        action,
+        totalRequested: ids.length,
+        successCount,
+        failureCount,
+        results,
+      };
+      return NextResponse.json(response);
+    } catch (err) {
+      return NextResponse.json(
+        { error: safeErrorMessage(err, 'Failed to process bulk action') },
+        { status: 500 },
       );
-
-      results.push({
-        id,
-        status: 'success',
-        previousStatus: fromStatus,
-        newStatus,
-      });
-      successCount++;
     }
-
-    const response: PublicationBulkActionResponse = {
-      action,
-      totalRequested: ids.length,
-      successCount,
-      failureCount,
-      results,
-    };
-    return NextResponse.json(response);
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to process bulk action') },
-      { status: 500 },
-    );
-  }
-});
+  },
+);

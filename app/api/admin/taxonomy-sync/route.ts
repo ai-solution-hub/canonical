@@ -32,8 +32,12 @@ export const maxDuration = 30;
 
 const PIPELINE_NAME = 'taxonomy_sync';
 
-// TODO(OPS-T1): author ResponseSchema
-export const POST = defineRoute(z.unknown(), async () => {
+const TaxonomySyncResponseSchema = z.union([
+  z.object({ dispatched: z.literal(false), reason: z.literal('in_sync') }),
+  z.object({ dispatched: z.literal(true), run_id: z.string() }),
+]);
+
+export const POST = defineRoute(TaxonomySyncResponseSchema, async () => {
   try {
     // 1. Admin auth
     const auth = await getAuthorisedClient(['admin']);

@@ -73,130 +73,177 @@ export interface PipelineRollupEntry {
 // Route handler
 // ──────────────────────────────────────────
 
-// TODO(OPS-T1): author ResponseSchema
-export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
-  try {
-    const auth = await getAuthorisedClient(['admin']);
-    if (!auth.success) return authFailureResponse(auth);
-    const { supabase } = auth;
+// Mirrors the LIST_COLUMNS pipeline_runs select. Nullability per the
+// pipeline_runs table (squash_baseline migration): id/pipeline_name/status/
+// started_at are NOT NULL; the rest are nullable (DEFAULT or no NOT NULL).
+// result/progress are jsonb → opaque.
+const PipelineRunRowSchema = z.object({
+  id: z.string(),
+  pipeline_name: z.string(),
+  status: z.string(),
+  started_at: z.string(),
+  completed_at: z.string().nullable(),
+  items_processed: z.number().nullable(),
+  error_message: z.string().nullable(),
+  source_filename: z.string().nullable(),
+  workspace_id: z.string().nullable(),
+  created_by: z.string().nullable(),
+  result: z.unknown(), // jsonb column — opaque Json
+  progress: z.unknown(), // jsonb column — opaque Json
+  items_created: z.array(z.string()).nullable(),
+  cost: z.number().nullable(),
+});
 
-    // Parse + validate query params
-    const parsed = parseSearchParams(
-      AdminProvenancePipelineRunsParamsSchema,
-      request.nextUrl.searchParams,
-    );
-    if (!parsed.success) return parsed.response;
-    const { range, kinds, limit, cursor_started_at, cursor_id } = parsed.data;
+// Mirrors the PipelineRollupEntry interface field-for-field.
+const PipelineRollupEntrySchema = z.object({
+  pipelineName: z.string(),
+  runs: z.number(),
+  completed: z.number(),
+  failed: z.number(),
+  running: z.number(),
+  completedWithErrors: z.number(),
+  successPct: z.number(),
+  avgDurationMs: z.number().nullable(),
+  p95DurationMs: z.number().nullable(),
+  lastRunAt: z.string().nullable(),
+});
 
-    const since = rangeToIso(range);
-    const warnings = createWarningsCollector();
+const AdminProvenancePipelineRunsResponseSchema = z.object({
+  rows: z.array(PipelineRunRowSchema),
+  rollup: z.array(PipelineRollupEntrySchema),
+  hasMore: z.boolean(),
+  nextCursor: z.object({ started_at: z.string(), id: z.string() }).nullable(),
+  window: z.object({ range: z.string(), since: z.string() }),
+  // warningsEnvelope adds `warnings` only when the collector is non-empty.
+  warnings: z.array(z.string()).optional(),
+});
 
-    // ── List query (keyset pagination) ────────────────────────────
-    let listQuery = supabase
-      .from('pipeline_runs')
-      .select(LIST_COLUMNS)
-      .gte('started_at', since)
-      .order('started_at', { ascending: false })
-      .order('id', { ascending: false })
-      .limit(limit + 1); // fetch one extra to detect hasMore
+export const GET = defineRoute(
+  AdminProvenancePipelineRunsResponseSchema,
+  async (request: NextRequest) => {
+    try {
+      const auth = await getAuthorisedClient(['admin']);
+      if (!auth.success) return authFailureResponse(auth);
+      const { supabase } = auth;
 
-    if (kinds && kinds.length > 0) {
-      listQuery = listQuery.in('pipeline_name', kinds);
-    }
-
-    // Keyset cursor: rows strictly before the cursor position
-    if (cursor_started_at && cursor_id) {
-      listQuery = listQuery.or(
-        `started_at.lt.${cursor_started_at},and(started_at.eq.${cursor_started_at},id.lt.${cursor_id})`,
+      // Parse + validate query params
+      const parsed = parseSearchParams(
+        AdminProvenancePipelineRunsParamsSchema,
+        request.nextUrl.searchParams,
       );
-    }
+      if (!parsed.success) return parsed.response;
+      const { range, kinds, limit, cursor_started_at, cursor_id } = parsed.data;
 
-    const listResult = await tryQuery(
-      listQuery,
-      'provenance.pipelineRuns.list',
-    );
+      const since = rangeToIso(range);
+      const warnings = createWarningsCollector();
 
-    let rows: typeof listResult extends { ok: true; data: infer D }
-      ? D
-      : never[] = [];
-    let hasMore = false;
-    let nextCursor: { started_at: string; id: string } | null = null;
+      // ── List query (keyset pagination) ────────────────────────────
+      let listQuery = supabase
+        .from('pipeline_runs')
+        .select(LIST_COLUMNS)
+        .gte('started_at', since)
+        .order('started_at', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(limit + 1); // fetch one extra to detect hasMore
 
-    if (isOk(listResult)) {
-      const allRows = listResult.data as Array<Record<string, unknown>>;
-      if (allRows.length > limit) {
-        hasMore = true;
-        allRows.pop(); // remove the extra sentinel row
+      if (kinds && kinds.length > 0) {
+        listQuery = listQuery.in('pipeline_name', kinds);
       }
-      rows = allRows as typeof rows;
-      if (hasMore && allRows.length > 0) {
-        const last = allRows[allRows.length - 1];
-        nextCursor = {
-          started_at: last.started_at as string,
-          id: last.id as string,
-        };
-      }
-    } else {
-      warnings.add('Pipeline runs list could not be loaded');
-    }
 
-    // ── Rollup query (same window, no pagination, capped) ────────
-    let rollupQuery = supabase
-      .from('pipeline_runs')
-      .select('pipeline_name, status, started_at, completed_at')
-      .gte('started_at', since)
-      .order('started_at', { ascending: false })
-      .limit(ROLLUP_SCAN_LIMIT);
-
-    if (kinds && kinds.length > 0) {
-      rollupQuery = rollupQuery.in('pipeline_name', kinds);
-    }
-
-    const rollupResult = await tryQuery(
-      rollupQuery,
-      'provenance.pipelineRuns.rollup',
-    );
-
-    let rollup: PipelineRollupEntry[] = [];
-
-    if (isOk(rollupResult)) {
-      const rollupRows = rollupResult.data as Array<{
-        pipeline_name: string;
-        status: string;
-        started_at: string;
-        completed_at: string | null;
-      }>;
-
-      if (rollupRows.length >= ROLLUP_SCAN_LIMIT) {
-        warnings.add(
-          `Rollup truncated at ${ROLLUP_SCAN_LIMIT.toLocaleString()} rows — stats are approximate`,
+      // Keyset cursor: rows strictly before the cursor position
+      if (cursor_started_at && cursor_id) {
+        listQuery = listQuery.or(
+          `started_at.lt.${cursor_started_at},and(started_at.eq.${cursor_started_at},id.lt.${cursor_id})`,
         );
       }
 
-      rollup = computeRollup(rollupRows);
-    } else {
-      warnings.add('Pipeline rollup could not be computed');
-    }
+      const listResult = await tryQuery(
+        listQuery,
+        'provenance.pipelineRuns.list',
+      );
 
-    return warningsEnvelope(
-      {
-        rows,
-        rollup,
-        hasMore,
-        nextCursor,
-        window: { range, since },
-      },
-      warnings,
-    );
-  } catch (err) {
-    return NextResponse.json(
-      {
-        error: safeErrorMessage(err, 'Failed to load pipeline runs'),
-      },
-      { status: 500 },
-    );
-  }
-});
+      let rows: typeof listResult extends { ok: true; data: infer D }
+        ? D
+        : never[] = [];
+      let hasMore = false;
+      let nextCursor: { started_at: string; id: string } | null = null;
+
+      if (isOk(listResult)) {
+        const allRows = listResult.data as Array<Record<string, unknown>>;
+        if (allRows.length > limit) {
+          hasMore = true;
+          allRows.pop(); // remove the extra sentinel row
+        }
+        rows = allRows as typeof rows;
+        if (hasMore && allRows.length > 0) {
+          const last = allRows[allRows.length - 1];
+          nextCursor = {
+            started_at: last.started_at as string,
+            id: last.id as string,
+          };
+        }
+      } else {
+        warnings.add('Pipeline runs list could not be loaded');
+      }
+
+      // ── Rollup query (same window, no pagination, capped) ────────
+      let rollupQuery = supabase
+        .from('pipeline_runs')
+        .select('pipeline_name, status, started_at, completed_at')
+        .gte('started_at', since)
+        .order('started_at', { ascending: false })
+        .limit(ROLLUP_SCAN_LIMIT);
+
+      if (kinds && kinds.length > 0) {
+        rollupQuery = rollupQuery.in('pipeline_name', kinds);
+      }
+
+      const rollupResult = await tryQuery(
+        rollupQuery,
+        'provenance.pipelineRuns.rollup',
+      );
+
+      let rollup: PipelineRollupEntry[] = [];
+
+      if (isOk(rollupResult)) {
+        const rollupRows = rollupResult.data as Array<{
+          pipeline_name: string;
+          status: string;
+          started_at: string;
+          completed_at: string | null;
+        }>;
+
+        if (rollupRows.length >= ROLLUP_SCAN_LIMIT) {
+          warnings.add(
+            `Rollup truncated at ${ROLLUP_SCAN_LIMIT.toLocaleString()} rows — stats are approximate`,
+          );
+        }
+
+        rollup = computeRollup(rollupRows);
+      } else {
+        warnings.add('Pipeline rollup could not be computed');
+      }
+
+      return warningsEnvelope(
+        {
+          rows,
+          rollup,
+          hasMore,
+          nextCursor,
+          window: { range, since },
+        },
+        warnings,
+      );
+    } catch (err) {
+      return NextResponse.json(
+        {
+          error: safeErrorMessage(err, 'Failed to load pipeline runs'),
+        },
+        { status: 500 },
+      );
+    }
+  },
+);
 
 // ──────────────────────────────────────────
 // Rollup computation

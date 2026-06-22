@@ -44,138 +44,148 @@ function defaultDateRange(): { from: string; to: string } {
 // Route handler
 // ──────────────────────────────────────────
 
-// TODO(OPS-T1): author ResponseSchema
-export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
-  const auth = await getAuthorisedClient(['admin']);
-  if (!auth.success) return authFailureResponse(auth);
-  const { supabase, user } = auth;
+// The only 2xx return is a binary application/pdf NextResponse (Uint8Array),
+// not a JSON body — defineRoute never validates non-JSON 2xx responses, so this
+// schema is unreachable at runtime; z.unknown() documents the opaque PDF stream.
+const VerificationHistoryExportResponseSchema = z.unknown();
 
-  // Parse + validate query params
-  const parsed = parseSearchParams(
-    VerificationHistoryExportParamsSchema,
-    request.nextUrl.searchParams,
-  );
-  if (!parsed.success) return parsed.response;
+export const GET = defineRoute(
+  VerificationHistoryExportResponseSchema,
+  async (request: NextRequest) => {
+    const auth = await getAuthorisedClient(['admin']);
+    if (!auth.success) return authFailureResponse(auth);
+    const { supabase, user } = auth;
 
-  const defaults = defaultDateRange();
-  const from = parsed.data.from ?? defaults.from;
-  const to = parsed.data.to ?? defaults.to;
-
-  // Date range for query: from 00:00:00 to to 23:59:59
-  const fromIso = `${from}T00:00:00.000Z`;
-  const toIso = `${to}T23:59:59.999Z`;
-
-  try {
-    // Query verification_history joined with content_items for titles
-    const rawRows = await sb(
-      supabase
-        .from('verification_history')
-        .select(
-          'id, content_item_id, action_type, performed_by, performed_at, note, content_items!inner(suggested_title, governance_review_status)',
-        )
-        .gte('performed_at', fromIso)
-        .lte('performed_at', toIso)
-        .order('performed_at', { ascending: false })
-        .limit(5000),
-      'provenance.export.verification_history',
+    // Parse + validate query params
+    const parsed = parseSearchParams(
+      VerificationHistoryExportParamsSchema,
+      request.nextUrl.searchParams,
     );
+    if (!parsed.success) return parsed.response;
 
-    // Resolve reviewer display names
-    const performerIds = [
-      ...new Set(
-        rawRows.map((r: Record<string, unknown>) => r.performed_by as string),
-      ),
-    ];
-    let displayNames = new Map<string, { display_name: string }>();
+    const defaults = defaultDateRange();
+    const from = parsed.data.from ?? defaults.from;
+    const to = parsed.data.to ?? defaults.to;
+
+    // Date range for query: from 00:00:00 to to 23:59:59
+    const fromIso = `${from}T00:00:00.000Z`;
+    const toIso = `${to}T23:59:59.999Z`;
+
     try {
-      displayNames = await resolveUserDisplayNames(supabase, performerIds);
-    } catch {
-      // Fall back to user IDs if display name resolution fails (OQ-5 RLS)
-    }
+      // Query verification_history joined with content_items for titles
+      const rawRows = await sb(
+        supabase
+          .from('verification_history')
+          .select(
+            'id, content_item_id, action_type, performed_by, performed_at, note, content_items!inner(suggested_title, governance_review_status)',
+          )
+          .gte('performed_at', fromIso)
+          .lte('performed_at', toIso)
+          .order('performed_at', { ascending: false })
+          .limit(5000),
+        'provenance.export.verification_history',
+      );
 
-    // Resolve the exporter's display name
-    let exporterName = 'Admin';
-    try {
-      const exporterNames = await resolveUserDisplayNames(supabase, [user.id]);
-      const info = exporterNames.get(user.id);
-      if (info) exporterName = info.display_name;
-    } catch {
-      // Fall back to 'Admin'
-    }
+      // Resolve reviewer display names
+      const performerIds = [
+        ...new Set(
+          rawRows.map((r: Record<string, unknown>) => r.performed_by as string),
+        ),
+      ];
+      let displayNames = new Map<string, { display_name: string }>();
+      try {
+        displayNames = await resolveUserDisplayNames(supabase, performerIds);
+      } catch {
+        // Fall back to user IDs if display name resolution fails (OQ-5 RLS)
+      }
 
-    // Map to report rows
-    const rows: VerificationRow[] = rawRows.map(
-      (r: Record<string, unknown>) => {
-        const ci = r.content_items as Record<string, unknown> | null;
-        const performerId = r.performed_by as string;
-        const nameInfo = displayNames.get(performerId);
+      // Resolve the exporter's display name
+      let exporterName = 'Admin';
+      try {
+        const exporterNames = await resolveUserDisplayNames(supabase, [
+          user.id,
+        ]);
+        const info = exporterNames.get(user.id);
+        if (info) exporterName = info.display_name;
+      } catch {
+        // Fall back to 'Admin'
+      }
 
-        return {
-          id: r.id as string,
-          content_item_id: r.content_item_id as string,
-          action_type: r.action_type as string,
-          performed_by: performerId,
-          performed_at: r.performed_at as string,
-          note: r.note as string | null,
-          title: (ci?.suggested_title as string | null) ?? null,
-          reviewer_name: nameInfo?.display_name ?? 'A team member',
-          governance_status:
-            (ci?.governance_review_status as string | null) ?? null,
-        };
-      },
-    );
+      // Map to report rows
+      const rows: VerificationRow[] = rawRows.map(
+        (r: Record<string, unknown>) => {
+          const ci = r.content_items as Record<string, unknown> | null;
+          const performerId = r.performed_by as string;
+          const nameInfo = displayNames.get(performerId);
 
-    // Generate PDF
-    const element = React.createElement(ReportDocument, {
-      rows,
-      from,
-      to,
-      generatedBy: exporterName,
-    });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- renderToBuffer expects ReactElement<DocumentProps> but JSX.Element is structurally compatible
-    const pdfBuffer = await renderToBuffer(element as any);
+          return {
+            id: r.id as string,
+            content_item_id: r.content_item_id as string,
+            action_type: r.action_type as string,
+            performed_by: performerId,
+            performed_at: r.performed_at as string,
+            note: r.note as string | null,
+            title: (ci?.suggested_title as string | null) ?? null,
+            reviewer_name: nameInfo?.display_name ?? 'A team member',
+            governance_status:
+              (ci?.governance_review_status as string | null) ?? null,
+          };
+        },
+      );
 
-    // Log access
-    await recordPipelineRun({
-      supabase,
-      pipelineName: 'provenance_audit_pdf',
-      status: 'completed',
-      itemsProcessed: rows.length,
-      result: {
+      // Generate PDF
+      const element = React.createElement(ReportDocument, {
+        rows,
         from,
         to,
-        row_count: rows.length,
-        exported_by: user.id,
-      },
-    });
+        generatedBy: exporterName,
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- renderToBuffer expects ReactElement<DocumentProps> but JSX.Element is structurally compatible
+      const pdfBuffer = await renderToBuffer(element as any);
 
-    // Return PDF response — convert Buffer to Uint8Array for NextResponse
-    return new NextResponse(new Uint8Array(pdfBuffer), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="verification-history-${from}-to-${to}.pdf"`,
-        'Cache-Control': 'no-store',
-      },
-    });
-  } catch (err) {
-    // Log failed export
-    await recordPipelineRun({
-      supabase,
-      pipelineName: 'provenance_audit_pdf',
-      status: 'failed',
-      errorMessage: err instanceof Error ? err.message : 'Unknown export error',
-      result: { from, to, exported_by: user.id },
-    });
+      // Log access
+      await recordPipelineRun({
+        supabase,
+        pipelineName: 'provenance_audit_pdf',
+        status: 'completed',
+        itemsProcessed: rows.length,
+        result: {
+          from,
+          to,
+          row_count: rows.length,
+          exported_by: user.id,
+        },
+      });
 
-    return NextResponse.json(
-      {
-        error: safeErrorMessage(
-          err,
-          'Failed to generate verification history PDF',
-        ),
-      },
-      { status: 500 },
-    );
-  }
-});
+      // Return PDF response — convert Buffer to Uint8Array for NextResponse
+      return new NextResponse(new Uint8Array(pdfBuffer), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="verification-history-${from}-to-${to}.pdf"`,
+          'Cache-Control': 'no-store',
+        },
+      });
+    } catch (err) {
+      // Log failed export
+      await recordPipelineRun({
+        supabase,
+        pipelineName: 'provenance_audit_pdf',
+        status: 'failed',
+        errorMessage:
+          err instanceof Error ? err.message : 'Unknown export error',
+        result: { from, to, exported_by: user.id },
+      });
+
+      return NextResponse.json(
+        {
+          error: safeErrorMessage(
+            err,
+            'Failed to generate verification history PDF',
+          ),
+        },
+        { status: 500 },
+      );
+    }
+  },
+);

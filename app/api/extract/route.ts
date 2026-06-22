@@ -15,38 +15,50 @@ import { z } from 'zod';
 
 export const maxDuration = 60;
 
-// TODO(OPS-T1): author ResponseSchema
-export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
-  try {
-    const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth.success) return authFailureResponse(auth);
-    const { supabase, user } = auth;
+const ExtractResponseSchema = z.object({
+  // Extracted structured data conforming to the caller-supplied JSON schema —
+  // genuinely opaque (ExtractContentResult.result is typed `unknown`).
+  result: z.unknown(),
+  model: z.string(),
+  tokens_used: z.number(),
+  cost: z.number(),
+  warning: z.string().optional(),
+});
 
-    const rl = checkRateLimit(`extract:${user.id}`, 10, 60_000);
-    if (!rl.allowed) return rateLimitResponse(rl.resetAt);
+export const POST = defineRoute(
+  ExtractResponseSchema,
+  async (request: NextRequest) => {
+    try {
+      const auth = await getAuthorisedClient(['admin', 'editor']);
+      if (!auth.success) return authFailureResponse(auth);
+      const { supabase, user } = auth;
 
-    const raw = await request.json();
-    const parsed = parseBody(ExtractBodySchema, raw);
-    if (!parsed.success) return parsed.response;
+      const rl = checkRateLimit(`extract:${user.id}`, 10, 60_000);
+      if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
-    const result = await extractStructuredContent({
-      supabase,
-      itemId: parsed.data.itemId,
-      schema: parsed.data.schema,
-      prompt: parsed.data.prompt,
-    });
+      const raw = await request.json();
+      const parsed = parseBody(ExtractBodySchema, raw);
+      if (!parsed.success) return parsed.response;
 
-    return NextResponse.json(result);
-  } catch (err) {
-    if (err instanceof AIServiceError) {
+      const result = await extractStructuredContent({
+        supabase,
+        itemId: parsed.data.itemId,
+        schema: parsed.data.schema,
+        prompt: parsed.data.prompt,
+      });
+
+      return NextResponse.json(result);
+    } catch (err) {
+      if (err instanceof AIServiceError) {
+        return NextResponse.json(
+          { error: safeErrorMessage(err, err.message) },
+          { status: err.status },
+        );
+      }
       return NextResponse.json(
-        { error: safeErrorMessage(err, err.message) },
-        { status: err.status },
+        { error: safeErrorMessage(err, 'Failed to extract structured data') },
+        { status: 500 },
       );
     }
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to extract structured data') },
-      { status: 500 },
-    );
-  }
-});
+  },
+);

@@ -16,8 +16,48 @@ import { z } from "zod";
 
 export const maxDuration = 30;
 
-// TODO(OPS-T1): author ResponseSchema
-export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
+const RequirementCoverageSchema = z.object({
+  requirement_id: z.string(),
+  section_ref: z.string(),
+  section_name: z.string(),
+  question_number: z.number().nullable(),
+  requirement_text: z.string(),
+  description: z.string().nullable(),
+  requirement_type: z.enum([
+    'policy',
+    'statement',
+    'evidence',
+    'data',
+    'narrative',
+    'declaration',
+    'reference',
+  ]),
+  coverage_status: z.enum(['strong', 'partial', 'gap', 'na']),
+  matching_content_ids: z.array(z.string()),
+  best_similarity_score: z.number(),
+  content_length_met: z.boolean(),
+});
+
+const TemplateCoverageResultSchema = z.object({
+  template_name: z.string(),
+  template_version: z.string().nullable(),
+  template_type: z.string(),
+  total_requirements: z.number(),
+  strong_count: z.number(),
+  partial_count: z.number(),
+  gap_count: z.number(),
+  na_count: z.number(),
+  score: z.number(),
+  sections: z.array(
+    z.object({
+      section_ref: z.string(),
+      section_name: z.string(),
+      requirements: z.array(RequirementCoverageSchema),
+    }),
+  ),
+});
+
+export const GET = defineRoute(TemplateCoverageResultSchema, async (request: NextRequest) => {
   try {
     const auth = await getAuthenticatedClient();
     if (!auth.success) return authFailureResponse(auth);

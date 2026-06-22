@@ -315,8 +315,73 @@ function buildSummary(
 // Route handler
 // ---------------------------------------------------------------------------
 
-// TODO(OPS-T1): author ResponseSchema
-export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
+const GapBaseShape = {
+  gap_key: z.string(),
+  title: z.string(),
+  description: z.string().nullable(),
+  priority_score: z.number(),
+  priority_tier: z.enum(['critical', 'high', 'medium', 'low']),
+  domain: z.string().nullable(),
+  subtopic: z.string().nullable(),
+  action_href: z.string(),
+  action_label: z.string(),
+};
+
+const TaxonomyGapSchema = z.object({
+  ...GapBaseShape,
+  source: z.literal('taxonomy'),
+  domain_name: z.string(),
+  subtopic_name: z.string(),
+  target_unmet: z.boolean(),
+});
+
+const TemplateGapSchema = z.object({
+  ...GapBaseShape,
+  source: z.literal('template'),
+  template_name: z.string(),
+  template_type: z.string(),
+  section_ref: z.string(),
+  section_name: z.string(),
+  requirement_text: z.string(),
+  requirement_type: z.enum([
+    'policy',
+    'statement',
+    'evidence',
+    'data',
+    'narrative',
+    'declaration',
+    'reference',
+  ]),
+  is_mandatory: z.boolean().nullable(),
+});
+
+const GuideGapSchema = z.object({
+  ...GapBaseShape,
+  source: z.literal('guide'),
+  guide_id: z.string(),
+  guide_name: z.string(),
+  guide_slug: z.string(),
+  section_id: z.string(),
+  section_name: z.string(),
+  is_required: z.boolean(),
+  section_status: z.enum(['empty', 'stale']),
+});
+
+const UnifiedGapSummaryResponseSchema = z.object({
+  total_gaps: z.number(),
+  taxonomy_gaps: z.number(),
+  template_gaps: z.number(),
+  guide_gaps: z.number(),
+  critical: z.number(),
+  high: z.number(),
+  medium: z.number(),
+  low: z.number(),
+  gaps: z.array(
+    z.union([TaxonomyGapSchema, TemplateGapSchema, GuideGapSchema]),
+  ),
+});
+
+export const GET = defineRoute(UnifiedGapSummaryResponseSchema, async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient();
     if (!auth.success) return authFailureResponse(auth);

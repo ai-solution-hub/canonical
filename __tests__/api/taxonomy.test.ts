@@ -529,6 +529,8 @@ describe('Taxonomy API routes', () => {
         name: 'Cloud Infrastructure',
         display_order: 10,
         is_active: true,
+        provenance: 'client',
+        description: null,
       };
 
       // Domain existence check

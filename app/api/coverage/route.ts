@@ -12,8 +12,12 @@ import { z } from "zod";
 
 export const maxDuration = 30;
 
-// TODO(OPS-T1): author ResponseSchema
-export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
+const CoverageMatrixResponseSchema = z.object({
+  matrix: z.array(z.unknown()), // get_coverage_matrix RPC Json rows
+  summary: z.array(z.unknown()), // get_coverage_summary RPC Json rows
+});
+
+export const GET = defineRoute(CoverageMatrixResponseSchema, async (request: NextRequest) => {
   try {
     const auth = await getAuthenticatedClient();
     if (!auth.success) return authFailureResponse(auth);

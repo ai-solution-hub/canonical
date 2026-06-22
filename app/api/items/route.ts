@@ -19,9 +19,57 @@ import { z } from 'zod';
 
 export const maxDuration = 30;
 
-// TODO(OPS-T1): author ResponseSchema
+const ItemsCreateResponseSchema = z.object({
+  id: z.string(),
+  // content_items.{title,content_type,created_at} are nullable in the
+  // generated Row type (projected via .select(...).single()).
+  title: z.string().nullable(),
+  content_type: z.string().nullable(),
+  created_at: z.string().nullable(),
+  warnings: z.array(z.string()),
+  dedup_status: z.enum(['clean', 'suspected_duplicate']),
+  // Conditional keys — spread only when present on the 201 body.
+  suspected_duplicate_of: z.string().optional(),
+  duplicate_matches: z
+    .array(
+      z.object({
+        id: z.string(),
+        title: z.string(),
+        similarity: z.number(),
+        match_type: z.string(),
+      }),
+    )
+    .optional(),
+  suggested_layer: z
+    .object({
+      suggestedLayer: z.string(),
+      reason: z.string(),
+      confidence: z.string(),
+    })
+    .optional(),
+  topic_suggestion: z
+    .object({ topicId: z.string(), reason: z.string() })
+    .optional(),
+  // mirrors GuideSectionMatch from @/lib/guide-section-mapping
+  guide_section_suggestions: z
+    .array(
+      z.object({
+        guideId: z.string(),
+        guideName: z.string(),
+        guideSlug: z.string(),
+        sectionId: z.string(),
+        sectionName: z.string(),
+        sectionOrder: z.number(),
+        isRequired: z.boolean(),
+        matchStrength: z.enum(['exact', 'partial', 'domain_only']),
+        matchReason: z.string(),
+      }),
+    )
+    .optional(),
+});
+
 export const POST = withRequestContext(
-  defineRoute(z.unknown(), async (request: NextRequest) => {
+  defineRoute(ItemsCreateResponseSchema, async (request: NextRequest) => {
     try {
       // Auth + role check
       const auth = await getAuthorisedClient(['admin', 'editor']);

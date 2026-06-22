@@ -89,130 +89,139 @@ async function computeOptionsHash(body: BatchReclassifyBody): Promise<string> {
     .slice(0, 16);
 }
 
-// TODO(OPS-T1): author ResponseSchema
-export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
-  try {
-    // ----------------------------------------------------------------
-    // Auth: per D-1 ratified — `'admin'` and `'editor'` both authorised.
-    // The dispatcher's `reValidateAuthContext` uses `requiredRole: 'editor'`
-    // so admins satisfy via `ROLE_RANK`.
-    // ----------------------------------------------------------------
-    const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth.success) return authFailureResponse(auth);
-    const { user, role, supabase } = auth;
-
-    // ----------------------------------------------------------------
-    // Body parse via parseBody (per feedback_validation_sweep_safeparse_ban).
-    // ----------------------------------------------------------------
-    let raw: unknown = {};
-    try {
-      raw = await request.json();
-    } catch {
-      // Empty body or malformed JSON — both treated as empty payload so
-      // schema defaults apply.
-      raw = {};
-    }
-    const parsed = parseBody(BatchReclassifyBodyZodSchema, raw);
-    if (!parsed.success) return parsed.response;
-
-    const body: BatchReclassifyBody = {
-      workspace_id: parsed.data.workspace_id,
-      domain: parsed.data.domain ?? null,
-      limit: parsed.data.limit,
-      force: parsed.data.force,
-      entities_only: parsed.data.entities_only,
-      batch_size: parsed.data.batch_size,
-      model_tier: parsed.data.model_tier,
-    };
-
-    // ----------------------------------------------------------------
-    // Idempotency key per spec §3.2 + D-6 (SHA-256 hex truncated 16
-    // chars of canonical-key-order JSON of options).
-    // ----------------------------------------------------------------
-    const optionsHash = await computeOptionsHash(body);
-    const idempotencyKey = buildIdempotencyKey({
-      jobType: 'batch_reclassify',
-      scopedId: body.workspace_id,
-      requestHash: optionsHash,
-    });
-
-    // ----------------------------------------------------------------
-    // pipeline_runs Pattern 2: caller-allocated UUID + INSERT
-    // `status='running'` at-enqueue. The worker UPDATEs the SAME row
-    // at-terminal (see `lib/queue/dispatch.ts` `case 'batch_reclassify':`).
-    //
-    // Service-role client: `pipeline_runs_insert` RLS is admin-only
-    // (per migrations/20260416102457_pre_squash_reconciliation.sql:6178);
-    // editor producers would be silently denied. Same pattern as
-    // §5.4.1 W4-IMPL.
-    //
-    // workspaceId is NULL because `body.workspace_id` is the non-UUID
-    // CLIENT_CONFIG.client_id ('default'); pipeline_runs.workspace_id
-    // is FK to `workspaces(id)` so a non-UUID would FK-fail. This is
-    // the §3.4 D-8 body-only-encoding consequence: workspace scope
-    // lives in body, not in the foreign-key column.
-    // ----------------------------------------------------------------
-    const pipelineRunId = crypto.randomUUID();
-    const serviceClient = createServiceClient();
-    await sb(
-      serviceClient.from('pipeline_runs').insert({
-        id: pipelineRunId,
-        pipeline_name: 'batch_reclassify',
-        status: 'running',
-        workspace_id: null,
-      }),
-      'admin.batchReclassify.pipelineRunInsert',
-    );
-
-    // ----------------------------------------------------------------
-    // Enqueue. The chokepoint helper handles dedup pre-INSERT against
-    // the partial UNIQUE index on `(idempotency_key) WHERE status IN
-    // ('pending', 'processing', 'completed')` — same-day re-enqueue
-    // returns the existing job_id with `deduplicated: true`.
-    //
-    // Service-role client: `processing_queue_insert_editor_admin` allows
-    // editor INSERT, but `processing_queue_select_admin` is admin-only —
-    // an editor's `.insert(...).select('id').single()` succeeds at the
-    // INSERT step and then fails at RETURNING (PGRST116 0-rows). Using
-    // the service-role client bypasses RLS for both the dedup SELECT
-    // and the INSERT-with-RETURNING. `created_by` is sourced from
-    // `authContext.user_id` (not `auth.uid()`), so audit trail is
-    // preserved even with the elevated client.
-    //
-    // Per D-8 body-only encoding: `auth_context.workspace_id` is OMITTED
-    // (envelope's UUID constraint would reject the non-UUID
-    // CLIENT_CONFIG.client_id). Workspace scope lives in
-    // `body.workspace_id` instead — the handler validates
-    // `body.workspace_id === CLIENT_CONFIG.client_id` per spec §4.3.
-    // ----------------------------------------------------------------
-    void supabase; // Auth-scoped client retained for symmetry; service-role used for write paths.
-    const enqueueResult = await enqueueQueueJob<BatchReclassifyBody>({
-      supabase: serviceClient,
-      jobType: 'batch_reclassify',
-      body,
-      authContext: { user_id: user.id, role },
-      idempotencyKey,
-      pipelineRunId,
-      priority: 0,
-      maxAttempts: 3,
-    });
-
-    return NextResponse.json(
-      {
-        job_id: enqueueResult.jobId,
-        pipeline_run_id: pipelineRunId,
-        status: 'queued',
-        deduplicated: enqueueResult.deduplicated,
-      },
-      { status: 202 },
-    );
-  } catch (err) {
-    logger.error({ err }, 'admin.batchReclassify: enqueue failed');
-    return NextResponse.json(
-      {
-        error: safeErrorMessage(err, 'Failed to queue batch_reclassify job'),
-      },
-      { status: 500 },
-    );
-  }
+const BatchReclassifyResponseSchema = z.object({
+  job_id: z.string(),
+  pipeline_run_id: z.string(),
+  status: z.literal('queued'),
+  deduplicated: z.boolean(),
 });
+
+export const POST = defineRoute(
+  BatchReclassifyResponseSchema,
+  async (request: NextRequest) => {
+    try {
+      // ----------------------------------------------------------------
+      // Auth: per D-1 ratified — `'admin'` and `'editor'` both authorised.
+      // The dispatcher's `reValidateAuthContext` uses `requiredRole: 'editor'`
+      // so admins satisfy via `ROLE_RANK`.
+      // ----------------------------------------------------------------
+      const auth = await getAuthorisedClient(['admin', 'editor']);
+      if (!auth.success) return authFailureResponse(auth);
+      const { user, role, supabase } = auth;
+
+      // ----------------------------------------------------------------
+      // Body parse via parseBody (per feedback_validation_sweep_safeparse_ban).
+      // ----------------------------------------------------------------
+      let raw: unknown = {};
+      try {
+        raw = await request.json();
+      } catch {
+        // Empty body or malformed JSON — both treated as empty payload so
+        // schema defaults apply.
+        raw = {};
+      }
+      const parsed = parseBody(BatchReclassifyBodyZodSchema, raw);
+      if (!parsed.success) return parsed.response;
+
+      const body: BatchReclassifyBody = {
+        workspace_id: parsed.data.workspace_id,
+        domain: parsed.data.domain ?? null,
+        limit: parsed.data.limit,
+        force: parsed.data.force,
+        entities_only: parsed.data.entities_only,
+        batch_size: parsed.data.batch_size,
+        model_tier: parsed.data.model_tier,
+      };
+
+      // ----------------------------------------------------------------
+      // Idempotency key per spec §3.2 + D-6 (SHA-256 hex truncated 16
+      // chars of canonical-key-order JSON of options).
+      // ----------------------------------------------------------------
+      const optionsHash = await computeOptionsHash(body);
+      const idempotencyKey = buildIdempotencyKey({
+        jobType: 'batch_reclassify',
+        scopedId: body.workspace_id,
+        requestHash: optionsHash,
+      });
+
+      // ----------------------------------------------------------------
+      // pipeline_runs Pattern 2: caller-allocated UUID + INSERT
+      // `status='running'` at-enqueue. The worker UPDATEs the SAME row
+      // at-terminal (see `lib/queue/dispatch.ts` `case 'batch_reclassify':`).
+      //
+      // Service-role client: `pipeline_runs_insert` RLS is admin-only
+      // (per migrations/20260416102457_pre_squash_reconciliation.sql:6178);
+      // editor producers would be silently denied. Same pattern as
+      // §5.4.1 W4-IMPL.
+      //
+      // workspaceId is NULL because `body.workspace_id` is the non-UUID
+      // CLIENT_CONFIG.client_id ('default'); pipeline_runs.workspace_id
+      // is FK to `workspaces(id)` so a non-UUID would FK-fail. This is
+      // the §3.4 D-8 body-only-encoding consequence: workspace scope
+      // lives in body, not in the foreign-key column.
+      // ----------------------------------------------------------------
+      const pipelineRunId = crypto.randomUUID();
+      const serviceClient = createServiceClient();
+      await sb(
+        serviceClient.from('pipeline_runs').insert({
+          id: pipelineRunId,
+          pipeline_name: 'batch_reclassify',
+          status: 'running',
+          workspace_id: null,
+        }),
+        'admin.batchReclassify.pipelineRunInsert',
+      );
+
+      // ----------------------------------------------------------------
+      // Enqueue. The chokepoint helper handles dedup pre-INSERT against
+      // the partial UNIQUE index on `(idempotency_key) WHERE status IN
+      // ('pending', 'processing', 'completed')` — same-day re-enqueue
+      // returns the existing job_id with `deduplicated: true`.
+      //
+      // Service-role client: `processing_queue_insert_editor_admin` allows
+      // editor INSERT, but `processing_queue_select_admin` is admin-only —
+      // an editor's `.insert(...).select('id').single()` succeeds at the
+      // INSERT step and then fails at RETURNING (PGRST116 0-rows). Using
+      // the service-role client bypasses RLS for both the dedup SELECT
+      // and the INSERT-with-RETURNING. `created_by` is sourced from
+      // `authContext.user_id` (not `auth.uid()`), so audit trail is
+      // preserved even with the elevated client.
+      //
+      // Per D-8 body-only encoding: `auth_context.workspace_id` is OMITTED
+      // (envelope's UUID constraint would reject the non-UUID
+      // CLIENT_CONFIG.client_id). Workspace scope lives in
+      // `body.workspace_id` instead — the handler validates
+      // `body.workspace_id === CLIENT_CONFIG.client_id` per spec §4.3.
+      // ----------------------------------------------------------------
+      void supabase; // Auth-scoped client retained for symmetry; service-role used for write paths.
+      const enqueueResult = await enqueueQueueJob<BatchReclassifyBody>({
+        supabase: serviceClient,
+        jobType: 'batch_reclassify',
+        body,
+        authContext: { user_id: user.id, role },
+        idempotencyKey,
+        pipelineRunId,
+        priority: 0,
+        maxAttempts: 3,
+      });
+
+      return NextResponse.json(
+        {
+          job_id: enqueueResult.jobId,
+          pipeline_run_id: pipelineRunId,
+          status: 'queued',
+          deduplicated: enqueueResult.deduplicated,
+        },
+        { status: 202 },
+      );
+    } catch (err) {
+      logger.error({ err }, 'admin.batchReclassify: enqueue failed');
+      return NextResponse.json(
+        {
+          error: safeErrorMessage(err, 'Failed to queue batch_reclassify job'),
+        },
+        { status: 500 },
+      );
+    }
+  },
+);

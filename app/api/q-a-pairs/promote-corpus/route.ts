@@ -38,19 +38,47 @@ import { promoteCorpusExtractions } from '@/lib/q-a-pairs/promote-corpus';
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 
-// TODO(OPS-T1): author ResponseSchema
-export const POST = defineRoute(z.unknown(), async (_request: NextRequest) => {
-  try {
-    const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth.success) return authFailureResponse(auth);
-
-    const summary = await promoteCorpusExtractions(auth.supabase);
-
-    return NextResponse.json(summary, { status: 200 });
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to promote corpus extractions') },
-      { status: 500 },
-    );
-  }
+// Mirrors the PromotionSummary interface from @/lib/q-a-pairs/promote-corpus.
+const PromoteCorpusResponseSchema = z.object({
+  considered: z.number(),
+  promoted: z.number(),
+  skipped: z.array(
+    z.object({
+      extractionId: z.string(),
+      reason: z.enum(['no_answer_text']),
+    }),
+  ),
+  already_promoted: z.number(),
+  embed_failed: z.number(),
+  retired: z.number(),
+  retired_no_replacement: z.number(),
+  sidecar_failed: z.number(),
+  failures: z.array(
+    z.object({
+      extractionId: z.string(),
+      newPairId: z.string(),
+      reason: z.enum(['embed_failed', 'sidecar_failed']),
+    }),
+  ),
 });
+
+export const POST = defineRoute(
+  PromoteCorpusResponseSchema,
+  async (_request: NextRequest) => {
+    try {
+      const auth = await getAuthorisedClient(['admin', 'editor']);
+      if (!auth.success) return authFailureResponse(auth);
+
+      const summary = await promoteCorpusExtractions(auth.supabase);
+
+      return NextResponse.json(summary, { status: 200 });
+    } catch (err) {
+      return NextResponse.json(
+        {
+          error: safeErrorMessage(err, 'Failed to promote corpus extractions'),
+        },
+        { status: 500 },
+      );
+    }
+  },
+);
