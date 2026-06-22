@@ -14,8 +14,7 @@
 
 import { normaliseTag } from '../lib/validation/schemas';
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
-import { loadEnv } from './lib/load-env';
-import { resolveSupabaseEnv } from './lib/script-env';
+import { prodProjectRef } from '@/scripts/lib/project-refs';
 
 // ── Synonym merge mappings ───────────────────────────────────────────────────
 
@@ -140,8 +139,50 @@ if (process.argv[1]?.endsWith('cleanup-tags.ts')) {
 
 async function runCli() {
   const { parseArgs } = await import('util');
+  const path = await import('path');
+  const fs = await import('fs');
+
+  // ── Env loading (handles worktrees) ────────────────────────────────────
+
+  function loadEnv() {
+    let dir = process.cwd();
+    while (dir !== '/') {
+      for (const file of ['.env.local', '.env']) {
+        const p = path.join(dir, file);
+        if (fs.existsSync(p)) {
+          const content = fs.readFileSync(p, 'utf-8');
+          for (const line of content.split('\n')) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('#')) continue;
+            const eq = trimmed.indexOf('=');
+            if (eq === -1) continue;
+            const key = trimmed.slice(0, eq).trim();
+            const val = trimmed
+              .slice(eq + 1)
+              .trim()
+              .replace(/^["']|["']$/g, '');
+            if (!process.env[key]) process.env[key] = val;
+          }
+        }
+      }
+      if (fs.existsSync(path.join(dir, 'package.json'))) break;
+      dir = path.dirname(dir);
+    }
+  }
 
   loadEnv();
+
+  // ── --env=prod opt-in (WP-S5.3 D-21 F-1) ───────────────────────────────
+
+  function assertEnvFlag(env: string, url: string | undefined): void {
+    if (env === 'prod' && !(url ?? '').includes(prodProjectRef())) {
+      console.error(
+        `--env=prod set but SUPABASE_URL does not include '${prodProjectRef()}'.\n` +
+          `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/cleanup-tags.ts --env=prod`,
+      );
+      process.exit(1);
+    }
+  }
 
   // ── Args ───────────────────────────────────────────────────────────────
 
@@ -173,10 +214,18 @@ Options:
 
   // ── Supabase client ────────────────────────────────────────────────────
 
-  const { url: supabaseUrl, key: supabaseKey } = resolveSupabaseEnv(
-    args.env ?? '',
-    'scripts/cleanup-tags.ts',
-  );
+  const supabaseUrl =
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error(
+      'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment',
+    );
+    process.exit(1);
+  }
+
+  assertEnvFlag(args.env ?? '', supabaseUrl);
 
   const supabase = createScriptClient(supabaseUrl, supabaseKey);
 

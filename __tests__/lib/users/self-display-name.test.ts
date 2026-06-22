@@ -1,5 +1,5 @@
 /**
- * Unit tests for `lib/user/display-name.ts`.
+ * Unit tests for `lib/users/self-display-name.ts`.
  *
  * The helper consolidates the previously-duplicated display-name
  * fallback chain that lived in both `lib/dashboard.ts` and

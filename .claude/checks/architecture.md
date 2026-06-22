@@ -55,7 +55,7 @@ drift patterns in AI-generated code.
    should follow this template:
 
    ```typescript
-   import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
+   import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth/client';
    import { safeErrorMessage } from '@/lib/error';
 
    export async function METHOD(request: NextRequest) {
