@@ -20,6 +20,10 @@
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
+    // Type-aware backstop for the CodeQL return-style class (js/implicit-return,
+    // js/mixed-returns): flags functions where some code paths return a value and
+    // others fall through. Not part of `strict`. (ID-121.7 Wave C, theme-14.)
+    "noImplicitReturns": true,
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",

@@ -86,6 +86,7 @@ export function ContentLibraryDrawer({
       }, 300);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [open]);
 
   // Debounced search
