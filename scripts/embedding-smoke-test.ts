@@ -33,10 +33,11 @@
  */
 
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
-import { prodProjectRef } from '@/scripts/lib/project-refs';
 import { parseArgs } from 'util';
 import path from 'path';
 import fs from 'fs';
+import { loadEnv } from './lib/load-env';
+import { resolveSupabaseEnv } from './lib/script-env';
 import {
   generateEmbedding,
   MAX_EMBEDDING_CHARS,
@@ -44,34 +45,6 @@ import {
 } from '../lib/ai/embed';
 import { stripMarkdown } from '../lib/content/strip-markdown';
 import { turndown } from '../lib/extraction/turndown';
-
-// ── Env loading (handles worktrees) ─────────────────────────────────────────
-
-function loadEnv() {
-  let dir = process.cwd();
-  while (dir !== '/') {
-    for (const file of ['.env.local', '.env']) {
-      const p = path.join(dir, file);
-      if (fs.existsSync(p)) {
-        const content = fs.readFileSync(p, 'utf-8');
-        for (const line of content.split('\n')) {
-          const trimmed = line.trim();
-          if (!trimmed || trimmed.startsWith('#')) continue;
-          const eq = trimmed.indexOf('=');
-          if (eq === -1) continue;
-          const key = trimmed.slice(0, eq).trim();
-          const val = trimmed
-            .slice(eq + 1)
-            .trim()
-            .replace(/^["']|["']$/g, '');
-          if (!process.env[key]) process.env[key] = val;
-        }
-      }
-    }
-    if (fs.existsSync(path.join(dir, 'package.json'))) break;
-    dir = path.dirname(dir);
-  }
-}
 
 // ── Args ───────────────────────────────────────────────────────────────────
 
@@ -124,36 +97,13 @@ Options:
   };
 }
 
-// ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
-
-function assertEnvFlag(env: string, url: string | undefined): void {
-  if (env === 'prod' && !(url ?? '').includes(prodProjectRef())) {
-    console.error(
-      `--env=prod set but SUPABASE_URL does not include '${prodProjectRef()}'.\n` +
-        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/embedding-smoke-test.ts --env=prod`,
-    );
-    process.exit(1);
-  }
-}
-
 type SupabaseScriptClient = ReturnType<typeof createScriptClient>;
 
 function getSupabaseClient(env: string): SupabaseScriptClient {
-  const supabaseUrl =
-    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_PUBLISHABLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (!supabaseUrl || !supabaseKey) {
-    console.error(
-      'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment',
-    );
-    process.exit(1);
-  }
-
-  assertEnvFlag(env, supabaseUrl);
+  const { url: supabaseUrl, key: supabaseKey } = resolveSupabaseEnv(
+    env,
+    'scripts/embedding-smoke-test.ts',
+  );
 
   return createScriptClient(supabaseUrl, supabaseKey);
 }

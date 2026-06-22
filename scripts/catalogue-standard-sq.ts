@@ -21,9 +21,8 @@
  */
 
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
-import { prodProjectRef } from '@/scripts/lib/project-refs';
-import path from 'path';
-import fs from 'fs';
+import { loadEnv } from './lib/load-env';
+import { assertEnvFlag } from './lib/script-env';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -61,34 +60,6 @@ interface InsertRow extends TemplateRequirement {
   is_current: boolean;
 }
 
-// ── Env loading ────────────────────────────────────────────────────────────
-
-function loadEnv(): void {
-  let dir = process.cwd();
-  while (dir !== '/') {
-    for (const file of ['.env.local', '.env']) {
-      const p = path.join(dir, file);
-      if (fs.existsSync(p)) {
-        const content = fs.readFileSync(p, 'utf-8');
-        for (const line of content.split('\n')) {
-          const trimmed = line.trim();
-          if (!trimmed || trimmed.startsWith('#')) continue;
-          const eq = trimmed.indexOf('=');
-          if (eq === -1) continue;
-          const key = trimmed.slice(0, eq).trim();
-          const val = trimmed
-            .slice(eq + 1)
-            .trim()
-            .replace(/^["']|["']$/g, '');
-          if (!process.env[key]) process.env[key] = val;
-        }
-      }
-    }
-    if (fs.existsSync(path.join(dir, 'package.json'))) break;
-    dir = path.dirname(dir);
-  }
-}
-
 loadEnv();
 
 // ── CLI args ───────────────────────────────────────────────────────────────
@@ -116,18 +87,6 @@ function parseCliArgs(): {
   }
 
   return { dryRun, skipEmbeddings, env };
-}
-
-// ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
-
-function assertEnvFlag(env: string, url: string | undefined): void {
-  if (env === 'prod' && !(url ?? '').includes(prodProjectRef())) {
-    console.error(
-      `--env=prod set but SUPABASE_URL does not include '${prodProjectRef()}'.\n` +
-        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/catalogue-standard-sq.ts --env=prod`,
-    );
-    process.exit(1);
-  }
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -2189,7 +2148,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  assertEnvFlag(env, supabaseUrl);
+  assertEnvFlag(env, supabaseUrl, 'scripts/catalogue-standard-sq.ts');
 
   const supabase = createScriptClient(supabaseUrl, supabaseKey);
 

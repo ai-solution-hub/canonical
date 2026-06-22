@@ -25,10 +25,9 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { createInterface } from 'node:readline';
-import path from 'node:path';
-import fs from 'node:fs';
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import { prodProjectRef } from '@/scripts/lib/project-refs';
+import { loadEnv } from './lib/load-env';
 import { tryQuery } from '@/lib/supabase/safe';
 import {
   readInstanceFields,
@@ -38,34 +37,6 @@ import {
   confirmAndWriteCatalogue,
   type CatalogueRowInsert,
 } from '@/lib/catalogue/from-instance';
-
-// ── Env loading (same walk-up pattern as catalogue-standard-sq.ts) ──────────
-
-function loadEnv(): void {
-  let dir = process.cwd();
-  while (dir !== '/') {
-    for (const file of ['.env.local', '.env']) {
-      const p = path.join(dir, file);
-      if (fs.existsSync(p)) {
-        const content = fs.readFileSync(p, 'utf-8');
-        for (const line of content.split('\n')) {
-          const trimmed = line.trim();
-          if (!trimmed || trimmed.startsWith('#')) continue;
-          const eq = trimmed.indexOf('=');
-          if (eq === -1) continue;
-          const key = trimmed.slice(0, eq).trim();
-          const val = trimmed
-            .slice(eq + 1)
-            .trim()
-            .replace(/^["']|["']$/g, '');
-          if (!process.env[key]) process.env[key] = val;
-        }
-      }
-    }
-    if (fs.existsSync(path.join(dir, 'package.json'))) break;
-    dir = path.dirname(dir);
-  }
-}
 
 loadEnv();
 
