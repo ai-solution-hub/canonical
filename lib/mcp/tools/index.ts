@@ -1,11 +1,11 @@
 /**
  * MCP tool registrations for the Knowledge Hub server.
  *
- * Registers 42 tools across 16 category files (canonical surface after the
- * S357 Wave-1 consolidations — see scripts/mcp-eval/fixtures.ts, drift-guarded
- * by mcp-fixture-sync.test.ts):
+ * Registers 41 tools across 16 category files (canonical surface after the
+ * S357 Wave-1 consolidations + ID-117.12 get_document_diff retirement — see
+ * scripts/mcp-eval/fixtures.ts, drift-guarded by mcp-fixture-sync.test.ts):
  *   - search.ts     (2): find_duplicates, find
- *   - content.ts    (7): get, create_content_item, update_content_item, get_workspace_items, assign, get_document_versions, get_document_diff
+ *   - content.ts    (6): get, create_content_item, update_content_item, get_workspace_items, assign, get_document_versions
  *   - procurement.ts (5): list_active_procurement, get_procurement_detail, get_form_question, cite_content, get_content_effectiveness
  *   - dashboard.ts  (2): get_reorientation, where_are_we_exposed
  *   - quality.ts    (1): suggest_content_creation

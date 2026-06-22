@@ -81,7 +81,8 @@ export function loadEnv(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Canonical lists — 42 tools after S357 Wave-1 surface consolidation:
+// Canonical lists — 41 tools (42 after S357 Wave-1; ID-117.12 retired
+// get_document_diff, 42 → 41). S357 Wave-1 surface consolidation:
 // ID-71.7 (M27/B-INV-27) collapsed the search trio (search_knowledge_base /
 // search_qa_library / search_content_chunks) + find_similar_items into ONE `find`
 // entry; ID-71.10 (M32) collapsed get_content_item+get_content_items → `get` and
@@ -102,7 +103,7 @@ export function loadEnv(): void {
 // in lib/mcp/tools/search.ts. 43 → 42 (−2 +1).
 // ---------------------------------------------------------------------------
 
-/** Canonical set of all 42 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
+/** Canonical set of all 41 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
 export const CANONICAL_TOOL_NAMES = [
   // ID-71.7 — ONE consolidated find/answer entry (search + QA + chunk + similar).
   'find', // 1
@@ -122,7 +123,7 @@ export const CANONICAL_TOOL_NAMES = [
   'get_workspace_items', // 16
   'assign', // 17 (ID-71.10 — one-or-many; was assign_content_owner + bulk_assign_owner)
   'get_document_versions', // 18
-  'get_document_diff', // 19
+  // get_document_diff RETIRED (ID-117.12) — legacy diff-display surface removed.
   // ID-71.10 PART 2 — ONE parameterised dedup entry (scope: 'item' | 'all');
   // was find_duplicate_candidates (single-item) + find_all_duplicates (batch).
   'find_duplicates',
@@ -161,7 +162,7 @@ export const CANONICAL_TOOL_NAMES = [
   'update_publication_status', // 57
 ] as const;
 
-export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 42 (ID-71.10 part 2: 43 − 2 + 1)
+export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 41 (ID-117.12 retired get_document_diff: 42 − 1)
 
 /** Read-only tools (no side effects). */
 export const READ_ONLY_TOOLS = new Set([
@@ -186,7 +187,6 @@ export const READ_ONLY_TOOLS = new Set([
   'show_reorient_me',
   'show_intelligence_feed',
   'get_document_versions',
-  'get_document_diff',
   'get_intelligence_summary',
   'get_guide',
   'list_guides',
@@ -585,8 +585,6 @@ export function getMinimalArgs(
     case 'get_template_gaps':
       return { template_name: 'Standard Selection Questionnaire' };
     case 'get_document_versions':
-      return {};
-    case 'get_document_diff':
       return {};
 
     // Guide read tools

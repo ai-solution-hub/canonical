@@ -135,54 +135,10 @@ describe('ReuploadBanner — new version', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Diff link
+// Diff link RETIRED (ID-117.12): the diffAvailable/diffDocumentId props and the
+// "Review Q&A changes" link were removed. The banner never renders a diff link
+// now; the "does not show a diff link" cases above remain as regression guards.
 // ---------------------------------------------------------------------------
-
-describe('ReuploadBanner — diff link', () => {
-  it('shows diff link when diffAvailable and diffDocumentId are set', () => {
-    render(
-      <ReuploadBanner
-        matchType="new_version"
-        previousVersion={1}
-        previousDocumentId="doc-prev"
-        diffAvailable={true}
-        diffDocumentId="doc-new-123"
-      />,
-    );
-
-    const link = screen.getByRole('link', { name: /review q&a changes/i });
-    expect(link).toBeInTheDocument();
-    expect(link).toHaveAttribute('href', '/documents/doc-new-123/diff');
-    expect(link).toHaveAttribute('target', '_blank');
-  });
-
-  it('does not show diff link when diffAvailable is false', () => {
-    render(
-      <ReuploadBanner
-        matchType="new_version"
-        previousVersion={1}
-        previousDocumentId="doc-prev"
-        diffAvailable={false}
-        diffDocumentId="doc-new-123"
-      />,
-    );
-
-    expect(screen.queryByRole('link')).not.toBeInTheDocument();
-  });
-
-  it('does not show diff link when diffDocumentId is missing', () => {
-    render(
-      <ReuploadBanner
-        matchType="new_version"
-        previousVersion={1}
-        previousDocumentId="doc-prev"
-        diffAvailable={true}
-      />,
-    );
-
-    expect(screen.queryByRole('link')).not.toBeInTheDocument();
-  });
-});
 
 // ---------------------------------------------------------------------------
 // Accessibility

@@ -548,7 +548,9 @@ describe('Integration: full codebase extraction', () => {
       // − 3 net (ID-71.9 M30/OQ-5: 4 queue reads → ONE `whats_in_my_queue`). 46 → 43.
       // − 1 net (ID-71.10 part 2 M32/B-INV-32 dedup: find_duplicate_candidates +
       //   find_all_duplicates → ONE parameterised `find_duplicates`). 43 → 42.
-      expect(allTools.length).toBe(42);
+      // − 1 (ID-117.12: get_document_diff retired with the legacy diff-display
+      //   surface / source_document_diffs engine). 42 → 41.
+      expect(allTools.length).toBe(41);
 
       // Every tool should have a non-empty name
       for (const tool of allTools) {

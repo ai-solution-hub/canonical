@@ -899,10 +899,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Trigger diff computation for re-uploads
-    // ID-117.11: diff_available stays false (source_document_diffs table dropped
-    // in {117.13}); kept as boolean type so the conditional spread below compiles.
-    let diffAvailable: boolean = false;
+    // Re-upload impact path (REHOME, ID-117.11): compute the in-memory diff,
+    // run impact analysis, and notify affected content owners. No persisted
+    // diff display — the diff_available flag was retired in ID-117.12.
     if (reuploadInfo?.match_type === 'new_version' && sourceDocumentId) {
       try {
         const { computeDocumentDiff } =
@@ -1040,7 +1039,6 @@ export async function POST(request: NextRequest) {
       ...(guideSectionSuggestions && {
         guide_section_suggestions: guideSectionSuggestions,
       }),
-      ...(diffAvailable ? { diff_available: true } : {}),
       message: extractedText
         ? 'File uploaded, text extracted, and AI processing complete.'
         : 'File uploaded but text extraction failed. The file is stored and available for manual processing.',

@@ -59,7 +59,6 @@ export interface FileReuploadInfo {
   matchType: 'identical' | 'new_version';
   previousVersion: number;
   previousDocumentId: string;
-  diffAvailable?: boolean;
   newDocumentId?: string;
 }
 
@@ -351,7 +350,6 @@ export function useFileUploadPipeline(
                 previousVersion: data.reupload_detection.previous_version,
                 previousDocumentId:
                   data.reupload_detection.previous_document_id,
-                diffAvailable: data.diff_available ?? false,
                 newDocumentId: data.source_document_id ?? undefined,
               }
             : undefined;

@@ -679,8 +679,6 @@ export function UploadTabContent({
                       matchType={state.reuploadInfo.matchType}
                       previousVersion={state.reuploadInfo.previousVersion}
                       previousDocumentId={state.reuploadInfo.previousDocumentId}
-                      diffAvailable={state.reuploadInfo.diffAvailable}
-                      diffDocumentId={state.reuploadInfo.newDocumentId}
                     />
                   )}
                   {/* Dedup warning per file */}

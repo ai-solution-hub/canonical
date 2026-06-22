@@ -866,7 +866,6 @@ describe('useFileUploadPipeline', () => {
             previous_version: 1,
             previous_document_id: 'prev-doc-id',
           },
-          diff_available: true,
           source_document_id: 'new-doc-id',
         }),
       );
@@ -886,7 +885,6 @@ describe('useFileUploadPipeline', () => {
         matchType: 'new_version',
         previousVersion: 1,
         previousDocumentId: 'prev-doc-id',
-        diffAvailable: true,
         newDocumentId: 'new-doc-id',
       });
     });
