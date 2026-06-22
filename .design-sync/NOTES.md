@@ -65,11 +65,15 @@ Synth mode flattens props to `[key: string]: unknown` (no real variant props).
 FOLLOW-UP: add `dtsPropsFor` for the other variant-bearing primitives (Tabs/TabsList
 `variant`, Badge done, Select, Switch, etc.) so the design agent codes against real APIs.
 
-## Authored previews so far (8) — graded good
+## Authored previews so far (17) — graded good
 
-Button, Badge, Card, CardHeader, Checkbox, Progress, SheetHeader, SheetFooter. The other
-83 ship the honest **floor card** ("preview not yet authored"). This is the standing
-incremental-authoring backlog (re-sync carries authored work forward).
+Wave 1 (8): Button, Badge, Card, CardHeader, Checkbox, Progress, SheetHeader, SheetFooter.
+Wave 2 (9): Input, Label, Switch, Textarea, Separator, Skeleton, RadioGroup, Accordion,
+Tabs. The other ~75 ship the honest **floor card** ("preview not yet authored"). This is
+the standing incremental-authoring backlog (re-sync carries authored work forward). Next
+highest-value targets: the overlay open-states (Dialog, Select, Sheet, Popover, Tooltip,
+DropdownMenu) via `cfg.overrides.<Name> = {cardMode:'single', viewport:'WxH'}` +
+`defaultOpen`.
 
 ## DropdownMenuLabel — EXCLUDED from upload (the one component not shipped)
 
