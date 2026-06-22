@@ -98,7 +98,13 @@ export function parseSearchParams<T extends z.ZodType>(
 ):
   | { success: true; data: z.infer<T> }
   | { success: false; response: NextResponse } {
-  const raw: Record<string, unknown> = {};
+  // Accumulate into a Map keyed by the user-controlled URL param name, then
+  // convert with Object.fromEntries. Bracket-writing raw[key] with a
+  // remote-controlled key is a property-injection / prototype-pollution sink
+  // (CodeQL js/remote-property-injection); Map.set + Object.fromEntries avoids
+  // it — fromEntries makes "__proto__" an own property, never mutating the
+  // prototype — and is otherwise behaviour-identical (downstream Zod-validated).
+  const raw = new Map<string, unknown>();
 
   // Collect all unique keys first — handles repeated params (e.g. domain=a&domain=b)
   const allKeys = new Set(params.keys());
@@ -108,21 +114,21 @@ export function parseSearchParams<T extends z.ZodType>(
 
     if (values.length > 1) {
       // Multiple values for the same key → always an array
-      raw[key] = values.flatMap((v) => v.split(',')).filter(Boolean);
+      raw.set(key, values.flatMap((v) => v.split(',')).filter(Boolean));
     } else {
       const value = values[0];
       // Parse comma-separated values as arrays
       if (value.includes(',')) {
-        raw[key] = value.split(',').filter(Boolean);
+        raw.set(key, value.split(',').filter(Boolean));
       } else if (!isNaN(Number(value)) && value !== '') {
-        raw[key] = Number(value);
+        raw.set(key, Number(value));
       } else {
-        raw[key] = value;
+        raw.set(key, value);
       }
     }
   }
 
-  return parseBody(schema, raw);
+  return parseBody(schema, Object.fromEntries(raw));
 }
 
 // Re-export schema utilities for convenient imports

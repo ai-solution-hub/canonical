@@ -365,7 +365,8 @@ export function produceUnreadNotificationItems(count: number): AttentionItem[] {
       severity: 'medium',
       entity_type: 'aggregate',
       entity_id: 'unread-notifications',
-      title: `${count} unread ${count === 1 ? 'notification' : 'notifications'}`,
+      // count is always >= 5 here (guarded above) — always plural
+      title: `${count} unread notifications`,
       detail: `You have ${count} unread notifications. Use the notification bell in the header to review them.`,
       action_url: '/',
       action_label: 'Go to dashboard',

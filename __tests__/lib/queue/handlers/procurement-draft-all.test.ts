@@ -239,16 +239,9 @@ function configureSupabase(
   let upsertIdx = 0;
   for (const q of scenario.questions.data) {
     if (q.confidence_posture === 'no_content') continue;
-    if (
-      scenario.existing.some((e) => e.question_id === q.id) &&
-      // skip-existing was requested by caller — but we always queue
-      // assuming the handler's branch reaches the upsert path. For
-      // already-drafted skip cases, content/upsert mocks are not
-      // consumed.
-      false
-    ) {
-      // never reached
-    }
+    // NB: some scenarios request skip-existing, but this test always queues —
+    // it assumes the handler's branch reaches the upsert path. For
+    // already-drafted skip cases, content/upsert mocks are simply not consumed.
     // a. content_items lookup
     client._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
       resolve({ data: scenario.contentItems, error: null }),
