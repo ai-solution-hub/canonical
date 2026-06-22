@@ -12,8 +12,9 @@ import { z } from 'zod';
 
 export const maxDuration = 30;
 
-// TODO(OPS-T1): author ResponseSchema
-export const GET = defineRoute(z.unknown(), async () => {
+// `grants`: external Supabase OAuth SDK shape (auth.oauth.listGrants()) — opaque element.
+const GrantsResponseSchema = z.object({ grants: z.array(z.unknown()) });
+export const GET = defineRoute(GrantsResponseSchema, async () => {
   try {
     const auth = await getAuthenticatedClient();
     if (!auth.success) return authFailureResponse(auth);

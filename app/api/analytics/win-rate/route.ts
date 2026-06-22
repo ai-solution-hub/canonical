@@ -38,8 +38,20 @@ interface AggregateWinRateResponse {
 // GET /api/analytics/win-rate
 // ---------------------------------------------------------------------------
 
-// TODO(OPS-T1): author ResponseSchema
-export const GET = defineRoute(z.unknown(), async () => {
+const WinRateStatsSchema = z.object({
+  total_citations: z.number(),
+  winning_citations: z.number(),
+  losing_citations: z.number(),
+  pending_citations: z.number(),
+  win_rate: z.number(),
+  unique_items_cited: z.number(),
+  unique_bids: z.number(),
+});
+const WinRateResponseSchema = z.object({
+  overall: WinRateStatsSchema,
+  by_domain: z.array(WinRateStatsSchema.extend({ domain: z.string() })),
+});
+export const GET = defineRoute(WinRateResponseSchema, async () => {
   try {
     // Auth — any authenticated user may read
     const auth = await getAuthorisedClient(['admin', 'editor', 'viewer']);

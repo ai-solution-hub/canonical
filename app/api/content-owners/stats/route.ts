@@ -8,8 +8,18 @@ import { z } from 'zod';
 
 export const maxDuration = 30;
 
-// TODO(OPS-T1): author ResponseSchema
-export const GET = defineRoute(z.unknown(), async () => {
+const ContentOwnerStatItemSchema = z.object({
+  owner_id: z.string(),
+  total_items: z.number(),
+  fresh_count: z.number(),
+  aging_count: z.number(),
+  stale_count: z.number(),
+  expired_count: z.number(),
+  unverified_count: z.number(),
+  display_name: z.string().nullable(),
+});
+const ContentOwnerStatsResponseSchema = z.array(ContentOwnerStatItemSchema);
+export const GET = defineRoute(ContentOwnerStatsResponseSchema, async () => {
   try {
     const auth = await getAuthenticatedClient();
     if (!auth.success) return authFailureResponse(auth);

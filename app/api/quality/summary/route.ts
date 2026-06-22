@@ -7,8 +7,18 @@ import { z } from 'zod';
 
 export const maxDuration = 30;
 
-// TODO(OPS-T1): author ResponseSchema
-export const GET = defineRoute(z.unknown(), async () => {
+const QualitySummaryResponseSchema = z.object({
+  total_open: z.number(),
+  by_type: z.record(z.string(), z.number()),
+  details: z.array(
+    z.object({
+      flag_type: z.string(),
+      severity: z.string(),
+      open_count: z.number(),
+    }),
+  ),
+});
+export const GET = defineRoute(QualitySummaryResponseSchema, async () => {
   try {
     const auth = await getAuthenticatedClient();
     if (!auth.success) return authFailureResponse(auth);

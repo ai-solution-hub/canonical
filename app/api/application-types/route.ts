@@ -18,8 +18,16 @@ import { safeErrorMessage } from '@/lib/error';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-// TODO(OPS-T1): author ResponseSchema
-export const GET = defineRoute(z.unknown(), async () => {
+const ApplicationTypeRowSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  label_plural: z.string().nullable(),
+  description: z.string().nullable(),
+  default_icon: z.string().nullable(),
+  default_colour: z.string().nullable(),
+});
+const ApplicationTypesResponseSchema = z.array(ApplicationTypeRowSchema);
+export const GET = defineRoute(ApplicationTypesResponseSchema, async () => {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor', 'viewer']);
     if (!auth.success) return authFailureResponse(auth);
