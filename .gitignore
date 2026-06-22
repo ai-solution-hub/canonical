@@ -152,3 +152,10 @@ scripts/.propagation-catalog.json
 # the *.md analysis files (AUDIT-REPORT + per-area audits) are the tracked deliverable.
 docs/reports/jscpd-report/*.json
 docs/reports/jscpd-report/parse-analysis.py
+
+# design-sync (claude.ai/design import) — staged scripts, build output, machine state
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules
