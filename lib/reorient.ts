@@ -482,7 +482,8 @@ export async function fetchReorientData(
     urgent.push({
       type: 'notification',
       priority: 3,
-      title: `${unreadNotifications} unread notification${unreadNotifications === 1 ? '' : 's'}`,
+      // unreadNotifications is always >= 5 here (guarded above) — always plural
+      title: `${unreadNotifications} unread notifications`,
       detail: 'You have unread notifications that may need attention',
       href: '/settings?tab=notifications',
       entity_id: 'notifications',
