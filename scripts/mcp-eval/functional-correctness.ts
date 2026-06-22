@@ -33,6 +33,19 @@ import {
   AUTO_APPLY_WORKFLOWS,
   autoApplyVerifiablyOff,
 } from './propose-write-set.js';
+import {
+  INVENTORY_ACTOR_HEADERS,
+  inventoriesEqual,
+  SANCTIONED_WRITE_BACK_DESTINATIONS,
+  guardWriteBack,
+  netNewWriteBackRefusedAtSurface,
+  allSanctionedDestinationsAllowed,
+  deliverPilotPush,
+  NET_NEW_SOURCE_SYSTEM_PROBE,
+  PILOT_CONSUMPTION_OUTPUT,
+  PUSH_MECHANISM,
+} from './dual-runtime-connectivity-set.js';
+import type { PushDelivery, PushTransport } from '@/lib/mcp/push-channel';
 
 // ---------------------------------------------------------------------------
 // CLI args
@@ -3399,6 +3412,250 @@ async function runProposeWritePublicationGateChecks(
 }
 
 // ---------------------------------------------------------------------------
+// 12. Dual runtime + bidirectional connectivity (FC-103 to FC-110)
+//     ID-71.24 — Wave 3, B-INV-8/9/10/11/12 (M8-M12).
+//
+// B-INV-8/9: the headless-complete set is reachable IDENTICALLY from Claude's
+// runtimes AND goose via the SAME remote-MCP surface — the goose-consumed
+// inventory EQUALS the Claude-runtime inventory (tool VISIBILITY is
+// actor-independent; only PUBLISH is gated, {71.23}). B-INV-10: incoming =
+// remote MCP (exists, evaluated as a connection). B-INV-11: outgoing = ONE
+// trigger-driven push channel delivering a consumption output end-to-end
+// (mocked transport here — real delivery is config-gated). B-INV-12: write-back
+// scoped to the three sanctioned destinations only; a net-new source-system
+// write-back is refused at the surface. The declarative source of truth lives
+// in dual-runtime-connectivity-set.ts (unit-tested behaviour-first); this
+// section is the live MCP-only drive, ALONGSIDE the {71.22}/{71.23} checks
+// (FC-90..102 untouched).
+// ---------------------------------------------------------------------------
+
+interface ListedTool {
+  name: string;
+}
+
+/**
+ * Fetch the `tools/list` inventory (tool names) under a given actor header. The
+ * SAME remote-MCP surface serves both the human (Claude) and headless (goose)
+ * postures — B-INV-8/9 asserts the inventories are identical.
+ */
+async function listToolNames(
+  accessToken: string,
+  actorType: 'human' | 'headless',
+): Promise<{ names: string[]; errorMessage?: string }> {
+  try {
+    const response = await mcpRequest('tools/list', {}, accessToken, actorType);
+    if (response.error) {
+      return {
+        names: [],
+        errorMessage: `RPC error: ${response.error.message}`,
+      };
+    }
+    const result = response.result as { tools?: ListedTool[] };
+    const names = (result.tools ?? []).map((t) => t.name);
+    return { names };
+  } catch (err) {
+    return {
+      names: [],
+      errorMessage: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+async function runDualRuntimeConnectivityChecks(
+  accessToken: string,
+): Promise<void> {
+  console.log('\nDual Runtime + Bidirectional Connectivity (ID-71.24)');
+  const SECTION = 'Dual Runtime + Connectivity';
+
+  // FC-103: the goose-consumed inventory EQUALS the Claude-runtime inventory —
+  // tools/list is identical regardless of actor/runtime over the SAME surface
+  // (B-INV-8/9). The headless posture is NOT runtime-privileged on visibility.
+  {
+    const claude = await listToolNames(accessToken, 'human');
+    const goose = await listToolNames(accessToken, 'headless');
+    if (claude.errorMessage || goose.errorMessage) {
+      record(
+        SECTION,
+        'FC-103',
+        'goose inventory equals Claude inventory (same remote-MCP surface)',
+        'FAIL',
+        `inventory fetch failed: claude=${claude.errorMessage ?? 'ok'} goose=${goose.errorMessage ?? 'ok'}`,
+      );
+    } else {
+      const equal = inventoriesEqual(claude.names, goose.names);
+      record(
+        SECTION,
+        'FC-103',
+        'goose inventory equals Claude inventory (same remote-MCP surface)',
+        equal ? 'PASS' : 'FAIL',
+        equal
+          ? `identical inventory under both actor headers (${claude.names.length} tools; headers=${INVENTORY_ACTOR_HEADERS.join('/')})`
+          : `inventories differ — claude=${claude.names.length} goose=${goose.names.length}; symmetric diff=[${symmetricDiff(claude.names, goose.names).join(', ')}]`,
+      );
+    }
+  }
+
+  // FC-104: the headless-complete read set is visible under BOTH actor headers
+  // (no member is hidden from one runtime) — B-INV-8 (identical reachability).
+  {
+    const claude = await listToolNames(accessToken, 'human');
+    const goose = await listToolNames(accessToken, 'headless');
+    if (claude.errorMessage || goose.errorMessage) {
+      record(
+        SECTION,
+        'FC-104',
+        'headless-complete read set visible under both runtimes',
+        'SKIP',
+        'inventory fetch failed (covered by FC-103)',
+      );
+    } else {
+      const claudeSet = new Set(claude.names);
+      const gooseSet = new Set(goose.names);
+      const missing = HEADLESS_COMPLETE_SET.map((m) => m.mcpTool).filter(
+        (t) => !claudeSet.has(t) || !gooseSet.has(t),
+      );
+      record(
+        SECTION,
+        'FC-104',
+        'headless-complete read set visible under both runtimes',
+        missing.length === 0 ? 'PASS' : 'FAIL',
+        missing.length === 0
+          ? `all ${HEADLESS_COMPLETE_SET.length} headless-complete members visible to human + headless`
+          : `members missing from one runtime: [${missing.join(', ')}]`,
+      );
+    }
+  }
+
+  // FC-105: ONE push channel delivers a consumption output END-TO-END
+  // (B-INV-11). Behaviour-first via a mocked transport (real delivery is
+  // config-gated — see FC-106). Proves trigger -> render -> deliver -> terminal.
+  {
+    const sent: PushDelivery[] = [];
+    const mockTransport: PushTransport = {
+      async send(delivery) {
+        sent.push(delivery);
+        return true;
+      },
+    };
+    const result = await deliverPilotPush(
+      mockTransport,
+      'https://l4-mock-outbound.invalid/hook',
+    );
+    const ok =
+      result.delivered &&
+      !result.skipped &&
+      sent.length === 1 &&
+      sent[0].output.id === PILOT_CONSUMPTION_OUTPUT.id;
+    record(
+      SECTION,
+      'FC-105',
+      'one push delivered end-to-end (mocked transport)',
+      ok ? 'PASS' : 'FAIL',
+      ok
+        ? `consumption output "${PILOT_CONSUMPTION_OUTPUT.kind}" delivered via ${result.mechanism} (1 delivery)`
+        : `delivered=${result.delivered} skipped=${result.skipped} sent=${sent.length} reason="${result.reason}"`,
+    );
+  }
+
+  // FC-106: the LIVE push path is config-gated — when no outbound channel is
+  // configured the channel config-skips (infra-skip), NOT a failure (the
+  // {71.22} live-server precedent). Documents the real-delivery config dep.
+  {
+    const liveUrl = process.env.MCP_PUSH_WEBHOOK_URL;
+    if (!liveUrl) {
+      record(
+        SECTION,
+        'FC-106',
+        'live push delivery (config-gated)',
+        'SKIP',
+        'MCP_PUSH_WEBHOOK_URL unset — real outbound delivery is infra-skipped (config dependency)',
+      );
+    } else {
+      // A live outbound URL is configured; deliver for real through the default
+      // webhook transport.
+      const { pushConsumptionOutput } = await import('@/lib/mcp/push-channel');
+      const result = await pushConsumptionOutput(PILOT_CONSUMPTION_OUTPUT);
+      record(
+        SECTION,
+        'FC-106',
+        'live push delivery (config-gated)',
+        result.delivered ? 'PASS' : 'FAIL',
+        result.delivered
+          ? `delivered live via ${result.mechanism}`
+          : `live delivery failed: ${result.reason}`,
+      );
+    }
+  }
+
+  // FC-107: a NET-NEW source-system write-back is REFUSED at the surface
+  // (B-INV-12). SharePoint/Drive stays WS-6-gated, not enabled here.
+  {
+    const refused = netNewWriteBackRefusedAtSurface();
+    const decision = guardWriteBack(NET_NEW_SOURCE_SYSTEM_PROBE);
+    record(
+      SECTION,
+      'FC-107',
+      'net-new source-system write-back refused at the surface',
+      refused && !decision.allowed ? 'PASS' : 'FAIL',
+      refused && !decision.allowed
+        ? `"${NET_NEW_SOURCE_SYSTEM_PROBE}" refused; reason routes to WS-6 gate`
+        : `expected refusal; allowed=${decision.allowed} reason="${decision.reason}"`,
+    );
+  }
+
+  // FC-108: the write-back surface ALLOWS exactly the three sanctioned
+  // destinations (B-INV-12) — the positive complement of FC-107.
+  {
+    const allOk = allSanctionedDestinationsAllowed();
+    const three = SANCTIONED_WRITE_BACK_DESTINATIONS.length === 3;
+    record(
+      SECTION,
+      'FC-108',
+      'write-back allows exactly the three sanctioned destinations',
+      allOk && three ? 'PASS' : 'FAIL',
+      allOk && three
+        ? `allowed: [${SANCTIONED_WRITE_BACK_DESTINATIONS.join(', ')}]`
+        : `allOk=${allOk}; count=${SANCTIONED_WRITE_BACK_DESTINATIONS.length}`,
+    );
+  }
+
+  // FC-109: the incoming remote-MCP surface is an evaluated connection
+  // (B-INV-10 — exists, no code change). A successful tools/list over the
+  // bearer-auth transport IS the connection evaluation.
+  {
+    const connected = await listToolNames(accessToken, 'human');
+    record(
+      SECTION,
+      'FC-109',
+      'incoming remote-MCP surface is an evaluated connection',
+      !connected.errorMessage && connected.names.length > 0 ? 'PASS' : 'FAIL',
+      !connected.errorMessage && connected.names.length > 0
+        ? `remote-MCP connection live (${connected.names.length} tools over bearer-auth transport)`
+        : `connection failed: ${connected.errorMessage ?? 'no tools'}`,
+    );
+  }
+
+  // FC-110: the push mechanism is the declared webhook (the simplest
+  // end-to-end proof) — verbatim, mirrors the {71.22} enumeration check.
+  {
+    record(
+      SECTION,
+      'FC-110',
+      'push mechanism is the declared webhook',
+      PUSH_MECHANISM === 'webhook' ? 'PASS' : 'FAIL',
+      `push mechanism = ${PUSH_MECHANISM}`,
+    );
+  }
+}
+
+/** Names present in exactly one of the two inventories (for diagnostics). */
+function symmetricDiff(a: readonly string[], b: readonly string[]): string[] {
+  const setA = new Set(a);
+  const setB = new Set(b);
+  return [...a.filter((x) => !setB.has(x)), ...b.filter((x) => !setA.has(x))];
+}
+
+// ---------------------------------------------------------------------------
 // Report formatting
 // ---------------------------------------------------------------------------
 
@@ -3511,6 +3768,9 @@ async function main(): Promise<void> {
 
     // Step 15: Propose-write + publication gate + auto-apply-off (ID-71.23)
     await runProposeWritePublicationGateChecks(accessToken, evalItem);
+
+    // Step 16: Dual runtime + bidirectional connectivity (ID-71.24)
+    await runDualRuntimeConnectivityChecks(accessToken);
   } finally {
     // Step 16: Clean up eval item
     console.log('\nCleaning up...');
@@ -3586,6 +3846,7 @@ export async function runAsEvalSuite(): Promise<SuiteRunOutcome> {
       await runGuideToolChecks(accessToken);
       await runHeadlessCompleteEnumerationChecks(accessToken);
       await runProposeWritePublicationGateChecks(accessToken, evalItem);
+      await runDualRuntimeConnectivityChecks(accessToken);
     } finally {
       try {
         await deleteEvalItem(supabase, evalItem.id);
