@@ -263,6 +263,23 @@ describe('zero Raindrop-cloud egress over the ID-71 registration path (B-INV-15 
     }
   });
 
+  it('PERMITS the local Raindrop Workshop / OTel endpoint (localhost:5899) — it does NOT throw and resolves benignly', async () => {
+    // Make the "localhost:5899 is permitted" claim load-bearing rather than a
+    // comment: invoke the egress-policy spy directly with the local Workshop /
+    // OTel endpoint and prove the non-cloud branch resolves without throwing.
+    // localhost is the LOCAL viewer (empty write key by design) — never the
+    // hosted cloud — so the egress policy must let it through.
+    const localResponse = await globalThis.fetch(
+      'http://localhost:5899/ingest',
+    );
+
+    // Resolved (no throw) via the spy's non-raindrop branch — a 204-style empty
+    // result. If the policy ever started blocking localhost, this await would
+    // reject and the test would fail.
+    expect(localResponse.status).toBe(204);
+    expect(fetchSpy).toHaveBeenCalledWith('http://localhost:5899/ingest');
+  });
+
   it('the registration module source contains no hosted-Raindrop-cloud egress path', async () => {
     // Static audit: the module must not reference the Raindrop cloud host or a
     // Workshop writeKey. A `localhost:5899` reference in a comment is permitted,
