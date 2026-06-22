@@ -47,9 +47,11 @@ baseTest.describe(
       async ({ page }) => {
         await page.goto('/login');
 
-        // Brand heading
+        // Brand heading (BRANDING.productName — "Canonical" for the default
+        // client overlay; renamed from "Knowledge Hub" in the S390 product-name
+        // flip, app/login/page.tsx renders {BRANDING.productName}).
         await expect(
-          page.getByRole('heading', { name: 'Knowledge Hub' }),
+          page.getByRole('heading', { name: 'Canonical' }),
         ).toBeVisible();
 
         // Subtitle
