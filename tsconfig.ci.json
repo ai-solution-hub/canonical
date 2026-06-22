@@ -23,7 +23,7 @@
   // clients), a minimal Bun ambient (`scripts/bun-ambient.d.ts`) for the
   // `Bun` / `import.meta.dir` globals (full `@types/bun` was rejected — its
   // DOM-global overrides break ~120 app/test files; see tsconfig.json
-  // `types`), a generic `emitResponse` in `scripts/ast-dataflow-cli.ts`, and
+  // `types`), a generic `emitResponse` in `tools/ast-dataflow/cli.ts`, and
   // Json casts at JSONB-column boundaries. Every `scripts/*.ts` is now gated
   // BY DEFAULT — nothing escapes.
   "extends": "./tsconfig.json",
@@ -39,7 +39,7 @@
     "supabase",
     "mcp-apps",
     "docs-site",
-    "__tests__/lib/ast-dataflow/fixtures",
+    "tools/ast-dataflow/__tests__/fixtures",
     "vitest.integration.config.ts"
   ]
 }

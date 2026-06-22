@@ -94,7 +94,7 @@ const REPO_ROOT = resolve(__dirname, '../../..');
  * the ts-morph project's source files. That project loads everything the
  * working-tree `tsconfig.json` includes — which (on this corpus) ALSO sweeps
  * in three fixture routes under
- * `__tests__/lib/ast-dataflow/fixtures/17-type-drift/app/api/`. Those are
+ * `tools/ast-dataflow/__tests__/fixtures/17-type-drift/app/api/`. Those are
  * NOT production routes; the regex over-match is an out-of-scope finding
  * (reported in the journal). The production corpus is exactly the set whose
  * repo-relative path begins `app/api/`.

@@ -44,7 +44,7 @@
     "supabase",
     "mcp-apps",
     "docs-site",
-    "__tests__/lib/ast-dataflow/fixtures",
+    "tools/ast-dataflow/__tests__/fixtures",
     "vitest.integration.config.ts"
   ]
 }

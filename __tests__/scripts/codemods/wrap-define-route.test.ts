@@ -445,7 +445,7 @@ describe('wrap-define-route classifier — fixture corpus (Subtask 32.7)', () =>
  *      `fixtures/wrap-define-route/`).
  *   2. A synthetic `lib/query/fetchers.ts` that contains a
  *      `fetchJson<InterfaceName>(url)` call so the heuristic URL matcher
- *      (re-used from `lib/ast-dataflow/queries/type-drift-detect.ts`) can
+ *      (re-used from `tools/ast-dataflow/queries/type-drift-detect.ts`) can
  *      bind the route URL to its candidate response interface.
  *   3. A synthetic `lib/validation/schemas.ts` that EITHER exports
  *      `${interfaceName}Schema` (happy path) or omits it (fall-back path).
@@ -2378,7 +2378,7 @@ describe('wrap-define-route enumerateRouteFiles — repo-root anchoring (S262 fi
     const productionRoute = resolve(process.cwd(), 'app/api/insights/route.ts');
     const fixtureRoute = resolve(
       process.cwd(),
-      '__tests__/lib/ast-dataflow/fixtures/17-type-drift/app/api/widgets/route.ts',
+      'tools/ast-dataflow/__tests__/fixtures/17-type-drift/app/api/widgets/route.ts',
     );
 
     // Add both real on-disk files to the project (both exist in the repo or
