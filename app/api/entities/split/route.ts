@@ -1,28 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { defineRoute } from '@/lib/api/define-route';
 import {
-  getAuthorisedClient,
   authFailureResponse,
+  getAuthorisedClient,
   rateLimitResponse,
 } from '@/lib/auth';
-import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
+import { checkRateLimit } from '@/lib/rate-limit';
+import { createServiceClient } from '@/lib/supabase/server';
 import { parseBody } from '@/lib/validation';
 import { EntitySplitBodySchema } from '@/lib/validation/schemas';
-import { createServiceClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
-/**
- * POST /api/entities/split — split an entity by moving selected variant rows
- * to a new canonical_name.
- *
- * Updates entity_mentions where canonical_name matches AND entity_name is in
- * the provided variant_names list. Also updates entity_relationships where the
- * affected mention rows were the only references.
- *
- * Auth: admin only.
- */
-export async function POST(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient(['admin']);
     if (!auth.success) return authFailureResponse(auth);
@@ -115,4 +108,4 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

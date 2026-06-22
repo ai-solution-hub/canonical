@@ -13,53 +13,61 @@
  * Spec: docs/specs/p1-tag-morphology-library-adoption-spec.md §3.5.4
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
-import { sb } from '@/lib/supabase/safe';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { sb } from '@/lib/supabase/safe';
 import { parseBody } from '@/lib/validation';
 import { TagMorphologyFlagDecisionSchema } from '@/lib/validation/schemas';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-export async function PATCH(request: NextRequest, context: RouteContext) {
-  try {
-    const { id } = await context.params;
-    const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth.success) return authFailureResponse(auth);
-    const { user } = auth;
-    // tag_morphology_drift_flags is not yet present in database.types.ts —
-    // see CLAUDE.md "Do not regen types mid-session" gotcha.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabase = auth.supabase as any;
+// TODO(OPS-T1): author ResponseSchema
+export const PATCH = defineRoute(
+  z.unknown(),
+  async (request: NextRequest, context: RouteContext) => {
+    try {
+      const { id } = await context.params;
+      const auth = await getAuthorisedClient(['admin', 'editor']);
+      if (!auth.success) return authFailureResponse(auth);
+      const { user } = auth;
+      // tag_morphology_drift_flags is not yet present in database.types.ts —
+      // see CLAUDE.md "Do not regen types mid-session" gotcha.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const supabase = auth.supabase as any;
 
-    const raw = await request.json();
-    const parsed = parseBody(TagMorphologyFlagDecisionSchema, raw);
-    if (!parsed.success) return parsed.response;
-    const { decision, decision_rationale } = parsed.data;
+      const raw = await request.json();
+      const parsed = parseBody(TagMorphologyFlagDecisionSchema, raw);
+      if (!parsed.success) return parsed.response;
+      const { decision, decision_rationale } = parsed.data;
 
-    const updated = await sb(
-      supabase
-        .from('tag_morphology_drift_flags')
-        .update({
-          decision,
-          decision_rationale: decision_rationale ?? null,
-          decided_by: user.id,
-          decided_at: new Date().toISOString(),
-        })
-        .eq('id', id)
-        .select(
-          'id, stored_tag, proposed_canonical, decision, decision_rationale, decided_by, decided_at',
-        )
-        .single(),
-      'tag_morphology_drift_flags.update',
-    );
+      const updated = await sb(
+        supabase
+          .from('tag_morphology_drift_flags')
+          .update({
+            decision,
+            decision_rationale: decision_rationale ?? null,
+            decided_by: user.id,
+            decided_at: new Date().toISOString(),
+          })
+          .eq('id', id)
+          .select(
+            'id, stored_tag, proposed_canonical, decision, decision_rationale, decided_by, decided_at',
+          )
+          .single(),
+        'tag_morphology_drift_flags.update',
+      );
 
-    return NextResponse.json({ flag: updated });
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to update tag morphology flag') },
-      { status: 500 },
-    );
-  }
-}
+      return NextResponse.json({ flag: updated });
+    } catch (err) {
+      return NextResponse.json(
+        {
+          error: safeErrorMessage(err, 'Failed to update tag morphology flag'),
+        },
+        { status: 500 },
+      );
+    }
+  },
+);

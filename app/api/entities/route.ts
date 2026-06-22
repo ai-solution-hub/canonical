@@ -1,25 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { defineRoute } from '@/lib/api/define-route';
 import {
-  getAuthorisedClient,
   authFailureResponse,
+  getAuthorisedClient,
   rateLimitResponse,
 } from '@/lib/auth';
-import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { parseSearchParams } from '@/lib/validation';
 import { EntityListParamsSchema } from '@/lib/validation/schemas';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
-/**
- * GET /api/entities — list entities with counts, variants, and relationship counts.
- * Auth: admin only.
- *
- * All aggregation, filtering, and pagination is performed server-side via the
- * `get_entity_list_aggregated` RPC function, replacing the previous 10K-row
- * JS aggregation pattern.
- */
-export async function GET(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient(['admin']);
     if (!auth.success) return authFailureResponse(auth);
@@ -60,4 +55,4 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

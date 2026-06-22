@@ -1,24 +1,13 @@
-import { NextResponse } from 'next/server';
-import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthenticatedClient } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
+import { NotificationsResponseSchema } from '@/lib/validation/schemas';
+import { NextResponse } from 'next/server';
 
 export const maxDuration = 30;
 
-/**
- * GET /api/notifications
- *
- * List unread/active notifications for the current user.
- * Returns notifications that have not been dismissed and are not expired,
- * ordered by most recent first.
- *
- * Response shape: { notifications: Notification[], unreadCount: number }
- *
- * The `unreadCount` is computed server-side via a separate count-only query
- * (no LIMIT) so it stays accurate even when the notification list is capped
- * at 50 items. This aligns with the dashboard's server-rendered count.
- */
-export async function GET() {
+export const GET = defineRoute(NotificationsResponseSchema, async () => {
   try {
     const auth = await getAuthenticatedClient();
     if (!auth.success) return authFailureResponse(auth);
@@ -83,4 +72,4 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+});

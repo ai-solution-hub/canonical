@@ -1,38 +1,41 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
-import { safeErrorMessage } from '@/lib/error';
-import { parseBody } from '@/lib/validation';
-import {
-  ItemUpdateBodySchema,
-  VALID_CONTENT_TYPES,
-  VALID_PLATFORMS,
-  normaliseTag,
-} from '@/lib/validation/schemas';
-import { generateSingleFieldChangeSummary } from '@/lib/change-summary';
 import { generateEmbedding } from '@/lib/ai/embed';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { generateSingleFieldChangeSummary } from '@/lib/change-summary';
 import { stripMarkdown } from '@/lib/content/strip-markdown';
-import {
-  createWarningsCollector,
-  warningsEnvelope,
-} from '@/lib/supabase/warnings';
-import { logBestEffortWarn } from '@/lib/supabase/telemetry';
-import { setSupersession, SupersessionError } from '@/lib/supersession/set';
-import { SupabaseError, sb, tryQuery, isOk } from '@/lib/supabase/safe';
-import { resolveQuestionForRebuild } from '@/lib/procurement-library-ingest/resolve-question';
-import {
-  computeAllowedTransitions,
-  applyTransitionSideEffects,
-  VALID_PUBLICATION_STATUSES,
-  type PublicationStatus,
-} from '@/lib/governance/publication-transitions';
-import { logger, updateRequestContext, withRequestContext } from '@/lib/logger';
 import {
   arbitrateMany,
   coerceIntent,
   type EditIntent,
 } from '@/lib/edit-intent/arbitrate';
 import { writeBackFileFirst } from '@/lib/edit-intent/write-back';
+import { safeErrorMessage } from '@/lib/error';
+import {
+  applyTransitionSideEffects,
+  computeAllowedTransitions,
+  VALID_PUBLICATION_STATUSES,
+  type PublicationStatus,
+} from '@/lib/governance/publication-transitions';
+import { logger, updateRequestContext, withRequestContext } from '@/lib/logger';
+import { resolveQuestionForRebuild } from '@/lib/procurement-library-ingest/resolve-question';
+import { isOk, sb, SupabaseError, tryQuery } from '@/lib/supabase/safe';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
+import {
+  createWarningsCollector,
+  warningsEnvelope,
+} from '@/lib/supabase/warnings';
+import { setSupersession, SupersessionError } from '@/lib/supersession/set';
+import { parseBody } from '@/lib/validation';
+import {
+  ItemDeleteResponseSchema,
+  ItemPatchResponseSchema,
+  ItemUpdateBodySchema,
+  normaliseTag,
+  VALID_CONTENT_TYPES,
+  VALID_PLATFORMS,
+} from '@/lib/validation/schemas';
 import type { Database } from '@/supabase/types/database.types';
+import { NextRequest, NextResponse } from 'next/server';
 
 type ContentItemUpdate =
   Database['public']['Tables']['content_items']['Update'];
@@ -1142,7 +1145,9 @@ async function patchHandler(
  * every log line and any Sentry event raised from inside `patchHandler`
  * carries the shared `requestId` minted upstream by `proxy.ts`.
  */
-export const PATCH = withRequestContext(patchHandler);
+export const PATCH = withRequestContext(
+  defineRoute(ItemPatchResponseSchema, patchHandler),
+);
 
 /**
  * DELETE /api/items/:id -- delete content item (admin only).
@@ -1215,4 +1220,6 @@ async function deleteHandler(
  * Phase 2 (S15 WP1): expose the handler through `withRequestContext` (see
  * PATCH at the top of this file).
  */
-export const DELETE = withRequestContext(deleteHandler);
+export const DELETE = withRequestContext(
+  defineRoute(ItemDeleteResponseSchema, deleteHandler),
+);

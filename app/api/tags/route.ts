@@ -1,29 +1,24 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { defineRoute } from '@/lib/api/define-route';
 import {
-  getAuthorisedClient,
   authFailureResponse,
+  getAuthorisedClient,
   rateLimitResponse,
 } from '@/lib/auth';
-import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody, parseSearchParams } from '@/lib/validation';
 import {
+  MutationResultSchema,
   TagDeleteBodySchema,
   TagFilteredParamsSchema,
 } from '@/lib/validation/schemas';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
-/**
- * GET /api/tags — returns tag counts.
- *
- * Without query params: calls get_all_tag_counts (legacy behaviour).
- * With query params (?type=ai&min_count=2&search=foo&limit=50&offset=0):
- *   calls get_tag_counts_filtered for paginated/filtered results.
- *
- * Auth: any authenticated user.
- */
-export async function GET(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient();
     if (!auth.success) return authFailureResponse(auth);
@@ -158,44 +153,43 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});
 
-/**
- * DELETE /api/tags — removes a tag from all items.
- * Auth: admin only.
- */
-export async function DELETE(request: NextRequest) {
-  try {
-    const auth = await getAuthorisedClient(['admin']);
-    if (!auth.success) return authFailureResponse(auth);
-    const { user, supabase } = auth;
+export const DELETE = defineRoute(
+  MutationResultSchema,
+  async (request: NextRequest) => {
+    try {
+      const auth = await getAuthorisedClient(['admin']);
+      if (!auth.success) return authFailureResponse(auth);
+      const { user, supabase } = auth;
 
-    const { allowed } = checkRateLimit(`tags:delete:${user.id}`, 10, 60_000);
-    if (!allowed) return rateLimitResponse();
+      const { allowed } = checkRateLimit(`tags:delete:${user.id}`, 10, 60_000);
+      if (!allowed) return rateLimitResponse();
 
-    const raw = await request.json();
-    const parsed = parseBody(TagDeleteBodySchema, raw);
-    if (!parsed.success) return parsed.response;
+      const raw = await request.json();
+      const parsed = parseBody(TagDeleteBodySchema, raw);
+      if (!parsed.success) return parsed.response;
 
-    const { tag, type } = parsed.data;
+      const { tag, type } = parsed.data;
 
-    const { data, error } = await supabase.rpc('delete_tag', {
-      p_tag: tag,
-      p_type: type,
-    });
+      const { data, error } = await supabase.rpc('delete_tag', {
+        p_tag: tag,
+        p_type: type,
+      });
 
-    if (error) {
+      if (error) {
+        return NextResponse.json(
+          { error: safeErrorMessage(error, 'Failed to delete tag') },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json({ affected: data ?? 0 });
+    } catch (err) {
       return NextResponse.json(
-        { error: safeErrorMessage(error, 'Failed to delete tag') },
+        { error: safeErrorMessage(err, 'Failed to delete tag') },
         { status: 500 },
       );
     }
-
-    return NextResponse.json({ affected: data ?? 0 });
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to delete tag') },
-      { status: 500 },
-    );
-  }
-}
+  },
+);

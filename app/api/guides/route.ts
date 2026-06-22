@@ -1,16 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { defineRoute } from '@/lib/api/define-route';
 import {
+  authFailureResponse,
   getAuthenticatedClient,
   getAuthorisedClient,
-  authFailureResponse,
+  rateLimitResponse,
 } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody, parseSearchParams } from '@/lib/validation';
 import { guideCreateSchema } from '@/lib/validation/guide-schemas';
 import { GuideListParamsSchema } from '@/lib/validation/schemas';
-import { checkRateLimit } from '@/lib/rate-limit';
-import { rateLimitResponse } from '@/lib/auth';
-import { logger } from '@/lib/logger';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
@@ -31,8 +33,8 @@ interface GuideSectionRow {
   stale_count: number;
 }
 
-/** GET /api/guides — list guides (published only for non-admins) */
-export async function GET(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthenticatedClient();
     if (!auth.success) return authFailureResponse(auth);
@@ -135,10 +137,10 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});
 
-/** POST /api/guides — create a guide */
-export async function POST(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);
@@ -181,4 +183,4 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

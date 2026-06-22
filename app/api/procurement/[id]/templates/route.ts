@@ -1,16 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { defineRoute } from '@/lib/api/define-route';
 import {
+  authFailureResponse,
   getAuthenticatedClient,
   getAuthorisedClient,
-  authFailureResponse,
   rateLimitResponse,
 } from '@/lib/auth';
 import { isEncryptedDocx } from '@/lib/docx-utils';
 import { safeErrorMessage } from '@/lib/error';
-import { checkRateLimit } from '@/lib/rate-limit';
-import { createServiceClient } from '@/lib/supabase/server';
-import { sb } from '@/lib/supabase/safe';
 import { logger } from '@/lib/logger';
+import { checkRateLimit } from '@/lib/rate-limit';
+import { sb } from '@/lib/supabase/safe';
+import { createServiceClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -46,270 +48,282 @@ const TERMINAL_BID_STATUSES = new Set(['won', 'lost', 'withdrawn']);
 
 export const maxDuration = 30;
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
-    const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth.success) return authFailureResponse(auth);
-    const { user, supabase } = auth;
+// TODO(OPS-T1): author ResponseSchema
+export const POST = defineRoute(
+  z.unknown(),
+  async (
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> },
+  ) => {
+    try {
+      const auth = await getAuthorisedClient(['admin', 'editor']);
+      if (!auth.success) return authFailureResponse(auth);
+      const { user, supabase } = auth;
 
-    const { id: procurementId } = await params;
-    if (!UUID_RE.test(procurementId)) {
-      return NextResponse.json(
-        { error: 'Invalid bid ID -- must be a valid UUID' },
-        { status: 400 },
+      const { id: procurementId } = await params;
+      if (!UUID_RE.test(procurementId)) {
+        return NextResponse.json(
+          { error: 'Invalid bid ID -- must be a valid UUID' },
+          { status: 400 },
+        );
+      }
+
+      const { allowed } = checkRateLimit(
+        `template-upload:${user.id}`,
+        5,
+        60_000,
       );
-    }
+      if (!allowed) return rateLimitResponse();
 
-    const { allowed } = checkRateLimit(`template-upload:${user.id}`, 5, 60_000);
-    if (!allowed) return rateLimitResponse();
+      // Parse multipart form data
+      const formData = await request.formData();
+      const file = formData.get('file');
+      const name = formData.get('name') as string | null;
+      const description = formData.get('description') as string | null;
 
-    // Parse multipart form data
-    const formData = await request.formData();
-    const file = formData.get('file');
-    const name = formData.get('name') as string | null;
-    const description = formData.get('description') as string | null;
+      if (!file || !(file instanceof File)) {
+        return NextResponse.json(
+          { error: 'No file provided. Upload a file using the "file" field.' },
+          { status: 400 },
+        );
+      }
 
-    if (!file || !(file instanceof File)) {
+      // Validate file size
+      if (file.size > MAX_FILE_SIZE) {
+        return NextResponse.json(
+          {
+            error: `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 50 MB.`,
+          },
+          { status: 413 },
+        );
+      }
+
+      if (file.size === 0) {
+        return NextResponse.json({ error: 'File is empty.' }, { status: 400 });
+      }
+
+      // Validate MIME type
+      if (file.type !== ALLOWED_MIME_TYPE) {
+        return NextResponse.json(
+          {
+            error:
+              'Invalid file type. Only .docx files are supported for template completion.',
+          },
+          { status: 400 },
+        );
+      }
+
+      // Read file into buffer and validate magic bytes
+      const arrayBuffer = await file.arrayBuffer();
+      if (!isValidDocx(arrayBuffer)) {
+        return NextResponse.json(
+          {
+            error:
+              'File content does not match its declared type. Ensure the file is a genuine .docx document.',
+          },
+          { status: 415 },
+        );
+      }
+
+      // Reject password-protected documents early
+      if (isEncryptedDocx(arrayBuffer)) {
+        return NextResponse.json(
+          {
+            error:
+              'This document is password-protected. Please remove the password and re-upload.',
+          },
+          { status: 400 },
+        );
+      }
+
+      // Verify bid exists and is not in a terminal state.
+      // Post-T2: discriminator via application_types JOIN.
+      const { data: bid, error: procurementError } = await supabase
+        .from('workspaces')
+        .select('id, status, domain_metadata, application_types!inner(key)')
+        .eq('id', procurementId)
+        .eq('application_types.key', 'procurement')
+        .single();
+
+      if (procurementError || !bid) {
+        return NextResponse.json(
+          { error: 'Procurement not found' },
+          { status: 404 },
+        );
+      }
+
+      const procurementStatus = bid.status as string | undefined;
+      if (procurementStatus && TERMINAL_BID_STATUSES.has(procurementStatus)) {
+        return NextResponse.json(
+          { error: 'Cannot add templates to a completed bid.' },
+          { status: 409 },
+        );
+      }
+
+      // Validate template name
+      const templateName = name?.trim() || file.name.replace(/\.docx$/i, '');
+      if (!templateName || templateName.length > 200) {
+        return NextResponse.json(
+          { error: 'Template name must be between 1 and 200 characters.' },
+          { status: 400 },
+        );
+      }
+
+      // Create template record with a pre-generated ID for storage path
+      const templateId = crypto.randomUUID();
+      const storagePath = `${procurementId}/${templateId}/original.docx`;
+
+      // Upload to Supabase Storage using service client (bypasses RLS for storage)
+      const serviceClient = createServiceClient();
+      const buffer = Buffer.from(arrayBuffer);
+
+      const { error: uploadError } = await serviceClient.storage
+        .from('templates')
+        .upload(storagePath, buffer, {
+          contentType: ALLOWED_MIME_TYPE,
+          upsert: false,
+        });
+
+      if (uploadError) {
+        logger.error(
+          { err: uploadError },
+          'Failed to upload template to storage',
+        );
+        return NextResponse.json(
+          { error: 'Failed to upload template to storage.' },
+          { status: 500 },
+        );
+      }
+
+      // Insert template record.
+      // Post-T2: `templates` → `form_templates`, `workspace_id` → `workspace_id`.
+      const { data: template, error: insertError } = await supabase
+        .from('form_templates')
+        .insert({
+          id: templateId,
+          workspace_id: procurementId,
+          name: templateName,
+          description: description?.trim() || null,
+          filename: file.name,
+          storage_path: storagePath,
+          file_size: file.size,
+          mime_type: ALLOWED_MIME_TYPE,
+          status: 'uploaded',
+          created_by: user.id,
+        })
+        .select(
+          'id, workspace_id, name, description, filename, storage_path, file_size, mime_type, status, field_count, mapped_count, created_by, created_at, updated_at',
+        )
+        .single();
+
+      if (insertError) {
+        // Clean up uploaded file on insert failure
+        await serviceClient.storage.from('templates').remove([storagePath]);
+        logger.error({ err: insertError }, 'Failed to create template record');
+        return NextResponse.json(
+          { error: 'Failed to create template record.' },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json(template, { status: 201 });
+    } catch (err) {
       return NextResponse.json(
-        { error: 'No file provided. Upload a file using the "file" field.' },
-        { status: 400 },
-      );
-    }
-
-    // Validate file size
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        {
-          error: `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 50 MB.`,
-        },
-        { status: 413 },
-      );
-    }
-
-    if (file.size === 0) {
-      return NextResponse.json({ error: 'File is empty.' }, { status: 400 });
-    }
-
-    // Validate MIME type
-    if (file.type !== ALLOWED_MIME_TYPE) {
-      return NextResponse.json(
-        {
-          error:
-            'Invalid file type. Only .docx files are supported for template completion.',
-        },
-        { status: 400 },
-      );
-    }
-
-    // Read file into buffer and validate magic bytes
-    const arrayBuffer = await file.arrayBuffer();
-    if (!isValidDocx(arrayBuffer)) {
-      return NextResponse.json(
-        {
-          error:
-            'File content does not match its declared type. Ensure the file is a genuine .docx document.',
-        },
-        { status: 415 },
-      );
-    }
-
-    // Reject password-protected documents early
-    if (isEncryptedDocx(arrayBuffer)) {
-      return NextResponse.json(
-        {
-          error:
-            'This document is password-protected. Please remove the password and re-upload.',
-        },
-        { status: 400 },
-      );
-    }
-
-    // Verify bid exists and is not in a terminal state.
-    // Post-T2: discriminator via application_types JOIN.
-    const { data: bid, error: procurementError } = await supabase
-      .from('workspaces')
-      .select('id, status, domain_metadata, application_types!inner(key)')
-      .eq('id', procurementId)
-      .eq('application_types.key', 'procurement')
-      .single();
-
-    if (procurementError || !bid) {
-      return NextResponse.json(
-        { error: 'Procurement not found' },
-        { status: 404 },
-      );
-    }
-
-    const procurementStatus = bid.status as string | undefined;
-    if (procurementStatus && TERMINAL_BID_STATUSES.has(procurementStatus)) {
-      return NextResponse.json(
-        { error: 'Cannot add templates to a completed bid.' },
-        { status: 409 },
-      );
-    }
-
-    // Validate template name
-    const templateName = name?.trim() || file.name.replace(/\.docx$/i, '');
-    if (!templateName || templateName.length > 200) {
-      return NextResponse.json(
-        { error: 'Template name must be between 1 and 200 characters.' },
-        { status: 400 },
-      );
-    }
-
-    // Create template record with a pre-generated ID for storage path
-    const templateId = crypto.randomUUID();
-    const storagePath = `${procurementId}/${templateId}/original.docx`;
-
-    // Upload to Supabase Storage using service client (bypasses RLS for storage)
-    const serviceClient = createServiceClient();
-    const buffer = Buffer.from(arrayBuffer);
-
-    const { error: uploadError } = await serviceClient.storage
-      .from('templates')
-      .upload(storagePath, buffer, {
-        contentType: ALLOWED_MIME_TYPE,
-        upsert: false,
-      });
-
-    if (uploadError) {
-      logger.error(
-        { err: uploadError },
-        'Failed to upload template to storage',
-      );
-      return NextResponse.json(
-        { error: 'Failed to upload template to storage.' },
+        { error: safeErrorMessage(err, 'Failed to upload template') },
         { status: 500 },
       );
     }
-
-    // Insert template record.
-    // Post-T2: `templates` → `form_templates`, `workspace_id` → `workspace_id`.
-    const { data: template, error: insertError } = await supabase
-      .from('form_templates')
-      .insert({
-        id: templateId,
-        workspace_id: procurementId,
-        name: templateName,
-        description: description?.trim() || null,
-        filename: file.name,
-        storage_path: storagePath,
-        file_size: file.size,
-        mime_type: ALLOWED_MIME_TYPE,
-        status: 'uploaded',
-        created_by: user.id,
-      })
-      .select(
-        'id, workspace_id, name, description, filename, storage_path, file_size, mime_type, status, field_count, mapped_count, created_by, created_at, updated_at',
-      )
-      .single();
-
-    if (insertError) {
-      // Clean up uploaded file on insert failure
-      await serviceClient.storage.from('templates').remove([storagePath]);
-      logger.error({ err: insertError }, 'Failed to create template record');
-      return NextResponse.json(
-        { error: 'Failed to create template record.' },
-        { status: 500 },
-      );
-    }
-
-    return NextResponse.json(template, { status: 201 });
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to upload template') },
-      { status: 500 },
-    );
-  }
-}
+  },
+);
 
 // ──────────────────────────────────────────
 // GET /api/bids/:id/templates -- list templates for a bid
 // ──────────────────────────────────────────
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
-    const auth = await getAuthenticatedClient();
-    if (!auth.success) return authFailureResponse(auth);
-    const { supabase } = auth;
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(
+  z.unknown(),
+  async (
+    _request: NextRequest,
+    { params }: { params: Promise<{ id: string }> },
+  ) => {
+    try {
+      const auth = await getAuthenticatedClient();
+      if (!auth.success) return authFailureResponse(auth);
+      const { supabase } = auth;
 
-    const { id: procurementId } = await params;
-    if (!UUID_RE.test(procurementId)) {
+      const { id: procurementId } = await params;
+      if (!UUID_RE.test(procurementId)) {
+        return NextResponse.json(
+          { error: 'Invalid bid ID -- must be a valid UUID' },
+          { status: 400 },
+        );
+      }
+
+      // Verify bid exists.
+      // Post-T2: discriminator via application_types JOIN.
+      const { data: bid, error: procurementError } = await supabase
+        .from('workspaces')
+        .select('id, application_types!inner(key)')
+        .eq('id', procurementId)
+        .eq('application_types.key', 'procurement')
+        .single();
+
+      if (procurementError || !bid) {
+        return NextResponse.json(
+          { error: 'Procurement not found' },
+          { status: 404 },
+        );
+      }
+
+      // Fetch templates with completion count.
+      // Post-T2: `templates` → `form_templates`, `workspace_id` → `workspace_id`.
+      const { data: templates, error } = await supabase
+        .from('form_templates')
+        .select(
+          'id, name, filename, status, field_count, mapped_count, file_size, created_at, updated_at',
+        )
+        .eq('workspace_id', procurementId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        logger.error({ err: error }, 'Failed to fetch templates');
+        return NextResponse.json(
+          { error: 'Failed to fetch templates' },
+          { status: 500 },
+        );
+      }
+
+      // Fetch completion counts per template
+      const templateIds = (templates ?? []).map((t) => t.id);
+      const completionCounts = new Map<string, number>();
+
+      if (templateIds.length > 0) {
+        const completions = await sb(
+          supabase
+            .from('template_completions')
+            .select('template_id')
+            .in('template_id', templateIds),
+          'bids.templates.list.completions',
+        );
+
+        for (const c of completions) {
+          const current = completionCounts.get(c.template_id) ?? 0;
+          completionCounts.set(c.template_id, current + 1);
+        }
+      }
+
+      const enriched = (templates ?? []).map((t) => ({
+        ...t,
+        completions_count: completionCounts.get(t.id) ?? 0,
+      }));
+
+      return NextResponse.json({ templates: enriched });
+    } catch (err) {
       return NextResponse.json(
-        { error: 'Invalid bid ID -- must be a valid UUID' },
-        { status: 400 },
-      );
-    }
-
-    // Verify bid exists.
-    // Post-T2: discriminator via application_types JOIN.
-    const { data: bid, error: procurementError } = await supabase
-      .from('workspaces')
-      .select('id, application_types!inner(key)')
-      .eq('id', procurementId)
-      .eq('application_types.key', 'procurement')
-      .single();
-
-    if (procurementError || !bid) {
-      return NextResponse.json(
-        { error: 'Procurement not found' },
-        { status: 404 },
-      );
-    }
-
-    // Fetch templates with completion count.
-    // Post-T2: `templates` → `form_templates`, `workspace_id` → `workspace_id`.
-    const { data: templates, error } = await supabase
-      .from('form_templates')
-      .select(
-        'id, name, filename, status, field_count, mapped_count, file_size, created_at, updated_at',
-      )
-      .eq('workspace_id', procurementId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      logger.error({ err: error }, 'Failed to fetch templates');
-      return NextResponse.json(
-        { error: 'Failed to fetch templates' },
+        { error: safeErrorMessage(err, 'Failed to fetch templates') },
         { status: 500 },
       );
     }
-
-    // Fetch completion counts per template
-    const templateIds = (templates ?? []).map((t) => t.id);
-    const completionCounts = new Map<string, number>();
-
-    if (templateIds.length > 0) {
-      const completions = await sb(
-        supabase
-          .from('template_completions')
-          .select('template_id')
-          .in('template_id', templateIds),
-        'bids.templates.list.completions',
-      );
-
-      for (const c of completions) {
-        const current = completionCounts.get(c.template_id) ?? 0;
-        completionCounts.set(c.template_id, current + 1);
-      }
-    }
-
-    const enriched = (templates ?? []).map((t) => ({
-      ...t,
-      completions_count: completionCounts.get(t.id) ?? 0,
-    }));
-
-    return NextResponse.json({ templates: enriched });
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to fetch templates') },
-      { status: 500 },
-    );
-  }
-}
+  },
+);

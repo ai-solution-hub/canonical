@@ -1,9 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
 import { parseSearchParams } from '@/lib/validation';
 import { ReviewHistoryParamsSchema } from '@/lib/validation/schemas';
-import { logger } from '@/lib/logger';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
@@ -29,15 +31,8 @@ export interface ReviewHistoryEntry {
   resolved_by_name: string | null;
 }
 
-/**
- * GET /api/review/history?item_id={uuid}
- *
- * Returns review history entries from `ingestion_quality_log` for a given
- * content item. Includes all quality flag types (not just review_needed).
- *
- * Auth: editors and admins only (matches review action endpoint).
- */
-export async function GET(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);
@@ -124,4 +119,4 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

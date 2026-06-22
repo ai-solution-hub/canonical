@@ -4,15 +4,18 @@
  * Revokes an OAuth grant for the authenticated user.
  * Invalidates the client's sessions and refresh tokens immediately.
  */
-import { NextResponse } from 'next/server';
-import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthenticatedClient } from '@/lib/auth';
+import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { RevokeSchema } from '@/lib/validation/schemas';
-import { safeErrorMessage } from '@/lib/error';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
-export async function POST(request: Request) {
+// TODO(OPS-T1): author ResponseSchema
+export const POST = defineRoute(z.unknown(), async (request: Request) => {
   try {
     const auth = await getAuthenticatedClient();
     if (!auth.success) return authFailureResponse(auth);
@@ -40,4 +43,4 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
-}
+});

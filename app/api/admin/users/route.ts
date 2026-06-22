@@ -1,11 +1,13 @@
-import { NextResponse } from 'next/server';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '@/supabase/types/database.types';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
-import { createServiceClient } from '@/lib/supabase/server';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { PIPELINE_SYSTEM_USER_ID } from '@/lib/intelligence/types';
 import { logger } from '@/lib/logger';
+import { createServiceClient } from '@/lib/supabase/server';
+import type { Database } from '@/supabase/types/database.types';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
@@ -59,27 +61,8 @@ async function fetchLastSignInMap(
   return lastSignInById;
 }
 
-/** GET /api/admin/users — list all users with their roles (admin only).
- *
- * WP-G3.4 Batch 2: bulk read now goes through public.user_profiles +
- * public.user_roles via PostgREST. The S156 incident proved that
- * auth.admin.listUsers() can 500 on a single corrupt token-column row
- * and poison the entire scan; PostgREST against the mirror has no such
- * scan path. The mirror is populated by the on_auth_user_created
- * AFTER INSERT trigger and kept in sync by on_auth_user_updated, so
- * the data shape matches auth.users by construction.
- *
- * user_profiles and user_roles each have an FK to auth.users(id), but
- * NOT to each other — PostgREST cannot auto-embed the join. We fetch
- * both tables in parallel and stitch on user_id in JS. With under 10
- * users today this is cheaper than restructuring the schema.
- *
- * One residual auth.admin.listUsers() call is retained ONLY to map
- * last_sign_in_at (which is not in the v1 mirror per D-G3.4-7
- * minimum-scope decision). If GoTrue ever 500s again, the rest of
- * the response still resolves and last_sign_in_at degrades to NULL —
- * a soft failure rather than a hard 500. */
-export async function GET() {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async () => {
   try {
     const auth = await getAuthorisedClient(['admin']);
     if (!auth.success) return authFailureResponse(auth);
@@ -169,4 +152,4 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+});

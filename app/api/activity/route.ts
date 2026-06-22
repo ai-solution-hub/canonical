@@ -1,25 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { mapGroupedActivityRows } from '@/lib/dashboard';
 import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
 import { parseSearchParams } from '@/lib/validation';
 import { ActivityParamsSchema } from '@/lib/validation/schemas';
-import { logger } from '@/lib/logger';
-import { mapGroupedActivityRows } from '@/lib/dashboard';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
-/**
- * GET /api/activity
- *
- * Unified activity feed showing recent changes across the KB.
- * Admin-only. Uses the `get_grouped_activity_feed` RPC which combines
- * version history and quality events with grouping.
- *
- * Query params:
- *   - limit  (default 20, max 100)
- *   - before (ISO timestamp cursor for pagination, optional)
- */
-export async function GET(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient(['admin']);
     if (!auth.success) return authFailureResponse(auth);
@@ -71,4 +63,4 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

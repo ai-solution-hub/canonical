@@ -1,12 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { defineRoute } from "@/lib/api/define-route";
 import {
-  getAuthorisedClient,
-  authFailureResponse,
+    authFailureResponse,
+    getAuthorisedClient,
 } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
-import { parseBody } from '@/lib/validation';
-import { CoverageTargetPutBodySchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
+import { parseBody } from '@/lib/validation';
+import { CoverageTargetPutBodySchema, CoverageTargetsPutResponseSchema, TargetsResponseSchema } from '@/lib/validation/schemas';
+import { NextRequest, NextResponse } from 'next/server';
 
 export const maxDuration = 30;
 
@@ -14,7 +15,7 @@ export const maxDuration = 30;
 // GET — fetch all coverage targets (any authenticated user)
 // ---------------------------------------------------------------------------
 
-export async function GET() {
+export const GET = defineRoute(TargetsResponseSchema, async () => {
   try {
     const auth = await getAuthorisedClient();
     if (!auth.success) return authFailureResponse(auth);
@@ -52,13 +53,13 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+});
 
 // ---------------------------------------------------------------------------
 // PUT — upsert coverage targets (admin only)
 // ---------------------------------------------------------------------------
 
-export async function PUT(request: NextRequest) {
+export const PUT = defineRoute(CoverageTargetsPutResponseSchema, async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient();
     if (!auth.success) return authFailureResponse(auth);
@@ -104,4 +105,4 @@ export async function PUT(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

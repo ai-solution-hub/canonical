@@ -22,14 +22,15 @@
 // source read and the draft insert, so the acting user can only promote
 // content they can already access — there is no service-role escalation and no
 // cross-workspace write.
-import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { safeErrorMessage } from '@/lib/error';
 import { tryQuery } from '@/lib/supabase/safe';
 import { parseBody } from '@/lib/validation';
-import { safeErrorMessage } from '@/lib/error';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 // Single-selection intent normalisation ONLY. `arbitrate`/`arbitrateMany` are
 // deliberately NOT imported — UC5 is single-actor and does not merge intents.
+import { defineRoute } from '@/lib/api/define-route';
 import { coerceIntent, type EditIntent } from '@/lib/edit-intent/arbitrate';
 
 /**
@@ -60,15 +61,8 @@ interface SourceResponseRow {
   form_questions: { id: string; question_text: string } | null;
 }
 
-/**
- * POST /api/q-a-pairs/promote — promote a form response to a Q&A draft.
- *
- * Role guard: admin/editor only (viewer ⇒ 403 via authFailureResponse).
- * Reads the source response (RLS-scoped) to derive the question/answer text and
- * the originating question, then INSERTs a `q_a_pairs` draft with lineage. NO
- * file write; NO arbitration.
- */
-export async function POST(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);
@@ -190,4 +184,4 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
 import { CLIENT_CONFIG } from '@/lib/client-config';
+import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
 import { enqueueQueueJob } from '@/lib/queue/enqueue';
 import { buildIdempotencyKey } from '@/lib/queue/envelope';
 import type { BatchReclassifyBody } from '@/lib/queue/handlers/batch-reclassify';
 import { sb } from '@/lib/supabase/safe';
 import { createServiceClient } from '@/lib/supabase/server';
-import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 
 /**
@@ -88,7 +89,8 @@ async function computeOptionsHash(body: BatchReclassifyBody): Promise<string> {
     .slice(0, 16);
 }
 
-export async function POST(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     // ----------------------------------------------------------------
     // Auth: per D-1 ratified — `'admin'` and `'editor'` both authorised.
@@ -213,4 +215,4 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

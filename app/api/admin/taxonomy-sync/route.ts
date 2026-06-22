@@ -17,20 +17,23 @@
  * Admin-only.
  */
 
-import { NextResponse } from 'next/server';
-import * as Sentry from '@sentry/nextjs';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
-import { sb } from '@/lib/supabase/safe';
-import { computeTaxonomyHash } from '@/lib/taxonomy/sync-trigger';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { safeErrorMessage } from '@/lib/error';
 import { dispatchTaxonomySync } from '@/lib/integrations/github-dispatch';
 import { recordPipelineRun } from '@/lib/pipeline/record-run';
-import { safeErrorMessage } from '@/lib/error';
+import { sb } from '@/lib/supabase/safe';
+import { computeTaxonomyHash } from '@/lib/taxonomy/sync-trigger';
+import * as Sentry from '@sentry/nextjs';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
 const PIPELINE_NAME = 'taxonomy_sync';
 
-export async function POST() {
+// TODO(OPS-T1): author ResponseSchema
+export const POST = defineRoute(z.unknown(), async () => {
   try {
     // 1. Admin auth
     const auth = await getAuthorisedClient(['admin']);
@@ -146,7 +149,7 @@ export async function POST() {
       { status: 500 },
     );
   }
-}
+});
 
 /**
  * Map a GitHub API HTTP status to an actionable error response.
