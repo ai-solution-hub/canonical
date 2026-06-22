@@ -65,29 +65,34 @@ Synth mode flattens props to `[key: string]: unknown` (no real variant props).
 FOLLOW-UP: add `dtsPropsFor` for the other variant-bearing primitives (Tabs/TabsList
 `variant`, Badge done, Select, Switch, etc.) so the design agent codes against real APIs.
 
-## Authored previews so far (17) — graded good
+## Authored previews so far (24) — graded good
 
 Wave 1 (8): Button, Badge, Card, CardHeader, Checkbox, Progress, SheetHeader, SheetFooter.
 Wave 2 (9): Input, Label, Switch, Textarea, Separator, Skeleton, RadioGroup, Accordion,
-Tabs. The other ~75 ship the honest **floor card** ("preview not yet authored"). This is
-the standing incremental-authoring backlog (re-sync carries authored work forward). Next
-highest-value targets: the overlay open-states (Dialog, Select, Sheet, Popover, Tooltip,
-DropdownMenu) via `cfg.overrides.<Name> = {cardMode:'single', viewport:'WxH'}` +
-`defaultOpen`.
+Tabs. Wave 3 (7, overlays — open-state via
+`cfg.overrides.<Name>={cardMode:'single',viewport:'WxH'}`
 
-## DropdownMenuLabel — EXCLUDED from upload (the one component not shipped)
+- `defaultOpen`): Dialog, Select, Sheet, Popover, Tooltip, DropdownMenu,
+  DropdownMenuLabel. The other 68 ship the honest **floor card** ("preview not yet
+  authored") — standing incremental-authoring backlog (re-sync carries authored work
+  forward). Overlay authoring recipe is proven: Radix overlays render fully open (with
+  backdrop) in headless chromium when given `defaultOpen` + `cardMode:single` + a fixed
+  viewport.
 
-It renders blank standalone (Radix menu-context sub-part). Not pushed (its card would be
-blank). The component IS still importable via the bundle for the agent. FOLLOW-UP: author
-the **DropdownMenu family** (and other overlays — Dialog, Select, Sheet, Popover, Tooltip
-OPEN states) as `cfg.overrides.<Name> = {cardMode:'single', viewport:'WxH'}` previews with
-`defaultOpen`, then re-include.
+GRID_OVERFLOW: Card, Tabs, Textarea are set to `cfg.overrides.<Name>={cardMode:'column'}`
+(their multi-cell stories cropped in the product grid; column = one cell per row, full
+width).
+
+## DropdownMenuLabel — now INCLUDED (wave 3)
+
+Was excluded on the first upload (rendered blank standalone — Radix menu sub-part). Wave 3
+authored it as the full open-menu composition (`cfg.overrides.DropdownMenuLabel`), so it
+now renders in context and is uploaded. All 92 components are now in the project.
 
 ## Known render warns (check re-sync against these)
 
-- `[RENDER_BLANK] DropdownMenuLabel` — expected (excluded; see above).
-- `thin: 1` in `.render-check.json` — DropdownMenuLabel.
 - `[FONT_REMOTE] Instrument Sans` — expected (remote font @import).
+- 68 floor cards are reported as "render cleanly" (typographic floor, not failures).
 
 ## Re-sync risks
 
@@ -97,6 +102,5 @@ OPEN states) as `cfg.overrides.<Name> = {cardMode:'single', viewport:'WxH'}` pre
   changes.
 - `dtsPropsFor` props are hand-written — re-verify against `components/ui/*.tsx` if those
   components change variants.
-- Anchor `_ds_sync.json` lists 92 components but only 91 were uploaded (DropdownMenuLabel)
-  — the next sync will see it as "to upload"; that's expected until its overlay preview is
-  authored.
+- Anchor `_ds_sync.json` now covers all 92 components, all uploaded. A clean re-sync that
+  changes nothing should compute `upload.any === false`.
