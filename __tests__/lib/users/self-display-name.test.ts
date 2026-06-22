@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { getUserDisplayName } from '@/lib/user/display-name';
+import { getUserDisplayName } from '@/lib/users/self-display-name';
 
 describe('getUserDisplayName', () => {
   describe('user_metadata.display_name path', () => {
