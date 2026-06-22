@@ -421,12 +421,6 @@ function renderReport(
   const contentRatios = pairs
     .map((p) => p.contentRatio)
     .filter((v): v is number => v !== null && Number.isFinite(v));
-  const contentInBand = contentRatios.filter(
-    (r) => r >= 0.95 && r <= 1.1,
-  ).length;
-  const contentInBandPct = contentRatios.length
-    ? contentInBand / contentRatios.length
-    : NaN;
   const medianContentRatio = median(contentRatios);
 
   // Dim 3: Embedding stability

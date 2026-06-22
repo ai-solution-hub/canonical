@@ -24,14 +24,12 @@
  */
 
 import { readFileSync, existsSync } from 'fs';
-import { resolve } from 'path';
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import { prodProjectRef } from '@/scripts/lib/project-refs';
 import { createInterface } from 'readline';
 import type { Database } from '@/supabase/types/database.types';
 import { resolveEvalFixture } from '../lib/eval/fixtures';
-import { precision, recall, f1Score, accuracy } from '../lib/eval/metrics';
 import {
   loadBaseline,
   saveBaseline,

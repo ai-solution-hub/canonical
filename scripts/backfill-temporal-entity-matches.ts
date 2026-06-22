@@ -138,13 +138,6 @@ interface TemporalRef {
   related_entity?: string;
 }
 
-interface EntityMention {
-  id: string;
-  canonical_name: string;
-  entity_type: string;
-  metadata: Record<string, unknown> | null;
-}
-
 interface ClaudeMatch {
   temporal_ref_index: number;
   entity_canonical_name: string;

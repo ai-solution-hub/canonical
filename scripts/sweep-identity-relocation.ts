@@ -187,7 +187,7 @@ function parseArgs(argv: string[]): { denylist?: string; out?: string } {
 
 function resolveDenylistPath(
   flag: string | undefined,
-  repoRoot: string,
+  _repoRoot: string,
 ): string {
   const candidates: { source: string; path: string }[] = [];
   if (flag) {

@@ -449,6 +449,7 @@ const PAGE_SIZE = 1000;
 async function fetchAll<T = Record<string, unknown>>(
   sb: SupabaseClient,
   table: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase PostgrestFilterBuilder is not generically expressible here; the caller chains arbitrary filter methods.
   buildQuery: (q: ReturnType<SupabaseClient['from']>) => any,
 ): Promise<T[]> {
   const out: T[] = [];
@@ -477,6 +478,7 @@ async function fetchAllInBatches<T = Record<string, unknown>>(
   table: string,
   ids: string[],
   idColumn: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase PostgrestFilterBuilder is not generically expressible here; the caller chains arbitrary filter methods.
   buildQuery: (q: ReturnType<SupabaseClient['from']>) => any,
   idBatchSize = 500,
 ): Promise<T[]> {
@@ -504,6 +506,7 @@ async function fetchAllInBatches<T = Record<string, unknown>>(
  *  identify themselves. These inflate corpus counts and cause false-positive
  *  quality-gate failures. Applied to every generic check; NOT applied to
  *  audit-content checks (which scope via source_file / user_tags already). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic constraint over Supabase query builders whose .not() signature varies by table; any[] keeps the helper table-agnostic.
 export function excludeArtefacts<Q extends { not: (...args: any[]) => Q }>(
   q: Q,
 ): Q {
@@ -1237,6 +1240,7 @@ async function loadAuditCorpusItems(
       'id, title, content_type, source_file, classification_confidence, dedup_status, updated_at, user_tags',
     ),
   );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Heterogeneous projected row shape (dynamic select string); narrowed per-field inside the filter.
   return (rows as any[]).filter((r) => {
     const isClientDocx =
       (r.content_type as string) === 'q_a_pair' &&

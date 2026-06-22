@@ -3,6 +3,7 @@ import nextCoreWebVitals from 'eslint-config-next/core-web-vitals';
 import nextTypescript from 'eslint-config-next/typescript';
 import tanstackQuery from '@tanstack/eslint-plugin-query';
 import reactHooks from 'eslint-plugin-react-hooks';
+import unusedImports from 'eslint-plugin-unused-imports';
 import localRules from './eslint-rules/index.js';
 
 const eslintConfig = defineConfig([
@@ -19,13 +20,19 @@ const eslintConfig = defineConfig([
     // Local code-intelligence artefact dir (gitignored, untracked) — not
     // part of the repo, must never be linted (bl-272).
     '.gitnexus/**',
-    'scripts/**',
-    'supabase/**',
     '.cache/**',
     'docs-site/.astro/**',
-    // Generated bundle artefact — committed but never hand-edited, and on the
-    // sandbox Read-deny list (bl-209) so lint should never try to read it.
-    // (supabase/types/database.types.ts is already covered by 'supabase/**'.)
+    // Deliberately-dead ast-dataflow test fixtures — these contain unused
+    // exports/imports/vars by design (they exercise the dead-export and
+    // unused-symbol queries), so they must stay out of the unused-imports
+    // error gate (S391 eslint-tightening path (a)).
+    '__tests__/lib/ast-dataflow/fixtures/**',
+    // Generated artefacts — committed but never hand-edited, and on the
+    // sandbox Read-deny list (bl-209) so lint should never try to read them.
+    // (scripts/ and supabase/ are now linted as of S391, so these two
+    // generated files must be ignored explicitly rather than via the broad
+    // 'supabase/**' / wildcard exclusions that previously covered them.)
+    'supabase/types/database.types.ts',
     'lib/mcp/plugin-bundle.ts',
   ]),
   {
@@ -42,20 +49,31 @@ const eslintConfig = defineConfig([
     // the plugin (bl-272). Register it explicitly here.
     plugins: {
       'react-hooks': reactHooks,
+      'unused-imports': unusedImports,
     },
     rules: {
       'react-hooks/set-state-in-effect': 'warn',
       'react-hooks/purity': 'warn',
       'react-hooks/incompatible-library': 'warn',
-      // Allow underscore-prefixed variables/args to be unused — standard
-      // convention for intentionally ignored destructured values and params.
-      '@typescript-eslint/no-unused-vars': [
-        'warn',
+      // Unused-imports/vars gate (S391 eslint-tightening path (a)). The
+      // base @typescript-eslint/no-unused-vars rule is delegated to
+      // eslint-plugin-unused-imports, which separates unused imports (auto-
+      // fixable) from unused vars. Allow underscore-prefixed identifiers to
+      // be unused — standard convention for intentionally ignored
+      // destructured values and params.
+      '@typescript-eslint/no-unused-vars': 'off',
+      'unused-imports/no-unused-imports': 'error',
+      'unused-imports/no-unused-vars': [
+        'error',
         {
-          argsIgnorePattern: '^_',
+          vars: 'all',
           varsIgnorePattern: '^_',
+          args: 'after-used',
+          argsIgnorePattern: '^_',
+          // Preserve the established underscore convention for intentionally
+          // ignored caught errors (the prior @typescript-eslint/no-unused-vars
+          // config carried this; the base rule defaults caughtErrors to 'all').
           caughtErrorsIgnorePattern: '^_',
-          destructuredArrayIgnorePattern: '^_',
         },
       ],
       '@tanstack/query/no-unstable-deps': 'warn',

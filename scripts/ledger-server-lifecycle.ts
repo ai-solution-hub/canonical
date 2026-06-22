@@ -345,8 +345,8 @@ function defaultSpawnSeam(): SpawnSeam {
   // Use Bun.spawn if available (Bun), else child_process.spawn (Node).
   return {
     spawn(cmd, args, opts) {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { spawn: nodeSpawn } =
+        // eslint-disable-next-line @typescript-eslint/no-require-imports -- Node fallback for the non-Bun runtime; CommonJS require is the intentional lazy load here.
         require('node:child_process') as typeof import('node:child_process');
       const child: ChildProcess = nodeSpawn(cmd, args, {
         cwd: opts.cwd,

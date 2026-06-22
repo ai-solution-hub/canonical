@@ -19,7 +19,6 @@ import { resolve } from 'path';
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import {
   generateFixtures,
-  cleanupAllFixtures,
   FIXTURE_PREFIX,
 } from '@/__tests__/integration/fixtures/staging-fixture-generator';
 import { cleanupContentFixtures } from '@/__tests__/integration/fixtures/content-fixtures';

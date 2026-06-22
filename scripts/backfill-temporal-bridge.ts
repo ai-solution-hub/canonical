@@ -31,7 +31,6 @@ import {
   addDurationToDate,
 } from '../lib/entities/token-match';
 import type { ClassificationTemporalReference } from '../lib/ai/classify';
-import type { TemporalReference } from '../lib/date-extraction';
 
 // ── Env loading (handles worktrees) ────────────────────────────────────────
 
