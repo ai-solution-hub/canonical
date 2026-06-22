@@ -41,6 +41,7 @@
     "test:mcp-eval:fc": "bun run scripts/mcp-eval/functional-correctness.ts",
     "test:mcp-eval:fc:skip-ai": "bun run scripts/mcp-eval/functional-correctness.ts --skip-ai",
     "seed:mcp-eval": "bun run scripts/mcp-eval/seed-fixtures.ts",
+    "register:id71-touchpoints": "bun run scripts/eval-register-id71-touchpoints.ts --register",
     "seed:e2e-users": "bun run scripts/seed-e2e-users.ts",
     "kb-search": "bun run scripts/kb-search.ts",
     "ast-dataflow": "bun run tools/ast-dataflow/cli.ts",

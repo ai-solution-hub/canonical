@@ -714,6 +714,16 @@ jobs:
           AI_EMBEDDING_DIMS: ${{ vars.AI_EMBEDDING_DIMS }}
         run: bun run seed:mcp-eval
 
+      # ID-71 {71.20} / B-INV-13: register the born-evaluable AgentEvalContract
+      # for each new/refined ID-71 touchpoint (consolidated MCP tools + lib/ai
+      # inline touchpoints) so the L1/L3/L4 eval matrix resolves every touchpoint
+      # before dispatch. Idempotent (B-INV-5); safe to re-run each seed.
+      - name: Register ID-71 born-evaluable touchpoint contracts
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: bun run register:id71-touchpoints
+
   mcp-eval:
     # WP-G4.4 — MCP eval Layers 1/3/4 in CI.
     # Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-g4.4-mcp-eval-ci-spec.md
