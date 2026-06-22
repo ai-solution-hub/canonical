@@ -106,7 +106,10 @@ export const PATCH = defineRoute(
 );
 
 export const DELETE = defineRoute(
-  FeedSourceSchema,
+  z.object({
+    success: z.boolean(),
+    action: z.enum(['archived', 'hard_delete']),
+  }),
   async (request: NextRequest, context: RouteContext) => {
     try {
       const { id, sourceId } = await context.params;

@@ -8,6 +8,7 @@ import {
   CompanyProfileUpdateSchema,
 } from '@/lib/validation/schemas';
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -96,7 +97,7 @@ export const PATCH = defineRoute(
 );
 
 export const DELETE = defineRoute(
-  CompanyProfileSchema,
+  z.object({ success: z.boolean() }),
   async (_request: NextRequest, context: RouteContext) => {
     try {
       const { id } = await context.params;

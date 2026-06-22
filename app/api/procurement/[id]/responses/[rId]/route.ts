@@ -104,7 +104,7 @@ export const GET = defineRoute(
           supabase
             .from('content_items')
             .select(
-              'id, suggested_title, content_type, primary_domain, summary',
+              'id, suggested_title, content_type, primary_domain, primary_subtopic, summary',
             )
             .in('id', response.source_content_ids),
           'bids.response.detail.sourceContent',
@@ -115,6 +115,7 @@ export const GET = defineRoute(
           title: item.suggested_title,
           content_type: item.content_type,
           primary_domain: item.primary_domain,
+          primary_subtopic: item.primary_subtopic,
           summary: item.summary,
         }));
       }
