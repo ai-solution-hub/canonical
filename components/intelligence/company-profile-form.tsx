@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { X } from 'lucide-react';
+import { StringTagInput } from '@/components/shared/string-tag-input';
 import type {
   CompanyProfile,
   CompanyProfileInput,
@@ -23,79 +23,6 @@ function generateSlug(name: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
-}
-
-/** Reusable tag input — type a value and press Enter to add it */
-function TagInput({
-  label,
-  values,
-  onChange,
-  placeholder,
-}: {
-  label: string;
-  values: string[];
-  onChange: (values: string[]) => void;
-  placeholder?: string;
-}) {
-  const [input, setInput] = useState('');
-
-  const addTag = useCallback(() => {
-    const trimmed = input.trim();
-    if (trimmed && !values.includes(trimmed)) {
-      onChange([...values, trimmed]);
-    }
-    setInput('');
-  }, [input, values, onChange]);
-
-  const removeTag = useCallback(
-    (index: number) => {
-      onChange(values.filter((_, i) => i !== index));
-    },
-    [values, onChange],
-  );
-
-  return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
-      <div className="flex gap-2">
-        <Input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              addTag();
-            }
-          }}
-          placeholder={placeholder}
-          className="flex-1"
-        />
-        <Button type="button" variant="outline" size="sm" onClick={addTag}>
-          Add
-        </Button>
-      </div>
-      {values.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {values.map((tag, i) => (
-            <span
-              key={`${tag}-${i}`}
-              className="inline-flex items-center gap-1 rounded-md border bg-accent px-2 py-0.5 text-xs text-foreground"
-            >
-              {tag}
-              <button
-                type="button"
-                onClick={() => removeTag(i)}
-                className="text-muted-foreground hover:text-foreground"
-                aria-label={`Remove ${tag}`}
-              >
-                <X className="size-3" />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
 }
 
 export function CompanyProfileForm({
@@ -242,23 +169,25 @@ export function CompanyProfileForm({
           </div>
 
           {/* Sectors */}
-          <TagInput
-            label="Sectors *"
+          <StringTagInput
+            label="Sectors"
+            required
             values={sectors}
             onChange={setSectors}
             placeholder="Type a sector and press Enter"
           />
 
           {/* Key Topics */}
-          <TagInput
-            label="Key Topics *"
+          <StringTagInput
+            label="Key Topics"
+            required
             values={keyTopics}
             onChange={setKeyTopics}
             placeholder="Type a topic and press Enter"
           />
 
           {/* Services */}
-          <TagInput
+          <StringTagInput
             label="Services"
             values={services}
             onChange={setServices}
@@ -266,7 +195,7 @@ export function CompanyProfileForm({
           />
 
           {/* Certifications */}
-          <TagInput
+          <StringTagInput
             label="Certifications"
             values={certifications}
             onChange={setCertifications}
@@ -274,7 +203,7 @@ export function CompanyProfileForm({
           />
 
           {/* Geographic Scope */}
-          <TagInput
+          <StringTagInput
             label="Geographic Scope"
             values={geographicScope}
             onChange={setGeographicScope}
