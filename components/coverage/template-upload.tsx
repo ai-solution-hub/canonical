@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { FileUp, Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { formatFileSize } from '@/lib/format';
+import { FileDropzone } from '@/components/shared/file-dropzone';
 import type { Template } from '@/types/template';
 
 interface TemplateUploadProps {
@@ -18,20 +19,19 @@ interface TemplateUploadProps {
 
 const ALLOWED_MIME_TYPE =
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const ALLOWED_MIME_TYPES = [ALLOWED_MIME_TYPE];
+const ALLOWED_EXTENSIONS = ['.docx'];
 const MAX_SIZE_BYTES = 50 * 1024 * 1024;
 
 type UploadPhase = 'idle' | 'uploading' | 'complete' | 'error';
 
 export function TemplateUpload({ procurementId, onUploadComplete }: TemplateUploadProps) {
   const [phase, setPhase] = useState<UploadPhase>('idle');
-  const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [templateName, setTemplateName] = useState('');
   const [description, setDescription] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadedTemplate, setUploadedTemplate] = useState<Template | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const dragCounterRef = useRef(0);
 
   const resetState = useCallback(() => {
     setPhase('idle');
@@ -40,39 +40,24 @@ export function TemplateUpload({ procurementId, onUploadComplete }: TemplateUplo
     setDescription('');
     setSelectedFile(null);
     setUploadedTemplate(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  }, []);
-
-  const validateFile = useCallback((file: File): string | null => {
-    if (file.type !== ALLOWED_MIME_TYPE && !file.name.toLowerCase().endsWith('.docx')) {
-      return 'Invalid file type. Only .docx files are supported for template completion.';
-    }
-    if (file.size > MAX_SIZE_BYTES) {
-      return `File is too large (${formatFileSize(file.size)}). Maximum size is 50 MB.`;
-    }
-    if (file.size === 0) {
-      return 'File is empty.';
-    }
-    return null;
   }, []);
 
   const handleFileSelected = useCallback(
     (file: File) => {
-      const validationError = validateFile(file);
-      if (validationError) {
-        setError(validationError);
-        setPhase('error');
-        toast.error(validationError);
-        return;
-      }
       setSelectedFile(file);
       if (!templateName) {
         setTemplateName(file.name.replace(/\.docx$/i, ''));
       }
       setError(null);
     },
-    [validateFile, templateName],
+    [templateName],
   );
+
+  const handleValidationError = useCallback((message: string) => {
+    setError(message);
+    setPhase('error');
+    toast.error(message);
+  }, []);
 
   const handleUpload = useCallback(async () => {
     if (!selectedFile) return;
@@ -110,94 +95,42 @@ export function TemplateUpload({ procurementId, onUploadComplete }: TemplateUplo
     }
   }, [procurementId, selectedFile, templateName, description]);
 
-  const handleDragEnter = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounterRef.current += 1;
-    setDragging(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounterRef.current -= 1;
-    if (dragCounterRef.current === 0) setDragging(false);
-  }, []);
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  }, []);
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setDragging(false);
-      dragCounterRef.current = 0;
-      const files = e.dataTransfer.files;
-      if (files.length > 0) handleFileSelected(files[0]);
-    },
-    [handleFileSelected],
-  );
-
-  const handleFileInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      if (files && files.length > 0) handleFileSelected(files[0]);
-    },
-    [handleFileSelected],
-  );
-
-  const handleClick = useCallback(() => {
-    if (phase === 'idle' || phase === 'error') fileInputRef.current?.click();
-  }, [phase]);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        handleClick();
-      }
-    },
-    [handleClick],
-  );
+  const interactive = phase === 'idle' || phase === 'error';
 
   return (
     <div className="space-y-4">
       {/* Drop zone */}
-      <div
-        role="button"
-        tabIndex={phase === 'idle' || phase === 'error' ? 0 : -1}
-        aria-label="Upload template document. Drag and drop or click to browse."
-        className={cn(
-          'relative flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-8 text-center transition-colors',
-          phase === 'idle' && !dragging && !selectedFile && 'border-muted-foreground/25 hover:border-muted-foreground/50 cursor-pointer',
-          phase === 'error' && 'border-destructive/50 hover:border-destructive cursor-pointer',
-          dragging && 'border-primary bg-primary/5',
-          phase === 'uploading' && 'border-primary/50 cursor-default',
-          phase === 'complete' && 'border-template-confirmed/50 cursor-default',
-          selectedFile && phase === 'idle' && 'border-primary/30',
-        )}
-        onDragEnter={handleDragEnter}
-        onDragLeave={handleDragLeave}
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
-        onClick={handleClick}
-        onKeyDown={handleKeyDown}
+      <FileDropzone
+        acceptedMimeTypes={ALLOWED_MIME_TYPES}
+        acceptedExtensions={ALLOWED_EXTENSIONS}
+        maxSizeBytes={MAX_SIZE_BYTES}
+        rejectEmpty
+        inputAccept=".docx"
+        ariaLabel="Upload template document. Drag and drop or click to browse."
+        interactive={interactive}
+        onFile={handleFileSelected}
+        onValidationError={handleValidationError}
+        className={({ dragging }) =>
+          cn(
+            'relative flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-8 text-center transition-colors',
+            phase === 'idle' &&
+              !dragging &&
+              !selectedFile &&
+              'border-muted-foreground/25 hover:border-muted-foreground/50 cursor-pointer',
+            phase === 'error' &&
+              'border-destructive/50 hover:border-destructive cursor-pointer',
+            dragging && 'border-primary bg-primary/5',
+            phase === 'uploading' && 'border-primary/50 cursor-default',
+            phase === 'complete' &&
+              'border-template-confirmed/50 cursor-default',
+            selectedFile && phase === 'idle' && 'border-primary/30',
+          )
+        }
       >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".docx"
-          className="sr-only"
-          onChange={handleFileInputChange}
-          aria-hidden="true"
-          tabIndex={-1}
-        />
-
-        {/* Idle state — no file selected */}
-        {phase === 'idle' && !selectedFile && (
+        {() => (
+          <>
+            {/* Idle state — no file selected */}
+            {phase === 'idle' && !selectedFile && (
           <>
             <FileUp className="size-10 text-muted-foreground" aria-hidden="true" />
             <div>
@@ -278,7 +211,9 @@ export function TemplateUpload({ procurementId, onUploadComplete }: TemplateUplo
             </div>
           </>
         )}
-      </div>
+          </>
+        )}
+      </FileDropzone>
 
       {/* Name input — shown when file is selected but not yet uploaded */}
       {selectedFile && phase === 'idle' && (

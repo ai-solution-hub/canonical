@@ -2,8 +2,8 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { History, ChevronDown, ChevronUp, Loader2, FileX } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Loader2, FileX } from 'lucide-react';
+import { RevisionHistoryPanel } from '@/components/shared/revision-history-panel';
 import {
   RevisionDiffView,
   type RevisionBlob,
@@ -14,7 +14,6 @@ import {
   fetchQAPairHistory,
   type QAPairHistoryEntry,
 } from '@/lib/query/fetchers';
-import { cn } from '@/lib/utils';
 
 /**
  * QARevisionHistory — the Q&A leg of the v1 user-edit Diff-UI (ID-59 {59.16},
@@ -110,57 +109,33 @@ export function QARevisionHistory({
   }, [versions, labelFor]);
 
   return (
-    <div className={cn('rounded-lg border', className)}>
-      <button
-        type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
-        className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-muted/50"
-        aria-expanded={isOpen}
-      >
-        <div className="flex items-center gap-2">
-          <History className="size-4 text-muted-foreground" />
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Revision History
-          </span>
-          {total > 0 && (
-            <Badge variant="secondary" className="text-[11px]">
-              {total}
-            </Badge>
-          )}
+    <RevisionHistoryPanel
+      title="Revision History"
+      isOpen={isOpen}
+      onToggle={() => setIsOpen((prev) => !prev)}
+      total={total}
+      className={className}
+      bodyClassName="px-4 py-3"
+    >
+      {isLoading ? (
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="size-4 animate-spin text-muted-foreground" />
         </div>
-        {isOpen ? (
-          <ChevronUp className="size-4 text-muted-foreground" />
-        ) : (
-          <ChevronDown className="size-4 text-muted-foreground" />
-        )}
-      </button>
-
-      {isOpen && (
-        <div className="border-t border-border px-4 py-3">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-6">
-              <Loader2 className="size-4 animate-spin text-muted-foreground" />
-            </div>
-          ) : isError ? (
-            <p className="py-4 text-sm text-muted-foreground">
-              Couldn&apos;t load the revision history. Please try again.
-            </p>
-          ) : blobs ? (
-            <RevisionDiffView older={blobs.older} newer={blobs.newer} />
-          ) : (
-            <div className="flex flex-col items-center gap-2 py-6 text-center">
-              <FileX
-                className="size-8 text-muted-foreground"
-                aria-hidden="true"
-              />
-              <p className="text-sm text-muted-foreground">
-                No earlier revision to compare yet. Edits will be tracked
-                automatically.
-              </p>
-            </div>
-          )}
+      ) : isError ? (
+        <p className="py-4 text-sm text-muted-foreground">
+          Couldn&apos;t load the revision history. Please try again.
+        </p>
+      ) : blobs ? (
+        <RevisionDiffView older={blobs.older} newer={blobs.newer} />
+      ) : (
+        <div className="flex flex-col items-center gap-2 py-6 text-center">
+          <FileX className="size-8 text-muted-foreground" aria-hidden="true" />
+          <p className="text-sm text-muted-foreground">
+            No earlier revision to compare yet. Edits will be tracked
+            automatically.
+          </p>
         </div>
       )}
-    </div>
+    </RevisionHistoryPanel>
   );
 }

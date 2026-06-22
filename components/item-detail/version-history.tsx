@@ -7,18 +7,10 @@ import {
   useMutation,
   useQueryClient,
 } from '@tanstack/react-query';
-import {
-  History,
-  ChevronDown,
-  ChevronUp,
-  RotateCcw,
-  Loader2,
-  Eye,
-  FileX,
-  GitCompareArrows,
-} from 'lucide-react';
+import { RotateCcw, Loader2, Eye, FileX, GitCompareArrows } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { RevisionHistoryPanel } from '@/components/shared/revision-history-panel';
 import { VersionDiff } from '@/components/item-detail/version-diff';
 import {
   RevisionDiffView,
@@ -35,7 +27,6 @@ import {
   rollbackItemVersion,
   type ItemHistoryEntry,
 } from '@/lib/query/fetchers';
-import { cn } from '@/lib/utils';
 
 /** Stable empty default so the memoised list keeps a stable reference. */
 const EMPTY_VERSIONS: ItemHistoryEntry[] = [];
@@ -304,207 +295,180 @@ export function VersionHistory({
   };
 
   return (
-    <div className={cn('rounded-lg border', className)}>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-muted/50 transition-colors"
-        aria-expanded={isOpen}
-      >
-        <div className="flex items-center gap-2">
-          <History className="size-4 text-muted-foreground" />
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Version History
-          </span>
-          {total > 0 && (
-            <Badge variant="secondary" className="text-[11px]">
-              {total}
-            </Badge>
-          )}
+    <RevisionHistoryPanel
+      title="Version History"
+      isOpen={isOpen}
+      onToggle={() => setIsOpen(!isOpen)}
+      total={total}
+      className={className}
+    >
+      {loading && versions.length === 0 ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="size-4 animate-spin text-muted-foreground" />
         </div>
-        {isOpen ? (
-          <ChevronUp className="size-4 text-muted-foreground" />
-        ) : (
-          <ChevronDown className="size-4 text-muted-foreground" />
-        )}
-      </button>
-
-      {isOpen && (
-        <div className="border-t border-border">
-          {loading && versions.length === 0 ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="size-4 animate-spin text-muted-foreground" />
-            </div>
-          ) : hasListError && versions.length === 0 ? (
-            <div className="px-4 py-6 text-sm text-muted-foreground">
-              <p className="mb-3">
-                Couldn&apos;t load version history. Please try again.
-              </p>
+      ) : hasListError && versions.length === 0 ? (
+        <div className="px-4 py-6 text-sm text-muted-foreground">
+          <p className="mb-3">
+            Couldn&apos;t load version history. Please try again.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetchVersions()}
+            className="gap-1.5"
+          >
+            <RotateCcw className="size-3.5" aria-hidden="true" />
+            Retry
+          </Button>
+        </div>
+      ) : versions.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+          <FileX className="size-8 text-muted-foreground" aria-hidden="true" />
+          <p className="text-sm text-muted-foreground">
+            No version history yet. Changes will be tracked automatically.
+          </p>
+        </div>
+      ) : (
+        <div>
+          {/* Compare-two-versions toolbar (ID-59 {59.12}) */}
+          {canCompare && (
+            <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2">
+              <span className="text-xs text-muted-foreground">
+                {compareMode
+                  ? 'Comparing the two latest versions'
+                  : 'Compare two versions'}
+              </span>
               <Button
-                variant="outline"
+                variant={compareMode ? 'secondary' : 'outline'}
                 size="sm"
-                onClick={() => refetchVersions()}
-                className="gap-1.5"
+                onClick={handleToggleCompare}
+                className="h-7 gap-1.5 text-xs"
+                aria-pressed={compareMode}
               >
-                <RotateCcw className="size-3.5" aria-hidden="true" />
-                Retry
+                <GitCompareArrows className="size-3.5" aria-hidden="true" />
+                {compareMode ? 'Close compare' : 'Compare versions'}
               </Button>
             </div>
-          ) : versions.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
-              <FileX
-                className="size-8 text-muted-foreground"
-                aria-hidden="true"
+          )}
+
+          {compareMode && olderEntry && newerEntry ? (
+            <div className="px-4 py-3">
+              <CompareVersionsPanel
+                key={`${olderEntry.id}:${newerEntry.id}`}
+                itemId={itemId}
+                olderEntry={olderEntry}
+                newerEntry={newerEntry}
+                displayNames={displayNames}
               />
-              <p className="text-sm text-muted-foreground">
-                No version history yet. Changes will be tracked automatically.
-              </p>
             </div>
           ) : (
-            <div>
-              {/* Compare-two-versions toolbar (ID-59 {59.12}) */}
-              {canCompare && (
-                <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2">
-                  <span className="text-xs text-muted-foreground">
-                    {compareMode
-                      ? 'Comparing the two latest versions'
-                      : 'Compare two versions'}
-                  </span>
-                  <Button
-                    variant={compareMode ? 'secondary' : 'outline'}
-                    size="sm"
-                    onClick={handleToggleCompare}
-                    className="h-7 gap-1.5 text-xs"
-                    aria-pressed={compareMode}
-                  >
-                    <GitCompareArrows className="size-3.5" aria-hidden="true" />
-                    {compareMode ? 'Close compare' : 'Compare versions'}
-                  </Button>
-                </div>
-              )}
+            <div className="divide-y divide-border">
+              {versions.map((version) => {
+                const isExpanded = expandedVersion === version.id;
+                const creatorName = version.created_by
+                  ? (displayNames.get(version.created_by) ?? 'Unknown')
+                  : 'System';
 
-              {compareMode && olderEntry && newerEntry ? (
-                <div className="px-4 py-3">
-                  <CompareVersionsPanel
-                    key={`${olderEntry.id}:${newerEntry.id}`}
-                    itemId={itemId}
-                    olderEntry={olderEntry}
-                    newerEntry={newerEntry}
-                    displayNames={displayNames}
-                  />
-                </div>
-              ) : (
-                <div className="divide-y divide-border">
-                  {versions.map((version) => {
-                    const isExpanded = expandedVersion === version.id;
-                    const creatorName = version.created_by
-                      ? (displayNames.get(version.created_by) ?? 'Unknown')
-                      : 'System';
-
-                    return (
-                      <div key={version.id} className="px-4 py-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <Badge
-                                variant="outline"
-                                className="shrink-0 text-[10px]"
-                              >
-                                v{version.version}
-                              </Badge>
-                              <Badge
-                                variant="secondary"
-                                className="shrink-0 text-[10px]"
-                              >
-                                {changeTypeLabel(version.change_type)}
-                              </Badge>
-                            </div>
-                            <p className="mt-1 text-sm text-foreground">
-                              {version.change_summary ?? 'No description'}
-                              {version.change_reason && (
-                                <span className="ml-1 text-muted-foreground">
-                                  — {version.change_reason}
-                                </span>
-                              )}
-                            </p>
-                            <p className="mt-0.5 text-xs text-muted-foreground">
-                              {creatorName}{' '}
-                              <span aria-hidden="true">&middot;</span>{' '}
-                              {formatDateTime(version.created_at)}
-                            </p>
-                          </div>
-                          <div className="flex shrink-0 items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleViewDetail(version.id)}
-                              className="h-7 gap-1 text-xs"
-                            >
-                              <Eye className="size-3" />
-                              {isExpanded ? 'Hide' : 'Diff'}
-                            </Button>
-                            {canEdit && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  rollbackMutation.mutate(version.id)
-                                }
-                                disabled={rollbackMutation.isPending}
-                                className="h-7 gap-1 text-xs"
-                              >
-                                {rollbackMutation.isPending ? (
-                                  <Loader2 className="size-3 animate-spin" />
-                                ) : (
-                                  <RotateCcw className="size-3" />
-                                )}
-                                Restore
-                              </Button>
-                            )}
-                          </div>
+                return (
+                  <div key={version.id} className="px-4 py-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant="outline"
+                            className="shrink-0 text-[10px]"
+                          >
+                            v{version.version}
+                          </Badge>
+                          <Badge
+                            variant="secondary"
+                            className="shrink-0 text-[10px]"
+                          >
+                            {changeTypeLabel(version.change_type)}
+                          </Badge>
                         </div>
-
-                        {/* Diff view */}
-                        {isExpanded && (
-                          <div className="mt-3">
-                            {detailQuery.isLoading ? (
-                              <div className="flex items-center justify-center py-4">
-                                <Loader2 className="size-4 animate-spin text-muted-foreground" />
-                              </div>
-                            ) : detailQuery.data ? (
-                              <div className="space-y-3">
-                                {detailQuery.data.title !== currentTitle && (
-                                  <div>
-                                    <p className="mb-1 text-xs font-medium text-muted-foreground">
-                                      Title
-                                    </p>
-                                    <VersionDiff
-                                      oldText={detailQuery.data.title}
-                                      newText={currentTitle}
-                                    />
-                                  </div>
-                                )}
-                                <div>
-                                  <p className="mb-1 text-xs font-medium text-muted-foreground">
-                                    Content
-                                  </p>
-                                  <VersionDiff
-                                    oldText={detailQuery.data.content}
-                                    newText={currentContent}
-                                  />
-                                </div>
-                              </div>
-                            ) : null}
-                          </div>
+                        <p className="mt-1 text-sm text-foreground">
+                          {version.change_summary ?? 'No description'}
+                          {version.change_reason && (
+                            <span className="ml-1 text-muted-foreground">
+                              — {version.change_reason}
+                            </span>
+                          )}
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {creatorName} <span aria-hidden="true">&middot;</span>{' '}
+                          {formatDateTime(version.created_at)}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleViewDetail(version.id)}
+                          className="h-7 gap-1 text-xs"
+                        >
+                          <Eye className="size-3" />
+                          {isExpanded ? 'Hide' : 'Diff'}
+                        </Button>
+                        {canEdit && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => rollbackMutation.mutate(version.id)}
+                            disabled={rollbackMutation.isPending}
+                            className="h-7 gap-1 text-xs"
+                          >
+                            {rollbackMutation.isPending ? (
+                              <Loader2 className="size-3 animate-spin" />
+                            ) : (
+                              <RotateCcw className="size-3" />
+                            )}
+                            Restore
+                          </Button>
                         )}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                    </div>
+
+                    {/* Diff view */}
+                    {isExpanded && (
+                      <div className="mt-3">
+                        {detailQuery.isLoading ? (
+                          <div className="flex items-center justify-center py-4">
+                            <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                          </div>
+                        ) : detailQuery.data ? (
+                          <div className="space-y-3">
+                            {detailQuery.data.title !== currentTitle && (
+                              <div>
+                                <p className="mb-1 text-xs font-medium text-muted-foreground">
+                                  Title
+                                </p>
+                                <VersionDiff
+                                  oldText={detailQuery.data.title}
+                                  newText={currentTitle}
+                                />
+                              </div>
+                            )}
+                            <div>
+                              <p className="mb-1 text-xs font-medium text-muted-foreground">
+                                Content
+                              </p>
+                              <VersionDiff
+                                oldText={detailQuery.data.content}
+                                newText={currentContent}
+                              />
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
       )}
-    </div>
+    </RevisionHistoryPanel>
   );
 }

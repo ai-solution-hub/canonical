@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Loader2, X, Building2 } from 'lucide-react';
+import { Loader2, Building2 } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -12,87 +12,7 @@ import { queryKeys } from '@/lib/query/query-keys';
 import { mutationFetchJson } from '@/lib/query/fetchers';
 import { useOrganisationProfile } from '@/hooks/use-organisation-profile';
 import type { OrganisationProfile } from '@/lib/organisation-profile';
-
-// ---------------------------------------------------------------------------
-// Tag input (adapted from SI company-profile-form)
-// ---------------------------------------------------------------------------
-
-function TagInput({
-  label,
-  values,
-  onChange,
-  placeholder,
-  required,
-}: {
-  label: string;
-  values: string[];
-  onChange: (values: string[]) => void;
-  placeholder?: string;
-  required?: boolean;
-}) {
-  const [input, setInput] = useState('');
-
-  const addTag = useCallback(() => {
-    const trimmed = input.trim();
-    if (trimmed && !values.includes(trimmed)) {
-      onChange([...values, trimmed]);
-    }
-    setInput('');
-  }, [input, values, onChange]);
-
-  const removeTag = useCallback(
-    (index: number) => {
-      onChange(values.filter((_, i) => i !== index));
-    },
-    [values, onChange],
-  );
-
-  return (
-    <div className="space-y-2">
-      <Label>
-        {label}
-        {required && ' *'}
-      </Label>
-      <div className="flex gap-2">
-        <Input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              addTag();
-            }
-          }}
-          placeholder={placeholder}
-          className="flex-1"
-        />
-        <Button type="button" variant="outline" size="sm" onClick={addTag}>
-          Add
-        </Button>
-      </div>
-      {values.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {values.map((tag, i) => (
-            <span
-              key={`${tag}-${i}`}
-              className="inline-flex items-center gap-1 rounded-md border bg-accent px-2 py-0.5 text-xs text-foreground"
-            >
-              {tag}
-              <button
-                type="button"
-                onClick={() => removeTag(i)}
-                className="text-muted-foreground hover:text-foreground"
-                aria-label={`Remove ${tag}`}
-              >
-                <X className="size-3" />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+import { StringTagInput } from '@/components/shared/string-tag-input';
 
 // ---------------------------------------------------------------------------
 // Organisation form
@@ -216,7 +136,7 @@ function OrganisationForm({
         </div>
 
         {/* Sectors */}
-        <TagInput
+        <StringTagInput
           label="Sectors"
           required
           values={sectors}
@@ -225,7 +145,7 @@ function OrganisationForm({
         />
 
         {/* Services */}
-        <TagInput
+        <StringTagInput
           label="Services"
           values={services}
           onChange={setServices}
@@ -233,7 +153,7 @@ function OrganisationForm({
         />
 
         {/* Certifications */}
-        <TagInput
+        <StringTagInput
           label="Certifications"
           values={certifications}
           onChange={setCertifications}
@@ -241,7 +161,7 @@ function OrganisationForm({
         />
 
         {/* Geographic Scope */}
-        <TagInput
+        <StringTagInput
           label="Geographic Scope"
           values={geographicScope}
           onChange={setGeographicScope}
@@ -249,7 +169,7 @@ function OrganisationForm({
         />
 
         {/* Key Topics */}
-        <TagInput
+        <StringTagInput
           label="Key Topics"
           values={keyTopics}
           onChange={setKeyTopics}

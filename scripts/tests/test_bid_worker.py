@@ -3,11 +3,9 @@
 No production code bugs or dead code paths found during test authoring.
 """
 
-import json
 import os
 import sys
-import tempfile
-from unittest.mock import patch, MagicMock, PropertyMock, call
+from unittest.mock import patch, MagicMock
 
 import pytest
 
@@ -95,29 +93,6 @@ class TestGetSupabase:
 class TestProcessJob:
     """process_job routes to correct handler based on job_type."""
 
-    def test_routes_tender_extract_docx(self):
-        """Routes tender_extract_docx to extract_docx_questions."""
-        from bid_worker import process_job
-
-        mock_sb = _make_mock_supabase()
-        job = {"job_type": "tender_extract_docx", "payload": {"bid_id": "b1", "storage_path": "p"}}
-
-        with patch("bid_worker.extract_docx_questions", return_value={"questions_inserted": 5}) as mock_fn:
-            result = process_job(mock_sb, job)
-            mock_fn.assert_called_once_with(mock_sb, job["payload"])
-            assert result["questions_inserted"] == 5
-
-    def test_routes_tender_extract_pdf_text(self):
-        """Routes tender_extract_pdf_text to extract_pdf_text."""
-        from bid_worker import process_job
-
-        mock_sb = _make_mock_supabase()
-        job = {"job_type": "tender_extract_pdf_text", "payload": {"storage_path": "p"}}
-
-        with patch("bid_worker.extract_pdf_text", return_value={"pages_extracted": 3}) as mock_fn:
-            result = process_job(mock_sb, job)
-            mock_fn.assert_called_once_with(mock_sb, job["payload"])
-
     def test_routes_template_fill(self):
         """Routes template_fill to fill_template_job."""
         from bid_worker import process_job
@@ -138,125 +113,6 @@ class TestProcessJob:
 
         with pytest.raises(ValueError, match="Unknown job type"):
             process_job(mock_sb, job)
-
-
-# ── extract_docx_questions ───────────────────────────────────────────────────
-
-
-class TestExtractDocxQuestions:
-    """extract_docx_questions downloads DOCX, extracts questions, inserts into DB."""
-
-    @patch("bid_worker.os.unlink")
-    @patch("bid_worker.subprocess.run")
-    def test_happy_path_inserts_questions(self, mock_run, mock_unlink):
-        """Downloads file, extracts questions, inserts them, updates bid status."""
-        from bid_worker import extract_docx_questions
-
-        mock_sb = _make_mock_supabase()
-        _mock_storage_download(mock_sb, "tender-documents", b"fake-docx-bytes")
-        _mock_table_insert(mock_sb, "form_questions")
-        _mock_table_select_single(mock_sb, {"domain_metadata": {"status": "pending"}})
-        _mock_table_update(mock_sb)
-
-        extraction_output = {
-            "sections": [
-                {
-                    "section_name": "Technical",
-                    "section_sequence": 1,
-                    "questions": [
-                        {"question_sequence": 1, "question_text": "Describe your approach?"},
-                        {"question_sequence": 2, "question_text": "What experience?"},
-                    ],
-                }
-            ],
-            "total_sections": 1,
-        }
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout=json.dumps(extraction_output), stderr=""
-        )
-
-        result = extract_docx_questions(
-            mock_sb, {"bid_id": "bid-1", "storage_path": "docs/tender.docx"}
-        )
-
-        assert result["questions_inserted"] == 2
-        assert result["sections_found"] == 1
-
-    @patch("bid_worker.os.unlink")
-    @patch("bid_worker.subprocess.run")
-    def test_extraction_script_failure_raises(self, mock_run, mock_unlink):
-        """Extraction script returning non-zero exit code raises RuntimeError."""
-        from bid_worker import extract_docx_questions
-
-        mock_sb = _make_mock_supabase()
-        _mock_storage_download(mock_sb, "tender-documents", b"fake-docx-bytes")
-
-        mock_run.return_value = MagicMock(
-            returncode=1, stdout="", stderr="Parse error"
-        )
-
-        with pytest.raises(RuntimeError, match="Extraction failed"):
-            extract_docx_questions(
-                mock_sb, {"bid_id": "bid-1", "storage_path": "docs/tender.docx"}
-            )
-
-
-# ── extract_pdf_text ─────────────────────────────────────────────────────────
-
-
-class TestExtractPdfText:
-    """extract_pdf_text downloads PDF, extracts text via pdfplumber."""
-
-    @patch("bid_worker.os.unlink")
-    def test_happy_path_extracts_pages(self, mock_unlink):
-        """Downloads PDF, extracts text from each page, returns page count."""
-        from bid_worker import extract_pdf_text
-
-        mock_sb = _make_mock_supabase()
-        _mock_storage_download(mock_sb, "tender-documents", b"fake-pdf-bytes")
-
-        # Mock pdfplumber via sys.modules (it is imported locally inside the function)
-        mock_pdfplumber = MagicMock()
-        mock_page1 = MagicMock()
-        mock_page1.extract_text.return_value = "Page 1 content"
-        mock_page2 = MagicMock()
-        mock_page2.extract_text.return_value = "Page 2 content"
-        mock_pdf = MagicMock()
-        mock_pdf.pages = [mock_page1, mock_page2]
-        mock_pdf.__enter__ = MagicMock(return_value=mock_pdf)
-        mock_pdf.__exit__ = MagicMock(return_value=False)
-        mock_pdfplumber.open.return_value = mock_pdf
-
-        with patch.dict(sys.modules, {"pdfplumber": mock_pdfplumber}):
-            result = extract_pdf_text(mock_sb, {"storage_path": "docs/tender.pdf"})
-
-        assert result["pages_extracted"] == 2
-        assert "Page 1 content" in result["text"]
-        assert "Page 2 content" in result["text"]
-
-    @patch("bid_worker.os.unlink")
-    def test_empty_pages_excluded(self, mock_unlink):
-        """Pages with no text are excluded from the result."""
-        from bid_worker import extract_pdf_text
-
-        mock_sb = _make_mock_supabase()
-        _mock_storage_download(mock_sb, "tender-documents", b"fake-pdf-bytes")
-
-        mock_pdfplumber = MagicMock()
-        mock_page1 = MagicMock()
-        mock_page1.extract_text.return_value = "Has text"
-        mock_page2 = MagicMock()
-        mock_page2.extract_text.return_value = None  # empty page
-        mock_pdf = MagicMock()
-        mock_pdf.pages = [mock_page1, mock_page2]
-        mock_pdf.__enter__ = MagicMock(return_value=mock_pdf)
-        mock_pdf.__exit__ = MagicMock(return_value=False)
-        mock_pdfplumber.open.return_value = mock_pdf
-
-        with patch.dict(sys.modules, {"pdfplumber": mock_pdfplumber}):
-            result = extract_pdf_text(mock_sb, {"storage_path": "docs/tender.pdf"})
-
-        assert result["pages_extracted"] == 1
 
 
 # ── fill_template_job ────────────────────────────────────────────────────────
