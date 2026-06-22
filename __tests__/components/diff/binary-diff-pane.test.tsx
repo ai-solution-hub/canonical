@@ -16,7 +16,7 @@
  * observe "which viewer was chosen" without pulling in browser-only deps.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { BinaryDiffPane } from '@/components/diff/binary-diff-pane';
 import type { UnifiedDiff } from '@/lib/diff/unified-revision';
 
@@ -25,8 +25,23 @@ import type { UnifiedDiff } from '@/lib/diff/unified-revision';
 // ---------------------------------------------------------------------------
 
 vi.mock('@/components/diff/viewers/docx-viewer', () => ({
-  DocxViewer: ({ url }: { url: string; onError?: (e: Error) => void }) => (
-    <div data-testid="docx-viewer">{url}</div>
+  DocxViewer: ({
+    url,
+    onError,
+  }: {
+    url: string;
+    onError?: (e: Error) => void;
+  }) => (
+    <div data-testid="docx-viewer">
+      {url}
+      <button
+        type="button"
+        data-testid="docx-error-trigger"
+        onClick={() => onError?.(new Error('docx render failed'))}
+      >
+        trigger error
+      </button>
+    </div>
   ),
 }));
 
@@ -235,6 +250,26 @@ describe('BinaryDiffPane', () => {
         expect(screen.getByLabelText('Revision text diff')).toBeInTheDocument(),
       );
       expect(screen.getAllByRole('alert')).toHaveLength(2);
+    });
+
+    it('degrades a side to the text-comparison fallback when its DOCX viewer signals onError', async () => {
+      mockSignedUrlSuccess(DOCX_MIME);
+      renderPane(makeDiff(DOCX_MIME));
+
+      // Both viewers render successfully — no fallback notices yet.
+      await waitFor(() =>
+        expect(screen.getAllByTestId('docx-viewer')).toHaveLength(2),
+      );
+      expect(screen.queryAllByRole('alert')).toHaveLength(0);
+
+      // The older side's viewer signals a render failure (INV-6 onError path).
+      fireEvent.click(screen.getAllByTestId('docx-error-trigger')[0]);
+
+      // That side degrades to a fallback notice; the other keeps its viewer
+      // (never a blank panel), and the text summary remains alongside (Option C).
+      await waitFor(() => expect(screen.getAllByRole('alert')).toHaveLength(1));
+      expect(screen.getAllByTestId('docx-viewer')).toHaveLength(1);
+      expect(screen.getByLabelText('Revision text diff')).toBeInTheDocument();
     });
   });
 });

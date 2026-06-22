@@ -14,10 +14,14 @@
  * type: application/pdf → PdfDocument; DOCX → DocxViewer; XLSX → XlsxViewer.
  *
  * INV-6 fallback (never a blank panel): if a side has no binary leg, the
- * binary-url fetch returns non-200, the mime type is unsupported, or a viewer
- * signals onError, that side degrades to the text comparison with a clear inline
- * notice. The text line-diff summary (the extracted_text comparison) is the
- * fallback substrate and is ALWAYS rendered regardless.
+ * binary-url fetch returns non-200, or the mime type is unsupported, that side
+ * degrades to the text comparison with a clear inline notice. A DOCX/XLSX viewer
+ * that signals onError likewise degrades that side. The PDF leaf (PdfDocument)
+ * exposes no onError prop — it renders its OWN internal "unable to display"
+ * panel on load failure (still never blank), so it does not route through the
+ * unified fallback notice. In every case the text line-diff summary (the
+ * extracted_text comparison) is ALWAYS rendered alongside, so the user always
+ * sees what changed.
  *
  * Read-only (INV-17/18): NO apply / dismiss / accept affordances (the legacy
  * re-ingest review workflow is RETIRED). No AI labelling (INV-20). Workspace
