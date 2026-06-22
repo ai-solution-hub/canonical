@@ -23,26 +23,18 @@ set -euo pipefail
 #                       worktree as `.cmux-brief.md` and an auto-prompt
 #                       "Read .cmux-brief.md before any work." is sent after
 #                       session_start. Mirrors OQ-escalation channel shape.
-#   --symlink-deps      Opt-in (default OFF). Symlink the parent tree's dependency
-#                       dirs (node_modules, .venv, .bin — the list in
-#                       .claude/settings.local.json `worktree.symlinkDirectories`)
-#                       into the new worktree, so compile/test workers skip a
-#                       per-worktree `bun install` / `pip install`. Native
-#                       `worktree.symlinkDirectories` is Claude-Code-managed-only
-#                       and does NOT apply to raw `git worktree add` (SPIKE-27.10),
-#                       hence this manual seed. Only existing parent dirs are
-#                       linked; missing ones are skipped non-fatally. The three
-#                       names are already gitignored at the parent root (shared
-#                       .gitignore), so the symlinks never dirty `git status` and
-#                       the stop-worker dirty-tree gate stays green. Env-var
-#                       equivalent: set KH_CMUX_SYMLINK_DEPS=1. Default (no flag,
-#                       no env) keeps doc/research workers on a clean full checkout.
+#   --symlink-deps      DEPRECATED no-op (accepted for caller compatibility).
+#                       Dependency symlinking is now unconditional: every worktree
+#                       is provisioned by scripts/provision-worktree.sh, which
+#                       always symlinks the worktree.symlinkDirectories list. The
+#                       flag and KH_CMUX_SYMLINK_DEPS env var are ignored.
 #
 # Side effects beyond the worktree + workspace:
-#   - `.worktreeinclude` at the project root, if present, is honoured: every
-#     literal file path listed (one per line, '#' comments skipped) is copied
-#     into the new worktree if the source exists at the project root. Plain
-#     file paths only; no glob expansion. `.env.local` is the canonical case.
+#   - The worktree is provisioned by scripts/provision-worktree.sh: it symlinks
+#     .claude/settings.json `worktree.symlinkDirectories` (node_modules/.venv/.cache),
+#     copies the `.worktreeinclude` entries (.env.local, tsconfig.tsbuildinfo, …),
+#     and surgically seeds .gitnexus (symlinked lbug+meta.json, NOT registered).
+#     One config source — identical to native `claude --worktree` layout.
 #
 # Exits non-zero with a message on cmux unavailability, name collision,
 # safety-gate failure (worktree path not gitignored), or session_start timeout.
@@ -56,8 +48,9 @@ shift 2
 BRANCH_REF=""
 BRIEF_FILE=""
 GATED=0
-# Opt-in dependency symlinking (OQ-27-A / ID-27.12). Default OFF — the env var
-# provides a non-flag opt-in for callers that cannot pass argv (e.g. wrappers).
+# DEPRECATED no-op — provisioning (scripts/provision-worktree.sh) now always
+# symlinks. Kept only so the --symlink-deps flag / env var are consumed, not
+# forwarded to claude as stray args.
 SYMLINK_DEPS="${KH_CMUX_SYMLINK_DEPS:-0}"
 EXTRA_ARGS=()
 while [ $# -gt 0 ]; do
@@ -227,123 +220,31 @@ else
   fi
 fi
 
-# --- backlog-190: un-ignore .gitnexus/CLAUDE.md in the shared exclude (ID-27.8) ---
+# --- Provision the worktree (symlinks + copies via the single config source) ---
 #
-# Linked worktrees share $GIT_COMMON_DIR/info/exclude. A bare `.gitnexus/` line
-# there UNDOES the `!.gitnexus/CLAUDE.md` negation (re-ignoring the tracked
-# directive file). Strip that bare line idempotently, preserving the `/**` +
-# negation form. Non-fatal — never abort the launch over this.
-
-GNX_COMMON_DIR="$(git -C "$PROJECT_ROOT" rev-parse --git-common-dir 2>/dev/null || true)"
-if [ -n "$GNX_COMMON_DIR" ]; then
-  case "$GNX_COMMON_DIR" in
-    /*) ;;                                            # already absolute
-    *) GNX_COMMON_DIR="${PROJECT_ROOT}/${GNX_COMMON_DIR}" ;;  # absolutise vs PROJECT_ROOT
-  esac
-  GNX_EXCLUDE="${GNX_COMMON_DIR}/info/exclude"
-  if [ -f "$GNX_EXCLUDE" ] && grep -qxF '.gitnexus/' "$GNX_EXCLUDE"; then
-    sed -i.bak '/^\.gitnexus\/$/d' "$GNX_EXCLUDE" 2>/dev/null && rm -f "${GNX_EXCLUDE}.bak"
-  fi
-fi
-
-# --- Seed the parent's gitnexus index into the worker worktree (ID-27.8) ---
+# scripts/provision-worktree.sh applies .claude/settings.json
+# worktree.symlinkDirectories (symlinks: node_modules/.venv/.cache) +
+# .worktreeinclude (copies: .env.local, tsconfig.tsbuildinfo, …) + the surgical
+# .gitnexus seed (symlink lbug+meta.json, strip the bare `.gitnexus/` exclude
+# line; NO `gitnexus index`, which would add a duplicate "canonical" registry
+# entry and break the repo resolver REPO-WIDE). It produces the SAME layout as
+# native `claude --worktree` / Agent isolation, from ONE config — so config
+# changes never need re-encoding here.
 #
-# Native worktree.symlinkDirectories / sparsePaths do NOT apply to raw
-# `git worktree add` (Claude-Code-managed-only — see SPIKE-27.9). So seed
-# manually: symlink the parent's ladybugdb `lbug` + `meta.json` (published via
-# atomic rename(2), so the worktree's reads stay consistent — see SPIKE-27.9 §3)
-# and register the worktree path. Register-only (no local .gitnexus) FAILS, so
-# the symlink is mandatory before `gitnexus index`. Both steps are idempotent
-# (`ln -sfn` + re-`index`) and NON-FATAL: on any missing-file/error the worker
-# falls back to today's "stale (never)" behaviour — never abort the launch.
-# Bare `gitnexus` calls assume a SINGLE knowledge-hub registry entry (OQ-5
-# re-verified resolved 29/05/2026 — exactly one entry; do NOT add a de-dup step).
-# Workers should treat the shared index READ-ONLY (reanalysis stays the parent
-# orchestrator's job — a worker `gitnexus analyze` would re-point the shared file).
+# This replaces the former bespoke per-block seeding, which (1) read the wrong
+# settings file (.claude/settings.local.json, where the key does not live),
+# (2) made symlinks opt-in via --symlink-deps default-OFF (→ all symlinks
+# missed), (3) honoured .worktreeinclude as literal paths only (glob lines
+# silently skipped → no tsconfig.tsbuildinfo etc.), and (4) ran `gitnexus index`
+# per worktree (the repo-resolver pollution). The --symlink-deps flag is now a
+# no-op (provisioning always symlinks). Non-fatal — never abort the launch.
 
-PARENT_GNX="${PROJECT_ROOT}/.gitnexus"
-if [ -f "${PARENT_GNX}/lbug" ] && [ -f "${PARENT_GNX}/meta.json" ]; then
-  mkdir -p "${WORKTREE_PATH}/.gitnexus"
-  ln -sfn "${PARENT_GNX}/lbug" "${WORKTREE_PATH}/.gitnexus/lbug"
-  ln -sfn "${PARENT_GNX}/meta.json" "${WORKTREE_PATH}/.gitnexus/meta.json"
-  # Do NOT symlink CLAUDE.md — the worktree has its own tracked .gitnexus/CLAUDE.md.
-  if command -v gitnexus >/dev/null 2>&1; then
-    gitnexus index "${WORKTREE_PATH}" >/dev/null 2>&1 \
-      || echo "Note: gitnexus index seed skipped for ${WORKTREE_PATH} (non-fatal)." >&2
-  fi
-fi
-
-# --- Opt-in: symlink parent dependency dirs into the worktree (OQ-27-A, ID-27.12) ---
-#
-# SPIKE-27.10 confirmed the node_modules/.venv/.bin gap is real for cmux subo-*
-# worktrees and CANNOT be closed by native `worktree.symlinkDirectories` (that
-# setting is Claude-Code-managed-only; cmux uses raw `git worktree add`). When
-# --symlink-deps (or KH_CMUX_SYMLINK_DEPS=1) is set, mirror the managed behaviour
-# manually: `ln -s` the parent tree's dependency dirs into the worktree so
-# compile/test workers skip a per-worktree `bun install` / `pip install`.
-#
-# The canonical list is .claude/settings.local.json `worktree.symlinkDirectories`
-# (read via jq when present); fall back to the hardcoded three if that file or
-# key is missing. Only dirs that EXIST in the parent tree are linked — missing
-# ones are skipped non-fatally. All three names are already gitignored at the
-# parent root (shared .gitignore across linked worktrees), so the symlinks never
-# surface in `git ls-files --others --exclude-standard` and the stop-worker
-# dirty-tree gate stays green — no .git/info/exclude edit needed (unlike the
-# .gitnexus/ case above, which has a TRACKED file requiring negation handling).
-# Idempotent (`ln -sfn`) and NON-FATAL — never abort the launch over this.
-# Default (no flag, no env) keeps doc/research workers on a clean full checkout.
-
-if [ "$SYMLINK_DEPS" = "1" ]; then
-  SETTINGS_LOCAL="${PROJECT_ROOT}/.claude/settings.local.json"
-  SYMLINK_DIRS=""
-  if [ -f "$SETTINGS_LOCAL" ]; then
-    SYMLINK_DIRS=$(jq -r '.worktree.symlinkDirectories[]? // empty' "$SETTINGS_LOCAL" 2>/dev/null || true)
-  fi
-  # Fall back to the canonical three if settings.local lacks the key.
-  if [ -z "$SYMLINK_DIRS" ]; then
-    SYMLINK_DIRS=$'node_modules\n.venv\n.bin'
-  fi
-  while IFS= read -r dep; do
-    [ -z "$dep" ] && continue
-    SRC_DEP="${PROJECT_ROOT}/${dep}"
-    DST_DEP="${WORKTREE_PATH}/${dep}"
-    if [ -e "$SRC_DEP" ]; then
-      ln -sfn "$SRC_DEP" "$DST_DEP" 2>/dev/null \
-        || echo "Note: --symlink-deps could not link '${dep}' into ${WORKTREE_PATH} (non-fatal)." >&2
-    fi
-  done <<< "$SYMLINK_DIRS"
-fi
-
-# --- Honour .worktreeinclude (literal file paths only) ---
-#
-# Anthropic's `.worktreeinclude` mechanism only triggers under their internal
-# worktree-creation paths (`claude --worktree`, Agent-tool isolation, etc.).
-# `git worktree add` bypasses it. Mirror minimal semantics here for the
-# canonical `.env.local` case: each non-blank non-comment line is treated
-# as a literal relative path; if the source exists at PROJECT_ROOT, copy
-# into the worker worktree. No glob expansion (kept simple intentionally —
-# extend if patterns are needed).
-
-INCLUDE_FILE="${PROJECT_ROOT}/.worktreeinclude"
-if [ -f "$INCLUDE_FILE" ]; then
-  while IFS= read -r line || [ -n "$line" ]; do
-    # Strip CR (in case file has CRLF), trim leading/trailing whitespace
-    line="${line%$'\r'}"
-    line="$(echo "$line" | awk '{$1=$1;print}')"
-    [ -z "$line" ] && continue
-    case "$line" in
-      \#*) continue ;;
-    esac
-    SRC="${PROJECT_ROOT}/${line}"
-    DST="${WORKTREE_PATH}/${line}"
-    if [ -e "$SRC" ]; then
-      # Ensure destination parent dir exists for nested paths.
-      DST_PARENT="$(dirname "$DST")"
-      mkdir -p "$DST_PARENT"
-      cp -R "$SRC" "$DST" 2>/dev/null || \
-        echo "Warning: .worktreeinclude — failed to copy '$line' into worktree." >&2
-    fi
-  done < "$INCLUDE_FILE"
+PROVISION_SCRIPT="${PROJECT_ROOT}/scripts/provision-worktree.sh"
+if [ -x "$PROVISION_SCRIPT" ]; then
+  "$PROVISION_SCRIPT" "$WORKTREE_PATH" "$PROJECT_ROOT" \
+    || echo "Note: provision-worktree.sh reported issues for ${WORKTREE_PATH} (non-fatal)." >&2
+else
+  echo "Warning: ${PROVISION_SCRIPT} missing/not executable — worktree left unprovisioned (no symlinks/copies)." >&2
 fi
 
 # --- Install prettier pre-commit hook into the worker worktree (ID-48.12) ---

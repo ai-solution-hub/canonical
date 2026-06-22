@@ -4,12 +4,14 @@
 # Docs: https://code.claude.com/docs/en/worktrees#copy-gitignored-files-into-worktrees
 
 # Dependencies
-# NB: node_modules/ and .next/ are intentionally NOT copied here. The cmux
-# session-driver launch-worker.sh treats every line as a LITERAL path and does
-# `cp -R` (no gitignore-style matching), so listing the 1.1G node_modules + 1.1G
-# .next caused a ~6.6GB recursive copy across 3 worker worktrees. Workers now get
-# node_modules via launch-worker's `--symlink-deps` (symlink, shared); .next
-# regenerates on demand. (S384, Liam-approved.)
+# NB: node_modules/ and .next/ are intentionally NOT copied here. node_modules
+# is symlinked via settings.json worktree.symlinkDirectories (native) and
+# scripts/provision-worktree.sh (top-level worktrees + launch-worker); .next
+# regenerates on demand. scripts/provision-worktree.sh treats each remaining
+# entry below as a LITERAL path and `cp -R`s it (no gitignore-style glob
+# matching beyond the special-cased .gitnexus/ skip), so listing the 1.1G
+# node_modules + 1.1G .next here would force a ~6.6GB recursive copy across
+# worker worktrees. (S384, Liam-approved.)
 
 # Environment
 .env.local
@@ -37,15 +39,21 @@ supabase/.temp/
 tsconfig.tsbuildinfo
 
 # Code-intelligence
+# .gitnexus holds a TRACKED CLAUDE.md, so native worktree creation cannot
+# symlink it (symlinkDirectories whole-dir symlink would shadow the tracked
+# file) and falls back to a full ~370M `lbug` copy via this entry. That copy is
+# the cost native pays for a working in-worktree index. scripts/provision-worktree.sh
+# (top-level worktrees + launch-worker) is smarter: it symlinks only lbug+meta.json
+# inside a real .gitnexus/ and SKIPS this copy. Keep the entry for the native path.
 .gitnexus/**
 
 # Memory
 mempalace.yaml
 entities.json
 
-# Task View Ledger Config
-.cache/ledger-server/**
-.cache/task-view-v0.*.0-task-view/
+# NB: .cache is symlinked via settings.json worktree.symlinkDirectories (no
+# tracked files inside), so it is intentionally NOT copied here — a copy would
+# write through the symlink into the parent cache.
 
 # Local session ephemera (Lavish review artifacts, user scratch dir)
 .lavish/
