@@ -345,7 +345,7 @@ describe('UnifiedAttentionSection', () => {
       render(<UnifiedAttentionSection items={items} userRole="admin" />);
 
       const link = screen.getByRole('link', {
-        name: /Link test item — Review items/i,
+        name: /Review items \(1 item\) — Link test item/i,
       });
       expect(link).toHaveAttribute('href', '/review');
     });

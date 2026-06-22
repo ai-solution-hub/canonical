@@ -105,7 +105,7 @@ describe('DashboardFirstRunCard', () => {
   // Test 1: Renders for admin role
   it('renders for admin role with "Import your first content" CTA', () => {
     render(<DashboardFirstRunCard role="admin" />);
-    expect(screen.getByText('Welcome to Knowledge Hub')).toBeInTheDocument();
+    expect(screen.getByText('Welcome to Canonical')).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'Import your first content' }),
     ).toBeInTheDocument();
@@ -117,7 +117,7 @@ describe('DashboardFirstRunCard', () => {
   // Test 2: Renders for editor role
   it('renders for editor role with "Create your first item" CTA', () => {
     render(<DashboardFirstRunCard role="editor" />);
-    expect(screen.getByText('Welcome to Knowledge Hub')).toBeInTheDocument();
+    expect(screen.getByText('Welcome to Canonical')).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'Create your first item' }),
     ).toBeInTheDocument();
@@ -132,9 +132,7 @@ describe('DashboardFirstRunCard', () => {
     expect(
       screen.queryByTestId('dashboard-first-run-card'),
     ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText('Welcome to Knowledge Hub'),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText('Welcome to Canonical')).not.toBeInTheDocument();
   });
 
   // Test 4: Persona hint row visible

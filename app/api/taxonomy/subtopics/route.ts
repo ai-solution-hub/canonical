@@ -1,19 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
-import { parseBody } from '@/lib/validation';
-import { TaxonomySubtopicCreateSchema } from '@/lib/validation/schemas';
 import { sb } from '@/lib/supabase/safe';
 import { enqueueTaxonomySync } from '@/lib/taxonomy/sync-trigger';
+import { parseBody } from '@/lib/validation';
+import { TaxonomySubtopicCreateSchema } from '@/lib/validation/schemas';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
-/**
- * POST /api/taxonomy/subtopics
- *
- * Create a new subtopic. Admin-only.
- */
-export async function POST(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient(['admin']);
     if (!auth.success) return authFailureResponse(auth);
@@ -89,4 +87,4 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

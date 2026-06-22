@@ -1,22 +1,22 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
-import { getAuthenticatedClient } from '@/lib/auth/client';
-import { sb } from '@/lib/supabase/safe';
+import { defineRoute } from '@/lib/api/define-route';
+import {
+  authFailureResponse,
+  getAuthenticatedClient,
+  getAuthorisedClient,
+} from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
-import { parseBody } from '@/lib/validation';
-import { GovernanceConfigBodySchema } from '@/lib/validation/schemas';
 import { PRESET_VALUES } from '@/lib/governance/presets';
 import { logger } from '@/lib/logger';
+import { sb } from '@/lib/supabase/safe';
+import { parseBody } from '@/lib/validation';
+import { GovernanceConfigBodySchema } from '@/lib/validation/schemas';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
-/**
- * GET /api/governance
- *
- * List all governance configuration entries.
- * Available to all authenticated users.
- */
-export async function GET() {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async () => {
   try {
     const auth = await getAuthenticatedClient();
     if (!auth.success) return authFailureResponse(auth);
@@ -44,16 +44,10 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+});
 
-/**
- * POST /api/governance
- *
- * Create or update a governance configuration entry via preset.
- * Admin-only. Accepts { domain, preset } — maps preset to concrete
- * column values using PRESET_VALUES.
- */
-export async function POST(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient(['admin']);
     if (!auth.success) return authFailureResponse(auth);
@@ -139,4 +133,4 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

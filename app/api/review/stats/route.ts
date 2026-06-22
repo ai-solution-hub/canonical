@@ -1,28 +1,22 @@
-import { NextResponse } from 'next/server';
+import { defineRoute } from '@/lib/api/define-route';
 import {
-  getAuthorisedClient,
   authFailureResponse,
+  getAuthorisedClient,
   rateLimitResponse,
 } from '@/lib/auth/client';
-import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
-import { UNCLASSIFIED_TAXONOMY_OR_PREDICATE } from '@/lib/validation/schemas';
-import type { ReviewStatsResponse } from '@/types/review';
 import { logger } from '@/lib/logger';
+import { checkRateLimit } from '@/lib/rate-limit';
+import {
+  ReviewStatsResponseSchema,
+  UNCLASSIFIED_TAXONOMY_OR_PREDICATE,
+} from '@/lib/validation/schemas';
+import type { ReviewStatsResponse } from '@/types/review';
+import { NextResponse } from 'next/server';
 
 export const maxDuration = 30;
 
-/**
- * GET /api/review/stats — aggregate counts for the review progress bar.
- *
- * Returns total, verified, flagged, and unverified counts, plus breakdowns
- * by domain, content type, source file, and source document.
- * Used by the ReviewProgressBar component.
- *
- * All aggregation is performed server-side via the `get_review_breakdown_stats`
- * RPC function, replacing the previous 7-query JS aggregation pattern.
- */
-export async function GET() {
+export const GET = defineRoute(ReviewStatsResponseSchema, async () => {
   try {
     // Auth + role check — editors and admins only
     const auth = await getAuthorisedClient(['admin', 'editor']);
@@ -120,4 +114,4 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+});

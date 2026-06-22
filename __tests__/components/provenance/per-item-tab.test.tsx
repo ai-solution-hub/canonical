@@ -196,7 +196,7 @@ describe('PerItemTab', () => {
 
       // Drafting card
       expect(screen.getByText('Drafting')).toBeInTheDocument();
-      expect(screen.getByText(/drafted by knowledge hub/i)).toBeInTheDocument();
+      expect(screen.getByText(/drafted by canonical/i)).toBeInTheDocument();
       expect(
         screen.getByText(/manchester schools refurb/i),
       ).toBeInTheDocument();

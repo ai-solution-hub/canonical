@@ -14,10 +14,12 @@
  * Closes Liam's Q-10 decision and roadmap §1.7.
  */
 
-import { NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
-import { sb } from '@/lib/supabase/safe';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
+import { sb } from '@/lib/supabase/safe';
+import { PipelineRunsRecentResponseSchema } from '@/lib/validation/schemas';
+import { NextResponse } from 'next/server';
 
 export const maxDuration = 15;
 
@@ -45,7 +47,7 @@ export interface PipelineRunsRecentResponse {
   hasAnyFailures: boolean;
 }
 
-export async function GET() {
+export const GET = defineRoute(PipelineRunsRecentResponseSchema, async () => {
   try {
     const auth = await getAuthorisedClient(['admin']);
     if (!auth.success) return authFailureResponse(auth);
@@ -129,4 +131,4 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+});

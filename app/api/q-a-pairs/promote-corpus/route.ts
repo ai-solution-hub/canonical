@@ -31,24 +31,15 @@
 // cutover operator re-invokes until embed_failed + pass-through reach 0.
 export const maxDuration = 120;
 
-import { NextResponse, type NextRequest } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { promoteCorpusExtractions } from '@/lib/q-a-pairs/promote-corpus';
+import { NextResponse, type NextRequest } from 'next/server';
+import { z } from 'zod';
 
-/**
- * POST /api/q-a-pairs/promote-corpus
- *
- * Triggers a full corpus promotion run: for every eligible extraction
- * (unlinked or linked-but-unembedded), inserts a q_a_pairs row (draft),
- * CAS-links the extraction, embeds the question, and publishes together
- * (INV-12). Returns the structured PromotionSummary.
- *
- * Role guard: admin/editor only (viewer → 403 via authFailureResponse).
- * RLS-scoped: uses the authorised cookie-based client (no service-role
- * escalation — INV-15).
- */
-export async function POST(_request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const POST = defineRoute(z.unknown(), async (_request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);
@@ -62,4 +53,4 @@ export async function POST(_request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

@@ -1,9 +1,11 @@
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
+import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
+import { parseBody } from '@/lib/validation';
+import { BatchReviewResponseSchema } from '@/lib/validation/schemas';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
-import { safeErrorMessage } from '@/lib/error';
-import { parseBody } from '@/lib/validation';
-import { logger } from '@/lib/logger';
 
 export const maxDuration = 30;
 
@@ -15,51 +17,48 @@ const BatchReviewBodySchema = z.object({
   status: z.literal('pending'),
 });
 
-/**
- * POST /api/items/batch-review
- *
- * Set governance_review_status on multiple content items at once.
- * Editor+ role required.
- */
-export async function POST(request: NextRequest) {
-  try {
-    const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth.success) return authFailureResponse(auth);
-    const { supabase } = auth;
+export const POST = defineRoute(
+  BatchReviewResponseSchema,
+  async (request: NextRequest) => {
+    try {
+      const auth = await getAuthorisedClient(['admin', 'editor']);
+      if (!auth.success) return authFailureResponse(auth);
+      const { supabase } = auth;
 
-    const raw = await request.json();
-    const parsed = parseBody(BatchReviewBodySchema, raw);
-    if (!parsed.success) return parsed.response;
+      const raw = await request.json();
+      const parsed = parseBody(BatchReviewBodySchema, raw);
+      if (!parsed.success) return parsed.response;
 
-    const { item_ids, status } = parsed.data;
+      const { item_ids, status } = parsed.data;
 
-    const { data, error } = await supabase
-      .from('content_items')
-      .update({ governance_review_status: status })
-      .in('id', item_ids)
-      .select('id');
+      const { data, error } = await supabase
+        .from('content_items')
+        .update({ governance_review_status: status })
+        .in('id', item_ids)
+        .select('id');
 
-    if (error) {
-      logger.error(
-        { err: error },
-        'Failed to batch update governance review status',
-      );
+      if (error) {
+        logger.error(
+          { err: error },
+          'Failed to batch update governance review status',
+        );
+        return NextResponse.json(
+          { error: 'Failed to update governance review status' },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json({ updated: data?.length ?? 0 });
+    } catch (err) {
       return NextResponse.json(
-        { error: 'Failed to update governance review status' },
+        {
+          error: safeErrorMessage(
+            err,
+            'Failed to update governance review status',
+          ),
+        },
         { status: 500 },
       );
     }
-
-    return NextResponse.json({ updated: data?.length ?? 0 });
-  } catch (err) {
-    return NextResponse.json(
-      {
-        error: safeErrorMessage(
-          err,
-          'Failed to update governance review status',
-        ),
-      },
-      { status: 500 },
-    );
-  }
-}
+  },
+);

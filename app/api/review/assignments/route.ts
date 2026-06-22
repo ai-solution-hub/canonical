@@ -1,93 +1,88 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { defineRoute } from '@/lib/api/define-route';
 import {
-  getAuthorisedClient,
   authFailureResponse,
+  getAuthorisedClient,
   rateLimitResponse,
 } from '@/lib/auth/client';
-import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
+import { createNotification } from '@/lib/notifications';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody, parseSearchParams } from '@/lib/validation';
 import {
+  AssignmentsResponseSchema,
   ReviewAssignmentBodySchema,
   ReviewAssignmentUpdateSchema,
   ReviewAssignmentsParamsSchema,
 } from '@/lib/validation/schemas';
-import { createNotification } from '@/lib/notifications';
 import type { Database } from '@/supabase/types/database.types';
-import { logger } from '@/lib/logger';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
 type ReviewAssignmentUpdate =
   Database['public']['Tables']['review_assignments']['Update'];
 
-/**
- * GET /api/review/assignments
- *
- * List review assignments. Non-admins see only their own active assignments.
- * Admins see all assignments (optionally filtered by status).
- */
-export async function GET(request: NextRequest) {
-  try {
-    const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth.success) return authFailureResponse(auth);
-    const { user, supabase, role } = auth;
+export const GET = defineRoute(
+  AssignmentsResponseSchema,
+  async (request: NextRequest) => {
+    try {
+      const auth = await getAuthorisedClient(['admin', 'editor']);
+      if (!auth.success) return authFailureResponse(auth);
+      const { user, supabase, role } = auth;
 
-    const { allowed } = checkRateLimit(
-      `review-assignments:${user.id}`,
-      30,
-      60_000,
-    );
-    if (!allowed) return rateLimitResponse();
+      const { allowed } = checkRateLimit(
+        `review-assignments:${user.id}`,
+        30,
+        60_000,
+      );
+      if (!allowed) return rateLimitResponse();
 
-    const parsed = parseSearchParams(
-      ReviewAssignmentsParamsSchema,
-      request.nextUrl.searchParams,
-    );
-    if (!parsed.success) return parsed.response;
-    const statusFilter = parsed.data.status;
+      const parsed = parseSearchParams(
+        ReviewAssignmentsParamsSchema,
+        request.nextUrl.searchParams,
+      );
+      if (!parsed.success) return parsed.response;
+      const statusFilter = parsed.data.status;
 
-    let query = supabase
-      .from('review_assignments')
-      .select('*')
-      .order('created_at', { ascending: false });
+      let query = supabase
+        .from('review_assignments')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    // Non-admins only see their own assignments
-    if (role !== 'admin') {
-      query = query.eq('reviewer_id', user.id);
-    }
+      // Non-admins only see their own assignments
+      if (role !== 'admin') {
+        query = query.eq('reviewer_id', user.id);
+      }
 
-    // Apply status filter
-    if (statusFilter !== 'all') {
-      query = query.eq('status', statusFilter);
-    }
+      // Apply status filter
+      if (statusFilter !== 'all') {
+        query = query.eq('status', statusFilter);
+      }
 
-    const { data, error } = await query;
+      const { data, error } = await query;
 
-    if (error) {
-      logger.error({ err: error }, 'Failed to fetch review assignments');
+      if (error) {
+        logger.error({ err: error }, 'Failed to fetch review assignments');
+        return NextResponse.json(
+          { error: 'Failed to fetch review assignments' },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json({ assignments: data ?? [] });
+    } catch (err) {
       return NextResponse.json(
-        { error: 'Failed to fetch review assignments' },
+        { error: safeErrorMessage(err, 'Failed to fetch review assignments') },
         { status: 500 },
       );
     }
+  },
+);
 
-    return NextResponse.json({ assignments: data ?? [] });
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to fetch review assignments') },
-      { status: 500 },
-    );
-  }
-}
-
-/**
- * POST /api/review/assignments
- *
- * Create a new review assignment. Admin only.
- * Computes item_count based on the provided filter criteria.
- */
-export async function POST(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient(['admin']);
     if (!auth.success) return authFailureResponse(auth);
@@ -201,14 +196,10 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});
 
-/**
- * PATCH /api/review/assignments
- *
- * Update an assignment's status (complete or cancel). Editor+ role required.
- */
-export async function PATCH(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const PATCH = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);
@@ -261,4 +252,4 @@ export async function PATCH(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

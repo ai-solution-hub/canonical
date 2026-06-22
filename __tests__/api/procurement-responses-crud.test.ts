@@ -250,7 +250,16 @@ describe('GET /api/bids/:id/responses/:rId', () => {
     const metadata = {
       citations_data: {
         citations: [
-          { content_id: 'c1', text: 'ISO 27001 compliant', confidence: 0.9 },
+          {
+            content_id: 'c1',
+            cited_text: 'ISO 27001 compliant',
+            source_index: 0,
+            source_id: '00000000-0000-4000-8000-0000000000c1',
+            source_title: 'Information Security Policy',
+            source_url: 'https://example.com/iso-27001-policy',
+            start_block_index: 0,
+            end_block_index: 3,
+          },
         ],
       },
       quality_data: {
@@ -354,6 +363,7 @@ describe('GET /api/bids/:id/responses/:rId', () => {
               suggested_title: 'ISO 27001 Policy',
               content_type: 'policy',
               primary_domain: 'Information Security',
+              primary_subtopic: 'Certifications',
               summary: 'Our ISO 27001 certification details',
             },
           ],

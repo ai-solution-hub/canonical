@@ -66,6 +66,7 @@ const MOCK_WORKSPACE = {
   id: VALID_UUID,
   name: 'Education Watch',
   description: 'Monitoring education sector',
+  application_type_id: 'aaaaaaaa-0000-4000-8000-000000000003',
   colour: '#059669',
   icon: 'globe',
   is_archived: false,

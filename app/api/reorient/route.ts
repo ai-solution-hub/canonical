@@ -1,11 +1,14 @@
-import { NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
-import { fetchReorientData } from '@/lib/reorient';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
+import { fetchReorientData } from '@/lib/reorient';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 60;
 
-export async function GET() {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async () => {
   try {
     const auth = await getAuthorisedClient();
     if (!auth.success) return authFailureResponse(auth);
@@ -24,4 +27,4 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+});

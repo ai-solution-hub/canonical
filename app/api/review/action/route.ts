@@ -1,28 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { defineRoute } from '@/lib/api/define-route';
 import {
-  getAuthorisedClient,
   authFailureResponse,
+  getAuthorisedClient,
   rateLimitResponse,
 } from '@/lib/auth/client';
-import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { ReviewActionBodySchema } from '@/lib/validation/schemas';
-import { logger } from '@/lib/logger';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
-/**
- * POST /api/review/action — perform a review action on a content item.
- *
- * Actions:
- * - verify: mark item as verified (sets verified_at and verified_by)
- * - flag: create a review_needed quality flag in ingestion_quality_log
- * - skip: no database operation, returns success
- * - unverify: clear verified_at and verified_by
- * - unflag: resolve the most recent unresolved review_needed flag
- */
-export async function POST(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     // Auth + role check — editors and admins only
     const auth = await getAuthorisedClient(['admin', 'editor']);
@@ -201,4 +194,4 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

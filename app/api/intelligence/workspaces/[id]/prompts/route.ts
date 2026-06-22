@@ -1,13 +1,17 @@
 // app/api/intelligence/workspaces/[id]/prompts/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
-import { sb } from '@/lib/supabase/safe';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
+import { sb } from '@/lib/supabase/safe';
 import { parseBody } from '@/lib/validation';
-import { FeedPromptCreateSchema } from '@/lib/validation/schemas';
-import { z } from 'zod';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  FeedPromptCreateSchema,
+  FeedPromptSchema,
+} from '@/lib/validation/schemas';
 import type { Database, Json } from '@/supabase/types/database.types';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 type DbClient = SupabaseClient<Database>;
 
@@ -18,73 +22,77 @@ const RollbackSchema = z.object({
   from_version_id: z.string().uuid(),
 });
 
-/** GET /api/intelligence/workspaces/:id/prompts — list all prompt versions */
-export async function GET(_request: NextRequest, context: RouteContext) {
-  try {
-    const { id } = await context.params;
-    const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth.success) return authFailureResponse(auth);
-    const { supabase } = auth;
+export const GET = defineRoute(
+  z.array(FeedPromptSchema),
+  async (_request: NextRequest, context: RouteContext) => {
+    try {
+      const { id } = await context.params;
+      const auth = await getAuthorisedClient(['admin', 'editor']);
+      if (!auth.success) return authFailureResponse(auth);
+      const { supabase } = auth;
 
-    const { data, error } = await supabase
-      .from('feed_prompts')
-      .select(
-        'id, workspace_id, version, prompt_text, is_active, performance_snapshot, change_notes, created_at, created_by',
-      )
-      .eq('workspace_id', id)
-      .order('version', { ascending: false });
+      const { data, error } = await supabase
+        .from('feed_prompts')
+        .select(
+          'id, workspace_id, version, prompt_text, is_active, performance_snapshot, change_notes, created_at, created_by',
+        )
+        .eq('workspace_id', id)
+        .order('version', { ascending: false });
 
-    if (error) {
+      if (error) {
+        return NextResponse.json(
+          { error: 'Failed to fetch prompts' },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json(data ?? []);
+    } catch (err) {
       return NextResponse.json(
-        { error: 'Failed to fetch prompts' },
+        { error: safeErrorMessage(err, 'Failed to fetch prompts') },
         { status: 500 },
       );
     }
+  },
+);
 
-    return NextResponse.json(data ?? []);
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to fetch prompts') },
-      { status: 500 },
-    );
-  }
-}
+export const POST = defineRoute(
+  FeedPromptSchema,
+  async (request: NextRequest, context: RouteContext) => {
+    try {
+      const { id } = await context.params;
+      const auth = await getAuthorisedClient(['admin']);
+      if (!auth.success) return authFailureResponse(auth);
+      const { supabase, user } = auth;
 
-/** POST /api/intelligence/workspaces/:id/prompts — create new version or rollback */
-export async function POST(request: NextRequest, context: RouteContext) {
-  try {
-    const { id } = await context.params;
-    const auth = await getAuthorisedClient(['admin']);
-    if (!auth.success) return authFailureResponse(auth);
-    const { supabase, user } = auth;
+      const body = await request.json();
 
-    const body = await request.json();
+      // Check if this is a rollback action
+      if (body?.action === 'rollback') {
+        const rollbackParsed = parseBody(RollbackSchema, body);
+        if (!rollbackParsed.success) return rollbackParsed.response;
 
-    // Check if this is a rollback action
-    if (body?.action === 'rollback') {
-      const rollbackParsed = parseBody(RollbackSchema, body);
-      if (!rollbackParsed.success) return rollbackParsed.response;
+        return await handleRollback(
+          supabase,
+          id,
+          rollbackParsed.data.from_version_id,
+          user.id,
+        );
+      }
 
-      return await handleRollback(
-        supabase,
-        id,
-        rollbackParsed.data.from_version_id,
-        user.id,
+      // Normal prompt creation
+      const parsed = parseBody(FeedPromptCreateSchema, body);
+      if (!parsed.success) return parsed.response;
+
+      return await handleCreate(supabase, id, parsed.data, user.id);
+    } catch (err) {
+      return NextResponse.json(
+        { error: safeErrorMessage(err, 'Failed to create prompt version') },
+        { status: 500 },
       );
     }
-
-    // Normal prompt creation
-    const parsed = parseBody(FeedPromptCreateSchema, body);
-    if (!parsed.success) return parsed.response;
-
-    return await handleCreate(supabase, id, parsed.data, user.id);
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to create prompt version') },
-      { status: 500 },
-    );
-  }
-}
+  },
+);
 
 async function handleCreate(
   supabase: DbClient,

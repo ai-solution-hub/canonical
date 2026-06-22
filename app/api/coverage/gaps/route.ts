@@ -11,27 +11,29 @@
  * Spec: .planning/specs/gaps-view-consolidation-spec.md §6
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
+import { defineRoute } from "@/lib/api/define-route";
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
+import { scoreGap } from '@/lib/coverage/gap-scoring';
 import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
+import {
+    computeTemplateCoverage,
+    fetchContentForMatching,
+    fetchTemplateRequirements,
+    listAvailableTemplates,
+} from '@/lib/templates/template-coverage';
 import { parseSearchParams } from '@/lib/validation';
 import { CoverageGapsParamsSchema } from '@/lib/validation/schemas';
-import {
-  listAvailableTemplates,
-  fetchTemplateRequirements,
-  fetchContentForMatching,
-  computeTemplateCoverage,
-} from '@/lib/templates/template-coverage';
-import { scoreGap } from '@/lib/coverage/gap-scoring';
 import type {
-  UnifiedGap,
-  UnifiedGapSummary,
-  TaxonomyGap,
-  TemplateGap,
-  GuideGap,
-  PriorityTier,
+    GuideGap,
+    PriorityTier,
+    TaxonomyGap,
+    TemplateGap,
+    UnifiedGap,
+    UnifiedGapSummary,
 } from '@/types/unified-gap';
-import { logger } from '@/lib/logger';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from "zod";
 
 export const maxDuration = 30;
 
@@ -313,7 +315,8 @@ function buildSummary(
 // Route handler
 // ---------------------------------------------------------------------------
 
-export async function GET(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient();
     if (!auth.success) return authFailureResponse(auth);
@@ -431,4 +434,4 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

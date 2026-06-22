@@ -34,11 +34,9 @@ import LoginPage from '@/app/login/page';
 
 describe('LoginPage', () => {
   describe('ARIA label', () => {
-    it('has aria-label "Sign in to Knowledge Hub" on outer container', () => {
+    it('has aria-label "Sign in to Canonical" on outer container', () => {
       render(<LoginPage />);
-      expect(
-        screen.getByLabelText('Sign in to Knowledge Hub'),
-      ).toBeInTheDocument();
+      expect(screen.getByLabelText('Sign in to Canonical')).toBeInTheDocument();
     });
   });
 
@@ -57,9 +55,9 @@ describe('LoginPage', () => {
   });
 
   describe('basic structure', () => {
-    it('displays Knowledge Hub brand heading', () => {
+    it('displays Canonical brand heading', () => {
       render(<LoginPage />);
-      expect(screen.getByText('Knowledge Hub')).toBeInTheDocument();
+      expect(screen.getByText('Canonical')).toBeInTheDocument();
     });
 
     it('displays sign-in subtitle on email step', () => {

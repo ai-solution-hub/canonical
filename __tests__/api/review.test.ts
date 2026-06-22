@@ -457,6 +457,7 @@ describe('GET /api/review/stats', () => {
         verified: 60,
         flagged: 5,
         draft: 3,
+        overdue: 4,
         by_domain: {
           Technology: { total: 2, verified: 1 },
           Business: { total: 1, verified: 1 },

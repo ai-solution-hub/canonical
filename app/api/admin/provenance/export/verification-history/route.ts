@@ -11,18 +11,20 @@
  * Returns application/pdf with Content-Disposition attachment.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import React from 'react';
-import { renderToBuffer } from '@react-pdf/renderer';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
+import type { VerificationRow } from '@/components/provenance/report-document';
+import ReportDocument from '@/components/provenance/report-document';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
+import { safeErrorMessage } from '@/lib/error';
+import { recordPipelineRun } from '@/lib/pipeline/record-run';
 import { sb } from '@/lib/supabase/safe';
+import { resolveUserDisplayNames } from '@/lib/users/display-names';
 import { parseSearchParams } from '@/lib/validation';
 import { VerificationHistoryExportParamsSchema } from '@/lib/validation/schemas';
-import { resolveUserDisplayNames } from '@/lib/users/display-names';
-import { recordPipelineRun } from '@/lib/pipeline/record-run';
-import { safeErrorMessage } from '@/lib/error';
-import ReportDocument from '@/components/provenance/report-document';
-import type { VerificationRow } from '@/components/provenance/report-document';
+import { renderToBuffer } from '@react-pdf/renderer';
+import { NextRequest, NextResponse } from 'next/server';
+import React from 'react';
+import { z } from 'zod';
 
 export const maxDuration = 60;
 
@@ -42,7 +44,8 @@ function defaultDateRange(): { from: string; to: string } {
 // Route handler
 // ──────────────────────────────────────────
 
-export async function GET(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
   const auth = await getAuthorisedClient(['admin']);
   if (!auth.success) return authFailureResponse(auth);
   const { supabase, user } = auth;
@@ -175,4 +178,4 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

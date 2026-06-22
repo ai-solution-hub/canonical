@@ -14,7 +14,7 @@ describe('loadBranding', () => {
     // removed in WP6 (lib/env.ts) because it caused the S196 incident.
     const branding = loadBranding();
     expect(branding.clientId).toBe('default');
-    expect(branding.productName).toBe('Knowledge Hub');
+    expect(branding.productName).toBe('Canonical');
   });
 
   it('falls back to default for nonexistent client id', () => {
@@ -25,7 +25,7 @@ describe('loadBranding', () => {
   it('resolves default branding when called with "default"', () => {
     const branding = loadBranding('default');
     expect(branding.clientId).toBe('default');
-    expect(branding.productName).toBe('Knowledge Hub');
+    expect(branding.productName).toBe('Canonical');
   });
 
   it('emits console.warn for KH default primary (below 3:1)', () => {
@@ -46,7 +46,7 @@ describe('loadBranding', () => {
     // test for the overlay-present path).
     const branding = loadBranding('overlay-client');
     expect(branding.clientId).toBe('default');
-    expect(branding.productName).toBe('Knowledge Hub');
+    expect(branding.productName).toBe('Canonical');
   });
 });
 

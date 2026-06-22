@@ -1,6 +1,8 @@
-import { NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { logger } from '@/lib/logger';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -36,7 +38,8 @@ interface AggregateWinRateResponse {
 // GET /api/analytics/win-rate
 // ---------------------------------------------------------------------------
 
-export async function GET() {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async () => {
   try {
     // Auth — any authenticated user may read
     const auth = await getAuthorisedClient(['admin', 'editor', 'viewer']);
@@ -110,4 +113,4 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+});

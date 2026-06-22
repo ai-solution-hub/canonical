@@ -1,23 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth/client';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthenticatedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
 import { parseBody, parseSearchParams } from '@/lib/validation';
 import {
   ReadMarkBodySchema,
   ReadMarkCheckParamsSchema,
 } from '@/lib/validation/schemas';
-import { logger } from '@/lib/logger';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
-/**
- * GET /api/read-marks?item_ids=uuid1,uuid2,...
- *
- * Returns read status for the specified item IDs.
- * Also returns the user's total read count (for progress tracking)
- * and the total content item count.
- */
-export async function GET(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthenticatedClient();
     if (!auth.success) return authFailureResponse(auth);
@@ -89,9 +85,10 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});
 
-export async function POST(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthenticatedClient();
     if (!auth.success) return authFailureResponse(auth);
@@ -157,4 +154,4 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

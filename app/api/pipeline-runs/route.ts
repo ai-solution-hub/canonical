@@ -1,26 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
 import { parseSearchParams } from '@/lib/validation';
 import { PipelineRunsParamsSchema } from '@/lib/validation/schemas';
-import { logger } from '@/lib/logger';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 15;
 
-/**
- * GET /api/pipeline-runs
- *
- * Retrieve recent pipeline runs for the authenticated user.
- * Editors and admins can see their own runs. Admins can optionally
- * see all runs via ?all=true.
- *
- * Query params:
- *   - limit: number of results (default 20, max 100)
- *   - pipeline_name: filter by pipeline name (e.g. 'file_upload')
- *   - status: filter by status (e.g. 'running', 'completed', 'failed')
- *   - all: if 'true' and user is admin, return all users' runs
- */
-export async function GET(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);
@@ -72,4 +62,4 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

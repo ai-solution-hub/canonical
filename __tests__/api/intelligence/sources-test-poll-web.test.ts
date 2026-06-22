@@ -334,12 +334,21 @@ describe('AC-11 sources POST with source_type=web + malformed URL → 400 from p
     // Insert returns the new row.
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {
-        id: 'new-source-id',
+        id: SOURCE_UUID,
+        workspace_id: WORKSPACE_UUID,
         name: 'Good Source',
         url: 'https://good.example.com/page',
         source_type: 'web',
         polling_interval_minutes: 360,
         is_active: true,
+        last_polled_at: null,
+        last_status: null,
+        consecutive_failures: 0,
+        etag: null,
+        last_modified: null,
+        created_by: 'test-user-id',
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
       },
       error: null,
     });
@@ -381,12 +390,21 @@ describe('AC-11 sources POST with source_type=web + malformed URL → 400 from p
     // Insert returns the new row.
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {
-        id: 'rss-source-id',
+        id: SOURCE_UUID,
+        workspace_id: WORKSPACE_UUID,
         name: 'RSS Feed',
         url: 'https://example.com/feed.xml',
         source_type: 'rss',
         polling_interval_minutes: 30,
         is_active: true,
+        last_polled_at: null,
+        last_status: null,
+        consecutive_failures: 0,
+        etag: null,
+        last_modified: null,
+        created_by: 'test-user-id',
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
       },
       error: null,
     });

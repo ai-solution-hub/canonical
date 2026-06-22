@@ -1,16 +1,19 @@
-import { NextResponse } from 'next/server';
-import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth/client';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthenticatedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
 import {
-  parseJsonbArray,
   ChangeReportDomainSummarySchema,
+  parseJsonbArray,
 } from '@/lib/validation/jsonb';
 import type { ChangeReport } from '@/types/change-reports';
-import { logger } from '@/lib/logger';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
-export async function GET() {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async () => {
   try {
     // Auth check
     const auth = await getAuthenticatedClient();
@@ -62,4 +65,4 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+});

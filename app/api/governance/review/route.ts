@@ -1,33 +1,33 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
-import { getAuthenticatedClient } from '@/lib/auth/client';
-import { tryQuery, isOk } from '@/lib/supabase/safe';
+import { defineRoute } from '@/lib/api/define-route';
+import {
+  authFailureResponse,
+  getAuthenticatedClient,
+  getAuthorisedClient,
+} from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
+import { computeNextReviewDate } from '@/lib/governance/cadence-renewal';
+import {
+  ALLOWED_REVIEW_INPUT_STATUSES,
+  type AllowedReviewInputStatus,
+} from '@/lib/governance/review-input-statuses';
+import { logger } from '@/lib/logger';
+import { isOk, tryQuery } from '@/lib/supabase/safe';
 import { parseBody, parseSearchParams } from '@/lib/validation';
 import {
   GovernanceReviewBodySchema,
   GovernanceReviewParamsSchema,
 } from '@/lib/validation/schemas';
-import {
-  ALLOWED_REVIEW_INPUT_STATUSES,
-  type AllowedReviewInputStatus,
-} from '@/lib/governance/review-input-statuses';
-import { computeNextReviewDate } from '@/lib/governance/cadence-renewal';
-import { logger } from '@/lib/logger';
 import type { Database } from '@/supabase/types/database.types';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 type ContentItemUpdate =
   Database['public']['Tables']['content_items']['Update'];
 
 export const maxDuration = 30;
 
-/**
- * GET /api/governance/review
- *
- * List items pending governance review.
- * If ?count_only=true, returns just the count (used by the needs-attention banner).
- */
-export async function GET(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthenticatedClient();
     if (!auth.success) return authFailureResponse(auth);
@@ -78,16 +78,10 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});
 
-/**
- * POST /api/governance/review
- *
- * Process a governance review action on an item.
- * Actions: approve, request_changes, revert
- * Editor+ role required.
- */
-export async function POST(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);
@@ -240,4 +234,4 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

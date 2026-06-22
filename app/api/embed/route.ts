@@ -1,22 +1,25 @@
-import { NextRequest, NextResponse } from 'next/server';
-import {
-  getAuthorisedClient,
-  authFailureResponse,
-  rateLimitResponse,
-} from '@/lib/auth/client';
-import { checkRateLimit } from '@/lib/rate-limit';
-import { safeErrorMessage } from '@/lib/error';
-import { parseBody } from '@/lib/validation';
-import { EmbedBodySchema } from '@/lib/validation/schemas';
 import {
   generateEmbedding,
-  getEmbeddingModel,
   getEmbeddingDimensions,
+  getEmbeddingModel,
 } from '@/lib/ai/embed';
+import { defineRoute } from '@/lib/api/define-route';
+import {
+  authFailureResponse,
+  getAuthorisedClient,
+  rateLimitResponse,
+} from '@/lib/auth/client';
+import { safeErrorMessage } from '@/lib/error';
+import { checkRateLimit } from '@/lib/rate-limit';
+import { parseBody } from '@/lib/validation';
+import { EmbedBodySchema } from '@/lib/validation/schemas';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 60;
 
-export async function POST(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     // Auth + role check
     const auth = await getAuthorisedClient(['admin', 'editor']);
@@ -45,4 +48,4 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

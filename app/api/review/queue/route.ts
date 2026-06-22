@@ -1,20 +1,22 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { defineRoute } from '@/lib/api/define-route';
 import {
-  getAuthorisedClient,
   authFailureResponse,
+  getAuthorisedClient,
   rateLimitResponse,
 } from '@/lib/auth/client';
-import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { parseSearchParams } from '@/lib/validation';
 import {
-  ReviewQueueParamsSchema,
   PublicationReviewQueueParamsSchema,
+  ReviewQueueParamsSchema,
+  ReviewQueueResponseSchema,
   UNCLASSIFIED_TAXONOMY_OR_PREDICATE,
 } from '@/lib/validation/schemas';
-import type { ReviewQueueResponse, ReviewQueueItem } from '@/types/review';
 import type { Database } from '@/supabase/types/database.types';
-import { logger } from '@/lib/logger';
+import type { ReviewQueueItem, ReviewQueueResponse } from '@/types/review';
+import { NextRequest, NextResponse } from 'next/server';
 
 export const maxDuration = 30;
 
@@ -24,319 +26,320 @@ type ContentItemRow = Database['public']['Tables']['content_items']['Row'];
 const REVIEW_COLUMNS =
   'id, title, suggested_title, summary, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, platform, author_name, source_domain, thumbnail_url, captured_date, ai_keywords, classification_confidence, quality_score, priority, user_tags, metadata, content, source_url, verified_at, verified_by, freshness, governance_review_status, next_review_date, review_cadence_days, publication_status, created_at';
 
-/**
- * GET /api/review/queue — fetch content items for the review workflow.
- *
- * Supports filtering by verification status (unverified/verified/flagged/all),
- * domain, content type, and source file. Returns offset-based pagination.
- */
-export async function GET(request: NextRequest) {
-  try {
-    // Auth + role check — editors and admins only
-    const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth.success) return authFailureResponse(auth);
-    const { user, supabase } = auth;
+export const GET = defineRoute(
+  ReviewQueueResponseSchema,
+  async (request: NextRequest) => {
+    try {
+      // Auth + role check — editors and admins only
+      const auth = await getAuthorisedClient(['admin', 'editor']);
+      if (!auth.success) return authFailureResponse(auth);
+      const { user, supabase } = auth;
 
-    // Rate limit: 20 requests per minute
-    const { allowed } = checkRateLimit(`review-queue:${user.id}`, 20, 60_000);
-    if (!allowed) return rateLimitResponse();
+      // Rate limit: 20 requests per minute
+      const { allowed } = checkRateLimit(`review-queue:${user.id}`, 20, 60_000);
+      if (!allowed) return rateLimitResponse();
 
-    const { searchParams } = request.nextUrl;
+      const { searchParams } = request.nextUrl;
 
-    // -----------------------------------------------------------------
-    // Publication-review branch (§5.2-P4B / review-page-tabs-refactor-spec
-    // §8 (f)). When `?publication_status=in_review` is present, the route
-    // pivots to a publication_status='in_review' filter and BYPASSES the
-    // verified_at + governance_review_status filters that drive the
-    // standard verified-content-review queue. Per spec §6.7 line 1196 the
-    // publication-review tab is orthogonal to governance state.
-    //
-    // The branch sits BEFORE the standard params validation because the
-    // standard `ReviewQueueParamsSchema` validates `status` (one of
-    // unverified|verified|flagged|draft|all) which doesn't apply here —
-    // the publication-review tab is a separate query shape.
-    // -----------------------------------------------------------------
-    const publicationStatusParam = searchParams.get('publication_status');
-    if (publicationStatusParam === 'in_review') {
-      return await handlePublicationReviewQuery(supabase, searchParams);
-    }
+      // -----------------------------------------------------------------
+      // Publication-review branch (§5.2-P4B / review-page-tabs-refactor-spec
+      // §8 (f)). When `?publication_status=in_review` is present, the route
+      // pivots to a publication_status='in_review' filter and BYPASSES the
+      // verified_at + governance_review_status filters that drive the
+      // standard verified-content-review queue. Per spec §6.7 line 1196 the
+      // publication-review tab is orthogonal to governance state.
+      //
+      // The branch sits BEFORE the standard params validation because the
+      // standard `ReviewQueueParamsSchema` validates `status` (one of
+      // unverified|verified|flagged|draft|all) which doesn't apply here —
+      // the publication-review tab is a separate query shape.
+      // -----------------------------------------------------------------
+      const publicationStatusParam = searchParams.get('publication_status');
+      if (publicationStatusParam === 'in_review') {
+        return await handlePublicationReviewQuery(supabase, searchParams);
+      }
 
-    const validated = parseSearchParams(ReviewQueueParamsSchema, searchParams);
-    if (!validated.success) return validated.response;
+      const validated = parseSearchParams(
+        ReviewQueueParamsSchema,
+        searchParams,
+      );
+      if (!validated.success) return validated.response;
 
-    const { status, limit, offset, sort } = validated.data;
-    // Use getAll for repeated params (domain=a&domain=b) and fall back to
-    // comma-separated single values (domain=a,b) for backwards compatibility.
-    const domainParams = searchParams
-      .getAll('domain')
-      .flatMap((v) => v.split(','))
-      .filter(Boolean);
-    const contentTypeParams = searchParams
-      .getAll('content_type')
-      .flatMap((v) => v.split(','))
-      .filter(Boolean);
-    const sourceFileParam = searchParams.get('source_file');
-    const sourceDocumentIdParam = searchParams.get('source_document_id');
-    const assignedToMe = searchParams.get('assigned_to_me') === 'true';
-    // S205 WP-E T2 plan §T2 (H-1): mirror the assigned_to_me string-compare
-    // pattern. Treat only the literal 'true' as on; '?include_overdue=false'
-    // and missing param both resolve to off. `z.coerce.boolean()` is unsafe
-    // here because it returns true for any non-empty string including
-    // the literal 'false'.
-    const includeOverdue = searchParams.get('include_overdue') === 'true';
-    // ID-63.12: narrow the queue to the taxonomy 'unclassified' sentinel rows
-    // ({63.11}) so the /review "Unclassified" tab has a populated queue. Raw
-    // string compare mirrors include_overdue / assigned_to_me — only the
-    // literal 'true' is on.
-    const unclassifiedOnly = searchParams.get('unclassified') === 'true';
+      const { status, limit, offset, sort } = validated.data;
+      // Use getAll for repeated params (domain=a&domain=b) and fall back to
+      // comma-separated single values (domain=a,b) for backwards compatibility.
+      const domainParams = searchParams
+        .getAll('domain')
+        .flatMap((v) => v.split(','))
+        .filter(Boolean);
+      const contentTypeParams = searchParams
+        .getAll('content_type')
+        .flatMap((v) => v.split(','))
+        .filter(Boolean);
+      const sourceFileParam = searchParams.get('source_file');
+      const sourceDocumentIdParam = searchParams.get('source_document_id');
+      const assignedToMe = searchParams.get('assigned_to_me') === 'true';
+      // S205 WP-E T2 plan §T2 (H-1): mirror the assigned_to_me string-compare
+      // pattern. Treat only the literal 'true' as on; '?include_overdue=false'
+      // and missing param both resolve to off. `z.coerce.boolean()` is unsafe
+      // here because it returns true for any non-empty string including
+      // the literal 'false'.
+      const includeOverdue = searchParams.get('include_overdue') === 'true';
+      // ID-63.12: narrow the queue to the taxonomy 'unclassified' sentinel rows
+      // ({63.11}) so the /review "Unclassified" tab has a populated queue. Raw
+      // string compare mirrors include_overdue / assigned_to_me — only the
+      // literal 'true' is on.
+      const unclassifiedOnly = searchParams.get('unclassified') === 'true';
 
-    // If assigned_to_me is active, look up the user's active assignments and
-    // merge their filter criteria (domains, content_types) into the query.
-    // Multiple assignments are unioned: items matching ANY assignment are shown.
-    let assignmentDomains: string[] = [];
-    let assignmentContentTypes: string[] = [];
-    let hasAssignments = false;
+      // If assigned_to_me is active, look up the user's active assignments and
+      // merge their filter criteria (domains, content_types) into the query.
+      // Multiple assignments are unioned: items matching ANY assignment are shown.
+      let assignmentDomains: string[] = [];
+      let assignmentContentTypes: string[] = [];
+      let hasAssignments = false;
 
-    if (assignedToMe) {
-      const { data: assignments, error: assignErr } = await supabase
-        .from('review_assignments')
-        .select('filter_domains, filter_content_types')
-        .eq('reviewer_id', user.id)
-        .eq('status', 'active');
+      if (assignedToMe) {
+        const { data: assignments, error: assignErr } = await supabase
+          .from('review_assignments')
+          .select('filter_domains, filter_content_types')
+          .eq('reviewer_id', user.id)
+          .eq('status', 'active');
 
-      if (assignErr) {
-        logger.error(
-          { err: assignErr },
-          'Failed to fetch assignments for filter',
+        if (assignErr) {
+          logger.error(
+            { err: assignErr },
+            'Failed to fetch assignments for filter',
+          );
+          return NextResponse.json(
+            { error: 'Failed to fetch assignment filters' },
+            { status: 500 },
+          );
+        }
+
+        if (assignments && assignments.length > 0) {
+          hasAssignments = true;
+          // Union all assignment filters (items matching ANY assignment)
+          for (const a of assignments) {
+            if (Array.isArray(a.filter_domains)) {
+              assignmentDomains.push(...a.filter_domains);
+            }
+            if (Array.isArray(a.filter_content_types)) {
+              assignmentContentTypes.push(...a.filter_content_types);
+            }
+          }
+          assignmentDomains = [...new Set(assignmentDomains)];
+          assignmentContentTypes = [...new Set(assignmentContentTypes)];
+        }
+
+        // If user has no active assignments, return empty result immediately
+        if (!hasAssignments) {
+          const response: ReviewQueueResponse = {
+            items: [],
+            total: 0,
+            verified_count: 0,
+            flagged_count: 0,
+            has_more: false,
+          };
+          return NextResponse.json(response);
+        }
+      }
+
+      // Compute effective domain/content-type filters, merging assignment filters
+      // with any explicit user-selected filters. This is needed for both the
+      // standard and flagged query paths.
+      let effectiveDomainParams = domainParams;
+      let effectiveContentTypeParams = contentTypeParams;
+
+      if (assignedToMe && assignmentDomains.length > 0) {
+        effectiveDomainParams =
+          domainParams.length > 0
+            ? domainParams.filter((d) => assignmentDomains.includes(d))
+            : assignmentDomains;
+        if (effectiveDomainParams.length === 0) {
+          // Intersection is empty — no results can match
+          return NextResponse.json({
+            items: [],
+            total: 0,
+            verified_count: 0,
+            flagged_count: 0,
+            has_more: false,
+          } satisfies ReviewQueueResponse);
+        }
+      }
+
+      if (assignedToMe && assignmentContentTypes.length > 0) {
+        effectiveContentTypeParams =
+          contentTypeParams.length > 0
+            ? contentTypeParams.filter((ct) =>
+                assignmentContentTypes.includes(ct),
+              )
+            : assignmentContentTypes;
+        if (effectiveContentTypeParams.length === 0) {
+          return NextResponse.json({
+            items: [],
+            total: 0,
+            verified_count: 0,
+            flagged_count: 0,
+            has_more: false,
+          } satisfies ReviewQueueResponse);
+        }
+      }
+
+      // For flagged status, we need to find items with open review_needed flags.
+      // This requires a two-step query: first find flagged IDs, then fetch items.
+      if (status === 'flagged') {
+        return await handleFlaggedQuery(
+          supabase,
+          limit,
+          offset,
+          effectiveDomainParams,
+          effectiveContentTypeParams,
+          sourceFileParam,
+          sourceDocumentIdParam,
+          sort,
         );
+      }
+
+      // Standard query for unverified/verified/draft/all statuses
+      let query = supabase
+        .from('content_items')
+        .select(REVIEW_COLUMNS, { count: 'exact' });
+
+      // Draft filter: show only drafts. All other filters exclude drafts.
+      // S202 §5.2 Phase 2.5 (T8b) — read from publication_status (NOT NULL
+      // post-S201) instead of legacy governance_review_status. The legacy
+      // column will be NULLed by Phase 1f migration; SELECT clause keeps it
+      // for response-shape continuity until then.
+      if (status === 'draft') {
+        query = query.eq('publication_status', 'draft');
+      } else {
+        query = query.neq('publication_status', 'draft');
+      }
+
+      // Apply verification status filter
+      //
+      // S205 WP-E T2 plan §T2 (H-2): when status='unverified' AND
+      // include_overdue=true, broaden the verified_at predicate so that
+      // verified-but-overdue rows surface alongside unverified rows. A row
+      // can have `verified_at IS NOT NULL` and still be in
+      // `governance_review_status = 'review_overdue'` once its review cadence
+      // elapses; without this widening the toggle would silently exclude
+      // exactly the rows it advertises. For status='verified' or 'all',
+      // include_overdue is a no-op super-set (verified-overdue rows already
+      // pass the verified filter; 'all' has no verification filter).
+      if (status === 'unverified') {
+        if (includeOverdue) {
+          query = query.or(
+            'verified_at.is.null,governance_review_status.eq.review_overdue',
+          );
+        } else {
+          query = query.is('verified_at', null);
+        }
+      } else if (status === 'verified') {
+        query = query.not('verified_at', 'is', null);
+      }
+      // status === 'all' or 'draft' — no verification filter
+
+      // Apply optional filters (using effective params that already account for
+      // assignment filter intersection when assigned_to_me is active)
+      if (effectiveDomainParams.length > 0) {
+        query = query.in('primary_domain', effectiveDomainParams);
+      }
+
+      if (effectiveContentTypeParams.length > 0) {
+        query = query.in('content_type', effectiveContentTypeParams);
+      }
+
+      if (sourceFileParam) {
+        query = query.eq('source_file', sourceFileParam);
+      }
+
+      if (sourceDocumentIdParam) {
+        query = query.eq('source_document_id', sourceDocumentIdParam);
+      }
+
+      // ID-63.12: when the "Unclassified" tab is active, narrow to the
+      // 'unclassified' taxonomy sentinel rows ({63.11}) so the tab lists the
+      // out-of-taxonomy content that needs reclassification.
+      if (unclassifiedOnly) {
+        query = query.or(UNCLASSIFIED_TAXONOMY_OR_PREDICATE);
+      }
+
+      // Apply sort order
+      if (sort === 'confidence_asc') {
+        query = query.order('classification_confidence', {
+          ascending: true,
+          nullsFirst: true,
+        });
+      } else if (sort === 'quality_score_asc') {
+        query = query.order('quality_score', {
+          ascending: true,
+          nullsFirst: true,
+        });
+      } else {
+        query = query.order('created_at', { ascending: false });
+      }
+      // Tiebreaker for stable ordering when sort column values are equal or null
+      query = query.order('id', { ascending: true });
+      // Offset-based pagination
+      query = query.range(offset, offset + limit - 1);
+
+      const { data, error, count } = await query;
+
+      if (error) {
+        logger.error({ err: error }, 'Review queue query error');
         return NextResponse.json(
-          { error: 'Failed to fetch assignment filters' },
+          { error: 'Failed to fetch review queue' },
           { status: 500 },
         );
       }
 
-      if (assignments && assignments.length > 0) {
-        hasAssignments = true;
-        // Union all assignment filters (items matching ANY assignment)
-        for (const a of assignments) {
-          if (Array.isArray(a.filter_domains)) {
-            assignmentDomains.push(...a.filter_domains);
-          }
-          if (Array.isArray(a.filter_content_types)) {
-            assignmentContentTypes.push(...a.filter_content_types);
-          }
-        }
-        assignmentDomains = [...new Set(assignmentDomains)];
-        assignmentContentTypes = [...new Set(assignmentContentTypes)];
+      const items = (data ?? []) as ContentItemRow[];
+
+      // Fetch verified and flagged counts in parallel for the progress bar
+      const [verifiedResult, flaggedResult] = await Promise.all([
+        supabase
+          .from('content_items')
+          .select('id', { count: 'exact', head: true })
+          .not('verified_at', 'is', null),
+        supabase
+          .from('ingestion_quality_log')
+          .select('content_item_id', { count: 'exact', head: true })
+          .eq('flag_type', 'review_needed')
+          .eq('resolved', false),
+      ]);
+
+      // Batch-fetch latest verification_history action per item for "last reviewed" display
+      const mappedItems = items.map(mapToReviewQueueItem);
+      const itemIds = mappedItems.map((i) => i.id);
+      const { dates: reviewDates, warning: reviewDatesWarning } =
+        await fetchLastReviewedDates(supabase, itemIds);
+      for (const item of mappedItems) {
+        item.last_reviewed_at = reviewDates.get(item.id) ?? null;
       }
 
-      // If user has no active assignments, return empty result immediately
-      if (!hasAssignments) {
-        const response: ReviewQueueResponse = {
-          items: [],
-          total: 0,
-          verified_count: 0,
-          flagged_count: 0,
-          has_more: false,
-        };
-        return NextResponse.json(response);
-      }
-    }
+      const warnings: string[] = [];
+      if (reviewDatesWarning) warnings.push(reviewDatesWarning);
 
-    // Compute effective domain/content-type filters, merging assignment filters
-    // with any explicit user-selected filters. This is needed for both the
-    // standard and flagged query paths.
-    let effectiveDomainParams = domainParams;
-    let effectiveContentTypeParams = contentTypeParams;
+      const response: ReviewQueueResponse & { warnings?: string[] } = {
+        items: mappedItems,
+        total: count ?? 0,
+        verified_count: verifiedResult.count ?? 0,
+        flagged_count: flaggedResult.count ?? 0,
+        has_more:
+          items.length === limit && (count ?? 0) > offset + items.length,
+      };
+      if (warnings.length > 0) response.warnings = warnings;
 
-    if (assignedToMe && assignmentDomains.length > 0) {
-      effectiveDomainParams =
-        domainParams.length > 0
-          ? domainParams.filter((d) => assignmentDomains.includes(d))
-          : assignmentDomains;
-      if (effectiveDomainParams.length === 0) {
-        // Intersection is empty — no results can match
-        return NextResponse.json({
-          items: [],
-          total: 0,
-          verified_count: 0,
-          flagged_count: 0,
-          has_more: false,
-        } satisfies ReviewQueueResponse);
-      }
-    }
-
-    if (assignedToMe && assignmentContentTypes.length > 0) {
-      effectiveContentTypeParams =
-        contentTypeParams.length > 0
-          ? contentTypeParams.filter((ct) =>
-              assignmentContentTypes.includes(ct),
-            )
-          : assignmentContentTypes;
-      if (effectiveContentTypeParams.length === 0) {
-        return NextResponse.json({
-          items: [],
-          total: 0,
-          verified_count: 0,
-          flagged_count: 0,
-          has_more: false,
-        } satisfies ReviewQueueResponse);
-      }
-    }
-
-    // For flagged status, we need to find items with open review_needed flags.
-    // This requires a two-step query: first find flagged IDs, then fetch items.
-    if (status === 'flagged') {
-      return await handleFlaggedQuery(
-        supabase,
-        limit,
-        offset,
-        effectiveDomainParams,
-        effectiveContentTypeParams,
-        sourceFileParam,
-        sourceDocumentIdParam,
-        sort,
-      );
-    }
-
-    // Standard query for unverified/verified/draft/all statuses
-    let query = supabase
-      .from('content_items')
-      .select(REVIEW_COLUMNS, { count: 'exact' });
-
-    // Draft filter: show only drafts. All other filters exclude drafts.
-    // S202 §5.2 Phase 2.5 (T8b) — read from publication_status (NOT NULL
-    // post-S201) instead of legacy governance_review_status. The legacy
-    // column will be NULLed by Phase 1f migration; SELECT clause keeps it
-    // for response-shape continuity until then.
-    if (status === 'draft') {
-      query = query.eq('publication_status', 'draft');
-    } else {
-      query = query.neq('publication_status', 'draft');
-    }
-
-    // Apply verification status filter
-    //
-    // S205 WP-E T2 plan §T2 (H-2): when status='unverified' AND
-    // include_overdue=true, broaden the verified_at predicate so that
-    // verified-but-overdue rows surface alongside unverified rows. A row
-    // can have `verified_at IS NOT NULL` and still be in
-    // `governance_review_status = 'review_overdue'` once its review cadence
-    // elapses; without this widening the toggle would silently exclude
-    // exactly the rows it advertises. For status='verified' or 'all',
-    // include_overdue is a no-op super-set (verified-overdue rows already
-    // pass the verified filter; 'all' has no verification filter).
-    if (status === 'unverified') {
-      if (includeOverdue) {
-        query = query.or(
-          'verified_at.is.null,governance_review_status.eq.review_overdue',
-        );
-      } else {
-        query = query.is('verified_at', null);
-      }
-    } else if (status === 'verified') {
-      query = query.not('verified_at', 'is', null);
-    }
-    // status === 'all' or 'draft' — no verification filter
-
-    // Apply optional filters (using effective params that already account for
-    // assignment filter intersection when assigned_to_me is active)
-    if (effectiveDomainParams.length > 0) {
-      query = query.in('primary_domain', effectiveDomainParams);
-    }
-
-    if (effectiveContentTypeParams.length > 0) {
-      query = query.in('content_type', effectiveContentTypeParams);
-    }
-
-    if (sourceFileParam) {
-      query = query.eq('source_file', sourceFileParam);
-    }
-
-    if (sourceDocumentIdParam) {
-      query = query.eq('source_document_id', sourceDocumentIdParam);
-    }
-
-    // ID-63.12: when the "Unclassified" tab is active, narrow to the
-    // 'unclassified' taxonomy sentinel rows ({63.11}) so the tab lists the
-    // out-of-taxonomy content that needs reclassification.
-    if (unclassifiedOnly) {
-      query = query.or(UNCLASSIFIED_TAXONOMY_OR_PREDICATE);
-    }
-
-    // Apply sort order
-    if (sort === 'confidence_asc') {
-      query = query.order('classification_confidence', {
-        ascending: true,
-        nullsFirst: true,
-      });
-    } else if (sort === 'quality_score_asc') {
-      query = query.order('quality_score', {
-        ascending: true,
-        nullsFirst: true,
-      });
-    } else {
-      query = query.order('created_at', { ascending: false });
-    }
-    // Tiebreaker for stable ordering when sort column values are equal or null
-    query = query.order('id', { ascending: true });
-    // Offset-based pagination
-    query = query.range(offset, offset + limit - 1);
-
-    const { data, error, count } = await query;
-
-    if (error) {
-      logger.error({ err: error }, 'Review queue query error');
+      return NextResponse.json(response);
+    } catch (err) {
       return NextResponse.json(
-        { error: 'Failed to fetch review queue' },
+        { error: safeErrorMessage(err, 'Failed to fetch review queue') },
         { status: 500 },
       );
     }
-
-    const items = (data ?? []) as ContentItemRow[];
-
-    // Fetch verified and flagged counts in parallel for the progress bar
-    const [verifiedResult, flaggedResult] = await Promise.all([
-      supabase
-        .from('content_items')
-        .select('id', { count: 'exact', head: true })
-        .not('verified_at', 'is', null),
-      supabase
-        .from('ingestion_quality_log')
-        .select('content_item_id', { count: 'exact', head: true })
-        .eq('flag_type', 'review_needed')
-        .eq('resolved', false),
-    ]);
-
-    // Batch-fetch latest verification_history action per item for "last reviewed" display
-    const mappedItems = items.map(mapToReviewQueueItem);
-    const itemIds = mappedItems.map((i) => i.id);
-    const { dates: reviewDates, warning: reviewDatesWarning } =
-      await fetchLastReviewedDates(supabase, itemIds);
-    for (const item of mappedItems) {
-      item.last_reviewed_at = reviewDates.get(item.id) ?? null;
-    }
-
-    const warnings: string[] = [];
-    if (reviewDatesWarning) warnings.push(reviewDatesWarning);
-
-    const response: ReviewQueueResponse & { warnings?: string[] } = {
-      items: mappedItems,
-      total: count ?? 0,
-      verified_count: verifiedResult.count ?? 0,
-      flagged_count: flaggedResult.count ?? 0,
-      has_more: items.length === limit && (count ?? 0) > offset + items.length,
-    };
-    if (warnings.length > 0) response.warnings = warnings;
-
-    return NextResponse.json(response);
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to fetch review queue') },
-      { status: 500 },
-    );
-  }
-}
+  },
+);
 
 /**
  * Handle the flagged status query separately because it requires joining

@@ -31,27 +31,28 @@
 // History snapshots: the existing `q_a_pairs_history_trigger()` (AFTER UPDATE
 // on q_a_pairs, updated in {59.5} to also copy OLD.edit_intent) writes the
 // q_a_pair_history row. This route performs NO app-side history insert.
-import { NextRequest, NextResponse } from 'next/server';
-import { join } from 'node:path';
-import { writeFile } from 'node:fs/promises';
-import { z } from 'zod';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
-import { tryQuery, isOk, type PostgrestLike } from '@/lib/supabase/safe';
-import { parseBody } from '@/lib/validation';
-import { safeErrorMessage } from '@/lib/error';
-import type { Database } from '@/supabase/types/database.types';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import {
   arbitrateMany,
   coerceIntent,
   type EditIntent,
 } from '@/lib/edit-intent/arbitrate';
 import { writeFileFirstWithRestore } from '@/lib/edit-intent/write-back';
+import { safeErrorMessage } from '@/lib/error';
 import {
-  sdUuid5,
   qaSidecarRelPath,
+  sdUuid5,
   serialiseCarriedSet,
   type CarriedSet,
 } from '@/lib/q-a-pairs/sidecar-path';
+import { isOk, tryQuery, type PostgrestLike } from '@/lib/supabase/safe';
+import { parseBody } from '@/lib/validation';
+import type { Database } from '@/supabase/types/database.types';
+import { NextRequest, NextResponse } from 'next/server';
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { z } from 'zod';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -191,199 +192,196 @@ function buildCarriedSet(
   };
 }
 
-/**
- * PATCH /api/q-a-pairs/:id — apply a user-direct revision to one Q&A pair.
- *
- * Role guard: admin/editor only (viewer ⇒ 403 via authFailureResponse). The
- * UPDATE goes through `tryQuery`; the history snapshot is the existing trigger.
- *
- * For an INV-7-scope pair this is a dual-write (sidecar file + DB UPDATE);
- * otherwise it is KH-DB-only. See the module header for the branch matrix.
- */
-export async function PATCH(request: NextRequest, context: RouteContext) {
-  try {
-    const { id } = await context.params;
+// TODO(OPS-T1): author ResponseSchema
+export const PATCH = defineRoute(
+  z.unknown(),
+  async (request: NextRequest, context: RouteContext) => {
+    try {
+      const { id } = await context.params;
 
-    const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth.success) return authFailureResponse(auth);
-    const { supabase, user } = auth;
+      const auth = await getAuthorisedClient(['admin', 'editor']);
+      if (!auth.success) return authFailureResponse(auth);
+      const { supabase, user } = auth;
 
-    // Malformed/empty JSON body → null, which parseBody rejects as a 400.
-    // The parse failure IS the surfaced signal, so the swallow is intentional.
-    const raw = await request.json().catch((_err) => null);
-    const parsedResult = parseBody(QAPairUpdateSchema, raw);
-    if (!parsedResult.success) return parsedResult.response;
-    const parsed = parsedResult.data;
+      // Malformed/empty JSON body → null, which parseBody rejects as a 400.
+      // The parse failure IS the surfaced signal, so the swallow is intentional.
+      const raw = await request.json().catch((_err) => null);
+      const parsedResult = parseBody(QAPairUpdateSchema, raw);
+      if (!parsedResult.success) return parsedResult.response;
+      const parsed = parsedResult.data;
 
-    // Project just the writable content fields from the parsed body.
-    // Typed as a `q_a_pairs` Update partial so it spreads into the UPDATE
-    // payload without a cast (the editable columns are a strict subset of the
-    // generated Update shape). The per-column assignment widens to the Update
-    // value via a single localised cast — the EDITABLE_COLUMNS allowlist plus
-    // the zod schema already constrain the keys + value shapes.
-    const directFields: QAPairsUpdate = {};
-    for (const col of EDITABLE_COLUMNS) {
-      if (parsed[col] !== undefined) {
-        (directFields as Record<string, unknown>)[col] = parsed[col];
+      // Project just the writable content fields from the parsed body.
+      // Typed as a `q_a_pairs` Update partial so it spreads into the UPDATE
+      // payload without a cast (the editable columns are a strict subset of the
+      // generated Update shape). The per-column assignment widens to the Update
+      // value via a single localised cast — the EDITABLE_COLUMNS allowlist plus
+      // the zod schema already constrain the keys + value shapes.
+      const directFields: QAPairsUpdate = {};
+      for (const col of EDITABLE_COLUMNS) {
+        if (parsed[col] !== undefined) {
+          (directFields as Record<string, unknown>)[col] = parsed[col];
+        }
       }
-    }
 
-    if (Object.keys(directFields).length === 0) {
-      return NextResponse.json(
-        { error: 'No editable fields to update' },
-        { status: 400 },
-      );
-    }
-
-    // Resolve + stamp the post-arbitration edit intent on the UC6 CRDT path.
-    const editIntent = resolveEditIntent(parsed, {
-      userId: user.id,
-      contentItemId: id,
-    });
-
-    // ── Pre-read the pair: INV-7 gate inputs + the carried set ───────────────
-    // The sidecar decision needs the pair's `origin_kind` (the INV-7 gate) and
-    // `source_document_id` (write-back vs materialise vs DB-only) BEFORE the
-    // UPDATE — the file leg is file-first, so the file write must precede the
-    // DB leg. The carried fields are read so a partial PATCH merges onto the
-    // stored values to form the WHOLE post-edit carried set the file holds.
-    const pairResult = await tryQuery<PairReadRow | null>(
-      supabase
-        .from('q_a_pairs')
-        .select(PAIR_READ_COLUMNS)
-        .eq('id', id)
-        .maybeSingle() as unknown as PostgrestLike<PairReadRow | null>,
-      'q_a_pairs.userDirectRevision.preRead',
-    );
-    if (!isOk(pairResult)) {
-      return NextResponse.json(
-        { error: 'Failed to update Q&A pair' },
-        { status: 500 },
-      );
-    }
-    if (pairResult.data === null) {
-      return NextResponse.json(
-        { error: 'Q&A pair not found' },
-        { status: 404 },
-      );
-    }
-    const storedPair = pairResult.data;
-
-    // The carried set the sidecar must contain (full set; partial PATCH merged).
-    const carried = buildCarriedSet(storedPair, directFields);
-
-    // The id to set on the materialise path. NULL on every other path so the
-    // DB leg never clobbers an existing/absent linkage with a stale value.
-    let mintedSourceDocumentId: string | null = null;
-
-    // ── The DB leg, shared by all branches (file-first injects it) ───────────
-    // Captures the updated row + an explicit affected-row assertion so a 0-row
-    // PATCH is a surfaced failure, never a silent no-op (REST PATCH gotcha).
-    // On the materialise branch it ALSO sets `source_document_id` so the pair
-    // becomes file-canonical from this edit forward (INV-13).
-    let updatedRow: QAPairsRow | null = null;
-    const applyDbLeg = async (): Promise<void> => {
-      const updatePayload: QAPairsUpdate = {
-        ...directFields,
-        edit_intent: editIntent,
-        updated_at: new Date().toISOString(),
-      };
-      if (mintedSourceDocumentId !== null) {
-        updatePayload.source_document_id = mintedSourceDocumentId;
+      if (Object.keys(directFields).length === 0) {
+        return NextResponse.json(
+          { error: 'No editable fields to update' },
+          { status: 400 },
+        );
       }
-      const updateResult = await tryQuery<QAPairsRow>(
+
+      // Resolve + stamp the post-arbitration edit intent on the UC6 CRDT path.
+      const editIntent = resolveEditIntent(parsed, {
+        userId: user.id,
+        contentItemId: id,
+      });
+
+      // ── Pre-read the pair: INV-7 gate inputs + the carried set ───────────────
+      // The sidecar decision needs the pair's `origin_kind` (the INV-7 gate) and
+      // `source_document_id` (write-back vs materialise vs DB-only) BEFORE the
+      // UPDATE — the file leg is file-first, so the file write must precede the
+      // DB leg. The carried fields are read so a partial PATCH merges onto the
+      // stored values to form the WHOLE post-edit carried set the file holds.
+      const pairResult = await tryQuery<PairReadRow | null>(
         supabase
           .from('q_a_pairs')
-          .update(updatePayload)
+          .select(PAIR_READ_COLUMNS)
           .eq('id', id)
-          .select('*')
-          .single() as unknown as PostgrestLike<QAPairsRow>,
-        'q_a_pairs.userDirectRevision',
+          .maybeSingle() as unknown as PostgrestLike<PairReadRow | null>,
+        'q_a_pairs.userDirectRevision.preRead',
       );
-      if (!isOk(updateResult)) {
-        throw updateResult.error;
-      }
-      // Affected-row assertion: `.single()` already errors PGRST116 on 0 rows,
-      // but a null data with no error is a silent failure we must not swallow.
-      if (updateResult.data === null) {
-        throw new Error('Q&A pair UPDATE affected 0 rows');
-      }
-      updatedRow = updateResult.data;
-    };
-
-    // ── Branch on the INV-7 gate + sidecar state ─────────────────────────────
-    const inSidecarScope = USER_DIRECT_SIDECAR_ORIGIN_KINDS.has(
-      storedPair.origin_kind,
-    );
-    const sourceRoot = process.env.COCOINDEX_SOURCE_PATH;
-
-    if (!inSidecarScope || !sourceRoot) {
-      // Outside the INV-7 set, OR idle mode (no source-binding folder): the
-      // save is KH-DB-only. The DB write is the single source of the outcome;
-      // it self-heals into a file on the next bound walk for in-scope pairs.
-      await applyDbLeg();
-    } else if (storedPair.source_document_id !== null) {
-      // WRITE-BACK (INV-12): the pair already has a sidecar. Resolve its
-      // storage_path FK-LESSLY (two plain reads, NEVER a PostgREST embed —
-      // the embed PGRST200s post-FK-drop, BUG-E) and rewrite the file as one
-      // atomic save with the DB UPDATE.
-      const docResult = await tryQuery<{ storage_path: string | null } | null>(
-        supabase
-          .from('source_documents')
-          .select('storage_path')
-          .eq('id', storedPair.source_document_id)
-          .maybeSingle() as unknown as PostgrestLike<{
-          storage_path: string | null;
-        } | null>,
-        'q_a_pairs.userDirectRevision.resolveStoragePath',
-      );
-      if (!isOk(docResult)) {
+      if (!isOk(pairResult)) {
         return NextResponse.json(
           { error: 'Failed to update Q&A pair' },
           { status: 500 },
         );
       }
-      const storagePath = docResult.data?.storage_path ?? null;
-      if (storagePath === null) {
-        // No source_documents row yet (or no storage_path) — the sidecar has
-        // not materialised on disk. Fall through to DB-only for this one edit,
-        // exactly like writeBackFileFirst's idle/dangling fall-through; the
-        // next walk reconciles. (Covers the FK-less write-before-row window.)
-        await applyDbLeg();
-      } else {
-        await writeFileFirstWithRestore({
-          absPath: join(sourceRoot, storagePath),
-          newContent: serialiseCarriedSet(carried),
-          applyDbLeg,
-        });
+      if (pairResult.data === null) {
+        return NextResponse.json(
+          { error: 'Q&A pair not found' },
+          { status: 404 },
+        );
       }
-    } else {
-      // MATERIALISE-ON-FIRST-EDIT (INV-13, OQ-25-4 RATIFIED): a source-less
-      // `curated_explicit` pair mints its sidecar on this edit. Key the path on
-      // the pair PK (CONSISTENCY with {59.29}'s corpus emit, which also keys on
-      // the pair PK — a pair has ONE canonical sidecar path). The DB leg sets
-      // `source_document_id = sdUuid5(relPath)`; the cocoindex re-walk mints the
-      // matching source_documents row next ingest, re-keying the SAME uuid5.
-      // FK-LESS: writing the id before that row exists violates no FK (INV-8).
-      const relPath = qaSidecarRelPath(id);
-      mintedSourceDocumentId = sdUuid5(relPath);
-      const absPath = join(sourceRoot, relPath);
-      // Mint the new file first, then the DB leg (with the linkage). There is
-      // no prior file to snapshot/restore, so this is a plain file-first mint
-      // rather than the read-then-restore primitive (which assumes a prior
-      // file); a DB-leg failure leaves an orphan .md the next walk reconciles.
-      await writeFile(absPath, serialiseCarriedSet(carried), 'utf8');
-      await applyDbLeg();
-    }
+      const storedPair = pairResult.data;
 
-    return NextResponse.json({
-      q_a_pair: updatedRow,
-      edit_intent: editIntent,
-    });
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to update Q&A pair') },
-      { status: 500 },
-    );
-  }
-}
+      // The carried set the sidecar must contain (full set; partial PATCH merged).
+      const carried = buildCarriedSet(storedPair, directFields);
+
+      // The id to set on the materialise path. NULL on every other path so the
+      // DB leg never clobbers an existing/absent linkage with a stale value.
+      let mintedSourceDocumentId: string | null = null;
+
+      // ── The DB leg, shared by all branches (file-first injects it) ───────────
+      // Captures the updated row + an explicit affected-row assertion so a 0-row
+      // PATCH is a surfaced failure, never a silent no-op (REST PATCH gotcha).
+      // On the materialise branch it ALSO sets `source_document_id` so the pair
+      // becomes file-canonical from this edit forward (INV-13).
+      let updatedRow: QAPairsRow | null = null;
+      const applyDbLeg = async (): Promise<void> => {
+        const updatePayload: QAPairsUpdate = {
+          ...directFields,
+          edit_intent: editIntent,
+          updated_at: new Date().toISOString(),
+        };
+        if (mintedSourceDocumentId !== null) {
+          updatePayload.source_document_id = mintedSourceDocumentId;
+        }
+        const updateResult = await tryQuery<QAPairsRow>(
+          supabase
+            .from('q_a_pairs')
+            .update(updatePayload)
+            .eq('id', id)
+            .select('*')
+            .single() as unknown as PostgrestLike<QAPairsRow>,
+          'q_a_pairs.userDirectRevision',
+        );
+        if (!isOk(updateResult)) {
+          throw updateResult.error;
+        }
+        // Affected-row assertion: `.single()` already errors PGRST116 on 0 rows,
+        // but a null data with no error is a silent failure we must not swallow.
+        if (updateResult.data === null) {
+          throw new Error('Q&A pair UPDATE affected 0 rows');
+        }
+        updatedRow = updateResult.data;
+      };
+
+      // ── Branch on the INV-7 gate + sidecar state ─────────────────────────────
+      const inSidecarScope = USER_DIRECT_SIDECAR_ORIGIN_KINDS.has(
+        storedPair.origin_kind,
+      );
+      const sourceRoot = process.env.COCOINDEX_SOURCE_PATH;
+
+      if (!inSidecarScope || !sourceRoot) {
+        // Outside the INV-7 set, OR idle mode (no source-binding folder): the
+        // save is KH-DB-only. The DB write is the single source of the outcome;
+        // it self-heals into a file on the next bound walk for in-scope pairs.
+        await applyDbLeg();
+      } else if (storedPair.source_document_id !== null) {
+        // WRITE-BACK (INV-12): the pair already has a sidecar. Resolve its
+        // storage_path FK-LESSLY (two plain reads, NEVER a PostgREST embed —
+        // the embed PGRST200s post-FK-drop, BUG-E) and rewrite the file as one
+        // atomic save with the DB UPDATE.
+        const docResult = await tryQuery<{
+          storage_path: string | null;
+        } | null>(
+          supabase
+            .from('source_documents')
+            .select('storage_path')
+            .eq('id', storedPair.source_document_id)
+            .maybeSingle() as unknown as PostgrestLike<{
+            storage_path: string | null;
+          } | null>,
+          'q_a_pairs.userDirectRevision.resolveStoragePath',
+        );
+        if (!isOk(docResult)) {
+          return NextResponse.json(
+            { error: 'Failed to update Q&A pair' },
+            { status: 500 },
+          );
+        }
+        const storagePath = docResult.data?.storage_path ?? null;
+        if (storagePath === null) {
+          // No source_documents row yet (or no storage_path) — the sidecar has
+          // not materialised on disk. Fall through to DB-only for this one edit,
+          // exactly like writeBackFileFirst's idle/dangling fall-through; the
+          // next walk reconciles. (Covers the FK-less write-before-row window.)
+          await applyDbLeg();
+        } else {
+          await writeFileFirstWithRestore({
+            absPath: join(sourceRoot, storagePath),
+            newContent: serialiseCarriedSet(carried),
+            applyDbLeg,
+          });
+        }
+      } else {
+        // MATERIALISE-ON-FIRST-EDIT (INV-13, OQ-25-4 RATIFIED): a source-less
+        // `curated_explicit` pair mints its sidecar on this edit. Key the path on
+        // the pair PK (CONSISTENCY with {59.29}'s corpus emit, which also keys on
+        // the pair PK — a pair has ONE canonical sidecar path). The DB leg sets
+        // `source_document_id = sdUuid5(relPath)`; the cocoindex re-walk mints the
+        // matching source_documents row next ingest, re-keying the SAME uuid5.
+        // FK-LESS: writing the id before that row exists violates no FK (INV-8).
+        const relPath = qaSidecarRelPath(id);
+        mintedSourceDocumentId = sdUuid5(relPath);
+        const absPath = join(sourceRoot, relPath);
+        // Mint the new file first, then the DB leg (with the linkage). There is
+        // no prior file to snapshot/restore, so this is a plain file-first mint
+        // rather than the read-then-restore primitive (which assumes a prior
+        // file); a DB-leg failure leaves an orphan .md the next walk reconciles.
+        await writeFile(absPath, serialiseCarriedSet(carried), 'utf8');
+        await applyDbLeg();
+      }
+
+      return NextResponse.json({
+        q_a_pair: updatedRow,
+        edit_intent: editIntent,
+      });
+    } catch (err) {
+      return NextResponse.json(
+        { error: safeErrorMessage(err, 'Failed to update Q&A pair') },
+        { status: 500 },
+      );
+    }
+  },
+);

@@ -17,13 +17,8 @@
 // schema failure) are logged via `logBestEffortWarn` and surfaced to the
 // client as a generic 500 so raw model output / stack traces never leak.
 
-import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
-import { sb } from '@/lib/supabase/safe';
-import { logBestEffortWarn } from '@/lib/supabase/telemetry';
-import { parseBody } from '@/lib/validation';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import {
   analyseFeedFlags,
   type FlagAnalysisFlag,
@@ -34,7 +29,14 @@ import {
   extractContextFromSatellite,
   type IntelligenceWorkspaceSatelliteRow,
 } from '@/lib/intelligence/workspace-context';
+import { sb } from '@/lib/supabase/safe';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
+import { parseBody } from '@/lib/validation';
+import { AnalyseFlagsResponseSchema } from '@/lib/validation/schemas';
 import type { Database } from '@/supabase/types/database.types';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const runtime = 'nodejs';
 
@@ -247,79 +249,79 @@ async function loadFlags(
 // POST /api/intelligence/workspaces/:id/flags/analyse
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function POST(
-  request: NextRequest,
-  context: RouteContext,
-): Promise<NextResponse> {
-  const { id: workspaceId } = await context.params;
+export const POST = defineRoute(
+  AnalyseFlagsResponseSchema,
+  async (request: NextRequest, context: RouteContext) => {
+    const { id: workspaceId } = await context.params;
 
-  // 1. Auth — admin OR editor may trigger analysis (rollout / application of
-  //    the resulting prompt version is admin-only elsewhere).
-  const auth = await getAuthorisedClient(['admin', 'editor']);
-  if (!auth.success) return authFailureResponse(auth);
-  const { supabase } = auth;
+    // 1. Auth — admin OR editor may trigger analysis (rollout / application of
+    //    the resulting prompt version is admin-only elsewhere).
+    const auth = await getAuthorisedClient(['admin', 'editor']);
+    if (!auth.success) return authFailureResponse(auth);
+    const { supabase } = auth;
 
-  // 2. Parse body. Reject unknown shapes with a structured 400.
-  let rawBody: unknown;
-  try {
-    rawBody = await request.json();
-  } catch {
-    return errorEnvelope('Request body must be valid JSON', 400);
-  }
+    // 2. Parse body. Reject unknown shapes with a structured 400.
+    let rawBody: unknown;
+    try {
+      rawBody = await request.json();
+    } catch {
+      return errorEnvelope('Request body must be valid JSON', 400);
+    }
 
-  const parsed = parseBody(AnalyseRequestSchema, rawBody);
-  if (!parsed.success) return parsed.response;
-  const body = parsed.data;
+    const parsed = parseBody(AnalyseRequestSchema, rawBody);
+    if (!parsed.success) return parsed.response;
+    const body = parsed.data;
 
-  // 3. Workspace access check — 403 if the caller cannot see this workspace
-  //    or it does not exist as a non-archived intelligence workspace.
-  let workspace: AccessibleWorkspace | null;
-  try {
-    workspace = await loadAccessibleWorkspace(supabase, workspaceId);
-  } catch (err) {
-    logBestEffortWarn(
-      'intelligence.flags.analyse',
-      'Failed to load workspace for flag analysis',
-      { workspaceId, err: err instanceof Error ? err.message : String(err) },
-    );
-    return errorEnvelope('Failed to analyse flags', 500);
-  }
-  if (!workspace) {
-    return errorEnvelope('Workspace not found or access denied', 403);
-  }
-
-  // 4. Load active prompt, company context, and flags in sequence (each
-  //    depends on the workspace row). Any PostgREST error bubbles up as a
-  //    SupabaseError from `sb()` and is caught by the outer try/catch below.
-  try {
-    const [promptText, companyContext, flags] = await Promise.all([
-      loadActivePromptText(supabase, workspaceId),
-      loadCompanyContext(supabase, workspace),
-      loadFlags(supabase, workspaceId, body),
-    ]);
-
-    if (!promptText) {
-      return errorEnvelope(
-        'No active scoring prompt found for this workspace',
-        400,
+    // 3. Workspace access check — 403 if the caller cannot see this workspace
+    //    or it does not exist as a non-archived intelligence workspace.
+    let workspace: AccessibleWorkspace | null;
+    try {
+      workspace = await loadAccessibleWorkspace(supabase, workspaceId);
+    } catch (err) {
+      logBestEffortWarn(
+        'intelligence.flags.analyse',
+        'Failed to load workspace for flag analysis',
+        { workspaceId, err: err instanceof Error ? err.message : String(err) },
       );
+      return errorEnvelope('Failed to analyse flags', 500);
     }
-    if (!companyContext) {
-      return errorEnvelope('Workspace has no linked company profile', 400);
+    if (!workspace) {
+      return errorEnvelope('Workspace not found or access denied', 403);
     }
 
-    const result = await analyseFeedFlags({
-      currentPromptText: promptText,
-      flags,
-      companyContext,
-    });
+    // 4. Load active prompt, company context, and flags in sequence (each
+    //    depends on the workspace row). Any PostgREST error bubbles up as a
+    //    SupabaseError from `sb()` and is caught by the outer try/catch below.
+    try {
+      const [promptText, companyContext, flags] = await Promise.all([
+        loadActivePromptText(supabase, workspaceId),
+        loadCompanyContext(supabase, workspace),
+        loadFlags(supabase, workspaceId, body),
+      ]);
 
-    return NextResponse.json(result);
-  } catch (err) {
-    logBestEffortWarn('intelligence.flags.analyse', 'Flag analysis failed', {
-      workspaceId,
-      err: err instanceof Error ? err.message : String(err),
-    });
-    return errorEnvelope('Failed to analyse flags', 500);
-  }
-}
+      if (!promptText) {
+        return errorEnvelope(
+          'No active scoring prompt found for this workspace',
+          400,
+        );
+      }
+      if (!companyContext) {
+        return errorEnvelope('Workspace has no linked company profile', 400);
+      }
+
+      const result = await analyseFeedFlags({
+        currentPromptText: promptText,
+        flags,
+        companyContext,
+      });
+
+      return NextResponse.json(result);
+    } catch (err) {
+      logBestEffortWarn('intelligence.flags.analyse', 'Flag analysis failed', {
+        workspaceId,
+        err: err instanceof Error ? err.message : String(err),
+      });
+      return errorEnvelope('Failed to analyse flags', 500);
+    }
+  },
+);

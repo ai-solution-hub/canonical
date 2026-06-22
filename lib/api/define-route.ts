@@ -52,10 +52,10 @@
  * canonical pattern (`auth.success` check + `authFailureResponse(auth)`); those
  * 401/403 responses pass through unchanged under case (1).
  *
- * Method-agnostic: returns a `(request, ctx?) => Promise<Response>` that the
- * route file exports under any HTTP-method name (GET/POST/PATCH/DELETE/PUT/
- * HEAD/OPTIONS). The codemod assigns the wrapped value to the appropriate
- * `export const METHOD = ...` binding.
+ * Method-agnostic: returns a function with the handler's OWN parameter tuple
+ * (`(...args) => Promise<Response>`) that the route file exports under any
+ * HTTP-method name (GET/POST/PATCH/DELETE/PUT/HEAD/OPTIONS). The codemod assigns
+ * the wrapped value to the appropriate `export const METHOD = ...` binding.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -64,28 +64,24 @@ import type { z } from 'zod';
 import { logger } from '@/lib/logger';
 
 /**
- * The signature Next.js App Router calls for a route handler — a
- * `NextRequest` and an optional dynamic-segment context whose `params` is
- * a `Promise` (Next.js 15+ async params shape, used by ~78 of the 92
- * parameterised routes in the corpus per TECH §8.2).
+ * The shape of a wrapped route export, generic over the handler's EXACT
+ * parameter tuple `Args`.
  *
- * The context is `unknown`-typed at the wrapper boundary because dynamic
- * route params are per-route-specific; downstream handlers may narrow via
- * generics or runtime checks. The wrapper itself only forwards the value
- * unchanged.
+ * `defineRoute` captures the handler's own parameter list rather than collapsing
+ * it to a fixed `(request, ctx?)` shape. This is the ID-50.3 contravariance fix:
+ * a dynamic route annotates its context as
+ * `{ params }: { params: Promise<{ id: string }> }`, which is NOT assignable to a
+ * fixed wrapper param typed `ctx?: { params?: Promise<unknown> }` — function
+ * parameters are contravariant, so the narrow handler is rejected. That mismatch
+ * is the source of the 118 TS2345 errors that block wrapping any parameterised
+ * route or `withRequestContext(defineRoute(...))` composition. By capturing the
+ * tuple via `Args extends unknown[]`, the wrapped export is typed
+ * `(...args: Args) => Promise<Response>` — byte-identical arity to what Next.js
+ * (and `withRequestContext`'s dynamic overload) calls, so composition type-checks
+ * with no cast.
  */
-export type RouteHandlerContext = {
-  params?: Promise<unknown>;
-};
-
-/**
- * The shape of a wrapped route export. Next.js calls this with the request
- * and (for dynamic routes) a context object; the wrapper returns the handler's
- * `Response` (pass-through) or a JSON-wrapped raw payload.
- */
-export type WrappedRoute = (
-  request: NextRequest,
-  ctx?: RouteHandlerContext,
+export type WrappedRoute<Args extends unknown[] = unknown[]> = (
+  ...args: Args
 ) => Promise<Response>;
 
 /**
@@ -205,19 +201,17 @@ function handleValidationFailure(
  *     return NextResponse.json({ items }); // → 200 JSON, validated
  *   });
  */
-export function defineRoute<S extends z.ZodTypeAny>(
+export function defineRoute<S extends z.ZodTypeAny, Args extends unknown[]>(
   schema: S,
-  handler: (
-    request: NextRequest,
-    ctx?: RouteHandlerContext,
-  ) => Promise<Response | z.infer<S>>,
-): WrappedRoute {
-  return async (
-    request: NextRequest,
-    ctx?: RouteHandlerContext,
-  ): Promise<Response> => {
-    const result = await handler(request, ctx);
-    const route = routeIdFor(request);
+  handler: (...args: Args) => Promise<Response | z.infer<S>>,
+): WrappedRoute<Args> {
+  return async (...args: Args): Promise<Response> => {
+    const result = await handler(...args);
+    // The route id is best-effort log/error context only. By convention Next.js
+    // calls every route export with the request first, so read it positionally
+    // (`args[0]`) since `Args` is generic; `routeIdFor` is fully null-safe, so a
+    // non-request / absent first arg degrades to 'unknown' rather than throwing.
+    const route = routeIdFor(args[0] as NextRequest | undefined);
 
     // ── Case 1: handler returned a Response/NextResponse (the majority path).
     if (result instanceof Response) {

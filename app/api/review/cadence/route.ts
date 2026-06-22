@@ -1,12 +1,14 @@
-import { NextResponse } from 'next/server';
+import { defineRoute } from '@/lib/api/define-route';
 import {
-  getAuthorisedClient,
   authFailureResponse,
+  getAuthorisedClient,
   rateLimitResponse,
 } from '@/lib/auth/client';
-import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
+import { checkRateLimit } from '@/lib/rate-limit';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
@@ -42,16 +44,8 @@ export interface ReviewCadenceResponse {
   >;
 }
 
-/**
- * GET /api/review/cadence — review health metrics.
- *
- * Returns summary statistics, overdue items, and per-domain breakdown
- * of review cadence. Derives "last review" from `content_items.verified_at`.
- * "Overdue" = items not reviewed in `governance_config.timeout_days` (or 90 days default).
- *
- * Auth: editors and admins only.
- */
-export async function GET() {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async () => {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);
@@ -246,4 +240,4 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+});

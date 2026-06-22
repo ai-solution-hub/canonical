@@ -1,14 +1,17 @@
-import { NextResponse } from 'next/server';
+import { defineRoute } from "@/lib/api/define-route";
 import {
-  getAuthenticatedClient,
-  authFailureResponse,
+    authFailureResponse,
+    getAuthenticatedClient,
 } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { listAvailableTemplates } from '@/lib/templates/template-coverage';
+import { NextResponse } from 'next/server';
+import { z } from "zod";
 
 export const maxDuration = 30;
 
-export async function GET() {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async () => {
   try {
     const auth = await getAuthenticatedClient();
     if (!auth.success) return authFailureResponse(auth);
@@ -22,4 +25,4 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+});

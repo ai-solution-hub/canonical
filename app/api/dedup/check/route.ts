@@ -1,15 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { defineRoute } from '@/lib/api/define-route';
 import {
-  getAuthorisedClient,
   authFailureResponse,
+  getAuthorisedClient,
   rateLimitResponse,
 } from '@/lib/auth/client';
-import { checkRateLimit } from '@/lib/rate-limit';
 import { checkForDuplicates } from '@/lib/dedup/content-dedup';
 import { safeErrorMessage } from '@/lib/error';
-import { z } from 'zod';
-import { parseBody } from '@/lib/validation';
 import { logger } from '@/lib/logger';
+import { checkRateLimit } from '@/lib/rate-limit';
+import { parseBody } from '@/lib/validation';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 15;
 
@@ -25,17 +26,8 @@ const DedupCheckBodySchema = z.object({
   embedding: z.array(z.number()).optional(),
 });
 
-/**
- * POST /api/dedup/check — Check text for duplicates against the KB.
- *
- * Wraps `checkForDuplicates` from `lib/dedup.ts` for client-side
- * per-pair dedup checking in the Q&A preview flow.
- *
- * Auth: editor or admin role required (same as item creation).
- * Rate limit: 30 requests per minute per user (allows batch checking
- * of Q&A pairs with some headroom).
- */
-export async function POST(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     // Auth + role check — editors and admins only
     const auth = await getAuthorisedClient(['admin', 'editor']);
@@ -71,4 +63,4 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

@@ -1,21 +1,23 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { defineRoute } from '@/lib/api/define-route';
 import {
+  authFailureResponse,
   getAuthenticatedClient,
   getAuthorisedClient,
-  authFailureResponse,
+  rateLimitResponse,
 } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import {
   buildGuideSectionSchema,
   guideSectionsReorderSchema,
 } from '@/lib/validation/guide-schemas';
 import { fetchActiveLayerKeys } from '@/lib/validation/layer-schemas';
-import { checkRateLimit } from '@/lib/rate-limit';
-import { rateLimitResponse } from '@/lib/auth/client';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
-import { logger } from '@/lib/logger';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
@@ -70,176 +72,189 @@ function guideResolutionResponse(
   );
 }
 
-/** GET /api/guides/[slug]/sections — list sections for a guide */
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ slug: string }> },
-) {
-  try {
-    const auth = await getAuthenticatedClient();
-    if (!auth.success) return authFailureResponse(auth);
-    const { supabase } = auth;
-
-    const { slug } = await params;
-    if (!SLUG_RE.test(slug)) {
-      return NextResponse.json(
-        { error: 'Invalid guide slug' },
-        { status: 400 },
-      );
-    }
-
-    const guideResult = await resolveGuideId(supabase, slug);
-    if (!guideResult.ok) return guideResolutionResponse(guideResult);
-    const guide = { id: guideResult.id };
-
-    const { data, error } = await supabase
-      .from('guide_sections')
-      .select('*')
-      .eq('guide_id', guide.id)
-      .order('display_order');
-
-    if (error) {
-      logger.error({ err: error }, 'Failed to fetch guide sections');
-      return NextResponse.json(
-        { error: 'Failed to fetch guide sections' },
-        { status: 500 },
-      );
-    }
-
-    return NextResponse.json(data);
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to fetch guide sections') },
-      { status: 500 },
-    );
-  }
-}
-
-/** POST /api/guides/[slug]/sections — create a section */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ slug: string }> },
-) {
-  try {
-    const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth.success) return authFailureResponse(auth);
-    const { user, supabase } = auth;
-
-    const { slug } = await params;
-    if (!SLUG_RE.test(slug)) {
-      return NextResponse.json(
-        { error: 'Invalid guide slug' },
-        { status: 400 },
-      );
-    }
-
-    const rl = checkRateLimit(`guide-sections-create:${user.id}`, 50, 60_000);
-    if (!rl.allowed) return rateLimitResponse(rl.resetAt);
-
-    const guideResult = await resolveGuideId(supabase, slug);
-    if (!guideResult.ok) return guideResolutionResponse(guideResult);
-    const guide = { id: guideResult.id };
-
-    let layerKeys: string[];
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(
+  z.unknown(),
+  async (
+    _request: NextRequest,
+    { params }: { params: Promise<{ slug: string }> },
+  ) => {
     try {
-      layerKeys = await fetchActiveLayerKeys(supabase);
+      const auth = await getAuthenticatedClient();
+      if (!auth.success) return authFailureResponse(auth);
+      const { supabase } = auth;
+
+      const { slug } = await params;
+      if (!SLUG_RE.test(slug)) {
+        return NextResponse.json(
+          { error: 'Invalid guide slug' },
+          { status: 400 },
+        );
+      }
+
+      const guideResult = await resolveGuideId(supabase, slug);
+      if (!guideResult.ok) return guideResolutionResponse(guideResult);
+      const guide = { id: guideResult.id };
+
+      const { data, error } = await supabase
+        .from('guide_sections')
+        .select('*')
+        .eq('guide_id', guide.id)
+        .order('display_order');
+
+      if (error) {
+        logger.error({ err: error }, 'Failed to fetch guide sections');
+        return NextResponse.json(
+          { error: 'Failed to fetch guide sections' },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json(data);
     } catch (err) {
       return NextResponse.json(
-        {
-          error: 'Layer vocabulary unavailable',
-          detail: safeErrorMessage(err, 'Layer vocabulary unavailable'),
-        },
-        { status: 503 },
-      );
-    }
-    const schema = buildGuideSectionSchema(layerKeys);
-
-    const raw = await request.json();
-    const parsed = parseBody(schema, raw);
-    if (!parsed.success) return parsed.response;
-
-    const { data, error } = await supabase
-      .from('guide_sections')
-      .insert({
-        ...parsed.data,
-        guide_id: guide.id,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      logger.error({ err: error }, 'Failed to create guide section');
-      return NextResponse.json(
-        { error: 'Failed to create guide section' },
+        { error: safeErrorMessage(err, 'Failed to fetch guide sections') },
         { status: 500 },
       );
     }
+  },
+);
 
-    return NextResponse.json(data, { status: 201 });
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to create guide section') },
-      { status: 500 },
-    );
-  }
-}
+// TODO(OPS-T1): author ResponseSchema
+export const POST = defineRoute(
+  z.unknown(),
+  async (
+    request: NextRequest,
+    { params }: { params: Promise<{ slug: string }> },
+  ) => {
+    try {
+      const auth = await getAuthorisedClient(['admin', 'editor']);
+      if (!auth.success) return authFailureResponse(auth);
+      const { user, supabase } = auth;
 
-/** PUT /api/guides/[slug]/sections — reorder sections */
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ slug: string }> },
-) {
-  try {
-    const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth.success) return authFailureResponse(auth);
-    const { user, supabase } = auth;
+      const { slug } = await params;
+      if (!SLUG_RE.test(slug)) {
+        return NextResponse.json(
+          { error: 'Invalid guide slug' },
+          { status: 400 },
+        );
+      }
 
-    const { slug } = await params;
-    if (!SLUG_RE.test(slug)) {
-      return NextResponse.json(
-        { error: 'Invalid guide slug' },
-        { status: 400 },
-      );
-    }
+      const rl = checkRateLimit(`guide-sections-create:${user.id}`, 50, 60_000);
+      if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
-    const rl = checkRateLimit(`guide-sections-reorder:${user.id}`, 20, 60_000);
-    if (!rl.allowed) return rateLimitResponse(rl.resetAt);
+      const guideResult = await resolveGuideId(supabase, slug);
+      if (!guideResult.ok) return guideResolutionResponse(guideResult);
+      const guide = { id: guideResult.id };
 
-    const guideResult = await resolveGuideId(supabase, slug);
-    if (!guideResult.ok) return guideResolutionResponse(guideResult);
-    const guide = { id: guideResult.id };
+      let layerKeys: string[];
+      try {
+        layerKeys = await fetchActiveLayerKeys(supabase);
+      } catch (err) {
+        return NextResponse.json(
+          {
+            error: 'Layer vocabulary unavailable',
+            detail: safeErrorMessage(err, 'Layer vocabulary unavailable'),
+          },
+          { status: 503 },
+        );
+      }
+      const schema = buildGuideSectionSchema(layerKeys);
 
-    const raw = await request.json();
-    const parsed = parseBody(guideSectionsReorderSchema, raw);
-    if (!parsed.success) return parsed.response;
+      const raw = await request.json();
+      const parsed = parseBody(schema, raw);
+      if (!parsed.success) return parsed.response;
 
-    // Update each section's display_order
-    const updates = parsed.data.sections.map((section) =>
-      supabase
+      const { data, error } = await supabase
         .from('guide_sections')
-        .update({
-          display_order: section.display_order,
-          updated_at: new Date().toISOString(),
+        .insert({
+          ...parsed.data,
+          guide_id: guide.id,
         })
-        .eq('id', section.id)
-        .eq('guide_id', guide.id),
-    );
+        .select()
+        .single();
 
-    const results = await Promise.all(updates);
-    const failed = results.find((r) => r.error);
-    if (failed?.error) {
-      logger.error({ err: failed.error }, 'Failed to reorder guide sections');
+      if (error) {
+        logger.error({ err: error }, 'Failed to create guide section');
+        return NextResponse.json(
+          { error: 'Failed to create guide section' },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json(data, { status: 201 });
+    } catch (err) {
       return NextResponse.json(
-        { error: 'Failed to reorder guide sections' },
+        { error: safeErrorMessage(err, 'Failed to create guide section') },
         { status: 500 },
       );
     }
+  },
+);
 
-    return NextResponse.json({ success: true });
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to reorder guide sections') },
-      { status: 500 },
-    );
-  }
-}
+// TODO(OPS-T1): author ResponseSchema
+export const PUT = defineRoute(
+  z.unknown(),
+  async (
+    request: NextRequest,
+    { params }: { params: Promise<{ slug: string }> },
+  ) => {
+    try {
+      const auth = await getAuthorisedClient(['admin', 'editor']);
+      if (!auth.success) return authFailureResponse(auth);
+      const { user, supabase } = auth;
+
+      const { slug } = await params;
+      if (!SLUG_RE.test(slug)) {
+        return NextResponse.json(
+          { error: 'Invalid guide slug' },
+          { status: 400 },
+        );
+      }
+
+      const rl = checkRateLimit(
+        `guide-sections-reorder:${user.id}`,
+        20,
+        60_000,
+      );
+      if (!rl.allowed) return rateLimitResponse(rl.resetAt);
+
+      const guideResult = await resolveGuideId(supabase, slug);
+      if (!guideResult.ok) return guideResolutionResponse(guideResult);
+      const guide = { id: guideResult.id };
+
+      const raw = await request.json();
+      const parsed = parseBody(guideSectionsReorderSchema, raw);
+      if (!parsed.success) return parsed.response;
+
+      // Update each section's display_order
+      const updates = parsed.data.sections.map((section) =>
+        supabase
+          .from('guide_sections')
+          .update({
+            display_order: section.display_order,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', section.id)
+          .eq('guide_id', guide.id),
+      );
+
+      const results = await Promise.all(updates);
+      const failed = results.find((r) => r.error);
+      if (failed?.error) {
+        logger.error({ err: failed.error }, 'Failed to reorder guide sections');
+        return NextResponse.json(
+          { error: 'Failed to reorder guide sections' },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json({ success: true });
+    } catch (err) {
+      return NextResponse.json(
+        { error: safeErrorMessage(err, 'Failed to reorder guide sections') },
+        { status: 500 },
+      );
+    }
+  },
+);

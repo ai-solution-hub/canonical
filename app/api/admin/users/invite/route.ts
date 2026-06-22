@@ -1,15 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
-import { createServiceClient } from '@/lib/supabase/server';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
+import { createServiceClient } from '@/lib/supabase/server';
 import { parseBody } from '@/lib/validation';
 import { UserInviteBodySchema } from '@/lib/validation/schemas';
-import { logger } from '@/lib/logger';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
-/** POST /api/admin/users/invite — invite a new user by email (admin only) */
-export async function POST(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     const auth = await getAuthorisedClient(['admin']);
     if (!auth.success) return authFailureResponse(auth);
@@ -94,4 +96,4 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

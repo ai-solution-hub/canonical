@@ -1,10 +1,12 @@
 // app/api/intelligence/trigger-poll/route.ts
-import { NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { runPipeline } from '@/lib/intelligence/pipeline';
+import { createServiceClient } from '@/lib/supabase/server';
+import { TriggerPollResponseSchema } from '@/lib/validation/schemas';
+import { NextResponse } from 'next/server';
 
-export async function POST() {
+export const POST = defineRoute(TriggerPollResponseSchema, async () => {
   // Admin-only manual trigger
   const auth = await getAuthorisedClient(['admin']);
   if (!auth.success) return authFailureResponse(auth);
@@ -17,4 +19,4 @@ export async function POST() {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
-}
+});

@@ -13,18 +13,20 @@
  * Admin-only.
  */
 
-import { NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
+import { safeErrorMessage } from '@/lib/error';
 import { sb } from '@/lib/supabase/safe';
 import { computeTaxonomyHash } from '@/lib/taxonomy/sync-trigger';
-import { safeErrorMessage } from '@/lib/error';
+import { TaxonomySyncStatusSchema } from '@/lib/validation/schemas';
+import { NextResponse } from 'next/server';
 
 export const maxDuration = 15;
 
 const PIPELINE_NAME = 'taxonomy_sync';
 const STALE_THRESHOLD_MINUTES = 10;
 
-export async function GET() {
+export const GET = defineRoute(TaxonomySyncStatusSchema, async () => {
   try {
     const auth = await getAuthorisedClient(['admin']);
     if (!auth.success) return authFailureResponse(auth);
@@ -95,4 +97,4 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+});

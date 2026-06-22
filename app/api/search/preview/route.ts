@@ -1,15 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
+import { defineRoute } from '@/lib/api/define-route';
 import {
+  authFailureResponse,
   getAuthenticatedClient,
   rateLimitResponse,
-  authFailureResponse,
 } from '@/lib/auth/client';
-import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
-import { sb } from '@/lib/supabase/safe';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { PREVIEW_MAX_RESULTS } from '@/lib/search-history';
+import { sb } from '@/lib/supabase/safe';
 import { parseSearchParams } from '@/lib/validation';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 const PreviewSearchSchema = z.object({
   q: z.string().trim().min(1),
@@ -30,7 +31,8 @@ export function escapeIlike(raw: string): string {
 
 export const maxDuration = 30;
 
-export async function GET(request: NextRequest) {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
     // Auth check — viewer+ permitted
     const auth = await getAuthenticatedClient();
@@ -93,4 +95,4 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

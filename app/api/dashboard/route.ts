@@ -1,22 +1,18 @@
-import { NextResponse } from 'next/server';
-import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth/client';
-import { safeErrorMessage } from '@/lib/error';
+import { defineRoute } from '@/lib/api/define-route';
+import { authFailureResponse, getAuthenticatedClient } from '@/lib/auth/client';
 import {
   fetchUnifiedDashboardData,
   unifiedToDashboardData,
 } from '@/lib/dashboard';
+import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
-/**
- * GET /api/dashboard
- *
- * Aggregated dashboard data for client-side refresh.
- * Initial page render uses server-side queries directly.
- * All authenticated users can access.
- */
-export async function GET() {
+// TODO(OPS-T1): author ResponseSchema
+export const GET = defineRoute(z.unknown(), async () => {
   try {
     const auth = await getAuthenticatedClient();
     if (!auth.success) return authFailureResponse(auth);
@@ -92,4 +88,4 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+});
