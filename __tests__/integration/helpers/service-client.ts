@@ -14,25 +14,7 @@ import { resolve } from 'path';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 import { DB_OPTION } from '@/lib/supabase/schema';
-
-// Load .env and .env.local from project root.
-// Worktrees under .claude/worktrees/<name>/ don't have their own .env files,
-// so we walk up from cwd to find the main repo root.
-function findProjectRoot(): string {
-  // cwd is typically the worktree or repo root
-  let dir = process.cwd();
-  // Walk up until we find a .env file (max 5 levels)
-  for (let i = 0; i < 5; i++) {
-    try {
-      const result = config({ path: resolve(dir, '.env') });
-      if (!result.error) return dir;
-    } catch {
-      /* continue searching */
-    }
-    dir = resolve(dir, '..');
-  }
-  return process.cwd();
-}
+import { findProjectRoot } from './find-project-root';
 
 const projectRoot = findProjectRoot();
 // Load .env then .env.local with override (Next.js convention — .env.local wins).
