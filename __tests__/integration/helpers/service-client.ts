@@ -16,14 +16,26 @@ import type { Database } from '@/supabase/types/database.types';
 import { DB_OPTION } from '@/lib/supabase/schema';
 import { findProjectRoot } from './find-project-root';
 
-const projectRoot = findProjectRoot();
-// Load .env then .env.local with override (Next.js convention — .env.local wins).
-// Without override:true the second load is a no-op for keys already set by .env,
-// so stale .env values silently win. Surfaced post-S201 SUPABASE_SERVICE_ROLE_KEY
-// rotation when .env carried the old value and integration tests called
-// auth.admin.listUsers against the wrong project.
-config({ path: resolve(projectRoot, '.env') });
-config({ path: resolve(projectRoot, '.env.local'), override: true });
+// Resolve the project root from a dotenv marker file. In CI the env vars are
+// injected directly into the process environment (no .env/.env.local on disk),
+// so findProjectRoot() throws — fall back to the ambient process.env in that
+// case. The url/key guard below is the real loud config gate, so a missing
+// dotenv file with the required vars already set is a valid (CI) state.
+let projectRoot: string | null = null;
+try {
+  projectRoot = findProjectRoot();
+} catch {
+  projectRoot = null;
+}
+if (projectRoot) {
+  // Load .env then .env.local with override (Next.js convention — .env.local wins).
+  // Without override:true the second load is a no-op for keys already set by .env,
+  // so stale .env values silently win. Surfaced post-S201 SUPABASE_SERVICE_ROLE_KEY
+  // rotation when .env carried the old value and integration tests called
+  // auth.admin.listUsers against the wrong project.
+  config({ path: resolve(projectRoot, '.env') });
+  config({ path: resolve(projectRoot, '.env.local'), override: true });
+}
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
