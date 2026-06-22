@@ -1,5 +1,5 @@
 import { defineRoute } from '@/lib/api/define-route';
-import { authFailureResponse, getAuthenticatedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthenticatedClient } from '@/lib/auth/client';
 import { generateContentSuggestions } from '@/lib/content/content-suggestions';
 import { safeErrorMessage } from '@/lib/error';
 import { parseSearchParams } from '@/lib/validation';

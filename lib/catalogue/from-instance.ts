@@ -31,7 +31,7 @@ import {
   getAuthorisedClient,
   authFailureResponse,
   type AuthorisedResult,
-} from '@/lib/auth';
+} from '@/lib/auth/client';
 import { tryQuery, type Result } from '@/lib/supabase/safe';
 import { logger } from '@/lib/logger';
 

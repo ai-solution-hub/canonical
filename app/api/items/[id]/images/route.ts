@@ -4,7 +4,7 @@ import {
   getAuthenticatedClient,
   getAuthorisedClient,
   rateLimitResponse,
-} from '@/lib/auth';
+} from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { toJson } from '@/lib/validation/jsonb';

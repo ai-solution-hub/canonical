@@ -1,4 +1,4 @@
-import { getAuthenticatedClient } from '@/lib/auth';
+import { getAuthenticatedClient } from '@/lib/auth/client';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 import { redirect } from 'next/navigation';

@@ -4,7 +4,7 @@ import {
   authFailureResponse,
   getAuthorisedClient,
   rateLimitResponse,
-} from '@/lib/auth';
+} from '@/lib/auth/client';
 import { htmlToPlainText } from '@/lib/editor-utils';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
@@ -56,7 +56,7 @@ export const POST = defineRoute(
 
       // Admin-only dedup override (spec §6 D2). Silent-ignore for non-admin.
       const skipDedup = skip_dedup === true && role === 'admin';
-      const { checkExactDuplicate } = await import('@/lib/dedup');
+      const { checkExactDuplicate } = await import('@/lib/dedup/content-dedup');
 
       // Verify bid exists and is in won state.
       // Post-T2: discriminator via application_types JOIN.

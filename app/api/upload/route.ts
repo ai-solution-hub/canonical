@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
 import { resolveContentOwnerId } from '@/lib/auth/owner-default';
 import { parseBody } from '@/lib/validation';
 import { createServiceClient } from '@/lib/supabase/server';
@@ -527,7 +527,7 @@ export async function POST(request: NextRequest) {
     if (extractedText) {
       try {
         const { checkForDuplicates, formatDedupWarning, resolveDedupStamp } =
-          await import('@/lib/dedup');
+          await import('@/lib/dedup/content-dedup');
         const dedupResult = await checkForDuplicates(
           serviceClient,
           extractedText,

@@ -29,9 +29,11 @@ import { createMockSupabaseClient } from '@/__tests__/helpers/mock-supabase';
 // Module mocks. The route lazy-imports extraction / embed / classify, so these
 // mocks must be in place before the dynamic import resolves.
 // ---------------------------------------------------------------------------
-vi.mock('@/lib/auth', async () => {
+vi.mock('@/lib/auth/client', async () => {
   const actual =
-    await vi.importActual<typeof import('@/lib/auth')>('@/lib/auth');
+    await vi.importActual<typeof import('@/lib/auth/client')>(
+      '@/lib/auth/client',
+    );
   return { ...actual, getAuthorisedClient: vi.fn() };
 });
 
@@ -74,7 +76,7 @@ vi.mock('@/lib/ai/embed', () => ({
 vi.mock('@/lib/ai/classify', () => ({ classifyText: vi.fn() }));
 
 import { POST } from '@/app/api/ingest/url/route';
-import { getAuthorisedClient } from '@/lib/auth';
+import { getAuthorisedClient } from '@/lib/auth/client';
 import { validateUrl } from '@/lib/extraction/url-validation';
 import { fetchForExtraction, extractHtmlMetadata } from '@/lib/extraction/url';
 import {

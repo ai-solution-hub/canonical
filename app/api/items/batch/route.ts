@@ -1,5 +1,5 @@
 import { defineRoute } from '@/lib/api/define-route';
-import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { resolveContentOwnerId } from '@/lib/auth/owner-default';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
@@ -113,7 +113,7 @@ export const POST = defineRoute(
         userId: user.id,
       });
       const { checkExactDuplicate, resolveDedupStamp } =
-        await import('@/lib/dedup');
+        await import('@/lib/dedup/content-dedup');
 
       // Service client for pipeline_runs and item creation (bypasses RLS)
       const { createServiceClient } = await import('@/lib/supabase/server');

@@ -3,7 +3,7 @@ import {
   authFailureResponse,
   getAuthorisedClient,
   rateLimitResponse,
-} from '@/lib/auth';
+} from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { normaliseUrl } from '@/lib/extraction/url-normalise';
 import { validateUrl } from '@/lib/extraction/url-validation';

@@ -18,7 +18,7 @@
 // client as a generic 500 so raw model output / stack traces never leak.
 
 import { defineRoute } from '@/lib/api/define-route';
-import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import {
   analyseFeedFlags,
   type FlagAnalysisFlag,

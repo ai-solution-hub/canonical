@@ -19,7 +19,7 @@ import { render, screen } from '@testing-library/react';
 // useLauncherTypes() as initialData. The mock therefore branches on the table
 // name: `workspaces` resolves the count rows via `.eq()`, `application_types`
 // resolves the seed rows via `.order()`.
-vi.mock('@/lib/auth', () => ({
+vi.mock('@/lib/auth/client', () => ({
   getAuthenticatedClient: vi.fn().mockResolvedValue({
     success: true,
     user: { id: 'user-1' },

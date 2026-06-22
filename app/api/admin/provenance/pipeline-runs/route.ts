@@ -19,7 +19,7 @@
  */
 
 import { defineRoute } from '@/lib/api/define-route';
-import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { isOk, tryQuery } from '@/lib/supabase/safe';
 import {

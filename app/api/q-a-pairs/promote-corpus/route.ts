@@ -32,7 +32,7 @@
 export const maxDuration = 120;
 
 import { defineRoute } from '@/lib/api/define-route';
-import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { promoteCorpusExtractions } from '@/lib/q-a-pairs/promote-corpus';
 import { NextResponse, type NextRequest } from 'next/server';

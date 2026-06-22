@@ -65,7 +65,7 @@ function buildFixture(opts: {
   const importLines: string[] = [];
   if (hasAuth) {
     importLines.push(
-      "import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';",
+      "import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';",
     );
   }
   if (hasWRC) {
@@ -331,7 +331,7 @@ function buildJsDocPoisonedFixture(opts: {
   const importLines: string[] = [];
   if (hasAuth) {
     importLines.push(
-      "import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';",
+      "import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';",
     );
   }
 
@@ -387,7 +387,7 @@ describe('classifyRoute — JSDoc / comment poisoning (Subtask 32.17)', () => {
     // The fixture has both a JSDoc mention AND a real call to request.json()
     // — the real call must dominate so the result is PARAM_BODY.
     const project = new Project({ useInMemoryFileSystem: true });
-    const source = `import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+    const source = `import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
 
 /**
  * PATCH handler — calls request.json() in executable code (positive control).
@@ -411,7 +411,7 @@ export async function PATCH(request) {
     // request.json() in a comment (poisoning) but only calls parseBody() in
     // executable code, on a non-parameterised path → BODY_VALIDATED.
     const project = new Project({ useInMemoryFileSystem: true });
-    const source = `import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+    const source = `import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
 import { parseBody } from '@/lib/validation';
 import { SomeSchema } from '@/lib/validation/schemas';
 

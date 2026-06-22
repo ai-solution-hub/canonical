@@ -21,7 +21,7 @@ all tracked.
 **Primary CLI:**
 
 ```bash
-bun scripts/ast-dataflow-cli.ts <query> [args]
+bun run ast-dataflow <query> [args]
 ```
 
 ---
@@ -47,7 +47,7 @@ Eleven queries are available. Match your question to the right query:
 ### callers — "who calls this function?"
 
 ```bash
-bun scripts/ast-dataflow-cli.ts callers \
+bun run ast-dataflow callers \
   --symbol 'lib/supabase/safe.ts:sb'
 ```
 
@@ -66,7 +66,7 @@ function/method that wraps the call), `resolution` (`direct` | `aliased` |
 ### references — "every TypeScript reference to a symbol"
 
 ```bash
-bun scripts/ast-dataflow-cli.ts references \
+bun run ast-dataflow references \
   --symbol 'types/bid.ts:BidState'
 ```
 
@@ -83,7 +83,7 @@ evolution blast radius.
 ### importers — "which files import this module?"
 
 ```bash
-bun scripts/ast-dataflow-cli.ts importers \
+bun run ast-dataflow importers \
   --module '@/lib/supabase/safe'
 ```
 
@@ -100,7 +100,7 @@ checking who depends on a module before removing it.
 ### string-literal-uses — "find string literals with AST context"
 
 ```bash
-bun scripts/ast-dataflow-cli.ts string-literal-uses \
+bun run ast-dataflow string-literal-uses \
   --value 'generateDigest'
 ```
 
@@ -119,7 +119,7 @@ finding hardcoded URL fragments.
 ### column-reads — "every TS file that reads a Supabase column"
 
 ```bash
-bun scripts/ast-dataflow-cli.ts column-reads \
+bun run ast-dataflow column-reads \
   --table content_items --column summary
 ```
 
@@ -135,7 +135,7 @@ all read sites, column-access audits.
 ### column-writes — "every TS file that writes a Supabase column"
 
 ```bash
-bun scripts/ast-dataflow-cli.ts column-writes \
+bun run ast-dataflow column-writes \
   --table content_items --column summary
 ```
 
@@ -150,7 +150,7 @@ direct writes bypass `sb()` wrappers.
 ### dead-exports — "exports with no non-test callers"
 
 ```bash
-bun scripts/ast-dataflow-cli.ts dead-exports \
+bun run ast-dataflow dead-exports \
   --scope 'lib/bid/**'
 ```
 
@@ -166,7 +166,7 @@ confirmation. **Companion:** Pattern 1 (Knip dead-exports verifier).
 ### reexport-chain — "trace the full barrel chain for a symbol"
 
 ```bash
-bun scripts/ast-dataflow-cli.ts reexport-chain \
+bun run ast-dataflow reexport-chain \
   --symbol '@/lib/bid:createBid'
 ```
 
@@ -183,7 +183,7 @@ isn't?", auditing barrel-chain depth, verifying no-barrel-re-exports rule.
 ### type-evolution — "all type-position references for a TypeScript type"
 
 ```bash
-bun scripts/ast-dataflow-cli.ts type-evolution \
+bun run ast-dataflow type-evolution \
   --type 'types/bid.ts:BidState'
 ```
 
@@ -202,7 +202,7 @@ fix only). **Companion:** Pattern 6 (type-evolution agreement check).
 ### enum-uses — "all reads of a specific enum or `as const` member"
 
 ```bash
-bun scripts/ast-dataflow-cli.ts enum-uses \
+bun run ast-dataflow enum-uses \
   --enum BID_STATES [--member DRAFT]
 ```
 
@@ -221,7 +221,7 @@ Pattern 8 (Knip enum-member confirmation).
 ### flow-trace — "step-by-step call path from entry to target"
 
 ```bash
-bun scripts/ast-dataflow-cli.ts flow-trace \
+bun run ast-dataflow flow-trace \
   --entry 'app/api/bid/[id]/route.ts:GET' \
   --target 'lib/supabase/safe.ts:sb'
 ```
@@ -239,7 +239,7 @@ tracing the auth chain, verifying that a write path goes through `sb()`.
 ### type-drift-detect — "API response-interface drift classification"
 
 ```bash
-bun scripts/ast-dataflow-cli.ts type-drift-detect
+bun run ast-dataflow type-drift-detect
 ```
 
 Classifies every response-interface candidate in the codebase into one of

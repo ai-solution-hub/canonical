@@ -1,5 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
-import { getAuthorisedClient } from '@/lib/auth';
+import { getAuthorisedClient } from '@/lib/auth/client';
 import { NearDuplicatesPairDetailClient } from '@/components/admin/content-dedup/near-duplicates/near-duplicates-pair-detail';
 import { parsePairId } from '@/lib/dedup/pair-id';
 

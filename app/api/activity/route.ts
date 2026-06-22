@@ -1,5 +1,5 @@
 import { defineRoute } from '@/lib/api/define-route';
-import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { mapGroupedActivityRows } from '@/lib/dashboard';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';

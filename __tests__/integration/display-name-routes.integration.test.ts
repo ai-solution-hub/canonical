@@ -17,7 +17,7 @@
  * caused S156: a route whose happy-path tests passed while prod was
  * silently degrading because the test mocked the code path that broke.
  *
- * If this file ever reintroduces `vi.mock('@/lib/auth')` or
+ * If this file ever reintroduces `vi.mock('@/lib/auth/client')` or
  * `vi.mock('@/lib/users/display-names')`, it stops doing its job.
  *
  * Prereqs:

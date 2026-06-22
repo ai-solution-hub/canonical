@@ -8,7 +8,7 @@ import {
   authFailureResponse,
   getAuthorisedClient,
   rateLimitResponse,
-} from '@/lib/auth';
+} from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { PIPELINE_SYSTEM_USER_ID } from '@/lib/intelligence/types';
 import { logger } from '@/lib/logger';

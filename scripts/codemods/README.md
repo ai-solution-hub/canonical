@@ -47,8 +47,8 @@ test suite redirects emission to a `tmpdir()` so it never dirties the committed 
 ## The verifier: `type-drift-detect`
 
 The regression gate that pairs with this codemod is the read-only ast-dataflow query
-`type-drift-detect` (`lib/ast-dataflow/queries/type-drift-detect.ts`), exposed through the
-CLI:
+`type-drift-detect` (`tools/ast-dataflow/queries/type-drift-detect.ts`), exposed through
+the CLI:
 
 ```bash
 bun run ast-dataflow type-drift-detect --pretty   # human review (Markdown)

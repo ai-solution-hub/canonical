@@ -70,7 +70,7 @@ vi.mock('next/headers', () => ({
 }));
 
 // Import the auth helper AFTER the mock is registered.
-const { getAuthorisedClient } = await import('@/lib/auth');
+const { getAuthorisedClient } = await import('@/lib/auth/client');
 
 // ---------------------------------------------------------------------------
 // Constants

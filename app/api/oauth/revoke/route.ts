@@ -5,7 +5,7 @@
  * Invalidates the client's sessions and refresh tokens immediately.
  */
 import { defineRoute } from '@/lib/api/define-route';
-import { authFailureResponse, getAuthenticatedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthenticatedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { RevokeSchema } from '@/lib/validation/schemas';

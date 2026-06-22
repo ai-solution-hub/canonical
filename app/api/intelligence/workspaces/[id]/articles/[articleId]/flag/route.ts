@@ -1,6 +1,6 @@
 // app/api/intelligence/workspaces/[id]/articles/[articleId]/flag/route.ts
 import { defineRoute } from '@/lib/api/define-route';
-import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { FeedFlagCreateSchema, FeedFlagSchema } from '@/lib/validation/schemas';

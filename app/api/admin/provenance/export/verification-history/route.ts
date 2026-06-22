@@ -14,7 +14,7 @@
 import type { VerificationRow } from '@/components/provenance/report-document';
 import ReportDocument from '@/components/provenance/report-document';
 import { defineRoute } from '@/lib/api/define-route';
-import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { recordPipelineRun } from '@/lib/pipeline/record-run';
 import { sb } from '@/lib/supabase/safe';

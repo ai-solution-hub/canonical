@@ -147,7 +147,7 @@ describe('Inv-18 — cocoindex pipeline_runs writes go through recordPipelineRun
     // Note: a full ts-morph string-literal-uses sweep across lib/pipeline/
     // confirms the ONLY raw insert in lib/pipeline/ lives in record-run.ts
     // (line 201, fn:recordPipelineRun) — verified via:
-    //   bun scripts/ast-dataflow-cli.ts string-literal-uses \
+    //   bun run ast-dataflow string-literal-uses \
     //     --value "pipeline_runs"
     // and filtering for `kind:argument` + `enclosing:fn:recordPipelineRun`.
     //

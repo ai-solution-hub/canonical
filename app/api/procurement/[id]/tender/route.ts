@@ -3,7 +3,7 @@ import {
   authFailureResponse,
   getAuthorisedClient,
   rateLimitResponse,
-} from '@/lib/auth';
+} from '@/lib/auth/client';
 import { isEncryptedDocx } from '@/lib/docx-utils';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';

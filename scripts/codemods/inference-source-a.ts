@@ -12,7 +12,7 @@
  * `.type-drift-baseline.json` (repo root); for each baseline entry, maps
  * the interface name to its route file via the heuristic URL matcher
  * (equivalent to `urlToRoutePath` + `routePathMatches` in
- * `lib/ast-dataflow/queries/type-drift-detect.ts` — that file is the
+ * `tools/ast-dataflow/queries/type-drift-detect.ts` — that file is the
  * canonical type-drift detector and MUST NOT be modified); looks up
  * `${interfaceName}Schema` or `${interfaceName}ZodSchema` in
  * `lib/validation/schemas.ts` via name convention; returns the schema
@@ -166,7 +166,7 @@ function resolveLookupPath(project: Project, suffix: string): string | null {
  * substitutions.
  *
  * This is the inverse of `urlToRoutePath` in
- * `lib/ast-dataflow/queries/type-drift-detect.ts`; the two functions
+ * `tools/ast-dataflow/queries/type-drift-detect.ts`; the two functions
  * together form the heuristic URL matcher's round-trip.
  */
 export function routePathToCandidateUrl(routeRelPath: string): string {
@@ -652,7 +652,7 @@ function methodFetchKind(method: string): FetchKind | null {
  *
  * Rather than re-architect the heuristic URL matcher (which shares its
  * round-trip contract with the canonical, MUST-NOT-MODIFY
- * `lib/ast-dataflow/queries/type-drift-detect.ts`), we override the offending
+ * `tools/ast-dataflow/queries/type-drift-detect.ts`), we override the offending
  * (route-suffix, method) pairs to their hand-authored schemas in
  * `lib/validation/schemas.ts` (authored OUTSIDE the {32.26} generated block).
  * The override is consulted with PRECEDENCE over the heuristic chain, so the

@@ -2,7 +2,7 @@ import { defineRoute } from "@/lib/api/define-route";
 import {
     authFailureResponse,
     getAuthorisedClient,
-} from '@/lib/auth';
+} from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
 import { parseBody } from '@/lib/validation';

@@ -14,7 +14,7 @@ import { describe, it, expect, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 
-vi.mock('@/lib/auth', () => ({
+vi.mock('@/lib/auth/client', () => ({
   getAuthorisedClient: vi.fn().mockResolvedValue({
     success: true,
     // Minimal chainable — the signal-count query is built here but executed by

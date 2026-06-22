@@ -5,7 +5,7 @@
  * Used by the Connected Apps section of the settings page.
  */
 import { defineRoute } from '@/lib/api/define-route';
-import { authFailureResponse, getAuthenticatedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthenticatedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';

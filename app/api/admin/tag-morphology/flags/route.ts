@@ -12,7 +12,7 @@
  */
 
 import { defineRoute } from '@/lib/api/define-route';
-import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { sb, SupabaseError } from '@/lib/supabase/safe';
 import { parseBody, parseSearchParams } from '@/lib/validation';

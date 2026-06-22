@@ -67,7 +67,7 @@ as a string. These two passes catch the two most common miss categories:
 **Pass A — old module path as a string literal:**
 
 ```bash
-bun scripts/ast-dataflow-cli.ts string-literal-uses \
+bun run ast-dataflow string-literal-uses \
   --value '<oldModulePath>'
 ```
 
@@ -78,7 +78,7 @@ old path.
 **Pass B — old symbol name as a string literal:**
 
 ```bash
-bun scripts/ast-dataflow-cli.ts string-literal-uses \
+bun run ast-dataflow string-literal-uses \
   --value '<oldName>'
 ```
 
@@ -105,14 +105,14 @@ it. After a correct rename, this should return zero results (the old module
 no longer exists). If it returns results, those files were missed entirely.
 
 ```bash
-bun scripts/ast-dataflow-cli.ts importers \
+bun run ast-dataflow importers \
   --module '<oldModulePath>'
 ```
 
 If the old module path was `lib/ai/change-reports.ts`, also run:
 
 ```bash
-bun scripts/ast-dataflow-cli.ts importers \
+bun run ast-dataflow importers \
   --module '@/lib/ai/change-reports'
 ```
 
@@ -130,7 +130,7 @@ Run `references` against the renamed symbol to confirm all TS-resolved
 references now point to the new name and carry `confidence: 'exact'`.
 
 ```bash
-bun scripts/ast-dataflow-cli.ts references \
+bun run ast-dataflow references \
   --symbol '<newModulePath>:<newName>'
 ```
 
@@ -193,7 +193,7 @@ ast_search:     6 (review carefully) — test fixture strings, SQL comments, Pyt
 **Q1 Pass A — old column name as string literal:**
 
 ```bash
-bun scripts/ast-dataflow-cli.ts string-literal-uses --value 'ai_summary'
+bun run ast-dataflow string-literal-uses --value 'ai_summary'
 ```
 
 Expected results (subset):
@@ -210,7 +210,7 @@ All must be updated to `summary`.
 **Q1 Pass B — old column name in SQL tag:**
 
 ```bash
-bun scripts/ast-dataflow-cli.ts string-literal-uses --value 'ai_summary'
+bun run ast-dataflow string-literal-uses --value 'ai_summary'
 ```
 
 (Same pass — includes any SQL template fragments.)
@@ -229,7 +229,7 @@ barrel-chain gaps.
 **Q3 — References to new column name:**
 
 ```bash
-bun scripts/ast-dataflow-cli.ts references \
+bun run ast-dataflow references \
   --symbol 'supabase/types/database.types.ts:content_items'
 ```
 
@@ -252,8 +252,8 @@ Q2 — Module import sweep:
 Q3 — New-symbol references:
   Via Supabase type — not directly addressable by ts-morph symbol lookup.
   Use column-reads/column-writes queries instead:
-    bun scripts/ast-dataflow-cli.ts column-reads --table content_items --column summary
-    bun scripts/ast-dataflow-cli.ts column-writes --table content_items --column summary
+    bun run ast-dataflow column-reads --table content_items --column summary
+    bun run ast-dataflow column-writes --table content_items --column summary
 
 VERDICT: NEEDS ACTION
   2 test fixture files require manual update of 'ai_summary' object keys → 'summary'

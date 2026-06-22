@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getAuthorisedClient } from '@/lib/auth';
+import { getAuthorisedClient } from '@/lib/auth/client';
 import { metricFor, type GraduationMetricValue } from '@/lib/eval/graduation';
 import { listTouchpoints } from '@/lib/eval/registry';
 import { tryQuery } from '@/lib/supabase/safe';

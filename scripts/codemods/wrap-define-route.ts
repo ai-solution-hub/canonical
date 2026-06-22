@@ -81,7 +81,7 @@ import type { NeedsManualReason, RouteShape } from './types';
  * Repo-root-anchored route matcher (S262 fix B3). The path RELATIVE to the
  * enumeration root must begin with `app/api/` and end with `/route.ts`. Anchored
  * with `^` so it matches the repo-root `app/api/` directory ONLY — NOT fixture
- * routes nested under `__tests__/lib/ast-dataflow/fixtures/.../app/api/.../route.ts`,
+ * routes nested under `tools/ast-dataflow/__tests__/fixtures/.../app/api/.../route.ts`,
  * which the pre-fix unanchored `app/api/.*\/route\.ts$` swept in (inflating the
  * live corpus 195 → 198).
  */
@@ -239,7 +239,7 @@ export function createCodemodProject(
  * Repo-root anchoring (S262 fix B3): the matcher is applied to the path made
  * RELATIVE to `rootDir` (default `process.cwd()`, the repo root in production).
  * Only paths that sit directly under `<rootDir>/app/api/` qualify — fixture
- * routes nested under `__tests__/lib/ast-dataflow/fixtures/.../app/api/.../route.ts`
+ * routes nested under `tools/ast-dataflow/__tests__/fixtures/.../app/api/.../route.ts`
  * are excluded because their root-relative path starts with `__tests__/`, not
  * `app/api/`. The pre-fix unanchored regex `app/api/.*\/route\.ts$` matched
  * those fixtures as a substring, inflating the live corpus 195 → 198.
@@ -508,7 +508,7 @@ export function classifyRoute(sf: SourceFile): RouteShape {
   // import. Both helpers are covered per TECH §8.4.
   const hasAuth = sf.getImportDeclarations().some((decl) => {
     const moduleSpecifier = decl.getModuleSpecifierValue();
-    if (!moduleSpecifier.includes('@/lib/auth')) return false;
+    if (!moduleSpecifier.includes('@/lib/auth/client')) return false;
     return decl
       .getNamedImports()
       .some((named) =>

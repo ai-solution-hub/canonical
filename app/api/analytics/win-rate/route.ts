@@ -1,5 +1,5 @@
 import { defineRoute } from '@/lib/api/define-route';
-import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { logger } from '@/lib/logger';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';

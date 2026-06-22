@@ -5,7 +5,7 @@
  * Admin-only. Idempotent — skips feeds that already exist (by URL).
  */
 import { defineRoute } from '@/lib/api/define-route';
-import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { getStarterPack } from '@/lib/intelligence/starter-packs';
 import { sb } from '@/lib/supabase/safe';

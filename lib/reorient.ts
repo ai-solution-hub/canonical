@@ -10,7 +10,7 @@ import type {
 import { getDeadlineUrgency, getDaysUntilDeadline } from '@/lib/dashboard';
 import { fetchActiveProcurementWithStats } from '@/lib/procurement/procurement-queries';
 import { formatRelativeDate } from '@/lib/format';
-import { getUserDisplayName } from '@/lib/user/display-name';
+import { getUserDisplayName } from '@/lib/users/self-display-name';
 
 // ---------------------------------------------------------------------------
 // Change type mapping

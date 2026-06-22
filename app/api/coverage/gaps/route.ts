@@ -12,7 +12,7 @@
  */
 
 import { defineRoute } from "@/lib/api/define-route";
-import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { scoreGap } from '@/lib/coverage/gap-scoring';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';

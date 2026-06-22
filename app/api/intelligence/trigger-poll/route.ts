@@ -1,6 +1,6 @@
 // app/api/intelligence/trigger-poll/route.ts
 import { defineRoute } from '@/lib/api/define-route';
-import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { runPipeline } from '@/lib/intelligence/pipeline';
 import { createServiceClient } from '@/lib/supabase/server';
 import { TriggerPollResponseSchema } from '@/lib/validation/schemas';

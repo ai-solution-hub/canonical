@@ -32,7 +32,7 @@
 // on q_a_pairs, updated in {59.5} to also copy OLD.edit_intent) writes the
 // q_a_pair_history row. This route performs NO app-side history insert.
 import { defineRoute } from '@/lib/api/define-route';
-import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import {
   arbitrateMany,
   coerceIntent,

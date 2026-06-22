@@ -94,7 +94,7 @@ Run `callers` against the suspect function using the full
 `modulePath:functionName` form:
 
 ```bash
-bun scripts/ast-dataflow-cli.ts callers \
+bun run ast-dataflow callers \
   --symbol '<modulePath>:<suspectFunction>'
 ```
 
@@ -210,7 +210,7 @@ gitnexus://repo/knowledge-hub/process/ContentClassificationFlow
 ### Step 2 — ast-dataflow callers
 
 ```bash
-bun scripts/ast-dataflow-cli.ts callers \
+bun run ast-dataflow callers \
   --symbol 'lib/content/classify-content.ts:classifyContent'
 ```
 

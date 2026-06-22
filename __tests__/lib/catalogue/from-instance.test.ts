@@ -15,7 +15,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type Anthropic from '@anthropic-ai/sdk';
-import type { AuthorisedResult } from '@/lib/auth';
+import type { AuthorisedResult } from '@/lib/auth/client';
 import {
   classifyField,
   buildCatalogueRow,

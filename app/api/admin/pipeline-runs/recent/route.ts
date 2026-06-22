@@ -15,7 +15,7 @@
  */
 
 import { defineRoute } from '@/lib/api/define-route';
-import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { sb } from '@/lib/supabase/safe';
 import { PipelineRunsRecentResponseSchema } from '@/lib/validation/schemas';

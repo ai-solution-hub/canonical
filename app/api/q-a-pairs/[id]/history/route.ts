@@ -16,7 +16,7 @@
 // detail route and NO diff table (INV-15/INV-17). Mirrors the content-item
 // analog at app/api/items/[id]/history/route.ts.
 import { defineRoute } from '@/lib/api/define-route';
-import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
 import { parseSearchParams } from '@/lib/validation';

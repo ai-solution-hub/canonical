@@ -11,7 +11,7 @@
 // See docs/specs/si-prompt-refinement-skill-spec.md §4 Task 4.
 
 import { defineRoute } from '@/lib/api/define-route';
-import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { scoreRelevance } from '@/lib/intelligence/relevance-scorer';
 import type { CompanyContext } from '@/lib/intelligence/types';

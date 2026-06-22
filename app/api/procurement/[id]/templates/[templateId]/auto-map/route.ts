@@ -3,7 +3,7 @@ import {
   authFailureResponse,
   getAuthorisedClient,
   rateLimitResponse,
-} from '@/lib/auth';
+} from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { similarity } from '@/lib/templates/template-auto-map';

@@ -1,5 +1,5 @@
 import { defineRoute } from '@/lib/api/define-route';
-import { authFailureResponse, getAuthenticatedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthenticatedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { resolveUserDisplayNames } from '@/lib/users/display-names';
 import type { ContentOwnerStats } from '@/types/owner';

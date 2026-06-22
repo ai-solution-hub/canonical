@@ -1,5 +1,5 @@
 import { defineRoute } from '@/lib/api/define-route';
-import { authFailureResponse, getAuthenticatedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthenticatedClient } from '@/lib/auth/client';
 import {
   deriveExpiryStatus,
   type CertificationMetadata,

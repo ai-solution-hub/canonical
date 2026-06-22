@@ -1,6 +1,6 @@
 import { generateEmbedding } from '@/lib/ai/embed';
 import { defineRoute } from '@/lib/api/define-route';
-import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { generateSingleFieldChangeSummary } from '@/lib/change-summary';
 import { stripMarkdown } from '@/lib/content/strip-markdown';
 import {

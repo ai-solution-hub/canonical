@@ -3,7 +3,7 @@ import {
   authFailureResponse,
   getAuthenticatedClient,
   getAuthorisedClient,
-} from '@/lib/auth';
+} from '@/lib/auth/client';
 import { stripMarkdown } from '@/lib/content/strip-markdown';
 import { countWords } from '@/lib/editor-utils';
 import { safeErrorMessage } from '@/lib/error';

@@ -5,7 +5,7 @@ import {
   authFailureResponse,
   getAuthorisedClient,
   rateLimitResponse,
-} from '@/lib/auth';
+} from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { logger, updateRequestContext, withRequestContext } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';

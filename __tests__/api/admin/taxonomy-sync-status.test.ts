@@ -22,9 +22,11 @@ import {
 
 const mockSupabase: MockSupabaseClient = createMockSupabaseClient();
 
-vi.mock('@/lib/auth', async () => {
+vi.mock('@/lib/auth/client', async () => {
   const actual =
-    await vi.importActual<typeof import('@/lib/auth')>('@/lib/auth');
+    await vi.importActual<typeof import('@/lib/auth/client')>(
+      '@/lib/auth/client',
+    );
   return {
     ...actual,
     getAuthorisedClient: vi.fn(),
@@ -36,7 +38,7 @@ vi.mock('@/lib/auth', async () => {
 // ---------------------------------------------------------------------------
 
 import { GET } from '@/app/api/admin/taxonomy-sync/status/route';
-import { getAuthorisedClient } from '@/lib/auth';
+import { getAuthorisedClient } from '@/lib/auth/client';
 
 const getAuthorisedClientMock = vi.mocked(getAuthorisedClient);
 

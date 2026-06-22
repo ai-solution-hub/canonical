@@ -4,7 +4,7 @@ import {
   authFailureResponse,
   getAuthorisedClient,
   rateLimitResponse,
-} from '@/lib/auth';
+} from '@/lib/auth/client';
 import { resolveContentOwnerId } from '@/lib/auth/owner-default';
 import { stripMarkdown } from '@/lib/content/strip-markdown';
 import { safeErrorMessage } from '@/lib/error';
@@ -120,7 +120,7 @@ export const POST = withRequestContext(
       } = { dedup_status: 'clean' };
       try {
         const { checkForDuplicates, formatDedupWarning, resolveDedupStamp } =
-          await import('@/lib/dedup');
+          await import('@/lib/dedup/content-dedup');
         const plainText = stripMarkdown(content);
         const dedupResult = await checkForDuplicates(
           supabase,

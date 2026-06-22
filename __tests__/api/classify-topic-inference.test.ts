@@ -42,7 +42,7 @@ vi.mock('@/lib/topic-inference', () => ({
 
 let mockClient: MockSupabaseClient;
 
-vi.mock('@/lib/auth', () => ({
+vi.mock('@/lib/auth/client', () => ({
   getAuthorisedClient: vi.fn(async () => ({
     success: true,
     user: { id: 'user-1234-5678-9abc-def012345678' },
@@ -67,7 +67,7 @@ vi.mock('@/lib/error', () => ({
   safeErrorMessage: (_err: unknown, fallback: string) => fallback,
 }));
 
-import { getAuthorisedClient } from '@/lib/auth';
+import { getAuthorisedClient } from '@/lib/auth/client';
 
 const itemId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
 

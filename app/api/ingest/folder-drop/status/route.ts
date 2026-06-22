@@ -1,5 +1,5 @@
 import { defineRoute } from '@/lib/api/define-route';
-import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { logger, withRequestContext } from '@/lib/logger';
 import { isOk, tryQuery } from '@/lib/supabase/safe';
 import { NextRequest, NextResponse } from 'next/server';

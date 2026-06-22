@@ -3,8 +3,8 @@ import {
   authFailureResponse,
   getAuthorisedClient,
   rateLimitResponse,
-} from '@/lib/auth';
-import { checkForDuplicates } from '@/lib/dedup';
+} from '@/lib/auth/client';
+import { checkForDuplicates } from '@/lib/dedup/content-dedup';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';

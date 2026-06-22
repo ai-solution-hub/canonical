@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getAuthorisedClient } from '@/lib/auth';
+import { getAuthorisedClient } from '@/lib/auth/client';
 import { ContentDedupQueueClient } from '@/components/admin/content-dedup/content-dedup-queue';
 
 /**

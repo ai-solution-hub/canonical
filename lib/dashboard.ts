@@ -7,7 +7,7 @@ import type {
 } from '@/types/reorient';
 import { fetchActiveProcurementWithStats } from '@/lib/procurement/procurement-queries';
 import { formatRelativeDate } from '@/lib/format';
-import { getUserDisplayName } from '@/lib/user/display-name';
+import { getUserDisplayName } from '@/lib/users/self-display-name';
 import { UNCLASSIFIED_TAXONOMY_OR_PREDICATE } from '@/lib/validation/schemas';
 
 // ---------------------------------------------------------------------------

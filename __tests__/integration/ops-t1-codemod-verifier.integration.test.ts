@@ -54,7 +54,7 @@ import { resolve, join, dirname } from 'node:path';
 // the corpus cwd can differ from the repo root without breaking resolution.
 const REPO_ROOT = resolve(__dirname, '../..');
 const CODEMOD_CLI = resolve(REPO_ROOT, 'scripts/codemods/wrap-define-route.ts');
-const AST_DATAFLOW_CLI = resolve(REPO_ROOT, 'scripts/ast-dataflow-cli.ts');
+const AST_DATAFLOW_CLI = resolve(REPO_ROOT, 'tools/ast-dataflow/cli.ts');
 
 /**
  * Run a `bun <script> [...args]` sub-process with `cwd` set to the temp
@@ -147,7 +147,7 @@ function buildCorpus(root: string) {
     root,
     'app/api/insights/route.ts',
     `import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth/client';
 
 export async function GET(_request: NextRequest) {
   const auth = await getAuthorisedClient(['admin']);

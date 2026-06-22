@@ -1,6 +1,6 @@
 // app/api/intelligence/workspaces/[id]/metrics/route.ts
 import { defineRoute } from '@/lib/api/define-route';
-import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
 import { parseSearchParams } from '@/lib/validation';

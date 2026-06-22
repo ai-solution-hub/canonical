@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { defineRoute } from '@/lib/api/define-route';
-import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { CLIENT_CONFIG } from '@/lib/client-config';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';

@@ -22,7 +22,7 @@
 // source read and the draft insert, so the acting user can only promote
 // content they can already access — there is no service-role escalation and no
 // cross-workspace write.
-import { authFailureResponse, getAuthorisedClient } from '@/lib/auth';
+import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { tryQuery } from '@/lib/supabase/safe';
 import { parseBody } from '@/lib/validation';

@@ -70,9 +70,10 @@ vi.mock('@/lib/topic-inference', () => ({
   suggestTopic: mockSuggestTopic,
 }));
 
-vi.mock('@/lib/dedup', async () => {
-  const actual =
-    await vi.importActual<typeof import('@/lib/dedup')>('@/lib/dedup');
+vi.mock('@/lib/dedup/content-dedup', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/lib/dedup/content-dedup')
+  >('@/lib/dedup/content-dedup');
   return {
     ...actual,
     checkForDuplicates: mockCheckForDuplicates,

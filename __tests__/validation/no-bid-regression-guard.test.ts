@@ -22,8 +22,9 @@
  * Allowlist scope (intentional historical refs only):
  * - `__tests__/validation/no-bid-regression-guard.test.ts` (this file —
  *   embeds the forbidden patterns as string constants for grep).
- * - `lib/ast-dataflow/` — internal test fixtures may reference project_id
- *   as a demo column name (out of procurement scope).
+ * Note: the ast-dataflow tool (whose internal fixtures use project_id as a
+ * demo column name) relocated to `tools/ast-dataflow/` (bl-360), which is
+ * outside SCAN_DIRS — so it no longer needs an allowlist carve-out.
  * Note: `lib/mcp/formatters/bids.ts` and `lib/ai/skills/bid-writing.md`
  * were removed from the allowlist in S249 ID-23 after the deferred renames
  * shipped (form_type coupling was a red herring — no allowlist entry needed).
@@ -42,12 +43,10 @@ const SCAN_DIRS = ['lib', 'scripts', 'app', 'components'] as const;
 const ALLOWLIST: ReadonlySet<string> = new Set([
   // This guard test embeds the patterns as string constants.
   '__tests__/validation/no-bid-regression-guard.test.ts',
-  // ast-dataflow internal test fixtures (out of procurement scope).
-  'lib/ast-dataflow/queries/column-reads.ts',
-  'lib/ast-dataflow/queries/column-writes.ts',
-  'lib/ast-dataflow/queries/flow-trace.ts',
-  'lib/ast-dataflow/types.ts',
-  'scripts/ast-dataflow-cli.ts',
+  // NOTE (bl-360): the ast-dataflow tool relocated out of the scanned tree
+  // into `tools/ast-dataflow/`. `tools/` is not in SCAN_DIRS, so its internal
+  // `project_id` demo fixtures are no longer walked and no allowlist carve-out
+  // is needed for them anymore.
   // (S250 ID-22): `lib/procurement/procurement-queries.ts` +
   // `app/api/procurement/route.ts` allowlist entries removed —
   // `get_bid_question_stats_batch` RETURNS TABLE column renamed from
