@@ -14,7 +14,6 @@ import { z } from 'zod';
 type RouteContext = { params: Promise<{ id: string; sourceId: string }> };
 type FeedSourceUpdate = Database['public']['Tables']['feed_sources']['Update'];
 
-// TODO(OPS-T1): author ResponseSchema
 export const GET = defineRoute(
   z.unknown(),
   async (_request: NextRequest, context: RouteContext) => {

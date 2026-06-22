@@ -7,7 +7,6 @@ import { z } from 'zod';
 
 export const maxDuration = 30;
 
-// TODO(OPS-T1): author ResponseSchema
 export const GET = defineRoute(
   z.unknown(),
   async (

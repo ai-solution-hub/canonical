@@ -192,7 +192,6 @@ function buildCarriedSet(
   };
 }
 
-// TODO(OPS-T1): author ResponseSchema
 export const PATCH = defineRoute(
   z.unknown(),
   async (request: NextRequest, context: RouteContext) => {

@@ -56,7 +56,6 @@ function validateMagicBytes(buffer: ArrayBuffer, mimeType: string): boolean {
   return false;
 }
 
-// TODO(OPS-T1): author ResponseSchema
 export const POST = defineRoute(
   z.unknown(),
   async (

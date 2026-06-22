@@ -13,7 +13,6 @@ export const maxDuration = 30;
 // GET /api/jobs/:id/status -- poll job status
 // ──────────────────────────────────────────
 
-// TODO(OPS-T1): author ResponseSchema
 export const GET = defineRoute(
   z.unknown(),
   async (

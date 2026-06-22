@@ -18,7 +18,6 @@ export const maxDuration = 30;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// TODO(OPS-T1): author ResponseSchema
 export const PATCH = defineRoute(
   z.unknown(),
   async (
@@ -86,7 +85,6 @@ export const PATCH = defineRoute(
   },
 );
 
-// TODO(OPS-T1): author ResponseSchema
 export const DELETE = defineRoute(
   z.unknown(),
   async (

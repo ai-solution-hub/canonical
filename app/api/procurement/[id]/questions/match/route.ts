@@ -31,7 +31,6 @@ interface QuestionMatchResult {
   top_matches: MatchResult[];
 }
 
-// TODO(OPS-T1): author ResponseSchema
 export const POST = defineRoute(
   z.unknown(),
   async (

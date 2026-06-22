@@ -10,7 +10,6 @@ export const maxDuration = 15;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// TODO(OPS-T1): author ResponseSchema
 export const GET = defineRoute(
   z.unknown(),
   async (

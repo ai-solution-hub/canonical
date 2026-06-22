@@ -156,7 +156,6 @@ export const GET = defineRoute(
   },
 );
 
-// TODO(OPS-T1): author ResponseSchema
 export const PATCH = defineRoute(
   z.unknown(),
   async (
