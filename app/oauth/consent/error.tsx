@@ -1,13 +1,11 @@
 'use client';
 
-import * as Sentry from '@sentry/nextjs';
-import { useEffect } from 'react';
 import Link from 'next/link';
 import { ShieldX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { BRANDING } from '@/lib/client-config';
-import { logger } from '@/lib/logger/client';
+import { useErrorReport } from '@/components/errors/use-error-report';
 
 export default function ConsentError({
   error,
@@ -16,10 +14,7 @@ export default function ConsentError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  useEffect(() => {
-    logger.error({ err: error }, 'OAuth consent error');
-    Sentry.captureException(error);
-  }, [error]);
+  useErrorReport(error, 'OAuth consent error');
 
   return (
     <div

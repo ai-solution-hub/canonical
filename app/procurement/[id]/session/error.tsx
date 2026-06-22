@@ -1,11 +1,9 @@
 'use client';
 
-import * as Sentry from '@sentry/nextjs';
-import { useEffect } from 'react';
 import Link from 'next/link';
 import { PenLine } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { logger } from '@/lib/logger/client';
+import { useErrorReport } from '@/components/errors/use-error-report';
 
 export default function ProcurementSessionError({
   error,
@@ -14,10 +12,7 @@ export default function ProcurementSessionError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  useEffect(() => {
-    logger.error({ err: error }, 'Procurement session error');
-    Sentry.captureException(error);
-  }, [error]);
+  useErrorReport(error, 'Procurement session error');
 
   return (
     <div
