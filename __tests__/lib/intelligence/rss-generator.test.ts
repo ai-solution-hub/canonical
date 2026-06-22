@@ -69,7 +69,7 @@ describe('generateRss', () => {
     expect(xml).toContain('<language>en-GB</language>');
     expect(xml).toContain('<ttl>15</ttl>');
     expect(xml).toContain(
-      '<generator>Knowledge Hub Sector Intelligence</generator>',
+      '<generator>Canonical Sector Intelligence</generator>',
     );
   });
 

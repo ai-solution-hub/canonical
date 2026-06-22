@@ -89,7 +89,7 @@ describe('SiteHeader', () => {
 
   it('renders the site title as a link to home', () => {
     render(<SiteHeader />);
-    const homeLink = screen.getByText('Knowledge Hub');
+    const homeLink = screen.getByText('Canonical');
     expect(homeLink).toBeInTheDocument();
     expect(homeLink.closest('a')).toHaveAttribute('href', '/');
   });

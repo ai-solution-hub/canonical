@@ -293,7 +293,7 @@ describe('ReorientSection', () => {
     });
 
     render(<ReorientSection data={data} />);
-    expect(screen.getByText(/welcome to knowledge hub/i)).toBeInTheDocument();
+    expect(screen.getByText(/welcome to canonical/i)).toBeInTheDocument();
     // Viewer copy updated per spec §4.8
     expect(
       screen.getByText(/search the knowledge base to find what you need/i),
@@ -312,9 +312,7 @@ describe('ReorientSection', () => {
 
     render(<ReorientSection data={data} />);
     expect(screen.getByText(/everything looks good/i)).toBeInTheDocument();
-    expect(
-      screen.queryByText(/welcome to knowledge hub/i),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/welcome to canonical/i)).not.toBeInTheDocument();
   });
 
   // ── hideFirstLoginMessage prop (P0-4 spec §7.3) ──
@@ -333,9 +331,7 @@ describe('ReorientSection', () => {
     expect(
       screen.getByRole('region', { name: /personal briefing/i }),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByText(/welcome to knowledge hub/i),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/welcome to canonical/i)).not.toBeInTheDocument();
     expect(
       screen.queryByText(/search the knowledge base/i),
     ).not.toBeInTheDocument();
