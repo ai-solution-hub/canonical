@@ -69,7 +69,7 @@
     ]
   },
   "worktree": {
-    "symlinkDirectories": ["node_modules", ".venv", ".bin"]
+    "symlinkDirectories": ["node_modules", ".venv", ".bin", ".gitnexus", ".cache"]
   },
   "sandbox": {
     "network": {

@@ -10,8 +10,6 @@
 # .next caused a ~6.6GB recursive copy across 3 worker worktrees. Workers now get
 # node_modules via launch-worker's `--symlink-deps` (symlink, shared); .next
 # regenerates on demand. (S384, Liam-approved.)
-# node_modules/
-# .next/
 
 # Environment
 .env.local
@@ -34,6 +32,9 @@ e2e/.auth/
 
 # Supabase local
 supabase/.temp/
+
+# Build output
+tsconfig.tsbuildinfo
 
 # Code-intelligence
 .gitnexus/**

@@ -2,8 +2,7 @@
 
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **knowledge-hub** (36955 symbols, 54750
-relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess
+This project is indexed by GitNexus as **canonical**. Use the GitNexus MCP tools to understand code, assess
 impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal
@@ -38,10 +37,10 @@ impact, and navigate safely.
 
 | Resource                                       | Use for                                  |
 | ---------------------------------------------- | ---------------------------------------- |
-| `gitnexus://repo/knowledge-hub/context`        | Codebase overview, check index freshness |
-| `gitnexus://repo/knowledge-hub/clusters`       | All functional areas                     |
-| `gitnexus://repo/knowledge-hub/processes`      | All execution flows                      |
-| `gitnexus://repo/knowledge-hub/process/{name}` | Step-by-step execution trace             |
+| `gitnexus://repo/canonical/context`        | Codebase overview, check index freshness |
+| `gitnexus://repo/canonical/clusters`       | All functional areas                     |
+| `gitnexus://repo/canonical/processes`      | All execution flows                      |
+| `gitnexus://repo/canonical/process/{name}` | Step-by-step execution trace             |
 
 ## CLI
 
