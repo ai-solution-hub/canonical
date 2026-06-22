@@ -76,6 +76,8 @@ const STUB_SUMMARY = {
   embed_failed: 0,
   retired: 1,
   retired_no_replacement: 0,
+  sidecar_failed: 0,
+  failures: [],
 };
 
 function makeRequest() {
