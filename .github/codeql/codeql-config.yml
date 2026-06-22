@@ -1,0 +1,104 @@
+name: "Canonical CodeQL config — theme-14 launch baseline (ID-121)"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STATUS: INERT under the repo's CURRENT code-scanning setup.
+#
+# The repo uses GitHub **default setup** (UI-managed, query_suite: `default`,
+# security-only, weekly). Default setup does NOT consume this file — verified via
+# `GET /repos/{owner}/{repo}/code-scanning/default-setup` (no config reference).
+# This file is retained as:
+#   (a) the durable, reviewable RECORD of every triaged CodeQL finding's disposition
+#       (theme-14 launch baseline, enumerated S391 / resolved S392), and
+#   (b) the suppression config that becomes ACTIVE if/when **advanced setup** is
+#       adopted (decision D4 — revisit at Code-Quality GA, 2026-07-20): wire it via
+#       `github/codeql-action/init` with `config-file: .github/codeql/codeql-config.yml`.
+# Raw `codeql database analyze` does NOT consume this file directly (it is read by the
+# codeql-action under advanced setup). The same disposition list is applied as a SARIF
+# filter when triaging the local broad-pack reproduction — verified S392: applying these
+# query-filters + paths-ignore to the post-Wave-A SARIF leaves ZERO residual production
+# findings (every one of the 150 broad-pack findings is fixed, filtered, or test-pathed).
+#
+# The HOSTED security scan (default suite) is already at the launch bar: **0 open
+# alerts**. Every rule excluded below comes from the BROAD CLI pack
+# (javascript-code-quality-extended + javascript-security-and-quality) and/or the
+# preview Code Quality dashboard — NONE is surfaced by the hosted default suite.
+#
+# ⚠ ON ADVANCED-SETUP ADOPTION: re-validate the SECURITY-rule exclusions below before
+# trusting them — they reflect the S392 baseline where every instance was
+# test/fixture/e2e/script/dev-infra-scoped. A NEW production instance of any of these
+# rules must be reviewed, not silently inherited.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Tests and e2e are not the security/quality baseline surface — exclude from analysis.
+# This scopes out the bulk of the test-only findings (commented-out-code ×19,
+# insecure-temporary-file ×all, regex-anchor ×2, todo-comment ×many, the
+# ast-dataflow caller-unused / match-object fixtures whose "issues" ARE the test input).
+paths-ignore:
+  - "__tests__"
+  - "e2e"
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+
+query-filters:
+  # ── Accepted strict-TS idiom — staff-engineer review (S391, returns-assessment.md):
+  #    49 return-style findings, 0 bugs (exhaustive typed switches with no default,
+  #    React useEffect cleanup guards, void-handler guards). The type-aware backstop is
+  #    `noImplicitReturns: true` in tsconfig.json (ID-121.7, enforced via the CI typecheck
+  #    gate), NOT a consistent-return rewrite which would weaken switch exhaustiveness. ──
+  - exclude:
+      id: js/implicit-return
+  - exclude:
+      id: js/mixed-returns
+
+  # ── TODOs are legitimate engineering annotations (product-owner D1: document/prioritise,
+  #    do not sweep). Substantive TODOs are roadmap/backlog-linked — e.g.
+  #    lib/intelligence/feed-poller.ts:535 references roadmap §8.3 (firecrawl credit
+  #    telemetry gap). Zero launch-blocking TODOs (S391 todo-register). ──
+  - exclude:
+      id: js/todo-comment
+
+  # ── False positives — CodeQL trips on code-like tokens ({…}, `import {X}`, `// ALLOW:`)
+  #    inside prose / JSDoc / load-bearing test fixtures. All 22 sites triaged S392
+  #    (Wave B, ID-121.6); none is dead executable code. The 3 non-test (lib) sites are
+  #    JSDoc route descriptors / console-shim prose / a section-label comment. ──
+  - exclude:
+      id: js/commented-out-code
+
+  # ── Unused parameters — signature-mandated positional params (Next.js route handlers,
+  #    interface callbacks) that eslint's no-unused-vars (args: after-used, `^_` exempt)
+  #    permits; CodeQL note-level. The S391 eslint unused-imports gate governs recurrence.
+  #    (Includes the deliberate ast-dataflow `caller-unused` fixture + the excluded
+  #    mcp-apps Vite build, which carry their own toolchains.) ──
+  - exclude:
+      id: js/unused-parameter
+  - exclude:
+      id: js/unused-local-variable
+
+  # ── The 3 hosted default-setup security FPs — ALREADY dismissed via code-scanning REST
+  #    (0 open at HEAD). Excluded here too for local broad-pack cleanliness:
+  #    · js/weak-cryptographic-algorithm — RFC 4122 uuid5 SHA-1, pinned bit-for-bit to
+  #      Python uuid.uuid5; not a security primitive (lib/q-a-pairs/sidecar-path.ts).
+  #    · js/incomplete-sanitization — lib/supabase/escape.ts correct single-pass g-flag
+  #      escape; a CodeQL autofix introduced the double-escape bug we reverted (the
+  #      "fix" IS the bug).
+  #    · js/incomplete-multi-character-sanitization — test only. ──
+  - exclude:
+      id: js/weak-cryptographic-algorithm
+  - exclude:
+      id: js/incomplete-sanitization
+  - exclude:
+      id: js/incomplete-multi-character-sanitization
+
+  # ── Non-production filesystem findings, accepted low-severity at script/dev-infra scope
+  #    (re-validate on advanced-setup adoption — see header warning):
+  #    · js/file-system-race — scripts/gitnexus-analyze.ts, scripts/ledger-compact-done.ts,
+  #      lib/workflow-evaluation/token-rollup.ts (dev infra). (Test instances already
+  #      excluded by paths-ignore.)
+  #    · js/file-access-to-http — scripts/ledger-server-lifecycle.ts (dev script).
+  #    · js/http-to-file-access — scripts/run-supabase-advisors.ts (dev script). ──
+  - exclude:
+      id: js/file-system-race
+  - exclude:
+      id: js/file-access-to-http
+  - exclude:
+      id: js/http-to-file-access
