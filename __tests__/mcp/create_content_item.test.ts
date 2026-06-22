@@ -107,7 +107,7 @@ vi.mock('@/lib/pipeline/record-run', () => ({
   recordPipelineRun: mocks.recordPipelineRun,
 }));
 
-vi.mock('@/lib/dedup', () => ({
+vi.mock('@/lib/dedup/content-dedup', () => ({
   checkExactDuplicate: mocks.checkExactDuplicate,
   resolveDedupStamp: mocks.resolveDedupStamp,
 }));

@@ -126,7 +126,7 @@ export const POST = withRequestContext(async (request: NextRequest) => {
     } = { dedup_status: 'clean' };
     try {
       const { checkForDuplicates, formatDedupWarning, resolveDedupStamp } =
-        await import('@/lib/dedup');
+        await import('@/lib/dedup/content-dedup');
       const plainText = stripMarkdown(content);
       const dedupResult = await checkForDuplicates(
         supabase,

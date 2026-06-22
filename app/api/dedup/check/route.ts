@@ -5,7 +5,7 @@ import {
   rateLimitResponse,
 } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { checkForDuplicates } from '@/lib/dedup';
+import { checkForDuplicates } from '@/lib/dedup/content-dedup';
 import { safeErrorMessage } from '@/lib/error';
 import { z } from 'zod';
 import { parseBody } from '@/lib/validation';

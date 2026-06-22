@@ -34,7 +34,7 @@ const { mockCheckForDuplicates } = vi.hoisted(() => ({
   mockCheckForDuplicates: vi.fn(),
 }));
 
-vi.mock('@/lib/dedup', () => ({
+vi.mock('@/lib/dedup/content-dedup', () => ({
   checkForDuplicates: mockCheckForDuplicates,
 }));
 

@@ -75,7 +75,7 @@ vi.mock('@/lib/ai/summarise', () => ({
   generateSummary: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('@/lib/dedup', () => ({
+vi.mock('@/lib/dedup/content-dedup', () => ({
   checkForDuplicates: vi
     .fn()
     .mockResolvedValue({ has_duplicates: false, matches: [] }),

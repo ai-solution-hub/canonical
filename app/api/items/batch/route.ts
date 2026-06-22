@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
       userId: user.id,
     });
     const { checkExactDuplicate, resolveDedupStamp } =
-      await import('@/lib/dedup');
+      await import('@/lib/dedup/content-dedup');
 
     // Service client for pipeline_runs and item creation (bypasses RLS)
     const { createServiceClient } = await import('@/lib/supabase/server');

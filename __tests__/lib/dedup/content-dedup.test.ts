@@ -5,8 +5,8 @@ import {
   formatDedupWarning,
   resolveDedupStamp,
   DEFAULT_NEAR_DUPLICATE_THRESHOLD,
-} from '@/lib/dedup';
-import type { DedupResult } from '@/lib/dedup';
+} from '@/lib/dedup/content-dedup';
+import type { DedupResult } from '@/lib/dedup/content-dedup';
 import { createMockSupabaseTable } from '@/__tests__/helpers/mock-supabase';
 
 // ---------------------------------------------------------------------------

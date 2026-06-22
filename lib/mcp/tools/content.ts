@@ -484,7 +484,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         // `dedup_status='suspected_duplicate'` + records the existing
         // id in `metadata.suspected_duplicate_of`.
         const { checkExactDuplicate, resolveDedupStamp } =
-          await import('@/lib/dedup');
+          await import('@/lib/dedup/content-dedup');
         let dedupStamp: {
           dedup_status: 'clean' | 'suspected_duplicate';
           suspected_duplicate_of?: string;

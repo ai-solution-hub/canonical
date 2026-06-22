@@ -54,7 +54,7 @@ vi.mock('@/lib/content/strip-markdown', () => ({
   stripMarkdown: vi.fn((text: string) => text),
 }));
 
-vi.mock('@/lib/dedup', () => ({
+vi.mock('@/lib/dedup/content-dedup', () => ({
   checkForDuplicates: vi.fn().mockResolvedValue({
     has_duplicates: false,
     matches: [],

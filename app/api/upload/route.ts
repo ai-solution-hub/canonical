@@ -527,7 +527,7 @@ export async function POST(request: NextRequest) {
     if (extractedText) {
       try {
         const { checkForDuplicates, formatDedupWarning, resolveDedupStamp } =
-          await import('@/lib/dedup');
+          await import('@/lib/dedup/content-dedup');
         const dedupResult = await checkForDuplicates(
           serviceClient,
           extractedText,
