@@ -36,42 +36,49 @@ dashboard-only (not CLI/REST); enumeration + triage deferred to the product owne
 
 ## Dependabot
 
-| Aspect                | State             |
-| --------------------- | ----------------- |
-| Security updates      | **enabled** ✅    |
-| Open security alerts  | **0** ✅          |
-| Open version-bump PRs | 3 (triaged below) |
+| Aspect                | State                                 |
+| --------------------- | ------------------------------------- |
+| Security updates      | **enabled** ✅                        |
+| Open security alerts  | **0** ✅                              |
+| Open version-bump PRs | 3 — all MERGED S392 (main `a9cd1f6f`) |
 
-**Triage (S392) — all three assessed SAFE; merges pending product-owner authorization:**
+**Triage (S392) — all three assessed SAFE and MERGED** (admin API merge; main @
+`a9cd1f6f`):
 
-| PR  | Bump                        | Verdict          | Basis                                                                                                                                                                                                  |
-| --- | --------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| #17 | eslint 9→10 (dev)           | **safe — merge** | flat config already used; all pinned plugins declare eslint-10 peer support (unused-imports@4.4.1 = `^10‖^9‖^8`, react-hooks, eslint-config-next `>=9`, tanstack-query); no eslint-specific CI failure |
-| #46 | actions/checkout 4→7        | **safe — merge** | no `pull_request_target`/`workflow_run` workflows (v7 fork-checkout block N/A); node24 on ubuntu-latest                                                                                                |
-| #45 | create-github-app-token 1→3 | **safe — merge** | used in docs-dispatch + resolve-private-docs; node24 fine; standard inputs                                                                                                                             |
+| PR  | Bump                        | Verdict       | Basis                                                                                                                                                                                                  |
+| --- | --------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| #17 | eslint 9→10 (dev)           | **✅ merged** | flat config already used; all pinned plugins declare eslint-10 peer support (unused-imports@4.4.1 = `^10‖^9‖^8`, react-hooks, eslint-config-next `>=9`, tanstack-query); no eslint-specific CI failure |
+| #46 | actions/checkout 4→7        | **✅ merged** | no `pull_request_target`/`workflow_run` workflows (v7 fork-checkout block N/A); node24 on ubuntu-latest                                                                                                |
+| #45 | create-github-app-token 1→3 | **✅ merged** | used in docs-dispatch + resolve-private-docs; node24 fine; standard inputs                                                                                                                             |
 
-⚠ **Merge blocker (infra, not the PRs):** the sole required check `ci-summary`
-(production-protection ruleset) is **chronically red** — it rolls up non-required infra
-jobs (Integration / E2E smoke / MCP staging / Supabase-types-parity, root cause bl-240 /
-bl-242 / real-API seeds) that fail on every PR. The merge button is blocked for all three;
-merging needs the documented local-merge bypass (`git merge --no-ff origin/<pr-branch>` +
-direct push) or admin override.
+✅ **Merged S392 via admin API** (`gh api PUT …/merge`). The sole required check
+`ci-summary` (production-protection ruleset) is chronically red — it rolls up non-required
+infra jobs (Integration / E2E smoke / MCP staging / Supabase-types-parity; root cause
+bl-240 / bl-242 / real-API seeds) and blocks the merge **button** — but the admin API
+merge succeeded. main advanced `b2e5a6d6` → `a9cd1f6f` (#46 `fab5f66d`, #45 `48d0bd11`,
+#17 `a9cd1f6f`).
+
+> **Out of scope (flagged for separate triage):** 8 further Dependabot PRs (#8–#15)
+> accumulated since S391 — incl. a **TypeScript 5.9→6.0 MAJOR** (#14) and a 49-update bun
+> group (#11). Not part of theme-14; left open.
 
 ## Secret scanning
 
-| Aspect                                  | State                                                               |
-| --------------------------------------- | ------------------------------------------------------------------- |
-| Secret scanning                         | **enabled** ✅                                                      |
-| **Push protection**                     | **DISABLED** ⚠ — recommend enabling (cheap pre-commit secret block) |
-| Non-provider patterns / validity checks | disabled (optional hardening)                                       |
-| Open alerts                             | **0** ✅                                                            |
+| Aspect                                  | State                         |
+| --------------------------------------- | ----------------------------- |
+| Secret scanning                         | **enabled** ✅                |
+| **Push protection**                     | **enabled** ✅ (S392)         |
+| Non-provider patterns / validity checks | disabled (optional hardening) |
+| Open alerts                             | **0** ✅                      |
 
-## Recommended follow-ups
+## Follow-ups
 
-1. **Enable secret-scanning push protection** (repo Settings → cheap, protective).
-2. **Merge the 3 Dependabot PRs** via the local-merge bypass (all assessed safe).
-3. **Unblock `ci-summary`** — the chronic non-required reds (bl-240/242) make the only
-   required check permanently red, blocking every PR's merge button. Highest-leverage
-   posture fix beyond this theme.
-4. At Code-Quality GA (2026-07-20): revisit advanced setup (D4) — wire `codeql-config.yml`
+1. ~~Enable secret-scanning push protection~~ — **done S392** ✅.
+2. ~~Merge the 3 Dependabot PRs~~ — **done S392** ✅ (admin API merge; main `a9cd1f6f`).
+3. **Unblock `ci-summary`** (OPEN, highest-leverage) — the chronic non-required reds
+   (bl-240/242) make the only required check permanently red, blocking every PR's merge
+   button (admin override worked this time but isn't a fix). Surface for its own task.
+4. **Triage the 8 remaining Dependabot PRs** (#8–#15) — esp. #14 TypeScript 5.9→6.0 MAJOR
+   (needs a real compat pass, not a routine bump) and #11 (49-update bun group).
+5. At Code-Quality GA (2026-07-20): revisit advanced setup (D4) — wire `codeql-config.yml`
    via `codeql-action/init config-file`, re-validating the security-rule exclusions.
