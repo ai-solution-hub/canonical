@@ -18,6 +18,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import { createMcpUserClient } from '@/lib/mcp/auth';
+import { getMcpActorType, MCP_ACTOR_HEADER } from '@/lib/mcp/actor';
 import { registerTools } from '@/lib/mcp/tools';
 import { registerResources, registerPrompts } from '@/lib/mcp/resources';
 import { resolveResourceUrl } from '@/lib/mcp/resource-url';
@@ -29,6 +30,7 @@ import { logger } from '@/lib/logger';
 
 async function verifyToken(
   bearerToken?: string,
+  actorTypeHeader?: string | null,
 ): Promise<AuthInfo | undefined> {
   if (!bearerToken) return undefined;
 
@@ -66,11 +68,24 @@ async function verifyToken(
 
     const role = (roleData?.role as string) ?? 'viewer';
 
+    // B-INV-6/7 (M6/M7): resolve the actor type from the X-MCP-Actor header.
+    // Default is 'human' — the headless posture is opt-IN (goose `goose run`
+    // sets the header). An absent/garbled header resolves to 'human' so the
+    // publication human-gate is never bypassed. getMcpActorType reads
+    // extra.actorType, so we round-trip the header value through it for a
+    // single source of truth on the allowed values.
+    const actorType = getMcpActorType({
+      token: bearerToken,
+      clientId: 'mcp-client',
+      scopes: [],
+      extra: { actorType: actorTypeHeader ?? undefined },
+    });
+
     return {
       token: bearerToken,
       clientId: 'mcp-client',
       scopes: [],
-      extra: { userId: user.id, email: user.email, role },
+      extra: { userId: user.id, email: user.email, role, actorType },
     };
   } catch {
     return undefined;
@@ -104,7 +119,9 @@ async function handleMcpRequest(request: Request): Promise<Response> {
   const [type, token] = authHeader?.split(' ') ?? [];
   const bearerToken = type?.toLowerCase() === 'bearer' ? token : undefined;
 
-  const authInfo = await verifyToken(bearerToken);
+  // B-INV-6/7: the headless runtime self-identifies via X-MCP-Actor: headless.
+  const actorTypeHeader = request.headers.get(MCP_ACTOR_HEADER);
+  const authInfo = await verifyToken(bearerToken, actorTypeHeader);
 
   if (!authInfo) {
     const resourceUrl = resolveResourceUrl(request);

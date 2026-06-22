@@ -27,6 +27,12 @@ import {
   HEADLESS_COMPLETE_OUTCOMES,
   FIVE_LAYER_ORDER,
 } from './headless-complete-set.js';
+import {
+  PROPOSE_WRITE_TOOLS,
+  PUBLISH_GATED_TRANSITIONS,
+  AUTO_APPLY_WORKFLOWS,
+  autoApplyVerifiablyOff,
+} from './propose-write-set.js';
 
 // ---------------------------------------------------------------------------
 // CLI args
@@ -97,6 +103,7 @@ async function mcpRequest(
   method: string,
   params: Record<string, unknown>,
   accessToken: string,
+  actorType?: 'human' | 'headless',
 ): Promise<JsonRpcResponse> {
   const id = requestId++;
   const controller = new AbortController();
@@ -109,6 +116,9 @@ async function mcpRequest(
         'Content-Type': 'application/json',
         Accept: 'application/json, text/event-stream',
         Authorization: `Bearer ${accessToken}`,
+        // ID-71.23 / B-INV-6: the headless runtime self-identifies via
+        // X-MCP-Actor. Omitted → human (the default posture).
+        ...(actorType ? { 'X-MCP-Actor': actorType } : {}),
       },
       body: JSON.stringify({
         jsonrpc: '2.0',
@@ -178,6 +188,7 @@ async function callTool(
   toolName: string,
   args: Record<string, unknown>,
   accessToken: string,
+  actorType?: 'human' | 'headless',
 ): Promise<{
   text: string;
   charCount: number;
@@ -189,6 +200,7 @@ async function callTool(
       'tools/call',
       { name: toolName, arguments: args },
       accessToken,
+      actorType,
     );
 
     if (response.error) {
@@ -3211,6 +3223,182 @@ async function runHeadlessCompleteEnumerationChecks(
 }
 
 // ---------------------------------------------------------------------------
+// 11. Propose-write + publication human-gate + auto-apply-off (FC-97 to FC-102)
+//     ID-71.23 — Wave 3, B-INV-6/7 (M6/M7).
+//
+// B-INV-6: a headless agent MAY create a propose-write (a draft / suggested
+// resolution into the queue) with NO publication gate AND zero human-in-UI
+// step; but a headless agent attempting to PUBLISH is REFUSED at the surface
+// and routed to the human gate. B-INV-7: every headless write defaults
+// propose-only; the per-workflow auto-apply switch EXISTS but is verifiably
+// OFF. The declarative source of truth lives in propose-write-set.ts
+// (unit-tested behaviour-first); this section is the live MCP-only drive,
+// alongside the {71.22} headless-complete enumeration.
+// ---------------------------------------------------------------------------
+
+async function runProposeWritePublicationGateChecks(
+  accessToken: string,
+  evalItem: EvalItem,
+): Promise<void> {
+  console.log('\nPropose-Write + Publication Gate (ID-71.23)');
+  const SECTION = 'Propose-Write + Publication Gate';
+
+  // FC-97: a headless agent creates a propose-row (a draft content item) with
+  // NO human step — the propose-write path is open to headless (B-INV-6).
+  {
+    const result = await callTool(
+      'create_content_item',
+      {
+        title: `L4 propose-write probe ${Date.now()}`,
+        content:
+          'Draft content proposed headlessly for the review queue (ID-71.23 L4 probe).',
+        content_type: 'note',
+        publication_status: 'draft',
+      },
+      accessToken,
+      'headless',
+    );
+    if (result.errorMessage) {
+      record(
+        SECTION,
+        'FC-97',
+        'headless agent creates a propose-row (no human step)',
+        'FAIL',
+        result.errorMessage,
+      );
+    } else if (result.isError) {
+      // A propose-write must NOT be refused for a headless actor. The publish
+      // refusal text is the negative signal; anything else (e.g. dedup) is a
+      // benign tool-level outcome, still a terminal MCP-only result.
+      const refused = /headless agent cannot publish/i.test(result.text);
+      record(
+        SECTION,
+        'FC-97',
+        'headless agent creates a propose-row (no human step)',
+        refused ? 'FAIL' : 'PASS',
+        refused
+          ? 'propose-write was refused — B-INV-6 requires it be allowed'
+          : `terminal MCP-only result (tool reported: ${result.text.slice(0, 80)})`,
+      );
+    } else {
+      record(
+        SECTION,
+        'FC-97',
+        'headless agent creates a propose-row (no human step)',
+        'PASS',
+        `propose-row created MCP-only (${result.charCount} chars)`,
+      );
+    }
+  }
+
+  // FC-98: a headless agent attempting to PUBLISH via update_publication_status
+  // is REFUSED at the surface and routed to the human gate (B-INV-6).
+  {
+    const result = await callTool(
+      'update_publication_status',
+      { item_id: evalItem.id, new_status: 'published' },
+      accessToken,
+      'headless',
+    );
+    const refused =
+      result.isError === true &&
+      /human/i.test(result.text) &&
+      /publish|publication/i.test(result.text);
+    record(
+      SECTION,
+      'FC-98',
+      'headless publish via update_publication_status refused + routed to human gate',
+      refused ? 'PASS' : 'FAIL',
+      refused
+        ? 'refused at the surface; routed to the human gate'
+        : `expected a publish refusal; got isError=${result.isError} text="${result.text.slice(0, 120)}" ${result.errorMessage ?? ''}`,
+    );
+  }
+
+  // FC-99: a headless agent attempting to PUBLISH via update_governance_status
+  // is REFUSED at the surface and routed to the human gate (B-INV-6).
+  {
+    const result = await callTool(
+      'update_governance_status',
+      { item_ids: [evalItem.id], status: 'publish' },
+      accessToken,
+      'headless',
+    );
+    const refused =
+      result.isError === true &&
+      /human/i.test(result.text) &&
+      /publish|publication/i.test(result.text);
+    record(
+      SECTION,
+      'FC-99',
+      'headless publish via update_governance_status refused + routed to human gate',
+      refused ? 'PASS' : 'FAIL',
+      refused
+        ? 'refused at the surface; routed to the human gate'
+        : `expected a publish refusal; got isError=${result.isError} text="${result.text.slice(0, 120)}" ${result.errorMessage ?? ''}`,
+    );
+  }
+
+  // FC-100: a headless agent setting an item to DRAFT (a propose-write, NOT a
+  // publication event) is NOT refused — the propose path stays open while the
+  // publish path is gated (B-INV-6).
+  {
+    const result = await callTool(
+      'update_publication_status',
+      { item_id: evalItem.id, new_status: 'draft' },
+      accessToken,
+      'headless',
+    );
+    const wronglyRefused = /headless agent cannot publish/i.test(result.text);
+    record(
+      SECTION,
+      'FC-100',
+      'headless propose-write (set to draft) is NOT publication-gated',
+      wronglyRefused ? 'FAIL' : 'PASS',
+      wronglyRefused
+        ? 'draft transition wrongly hit the publish gate'
+        : `draft transition not publication-gated (isError=${result.isError})`,
+    );
+  }
+
+  // FC-101: the propose-write enumeration + publish-gate enumeration are the
+  // expected sets — verbatim (B-INV-6). Mirrors the {71.22} verbatim check.
+  {
+    const proposeOk = PROPOSE_WRITE_TOOLS.includes('create_content_item');
+    const gatedTools = PUBLISH_GATED_TRANSITIONS.map((t) => t.mcpTool).sort();
+    const gateOk =
+      gatedTools.length === 2 &&
+      gatedTools[0] === 'update_governance_status' &&
+      gatedTools[1] === 'update_publication_status';
+    record(
+      SECTION,
+      'FC-101',
+      'propose-write + publish-gate enumeration is exactly as declared',
+      proposeOk && gateOk ? 'PASS' : 'FAIL',
+      proposeOk && gateOk
+        ? `propose-writes=[${PROPOSE_WRITE_TOOLS.join(', ')}]; gated=[${gatedTools.join(', ')}]`
+        : `propose-writes ok=${proposeOk}; gated=[${gatedTools.join(', ')}]`,
+    );
+  }
+
+  // FC-102: the per-workflow auto-apply switch EXISTS but is verifiably OFF for
+  // every workflow at launch — propose-only is the default (B-INV-7).
+  {
+    const exists = Object.keys(AUTO_APPLY_WORKFLOWS).length > 0;
+    const off = autoApplyVerifiablyOff();
+    record(
+      SECTION,
+      'FC-102',
+      'per-workflow auto-apply switch exists and is verifiably OFF',
+      exists && off ? 'PASS' : 'FAIL',
+      exists && off
+        ? `switch exists (${Object.keys(AUTO_APPLY_WORKFLOWS).length} workflows); all OFF`
+        : `exists=${exists}; allOff=${off}; flags=${JSON.stringify(AUTO_APPLY_WORKFLOWS)}`,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Report formatting
 // ---------------------------------------------------------------------------
 
@@ -3320,8 +3508,11 @@ async function main(): Promise<void> {
 
     // Step 14: Headless-complete read set enumeration (ID-71.22)
     await runHeadlessCompleteEnumerationChecks(accessToken);
+
+    // Step 15: Propose-write + publication gate + auto-apply-off (ID-71.23)
+    await runProposeWritePublicationGateChecks(accessToken, evalItem);
   } finally {
-    // Step 15: Clean up eval item
+    // Step 16: Clean up eval item
     console.log('\nCleaning up...');
     try {
       await deleteEvalItem(supabase, evalItem.id);
@@ -3394,6 +3585,7 @@ export async function runAsEvalSuite(): Promise<SuiteRunOutcome> {
       await runAppTemplateChecks(accessToken);
       await runGuideToolChecks(accessToken);
       await runHeadlessCompleteEnumerationChecks(accessToken);
+      await runProposeWritePublicationGateChecks(accessToken, evalItem);
     } finally {
       try {
         await deleteEvalItem(supabase, evalItem.id);

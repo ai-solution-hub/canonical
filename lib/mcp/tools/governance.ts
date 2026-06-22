@@ -49,6 +49,7 @@ import {
   type AllowedReviewInputStatus,
 } from '@/lib/governance/review-input-statuses';
 import { computeNextReviewDate } from '@/lib/governance/cadence-renewal';
+import { refusePublishForHeadlessActor } from '@/lib/mcp/actor';
 import {
   VALID_PUBLICATION_STATUSES,
   computeAllowedTransitions,
@@ -318,6 +319,15 @@ export async function registerGovernanceTools(
     },
     async (args, extra: ToolExtra) => {
       try {
+        // B-INV-6 (M6): publication is human-gated. A headless agent
+        // attempting to PUBLISH is refused at the surface and routed to the
+        // human gate, BEFORE any role/DB work. The `'draft'` branch is a
+        // propose-write and is NOT gated.
+        if (args.status === 'publish') {
+          const refusal = refusePublishForHeadlessActor(extra.authInfo);
+          if (refusal) return refusal;
+        }
+
         const role = await checkMcpRole(extra.authInfo, ['admin', 'editor']);
         if (!role) {
           return {
@@ -657,6 +667,16 @@ export async function registerGovernanceTools(
     },
     async (args, extra: ToolExtra) => {
       try {
+        // B-INV-6 (M6): publication is human-gated. A headless agent
+        // transitioning an item to `published` is refused at the surface and
+        // routed to the human gate, BEFORE any role/DB work. Other
+        // transitions (draft / in_review / archived) are not publication
+        // events and are not gated here.
+        if (args.new_status === 'published') {
+          const refusal = refusePublishForHeadlessActor(extra.authInfo);
+          if (refusal) return refusal;
+        }
+
         const role = await checkMcpRole(extra.authInfo, ['admin', 'editor']);
         if (!role) {
           return {
