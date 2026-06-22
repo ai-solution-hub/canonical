@@ -14,7 +14,6 @@
 import { createLooseScriptClient } from '@/scripts/lib/supabase-script-client';
 import { prodProjectRef } from '@/scripts/lib/project-refs';
 import { callSummaryAI } from '@/lib/ai/summarise';
-import type { SummaryData } from '@/types/content';
 
 // ── Env loading ──
 

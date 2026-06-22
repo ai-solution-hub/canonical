@@ -344,10 +344,6 @@ async function main() {
 
   // MRR: use the mrr function from metrics.ts with all query results
   const allQueryResults = casesWithJudgements.map((s) => {
-    const tc = testCases.find((t) => t.id === s.case_id)!;
-    const judgementMap = new Map(
-      tc.relevance_judgements!.map((j) => [j.content_item_id, j]),
-    );
     // We don't have the raw results here, but we stored mrr_value per case
     // Use the per-case MRR values to compute the average
     return s.mrr_value;

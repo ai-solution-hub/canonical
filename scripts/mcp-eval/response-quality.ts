@@ -679,7 +679,7 @@ interface StructuralCheck {
   evaluate: (text: string) => { status: CheckStatus; detail: string };
 }
 
-function getStructuralChecks(knownUUIDs: KnownUUIDs): StructuralCheck[] {
+function getStructuralChecks(_knownUUIDs: KnownUUIDs): StructuralCheck[] {
   return [
     {
       id: 'RQ-10',

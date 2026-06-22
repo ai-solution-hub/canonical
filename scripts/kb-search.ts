@@ -348,7 +348,7 @@ async function main(): Promise<void> {
   }
 
   // 4. Optionally fetch summary_data for --full
-  let summaryMap: Map<string, SummaryData> = new Map();
+  const summaryMap: Map<string, SummaryData> = new Map();
   if (full && filtered.length > 0) {
     const ids = filtered.map((r) => r.id);
     const { data: summaryRows, error: summaryError } = await supabase

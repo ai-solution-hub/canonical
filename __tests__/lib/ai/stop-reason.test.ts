@@ -89,7 +89,7 @@ describe('assertSuccessfulStop (B-INV-36)', () => {
 
   it('does NOT throw when stop_reason is absent (streamed/partial shape)', () => {
     expect(() =>
-      assertSuccessfulStop({ content: [], usage: {} }, 'vision.analyseVision'),
+      assertSuccessfulStop({ stop_reason: undefined }, 'vision.analyseVision'),
     ).not.toThrow();
   });
 });

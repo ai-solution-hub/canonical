@@ -4,8 +4,6 @@
  *
  * Extracted in S256 to deduplicate ~360 lines of identical boilerplate across
  * `__tests__/hooks/workspaces/use-application-types.test.ts`,
- * `__tests__/components/workspace-card.test.tsx`,
- * `__tests__/components/workspace-create-dialog.test.tsx`,
  * `__tests__/app/workspaces/workspaces-content.test.tsx`, and
  * `__tests__/app/workspaces/workspaces-launcher.test.tsx`. Per S255 W1
  * Checker recommendation ("deduplication is appropriate as a follow-on nit

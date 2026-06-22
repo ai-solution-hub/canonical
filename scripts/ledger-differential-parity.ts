@@ -36,13 +36,7 @@
  * (differential byte-identity).
  */
 
-import {
-  mkdtempSync,
-  cpSync,
-  readFileSync,
-  readdirSync,
-  statSync,
-} from 'node:fs';
+import { mkdtempSync, cpSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';

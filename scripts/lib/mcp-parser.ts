@@ -360,8 +360,6 @@ export function parseZodSchema(schemaSource: string): ParamEntry[] {
 
     const baseType = typeMatch[1];
 
-    // Extract base args (content inside the first parentheses)
-    const afterType = fullChain.slice(typeMatch[0].length);
     // Find matching close paren for the base call
     let baseArgs = '';
     if (baseType === 'enum' || baseType === 'array' || baseType === 'object') {

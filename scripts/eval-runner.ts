@@ -63,7 +63,7 @@ import {
   type Touchpoint,
 } from '@/lib/eval/registry';
 import { disposition } from '@/lib/eval/severity';
-import { sb, tryQuery } from '@/lib/supabase/safe';
+import { tryQuery } from '@/lib/supabase/safe';
 
 // ---------------------------------------------------------------------------
 // Exit classes — the deterministic 0/1/2 disposition (B-INV-9/10)

@@ -27,7 +27,6 @@ import {
   getMinimalArgs,
   CANONICAL_TOOL_NAMES,
   TOOL_COUNT,
-  CANONICAL_PROMPT_NAMES,
   PROMPT_COUNT,
   AI_TOOLS,
   type KnownUUIDs,
