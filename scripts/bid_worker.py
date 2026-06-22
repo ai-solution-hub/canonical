@@ -3,8 +3,6 @@
 Bid Worker -- Asynchronous document processing service.
 
 Polls processing_queue for pending jobs and processes:
-- tender_extract_docx: Extract questions from Word documents
-- tender_extract_pdf_text: Extract text from PDFs via pdfplumber
 - template_fill: Fill Word templates with approved bid responses
 
 Usage:
@@ -15,9 +13,7 @@ Environment:
 """
 
 import argparse
-import json
 import os
-import subprocess
 import sys
 import tempfile
 import time
@@ -55,133 +51,6 @@ def get_supabase() -> Client:
     # ID-115 (S8): route from_/rpc to the exposed `api` schema (public is
     # unexposed post-cutover). Storage is a separate API and is unaffected.
     return create_client(url, key, options=ClientOptions(schema="api"))
-
-
-def extract_docx_questions(supabase: Client, payload: dict) -> dict:
-    """Extract questions from a DOCX tender document.
-
-    Downloads the file from Supabase Storage, runs the extraction script,
-    and inserts extracted questions into form_questions.
-
-    Args:
-        supabase: Supabase client
-        payload: Job payload with bid_id and storage_path
-
-    Returns:
-        Dict with questions_inserted and sections_found counts
-    """
-    bid_id = payload["bid_id"]
-    storage_path = payload["storage_path"]
-
-    # Download file from Supabase Storage
-    file_data = supabase.storage.from_("tender-documents").download(storage_path)
-
-    # Write to temp file
-    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
-        tmp.write(file_data)
-        tmp_path = tmp.name
-
-    try:
-        # Run extraction script
-        result = subprocess.run(
-            [
-                sys.executable,
-                os.path.join(SCRIPT_DIR, "extract_tender_questions.py"),
-                tmp_path,
-            ],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-
-        if result.returncode != 0:
-            raise RuntimeError(f"Extraction failed: {result.stderr}")
-
-        extraction = json.loads(result.stdout)
-
-        # Insert questions into form_questions
-        # S246 WP2b T2 (P2): form_questions.project_id renamed to workspace_id.
-        questions_to_insert = []
-        for section in extraction["sections"]:
-            for question in section["questions"]:
-                questions_to_insert.append(
-                    {
-                        "workspace_id": bid_id,
-                        "section_name": section["section_name"],
-                        "section_sequence": section["section_sequence"],
-                        "question_sequence": question["question_sequence"],
-                        "question_text": question["question_text"],
-                        "word_limit": question.get("word_limit"),
-                        "evaluation_weight": question.get("evaluation_weight"),
-                    }
-                )
-
-        if questions_to_insert:
-            supabase.from_("form_questions").insert(questions_to_insert).execute()
-
-        # Update bid status in domain_metadata
-        bid = (
-            supabase.from_("workspaces")
-            .select("domain_metadata")
-            .eq("id", bid_id)
-            .single()
-            .execute()
-        )
-        metadata = bid.data["domain_metadata"] or {}
-        metadata["status"] = "questions_extracted"
-        supabase.from_("workspaces").update(
-            {
-                "domain_metadata": metadata,
-            }
-        ).eq("id", bid_id).execute()
-
-        return {
-            "questions_inserted": len(questions_to_insert),
-            "sections_found": extraction["total_sections"],
-        }
-    finally:
-        os.unlink(tmp_path)
-
-
-def extract_pdf_text(supabase: Client, payload: dict) -> dict:
-    """Extract text from a PDF document using pdfplumber.
-
-    Downloads the file from Supabase Storage, extracts text from each page,
-    and returns the concatenated result.
-
-    Args:
-        supabase: Supabase client
-        payload: Job payload with storage_path
-
-    Returns:
-        Dict with pages_extracted count and extracted text
-    """
-    storage_path = payload["storage_path"]
-
-    # Download file from Supabase Storage
-    file_data = supabase.storage.from_("tender-documents").download(storage_path)
-
-    # Write to temp file
-    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-        tmp.write(file_data)
-        tmp_path = tmp.name
-
-    try:
-        import pdfplumber
-
-        text_pages = []
-        with pdfplumber.open(tmp_path) as pdf:
-            for page in pdf.pages:
-                text = page.extract_text()
-                if text:
-                    text_pages.append(text)
-
-        return {
-            "pages_extracted": len(text_pages),
-            "text": "\n\n".join(text_pages),
-        }
-    finally:
-        os.unlink(tmp_path)
 
 
 def fill_template_job(supabase: Client, payload: dict) -> dict:
@@ -292,11 +161,7 @@ def process_job(supabase: Client, job: dict) -> dict:
     job_type = job["job_type"]
     payload = job["payload"]
 
-    if job_type == "tender_extract_docx":
-        return extract_docx_questions(supabase, payload)
-    elif job_type == "tender_extract_pdf_text":
-        return extract_pdf_text(supabase, payload)
-    elif job_type == "template_fill":
+    if job_type == "template_fill":
         return fill_template_job(supabase, payload)
     else:
         raise ValueError(f"Unknown job type: {job_type}")
