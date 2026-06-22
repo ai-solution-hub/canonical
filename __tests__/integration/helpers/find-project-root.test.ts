@@ -10,6 +10,7 @@
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { describe, it, expect } from 'vitest';
 import { findProjectRoot } from './find-project-root';
 
 function makeTempDir(): string {
