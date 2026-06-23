@@ -33,6 +33,13 @@ export function MobileStepIndicator({ activeStep }: MobileStepIndicatorProps) {
                     ? 'bg-primary/20 text-foreground'
                     : 'bg-muted text-muted-foreground'
               }`}
+              data-step-state={
+                activeStep === step
+                  ? 'active'
+                  : activeStep > step
+                    ? 'completed'
+                    : 'future'
+              }
               aria-current={activeStep === step ? 'step' : undefined}
             >
               {step}

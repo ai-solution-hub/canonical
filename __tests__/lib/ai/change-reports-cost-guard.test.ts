@@ -8,6 +8,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AIServiceError } from '@/lib/ai/errors';
+import { createMockSupabaseTable } from '@/__tests__/helpers/mock-supabase';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -65,27 +66,14 @@ function makeMockItems(count: number) {
 
 function createMockSupabase(itemCount: number) {
   const items = makeMockItems(itemCount);
-  const mockQuery = {
-    from: vi.fn().mockReturnThis(),
-    select: vi.fn().mockReturnThis(),
-    gte: vi.fn().mockReturnThis(),
-    lte: vi.fn().mockReturnThis(),
-    order: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    overlaps: vi.fn().mockReturnThis(),
-    rpc: vi.fn().mockResolvedValue({ data: [], error: null }),
-    maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-  };
 
-  // The final call in the chain resolves with the items
-  mockQuery.order = vi.fn().mockResolvedValue({
+  // The content-items query is awaited after `.order(...)`; the canonical
+  // chain is thenable and resolves to `initialResolution`, so the period
+  // items flow through as `{ data: items, error: null }`.
+  return createMockSupabaseTable({
     data: items,
     error: null,
-  });
-
-  return mockQuery as unknown as Parameters<
-    typeof generateChangeReport
-  >[0]['supabase'];
+  }) as unknown as Parameters<typeof generateChangeReport>[0]['supabase'];
 }
 
 // ---------------------------------------------------------------------------

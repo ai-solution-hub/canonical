@@ -783,8 +783,11 @@ module.exports = {
   },
 
   create(context) {
-    // Exempt test and spec files
-    if (TEST_FILE_REGEX.test(context.getFilename())) return {};
+    // Exempt test and spec files.
+    // `context.filename` (ESLint 9+) replaces the removed `context.getFilename()`
+    // (deleted in ESLint 10). `context.filename` has existed since ESLint 8.40,
+    // so this is safe under both the pinned ^9 and a future ^10 migration.
+    if (TEST_FILE_REGEX.test(context.filename)) return {};
 
     return {
       TSAsExpression(node) {

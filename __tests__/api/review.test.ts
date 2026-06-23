@@ -318,6 +318,11 @@ describe('POST /api/review/action', () => {
     const json = await res.json();
     expect(json.success).toBe(true);
 
+    // Persistence contract: POST /api/review/action is a VOID update — the
+    // response carries only { success: true } and reads NOTHING back. The
+    // verified_at timestamp and server-set verified_by/updated_by are never
+    // surfaced, so this update-payload assert is the only proof verifying an
+    // item stamps it as verified by the acting user.
     expect(mockSupabase.from).toHaveBeenCalledWith('content_items');
     expect(mockSupabase._chain.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -378,6 +383,10 @@ describe('POST /api/review/action', () => {
     const json = await res.json();
     expect(json.success).toBe(true);
 
+    // Persistence contract: VOID insert, response is only { success: true }.
+    // The new quality-log row (flag_type/severity/details/created_by) is never
+    // read back, so this insert-payload assert is the only proof flagging
+    // records a review_needed/warning entry with the operator's note attached.
     expect(mockSupabase.from).toHaveBeenCalledWith('ingestion_quality_log');
     expect(mockSupabase._chain.insert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -413,6 +422,9 @@ describe('POST /api/review/action', () => {
     const json = await res.json();
     expect(json.success).toBe(true);
 
+    // Persistence contract: VOID update, response is only { success: true }.
+    // This assert is the only proof unverify clears verified_at/verified_by
+    // back to null while stamping updated_by as the acting user.
     expect(mockSupabase._chain.update).toHaveBeenCalledWith(
       expect.objectContaining({
         verified_at: null,

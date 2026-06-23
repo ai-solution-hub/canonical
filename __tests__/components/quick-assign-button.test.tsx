@@ -395,7 +395,7 @@ describe('QuickAssignButton', () => {
       expect(svgInShortcut).not.toBeNull();
     });
 
-    it('quick-add shortcut has visually distinct styling', async () => {
+    it('surfaces the quick-add shortcut as an enabled, actionable button', async () => {
       const user = userEvent.setup();
 
       render(
@@ -416,8 +416,15 @@ describe('QuickAssignButton', () => {
       const shortcut = screen.getByRole('button', {
         name: 'Quick add to Procurement Beta',
       });
-      // Should have primary-coloured styling (bg-primary/10, text-primary)
-      expect(shortcut.className).toContain('text-primary');
+      expect(shortcut).toBeEnabled();
+
+      // Clicking it drives the assignment for the matched workspace.
+      await user.click(shortcut);
+      expect(mockOnChange).toHaveBeenCalledWith(
+        ITEM_ID,
+        'ws-2',
+        'Procurement Beta',
+      );
     });
   });
 });

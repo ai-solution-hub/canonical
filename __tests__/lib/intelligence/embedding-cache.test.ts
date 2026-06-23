@@ -37,6 +37,10 @@ vi.mock('@/lib/ai/embed', async (importOriginal) => {
 // We test the embedding caching through runPipeline which calls loadOrGenerateCompanyEmbedding
 import { runPipeline } from '@/lib/intelligence/pipeline';
 import { pollFeed } from '@/lib/intelligence/feed-poller';
+import {
+  createMockSupabaseTableDispatch,
+  type MockQueryChain,
+} from '@/__tests__/helpers/mock-supabase';
 
 describe('Company embedding caching', () => {
   const fakeEmbedding = [0.1, 0.2, 0.3, 0.4, 0.5];
@@ -46,6 +50,19 @@ describe('Company embedding caching', () => {
     mockGenerateEmbedding.mockResolvedValue(fakeEmbedding);
   });
 
+  // Migrated onto the canonical createMockSupabaseTableDispatch (W-RG).
+  // Most tables resolve to one fixed shape (per-table dispatch). Two
+  // behaviours need per-table customisation that the helper exposes via
+  // `_chains`:
+  //   1. company_profiles.select is COLUMN-ARG-AWARE — the pipeline reads
+  //      'company_embedding' and the profile-field set on the SAME table via
+  //      two distinct .select(...).eq('id').maybeSingle() chains that must
+  //      resolve to different read-back data. A single per-table resolution
+  //      cannot express this, so we make .select arg-aware (and keep .eq
+  //      returning the chain so .maybeSingle resolves the chosen shape).
+  //   2. the embedding cache WRITE is a VOID .update(...).eq() — nothing is
+  //      read back. We capture the update payload as the documented
+  //      persistence contract (see "generates and caches" test).
   function createMockSupabase(opts: {
     cachedEmbedding?: string | null;
     hasProfile?: boolean;
@@ -59,160 +76,40 @@ describe('Company embedding caching', () => {
 
     const updateCalls: any[] = [];
 
-    const supabase = {
-      from: vi.fn().mockImplementation((table: string) => {
-        if (table === 'si_processing_queue') {
-          return {
-            select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockResolvedValue({ data: [], error: null }),
-            }),
-            insert: vi.fn().mockReturnValue({
-              select: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({
-                  data: { id: 'queue-1' },
-                  error: null,
-                }),
-              }),
-            }),
-            update: vi.fn().mockReturnValue({
-              eq: vi.fn().mockResolvedValue({ error: null }),
-            }),
-          };
+    const profileFields = hasProfile
+      ? {
+          name: 'Test Co',
+          sectors: ['education'],
+          services: ['training'],
+          key_topics: ['safeguarding'],
+          target_customers: 'Schools',
+          value_proposition: 'Expert training',
         }
-        if (table === 'intelligence_workspaces') {
-          // Post-T2 (S246): pipeline calls getIntelligenceWorkspaceContext which
-          // reads the intelligence_workspaces satellite (not workspaces.domain_metadata).
-          const satelliteResult = {
-            data: hasProfile
-              ? {
-                  company_profile_id: 'profile-1',
-                  guide_id: null,
-                  relevance_threshold: null,
-                }
-              : null,
-            error: null,
-          };
-          return {
-            select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                maybeSingle: vi.fn().mockResolvedValue(satelliteResult),
-              }),
-            }),
-          };
-        }
-        if (table === 'workspaces') {
-          const workspaceResult = {
-            data: hasProfile
-              ? { domain_metadata: { company_profile_id: 'profile-1' } }
-              : { domain_metadata: {} },
-            error: null,
-          };
-          return {
-            select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue(workspaceResult),
-                maybeSingle: vi.fn().mockResolvedValue(workspaceResult),
-              }),
-            }),
-          };
-        }
-        if (table === 'company_profiles') {
-          return {
-            select: vi.fn().mockImplementation((cols: string) => {
-              if (cols.includes('company_embedding')) {
-                const embeddingResult = {
-                  data:
-                    cachedEmbedding !== undefined
-                      ? { company_embedding: cachedEmbedding }
-                      : null,
-                  error: null,
-                };
-                return {
-                  eq: vi.fn().mockReturnValue({
-                    single: vi.fn().mockResolvedValue(embeddingResult),
-                    maybeSingle: vi.fn().mockResolvedValue(embeddingResult),
-                  }),
-                };
+      : null;
+
+    const supabase = createMockSupabaseTableDispatch(
+      {
+        // Satellite read by getIntelligenceWorkspaceContext (S246): flat row
+        // with company_profile_id, resolved via .eq().maybeSingle().
+        intelligence_workspaces: {
+          data: hasProfile
+            ? {
+                company_profile_id: 'profile-1',
+                guide_id: null,
+                relevance_threshold: null,
               }
-              // Profile fields query
-              const profileResult = {
-                data: hasProfile
-                  ? {
-                      name: 'Test Co',
-                      sectors: ['education'],
-                      services: ['training'],
-                      key_topics: ['safeguarding'],
-                      target_customers: 'Schools',
-                      value_proposition: 'Expert training',
-                    }
-                  : null,
-                error: null,
-              };
-              return {
-                eq: vi.fn().mockReturnValue({
-                  single: vi.fn().mockResolvedValue(profileResult),
-                  maybeSingle: vi.fn().mockResolvedValue(profileResult),
-                }),
-              };
-            }),
-            update: vi.fn().mockImplementation((data: any) => {
-              updateCalls.push({ table: 'company_profiles', data });
-              return {
-                eq: vi.fn().mockResolvedValue({ error: null }),
-              };
-            }),
-          };
-        }
-        if (table === 'feed_prompts') {
-          return {
-            select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  limit: vi.fn().mockResolvedValue({ data: [], error: null }),
-                }),
-              }),
-            }),
-          };
-        }
-        if (table === 'feed_sources') {
-          return {
-            update: vi.fn().mockReturnValue({
-              eq: vi.fn().mockResolvedValue({ error: null }),
-            }),
-          };
-        }
-        if (table === 'feed_articles') {
-          return {
-            select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  limit: vi.fn().mockResolvedValue({ data: [], error: null }),
-                }),
-              }),
-            }),
-            insert: vi.fn().mockReturnValue({
-              select: vi.fn().mockReturnValue({
-                single: vi
-                  .fn()
-                  .mockResolvedValue({ data: { id: 'fa-1' }, error: null }),
-              }),
-              error: null,
-            }),
-          };
-        }
-        // Default chain
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({ data: null, error: null }),
-            }),
-          }),
-          update: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue({ error: null }),
-          }),
-        };
-      }),
-      rpc: vi.fn().mockResolvedValue({
+            : null,
+          error: null,
+        },
+        // Pre-seed so its chain exists in `_chains` for arg-aware override.
+        company_profiles: { data: null, error: null },
+        si_processing_queue: { data: [], error: null },
+        feed_prompts: { data: [], error: null },
+        feed_articles: { data: [], error: null },
+        feed_sources: { data: [], error: null },
+      },
+      {
+        // get_due_feed_sources RPC — returns the due source(s).
         data: hasSources
           ? [
               {
@@ -229,11 +126,33 @@ describe('Company embedding caching', () => {
             ]
           : [],
         error: null,
-      }),
-      _updateCalls: updateCalls,
-    };
+      },
+    );
 
-    return supabase;
+    // --- company_profiles: column-arg-aware select read-back ---------------
+    const profileChain: MockQueryChain = supabase._chains.company_profiles;
+    const embeddingResult = {
+      data: { company_embedding: cachedEmbedding },
+      error: null,
+    };
+    const profileResult = { data: profileFields, error: null };
+    profileChain.select.mockImplementation((cols: string) => {
+      const result = cols.includes('company_embedding')
+        ? embeddingResult
+        : profileResult;
+      // The chain's terminals resolve the chosen read-back; .eq stays
+      // chainable so .maybeSingle() (the pipeline's terminator) wins.
+      profileChain.maybeSingle.mockResolvedValue(result);
+      profileChain.single.mockResolvedValue(result);
+      return profileChain;
+    });
+    // VOID cache write — capture payload (persistence contract, no read-back).
+    profileChain.update.mockImplementation((data: any) => {
+      updateCalls.push({ table: 'company_profiles', data });
+      return profileChain;
+    });
+
+    return Object.assign(supabase, { _updateCalls: updateCalls });
   }
 
   it('uses cached embedding when available (no API call)', async () => {

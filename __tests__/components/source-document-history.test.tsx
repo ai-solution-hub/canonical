@@ -424,7 +424,7 @@ describe('SourceDocumentHistory — accessibility', () => {
     mockFetch.mockReset();
   });
 
-  it('uses role="list" with an aria-label on the container', async () => {
+  it('exposes the timeline as a labelled list on the container', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
@@ -442,7 +442,7 @@ describe('SourceDocumentHistory — accessibility', () => {
     });
   });
 
-  it('uses role="listitem" for each version entry', async () => {
+  it('exposes each version entry as a list item', async () => {
     const versions = [
       makeVersion({ id: 'doc-v1', version: 1 }),
       makeVersion({ id: 'doc-v2', version: 2, parent_id: 'doc-v1' }),
@@ -525,7 +525,7 @@ describe('SourceDocumentHistory — accessibility', () => {
 // ---------------------------------------------------------------------------
 
 describe('SourceDocumentHistory — className', () => {
-  it('applies additional className in loading state', () => {
+  it('reflects an additional className while loading', () => {
     mockFetch.mockReturnValue(new Promise(() => {}));
 
     const { container } = render(
@@ -538,7 +538,7 @@ describe('SourceDocumentHistory — className', () => {
     expect(container.firstElementChild!.className).toContain('custom-class');
   });
 
-  it('applies additional className in loaded state', async () => {
+  it('reflects an additional className once loaded', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({

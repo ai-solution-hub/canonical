@@ -22,7 +22,7 @@ describe('useReviewShortcuts', () => {
   // Enter — Verify
   // ----------------------------------------------------------
 
-  it('calls onVerify when Enter is pressed', () => {
+  it('verifies the item when Enter is pressed', () => {
     renderHook(() => useReviewShortcuts(handlers));
     fireEvent.keyDown(document, { key: 'Enter' });
     expect(handlers.onVerify).toHaveBeenCalledOnce();
@@ -32,7 +32,7 @@ describe('useReviewShortcuts', () => {
   // f — Flag
   // ----------------------------------------------------------
 
-  it('calls onFlag when "f" is pressed', () => {
+  it('flags the item when "f" is pressed', () => {
     renderHook(() => useReviewShortcuts(handlers));
     fireEvent.keyDown(document, { key: 'f' });
     expect(handlers.onFlag).toHaveBeenCalledOnce();
@@ -42,7 +42,7 @@ describe('useReviewShortcuts', () => {
   // ArrowRight — Skip
   // ----------------------------------------------------------
 
-  it('calls onSkip when ArrowRight is pressed', () => {
+  it('skips the item when ArrowRight is pressed', () => {
     renderHook(() => useReviewShortcuts(handlers));
     fireEvent.keyDown(document, { key: 'ArrowRight' });
     expect(handlers.onSkip).toHaveBeenCalledOnce();
@@ -52,7 +52,7 @@ describe('useReviewShortcuts', () => {
   // ArrowLeft — Back
   // ----------------------------------------------------------
 
-  it('calls onBack when ArrowLeft is pressed', () => {
+  it('goes back when ArrowLeft is pressed', () => {
     renderHook(() => useReviewShortcuts(handlers));
     fireEvent.keyDown(document, { key: 'ArrowLeft' });
     expect(handlers.onBack).toHaveBeenCalledOnce();
@@ -62,7 +62,7 @@ describe('useReviewShortcuts', () => {
   // Escape — Exit review
   // ----------------------------------------------------------
 
-  it('calls onExit when Escape is pressed outside an input', () => {
+  it('exits review when Escape is pressed outside an input', () => {
     renderHook(() => useReviewShortcuts(handlers));
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(handlers.onExit).toHaveBeenCalledOnce();
@@ -85,7 +85,7 @@ describe('useReviewShortcuts', () => {
   // e — Edit
   // ----------------------------------------------------------
 
-  it('calls onEdit when "e" is pressed', () => {
+  it('opens the editor when "e" is pressed', () => {
     renderHook(() => useReviewShortcuts(handlers));
     fireEvent.keyDown(document, { key: 'e' });
     expect(handlers.onEdit).toHaveBeenCalledOnce();
@@ -95,7 +95,7 @@ describe('useReviewShortcuts', () => {
   // l — Toggle panel
   // ----------------------------------------------------------
 
-  it('calls onTogglePanel when "l" is pressed', () => {
+  it('toggles the panel when "l" is pressed', () => {
     renderHook(() => useReviewShortcuts(handlers));
     fireEvent.keyDown(document, { key: 'l' });
     expect(handlers.onTogglePanel).toHaveBeenCalledOnce();

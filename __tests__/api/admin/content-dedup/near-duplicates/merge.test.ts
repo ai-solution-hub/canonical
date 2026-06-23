@@ -358,8 +358,18 @@ describe('POST /api/admin/content-dedup/near-duplicates/[pairId]/merge', () => {
           },
         },
       );
-      await POST(request, { params: createTestParams({ pairId: PAIR_ID }) });
+      const response = await POST(request, {
+        params: createTestParams({ pairId: PAIR_ID }),
+      });
 
+      // Observable outcome: the merge succeeds and reports the loser as
+      // superseded — so the audit-row assertion below runs on the success path.
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.dedup_status).toBe('superseded');
+
+      // Persisted audit row: content_history snapshot at version 3 capturing
+      // the OQ2 resolution context (similarity/threshold) against the loser.
       expect(mockSupabase._chain.insert).toHaveBeenCalledWith(
         expect.objectContaining({
           content_item_id: ID_A,

@@ -310,7 +310,7 @@ describe('BrowseContent — Verification Names', () => {
     expect(callArgs).toHaveLength(2);
   });
 
-  it('passes verifierNames map to ContentGrid', () => {
+  it('surfaces resolved verifier names to the content grid', () => {
     render(<BrowseContent />, { wrapper: createQueryWrapper().Wrapper });
 
     expect(mockContentGridProps).toHaveBeenCalled();

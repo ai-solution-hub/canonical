@@ -218,14 +218,14 @@ describe('BrowseContent — accessibility', () => {
   });
 
   describe('aria-label on results container', () => {
-    it('uses "Browse content" aria-label when not in search mode', () => {
+    it('labels the results region "Browse content" when not in search mode', () => {
       render(<BrowseContent />, { wrapper: createQueryWrapper().Wrapper });
       expect(
         screen.getByRole('region', { name: 'Browse content' }),
       ).toBeInTheDocument();
     });
 
-    it('uses "Browse and search results" aria-label when in search mode', () => {
+    it('labels the results region "Browse and search results" when in search mode', () => {
       mockBrowseData.isSearchMode = true;
       mockBrowseData.searchQuery = 'data protection';
       mockBrowseData.totalCount = 5;

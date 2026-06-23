@@ -208,7 +208,7 @@ describe('ContentPerformanceSection', () => {
     });
   });
 
-  it('win rate colour matches threshold (teal >= 70%, sand 40-69%, rose < 40%)', async () => {
+  it('surfaces the rounded overall win-rate percentage', async () => {
     mockFetchResponse(
       createAggregateData({
         overall: {
@@ -227,11 +227,14 @@ describe('ContentPerformanceSection', () => {
     render(<ContentPerformanceSection />);
 
     await waitFor(() => {
-      // 80% win rate should use teal text class
-      const winRateEl = screen.getByText('80%');
-      expect(winRateEl).toHaveClass('text-freshness-fresh');
+      expect(screen.getByText('80%')).toBeInTheDocument();
     });
   });
+
+  // The win-rate-tier -> freshness-token colour mapping is pinned once in
+  // content-performance-section.contract.test.tsx (the sanctioned coupling
+  // point). The "80%" figure itself — the user-observable signal — is asserted
+  // by the behaviour tests above.
 
   it('domain rows only appear for domains with citations', async () => {
     mockFetchResponse(

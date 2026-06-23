@@ -113,7 +113,7 @@ describe('useProgress', () => {
     expect(result.current.isLoaded).toBe(false);
   });
 
-  it('calls loadReadMarks on mount', () => {
+  it('loads read marks on mount', () => {
     renderHook(() => useProgress(), {
       wrapper: createWrapper(),
     });

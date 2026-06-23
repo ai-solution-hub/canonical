@@ -259,7 +259,7 @@ describe('TemplateSelector', () => {
   });
 
   describe('className prop', () => {
-    it('applies custom className to the container', () => {
+    it('reflects a custom className on the container', () => {
       const { container } = render(
         <TemplateSelector
           templates={mockTemplates}

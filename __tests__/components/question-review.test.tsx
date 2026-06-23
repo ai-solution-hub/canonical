@@ -408,7 +408,7 @@ describe('QuestionReview', () => {
 
   // ---- Cancel action ----
 
-  it('calls onCancelled when Cancel is clicked', async () => {
+  it('cancels the review when Cancel is clicked', async () => {
     const user = userEvent.setup();
     const onCancelled = vi.fn();
     render(<QuestionReview {...defaultProps({ onCancelled })} />);

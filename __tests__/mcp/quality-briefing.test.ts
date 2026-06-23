@@ -214,7 +214,7 @@ describe('formatQualityBriefing', () => {
     expect(result).toContain('No certification warnings.');
   });
 
-  it('uses suggested_title when title is null', async () => {
+  it('displays suggested_title as the item name when title is null', async () => {
     const data = {
       below_threshold: [
         {
@@ -269,7 +269,7 @@ describe('fetchQualityBriefingData', () => {
     expect(result.generated_at).toBeDefined();
   });
 
-  it('applies domain filter when provided', async () => {
+  it('restricts every section query to the requested domain', async () => {
     const { fetchQualityBriefingData } = await import('@/lib/mcp/tools/shared');
 
     const eqCalls: Array<[string, string]> = [];
@@ -293,7 +293,7 @@ describe('fetchQualityBriefingData', () => {
     expect(domainFilters.length).toBeGreaterThanOrEqual(3);
   });
 
-  it('uses threshold override for below-threshold filtering', async () => {
+  it('returns items below the overridden quality threshold', async () => {
     const { fetchQualityBriefingData } = await import('@/lib/mcp/tools/shared');
 
     const fromCallIndex = { value: 0 };
@@ -345,7 +345,7 @@ describe('fetchQualityBriefingData', () => {
     ).toBe(true);
   });
 
-  it('processes score drops and sorts by magnitude', async () => {
+  it('orders score drops largest-magnitude first', async () => {
     const { fetchQualityBriefingData } = await import('@/lib/mcp/tools/shared');
 
     const fromCallIndex = { value: 0 };

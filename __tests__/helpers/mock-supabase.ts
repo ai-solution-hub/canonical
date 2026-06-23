@@ -358,3 +358,84 @@ export function createMockSupabaseTable<TData = any>(
     _chain: chain,
   };
 }
+
+/**
+ * Return type of `createMockSupabaseTableDispatch()`. Like
+ * `MockSupabaseTable` but exposes a per-table `_chains` map (keyed by table
+ * name) so a test can configure or introspect an individual table's chain
+ * after construction.
+ */
+export interface MockSupabaseDispatch {
+  from: ((table: string) => MockQueryChain) & ReturnType<typeof vi.fn>;
+  rpc: ((
+    name: string,
+    args?: unknown,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ) => PromiseLike<{ data: any; error: any }>) &
+    ReturnType<typeof vi.fn>;
+  /** Per-table chains, keyed by table name. */
+  _chains: Record<string, MockQueryChain>;
+}
+
+/**
+ * Multi-table variant of `createMockSupabaseTable()`. Routes each
+ * `from(<table>)` call to its OWN chain, whose terminals (and the implicit
+ * `then`) resolve to the resolution configured for that table. Tables not
+ * named in `tableResolutions` get a fresh empty-success chain
+ * (`{ data: [], error: null }`).
+ *
+ * Use this for lib-function tests that read several tables in one call and
+ * need each table to resolve to different fixture data — replacing the
+ * per-file `from()`-switch `createMockSupabase()` duplicates in
+ * `__tests__/lib/` (W-RG). Every chainable method returns the table's
+ * thenable chain, so the resolution flows regardless of which terminal
+ * (`.eq`, `.limit`, `.order`, `.single`, `.maybeSingle`, awaited chain) the
+ * function under test stops at.
+ *
+ * @param tableResolutions Map of table name -> default resolved value.
+ * @param rpcResolution    Default `.rpc()` resolution (defaults to empty
+ *                         success).
+ *
+ * @example
+ * ```ts
+ * const supabase = createMockSupabaseTableDispatch({
+ *   si_processing_queue: { data: [{ completed_at: ts }], error: null },
+ *   feed_sources: { data: [{ id: 's1', consecutive_failures: 0 }], error: null },
+ * });
+ * const health = await getPipelineHealth(supabase as never);
+ * ```
+ */
+export function createMockSupabaseTableDispatch(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tableResolutions: Record<string, MockTableResolution<any>> = {},
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  rpcResolution: MockTableResolution<any> = { data: [], error: null },
+): MockSupabaseDispatch {
+  const chains: Record<string, MockQueryChain> = {};
+
+  const chainFor = (table: string): MockQueryChain => {
+    if (!chains[table]) {
+      const resolution = tableResolutions[table] ?? {
+        data: [],
+        error: null,
+      };
+      chains[table] = createMockSupabaseTable(resolution)._chain;
+    }
+    return chains[table];
+  };
+
+  // Pre-build named chains so `_chains` is populated for introspection.
+  for (const table of Object.keys(tableResolutions)) {
+    chainFor(table);
+  }
+
+  return {
+    from: vi.fn((table: string) =>
+      chainFor(table),
+    ) as MockSupabaseDispatch['from'],
+    rpc: vi
+      .fn()
+      .mockResolvedValue(rpcResolution) as MockSupabaseDispatch['rpc'],
+    _chains: chains,
+  };
+}

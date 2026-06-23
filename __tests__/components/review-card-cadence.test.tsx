@@ -129,22 +129,22 @@ describe('ReviewCard — days since review', () => {
     expect(screen.getByText('Last reviewed 30 days ago')).toBeInTheDocument();
   });
 
-  it('applies overdue styling when > 90 days since review', () => {
+  it('marks the review as overdue when > 90 days since review', () => {
     const item = makeReviewItem({ verified_at: daysAgo(120) });
     render(<ReviewCard item={item} position={1} total={10} />);
 
+    // Overdue is conveyed solely by colour token (identical text), so assert
+    // the stable data-cadence-state hook rather than the design-system class.
     const daysText = screen.getByText('Last reviewed 120 days ago');
-    // The overdue class should be on the parent span
-    expect(daysText.className).toContain('text-bid-overdue');
+    expect(daysText).toHaveAttribute('data-cadence-state', 'overdue');
   });
 
-  it('does not apply overdue styling when <= 90 days since review', () => {
+  it('does not mark the review as overdue when <= 90 days since review', () => {
     const item = makeReviewItem({ verified_at: daysAgo(30) });
     render(<ReviewCard item={item} position={1} total={10} />);
 
     const daysText = screen.getByText('Last reviewed 30 days ago');
-    expect(daysText.className).not.toContain('text-bid-overdue');
-    expect(daysText.className).toContain('text-muted-foreground');
+    expect(daysText).toHaveAttribute('data-cadence-state', 'ok');
   });
 
   it('still shows verification badge alongside days-since-review', () => {

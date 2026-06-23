@@ -28,14 +28,14 @@ describe('useThemeMode', () => {
     vi.clearAllMocks();
   });
 
-  it('passes through theme and resolvedTheme from next-themes', () => {
+  it('reports the current theme and resolvedTheme', () => {
     const { result } = renderHook(() => useThemeMode());
 
     expect(result.current.theme).toBe('light');
     expect(result.current.resolvedTheme).toBe('light');
   });
 
-  it('calls setTheme from next-themes when view transitions are unavailable', () => {
+  it('applies the theme directly when view transitions are unavailable', () => {
     // Ensure startViewTransition is not available
     const original = document.startViewTransition;
     // @ts-expect-error — removing for test

@@ -339,8 +339,12 @@ class TestFormWriteRealExtractorEndToEnd:
         assert ft_row["storage_path"] == rel_path
         assert ft_row["file_size"] == _CORRUPT_PDF.stat().st_size
         assert ft_row["ingest_source"] == "pipeline"
-        # Deterministic ft: UUID5 so a later successful re-ingest UPSERTs this row.
-        assert ft_row["id"] == uuid.uuid5(flow._KH_PIPELINE_DOC_NS, f"ft:{rel_path}")
+        # Deterministic ft: UUID5 so a later successful re-ingest UPSERTs this
+        # row. Pinned to a frozen uuid5 literal over _KH_PIPELINE_DOC_NS
+        # ("fbfaf1ff-1ee4-583c-9757-1674465b2ec1") for rel_path
+        # "acme/corrupt.pdf" — not re-derived from flow, so a namespace/seed
+        # drift fails loudly.
+        assert ft_row["id"] == uuid.UUID("1aa32286-a133-5063-97e7-91a08a8bbd5b")
         # A form_extraction stage error was surfaced by the real failure branch.
         assert any(e.get("stage") == "form_extraction" for e in emitted), (
             "the real FormExtractionError must surface a form_extraction stage error"

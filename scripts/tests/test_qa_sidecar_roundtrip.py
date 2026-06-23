@@ -244,10 +244,17 @@ class TestQaSidecarNTimeFixpoint:
             )
             runs.append((out, calls))
 
-        ns = flow._KH_PIPELINE_DOC_NS
+        # Hard-coded uuid5 oracles over _KH_PIPELINE_DOC_NS
+        # ("fbfaf1ff-1ee4-583c-9757-1674465b2ec1") for the pinned rel_path
+        # "__qa__/11111111-1111-4111-8111-111111111111.md" — frozen literals so a
+        # namespace or seed-string drift fails loudly (not re-derived from flow).
+        sd_pk = uuid.UUID("bcb1e7b4-38e9-5ff9-9a6b-f0b16b391105")  # sd:{rel}
+        expected_qa_pks = [
+            uuid.UUID("bcbf2fcf-8404-5f30-9c80-e562234ededb"),  # qa:{rel}:0
+            uuid.UUID("c41065e6-379c-5e17-b2f0-3814d5b1de32"),  # qa:{rel}:1
+        ]
 
         # ── source_documents: ONE row per run, the SAME sd: uuid5 PK. ──────────
-        sd_pk = uuid.uuid5(ns, f"sd:{rel_path}")
         for out, _ in runs:
             assert len(out["sd"].rows) == 1, "one source_documents row per walk"
             assert out["sd"].rows[0]["id"] == sd_pk, (
@@ -259,7 +266,6 @@ class TestQaSidecarNTimeFixpoint:
         for out, _ in runs:
             assert len(out["qa"].rows) == 2, "one q_a_extractions row per Q&A pair"
         qa_pks_per_run = [[r["id"] for r in out["qa"].rows] for out, _ in runs]
-        expected_qa_pks = [uuid.uuid5(ns, f"qa:{rel_path}:{i}") for i in range(2)]
         for qa_pks in qa_pks_per_run:
             assert qa_pks == expected_qa_pks, (
                 "q_a_extractions PKs are the stable qa:-seeded uuid5 list — "
@@ -353,14 +359,17 @@ class TestQaSidecarPathStability:
             flow, _FakeFile(new_path, data=same_bytes), manifest=manifest
         )
 
-        ns = flow._KH_PIPELINE_DOC_NS
+        # Hard-coded uuid5 oracles over _KH_PIPELINE_DOC_NS for the two pinned
+        # paths ("__qa__/foo.md" / "__qa__/sub/foo.md") — frozen literals so a
+        # namespace/seed drift fails loudly while the load-bearing INEQUALITY
+        # (rename re-keys) is still proven below.
 
         # The two paths mint DIFFERENT deterministic sd: PKs — the keying is
         # genuinely path-derived (NOT content-derived), so a rename re-keys.
         sd_old = out_old["sd"].rows[0]["id"]
         sd_new = out_new["sd"].rows[0]["id"]
-        assert sd_old == uuid.uuid5(ns, f"sd:{old_path}")
-        assert sd_new == uuid.uuid5(ns, f"sd:{new_path}")
+        assert sd_old == uuid.UUID("42c08615-f8d1-5acd-9da7-a046e414837e")  # sd:{old}
+        assert sd_new == uuid.UUID("ff8ccb4f-3c96-5893-8bab-a40d2233b019")  # sd:{new}
         assert sd_old != sd_new, (
             "a rename within the reserved prefix re-keys the sd: uuid5 (INV-20: "
             "the path is the seed) — the old and new paths are distinct anchors"
@@ -369,8 +378,14 @@ class TestQaSidecarPathStability:
         # q_a_extractions PKs likewise re-key on the new path.
         qa_old = [r["id"] for r in out_old["qa"].rows]
         qa_new = [r["id"] for r in out_new["qa"].rows]
-        assert qa_old == [uuid.uuid5(ns, f"qa:{old_path}:{i}") for i in range(2)]
-        assert qa_new == [uuid.uuid5(ns, f"qa:{new_path}:{i}") for i in range(2)]
+        assert qa_old == [
+            uuid.UUID("33ed46da-cc47-54e7-858e-f75a72e90fbb"),  # qa:{old}:0
+            uuid.UUID("01d73f65-2385-565f-a5b5-2f9b88cfa878"),  # qa:{old}:1
+        ]
+        assert qa_new == [
+            uuid.UUID("1368e595-2ad8-5706-b71f-b0adb58211e2"),  # qa:{new}:0
+            uuid.UUID("e9a04219-153e-5e98-8bf8-be394a79eff9"),  # qa:{new}:1
+        ]
         assert qa_old != qa_new
 
         # storage_path follows the rename so the on-disk file is traceable from
@@ -399,11 +414,13 @@ class TestQaSidecarPathStability:
             flow, _FakeFile(rel_path, data=same_bytes), manifest=manifest
         )
 
-        ns = flow._KH_PIPELINE_DOC_NS
+        # Hard-coded sd: uuid5 oracle for the pinned rel_path
+        # "__qa__/sub/nested/stable.md" — a frozen literal (not re-derived from
+        # flow) so a namespace/seed drift fails this stability assertion loudly.
         assert (
             out_a["sd"].rows[0]["id"]
             == out_b["sd"].rows[0]["id"]
-            == uuid.uuid5(ns, f"sd:{rel_path}")
+            == uuid.UUID("df714f7e-e608-524b-8b64-8b28369dc388")  # sd:{rel}
         )
         assert [r["id"] for r in out_a["qa"].rows] == [
             r["id"] for r in out_b["qa"].rows

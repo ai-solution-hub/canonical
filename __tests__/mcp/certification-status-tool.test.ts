@@ -244,7 +244,7 @@ describe('formatCertificationReport', () => {
     expect(result).toContain('## Certifications (1 held)');
   });
 
-  it('uses singular form for 1 content item in evidence', () => {
+  it('renders singular "content item" for a single evidence reference', () => {
     const singleEvidence: CertificationReportEntry = {
       ...sampleCertification,
       content_item_count: 1,
@@ -303,7 +303,7 @@ describe('generateCertificationReviewPrompt', () => {
     expect(result.category).toBe('compliance');
   });
 
-  it('uses singular form for 1 certification', () => {
+  it('renders singular "certification" in the prompt for a count of 1', () => {
     const result = generateCertificationReviewPrompt(1, 0);
     expect(result.prompt).toContain('1 certification on record');
     expect(result.prompt).not.toContain('certifications');
@@ -314,7 +314,7 @@ describe('generateCertificationReviewPrompt', () => {
     expect(result.prompt).toContain('2 are expiring soon');
   });
 
-  it('uses singular form for 1 expiring', () => {
+  it('renders "1 is expiring soon" in the singular for a single expiring cert', () => {
     const result = generateCertificationReviewPrompt(5, 1);
     expect(result.prompt).toContain('1 is expiring soon');
   });
@@ -329,7 +329,7 @@ describe('generateCertificationReviewPrompt', () => {
     expect(result.description).toBe('3 certifications, 1 expiring');
   });
 
-  it('uses singular in description for 1 cert', () => {
+  it('renders singular "certification" in the description for a count of 1', () => {
     const result = generateCertificationReviewPrompt(1, 0);
     expect(result.description).toBe('1 certification, 0 expiring');
   });

@@ -45,12 +45,9 @@ describe('ProcurementWorkflowBadge', () => {
     }
   });
 
-  it('applies correct colour classes for draft state', () => {
-    const { container } = render(<ProcurementWorkflowBadge state="draft" />);
-    const badge = container.querySelector('span');
-    expect(badge?.className).toContain('bg-bid-draft-bg');
-    expect(badge?.className).toContain('text-bid-draft');
-    expect(badge?.className).toContain('border-bid-draft-border');
+  it('renders the draft badge with its "Draft" label', () => {
+    render(<ProcurementWorkflowBadge state="draft" />);
+    expect(screen.getByText('Draft')).toBeInTheDocument();
   });
 });
 

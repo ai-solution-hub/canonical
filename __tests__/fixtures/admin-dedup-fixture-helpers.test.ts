@@ -380,7 +380,7 @@ describe('admin-dedup-fixture-helpers / seedAdminDedupFixtures', () => {
     }
   });
 
-  it('uses options.actorUserId when provided (skips user_roles lookup)', async () => {
+  it('sets created_by to options.actorUserId without a user_roles lookup', async () => {
     // Reset and re-configure without a user_roles lookup.
     mock = createMockSupabaseClient();
     const maps = buildSlotMaps();
@@ -543,7 +543,7 @@ describe('admin-dedup-fixture-helpers / cleanupAllAdminDedupFixtures', () => {
     vi.restoreAllMocks();
   });
 
-  it('uses .not(metadata->run_id, is, null) filter to broaden to any run', async () => {
+  it('broadens cleanup to every run via a metadata IS NOT NULL filter', async () => {
     mock._chain.then
       .mockImplementationOnce(
         // resolve IDs
@@ -605,7 +605,7 @@ describe('admin-dedup-fixture-helpers / sweepOrphanFixtures', () => {
     vi.restoreAllMocks();
   });
 
-  it('applies the time-window predicate via .lt(created_at, cutoff)', async () => {
+  it('sweeps only fixtures older than the created_at cutoff', async () => {
     mock._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
       resolve({ data: [], error: null, count: 0 }),
     );

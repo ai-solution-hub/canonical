@@ -231,8 +231,18 @@ describe('POST /api/admin/content-dedup/[id]/confirm-unique', () => {
         `/api/admin/content-dedup/${SUBJECT_ID}/confirm-unique`,
         { method: 'POST', body: {} },
       );
-      await POST(request, { params: createTestParams({ id: SUBJECT_ID }) });
+      const response = await POST(request, {
+        params: createTestParams({ id: SUBJECT_ID }),
+      });
 
+      // Observable outcome: confirming uniqueness succeeds and reports the
+      // resolved status — so the audit-row assertion runs on the success path.
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.dedup_status).toBe('confirmed_unique');
+
+      // Persisted audit row: content_history snapshot at version 2 recorded as
+      // a metadata_change with the confirmed-unique reason.
       expect(mockSupabase._chain.insert).toHaveBeenCalledWith(
         expect.objectContaining({
           content_item_id: SUBJECT_ID,

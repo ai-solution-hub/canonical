@@ -136,7 +136,7 @@ describe('ReferenceContent — error is distinct from empty (B-20)', () => {
 });
 
 describe('ReferenceContent — search mode (B-13/B-15/B-18/B-23)', () => {
-  it('uses the {111.9} endpoint and shows a no-match state distinct from corpus-empty', async () => {
+  it('shows a no-match state distinct from corpus-empty when a search returns nothing', async () => {
     navState.search = 'q=nothing+matches';
     mockFetchJson.mockResolvedValue({ results: [] });
 

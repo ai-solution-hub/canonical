@@ -567,16 +567,16 @@ describe('TemplateFieldReview', () => {
 
   // ---- Keyboard navigation ----
 
-  it('navigates down with j key', () => {
+  it('moves focus to the first row on j keydown', () => {
     render(<TemplateFieldReview {...defaultProps()} />);
     fireEvent.keyDown(document, { key: 'j' });
     const rows = screen.getAllByRole('row');
-    // First tbody row (index 1, after header row) should have focused class
+    // First tbody row (index 1, after header row) should be the focused row
     const tbodyRows = rows.slice(1);
-    expect(tbodyRows[0].className).toContain('bg-accent/50');
+    expect(tbodyRows[0]).toHaveAttribute('data-focused');
   });
 
-  it('navigates up with k key', () => {
+  it('moves focus back up a row on k keydown', () => {
     render(<TemplateFieldReview {...defaultProps()} />);
     // Move down twice
     fireEvent.keyDown(document, { key: 'j' });
@@ -585,8 +585,8 @@ describe('TemplateFieldReview', () => {
     fireEvent.keyDown(document, { key: 'k' });
     const rows = screen.getAllByRole('row');
     const tbodyRows = rows.slice(1);
-    expect(tbodyRows[0].className).toContain('bg-accent/50');
-    expect(tbodyRows[1].className).not.toContain('bg-accent/50');
+    expect(tbodyRows[0]).toHaveAttribute('data-focused');
+    expect(tbodyRows[1]).not.toHaveAttribute('data-focused');
   });
 
   it('j key does not go past the last field', () => {
@@ -603,8 +603,8 @@ describe('TemplateFieldReview', () => {
     const rows = screen.getAllByRole('row');
     const tbodyRows = rows.slice(1);
     // Last row should be focused
-    expect(tbodyRows[1].className).toContain('bg-accent/50');
-    expect(tbodyRows[0].className).not.toContain('bg-accent/50');
+    expect(tbodyRows[1]).toHaveAttribute('data-focused');
+    expect(tbodyRows[0]).not.toHaveAttribute('data-focused');
   });
 
   it('k key does not go below zero', () => {
@@ -613,7 +613,7 @@ describe('TemplateFieldReview', () => {
     fireEvent.keyDown(document, { key: 'k' });
     const rows = screen.getAllByRole('row');
     const tbodyRows = rows.slice(1);
-    expect(tbodyRows[0].className).toContain('bg-accent/50');
+    expect(tbodyRows[0]).toHaveAttribute('data-focused');
   });
 
   it('n key jumps to next unreviewed field', () => {
@@ -644,7 +644,7 @@ describe('TemplateFieldReview', () => {
     const rows = screen.getAllByRole('row');
     const tbodyRows = rows.slice(1);
     // Index 1 (the unreviewed one) should be focused
-    expect(tbodyRows[1].className).toContain('bg-accent/50');
+    expect(tbodyRows[1]).toHaveAttribute('data-focused');
   });
 
   it('Enter key confirms the focused unreviewed field', async () => {
@@ -858,16 +858,14 @@ describe('TemplateFieldReview', () => {
     fireEvent.keyDown(document, { key: 'j' });
     let rows = screen.getAllByRole('row');
     let tbodyRows = rows.slice(1);
-    expect(tbodyRows[0].className).toContain('bg-accent/50');
+    expect(tbodyRows[0]).toHaveAttribute('data-focused');
     // Click a different filter tab to trigger reset
     const tablist = screen.getByRole('tablist');
     await user.click(within(tablist).getByText('Confirmed'));
-    // Re-query rows — no row should have focus class
+    // Re-query rows — no row should be focused
     rows = screen.getAllByRole('row');
     tbodyRows = rows.slice(1);
-    const focusedRows = tbodyRows.filter((r) =>
-      r.className.includes('bg-accent/50'),
-    );
+    const focusedRows = tbodyRows.filter((r) => r.hasAttribute('data-focused'));
     expect(focusedRows.length).toBe(0);
   });
 
@@ -961,24 +959,24 @@ describe('TemplateFieldReview', () => {
 
   // ---- Confidence badge thresholds ----
 
-  it('renders high confidence with strong colour class', () => {
+  it('labels high confidence as High', () => {
     const fields = [makeField({ id: 'f-1', mapping_confidence: 0.95 })];
     render(<TemplateFieldReview {...defaultProps({ fields })} />);
     const badge = screen.getByText('95%');
-    expect(badge.className).toContain('text-confidence-strong');
+    expect(badge).toHaveAttribute('title', '95% confidence (High)');
   });
 
-  it('renders medium confidence with partial colour class', () => {
+  it('labels medium confidence as Medium', () => {
     const fields = [makeField({ id: 'f-1', mapping_confidence: 0.75 })];
     render(<TemplateFieldReview {...defaultProps({ fields })} />);
     const badge = screen.getByText('75%');
-    expect(badge.className).toContain('text-confidence-partial');
+    expect(badge).toHaveAttribute('title', '75% confidence (Medium)');
   });
 
-  it('renders low confidence with stale colour class', () => {
+  it('labels low confidence as Low', () => {
     const fields = [makeField({ id: 'f-1', mapping_confidence: 0.5 })];
     render(<TemplateFieldReview {...defaultProps({ fields })} />);
     const badge = screen.getByText('50%');
-    expect(badge.className).toContain('text-freshness-stale');
+    expect(badge).toHaveAttribute('title', '50% confidence (Low)');
   });
 });

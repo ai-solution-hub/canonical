@@ -276,11 +276,17 @@ class TestUrlLandingDeclaresEvidencePair:
         assert len(ri.rows) == 1, "expected one reference_items row"
 
         encoded = expected_body.encode()
-        ns = flow._KH_PIPELINE_DOC_NS
+
+        # Hard-coded uuid5 oracles over _KH_PIPELINE_DOC_NS
+        # ("fbfaf1ff-1ee4-583c-9757-1674465b2ec1") for the pinned item.url
+        # "https://example.com/articles/insight" — frozen literals (not
+        # re-derived from flow) so a namespace/seed drift fails loudly.
 
         # BI-4: source_documents carries the URL identity + provenance.
         sd_row = sd.rows[0]
-        assert sd_row["id"] == uuid.uuid5(ns, f"sd:{item.url}")
+        assert sd_row["id"] == uuid.UUID(
+            "bd67461b-1e3c-5bbd-b277-4dc6efccc9ab"  # sd:{url}
+        )
         assert sd_row["storage_path"] == item.url
         assert sd_row["source_url"] == item.url, (
             "storage_path = source_url = normalised URL (RESEARCH constraint 2)"
@@ -300,7 +306,9 @@ class TestUrlLandingDeclaresEvidencePair:
 
         # BI-3: the full reference_items contract.
         ri_row = ri.rows[0]
-        assert ri_row["id"] == uuid.uuid5(ns, f"ri:{item.url}")
+        assert ri_row["id"] == uuid.UUID(
+            "d315a098-4fbc-554b-982f-396b2ecec8fe"  # ri:{url}
+        )
         assert ri_row["title"] == "Insight article"
         # PI-1: the body is the boilerplate-stripped clean TEXT from clean_html.
         assert ri_row["body"] == expected_body, (
@@ -411,15 +419,16 @@ class TestUrlIdempotencyAndUpdate:
         _wire(flow, monkeypatch)
         item = _make_item()
 
-        ns = flow._KH_PIPELINE_DOC_NS
         ri1, sd1 = _ingest(flow, item)
         ri2, sd2 = _ingest(flow, item)
 
         assert sd1.rows[0]["id"] == sd2.rows[0]["id"]
         assert ri1.rows[0]["id"] == ri2.rows[0]["id"]
         # PI-8: the uuid5 seeds are URL-derived, unaffected by the cutover.
-        assert sd1.rows[0]["id"] == uuid.uuid5(ns, f"sd:{item.url}")
-        assert ri1.rows[0]["id"] == uuid.uuid5(ns, f"ri:{item.url}")
+        # Pinned to frozen literals over _KH_PIPELINE_DOC_NS for the item.url
+        # "https://example.com/articles/insight" (not re-derived from flow).
+        assert sd1.rows[0]["id"] == uuid.UUID("bd67461b-1e3c-5bbd-b277-4dc6efccc9ab")
+        assert ri1.rows[0]["id"] == uuid.UUID("d315a098-4fbc-554b-982f-396b2ecec8fe")
 
     def test_changed_page_content_updates_body_under_same_pk(
         self, monkeypatch: pytest.MonkeyPatch

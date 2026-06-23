@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
+import { createTestQueryClient } from '@/__tests__/helpers/query-wrapper';
 
 // ---------------------------------------------------------------------------
 // Mock Supabase client
@@ -107,18 +108,6 @@ function setupMockSupabase(
   mockSelect.mockReturnValue({ eq: mockEq });
   mockFrom.mockReturnValue({ select: mockSelect });
   mockCreateClient.mockReturnValue({ from: mockFrom });
-}
-
-function createTestQueryClient() {
-  return new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-        refetchOnWindowFocus: false,
-        gcTime: 0,
-      },
-    },
-  });
 }
 
 function wrapper({ children }: { children: React.ReactNode }) {

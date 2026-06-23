@@ -246,7 +246,7 @@ describe('CreateContentClient — template integration', () => {
   });
 
   describe('template pre-filling', () => {
-    it('selecting Policy Document sets content_type to policy', async () => {
+    it('switches the content type to policy when Policy Document is selected', async () => {
       const user = userEvent.setup();
       renderFormInZeroState();
       const selector = getTemplateSelector();
@@ -263,7 +263,7 @@ describe('CreateContentClient — template integration', () => {
       });
     });
 
-    it('selecting a template sets content from contentTemplate', async () => {
+    it('pre-fills the editor with the template body when a template is selected', async () => {
       const user = userEvent.setup();
       renderFormInZeroState();
       const selector = getTemplateSelector();
@@ -278,7 +278,7 @@ describe('CreateContentClient — template integration', () => {
       });
     });
 
-    it('selecting Case Study sets content_type to case_study', async () => {
+    it('switches the content type to case_study when Case Study is selected', async () => {
       const user = userEvent.setup();
       renderFormInZeroState();
       const selector = getTemplateSelector();
@@ -294,7 +294,7 @@ describe('CreateContentClient — template integration', () => {
       });
     });
 
-    it('selecting Q&A Pair sets content_type to q_a_pair', async () => {
+    it('switches the content type to q_a_pair when Q&A Pair is selected', async () => {
       const user = userEvent.setup();
       renderFormInZeroState();
       const selector = getTemplateSelector();
@@ -333,7 +333,7 @@ describe('CreateContentClient — template integration', () => {
   });
 
   describe('domain suggestion validation against taxonomy', () => {
-    it('sets primary_domain when suggestedDomain matches active taxonomy', async () => {
+    it('auto-expands More details when the template domain matches active taxonomy', async () => {
       const user = userEvent.setup();
       renderFormInZeroState();
       const selector = getTemplateSelector();

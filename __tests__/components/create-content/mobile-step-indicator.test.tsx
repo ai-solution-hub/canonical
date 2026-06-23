@@ -42,21 +42,20 @@ describe('MobileStepIndicator', () => {
     expect(step3).not.toHaveAttribute('aria-current');
   });
 
-  it('completed steps have different styling from active step', () => {
+  it('marks completed steps distinctly from the active step', () => {
     render(<MobileStepIndicator activeStep={3} />);
     const stepIndicators = screen.getAllByText(/^[123]$/);
     const step1 = stepIndicators.find((el) => el.textContent === '1')!;
     const step3 = stepIndicators.find((el) => el.textContent === '3')!;
-    // Completed step (1) has primary/20 background, active step (3) has primary background
-    expect(step1.className).toContain('bg-primary/20');
-    expect(step3.className).toContain('bg-primary');
-    expect(step3.className).not.toContain('bg-primary/20');
+    // Completed step (1) is distinct from the active step (3)
+    expect(step1).toHaveAttribute('data-step-state', 'completed');
+    expect(step3).toHaveAttribute('data-step-state', 'active');
   });
 
-  it('future steps have muted styling', () => {
+  it('marks not-yet-reached steps as future', () => {
     render(<MobileStepIndicator activeStep={1} />);
     const stepIndicators = screen.getAllByText(/^[123]$/);
     const step3 = stepIndicators.find((el) => el.textContent === '3')!;
-    expect(step3.className).toContain('bg-muted');
+    expect(step3).toHaveAttribute('data-step-state', 'future');
   });
 });

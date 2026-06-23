@@ -102,23 +102,18 @@ describe('QualityScoreBreakdown', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Colour classes on the badge
+  // Score band labelling — observable label per band. The semantic-token
+  // colour mapping is asserted once in quality-score-breakdown.contract.test.tsx.
   // -------------------------------------------------------------------------
 
-  it('applies green colour classes for Excellent label', () => {
-    const { container } = render(
-      <QualityScoreBreakdown item={excellentItem} />,
-    );
-    const badge = container.querySelector('.rounded-full');
-    expect(badge?.className).toContain('text-quality-good');
-    expect(badge?.className).toContain('bg-quality-good-bg');
+  it('labels an Excellent-scoring item as "Excellent"', () => {
+    render(<QualityScoreBreakdown item={excellentItem} />);
+    expect(screen.getByText('Excellent')).toBeInTheDocument();
   });
 
-  it('applies destructive colour classes for Poor label', () => {
-    const { container } = render(<QualityScoreBreakdown item={poorItem} />);
-    const badge = container.querySelector('.rounded-full');
-    expect(badge?.className).toContain('text-destructive');
-    expect(badge?.className).toContain('bg-destructive/10');
+  it('labels a Poor-scoring item as "Poor"', () => {
+    render(<QualityScoreBreakdown item={poorItem} />);
+    expect(screen.getByText('Poor')).toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------
@@ -161,7 +156,7 @@ describe('QualityScoreBreakdown', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('sets aria-expanded correctly on toggle', () => {
+  it('reflects expanded state via aria-expanded when toggled', () => {
     render(<QualityScoreBreakdown item={excellentItem} />);
     const button = screen.getByRole('button');
     expect(button).toHaveAttribute('aria-expanded', 'false');
@@ -202,7 +197,7 @@ describe('QualityScoreBreakdown', () => {
   // Progress bars
   // -------------------------------------------------------------------------
 
-  it('renders 5 progress bars when expanded', () => {
+  it('shows one progress bar per scoring component when expanded', () => {
     render(<QualityScoreBreakdown item={excellentItem} />);
     fireEvent.click(screen.getByRole('button'));
 
@@ -210,7 +205,7 @@ describe('QualityScoreBreakdown', () => {
     expect(progressBars).toHaveLength(5);
   });
 
-  it('progress bars have correct aria attributes', () => {
+  it('exposes each progress bar range to assistive tech via aria attributes', () => {
     render(<QualityScoreBreakdown item={excellentItem} />);
     fireEvent.click(screen.getByRole('button'));
 

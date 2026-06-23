@@ -166,7 +166,7 @@ describe('lib/logger/request-context', () => {
       expect(result).toBe(42);
     });
 
-    it('forwards async function results unchanged', async () => {
+    it('resolves to the async function result unchanged', async () => {
       const result = await runWithRequestContext(
         fixtureCtx(),
         async () => 'hello',
@@ -226,13 +226,13 @@ describe('lib/logger/request-context', () => {
   });
 
   describe('withRequestContext value-form (ctx, fn)', () => {
-    it('aliases runWithRequestContext when called with (ctx, fn)', () => {
+    it('exposes the supplied context inside the (ctx, fn) scope', () => {
       const ctx = fixtureCtx();
       const observed = withRequestContext(ctx, () => getRequestContext());
       expect(observed).toEqual(ctx);
     });
 
-    it('forwards the function result through the value-form scope', () => {
+    it('returns the function result through the value-form scope', () => {
       const result = withRequestContext(fixtureCtx(), () => 'value-form');
       expect(result).toBe('value-form');
     });
@@ -243,7 +243,7 @@ describe('lib/logger/request-context', () => {
   // ---------------------------------------------------------------------------
 
   describe('withRequestContext decorator-form (handler) — route wrapper', () => {
-    it('seeds AsyncLocalStorage with the supplied x-request-id', async () => {
+    it('exposes the supplied x-request-id as the context request id', async () => {
       let observed: string | undefined;
       const handler = withRequestContext(async () => {
         observed = getRequestContext()?.requestId;
@@ -268,7 +268,7 @@ describe('lib/logger/request-context', () => {
       );
     });
 
-    it('exposes route + method on the context', async () => {
+    it('exposes the request route and method on the context', async () => {
       let observedRoute: string | undefined;
       let observedMethod: string | undefined;
       const handler = withRequestContext(async () => {
@@ -283,7 +283,7 @@ describe('lib/logger/request-context', () => {
       expect(observedMethod).toBe('POST');
     });
 
-    it('forwards Next.js dynamic-route params to the handler', async () => {
+    it('makes Next.js dynamic-route params available to the handler', async () => {
       const handler = withRequestContext(
         async (_req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
           const { id } = await ctx.params;
@@ -308,7 +308,7 @@ describe('lib/logger/request-context', () => {
       expect(res.headers.get('x-request-id')).toBe(SUPPLIED_ID);
     });
 
-    it('mirrors requestId + route + method onto the Sentry scope', async () => {
+    it('tags the Sentry scope with requestId, route, and method', async () => {
       const handler = withRequestContext(async () =>
         NextResponse.json({ ok: true }),
       );
@@ -369,7 +369,7 @@ describe('lib/logger/request-context', () => {
   });
 
   describe('withRequestContextBare — bodyless-handler wrapper', () => {
-    it('wraps a parameterless handler (DELETE/recalculate-all style)', async () => {
+    it('responds 200 with a minted request id for a parameterless handler (DELETE/recalculate-all style)', async () => {
       const handler = withRequestContextBare(async () =>
         NextResponse.json({ ok: true }),
       );
@@ -381,7 +381,7 @@ describe('lib/logger/request-context', () => {
       );
     });
 
-    it('seeds an AsyncLocalStorage scope for the bare handler', async () => {
+    it('exposes a request context to the bare handler', async () => {
       let observedRequestId: string | undefined;
       const handler = withRequestContextBare(async () => {
         observedRequestId = getRequestContext()?.requestId;

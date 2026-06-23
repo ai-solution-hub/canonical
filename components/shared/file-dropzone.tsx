@@ -169,6 +169,7 @@ export function FileDropzone({
       role="button"
       tabIndex={interactive ? 0 : -1}
       aria-label={ariaLabel}
+      data-dragging={dragging}
       className={className(state)}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}

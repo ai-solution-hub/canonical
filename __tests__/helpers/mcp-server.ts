@@ -265,3 +265,37 @@ export function createMockMcpServer(
 
   return mockServer;
 }
+
+// ---------------------------------------------------------------------------
+// MCP `extra` (auth context) factory
+// ---------------------------------------------------------------------------
+
+/** Default admin user id used by the content-tool auth-context factory. */
+const DEFAULT_MOCK_USER_ID = '00000000-0000-4000-8000-000000000001';
+
+/**
+ * Build the `extra` argument passed as the second parameter to an MCP tool
+ * handler — i.e. the auth context the SDK threads through from the transport.
+ *
+ * Consolidates the per-file `createMockExtra` definitions previously
+ * copy-pasted across the content-tool suites (`assign-content-owner`,
+ * `bulk-assign-owner`). The single defaulted shape reconciles the two prior
+ * signatures (full-`authInfo` object vs positional `userId`/`role`):
+ *
+ * ```ts
+ * createMockExtra();                                 // admin default
+ * createMockExtra({ userId, role: 'editor' });       // override identity
+ * ```
+ *
+ * @param opts Partial overrides — `userId`, `role`, and bearer `token`.
+ */
+export function createMockExtra(
+  opts: { userId?: string; role?: string; token?: string } = {},
+): { authInfo: { token: string; extra: { userId: string; role: string } } } {
+  const {
+    userId = DEFAULT_MOCK_USER_ID,
+    role = 'admin',
+    token = 'test-token',
+  } = opts;
+  return { authInfo: { token, extra: { userId, role } } };
+}

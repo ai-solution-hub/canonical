@@ -36,7 +36,7 @@ function FeedRow({ label, description, url, sensitive = false }: FeedRowProps) {
     : 'flex flex-col gap-2 rounded-md border bg-muted/30 p-3';
 
   return (
-    <div className={containerClass}>
+    <div className={containerClass} data-sensitive={sensitive || undefined}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">

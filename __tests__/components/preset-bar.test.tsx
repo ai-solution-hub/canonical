@@ -62,11 +62,10 @@ describe('PresetBar', () => {
   });
 
   // 2. Active preset chip has active styling
-  it('active preset chip has active styling', () => {
+  it('marks the active preset chip as pressed', () => {
     render(<PresetBar {...defaultProps} activePresetId="system-stale" />);
     const activeButton = screen.getByText('Stale content');
     expect(activeButton).toHaveAttribute('aria-pressed', 'true');
-    expect(activeButton.className).toContain('border-primary');
   });
 
   // 3. Clicking inactive preset calls onApplyPreset

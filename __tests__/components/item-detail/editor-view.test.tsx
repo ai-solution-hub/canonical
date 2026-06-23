@@ -187,114 +187,62 @@ vi.mock('@/components/item-detail/content-effectiveness-panel', () => ({
 import { EditorView } from '@/components/item-detail/editor-view';
 import type { ItemDetailData } from '@/hooks/use-item-detail-data';
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
-import { createMockItem as createMockItemFactory } from '@/__tests__/helpers/factories/components/item';
+import {
+  createMockItem,
+  createMockData as createMockDataFactory,
+} from '@/__tests__/helpers/factories/components/item';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 /**
- * Wrapper around the canonical factory that applies EditorView-specific
- * defaults: realistic content / AI summary / classification confidence
- * and timestamps required by the editor's metadata strip rendering.
+ * EditorView-specific item defaults applied on top of the canonical factory:
+ * realistic content / AI summary / classification confidence and timestamps
+ * required by the editor's metadata strip rendering.
  */
-function createMockItem(overrides: Partial<ItemData> = {}): ItemData {
-  return createMockItemFactory({
-    suggested_title: 'Suggested Title',
-    content: 'Test content that is long enough to display.',
-    summary: 'AI summary text',
-    ai_keywords: ['keyword1', 'keyword2'],
-    primary_domain: 'business_operations',
-    primary_subtopic: 'procurement',
-    platform: 'web',
-    author_name: 'Test Author',
-    source_url: 'https://example.com/article',
-    source_domain: 'example.com',
-    captured_date: '2026-01-15',
-    classification_confidence: 0.95,
-    classification_reasoning: 'High confidence match',
-    classified_at: '2026-01-15T10:00:00Z',
-    user_tags: [],
-    freshness: 'fresh',
-    metadata: {},
-    created_at: '2026-01-15T10:00:00Z',
-    updated_at: '2026-01-15T10:00:00Z',
-    ...overrides,
-  });
-}
+const editorItemDefaults: Partial<ItemData> = {
+  suggested_title: 'Suggested Title',
+  content: 'Test content that is long enough to display.',
+  summary: 'AI summary text',
+  ai_keywords: ['keyword1', 'keyword2'],
+  primary_domain: 'business_operations',
+  primary_subtopic: 'procurement',
+  platform: 'web',
+  author_name: 'Test Author',
+  source_url: 'https://example.com/article',
+  source_domain: 'example.com',
+  captured_date: '2026-01-15',
+  classification_confidence: 0.95,
+  classification_reasoning: 'High confidence match',
+  classified_at: '2026-01-15T10:00:00Z',
+  user_tags: [],
+  freshness: 'fresh',
+  metadata: {},
+  created_at: '2026-01-15T10:00:00Z',
+  updated_at: '2026-01-15T10:00:00Z',
+};
 
+/**
+ * EditorView data bag: the canonical `createMockData` with EditorView's
+ * suite defaults (editor-capable admin role, suggested title, rich item).
+ */
 function createMockData(
-  overrides: Partial<ItemDetailData> = {},
+  overrides: Omit<Partial<ItemDetailData>, 'item'> & {
+    item?: Partial<ItemData>;
+  } = {},
 ): ItemDetailData {
-  const item = createMockItem(
-    overrides.item ? (overrides.item as Partial<ItemData>) : {},
-  );
-  return {
-    item,
-    setItem: vi.fn(),
-    relatedItems: [],
+  const { item: itemOverride, ...rest } = overrides;
+  return createMockDataFactory({
+    item: createMockItem({
+      ...editorItemDefaults,
+      ...(itemOverride ?? {}),
+    }) as ItemDetailData['item'],
     title: 'Suggested Title',
-    isQAPair: false,
-    hasReaderContent: false,
-    transcriptChapters: undefined,
-    visionAnalysis: undefined,
-    isMobile: false,
     canEdit: true,
     canAdmin: true,
-    router: {
-      push: vi.fn(),
-      replace: vi.fn(),
-      refresh: vi.fn(),
-      back: vi.fn(),
-      forward: vi.fn(),
-      prefetch: vi.fn(),
-    } as unknown as ItemDetailData['router'],
-    toggleRead: vi.fn(),
-    segments: null,
-    highlights: null,
-    fontSize: 'medium' as const,
-    maxWidth: 'medium' as const,
-    panelLayout: {} as ItemDetailData['panelLayout'],
-    readerOpen: false,
-    setFontSize: vi.fn(),
-    setMaxWidth: vi.fn(),
-    setPanelLayout: vi.fn(),
-    setReaderOpen: vi.fn(),
-    toggleReader: vi.fn(),
-    showSplitReader: false,
-    inlineEdit: {
-      editingField: null,
-      editValue: '',
-      saveSuccess: null,
-      saveAnnouncement: '',
-      isSaving: false,
-      startEdit: vi.fn(),
-      cancelEdit: vi.fn(),
-      saveEdit: vi.fn(),
-      setEditValue: vi.fn(),
-    } as unknown as ItemDetailData['inlineEdit'],
-    isAnalysing: false,
-    handleVisionAnalysis: vi.fn(),
-    qaProvenance: {
-      usedInWorkspaces: [],
-      relatedQA: [],
-      topicLayers: [],
-      handleLayerChange: vi.fn(),
-    } as unknown as ItemDetailData['qaProvenance'],
-    layerContent: {},
-    isLayerContentLoading: false,
-    copied: false,
-    handleCopyLink: vi.fn(),
-    handleCopyAnswer: vi.fn(),
-    handleStarToggle: vi.fn(),
-    handlePriorityCycle: vi.fn(),
-    getActiveTabContent: vi.fn(() => ''),
-    tabEditConfig: undefined,
-    startEdit: vi.fn(),
-    cancelEdit: vi.fn(),
-    saveEdit: vi.fn(),
-    ...overrides,
-  } as unknown as ItemDetailData;
+    ...rest,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -360,7 +308,7 @@ describe('EditorView', () => {
       render(
         <EditorView
           data={createMockData({
-            item: createMockItem({ source_url: 'https://example.com/page' }),
+            item: { source_url: 'https://example.com/page' },
           })}
           relatedItems={[]}
         />,
@@ -374,7 +322,7 @@ describe('EditorView', () => {
       render(
         <EditorView
           data={createMockData({
-            item: createMockItem({ content: longContent, source_url: null }),
+            item: { content: longContent, source_url: null },
           })}
           relatedItems={[]}
         />,
@@ -388,7 +336,7 @@ describe('EditorView', () => {
       render(
         <EditorView
           data={createMockData({
-            item: createMockItem({ source_url: null, content: 'short' }),
+            item: { source_url: null, content: 'short' },
           })}
           relatedItems={[]}
         />,
@@ -461,7 +409,7 @@ describe('EditorView', () => {
       render(
         <EditorView
           data={createMockData({
-            item: createMockItem({ source_document_id: 'doc-1' }),
+            item: { source_document_id: 'doc-1' },
           })}
           relatedItems={[]}
         />,
@@ -473,7 +421,7 @@ describe('EditorView', () => {
       render(
         <EditorView
           data={createMockData({
-            item: createMockItem({ source_document_id: undefined }),
+            item: { source_document_id: undefined },
           })}
           relatedItems={[]}
         />,
@@ -489,9 +437,7 @@ describe('EditorView', () => {
       render(
         <EditorView
           data={createMockData({
-            item: createMockItem({
-              thumbnail_url: 'https://example.com/thumb.jpg',
-            }),
+            item: { thumbnail_url: 'https://example.com/thumb.jpg' },
           })}
           relatedItems={[]}
         />,
@@ -504,10 +450,10 @@ describe('EditorView', () => {
         <EditorView
           data={createMockData({
             isQAPair: true,
-            item: createMockItem({
+            item: {
               content_type: 'q_a_pair',
               thumbnail_url: 'https://example.com/thumb.jpg',
-            }),
+            },
           })}
           relatedItems={[]}
         />,
@@ -553,10 +499,10 @@ describe('EditorView', () => {
       render(
         <EditorView
           data={createMockData({
-            item: createMockItem({
+            item: {
               classification_confidence: 0.95,
               classification_reasoning: 'High confidence match for domain',
-            }),
+            },
           })}
           relatedItems={[]}
         />,
@@ -576,9 +522,7 @@ describe('EditorView', () => {
           data={createMockData({
             canAdmin: false,
             canEdit: true,
-            item: createMockItem({
-              classification_reasoning: 'Detailed AI reasoning text',
-            }),
+            item: { classification_reasoning: 'Detailed AI reasoning text' },
           })}
           relatedItems={[]}
         />,

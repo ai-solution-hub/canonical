@@ -51,52 +51,55 @@ describe('QualityBadge', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Colour classes per score range
+  // Score band rendering — observable score + label per band.
+  // The semantic-token colour mapping is asserted once in the dedicated
+  // contract test (quality-badge.contract.test.tsx); here we assert the
+  // user-observable score number, label text, and accessible name.
   // -------------------------------------------------------------------------
 
-  it('applies green colour classes for score 80-100 (Excellent)', () => {
-    const { container } = render(
-      <QualityBadge score={makeScore(85, 'Excellent')} />,
-    );
-    const badge = container.firstElementChild!;
-    expect(badge.className).toContain('text-quality-good');
-    expect(badge.className).toContain('bg-quality-good-bg');
+  it('shows score and Excellent label for a top-band score (85)', () => {
+    render(<QualityBadge score={makeScore(85, 'Excellent')} />);
+    expect(screen.getByText('85')).toBeInTheDocument();
+    expect(screen.getByText('Excellent')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/Quality score: 85 out of 100 — Excellent/),
+    ).toBeInTheDocument();
   });
 
-  it('applies blue colour classes for score 60-79 (Good)', () => {
-    const { container } = render(
-      <QualityBadge score={makeScore(65, 'Good')} />,
-    );
-    const badge = container.firstElementChild!;
-    expect(badge.className).toContain('text-primary');
-    expect(badge.className).toContain('bg-primary/10');
+  it('shows score and Good label for a high-mid-band score (65)', () => {
+    render(<QualityBadge score={makeScore(65, 'Good')} />);
+    expect(screen.getByText('65')).toBeInTheDocument();
+    expect(screen.getByText('Good')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/Quality score: 65 out of 100 — Good/),
+    ).toBeInTheDocument();
   });
 
-  it('applies amber colour classes for score 40-59 (Fair)', () => {
-    const { container } = render(
-      <QualityBadge score={makeScore(50, 'Fair')} />,
-    );
-    const badge = container.firstElementChild!;
-    expect(badge.className).toContain('text-quality-moderate');
-    expect(badge.className).toContain('bg-quality-moderate-bg');
+  it('shows score and Fair label for a mid-band score (50)', () => {
+    render(<QualityBadge score={makeScore(50, 'Fair')} />);
+    expect(screen.getByText('50')).toBeInTheDocument();
+    expect(screen.getByText('Fair')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/Quality score: 50 out of 100 — Fair/),
+    ).toBeInTheDocument();
   });
 
-  it('applies orange colour classes for score 20-39 (Needs Work)', () => {
-    const { container } = render(
-      <QualityBadge score={makeScore(25, 'Needs Work')} />,
-    );
-    const badge = container.firstElementChild!;
-    expect(badge.className).toContain('text-freshness-stale');
-    expect(badge.className).toContain('bg-freshness-stale-bg');
+  it('shows score and Needs Work label for a low-mid-band score (25)', () => {
+    render(<QualityBadge score={makeScore(25, 'Needs Work')} />);
+    expect(screen.getByText('25')).toBeInTheDocument();
+    expect(screen.getByText('Needs Work')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/Quality score: 25 out of 100 — Needs Work/),
+    ).toBeInTheDocument();
   });
 
-  it('applies red colour classes for score 0-19 (Poor)', () => {
-    const { container } = render(
-      <QualityBadge score={makeScore(10, 'Poor')} />,
-    );
-    const badge = container.firstElementChild!;
-    expect(badge.className).toContain('text-destructive');
-    expect(badge.className).toContain('bg-destructive/10');
+  it('shows score and Poor label for a bottom-band score (10)', () => {
+    render(<QualityBadge score={makeScore(10, 'Poor')} />);
+    expect(screen.getByText('10')).toBeInTheDocument();
+    expect(screen.getByText('Poor')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/Quality score: 10 out of 100 — Poor/),
+    ).toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------
@@ -137,7 +140,7 @@ describe('QualityBadge', () => {
   // Size variants
   // -------------------------------------------------------------------------
 
-  it('uses small size classes by default', () => {
+  it('renders at compact size by default', () => {
     const { container } = render(
       <QualityBadge score={makeScore(75, 'Good')} />,
     );
@@ -146,7 +149,7 @@ describe('QualityBadge', () => {
     expect(badge.className).toContain('px-1.5');
   });
 
-  it('uses medium size classes when size="md"', () => {
+  it('renders at a larger size when size="md"', () => {
     const { container } = render(
       <QualityBadge score={makeScore(75, 'Good')} size="md" />,
     );

@@ -93,6 +93,36 @@ const WORKSPACE_FIXTURES = {
   },
 };
 
+// A filter-aware query mock: records the eq() predicates the production code
+// applies and filters the seeded dataset by them, so the handler's observable
+// output reflects whether the query was actually scoped. Dropping a filter (or
+// the bid->procurement remap) changes what the caller sees — making the output
+// assertions load-bearing rather than fixture-echoes.
+function seedFilterableWorkspaces(rows: Array<Record<string, unknown>>): void {
+  const eqFilters: Array<[string, unknown]> = [];
+  const query = {
+    eq: vi.fn((column: string, value: unknown) => {
+      eqFilters.push([column, value]);
+      return query;
+    }),
+    order: vi.fn(async () => ({
+      data: rows.filter((row) =>
+        eqFilters.every(([column, value]) => {
+          if (column === 'application_types.key') {
+            return (row.application_types as { key: string }).key === value;
+          }
+          if (column === 'is_archived') {
+            return (row.is_archived ?? false) === value;
+          }
+          return true;
+        }),
+      ),
+      error: null,
+    })),
+  };
+  mocks.fromReturn.select.mockReturnValue(query);
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -202,70 +232,91 @@ describe('list_user_workspaces MCP tool', () => {
     expect(ids).toContain(WORKSPACE_FIXTURES.intelligence.id);
   });
 
-  it('applies type filter when provided', async () => {
-    // Track all eq calls across the chain
-    const eqCalls: Array<[string, unknown]> = [];
-    const chainedQuery = {
-      eq: vi.fn((...args: [string, unknown]) => {
-        eqCalls.push(args);
-        return chainedQuery;
-      }),
-      order: vi.fn().mockResolvedValue({
-        data: [WORKSPACE_FIXTURES.intelligence],
-        error: null,
-      }),
-    };
-    mocks.fromReturn.select.mockReturnValue(chainedQuery);
+  it('returns only the requested type when a type filter is provided', async () => {
+    // Seed a mixed dataset: a live intelligence workspace, an ARCHIVED
+    // intelligence workspace (must be excluded by .eq('is_archived', false)),
+    // and a procurement workspace (must be excluded by the type filter). The
+    // filter-aware mock returns only rows surviving the recorded eq() filters,
+    // so the assertion fails if production drops EITHER filter.
+    seedFilterableWorkspaces([
+      WORKSPACE_FIXTURES.intelligence,
+      {
+        ...WORKSPACE_FIXTURES.intelligence,
+        id: 'c3333333-3333-4333-8333-333333333333',
+        name: 'Archived Intelligence Space',
+        is_archived: true,
+      },
+      WORKSPACE_FIXTURES.bid,
+    ]);
 
     const tool = getWorkspaceTool();
-    await tool.handler({ type: 'intelligence' }, MOCK_EXTRA);
+    const result = (await tool.handler(
+      { type: 'intelligence' },
+      MOCK_EXTRA,
+    )) as {
+      content: Array<{ type: string; text: string }>;
+      structuredContent: {
+        workspaces: Array<{ id: string; name: string; type: string }>;
+      };
+    };
 
-    // Post-T2: discriminator is `application_types.key` via JOIN, not the
-    // dropped `workspaces.type` text col. Verify both `is_archived` filter
-    // and the nested-key filter were applied.
-    expect(eqCalls).toContainEqual(['is_archived', false]);
-    expect(eqCalls).toContainEqual(['application_types.key', 'intelligence']);
+    // Only the live, non-archived intelligence workspace survives both filters.
+    expect(result.structuredContent.workspaces).toEqual([
+      {
+        id: WORKSPACE_FIXTURES.intelligence.id,
+        name: WORKSPACE_FIXTURES.intelligence.name,
+        type: 'intelligence',
+      },
+    ]);
+    expect(result.content[0].text).toContain(
+      WORKSPACE_FIXTURES.intelligence.name,
+    );
   });
 
-  it('passes live application-type keys through to DB verbatim', async () => {
+  it('returns the procurement workspace for a live application-type key', async () => {
     // ID-71 {71.5}: the Zod enum mirrors the seeded application_types
-    // vocabulary, so live keys pass through to the query layer unchanged.
-    const eqCalls: Array<[string, unknown]> = [];
-    const chainedQuery = {
-      eq: vi.fn((...args: [string, unknown]) => {
-        eqCalls.push(args);
-        return chainedQuery;
-      }),
-      order: vi.fn().mockResolvedValue({
-        data: [WORKSPACE_FIXTURES.bid],
-        error: null,
-      }),
-    };
-    mocks.fromReturn.select.mockReturnValue(chainedQuery);
+    // vocabulary, so a live key passes through to the query unchanged. The
+    // filter-aware mock returns only rows whose application_types.key matches
+    // the queried key, so the procurement workspace is returned ONLY if the key
+    // actually reached the query (the intelligence row must be filtered out).
+    seedFilterableWorkspaces([
+      WORKSPACE_FIXTURES.bid, // application_types.key === 'procurement'
+      WORKSPACE_FIXTURES.intelligence,
+    ]);
 
     const tool = getWorkspaceTool();
-    await tool.handler({ type: 'procurement' }, MOCK_EXTRA);
+    const result = (await tool.handler(
+      { type: 'procurement' },
+      MOCK_EXTRA,
+    )) as {
+      content: Array<{ type: string; text: string }>;
+      structuredContent: {
+        workspaces: Array<{ id: string; name: string; type: string }>;
+      };
+    };
 
-    expect(eqCalls).toContainEqual(['application_types.key', 'procurement']);
+    expect(result.structuredContent.workspaces).toEqual([
+      {
+        id: WORKSPACE_FIXTURES.bid.id,
+        name: WORKSPACE_FIXTURES.bid.name,
+        type: 'procurement',
+      },
+    ]);
+    expect(result.content[0].text).toContain(WORKSPACE_FIXTURES.bid.name);
   });
 
   it("remaps legacy 'bid' filter to 'procurement'", async () => {
     // ID-71 {71.5}: S248 removed the remap assuming the enum excluded 'bid',
     // but the enum was never updated — type:'bid' hit application_types.key
-    // verbatim and silently returned zero rows. 'bid' is now an explicit
-    // legacy alias remapped to 'procurement' (Q-OQR1-02).
-    const eqCalls: Array<[string, unknown]> = [];
-    const chainedQuery = {
-      eq: vi.fn((...args: [string, unknown]) => {
-        eqCalls.push(args);
-        return chainedQuery;
-      }),
-      order: vi.fn().mockResolvedValue({
-        data: [WORKSPACE_FIXTURES.bid],
-        error: null,
-      }),
-    };
-    mocks.fromReturn.select.mockReturnValue(chainedQuery);
+    // verbatim and silently returned zero rows. 'bid' is now an explicit legacy
+    // alias remapped to 'procurement' (Q-OQR1-02). The dataset holds only a
+    // procurement-keyed workspace, so the filter-aware mock returns it ONLY if
+    // the handler remapped 'bid' -> 'procurement' before querying. Without the
+    // remap the query filters on key='bid', matches nothing, and the caller
+    // sees an empty list — the exact S248 regression this test guards.
+    seedFilterableWorkspaces([
+      WORKSPACE_FIXTURES.bid, // application_types.key === 'procurement'
+    ]);
 
     const tool = getWorkspaceTool();
     const result = (await tool.handler({ type: 'bid' }, MOCK_EXTRA)) as {
@@ -275,12 +326,6 @@ describe('list_user_workspaces MCP tool', () => {
       };
     };
 
-    // Query-layer: legacy 'bid' is remapped to 'procurement', never passed verbatim.
-    expect(eqCalls).toContainEqual(['application_types.key', 'procurement']);
-    expect(eqCalls).not.toContainEqual(['application_types.key', 'bid']);
-
-    // Consumer-observable: the remapped query returns the procurement workspace
-    // to the caller (the regression was type:'bid' silently yielding zero rows).
     expect(result.structuredContent.workspaces).toEqual([
       {
         id: WORKSPACE_FIXTURES.bid.id,

@@ -933,7 +933,7 @@ function loadRewriteFixture(
 }
 
 describe('wrap-define-route rewriteSingleMethod — Subtask 32.10', () => {
-  it('wraps an AUTH_PLAIN handler with defineRoute', () => {
+  it('exports an AUTH_PLAIN handler as a defineRoute-wrapped const', () => {
     // AUTH_PLAIN fixture: `export async function GET(_request: NextRequest)`.
     // Rewrite target per TECH §2.4 + brief:
     //   export const GET = defineRoute(ReviewStatsResponseSchema, async (...) => { ... });
@@ -1080,7 +1080,7 @@ describe('wrap-define-route rewriteSingleMethod — Subtask 32.10', () => {
     );
   });
 
-  it('wraps a BODY_VALIDATED handler with defineRoute', () => {
+  it('exports a BODY_VALIDATED handler as a defineRoute-wrapped const', () => {
     // BODY_VALIDATED fixture: `export async function POST(request: NextRequest)`
     // with `request.json()` + `parseBody()` inside. No second argument.
     // The single-arg signature must round-trip verbatim.
@@ -1127,7 +1127,7 @@ describe('wrap-define-route rewriteSingleMethod — Subtask 32.10', () => {
     `);
   });
 
-  it('wraps a PARAM handler with defineRoute', () => {
+  it('exports a PARAM handler as a defineRoute-wrapped const', () => {
     // PARAM fixture: single GET with `Promise<{ canonical_name }>` second
     // arg, no body. Exercises the same Promise<params> preservation as
     // PARAM_BODY but with a different params shape and a GET method.
@@ -1460,7 +1460,7 @@ export async function GET(_request: NextRequest) {
  */
 
 describe('wrap-define-route rewriteMultiMethod — Subtask 32.11', () => {
-  it('wraps GET and PATCH independently in a MULTI_PARAM_BODY route', () => {
+  it('exports GET and PATCH as independent defineRoute consts in a MULTI_PARAM_BODY route', () => {
     // MULTI_PARAM_BODY fixture: GET + PATCH + DELETE on the same parameterised
     // resource path. Each method has its own handler body; the rewrite MUST
     // wrap each one independently with its own (per-method) schema and
@@ -1568,7 +1568,7 @@ describe('wrap-define-route rewriteMultiMethod — Subtask 32.11', () => {
     ]);
   });
 
-  it('wraps GET and POST independently in a MULTI_BODY route', () => {
+  it('exports GET and POST as independent defineRoute consts in a MULTI_BODY route', () => {
     // MULTI_BODY fixture: GET + POST on the same NON-parameterised resource
     // path. The single-arg `(_request: NextRequest)` signature is preserved
     // on GET; the POST handler reads the body via `request.json()` +
@@ -1604,7 +1604,7 @@ describe('wrap-define-route rewriteMultiMethod — Subtask 32.11', () => {
     expect(rewritten).toContain('parseBody(CreateBodySchema, raw)');
   });
 
-  it('wraps GET and DELETE independently in a MULTI_PARAM route', () => {
+  it('exports GET and DELETE as independent defineRoute consts in a MULTI_PARAM route', () => {
     // MULTI_PARAM fixture: GET + DELETE on a parameterised resource path
     // with NO body on either method. Exercises the same per-method dispatch
     // as MULTI_PARAM_BODY but without the body-handling code in any method.

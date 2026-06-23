@@ -1832,19 +1832,23 @@ class TestFormWriteSuccessPath:
         assert ft_row["issuing_organisation"] == "Acme Council"
         assert ft_row["storage_path"] == rel_path
         assert ft_row["structure_path"] is None
-        # The form_templates PK is the deterministic ft: UUID5.
-        assert ft_row["id"] == uuid.uuid5(
-            flow._KH_PIPELINE_DOC_NS, f"ft:{rel_path}"
-        )
+        # The form_templates PK is the deterministic ft: UUID5. Pinned to a
+        # frozen uuid5 literal over _KH_PIPELINE_DOC_NS
+        # ("fbfaf1ff-1ee4-583c-9757-1674465b2ec1") for rel_path
+        # "acme/blank-form.pdf" — a namespace/seed drift fails loudly.
+        assert ft_row["id"] == uuid.UUID("d08a1ec1-aea9-55eb-b298-1517faa0ea5e")
 
-        # Two field rows with deterministic ftf: UUID5s + correct payloads.
+        # Two field rows with deterministic ftf: UUID5s + correct payloads. The
+        # faked extractor pins sequences 0 and 1, so the per-sequence ftf: PKs
+        # are frozen literals (not re-derived from flow).
         assert len(out["ftf"].rows) == 2
+        expected_ftf_id = {
+            0: uuid.UUID("2863d423-4da5-5004-8fd6-de47b968a138"),  # ftf:{rel}:0
+            1: uuid.UUID("a91e7028-7e51-58e6-80bf-8a70fd91596c"),  # ftf:{rel}:1
+        }
         for field_row in out["ftf"].rows:
             assert field_row["template_id"] == ft_row["id"]
-            expected_id = uuid.uuid5(
-                flow._KH_PIPELINE_DOC_NS, f"ftf:{rel_path}:{field_row['sequence']}"
-            )
-            assert field_row["id"] == expected_id
+            assert field_row["id"] == expected_ftf_id[field_row["sequence"]]
             assert "question_id" not in field_row  # Path-C owned
             assert "mapping_status" not in field_row  # DB default owned
         # Field-specific payload checks.
@@ -2005,14 +2009,17 @@ class TestFormWriteMemoHitRoundTrip:
             "walk-2 (memo HIT) must declare the SAME form_template_fields "
             "rows as walk-1 (id-stable ftf: uuid5 keys)"
         )
-        # And the rows carry the deterministic uuid5 keys (id-stability).
-        rel_path = "s316-smoke/forms/ITT Services.docx"
-        assert walk2["ft"].rows[0]["id"] == uuid.uuid5(
-            flow._KH_PIPELINE_DOC_NS, f"ft:{rel_path}"
+        # And the rows carry the deterministic uuid5 keys (id-stability). Pinned
+        # to frozen uuid5 literals over _KH_PIPELINE_DOC_NS
+        # ("fbfaf1ff-1ee4-583c-9757-1674465b2ec1") for rel_path
+        # "s316-smoke/forms/ITT Services.docx" (seqs 0,1) — not re-derived from
+        # flow, so a namespace/seed drift fails loudly.
+        assert walk2["ft"].rows[0]["id"] == uuid.UUID(
+            "a46b94c4-152d-5aaf-a3d9-8d0fea90b8a7"  # ft:{rel}
         )
         assert {r["id"] for r in walk2["ftf"].rows} == {
-            uuid.uuid5(flow._KH_PIPELINE_DOC_NS, f"ftf:{rel_path}:{seq}")
-            for seq in (0, 1)
+            uuid.UUID("f3476330-7ef4-58d5-b6d2-357012e99b1f"),  # ftf:{rel}:0
+            uuid.UUID("f78493f3-68c1-56ec-9748-ac0ecb554be0"),  # ftf:{rel}:1
         }
         # The deadline survived the round-trip as a datetime (bl-220-class
         # JSON-unstable field) and landed on the declared row both walks.
@@ -2080,8 +2087,9 @@ class TestFormWriteGracefulEmptyProvenance:
         # No field rows for a zero-field form.
         assert out["ftf"].rows == []
         # Same deterministic ft: UUID5 so a later re-ingest with fields UPSERTs
-        # this same row.
-        assert ft_row["id"] == uuid.uuid5(flow._KH_PIPELINE_DOC_NS, f"ft:{rel_path}")
+        # this same row. Pinned to a frozen uuid5 literal over
+        # _KH_PIPELINE_DOC_NS for rel_path "acme/zero-archetype.xlsx".
+        assert ft_row["id"] == uuid.UUID("9be70e00-956d-53b3-b92e-9f4de4241b28")
 
     def test_authored_description_is_preserved_over_graceful_reason(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -2206,8 +2214,10 @@ class TestFormWriteSkipAndFailurePaths:
         assert ft_row["created_by"] == flow.SERVICE_ACCOUNT_UUID
         assert ft_row["mime_type"] == "application/pdf"
         assert ft_row["workspace_id"] == ws
-        # Same ft: UUID5 so a later successful re-ingest UPSERTs this row.
-        assert ft_row["id"] == uuid.uuid5(flow._KH_PIPELINE_DOC_NS, f"ft:{rel_path}")
+        # Same ft: UUID5 so a later successful re-ingest UPSERTs this row. Pinned
+        # to a frozen uuid5 literal over _KH_PIPELINE_DOC_NS for rel_path
+        # "acme/corrupt.pdf" (not re-derived from flow).
+        assert ft_row["id"] == uuid.UUID("1aa32286-a133-5063-97e7-91a08a8bbd5b")
         assert out["ftf"].rows == []
         # A form_extraction stage error was emitted.
         assert any(e.get("stage") == "form_extraction" for e in emitted)

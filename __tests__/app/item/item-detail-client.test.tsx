@@ -128,113 +128,10 @@ vi.mock('@/components/shared/error-boundary', () => ({
 }));
 
 import { ItemDetailClient } from '@/app/item/[id]/item-detail-client';
-import type { ItemData } from '@/app/item/[id]/item-detail-client';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function createMockItem(overrides: Partial<ItemData> = {}): ItemData {
-  return {
-    id: 'item-1',
-    title: 'Test Item',
-    suggested_title: null,
-    content: 'Some content',
-    summary: null,
-    ai_keywords: null,
-    primary_domain: null,
-    primary_subtopic: null,
-    secondary_domain: null,
-    secondary_subtopic: null,
-    content_type: 'article',
-    platform: null,
-    author_name: null,
-    source_url: null,
-    file_path: null,
-    source_domain: null,
-    thumbnail_url: null,
-    captured_date: null,
-    classification_confidence: null,
-    classification_reasoning: null,
-    classified_at: null,
-    summary_data: null,
-    priority: null,
-    user_tags: null,
-    freshness: null,
-    governance_review_status: null,
-    metadata: {},
-    ...overrides,
-  };
-}
-
-function createMockData(overrides: Record<string, unknown> = {}) {
-  return {
-    item: createMockItem(),
-    setItem: vi.fn(),
-    title: 'Test Item',
-    isQAPair: false,
-    hasReaderContent: false,
-    transcriptChapters: undefined,
-    visionAnalysis: undefined,
-    isMobile: false,
-    canEdit: true,
-    canAdmin: false,
-    router: {
-      push: vi.fn(),
-      replace: vi.fn(),
-      back: vi.fn(),
-      forward: vi.fn(),
-      refresh: vi.fn(),
-      prefetch: vi.fn(),
-    },
-    toggleRead: vi.fn(),
-    segments: null,
-    highlights: null,
-    fontSize: 'medium',
-    maxWidth: 'medium',
-    panelLayout: {},
-    readerOpen: false,
-    setFontSize: vi.fn(),
-    setMaxWidth: vi.fn(),
-    setPanelLayout: vi.fn(),
-    setReaderOpen: vi.fn(),
-    toggleReader: vi.fn(),
-    showSplitReader: false,
-    inlineEdit: {
-      editingField: null,
-      editValue: '',
-      saveSuccess: null,
-      saveAnnouncement: '',
-      isSaving: false,
-      startEdit: vi.fn(),
-      cancelEdit: vi.fn(),
-      saveEdit: vi.fn(),
-      setEditValue: vi.fn(),
-    },
-    isAnalysing: false,
-    handleVisionAnalysis: vi.fn(),
-    qaProvenance: {
-      usedInWorkspaces: [],
-      relatedQA: [],
-      topicLayers: [],
-      handleLayerChange: vi.fn(),
-    },
-    layerContent: {},
-    isLayerContentLoading: false,
-    copied: false,
-    handleCopyLink: vi.fn(),
-    handleCopyAnswer: vi.fn(),
-    handleStarToggle: vi.fn(),
-    handlePriorityCycle: vi.fn(),
-    getActiveTabContent: vi.fn(() => ''),
-    tabEditConfig: undefined,
-    startEdit: vi.fn(),
-    cancelEdit: vi.fn(),
-    saveEdit: vi.fn(),
-    relatedItems: [],
-    ...overrides,
-  };
-}
+import {
+  createMockItem,
+  createMockData,
+} from '@/__tests__/helpers/factories/components/item';
 
 // ---------------------------------------------------------------------------
 // Setup
@@ -324,7 +221,7 @@ describe('ItemDetailClient (orchestrator)', () => {
   });
 
   describe('detail mode toggle slot', () => {
-    it('passes DetailModeToggle to EditorView when canToggle is true', () => {
+    it('renders the detail mode toggle in the editor view when canToggle is true', () => {
       mockUseDetailMode.mockReturnValue({
         detailMode: 'editor',
         setDetailMode: vi.fn(),
@@ -340,7 +237,7 @@ describe('ItemDetailClient (orchestrator)', () => {
       expect(screen.getByTestId('detail-mode-toggle')).toBeInTheDocument();
     });
 
-    it('passes DetailModeToggle to ReaderView when canToggle is true', () => {
+    it('renders the detail mode toggle in the reader view when canToggle is true', () => {
       mockUseDetailMode.mockReturnValue({
         detailMode: 'reader',
         setDetailMode: vi.fn(),
@@ -477,7 +374,7 @@ describe('ItemDetailClient (orchestrator)', () => {
   });
 
   describe('keyboard shortcuts integration', () => {
-    it('passes detailMode and toggleDetailMode to useItemDetailShortcuts', () => {
+    it('registers the current detail mode and toggle with the keyboard shortcuts handler', () => {
       mockUseDetailMode.mockReturnValue({
         detailMode: 'editor',
         setDetailMode: vi.fn(),

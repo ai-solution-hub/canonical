@@ -454,7 +454,7 @@ describe('draftResponse (Pass 2)', () => {
     expect(systemText).not.toContain('90-95%');
   });
 
-  it('uses correct model for specified tier', async () => {
+  it('drafts with the model mapped to the specified tier', async () => {
     mockCreate.mockResolvedValueOnce(
       buildPass2ResponseNoCitations('Response', 2000, 800),
     );
@@ -507,7 +507,7 @@ describe('runDraftingPipeline (Full Orchestration)', () => {
     vi.clearAllMocks();
   });
 
-  it('calls all three passes in sequence', async () => {
+  it('runs all three passes in sequence', async () => {
     setupSuccessfulPipeline();
 
     await runDraftingPipeline(sampleQuestion, sampleContent);

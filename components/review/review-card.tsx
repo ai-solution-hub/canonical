@@ -350,7 +350,10 @@ function DaysSinceReview({ reviewedAt }: { reviewedAt: string }) {
 
   if (days === 0) {
     return (
-      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+      <span
+        data-cadence-state="today"
+        className="flex items-center gap-1 text-xs text-muted-foreground"
+      >
         <Clock className="size-3" aria-hidden="true" />
         Reviewed today
       </span>
@@ -361,6 +364,7 @@ function DaysSinceReview({ reviewedAt }: { reviewedAt: string }) {
 
   return (
     <span
+      data-cadence-state={isOverdue ? 'overdue' : 'ok'}
       className={cn(
         'flex items-center gap-1 text-xs',
         isOverdue ? 'text-bid-overdue' : 'text-muted-foreground',

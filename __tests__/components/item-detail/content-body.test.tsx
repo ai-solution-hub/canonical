@@ -96,35 +96,31 @@ vi.mock('@/components/reader/transcript-reader', () => ({
 import { ContentBody } from '@/components/item-detail/content-body';
 import type { ContentBodyProps } from '@/components/item-detail/content-body';
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
-import { createMockItem as createMockItemFactory } from '@/__tests__/helpers/factories/components/item';
+import { createMockItem } from '@/__tests__/helpers/factories/components/item';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 /**
- * Wrapper around the canonical factory that applies ContentBody-specific
- * defaults: a sample content body, primary_domain Corporate, platform web,
- * author/source presence — values used by `renders article reader` and
- * sibling tests' content assertions.
+ * ContentBody-specific item defaults applied on top of the canonical
+ * factory: a sample content body, primary_domain Corporate, platform web,
+ * author/source presence — values used by sibling tests' content assertions.
  */
-function createMockItem(overrides: Partial<ItemData> = {}): ItemData {
-  return createMockItemFactory({
-    content: 'Some content body',
-    primary_domain: 'Corporate',
-    platform: 'web',
-    author_name: 'Author',
-    source_url: 'https://example.com',
-    source_domain: 'example.com',
-    ...overrides,
-  });
-}
+const contentBodyItemDefaults: Partial<ItemData> = {
+  content: 'Some content body',
+  primary_domain: 'Corporate',
+  platform: 'web',
+  author_name: 'Author',
+  source_url: 'https://example.com',
+  source_domain: 'example.com',
+};
 
 function createDefaultProps(
   overrides: Partial<ContentBodyProps> = {},
 ): ContentBodyProps {
   return {
-    item: createMockItem(),
+    item: createMockItem(contentBodyItemDefaults),
     setItem: vi.fn(),
     isQAPair: false,
     canEdit: false,
@@ -220,7 +216,10 @@ describe('ContentBody', () => {
       const props = createDefaultProps({
         canEdit: true,
         saveEdit: mockSaveEdit,
-        item: createMockItem({ governance_review_status: null }),
+        item: createMockItem({
+          ...contentBodyItemDefaults,
+          governance_review_status: null,
+        }),
       });
       render(<ContentBody {...props} />);
 
@@ -241,7 +240,10 @@ describe('ContentBody', () => {
       const props = createDefaultProps({
         canEdit: true,
         saveEdit: mockSaveEdit,
-        item: createMockItem({ governance_review_status: 'draft' }),
+        item: createMockItem({
+          ...contentBodyItemDefaults,
+          governance_review_status: 'draft',
+        }),
       });
       render(<ContentBody {...props} />);
 

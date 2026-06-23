@@ -95,7 +95,7 @@ vi.mock('lucide-react', () => ({
 
 // Import AFTER mocks
 import { TenderUpload } from '@/components/procurement/tender-upload';
-import { createMockFile as createMockFileFactory } from '@/__tests__/helpers/factories/file-upload';
+import { createMockFile } from '@/__tests__/helpers/factories/file-upload';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -109,15 +109,10 @@ function mockFetchResponse(data: unknown, ok = true, status = 200) {
   });
 }
 
-/**
- * Adapter to match the legacy (name, size, type) signature. Delegates to
- * the canonical factory in `plain` construction mode — TenderUpload is a
- * React component rendered in jsdom, so the plain DOM File constructor
- * works (no cross-realm `instanceof` to satisfy).
- */
-function createMockFile(name: string, size: number, type: string): File {
-  return createMockFileFactory({ name, size, type, construction: 'plain' });
-}
+// File mocks use the canonical `createMockFile({ ... })` factory from
+// `@/__tests__/helpers/factories/file-upload` in `plain` construction mode —
+// TenderUpload renders in jsdom, so the plain DOM `File` constructor works
+// (no cross-realm `instanceof` to satisfy).
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -179,7 +174,12 @@ describe('TenderUpload', () => {
       name: /Upload tender document/,
     });
 
-    const invalidFile = createMockFile('data.csv', 1024, 'text/csv');
+    const invalidFile = createMockFile({
+      name: 'data.csv',
+      size: 1024,
+      type: 'text/csv',
+      construction: 'plain',
+    });
     fireEvent.drop(dropZone, {
       dataTransfer: { files: [invalidFile] },
     });
@@ -198,11 +198,12 @@ describe('TenderUpload', () => {
       'input[type="file"]',
     ) as HTMLInputElement;
 
-    const largeFile = createMockFile(
-      'huge.pdf',
-      51 * 1024 * 1024,
-      'application/pdf',
-    );
+    const largeFile = createMockFile({
+      name: 'huge.pdf',
+      size: 51 * 1024 * 1024,
+      type: 'application/pdf',
+      construction: 'plain',
+    });
     await user.upload(input, largeFile);
 
     await waitFor(() => {
@@ -230,7 +231,12 @@ describe('TenderUpload', () => {
       'input[type="file"]',
     ) as HTMLInputElement;
 
-    const file = createMockFile('tender.pdf', 1024, 'application/pdf');
+    const file = createMockFile({
+      name: 'tender.pdf',
+      size: 1024,
+      type: 'application/pdf',
+      construction: 'plain',
+    });
     await user.upload(input, file);
 
     await waitFor(() => {
@@ -258,11 +264,12 @@ describe('TenderUpload', () => {
       'input[type="file"]',
     ) as HTMLInputElement;
 
-    const file = createMockFile(
-      'tender.docx',
-      1024,
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    );
+    const file = createMockFile({
+      name: 'tender.docx',
+      size: 1024,
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      construction: 'plain',
+    });
     await user.upload(input, file);
 
     await waitFor(() => {
@@ -285,7 +292,12 @@ describe('TenderUpload', () => {
       'input[type="file"]',
     ) as HTMLInputElement;
 
-    const file = createMockFile('tender.pdf', 1024, 'application/pdf');
+    const file = createMockFile({
+      name: 'tender.pdf',
+      size: 1024,
+      type: 'application/pdf',
+      construction: 'plain',
+    });
     await user.upload(input, file);
 
     await waitFor(() => {
@@ -311,7 +323,12 @@ describe('TenderUpload', () => {
       'input[type="file"]',
     ) as HTMLInputElement;
 
-    const file = createMockFile('tender.pdf', 1024, 'application/pdf');
+    const file = createMockFile({
+      name: 'tender.pdf',
+      size: 1024,
+      type: 'application/pdf',
+      construction: 'plain',
+    });
     await user.upload(input, file);
 
     await waitFor(() => {
@@ -340,7 +357,12 @@ describe('TenderUpload', () => {
       'input[type="file"]',
     ) as HTMLInputElement;
 
-    const file = createMockFile('tender.pdf', 1024, 'application/pdf');
+    const file = createMockFile({
+      name: 'tender.pdf',
+      size: 1024,
+      type: 'application/pdf',
+      construction: 'plain',
+    });
     await user.upload(input, file);
 
     await waitFor(() => {
@@ -367,7 +389,12 @@ describe('TenderUpload', () => {
       'input[type="file"]',
     ) as HTMLInputElement;
 
-    const file = createMockFile('tender.pdf', 1024, 'application/pdf');
+    const file = createMockFile({
+      name: 'tender.pdf',
+      size: 1024,
+      type: 'application/pdf',
+      construction: 'plain',
+    });
     await user.upload(input, file);
 
     await waitFor(() => {
@@ -392,7 +419,12 @@ describe('TenderUpload', () => {
       'input[type="file"]',
     ) as HTMLInputElement;
 
-    const file = createMockFile('tender.pdf', 1024, 'application/pdf');
+    const file = createMockFile({
+      name: 'tender.pdf',
+      size: 1024,
+      type: 'application/pdf',
+      construction: 'plain',
+    });
     await user.upload(input, file);
 
     await waitFor(() => {
@@ -418,7 +450,12 @@ describe('TenderUpload', () => {
       'input[type="file"]',
     ) as HTMLInputElement;
 
-    const file = createMockFile('tender.pdf', 1024, 'application/pdf');
+    const file = createMockFile({
+      name: 'tender.pdf',
+      size: 1024,
+      type: 'application/pdf',
+      construction: 'plain',
+    });
     await user.upload(input, file);
 
     await waitFor(() => {
@@ -441,7 +478,12 @@ describe('TenderUpload', () => {
       'input[type="file"]',
     ) as HTMLInputElement;
 
-    const file = createMockFile('tender.pdf', 1024, 'application/pdf');
+    const file = createMockFile({
+      name: 'tender.pdf',
+      size: 1024,
+      type: 'application/pdf',
+      construction: 'plain',
+    });
     await user.upload(input, file);
 
     await waitFor(() => {
@@ -461,7 +503,12 @@ describe('TenderUpload', () => {
       'input[type="file"]',
     ) as HTMLInputElement;
 
-    const file = createMockFile('tender.pdf', 1024, 'application/pdf');
+    const file = createMockFile({
+      name: 'tender.pdf',
+      size: 1024,
+      type: 'application/pdf',
+      construction: 'plain',
+    });
     await user.upload(input, file);
 
     await waitFor(() => {
@@ -480,7 +527,12 @@ describe('TenderUpload', () => {
       'input[type="file"]',
     ) as HTMLInputElement;
 
-    const file = createMockFile('tender.pdf', 1024, 'application/pdf');
+    const file = createMockFile({
+      name: 'tender.pdf',
+      size: 1024,
+      type: 'application/pdf',
+      construction: 'plain',
+    });
     await user.upload(input, file);
 
     await waitFor(() => {
@@ -503,7 +555,12 @@ describe('TenderUpload', () => {
       'input[type="file"]',
     ) as HTMLInputElement;
 
-    const file = createMockFile('tender.pdf', 1024, 'application/pdf');
+    const file = createMockFile({
+      name: 'tender.pdf',
+      size: 1024,
+      type: 'application/pdf',
+      construction: 'plain',
+    });
     await user.upload(input, file);
 
     await waitFor(() => {
@@ -519,8 +576,9 @@ describe('TenderUpload', () => {
       name: /Upload tender document/,
     });
     fireEvent.dragEnter(dropZone, { dataTransfer: { files: [] } });
-    // The component sets dragging=true which changes border class
-    expect(dropZone.className).toContain('border-primary');
+    // Assert the stable data-dragging state hook rather than the
+    // design-system token class (brittle to the bl-349 token rename).
+    expect(dropZone).toHaveAttribute('data-dragging', 'true');
   });
 
   it('removes dragging state on drag leave', () => {
@@ -530,7 +588,7 @@ describe('TenderUpload', () => {
     });
     fireEvent.dragEnter(dropZone, { dataTransfer: { files: [] } });
     fireEvent.dragLeave(dropZone, { dataTransfer: { files: [] } });
-    expect(dropZone.className).not.toContain('border-primary bg-primary/5');
+    expect(dropZone).toHaveAttribute('data-dragging', 'false');
   });
 
   it('processes file on drop', async () => {
@@ -549,7 +607,12 @@ describe('TenderUpload', () => {
       name: /Upload tender document/,
     });
 
-    const file = createMockFile('tender.pdf', 1024, 'application/pdf');
+    const file = createMockFile({
+      name: 'tender.pdf',
+      size: 1024,
+      type: 'application/pdf',
+      construction: 'plain',
+    });
     fireEvent.drop(dropZone, {
       dataTransfer: {
         files: [file],
@@ -590,7 +653,12 @@ describe('TenderUpload', () => {
       'input[type="file"]',
     ) as HTMLInputElement;
 
-    const file = createMockFile('tender.pdf', 1024, 'application/pdf');
+    const file = createMockFile({
+      name: 'tender.pdf',
+      size: 1024,
+      type: 'application/pdf',
+      construction: 'plain',
+    });
     await user.upload(input, file);
 
     await waitFor(() => {
@@ -623,7 +691,12 @@ describe('TenderUpload', () => {
       'input[type="file"]',
     ) as HTMLInputElement;
 
-    const file = createMockFile('tender.pdf', 1024, 'application/pdf');
+    const file = createMockFile({
+      name: 'tender.pdf',
+      size: 1024,
+      type: 'application/pdf',
+      construction: 'plain',
+    });
     await user.upload(input, file);
 
     await waitFor(() => {
@@ -650,11 +723,12 @@ describe('TenderUpload', () => {
       'input[type="file"]',
     ) as HTMLInputElement;
 
-    const file = createMockFile(
-      'tender.docx',
-      1024,
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    );
+    const file = createMockFile({
+      name: 'tender.docx',
+      size: 1024,
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      construction: 'plain',
+    });
     await user.upload(input, file);
 
     await waitFor(() => {

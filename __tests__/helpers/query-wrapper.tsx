@@ -10,13 +10,21 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
  * `{ staleTime, gcTime }` overrides that match the production
  * `lib/query/query-provider.tsx` configuration.
  */
-export function createQueryWrapper(
+/**
+ * Builds a standalone deterministic test QueryClient (no Wrapper).
+ * Use when a test renders its own provider but wants the canonical
+ * retry-disabled / no-refetch-on-focus / fresh-cache configuration.
+ *
+ * Pass `{ staleTime, gcTime }` overrides to match production cache
+ * behaviour where a test asserts cache-hit semantics.
+ */
+export function createTestQueryClient(
   opts: {
     staleTime?: number;
     gcTime?: number;
   } = {},
 ) {
-  const queryClient = new QueryClient({
+  return new QueryClient({
     defaultOptions: {
       queries: {
         retry: false,
@@ -29,6 +37,15 @@ export function createQueryWrapper(
       },
     },
   });
+}
+
+export function createQueryWrapper(
+  opts: {
+    staleTime?: number;
+    gcTime?: number;
+  } = {},
+) {
+  const queryClient = createTestQueryClient(opts);
 
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (

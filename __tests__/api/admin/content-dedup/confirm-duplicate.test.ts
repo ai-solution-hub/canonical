@@ -239,8 +239,19 @@ describe('POST /api/admin/content-dedup/[id]/confirm-duplicate', () => {
         `/api/admin/content-dedup/${SUBJECT_ID}/confirm-duplicate`,
         { method: 'POST', body: {} },
       );
-      await POST(request, { params: createTestParams({ id: SUBJECT_ID }) });
+      const response = await POST(request, {
+        params: createTestParams({ id: SUBJECT_ID }),
+      });
 
+      // Observable outcome: confirming the duplicate succeeds and reports the
+      // archived status back to the caller.
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.dedup_status).toBe('confirmed_duplicate');
+      expect(body.archived_at).toBe('2026-04-29T12:00:00Z');
+
+      // Persisted mutation: content_items archived + flipped to
+      // confirmed_duplicate by the acting admin.
       expect(mockSupabase._chain.update).toHaveBeenCalledWith(
         expect.objectContaining({
           archive_reason: 'dedup_admin_confirmed_duplicate',
@@ -258,9 +269,16 @@ describe('POST /api/admin/content-dedup/[id]/confirm-duplicate', () => {
         `/api/admin/content-dedup/${SUBJECT_ID}/confirm-duplicate`,
         { method: 'POST', body: { note: 'matches existing canonical' } },
       );
-      await POST(request, { params: createTestParams({ id: SUBJECT_ID }) });
+      const response = await POST(request, {
+        params: createTestParams({ id: SUBJECT_ID }),
+      });
 
-      // history insert uses .insert(...) on content_history table
+      // Observable outcome: the request succeeds — so the audit-row assertion
+      // below is exercised on the success path, not a swallowed error.
+      expect(response.status).toBe(200);
+
+      // Persisted audit row: content_history snapshot at version 5, recorded
+      // as an archive with the duplicate-confirmation reason.
       expect(mockSupabase._chain.insert).toHaveBeenCalledWith(
         expect.objectContaining({
           content_item_id: SUBJECT_ID,

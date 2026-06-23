@@ -286,7 +286,7 @@ describe('createIntelligenceGuide', () => {
     expect(result).toBeNull();
   });
 
-  it('sets guide description with company profile name', async () => {
+  it('persists a guide description that names the company profile', async () => {
     configureGuideSuccess(mock);
 
     await createIntelligenceGuide(
@@ -470,7 +470,7 @@ describe('createIntelligenceGuide', () => {
   // All sections have expected_layer = 'research'
   // -----------------------------------------------------------------------
 
-  it('sets all section expected_layer to research', async () => {
+  it('persists every section with expected_layer "research"', async () => {
     configureGuideSuccess(mock);
 
     await createIntelligenceGuide(
@@ -492,7 +492,7 @@ describe('createIntelligenceGuide', () => {
   // All sections reference the correct guide
   // -----------------------------------------------------------------------
 
-  it('sets all section guide_id to the created guide', async () => {
+  it('persists every section referencing the created guide', async () => {
     configureGuideSuccess(mock);
 
     await createIntelligenceGuide(
