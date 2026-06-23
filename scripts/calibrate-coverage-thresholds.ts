@@ -10,75 +10,15 @@
  *   bun run scripts/calibrate_coverage_thresholds.ts --min 0.3 --max 0.9 --step 0.1
  */
 
-import { readFileSync, existsSync } from 'fs';
-import { resolve, dirname } from 'path';
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import { prodProjectRef } from '@/scripts/lib/project-refs';
+import { loadScriptEnv } from '@/scripts/lib/load-script-env';
 import type { Database } from '@/supabase/types/database.types';
 
-// ── Env loading (mirrors kb-search.ts) ──
+// ── Env loading (shared scriptDir+cwd loader — bl-356) ──
 
-function loadEnvFile(filePath: string): void {
-  try {
-    const content = readFileSync(filePath, 'utf-8');
-    for (const line of content.split('\n')) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) continue;
-      const eqIndex = trimmed.indexOf('=');
-      if (eqIndex === -1) continue;
-      const key = trimmed.slice(0, eqIndex).trim();
-      let value = trimmed.slice(eqIndex + 1).trim();
-      if (
-        (value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))
-      ) {
-        value = value.slice(1, -1);
-      }
-      if (!(key in process.env)) {
-        process.env[key] = value;
-      }
-    }
-  } catch {
-    // File doesn't exist — fine
-  }
-}
-
-function findProjectRoot(): string {
-  const scriptDir = dirname(new URL(import.meta.url).pathname);
-  const candidates = new Set<string>();
-
-  let dir = resolve(scriptDir, '..');
-  for (let i = 0; i < 10; i++) {
-    candidates.add(dir);
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-
-  dir = process.cwd();
-  for (let i = 0; i < 10; i++) {
-    candidates.add(dir);
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-
-  for (const root of candidates) {
-    if (
-      existsSync(resolve(root, '.env')) ||
-      existsSync(resolve(root, '.env.local'))
-    ) {
-      return root;
-    }
-  }
-
-  return resolve(scriptDir, '..');
-}
-
-const PROJECT_ROOT = findProjectRoot();
-loadEnvFile(resolve(PROJECT_ROOT, '.env.local'));
-loadEnvFile(resolve(PROJECT_ROOT, '.env'));
+loadScriptEnv(import.meta.url);
 
 // ── Import coverage engine (relative to avoid path alias issues in scripts) ──
 

@@ -55,7 +55,7 @@
     "eval:summarisation": "bun run scripts/eval-summarisation.ts",
     "eval:search": "bun run scripts/eval-search.ts",
     "eval:procurement-drafting": "bun run scripts/eval-procurement-drafting.ts",
-    "eval:entity": "EVAL_ENTITY=1 bun run test __tests__/eval/entity-classification-eval.test.ts",
+    "eval:entity": "bun run scripts/eval-entity-classification.ts",
     "eval:all": "bun run eval:classification && bun run eval:summarisation && bun run eval:search && bun run eval:procurement-drafting && bun run eval:entity",
     "dev:clean": "rm -rf .next && next dev --turbopack",
     "analyze": "ANALYZE=true next build",
