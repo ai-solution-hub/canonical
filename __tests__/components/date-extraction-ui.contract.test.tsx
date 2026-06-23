@@ -34,6 +34,9 @@ describe('ExpiryDateDisplay — freshness-token contract', () => {
   });
 
   it('maps an imminent expiry (<=7 days) to the stale freshness token', () => {
+    const fixedTimestamp = new Date('2026-06-23T12:00:00Z').getTime();
+    vi.spyOn(Date, 'now').mockReturnValue(fixedTimestamp);
+
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + 5);
     const isoDate = futureDate.toISOString().split('T')[0];
@@ -45,9 +48,14 @@ describe('ExpiryDateDisplay — freshness-token contract', () => {
     );
     const badge = screen.getByRole('status');
     expect(badge.className).toContain('freshness-stale');
+
+    vi.restoreAllMocks();
   });
 
   it('maps an approaching expiry (<=30 days) to the aging freshness token', () => {
+    const fixedTimestamp = new Date('2026-06-23T12:00:00Z').getTime();
+    vi.spyOn(Date, 'now').mockReturnValue(fixedTimestamp);
+
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + 20);
     const isoDate = futureDate.toISOString().split('T')[0];
@@ -59,6 +67,8 @@ describe('ExpiryDateDisplay — freshness-token contract', () => {
     );
     const badge = screen.getByRole('status');
     expect(badge.className).toContain('freshness-aging');
+
+    vi.restoreAllMocks();
   });
 });
 

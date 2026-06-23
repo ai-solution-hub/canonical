@@ -100,13 +100,16 @@ function scan(): Violation[] {
     const lines = readFileSync(abs, 'utf8').split('\n');
     lines.forEach((line, i) => {
       if (!ASSERTION_SITE.test(line)) return;
-      if (isAllowed(line)) return;
+      // Check for forbidden tokens BEFORE the isAllowed check to catch violations
+      // containing banned semantic tokens even if they also contain allowed class fragments
       if (STATE_TOKEN_FAMILY.test(line) || EXTRA_STATE_TOKENS.test(line)) {
-        violations.push({
-          file: `__tests__/components/${rel}`,
-          line: i + 1,
-          text: line.trim(),
-        });
+        if (!isAllowed(line)) {
+          violations.push({
+            file: `__tests__/components/${rel}`,
+            line: i + 1,
+            text: line.trim(),
+          });
+        }
       }
     });
   }

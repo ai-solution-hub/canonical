@@ -143,8 +143,10 @@ export function createMockQAItem(
 export function createMockData(
   overrides: Partial<ItemDetailData> = {},
 ): ItemDetailData {
+  // Extract the item property from overrides before spreading
+  const { item: itemOverride, ...restOverrides } = overrides;
   const item = createMockItem(
-    overrides.item ? (overrides.item as Partial<ItemData>) : {},
+    itemOverride ? (itemOverride as Partial<ItemData>) : {},
   );
   return {
     item,
@@ -210,6 +212,6 @@ export function createMockData(
     startEdit: vi.fn(),
     cancelEdit: vi.fn(),
     saveEdit: vi.fn(),
-    ...overrides,
+    ...restOverrides,
   } as unknown as ItemDetailData;
 }

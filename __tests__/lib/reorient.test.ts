@@ -505,6 +505,8 @@ describe('fetchReorientData', () => {
       // The team changes query uses .limit(20) — with the mock setup,
       // we verify that the result is valid (not an error).
       expect(result.team_changes).toBeDefined();
+      // Explicitly assert that the cap is being enforced
+      expect(result.team_changes.length).toBeLessThanOrEqual(20);
     });
 
     it('maps change_type "create" to action "created"', async () => {

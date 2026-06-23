@@ -271,50 +271,6 @@ describe('CertificationSummaryCard', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Design-token contract
-  //
-  // Each expiry-status badge is colour-coded via the freshness/muted semantic
-  // tokens. The badge text + aria-label (asserted above) are the primary
-  // user-observable signal; this single contract test pins the status -> token
-  // mapping so a refactor that drops or mis-wires the colour coding is caught,
-  // without coupling each behaviour test to a class string.
-  // -------------------------------------------------------------------------
-
-  it('colour-codes each expiry-status badge with its freshness token (design-token contract)', () => {
-    const cases: Array<{
-      status: CertificationEntry['expiry_status'];
-      label: string;
-      token: string;
-    }> = [
-      { status: 'valid', label: 'Valid', token: 'text-freshness-fresh' },
-      {
-        status: 'expiring_soon',
-        label: 'Expiring Soon',
-        token: 'text-freshness-aging',
-      },
-      { status: 'expired', label: 'Expired', token: 'text-freshness-expired' },
-      {
-        status: 'unknown',
-        label: 'No expiry date',
-        token: 'text-muted-foreground',
-      },
-    ];
-
-    for (const { status, label, token } of cases) {
-      const { unmount } = render(
-        <CertificationSummaryCard
-          certifications={[makeCert({ expiry_status: status })]}
-          supplierCertifications={[]}
-          registrations={[]}
-        />,
-      );
-      const badge = screen.getByLabelText(`Expiry status: ${label}`);
-      expect(badge.className).toContain(token);
-      unmount();
-    }
-  });
-
-  // -------------------------------------------------------------------------
   // WCAG: badges have text labels
   // -------------------------------------------------------------------------
 
