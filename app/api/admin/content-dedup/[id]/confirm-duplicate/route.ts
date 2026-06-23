@@ -1,5 +1,10 @@
 import { defineRoute } from '@/lib/api/define-route';
 import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
+import {
+  resolveDedupSubject,
+  subjectHistorySnapshot,
+  writeDedupHistory,
+} from '@/lib/dedup/review-actions';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
 import { parseBody } from '@/lib/validation';
@@ -45,40 +50,33 @@ export const POST = defineRoute(
       const { note } = parsed.data;
 
       // 1. Idempotency guard — load + verify dedup_status.
-      const { data: subject, error: subjectErr } = await supabase
-        .from('content_items')
-        .select(
-          'id, title, suggested_title, content, brief, detail, reference, metadata, dedup_status, archived_at, superseded_by',
-        )
-        .eq('id', id)
-        .single();
-
-      if (subjectErr && subjectErr.code !== 'PGRST116') {
-        logger.error(
-          {
-            err: subjectErr,
-            op: 'admin.content-dedup.confirm-duplicate.load_subject',
-          },
-          'Failed to load dedup subject',
-        );
-        return NextResponse.json(
-          { error: 'Failed to load dedup subject' },
-          { status: 500 },
-        );
-      }
-      if (!subject) {
-        return NextResponse.json({ error: 'Item not found' }, { status: 404 });
-      }
-
-      if (subject.dedup_status !== 'suspected_duplicate') {
+      const resolved = await resolveDedupSubject(
+        supabase,
+        id,
+        'admin.content-dedup.confirm-duplicate.load_subject',
+      );
+      if (!resolved.ok) {
+        if (resolved.reason === 'load_error') {
+          return NextResponse.json(
+            { error: 'Failed to load dedup subject' },
+            { status: 500 },
+          );
+        }
+        if (resolved.reason === 'not_found') {
+          return NextResponse.json(
+            { error: 'Item not found' },
+            { status: 404 },
+          );
+        }
         return NextResponse.json(
           {
             error: 'row already resolved',
-            current_status: subject.dedup_status,
+            current_status: resolved.currentStatus,
           },
           { status: 409 },
         );
       }
+      const subject = resolved.subject;
 
       // 2. Archive + flip dedup_status in a single statement.
       const archivedAt = new Date().toISOString();
@@ -109,61 +107,33 @@ export const POST = defineRoute(
       }
 
       // 3. content_history snapshot — explicit because there is no UPDATE-side
-      //    trigger. Look up next version. (Spec §4.2 last-row, §4.3 reasons.)
-      const { data: latestHistory, error: latestHistoryErr } = await supabase
-        .from('content_history')
-        .select('version')
-        .eq('content_item_id', id)
-        .order('version', { ascending: false })
-        .limit(1);
-
-      if (latestHistoryErr) {
-        logger.error(
-          {
-            err: latestHistoryErr,
-            op: 'admin.content-dedup.confirm-duplicate.history_version_lookup',
-          },
-          'Failed to read latest content_history version',
-        );
-      }
-
-      const nextVersion = (latestHistory?.[0]?.version ?? 0) + 1;
+      //    trigger. Best-effort: a failure here does not surface a 500 (the
+      //    user-visible mutation already succeeded), but is logged so ops can
+      //    spot the gap. (Spec §4.2 last-row, §4.3 reasons.)
       const summary = note
         ? `Confirmed duplicate via admin dedup review: ${note}`
         : 'Confirmed duplicate via admin dedup review';
 
-      const { error: historyErr } = await supabase
-        .from('content_history')
-        .insert({
-          content_item_id: id,
-          version: nextVersion,
-          title: subject.title || subject.suggested_title || 'Untitled',
-          content: subject.content || '',
-          brief: subject.brief,
-          detail: subject.detail,
-          reference: subject.reference,
+      await writeDedupHistory(
+        supabase,
+        {
+          contentItemId: id,
+          ...subjectHistorySnapshot(subject),
           metadata: subject.metadata,
-          change_type: 'archive',
-          change_summary: summary,
+          changeType: 'archive',
+          changeSummary: summary,
           // Memory feedback_content_history_change_reason_mandatory: every
           // history insert needs an explicit, category-specific reason.
-          change_reason: 'dedup_admin_review_confirmed_duplicate',
-          created_by: user.id,
-        });
-
-      if (historyErr) {
-        logger.error(
-          {
-            err: historyErr,
-            op: 'admin.content-dedup.confirm-duplicate.history_insert',
-          },
-          'Failed to insert dedup audit history',
-        );
-        // Do not surface 500: the user-visible mutation succeeded. Audit
-        // breadcrumb is best-effort but still must not silently swallow.
-        // (Sentry capture happens via safeErrorMessage path on actual throws;
-        // here we just log so ops can spot the gap.)
-      }
+          changeReason: 'dedup_admin_review_confirmed_duplicate',
+          createdBy: user.id,
+        },
+        {
+          op: 'admin.content-dedup.confirm-duplicate',
+          errorChannel: 'logger',
+          versionLookupMessage: 'Failed to read latest content_history version',
+          insertMessage: 'Failed to insert dedup audit history',
+        },
+      );
 
       return NextResponse.json({
         id,
