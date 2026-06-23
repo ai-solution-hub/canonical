@@ -69,7 +69,11 @@ const MOCK_AUTHORS = [
   { author_name: 'Bob Jones', count: 5 },
 ];
 
-const MOCK_TAGS = { important: 5, 'review-needed': 3 };
+// ID-70: get_user_tag_counts now returns typed rows (RETURNS TABLE), not a map.
+const MOCK_TAGS = [
+  { tag: 'important', count: 5 },
+  { tag: 'review-needed', count: 3 },
+];
 
 const MOCK_ENTITIES = [
   {
