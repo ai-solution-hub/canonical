@@ -76,7 +76,7 @@ describe('RssFeedPanel', () => {
     expect(warningIcons.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('uses the warning semantic token for the filtered row container', () => {
+  it('flags the filtered row container as sensitive', () => {
     render(
       <RssFeedPanel
         workspaceId={WORKSPACE_ID}
@@ -85,11 +85,13 @@ describe('RssFeedPanel', () => {
     );
 
     const filteredHeading = screen.getByText('Filtered Articles (Near Misses)');
-    // Walk up to the row container (the one carrying the bg-status-warning class)
+    // Walk up to the row container carrying the sensitive-state hook.
+    // Assert the stable data-* attribute rather than the design-system
+    // colour token (the token may be renamed under bl-349; the colour is
+    // owned by the design system, the warning STATE is owned here).
     const filteredRow = filteredHeading.closest('div.flex.flex-col.gap-2');
     expect(filteredRow).not.toBeNull();
-    expect(filteredRow?.className).toContain('bg-status-warning/10');
-    expect(filteredRow?.className).toContain('border-status-warning/30');
+    expect(filteredRow).toHaveAttribute('data-sensitive', 'true');
   });
 
   it('marks the filtered feed badge with an "internal use only" qualifier', () => {
@@ -127,8 +129,8 @@ describe('RssFeedPanel', () => {
       (passedRow as HTMLElement).querySelectorAll('svg.lucide-triangle-alert')
         .length,
     ).toBe(0);
-    // No warning background token should be applied to the passed row
-    expect(passedRow?.className).not.toContain('bg-status-warning');
+    // The passed row must NOT carry the sensitive-state hook
+    expect(passedRow).not.toHaveAttribute('data-sensitive');
     // The plain "Public" badge (not the qualified one) belongs to the passed row
     expect(
       within(passedRow as HTMLElement).getByText('Public'),

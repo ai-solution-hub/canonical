@@ -608,6 +608,7 @@ export function TemplateFieldReview({
                 ref={(el) => {
                   if (el) rowRefs.current.set(idx, el);
                 }}
+                data-focused={focusedIndex === idx || undefined}
                 className={cn(
                   'border-b last:border-0 transition-colors',
                   field.mapping_status === 'rejected' && 'opacity-50',

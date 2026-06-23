@@ -136,12 +136,12 @@ describe('ContentGrid', () => {
     expect(articles[2]).toHaveAttribute('aria-posinset', '3');
   });
 
-  it('applies ring highlight when activeIndex matches', () => {
+  it('marks the article at activeIndex as active and leaves others inactive', () => {
     const items = createItems(3);
     render(<ContentGrid items={items} activeIndex={1} />);
     const articles = screen.getAllByRole('article');
-    expect(articles[1].className).toContain('ring-2');
-    expect(articles[0].className).not.toContain('ring-2');
+    expect(articles[1]).toHaveAttribute('data-active', 'true');
+    expect(articles[0]).toHaveAttribute('data-active', 'false');
   });
 
   it('shows multi-select buttons when multiSelectMode is true', () => {
@@ -158,7 +158,7 @@ describe('ContentGrid', () => {
     expect(selectButtons).toHaveLength(2);
   });
 
-  it('calls onToggleSelect when select button is clicked', async () => {
+  it('toggles selection for the clicked item in multi-select mode', async () => {
     const user = userEvent.setup();
     const onToggle = vi.fn();
     const items = createItems(2);
@@ -193,7 +193,7 @@ describe('ContentGrid', () => {
     ).toBeInTheDocument();
   });
 
-  it('passes isRead prop from readItemIds Set', () => {
+  it('marks cards whose id is in readItemIds as read', () => {
     const items = createItems(2);
     render(<ContentGrid items={items} readItemIds={new Set(['item-0'])} />);
     expect(screen.getByTestId('card-item-0')).toHaveAttribute(
@@ -206,7 +206,7 @@ describe('ContentGrid', () => {
     );
   });
 
-  it('passes hasQualityFlag from qualityFlaggedIds Set', () => {
+  it('flags cards whose id is in qualityFlaggedIds', () => {
     const items = createItems(2);
     render(
       <ContentGrid items={items} qualityFlaggedIds={new Set(['item-1'])} />,

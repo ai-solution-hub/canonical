@@ -193,7 +193,7 @@ describe('DashboardFirstRunCard', () => {
   });
 
   // Test 7: Persona hint highlight
-  it('applies visual highlight to clicked persona hint', async () => {
+  it('marks the clicked persona hint as the pressed selection', async () => {
     const user = userEvent.setup();
     render(<DashboardFirstRunCard role="editor" />);
 
@@ -202,9 +202,10 @@ describe('DashboardFirstRunCard', () => {
     });
     await user.click(bidButton);
 
+    // aria-pressed is the stable selection hook (decoupled from the
+    // colour-token class the design system owns — brittle to bl-349).
     await waitFor(() => {
       expect(bidButton).toHaveAttribute('aria-pressed', 'true');
-      expect(bidButton.className).toContain('text-primary');
     });
 
     // Other buttons should not be highlighted

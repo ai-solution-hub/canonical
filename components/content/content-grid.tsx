@@ -218,6 +218,7 @@ export function ContentGrid({
               aria-setsize={items.length}
               aria-posinset={idx + 1}
               data-grid-index={idx}
+              data-active={isActive}
               className={cn(
                 'relative rounded-lg',
                 isActive && 'ring-2 ring-ring ring-offset-2',
@@ -333,6 +334,7 @@ export function ContentGrid({
                       aria-setsize={items.length}
                       aria-posinset={itemIndex + 1}
                       data-grid-index={itemIndex}
+                      data-active={isActive}
                       className={cn(
                         'relative rounded-lg',
                         isActive && 'ring-2 ring-ring ring-offset-2',
