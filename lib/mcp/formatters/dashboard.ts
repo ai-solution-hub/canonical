@@ -1,7 +1,7 @@
 /**
  * Dashboard and reorientation formatters for MCP tool responses.
  */
-import type { ActiveBidSummary } from '@/lib/dashboard';
+import type { ActiveProcurementSummary } from '@/lib/dashboard';
 import type { ReorientData } from '@/types/reorient';
 import { formatDeadline, formatProgress } from './shared';
 import { formatDateUK } from '@/lib/format';
@@ -123,7 +123,9 @@ export function formatWhereAreWeExposed(data: WhereAreWeExposedData): string {
 // Active procurements list
 // ---------------------------------------------------------------------------
 
-export function formatActiveBids(bids: ActiveBidSummary[]): string {
+export function formatActiveProcurements(
+  bids: ActiveProcurementSummary[],
+): string {
   if (bids.length === 0) {
     return '# Active Bids\n\nNo active procurements found.';
   }

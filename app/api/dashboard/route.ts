@@ -25,7 +25,7 @@ const DashboardGroupedActivityItemSchema = z.object({
   event_count: z.number(),
 });
 
-// ActiveBidSummary from @/lib/dashboard.
+// ActiveProcurementSummary from @/lib/dashboard.
 const DashboardActiveBidSummarySchema = z.object({
   id: z.string(),
   name: z.string(),

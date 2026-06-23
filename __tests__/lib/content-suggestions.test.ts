@@ -70,14 +70,18 @@ function makeContentItem(
 
 function configureMock(options: {
   contentItems?: Array<ReturnType<typeof makeContentItem>>;
-  activeBids?: Array<{
+  activeProcurements?: Array<{
     id: string;
     name: string;
     domain_metadata: Record<string, unknown> | null;
   }>;
   templateGaps?: Array<Record<string, unknown>>;
 }) {
-  const { contentItems = [], activeBids = [], templateGaps = [] } = options;
+  const {
+    contentItems = [],
+    activeProcurements = [],
+    templateGaps = [],
+  } = options;
 
   // Reset all mocks
   mockSupabase.from.mockReset();
@@ -94,7 +98,7 @@ function configureMock(options: {
     taxonomy_domains: { data: DOMAINS, error: null },
     taxonomy_subtopics: { data: SUBTOPICS, error: null },
     content_items: { data: contentItems, error: null },
-    workspaces: { data: activeBids, error: null },
+    workspaces: { data: activeProcurements, error: null },
     form_template_requirements: { data: templateGaps, error: null },
   };
 
@@ -271,7 +275,7 @@ describe('generateContentSuggestions', () => {
         // Thin coverage in Security/Policies -> medium priority
         makeContentItem('Security', 'Policies', 'fresh'),
       ],
-      activeBids: [
+      activeProcurements: [
         // Active bid -> empty subtopics in bid domains become critical
         { id: 'bid-1', name: 'Test Procurement', domain_metadata: null },
       ],
@@ -389,7 +393,7 @@ describe('generateContentSuggestions', () => {
   it('elevates empty subtopics to critical when active procurements exist', async () => {
     configureMock({
       contentItems: [],
-      activeBids: [
+      activeProcurements: [
         { id: 'bid-1', name: 'Active Procurement', domain_metadata: null },
       ],
     });

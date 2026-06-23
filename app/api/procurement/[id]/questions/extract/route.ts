@@ -231,7 +231,7 @@ export const POST = defineRoute(
         questionsInserted = newQuestions.length;
 
         // Update bid status to questions_extracted (only if transition is valid)
-        const currentBid = await sb(
+        const currentProcurement = await sb(
           supabase
             .from('workspaces')
             .select('status')
@@ -240,7 +240,7 @@ export const POST = defineRoute(
           'bids.questions.extract.workspace.read',
         );
 
-        const currentStatus = (currentBid?.status ??
+        const currentStatus = (currentProcurement?.status ??
           'draft') as ProcurementWorkflowState;
         if (canTransition(currentStatus, 'questions_extracted')) {
           await supabase

@@ -5,7 +5,7 @@ import {
   fetchProcurementExportData,
   sanitiseFilename,
 } from '@/lib/domains/procurement/procurement-export-data';
-import { generateBidXlsx } from '@/lib/domains/procurement/procurement-export-xlsx';
+import { generateProcurementXlsx } from '@/lib/domains/procurement/procurement-export-xlsx';
 import { parseBody } from '@/lib/validation';
 import { XlsxExportBodySchema } from '@/lib/validation/schemas';
 import { NextRequest, NextResponse } from 'next/server';
@@ -45,11 +45,15 @@ export const POST = defineRoute(
       if (result instanceof NextResponse) return result;
 
       // Generate spreadsheet
-      const buffer = await generateBidXlsx(result.metadata, result.questions, {
-        includeSummary: options.include_summary,
-        includeUnanswered: options.include_unanswered,
-        useAdvancedVariant: options.use_advanced_variant,
-      });
+      const buffer = await generateProcurementXlsx(
+        result.metadata,
+        result.questions,
+        {
+          includeSummary: options.include_summary,
+          includeUnanswered: options.include_unanswered,
+          useAdvancedVariant: options.use_advanced_variant,
+        },
+      );
 
       const safeName = sanitiseFilename(result.procurementName);
       const bytes = new Uint8Array(buffer);

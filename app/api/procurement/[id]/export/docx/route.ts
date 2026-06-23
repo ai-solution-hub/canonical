@@ -5,7 +5,7 @@ import {
   fetchProcurementExportData,
   sanitiseFilename,
 } from '@/lib/domains/procurement/procurement-export-data';
-import { generateBidDocx } from '@/lib/domains/procurement/procurement-export-docx';
+import { generateProcurementDocx } from '@/lib/domains/procurement/procurement-export-docx';
 import { parseBody } from '@/lib/validation';
 import { DocxExportBodySchema } from '@/lib/validation/schemas';
 import { NextRequest, NextResponse } from 'next/server';
@@ -45,14 +45,18 @@ export const POST = defineRoute(
       if (result instanceof NextResponse) return result;
 
       // Generate document
-      const buffer = await generateBidDocx(result.metadata, result.questions, {
-        includeCover: options.include_cover,
-        includeToc: options.include_toc,
-        includeCitations: options.include_citations,
-        includeUnanswered: options.include_unanswered,
-        useAdvancedVariant: options.use_advanced_variant,
-        companyName: options.company_name,
-      });
+      const buffer = await generateProcurementDocx(
+        result.metadata,
+        result.questions,
+        {
+          includeCover: options.include_cover,
+          includeToc: options.include_toc,
+          includeCitations: options.include_citations,
+          includeUnanswered: options.include_unanswered,
+          useAdvancedVariant: options.use_advanced_variant,
+          companyName: options.company_name,
+        },
+      );
 
       const safeName = sanitiseFilename(result.procurementName);
       const bytes = new Uint8Array(buffer);

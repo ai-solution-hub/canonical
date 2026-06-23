@@ -11,7 +11,7 @@ interface QuickStatsStripProps {
     stale: number;
     expired: number;
   };
-  activeBidCount: number;
+  activeProcurementCount: number;
   unreadNotificationCount: number;
 }
 
@@ -40,7 +40,7 @@ function StatItem({ label, value }: { label: string; value: number }) {
 
 export function QuickStatsStrip({
   freshness,
-  activeBidCount,
+  activeProcurementCount,
   unreadNotificationCount,
 }: QuickStatsStripProps) {
   const router = useRouter();
@@ -93,8 +93,10 @@ export function QuickStatsStrip({
           aria-hidden="true"
         />
         <StatItem
-          label={activeBidCount === 1 ? 'Active bid' : 'Active procurements'}
-          value={activeBidCount}
+          label={
+            activeProcurementCount === 1 ? 'Active bid' : 'Active procurements'
+          }
+          value={activeProcurementCount}
         />
         <StatItem
           label="Unread notifications"

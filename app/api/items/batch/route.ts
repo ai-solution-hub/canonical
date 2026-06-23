@@ -354,7 +354,7 @@ export const POST = defineRoute(
               hasBrief: false,
               hasDetail: false,
               hasReference: false,
-              isBidDiscovered: false,
+              isProcurementDiscovered: false,
               title: item.title,
             });
 

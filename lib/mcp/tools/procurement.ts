@@ -13,7 +13,7 @@ import { sb } from '@/lib/supabase/safe';
 import { parseProcurementMetadata } from '@/lib/validation/schemas';
 import type { Database } from '@/supabase/types/database.types';
 import {
-  formatActiveBids,
+  formatActiveProcurements,
   formatProcurementDetail,
   formatProcurementQuestion,
   formatCitation,
@@ -30,7 +30,7 @@ import type {
   ProcurementResponseMetadata,
   QualityData,
 } from '@/types/procurement-metadata';
-import type { ActiveBidSummary } from '@/lib/dashboard';
+import type { ActiveProcurementSummary } from '@/lib/dashboard';
 import {
   type ToolExtra,
   toStructuredContent,
@@ -77,27 +77,29 @@ export async function registerProcurementTools(
         const { workspaces, statsMap } =
           await fetchActiveProcurementWithStats(supabase);
 
-        // Map to ActiveBidSummary type
+        // Map to ActiveProcurementSummary type
         const { getDeadlineUrgency, getDaysUntilDeadline } =
           await getDashboardModule();
-        const allBids: ActiveBidSummary[] = workspaces.map((workspace) => {
-          const meta = parseProcurementMetadata(workspace.domain_metadata);
-          const stats = statsMap.get(workspace.id);
-          const deadline = meta?.deadline ?? null;
+        const allProcurements: ActiveProcurementSummary[] = workspaces.map(
+          (workspace) => {
+            const meta = parseProcurementMetadata(workspace.domain_metadata);
+            const stats = statsMap.get(workspace.id);
+            const deadline = meta?.deadline ?? null;
 
-          return {
-            id: workspace.id,
-            name: workspace.name ?? 'Untitled Procurement',
-            buyer: meta?.buyer ?? null,
-            status: meta?.status ?? 'draft',
-            deadline,
-            days_until_deadline: getDaysUntilDeadline(deadline),
-            total_questions: stats?.total_questions ?? 0,
-            answered_questions:
-              (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0),
-            approved_questions: stats?.complete_count ?? 0,
-          };
-        });
+            return {
+              id: workspace.id,
+              name: workspace.name ?? 'Untitled Procurement',
+              buyer: meta?.buyer ?? null,
+              status: meta?.status ?? 'draft',
+              deadline,
+              days_until_deadline: getDaysUntilDeadline(deadline),
+              total_questions: stats?.total_questions ?? 0,
+              answered_questions:
+                (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0),
+              approved_questions: stats?.complete_count ?? 0,
+            };
+          },
+        );
 
         // Sort by deadline urgency
         const urgencyOrder: Record<string, number> = {
@@ -107,21 +109,21 @@ export async function registerProcurementTools(
           normal: 3,
           unknown: 4,
         };
-        allBids.sort((a, b) => {
+        allProcurements.sort((a, b) => {
           const aUrgency = urgencyOrder[getDeadlineUrgency(a.deadline)] ?? 4;
           const bUrgency = urgencyOrder[getDeadlineUrgency(b.deadline)] ?? 4;
           return aUrgency - bUrgency;
         });
 
         // Apply pagination
-        const totalCount = allBids.length;
+        const totalCount = allProcurements.length;
         const hasMore = totalCount > procurementOffset + procurementLimit;
-        const bids = allBids.slice(
+        const bids = allProcurements.slice(
           procurementOffset,
           procurementOffset + procurementLimit,
         );
 
-        const markdown = truncateResponse(formatActiveBids(bids));
+        const markdown = truncateResponse(formatActiveProcurements(bids));
 
         return {
           content: [{ type: 'text' as const, text: markdown }],

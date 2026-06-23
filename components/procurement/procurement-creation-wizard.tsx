@@ -79,7 +79,7 @@ export function ProcurementCreationWizard({
   const [error, setError] = useState<string | null>(null);
 
   // Created bid reference
-  const [createdBid, setCreatedBid] = useState<{
+  const [createdProcurement, setCreatedProcurement] = useState<{
     id: string;
     name: string;
   } | null>(null);
@@ -103,22 +103,25 @@ export function ProcurementCreationWizard({
     setSaving(false);
     setSavingPath(null);
     setError(null);
-    setCreatedBid(null);
+    setCreatedProcurement(null);
     setExtractionResult(null);
     setExtractedMetadata(null);
     setFlatQuestions([]);
   }
 
-  function navigateToBid() {
-    if (createdBid) {
+  function navigateToProcurement() {
+    if (createdProcurement) {
       onOpenChange(false);
-      onCreated(createdBid);
+      onCreated(createdProcurement);
     }
   }
 
   // ── Step 1: Create the bid ──────────────────────────
 
-  async function handleCreateBid(e: FormEvent, advanceToUpload: boolean) {
+  async function handleCreateProcurement(
+    e: FormEvent,
+    advanceToUpload: boolean,
+  ) {
     e.preventDefault();
     setSaving(true);
     setSavingPath(advanceToUpload ? 'upload' : 'blank');
@@ -151,7 +154,7 @@ export function ProcurementCreationWizard({
       }
 
       const created = await response.json();
-      setCreatedBid(created);
+      setCreatedProcurement(created);
 
       if (advanceToUpload) {
         setCurrentStep(2);
@@ -187,21 +190,21 @@ export function ProcurementCreationWizard({
         setCurrentStep(3);
       } else {
         // No questions extracted — go directly to bid page
-        navigateToBid();
+        navigateToProcurement();
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [createdBid],
+    [createdProcurement],
   );
 
   // ── Step 3: Question review callbacks ─────────────────
 
   function handleQuestionsConfirmed() {
-    navigateToBid();
+    navigateToProcurement();
   }
 
   function handleQuestionsCancelled() {
-    navigateToBid();
+    navigateToProcurement();
   }
 
   // ── Dialog size varies by step ────────────────────────
@@ -241,7 +244,7 @@ export function ProcurementCreationWizard({
         {/* Step 1: Procurement details form */}
         {currentStep === 1 && (
           <form
-            onSubmit={(e) => handleCreateBid(e, true)}
+            onSubmit={(e) => handleCreateProcurement(e, true)}
             className="space-y-4"
           >
             <div className="space-y-1.5">
@@ -360,7 +363,7 @@ export function ProcurementCreationWizard({
                   disabled={saving || !name.trim() || !buyer.trim()}
                   className="w-full"
                   onClick={(e) =>
-                    handleCreateBid(e as unknown as FormEvent, false)
+                    handleCreateProcurement(e as unknown as FormEvent, false)
                   }
                 >
                   {savingPath === 'blank' ? (
@@ -398,14 +401,14 @@ export function ProcurementCreationWizard({
         )}
 
         {/* Step 2: Upload tender document */}
-        {currentStep === 2 && createdBid && (
+        {currentStep === 2 && createdProcurement && (
           <div className="space-y-4">
             <TenderUpload
-              procurementId={createdBid.id}
+              procurementId={createdProcurement.id}
               onUploadComplete={handleUploadComplete}
             />
             <div className="flex justify-end">
-              <Button variant="outline" onClick={navigateToBid}>
+              <Button variant="outline" onClick={navigateToProcurement}>
                 Skip
               </Button>
             </div>
@@ -413,17 +416,17 @@ export function ProcurementCreationWizard({
         )}
 
         {/* Step 3: Review extracted questions */}
-        {currentStep === 3 && createdBid && (
+        {currentStep === 3 && createdProcurement && (
           <div className="space-y-4">
             {extractedMetadata && (
               <TenderMetadataPrompt
                 metadata={extractedMetadata}
-                procurementId={createdBid.id}
+                procurementId={createdProcurement.id}
               />
             )}
             {flatQuestions.length > 0 && (
               <QuestionReview
-                procurementId={createdBid.id}
+                procurementId={createdProcurement.id}
                 questions={flatQuestions}
                 onConfirmed={handleQuestionsConfirmed}
                 onCancelled={handleQuestionsCancelled}

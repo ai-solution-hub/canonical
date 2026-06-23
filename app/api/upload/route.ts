@@ -795,7 +795,7 @@ export async function POST(request: NextRequest) {
           hasBrief: false,
           hasDetail: false,
           hasReference: false,
-          isBidDiscovered: !!workspaceId,
+          isProcurementDiscovered: !!workspaceId,
           title,
         });
         suggestedLayer = suggestion;

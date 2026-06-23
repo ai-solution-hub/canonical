@@ -10,7 +10,7 @@
  * (see docs/reference/dashboard-attention-model-s108.md Section 4).
  */
 
-import type { ActiveBidSummary } from '@/lib/dashboard';
+import type { ActiveProcurementSummary } from '@/lib/dashboard';
 import { getDeadlineUrgency } from '@/lib/dashboard';
 
 // ---------------------------------------------------------------------------
@@ -83,7 +83,7 @@ export interface AttentionSourceData {
   expired_content_count: number;
   quality_flag_count: number;
   unverified_count: number;
-  active_bids: ActiveBidSummary[];
+  active_bids: ActiveProcurementSummary[];
   expiring_cert_count: number;
   expiring_content_date_count: number;
   unread_notification_count: number;
@@ -241,8 +241,8 @@ export function produceUnverifiedItems(count: number): AttentionItem[] {
  * Active bid deadlines — severity varies by urgency.
  * Visible to all roles.
  */
-export function produceBidDeadlineItems(
-  bids: ActiveBidSummary[],
+export function produceProcurementDeadlineItems(
+  bids: ActiveProcurementSummary[],
 ): AttentionItem[] {
   const items: AttentionItem[] = [];
 
@@ -495,7 +495,7 @@ export function buildAttentionItems(
     ),
     ...produceQualityFlagItems(data.quality_flag_count),
     ...produceUnverifiedItems(data.unverified_count),
-    ...produceBidDeadlineItems(data.active_bids),
+    ...produceProcurementDeadlineItems(data.active_bids),
     ...produceExpiringCertItems(data.expiring_cert_count),
     ...produceExpiringContentDateItems(data.expiring_content_date_count),
     ...produceUnreadNotificationItems(data.unread_notification_count),

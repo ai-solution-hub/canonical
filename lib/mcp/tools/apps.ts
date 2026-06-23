@@ -22,7 +22,7 @@ import type {
   CoverageMatrixData,
   ProcurementDashboardData,
 } from '@/lib/mcp/formatters';
-import type { ActiveBidSummary } from '@/lib/dashboard';
+import type { ActiveProcurementSummary } from '@/lib/dashboard';
 import {
   type ToolExtra,
   toStructuredContent,
@@ -468,7 +468,7 @@ export async function registerAppTools(server: McpServer): Promise<void> {
           isAdmin,
           role,
         );
-        const bids = dashData.active_bids as ActiveBidSummary[];
+        const bids = dashData.active_bids as ActiveProcurementSummary[];
 
         const result: ProcurementDashboardData = {
           offset: 0,

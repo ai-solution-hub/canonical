@@ -29,7 +29,7 @@ export {
   formatContentItemChunks,
 } from './content';
 export {
-  formatActiveBids,
+  formatActiveProcurements,
   type FreshnessReport,
   formatReorientation,
   type ExposureResolution,

@@ -215,7 +215,7 @@ export async function generateContentSuggestions(
 
   // Post-T2: discriminator is application_types.key via JOIN, not the dropped
   // workspaces.type col. 'bid' maps to 'procurement'.
-  const activeBids = await sb(
+  const activeProcurements = await sb(
     supabase
       .from('workspaces')
       .select('id, name, domain_metadata, application_types!inner(key)')
@@ -225,21 +225,21 @@ export async function generateContentSuggestions(
   );
 
   // Extract domains mentioned in active bid metadata
-  const activeBidDomains = new Set<string>();
-  for (const bid of activeBids ?? []) {
+  const activeProcurementDomains = new Set<string>();
+  for (const bid of activeProcurements ?? []) {
     const meta = bid.domain_metadata as Record<string, unknown> | null;
     if (meta?.primary_domain) {
-      activeBidDomains.add(meta.primary_domain as string);
+      activeProcurementDomains.add(meta.primary_domain as string);
     }
     // Some bids reference domains through their questions
     if (meta?.domains && Array.isArray(meta.domains)) {
       for (const d of meta.domains) {
-        if (typeof d === 'string') activeBidDomains.add(d);
+        if (typeof d === 'string') activeProcurementDomains.add(d);
       }
     }
   }
   // If there are active procurements, consider all domains as potentially bid-related
-  const hasActiveBids = (activeBids ?? []).length > 0;
+  const hasActiveProcurements = (activeProcurements ?? []).length > 0;
 
   // -------------------------------------------------------------------------
   // 4. Analyse gaps — build suggestions
@@ -257,8 +257,9 @@ export async function generateContentSuggestions(
 
     // 4a. Empty subtopics
     if (!stats || stats.total === 0) {
-      const inBidDomain = activeBidDomains.has(domainName) || hasActiveBids;
-      const priority = inBidDomain ? 'critical' : 'medium';
+      const inProcurementDomain =
+        activeProcurementDomains.has(domainName) || hasActiveProcurements;
+      const priority = inProcurementDomain ? 'critical' : 'medium';
 
       suggestions.push({
         id: createSuggestionId(domainName, st.name, 'empty_subtopic'),
@@ -267,7 +268,7 @@ export async function generateContentSuggestions(
         domain: domainName,
         subtopic: st.name,
         title: `No content for ${st.name}`,
-        description: inBidDomain
+        description: inProcurementDomain
           ? `${domainName} has an active bid but zero content for ${st.name}. Creating content here directly supports bid responses.`
           : `${domainName} / ${st.name} has no content items. Adding content improves coverage completeness.`,
         suggested_content_type: suggestContentType(domainName, st.name),

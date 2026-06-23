@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import ExcelJS from 'exceljs';
-import { generateBidXlsx } from '@/lib/domains/procurement/procurement-export-xlsx';
+import { generateProcurementXlsx } from '@/lib/domains/procurement/procurement-export-xlsx';
 import type {
-  ExportBidMetadata,
+  ExportProcurementMetadata,
   ExportQuestion,
 } from '@/lib/domains/procurement/procurement-export-types';
 
@@ -11,8 +11,8 @@ import type {
 // ---------------------------------------------------------------------------
 
 function makeMetadata(
-  overrides: Partial<ExportBidMetadata> = {},
-): ExportBidMetadata {
+  overrides: Partial<ExportProcurementMetadata> = {},
+): ExportProcurementMetadata {
   return {
     bid_name: 'IT Support Services',
     buyer: 'NHS Greater Manchester',
@@ -65,16 +65,20 @@ async function loadWorkbook(buffer: Buffer): Promise<ExcelJS.Workbook> {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('generateBidXlsx', () => {
+describe('generateProcurementXlsx', () => {
   it('should generate a non-zero Buffer with full data', async () => {
-    const buffer = await generateBidXlsx(makeMetadata(), [makeQuestion()]);
+    const buffer = await generateProcurementXlsx(makeMetadata(), [
+      makeQuestion(),
+    ]);
 
     expect(buffer).toBeInstanceOf(Buffer);
     expect(buffer.length).toBeGreaterThan(0);
   });
 
   it('should produce a valid ZIP file (PK magic bytes)', async () => {
-    const buffer = await generateBidXlsx(makeMetadata(), [makeQuestion()]);
+    const buffer = await generateProcurementXlsx(makeMetadata(), [
+      makeQuestion(),
+    ]);
 
     // XLSX is a ZIP container — first two bytes are 0x50 0x4B ("PK")
     expect(buffer[0]).toBe(0x50);
@@ -82,7 +86,9 @@ describe('generateBidXlsx', () => {
   });
 
   it('should produce two worksheets by default (Procurement Responses + Summary)', async () => {
-    const buffer = await generateBidXlsx(makeMetadata(), [makeQuestion()]);
+    const buffer = await generateProcurementXlsx(makeMetadata(), [
+      makeQuestion(),
+    ]);
     const workbook = await loadWorkbook(buffer);
 
     const sheetNames = workbook.worksheets.map((s) => s.name);
@@ -90,9 +96,13 @@ describe('generateBidXlsx', () => {
   });
 
   it('should produce one worksheet when includeSummary is false', async () => {
-    const buffer = await generateBidXlsx(makeMetadata(), [makeQuestion()], {
-      includeSummary: false,
-    });
+    const buffer = await generateProcurementXlsx(
+      makeMetadata(),
+      [makeQuestion()],
+      {
+        includeSummary: false,
+      },
+    );
     const workbook = await loadWorkbook(buffer);
 
     const sheetNames = workbook.worksheets.map((s) => s.name);
@@ -111,7 +121,7 @@ describe('generateBidXlsx', () => {
       makeQuestion({ question_sequence: 3, response_text: '<p>Another</p>' }),
     ];
 
-    const buffer = await generateBidXlsx(makeMetadata(), questions, {
+    const buffer = await generateProcurementXlsx(makeMetadata(), questions, {
       includeUnanswered: false,
     });
     const workbook = await loadWorkbook(buffer);
@@ -122,7 +132,9 @@ describe('generateBidXlsx', () => {
   });
 
   it('should have 10 columns in the header row', async () => {
-    const buffer = await generateBidXlsx(makeMetadata(), [makeQuestion()]);
+    const buffer = await generateProcurementXlsx(makeMetadata(), [
+      makeQuestion(),
+    ]);
     const workbook = await loadWorkbook(buffer);
     const sheet = workbook.getWorksheet('Procurement Responses')!;
     const headerRow = sheet.getRow(1);
@@ -143,7 +155,7 @@ describe('generateBidXlsx', () => {
       makeQuestion({ question_sequence: 3 }),
     ];
 
-    const buffer = await generateBidXlsx(makeMetadata(), questions);
+    const buffer = await generateProcurementXlsx(makeMetadata(), questions);
     const workbook = await loadWorkbook(buffer);
     const sheet = workbook.getWorksheet('Procurement Responses')!;
 
@@ -160,7 +172,7 @@ describe('generateBidXlsx', () => {
       word_limit: 500,
     });
 
-    const buffer = await generateBidXlsx(makeMetadata(), [question]);
+    const buffer = await generateProcurementXlsx(makeMetadata(), [question]);
     const workbook = await loadWorkbook(buffer);
     const sheet = workbook.getWorksheet('Procurement Responses')!;
     const complianceCell = sheet.getRow(2).getCell(7); // Column G, row 2
@@ -180,7 +192,7 @@ describe('generateBidXlsx', () => {
       word_limit: 10,
     });
 
-    const buffer = await generateBidXlsx(makeMetadata(), [question]);
+    const buffer = await generateProcurementXlsx(makeMetadata(), [question]);
     const workbook = await loadWorkbook(buffer);
     const sheet = workbook.getWorksheet('Procurement Responses')!;
     const complianceCell = sheet.getRow(2).getCell(7);
@@ -194,7 +206,7 @@ describe('generateBidXlsx', () => {
   it('should show "N/A" for compliance when there is no word limit', async () => {
     const question = makeQuestion({ word_limit: null });
 
-    const buffer = await generateBidXlsx(makeMetadata(), [question]);
+    const buffer = await generateProcurementXlsx(makeMetadata(), [question]);
     const workbook = await loadWorkbook(buffer);
     const sheet = workbook.getWorksheet('Procurement Responses')!;
     const complianceCell = sheet.getRow(2).getCell(7);
@@ -208,7 +220,7 @@ describe('generateBidXlsx', () => {
       status: 'in_progress',
     });
 
-    const buffer = await generateBidXlsx(makeMetadata(), [question]);
+    const buffer = await generateProcurementXlsx(makeMetadata(), [question]);
     const workbook = await loadWorkbook(buffer);
     const sheet = workbook.getWorksheet('Procurement Responses')!;
     const statusCell = sheet.getRow(2).getCell(8); // Column H
@@ -219,7 +231,7 @@ describe('generateBidXlsx', () => {
   it('should format confidence "strong_match" as "Strong Match"', async () => {
     const question = makeQuestion({ confidence_posture: 'strong_match' });
 
-    const buffer = await generateBidXlsx(makeMetadata(), [question]);
+    const buffer = await generateProcurementXlsx(makeMetadata(), [question]);
     const workbook = await loadWorkbook(buffer);
     const sheet = workbook.getWorksheet('Procurement Responses')!;
     const confidenceCell = sheet.getRow(2).getCell(9); // Column I
@@ -232,7 +244,7 @@ describe('generateBidXlsx', () => {
       section_name: null as unknown as string,
     });
 
-    const buffer = await generateBidXlsx(makeMetadata(), [question]);
+    const buffer = await generateProcurementXlsx(makeMetadata(), [question]);
     const workbook = await loadWorkbook(buffer);
     const sheet = workbook.getWorksheet('Procurement Responses')!;
     const sectionCell = sheet.getRow(2).getCell(1); // Column A
@@ -269,7 +281,7 @@ describe('generateBidXlsx', () => {
       }),
     ];
 
-    const buffer = await generateBidXlsx(makeMetadata(), questions);
+    const buffer = await generateProcurementXlsx(makeMetadata(), questions);
     const workbook = await loadWorkbook(buffer);
     const summarySheet = workbook.getWorksheet('Summary')!;
 
@@ -299,7 +311,7 @@ describe('generateBidXlsx', () => {
   });
 
   it('should produce a valid XLSX with header row only when given empty questions', async () => {
-    const buffer = await generateBidXlsx(makeMetadata(), []);
+    const buffer = await generateProcurementXlsx(makeMetadata(), []);
     const workbook = await loadWorkbook(buffer);
     const sheet = workbook.getWorksheet('Procurement Responses')!;
 
@@ -317,12 +329,20 @@ describe('generateBidXlsx', () => {
       response_text_advanced: '<p>Advanced version with more detail</p>',
     });
 
-    const bufferStandard = await generateBidXlsx(makeMetadata(), [question], {
-      useAdvancedVariant: false,
-    });
-    const bufferAdvanced = await generateBidXlsx(makeMetadata(), [question], {
-      useAdvancedVariant: true,
-    });
+    const bufferStandard = await generateProcurementXlsx(
+      makeMetadata(),
+      [question],
+      {
+        useAdvancedVariant: false,
+      },
+    );
+    const bufferAdvanced = await generateProcurementXlsx(
+      makeMetadata(),
+      [question],
+      {
+        useAdvancedVariant: true,
+      },
+    );
 
     const wbStandard = await loadWorkbook(bufferStandard);
     const wbAdvanced = await loadWorkbook(bufferAdvanced);
@@ -341,7 +361,7 @@ describe('generateBidXlsx', () => {
   });
 
   it('should format deadline as DD/MM/YYYY in summary sheet', async () => {
-    const buffer = await generateBidXlsx(
+    const buffer = await generateProcurementXlsx(
       makeMetadata({ deadline: '2026-04-15T17:00:00Z' }),
       [makeQuestion()],
     );
