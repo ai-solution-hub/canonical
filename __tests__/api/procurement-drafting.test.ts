@@ -528,6 +528,75 @@ describe('POST /api/bids/:id/responses/draft', () => {
     expect(body.results[0].status).toBe('drafted');
     expect(mockRunDraftingPipeline).toHaveBeenCalledOnce();
   });
+
+  it('reports a question as failed when the status update fails after upsert', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Workspace lookup.
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
+      error: null,
+    });
+
+    // Questions query.
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              id: VALID_UUID_2,
+              question_text: 'Test question',
+              word_limit: 200,
+              section_name: 'Section 1',
+              confidence_posture: 'strong',
+              matched_content_ids: [],
+            },
+          ],
+          error: null,
+        }),
+    );
+
+    // No existing response.
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+
+    // Upsert response succeeds.
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: 'new-response-id' },
+      error: null,
+    });
+
+    // form_questions status update fails — the response is saved but the
+    // question is left stranded. The route must report 'failed', not 'drafted'.
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: null,
+          error: { code: 'XX000', message: 'status update failed' },
+        }),
+    );
+
+    const req = createTestRequest(
+      `/api/procurement/${VALID_UUID}/responses/draft`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
+
+    const res = await draftPost(req, { params });
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.drafted).toBe(0);
+    expect(body.failed).toBe(1);
+    expect(body.results[0].status).toBe('failed');
+    expect(body.results[0].error).toBe('Failed to update question status');
+    // The response WAS saved, so its id is still surfaced for diagnostics.
+    expect(body.results[0].response_id).toBe('new-response-id');
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
