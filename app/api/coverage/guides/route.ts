@@ -158,7 +158,7 @@ const GuideCoverageSchema = z.object({
   name: z.string(),
   slug: z.string(),
   guide_type: z.string(),
-  domain_filter: z.string(),
+  domain_filter: z.string().nullable(),
   total_sections: z.number(),
   populated_sections: z.number(),
   required_sections: z.number(),

@@ -1,4 +1,4 @@
-import { SheetHeader, Button } from 'canonical';
+import { SheetHeader } from 'canonical';
 
 const panel: React.CSSProperties = {
   width: 380,
