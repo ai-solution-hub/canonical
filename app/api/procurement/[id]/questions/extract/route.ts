@@ -2,7 +2,7 @@ import {
   extractDOCXQuestions,
   extractPDFQuestions,
   extractTenderMetadata,
-} from '@/lib/ai/extract-questions';
+} from '@/lib/domains/procurement/ai/extract-questions';
 import { defineRoute } from '@/lib/api/define-route';
 import {
   authFailureResponse,
@@ -14,7 +14,7 @@ import { logger } from '@/lib/logger';
 import {
   canTransition,
   type ProcurementWorkflowState,
-} from '@/lib/procurement/procurement-workflow';
+} from '@/lib/domains/procurement/procurement-workflow';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { sb } from '@/lib/supabase/safe';
 import { parseBody } from '@/lib/validation';

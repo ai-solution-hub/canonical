@@ -65,7 +65,7 @@ vi.mock('@/lib/dashboard', () => ({
   fetchUnifiedDashboardData: vi.fn(),
   unifiedToDashboardData: vi.fn((d: unknown) => d),
 }));
-vi.mock('@/lib/procurement/procurement-queries', () => ({
+vi.mock('@/lib/domains/procurement/procurement-queries', () => ({
   getBidDetail: vi.fn(),
   getBidQuestion: vi.fn(),
 }));

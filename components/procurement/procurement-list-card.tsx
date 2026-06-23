@@ -6,7 +6,7 @@ import { Progress } from '@/components/ui/progress';
 import { ProcurementWorkflowBadge } from '@/components/procurement/procurement-workflow-indicator';
 import { ConfidenceDot } from '@/components/shared/confidence-badge';
 import { formatDateUK } from '@/lib/format';
-import { getDeadlineProximity } from '@/lib/procurement/procurement-helpers';
+import { getDeadlineProximity } from '@/lib/domains/procurement/procurement-helpers';
 import { ClaudePromptButton } from '@/components/content/claude-prompt-button';
 import { cn } from '@/lib/utils';
 import { parseProcurementMetadata } from '@/lib/validation/schemas';

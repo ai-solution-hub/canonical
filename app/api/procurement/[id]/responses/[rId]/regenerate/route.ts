@@ -1,5 +1,8 @@
-import type { DraftableContent, DraftableQuestion } from '@/lib/ai/draft';
-import { runDraftingPipeline } from '@/lib/ai/draft';
+import type {
+  DraftableContent,
+  DraftableQuestion,
+} from '@/lib/domains/procurement/ai/draft';
+import { runDraftingPipeline } from '@/lib/domains/procurement/ai/draft';
 import { defineRoute } from '@/lib/api/define-route';
 import {
   authFailureResponse,

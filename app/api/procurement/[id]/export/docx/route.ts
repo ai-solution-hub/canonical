@@ -4,8 +4,8 @@ import { safeErrorMessage } from '@/lib/error';
 import {
   fetchProcurementExportData,
   sanitiseFilename,
-} from '@/lib/procurement/procurement-export-data';
-import { generateBidDocx } from '@/lib/procurement/procurement-export-docx';
+} from '@/lib/domains/procurement/procurement-export-data';
+import { generateBidDocx } from '@/lib/domains/procurement/procurement-export-docx';
 import { parseBody } from '@/lib/validation';
 import { DocxExportBodySchema } from '@/lib/validation/schemas';
 import { NextRequest, NextResponse } from 'next/server';

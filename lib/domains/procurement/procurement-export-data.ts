@@ -16,7 +16,7 @@ import type {
   ExportQuestion,
   ExportBidMetadata,
   ExportCitation,
-} from '@/lib/procurement/procurement-export-types';
+} from '@/lib/domains/procurement/procurement-export-types';
 import type { ProcurementResponseMetadata } from '@/types/procurement-metadata';
 
 const UUID_RE =

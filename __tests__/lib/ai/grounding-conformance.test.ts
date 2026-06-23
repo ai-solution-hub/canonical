@@ -30,7 +30,7 @@ vi.mock('@/lib/anthropic', () => ({
 import {
   generateSearchQueries,
   extractTenderMetadata,
-} from '@/lib/ai/extract-questions';
+} from '@/lib/domains/procurement/ai/extract-questions';
 import { callSummaryAI } from '@/lib/ai/summarise';
 
 /** Recursively assert every object node closes additionalProperties. */

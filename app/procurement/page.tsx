@@ -27,7 +27,7 @@ import { ProcurementCreationWizard } from '@/components/procurement/procurement-
 import { useUserRole } from '@/hooks/use-user-role';
 import { useViewMode } from '@/hooks/ui/use-view-mode';
 import { formatDateUK } from '@/lib/format';
-import { getDeadlineProximity } from '@/lib/procurement/procurement-helpers';
+import { getDeadlineProximity } from '@/lib/domains/procurement/procurement-helpers';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { ErrorBoundary } from '@/components/shared/error-boundary';

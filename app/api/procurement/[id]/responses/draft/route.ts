@@ -6,8 +6,8 @@ import {
 } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
-import { draftSingleQuestion } from '@/lib/procurement/draft-response';
-import type { ProcurementWorkflowState } from '@/lib/procurement/procurement-workflow';
+import { draftSingleQuestion } from '@/lib/domains/procurement/draft-response';
+import type { ProcurementWorkflowState } from '@/lib/domains/procurement/procurement-workflow';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { sb } from '@/lib/supabase/safe';
 import { parseBody } from '@/lib/validation';

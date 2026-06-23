@@ -5,7 +5,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
 import { fetchJson, mutationFetchJson } from '@/lib/query/fetchers';
 import { toast } from 'sonner';
-import { isActive } from '@/lib/procurement/procurement-workflow';
+import { isActive } from '@/lib/domains/procurement/procurement-workflow';
 import type { ProcurementWorkflowState } from '@/types/procurement';
 import type { Workspace } from '@/types/content';
 

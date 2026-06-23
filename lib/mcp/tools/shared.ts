@@ -238,7 +238,7 @@ export async function getDashboardModule() {
   return await import('@/lib/dashboard');
 }
 export async function getProcurementQueriesModule() {
-  return await import('@/lib/procurement/procurement-queries');
+  return await import('@/lib/domains/procurement/procurement-queries');
 }
 export async function getReorientModule() {
   return await import('@/lib/reorient');

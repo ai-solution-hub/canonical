@@ -24,8 +24,8 @@ import type {
   DraftableContent,
   DraftableQuestion,
   DraftResult,
-} from '@/lib/ai/draft';
-import { runDraftingPipeline } from '@/lib/ai/draft';
+} from '@/lib/domains/procurement/ai/draft';
+import { runDraftingPipeline } from '@/lib/domains/procurement/ai/draft';
 import { PIPELINE_SYSTEM_USER_ID } from '@/lib/intelligence/types';
 import type { Database, Json } from '@/supabase/types/database.types';
 

@@ -13,7 +13,7 @@
  *   AC-9  bid_transitioned only when all eligible drafted with no failures.
  *
  * Mocking discipline (per memory feedback):
- *   - `runDraftingPipeline` is mocked at the @/lib/ai/draft module boundary
+ *   - `runDraftingPipeline` is mocked at the @/lib/domains/procurement/ai/draft module boundary
  *     so the handler's per-question loop is exercised without invoking
  *     Anthropic.
  *   - `PIPELINE_SYSTEM_USER_ID` is imported from the actual module via
@@ -51,7 +51,7 @@ const { mockRunDraftingPipeline } = vi.hoisted(() => ({
   mockRunDraftingPipeline: vi.fn(),
 }));
 
-vi.mock('@/lib/ai/draft', () => ({
+vi.mock('@/lib/domains/procurement/ai/draft', () => ({
   runDraftingPipeline: mockRunDraftingPipeline,
 }));
 

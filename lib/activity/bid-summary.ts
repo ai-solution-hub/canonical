@@ -2,7 +2,7 @@ import type { ProcurementBriefing } from '@/types/reorient';
 import type {
   ProcurementWorkspaceRow,
   ProcurementQuestionStats,
-} from '@/lib/procurement/procurement-queries';
+} from '@/lib/domains/procurement/procurement-queries';
 import { getDeadlineUrgency, getDaysUntilDeadline } from '@/lib/dashboard';
 
 /**

@@ -27,7 +27,7 @@ vi.mock('@/lib/logger', () => ({
 import {
   generateSearchQueries,
   extractTenderMetadata,
-} from '@/lib/ai/extract-questions';
+} from '@/lib/domains/procurement/ai/extract-questions';
 import { callSummaryAI } from '@/lib/ai/summarise';
 
 const refusal = {

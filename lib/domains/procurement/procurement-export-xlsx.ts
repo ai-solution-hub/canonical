@@ -17,7 +17,7 @@ import type {
   ExportQuestion,
   ExportBidMetadata,
   XlsxExportOptions,
-} from '@/lib/procurement/procurement-export-types';
+} from '@/lib/domains/procurement/procurement-export-types';
 
 // ---------------------------------------------------------------------------
 // Constants — styling

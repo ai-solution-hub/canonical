@@ -55,7 +55,7 @@ const mockGetAvailableTransitions = vi.fn((..._args: unknown[]) => [
   'submitted',
 ]);
 
-vi.mock('@/lib/procurement/procurement-workflow', () => ({
+vi.mock('@/lib/domains/procurement/procurement-workflow', () => ({
   canTransition: (...args: unknown[]) => mockCanTransition(...args),
   getAvailableTransitions: (...args: unknown[]) =>
     mockGetAvailableTransitions(...args),

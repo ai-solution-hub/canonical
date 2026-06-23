@@ -28,9 +28,9 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { draftSingleQuestion } from '@/lib/procurement/draft-response';
-import { canTransition } from '@/lib/procurement/procurement-workflow';
-import type { ProcurementWorkflowState } from '@/lib/procurement/procurement-workflow';
+import { draftSingleQuestion } from '@/lib/domains/procurement/draft-response';
+import { canTransition } from '@/lib/domains/procurement/procurement-workflow';
+import type { ProcurementWorkflowState } from '@/lib/domains/procurement/procurement-workflow';
 import { logger } from '@/lib/logger';
 import { PermanentJobError } from '@/lib/queue/dispatch';
 import { sb } from '@/lib/supabase/safe';

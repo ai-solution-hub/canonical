@@ -46,7 +46,7 @@ const {
   mockAssessConfidence: vi.fn(),
 }));
 
-vi.mock('@/lib/ai/extract-questions', () => ({
+vi.mock('@/lib/domains/procurement/ai/extract-questions', () => ({
   extractPDFQuestions: mockExtractPDFQuestions,
   extractDOCXQuestions: mockExtractDOCXQuestions,
   extractTenderMetadata: mockExtractTenderMetadata,

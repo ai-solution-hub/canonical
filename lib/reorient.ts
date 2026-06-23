@@ -6,7 +6,7 @@ import type {
   TeamChange,
   RecentWorkItem,
 } from '@/types/reorient';
-import { fetchActiveProcurementWithStats } from '@/lib/procurement/procurement-queries';
+import { fetchActiveProcurementWithStats } from '@/lib/domains/procurement/procurement-queries';
 import { formatRelativeDate } from '@/lib/format';
 import { getUserDisplayName } from '@/lib/users/self-display-name';
 import { dedupeRecentWorkByEntity } from '@/lib/activity/recent-work';
