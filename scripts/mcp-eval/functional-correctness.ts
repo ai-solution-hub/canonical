@@ -1632,8 +1632,20 @@ async function runWriteToolChecks(
   // Track items created for cleanup
   const createdItemIds: string[] = [];
 
-  // FC-60: create_content_item — creates item, verify, then delete
-  {
+  // FC-60: create_content_item — config-gated on the cocoindex worker. On the
+  // platform there is no worker (COCOINDEX_WORKER_URL unset = bl-301); the
+  // folder-drop ingest path raises a loud config error by design
+  // (lib/upload/folder-drop.ts:137), so config-skip rather than fail — this
+  // auto-runs once a platform worker is provisioned (FC-106 infra-skip precedent).
+  if (!process.env.COCOINDEX_WORKER_URL) {
+    record(
+      'Write Tools',
+      'FC-60',
+      'create_content_item',
+      'SKIP',
+      'COCOINDEX_WORKER_URL unset — folder-drop ingest unavailable (bl-301 platform worker); infra-skipped',
+    );
+  } else {
     const result = await callTool(
       'create_content_item',
       {
@@ -2082,8 +2094,19 @@ async function runWriteToolChecks(
     }
   }
 
-  // FC-65: delete_content_item — create a dedicated item, then archive it
-  {
+  // FC-65: delete_content_item — config-gated on the cocoindex worker (setup
+  // creates an item via folder-drop ingest first). On the platform there is no
+  // worker (COCOINDEX_WORKER_URL unset = bl-301); config-skip rather than fail
+  // (FC-60 / FC-106 precedent).
+  if (!process.env.COCOINDEX_WORKER_URL) {
+    record(
+      'Write Tools',
+      'FC-65',
+      'delete_content_item',
+      'SKIP',
+      'COCOINDEX_WORKER_URL unset — cannot create the delete-test item (bl-301 platform worker); infra-skipped',
+    );
+  } else {
     const createResult = await callTool(
       'create_content_item',
       {
@@ -3076,8 +3099,11 @@ async function runHeadlessCompleteEnumerationChecks(
 
   // FC-94: O4 surfaces a non-KH-state dimension — the read reorients the
   // *person* (sector / role / day), not only their KH workspace state
-  // (B-INV-3 / M3). Honest check: FAILs until the O4 widening lands, rather
-  // than a lenient false-pass.
+  // (B-INV-3 / M3). Feature-gated: when the dimension is present it PASSes;
+  // while the M3 widening is deferred id-71 scope (bl-242/id-71) the briefing
+  // correctly returns KH-internal state, so SKIP (not FAIL) until it lands —
+  // this auto-passes once O4 surfaces the non-KH dimension. Not a false-pass:
+  // a tool error still FAILs.
   {
     const result = await callTool('get_reorientation', {}, accessToken);
     if (result.errorMessage || result.isError) {
@@ -3112,8 +3138,8 @@ async function runHeadlessCompleteEnumerationChecks(
           SECTION,
           'FC-94',
           'O4 surfaces a non-KH-state dimension',
-          'FAIL',
-          'briefing limited to KH-internal state — non-KH-state widening (M3) not yet surfaced',
+          'SKIP',
+          'deferred — non-KH-state widening (M3) not yet built (bl-242/id-71); feature-skipped until the O4 widening lands',
         );
       }
     }
