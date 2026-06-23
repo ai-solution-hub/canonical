@@ -179,6 +179,12 @@ from scripts.cocoindex_pipeline.workspace_resolver import (
 # at module top (NOT lazily) — stage_5.py imports the flow-side types under
 # TYPE_CHECKING only, so there is no runtime import cycle.
 from scripts.cocoindex_pipeline.stage_5 import _run_stage_5_resolution
+
+# ID-120 §P-3 (INV-1). Cross-workspace + cross-form Q&A dedup PROPOSER post-pass.
+# Imported at module top alongside Stage-5 — qa_dedup_proposer.py imports the
+# flow-side type (`_FlowStageCounter`) under TYPE_CHECKING only, so there is no
+# runtime import cycle.
+from scripts.cocoindex_pipeline.qa_dedup_proposer import _run_qa_dedup_proposer
 # ────────────────────────────────────────────────────────────────────────────
 
 _logger = logging.getLogger(__name__)
@@ -282,6 +288,21 @@ class _EntityResolutionStageError(Exception):
     """
 
 
+class _QaDedupProposerStageError(Exception):
+    """Wraps any exception escaping the ID-120 Q&A dedup proposer post-pass so
+    the stage-level classifier can attribute it to ``qa_dedup_proposer_failed``
+    (TECH §P-3, INV-1) regardless of the underlying exception type.
+
+    Mirrors ``_EntityResolutionStageError``: the proposer attach site re-raises
+    any escape as this wrapper (``raise … from exc`` preserves ``__cause__``),
+    and ``_classify_stage_exception`` resolves it to the contained stage code.
+    The proposer is a CONTAINED post-pass — a proposer failure classifies the
+    run but the walk's primary ingest already landed; the failure is surfaced on
+    the pipeline-runs row, not allowed to mask a successful ingest as a different
+    stage's failure.
+    """
+
+
 def _classify_stage_exception(exc: BaseException) -> str | None:
     """Map a Python exception to the Inv-25 6-class stage-level vocabulary.
 
@@ -338,6 +359,15 @@ def _classify_stage_exception(exc: BaseException) -> str | None:
     # context — not exception type — drives the classification.
     if isinstance(exc, _EntityResolutionStageError):
         return "entity_resolution_failed"
+
+    # ID-120 §P-3 (INV-1): Q&A dedup proposer failure. CONTAINED — the proposer
+    # attach site catches its own re-wrapped escape so the walk is NOT aborted
+    # (the primary ingest already landed); this branch classifies the proposer
+    # failure for the structured stage-error log + pipeline-runs row. Placed
+    # before the generic provider branches for the same stage-context-over-type
+    # reason as the Stage-5 branch above.
+    if isinstance(exc, _QaDedupProposerStageError):
+        return "qa_dedup_proposer_failed"
 
     # Belt-and-suspenders: a DIRECT typed error raised from the entity
     # resolution op module (e.g. a preload-step failure before the LLM call).
@@ -3720,6 +3750,54 @@ async def app_main() -> None:
                 }
             )
         )
+
+        # ── ID-120 §P-3 (INV-1): Q&A dedup PROPOSER post-pass ──────────────
+        # Runs AFTER Stage-5 (here), BEFORE the flow-end webhook. Reads the
+        # whole published embedding-bearing q_a_pairs corpus (cross-workspace /
+        # cross-form, INV-2/6/7), computes cosine candidate pairs in SQL
+        # (INV-3/21), and UPSERTs pending proposals to q_a_pair_dedup_proposals
+        # (INV-4). Service-role asyncpg pool (the SAME env-scope DB_CTX pool
+        # Stage-5 uses); NEVER writes q_a_pairs publication_status/superseded_by
+        # (the merge fires only on curator approval, app-side {120.7}).
+        #
+        # CONTAINMENT (INV-1, testStrategy): the inner re-wrap mirrors Stage-5
+        # VERBATIM (`raise _QaDedupProposerStageError(str(exc)) from exc`) so
+        # `_classify_stage_exception` attributes any escape to
+        # `qa_dedup_proposer_failed` via stage context. But UNLIKE Stage-5, the
+        # proposer is a CONTAINED post-pass: the primary ingest already landed
+        # by `handle.ready()`, so a proposer failure MUST NOT abort the walk.
+        # The outer `except _QaDedupProposerStageError` therefore classifies +
+        # emits the structured stage-error log and SWALLOWS the wrapper (does
+        # NOT re-raise) — the walk continues to a successful flow-end webhook.
+        try:
+            try:
+                proposed_count = await _run_qa_dedup_proposer(
+                    db_pool=coco.use_context(DB_CTX),
+                    flow_stage_counter=flow_stage_counter,
+                )
+            except Exception as exc:  # noqa: BLE001 — re-wrap for classification
+                raise _QaDedupProposerStageError(str(exc)) from exc
+            _logger.info(
+                json.dumps(
+                    {
+                        "event": "cocoindex.qa_dedup.proposed",
+                        "op_id": str(run_op_id),
+                        "proposed_count": proposed_count,
+                    }
+                )
+            )
+        except _QaDedupProposerStageError as exc:
+            # CONTAINED: classify + emit the stage-error log, then continue the
+            # walk (no re-raise). The proposer failure is surfaced on the
+            # structured log; the ingest that already landed is not masked.
+            _emit_stage_error_log(
+                op_id=run_op_id,
+                stage="qa_dedup_proposer",
+                error_class=_classify_stage_exception(exc)
+                or type(exc).__name__,
+                content_items_id=None,
+                error_message=str(exc),
+            )
 
         # ── Inv-13: per-row upsert logging — deferred to 28.25 ─────────────
         # cocoindex 1.0.3 exposes no per-row UPSERT completion callback
