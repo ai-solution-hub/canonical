@@ -18,6 +18,13 @@ import { installRadixPointerShims } from '@/__tests__/helpers/radix-pointer-shim
 
 beforeEach(() => {
   installRadixPointerShims();
+  // jsdom dispatches focus events synchronously; two nested Radix FocusScopes
+  // (the Sheet + the holder/type Selects rendered inside it) refocus each other
+  // into "Maximum call stack size exceeded". Real browsers coalesce focus
+  // transitions and never loop. Stub focus/blur dispatch so the trap can't fight
+  // itself in jsdom. FIXME(focus-loop): jsdom limitation, not a component bug.
+  vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(() => {});
+  vi.spyOn(HTMLElement.prototype, 'blur').mockImplementation(() => {});
 });
 
 // ---------------------------------------------------------------------------
