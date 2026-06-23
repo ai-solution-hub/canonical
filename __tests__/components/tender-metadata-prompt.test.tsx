@@ -365,7 +365,7 @@ describe('TenderMetadataPrompt', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('calls onUpdated after successful apply', async () => {
+  it('notifies the parent after a successful apply', async () => {
     mockFetch.mockReturnValueOnce(mockFetchResponse({ ok: true }));
     const user = userEvent.setup();
     render(<TenderMetadataPrompt {...defaultProps} />);
@@ -428,7 +428,7 @@ describe('TenderMetadataPrompt', () => {
 
   // ---- Optional className ----
 
-  it('applies className prop to root element', () => {
+  it('reflects a custom className on the root element', () => {
     render(<TenderMetadataPrompt {...defaultProps} className="mt-4" />);
     const region = screen.getByRole('region');
     expect(region.className).toContain('mt-4');

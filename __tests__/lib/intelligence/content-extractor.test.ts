@@ -76,7 +76,7 @@ describe('extractContent', () => {
     vi.clearAllMocks();
   });
 
-  it('uses RSS content:encoded when available and sufficient', async () => {
+  it('extracts via rss_content when content:encoded is present and sufficient', async () => {
     const item = { ...baseItem, contentEncoded: 'Word '.repeat(150) };
     const result = await extractContent(item);
     expect(result.method).toBe('rss_content');
@@ -101,7 +101,7 @@ describe('extractContent', () => {
     expect(result.wordCount).toBeGreaterThanOrEqual(100);
   });
 
-  it('uses summary as title fallback', async () => {
+  it('keeps the feed title on the extracted result', async () => {
     const item = { ...baseItem, contentEncoded: 'Word '.repeat(150) };
     const result = await extractContent(item);
     expect(result.title).toBe('Test Article');
@@ -159,7 +159,7 @@ describe('extractContent', () => {
     );
   });
 
-  it('uses Jina Reader when fetch returns insufficient content', async () => {
+  it('extracts via jina_reader when fetch returns insufficient content', async () => {
     const item = { ...baseItem, contentEncoded: null };
 
     // Tier 2 (fetch) returns too little content

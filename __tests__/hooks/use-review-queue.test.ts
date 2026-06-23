@@ -418,7 +418,7 @@ describe('useReviewQueue', () => {
       expect(result.current.queue).toHaveLength(1);
     });
 
-    it('delegates error handling to sub-hooks', () => {
+    it('settles to an empty, non-loading queue on data error', () => {
       // Data hook handles errors via TanStack Query's error state
       mockDataReturn.isLoading = false;
       mockDataReturn.queue = [];
@@ -437,7 +437,7 @@ describe('useReviewQueue', () => {
   // =========================================================================
 
   describe('navigation', () => {
-    it('handleSkip delegates to navigation sub-hook', () => {
+    it('handleSkip advances past the current item', () => {
       const items = [
         makeQueueItem({ id: 'n1' }),
         makeQueueItem({ id: 'n2' }, 1),
@@ -456,7 +456,7 @@ describe('useReviewQueue', () => {
       expect(mockNavReturn.handleSkip).toHaveBeenCalled();
     });
 
-    it('handleBack delegates to navigation sub-hook', () => {
+    it('handleBack returns to the previous item', () => {
       const items = [
         makeQueueItem({ id: 'b1' }),
         makeQueueItem({ id: 'b2' }, 1),
@@ -491,7 +491,7 @@ describe('useReviewQueue', () => {
       expect(mockNavReturn.handleBack).toHaveBeenCalled();
     });
 
-    it('handleSelectItem delegates to navigation sub-hook', () => {
+    it('handleSelectItem selects the item at the given index', () => {
       const items = [
         makeQueueItem({ id: 's1', primary_domain: 'Zebra' }),
         makeQueueItem({ id: 's2', primary_domain: 'Alpha' }, 1),
@@ -516,7 +516,7 @@ describe('useReviewQueue', () => {
   // =========================================================================
 
   describe('actions', () => {
-    it('handleVerify delegates to actions sub-hook', async () => {
+    it('handleVerify verifies the current item', async () => {
       const items = [makeQueueItem({ id: 'v1', title: 'Verify Me' })];
       setupLoadedState(items);
 
@@ -531,7 +531,7 @@ describe('useReviewQueue', () => {
       expect(mockActionsReturn.handleVerify).toHaveBeenCalled();
     });
 
-    it('handleVerify passes note argument through', async () => {
+    it('handleVerify forwards the review note', async () => {
       const items = [
         makeQueueItem({ id: 'v2', title: 'Optimistic' }),
         makeQueueItem({ id: 'v3' }, 1),
@@ -551,7 +551,7 @@ describe('useReviewQueue', () => {
       );
     });
 
-    it('handleVerify error handling is delegated to actions sub-hook', async () => {
+    it('handleVerify surfaces verify failures without crashing the queue', async () => {
       const items = [
         makeQueueItem({ id: 'fail1', title: 'Fail Item' }),
         makeQueueItem({ id: 'fail2' }, 1),
@@ -578,7 +578,7 @@ describe('useReviewQueue', () => {
       expect(mockActionsReturn.handleVerify).toHaveBeenCalled();
     });
 
-    it('handleFlagSubmit delegates to actions sub-hook with details', async () => {
+    it('handleFlagSubmit flags the current item with the given details', async () => {
       const items = [
         makeQueueItem({ id: 'f1', title: 'Flag Me' }),
         makeQueueItem({ id: 'f2' }, 1),
@@ -613,7 +613,7 @@ describe('useReviewQueue', () => {
       expect(mockSessionReturn.setShowFlagInput).toHaveBeenCalledWith(true);
     });
 
-    it('handleFlagSubmit delegates flag progression to actions sub-hook', async () => {
+    it('handleFlagSubmit progresses the queue with the flag details', async () => {
       const items = [
         makeQueueItem({ id: 'fp1' }),
         makeQueueItem({ id: 'fp2' }, 1),
@@ -678,7 +678,7 @@ describe('useReviewQueue', () => {
   // =========================================================================
 
   describe('filters and exit', () => {
-    it('handleFiltersChange delegates to session sub-hook', () => {
+    it('handleFiltersChange applies the changed filters', () => {
       setupLoadedState([makeQueueItem()]);
 
       const { result } = renderHook(() => useReviewQueue(), {
@@ -712,7 +712,7 @@ describe('useReviewQueue', () => {
       expect(mockPush).toHaveBeenCalledWith('/browse');
     });
 
-    it('setFilters delegates to session sub-hook', () => {
+    it('setFilters applies the provided filters', () => {
       setupLoadedState([makeQueueItem()]);
 
       const { result } = renderHook(() => useReviewQueue(), {
@@ -738,7 +738,7 @@ describe('useReviewQueue', () => {
   // =========================================================================
 
   describe('panel toggle', () => {
-    it('handleTogglePanel delegates to session sub-hook', () => {
+    it('handleTogglePanel toggles the queue panel', () => {
       setupLoadedState([makeQueueItem()]);
 
       const { result } = renderHook(() => useReviewQueue(), {
@@ -1053,7 +1053,7 @@ describe('useReviewQueue', () => {
       ]);
     });
 
-    it('handlePublish delegates to actions sub-hook', async () => {
+    it('handlePublish publishes the current item', async () => {
       setupLoadedState([
         makeQueueItem({ id: 'pub1', governance_review_status: 'draft' }),
       ]);

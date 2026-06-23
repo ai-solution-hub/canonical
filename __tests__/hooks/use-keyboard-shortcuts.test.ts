@@ -43,7 +43,7 @@ describe('useKeyboardShortcuts', () => {
   // / — Focus search
   // ----------------------------------------------------------
 
-  it('calls onFocusSearch when "/" is pressed', async () => {
+  it('focuses search when "/" is pressed', async () => {
     await renderShortcuts();
     fireEvent.keyDown(document, { key: '/' });
     expect(onFocusSearch).toHaveBeenCalledOnce();
@@ -59,7 +59,7 @@ describe('useKeyboardShortcuts', () => {
   // Escape — Blur active element / call onEscape
   // ----------------------------------------------------------
 
-  it('calls onEscape when Escape is pressed outside an input', async () => {
+  it('signals escape when Escape is pressed outside an input', async () => {
     await renderShortcuts();
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onEscape).toHaveBeenCalledOnce();
@@ -82,13 +82,13 @@ describe('useKeyboardShortcuts', () => {
   // j / k — Navigate down / up
   // ----------------------------------------------------------
 
-  it('calls onNavigate("down") when "j" is pressed', async () => {
+  it('navigates down when "j" is pressed', async () => {
     await renderShortcuts();
     fireEvent.keyDown(document, { key: 'j' });
     expect(onNavigate).toHaveBeenCalledWith('down');
   });
 
-  it('calls onNavigate("up") when "k" is pressed', async () => {
+  it('navigates up when "k" is pressed', async () => {
     await renderShortcuts();
     fireEvent.keyDown(document, { key: 'k' });
     expect(onNavigate).toHaveBeenCalledWith('up');
@@ -98,7 +98,7 @@ describe('useKeyboardShortcuts', () => {
   // Enter — Select
   // ----------------------------------------------------------
 
-  it('calls onSelect when Enter is pressed', async () => {
+  it('selects the focused item when Enter is pressed', async () => {
     await renderShortcuts();
     fireEvent.keyDown(document, { key: 'Enter' });
     expect(onSelect).toHaveBeenCalledOnce();
@@ -108,7 +108,7 @@ describe('useKeyboardShortcuts', () => {
   // Shift+R — Go to review
   // ----------------------------------------------------------
 
-  it('calls onGoToReview when Shift+R is pressed', async () => {
+  it('goes to review when Shift+R is pressed', async () => {
     await renderShortcuts();
     fireEvent.keyDown(document, { key: 'R', shiftKey: true });
     expect(onGoToReview).toHaveBeenCalledOnce();
@@ -118,7 +118,7 @@ describe('useKeyboardShortcuts', () => {
   // g g — Go to first item (double tap within 500ms)
   // ----------------------------------------------------------
 
-  it('calls onNavigate("first") on double-g within 500ms', async () => {
+  it('navigates to the first item on double-g within 500ms', async () => {
     await renderShortcuts();
 
     // First g sets the timestamp
@@ -144,7 +144,7 @@ describe('useKeyboardShortcuts', () => {
   // Shift+G — Go to last item
   // ----------------------------------------------------------
 
-  it('calls onNavigate("last") when Shift+G is pressed', async () => {
+  it('navigates to the last item when Shift+G is pressed', async () => {
     await renderShortcuts();
     fireEvent.keyDown(document, { key: 'G', shiftKey: true });
     expect(onNavigate).toHaveBeenCalledWith('last');

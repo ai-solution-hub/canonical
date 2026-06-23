@@ -69,7 +69,7 @@ describe('useUrlFilters', () => {
     expect(result.current.filters.domain).toBe('Education');
   });
 
-  it('uses paramMap to map filter keys to URL param names', () => {
+  it('reads the search filter from its mapped URL param name', () => {
     mockSearchParams.value = new URLSearchParams('q=test');
     const { result } = renderHook(() => useUrlFilters(simpleConfig));
     // 'search' key maps to 'q' param
@@ -80,7 +80,7 @@ describe('useUrlFilters', () => {
   // Custom parsers
   // -----------------------------------------------------------------------
 
-  it('applies custom parser to URL param values', () => {
+  it('parses a URL param into its typed filter value via a custom parser', () => {
     type BoolFilter = {
       starred?: boolean;
     } & Record<string, unknown>;
@@ -111,7 +111,7 @@ describe('useUrlFilters', () => {
     });
   });
 
-  it('uses paramMap when writing', () => {
+  it('writes the search filter under its mapped URL param name', () => {
     const { result } = renderHook(() => useUrlFilters(simpleConfig));
 
     act(() => result.current.setFilters({ search: 'keyword' }));
@@ -134,7 +134,7 @@ describe('useUrlFilters', () => {
   // Custom serialisers
   // -----------------------------------------------------------------------
 
-  it('applies custom serialiser when writing', () => {
+  it('serialises an array filter into the URL via a custom serialiser', () => {
     type ArrayFilter = {
       tags?: string[];
     } & Record<string, unknown>;

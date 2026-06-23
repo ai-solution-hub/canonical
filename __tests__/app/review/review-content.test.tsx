@@ -596,7 +596,7 @@ describe('ReviewContent', () => {
   });
 
   // 14. Panel toggle calls handleTogglePanel
-  it('calls handleTogglePanel when panel toggle button is clicked', async () => {
+  it('toggles the queue panel when the panel toggle button is clicked', async () => {
     const user = userEvent.setup();
     const mockToggle = vi.fn();
     setHookReturn({ handleTogglePanel: mockToggle });
@@ -732,7 +732,7 @@ describe('ReviewContent', () => {
   });
 
   // 21. Action bar handlers: Verify opens note input, then Skip verifies without note
-  it('calls handleVerify via Skip after Verify button shows note input', async () => {
+  it('verifies without a note via Skip after Verify reveals the note input', async () => {
     const user = userEvent.setup();
     const mockVerify = vi.fn().mockResolvedValue(undefined);
     setHookReturn({ handleVerify: mockVerify });

@@ -76,33 +76,33 @@ describe('produceGovernanceReviewItems', () => {
     expect(items[0].count).toBe(3);
   });
 
-  it('uses singular grammar for count of 1', () => {
+  it('renders a singular title for a count of 1', () => {
     const items = produceGovernanceReviewItems(1);
     expect(items[0].title).toContain('1 governance review pending');
   });
 
-  it('uses plural grammar for count > 1', () => {
+  it('renders a pluralised title for counts above 1', () => {
     const items = produceGovernanceReviewItems(5);
     expect(items[0].title).toContain('5 governance reviews pending');
   });
 
-  it('includes action_url pointing to /review', () => {
+  it('links the item to the /review page', () => {
     const items = produceGovernanceReviewItems(3);
     expect(items[0].action_url).toBe('/review');
   });
 
-  it('includes a claude_prompt', () => {
+  it('carries a claude_prompt naming the count', () => {
     const items = produceGovernanceReviewItems(2);
     expect(items[0].claude_prompt).toBeDefined();
     expect(items[0].claude_prompt).toContain('2');
   });
 
-  it('uses singular grammar in detail for count of 1', () => {
+  it('renders a singular detail line for a count of 1', () => {
     const items = produceGovernanceReviewItems(1);
     expect(items[0].detail).toContain('1 content item needs');
   });
 
-  it('uses plural grammar in detail for count > 1', () => {
+  it('renders a pluralised detail line for counts above 1', () => {
     const items = produceGovernanceReviewItems(5);
     expect(items[0].detail).toContain('5 content items need');
   });
@@ -134,7 +134,7 @@ describe('produceStaleContentItems', () => {
     expect(items.map((i) => i.type)).toContain('stale_content');
   });
 
-  it('items are visible to all roles', () => {
+  it('are visible to all roles', () => {
     const items = produceStaleContentItems(1, 1);
     for (const item of items) {
       expect(item.role_visibility).toEqual(['admin', 'editor', 'viewer']);
@@ -154,7 +154,7 @@ describe('produceQualityFlagItems', () => {
     expect(items[0].role_visibility).toEqual(['admin', 'editor']);
   });
 
-  it('sets type to quality_flag with correct count', () => {
+  it('emits a quality_flag item carrying the count', () => {
     const items = produceQualityFlagItems(4);
     expect(items[0].type).toBe('quality_flag');
     expect(items[0].count).toBe(4);
@@ -173,7 +173,7 @@ describe('produceUnverifiedItems', () => {
     expect(items[0].role_visibility).toEqual(['admin', 'editor']);
   });
 
-  it('sets type to unverified_content with correct count', () => {
+  it('emits an unverified_content item carrying the count', () => {
     const items = produceUnverifiedItems(12);
     expect(items[0].type).toBe('unverified_content');
     expect(items[0].count).toBe(12);
@@ -228,13 +228,13 @@ describe('produceBidDeadlineItems', () => {
     expect(items[0].severity).toBe('high');
   });
 
-  it('includes progress in detail', () => {
+  it('shows answered-question progress in the detail line', () => {
     const bid = { ...baseBid, deadline: '2020-01-01', days_until_deadline: -1 };
     const items = produceBidDeadlineItems([bid]);
     expect(items[0].detail).toContain('5/10 questions answered');
   });
 
-  it('is visible to all roles', () => {
+  it('is visible to admin, editor, and viewer', () => {
     const bid = { ...baseBid, deadline: '2020-01-01', days_until_deadline: -1 };
     const items = produceBidDeadlineItems([bid]);
     expect(items[0].role_visibility).toEqual(['admin', 'editor', 'viewer']);
@@ -259,7 +259,7 @@ describe('produceBidDeadlineItems', () => {
     expect(items[0].severity).toBe('medium');
   });
 
-  it('includes bid name and deadline info in title', () => {
+  it('shows the bid name and days-remaining in the title', () => {
     const soonDate = new Date();
     soonDate.setDate(soonDate.getDate() + 2);
     const bids = [
@@ -288,7 +288,7 @@ describe('produceBidDeadlineItems', () => {
     expect(items[0].title).toContain('due today');
   });
 
-  it('includes buyer in detail when present', () => {
+  it('shows the buyer in the detail line when present', () => {
     const soonDate = new Date();
     soonDate.setDate(soonDate.getDate() + 1);
     const bids = [
@@ -302,7 +302,7 @@ describe('produceBidDeadlineItems', () => {
     expect(items[0].detail).toContain('Widget Co');
   });
 
-  it('sets entity_type to workspace with bid id', () => {
+  it('targets the bid workspace via entity + action_url', () => {
     const soonDate = new Date();
     soonDate.setDate(soonDate.getDate() + 1);
     const bids = [
@@ -351,12 +351,12 @@ describe('produceExpiringCertItems', () => {
     expect(items[0].type).toBe('expiring_certification');
   });
 
-  it('links to /compliance', () => {
+  it('links the item to the /compliance page', () => {
     const items = produceExpiringCertItems(2);
     expect(items[0].action_url).toBe('/compliance');
   });
 
-  it('uses singular grammar for 1 certification', () => {
+  it('renders a singular title for a single certification', () => {
     const items = produceExpiringCertItems(1);
     expect(items[0].title).toBe('1 certification expiring soon');
   });
@@ -374,7 +374,7 @@ describe('produceExpiringContentDateItems', () => {
     expect(items[0].role_visibility).toEqual(['admin', 'editor', 'viewer']);
   });
 
-  it('sets type to expiring_content_date with correct count', () => {
+  it('emits an expiring_content_date item carrying the count', () => {
     const items = produceExpiringContentDateItems(7);
     expect(items[0].type).toBe('expiring_content_date');
     expect(items[0].count).toBe(7);
@@ -418,7 +418,7 @@ describe('produceCoverageGapItems', () => {
     expect(items[0].role_visibility).toEqual(['admin', 'editor']);
   });
 
-  it('sets type to coverage_gap with action_url to /coverage', () => {
+  it('emits a coverage_gap item linking to /coverage', () => {
     const items = produceCoverageGapItems(5);
     expect(items[0].type).toBe('coverage_gap');
     expect(items[0].action_url).toBe('/coverage');
@@ -455,7 +455,7 @@ describe('produceTaxonomyCoverageItems', () => {
     expect(items[0].title).toContain('unclassified');
   });
 
-  it('uses singular wording for a count of one', () => {
+  it('renders a singular title for a count of one', () => {
     const items = produceTaxonomyCoverageItems(1);
     expect(items[0].title).toBe('1 unclassified content item');
   });

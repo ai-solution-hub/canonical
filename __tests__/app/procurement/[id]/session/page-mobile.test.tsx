@@ -409,7 +409,7 @@ describe('Session Page Mobile Layout', () => {
       expect(within(compactNav).getByText('Q2/3')).toBeInTheDocument();
     });
 
-    it('calls onPrev when prev button clicked', async () => {
+    it('navigates to the previous question when prev button clicked', async () => {
       const user = userEvent.setup();
       const handleNavigate = vi.fn();
       setupDefaults({ currentIndex: 1, handleNavigate });
@@ -425,7 +425,7 @@ describe('Session Page Mobile Layout', () => {
       expect(handleNavigate).toHaveBeenCalledWith(0); // currentIndex - 1
     });
 
-    it('calls onNext when next button clicked', async () => {
+    it('navigates to the next question when next button clicked', async () => {
       const user = userEvent.setup();
       const handleNavigate = vi.fn();
       setupDefaults({ currentIndex: 0, handleNavigate });
@@ -810,7 +810,7 @@ describe('Session Page Mobile Layout', () => {
   // ========================================================================
 
   describe('Next unanswered navigation', () => {
-    it('passes nextUnansweredIndex to ResponseActions when unanswered questions exist', () => {
+    it('surfaces the next unanswered question index in ResponseActions when unanswered questions exist', () => {
       // q-1 is drafted, q-2 is drafted, q-3 is not_started
       const questions = [
         makeQuestion({ id: 'q-1', status: 'drafted', question_number: 1 }),
@@ -835,7 +835,7 @@ describe('Session Page Mobile Layout', () => {
       expect(actions).toHaveAttribute('data-next-unanswered-index', '2');
     });
 
-    it('passes -1 when no unanswered questions remain', () => {
+    it('surfaces -1 in ResponseActions when no unanswered questions remain', () => {
       const questions = [
         makeQuestion({ id: 'q-1', status: 'complete', question_number: 1 }),
         makeQuestion({ id: 'q-2', status: 'drafted', question_number: 2 }),
@@ -861,7 +861,7 @@ describe('Session Page Mobile Layout', () => {
       expect(actions).toHaveAttribute('data-next-unanswered-index', '0');
     });
 
-    it('calls handleNavigate when next unanswered button is clicked', async () => {
+    it('navigates to the next unanswered question when its button is clicked', async () => {
       const user = userEvent.setup();
       const handleNavigate = vi.fn();
       const questions = [
@@ -930,7 +930,7 @@ describe('Session Page Mobile Layout', () => {
       expect(handleAction).toHaveBeenCalledWith('save');
     });
 
-    it('does not call handleAction on Ctrl+S when no response exists', () => {
+    it('does not save on Ctrl+S when no response exists', () => {
       const handleAction = vi.fn();
       setupDefaults({
         response: null,
@@ -943,7 +943,7 @@ describe('Session Page Mobile Layout', () => {
       expect(handleAction).not.toHaveBeenCalled();
     });
 
-    it('does not call handleAction on Ctrl+S when editor content is too short', () => {
+    it('does not save on Ctrl+S when editor content is too short', () => {
       const handleAction = vi.fn();
       setupDefaults({
         response: {
@@ -961,7 +961,7 @@ describe('Session Page Mobile Layout', () => {
       expect(handleAction).not.toHaveBeenCalled();
     });
 
-    it('does not call handleAction on Ctrl+S when user cannot edit', () => {
+    it('does not save on Ctrl+S when user cannot edit', () => {
       mockUseUserRole.canEdit = false;
       const handleAction = vi.fn();
       setupDefaults({

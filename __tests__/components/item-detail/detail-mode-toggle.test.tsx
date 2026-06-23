@@ -45,7 +45,7 @@ describe('DetailModeToggle', () => {
       ).toBeInTheDocument();
     });
 
-    it('applies custom className', () => {
+    it('reflects a custom className on the group', () => {
       render(<DetailModeToggle {...defaultProps} className="test-class" />);
 
       const group = screen.getByRole('group', { name: 'Detail view mode' });
@@ -64,7 +64,7 @@ describe('DetailModeToggle', () => {
       expect(editButton).toHaveAttribute('aria-pressed', 'true');
     });
 
-    it('calls onToggle when Read is clicked', async () => {
+    it('switches to reader mode when Read is clicked', async () => {
       const onToggle = vi.fn();
       render(<DetailModeToggle detailMode="editor" onToggle={onToggle} />);
 
@@ -74,7 +74,7 @@ describe('DetailModeToggle', () => {
       expect(onToggle).toHaveBeenCalledTimes(1);
     });
 
-    it('does not call onToggle when Edit is clicked (already active)', async () => {
+    it('stays in editor mode when the active Edit segment is clicked', async () => {
       const onToggle = vi.fn();
       render(<DetailModeToggle detailMode="editor" onToggle={onToggle} />);
 
@@ -96,7 +96,7 @@ describe('DetailModeToggle', () => {
       expect(editButton).toHaveAttribute('aria-pressed', 'false');
     });
 
-    it('calls onToggle when Edit is clicked', async () => {
+    it('switches to editor mode when Edit is clicked', async () => {
       const onToggle = vi.fn();
       render(<DetailModeToggle detailMode="reader" onToggle={onToggle} />);
 
@@ -106,7 +106,7 @@ describe('DetailModeToggle', () => {
       expect(onToggle).toHaveBeenCalledTimes(1);
     });
 
-    it('does not call onToggle when Read is clicked (already active)', async () => {
+    it('stays in reader mode when the active Read segment is clicked', async () => {
       const onToggle = vi.fn();
       render(<DetailModeToggle detailMode="reader" onToggle={onToggle} />);
 

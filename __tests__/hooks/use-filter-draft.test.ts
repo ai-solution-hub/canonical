@@ -391,7 +391,7 @@ describe('useFilterDraft', () => {
   // ---- Apply ----
 
   describe('handleApply', () => {
-    it('calls setFilters with draft values and onClose', () => {
+    it('applies the draft values and closes the panel', () => {
       const setFilters = vi.fn();
       const onClose = vi.fn();
       const filters: BrowseFilters = {
@@ -489,7 +489,7 @@ describe('useFilterDraft', () => {
   // ---- Clear all ----
 
   describe('handleClearAll', () => {
-    it('resets all draft fields and calls clearFilters + onClose', () => {
+    it('resets all draft fields, clears filters, and closes the panel', () => {
       const clearFilters = vi.fn();
       const onClose = vi.fn();
       const filters: BrowseFilters = {
@@ -527,7 +527,7 @@ describe('useFilterDraft', () => {
       expect(onClose).toHaveBeenCalledTimes(1);
     });
 
-    it('calls onClearAuthorSearch when provided', () => {
+    it('clears the author search field when the callback is provided', () => {
       const onClearAuthorSearch = vi.fn();
       const { result } = renderHook(() =>
         useFilterDraft(defaultParams({ onClearAuthorSearch })),

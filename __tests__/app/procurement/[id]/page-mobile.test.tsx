@@ -407,7 +407,7 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
   // ---- Responsive class visibility ----
 
   describe('responsive class visibility', () => {
-    it('desktop actions div has hidden + sm:flex classes', () => {
+    it('hides the desktop actions on mobile and shows them from the sm breakpoint', () => {
       const { container } = renderWithQuery(
         <ProcurementDetailPage params={mockParams} />,
       );
@@ -417,7 +417,7 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
       expect(desktopDiv!.className).toContain('sm:flex');
     });
 
-    it('mobile actions div has flex + sm:hidden classes', () => {
+    it('shows the mobile actions on mobile and hides them from the sm breakpoint', () => {
       const { container } = renderWithQuery(
         <ProcurementDetailPage params={mockParams} />,
       );
@@ -760,7 +760,7 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
       expect(deleteItem!.className).toContain('text-destructive');
     });
 
-    it('calls handleDelete when Delete bid is clicked', async () => {
+    it('deletes the bid when Delete bid is clicked', async () => {
       const user = userEvent.setup();
       const mockHandleDelete = vi.fn();
       mockUseUserRole.role = 'admin';

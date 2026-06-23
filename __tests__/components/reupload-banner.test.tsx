@@ -56,7 +56,7 @@ describe('ReuploadBanner — identical match', () => {
     ).toBeInTheDocument();
   });
 
-  it('uses semantic amber/aging colour tokens, not raw Tailwind', () => {
+  it('styles the warning with semantic amber/aging tokens rather than raw Tailwind', () => {
     const { container } = render(
       <ReuploadBanner
         matchType="identical"
@@ -117,7 +117,7 @@ describe('ReuploadBanner — new version', () => {
     expect(screen.getByText(/Creating version 5/)).toBeInTheDocument();
   });
 
-  it('uses semantic primary colour tokens, not raw Tailwind', () => {
+  it('styles the info banner with semantic primary tokens rather than raw Tailwind', () => {
     const { container } = render(
       <ReuploadBanner
         matchType="new_version"
@@ -214,7 +214,7 @@ describe('ReuploadBanner — accessibility', () => {
     expect(alert).toHaveAttribute('aria-live', 'polite');
   });
 
-  it('stores previous document ID as a data attribute', () => {
+  it('exposes the previous document ID via a data attribute', () => {
     render(
       <ReuploadBanner
         matchType="new_version"
@@ -246,7 +246,7 @@ describe('ReuploadBanner — accessibility', () => {
 // ---------------------------------------------------------------------------
 
 describe('ReuploadBanner — className', () => {
-  it('applies additional className to the container', () => {
+  it('reflects an additional className on the container', () => {
     const { container } = render(
       <ReuploadBanner
         matchType="identical"

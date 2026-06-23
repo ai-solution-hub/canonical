@@ -110,7 +110,7 @@ describe('useDraftStream', () => {
       expect(result.current.error).toBeNull();
     });
 
-    it('provides startDraft and cancel functions', () => {
+    it('exposes startDraft and cancel functions to consumers', () => {
       const { result } = renderHook(() => useDraftStream('bid-1'), {
         wrapper: Wrapper,
       });
@@ -145,7 +145,7 @@ describe('useDraftStream', () => {
       expect(result.current.error).toBeNull();
     });
 
-    it('calls fetch with correct URL, method, and body', async () => {
+    it('requests the draft-stream endpoint with the question and model tier', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         body: buildSSEStream([
@@ -249,7 +249,7 @@ describe('useDraftStream', () => {
       expect(result.current.responseId).toBe('r-2');
     });
 
-    it('passes AbortController signal to fetch', async () => {
+    it('makes the request abortable via an AbortSignal', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         body: buildSSEStream([sseEvent('done', { response_id: 'r-1' })]),
@@ -1068,7 +1068,7 @@ describe('useDraftStream', () => {
       expect(result.current.responseId).toBe('r-1');
     });
 
-    it('uses different procurementId for different hook instances', async () => {
+    it('targets the endpoint for the hook instance procurementId', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         body: buildSSEStream([sseEvent('done', { response_id: 'r-1' })]),

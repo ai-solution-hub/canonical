@@ -307,7 +307,7 @@ describe('ReferenceDetailPage', () => {
 
   // ---- Not found ----
 
-  it('calls notFound() when the reference does not exist (empty RPC result)', async () => {
+  it('404s when the reference does not exist (empty RPC result)', async () => {
     mockCreateClient.mockResolvedValue(
       makeClient({ rpcResult: { data: [], error: null } }),
     );
@@ -316,7 +316,7 @@ describe('ReferenceDetailPage', () => {
     expect(mockNotFound).toHaveBeenCalled();
   });
 
-  it('calls notFound() on PGRST116 (single-row not found)', async () => {
+  it('404s on PGRST116 (single-row not found)', async () => {
     mockCreateClient.mockResolvedValue(
       makeClient({
         rpcResult: {
@@ -330,7 +330,7 @@ describe('ReferenceDetailPage', () => {
     expect(mockNotFound).toHaveBeenCalled();
   });
 
-  it('calls notFound() when the id is not a valid uuid (B-5), before any DB call', async () => {
+  it('404s when the id is not a valid uuid (B-5), before any DB call', async () => {
     mockCreateClient.mockResolvedValue(
       makeClient({ rpcResult: { data: [], error: null } }),
     );

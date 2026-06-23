@@ -56,7 +56,7 @@ describe('ReviewActionBar', () => {
     ).toBeInTheDocument();
   });
 
-  it('calls onVerify when verify button clicked', async () => {
+  it('verifies the item when the verify button is clicked', async () => {
     const user = userEvent.setup();
     const onVerify = vi.fn();
     render(<ReviewActionBar {...makeProps({ onVerify })} />);
@@ -65,7 +65,7 @@ describe('ReviewActionBar', () => {
     expect(onVerify).toHaveBeenCalledOnce();
   });
 
-  it('calls onFlag when flag button clicked', async () => {
+  it('flags the item when the flag button is clicked', async () => {
     const user = userEvent.setup();
     const onFlag = vi.fn();
     render(<ReviewActionBar {...makeProps({ onFlag })} />);
@@ -74,7 +74,7 @@ describe('ReviewActionBar', () => {
     expect(onFlag).toHaveBeenCalledOnce();
   });
 
-  it('calls onSkip when next button clicked', async () => {
+  it('advances to the next item when the next button is clicked', async () => {
     const user = userEvent.setup();
     const onSkip = vi.fn();
     render(<ReviewActionBar {...makeProps({ onSkip })} />);
@@ -83,7 +83,7 @@ describe('ReviewActionBar', () => {
     expect(onSkip).toHaveBeenCalledOnce();
   });
 
-  it('calls onBack when back button clicked', async () => {
+  it('returns to the previous item when the back button is clicked', async () => {
     const user = userEvent.setup();
     const onBack = vi.fn();
     render(<ReviewActionBar {...makeProps({ onBack })} />);
@@ -92,7 +92,7 @@ describe('ReviewActionBar', () => {
     expect(onBack).toHaveBeenCalledOnce();
   });
 
-  it('calls onExit when exit button clicked', async () => {
+  it('exits the review when the exit button is clicked', async () => {
     const user = userEvent.setup();
     const onExit = vi.fn();
     render(<ReviewActionBar {...makeProps({ onExit })} />);
@@ -152,7 +152,7 @@ describe('ReviewActionBar', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('calls onEdit when edit button clicked', async () => {
+  it('opens the editor when the edit button is clicked', async () => {
     const user = userEvent.setup();
     const onEdit = vi.fn();
     render(<ReviewActionBar {...makeProps({ onEdit })} />);
@@ -177,14 +177,14 @@ describe('ReviewActionBar', () => {
 
   // ── Unified verb inventory (P0-12) ──
 
-  it('uses the unified "Verify" verb label', () => {
+  it('labels the primary action with the unified "Verify" verb', () => {
     render(<ReviewActionBar {...makeProps()} />);
     expect(
       screen.getByRole('button', { name: /^Verify \(keyboard shortcut/i }),
     ).toBeInTheDocument();
   });
 
-  it('uses the unified "Flag" verb label', () => {
+  it('labels the flag action with the unified "Flag" verb', () => {
     render(<ReviewActionBar {...makeProps()} />);
     expect(
       screen.getByRole('button', { name: /^Flag for review/i }),
@@ -204,7 +204,7 @@ describe('ReviewActionBar', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('calls onPublish when "Publish draft" button clicked', async () => {
+  it('publishes the draft when the "Publish draft" button is clicked', async () => {
     const user = userEvent.setup();
     const onPublish = vi.fn();
     render(<ReviewActionBar {...makeProps({ isDraft: true, onPublish })} />);

@@ -117,7 +117,7 @@ describe('SearchBar', () => {
     expect(mockPush).not.toHaveBeenCalled();
   });
 
-  it('stores recent searches in localStorage', async () => {
+  it('remembers a submitted query as a recent search', async () => {
     const user = userEvent.setup();
     renderSearchBar();
     const input = screen.getByRole('combobox');
@@ -195,7 +195,7 @@ describe('SearchBar', () => {
       expect(mockPush).not.toHaveBeenCalled();
     });
 
-    it('calls onClear when empty form submitted', async () => {
+    it('clears the inline search when an empty form is submitted', async () => {
       const onClear = vi.fn();
       const onSearch = vi.fn();
       const user = userEvent.setup();
@@ -218,7 +218,7 @@ describe('SearchBar', () => {
       expect(mockPush).not.toHaveBeenCalled();
     });
 
-    it('forwards inputRef to the underlying input element', () => {
+    it('exposes the underlying input element through inputRef', () => {
       const ref = { current: null } as React.RefObject<HTMLInputElement | null>;
       renderSearchBar({ variant: 'inline', inputRef: ref });
       expect(ref.current).toBeInstanceOf(HTMLInputElement);
@@ -240,7 +240,7 @@ describe('SearchBar', () => {
       expect(screen.getByRole('combobox')).toBeInTheDocument();
     });
 
-    it('stores recent searches in localStorage on submit', async () => {
+    it('remembers a submitted inline query as a recent search', async () => {
       const onSearch = vi.fn();
       const user = userEvent.setup();
       renderSearchBar({ variant: 'inline', onSearch });

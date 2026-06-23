@@ -266,7 +266,7 @@ describe('useFileUploadPipeline', () => {
   // =========================================================================
 
   describe('handleUpload', () => {
-    it('posts FormData to /api/upload for each file', async () => {
+    it('uploads each file to /api/upload as FormData', async () => {
       mockFetch.mockResolvedValue(successResponse());
       const { result } = renderUploadHook();
 

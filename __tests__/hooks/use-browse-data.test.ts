@@ -163,7 +163,7 @@ describe('useBrowseData', () => {
     expect(result.current.items).toEqual([]);
   });
 
-  it('exposes filters, activeFilterCount, and setFilters', () => {
+  it('reports filters, activeFilterCount, and setFilters to consumers', () => {
     const { Wrapper } = createQueryWrapper();
     const { result } = renderHook(() => useBrowseData(), { wrapper: Wrapper });
     expect(result.current.filters).toBeDefined();
@@ -332,7 +332,7 @@ describe('useBrowseData', () => {
   // sentinelCallbackRef
   // -----------------------------------------------------------------------
 
-  it('provides a sentinelCallbackRef function', () => {
+  it('exposes a sentinel ref callback for infinite scroll', () => {
     const { Wrapper } = createQueryWrapper();
     const { result } = renderHook(() => useBrowseData(), { wrapper: Wrapper });
     expect(typeof result.current.sentinelCallbackRef).toBe('function');
@@ -714,7 +714,7 @@ describe('useBrowseData', () => {
       expect(result.current.items[0].id).toBe('search-1');
     });
 
-    it('exposes searchQuery, setSearchQuery, and clearSearchQuery', async () => {
+    it('reports searchQuery, setSearchQuery, and clearSearchQuery to consumers', async () => {
       mockSearchQuery.value = 'my query';
       mockFetchSuccess();
 
@@ -794,7 +794,7 @@ describe('useBrowseData', () => {
   // -----------------------------------------------------------------------
 
   describe('TanStack Query features', () => {
-    it('provides clearFilters passthrough', () => {
+    it('exposes clearFilters to consumers', () => {
       const { Wrapper } = createQueryWrapper();
       const { result } = renderHook(() => useBrowseData(), {
         wrapper: Wrapper,

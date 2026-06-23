@@ -85,7 +85,7 @@ describe('computeNextReviewDate', () => {
     expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
-  it('uses pinned system time on default-arg path (formula validated end-to-end)', () => {
+  it('computes from the current date when no explicit today is passed (formula validated end-to-end)', () => {
     // With vi.useFakeTimers() + vi.setSystemTime(), `new Date()` inside the
     // helper is pinned to PINNED_TODAY (15/04/2026). currentNextReviewDate
     // ('2026-04-01') is in the past relative to PINNED_TODAY, so the GREATEST

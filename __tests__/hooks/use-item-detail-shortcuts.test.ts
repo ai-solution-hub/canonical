@@ -61,7 +61,7 @@ describe('useItemDetailShortcuts', () => {
   // m -- toggle read
   // -------------------------------------------------------------------------
 
-  it('calls toggleRead on "m" keypress', () => {
+  it('toggles read state and announces it on "m" keypress', () => {
     const params = createParams();
     renderHook(() => useItemDetailShortcuts(params));
 
@@ -86,7 +86,7 @@ describe('useItemDetailShortcuts', () => {
   // s -- star toggle
   // -------------------------------------------------------------------------
 
-  it('calls handleStarToggle on "s" keypress when canEdit is true', () => {
+  it('toggles the star on "s" keypress when canEdit is true', () => {
     const params = createParams({ canEdit: true });
     renderHook(() => useItemDetailShortcuts(params));
 
@@ -117,7 +117,7 @@ describe('useItemDetailShortcuts', () => {
   // p -- priority cycle
   // -------------------------------------------------------------------------
 
-  it('calls handlePriorityCycle on "p" keypress when canEdit is true', () => {
+  it('cycles priority on "p" keypress when canEdit is true', () => {
     const params = createParams({ canEdit: true });
     renderHook(() => useItemDetailShortcuts(params));
 
@@ -139,7 +139,7 @@ describe('useItemDetailShortcuts', () => {
   // e -- start inline edit (suggested_title)
   // -------------------------------------------------------------------------
 
-  it('calls startEdit("suggested_title") on "e" when canEdit and no active edit', () => {
+  it('starts editing the suggested title on "e" when canEdit and no active edit', () => {
     const params = createParams({ canEdit: true, editingField: null });
     renderHook(() => useItemDetailShortcuts(params));
 
@@ -157,7 +157,7 @@ describe('useItemDetailShortcuts', () => {
     expect(params.startEdit).not.toHaveBeenCalled();
   });
 
-  it('calls cancelEdit on "e" when an edit is already active (toggle behaviour)', () => {
+  it('cancels the active edit on "e" instead of starting a new one (toggle behaviour)', () => {
     const params = createParams({ canEdit: true, editingField: 'brief' });
     renderHook(() => useItemDetailShortcuts(params));
 
@@ -171,7 +171,7 @@ describe('useItemDetailShortcuts', () => {
   // Escape -- cancel edit
   // -------------------------------------------------------------------------
 
-  it('calls cancelEdit on Escape when an edit is active', () => {
+  it('cancels the edit on Escape when an edit is active', () => {
     const params = createParams({ editingField: 'suggested_title' });
     renderHook(() => useItemDetailShortcuts(params));
 
@@ -193,7 +193,7 @@ describe('useItemDetailShortcuts', () => {
   // r -- toggle reader
   // -------------------------------------------------------------------------
 
-  it('calls toggleReader on "r" keypress', () => {
+  it('toggles the reader on "r" keypress', () => {
     const params = createParams();
     renderHook(() => useItemDetailShortcuts(params));
 
@@ -219,7 +219,7 @@ describe('useItemDetailShortcuts', () => {
   // Shift+D -- toggle detail mode
   // -------------------------------------------------------------------------
 
-  it('calls toggleDetailMode on Shift+D when canEdit is true', () => {
+  it('toggles detail mode on Shift+D when canEdit is true', () => {
     const params = createParams({ canEdit: true });
     renderHook(() => useItemDetailShortcuts(params));
 
@@ -287,7 +287,7 @@ describe('useItemDetailShortcuts', () => {
       expect(params.startEdit).not.toHaveBeenCalled();
     });
 
-    it('still calls toggleRead on "m" in reader mode (reading shortcut)', () => {
+    it('still toggles read state on "m" in reader mode (reading shortcut)', () => {
       const params = createParams({ canEdit: true, detailMode: 'reader' });
       renderHook(() => useItemDetailShortcuts(params));
 
@@ -296,7 +296,7 @@ describe('useItemDetailShortcuts', () => {
       expect(params.toggleRead).toHaveBeenCalledWith('item-1');
     });
 
-    it('still calls toggleReader on "r" in reader mode (reading shortcut)', () => {
+    it('still toggles the reader on "r" in reader mode (reading shortcut)', () => {
       const params = createParams({ canEdit: true, detailMode: 'reader' });
       renderHook(() => useItemDetailShortcuts(params));
 
@@ -305,7 +305,7 @@ describe('useItemDetailShortcuts', () => {
       expect(params.toggleReader).toHaveBeenCalledOnce();
     });
 
-    it('still calls toggleDetailMode on Shift+D in reader mode', () => {
+    it('still toggles detail mode on Shift+D in reader mode', () => {
       const params = createParams({ canEdit: true, detailMode: 'reader' });
       renderHook(() => useItemDetailShortcuts(params));
 
@@ -320,7 +320,7 @@ describe('useItemDetailShortcuts', () => {
   // -------------------------------------------------------------------------
 
   describe('editor mode (detailMode=editor)', () => {
-    it('calls handleStarToggle on "s" in editor mode', () => {
+    it('toggles the star on "s" in editor mode', () => {
       const params = createParams({ canEdit: true, detailMode: 'editor' });
       renderHook(() => useItemDetailShortcuts(params));
 
@@ -329,7 +329,7 @@ describe('useItemDetailShortcuts', () => {
       expect(params.handleStarToggle).toHaveBeenCalledOnce();
     });
 
-    it('calls handlePriorityCycle on "p" in editor mode', () => {
+    it('cycles priority on "p" in editor mode', () => {
       const params = createParams({ canEdit: true, detailMode: 'editor' });
       renderHook(() => useItemDetailShortcuts(params));
 
@@ -338,7 +338,7 @@ describe('useItemDetailShortcuts', () => {
       expect(params.handlePriorityCycle).toHaveBeenCalledOnce();
     });
 
-    it('calls startEdit on "e" in editor mode', () => {
+    it('starts editing the suggested title on "e" in editor mode', () => {
       const params = createParams({ canEdit: true, detailMode: 'editor' });
       renderHook(() => useItemDetailShortcuts(params));
 

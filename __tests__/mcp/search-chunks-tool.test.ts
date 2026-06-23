@@ -197,7 +197,7 @@ describe('find (granularity=chunk) handler', () => {
     );
   });
 
-  it('passes filter_content_item_id: undefined (NOT null) when omitted', async () => {
+  it('reaches the RPC with filter_content_item_id undefined (NOT null) when omitted', async () => {
     const handler = getChunkHandler();
     mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
 
@@ -318,7 +318,7 @@ describe('find (granularity=chunk) handler', () => {
       );
     });
 
-    it('passes filter_overdue_review: undefined when omitted (AC7 backwards-compat)', async () => {
+    it('leaves filter_overdue_review undefined at the RPC when omitted (AC7 backwards-compat)', async () => {
       const handler = getChunkHandler();
       mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
 
@@ -345,7 +345,7 @@ describe('find (granularity=chunk) handler', () => {
       );
     });
 
-    it('passes filter_review_due_within_days: undefined when omitted', async () => {
+    it('leaves filter_review_due_within_days undefined at the RPC when omitted', async () => {
       const handler = getChunkHandler();
       mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
 

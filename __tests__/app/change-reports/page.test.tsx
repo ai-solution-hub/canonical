@@ -742,7 +742,7 @@ describe('ChangeReportsPage', () => {
   });
 
   // 18. Content section has correct aria-label — "Change reports"
-  it('wraps content in section with correct aria-label', async () => {
+  it('labels the content region "Change reports"', async () => {
     setupFetch({ latest: null, list: [] });
     renderChangeReportsPage();
 
@@ -770,7 +770,7 @@ describe('ChangeReportsPage', () => {
   });
 
   // 20. loadReadMarks is called on mount
-  it('calls loadReadMarks on mount', async () => {
+  it('loads read marks on mount', async () => {
     setupFetch({ latest: null, list: [] });
     renderChangeReportsPage();
 

@@ -350,7 +350,7 @@ describe('SourceDocumentInfo — version history toggle', () => {
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
   });
 
-  it('expands version history on click and sets aria-expanded to true', async () => {
+  it('expands version history on click and marks the toggle as expanded', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => makeDocument(),
@@ -401,7 +401,7 @@ describe('SourceDocumentInfo — version history toggle', () => {
     expect(screen.queryByTestId('mock-history')).not.toBeInTheDocument();
   });
 
-  it('passes the correct sourceDocumentId to SourceDocumentHistory', async () => {
+  it('renders the version history for the current source document', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => makeDocument({ id: 'doc-42' }),
@@ -487,7 +487,7 @@ describe('SourceDocumentInfo — className', () => {
     mockFetch.mockReset();
   });
 
-  it('applies additional className in loading state', () => {
+  it('reflects an additional className while loading', () => {
     mockFetch.mockReturnValue(new Promise(() => {}));
 
     const { container } = render(
@@ -497,7 +497,7 @@ describe('SourceDocumentInfo — className', () => {
     expect(container.firstElementChild!.className).toContain('my-class');
   });
 
-  it('applies additional className in loaded state', async () => {
+  it('reflects an additional className once loaded', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => makeDocument(),

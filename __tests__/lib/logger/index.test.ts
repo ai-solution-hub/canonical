@@ -116,7 +116,7 @@ describe('lib/logger root logger', () => {
   });
 
   describe('mixin / AsyncLocalStorage integration', () => {
-    it('injects requestId/route/method when a request context is in scope', () => {
+    it('emits requestId/route/method on the line when a request context is in scope', () => {
       const dest = capturingDestination();
       const logger = createLogger(dest);
       logger.level = 'info';
@@ -233,7 +233,7 @@ describe('lib/logger root logger', () => {
   });
 
   describe('Sentry forwarding by level', () => {
-    it('forwards error level to Sentry.captureException', () => {
+    it('captures error level via Sentry.captureException', () => {
       const dest = capturingDestination();
       const logger = createLogger(dest);
       logger.level = 'error';
@@ -244,7 +244,7 @@ describe('lib/logger root logger', () => {
       expect(payload).toBe(err);
     });
 
-    it('forwards warn level to Sentry (spec §10 decision 1)', () => {
+    it('captures warn level in Sentry (spec §10 decision 1)', () => {
       const dest = capturingDestination();
       const logger = createLogger(dest);
       logger.level = 'warn';
@@ -252,7 +252,7 @@ describe('lib/logger root logger', () => {
       expect(sentryMocks.captureException).toHaveBeenCalledTimes(1);
     });
 
-    it('forwards fatal level to Sentry', () => {
+    it('captures fatal level in Sentry', () => {
       const dest = capturingDestination();
       const logger = createLogger(dest);
       logger.level = 'fatal';
@@ -263,7 +263,7 @@ describe('lib/logger root logger', () => {
       expect(sentryMocks.captureException).toHaveBeenCalledTimes(1);
     });
 
-    it('does NOT forward info level', () => {
+    it('does NOT capture info level in Sentry', () => {
       const dest = capturingDestination();
       const logger = createLogger(dest);
       logger.level = 'info';
@@ -271,7 +271,7 @@ describe('lib/logger root logger', () => {
       expect(sentryMocks.captureException).not.toHaveBeenCalled();
     });
 
-    it('does NOT forward debug level', () => {
+    it('does NOT capture debug level in Sentry', () => {
       const dest = capturingDestination();
       const logger = createLogger(dest);
       logger.level = 'debug';
@@ -281,7 +281,7 @@ describe('lib/logger root logger', () => {
   });
 
   describe('child loggers', () => {
-    it('preserves Sentry forwarding on child loggers', () => {
+    it('still captures errors in Sentry from child loggers', () => {
       const dest = capturingDestination();
       const logger = createLogger(dest);
       logger.level = 'error';

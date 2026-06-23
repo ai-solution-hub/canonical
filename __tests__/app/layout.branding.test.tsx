@@ -16,11 +16,11 @@ vi.mock('next/font/google', () => ({
 const { metadata } = await import('@/app/layout');
 
 describe('layout metadata branding', () => {
-  it('uses BRANDING.productName as the title', () => {
+  it('titles the document with the branded product name', () => {
     expect(metadata.title).toBe(BRANDING.productName);
   });
 
-  it('uses BRANDING.tagline as the description', () => {
+  it('describes the document with the branded tagline', () => {
     expect(metadata.description).toBe(BRANDING.tagline);
   });
 
@@ -42,7 +42,7 @@ describe('layout metadata branding', () => {
 });
 
 describe('buildBrandStyleProps', () => {
-  it('returns an object with CSS containing --primary', () => {
+  it('emits the --primary custom property set to the brand colour', () => {
     const props = buildBrandStyleProps();
     const keys = Object.keys(props);
     expect(keys.length).toBe(1);
@@ -51,7 +51,7 @@ describe('buildBrandStyleProps', () => {
     expect(html).toContain(BRANDING.brandPrimaryColour);
   });
 
-  it('contains the dark-mode variant', () => {
+  it('emits a dark-mode brand colour override', () => {
     const props = buildBrandStyleProps();
     const keys = Object.keys(props);
     const html = props[keys[0]].__html;
@@ -59,7 +59,7 @@ describe('buildBrandStyleProps', () => {
     expect(html).toContain(BRANDING_PRIMARY_DARK);
   });
 
-  it('contains --primary-foreground', () => {
+  it('emits the --primary-foreground custom property', () => {
     const props = buildBrandStyleProps();
     const keys = Object.keys(props);
     const html = props[keys[0]].__html;
@@ -67,14 +67,14 @@ describe('buildBrandStyleProps', () => {
     expect(html).toContain(BRANDING_PRIMARY_FOREGROUND);
   });
 
-  it('contains --ring set to primary colour', () => {
+  it('emits the --ring custom property tied to the primary colour', () => {
     const props = buildBrandStyleProps();
     const keys = Object.keys(props);
     const html = props[keys[0]].__html;
     expect(html).toContain('--ring:');
   });
 
-  it('contains dark-mode foreground', () => {
+  it('emits a dark-mode foreground colour override', () => {
     const props = buildBrandStyleProps();
     const keys = Object.keys(props);
     const html = props[keys[0]].__html;

@@ -121,7 +121,7 @@ describe('useWorkspaceFlags', () => {
     expect(result.current.data).toEqual([SAMPLE_FLAG]);
   });
 
-  it('passes ?resolved=true when the resolved filter is set', async () => {
+  it('requests with ?resolved=true when the resolved filter is set', async () => {
     stubFetchOk([{ ...SAMPLE_FLAG, resolved: true }]);
     const { Wrapper } = createWrapper();
 
@@ -142,7 +142,7 @@ describe('useWorkspaceFlags', () => {
     expect(url).not.toContain('flag_type=');
   });
 
-  it('passes ?flag_type=false_positive when only the flag_type filter is set', async () => {
+  it('requests with ?flag_type=false_positive when only the flag_type filter is set', async () => {
     stubFetchOk([SAMPLE_FLAG]);
     const { Wrapper } = createWrapper();
 
@@ -160,7 +160,7 @@ describe('useWorkspaceFlags', () => {
     expect(url).not.toContain('resolved=');
   });
 
-  it('passes both filters when supplied together', async () => {
+  it('includes both filters in the request when supplied together', async () => {
     stubFetchOk([SAMPLE_FLAG]);
     const { Wrapper } = createWrapper();
 

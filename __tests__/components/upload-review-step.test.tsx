@@ -551,7 +551,7 @@ describe('UploadReviewStep', () => {
       ).toBeInTheDocument();
     });
 
-    it('sets localStorage when checked', () => {
+    it('persists the skip-review preference when checked', () => {
       render(<UploadReviewStep {...defaultProps()} />);
 
       const checkbox = screen.getByTestId('skip-review-checkbox');
@@ -560,7 +560,7 @@ describe('UploadReviewStep', () => {
       expect(localStorage.getItem('kh_skip_upload_review')).toBe('true');
     });
 
-    it('removes localStorage key when unchecked', () => {
+    it('clears the skip-review preference when unchecked', () => {
       localStorage.setItem('kh_skip_upload_review', 'true');
       render(<UploadReviewStep {...defaultProps()} />);
 
@@ -571,7 +571,7 @@ describe('UploadReviewStep', () => {
       expect(localStorage.getItem('kh_skip_upload_review')).toBeNull();
     });
 
-    it('reads initial checked state from localStorage', () => {
+    it('starts checked when the skip-review preference is already stored', () => {
       localStorage.setItem('kh_skip_upload_review', 'true');
       render(<UploadReviewStep {...defaultProps()} />);
 

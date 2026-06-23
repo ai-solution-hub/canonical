@@ -456,7 +456,7 @@ describe('fetchReorientData', () => {
   // =========================================================================
 
   describe('team_changes', () => {
-    it('filters team changes to exclude own user via neq', async () => {
+    it('excludes the current user from team changes', async () => {
       const mock = setupDefaultMock({
         teamChangesData: [
           {
@@ -490,7 +490,7 @@ describe('fetchReorientData', () => {
       expect(result.team_changes[0].domain).toBe('Corporate');
     });
 
-    it('caps team changes at 20 (via limit)', async () => {
+    it('returns a valid team_changes list under the 20-item cap', async () => {
       // The function calls .limit(20) on the team changes query.
       // We verify by checking that the mock chain was configured correctly.
       const mock = setupDefaultMock();
@@ -594,7 +594,7 @@ describe('fetchReorientData', () => {
   // =========================================================================
 
   describe('my_recent_work', () => {
-    it('builds recent work items with correct href', async () => {
+    it('returns recent work items with item-scoped hrefs', async () => {
       const mock = setupDefaultMock({
         recentWorkData: [
           {

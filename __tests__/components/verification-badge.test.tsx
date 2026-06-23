@@ -156,20 +156,20 @@ describe('VerificationBadge', () => {
   });
 
   // Size prop
-  it('applies size classes correctly', () => {
+  it('renders a larger icon at md size', () => {
     const { container } = render(<VerificationBadge verified size="md" />);
     const icon = container.querySelector('svg');
     expect(icon).toHaveClass('size-3.5');
   });
 
-  it('applies sm size by default', () => {
+  it('renders a small icon by default', () => {
     const { container } = render(<VerificationBadge verified />);
     const icon = container.querySelector('svg');
     expect(icon).toHaveClass('size-3');
   });
 
   // className pass-through
-  it('passes className to the outer span', () => {
+  it('reflects a custom className on the outer span', () => {
     render(<VerificationBadge verified className="custom-class" />);
     expect(screen.getByRole('img')).toHaveClass('custom-class');
   });
@@ -182,7 +182,7 @@ describe('VerificationBadge', () => {
       expect(screen.getByRole('status')).toBeInTheDocument();
     });
 
-    it('uses role="img" with aria-label by default (liveRegion=false) for verified badge', () => {
+    it('exposes a verified badge as role="img" with an aria-label by default (liveRegion=false)', () => {
       render(<VerificationBadge verified verifiedAt="2026-03-22T12:00:00Z" />);
       const badge = screen.getByRole('img');
       expect(badge).toBeInTheDocument();
@@ -190,7 +190,7 @@ describe('VerificationBadge', () => {
       expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
 
-    it('uses role="img" with aria-label by default (liveRegion=false) for unverified badge', () => {
+    it('exposes an unverified badge as role="img" with an aria-label by default (liveRegion=false)', () => {
       render(<VerificationBadge verified={false} />);
       const badge = screen.getByRole('img');
       expect(badge).toBeInTheDocument();
@@ -198,7 +198,7 @@ describe('VerificationBadge', () => {
       expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
 
-    it('uses role="status" when liveRegion is true for verified badge', () => {
+    it('announces a verified badge as role="status" when liveRegion is true', () => {
       render(<VerificationBadge verified liveRegion />);
       const badge = screen.getByRole('status');
       expect(badge).toBeInTheDocument();
@@ -207,7 +207,7 @@ describe('VerificationBadge', () => {
       expect(screen.queryByRole('img')).not.toBeInTheDocument();
     });
 
-    it('uses role="status" when liveRegion is true for unverified badge', () => {
+    it('announces an unverified badge as role="status" when liveRegion is true', () => {
       render(<VerificationBadge verified={false} liveRegion />);
       const badge = screen.getByRole('status');
       expect(badge).toBeInTheDocument();
@@ -215,7 +215,7 @@ describe('VerificationBadge', () => {
       expect(screen.queryByRole('img')).not.toBeInTheDocument();
     });
 
-    it('preserves existing badge behaviour with liveRegion=false', () => {
+    it('shows the name-and-time label as an aria-labelled img badge with liveRegion=false', () => {
       render(
         <VerificationBadge
           verified

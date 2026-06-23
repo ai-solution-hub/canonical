@@ -274,7 +274,7 @@ describe('BrowseContent — from_bid URL parameter', () => {
     capturedListProps.fromBidId = undefined;
   });
 
-  it('passes fromBidId to ContentGrid when ?from_bid is present', () => {
+  it('scopes the content grid to the bid when ?from_bid is present', () => {
     mockSearchParams.current = new URLSearchParams('from_bid=ws-1');
 
     render(<BrowseContent />, { wrapper: QueryWrapper });
@@ -284,7 +284,7 @@ describe('BrowseContent — from_bid URL parameter', () => {
     expect(capturedGridProps.fromBidId).toBe('ws-1');
   });
 
-  it('does not pass fromBidId when ?from_bid is absent', () => {
+  it('leaves the content grid unscoped when ?from_bid is absent', () => {
     mockSearchParams.current = new URLSearchParams();
 
     render(<BrowseContent />, { wrapper: QueryWrapper });
@@ -294,7 +294,7 @@ describe('BrowseContent — from_bid URL parameter', () => {
     expect(capturedGridProps.fromBidId).toBeUndefined();
   });
 
-  it('handles from_bid with other URL params without conflict', () => {
+  it('scopes the content grid to the bid even alongside other URL params', () => {
     mockSearchParams.current = new URLSearchParams(
       'from_bid=ws-2&domain=security',
     );
@@ -316,7 +316,7 @@ describe('BrowseContent — from_bid URL parameter', () => {
     expect(searchBar).toHaveAttribute('data-variant', 'inline');
   });
 
-  it('passes search query as defaultValue to SearchBar', () => {
+  it('pre-fills the search box with the active query', () => {
     mockSearchParams.current = new URLSearchParams('q=test+search');
     mockBrowseData.searchQuery = 'test search';
     mockBrowseData.isSearchMode = true;

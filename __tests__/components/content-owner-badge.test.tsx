@@ -14,7 +14,7 @@ describe('ContentOwnerBadge', () => {
       expect(screen.getByText('Alice Smith')).toBeInTheDocument();
     });
 
-    it('applies sm text size by default', () => {
+    it('renders the name at small text size by default', () => {
       render(<ContentOwnerBadge ownerName="Bob" />);
       const el = screen.getByText('Bob').parentElement;
       expect(el?.className).toContain('text-xs');
@@ -32,14 +32,14 @@ describe('ContentOwnerBadge', () => {
       expect(screen.getByText('Charlie')).toBeInTheDocument();
     });
 
-    it('applies md text size', () => {
+    it('renders the name at medium text size', () => {
       render(<ContentOwnerBadge ownerName="Charlie" size="md" />);
       const el = screen.getByText('Charlie').parentElement;
       expect(el?.className).toContain('text-sm');
     });
   });
 
-  it('applies custom className', () => {
+  it('reflects a custom className on the badge', () => {
     render(<ContentOwnerBadge ownerName="Test" className="my-custom-class" />);
     const el = screen.getByText('Test').parentElement;
     expect(el?.className).toContain('my-custom-class');

@@ -78,7 +78,7 @@ describe('FilterBar', () => {
     ).toBeInTheDocument();
   });
 
-  it('calls onOpenFilters when Filters button clicked', async () => {
+  it('opens the filters panel when the Filters button is clicked', async () => {
     const user = userEvent.setup();
     const onOpenFilters = vi.fn();
     render(<FilterBar {...makeProps({ onOpenFilters })} />);
@@ -137,7 +137,7 @@ describe('FilterBar', () => {
     expect(screen.getByText('Show unread only')).toBeInTheDocument();
   });
 
-  it('calls onToggleUnreadOnly from Display dropdown', async () => {
+  it('toggles unread-only filtering from the Display dropdown', async () => {
     const user = userEvent.setup();
     const onToggleUnreadOnly = vi.fn();
     render(<FilterBar {...makeProps({ onToggleUnreadOnly })} />);
@@ -163,7 +163,7 @@ describe('FilterBar', () => {
     expect(screen.getByText('Select items')).toBeInTheDocument();
   });
 
-  it('calls onToggleMultiSelect from Display dropdown', async () => {
+  it('enters multi-select mode from the Display dropdown', async () => {
     const user = userEvent.setup();
     const onToggleMultiSelect = vi.fn();
     render(<FilterBar {...makeProps({ onToggleMultiSelect })} />);

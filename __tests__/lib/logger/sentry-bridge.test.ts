@@ -114,7 +114,7 @@ describe('lib/logger/sentry-bridge', () => {
   });
 
   describe('captureForLevel', () => {
-    it('forwards error level to Sentry with the supplied Error instance', () => {
+    it('captures error level in Sentry with the supplied Error instance', () => {
       const err = new Error('boom');
       runWithRequestContext(fixtureCtx(), () => {
         captureForLevel('error', { err }, 'something failed');
@@ -128,7 +128,7 @@ describe('lib/logger/sentry-bridge', () => {
       expect(sentryMocks.setLevel).toHaveBeenCalledWith('error');
     });
 
-    it('forwards warn level (per spec §10 decision 1) and tags it as warning', () => {
+    it('captures warn level in Sentry tagged as warning (per spec §10 decision 1)', () => {
       const err = new Error('soft fail');
       runWithRequestContext(fixtureCtx(), () => {
         captureForLevel(
@@ -147,7 +147,7 @@ describe('lib/logger/sentry-bridge', () => {
       );
     });
 
-    it('forwards fatal level and tags it as fatal', () => {
+    it('captures fatal level in Sentry tagged as fatal', () => {
       const err = new Error('process unrecoverable');
       runWithRequestContext(fixtureCtx(), () => {
         captureForLevel('fatal', { err }, 'unrecoverable');
@@ -200,7 +200,7 @@ describe('lib/logger/sentry-bridge', () => {
       );
     });
 
-    it('applies request context as tags when present', () => {
+    it('tags the captured event with request context when present', () => {
       const err = new Error('with scope');
       runWithRequestContext(fixtureCtx(), () => {
         captureForLevel('error', { err }, 'msg');
