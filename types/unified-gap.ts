@@ -9,7 +9,7 @@
  * Spec: .planning/specs/gaps-view-consolidation-spec.md §3
  */
 
-import type { RequirementType } from '@/lib/templates/template-coverage';
+import type { RequirementType } from '@/lib/domains/procurement/form-templating/template-coverage';
 
 // ---------------------------------------------------------------------------
 // Base type shared by all gap variants

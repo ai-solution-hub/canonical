@@ -36,7 +36,7 @@ import {
   buildCatalogueRow,
   confirmAndWriteCatalogue,
   type CatalogueRowInsert,
-} from '@/lib/catalogue/from-instance';
+} from '@/lib/domains/procurement/form-templating/catalogue/from-instance';
 
 loadEnv();
 

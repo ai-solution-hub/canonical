@@ -89,7 +89,7 @@ import {
   type TemplateRequirement,
   type ContentItemForMatching,
   type RequirementType,
-} from '../lib/templates/template-coverage';
+} from '../lib/domains/procurement/form-templating/template-coverage';
 
 // ── CLI args ──
 

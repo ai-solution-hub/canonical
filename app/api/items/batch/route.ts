@@ -3,7 +3,7 @@ import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { resolveContentOwnerId } from '@/lib/auth/owner-default';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
-import { extractAnswerFromContent } from '@/lib/procurement-library-ingest/extract-answer';
+import { extractAnswerFromContent } from '@/lib/domains/procurement/library-ingest/extract-answer';
 import { parseBody } from '@/lib/validation';
 import { BatchCreateResultSchema } from '@/lib/validation/schemas';
 import type { Database, Json } from '@/supabase/types/database.types';

@@ -14,11 +14,11 @@ import {
   cosineSimilarity,
   matchRequirement,
   computeTemplateCoverage,
-} from '@/lib/templates/template-coverage';
+} from '@/lib/domains/procurement/form-templating/template-coverage';
 import type {
   TemplateRequirement,
   ContentItemForMatching,
-} from '@/lib/templates/template-coverage';
+} from '@/lib/domains/procurement/form-templating/template-coverage';
 
 // ---------------------------------------------------------------------------
 // Test helpers — factories for mock data

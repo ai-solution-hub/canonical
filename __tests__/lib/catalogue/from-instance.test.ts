@@ -26,7 +26,7 @@ import {
   type FormTemplateField,
   type FieldClassification,
   type CatalogueRowInsert,
-} from '@/lib/catalogue/from-instance';
+} from '@/lib/domains/procurement/form-templating/catalogue/from-instance';
 import { createMockSupabaseClient } from '@/__tests__/helpers/mock-supabase';
 
 // Logger is a side-channel; silence it so tests assert on behaviour, not logs.

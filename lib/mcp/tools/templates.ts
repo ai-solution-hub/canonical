@@ -50,7 +50,7 @@ export async function registerTemplateTools(server: McpServer): Promise<void> {
       try {
         const supabase = createMcpClient(extra.authInfo);
         const { listAvailableTemplates } =
-          await import('@/lib/templates/template-coverage');
+          await import('@/lib/domains/procurement/form-templating/template-coverage');
         const templates = await listAvailableTemplates(
           supabase,
           args.template_type,
@@ -118,7 +118,8 @@ export async function registerTemplateTools(server: McpServer): Promise<void> {
           fetchTemplateRequirements,
           fetchContentForMatching,
           computeTemplateCoverage,
-        } = await import('@/lib/templates/template-coverage');
+        } =
+          await import('@/lib/domains/procurement/form-templating/template-coverage');
 
         const requirements = await fetchTemplateRequirements(
           supabase,
@@ -203,7 +204,8 @@ export async function registerTemplateTools(server: McpServer): Promise<void> {
           fetchTemplateRequirements,
           fetchContentForMatching,
           computeTemplateCoverage,
-        } = await import('@/lib/templates/template-coverage');
+        } =
+          await import('@/lib/domains/procurement/form-templating/template-coverage');
 
         const requirements = await fetchTemplateRequirements(
           supabase,
