@@ -101,7 +101,6 @@ export {
   type ProcurementDashboardData,
   formatProcurementDashboard,
 } from './apps';
-export { type DocumentDiffData, formatDocumentDiff } from './documents';
 export { formatIntelligenceSummary } from './intelligence';
 export {
   type ChangeReportItem,

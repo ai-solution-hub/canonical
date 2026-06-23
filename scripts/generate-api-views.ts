@@ -115,7 +115,6 @@ export const SURFACE_TABLES: readonly string[] = [
   'review_assignments',
   'si_processing_queue',
   'signup_policy',
-  'source_document_diffs',
   'source_documents',
   'tag_morphology_drift_flags',
   'taxonomy_domains',
