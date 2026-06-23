@@ -51,18 +51,29 @@ test.describe('Browse page', () => {
 
     const viewGroup = page.getByRole('group', { name: 'View mode' });
 
+    // The grid renderer tags every card with a `data-grid-index` attribute;
+    // the list renderer does not. We assert on that observable post-transition
+    // DOM state rather than sleeping past the 150ms opacity transition.
+    const gridCards = page.locator('[data-grid-index]');
+    const feed = page.getByRole('feed', { name: 'Content items' });
+
+    // Grid is the default view — confirm the starting state is grid.
+    await expect(gridCards.first()).toBeVisible();
+
     // Click list view button (the List icon button within the view group)
     const listButton = viewGroup.getByRole('button').nth(1);
     await listButton.click();
 
-    // Give the view transition a moment
-    await page.waitForTimeout(300);
+    // List rendered: the feed is present but no grid-indexed cards remain.
+    await expect(feed).toBeVisible();
+    await expect(gridCards).toHaveCount(0);
 
     // Switch back to grid
     const gridButton = viewGroup.getByRole('button').first();
     await gridButton.click();
 
-    await page.waitForTimeout(300);
+    // Grid re-rendered: grid-indexed cards are observable again.
+    await expect(gridCards.first()).toBeVisible();
   });
 
   test('filter button opens the filter panel', async ({

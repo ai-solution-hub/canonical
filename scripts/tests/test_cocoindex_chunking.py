@@ -156,15 +156,30 @@ class _FakeTarget:
 
 
 class _FakeFile:
-    """Minimal localfs.File stand-in: async read / read_text + file_path."""
+    """Minimal localfs.File stand-in: async read / read_text + file_path.
+
+    Decouples the LOGICAL ``file_path.path`` (the source-relative identity prod
+    derives the ``ci:`` / ``chunk:`` uuid5 PKs from) from the on-disk staged file
+    the bytes are actually read from. This mirrors ``_FakeFormFile`` in
+    ``test_cocoindex_flow_write_path.py`` and is what makes the uuid5 oracle a
+    DETERMINISTIC frozen-literal target: prod calls ``ingest_file`` here with
+    ``flow_source_path=None``, so ``_to_source_relative`` returns
+    ``file_path.path.as_posix()`` verbatim — passing a FIXED logical rel_path
+    (rather than the non-deterministic pytest ``tmp_path``) freezes the seed.
+
+    When ``logical_path`` is omitted the disk path doubles as the logical path
+    (the legacy behaviour the non-oracle tests still rely on).
+    """
 
     class _FilePath:
         def __init__(self, path: Path) -> None:
             self.path = path
 
-    def __init__(self, path: Path) -> None:
-        self.file_path = _FakeFile._FilePath(path)
-        self._path = path
+    def __init__(self, disk_path: Path, logical_path: "str | None" = None) -> None:
+        self.file_path = _FakeFile._FilePath(
+            Path(logical_path) if logical_path is not None else disk_path
+        )
+        self._path = disk_path
 
     async def size(self) -> int:
         return self._path.stat().st_size
@@ -264,7 +279,13 @@ class TestChunkingStageWritePath:
 
         src = tmp_path / "long-doc.md"
         src.write_text(_SAMPLE_TEXT)
-        fake_file = _FakeFile(src)
+        # FIXED logical rel_path (decoupled from the non-deterministic pytest
+        # tmp_path) so the uuid5 oracle below is a frozen-literal target — the
+        # S398 "17 frozen-literal uuid-oracle" pattern. prod calls ingest_file
+        # here with flow_source_path=None, so _to_source_relative returns
+        # file_path.path.as_posix() verbatim → this exact string is the seed.
+        _REL_PATH = "test/long-doc.md"
+        fake_file = _FakeFile(src, logical_path=_REL_PATH)
 
         cc = _FakeTarget("content_chunks")
         run_op_id = _ingest_with_cc(
@@ -282,8 +303,15 @@ class TestChunkingStageWritePath:
         )
 
         # Stable per-document parent id (the ci: uuid5) the chunk rows attach to.
-        rel_path = src.as_posix()
-        content_item_id = uuid.uuid5(flow._KH_PIPELINE_DOC_NS, f"ci:{rel_path}")
+        # FROZEN uuid5 literal over _KH_PIPELINE_DOC_NS
+        # ("fbfaf1ff-1ee4-583c-9757-1674465b2ec1") for rel_path "test/long-doc.md"
+        # — transcribed, not re-derived from flow, so a drifted namespace or seed
+        # string is caught (S398 frozen-literal oracle discipline).
+        rel_path = _REL_PATH
+        content_item_id = uuid.UUID("e8c394bd-894b-5dfb-a479-e68e16ca508a")
+        assert content_item_id == uuid.uuid5(
+            flow._KH_PIPELINE_DOC_NS, f"ci:{rel_path}"
+        ), "frozen ci: uuid5 literal drifted from the live namespace+seed derivation"
 
         for position, row in enumerate(cc.rows):
             # C-21 / C-13: op_id stamped == bound flow op_id.
@@ -298,10 +326,25 @@ class TestChunkingStageWritePath:
             assert row["word_count"] == len(row["content"].split())
             # C-30: embedding is a length-1024 vector.
             assert len(row["embedding"]) == 1024
-            # Stable deterministic PK (chunk: uuid5) so re-ingest UPSERTs.
+            # Stable deterministic PK (chunk: uuid5) so re-ingest UPSERTs. Now a
+            # function of the FIXED rel_path → the per-position uuid5 is itself
+            # deterministic across runs. The first two positions are pinned to
+            # FROZEN literals (over _KH_PIPELINE_DOC_NS for "test/long-doc.md") to
+            # catch namespace/seed drift; the variable tail (positions 2..5,
+            # within the loose 2..6 chunk-count bound) cross-checks the live
+            # derivation over the same fixed seed.
             assert row["id"] == uuid.uuid5(
                 flow._KH_PIPELINE_DOC_NS, f"chunk:{rel_path}:{position}"
             )
+            _FROZEN_CHUNK_IDS = {
+                0: uuid.UUID("7ee845ac-ece8-5fcb-97e4-917d954a346a"),
+                1: uuid.UUID("415e8595-76a6-5cd3-8f49-9fb41aa548ac"),
+            }
+            if position in _FROZEN_CHUNK_IDS:
+                assert row["id"] == _FROZEN_CHUNK_IDS[position], (
+                    f"frozen chunk: uuid5 literal for position {position} drifted "
+                    "from the live namespace+seed derivation"
+                )
             # C-13 + [GAP-CMI-004] disposition (a): heading-derived columns are
             # OMITTED from the row dict (fall to NULL / DB default '{}'), exactly
             # like content_text_hash (GENERATED ALWAYS) is omitted elsewhere.
