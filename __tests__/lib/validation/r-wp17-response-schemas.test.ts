@@ -920,15 +920,19 @@ describe('Source-A findSchemaConstant resolves R-WP17 schemas (AC-5)', () => {
   const targets: ResolvedTarget[] = resolveTargets(baseline);
 
   // Fetcher-only interfaces baselined as accumulated debt without schemas; schema authoring deferred to OPS-T1 (commits 572a2ea09, c670f1db7).
+  // QaDedupResolveResult (lib/query/fetchers.ts) joined the baseline with the
+  // ID-120 q_a_pair_dedup api-surface regen (PR #68) — also fetcher-only, no
+  // schema yet, so it belongs with the deferred set rather than failing the gate.
   const KNOWN_UNRESOLVED = new Set([
     'ItemHistoryListResponse',
     'ItemHistoryVersionDetail',
     'QAPairHistoryListResponse',
     'ContentIngestStatus',
+    'QaDedupResolveResult',
   ]);
 
-  it('baseline has 41 entries', () => {
-    expect(baseline.length).toBe(41);
+  it('baseline has 42 entries', () => {
+    expect(baseline.length).toBe(42);
   });
 
   it('resolves a real ${interface}Schema for every baseline interface — never null', () => {
