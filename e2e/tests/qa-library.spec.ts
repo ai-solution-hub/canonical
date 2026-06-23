@@ -1041,10 +1041,15 @@ test.describe('Q&A ContentEditor (Tiptap) — §1.5 WP8', () => {
     // path was short-circuited rather than completing successfully.
     await expect(editorTextbox).toBeVisible();
 
-    // Final assertion: no PATCH ever fired during the attempted save. Wait
-    // a beat to give any in-flight request time to surface before checking.
-    // (If the guard regressed and a PATCH did fire, this would flip true.)
-    await page.waitForTimeout(500);
+    // Final assertion: no PATCH ever fired during the attempted save. This is
+    // an absence assertion — the guard's whole point is that nothing happens,
+    // so there is no positive effect to wait FOR. Instead of a raw timing
+    // sleep we wait on a real observable signal: the network going idle. Once
+    // there are no in-flight requests, any save-triggered PATCH would already
+    // have hit the route interceptor (which flips `patchObserved`
+    // synchronously). networkidle is bounded by the per-test/action timeout, so
+    // this cannot hang. We then assert the interception flag stayed false.
+    await page.waitForLoadState('networkidle');
     expect(patchObserved).toBe(false);
   });
 });

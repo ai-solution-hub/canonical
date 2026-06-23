@@ -23,7 +23,14 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : 3,
-  reporter: 'html',
+  reporter: process.env.CI
+    ? [['html'], ['list'], ['github']]
+    : [['html'], ['list']],
+  // Web-first assertions auto-retry up to this budget before failing — gives
+  // settling UI (view transitions, debounced effects) room to converge without
+  // a fixed sleep. Sits above the per-assertion default (5s) but below the
+  // per-action/navigation caps so a genuinely stuck assertion still fails fast.
+  expect: { timeout: 10_000 },
   // WP1.3 (S19): bound suite wall-clock under the workflow's 15-min budget.
   // S18-flagged run hit 15m0s budget exhaustion driven by an ECONNRESET storm
   // (dev-server flake or hydration-mismatch retry spiral). Three guards:
@@ -43,6 +50,7 @@ export default defineConfig({
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
     actionTimeout: 10_000,
     navigationTimeout: 15_000,
   },
