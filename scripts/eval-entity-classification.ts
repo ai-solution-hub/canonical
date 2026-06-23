@@ -58,7 +58,7 @@ const PIPELINE_SERVICE_ACCOUNT_USER_ID = 'a0000000-0000-4000-8000-000000000001';
 
 // ── Types ───────────────────────────────────────────────────────────
 
-interface GoldEntity {
+export interface GoldEntity {
   name: string;
   type: string;
   canonical_name: string;
@@ -73,7 +73,7 @@ interface ExcludedEntity {
   reason: string;
 }
 
-interface GoldStandardItem {
+export interface GoldStandardItem {
   content_item_id: string;
   title: string;
   domain: string;
@@ -82,13 +82,13 @@ interface GoldStandardItem {
   excluded_entities: ExcludedEntity[];
 }
 
-interface DbEntity {
+export interface DbEntity {
   entity_type: string;
   entity_name: string;
   canonical_name: string;
 }
 
-interface ItemScore {
+export interface ItemScore {
   content_item_id: string;
   title: string;
   domain: string;
@@ -345,7 +345,10 @@ function delay(ms: number): Promise<void> {
 
 // ── Scoring ─────────────────────────────────────────────────────────
 
-function scoreItem(gold: GoldStandardItem, extracted: DbEntity[]): ItemScore {
+export function scoreItem(
+  gold: GoldStandardItem,
+  extracted: DbEntity[],
+): ItemScore {
   const truePositives: string[] = [];
   const falsePositives: string[] = [];
   const falseNegatives: string[] = [];
@@ -897,7 +900,17 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error('Eval failed:', err);
-  process.exit(1);
-});
+// Only run main when invoked as a script. Allows tests to import the module
+// (e.g. scoreItem) without triggering the eval pipeline.
+const isDirectInvocation =
+  typeof process !== 'undefined' &&
+  Array.isArray(process.argv) &&
+  process.argv[1] != null &&
+  /eval-entity-classification\.ts$/.test(process.argv[1]);
+
+if (isDirectInvocation) {
+  main().catch((err) => {
+    console.error('Eval failed:', err);
+    process.exit(1);
+  });
+}
