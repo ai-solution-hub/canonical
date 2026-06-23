@@ -1,4 +1,12 @@
 import { test, expect } from '../fixtures';
+import { createServiceClient } from '../fixtures/supabase';
+import {
+  type ChangeReportFixtureData,
+  cleanupChangeReports,
+  countChangeReportFixtureRows,
+  generateChangeReportRunId,
+  seedChangeReports,
+} from '../fixtures/change-reports-fixture';
 
 /**
  * Flow: Change Reports (Digest)
@@ -9,6 +17,16 @@ import { test, expect } from '../fixtures';
  *
  * The /digest route stays as-is (URL stability), but the page heading
  * says "Change Reports" (not "Digest").
+ *
+ * WS3 (bl-115): the "page loads with correct heading" and "past reports
+ * section" tests previously `if`-guarded their assertions because the test DB
+ * has no change-report data, so the asserted branch never executed (a vacuous
+ * false-pass). Those two tests now live in the serial `populated` describe
+ * below, which seeds deterministic `change_reports` rows and asserts the
+ * loaded/populated-state contract UNCONDITIONALLY. Because `change_reports` is
+ * a GLOBAL table (see change-reports-fixture.ts), the empty-state test
+ * route-mocks the latest/list endpoints so it remains correct regardless of
+ * concurrent seeded rows.
  */
 
 // ---------------------------------------------------------------------------
@@ -16,44 +34,6 @@ import { test, expect } from '../fixtures';
 // ---------------------------------------------------------------------------
 
 test.describe('Change Reports page', () => {
-  test('page loads with correct heading', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.goto('/change-reports');
-
-    // Wait for the loading skeleton to disappear and content to appear
-    const section = page.locator('section[aria-label="Change reports"]');
-    await expect(section).toBeVisible({ timeout: 15000 });
-
-    // Verify the page does NOT use "Digest" as a heading anywhere.
-    await expect(
-      page.getByRole('heading', { name: /^Digest$/i }),
-    ).not.toBeVisible();
-
-    // Positively assert "Change Reports" branding. In the empty state, an h1
-    // heading "Change Reports" is shown. In the loaded state, the section
-    // aria-label="Change reports" already confirms branding (asserted above),
-    // and the page may show a digest view instead of the hero heading.
-    const heroHeading = page.getByRole('heading', {
-      name: 'Change Reports',
-      level: 1,
-    });
-    const isEmptyState = await heroHeading
-      .isVisible({ timeout: 3000 })
-      .catch(() => false);
-
-    if (isEmptyState) {
-      // Empty state: verify the hero heading and description
-      await expect(heroHeading).toBeVisible();
-      await expect(
-        page.getByText('See what changed in your knowledge base'),
-      ).toBeVisible();
-    }
-    // In loaded state, the section aria-label="Change reports" is sufficient
-    // (already verified above). The component does not render a heading in
-    // the loaded state — the ChangeReportView is shown directly.
-  });
-
   test('mode selector tabs are present and functional', async ({
     authenticatedPage: page,
   }) => {
@@ -205,72 +185,34 @@ test.describe('Change Reports page', () => {
     });
   });
 
-  test('past reports section shows previous entries when reports exist', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.goto('/change-reports');
+  // WS3: this test moved into the serial `populated` describe at the end of
+  // this file, where deterministic change_reports rows are seeded so the
+  // "Previous Reports" section renders and the assertions run unconditionally.
 
-    const section = page.locator('section[aria-label="Change reports"]');
-    await expect(section).toBeVisible({ timeout: 15000 });
-
-    // Wait for data to load by checking for the mode selector (always present
-    // once loading is complete) or the hero heading (empty state)
-    const modeSelector = page.locator(
-      '[role="tablist"][aria-label="Report mode"]',
-    );
-    const heroHeading = page.getByRole('heading', {
-      name: 'Change Reports',
-      level: 1,
-    });
-    await expect(modeSelector.or(heroHeading)).toBeVisible({ timeout: 10000 });
-
-    // Check if "Previous Reports" heading exists (only rendered when past reports exist)
-    const previousReportsHeading = page.getByText('Previous Reports');
-
-    if (
-      await previousReportsHeading
-        .isVisible({ timeout: 3000 })
-        .catch(() => false)
-    ) {
-      // Report list should contain at least one entry
-      const reportList = page.locator('[aria-label="Previous reports"]');
-      await expect(reportList).toBeVisible();
-
-      const reportEntries = reportList.locator('li');
-      const entryCount = await reportEntries.count();
-      expect(entryCount).toBeGreaterThan(0);
-
-      // Each entry is a clickable button
-      const firstButton = reportEntries.first().locator('button');
-      await expect(firstButton).toBeVisible();
-
-      // Each entry shows a type label (Weekly/Daily/Custom)
-      const typeLabel = firstButton
-        .locator('span.text-xs.text-muted-foreground')
-        .first();
-      const typeLabelText = await typeLabel.textContent();
-      expect(typeLabelText?.trim()).toMatch(/Weekly|Daily|Custom/);
-
-      // Each entry shows date range text (e.g. "15 Mar 2026 – 22 Mar 2026")
-      // The date range is in a span with font-medium class
-      const dateText = firstButton.locator('span.text-sm.font-medium');
-      await expect(dateText).toBeVisible();
-      // Date text should contain an en-dash separating two dates
-      const dateContent = await dateText.textContent();
-      expect(dateContent).toMatch(/\w+.*\u2013.*\w+/);
-
-      // Each entry shows an item count
-      await expect(firstButton.getByText(/\d+ items/)).toBeVisible();
-    }
-    // If no previous reports, the section simply does not render -- that is acceptable
-  });
-
-  // Asserts the empty-state hero with generate controls. Staging must seed
-  // /digest with no pre-generated change report so the hero renders; if a
-  // digest is already loaded the hard expect fails honestly.
+  // Asserts the empty-state hero with generate controls. The change_reports
+  // table is GLOBAL, so the populated `describe` at the end of this file may
+  // have seeded rows present concurrently; we route-mock the latest/list
+  // endpoints to an empty response so this test deterministically observes the
+  // empty state it is designed to assert (its premise has always been "the DB
+  // is empty").
   test('empty state shows hero with generate controls', async ({
     authenticatedPage: page,
   }) => {
+    await page.route('**/api/change-reports/latest', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ digest: null }),
+      }),
+    );
+    await page.route('**/api/change-reports/list**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ digests: [], total: 0 }),
+      }),
+    );
+
     await page.goto('/change-reports');
 
     const section = page.locator('section[aria-label="Change reports"]');
@@ -405,5 +347,119 @@ test.describe('Change Reports -- custom filter interactions', () => {
 
     // "ai agents" badge should still be visible
     await expect(aiAgentsBadge).toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3. Populated state (seeded change_reports) — WS3 / bl-115
+// ---------------------------------------------------------------------------
+
+/**
+ * These tests previously `if`-guarded their assertions and false-passed
+ * because the test DB has no change-report data. We seed deterministic
+ * `change_reports` rows so the page renders its LOADED + "Previous Reports"
+ * state, then assert that contract UNCONDITIONALLY (a real DB → API → render
+ * proof, not a vacuous skip).
+ *
+ * `.serial` pins these tests to a single worker in declaration order so the
+ * seed/teardown bracket fully owns the global table's state for their run.
+ * Rows are tagged by run-id and torn down in `afterAll`; the teardown asserts
+ * zero orphan rows remain in the prod-acting DB.
+ */
+test.describe.serial('Change Reports page — populated state', () => {
+  const supabase = createServiceClient();
+  const runId = generateChangeReportRunId('ws3-change-reports');
+  let fixture: ChangeReportFixtureData;
+
+  test.beforeAll(async () => {
+    // Seed 3 rows: the newest is the "current"/latest report; the older two
+    // render in the "Previous Reports" list. Frequencies rotate weekly/daily/
+    // custom so the type-label assertion has deterministic coverage.
+    fixture = await seedChangeReports(supabase, runId, 3);
+    expect(fixture.all.length).toBe(3);
+    expect(fixture.previous.length).toBe(2);
+  });
+
+  test.afterAll(async () => {
+    const deleted = await cleanupChangeReports(supabase, runId);
+    expect(deleted).toBe(3);
+    // No orphan rows may persist in the prod-acting DB.
+    const remaining = await countChangeReportFixtureRows(supabase, runId);
+    expect(remaining).toBe(0);
+  });
+
+  test('page loads with correct heading (loaded state)', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/change-reports');
+
+    const section = page.locator('section[aria-label="Change reports"]');
+    await expect(section).toBeVisible({ timeout: 15000 });
+
+    // The page must never use "Digest" as a heading.
+    await expect(
+      page.getByRole('heading', { name: /^Digest$/i }),
+    ).not.toBeVisible();
+
+    // With seeded data the page is in the LOADED state: the empty-state hero
+    // (level-1 heading "Change Reports") must NOT render — the ChangeReportView
+    // is shown instead, whose header h1 is the frequency label of the latest
+    // (weekly) seeded report.
+    await expect(
+      page.getByRole('heading', { name: 'Change Reports', level: 1 }),
+    ).not.toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Weekly Change Report', level: 1 }),
+    ).toBeVisible({ timeout: 10000 });
+
+    // The loaded view's header badge shows the latest report's item count.
+    // Scope to the <header> so we don't also match a per-domain "N items"
+    // count elsewhere in the view.
+    await expect(
+      page
+        .locator('header')
+        .filter({ hasText: 'Weekly Change Report' })
+        .getByText(`${fixture.latest.item_count} items`),
+    ).toBeVisible();
+  });
+
+  test('past reports section shows previous entries', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/change-reports');
+
+    const section = page.locator('section[aria-label="Change reports"]');
+    await expect(section).toBeVisible({ timeout: 15000 });
+
+    // The "Previous Reports" section renders because >1 report exists (the
+    // latest is shown as the current report; the rest are "previous").
+    await expect(page.getByText('Previous Reports')).toBeVisible({
+      timeout: 10000,
+    });
+
+    const reportList = page.locator('[aria-label="Previous reports"]');
+    await expect(reportList).toBeVisible();
+
+    // One <li> per previous (non-current) seeded report.
+    const reportEntries = reportList.locator('li');
+    await expect(reportEntries).toHaveCount(fixture.previous.length);
+
+    // Each entry is a clickable button.
+    const firstButton = reportEntries.first().locator('button');
+    await expect(firstButton).toBeVisible();
+
+    // Each entry shows a type label (Weekly/Daily/Custom).
+    const typeLabel = firstButton
+      .locator('span.text-xs.text-muted-foreground')
+      .first();
+    await expect(typeLabel).toHaveText(/Weekly|Daily|Custom/);
+
+    // Each entry shows a date range with an en-dash separating two dates.
+    const dateText = firstButton.locator('span.text-sm.font-medium');
+    await expect(dateText).toBeVisible();
+    await expect(dateText).toHaveText(/\w+.*–.*\w+/);
+
+    // Each entry shows an item count.
+    await expect(firstButton.getByText(/\d+ items/)).toBeVisible();
   });
 });
