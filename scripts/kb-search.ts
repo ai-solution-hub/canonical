@@ -12,81 +12,14 @@
  *   bun run scripts/kb-search.ts "startup metrics" --threshold 0.3
  */
 
-import { readFileSync, existsSync } from 'fs';
-import { resolve, dirname } from 'path';
 import OpenAI from 'openai';
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import { prodProjectRef } from '@/scripts/lib/project-refs';
+import { loadScriptEnv } from '@/scripts/lib/load-script-env';
 
-// ── Env loading ──
+// ── Env loading (shared scriptDir+cwd loader — bl-356) ──
 
-function loadEnvFile(filePath: string): void {
-  try {
-    const content = readFileSync(filePath, 'utf-8');
-    for (const line of content.split('\n')) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) continue;
-      const eqIndex = trimmed.indexOf('=');
-      if (eqIndex === -1) continue;
-      const key = trimmed.slice(0, eqIndex).trim();
-      let value = trimmed.slice(eqIndex + 1).trim();
-      // Strip surrounding quotes
-      if (
-        (value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))
-      ) {
-        value = value.slice(1, -1);
-      }
-      // Don't override existing env vars (so .env.local takes priority if loaded first)
-      if (!(key in process.env)) {
-        process.env[key] = value;
-      }
-    }
-  } catch {
-    // File doesn't exist — that's fine
-  }
-}
-
-// Resolve project root: walk up from script dir and cwd to find .env
-function findProjectRoot(): string {
-  const scriptDir = dirname(new URL(import.meta.url).pathname);
-  const candidates = new Set<string>();
-
-  // Walk up from script directory
-  let dir = resolve(scriptDir, '..');
-  for (let i = 0; i < 10; i++) {
-    candidates.add(dir);
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-
-  // Walk up from cwd (handles worktrees where script is symlinked)
-  dir = process.cwd();
-  for (let i = 0; i < 10; i++) {
-    candidates.add(dir);
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-
-  for (const root of candidates) {
-    if (
-      existsSync(resolve(root, '.env')) ||
-      existsSync(resolve(root, '.env.local'))
-    ) {
-      return root;
-    }
-  }
-
-  // Fallback to script parent directory
-  return resolve(scriptDir, '..');
-}
-
-// Load .env.local first (higher priority), then .env
-const PROJECT_ROOT = findProjectRoot();
-loadEnvFile(resolve(PROJECT_ROOT, '.env.local'));
-loadEnvFile(resolve(PROJECT_ROOT, '.env'));
+loadScriptEnv(import.meta.url);
 
 // ── Types ──
 
