@@ -3729,7 +3729,17 @@ export type Database = {
       }
       get_dashboard_attention_counts: {
         Args: { p_role?: string; p_user_id: string }
-        Returns: Json
+        Returns: {
+          coverage_gap_count: number
+          expired_content_count: number
+          expiring_content_date_count: number
+          freshness_summary: Json
+          governance_review_count: number
+          quality_flag_count: number
+          stale_content_count: number
+          unread_notification_count: number
+          unverified_count: number
+        }[]
       }
       get_due_feed_sources: {
         Args: { max_sources?: number }
@@ -3954,7 +3964,13 @@ export type Database = {
           user_id: string
         }[]
       }
-      get_user_tag_counts: { Args: never; Returns: Json }
+      get_user_tag_counts: {
+        Args: never
+        Returns: {
+          count: number
+          tag: string
+        }[]
+      }
       hybrid_search: {
         Args: {
           include_superseded?: boolean
@@ -3995,7 +4011,15 @@ export type Database = {
           p_source_names: string[]
           p_target_name: string
         }
-        Returns: Json
+        Returns: {
+          duplicates_removed: number
+          entity_type: string
+          mentions_updated: number
+          merged: boolean
+          relationship_sources_updated: number
+          relationship_targets_updated: number
+          target: string
+        }[]
       }
       merge_item_metadata: {
         Args: { p_item_id: string; p_new_data: Json }
@@ -8520,7 +8544,17 @@ export type Database = {
       }
       get_dashboard_attention_counts: {
         Args: { p_role?: string; p_user_id: string }
-        Returns: Json
+        Returns: {
+          coverage_gap_count: number
+          expired_content_count: number
+          expiring_content_date_count: number
+          freshness_summary: Json
+          governance_review_count: number
+          quality_flag_count: number
+          stale_content_count: number
+          unread_notification_count: number
+          unverified_count: number
+        }[]
       }
       get_document_version_chain: {
         Args: { p_document_id: string }
@@ -8860,17 +8894,14 @@ export type Database = {
         }[]
       }
       get_user_role: { Args: never; Returns: string }
-      get_user_tag_counts: { Args: never; Returns: Json }
-      get_verification_stats: { Args: never; Returns: Json }
-      get_workspace_counts: { Args: never; Returns: Json }
-      get_workspace_item_counts: {
+      get_user_tag_counts: {
         Args: never
         Returns: {
-          item_count: number
-          last_activity: string
-          workspace_id: string
+          count: number
+          tag: string
         }[]
       }
+      get_verification_stats: { Args: never; Returns: Json }
       grant_standard_public_table_access: {
         Args: { target_table: unknown }
         Returns: undefined
@@ -8919,7 +8950,15 @@ export type Database = {
           p_source_names: string[]
           p_target_name: string
         }
-        Returns: Json
+        Returns: {
+          duplicates_removed: number
+          entity_type: string
+          mentions_updated: number
+          merged: boolean
+          relationship_sources_updated: number
+          relationship_targets_updated: number
+          target: string
+        }[]
       }
       merge_item_metadata: {
         Args: { p_item_id: string; p_new_data: Json }

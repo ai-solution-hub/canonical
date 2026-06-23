@@ -122,11 +122,12 @@ export function useFilterData({ isOpen }: UseFilterDataParams) {
   const userTagsQuery = useQuery({
     queryKey: queryKeys.filters.userTags,
     queryFn: async () => {
+      // ID-70: get_user_tag_counts now returns typed rows (RETURNS TABLE).
+      // `count` is bigint → PostgREST may serialise it as a string, so keep Number().
       const { data } = await getSupabase().rpc('get_user_tag_counts');
-      if (!data || typeof data !== 'object') return [];
-      const tagCounts = data as Record<string, number>;
-      return Object.entries(tagCounts)
-        .map(([tag, count]) => ({ tag, count }))
+      if (!data) return [];
+      return data
+        .map((row) => ({ tag: row.tag, count: Number(row.count) }))
         .sort((a, b) => b.count - a.count);
     },
     enabled: isOpen,
