@@ -20,7 +20,6 @@ export const maxDuration = 60;
 /** Maximum file size for Anthropic Files API upload (32 MB). */
 const MAX_FILE_SIZE = 32 * 1024 * 1024;
 
-// TODO(OPS-T1): author ResponseSchema
 export const POST = defineRoute(
   z.unknown(),
   async (
@@ -163,7 +162,6 @@ export const POST = defineRoute(
   },
 );
 
-// TODO(OPS-T1): author ResponseSchema
 export const DELETE = defineRoute(
   z.unknown(),
   async (

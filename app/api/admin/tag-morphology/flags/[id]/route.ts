@@ -24,7 +24,6 @@ import { z } from 'zod';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-// TODO(OPS-T1): author ResponseSchema
 export const PATCH = defineRoute(
   z.unknown(),
   async (request: NextRequest, context: RouteContext) => {

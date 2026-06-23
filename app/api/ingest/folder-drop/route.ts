@@ -38,9 +38,14 @@ function sanitiseFilename(raw: string): string {
   return cleaned.length > 0 ? cleaned : `upload-${Date.now()}`;
 }
 
-// TODO(OPS-T1): author ResponseSchema
+const FolderDropResponseSchema = z.object({
+  sourceFile: z.string(),
+  destPath: z.string(),
+  stageRequestId: z.string(),
+});
+
 export const POST = withRequestContext(
-  defineRoute(z.unknown(), async (request: NextRequest) => {
+  defineRoute(FolderDropResponseSchema, async (request: NextRequest) => {
     try {
       const auth = await getAuthorisedClient(['admin', 'editor']);
       if (!auth.success) return authFailureResponse(auth);

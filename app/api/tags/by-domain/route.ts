@@ -13,53 +13,71 @@ import { z } from 'zod';
 
 export const maxDuration = 30;
 
-// TODO(OPS-T1): author ResponseSchema
-export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
-  try {
-    const auth = await getAuthorisedClient();
-    if (!auth.success) return authFailureResponse(auth);
-    const { user, supabase } = auth;
+const TagsByDomainResponseSchema = z.array(
+  z.object({
+    domain: z.string(),
+    tags: z.array(
+      z.object({
+        tag: z.string(),
+        count: z.number(),
+      }),
+    ),
+  }),
+);
 
-    const { allowed } = checkRateLimit(`tags:by-domain:${user.id}`, 20, 60_000);
-    if (!allowed) return rateLimitResponse();
+export const GET = defineRoute(
+  TagsByDomainResponseSchema,
+  async (request: NextRequest) => {
+    try {
+      const auth = await getAuthorisedClient();
+      if (!auth.success) return authFailureResponse(auth);
+      const { user, supabase } = auth;
 
-    const parsed = parseSearchParams(
-      TagByDomainParamsSchema,
-      request.nextUrl.searchParams,
-    );
-    if (!parsed.success) return parsed.response;
+      const { allowed } = checkRateLimit(
+        `tags:by-domain:${user.id}`,
+        20,
+        60_000,
+      );
+      if (!allowed) return rateLimitResponse();
 
-    const { type } = parsed.data;
+      const parsed = parseSearchParams(
+        TagByDomainParamsSchema,
+        request.nextUrl.searchParams,
+      );
+      if (!parsed.success) return parsed.response;
 
-    const { data, error } = await supabase.rpc('get_tags_by_domain', {
-      p_type: type,
-    });
+      const { type } = parsed.data;
 
-    if (error) {
+      const { data, error } = await supabase.rpc('get_tags_by_domain', {
+        p_type: type,
+      });
+
+      if (error) {
+        return NextResponse.json(
+          { error: safeErrorMessage(error, 'Failed to fetch tags by domain') },
+          { status: 500 },
+        );
+      }
+
+      // Group flat rows into { domain, tags: [{tag, count}] } structure
+      const grouped: Record<string, { tag: string; count: number }[]> = {};
+      for (const row of data ?? []) {
+        const domain = row.domain ?? 'Uncategorised';
+        if (!grouped[domain]) grouped[domain] = [];
+        grouped[domain].push({ tag: row.tag, count: Number(row.count) });
+      }
+
+      const result = Object.entries(grouped).map(([domain, tags]) => ({
+        domain,
+        tags,
+      }));
+
+      return NextResponse.json(result);
+    } catch (err) {
       return NextResponse.json(
-        { error: safeErrorMessage(error, 'Failed to fetch tags by domain') },
+        { error: safeErrorMessage(err, 'Failed to fetch tags by domain') },
         { status: 500 },
       );
     }
-
-    // Group flat rows into { domain, tags: [{tag, count}] } structure
-    const grouped: Record<string, { tag: string; count: number }[]> = {};
-    for (const row of data ?? []) {
-      const domain = row.domain ?? 'Uncategorised';
-      if (!grouped[domain]) grouped[domain] = [];
-      grouped[domain].push({ tag: row.tag, count: Number(row.count) });
-    }
-
-    const result = Object.entries(grouped).map(([domain, tags]) => ({
-      domain,
-      tags,
-    }));
-
-    return NextResponse.json(result);
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to fetch tags by domain') },
-      { status: 500 },
-    );
-  }
-});
+  },
+);

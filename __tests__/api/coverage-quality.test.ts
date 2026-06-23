@@ -152,19 +152,28 @@ beforeEach(() => {
     active_bids: [],
     freshness_summary: {
       fresh: 10,
-      ageing: 2,
+      aging: 2,
       stale: 1,
       expired: 0,
-      unknown: 0,
     },
+    unread_notification_count: 0,
+    recent_activity: [],
+    user_role: 'viewer',
     errors: [],
   });
   mockListAvailableTemplates.mockResolvedValue([]);
   mockFetchTemplateRequirements.mockResolvedValue([]);
   mockComputeTemplateCoverage.mockReturnValue({
     template_name: 'test-template',
-    coverage_percent: 80,
-    requirements: [],
+    template_version: '1.0',
+    template_type: 'prequalification',
+    total_requirements: 0,
+    strong_count: 0,
+    partial_count: 0,
+    gap_count: 0,
+    na_count: 0,
+    score: 80,
+    sections: [],
   });
   mockComputeGapSummary.mockReturnValue({
     total_gaps: 0,
@@ -310,8 +319,15 @@ describe('GET /api/coverage/templates', () => {
     mockFetchContentForMatching.mockResolvedValueOnce([]);
     const coverageResult = {
       template_name: 'saq-pqs',
-      coverage_percent: 75,
-      requirements: [],
+      template_version: '2.0',
+      template_type: 'prequalification',
+      total_requirements: 0,
+      strong_count: 0,
+      partial_count: 0,
+      gap_count: 0,
+      na_count: 0,
+      score: 75,
+      sections: [],
     };
     mockComputeTemplateCoverage.mockReturnValueOnce(coverageResult);
 
@@ -323,7 +339,7 @@ describe('GET /api/coverage/templates', () => {
 
     const body = await res.json();
     expect(body.template_name).toBe('saq-pqs');
-    expect(body.coverage_percent).toBe(75);
+    expect(body.score).toBe(75);
   });
 });
 
@@ -345,11 +361,15 @@ describe('GET /api/coverage/templates/list', () => {
         template_name: 'saq-pqs',
         template_version: '1.0',
         template_type: 'prequalification',
+        requirement_count: 12,
+        is_current: true,
       },
       {
         template_name: 'iso-9001',
         template_version: '2.0',
         template_type: 'certification',
+        requirement_count: 8,
+        is_current: false,
       },
     ];
     mockListAvailableTemplates.mockResolvedValueOnce(templates);
@@ -400,11 +420,13 @@ describe('GET /api/dashboard', () => {
       active_bids: [],
       freshness_summary: {
         fresh: 10,
-        ageing: 2,
+        aging: 2,
         stale: 1,
         expired: 0,
-        unknown: 0,
       },
+      unread_notification_count: 0,
+      recent_activity: [],
+      user_role: 'admin',
       errors: [],
     };
     mockFetchUnifiedDashboardData.mockResolvedValueOnce(dashboardData);

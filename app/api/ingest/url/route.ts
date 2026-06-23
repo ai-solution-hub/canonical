@@ -39,9 +39,32 @@ function deriveFilename(normalised: string): string {
   }
 }
 
-// TODO(OPS-T1): author ResponseSchema
+const IngestUrlResponseSchema = z.union([
+  // Idempotency hit — existing reference returned.
+  z.object({
+    url_already_exists: z.literal(true),
+    existing_item: z.object({
+      id: z.string(),
+      title: z.string().nullable(),
+    }),
+  }),
+  // Newly-ingested reference (reduced response, TECH §3.1–§3.3). summary /
+  // primary_domain / primary_subtopic come from the reference_ingest RPC row
+  // and land in nullable columns, so model them nullable.
+  z.object({
+    id: z.string(),
+    title: z.string().nullable(),
+    source_url: z.string(),
+    summary: z.string().nullable(),
+    primary_domain: z.string().nullable(),
+    primary_subtopic: z.string().nullable(),
+    warnings: z.array(z.string()),
+    dedup_status: z.literal('clean'),
+  }),
+]);
+
 export const POST = withRequestContext(
-  defineRoute(z.unknown(), async (request: NextRequest) => {
+  defineRoute(IngestUrlResponseSchema, async (request: NextRequest) => {
     try {
       // 1. Auth check: editor or admin
       const auth = await getAuthorisedClient(['admin', 'editor']);

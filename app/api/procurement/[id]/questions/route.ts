@@ -43,7 +43,6 @@ const BatchQuestionCreateSchema = z.object({
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// TODO(OPS-T1): author ResponseSchema
 export const GET = defineRoute(
   z.unknown(),
   async (
@@ -185,7 +184,6 @@ export const GET = defineRoute(
   },
 );
 
-// TODO(OPS-T1): author ResponseSchema
 export const POST = defineRoute(
   z.unknown(),
   async (

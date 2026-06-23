@@ -232,6 +232,7 @@ describe('enqueueTaxonomySync wiring across 9 routes', () => {
           display_order: 20,
           is_active: true,
           provenance: 'client',
+          description: null,
         },
         error: null,
       });

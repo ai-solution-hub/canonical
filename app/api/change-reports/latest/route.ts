@@ -12,8 +12,31 @@ import { z } from 'zod';
 
 export const maxDuration = 30;
 
-// TODO(OPS-T1): author ResponseSchema
-export const GET = defineRoute(z.unknown(), async () => {
+// Mirrors the ChangeReport interface for the fields this route populates.
+// domain_summaries reuses ChangeReportDomainSummarySchema (the same schema fed
+// to parseJsonbArray). narrative_summary/tokens_used are nullable per the
+// change_reports table; the optional item_ids/filters/governance_summary are
+// never set by this handler so they are omitted.
+const ChangeReportSchema = z.object({
+  id: z.string(),
+  frequency: z.string(),
+  period_start: z.string(),
+  period_end: z.string(),
+  item_count: z.number(),
+  domain_summaries: z.array(ChangeReportDomainSummarySchema),
+  narrative_summary: z.string().nullable(),
+  generated_at: z.string(),
+  generated_by: z.string(),
+  tokens_used: z.number().nullable(),
+  created_at: z.string(),
+});
+
+// 2xx branches: { digest: null } when no report exists, else { digest: <report> }.
+const ChangeReportLatestResponseSchema = z.object({
+  digest: ChangeReportSchema.nullable(),
+});
+
+export const GET = defineRoute(ChangeReportLatestResponseSchema, async () => {
   try {
     // Auth check
     const auth = await getAuthenticatedClient();

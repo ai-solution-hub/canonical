@@ -7,9 +7,13 @@ import { z } from 'zod';
 
 export const maxDuration = 15;
 
-// TODO(OPS-T1): author ResponseSchema
+const FolderDropStatusResponseSchema = z.object({
+  ingested: z.boolean(),
+  itemId: z.string().nullable(),
+});
+
 export const GET = withRequestContext(
-  defineRoute(z.unknown(), async (request: NextRequest) => {
+  defineRoute(FolderDropStatusResponseSchema, async (request: NextRequest) => {
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;

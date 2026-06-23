@@ -24,7 +24,6 @@ const FlagListParamsSchema = z.object({
   flag_type: z.enum(['false_positive', 'false_negative']).optional(),
 });
 
-// TODO(OPS-T1): author ResponseSchema
 export const GET = defineRoute(
   z.unknown(),
   async (request: NextRequest, context: RouteContext) => {

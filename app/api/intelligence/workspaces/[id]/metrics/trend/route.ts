@@ -13,7 +13,6 @@ const TrendParamsSchema = z.object({
   period: z.enum(['30d', '90d', '180d']).default('90d'),
 });
 
-// TODO(OPS-T1): author ResponseSchema
 export const GET = defineRoute(
   z.unknown(),
   async (request: NextRequest, context: RouteContext) => {

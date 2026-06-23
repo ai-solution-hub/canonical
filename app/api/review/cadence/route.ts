@@ -44,8 +44,38 @@ export interface ReviewCadenceResponse {
   >;
 }
 
-// TODO(OPS-T1): author ResponseSchema
-export const GET = defineRoute(z.unknown(), async () => {
+const ReviewCadenceResponseSchema = z.object({
+  summary: z.object({
+    total_items: z.number(),
+    never_reviewed: z.number(),
+    reviewed_last_7_days: z.number(),
+    reviewed_last_30_days: z.number(),
+    reviewed_last_90_days: z.number(),
+    overdue: z.number(),
+    average_days_since_review: z.number(),
+  }),
+  overdue_items: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      primary_domain: z.string().nullable(),
+      verified_at: z.string().nullable(),
+      days_since_review: z.number(),
+      governance_review_status: z.string().nullable(),
+    }),
+  ),
+  by_domain: z.record(
+    z.string(),
+    z.object({
+      total: z.number(),
+      never_reviewed: z.number(),
+      average_days: z.number(),
+      overdue: z.number(),
+    }),
+  ),
+});
+
+export const GET = defineRoute(ReviewCadenceResponseSchema, async () => {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);

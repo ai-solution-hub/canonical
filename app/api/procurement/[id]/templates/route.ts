@@ -48,7 +48,6 @@ const TERMINAL_BID_STATUSES = new Set(['won', 'lost', 'withdrawn']);
 
 export const maxDuration = 30;
 
-// TODO(OPS-T1): author ResponseSchema
 export const POST = defineRoute(
   z.unknown(),
   async (
@@ -240,7 +239,6 @@ export const POST = defineRoute(
 // GET /api/bids/:id/templates -- list templates for a bid
 // ──────────────────────────────────────────
 
-// TODO(OPS-T1): author ResponseSchema
 export const GET = defineRoute(
   z.unknown(),
   async (

@@ -68,8 +68,56 @@ interface CertificationReport {
 // GET /api/certifications
 // ---------------------------------------------------------------------------
 
-// TODO(OPS-T1): author ResponseSchema
-export const GET = defineRoute(z.unknown(), async () => {
+const CertExpiryStatusSchema = z.enum([
+  'valid',
+  'expiring_soon',
+  'expired',
+  'unknown',
+]);
+const CertContentItemSchema = z.object({ id: z.string(), title: z.string() });
+const CertificationEntrySchema = z.object({
+  canonical_name: z.string(),
+  entity_type: z.literal('certification'),
+  mention_count: z.number(),
+  content_item_count: z.number(),
+  content_items: z.array(CertContentItemSchema),
+  holder: z.enum(['self', 'supplier']),
+  supplier_name: z.string().optional(),
+  metadata: z.unknown(), // CertificationMetadata — jsonb, genuinely opaque
+  expiry_status: CertExpiryStatusSchema,
+});
+const FrameworkEntrySchema = z.object({
+  canonical_name: z.string(),
+  entity_type: z.literal('framework'),
+  mention_count: z.number(),
+  content_item_count: z.number(),
+  content_items: z.array(CertContentItemSchema),
+  metadata: z.unknown(), // FrameworkMetadata — jsonb
+  expiry_status: CertExpiryStatusSchema,
+});
+const RegistrationEntrySchema = z.object({
+  canonical_name: z.string(),
+  entity_type: z.literal('regulation'),
+  mention_count: z.number(),
+  content_item_count: z.number(),
+  content_items: z.array(CertContentItemSchema),
+  metadata: z.unknown(), // RegistrationMetadata — jsonb
+  expiry_status: CertExpiryStatusSchema,
+});
+const CertificationReportResponseSchema = z.object({
+  certifications: z.array(CertificationEntrySchema),
+  frameworks: z.array(FrameworkEntrySchema),
+  registrations: z.array(RegistrationEntrySchema),
+  summary: z.object({
+    total_certifications: z.number(),
+    valid: z.number(),
+    expiring_soon: z.number(),
+    expired: z.number(),
+    unknown: z.number(),
+  }),
+  warnings: z.array(z.string()).optional(),
+});
+export const GET = defineRoute(CertificationReportResponseSchema, async () => {
   try {
     const auth = await getAuthenticatedClient();
     if (!auth.success) return authFailureResponse(auth);

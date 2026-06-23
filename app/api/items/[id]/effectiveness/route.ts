@@ -33,7 +33,6 @@ interface EffectivenessResponse {
 // GET /api/items/[id]/effectiveness
 // ---------------------------------------------------------------------------
 
-// TODO(OPS-T1): author ResponseSchema
 export const GET = defineRoute(
   z.unknown(),
   async (

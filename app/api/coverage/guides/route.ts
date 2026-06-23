@@ -141,8 +141,44 @@ function groupByGuide(rows: GuideSectionRow[]): GuideCoverage[] {
 // GET /api/coverage/guides
 // ---------------------------------------------------------------------------
 
-// TODO(OPS-T1): author ResponseSchema
-export const GET = defineRoute(z.unknown(), async () => {
+const GuideSectionSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  order: z.number(),
+  expected_layer: z.string().nullable(),
+  is_required: z.boolean(),
+  content_count: z.number(),
+  fresh_count: z.number(),
+  stale_count: z.number(),
+  status: z.enum(['populated', 'stale', 'empty']),
+});
+
+const GuideCoverageSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  slug: z.string(),
+  guide_type: z.string(),
+  domain_filter: z.string(),
+  total_sections: z.number(),
+  populated_sections: z.number(),
+  required_sections: z.number(),
+  populated_required: z.number(),
+  fresh_sections: z.number(),
+  stale_sections: z.number(),
+  sections: z.array(GuideSectionSchema),
+});
+
+const GuideCoverageResponseSchema = z.object({
+  guides: z.array(GuideCoverageSchema),
+  summary: z.object({
+    total_guides: z.number(),
+    fully_populated: z.number(),
+    partially_populated: z.number(),
+    empty: z.number(),
+  }),
+});
+
+export const GET = defineRoute(GuideCoverageResponseSchema, async () => {
   try {
     const auth = await getAuthenticatedClient();
     if (!auth.success) return authFailureResponse(auth);

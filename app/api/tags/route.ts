@@ -17,143 +17,164 @@ import { z } from 'zod';
 
 export const maxDuration = 30;
 
-// TODO(OPS-T1): author ResponseSchema
-export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
-  try {
-    const auth = await getAuthorisedClient();
-    if (!auth.success) return authFailureResponse(auth);
-    const { user, supabase } = auth;
+const TagsGetResponseSchema = z.union([
+  // Filtered/paginated path: { tags, total }
+  z.object({
+    tags: z.array(
+      z.object({
+        tag: z.string(),
+        count: z.number(),
+        source: z.string(),
+      }),
+    ),
+    total: z.number(),
+  }),
+  // Legacy path: raw get_all_tag_counts RPC rows passed through
+  z.array(z.unknown()), // Supabase RPC Json return — opaque rows
+]);
 
-    const { allowed } = checkRateLimit(`tags:list:${user.id}`, 30, 60_000);
-    if (!allowed) return rateLimitResponse();
+export const GET = defineRoute(
+  TagsGetResponseSchema,
+  async (request: NextRequest) => {
+    try {
+      const auth = await getAuthorisedClient();
+      if (!auth.success) return authFailureResponse(auth);
+      const { user, supabase } = auth;
 
-    const params = request.nextUrl.searchParams;
-    const hasFilterParams =
-      params.has('type') ||
-      params.has('min_count') ||
-      params.has('search') ||
-      params.has('limit') ||
-      params.has('offset');
+      const { allowed } = checkRateLimit(`tags:list:${user.id}`, 30, 60_000);
+      if (!allowed) return rateLimitResponse();
 
-    if (hasFilterParams) {
-      // Filtered/paginated path
-      const parsed = parseSearchParams(TagFilteredParamsSchema, params);
-      if (!parsed.success) return parsed.response;
+      const params = request.nextUrl.searchParams;
+      const hasFilterParams =
+        params.has('type') ||
+        params.has('min_count') ||
+        params.has('search') ||
+        params.has('limit') ||
+        params.has('offset');
 
-      const { type, min_count, search, limit, offset } = parsed.data;
+      if (hasFilterParams) {
+        // Filtered/paginated path
+        const parsed = parseSearchParams(TagFilteredParamsSchema, params);
+        if (!parsed.success) return parsed.response;
 
-      // If type is specified, call the filtered RPC for that type
-      // If no type, call for both and combine
-      if (type) {
-        const { data, error } = await supabase.rpc('get_tag_counts_filtered', {
-          p_type: type,
-          p_min_count: min_count ?? 1,
-          p_search: search,
-          p_limit: limit ?? 50,
-          p_offset: offset ?? 0,
-        });
+        const { type, min_count, search, limit, offset } = parsed.data;
 
-        if (error) {
+        // If type is specified, call the filtered RPC for that type
+        // If no type, call for both and combine
+        if (type) {
+          const { data, error } = await supabase.rpc(
+            'get_tag_counts_filtered',
+            {
+              p_type: type,
+              p_min_count: min_count ?? 1,
+              p_search: search,
+              p_limit: limit ?? 50,
+              p_offset: offset ?? 0,
+            },
+          );
+
+          if (error) {
+            return NextResponse.json(
+              { error: safeErrorMessage(error, 'Failed to fetch tag counts') },
+              { status: 500 },
+            );
+          }
+
+          const rows = data ?? [];
+          const totalCount = rows.length > 0 ? Number(rows[0].total_count) : 0;
+
+          return NextResponse.json({
+            tags: rows.map(
+              (r: { tag: string; count: number; source: string }) => ({
+                tag: r.tag,
+                count: Number(r.count),
+                source: r.source,
+              }),
+            ),
+            total: totalCount,
+          });
+        }
+
+        // No type specified — fetch both AI and user tags
+        const [aiResult, userResult] = await Promise.all([
+          supabase.rpc('get_tag_counts_filtered', {
+            p_type: 'ai',
+            p_min_count: min_count ?? 1,
+            p_search: search,
+            p_limit: limit ?? 50,
+            p_offset: offset ?? 0,
+          }),
+          supabase.rpc('get_tag_counts_filtered', {
+            p_type: 'user',
+            p_min_count: min_count ?? 1,
+            p_search: search,
+            p_limit: limit ?? 50,
+            p_offset: offset ?? 0,
+          }),
+        ]);
+
+        if (aiResult.error) {
           return NextResponse.json(
-            { error: safeErrorMessage(error, 'Failed to fetch tag counts') },
+            {
+              error: safeErrorMessage(
+                aiResult.error,
+                'Failed to fetch tag counts',
+              ),
+            },
+            { status: 500 },
+          );
+        }
+        if (userResult.error) {
+          return NextResponse.json(
+            {
+              error: safeErrorMessage(
+                userResult.error,
+                'Failed to fetch tag counts',
+              ),
+            },
             { status: 500 },
           );
         }
 
-        const rows = data ?? [];
-        const totalCount = rows.length > 0 ? Number(rows[0].total_count) : 0;
+        const aiRows = aiResult.data ?? [];
+        const userRows = userResult.data ?? [];
+        const combined = [...aiRows, ...userRows]
+          .map((r: { tag: string; count: number; source: string }) => ({
+            tag: r.tag,
+            count: Number(r.count),
+            source: r.source,
+          }))
+          .sort((a, b) => b.count - a.count);
+
+        const aiTotal = aiRows.length > 0 ? Number(aiRows[0].total_count) : 0;
+        const userTotal =
+          userRows.length > 0 ? Number(userRows[0].total_count) : 0;
 
         return NextResponse.json({
-          tags: rows.map(
-            (r: { tag: string; count: number; source: string }) => ({
-              tag: r.tag,
-              count: Number(r.count),
-              source: r.source,
-            }),
-          ),
-          total: totalCount,
+          tags: combined,
+          total: aiTotal + userTotal,
         });
       }
 
-      // No type specified — fetch both AI and user tags
-      const [aiResult, userResult] = await Promise.all([
-        supabase.rpc('get_tag_counts_filtered', {
-          p_type: 'ai',
-          p_min_count: min_count ?? 1,
-          p_search: search,
-          p_limit: limit ?? 50,
-          p_offset: offset ?? 0,
-        }),
-        supabase.rpc('get_tag_counts_filtered', {
-          p_type: 'user',
-          p_min_count: min_count ?? 1,
-          p_search: search,
-          p_limit: limit ?? 50,
-          p_offset: offset ?? 0,
-        }),
-      ]);
+      // Legacy path: return all tag counts (no filtering)
+      const { data, error } = await supabase.rpc('get_all_tag_counts');
 
-      if (aiResult.error) {
+      if (error) {
         return NextResponse.json(
-          {
-            error: safeErrorMessage(
-              aiResult.error,
-              'Failed to fetch tag counts',
-            ),
-          },
-          { status: 500 },
-        );
-      }
-      if (userResult.error) {
-        return NextResponse.json(
-          {
-            error: safeErrorMessage(
-              userResult.error,
-              'Failed to fetch tag counts',
-            ),
-          },
+          { error: safeErrorMessage(error, 'Failed to fetch tag counts') },
           { status: 500 },
         );
       }
 
-      const aiRows = aiResult.data ?? [];
-      const userRows = userResult.data ?? [];
-      const combined = [...aiRows, ...userRows]
-        .map((r: { tag: string; count: number; source: string }) => ({
-          tag: r.tag,
-          count: Number(r.count),
-          source: r.source,
-        }))
-        .sort((a, b) => b.count - a.count);
-
-      const aiTotal = aiRows.length > 0 ? Number(aiRows[0].total_count) : 0;
-      const userTotal =
-        userRows.length > 0 ? Number(userRows[0].total_count) : 0;
-
-      return NextResponse.json({
-        tags: combined,
-        total: aiTotal + userTotal,
-      });
-    }
-
-    // Legacy path: return all tag counts (no filtering)
-    const { data, error } = await supabase.rpc('get_all_tag_counts');
-
-    if (error) {
+      return NextResponse.json(data ?? []);
+    } catch (err) {
       return NextResponse.json(
-        { error: safeErrorMessage(error, 'Failed to fetch tag counts') },
+        { error: safeErrorMessage(err, 'Failed to fetch tag counts') },
         { status: 500 },
       );
     }
-
-    return NextResponse.json(data ?? []);
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to fetch tag counts') },
-      { status: 500 },
-    );
-  }
-});
+  },
+);
 
 export const DELETE = defineRoute(
   MutationResultSchema,

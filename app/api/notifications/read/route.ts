@@ -9,39 +9,50 @@ import { z } from 'zod';
 
 export const maxDuration = 30;
 
-// TODO(OPS-T1): author ResponseSchema
-export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
-  try {
-    const auth = await getAuthenticatedClient();
-    if (!auth.success) return authFailureResponse(auth);
-    const { user, supabase } = auth;
+const NotificationsReadResponseSchema = z.object({
+  success: z.literal(true),
+  count: z.number(),
+});
+export const POST = defineRoute(
+  NotificationsReadResponseSchema,
+  async (request: NextRequest) => {
+    try {
+      const auth = await getAuthenticatedClient();
+      if (!auth.success) return authFailureResponse(auth);
+      const { user, supabase } = auth;
 
-    const raw = await request.json();
-    const parsed = parseBody(NotificationReadBodySchema, raw);
-    if (!parsed.success) return parsed.response;
+      const raw = await request.json();
+      const parsed = parseBody(NotificationReadBodySchema, raw);
+      if (!parsed.success) return parsed.response;
 
-    const { notification_ids } = parsed.data;
+      const { notification_ids } = parsed.data;
 
-    const { error } = await supabase
-      .from('notifications')
-      .update({ read_at: new Date().toISOString() })
-      .eq('user_id', user.id)
-      .in('id', notification_ids)
-      .is('read_at', null);
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read_at: new Date().toISOString() })
+        .eq('user_id', user.id)
+        .in('id', notification_ids)
+        .is('read_at', null);
 
-    if (error) {
-      logger.error({ err: error }, 'Failed to mark notifications as read');
+      if (error) {
+        logger.error({ err: error }, 'Failed to mark notifications as read');
+        return NextResponse.json(
+          { error: 'Failed to mark notifications as read' },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        count: notification_ids.length,
+      });
+    } catch (err) {
       return NextResponse.json(
-        { error: 'Failed to mark notifications as read' },
+        {
+          error: safeErrorMessage(err, 'Failed to mark notifications as read'),
+        },
         { status: 500 },
       );
     }
-
-    return NextResponse.json({ success: true, count: notification_ids.length });
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to mark notifications as read') },
-      { status: 500 },
-    );
-  }
-});
+  },
+);

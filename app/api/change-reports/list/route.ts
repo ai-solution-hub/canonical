@@ -14,62 +14,88 @@ import { z } from 'zod';
 
 export const maxDuration = 30;
 
-// TODO(OPS-T1): author ResponseSchema
-export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
-  try {
-    // Auth check
-    const auth = await getAuthenticatedClient();
-    if (!auth.success) return authFailureResponse(auth);
-    const { supabase } = auth;
+// Mirrors the ChangeReport interface for the fields this route populates.
+// domain_summaries reuses ChangeReportDomainSummarySchema (the same schema fed
+// to parseJsonbArray). narrative_summary/tokens_used are nullable per the
+// change_reports table; the optional item_ids/filters/governance_summary are
+// never set by this handler so they are omitted.
+const ChangeReportSchema = z.object({
+  id: z.string(),
+  frequency: z.string(),
+  period_start: z.string(),
+  period_end: z.string(),
+  item_count: z.number(),
+  domain_summaries: z.array(ChangeReportDomainSummarySchema),
+  narrative_summary: z.string().nullable(),
+  generated_at: z.string(),
+  generated_by: z.string(),
+  tokens_used: z.number().nullable(),
+  created_at: z.string(),
+});
 
-    const { searchParams } = new URL(request.url);
-    const parsed = parseSearchParams(
-      ChangeReportListParamsSchema,
-      searchParams,
-    );
-    if (!parsed.success) return parsed.response;
-    const { limit, offset } = parsed.data;
+const ChangeReportListResponseSchema = z.object({
+  digests: z.array(ChangeReportSchema),
+  total: z.number(),
+});
 
-    // Fetch digests with pagination
-    const { data, error, count } = await supabase
-      .from('change_reports')
-      .select(
-        'id, frequency, period_start, period_end, item_count, domain_summaries, narrative_summary, generated_at, generated_by, tokens_used, created_at',
-        { count: 'exact' },
-      )
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+export const GET = defineRoute(
+  ChangeReportListResponseSchema,
+  async (request: NextRequest) => {
+    try {
+      // Auth check
+      const auth = await getAuthenticatedClient();
+      if (!auth.success) return authFailureResponse(auth);
+      const { supabase } = auth;
 
-    if (error) {
-      logger.error({ err: error }, 'Failed to fetch digests');
+      const { searchParams } = new URL(request.url);
+      const parsed = parseSearchParams(
+        ChangeReportListParamsSchema,
+        searchParams,
+      );
+      if (!parsed.success) return parsed.response;
+      const { limit, offset } = parsed.data;
+
+      // Fetch digests with pagination
+      const { data, error, count } = await supabase
+        .from('change_reports')
+        .select(
+          'id, frequency, period_start, period_end, item_count, domain_summaries, narrative_summary, generated_at, generated_by, tokens_used, created_at',
+          { count: 'exact' },
+        )
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (error) {
+        logger.error({ err: error }, 'Failed to fetch digests');
+        return NextResponse.json(
+          { error: 'Failed to fetch digests' },
+          { status: 500 },
+        );
+      }
+
+      const digests: ChangeReport[] = (data ?? []).map((row) => ({
+        id: row.id,
+        frequency: row.frequency,
+        period_start: row.period_start,
+        period_end: row.period_end,
+        item_count: row.item_count,
+        domain_summaries: parseJsonbArray(
+          ChangeReportDomainSummarySchema,
+          row.domain_summaries,
+        ),
+        narrative_summary: row.narrative_summary,
+        generated_at: row.generated_at,
+        generated_by: row.generated_by,
+        tokens_used: row.tokens_used,
+        created_at: row.created_at,
+      }));
+
+      return NextResponse.json({ digests, total: count ?? 0 });
+    } catch (err) {
       return NextResponse.json(
-        { error: 'Failed to fetch digests' },
+        { error: safeErrorMessage(err, 'Failed to fetch digest list') },
         { status: 500 },
       );
     }
-
-    const digests: ChangeReport[] = (data ?? []).map((row) => ({
-      id: row.id,
-      frequency: row.frequency,
-      period_start: row.period_start,
-      period_end: row.period_end,
-      item_count: row.item_count,
-      domain_summaries: parseJsonbArray(
-        ChangeReportDomainSummarySchema,
-        row.domain_summaries,
-      ),
-      narrative_summary: row.narrative_summary,
-      generated_at: row.generated_at,
-      generated_by: row.generated_by,
-      tokens_used: row.tokens_used,
-      created_at: row.created_at,
-    }));
-
-    return NextResponse.json({ digests, total: count ?? 0 });
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to fetch digest list') },
-      { status: 500 },
-    );
-  }
-});
+  },
+);

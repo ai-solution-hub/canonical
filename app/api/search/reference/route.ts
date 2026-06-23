@@ -15,9 +15,14 @@ import { z } from 'zod';
 
 export const maxDuration = 60;
 
-// TODO(OPS-T1): author ResponseSchema
+const ReferenceSearchResponseSchema = z.object({
+  // `reference_search` RPC rows — opaque Supabase Json result, not statically typed
+  results: z.array(z.unknown()),
+  count: z.number(),
+});
+
 export const POST = withRequestContext(
-  defineRoute(z.unknown(), async (request: NextRequest) => {
+  defineRoute(ReferenceSearchResponseSchema, async (request: NextRequest) => {
     try {
       // Auth check
       const auth = await getAuthenticatedClient();

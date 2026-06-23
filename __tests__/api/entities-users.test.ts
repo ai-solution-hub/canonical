@@ -139,7 +139,12 @@ beforeEach(() => {
 
   mockCheckRateLimit.mockReturnValue({ allowed: true, remaining: 19 });
   mockGenerateEmbedding.mockResolvedValue(new Array(1024).fill(0));
-  mockExtractStructuredContent.mockResolvedValue({ extracted: true });
+  mockExtractStructuredContent.mockResolvedValue({
+    result: { extracted: true },
+    model: 'claude-sonnet-4-5',
+    tokens_used: 100,
+    cost: 0.002,
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -788,7 +793,12 @@ describe('POST /api/extract', () => {
 
   it('returns 200 with extraction result on success', async () => {
     configureRole(mockSupabase, 'editor');
-    const extractResult = { data: { name: 'Test', age: 25 }, confidence: 0.95 };
+    const extractResult = {
+      result: { name: 'Test', age: 25 },
+      model: 'claude-sonnet-4-5',
+      tokens_used: 120,
+      cost: 0.0024,
+    };
     mockExtractStructuredContent.mockResolvedValueOnce(extractResult);
 
     const req = createTestRequest('/api/extract', {

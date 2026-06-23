@@ -19,7 +19,6 @@ const UUID_RE =
 // GET /api/bids/:id/templates/:templateId -- template detail with fields
 // ──────────────────────────────────────────
 
-// TODO(OPS-T1): author ResponseSchema
 export const GET = defineRoute(
   z.unknown(),
   async (
@@ -238,7 +237,6 @@ export const GET = defineRoute(
 // DELETE /api/bids/:id/templates/:templateId -- delete a template
 // ──────────────────────────────────────────
 
-// TODO(OPS-T1): author ResponseSchema
 export const DELETE = defineRoute(
   z.unknown(),
   async (

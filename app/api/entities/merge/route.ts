@@ -14,64 +14,78 @@ import { z } from 'zod';
 
 export const maxDuration = 30;
 
-// TODO(OPS-T1): author ResponseSchema
-export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
-  try {
-    const auth = await getAuthorisedClient(['admin']);
-    if (!auth.success) return authFailureResponse(auth);
-    const { user } = auth;
+const EntityMergeResponseSchema = z.object({
+  merged: z.boolean(),
+  target: z.string(),
+  entity_type: z.string(),
+  mentions_updated: z.number(),
+  duplicates_removed: z.number(),
+});
 
-    const { allowed } = checkRateLimit(`entities:merge:${user.id}`, 10, 60_000);
-    if (!allowed) return rateLimitResponse();
+export const POST = defineRoute(
+  EntityMergeResponseSchema,
+  async (request: NextRequest) => {
+    try {
+      const auth = await getAuthorisedClient(['admin']);
+      if (!auth.success) return authFailureResponse(auth);
+      const { user } = auth;
 
-    const raw = await request.json();
-    const parsed = parseBody(EntityMergeBodySchema, raw);
-    if (!parsed.success) return parsed.response;
+      const { allowed } = checkRateLimit(
+        `entities:merge:${user.id}`,
+        10,
+        60_000,
+      );
+      if (!allowed) return rateLimitResponse();
 
-    const { sources, target, entity_type } = parsed.data;
+      const raw = await request.json();
+      const parsed = parseBody(EntityMergeBodySchema, raw);
+      if (!parsed.success) return parsed.response;
 
-    // All source canonical names (including target if present)
-    const allSourceNames = [...new Set([...sources, target])];
+      const { sources, target, entity_type } = parsed.data;
 
-    // Use service client for atomic RPC merge
-    const serviceClient = createServiceClient();
+      // All source canonical names (including target if present)
+      const allSourceNames = [...new Set([...sources, target])];
 
-    // Single atomic RPC call — all updates happen in one transaction
-    const { data, error } = await serviceClient.rpc('merge_entities', {
-      p_source_names: allSourceNames,
-      p_target_name: target,
-      p_entity_type: entity_type,
-    });
+      // Use service client for atomic RPC merge
+      const serviceClient = createServiceClient();
 
-    if (error) {
+      // Single atomic RPC call — all updates happen in one transaction
+      const { data, error } = await serviceClient.rpc('merge_entities', {
+        p_source_names: allSourceNames,
+        p_target_name: target,
+        p_entity_type: entity_type,
+      });
+
+      if (error) {
+        return NextResponse.json(
+          { error: safeErrorMessage(error, 'Failed to merge entities') },
+          { status: 500 },
+        );
+      }
+
+      // RPC returns a jsonb object with merge results
+      const result = data as {
+        merged: boolean;
+        target: string;
+        entity_type: string;
+        mentions_updated: number;
+        relationship_sources_updated: number;
+        relationship_targets_updated: number;
+        duplicates_removed: number;
+      };
+
+      return NextResponse.json({
+        merged: result.merged,
+        target: result.target,
+        entity_type: result.entity_type,
+        mentions_updated: result.mentions_updated,
+        duplicates_removed: result.duplicates_removed,
+      });
+    } catch (err) {
       return NextResponse.json(
-        { error: safeErrorMessage(error, 'Failed to merge entities') },
+        { error: safeErrorMessage(err, 'Failed to merge entities') },
         { status: 500 },
       );
     }
-
-    // RPC returns a jsonb object with merge results
-    const result = data as {
-      merged: boolean;
-      target: string;
-      entity_type: string;
-      mentions_updated: number;
-      relationship_sources_updated: number;
-      relationship_targets_updated: number;
-      duplicates_removed: number;
-    };
-
-    return NextResponse.json({
-      merged: result.merged,
-      target: result.target,
-      entity_type: result.entity_type,
-      mentions_updated: result.mentions_updated,
-      duplicates_removed: result.duplicates_removed,
-    });
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to merge entities') },
-      { status: 500 },
-    );
-  }
-});
+  },
+);

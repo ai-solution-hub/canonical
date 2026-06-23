@@ -206,7 +206,11 @@ describe('POST /api/layers', () => {
         id: 'new-layer',
         key: 'technical',
         label: 'Technical',
+        description: null,
         display_order: 50,
+        is_active: true,
+        created_at: '2026-03-19T00:00:00Z',
+        updated_at: null,
       },
       error: null,
     });
@@ -227,7 +231,11 @@ describe('POST /api/layers', () => {
         id: 'new-layer',
         key: 'technical',
         label: 'Technical',
+        description: null,
         display_order: 5,
+        is_active: true,
+        created_at: '2026-03-19T00:00:00Z',
+        updated_at: null,
       },
       error: null,
     });
