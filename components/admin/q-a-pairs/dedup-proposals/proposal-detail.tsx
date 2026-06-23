@@ -16,6 +16,7 @@ import { fetchAdminQaDedupProposal } from '@/lib/query/fetchers';
 import { queryKeys } from '@/lib/query/query-keys';
 import { QaDedupActionButtons } from './action-buttons';
 import { QaDedupProposalRowCard } from './proposal-row-card';
+import { spanLabel } from './span-label';
 
 interface QaDedupProposalDetailClientProps {
   proposalId: string;
@@ -42,12 +43,9 @@ export function QaDedupProposalDetailClient({
   const spans = proposal
     ? proposal.spansWorkspaces || proposal.spansForms
     : false;
-  const spanLabel =
-    proposal?.spansWorkspaces && proposal?.spansForms
-      ? 'spans workspaces/forms'
-      : proposal?.spansWorkspaces
-        ? 'spans workspaces'
-        : 'spans forms';
+  const spanText = proposal
+    ? spanLabel(proposal.spansWorkspaces, proposal.spansForms)
+    : '';
   const survivorId = proposal
     ? (proposal.resolvedSurvivorId ?? proposal.proposedSurvivorId)
     : null;
@@ -120,7 +118,7 @@ export function QaDedupProposalDetailClient({
                   data-testid="qa-dedup-detail-spans-badge"
                 >
                   <Layers className="size-3" aria-hidden="true" />
-                  {spanLabel}
+                  {spanText}
                 </Badge>
               ) : null}
             </div>

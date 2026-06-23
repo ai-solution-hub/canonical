@@ -22,6 +22,7 @@ import {
 import { queryKeys } from '@/lib/query/query-keys';
 import { QaDedupEmptyState } from './empty-state';
 import { QaDedupFilterBar } from './filter-bar';
+import { spanLabel } from './span-label';
 
 const SKELETON_ROWS = 5;
 // Stable empty-array reference — prevents downstream useMemo deps from
@@ -160,12 +161,7 @@ interface ProposalRowProps {
  */
 function ProposalRow({ proposal }: ProposalRowProps) {
   const spans = proposal.spansWorkspaces || proposal.spansForms;
-  const spanLabel =
-    proposal.spansWorkspaces && proposal.spansForms
-      ? 'spans workspaces/forms'
-      : proposal.spansWorkspaces
-        ? 'spans workspaces'
-        : 'spans forms';
+  const spanText = spanLabel(proposal.spansWorkspaces, proposal.spansForms);
 
   return (
     <tr
@@ -196,7 +192,7 @@ function ProposalRow({ proposal }: ProposalRowProps) {
                 data-testid={`qa-dedup-spans-badge-${proposal.id}`}
               >
                 <Layers className="size-3" aria-hidden="true" />
-                {spanLabel}
+                {spanText}
               </Badge>
             ) : null}
           </div>
