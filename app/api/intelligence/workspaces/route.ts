@@ -291,7 +291,7 @@ export const POST = defineRoute(
 
       try {
         const { createIntelligenceGuide } =
-          await import('@/lib/intelligence/guide-generator');
+          await import('@/lib/intelligence/intelligence-guide-generator');
         const guideResult = await createIntelligenceGuide(
           supabase,
           workspace.id,

@@ -1,4 +1,4 @@
-// lib/intelligence/guide-generator.ts
+// lib/intelligence/intelligence-guide-generator.ts
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { findParentSector } from '@/lib/intelligence/topic-mappings';
 
