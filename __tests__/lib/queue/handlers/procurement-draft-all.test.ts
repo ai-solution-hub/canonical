@@ -57,7 +57,7 @@ vi.mock('@/lib/domains/procurement/ai/draft', () => ({
 
 // Import the handler AFTER vi.mock declaration so the mocked draft module
 // is in place when the handler module's import resolves.
-const { runBidDraftAllJob } =
+const { runFormDraftAllJob } =
   await import('@/lib/queue/handlers/procurement-draft-all');
 const { PIPELINE_SYSTEM_USER_ID } = await import('@/lib/intelligence/types');
 
@@ -274,7 +274,7 @@ function configureSupabase(
 // Test suite.
 // ---------------------------------------------------------------------------
 
-describe('runBidDraftAllJob — form_draft_all handler (§5.4.1)', () => {
+describe('runFormDraftAllJob — form_draft_all handler (§5.4.1)', () => {
   let mockSupabase: MockSupabaseClient;
 
   beforeEach(() => {
@@ -311,7 +311,7 @@ describe('runBidDraftAllJob — form_draft_all handler (§5.4.1)', () => {
         undraftedCount: 0, // ⇒ transition to in_review fires
       });
 
-      const result = await runBidDraftAllJob(
+      const result = await runFormDraftAllJob(
         makeBody(),
         mockSupabase as unknown as SupabaseClient<Database>,
         AUTH_CONTEXT,
@@ -356,7 +356,7 @@ describe('runBidDraftAllJob — form_draft_all handler (§5.4.1)', () => {
         undraftedCount: 0,
       });
 
-      await runBidDraftAllJob(
+      await runFormDraftAllJob(
         makeBody(),
         mockSupabase as unknown as SupabaseClient<Database>,
         AUTH_CONTEXT,
@@ -402,7 +402,7 @@ describe('runBidDraftAllJob — form_draft_all handler (§5.4.1)', () => {
         undraftedCount: 0,
       });
 
-      await runBidDraftAllJob(
+      await runFormDraftAllJob(
         makeBody(),
         mockSupabase as unknown as SupabaseClient<Database>,
         AUTH_CONTEXT,
@@ -477,7 +477,7 @@ describe('runBidDraftAllJob — form_draft_all handler (§5.4.1)', () => {
         // failed > 0 ⇒ transition does NOT fire ⇒ no count call required.
       });
 
-      const result = await runBidDraftAllJob(
+      const result = await runFormDraftAllJob(
         makeBody(),
         mockSupabase as unknown as SupabaseClient<Database>,
         AUTH_CONTEXT,
@@ -527,7 +527,7 @@ describe('runBidDraftAllJob — form_draft_all handler (§5.4.1)', () => {
         // the count check.
       });
 
-      const result = await runBidDraftAllJob(
+      const result = await runFormDraftAllJob(
         makeBody(),
         mockSupabase as unknown as SupabaseClient<Database>,
         AUTH_CONTEXT,
@@ -558,7 +558,7 @@ describe('runBidDraftAllJob — form_draft_all handler (§5.4.1)', () => {
       });
 
       await expect(
-        runBidDraftAllJob(
+        runFormDraftAllJob(
           makeBody(),
           mockSupabase as unknown as SupabaseClient<Database>,
           AUTH_CONTEXT,
@@ -568,7 +568,7 @@ describe('runBidDraftAllJob — form_draft_all handler (§5.4.1)', () => {
       // Message contract verbatim from handler:
       // throw new PermanentJobError(`bid_not_draftable: ${procurementStatus}`);
       await expect(
-        runBidDraftAllJob(
+        runFormDraftAllJob(
           makeBody(),
           // Re-configure for second call.
           (() => {
@@ -600,7 +600,7 @@ describe('runBidDraftAllJob — form_draft_all handler (§5.4.1)', () => {
       });
 
       await expect(
-        runBidDraftAllJob(
+        runFormDraftAllJob(
           makeBody(),
           mockSupabase as unknown as SupabaseClient<Database>,
           AUTH_CONTEXT,
@@ -616,7 +616,7 @@ describe('runBidDraftAllJob — form_draft_all handler (§5.4.1)', () => {
         upsertedIds: [],
       });
       await expect(
-        runBidDraftAllJob(
+        runFormDraftAllJob(
           makeBody(),
           fresh as unknown as SupabaseClient<Database>,
           AUTH_CONTEXT,
@@ -644,7 +644,7 @@ describe('runBidDraftAllJob — form_draft_all handler (§5.4.1)', () => {
       });
 
       await expect(
-        runBidDraftAllJob(
+        runFormDraftAllJob(
           makeBody(),
           mockSupabase as unknown as SupabaseClient<Database>,
           AUTH_CONTEXT,
@@ -663,7 +663,7 @@ describe('runBidDraftAllJob — form_draft_all handler (§5.4.1)', () => {
         upsertedIds: [],
       });
       await expect(
-        runBidDraftAllJob(
+        runFormDraftAllJob(
           makeBody(),
           fresh as unknown as SupabaseClient<Database>,
           AUTH_CONTEXT,
@@ -684,7 +684,7 @@ describe('runBidDraftAllJob — form_draft_all handler (§5.4.1)', () => {
       });
 
       await expect(
-        runBidDraftAllJob(
+        runFormDraftAllJob(
           makeBody(),
           mockSupabase as unknown as SupabaseClient<Database>,
           AUTH_CONTEXT,
@@ -726,7 +726,7 @@ describe('runBidDraftAllJob — form_draft_all handler (§5.4.1)', () => {
         undraftedCount: 0,
       });
 
-      const result = await runBidDraftAllJob(
+      const result = await runFormDraftAllJob(
         makeBody({ skip_existing: true }),
         mockSupabase as unknown as SupabaseClient<Database>,
         AUTH_CONTEXT,
@@ -781,7 +781,7 @@ describe('runBidDraftAllJob — form_draft_all handler (§5.4.1)', () => {
         undraftedCount: 0,
       });
 
-      const result = await runBidDraftAllJob(
+      const result = await runFormDraftAllJob(
         makeBody(),
         mockSupabase as unknown as SupabaseClient<Database>,
         AUTH_CONTEXT,

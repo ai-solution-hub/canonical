@@ -42,7 +42,7 @@ import {
   type QueueJobPayload,
 } from '@/lib/queue/envelope';
 import { reValidateAuthContext } from '@/lib/queue/auth';
-import { runBidDraftAllJob } from '@/lib/queue/handlers/procurement-draft-all';
+import { runFormDraftAllJob } from '@/lib/queue/handlers/procurement-draft-all';
 import type { ProcurementDraftAllBody } from '@/lib/queue/handlers/procurement-draft-all';
 import { runBatchReclassifyJob } from '@/lib/queue/handlers/batch-reclassify';
 import type { BatchReclassifyBody } from '@/lib/queue/handlers/batch-reclassify';
@@ -113,7 +113,7 @@ export async function runJobByType(
       //    failures are caught inside; only handler-level fatal
       //    conditions throw `PermanentJobError`.
       // -------------------------------------------------------------
-      const result = await runBidDraftAllJob(
+      const result = await runFormDraftAllJob(
         payload.body,
         supabase,
         payload.auth_context,

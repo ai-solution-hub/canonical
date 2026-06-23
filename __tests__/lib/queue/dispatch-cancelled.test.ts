@@ -40,7 +40,7 @@ vi.mock('@/lib/queue/auth', () => ({
 // The other handlers are imported by dispatch.ts at module load — stub them
 // so the import graph resolves without pulling the AI stack.
 vi.mock('@/lib/queue/handlers/procurement-draft-all', () => ({
-  runBidDraftAllJob: vi.fn(),
+  runFormDraftAllJob: vi.fn(),
 }));
 
 vi.mock('@sentry/nextjs', () => ({

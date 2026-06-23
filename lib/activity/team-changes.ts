@@ -39,7 +39,7 @@ export function contentHistoryRowToTeamChange(row: {
 }
 
 /** form_response_history row → TeamChange (entity_type 'bid_response'). */
-export function bidResponseRowToTeamChange(row: {
+export function formResponseRowToTeamChange(row: {
   edited_by: string | null;
   response_id: string;
   created_at: string;
@@ -88,7 +88,7 @@ export function contentHistoryRowToRecentWork(row: {
 }
 
 /** form_response_history row → RecentWorkItem (entity_type 'bid_response'). */
-export function bidResponseRowToRecentWork(row: {
+export function formResponseRowToRecentWork(row: {
   response_id: string;
   created_at: string;
   form_responses: unknown;

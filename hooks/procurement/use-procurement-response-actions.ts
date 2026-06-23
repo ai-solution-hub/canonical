@@ -14,7 +14,7 @@ import type { useDraftStream } from '@/hooks/streaming/use-draft-stream';
 
 // ── Parameters ──
 
-interface UseBidResponseActionsParams {
+interface UseFormResponseActionsParams {
   procurementId: string;
   response: ProcurementResponse | null;
   currentQuestion: ProcurementQuestion | null;
@@ -25,14 +25,14 @@ interface UseBidResponseActionsParams {
   lastEditorUpdateRef: React.MutableRefObject<number>;
   stream: ReturnType<typeof useDraftStream>;
   editorInstanceRef: React.RefObject<Editor | null>;
-  invalidateBidData: () => Promise<void>;
+  invalidateProcurementData: () => Promise<void>;
   invalidateResponse: () => Promise<void>;
 }
 
 // ── Return type ──
 
 /** @public */
-export interface UseBidResponseActionsReturn {
+export interface UseFormResponseActionsReturn {
   handleAction: (
     action: ResponseAction,
     instructions?: string,
@@ -51,7 +51,7 @@ export interface UseBidResponseActionsReturn {
  * Mutation layer for bid response actions.
  * Handles save, accept, regenerate, flag, and library insert.
  */
-export function useBidResponseActions({
+export function useFormResponseActions({
   procurementId,
   response,
   currentQuestion,
@@ -62,9 +62,9 @@ export function useBidResponseActions({
   lastEditorUpdateRef,
   stream,
   editorInstanceRef,
-  invalidateBidData,
+  invalidateProcurementData,
   invalidateResponse,
-}: UseBidResponseActionsParams): UseBidResponseActionsReturn {
+}: UseFormResponseActionsParams): UseFormResponseActionsReturn {
   const queryClient = useQueryClient();
 
   // ── Response mutation (save / accept / flag / regenerate-existing) ──
@@ -111,7 +111,7 @@ export function useBidResponseActions({
 
       // Accept and regenerate also affect bid-level data (status changes)
       if (action === 'accept' || action === 'regenerate') {
-        void invalidateBidData();
+        void invalidateProcurementData();
       }
     },
     onError: (err) => {
