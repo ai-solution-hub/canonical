@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { sb, tryQuery } from '@/lib/supabase/safe';
 import { resolveUserDisplayNames } from '@/lib/users/display-names';
 import { sourceDocumentRevisionToUnified } from '@/lib/diff/adapters/source-document-revision';
 import { UnifiedDiffContainer } from '@/components/diff/unified-diff-container';
@@ -56,11 +57,16 @@ export async function generateMetadata({
   const { id: documentId } = await params;
   const supabase = await createClient();
 
-  const { data: doc } = await supabase
-    .from('source_documents')
-    .select('filename, version')
-    .eq('id', documentId)
-    .maybeSingle();
+  // Best-effort: a failed title lookup must not break metadata generation.
+  const docResult = await tryQuery(
+    supabase
+      .from('source_documents')
+      .select('filename, version')
+      .eq('id', documentId)
+      .maybeSingle(),
+    'documents.diff.metadata',
+  );
+  const doc = docResult.ok ? docResult.data : null;
 
   if (!doc) {
     return { title: 'Document comparison' };
@@ -83,12 +89,16 @@ export default async function DocumentDiffPage({
   const { id: documentId } = await params;
   const supabase = await createClient();
 
-  // The requested document is the NEWER side of the comparison.
-  const { data: newerRow } = await supabase
-    .from('source_documents')
-    .select(SOURCE_DOC_COLUMNS)
-    .eq('id', documentId)
-    .maybeSingle<DiffDocRow>();
+  // The requested document is the NEWER side of the comparison. A real DB
+  // error throws (→ error.tsx); a null result (no/invisible row) → notFound().
+  const newerRow = await sb(
+    supabase
+      .from('source_documents')
+      .select(SOURCE_DOC_COLUMNS)
+      .eq('id', documentId)
+      .maybeSingle<DiffDocRow>(),
+    'documents.diff.newer',
+  );
 
   // RLS-invisible or non-existent → 404 (do not leak cross-workspace existence).
   if (!newerRow) {
@@ -118,12 +128,16 @@ export default async function DocumentDiffPage({
     );
   }
 
-  // The OLDER side is the parent in the version chain.
-  const { data: olderRow } = await supabase
-    .from('source_documents')
-    .select(SOURCE_DOC_COLUMNS)
-    .eq('id', newerRow.parent_id)
-    .maybeSingle<DiffDocRow>();
+  // The OLDER side is the parent in the version chain. A real DB error throws
+  // (→ error.tsx); a null result (parent removed/invisible) → notice below.
+  const olderRow = await sb(
+    supabase
+      .from('source_documents')
+      .select(SOURCE_DOC_COLUMNS)
+      .eq('id', newerRow.parent_id)
+      .maybeSingle<DiffDocRow>(),
+    'documents.diff.older',
+  );
 
   // Parent exists in the chain but is not visible to this user (or was removed):
   // show a notice rather than 404-gapping the visible newer document.

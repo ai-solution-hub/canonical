@@ -66,10 +66,7 @@ function makeNetworkError() {
 }
 
 /** Build a minimal mock WorkBook with one or more sheets. */
-function makeMockWorkbook(
-  sheetNames: string[],
-  htmlBySheet: Record<string, string> = {},
-) {
+function makeMockWorkbook(sheetNames: string[]) {
   const sheets: Record<string, unknown> = {};
   for (const name of sheetNames) {
     sheets[name] = {}; // opaque worksheet object
@@ -80,10 +77,9 @@ function makeMockWorkbook(
     Sheets: sheets,
   });
 
-  // sheet_to_html returns different HTML per sheet name when htmlBySheet provided
+  // The mock returns a generic table for every sheet — the tests assert tab
+  // wiring + render contract, not per-sheet HTML content.
   mockSheetToHtml.mockImplementation((_ws: unknown) => {
-    // We can't easily correlate worksheet object → name in mock without capturing,
-    // so return a generic table for each call
     return '<table><tr><td>Cell content</td></tr></table>';
   });
 }

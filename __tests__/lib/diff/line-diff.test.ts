@@ -17,7 +17,6 @@ import {
   OP_CLASS,
   OP_PREFIX,
   type DiffOp,
-  type DiffLine,
 } from '@/lib/diff/line-diff';
 
 describe('buildLcsTable', () => {
