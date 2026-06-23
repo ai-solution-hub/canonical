@@ -9,18 +9,92 @@
   "readmeHeader": ".design-sync/conventions.md",
   "dtsPropsFor": {
     "Button": "variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link'; size?: 'default' | 'xs' | 'sm' | 'lg' | 'icon' | 'icon-xs' | 'icon-sm' | 'icon-lg'; asChild?: boolean; disabled?: boolean; type?: 'button' | 'submit' | 'reset'; className?: string; onClick?: React.MouseEventHandler<HTMLButtonElement>; children?: React.ReactNode",
-    "Badge": "variant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'ghost' | 'link'; asChild?: boolean; className?: string; children?: React.ReactNode"
+    "Badge": "variant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'ghost' | 'link'; asChild?: boolean; className?: string; children?: React.ReactNode",
+    "Accordion": "type: 'single' | 'multiple'; collapsible?: boolean; value?: string; defaultValue?: string; onValueChange?: (value: string) => void; disabled?: boolean; className?: string; children?: React.ReactNode",
+    "AccordionItem": "value: string; disabled?: boolean; className?: string; children?: React.ReactNode",
+    "AccordionTrigger": "disabled?: boolean; className?: string; children?: React.ReactNode",
+    "AlertDialog": "open?: boolean; defaultOpen?: boolean; onOpenChange?: (open: boolean) => void; children?: React.ReactNode",
+    "AlertDialogContent": "className?: string; children?: React.ReactNode",
+    "AlertDialogAction": "disabled?: boolean; className?: string; onClick?: React.MouseEventHandler<HTMLButtonElement>; children?: React.ReactNode",
+    "AlertDialogCancel": "disabled?: boolean; className?: string; onClick?: React.MouseEventHandler<HTMLButtonElement>; children?: React.ReactNode",
+    "Card": "className?: string; children?: React.ReactNode",
+    "Checkbox": "checked?: boolean | 'indeterminate'; defaultChecked?: boolean | 'indeterminate'; onCheckedChange?: (checked: boolean | 'indeterminate') => void; disabled?: boolean; required?: boolean; name?: string; value?: string; className?: string",
+    "ConceptHelp": "concept: 'coverage' | 'priority-gaps' | 'governance-review' | 'workspace' | 'layer' | 'domain' | 'stream' | 'freshness'; side?: 'top' | 'right' | 'bottom' | 'left'; className?: string",
+    "Dialog": "open?: boolean; defaultOpen?: boolean; onOpenChange?: (open: boolean) => void; children?: React.ReactNode",
+    "DialogContent": "showCloseButton?: boolean; className?: string; children?: React.ReactNode",
+    "DialogFooter": "showCloseButton?: boolean; className?: string; children?: React.ReactNode",
+    "DropdownMenu": "open?: boolean; defaultOpen?: boolean; onOpenChange?: (open: boolean) => void; children?: React.ReactNode",
+    "DropdownMenuRadioGroup": "value?: string; onValueChange?: (value: string) => void; className?: string; children?: React.ReactNode",
+    "DropdownMenuItem": "inset?: boolean; disabled?: boolean; onSelect?: (event: Event) => void; className?: string; children?: React.ReactNode",
+    "DropdownMenuCheckboxItem": "checked?: boolean | 'indeterminate'; onCheckedChange?: (checked: boolean) => void; disabled?: boolean; className?: string; children?: React.ReactNode",
+    "DropdownMenuRadioItem": "value: string; disabled?: boolean; className?: string; children?: React.ReactNode",
+    "DropdownMenuLabel": "inset?: boolean; className?: string; children?: React.ReactNode",
+    "DropdownMenuSubTrigger": "inset?: boolean; disabled?: boolean; className?: string; children?: React.ReactNode",
+    "Input": "type?: React.HTMLInputTypeAttribute; placeholder?: string; value?: string | number; defaultValue?: string | number; disabled?: boolean; className?: string",
+    "Label": "htmlFor?: string; className?: string; children?: React.ReactNode",
+    "Popover": "open?: boolean; defaultOpen?: boolean; onOpenChange?: (open: boolean) => void; modal?: boolean; children?: React.ReactNode",
+    "PopoverContent": "align?: 'start' | 'center' | 'end'; side?: 'top' | 'right' | 'bottom' | 'left'; sideOffset?: number; className?: string; children?: React.ReactNode",
+    "Progress": "value?: number; max?: number; className?: string",
+    "RadioGroup": "value?: string; defaultValue?: string; onValueChange?: (value: string) => void; disabled?: boolean; className?: string; children?: React.ReactNode",
+    "RadioGroupItem": "value: string; disabled?: boolean; className?: string; children?: React.ReactNode",
+    "Select": "value?: string; defaultValue?: string; onValueChange?: (value: string) => void; open?: boolean; defaultOpen?: boolean; onOpenChange?: (open: boolean) => void; disabled?: boolean; required?: boolean; name?: string; children?: React.ReactNode",
+    "SelectTrigger": "size?: 'sm' | 'default'; disabled?: boolean; className?: string; children?: React.ReactNode",
+    "SelectItem": "value: string; disabled?: boolean; textValue?: string; className?: string; children?: React.ReactNode",
+    "Separator": "orientation?: 'horizontal' | 'vertical'; decorative?: boolean; className?: string",
+    "Sheet": "open?: boolean; defaultOpen?: boolean; onOpenChange?: (open: boolean) => void; children?: React.ReactNode",
+    "SheetContent": "side?: 'top' | 'right' | 'bottom' | 'left'; showCloseButton?: boolean; className?: string; children?: React.ReactNode",
+    "Skeleton": "className?: string; children?: React.ReactNode",
+    "Switch": "size?: 'sm' | 'default'; checked?: boolean; defaultChecked?: boolean; onCheckedChange?: (checked: boolean) => void; disabled?: boolean; className?: string",
+    "Tabs": "value?: string; defaultValue?: string; onValueChange?: (value: string) => void; orientation?: 'horizontal' | 'vertical'; className?: string; children?: React.ReactNode",
+    "TabsList": "variant?: 'default' | 'line'; className?: string; children?: React.ReactNode",
+    "TabsTrigger": "value: string; disabled?: boolean; className?: string; children?: React.ReactNode",
+    "TabsContent": "value: string; className?: string; children?: React.ReactNode",
+    "Textarea": "rows?: number; placeholder?: string; value?: string | number | readonly string[]; defaultValue?: string | number | readonly string[]; disabled?: boolean; className?: string; children?: React.ReactNode",
+    "Tooltip": "open?: boolean; defaultOpen?: boolean; onOpenChange?: (open: boolean) => void; delayDuration?: number; children?: React.ReactNode",
+    "TooltipProvider": "delayDuration?: number; children?: React.ReactNode",
+    "TooltipContent": "side?: 'top' | 'right' | 'bottom' | 'left'; sideOffset?: number; align?: 'start' | 'center' | 'end'; className?: string; children?: React.ReactNode"
   },
   "overrides": {
-    "Dialog": { "cardMode": "single", "viewport": "520x420" },
-    "Select": { "cardMode": "single", "viewport": "360x420" },
-    "Sheet": { "cardMode": "single", "viewport": "460x540" },
-    "Popover": { "cardMode": "single", "viewport": "400x320" },
-    "Tooltip": { "cardMode": "single", "viewport": "320x180" },
-    "DropdownMenu": { "cardMode": "single", "viewport": "340x380" },
-    "DropdownMenuLabel": { "cardMode": "single", "viewport": "340x380" },
-    "Card": { "cardMode": "column" },
-    "Tabs": { "cardMode": "column" },
-    "Textarea": { "cardMode": "column" }
+    "Dialog": {
+      "cardMode": "single",
+      "viewport": "520x420"
+    },
+    "Select": {
+      "cardMode": "single",
+      "viewport": "360x420"
+    },
+    "Sheet": {
+      "cardMode": "single",
+      "viewport": "460x540"
+    },
+    "Popover": {
+      "cardMode": "single",
+      "viewport": "400x320"
+    },
+    "Tooltip": {
+      "cardMode": "single",
+      "viewport": "320x180"
+    },
+    "DropdownMenu": {
+      "cardMode": "single",
+      "viewport": "340x380"
+    },
+    "DropdownMenuLabel": {
+      "cardMode": "single",
+      "viewport": "340x380"
+    },
+    "Card": {
+      "cardMode": "column"
+    },
+    "Tabs": {
+      "cardMode": "column"
+    },
+    "Textarea": {
+      "cardMode": "column"
+    },
+    "AlertDialog": {
+      "cardMode": "single",
+      "viewport": "520x460"
+    }
   }
 }

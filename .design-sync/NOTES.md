@@ -43,6 +43,43 @@ node .ds-sync/package-build.mjs --config .design-sync/config.json \
 node .ds-sync/package-validate.mjs ./ds-bundle    # render check needs playwright chromium (cached)
 ```
 
+## Upload — DesignSync MCP (the productized path, S406)
+
+The upload is the **agent's** half (resync.mjs only emits the plan; it never pushes).
+Since S406 the upload goes through the **`DesignSync` MCP tool** (claude.ai/design, login
+scoped `user:design:read/write`). Project **Canonical** =
+`a9316af8-0dca-4282-914a-d298d6e840ba`.
+
+Full re-push flow (used S406 — simplest, guarantees the remote mirrors a freshly-built
+bundle; the bundle is <1 MB, well under the 5 MB cap):
+
+```sh
+node .ds-sync/gen-upload-list.mjs ./ds-bundle   # → ds-bundle/.upload-list.json (400 files)
+node .ds-sync/emit-batches.mjs                  # → ds-bundle/.batch-N.json (≤180 each)
+```
+
+Then, via the MCP tool (`{path, localPath}` from the batch files maps 1:1 onto
+`write_files.files` — `localPath` is read from disk, contents never enter agent context):
+
+1. `finalize_plan({projectId, localDir:<abs ds-bundle>, writes:[globs], deletes:[]})` —
+   `writes` is capped at **256 entries**, so pass globs, not the 400 paths:
+   `components/general/**/*.{d.ts,html,jsx,prompt.md}`, `_preview/*.js`, `_vendor/*.js`,
+   `README.md`, `styles.css`, `_ds_bundle.{css,js}`, `_ds_sync.json`.
+2. `write_files({planId, files:<batch>})` per batch (≤256 files/call). Add `_ds_sync.json`
+   (the verification anchor — gen-upload-list excludes it, push it so the remote anchor
+   matches and future delta-resyncs stay correct).
+3. `delete_files` the stale `_ds_needs_recompile` sentinel — a LOCAL build artifact
+   gen-upload-list excludes; the app detects change via the bundle/anchor, not this file,
+   so it's junk on the remote. (S406: it had been stuck since S397; deleted.)
+4. `list_files` + spot-check a `get_file` (e.g. a variant `.d.ts`) to verify the push.
+
+`gen-upload-list.mjs` no longer excludes DropdownMenuLabel (S406 — it's live + previewed).
+
+**Delta path (future incremental syncs):** `DesignSync get_file _ds_sync.json` → local
+sidecar → `node .ds-sync/resync.mjs … --remote <sidecar>` emits `.resync-verdict.json`
+with `upload:{components,bundle,styling,aux,deletePaths}` — push only that delta. Use this
+once the project is large/stable; the full re-push is fine while the bundle is small.
+
 ## Scope decision — bundle is `components/ui` ONLY (92 primitives). DO NOT widen.
 
 The full app surface (410 components) bundles to **12.8 MB**; the DesignSync upload
@@ -61,11 +98,18 @@ runtime, the real font, not a substitute). Recorded as accepted.
 ## `.d.ts` fidelity (synth mode)
 
 Synth mode flattens props to `[key: string]: unknown` (no real variant props).
-`cfg.dtsPropsFor` hand-writes accurate contracts — done for **Button, Badge** only.
-FOLLOW-UP: add `dtsPropsFor` for the other variant-bearing primitives (Tabs/TabsList
-`variant`, Badge done, Select, Switch, etc.) so the design agent codes against real APIs.
+`cfg.dtsPropsFor` hand-writes accurate contracts. **S406: expanded 2 → 45 contracts**
+across 20 source components (extract → adversarial verify per component; the verify pass
+caught 4 drift bugs — phantom `children` on Checkbox/Separator, a missed `modal` on
+Popover, the Textarea children convention). Variant unions are transcribed verbatim from
+each `cva()` (e.g. `TabsList variant: 'default' | 'line'`, `SheetContent side`, `Switch`/
+`SelectTrigger size: 'sm' | 'default'`). The design agent now codes against real APIs for
+every primitive that carries a meaningful prop contract; the remaining ~50 symbols are
+pure structural sub-parts (className/children only) and intentionally stay synth.
+FOLLOW-UP: re-verify a contract against `components/ui/<x>.tsx` if that component's
+variants change (the strings are hand-derived from the cva at S406 HEAD).
 
-## Authored previews so far (24) — graded good
+## Authored previews so far (26) — graded good
 
 Wave 1 (8): Button, Badge, Card, CardHeader, Checkbox, Progress, SheetHeader, SheetFooter.
 Wave 2 (9): Input, Label, Switch, Textarea, Separator, Skeleton, RadioGroup, Accordion,
@@ -73,11 +117,15 @@ Tabs. Wave 3 (7, overlays — open-state via
 `cfg.overrides.<Name>={cardMode:'single',viewport:'WxH'}`
 
 - `defaultOpen`): Dialog, Select, Sheet, Popover, Tooltip, DropdownMenu,
-  DropdownMenuLabel. The other 68 ship the honest **floor card** ("preview not yet
-  authored") — standing incremental-authoring backlog (re-sync carries authored work
-  forward). Overlay authoring recipe is proven: Radix overlays render fully open (with
-  backdrop) in headless chromium when given `defaultOpen` + `cardMode:single` + a fixed
-  viewport.
+  DropdownMenuLabel. **Wave 4 (S406, 2): AlertDialog** (overlay, `defaultOpen` recipe —
+  destructive-confirm; Action/Cancel ARE the footer buttons) **+ ConceptHelp** (custom
+  `?`-affordance helper rendered beside metric labels inside `TooltipProvider`; tooltip is
+  hover/focus-revealed so the static card shows the affordance in context). That clears
+  the last 2 unauthored **top-level** components — the remaining **66** floor cards are
+  all structural sub-parts (DialogContent, SelectItem, CardFooter…) covered by their
+  parent's composition preview; authoring them solo is noise, not coverage. Overlay
+  authoring recipe is proven: Radix overlays render fully open (with backdrop) in headless
+  chromium when given `defaultOpen` + `cardMode:single` + a fixed viewport.
 
 GRID_OVERFLOW: Card, Tabs, Textarea are set to `cfg.overrides.<Name>={cardMode:'column'}`
 (their multi-cell stories cropped in the product grid; column = one cell per row, full
