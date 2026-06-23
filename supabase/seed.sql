@@ -109,6 +109,28 @@ ON CONFLICT (user_id) DO NOTHING;
 --   d0...02 = CI test feed source
 --   e0...01 = CI test company profile
 
+-- 2·0. Core application_type ('procurement').
+-- The 'procurement' core application_type was originally established by an early
+-- migration ("migration 1.4 backfill") that was FOLDED INTO the
+-- 20260617130000_squash_baseline squash — but the squash captured only the
+-- application_types SCHEMA, not its core DATA rows (same squash-fidelity gap as
+-- the ensure_rls event trigger; see id-115 {115.15}). On a fresh/reset DB the
+-- table is therefore EMPTY, so §2a's `WHERE key = 'procurement'` subquery returns
+-- NULL and the workspace insert aborts with a NOT-NULL violation on
+-- application_type_id. Re-seed the client-agnostic core row here (provenance
+-- 'core', true across ALL deployments — same durable-core-ontology pattern as §4)
+-- so the surface tables resolve. Idempotent on the natural key; the row's UUID is
+-- deterministic but immaterial — every consumer resolves it by key='procurement'.
+INSERT INTO public.application_types (id, key, label, label_plural, provenance)
+VALUES (
+  'a1000000-0000-4000-8000-000000000001',
+  'procurement',
+  'Procurement',
+  'Procurement',
+  'core'
+)
+ON CONFLICT (key) DO NOTHING;
+
 -- 2a. Test workspace (required by feed_prompts, feed_sources, and E2E tests)
 -- NB: `workspaces.type` (was 'bid') was DROPPED in 20260520120828
 -- (t2_combined_pr_intel_shape_b_form_type_split) and replaced by a NOT-NULL

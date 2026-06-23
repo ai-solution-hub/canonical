@@ -3,7 +3,9 @@
  * ID-115 — `api` Data API surface generator.
  *
  * Reads the LOCAL Supabase Postgres catalog (post-`db reset`) and emits the
- * idempotent migration `supabase/migrations/<TS>_id115_api_views_and_rpcs.sql`:
+ * idempotent migration
+ * `supabase/migrations/20260623140000_id115_api_views_and_rpcs.sql` (re-timestamped
+ * after the 20260617130000 squash baseline — see OUTPUT_FILE below):
  *
  *   1. 60 × `CREATE VIEW api.<t> WITH (security_invoker = true)` — 1:1 over the
  *      public base tables in the Data API surface, EXPLICIT ordered column lists
@@ -53,9 +55,16 @@ const DB_URL =
 
 const MIGRATIONS_DIR = join(import.meta.dir, '..', 'supabase', 'migrations');
 // Fixed filename — stable across regens so the idempotency diff is meaningful.
+// Re-timestamped to AFTER 20260617130000_squash_baseline (id-115 {115.15}): the
+// original 20260616120100 file was folded INTO that squash and no longer exists
+// on disk, which made `--check` fail with "<file> does not exist". This forward
+// migration re-emits the same generated surface as idempotent DROP/CREATE (every
+// view + fn is `DROP ... IF EXISTS` then `CREATE`), so it applies cleanly on a
+// fresh stack (CI grant-guard, local `db reset`) and is a no-op rebuild on hosted
+// where the objects already exist — no superuser, no ordering risk.
 const OUTPUT_FILE = join(
   MIGRATIONS_DIR,
-  '20260616120100_id115_api_views_and_rpcs.sql',
+  '20260623140000_id115_api_views_and_rpcs.sql',
 );
 
 const ROLES = ['anon', 'authenticated', 'service_role'] as const;

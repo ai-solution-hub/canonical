@@ -13753,7 +13753,23 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TAB
 
 
 
-COMMENT ON EVENT TRIGGER "ensure_rls" IS 'Auto-enables row-level security on new public.* tables. Pairs with grant_standard_public_table_access for the standard onboarding flow.';
+-- NOTE (id-115 {115.15}): the `ensure_rls` EVENT TRIGGER itself is owned by
+-- supabase_admin (superuser) and is NOT created by this baseline — `supabase
+-- migration squash`/pg_dump filtered the CREATE because the non-superuser dump
+-- role cannot recreate event triggers, but leaked this COMMENT through. On the
+-- hosted DBs the trigger already exists (it predates the squash), so this COMMENT
+-- still applies there; on a fresh-from-zero apply (CI grant-guard, local
+-- `db reset`) the trigger is absent, so the bare COMMENT aborted the whole apply
+-- with `event trigger "ensure_rls" does not exist (SQLSTATE 42704)`. Guarding it
+-- (rather than adding a CREATE EVENT TRIGGER, which needs SUPERUSER and breaks
+-- every hosted `db push`/preview-branch apply) makes this a no-op where the
+-- trigger is absent and faithful where it is present.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_event_trigger WHERE evtname = 'ensure_rls') THEN
+    COMMENT ON EVENT TRIGGER "ensure_rls" IS 'Auto-enables row-level security on new public.* tables. Pairs with grant_standard_public_table_access for the standard onboarding flow.';
+  END IF;
+END $$;
 
 
 
