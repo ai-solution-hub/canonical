@@ -119,26 +119,31 @@ describe('setSupersession', () => {
       client,
     );
 
+    // The returned snapshots are the rows read back after the UPDATE+select.
     expect(result.oldItem).toEqual(updatedOldRow);
     expect(result.newItem).toEqual(newRow);
-    // S216 §5.2 Phase 5 — the UPDATE payload is now extended to include
-    // archive side-effects on the OLD row (publication_status, archived_at,
-    // archived_by, archive_reason, updated_by). The default archive_reason
-    // is `Superseded by item ${newId}` when archiveReason is omitted.
-    expect(updateChain.update).toHaveBeenCalledWith({
+    // S216 §5.2 Phase 5 — assert the actual UPDATE payload written to the OLD
+    // row. The mocked read-back returns a static fixture regardless of what was
+    // written, so the persisted payload is the only proof the function wrote the
+    // supersession pointer + status AND the archive side-effects. The default
+    // archive_reason is `Superseded by item ${newId}` when archiveReason is
+    // omitted.
+    const archivePayload = updateChain.update.mock.calls[0]?.[0] as Record<
+      string,
+      unknown
+    >;
+    expect(archivePayload).toMatchObject({
       superseded_by: NEW_ID,
       dedup_status: 'superseded',
       publication_status: 'archived',
-      archived_at: expect.any(String),
       archived_by: ACTOR_ID,
       archive_reason: `Superseded by item ${NEW_ID}`,
       updated_by: ACTOR_ID,
     });
     // archived_at must be a parseable ISO 8601 timestamp.
-    const updateCall = updateChain.update.mock.calls[0]?.[0] as {
-      archived_at: string;
-    };
-    expect(Number.isFinite(Date.parse(updateCall.archived_at))).toBe(true);
+    expect(
+      Number.isFinite(Date.parse(archivePayload.archived_at as string)),
+    ).toBe(true);
     expect(updateChain.eq).toHaveBeenCalledWith('id', OLD_ID);
   });
 
@@ -160,11 +165,13 @@ describe('setSupersession', () => {
       client,
     );
 
-    expect(updateChain.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        archive_reason: customReason,
-      }),
-    );
+    // archive_reason is not surfaced in the projected return shape, so the
+    // persisted UPDATE payload is the only place the supplied reason is
+    // observable — read it back from the recorded write.
+    const persisted = updateChain.update.mock.calls[0]?.[0] as {
+      archive_reason: string;
+    };
+    expect(persisted.archive_reason).toBe(customReason);
   });
 
   it('emits a Sentry breadcrumb with actor + both titles on success', async () => {

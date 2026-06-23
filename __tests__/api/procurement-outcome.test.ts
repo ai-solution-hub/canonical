@@ -288,7 +288,10 @@ describe('POST /api/bids/:id/outcome', () => {
     expect(json.status).toBe('lost');
     expect(json.kb_candidates).toEqual([]);
 
-    // Verify update was called with outcome in metadata
+    // The lost outcome is persisted via a void UPDATE — the route discards the
+    // result and the response `json.status` merely echoes the request input
+    // (NOT a DB read-back), so the UPDATE payload is the sole proof that the
+    // `status` column AND the outcome notes/recorder are actually persisted.
     expect(mockSupabase._chain.update).toHaveBeenCalledWith(
       expect.objectContaining({
         status: 'lost',

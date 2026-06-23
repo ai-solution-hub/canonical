@@ -171,10 +171,52 @@ const USER_ID = 'user-001';
 
 describe('classifyContent — entity extraction', () => {
   let mockSupabase: MockSupabaseClient;
+  /**
+   * Rows persisted by each `from(<table>).upsert(rows, …)` call, paired with
+   * the table they landed in. Lets tests read the persisted entity_mentions /
+   * entity_relationships rows back instead of only asserting the upsert mock
+   * was invoked. `whereUpserted(table)` returns the flattened rows for a table.
+   */
+  let persistedUpserts: Array<{
+    table: string;
+    rows: unknown[];
+    options: unknown;
+  }>;
+  let lastFromTable: string | null;
+
+  function whereUpserted(table: string): unknown[] {
+    return persistedUpserts
+      .filter((u) => u.table === table)
+      .flatMap((u) => u.rows);
+  }
+
+  function upsertOptions(table: string): unknown {
+    return persistedUpserts.find((u) => u.table === table)?.options;
+  }
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockSupabase = createMockSupabaseClient();
+    persistedUpserts = [];
+    lastFromTable = null;
+
+    // Track which table the chain is operating on so captured upserts can be
+    // attributed to entity_mentions vs entity_relationships.
+    mockSupabase.from.mockImplementation((table: string) => {
+      lastFromTable = table;
+      return mockSupabase._chain;
+    });
+    // Record persisted rows so tests can read the row set back.
+    mockSupabase._chain.upsert.mockImplementation(
+      (rows: unknown, options: unknown) => {
+        persistedUpserts.push({
+          table: lastFromTable ?? 'unknown',
+          rows: Array.isArray(rows) ? rows : [rows],
+          options,
+        });
+        return mockSupabase._chain;
+      },
+    );
 
     // Default: item exists and has content
     mockSupabase._chain.single.mockResolvedValue({
@@ -363,7 +405,7 @@ describe('classifyContent — entity extraction', () => {
   });
 
   describe('prompt uses config-driven entity examples', () => {
-    it('uses entity_examples from CLIENT_CONFIG in the prompt', async () => {
+    it('includes the configured entity_examples in the prompt sent to Claude', async () => {
       mockCreate.mockResolvedValueOnce(
         createToolUseResponse(baseClassificationInput),
       );
@@ -475,21 +517,22 @@ describe('classifyContent — entity extraction', () => {
       // that entity_mentions always reflects the CURRENT classifier
       // state, not an accumulation of prior filter-rule drafts.
       expect(mockSupabase._chain.delete).toHaveBeenCalled();
-      expect(mockSupabase._chain.upsert).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            content_item_id: ITEM_ID,
-            entity_type: 'certification',
-            entity_name: 'ISO27001',
-            canonical_name: 'iso 27001', // canonicalised + lowercased for case-insensitive index
-            confidence: 1.0,
-          }),
-        ]),
-        {
-          onConflict: 'canonical_name,entity_type,content_item_id',
-          ignoreDuplicates: false,
-        },
+      // Read the persisted entity_mentions rows back and assert the ISO 27001
+      // mention landed canonicalised + lowercased with full confidence.
+      expect(whereUpserted('entity_mentions')).toContainEqual(
+        expect.objectContaining({
+          content_item_id: ITEM_ID,
+          entity_type: 'certification',
+          entity_name: 'ISO27001',
+          canonical_name: 'iso 27001', // canonicalised + lowercased for case-insensitive index
+          confidence: 1.0,
+        }),
       );
+      // Conflict-resolution semantics: upsert-merge on the dedup key.
+      expect(upsertOptions('entity_mentions')).toEqual({
+        onConflict: 'canonical_name,entity_type,content_item_id',
+        ignoreDuplicates: false,
+      });
     });
 
     it('stores entity relationships via insert when relationships are present', async () => {
@@ -511,16 +554,19 @@ describe('classifyContent — entity extraction', () => {
       // Verify entity_relationships upsert was called (S183 WP1 G1
       // switched from insert to upsert with ignoreDuplicates: true).
       expect(mockSupabase.from).toHaveBeenCalledWith('entity_relationships');
-      expect(mockSupabase._chain.upsert).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            source_entity: 'acme limited', // canonicalised + lowercased
-            relationship_type: 'holds',
-            target_entity: 'iso 27001', // canonicalised + lowercased
-            source_item_id: ITEM_ID,
-            confidence: 1.0,
-          }),
-        ]),
+      // Read the persisted entity_relationships rows back: the holds edge
+      // landed canonicalised + lowercased with full confidence.
+      expect(whereUpserted('entity_relationships')).toContainEqual(
+        expect.objectContaining({
+          source_entity: 'acme limited', // canonicalised + lowercased
+          relationship_type: 'holds',
+          target_entity: 'iso 27001', // canonicalised + lowercased
+          source_item_id: ITEM_ID,
+          confidence: 1.0,
+        }),
+      );
+      // S183 WP1 G1 — insert switched to upsert; dedup ignores duplicates.
+      expect(upsertOptions('entity_relationships')).toEqual(
         expect.objectContaining({
           onConflict:
             'source_entity,relationship_type,target_entity,source_item_id',
@@ -663,7 +709,7 @@ describe('classifyContent — entity extraction', () => {
       expect(fromCalls).not.toContain('entity_relationships');
     });
 
-    it('applies canonicalise() to entity canonical_name values', async () => {
+    it('persists entity canonical_name values canonicalised and lowercased', async () => {
       const entitiesWithRawNames: ExtractedEntity[] = [
         { name: 'ISO27001', type: 'certification', canonical_name: 'ISO27001' },
         {
@@ -687,16 +733,16 @@ describe('classifyContent — entity extraction', () => {
         userId: USER_ID,
       });
 
-      expect(mockSupabase._chain.upsert).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({ canonical_name: 'iso 27001' }), // lowercased for case-insensitive index
-          expect.objectContaining({ canonical_name: 'cyber essentials' }), // lowercased for case-insensitive index
-        ]),
-        expect.anything(),
+      const persisted = whereUpserted('entity_mentions');
+      expect(persisted).toContainEqual(
+        expect.objectContaining({ canonical_name: 'iso 27001' }), // lowercased for case-insensitive index
+      );
+      expect(persisted).toContainEqual(
+        expect.objectContaining({ canonical_name: 'cyber essentials' }), // lowercased for case-insensitive index
       );
     });
 
-    it('applies canonicalise() to relationship source and target values', async () => {
+    it('persists relationship source and target values canonicalised and lowercased', async () => {
       const rawRelationships: ExtractedRelationship[] = [
         { source: 'Acme Ltd', relationship: 'holds', target: 'ISO27001' },
       ];
@@ -717,13 +763,13 @@ describe('classifyContent — entity extraction', () => {
       });
 
       // S183 WP1 G1 — insert switched to upsert with ignoreDuplicates.
-      expect(mockSupabase._chain.upsert).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            source_entity: 'acme limited', // canonicalised + lowercased
-            target_entity: 'iso 27001', // canonicalised + lowercased
-          }),
-        ]),
+      expect(whereUpserted('entity_relationships')).toContainEqual(
+        expect.objectContaining({
+          source_entity: 'acme limited', // canonicalised + lowercased
+          target_entity: 'iso 27001', // canonicalised + lowercased
+        }),
+      );
+      expect(upsertOptions('entity_relationships')).toEqual(
         expect.objectContaining({
           onConflict:
             'source_entity,relationship_type,target_entity,source_item_id',
@@ -773,14 +819,11 @@ describe('classifyContent — entity extraction', () => {
           userId: USER_ID,
         });
 
-        expect(mockSupabase._chain.upsert).toHaveBeenCalledWith(
-          expect.arrayContaining([
-            expect.objectContaining({
-              canonical_name: expectedCanonical,
-              entity_type: 'certification',
-            }),
-          ]),
-          expect.anything(),
+        expect(whereUpserted('entity_mentions')).toContainEqual(
+          expect.objectContaining({
+            canonical_name: expectedCanonical,
+            entity_type: 'certification',
+          }),
         );
       },
     );
@@ -808,14 +851,11 @@ describe('classifyContent — entity extraction', () => {
         userId: USER_ID,
       });
 
-      expect(mockSupabase._chain.upsert).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            canonical_name: 'iso 27001',
-            entity_type: 'certification',
-          }),
-        ]),
-        expect.anything(),
+      expect(whereUpserted('entity_mentions')).toContainEqual(
+        expect.objectContaining({
+          canonical_name: 'iso 27001',
+          entity_type: 'certification',
+        }),
       );
     });
 
@@ -842,14 +882,11 @@ describe('classifyContent — entity extraction', () => {
         userId: USER_ID,
       });
 
-      expect(mockSupabase._chain.upsert).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            canonical_name: 'iso 13485',
-            entity_type: 'standard', // NOT overridden
-          }),
-        ]),
-        expect.anything(),
+      expect(whereUpserted('entity_mentions')).toContainEqual(
+        expect.objectContaining({
+          canonical_name: 'iso 13485',
+          entity_type: 'standard', // NOT overridden
+        }),
       );
     });
 
@@ -872,14 +909,11 @@ describe('classifyContent — entity extraction', () => {
         userId: USER_ID,
       });
 
-      expect(mockSupabase._chain.upsert).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            canonical_name: 'crest',
-            entity_type: 'organisation', // NOT overridden
-          }),
-        ]),
-        expect.anything(),
+      expect(whereUpserted('entity_mentions')).toContainEqual(
+        expect.objectContaining({
+          canonical_name: 'crest',
+          entity_type: 'organisation', // NOT overridden
+        }),
       );
     });
   });

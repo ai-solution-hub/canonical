@@ -311,8 +311,20 @@ describe('POST /api/admin/content-dedup/[id]/supersede', () => {
         `/api/admin/content-dedup/${SUBJECT_ID}/supersede`,
         { method: 'POST', body: { canonicalId: CANONICAL_ID } },
       );
-      await POST(request, { params: createTestParams({ id: SUBJECT_ID }) });
+      const response = await POST(request, {
+        params: createTestParams({ id: SUBJECT_ID }),
+      });
 
+      // Observable outcome: the supersession succeeds (200) and reports the
+      // subject as retired. Without this the audit-row assertion below could
+      // pass on a 500 error path.
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.retiredId).toBe(SUBJECT_ID);
+      expect(body.retiredDedupStatus).toBe('superseded');
+
+      // Persisted audit row (content_history snapshot): version bumps to 3,
+      // recorded as a merge with the new direction/peer metadata.
       expect(mockSupabase._chain.insert).toHaveBeenCalledWith(
         expect.objectContaining({
           content_item_id: SUBJECT_ID,

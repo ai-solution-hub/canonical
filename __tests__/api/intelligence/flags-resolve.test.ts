@@ -277,7 +277,12 @@ describe('POST /api/intelligence/workspaces/:id/flags/resolve', () => {
     // warnings field omitted when empty (canonical warningsEnvelope contract)
     expect(body.warnings).toBeUndefined();
 
-    // Verify update payload sets the required columns.
+    // Persistence contract: the bulk update reads back only .select('id') to
+    // count resolved rows — resolved/resolution_type/resolved_by are NEVER
+    // surfaced in the response (which carries only resolved_count/
+    // requested_count). This update-payload assert is the only proof the
+    // resolution persists the flag as resolved, stamps the dismissal type, and
+    // records the acting user.
     expect(mockSupabase._chain.update).toHaveBeenCalledWith(
       expect.objectContaining({
         resolved: true,
@@ -376,6 +381,10 @@ describe('POST /api/intelligence/workspaces/:id/flags/resolve', () => {
     expect(body.requested_count).toBe(2);
     expect(body.warnings).toBeUndefined();
 
+    // Persistence contract: update reads back only .select('id'). This assert
+    // is the only proof the 'addressed' resolution persists the supplied
+    // prompt_version_id (traceability link) and resolved_notes alongside the
+    // resolution type — none of which appear in the response body.
     expect(mockSupabase._chain.update).toHaveBeenCalledWith(
       expect.objectContaining({
         resolved: true,

@@ -310,6 +310,13 @@ describe('POST /api/governance', () => {
     expect(json.success).toBe(true);
     expect(json.action).toBe('created');
 
+    // Persistence contract: POST /api/governance is a VOID insert — the route
+    // returns only { success, action } and reads NOTHING back from the DB. The
+    // preset-expanded columns (posture/timeout/threshold/flags) and the
+    // server-set created_by/updated_by are NEVER surfaced in the response, so
+    // this insert-payload assert is the ONLY proof they are persisted. The
+    // preset-derived values are the load-bearing behaviour: light_touch must
+    // expand to posture=open, threshold=40, flags off.
     expect(mockSupabase._chain.insert).toHaveBeenCalledWith(
       expect.objectContaining({
         domain: 'New Domain',
@@ -350,6 +357,10 @@ describe('POST /api/governance', () => {
     expect(json.success).toBe(true);
     expect(json.action).toBe('created');
 
+    // Persistence contract: VOID insert, nothing read back (see light_touch
+    // test). This assert is the only proof the strict preset expands to its
+    // stricter values — posture=review_on_change, threshold=60, 7-day timeout,
+    // all auto-flags on — and stamps created_by/updated_by server-side.
     expect(mockSupabase._chain.insert).toHaveBeenCalledWith(
       expect.objectContaining({
         domain: 'Sensitive Domain',
@@ -390,6 +401,10 @@ describe('POST /api/governance', () => {
     expect(json.success).toBe(true);
     expect(json.action).toBe('updated');
 
+    // Persistence contract: VOID update on the existing-domain branch. The
+    // response carries only action='updated' (which echoes the branch taken,
+    // not the written values), so this update-payload assert is the only proof
+    // the strict preset re-expansion and server-set updated_by are persisted.
     expect(mockSupabase._chain.update).toHaveBeenCalledWith(
       expect.objectContaining({
         preset: 'strict',
@@ -673,9 +688,16 @@ describe('POST /api/governance/review', () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.success).toBe(true);
+    // action/item_id echo the REQUEST input — not a read-back, so they prove
+    // routing only, not persistence.
     expect(json.action).toBe('approve');
     expect(json.item_id).toBe(VALID_UUID);
 
+    // Persistence contract: the update reads back only .select('id') — the
+    // status transition, reviewer stamp and cleared due-date are NEVER
+    // surfaced in the response. This update-payload assert is the only proof
+    // that approving flips the row to status=approved, stamps the reviewer,
+    // and clears the review-due date.
     expect(mockSupabase._chain.update).toHaveBeenCalledWith(
       expect.objectContaining({
         governance_review_status: 'approved',
@@ -730,6 +752,9 @@ describe('POST /api/governance/review', () => {
     expect(json.success).toBe(true);
     expect(json.action).toBe('request_changes');
 
+    // Persistence contract: update reads back only .select('id'). This assert
+    // is the only proof request_changes persists status=changes_requested and
+    // stamps the reviewer.
     expect(mockSupabase._chain.update).toHaveBeenCalledWith(
       expect.objectContaining({
         governance_review_status: 'changes_requested',
@@ -779,6 +804,9 @@ describe('POST /api/governance/review', () => {
     expect(json.success).toBe(true);
     expect(json.action).toBe('revert');
 
+    // Persistence contract: update reads back only .select('id'). This assert
+    // is the only proof revert persists status=reverted, stamps the reviewer,
+    // and clears the review-due date.
     expect(mockSupabase._chain.update).toHaveBeenCalledWith(
       expect.objectContaining({
         governance_review_status: 'reverted',
@@ -872,6 +900,9 @@ describe('POST /api/governance/review', () => {
     expect(json.success).toBe(true);
     expect(json.action).toBe('approve');
 
+    // Persistence contract: update reads back only .select('id'). This assert
+    // is the only proof an item entering from review_overdue still persists
+    // the approved transition (guard-widening regression coverage).
     expect(mockSupabase._chain.update).toHaveBeenCalledWith(
       expect.objectContaining({
         governance_review_status: 'approved',
@@ -970,6 +1001,10 @@ describe('POST /api/governance/review', () => {
       const res = await postReview(req);
 
       expect(res.status).toBe(200);
+      // Persistence contract: next_review_date is computed server-side and
+      // read back only as .select('id') — never surfaced in the response. This
+      // update-payload assert is the only proof the renewal advances the date
+      // to today + cadence (GREATEST(past, today) = today = 2026-04-15 + 180d).
       expect(mockSupabase._chain.update).toHaveBeenCalledWith(
         expect.objectContaining({
           governance_review_status: 'approved',
@@ -1014,6 +1049,10 @@ describe('POST /api/governance/review', () => {
       const res = await postReview(req);
 
       expect(res.status).toBe(200);
+      // Persistence contract: next_review_date is read back only as
+      // .select('id'). This assert is the only proof GREATEST picks the future
+      // date (2027-12-31 + 180d = 2028-06-28) when next_review_date is ahead
+      // of today.
       expect(mockSupabase._chain.update).toHaveBeenCalledWith(
         expect.objectContaining({
           governance_review_status: 'approved',

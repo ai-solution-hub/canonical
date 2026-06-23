@@ -452,8 +452,14 @@ describe('POST /api/admin/taxonomy-sync/callback', () => {
 
       const res = await POST(req);
 
+      // Observable outcome: the callback acknowledges the failed run (200
+      // { ok: true }) so the workflow's HTTP call resolves.
       expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toEqual({ ok: true });
 
+      // Persisted mutation: pipeline_runs row marked failed with the verbatim
+      // error message from the workflow payload.
       expect(mockSupabase._chain.update).toHaveBeenCalledWith(
         expect.objectContaining({
           status: 'failed',

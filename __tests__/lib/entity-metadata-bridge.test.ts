@@ -96,13 +96,26 @@ describe('bridgeTemporalReferencesToEntities', () => {
     });
   }
 
+  /**
+   * Models an `entity_mentions` UPDATE that persists the row, then lets the
+   * test read the persisted metadata back. `update(payload)` records the
+   * written `metadata` into `persisted`; `readBack()` returns the row state
+   * the next reader would observe — so assertions check the persisted-then-
+   * read-back state, not merely that the mock was invoked.
+   */
   function setupUpdateCall() {
+    let persisted: Record<string, unknown> | null = null;
     const updateChain = {
-      update: vi.fn().mockReturnThis(),
+      update: vi.fn((payload: { metadata: Record<string, unknown> }) => {
+        persisted = payload.metadata;
+        return updateChain;
+      }),
       eq: vi.fn().mockReturnThis(),
       then: vi.fn((resolve: (v: unknown) => void) =>
         resolve({ data: null, error: null }),
       ),
+      /** The metadata persisted to the row, as a follow-up read would see it. */
+      readBack: () => persisted,
     };
     mockClient.from.mockImplementationOnce(() => updateChain);
     return updateChain;
@@ -143,9 +156,7 @@ describe('bridgeTemporalReferencesToEntities', () => {
       contentItemId,
     );
 
-    expect(updateChain.update).toHaveBeenCalledWith({
-      metadata: expect.objectContaining({ expiry_date: '2025-06-30' }),
-    });
+    expect(updateChain.readBack()).toMatchObject({ expiry_date: '2025-06-30' });
   });
 
   it('T1.2: bridges multiple certifications with distinct dates', async () => {
@@ -202,12 +213,8 @@ describe('bridgeTemporalReferencesToEntities', () => {
       contentItemId,
     );
 
-    expect(update1.update).toHaveBeenCalledWith({
-      metadata: expect.objectContaining({ expiry_date: '2025-06-30' }),
-    });
-    expect(update2.update).toHaveBeenCalledWith({
-      metadata: expect.objectContaining({ expiry_date: '2025-12-01' }),
-    });
+    expect(update1.readBack()).toMatchObject({ expiry_date: '2025-06-30' });
+    expect(update2.readBack()).toMatchObject({ expiry_date: '2025-12-01' });
   });
 
   it('T1.3: bridges effective date alongside expiry date', async () => {
@@ -256,11 +263,9 @@ describe('bridgeTemporalReferencesToEntities', () => {
       contentItemId,
     );
 
-    expect(updateChain.update).toHaveBeenCalledWith({
-      metadata: expect.objectContaining({
-        date_obtained: '2024-01-15',
-        expiry_date: '2025-06-30',
-      }),
+    expect(updateChain.readBack()).toMatchObject({
+      date_obtained: '2024-01-15',
+      expiry_date: '2025-06-30',
     });
   });
 
@@ -302,12 +307,10 @@ describe('bridgeTemporalReferencesToEntities', () => {
       contentItemId,
     );
 
-    expect(updateChain.update).toHaveBeenCalledWith({
-      metadata: expect.objectContaining({
-        manual_note: 'Reviewed by compliance team',
-        scope: 'UK operations',
-        expiry_date: '2025-06-30',
-      }),
+    expect(updateChain.readBack()).toMatchObject({
+      manual_note: 'Reviewed by compliance team',
+      scope: 'UK operations',
+      expiry_date: '2025-06-30',
     });
   });
 
@@ -406,11 +409,9 @@ describe('bridgeTemporalReferencesToEntities', () => {
       expect.arrayContaining([expect.objectContaining({ date: '2024-01-15' })]),
     );
 
-    expect(updateChain.update).toHaveBeenCalledWith({
-      metadata: expect.objectContaining({
-        expiry_date: '2025-06-30',
-        date_obtained: '2024-01-15',
-      }),
+    expect(updateChain.readBack()).toMatchObject({
+      expiry_date: '2025-06-30',
+      date_obtained: '2024-01-15',
     });
   });
 
@@ -497,9 +498,7 @@ describe('bridgeTemporalReferencesToEntities', () => {
       contentItemId,
     );
 
-    expect(updateChain.update).toHaveBeenCalledWith({
-      metadata: expect.objectContaining({ expiry_date: '2025-06-30' }),
-    });
+    expect(updateChain.readBack()).toMatchObject({ expiry_date: '2025-06-30' });
   });
 
   it('T1.10: token matching — partial name match with short entity name', async () => {
@@ -539,9 +538,7 @@ describe('bridgeTemporalReferencesToEntities', () => {
     );
 
     // Should match with 50% coverage (1 of 2 tokens) and confidence 0.6
-    expect(updateChain.update).toHaveBeenCalledWith({
-      metadata: expect.objectContaining({ expiry_date: '2025-12-01' }),
-    });
+    expect(updateChain.readBack()).toMatchObject({ expiry_date: '2025-12-01' });
   });
 
   // --- Phase 4: Duration-to-date computation tests ---
@@ -593,11 +590,9 @@ describe('bridgeTemporalReferencesToEntities', () => {
       contentItemId,
     );
 
-    expect(updateChain.update).toHaveBeenCalledWith({
-      metadata: expect.objectContaining({
-        date_obtained: '2024-06-15',
-        expiry_date: '2027-06-15',
-      }),
+    expect(updateChain.readBack()).toMatchObject({
+      date_obtained: '2024-06-15',
+      expiry_date: '2027-06-15',
     });
   });
 
@@ -640,9 +635,7 @@ describe('bridgeTemporalReferencesToEntities', () => {
     // Duration cannot be resolved to a calendar date without date_obtained,
     // but renewal_period is stored as useful lifecycle metadata
     expect(mockClient.from).toHaveBeenCalledTimes(3);
-    expect(updateChain.update).toHaveBeenCalledWith({
-      metadata: expect.objectContaining({ renewal_period: 'P3Y' }),
-    });
+    expect(updateChain.readBack()).toMatchObject({ renewal_period: 'P3Y' });
     // expiry_date should NOT be set since no date_obtained was available
     expect(updateChain.update).not.toHaveBeenCalledWith(
       expect.objectContaining({
@@ -699,11 +692,9 @@ describe('bridgeTemporalReferencesToEntities', () => {
     );
 
     // Bridge should sort effective before expiry, so date_obtained is set before P3Y is computed
-    expect(updateChain.update).toHaveBeenCalledWith({
-      metadata: expect.objectContaining({
-        date_obtained: '2024-06-15',
-        expiry_date: '2027-06-15',
-      }),
+    expect(updateChain.readBack()).toMatchObject({
+      date_obtained: '2024-06-15',
+      expiry_date: '2027-06-15',
     });
   });
 
@@ -743,11 +734,9 @@ describe('bridgeTemporalReferencesToEntities', () => {
       contentItemId,
     );
 
-    expect(updateChain.update).toHaveBeenCalledWith({
-      metadata: expect.objectContaining({
-        date_obtained: '2023-01-01',
-        expiry_date: '2026-01-01',
-      }),
+    expect(updateChain.readBack()).toMatchObject({
+      date_obtained: '2023-01-01',
+      expiry_date: '2026-01-01',
     });
   });
 });

@@ -10,10 +10,31 @@ import type { Database } from '@/supabase/types/database.types';
 describe('bridgeTemporalReferencesToEntities', () => {
   let mockSupabase: ReturnType<typeof createMockSupabaseClient>;
   const contentItemId = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
+  /** Captures the metadata persisted to entity_mentions by the last UPDATE. */
+  let persistedMetadata: Record<string, unknown> | null;
+
+  /**
+   * The entity_mentions row state a follow-up read would observe after the
+   * bridge has run — i.e. the persisted metadata. Null when no UPDATE fired.
+   */
+  function readBackMentionMetadata(): Record<string, unknown> | null {
+    return persistedMetadata;
+  }
 
   beforeEach(() => {
     mockSupabase = createMockSupabaseClient();
     vi.clearAllMocks();
+    persistedMetadata = null;
+    // Record what the bridge persists so tests can read the row back rather
+    // than only asserting that the update mock was invoked.
+    mockSupabase._chain.update.mockImplementation(
+      (payload: { metadata?: Record<string, unknown> }) => {
+        if (payload && 'metadata' in payload) {
+          persistedMetadata = payload.metadata ?? null;
+        }
+        return mockSupabase._chain;
+      },
+    );
   });
 
   function setupContentItem(temporalRefs: unknown[]) {
@@ -60,13 +81,11 @@ describe('bridgeTemporalReferencesToEntities', () => {
       contentItemId,
     );
 
-    // Verify update was called with metadata containing expiry_date
+    // Verify the persisted entity_mentions row carries expiry_date
     expect(mockSupabase.from).toHaveBeenCalledWith('entity_mentions');
-    expect(mockSupabase._chain.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        metadata: expect.objectContaining({ expiry_date: '2027-03-01' }),
-      }),
-    );
+    expect(readBackMentionMetadata()).toMatchObject({
+      expiry_date: '2027-03-01',
+    });
   });
 
   it('should fall back to token matching when related_entity is absent', async () => {
@@ -93,12 +112,10 @@ describe('bridgeTemporalReferencesToEntities', () => {
       contentItemId,
     );
 
-    // Should still match via token matching and call update
-    expect(mockSupabase._chain.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        metadata: expect.objectContaining({ expiry_date: '2027-03-01' }),
-      }),
-    );
+    // Should still match via token matching and persist expiry_date
+    expect(readBackMentionMetadata()).toMatchObject({
+      expiry_date: '2027-03-01',
+    });
   });
 
   it('should handle case-insensitive related_entity matching', async () => {
@@ -125,11 +142,9 @@ describe('bridgeTemporalReferencesToEntities', () => {
       contentItemId,
     );
 
-    expect(mockSupabase._chain.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        metadata: expect.objectContaining({ date_obtained: '2026-06-15' }),
-      }),
-    );
+    expect(readBackMentionMetadata()).toMatchObject({
+      date_obtained: '2026-06-15',
+    });
   });
 
   it('should not bridge when related_entity does not match any entity', async () => {
@@ -216,11 +231,7 @@ describe('bridgeTemporalReferencesToEntities', () => {
 
     // "Annual renewal cycle" contains "renewal" keyword so inferred as expiry,
     // but since there is no date_obtained, it stores as renewal_period
-    expect(mockSupabase._chain.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        metadata: expect.objectContaining({ renewal_period: 'P1Y' }),
-      }),
-    );
+    expect(readBackMentionMetadata()).toMatchObject({ renewal_period: 'P1Y' });
   });
 
   it('should infer expiry from context keywords when context_type is unknown', async () => {
@@ -247,11 +258,9 @@ describe('bridgeTemporalReferencesToEntities', () => {
       contentItemId,
     );
 
-    expect(mockSupabase._chain.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        metadata: expect.objectContaining({ expiry_date: '2027-06-15' }),
-      }),
-    );
+    expect(readBackMentionMetadata()).toMatchObject({
+      expiry_date: '2027-06-15',
+    });
   });
 
   it('should infer effective from context keywords when context_type is unknown', async () => {
@@ -278,11 +287,9 @@ describe('bridgeTemporalReferencesToEntities', () => {
       contentItemId,
     );
 
-    expect(mockSupabase._chain.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        metadata: expect.objectContaining({ date_obtained: '2024-03-15' }),
-      }),
-    );
+    expect(readBackMentionMetadata()).toMatchObject({
+      date_obtained: '2024-03-15',
+    });
   });
 
   it('should handle historical context_type with keyword inference', async () => {
@@ -309,11 +316,9 @@ describe('bridgeTemporalReferencesToEntities', () => {
       contentItemId,
     );
 
-    expect(mockSupabase._chain.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        metadata: expect.objectContaining({ date_obtained: '2023-01-10' }),
-      }),
-    );
+    expect(readBackMentionMetadata()).toMatchObject({
+      date_obtained: '2023-01-10',
+    });
   });
 
   it('should store renewal_period for duration with ambiguous unknown context', async () => {
@@ -341,11 +346,9 @@ describe('bridgeTemporalReferencesToEntities', () => {
     );
 
     // No expiry or effective keywords, so falls through to duration storage
-    expect(mockSupabase._chain.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        metadata: expect.objectContaining({ renewal_period: 'PT72H' }),
-      }),
-    );
+    expect(readBackMentionMetadata()).toMatchObject({
+      renewal_period: 'PT72H',
+    });
   });
 });
 

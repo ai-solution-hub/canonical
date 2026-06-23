@@ -522,14 +522,24 @@ describe('Intelligence Workspaces API', () => {
 
         expect(response.status).toBe(200);
         // S245 WP2a API contract: typed top-level fields (preserved post-T2).
+        // NOTE on the read-back: body.relevance_threshold is read back from the
+        // post-update .single() refetch, but that refetch is a STATIC mock
+        // hardcoded to 0.7 regardless of what the route actually wrote. So
+        // body.relevance_threshold proves the satellite JOIN is projected to a
+        // typed top-level field — it does NOT prove the WRITE used the right
+        // value or hit the right column. The update assert below is what makes
+        // the write-path load-bearing.
         expect(body.relevance_threshold).toBe(0.7);
         // Confirms the satellite-projected fields are surfaced typed-top-level.
         expect(body.company_profile_id).toBe(PROFILE_UUID);
         expect(body.guide_id).toBe('guide-123');
 
-        // Post-T2 the DB write targets the satellite's typed column directly
-        // (no JSONB merge). The route issues a single-field UPDATE on
-        // `intelligence_workspaces`.
+        // Persistence/write contract: because the refetch is a static mock,
+        // this is the ONLY assert proving the route wrote relevance_threshold
+        // (and not some other value) to the typed `intelligence_workspaces`
+        // satellite column directly (no JSONB merge post-T2). Do NOT delete
+        // it on the basis that the value is "read back" — the static refetch
+        // decouples the response from the write.
         expect(mockSupabase._chain.update).toHaveBeenCalledWith({
           relevance_threshold: 0.7,
         });
@@ -648,8 +658,12 @@ describe('Intelligence Workspaces API', () => {
         // S245 WP2a API contract: typed top-level field (preserved post-T2).
         expect(body.relevance_threshold).toBe(0.65);
         expect(body.company_profile_id).toBe(PROFILE_UUID);
-        // Post-T2: TWO separate UPDATE calls — one on `workspaces` for direct
-        // fields, one on `intelligence_workspaces` for the satellite column.
+        // Persistence/write contract: the refetch is a static mock, so these
+        // update asserts are the only proof the route splits the change into
+        // TWO separate UPDATEs — the direct `name` field on `workspaces` and
+        // the typed `relevance_threshold` column on `intelligence_workspaces` —
+        // with the correct value on each. Read-back is decoupled from the
+        // write; keep both asserts.
         const updateCalls = mockSupabase._chain.update.mock.calls.map(
           (call) => call[0],
         );
@@ -691,7 +705,11 @@ describe('Intelligence Workspaces API', () => {
         const response = await detailPATCH(request, { params });
 
         expect(response.status).toBe(200);
-        // Post-T2 the DB write targets the typed satellite column directly.
+        // Persistence/write contract: the post-update refetch is a static mock
+        // (relevance_threshold: 0.4 hardcoded), so this update assert is the
+        // only proof the route wrote 0.4 to the typed satellite column even
+        // when the prior satellite row carried no context. Read-back is
+        // decoupled from the write — keep this assert.
         expect(mockSupabase._chain.update).toHaveBeenCalledWith({
           relevance_threshold: 0.4,
         });

@@ -617,13 +617,10 @@ describe('PATCH /api/bids/:id/responses/:rId', () => {
 
     expect(res.status).toBe(200);
 
-    // Verify approved_by was set in the update call
-    expect(mockSupabase._chain.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        approved_by: 'test-user-id',
-        last_edited_by: 'test-user-id',
-      }),
-    );
+    // Approving stamps the approver and last editor onto the returned response.
+    const json = await res.json();
+    expect(json.approved_by).toBe('test-user-id');
+    expect(json.last_edited_by).toBe('test-user-id');
   });
 
   it('returns 500 when update fails', async () => {
@@ -660,7 +657,7 @@ describe('PATCH /api/bids/:id/responses/:rId', () => {
     expect(json.error).toBe('Failed to update response');
   });
 
-  it('calls rpc to set change_reason when provided', async () => {
+  it('records the supplied change_reason on the audited update', async () => {
     configureRole(mockSupabase, 'editor');
 
     // Response found
