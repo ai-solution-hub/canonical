@@ -40,28 +40,26 @@ import { resolve } from 'path';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 import { DB_OPTION } from '@/lib/supabase/schema';
+import { findProjectRoot } from '@/__tests__/integration/helpers/find-project-root';
 
 // ---------------------------------------------------------------------------
 // Environment bootstrap
 // ---------------------------------------------------------------------------
 // Walk up from cwd to find project root (same pattern as helpers/service-client.ts).
-function findProjectRoot(): string {
-  let dir = process.cwd();
-  for (let i = 0; i < 5; i++) {
-    try {
-      const result = config({ path: resolve(dir, '.env') });
-      if (!result.error) return dir;
-    } catch {
-      /* continue */
-    }
-    dir = resolve(dir, '..');
-  }
-  return process.cwd();
+// bl-356: shared fail-loud helper replaces the inline findProjectRoot copy that
+// silently returned process.cwd() on miss (the bl-292 .env-only bug). In CI the
+// env vars are injected directly (no .env on disk) so the helper throws — fall
+// back to ambient process.env; the env guard below is the real config gate.
+let projectRoot: string | null = null;
+try {
+  projectRoot = findProjectRoot();
+} catch {
+  projectRoot = null;
 }
-
-const projectRoot = findProjectRoot();
-config({ path: resolve(projectRoot, '.env') });
-config({ path: resolve(projectRoot, '.env.local'), override: true });
+if (projectRoot) {
+  config({ path: resolve(projectRoot, '.env') });
+  config({ path: resolve(projectRoot, '.env.local'), override: true });
+}
 
 // ---------------------------------------------------------------------------
 // KH_RUN_INTEGRATION gate
@@ -354,7 +352,7 @@ describe.skipIf(!RUN_INTEGRATION)(
       const { data, error } = await db.rpc('q_a_search', {
         p_query: queryText,
         p_query_embedding: JSON.stringify(queryEmbedding), // CLAUDE.md: must stringify
-        p_limit: 10,
+        p_limit: 50, // bl-75 nit2: headroom so the seeded pairs appear despite staging accumulation
       });
 
       expect(error, `q_a_search RPC failed: ${error?.message}`).toBeNull();
@@ -363,8 +361,8 @@ describe.skipIf(!RUN_INTEGRATION)(
 
       // At least one result returned (pair2 must appear).
       expect(data!.length).toBeGreaterThanOrEqual(1);
-      // Limit is respected — should not exceed p_limit.
-      expect(data!.length).toBeLessThanOrEqual(10);
+      // Limit is respected — should not exceed p_limit (bl-75 nit2: raised to 50).
+      expect(data!.length).toBeLessThanOrEqual(50);
 
       // Each row has BOTH separate score columns (N9 RESOLVED-S236).
       for (const row of data!) {
@@ -437,18 +435,28 @@ describe.skipIf(!RUN_INTEGRATION)(
       const pair1Index = returnedPairIds.indexOf(pair1Id);
       const pair3Index = returnedPairIds.indexOf(pair3Id);
 
-      if (pair1Index !== -1) {
-        expect(
-          pair2Index,
-          'pair #2 must rank higher (lower index) than pair #1',
-        ).toBeLessThan(pair1Index);
-      }
-      if (pair3Index !== -1) {
-        expect(
-          pair2Index,
-          'pair #2 must rank higher (lower index) than pair #3',
-        ).toBeLessThan(pair3Index);
-      }
+      // bl-75 nit2: assert the seeded published pairs are PRESENT, rather than
+      // silently skipping the rank check when they fall outside the result window
+      // (the conditional-false-pass antipattern — §2.1, bl-113 class). All three
+      // are seeded `published` with query-aligned synthetic embeddings, so with
+      // p_limit=50 they must appear; a miss is a real signal (e.g. staging
+      // accumulation), not something to swallow.
+      expect(
+        returnedPairIds,
+        'pair #1 (seeded published) must appear within p_limit=50 results',
+      ).toContain(pair1Id);
+      expect(
+        returnedPairIds,
+        'pair #3 (seeded published) must appear within p_limit=50 results',
+      ).toContain(pair3Id);
+      expect(
+        pair2Index,
+        'pair #2 must rank higher (lower index) than pair #1',
+      ).toBeLessThan(pair1Index);
+      expect(
+        pair2Index,
+        'pair #2 must rank higher (lower index) than pair #3',
+      ).toBeLessThan(pair3Index);
 
       // Verify these pair IDs are NOT from old test data — confirm they
       // were seeded by this test (they're in seededPairIds).
@@ -529,6 +537,30 @@ describe.skipIf(!RUN_INTEGRATION)(
       // Timestamp columns are present.
       expect(publishedRow.created_at).toBeDefined();
       expect(publishedRow.updated_at).toBeDefined();
+
+      // bl-75 nit3: assert PRESENCE (not value) of the nullable columns the
+      // q_a_get_verbatim RETURNS-TABLE surfaces (squash-baseline migration), so a
+      // future column drop is caught as schema drift. Values may be null.
+      expect(
+        'answer_advanced' in publishedRow,
+        'answer_advanced column must be present in q_a_get_verbatim shape',
+      ).toBe(true);
+      expect(
+        'superseded_by' in publishedRow,
+        'superseded_by column must be present in q_a_get_verbatim shape',
+      ).toBe(true);
+      expect(
+        'source_workspace_id' in publishedRow,
+        'source_workspace_id column must be present in q_a_get_verbatim shape',
+      ).toBe(true);
+      expect(
+        'valid_from' in publishedRow,
+        'valid_from column must be present in q_a_get_verbatim shape',
+      ).toBe(true);
+      expect(
+        'valid_to' in publishedRow,
+        'valid_to column must be present in q_a_get_verbatim shape',
+      ).toBe(true);
 
       // --- Verbatim for draft pair (no publication_status filter) ---
       const { data: draftData, error: draftError } = await db.rpc(

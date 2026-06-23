@@ -53,27 +53,25 @@ import { resolve } from 'path';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 import { DB_OPTION } from '@/lib/supabase/schema';
+import { findProjectRoot } from '@/__tests__/integration/helpers/find-project-root';
 
 // ---------------------------------------------------------------------------
 // Environment bootstrap (same pattern as the sibling recompute test).
 // ---------------------------------------------------------------------------
-function findProjectRoot(): string {
-  let dir = process.cwd();
-  for (let i = 0; i < 5; i++) {
-    try {
-      const result = config({ path: resolve(dir, '.env') });
-      if (!result.error) return dir;
-    } catch {
-      /* continue */
-    }
-    dir = resolve(dir, '..');
-  }
-  return process.cwd();
+// bl-356: shared fail-loud helper replaces the inline findProjectRoot copy that
+// silently returned process.cwd() on miss (the bl-292 .env-only bug). In CI the
+// env vars are injected directly (no .env on disk) so the helper throws — fall
+// back to ambient process.env; the env guard below is the real config gate.
+let projectRoot: string | null = null;
+try {
+  projectRoot = findProjectRoot();
+} catch {
+  projectRoot = null;
 }
-
-const projectRoot = findProjectRoot();
-config({ path: resolve(projectRoot, '.env') });
-config({ path: resolve(projectRoot, '.env.local'), override: true });
+if (projectRoot) {
+  config({ path: resolve(projectRoot, '.env') });
+  config({ path: resolve(projectRoot, '.env.local'), override: true });
+}
 
 // ---------------------------------------------------------------------------
 // KH_RUN_INTEGRATION gate
