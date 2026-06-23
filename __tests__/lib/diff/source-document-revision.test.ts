@@ -279,7 +279,7 @@ describe('sourceDocumentRevisionToUnified — createdByLabel resolution', () => 
 // ---------------------------------------------------------------------------
 
 describe('sourceDocumentRevisionToUnified — binary field', () => {
-  it('sets binary.storagePath from storage_path', () => {
+  it('exposes binary.storagePath from storage_path', () => {
     const result = sourceDocumentRevisionToUnified(
       makeSourceDocRow({
         storage_path: 'docid-0000-0000-0000-000000000001/report.pdf',
@@ -292,7 +292,7 @@ describe('sourceDocumentRevisionToUnified — binary field', () => {
     );
   });
 
-  it('sets binary.mimeType from mime_type', () => {
+  it('exposes binary.mimeType from mime_type', () => {
     const result = sourceDocumentRevisionToUnified(
       makeSourceDocRow({
         mime_type:
@@ -306,7 +306,7 @@ describe('sourceDocumentRevisionToUnified — binary field', () => {
     );
   });
 
-  it('sets binary as undefined when storage_path is null', () => {
+  it('omits binary when storage_path is null', () => {
     // storage_path is typed non-null in the canonical Row, but the adapter
     // guards against null at runtime (the row arrives via maybeSingle, so
     // defensive null-handling is required). Cast to exercise that branch.
@@ -318,7 +318,7 @@ describe('sourceDocumentRevisionToUnified — binary field', () => {
     expect(result.binary).toBeUndefined();
   });
 
-  it('sets binary as undefined when mime_type is null', () => {
+  it('omits binary when mime_type is null', () => {
     // mime_type is typed non-null in the canonical Row; cast to test the
     // runtime guard path (defensive programming for real-world partial rows).
     const result = sourceDocumentRevisionToUnified(

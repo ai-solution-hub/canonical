@@ -117,7 +117,7 @@ describe('XlsxViewer', () => {
       expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
 
-    it('passes the correct URL to fetch', async () => {
+    it('fetches the spreadsheet from the correct URL', async () => {
       const url = 'https://storage.example.com/signed/data.xlsx';
       makeSuccessfulFetch();
       makeMockWorkbook(['Sheet1']);

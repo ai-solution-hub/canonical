@@ -106,7 +106,7 @@ describe('qaPairRevisionToUnified', () => {
     expect(result.createdAt).toBe('2026-05-01T08:00:00.000Z');
   });
 
-  it('uses the caller-supplied createdByLabel', () => {
+  it('labels the revision with the caller-supplied author', () => {
     const result = qaPairRevisionToUnified(
       makeQAHistoryRow(),
       'bbbbbbbb-0000-4000-8000-000000000002',

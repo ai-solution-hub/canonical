@@ -120,7 +120,7 @@ describe('contentItemRevisionToUnified', () => {
     expect(result.createdAt).toBe('2026-06-01T12:00:00.000Z');
   });
 
-  it('uses the caller-supplied createdByLabel', () => {
+  it('labels the revision with the caller-supplied author', () => {
     const result = contentItemRevisionToUnified(
       makeContentHistoryRow(),
       'aaaaaaaa-0000-4000-8000-000000000001',

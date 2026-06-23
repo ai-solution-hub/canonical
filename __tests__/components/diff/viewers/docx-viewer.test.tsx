@@ -100,7 +100,7 @@ describe('DocxViewer', () => {
       expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
 
-    it('passes the correct URL to fetch', async () => {
+    it('fetches the document from the correct URL', async () => {
       const url = 'https://storage.example.com/signed/document.docx';
       makeSuccessfulFetch();
       mockRenderAsync.mockResolvedValueOnce(undefined);

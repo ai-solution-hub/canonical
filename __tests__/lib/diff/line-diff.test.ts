@@ -129,7 +129,7 @@ describe('OP_CLASS — semantic token invariant (INV-13)', () => {
     }
   });
 
-  it('uses ONLY bg-status-* semantic tokens — no raw Tailwind colours', () => {
+  it('renders diff lines with bg-status-* semantic tokens, not raw Tailwind', () => {
     // Raw Tailwind colour classes look like bg-green-*/bg-red-*/text-green-* etc.
     const rawTailwindPattern =
       /\b(bg|text)-(red|green|blue|yellow|orange|purple|pink|gray|grey|slate|zinc|neutral|stone|amber|lime|emerald|teal|cyan|sky|violet|fuchsia|rose)-\d+/;
