@@ -6994,6 +6994,81 @@ export type Database = {
           },
         ]
       }
+      q_a_pair_dedup_proposals: {
+        Row: {
+          created_at: string
+          id: string
+          pair_a_fingerprint: string | null
+          pair_a_id: string
+          pair_a_source_form_response_id: string | null
+          pair_a_source_workspace_id: string | null
+          pair_b_fingerprint: string | null
+          pair_b_id: string
+          pair_b_source_form_response_id: string | null
+          pair_b_source_workspace_id: string | null
+          proposed_survivor_id: string
+          resolved_at: string | null
+          resolved_by: string | null
+          resolved_survivor_id: string | null
+          similarity_score: number
+          status: string
+          survivor_reason: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          pair_a_fingerprint?: string | null
+          pair_a_id: string
+          pair_a_source_form_response_id?: string | null
+          pair_a_source_workspace_id?: string | null
+          pair_b_fingerprint?: string | null
+          pair_b_id: string
+          pair_b_source_form_response_id?: string | null
+          pair_b_source_workspace_id?: string | null
+          proposed_survivor_id: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resolved_survivor_id?: string | null
+          similarity_score: number
+          status?: string
+          survivor_reason: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          pair_a_fingerprint?: string | null
+          pair_a_id?: string
+          pair_a_source_form_response_id?: string | null
+          pair_a_source_workspace_id?: string | null
+          pair_b_fingerprint?: string | null
+          pair_b_id?: string
+          pair_b_source_form_response_id?: string | null
+          pair_b_source_workspace_id?: string | null
+          proposed_survivor_id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resolved_survivor_id?: string | null
+          similarity_score?: number
+          status?: string
+          survivor_reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "q_a_pair_dedup_proposals_pair_a_id_fkey"
+            columns: ["pair_a_id"]
+            isOneToOne: false
+            referencedRelation: "q_a_pairs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "q_a_pair_dedup_proposals_pair_b_id_fkey"
+            columns: ["pair_b_id"]
+            isOneToOne: false
+            referencedRelation: "q_a_pairs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       q_a_pair_history: {
         Row: {
           alternate_question_phrasings: string[]
