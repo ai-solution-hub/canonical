@@ -5,46 +5,18 @@ import type {
   UrgentItem,
   TeamChange,
   RecentWorkItem,
-  ProcurementBriefing,
 } from '@/types/reorient';
-import { getDeadlineUrgency, getDaysUntilDeadline } from '@/lib/dashboard';
 import { fetchActiveProcurementWithStats } from '@/lib/procurement/procurement-queries';
 import { formatRelativeDate } from '@/lib/format';
 import { getUserDisplayName } from '@/lib/users/self-display-name';
-
-// ---------------------------------------------------------------------------
-// Change type mapping
-// ---------------------------------------------------------------------------
-
-function mapChangeTypeToAction(
-  changeType: string,
-): TeamChange['action'] | RecentWorkItem['action'] {
-  switch (changeType) {
-    case 'create':
-    case 'import':
-      return 'created';
-    case 'edit':
-    case 'ai_update':
-    case 'merge':
-      return 'updated';
-    case 'rollback':
-      return 'reviewed';
-    default:
-      return 'updated';
-  }
-}
-
-function dedupeRecentWorkByEntity(items: RecentWorkItem[]): RecentWorkItem[] {
-  const seen = new Set<string>();
-  const deduped: RecentWorkItem[] = [];
-  for (const item of items) {
-    const key = `${item.entity_type}:${item.entity_id}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    deduped.push(item);
-  }
-  return deduped;
-}
+import { dedupeRecentWorkByEntity } from '@/lib/activity/recent-work';
+import {
+  contentHistoryRowToTeamChange,
+  bidResponseRowToTeamChange,
+  contentHistoryRowToRecentWork,
+  bidResponseRowToRecentWork,
+} from '@/lib/activity/team-changes';
+import { buildBidSummary } from '@/lib/activity/bid-summary';
 
 // ---------------------------------------------------------------------------
 // Main data fetching function
@@ -204,22 +176,7 @@ export async function fetchReorientData(
       errors.push('team_changes query failed');
     } else if (data) {
       for (const row of data) {
-        const ci = row.content_items as unknown as {
-          title: string;
-          primary_domain: string;
-        } | null;
-        team_changes.push({
-          user_id: row.created_by ?? '',
-          user_name: null, // Resolved client-side via useDisplayNames
-          action: mapChangeTypeToAction(
-            row.change_type ?? 'edit',
-          ) as TeamChange['action'],
-          entity_type: 'content_item',
-          entity_id: row.content_item_id ?? '',
-          entity_title: ci?.title ?? 'Untitled',
-          domain: ci?.primary_domain ?? undefined,
-          created_at: row.created_at,
-        });
+        team_changes.push(contentHistoryRowToTeamChange(row));
       }
     }
   } else {
@@ -233,26 +190,7 @@ export async function fetchReorientData(
       errors.push('bid_response team_changes query failed');
     } else if (data) {
       for (const row of data) {
-        const br = row.form_responses as unknown as {
-          question_id: string;
-          form_questions: {
-            workspace_id: string;
-            workspaces: { name: string };
-          };
-        } | null;
-        team_changes.push({
-          user_id: row.edited_by ?? '',
-          user_name: null,
-          action: 'updated',
-          entity_type: 'bid_response',
-          entity_id: row.response_id,
-          entity_title:
-            br?.form_questions?.workspaces?.name ?? 'Untitled Procurement',
-          domain: undefined,
-          created_at: row.created_at,
-          workspace_id: br?.form_questions?.workspace_id,
-          question_id: br?.question_id,
-        });
+        team_changes.push(bidResponseRowToTeamChange(row));
       }
     }
   } else {
@@ -273,17 +211,7 @@ export async function fetchReorientData(
       errors.push('my_recent_work query failed');
     } else if (data) {
       for (const row of data) {
-        const ci = row.content_items as unknown as { title: string } | null;
-        my_recent_work.push({
-          entity_type: 'content_item',
-          entity_id: row.content_item_id ?? '',
-          entity_title: ci?.title ?? 'Untitled',
-          action: mapChangeTypeToAction(
-            row.change_type ?? 'edit',
-          ) as RecentWorkItem['action'],
-          href: `/item/${row.content_item_id}`,
-          created_at: row.created_at,
-        });
+        my_recent_work.push(contentHistoryRowToRecentWork(row));
       }
     }
   } else {
@@ -297,32 +225,7 @@ export async function fetchReorientData(
       errors.push('bid_response my_recent_work query failed');
     } else if (data) {
       for (const row of data) {
-        const br = row.form_responses as unknown as {
-          question_id: string;
-          form_questions: {
-            workspace_id: string;
-            question_text: string;
-            workspaces: { id: string; name: string };
-          };
-        } | null;
-        const questionText =
-          br?.form_questions?.question_text ?? 'Untitled question';
-        const procurementId = br?.form_questions?.workspaces?.id;
-        my_recent_work.push({
-          entity_type: 'bid_response',
-          entity_id: row.response_id,
-          entity_title:
-            questionText.length > 60
-              ? `${questionText.slice(0, 57)}...`
-              : questionText,
-          action: 'edited',
-          href: procurementId
-            ? `/procurement/${procurementId}/session`
-            : '/procurement',
-          created_at: row.created_at,
-          workspace_id: procurementId,
-          question_id: br?.question_id,
-        });
+        my_recent_work.push(bidResponseRowToRecentWork(row));
       }
     }
   } else {
@@ -341,44 +244,7 @@ export async function fetchReorientData(
 
   // --- Extract active procurements with question stats (from shared helper) ---
   const { workspaces: procurementWorkspaces, statsMap } = activeBidsResult;
-  const bid_summary: ProcurementBriefing[] = [];
-
-  for (const workspace of procurementWorkspaces) {
-    const meta = workspace.domain_metadata as Record<string, unknown> | null;
-    const stats = statsMap.get(workspace.id);
-    const deadline = (meta?.deadline as string) ?? null;
-    const urgency = getDeadlineUrgency(deadline);
-    const totalQ = stats?.total_questions ?? 0;
-    const answeredQ =
-      (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0);
-
-    bid_summary.push({
-      id: workspace.id,
-      name: workspace.name ?? 'Untitled Procurement',
-      buyer: (meta?.buyer as string) ?? null,
-      status: (meta?.status as string) ?? 'draft',
-      deadline,
-      days_until_deadline: getDaysUntilDeadline(deadline),
-      urgency,
-      total_questions: totalQ,
-      answered_questions: answeredQ,
-      approved_questions: stats?.complete_count ?? 0,
-      gap_count: (stats?.needs_sme_count ?? 0) + (stats?.no_content_count ?? 0),
-      href: `/procurement/${workspace.id}`,
-    });
-  }
-
-  // Sort by deadline urgency
-  const urgencyOrder: Record<string, number> = {
-    overdue: 0,
-    urgent: 1,
-    approaching: 2,
-    normal: 3,
-    unknown: 4,
-  };
-  bid_summary.sort(
-    (a, b) => (urgencyOrder[a.urgency] ?? 4) - (urgencyOrder[b.urgency] ?? 4),
-  );
+  const bid_summary = buildBidSummary(procurementWorkspaces, statsMap);
 
   // --- Extract freshness counts ---
   let staleOrExpired = 0;
