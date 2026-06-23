@@ -41,7 +41,9 @@ COMMENT ON SCHEMA "public" IS 'standard public schema';
 
 
 
-CREATE EXTENSION IF NOT EXISTS "pg_graphql" WITH SCHEMA "graphql";
+-- pg_graphql intentionally omitted: not required (ID-115 api-only exposure). Prod has no
+-- pg_graphql, so a fresh-apply must not create it, else prod/staging schema parity diverges.
+-- Aligned during the Platform staging-branch standup (S407, 2026-06-23).
 
 
 
