@@ -1,5 +1,3 @@
-import type { DraftableContent, DraftableQuestion } from '@/lib/ai/draft';
-import { runDraftingPipeline } from '@/lib/ai/draft';
 import { defineRoute } from '@/lib/api/define-route';
 import {
   authFailureResponse,
@@ -7,14 +5,13 @@ import {
   rateLimitResponse,
 } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
-import { PIPELINE_SYSTEM_USER_ID } from '@/lib/intelligence/types';
 import { logger } from '@/lib/logger';
+import { draftSingleQuestion } from '@/lib/procurement/draft-response';
 import type { ProcurementWorkflowState } from '@/lib/procurement/procurement-workflow';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { sb } from '@/lib/supabase/safe';
 import { parseBody } from '@/lib/validation';
 import { ResponseDraftBodySchema } from '@/lib/validation/schemas';
-import type { Json } from '@/supabase/types/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -166,76 +163,21 @@ export const POST = defineRoute(
         }
 
         try {
-          // Fetch matched content items for this question
-          const matchedIds = question.matched_content_ids ?? [];
-
-          let matchedContent: DraftableContent[] = [];
-          if (matchedIds.length > 0) {
-            const { data: contentItems, error: contentError } = await supabase
-              .from('content_items')
-              .select('id, suggested_title, content, content_type, summary')
-              .in('id', matchedIds);
-
-            if (contentError) {
-              // S151 WP4 (C1): never draft with empty source content on a DB
-              // error — that produces a hallucinated response that looks
-              // grounded. Fail the per-question draft loudly instead.
-              throw new Error(
-                `Failed to fetch matched content for question ${question.id}: ${contentError.message}`,
-              );
-            }
-
-            matchedContent = (contentItems ?? []).map((item) => ({
-              id: item.id,
-              title: item.suggested_title,
-              content: item.content,
-              content_type: item.content_type,
-              summary: item.summary,
-            }));
-          }
-
-          const draftableQuestion: DraftableQuestion = {
-            id: question.id,
-            question_text: question.question_text,
-            word_limit: question.word_limit,
-            section_name: question.section_name,
-            confidence_posture: question.confidence_posture,
-          };
-
-          // Run the three-pass drafting pipeline
-          const draftResult = await runDraftingPipeline(
-            draftableQuestion,
-            matchedContent,
+          const outcome = await draftSingleQuestion(
+            supabase,
+            question,
+            id,
             model_tier,
           );
 
-          totalCost += draftResult.total_cost;
-          totalTokens += draftResult.total_tokens;
+          // Accumulate cost/tokens after the pipeline runs, regardless of the
+          // subsequent write outcome (matches the pre-extraction ordering).
+          totalCost += outcome.draftResult.total_cost;
+          totalTokens += outcome.draftResult.total_tokens;
 
-          // Upsert the response (overall_score written to both column and metadata for backward compat)
-          const overallScore =
-            draftResult.metadata.quality_data?.overall_score ?? null;
-          const { data: response, error: upsertError } = await supabase
-            .from('form_responses')
-            .upsert(
-              {
-                question_id: question.id,
-                response_text: draftResult.response_text,
-                source_content_ids: draftResult.source_content_ids,
-                metadata: draftResult.metadata as unknown as Json,
-                review_status: 'ai_drafted',
-                drafted_by: PIPELINE_SYSTEM_USER_ID,
-                updated_at: new Date().toISOString(),
-                overall_score: overallScore,
-              },
-              { onConflict: 'question_id' },
-            )
-            .select('id')
-            .single();
-
-          if (upsertError) {
+          if (outcome.outcome === 'upsert_failed') {
             logger.error(
-              { err: upsertError },
+              { err: outcome.error },
               `Failed to save response for question ${question.id}`,
             );
             results.push({
@@ -246,19 +188,15 @@ export const POST = defineRoute(
             continue;
           }
 
-          // Update question status.
-          // Post-T2: `form_questions.workspace_id` → `workspace_id`.
-          await supabase
-            .from('form_questions')
-            .update({ status: 'ai_drafted' })
-            .eq('id', question.id)
-            .eq('workspace_id', id);
-
+          // 'drafted' and 'update_failed' both mean the response was saved. The
+          // route's question-status update was historically unchecked, so a
+          // failed status update is intentionally not surfaced as an error here.
           results.push({
             question_id: question.id,
             status: 'drafted',
-            response_id: response?.id,
-            quality_score: draftResult.metadata.quality_data?.overall_score,
+            response_id: outcome.responseId,
+            quality_score:
+              outcome.draftResult.metadata.quality_data?.overall_score,
           });
         } catch (draftErr) {
           logger.error(

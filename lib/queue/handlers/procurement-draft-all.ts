@@ -28,15 +28,13 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { runDraftingPipeline } from '@/lib/ai/draft';
-import type { DraftableQuestion, DraftableContent } from '@/lib/ai/draft';
+import { draftSingleQuestion } from '@/lib/procurement/draft-response';
 import { canTransition } from '@/lib/procurement/procurement-workflow';
 import type { ProcurementWorkflowState } from '@/lib/procurement/procurement-workflow';
-import { PIPELINE_SYSTEM_USER_ID } from '@/lib/intelligence/types';
 import { logger } from '@/lib/logger';
 import { PermanentJobError } from '@/lib/queue/dispatch';
 import { sb } from '@/lib/supabase/safe';
-import type { Database, Json } from '@/supabase/types/database.types';
+import type { Database } from '@/supabase/types/database.types';
 
 /**
  * Body of a `form_draft_all` job, stored at `processing_queue.payload.body`
@@ -243,92 +241,41 @@ export async function runBidDraftAllJob(
     }
 
     try {
-      // Fetch matched content items — mirrors route.ts L173-199.
-      const matchedIds = question.matched_content_ids ?? [];
-      let matchedContent: DraftableContent[] = [];
-
-      if (matchedIds.length > 0) {
-        const { data: contentItems, error: contentError } = await supabase
-          .from('content_items')
-          .select('id, suggested_title, content, content_type, summary')
-          .in('id', matchedIds);
-
-        if (contentError) {
-          // S151 WP4 (C2): never draft with empty source content on a DB
-          // error — that produces a hallucinated batch response. Per-question
-          // error caught below — continue-with-partial per spec D-2.
-          throw new Error(
-            `Failed to fetch matched content for question ${question.id}: ${contentError.message}`,
-          );
-        }
-
-        matchedContent = (contentItems ?? []).map((item) => ({
-          id: item.id,
-          title: item.suggested_title,
-          content: item.content,
-          content_type: item.content_type,
-          summary: item.summary,
-        }));
-      }
-
-      const draftableQuestion: DraftableQuestion = {
-        id: question.id,
-        question_text: question.question_text,
-        word_limit: question.word_limit,
-        section_name: question.section_name,
-        confidence_posture: question.confidence_posture,
-      };
-
-      const draftResult = await runDraftingPipeline(
-        draftableQuestion,
-        matchedContent,
+      const outcome = await draftSingleQuestion(
+        supabase,
+        question,
+        form_id,
         model_tier,
       );
 
-      totalCost += draftResult.total_cost;
-      totalTokens += draftResult.total_tokens;
+      // Accumulate cost/tokens after the pipeline runs, regardless of the
+      // subsequent write outcome (matches the pre-extraction ordering).
+      totalCost += outcome.draftResult.total_cost;
+      totalTokens += outcome.draftResult.total_tokens;
 
-      // Upsert the response — mirrors route.ts L218-233.
-      // `.select('id')` so we can collect drafted_response_ids[] for
-      // pipeline_runs.items_created (per feedback_record_pipeline_run_signature).
-      const overallScore =
-        draftResult.metadata.quality_data?.overall_score ?? null;
-      const upserted = await sb(
-        supabase
-          .from('form_responses')
-          .upsert(
-            {
-              question_id: question.id,
-              response_text: draftResult.response_text,
-              source_content_ids: draftResult.source_content_ids,
-              metadata: draftResult.metadata as unknown as Json,
-              review_status: 'ai_drafted',
-              drafted_by: PIPELINE_SYSTEM_USER_ID,
-              updated_at: new Date(Date.now()).toISOString(),
-              overall_score: overallScore,
-            },
-            { onConflict: 'question_id' },
-          )
-          .select('id')
-          .single(),
-        'queue.form_draft_all.upsertResponse',
-      );
-      draftedResponseIds.push(upserted.id);
+      if (outcome.outcome !== 'drafted') {
+        // upsert_failed OR update_failed — both went through the throwing sb()
+        // wrapper before extraction, so the handler treats either as a failure
+        // (continue-with-partial per spec D-2).
+        logger.error(
+          { err: outcome.error, form_id, question_id: question.id },
+          `form_draft_all handler: per-question draft failed`,
+        );
+        results.push({
+          question_id: question.id,
+          status: 'failed',
+          error: outcome.error,
+        });
+        continue;
+      }
 
-      // Update question status — mirrors route.ts L236-240.
-      await sb(
-        supabase
-          .from('form_questions')
-          .update({ status: 'ai_drafted' })
-          .eq('id', question.id)
-          .eq('workspace_id', form_id),
-        'queue.form_draft_all.updateQuestionStatus',
-      );
-
+      // drafted_response_ids[] feeds pipeline_runs.items_created (per
+      // feedback_record_pipeline_run_signature).
+      draftedResponseIds.push(outcome.responseId);
       results.push({
         question_id: question.id,
         status: 'drafted',
-        quality_score: draftResult.metadata.quality_data?.overall_score,
+        quality_score: outcome.draftResult.metadata.quality_data?.overall_score,
       });
     } catch (draftErr) {
       logger.error(

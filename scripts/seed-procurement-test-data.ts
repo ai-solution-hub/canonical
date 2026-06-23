@@ -1,19 +1,31 @@
 #!/usr/bin/env bun
 /**
- * Seed realistic bid test data for manual and automated testing.
+ * Seed realistic procurement test data for manual and automated testing.
  *
  * Creates a test bid workspace with Standard Selection Questionnaire-style
  * questions across multiple sections, plus some draft responses. Idempotent:
  * checks for existing test bid before creating.
  *
+ * `--reset` (bl-361): globally wipe ALL form_responses + form_response_history
+ * (every workspace) then re-seed a fresh fixture. Folded from the retired
+ * scripts/wipe-procurement-responses.ts — destructive, so it carries the same
+ * --env fail-fast + prod confirmation + 5s safety delay as the original.
+ *
  * Usage:
- *   bun run scripts/seed-bid-test-data.ts             # create test bid
- *   bun run scripts/seed-bid-test-data.ts --dry-run    # preview without writing
- *   bun run scripts/seed-bid-test-data.ts --clean      # remove existing test bid first
+ *   bun run scripts/seed-procurement-test-data.ts                        # create test bid
+ *   bun run scripts/seed-procurement-test-data.ts --dry-run              # preview without writing
+ *   bun run scripts/seed-procurement-test-data.ts --clean                # remove existing test bid first
+ *   bun run scripts/seed-procurement-test-data.ts --reset --env=staging  # global wipe + fresh seed (staging)
+ *   bun run scripts/seed-procurement-test-data.ts --reset --env=prod     # global wipe + fresh seed (prod, interactive confirm)
  */
 
-import { createScriptClient } from '@/scripts/lib/supabase-script-client';
+import {
+  createScriptClient,
+  createLooseScriptClient,
+} from '@/scripts/lib/supabase-script-client';
+import { prodProjectRef, stagingProjectRef } from '@/scripts/lib/project-refs';
 import { parseArgs } from 'util';
+import { createInterface } from 'readline';
 import path from 'path';
 import fs from 'fs';
 
@@ -57,6 +69,9 @@ const { values } = parseArgs({
   options: {
     'dry-run': { type: 'boolean', default: false },
     clean: { type: 'boolean', default: false },
+    reset: { type: 'boolean', default: false },
+    env: { type: 'string', default: '' },
+    yes: { type: 'boolean', default: false },
     help: { type: 'boolean', short: 'h', default: false },
   },
   strict: true,
@@ -64,12 +79,21 @@ const { values } = parseArgs({
 
 if (values.help) {
   console.log(`
-Seed realistic bid test data for testing.
+Seed realistic procurement test data for testing.
 
 Usage:
-  bun run scripts/seed-bid-test-data.ts             # create test bid
-  bun run scripts/seed-bid-test-data.ts --dry-run    # preview without writing
-  bun run scripts/seed-bid-test-data.ts --clean      # remove existing test bid first
+  bun run scripts/seed-procurement-test-data.ts                        # create test bid
+  bun run scripts/seed-procurement-test-data.ts --dry-run              # preview without writing
+  bun run scripts/seed-procurement-test-data.ts --clean                # remove existing test bid first
+  bun run scripts/seed-procurement-test-data.ts --reset --env=staging  # global response wipe + fresh seed
+  bun run scripts/seed-procurement-test-data.ts --reset --env=prod     # global wipe + fresh seed (interactive confirm)
+
+Options:
+  --dry-run   Preview without writing (also previews --reset wipe counts)
+  --clean     Remove the existing test bid first
+  --reset     Globally wipe ALL form responses + history, then re-seed (requires --env)
+  --env       <staging|prod> target assertion for --reset (fail-fast if URL mismatch)
+  --yes       Skip the 5-second safety delay before the --reset wipe
 
 Creates:
   - 1 bid workspace (Test Council -- Office Supplies 2026)
@@ -80,7 +104,12 @@ Creates:
 }
 
 const dryRun = values['dry-run'] ?? false;
-const clean = values.clean ?? false;
+const reset = values.reset ?? false;
+// --reset implies a full test-bid clean: the global response wipe below removes
+// responses but leaves the workspace + questions, so re-seed must recreate them.
+const clean = (values.clean ?? false) || reset;
+const envFlag = values.env ?? '';
+const skipDelay = values.yes ?? false;
 
 // ── Supabase client ────────────────────────────────────────────────────────
 
@@ -95,7 +124,151 @@ if (!supabaseUrl || !supabaseKey) {
   process.exit(1);
 }
 
-const supabase = createScriptClient(supabaseUrl, supabaseKey);
+// Narrowed copies (string, not string | undefined) for use inside the seed +
+// reset helpers below — the guard above guarantees both are set.
+const SUPABASE_URL: string = supabaseUrl;
+const SUPABASE_KEY: string = supabaseKey;
+
+const supabase = createScriptClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ── Reset helpers (folded from the retired wipe-procurement-responses.ts; bl-361) ──
+
+/**
+ * Validate the --reset destructive target. --reset globally deletes ALL form
+ * responses, so it requires an explicit --env=<staging|prod> that matches the
+ * resolved SUPABASE target — the same D-22 fail-fast the standalone wipe script
+ * enforced. FAILS FAST otherwise (the env flag does NOT swap env values; it only
+ * ASSERTS the env-resolved URL points at the expected project).
+ */
+function assertResetEnv(): void {
+  if (envFlag !== 'staging' && envFlag !== 'prod') {
+    console.error(
+      'ERROR: --reset requires --env=<staging|prod>. It globally wipes ALL form\n' +
+        'responses; refusing to run without an explicit env flag to prevent\n' +
+        'accidental destruction.\n\n' +
+        'Examples:\n' +
+        '  bun run scripts/seed-procurement-test-data.ts --reset --env=staging\n' +
+        '  bun run scripts/seed-procurement-test-data.ts --reset --env=prod   # interactive confirm\n',
+    );
+    process.exit(1);
+  }
+  if (envFlag === 'staging' && !SUPABASE_URL.includes(stagingProjectRef())) {
+    console.error(
+      `ERROR: --env=staging set but the resolved Supabase URL does not include '${stagingProjectRef()}'.\n` +
+        `Current target: ${SUPABASE_URL}`,
+    );
+    process.exit(1);
+  }
+  if (envFlag === 'prod' && !SUPABASE_URL.includes(prodProjectRef())) {
+    console.error(
+      `ERROR: --env=prod set but the resolved Supabase URL does not include '${prodProjectRef()}'.\n` +
+        `Current target: ${SUPABASE_URL}`,
+    );
+    process.exit(1);
+  }
+}
+
+/**
+ * For --reset --env=prod, require the operator to type "wipe prod" verbatim
+ * before any destructive call. Anything else exits 0 (cancelled). Skipped in
+ * dry-run (no destructive side effects).
+ */
+async function confirmProdWipe(): Promise<void> {
+  if (dryRun) return;
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const answer = await new Promise<string>((resolveAnswer) => {
+    rl.question(
+      'WARNING: Wiping prod form_responses. Type "wipe prod" to confirm: ',
+      (input) => {
+        rl.close();
+        resolveAnswer(input);
+      },
+    );
+  });
+  if (answer.trim() !== 'wipe prod') {
+    console.error('Confirmation phrase did not match. Aborting.');
+    process.exit(0);
+  }
+}
+
+async function countRows(
+  client: ReturnType<typeof createLooseScriptClient>,
+  table: string,
+): Promise<number> {
+  const { count, error } = await client
+    .from(table)
+    .select('*', { count: 'exact', head: true });
+  if (error) {
+    console.error(`ERROR counting ${table}: ${error.message}`);
+    process.exit(1);
+  }
+  return count ?? 0;
+}
+
+/**
+ * Globally delete ALL form_response_history then form_responses (FK order).
+ * Both FKs are ON DELETE CASCADE, but explicit ordering gives accurate counts
+ * and is defensive against schema changes. Respects --dry-run (preview only)
+ * and the --yes-skippable 5s safety delay.
+ */
+async function globalWipeResponses(
+  client: ReturnType<typeof createLooseScriptClient>,
+): Promise<void> {
+  const historyCount = await countRows(client, 'form_response_history');
+  const responseCount = await countRows(client, 'form_responses');
+  console.log(`form_response_history: ${historyCount} rows`);
+  console.log(`form_responses: ${responseCount} rows`);
+
+  if (historyCount + responseCount === 0) {
+    console.log('No existing responses to wipe.\n');
+    return;
+  }
+  if (dryRun) {
+    console.log(
+      `[DRY RUN] Would delete ${historyCount} history rows, ${responseCount} responses.\n`,
+    );
+    return;
+  }
+  if (!skipDelay) {
+    console.log(
+      'WARNING: About to delete ALL form responses. Press Ctrl-C to abort (5s)...',
+    );
+    await new Promise((r) => setTimeout(r, 5000));
+  }
+
+  // 1. form_response_history first (supabase-js v2 requires a filter on delete;
+  //    use a tautological created_at filter).
+  const { error: histError } = await client
+    .from('form_response_history')
+    .delete()
+    .gte('created_at', '1970-01-01')
+    .select();
+  if (histError) {
+    console.error(`ERROR deleting form_response_history: ${histError.message}`);
+    console.error(
+      'form_responses were NOT deleted. Partial state: history deletion may have partially completed.',
+    );
+    process.exit(1);
+  }
+
+  // 2. form_responses (cascades citations via FK).
+  const { error: respError } = await client
+    .from('form_responses')
+    .delete()
+    .gte('created_at', '1970-01-01')
+    .select();
+  if (respError) {
+    console.error(`ERROR deleting form_responses: ${respError.message}`);
+    console.error(
+      'form_response_history was already deleted. Manual cleanup may be needed.',
+    );
+    process.exit(1);
+  }
+
+  console.log(
+    `Deleted ${historyCount} history rows, ${responseCount} responses.\n`,
+  );
+}
 
 // ── Test data constants ────────────────────────────────────────────────────
 
@@ -269,6 +442,18 @@ async function main() {
 
   if (dryRun) {
     console.log('[DRY RUN] No data will be written.\n');
+  }
+
+  // --reset: globally wipe ALL form responses + history (every workspace),
+  // then fall through to a fresh seed. Folded from the retired
+  // scripts/wipe-procurement-responses.ts (bl-361). Destructive — gated behind
+  // the same --env fail-fast + prod confirm + safety delay as the original.
+  if (reset) {
+    console.log('Mode: reset (global response wipe + fresh seed)\n');
+    assertResetEnv();
+    if (envFlag === 'prod') await confirmProdWipe();
+    const wipeClient = createLooseScriptClient(SUPABASE_URL, SUPABASE_KEY);
+    await globalWipeResponses(wipeClient);
   }
 
   // Check for existing test bid. Post-T2: discriminator is
