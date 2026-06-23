@@ -1534,8 +1534,14 @@ export async function classifyContent(
                     description: 'Canonical name of the target entity',
                   },
                   source_scope: {
-                    type: ['string', 'null'],
-                    enum: ['internal', 'external', null],
+                    // Nullable enum under strict:true — Anthropic rejects a
+                    // `type: ['string','null']` array combined with `enum`
+                    // ("Enum value does not match declared type"). The
+                    // supported strict-schema form for value-or-null is anyOf.
+                    anyOf: [
+                      { type: 'string', enum: ['internal', 'external'] },
+                      { type: 'null' },
+                    ],
                     description:
                       "Holder scope for certification `holds`/`complies_with`/`evidences` relations only. Set 'internal' ONLY when the certification is held by the document author's OWN internal function, declared with an explicit first-person possessive ('our'/'we'/'our own') and with NO supplier/third-party disclaimer in scope (e.g. \"Our internal IT team is compliant to ISO 27001\"). Set 'external' when a supplier/third-party disclaimer scopes the certification, or the internal function belongs to a named third party. Set null for bare/non-possessive phrasing or any ambiguous case — do not guess.",
                   },

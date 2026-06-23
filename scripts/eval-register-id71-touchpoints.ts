@@ -193,7 +193,12 @@ export async function registerId71Touchpoints(
  */
 if (import.meta.main) {
   (async () => {
-    const { createClient } = await import('@supabase/supabase-js');
+    // ID-115: platform PostgREST exposes only the `api` schema, not `public`.
+    // A raw createClient defaults to `public` → "Invalid schema: public". The
+    // loose script-client helper re-applies DB_OPTION so `.from('eval_touchpoints')`
+    // resolves to `api.eval_touchpoints` (the dual-exposure view).
+    const { createLooseScriptClient } =
+      await import('@/scripts/lib/supabase-script-client');
 
     const url =
       process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? process.env['SUPABASE_URL'];
@@ -205,8 +210,7 @@ if (import.meta.main) {
       process.exit(1);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabase = createClient<any>(url, key, {
+    const supabase = createLooseScriptClient(url, key, {
       auth: { persistSession: false },
     });
 
