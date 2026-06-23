@@ -16,7 +16,7 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ──────────────────────────────────────────
-// GET /api/bids/:id/templates/:templateId -- template detail with fields
+// GET /api/procurement/:id/templates/:templateId -- template detail with fields
 // ──────────────────────────────────────────
 
 export const GET = defineRoute(
@@ -234,7 +234,7 @@ export const GET = defineRoute(
 );
 
 // ──────────────────────────────────────────
-// DELETE /api/bids/:id/templates/:templateId -- delete a template
+// DELETE /api/procurement/:id/templates/:templateId -- delete a template
 // ──────────────────────────────────────────
 
 export const DELETE = defineRoute(
