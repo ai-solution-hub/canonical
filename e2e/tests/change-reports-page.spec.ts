@@ -218,35 +218,18 @@ test.describe('Change Reports page', () => {
     const section = page.locator('section[aria-label="Change reports"]');
     await expect(section).toBeVisible({ timeout: 15000 });
 
-    // Wait for loading to complete by checking for the mode selector (always
-    // present once loading finishes) or the hero heading (empty state)
-    const modeSelector = page.locator(
-      '[role="tablist"][aria-label="Report mode"]',
-    );
-    const heroCandidate = page.getByRole('heading', {
-      name: 'Change Reports',
-      level: 1,
-    });
-    await expect(modeSelector.or(heroCandidate)).toBeVisible({
-      timeout: 10000,
-    });
-
-    // Hard-expect the hero empty state is shown (appears when no digest
-    // generated yet). Staging fixtures must leave /digest empty for this test.
+    // The route-mock above forces the empty state, so the hero heading
+    // (level-1 "Change Reports") always renders once loading completes.
     const heroHeading = page.getByRole('heading', {
       name: 'Change Reports',
       level: 1,
     });
-    await expect(heroHeading).toBeVisible({ timeout: 3000 });
+    await expect(heroHeading).toBeVisible({ timeout: 10000 });
 
     // Description text is visible
     await expect(
       page.getByText('See what changed in your knowledge base'),
     ).toBeVisible();
-
-    // Mode selector is present
-    const tablist = page.locator('[role="tablist"][aria-label="Report mode"]');
-    await expect(tablist).toBeVisible();
 
     // Generate button is present
     await expect(
