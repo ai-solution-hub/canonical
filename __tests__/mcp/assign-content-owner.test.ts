@@ -58,6 +58,7 @@ vi.mock('@/lib/ai/summarise', () => ({
 import { registerContentTools } from '@/lib/mcp/tools/content';
 import {
   createMockMcpServer,
+  createMockExtra,
   type MockToolRegistration,
 } from '@/__tests__/helpers/mcp-server';
 
@@ -79,15 +80,6 @@ function getAssignOwnerTool(): MockToolRegistration | undefined {
   // ID-71.10 M32: assign_content_owner consolidated into `assign` (one-or-many).
   // The explicit `item_ids` path preserved here is the former assign_content_owner.
   return mockServer.getTool('assign');
-}
-
-function createMockExtra(
-  authInfo = {
-    token: 'test-token',
-    extra: { userId: ADMIN_USER_ID, role: 'admin' },
-  },
-) {
-  return { authInfo };
 }
 
 // ---------------------------------------------------------------------------
@@ -176,10 +168,7 @@ describe('assign_content_owner MCP tool', () => {
     const tool = getAssignOwnerTool()!;
     const result = await tool.handler(
       { item_ids: [ITEM_ID_1], owner_id: OWNER_ID },
-      createMockExtra({
-        token: 'test-token',
-        extra: { userId: 'editor-id', role: 'editor' },
-      }),
+      createMockExtra({ userId: 'editor-id', role: 'editor' }),
     );
 
     expect(result.isError).toBe(true);

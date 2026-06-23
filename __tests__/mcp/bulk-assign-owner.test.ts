@@ -164,6 +164,7 @@ vi.mock('@/lib/supabase/safe', () => ({
 import { registerContentTools } from '@/lib/mcp/tools/content';
 import {
   createMockMcpServer,
+  createMockExtra,
   type MockToolRegistration,
 } from '@/__tests__/helpers/mcp-server';
 
@@ -186,15 +187,6 @@ function getBulkAssignTool(): MockToolRegistration {
   const tool = mockServer.getTool('assign');
   if (!tool) throw new Error('assign (scope path) not registered');
   return tool;
-}
-
-function createMockExtra(userId = ADMIN_USER_ID, role = 'admin') {
-  return {
-    authInfo: {
-      token: 'test-token',
-      extra: { userId, role },
-    },
-  };
 }
 
 /** Helper: set content_items query to return specific items */
@@ -342,7 +334,7 @@ describe('bulk_assign_owner MCP tool', () => {
         batch_mode: false,
         dry_run: false,
       },
-      createMockExtra(OTHER_USER_ID, 'editor'),
+      createMockExtra({ userId: OTHER_USER_ID, role: 'editor' }),
     );
 
     expect(result.isError).toBe(true);
@@ -362,7 +354,7 @@ describe('bulk_assign_owner MCP tool', () => {
         batch_mode: false,
         dry_run: false,
       },
-      createMockExtra(OTHER_USER_ID, 'viewer'),
+      createMockExtra({ userId: OTHER_USER_ID, role: 'viewer' }),
     );
 
     expect(result.isError).toBe(true);
@@ -854,7 +846,7 @@ describe('bulk_assign_owner MCP tool', () => {
         batch_mode: false,
         dry_run: false,
       },
-      createMockExtra(OWNER_ID, 'admin'),
+      createMockExtra({ userId: OWNER_ID, role: 'admin' }),
     );
 
     expect(result.isError).toBeUndefined();
