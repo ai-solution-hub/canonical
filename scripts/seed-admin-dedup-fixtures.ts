@@ -36,28 +36,25 @@ import {
   seedAdminDedupFixtures,
   verifySeededPairs,
 } from '@/e2e/fixtures/admin-dedup-fixture-helpers';
+import { findProjectRoot } from '@/__tests__/integration/helpers/find-project-root';
 
 // ---------------------------------------------------------------------------
 // Env loading — search up to 5 levels for .env / .env.local
 // ---------------------------------------------------------------------------
 
-function findProjectRoot(): string {
-  let dir = process.cwd();
-  for (let i = 0; i < 5; i += 1) {
-    try {
-      const result = config({ path: resolve(dir, '.env') });
-      if (!result.error) return dir;
-    } catch {
-      /* continue searching */
-    }
-    dir = resolve(dir, '..');
-  }
-  return process.cwd();
+// bl-356: shared fail-loud helper replaces the inline copy that silently returned
+// process.cwd() on miss. In CI env vars are injected directly (no .env on disk) so
+// the helper throws — fall back to ambient process.env; the guard below is the gate.
+let projectRoot: string | null = null;
+try {
+  projectRoot = findProjectRoot();
+} catch {
+  projectRoot = null;
 }
-
-const projectRoot = findProjectRoot();
-config({ path: resolve(projectRoot, '.env') });
-config({ path: resolve(projectRoot, '.env.local'), override: true });
+if (projectRoot) {
+  config({ path: resolve(projectRoot, '.env') });
+  config({ path: resolve(projectRoot, '.env.local'), override: true });
+}
 
 // ---------------------------------------------------------------------------
 // CLI flag parsing — minimal argv walk (no external libs per design constraint)

@@ -22,26 +22,22 @@ import {
   FIXTURE_PREFIX,
 } from '@/__tests__/integration/fixtures/staging-fixture-generator';
 import { cleanupContentFixtures } from '@/__tests__/integration/fixtures/content-fixtures';
+import { findProjectRoot } from '@/__tests__/integration/helpers/find-project-root';
 
-// ── Env loading (same pattern as service-client.ts) ─────────────────────
-
-function findProjectRoot(): string {
-  let dir = process.cwd();
-  for (let i = 0; i < 5; i++) {
-    try {
-      const result = config({ path: resolve(dir, '.env') });
-      if (!result.error) return dir;
-    } catch {
-      /* continue searching */
-    }
-    dir = resolve(dir, '..');
-  }
-  return process.cwd();
+// ── Env loading (bl-356: shared fail-loud helper, replaces the inline copy that
+// silently returned process.cwd() on miss — the bl-292 .env-only bug). In CI env
+// vars are injected directly (no .env on disk) so the helper throws — fall back to
+// ambient process.env; the url/key guard below is the real config gate. ──────────
+let projectRoot: string | null = null;
+try {
+  projectRoot = findProjectRoot();
+} catch {
+  projectRoot = null;
 }
-
-const projectRoot = findProjectRoot();
-config({ path: resolve(projectRoot, '.env') });
-config({ path: resolve(projectRoot, '.env.local'), override: true });
+if (projectRoot) {
+  config({ path: resolve(projectRoot, '.env') });
+  config({ path: resolve(projectRoot, '.env.local'), override: true });
+}
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
