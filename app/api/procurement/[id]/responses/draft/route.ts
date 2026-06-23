@@ -188,9 +188,25 @@ export const POST = defineRoute(
             continue;
           }
 
-          // 'drafted' and 'update_failed' both mean the response was saved. The
-          // route's question-status update was historically unchecked, so a
-          // failed status update is intentionally not surfaced as an error here.
+          if (outcome.outcome === 'update_failed') {
+            // The response was upserted, but marking the question `ai_drafted`
+            // failed — leaving it stranded (response saved, status not
+            // advanced). Surface as failed (aligning with the queue handler)
+            // rather than silently reporting it drafted.
+            logger.error(
+              { err: outcome.error },
+              `Failed to mark question ${question.id} as drafted`,
+            );
+            results.push({
+              question_id: question.id,
+              status: 'failed',
+              response_id: outcome.responseId,
+              error: 'Failed to update question status',
+            });
+            continue;
+          }
+
+          // 'drafted' — the response was saved and the question marked.
           results.push({
             question_id: question.id,
             status: 'drafted',
