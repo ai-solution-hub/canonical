@@ -1,0 +1,26 @@
+{
+  "projectId": "a9316af8-0dca-4282-914a-d298d6e840ba",
+  "shape": "package",
+  "pkg": "canonical",
+  "globalName": "Canonical",
+  "srcDir": "components/ui",
+  "tsconfig": "tsconfig.json",
+  "cssEntry": ".design-sync/.cache/compiled.css",
+  "readmeHeader": ".design-sync/conventions.md",
+  "dtsPropsFor": {
+    "Button": "variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link'; size?: 'default' | 'xs' | 'sm' | 'lg' | 'icon' | 'icon-xs' | 'icon-sm' | 'icon-lg'; asChild?: boolean; disabled?: boolean; type?: 'button' | 'submit' | 'reset'; className?: string; onClick?: React.MouseEventHandler<HTMLButtonElement>; children?: React.ReactNode",
+    "Badge": "variant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'ghost' | 'link'; asChild?: boolean; className?: string; children?: React.ReactNode"
+  },
+  "overrides": {
+    "Dialog": { "cardMode": "single", "viewport": "520x420" },
+    "Select": { "cardMode": "single", "viewport": "360x420" },
+    "Sheet": { "cardMode": "single", "viewport": "460x540" },
+    "Popover": { "cardMode": "single", "viewport": "400x320" },
+    "Tooltip": { "cardMode": "single", "viewport": "320x180" },
+    "DropdownMenu": { "cardMode": "single", "viewport": "340x380" },
+    "DropdownMenuLabel": { "cardMode": "single", "viewport": "340x380" },
+    "Card": { "cardMode": "column" },
+    "Tabs": { "cardMode": "column" },
+    "Textarea": { "cardMode": "column" }
+  }
+}
