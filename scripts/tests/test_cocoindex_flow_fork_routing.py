@@ -258,7 +258,11 @@ class TestFormsRouteWritesFormTargetsOnly:
         assert ft_row["status"] == "analysed"
         assert ft_row["workspace_id"] == ws
         assert ft_row["storage_path"] == rel_path
-        assert ft_row["id"] == uuid.uuid5(flow._KH_PIPELINE_DOC_NS, f"ft:{rel_path}")
+        # Hard-coded ft: uuid5 oracle over _KH_PIPELINE_DOC_NS
+        # ("fbfaf1ff-1ee4-583c-9757-1674465b2ec1") for the pinned rel_path — a
+        # frozen literal (not re-derived from flow) so a namespace/seed drift
+        # fails loudly instead of being masked by the same-formula recompute.
+        assert ft_row["id"] == uuid.UUID("fe4c6365-2118-5129-94b8-bc5d06a18f5f")
         assert len(out["ftf"].rows) >= 1, (
             "the real docx reader must extract at least one field from the "
             "Charnwood blank instrument"
@@ -516,30 +520,37 @@ class TestIdempotencyAcrossBothBranches:
         # Two genuinely distinct runs.
         assert out_a["op_id"] != out_b["op_id"]
 
-        # Identical deterministic PKs across runs, matching the uuid5 formulae
-        # (so the second run's declare_row UPSERTs the SAME rows).
-        ns = flow._KH_PIPELINE_DOC_NS
-        for key, seed in (("sd", f"sd:{rel_path}"), ("ci", f"ci:{rel_path}")):
+        # Identical deterministic PKs across runs. Hard-coded uuid5 oracles over
+        # _KH_PIPELINE_DOC_NS ("fbfaf1ff-1ee4-583c-9757-1674465b2ec1") for the
+        # pinned rel_path "acme/stable-doc.md" — frozen literals (not re-derived
+        # from flow) so a namespace/seed drift fails loudly while the cross-run
+        # idempotency (id_a == id_b) is still proven.
+        expected_pk = {
+            "sd": uuid.UUID("f63d0349-1b7a-5d56-869d-e1c403155c2e"),  # sd:{rel}
+            "ci": uuid.UUID("e4fb1f4d-6d65-55ac-b6f8-01788e38b2c6"),  # ci:{rel}
+        }
+        for key in ("sd", "ci"):
             assert len(out_a[key].rows) == 1 and len(out_b[key].rows) == 1
             id_a = out_a[key].rows[0]["id"]
             id_b = out_b[key].rows[0]["id"]
-            assert id_a == id_b == uuid.uuid5(ns, seed), (
-                f"{out_a[key].table_name} PK must be the stable uuid5({seed!r}) "
+            assert id_a == id_b == expected_pk[key], (
+                f"{out_a[key].table_name} PK must be the stable uuid5 "
                 "across re-ingest (80.2 §Testing row 7 idempotency)"
             )
         assert len(out_a["qa"].rows) == 1 and len(out_b["qa"].rows) == 1
         assert (
             out_a["qa"].rows[0]["id"]
             == out_b["qa"].rows[0]["id"]
-            == uuid.uuid5(ns, f"qa:{rel_path}:0")
+            == uuid.UUID("55c5b4e6-de5b-5722-a512-2b334f3c5be2")  # qa:{rel}:0
         )
-        # Chunk rows: same count, identical per-position uuid5 PKs.
+        # Chunk rows: same count, identical per-position uuid5 PKs. The short
+        # `same_bytes` body chunks to exactly one row; its PK is pinned to a
+        # frozen chunk:{rel}:0 literal (oracle, not a recompute).
         chunk_ids_a = [r["id"] for r in out_a["cc"].rows]
         chunk_ids_b = [r["id"] for r in out_b["cc"].rows]
         assert chunk_ids_a and chunk_ids_a == chunk_ids_b
         assert chunk_ids_a == [
-            uuid.uuid5(ns, f"chunk:{rel_path}:{pos}")
-            for pos in range(len(chunk_ids_a))
+            uuid.UUID("0c381fe5-b1de-5ae2-b512-87cfdb295c40")  # chunk:{rel}:0
         ]
         # No duplicate PKs WITHIN a run either (one declare per logical row).
         assert len(set(chunk_ids_a)) == len(chunk_ids_a)
@@ -581,16 +592,22 @@ class TestIdempotencyAcrossBothBranches:
         assert out_a["op_id"] != out_b["op_id"]
 
         ns = flow._KH_PIPELINE_DOC_NS
-        # form_templates: ONE row per run, the SAME deterministic ft: PK.
+        # form_templates: ONE row per run, the SAME deterministic ft: PK. The ft:
+        # PK is pinned to a frozen uuid5 literal over _KH_PIPELINE_DOC_NS
+        # ("fbfaf1ff-1ee4-583c-9757-1674465b2ec1") for the fixed rel_path — a
+        # namespace/seed drift fails loudly (not masked by a same-formula recompute).
         assert len(out_a["ft"].rows) == 1 and len(out_b["ft"].rows) == 1
         assert (
             out_a["ft"].rows[0]["id"]
             == out_b["ft"].rows[0]["id"]
-            == uuid.uuid5(ns, f"ft:{rel_path}")
+            == uuid.UUID("fe4c6365-2118-5129-94b8-bc5d06a18f5f")  # ft:{rel}
         ), "form_templates PK must be stable across re-ingest (row 7)"
 
         # form_template_fields: identical ordered uuid5 PK lists — the second
-        # run UPSERTs every field row rather than duplicating it.
+        # run UPSERTs every field row rather than duplicating it. The seq values
+        # are real-extractor output (not a fixed seed), so the per-field uuid5 is
+        # left keyed on the produced sequence; the load-bearing claims are the
+        # cross-run equality + full-payload determinism asserted below.
         ftf_ids_a = [r["id"] for r in out_a["ftf"].rows]
         ftf_ids_b = [r["id"] for r in out_b["ftf"].rows]
         assert ftf_ids_a, "the real docx reader must extract at least one field"
@@ -725,8 +742,12 @@ class TestQaSidecarRouteWritesSidecarTargetsOnly:
         # ── INV-8: exactly ONE source_documents row, the `sd:`-seeded anchor. ─
         assert len(out["sd"].rows) == 1, "qa_sidecar mints ONE source_documents row"
         sd_row = out["sd"].rows[0]
-        assert sd_row["id"] == uuid.uuid5(
-            flow._KH_PIPELINE_DOC_NS, f"sd:{rel_path}"
+        # Hard-coded uuid5 oracles over _KH_PIPELINE_DOC_NS
+        # ("fbfaf1ff-1ee4-583c-9757-1674465b2ec1") for the pinned rel_path
+        # "__qa__/foo.md" — frozen literals (not re-derived from flow) so a
+        # namespace/seed drift fails loudly instead of being masked.
+        assert sd_row["id"] == uuid.UUID(
+            "42c08615-f8d1-5acd-9da7-a046e414837e"  # sd:{rel}
         ), "source_documents PK is the stable sd:-seeded uuid5 (INV-8/INV-20)"
         assert sd_row["storage_path"] == rel_path
         assert sd_row["mime_type"] == "text/markdown"
@@ -741,14 +762,20 @@ class TestQaSidecarRouteWritesSidecarTargetsOnly:
 
         # ── N q_a_extractions, each with source_content_item_id IS NULL. ──────
         assert len(out["qa"].rows) == 2, "one q_a_extractions row per Q&A pair"
+        # Frozen per-index qa: uuid5 oracles for "__qa__/foo.md" (same namespace
+        # as the sd: literal above) — pinned, not recomputed from flow.
+        expected_qa_ids = [
+            uuid.UUID("33ed46da-cc47-54e7-858e-f75a72e90fbb"),  # qa:{rel}:0
+            uuid.UUID("01d73f65-2385-565f-a5b5-2f9b88cfa878"),  # qa:{rel}:1
+        ]
         for idx, qa_row in enumerate(out["qa"].rows):
             assert qa_row["source_content_item_id"] is None, (
                 "a sidecar mints NO content_item — source_content_item_id must "
                 "be NULL (the INV-5 structural marker)"
             )
-            assert qa_row["id"] == uuid.uuid5(
-                flow._KH_PIPELINE_DOC_NS, f"qa:{rel_path}:{idx}"
-            ), "q_a_extractions PK is the stable qa:-seeded uuid5 (idempotent)"
+            assert qa_row["id"] == expected_qa_ids[idx], (
+                "q_a_extractions PK is the stable qa:-seeded uuid5 (idempotent)"
+            )
 
         # ── Two-tier extraction shape preserved (INV-6 / COCO.10): the outer
         # tier is convert_binary_to_markdown(file); the inner tier routes
