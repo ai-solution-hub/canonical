@@ -287,6 +287,8 @@ describe('ItemDetailClient (orchestrator)', () => {
             cancelEdit: mockCancelEdit,
             saveEdit: vi.fn(),
             setEditValue: vi.fn(),
+            regenerateEmbedding: false,
+            setRegenerateEmbedding: vi.fn(),
           },
         }),
       );
@@ -328,6 +330,8 @@ describe('ItemDetailClient (orchestrator)', () => {
             cancelEdit: vi.fn(),
             saveEdit: vi.fn(),
             setEditValue: vi.fn(),
+            regenerateEmbedding: false,
+            setRegenerateEmbedding: vi.fn(),
           },
         }),
       );
