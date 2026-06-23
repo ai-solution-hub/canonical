@@ -12,11 +12,11 @@ import { UNCLASSIFIED_TAXONOMY_OR_PREDICATE } from '@/lib/validation/schemas';
 import { dedupeRecentWorkByEntity } from '@/lib/activity/recent-work';
 import {
   contentHistoryRowToTeamChange,
-  bidResponseRowToTeamChange,
+  formResponseRowToTeamChange,
   contentHistoryRowToRecentWork,
-  bidResponseRowToRecentWork,
+  formResponseRowToRecentWork,
 } from '@/lib/activity/team-changes';
-import { buildBidSummary } from '@/lib/activity/bid-summary';
+import { buildProcurementSummary } from '@/lib/activity/bid-summary';
 import { parseJsonb, FreshnessSummarySchema } from '@/lib/validation/jsonb';
 
 // ---------------------------------------------------------------------------
@@ -31,7 +31,7 @@ export interface DashboardData {
     stale_content_count: number | null;
     expired_content_count: number | null;
   };
-  active_bids: ActiveBidSummary[];
+  active_bids: ActiveProcurementSummary[];
   freshness_summary: {
     fresh: number;
     aging: number;
@@ -44,7 +44,7 @@ export interface DashboardData {
   errors: string[];
 }
 
-export interface ActiveBidSummary {
+export interface ActiveProcurementSummary {
   id: string;
   name: string;
   buyer: string | null;
@@ -199,7 +199,7 @@ export interface UnifiedDashboardData {
   };
 
   /** Active procurements with stats */
-  active_bids: ActiveBidSummary[];
+  active_bids: ActiveProcurementSummary[];
 
   /** Freshness summary for QuickStatsStrip */
   freshness_summary: {
@@ -307,7 +307,7 @@ export async function fetchUnifiedDashboardData(
   // --- Phase 2: All queries in parallel (each runs exactly ONCE) ---
   // Attention counts (queries 0,1,2,3,4,10,12,13) consolidated into single RPC.
   // Remaining queries: activity feed, team changes, recent work, bid history, cert expiry.
-  const [results, activeBidsResult] = await Promise.all([
+  const [results, activeProcurementsResult] = await Promise.all([
     Promise.allSettled([
       // 0: Attention counts (replaces queries 0,1,2,3,4,10,12,13)
       // Note: quality_flag_count here filters archived_at IS NULL, which differs
@@ -486,7 +486,7 @@ export async function fetchUnifiedDashboardData(
       errors.push('bid_response team_changes query failed');
     } else if (data) {
       for (const row of data) {
-        team_changes.push(bidResponseRowToTeamChange(row));
+        team_changes.push(formResponseRowToTeamChange(row));
       }
     }
   } else {
@@ -506,7 +506,7 @@ export async function fetchUnifiedDashboardData(
       errors.push('bid_response my_recent_work query failed');
     } else if (data) {
       for (const row of data) {
-        my_recent_work.push(bidResponseRowToRecentWork(row));
+        my_recent_work.push(formResponseRowToRecentWork(row));
       }
     }
   } else {
@@ -525,8 +525,9 @@ export async function fetchUnifiedDashboardData(
   const latestRecentWork = dedupeRecentWorkByEntity(my_recent_work).slice(0, 5);
 
   // --- Build active procurements (from shared helper — single query) ---
-  const { workspaces: procurementWorkspaces, statsMap } = activeBidsResult;
-  const active_bids: ActiveBidSummary[] = procurementWorkspaces.map(
+  const { workspaces: procurementWorkspaces, statsMap } =
+    activeProcurementsResult;
+  const active_bids: ActiveProcurementSummary[] = procurementWorkspaces.map(
     (workspace) => {
       const meta = workspace.domain_metadata as Record<string, unknown> | null;
       const stats = statsMap.get(workspace.id);
@@ -562,7 +563,7 @@ export async function fetchUnifiedDashboardData(
   });
 
   // --- Build bid_summary for reorient (from the same bid data) ---
-  const bid_summary = buildBidSummary(procurementWorkspaces, statsMap);
+  const bid_summary = buildProcurementSummary(procurementWorkspaces, statsMap);
 
   // --- Resolve user display name ---
   const { display_name: userDisplayName, has_display_name: hasDisplayName } =

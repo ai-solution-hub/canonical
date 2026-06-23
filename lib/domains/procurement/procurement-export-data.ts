@@ -2,7 +2,7 @@
  * Shared data-fetching logic for bid export API routes.
  *
  * Extracts bid metadata and questions with responses from Supabase,
- * transforming them into the ExportBidMetadata / ExportQuestion types
+ * transforming them into the ExportProcurementMetadata / ExportQuestion types
  * consumed by the DOCX and XLSX generation libraries.
  *
  * @module bid-export-data
@@ -14,7 +14,7 @@ import type { Database } from '@/supabase/types/database.types';
 import { safeErrorMessage } from '@/lib/error';
 import type {
   ExportQuestion,
-  ExportBidMetadata,
+  ExportProcurementMetadata,
   ExportCitation,
 } from '@/lib/domains/procurement/procurement-export-types';
 import type { ProcurementResponseMetadata } from '@/types/procurement-metadata';
@@ -24,7 +24,7 @@ const UUID_RE =
 
 /** @public */
 export interface ProcurementExportData {
-  metadata: ExportBidMetadata;
+  metadata: ExportProcurementMetadata;
   questions: ExportQuestion[];
   procurementName: string;
 }
@@ -112,7 +112,7 @@ export async function fetchProcurementExportData(
     string,
     unknown
   >;
-  const exportMetadata: ExportBidMetadata = {
+  const exportMetadata: ExportProcurementMetadata = {
     bid_name: bid.name,
     buyer: (procurementMetadata.buyer as string) || 'Unknown Buyer',
     reference_number: (procurementMetadata.reference_number as string) || null,

@@ -9,12 +9,12 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import type { ActiveBidWorkspace } from '@/hooks/use-quick-assign';
+import type { ActiveProcurementWorkspace } from '@/hooks/use-quick-assign';
 
 interface QuickAssignButtonProps {
   itemId: string;
   /** Pre-loaded active workspaces (from parent context) */
-  activeWorkspaces: ActiveBidWorkspace[];
+  activeWorkspaces: ActiveProcurementWorkspace[];
   /** Workspace IDs this item is currently assigned to */
   assignedWorkspaceIds: Set<string>;
   /** Callback when assignment changes (for optimistic parent update) */
@@ -70,7 +70,10 @@ export function QuickAssignButton({
     ? activeWorkspaces.find((ws) => ws.id === fromBidId)
     : undefined;
 
-  const handleToggle = (e: React.MouseEvent, workspace: ActiveBidWorkspace) => {
+  const handleToggle = (
+    e: React.MouseEvent,
+    workspace: ActiveProcurementWorkspace,
+  ) => {
     e.preventDefault();
     e.stopPropagation();
     onAssignmentChange?.(itemId, workspace.id, workspace.name);

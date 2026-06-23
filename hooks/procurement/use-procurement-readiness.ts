@@ -34,7 +34,7 @@ export interface ReadinessData {
   issues: QuestionIssue[];
 }
 
-interface UseBidReadinessReturn {
+interface UseProcurementReadinessReturn {
   readiness: ReadinessData | null;
   isLoading: boolean;
   error: string | null;
@@ -45,7 +45,9 @@ interface UseBidReadinessReturn {
 // Hook
 // ---------------------------------------------------------------------------
 
-export function useBidReadiness(procurementId: string): UseBidReadinessReturn {
+export function useProcurementReadiness(
+  procurementId: string,
+): UseProcurementReadinessReturn {
   const queryClient = useQueryClient();
 
   const query = useQuery<ReadinessData>({

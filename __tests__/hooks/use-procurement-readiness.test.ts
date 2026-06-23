@@ -1,5 +1,5 @@
 /**
- * useBidReadiness hook tests.
+ * useProcurementReadiness hook tests.
  *
  * Covers:
  *   - Successful fetch via TanStack Query
@@ -11,7 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
-import { useBidReadiness } from '@/hooks/procurement/use-procurement-readiness';
+import { useProcurementReadiness } from '@/hooks/procurement/use-procurement-readiness';
 
 // ---------------------------------------------------------------------------
 // Mock fetch
@@ -66,7 +66,7 @@ function createWrapper() {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('useBidReadiness', () => {
+describe('useProcurementReadiness', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -81,7 +81,7 @@ describe('useBidReadiness', () => {
       json: async () => readyResponse,
     });
 
-    const { result } = renderHook(() => useBidReadiness(BID_UUID), {
+    const { result } = renderHook(() => useProcurementReadiness(BID_UUID), {
       wrapper: createWrapper(),
     });
 
@@ -107,7 +107,7 @@ describe('useBidReadiness', () => {
       json: async () => ({ error: 'Server error' }),
     });
 
-    const { result } = renderHook(() => useBidReadiness(BID_UUID), {
+    const { result } = renderHook(() => useProcurementReadiness(BID_UUID), {
       wrapper: createWrapper(),
     });
 
@@ -122,7 +122,7 @@ describe('useBidReadiness', () => {
   it('handles network error', async () => {
     mockFetch.mockRejectedValueOnce(new Error('Network failure'));
 
-    const { result } = renderHook(() => useBidReadiness(BID_UUID), {
+    const { result } = renderHook(() => useProcurementReadiness(BID_UUID), {
       wrapper: createWrapper(),
     });
 
@@ -140,7 +140,7 @@ describe('useBidReadiness', () => {
       json: async () => readyResponse,
     });
 
-    const { result } = renderHook(() => useBidReadiness(BID_UUID), {
+    const { result } = renderHook(() => useProcurementReadiness(BID_UUID), {
       wrapper: createWrapper(),
     });
     expect(result.current.isLoading).toBe(true);
@@ -162,7 +162,7 @@ describe('useBidReadiness', () => {
         }),
       });
 
-    const { result } = renderHook(() => useBidReadiness(BID_UUID), {
+    const { result } = renderHook(() => useProcurementReadiness(BID_UUID), {
       wrapper: createWrapper(),
     });
 
@@ -193,7 +193,7 @@ describe('useBidReadiness', () => {
       },
     });
 
-    const { result } = renderHook(() => useBidReadiness(BID_UUID), {
+    const { result } = renderHook(() => useProcurementReadiness(BID_UUID), {
       wrapper: createWrapper(),
     });
 
@@ -205,7 +205,7 @@ describe('useBidReadiness', () => {
   });
 
   it('does not fetch when procurementId is empty', async () => {
-    const { result } = renderHook(() => useBidReadiness(''), {
+    const { result } = renderHook(() => useProcurementReadiness(''), {
       wrapper: createWrapper(),
     });
 

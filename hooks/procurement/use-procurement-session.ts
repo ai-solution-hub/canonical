@@ -67,7 +67,7 @@ async function fetchProcurementResponseData(
 // ── Hook ──
 
 /** @public */
-export interface UseBidSessionReturn {
+export interface UseProcurementSessionReturn {
   bid: ProcurementSummary | null;
   questions: ProcurementQuestion[];
   loading: boolean;
@@ -78,7 +78,7 @@ export interface UseBidSessionReturn {
   response: ProcurementResponse | null;
   responseLoading: boolean;
   navigatorQuestions: NavigatorQuestion[];
-  invalidateBidData: () => Promise<void>;
+  invalidateProcurementData: () => Promise<void>;
   invalidateResponse: () => Promise<void>;
   queryClient: ReturnType<typeof useQueryClient>;
 }
@@ -88,7 +88,9 @@ export interface UseBidSessionReturn {
  * Fetches and caches bid metadata, questions, and the current response
  * using TanStack Query.
  */
-export function useBidSession(procurementId: string): UseBidSessionReturn {
+export function useProcurementSession(
+  procurementId: string,
+): UseProcurementSessionReturn {
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -184,7 +186,7 @@ export function useBidSession(procurementId: string): UseBidSessionReturn {
   );
 
   // ── Imperative invalidation wrappers ──
-  const invalidateBidData = useCallback(async () => {
+  const invalidateProcurementData = useCallback(async () => {
     await queryClient.invalidateQueries({
       queryKey: queryKeys.bids.detail(procurementId),
     });
@@ -214,7 +216,7 @@ export function useBidSession(procurementId: string): UseBidSessionReturn {
     response,
     responseLoading,
     navigatorQuestions,
-    invalidateBidData,
+    invalidateProcurementData,
     invalidateResponse,
     queryClient,
   };

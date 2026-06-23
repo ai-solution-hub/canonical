@@ -34,7 +34,7 @@ import dynamic from 'next/dynamic';
 import { CollapsibleSection } from '@/components/item-detail/collapsible-section';
 import { RelatedContentSection } from '@/components/item-detail/related-content-section';
 import {
-  QAUsedInBids,
+  QAUsedInProcurements,
   QARelatedPairs,
 } from '@/components/item-detail/qa-provenance-sections';
 import { ContentEffectivenessPanel } from '@/components/item-detail/content-effectiveness-panel';
@@ -375,7 +375,7 @@ export function ReaderView({
           </section>
 
           {/* Q&A provenance: bids using this pair */}
-          {isQAPair && <QAUsedInBids workspaces={usedInWorkspaces} />}
+          {isQAPair && <QAUsedInProcurements workspaces={usedInWorkspaces} />}
 
           {/* Q&A related pairs from the same source document */}
           {isQAPair && <QARelatedPairs relatedQA={relatedQA} />}

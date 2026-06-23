@@ -6,7 +6,7 @@ import { ContentCard } from '@/components/content/content-card';
 import { cn } from '@/lib/utils';
 import type { ContentListItem, SearchResult } from '@/types/content';
 import type { OnOptimisticUpdate } from '@/hooks/review/use-quick-review';
-import type { ActiveBidWorkspace } from '@/hooks/use-quick-assign';
+import type { ActiveProcurementWorkspace } from '@/hooks/use-quick-assign';
 
 const MIN_CARD_WIDTH = 280;
 const ESTIMATED_ROW_HEIGHT = 380;
@@ -34,7 +34,7 @@ interface ContentGridProps {
   /** Callback for optimistic item state updates (verify/flag actions) */
   onQuickReviewUpdate?: OnOptimisticUpdate;
   /** Active bid workspaces for quick-assign */
-  activeWorkspaces?: ActiveBidWorkspace[];
+  activeWorkspaces?: ActiveProcurementWorkspace[];
   /** Map of item ID to set of assigned workspace IDs */
   itemAssignments?: Map<string, Set<string>>;
   /** Callback when workspace assignment changes */

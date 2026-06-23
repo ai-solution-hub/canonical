@@ -58,7 +58,7 @@ interface ProcurementContextValue {
   activeResponse: ResponseSummary | null;
   setActiveQuestionId: (id: string | null) => void;
   editorRef: React.RefObject<import('@tiptap/react').Editor | null>;
-  refreshBid: () => void;
+  refreshProcurement: () => void;
   refreshQuestions: () => void;
 }
 
@@ -223,7 +223,7 @@ export function ProcurementContextProvider({
     activeResponse,
     setActiveQuestionId,
     editorRef,
-    refreshBid: fetchProcurement,
+    refreshProcurement: fetchProcurement,
     refreshQuestions: fetchQuestions,
   };
 

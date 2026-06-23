@@ -28,7 +28,7 @@ import { stripMarkdown } from '@/lib/content/strip-markdown';
 import { BRANDING } from '@/lib/client-config';
 import type {
   ExportQuestion,
-  ExportBidMetadata,
+  ExportProcurementMetadata,
   DocxExportOptions,
 } from '@/lib/domains/procurement/procurement-export-types';
 
@@ -331,7 +331,7 @@ function groupBySection(questions: ExportQuestion[]): GroupedSection[] {
  * Build the cover page section.
  */
 function buildCoverSection(
-  metadata: ExportBidMetadata,
+  metadata: ExportProcurementMetadata,
   companyName: string,
 ): ISectionOptions {
   const children: Paragraph[] = [];
@@ -815,8 +815,8 @@ function buildExportSummary(sections: GroupedSection[]): Paragraph[] {
  * @param options - Export configuration
  * @returns Buffer containing the .docx file
  */
-export async function generateBidDocx(
-  metadata: ExportBidMetadata,
+export async function generateProcurementDocx(
+  metadata: ExportProcurementMetadata,
   questions: ExportQuestion[],
   options: DocxExportOptions = {},
 ): Promise<Buffer> {

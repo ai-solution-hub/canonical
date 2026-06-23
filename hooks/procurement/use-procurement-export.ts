@@ -7,12 +7,12 @@ import { toast } from 'sonner';
 /** @public */
 export type ExportFormat = 'docx' | 'xlsx';
 
-interface UseBidExportOptions {
+interface UseProcurementExportOptions {
   procurementId: string;
   procurementName: string;
 }
 
-interface UseBidExportReturn {
+interface UseProcurementExportReturn {
   /** Which format is currently being exported, or null if idle */
   exporting: ExportFormat | null;
   /** True when any export is in progress */
@@ -29,10 +29,10 @@ interface UseBidExportReturn {
  *
  * Used by both ProcurementExportMenu (desktop) and MobileActionMenu.
  */
-export function useBidExport({
+export function useProcurementExport({
   procurementId,
   procurementName,
-}: UseBidExportOptions): UseBidExportReturn {
+}: UseProcurementExportOptions): UseProcurementExportReturn {
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
 
   const exportMutation = useMutation({

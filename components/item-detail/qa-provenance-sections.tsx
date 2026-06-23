@@ -15,14 +15,16 @@ export interface RelatedQAItem {
 }
 
 /** @public */
-export interface QAUsedInBidsProps {
+export interface QAUsedInProcurementsProps {
   workspaces: Workspace[];
 }
 
 /**
  * Shows which bid workspaces a Q&A pair is used in.
  */
-export function QAUsedInBids({ workspaces }: QAUsedInBidsProps) {
+export function QAUsedInProcurements({
+  workspaces,
+}: QAUsedInProcurementsProps) {
   if (workspaces.length === 0) return null;
 
   return (

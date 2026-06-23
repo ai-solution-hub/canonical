@@ -5,7 +5,7 @@ import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { ContentRow } from '@/components/content/content-row';
 import type { ContentListItem, SearchResult } from '@/types/content';
 import type { OnOptimisticUpdate } from '@/hooks/review/use-quick-review';
-import type { ActiveBidWorkspace } from '@/hooks/use-quick-assign';
+import type { ActiveProcurementWorkspace } from '@/hooks/use-quick-assign';
 
 interface ContentListProps {
   items: (ContentListItem | SearchResult)[];
@@ -21,7 +21,7 @@ interface ContentListProps {
   /** Callback for optimistic item state updates (verify/flag actions) */
   onQuickReviewUpdate?: OnOptimisticUpdate;
   /** Active bid workspaces for quick-assign */
-  activeWorkspaces?: ActiveBidWorkspace[];
+  activeWorkspaces?: ActiveProcurementWorkspace[];
   /** Map of item ID to set of assigned workspace IDs */
   itemAssignments?: Map<string, Set<string>>;
   /** Callback when workspace assignment changes */

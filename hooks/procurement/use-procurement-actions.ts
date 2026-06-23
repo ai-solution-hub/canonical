@@ -93,12 +93,12 @@ function useFormData(id: string) {
     },
   });
 
-  const { refetch: refetchBid } = procurementQuery;
+  const { refetch: refetchProcurement } = procurementQuery;
   const { refetch: refetchQuestions } = questionsQuery;
 
   const fetchProcurement = useCallback(async () => {
-    await refetchBid();
-  }, [refetchBid]);
+    await refetchProcurement();
+  }, [refetchProcurement]);
 
   const fetchQuestions = useCallback(async () => {
     await refetchQuestions();
