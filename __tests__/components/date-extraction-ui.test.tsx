@@ -363,61 +363,10 @@ describe('ExpiryDateDisplay', () => {
     expect(badge).toHaveAttribute('aria-label', 'Expiry status: Expired');
   });
 
-  // -------------------------------------------------------------------------
-  // Design-token contract
-  //
-  // The urgency badge is colour-coded by how close the expiry is, using the
-  // freshness semantic tokens. The badge's textual label ("Expired",
-  // "N days remaining") — asserted in the behaviour tests above — is the
-  // primary user-observable signal and the WCAG-required non-colour cue.
-  // These contract tests pin the urgency -> freshness-token mapping once so a
-  // refactor that drops the colour coding is caught, alongside the observable
-  // label that proves the same urgency tier reached the user.
-  // -------------------------------------------------------------------------
-
-  it('flags an expired date with the expired freshness colour and label (design-token contract)', () => {
-    render(
-      <dl>
-        <ExpiryDateDisplay expiryDate="2020-01-01" lifecycleType={null} />
-      </dl>,
-    );
-
-    const badge = screen.getByRole('status');
-    expect(badge).toHaveTextContent('Expired');
-    expect(badge.className).toContain('freshness-expired');
-  });
-
-  it('flags an imminent expiry with the stale freshness colour and day count (design-token contract)', () => {
-    const futureDate = new Date();
-    futureDate.setDate(futureDate.getDate() + 5);
-    const isoDate = futureDate.toISOString().split('T')[0];
-
-    render(
-      <dl>
-        <ExpiryDateDisplay expiryDate={isoDate} lifecycleType={null} />
-      </dl>,
-    );
-
-    const badge = screen.getByRole('status');
-    expect(badge).toHaveTextContent(/days remaining/);
-    expect(badge.className).toContain('freshness-stale');
-  });
-
-  it('flags an approaching expiry with the aging freshness colour and day count (design-token contract)', () => {
-    const futureDate = new Date();
-    futureDate.setDate(futureDate.getDate() + 20);
-    const isoDate = futureDate.toISOString().split('T')[0];
-
-    render(
-      <dl>
-        <ExpiryDateDisplay expiryDate={isoDate} lifecycleType={null} />
-      </dl>,
-    );
-
-    const badge = screen.getByRole('status');
-    expect(badge).toHaveTextContent(/days remaining/);
-    expect(badge.className).toContain('freshness-aging');
-  });
+  // Urgency-tier -> freshness-token colour mapping is pinned once in
+  // date-extraction-ui.contract.test.tsx (the sanctioned coupling point).
+  // The behaviour tests above assert the user-observable label / day-count,
+  // which is the WCAG-required non-colour cue for the same urgency tiers.
 
   it('singular "day" for exactly 1 day remaining', () => {
     const tomorrow = new Date();
@@ -570,18 +519,9 @@ describe('TemporalReferencesSection', () => {
     ).toBeInTheDocument();
   });
 
-  it('colour-codes the expiry type badge with freshness tokens, never raw Tailwind colours (design-token contract)', async () => {
-    const user = userEvent.setup();
-    render(<TemporalReferencesSection temporalReferences={[sampleRefs[0]]} />);
-
-    await user.click(screen.getByRole('button', { name: /extracted dates/i }));
-
-    const expiryBadge = screen.getByText('Expiry');
-    // Expiry type uses the freshness-stale token, and never a raw Tailwind
-    // colour utility (the semantic-token discipline this guard enforces).
-    expect(expiryBadge.className).toContain('freshness-stale');
-    expect(expiryBadge.className).not.toMatch(
-      /text-(red|orange|amber|green|blue)-\d/,
-    );
-  });
+  // The expiry-type badge's freshness-token colour mapping (and its "never a
+  // raw Tailwind colour" discipline) is pinned in
+  // date-extraction-ui.contract.test.tsx. The "Expiry" / "Effective" /
+  // "Historical" labels — the user-observable signal — are asserted by the
+  // "shows context type badges" behaviour test above.
 });

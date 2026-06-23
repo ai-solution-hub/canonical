@@ -231,31 +231,10 @@ describe('ContentPerformanceSection', () => {
     });
   });
 
-  // -------------------------------------------------------------------------
-  // Design-token contract
-  //
-  // The win-rate figure is colour-coded by tier (strong / medium / weak) and
-  // that colour is the only place the tier is encoded — there is no aria/text
-  // hook for it. We pin the state -> freshness-token mapping ONCE here so a
-  // refactor that silently drops the tier colouring is caught, without
-  // coupling every behaviour test above to a class string.
-  // -------------------------------------------------------------------------
-
-  it('colour-codes the win-rate figure by performance tier (design-token contract)', async () => {
-    mockFetchResponse(
-      createAggregateData({
-        overall: { win_rate: 0.8, total_citations: 10, pending_citations: 0 },
-        by_domain: [],
-      }),
-    );
-
-    render(<ContentPerformanceSection />);
-
-    await waitFor(() => {
-      // Strong tier (>= 70%) -> "fresh" freshness token.
-      expect(screen.getByText('80%')).toHaveClass('text-freshness-fresh');
-    });
-  });
+  // The win-rate-tier -> freshness-token colour mapping is pinned once in
+  // content-performance-section.contract.test.tsx (the sanctioned coupling
+  // point). The "80%" figure itself — the user-observable signal — is asserted
+  // by the behaviour tests above.
 
   it('domain rows only appear for domains with citations', async () => {
     mockFetchResponse(
