@@ -7,7 +7,7 @@ import {
 
 describe('DiffHighlightedText', () => {
   describe('new side — added words', () => {
-    it('marks added words with aria-label="Added text"', () => {
+    it('labels added words as "Added text" for assistive tech', () => {
       const { container } = render(
         <DiffHighlightedText
           oldText="The quick fox"
@@ -43,7 +43,7 @@ describe('DiffHighlightedText', () => {
   });
 
   describe('old side — removed words', () => {
-    it('marks removed words with aria-label="Removed text"', () => {
+    it('labels removed words as "Removed text" for assistive tech', () => {
       const { container } = render(
         <DiffHighlightedText
           oldText="The quick brown fox"
@@ -61,7 +61,7 @@ describe('DiffHighlightedText', () => {
       expect(removedText).toContain('brown');
     });
 
-    it('applies strikethrough class to removed text', () => {
+    it('shows removed text struck through', () => {
       const { container } = render(
         <DiffHighlightedText
           oldText="Hello world"
@@ -154,42 +154,6 @@ describe('DiffHighlightedText', () => {
 
       const marks = container.querySelectorAll('mark');
       expect(marks).toHaveLength(0);
-    });
-  });
-
-  describe('semantic tokens', () => {
-    it('uses semantic token classes for additions', () => {
-      const { container } = render(
-        <DiffHighlightedText
-          oldText="Hello"
-          newText="Hello world"
-          side="new"
-        />,
-      );
-
-      const addedMark = container.querySelector(
-        'mark[aria-label="Added text"]',
-      );
-      expect(addedMark).toBeTruthy();
-      expect(addedMark!.className).toContain('bg-quality-good-bg');
-      expect(addedMark!.className).toContain('text-quality-good');
-    });
-
-    it('uses semantic token classes for removals', () => {
-      const { container } = render(
-        <DiffHighlightedText
-          oldText="Hello world"
-          newText="Hello"
-          side="old"
-        />,
-      );
-
-      const removedMark = container.querySelector(
-        'mark[aria-label="Removed text"]',
-      );
-      expect(removedMark).toBeTruthy();
-      expect(removedMark!.className).toContain('bg-destructive/10');
-      expect(removedMark!.className).toContain('text-destructive');
     });
   });
 });

@@ -218,7 +218,7 @@ describe('CertificationSummaryCard', () => {
   // Expiry badge statuses
   // -------------------------------------------------------------------------
 
-  it('shows Valid badge with correct class for valid status', () => {
+  it('communicates a Valid expiry status with a labelled badge', () => {
     render(
       <CertificationSummaryCard
         certifications={[makeCert({ expiry_status: 'valid' })]}
@@ -229,10 +229,9 @@ describe('CertificationSummaryCard', () => {
     const badge = screen.getByLabelText('Expiry status: Valid');
     expect(badge).toBeInTheDocument();
     expect(badge.textContent).toBe('Valid');
-    expect(badge.className).toContain('text-freshness-fresh');
   });
 
-  it('shows Expiring Soon badge with correct class', () => {
+  it('communicates an Expiring Soon status with a labelled badge', () => {
     render(
       <CertificationSummaryCard
         certifications={[makeCert({ expiry_status: 'expiring_soon' })]}
@@ -243,10 +242,9 @@ describe('CertificationSummaryCard', () => {
     const badge = screen.getByLabelText('Expiry status: Expiring Soon');
     expect(badge).toBeInTheDocument();
     expect(badge.textContent).toBe('Expiring Soon');
-    expect(badge.className).toContain('text-freshness-aging');
   });
 
-  it('shows Expired badge with correct class', () => {
+  it('communicates an Expired status with a labelled badge', () => {
     render(
       <CertificationSummaryCard
         certifications={[makeCert({ expiry_status: 'expired' })]}
@@ -257,10 +255,9 @@ describe('CertificationSummaryCard', () => {
     const badge = screen.getByLabelText('Expiry status: Expired');
     expect(badge).toBeInTheDocument();
     expect(badge.textContent).toBe('Expired');
-    expect(badge.className).toContain('text-freshness-expired');
   });
 
-  it('shows "No expiry date" badge with correct class', () => {
+  it('communicates an unknown expiry status as "No expiry date"', () => {
     render(
       <CertificationSummaryCard
         certifications={[makeCert({ expiry_status: 'unknown' })]}
@@ -271,7 +268,50 @@ describe('CertificationSummaryCard', () => {
     const badge = screen.getByLabelText('Expiry status: No expiry date');
     expect(badge).toBeInTheDocument();
     expect(badge.textContent).toBe('No expiry date');
-    expect(badge.className).toContain('text-muted-foreground');
+  });
+
+  // -------------------------------------------------------------------------
+  // Design-token contract
+  //
+  // Each expiry-status badge is colour-coded via the freshness/muted semantic
+  // tokens. The badge text + aria-label (asserted above) are the primary
+  // user-observable signal; this single contract test pins the status -> token
+  // mapping so a refactor that drops or mis-wires the colour coding is caught,
+  // without coupling each behaviour test to a class string.
+  // -------------------------------------------------------------------------
+
+  it('colour-codes each expiry-status badge with its freshness token (design-token contract)', () => {
+    const cases: Array<{
+      status: CertificationEntry['expiry_status'];
+      label: string;
+      token: string;
+    }> = [
+      { status: 'valid', label: 'Valid', token: 'text-freshness-fresh' },
+      {
+        status: 'expiring_soon',
+        label: 'Expiring Soon',
+        token: 'text-freshness-aging',
+      },
+      { status: 'expired', label: 'Expired', token: 'text-freshness-expired' },
+      {
+        status: 'unknown',
+        label: 'No expiry date',
+        token: 'text-muted-foreground',
+      },
+    ];
+
+    for (const { status, label, token } of cases) {
+      const { unmount } = render(
+        <CertificationSummaryCard
+          certifications={[makeCert({ expiry_status: status })]}
+          supplierCertifications={[]}
+          registrations={[]}
+        />,
+      );
+      const badge = screen.getByLabelText(`Expiry status: ${label}`);
+      expect(badge.className).toContain(token);
+      unmount();
+    }
   });
 
   // -------------------------------------------------------------------------

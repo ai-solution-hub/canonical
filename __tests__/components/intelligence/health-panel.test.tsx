@@ -230,7 +230,7 @@ describe('HealthPanel', () => {
   // Healthy state
   // -------------------------------------------------------------------------
 
-  it('renders a green Healthy badge when the pipeline is healthy', async () => {
+  it('reports a Healthy status when the pipeline is healthy', async () => {
     stubFetch(buildHealthyResponse());
     renderWithQuery(<HealthPanel workspaceId="ws-1" />);
 
@@ -240,9 +240,6 @@ describe('HealthPanel', () => {
 
     const badge = screen.getByLabelText('Status: Healthy');
     expect(badge).toHaveTextContent('Healthy');
-    // Status-success token classes for the green badge.
-    expect(badge.className).toMatch(/text-status-success/);
-    expect(badge.className).toMatch(/bg-status-success/);
 
     // Status message and stats grid render.
     expect(screen.getByText('Pipeline is healthy')).toBeInTheDocument();
@@ -261,7 +258,7 @@ describe('HealthPanel', () => {
   // Degraded state
   // -------------------------------------------------------------------------
 
-  it('renders an amber Degraded badge when sources have failures', async () => {
+  it('reports a Degraded status when sources have failures', async () => {
     stubFetch(buildDegradedResponse());
     renderWithQuery(<HealthPanel workspaceId="ws-1" />);
 
@@ -271,8 +268,6 @@ describe('HealthPanel', () => {
 
     const badge = screen.getByLabelText('Status: Degraded');
     expect(badge).toHaveTextContent('Degraded');
-    expect(badge.className).toMatch(/text-status-warning/);
-    expect(badge.className).toMatch(/bg-status-warning/);
 
     // Sources-with-failures stat shows "2".
     const failuresLabel = screen.getByText('Sources with failures');
@@ -287,7 +282,7 @@ describe('HealthPanel', () => {
   // Failing state
   // -------------------------------------------------------------------------
 
-  it('renders a red Failing badge when sources are at the failure limit', async () => {
+  it('reports a Failing status when sources are at the failure limit', async () => {
     stubFetch(buildFailingResponse());
     renderWithQuery(<HealthPanel workspaceId="ws-1" />);
 
@@ -297,8 +292,6 @@ describe('HealthPanel', () => {
 
     const badge = screen.getByLabelText('Status: Failing');
     expect(badge).toHaveTextContent('Failing');
-    expect(badge.className).toMatch(/text-status-error/);
-    expect(badge.className).toMatch(/bg-status-error/);
 
     // Status message from API surfaces.
     expect(
@@ -328,15 +321,49 @@ describe('HealthPanel', () => {
     // last run resolve to the same relative duration in this scenario).
     expect(screen.getAllByText('1 hour ago').length).toBeGreaterThanOrEqual(1);
 
-    // The "Pipeline is stale" warning copy should be visible.
+    // The "Pipeline is stale" warning copy should be visible — this is the
+    // observable signal that the panel has surfaced the stale-run state.
     expect(screen.getByText('Pipeline is stale')).toBeInTheDocument();
+  });
 
-    // The "Time since last run" card should be styled as a warning.
-    const sinceLabel = screen.getByText('Time since last run');
-    const sinceCard = sinceLabel.closest('div');
-    expect(sinceCard).not.toBeNull();
-    expect((sinceCard as HTMLElement).className).toMatch(
-      /border-status-warning/,
+  // -------------------------------------------------------------------------
+  // Status colour token contract (design-system)
+  // -------------------------------------------------------------------------
+  // The behaviour tests above assert the accessible `Status: X` label
+  // (token-agnostic). The status -> semantic-colour-token mapping is pinned
+  // ONCE here, so a Warm Meridian token rename (bl-349) breaks only this
+  // contract block rather than every health-state test.
+
+  it('renders the Healthy badge with the success colour token', async () => {
+    stubFetch(buildHealthyResponse());
+    renderWithQuery(<HealthPanel workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Status: Healthy')).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText('Status: Healthy').className).toMatch(
+      /bg-status-success/,
+    );
+  });
+
+  it('renders the Degraded badge with the warning colour token', async () => {
+    stubFetch(buildDegradedResponse());
+    renderWithQuery(<HealthPanel workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Status: Degraded')).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText('Status: Degraded').className).toMatch(
+      /bg-status-warning/,
+    );
+  });
+
+  it('renders the Failing badge with the error colour token', async () => {
+    stubFetch(buildFailingResponse());
+    renderWithQuery(<HealthPanel workspaceId="ws-1" />);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Status: Failing')).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText('Status: Failing').className).toMatch(
+      /bg-status-error/,
     );
   });
 

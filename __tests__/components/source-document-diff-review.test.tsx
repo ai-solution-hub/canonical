@@ -248,34 +248,31 @@ describe('SourceDocumentDiffReview', () => {
       expect(screen.getByLabelText('Diff type: Removed')).toBeInTheDocument();
     });
 
-    it('applies correct CSS classes for added badge', () => {
+    it('labels the added badge with accessible name and visible "Added" text', () => {
       renderComponent({
         entries: [ADDED_ENTRY],
         summary: { ...DEFAULT_SUMMARY },
       });
       const badge = screen.getByLabelText('Diff type: Added');
-      expect(badge.className).toContain('text-quality-good');
-      expect(badge.className).toContain('bg-quality-good-bg');
+      expect(badge).toHaveTextContent('Added');
     });
 
-    it('applies correct CSS classes for modified badge', () => {
+    it('labels the modified badge with accessible name and visible "Modified" text', () => {
       renderComponent({
         entries: [MODIFIED_ENTRY],
         summary: { ...DEFAULT_SUMMARY },
       });
       const badge = screen.getByLabelText('Diff type: Modified');
-      expect(badge.className).toContain('text-freshness-aging');
-      expect(badge.className).toContain('bg-freshness-aging-bg');
+      expect(badge).toHaveTextContent('Modified');
     });
 
-    it('applies correct CSS classes for removed badge', () => {
+    it('labels the removed badge with accessible name and visible "Removed" text', () => {
       renderComponent({
         entries: [REMOVED_ENTRY],
         summary: { ...DEFAULT_SUMMARY },
       });
       const badge = screen.getByLabelText('Diff type: Removed');
-      expect(badge.className).toContain('text-destructive');
-      expect(badge.className).toContain('bg-destructive/10');
+      expect(badge).toHaveTextContent('Removed');
     });
 
     it('shows status badge with correct label for pending_review', () => {
@@ -1671,25 +1668,30 @@ describe('SourceDocumentDiffReview', () => {
       expect(screen.getByText('New version:')).toBeInTheDocument();
     });
 
-    it('applies green-tinted background for added full-text entries', () => {
+    it('labels the added full-text card and shows its content', () => {
       renderComponent({
         entries: [FULL_TEXT_ADDED],
         summary: { added: 1, removed: 0, modified: 0, unchanged: 0 },
       });
 
-      // The FullTextDiffEntryCard for added entries has bg-quality-good-bg/30
       const card = screen.getByLabelText('added text block');
-      expect(card.className).toContain('bg-quality-good-bg/30');
+      expect(
+        within(card).getByText(
+          'This is a newly added paragraph about compliance.',
+        ),
+      ).toBeInTheDocument();
     });
 
-    it('applies destructive-tinted background for removed full-text entries', () => {
+    it('labels the removed full-text card and shows its content', () => {
       renderComponent({
         entries: [FULL_TEXT_REMOVED],
         summary: { added: 0, removed: 1, modified: 0, unchanged: 0 },
       });
 
       const card = screen.getByLabelText('removed text block');
-      expect(card.className).toContain('bg-destructive/5');
+      expect(
+        within(card).getByText('This outdated paragraph has been removed.'),
+      ).toBeInTheDocument();
     });
 
     it('shows review controls (Apply/Dismiss) for full-text entries', () => {

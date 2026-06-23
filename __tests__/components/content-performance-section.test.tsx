@@ -208,7 +208,7 @@ describe('ContentPerformanceSection', () => {
     });
   });
 
-  it('win rate colour matches threshold (teal >= 70%, sand 40-69%, rose < 40%)', async () => {
+  it('surfaces the rounded overall win-rate percentage', async () => {
     mockFetchResponse(
       createAggregateData({
         overall: {
@@ -227,9 +227,33 @@ describe('ContentPerformanceSection', () => {
     render(<ContentPerformanceSection />);
 
     await waitFor(() => {
-      // 80% win rate should use teal text class
-      const winRateEl = screen.getByText('80%');
-      expect(winRateEl).toHaveClass('text-freshness-fresh');
+      expect(screen.getByText('80%')).toBeInTheDocument();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Design-token contract
+  //
+  // The win-rate figure is colour-coded by tier (strong / medium / weak) and
+  // that colour is the only place the tier is encoded — there is no aria/text
+  // hook for it. We pin the state -> freshness-token mapping ONCE here so a
+  // refactor that silently drops the tier colouring is caught, without
+  // coupling every behaviour test above to a class string.
+  // -------------------------------------------------------------------------
+
+  it('colour-codes the win-rate figure by performance tier (design-token contract)', async () => {
+    mockFetchResponse(
+      createAggregateData({
+        overall: { win_rate: 0.8, total_citations: 10, pending_citations: 0 },
+        by_domain: [],
+      }),
+    );
+
+    render(<ContentPerformanceSection />);
+
+    await waitFor(() => {
+      // Strong tier (>= 70%) -> "fresh" freshness token.
+      expect(screen.getByText('80%')).toHaveClass('text-freshness-fresh');
     });
   });
 
