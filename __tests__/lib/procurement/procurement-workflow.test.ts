@@ -9,7 +9,7 @@ import {
   PROCUREMENT_WORKFLOW_COLOURS,
   PROCUREMENT_WORKFLOW_PROGRESSION,
   type ProcurementWorkflowState,
-} from '@/lib/procurement/procurement-workflow';
+} from '@/lib/domains/procurement/procurement-workflow';
 
 describe('bid-state-machine', () => {
   describe('PROCUREMENT_WORKFLOW_STATES', () => {

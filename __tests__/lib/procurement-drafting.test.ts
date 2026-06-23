@@ -4,7 +4,7 @@ import type {
   DraftableQuestion,
   DraftableContent,
   QuestionAnalysis,
-} from '@/lib/ai/draft';
+} from '@/lib/domains/procurement/ai/draft';
 
 // ──────────────────────────────────────────
 // Mock the Anthropic client module
@@ -74,7 +74,7 @@ import {
   analyseQuestion,
   draftResponse,
   runDraftingPipeline,
-} from '@/lib/ai/draft';
+} from '@/lib/domains/procurement/ai/draft';
 
 // ──────────────────────────────────────────
 // Test fixtures

@@ -6,7 +6,7 @@ import {
 } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
-import type { ProcurementWorkflowState } from '@/lib/procurement/procurement-workflow';
+import type { ProcurementWorkflowState } from '@/lib/domains/procurement/procurement-workflow';
 import { enqueueQueueJob } from '@/lib/queue/enqueue';
 import { buildIdempotencyKey } from '@/lib/queue/envelope';
 import type { ProcurementDraftAllBody } from '@/lib/queue/handlers/procurement-draft-all';

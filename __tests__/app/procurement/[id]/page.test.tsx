@@ -109,12 +109,12 @@ vi.mock('@/lib/format', () => ({
   formatDateUK: (d: string) => mockFormatDateUK(d),
 }));
 
-vi.mock('@/lib/procurement/procurement-helpers', () => ({
+vi.mock('@/lib/domains/procurement/procurement-helpers', () => ({
   getDeadlineProximity: (d: string | null | undefined) =>
     mockGetDeadlineProximity(d),
 }));
 
-vi.mock('@/lib/procurement/procurement-workflow', () => ({
+vi.mock('@/lib/domains/procurement/procurement-workflow', () => ({
   PROCUREMENT_WORKFLOW_LABELS: mockBidStateLabels,
   PROCUREMENT_WORKFLOW_SHORT_LABELS: mockBidStateShortLabels,
 }));

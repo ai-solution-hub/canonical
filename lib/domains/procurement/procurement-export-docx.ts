@@ -30,7 +30,7 @@ import type {
   ExportQuestion,
   ExportBidMetadata,
   DocxExportOptions,
-} from '@/lib/procurement/procurement-export-types';
+} from '@/lib/domains/procurement/procurement-export-types';
 
 // ---------------------------------------------------------------------------
 // Internal types

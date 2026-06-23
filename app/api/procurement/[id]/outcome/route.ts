@@ -2,8 +2,8 @@ import { defineRoute } from '@/lib/api/define-route';
 import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
-import type { ProcurementWorkflowState } from '@/lib/procurement/procurement-workflow';
-import { canTransition } from '@/lib/procurement/procurement-workflow';
+import type { ProcurementWorkflowState } from '@/lib/domains/procurement/procurement-workflow';
+import { canTransition } from '@/lib/domains/procurement/procurement-workflow';
 import { parseBody } from '@/lib/validation';
 import {
   ProcurementOutcomeBodySchema,

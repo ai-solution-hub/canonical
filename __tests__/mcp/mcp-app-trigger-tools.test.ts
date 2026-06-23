@@ -89,7 +89,7 @@ vi.mock('@/lib/ai/errors', () => ({
 vi.mock('@/lib/dashboard', () => ({
   fetchUnifiedDashboardData: mocks.fetchUnifiedDashboardData,
 }));
-vi.mock('@/lib/procurement/procurement-queries', () => ({
+vi.mock('@/lib/domains/procurement/procurement-queries', () => ({
   getBidDetail: vi.fn(),
   getBidQuestion: vi.fn(),
 }));

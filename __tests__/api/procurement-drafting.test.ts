@@ -58,7 +58,7 @@ vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: mockCheckRateLimit,
 }));
 
-vi.mock('@/lib/ai/draft', () => ({
+vi.mock('@/lib/domains/procurement/ai/draft', () => ({
   runDraftingPipeline: mockRunDraftingPipeline,
   analyseQuestion: mockAnalyseQuestion,
   draftResponseStreaming: mockDraftResponseStreaming,
@@ -81,7 +81,7 @@ vi.mock('@/lib/anthropic', () => ({
   getModelForTier: mockGetModelForTier,
 }));
 
-vi.mock('@/lib/procurement/procurement-workflow', () => ({
+vi.mock('@/lib/domains/procurement/procurement-workflow', () => ({
   canTransition: mockCanTransition,
 }));
 

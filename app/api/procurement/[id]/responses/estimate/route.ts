@@ -7,7 +7,7 @@ import {
 } from '@/lib/coverage/cost-estimation';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
-import type { ProcurementWorkflowState } from '@/lib/procurement/procurement-workflow';
+import type { ProcurementWorkflowState } from '@/lib/domains/procurement/procurement-workflow';
 import { parseBody } from '@/lib/validation';
 import { CostEstimateBodySchema } from '@/lib/validation/schemas';
 import { NextRequest, NextResponse } from 'next/server';

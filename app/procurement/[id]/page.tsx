@@ -69,8 +69,8 @@ import { useFormActions } from '@/hooks/procurement/use-procurement-actions';
 import { useBidExport } from '@/hooks/procurement/use-procurement-export';
 import { useBidReadiness } from '@/hooks/procurement/use-procurement-readiness';
 import { formatDateUK } from '@/lib/format';
-import { getDeadlineProximity } from '@/lib/procurement/procurement-helpers';
-import { PROCUREMENT_WORKFLOW_LABELS } from '@/lib/procurement/procurement-workflow';
+import { getDeadlineProximity } from '@/lib/domains/procurement/procurement-helpers';
+import { PROCUREMENT_WORKFLOW_LABELS } from '@/lib/domains/procurement/procurement-workflow';
 import { cn } from '@/lib/utils';
 import type {
   Procurement,

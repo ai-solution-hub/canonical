@@ -5,7 +5,7 @@ import type {
   RecentWorkItem,
   ProcurementBriefing,
 } from '@/types/reorient';
-import { fetchActiveProcurementWithStats } from '@/lib/procurement/procurement-queries';
+import { fetchActiveProcurementWithStats } from '@/lib/domains/procurement/procurement-queries';
 import { formatRelativeDate } from '@/lib/format';
 import { getUserDisplayName } from '@/lib/users/self-display-name';
 import { UNCLASSIFIED_TAXONOMY_OR_PREDICATE } from '@/lib/validation/schemas';

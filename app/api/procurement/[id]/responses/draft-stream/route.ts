@@ -1,5 +1,11 @@
-import type { DraftableContent, DraftableQuestion } from '@/lib/ai/draft';
-import { analyseQuestion, draftResponseStreaming } from '@/lib/ai/draft';
+import type {
+  DraftableContent,
+  DraftableQuestion,
+} from '@/lib/domains/procurement/ai/draft';
+import {
+  analyseQuestion,
+  draftResponseStreaming,
+} from '@/lib/domains/procurement/ai/draft';
 import type { QualityCheckQuestion } from '@/lib/ai/quality-check';
 import { checkResponseQuality } from '@/lib/ai/quality-check';
 import { getModelForTier } from '@/lib/anthropic';
@@ -12,7 +18,7 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import { PIPELINE_SYSTEM_USER_ID } from '@/lib/intelligence/types';
 import { logger } from '@/lib/logger';
-import type { ProcurementWorkflowState } from '@/lib/procurement/procurement-workflow';
+import type { ProcurementWorkflowState } from '@/lib/domains/procurement/procurement-workflow';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { ResponseDraftStreamBodySchema } from '@/lib/validation/schemas';

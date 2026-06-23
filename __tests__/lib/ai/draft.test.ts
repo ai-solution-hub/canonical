@@ -54,7 +54,7 @@ import {
   type DraftableQuestion,
   type DraftableContent,
   type QuestionAnalysis,
-} from '@/lib/ai/draft';
+} from '@/lib/domains/procurement/ai/draft';
 import { runDeterministicChecks } from '@/lib/ai/quality-check';
 
 // ─── Test fixtures ──────────────────────────────────────────────────────────

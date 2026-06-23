@@ -1,5 +1,5 @@
 import { generateEmbedding } from '@/lib/ai/embed';
-import { generateSearchQueries } from '@/lib/ai/extract-questions';
+import { generateSearchQueries } from '@/lib/domains/procurement/ai/extract-questions';
 import type { MatchResult } from '@/lib/ai/match';
 import { assessConfidence, deduplicateResults } from '@/lib/ai/match';
 import { defineRoute } from '@/lib/api/define-route';
@@ -10,8 +10,8 @@ import {
 } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
-import type { ProcurementWorkflowState } from '@/lib/procurement/procurement-workflow';
-import { canTransition } from '@/lib/procurement/procurement-workflow';
+import type { ProcurementWorkflowState } from '@/lib/domains/procurement/procurement-workflow';
+import { canTransition } from '@/lib/domains/procurement/procurement-workflow';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { QuestionMatchBodySchema } from '@/lib/validation/schemas';

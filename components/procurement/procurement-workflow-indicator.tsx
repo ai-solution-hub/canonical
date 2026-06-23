@@ -8,7 +8,7 @@ import {
   PROCUREMENT_WORKFLOW_PROGRESSION,
   isTerminal,
   type ProcurementWorkflowState,
-} from '@/lib/procurement/procurement-workflow';
+} from '@/lib/domains/procurement/procurement-workflow';
 
 interface ProcurementWorkflowIndicatorProps {
   state: ProcurementWorkflowState;

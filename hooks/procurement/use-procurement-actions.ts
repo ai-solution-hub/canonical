@@ -9,7 +9,7 @@ import {
   canTransition,
   getAvailableTransitions,
   PROCUREMENT_WORKFLOW_LABELS,
-} from '@/lib/procurement/procurement-workflow';
+} from '@/lib/domains/procurement/procurement-workflow';
 import type {
   Procurement,
   ProcurementMetadata,
