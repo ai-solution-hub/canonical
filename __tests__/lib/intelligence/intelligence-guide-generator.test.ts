@@ -11,8 +11,8 @@
  *           (where a mapping exists) plus the Research Feed catch-all.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createIntelligenceGuide } from '@/lib/intelligence/guide-generator';
-import type { CompanyProfile } from '@/lib/intelligence/guide-generator';
+import { createIntelligenceGuide } from '@/lib/intelligence/intelligence-guide-generator';
+import type { CompanyProfile } from '@/lib/intelligence/intelligence-guide-generator';
 
 // ---------------------------------------------------------------------------
 // Mock Supabase client — supports two-pass section inserts
