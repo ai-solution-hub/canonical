@@ -18,7 +18,7 @@ import {
   fetchTemplateRequirements,
   fetchContentForMatching,
   computeTemplateCoverage,
-} from '@/lib/templates/template-coverage';
+} from '@/lib/domains/procurement/form-templating/template-coverage';
 import {
   createBulkNotifications,
   getExistingNotificationIds,

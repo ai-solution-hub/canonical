@@ -4,7 +4,7 @@ import {
     getAuthenticatedClient,
 } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
-import { listAvailableTemplates } from '@/lib/templates/template-coverage';
+import { listAvailableTemplates } from '@/lib/domains/procurement/form-templating/template-coverage';
 import { NextResponse } from 'next/server';
 import { z } from "zod";
 

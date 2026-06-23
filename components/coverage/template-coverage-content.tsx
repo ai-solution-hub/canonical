@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { TemplateCoverageSection } from '@/components/coverage/template-coverage-section';
-import type { TemplateCoverageResult, TemplateSummary } from '@/lib/templates/template-coverage';
+import type { TemplateCoverageResult, TemplateSummary } from '@/lib/domains/procurement/form-templating/template-coverage';
 
 // ---------------------------------------------------------------------------
 // Loading skeleton

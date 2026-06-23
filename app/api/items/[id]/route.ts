@@ -17,7 +17,7 @@ import {
   type PublicationStatus,
 } from '@/lib/governance/publication-transitions';
 import { logger, updateRequestContext, withRequestContext } from '@/lib/logger';
-import { resolveQuestionForRebuild } from '@/lib/procurement-library-ingest/resolve-question';
+import { resolveQuestionForRebuild } from '@/lib/domains/procurement/library-ingest/resolve-question';
 import { isOk, sb, SupabaseError, tryQuery } from '@/lib/supabase/safe';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import {

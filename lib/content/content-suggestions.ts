@@ -331,7 +331,7 @@ export async function generateContentSuggestions(
           'template_name, section_name, requirement_text, primary_domain, primary_subtopic',
         )
         .eq('is_current', true)
-        // `coverage_status` is computed in `lib/templates/template-coverage.ts`,
+        // `coverage_status` is computed in `lib/domains/procurement/form-templating/template-coverage.ts`,
         // not a DB column — it never exists in `form_template_requirements`.
         // Filtering here is not possible at the DB level; return all current
         // requirements and let callers use the in-memory coverage engine to

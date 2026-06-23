@@ -6,7 +6,7 @@ import {
 } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { similarity } from '@/lib/templates/template-auto-map';
+import { similarity } from '@/lib/domains/procurement/form-templating/template-auto-map';
 import { parseBody } from '@/lib/validation';
 import { AutoMapBodySchema } from '@/lib/validation/template-schemas';
 import { NextRequest, NextResponse } from 'next/server';

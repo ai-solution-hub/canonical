@@ -8,7 +8,7 @@ import {
     computeTemplateCoverage,
     fetchContentForMatching,
     fetchTemplateRequirements,
-} from '@/lib/templates/template-coverage';
+} from '@/lib/domains/procurement/form-templating/template-coverage';
 import { parseSearchParams } from '@/lib/validation';
 import { CoverageTemplateParamsSchema } from '@/lib/validation/schemas';
 import { NextRequest, NextResponse } from 'next/server';

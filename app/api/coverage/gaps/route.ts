@@ -21,7 +21,7 @@ import {
     fetchContentForMatching,
     fetchTemplateRequirements,
     listAvailableTemplates,
-} from '@/lib/templates/template-coverage';
+} from '@/lib/domains/procurement/form-templating/template-coverage';
 import { parseSearchParams } from '@/lib/validation';
 import { CoverageGapsParamsSchema } from '@/lib/validation/schemas';
 import type {

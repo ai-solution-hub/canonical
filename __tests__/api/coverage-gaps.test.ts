@@ -48,7 +48,7 @@ vi.mock('next/headers', () => ({
   cookies: mockCookies,
 }));
 
-vi.mock('@/lib/templates/template-coverage', () => ({
+vi.mock('@/lib/domains/procurement/form-templating/template-coverage', () => ({
   listAvailableTemplates: mockListAvailableTemplates,
   fetchTemplateRequirements: mockFetchTemplateRequirements,
   computeTemplateCoverage: mockComputeTemplateCoverage,

@@ -5,7 +5,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { TemplateCoverageRequirement } from '@/components/coverage/template-coverage-requirement';
-import type { RequirementCoverage } from '@/lib/templates/template-coverage';
+import type { RequirementCoverage } from '@/lib/domains/procurement/form-templating/template-coverage';
 
 // ---------------------------------------------------------------------------
 // Types
