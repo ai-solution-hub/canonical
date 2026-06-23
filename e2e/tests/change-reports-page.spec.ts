@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { test, expect } from '../fixtures';
 import { createServiceClient } from '../fixtures/supabase';
 import {
@@ -29,128 +30,135 @@ import {
  * concurrent seeded rows.
  */
 
+/**
+ * Stub the change-reports read + generate endpoints so a test deterministically
+ * observes the EMPTY state and never mutates the GLOBAL change_reports table.
+ *
+ * - `/latest` -> { digest: null } and `/list` -> [] force the empty hero
+ *   regardless of any rows the serial populated describe seeds concurrently.
+ * - notification preferences -> auto_generate_change_reports: false disables
+ *   the page's auto-generate-on-first-visit effect, so the empty hero stays
+ *   put (the manual Generate button is present, not pre-flipped to
+ *   "Generating...").
+ * - `/generate` is held open (never fulfilled) so an explicit Generate click
+ *   cannot reach the real AI route or write an (untagged, un-torn-down) orphan
+ *   row to the prod-acting DB; the page surfaces the "Generating..." pending
+ *   state in the meantime.
+ *
+ * Must be called BEFORE `page.goto`.
+ */
+async function stubEmptyChangeReports(page: Page): Promise<void> {
+  await page.route('**/api/change-reports/latest', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ digest: null }),
+    }),
+  );
+  await page.route('**/api/change-reports/list**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ digests: [], total: 0 }),
+    }),
+  );
+  // Disable auto-generate so the empty hero does not immediately self-trigger
+  // a generation (which would hide the manual Generate button and hang on the
+  // held-open generate route below).
+  await page.route('**/api/notifications/preferences', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        preferences: {
+          email_weekly_change_report: false,
+          email_review_assigned: false,
+          email_owned_content_flagged: false,
+          auto_generate_change_reports: false,
+          updated_at: null,
+        },
+      }),
+    }),
+  );
+  await page.route('**/api/change-reports/generate', async () => {
+    // Hold pending for the test window — no AI call, no DB write. The route is
+    // abandoned when the page context closes at test end.
+    await new Promise(() => {});
+  });
+}
+
+/**
+ * Reveal the inline custom filter panel by selecting "Custom…" in the period
+ * <Select> (aria-label="Report period"). Replaces the former custom-tab click
+ * (the Period/Daily/Custom tablist UI was removed). Asserts the panel rendered
+ * by waiting on its heading.
+ */
+async function revealCustomFilterPanel(page: Page): Promise<void> {
+  const selectTrigger = page.getByRole('combobox', { name: 'Report period' });
+  await expect(selectTrigger).toBeVisible({ timeout: 10000 });
+  await selectTrigger.click();
+  await page
+    .getByRole('listbox')
+    .getByRole('option', { name: 'Custom…' })
+    .click();
+  await expect(page.getByText('Custom Report Filters')).toBeVisible({
+    timeout: 5000,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // 1. Change Reports Page
 // ---------------------------------------------------------------------------
 
 test.describe('Change Reports page', () => {
-  test('mode selector tabs are present and functional', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.goto('/change-reports');
-
-    const section = page.locator('section[aria-label="Change reports"]');
-    await expect(section).toBeVisible({ timeout: 15000 });
-
-    // Locate the tablist
-    const tablist = page.locator('[role="tablist"][aria-label="Report mode"]');
-    await expect(tablist).toBeVisible();
-
-    // All three tabs should be present (use id attributes for reliable matching)
-    const presetTab = page.locator('#tab-preset');
-    const dailyTab = page.locator('#tab-daily');
-    const customTab = page.locator('#tab-custom');
-
-    await expect(presetTab).toBeVisible();
-    await expect(dailyTab).toBeVisible();
-    await expect(customTab).toBeVisible();
-
-    // "Period" tab (preset) is selected by default
-    await expect(presetTab).toHaveAttribute('aria-selected', 'true');
-  });
-
-  test('clicking Daily tab switches mode and shows daily description', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.goto('/change-reports');
-
-    const section = page.locator('section[aria-label="Change reports"]');
-    await expect(section).toBeVisible({ timeout: 15000 });
-
-    // Click the "Daily" tab
-    const dailyTab = page.locator('#tab-daily');
-    await dailyTab.click();
-
-    // Daily tab becomes selected
-    await expect(dailyTab).toHaveAttribute('aria-selected', 'true');
-
-    // Period tab becomes unselected
-    const presetTab = page.locator('#tab-preset');
-    await expect(presetTab).toHaveAttribute('aria-selected', 'false');
-
-    // Daily mode description text is visible
-    await expect(
-      page.getByText("Summarise today's new additions"),
-    ).toBeVisible();
-
-    // A generate button is visible
-    await expect(page.getByRole('button', { name: /Generate/ })).toBeVisible();
-  });
-
-  test('clicking Custom tab shows custom filter panel', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.goto('/change-reports');
-
-    const section = page.locator('section[aria-label="Change reports"]');
-    await expect(section).toBeVisible({ timeout: 15000 });
-
-    // Click the "Custom" tab
-    const customTab = page.locator('#tab-custom');
-    await customTab.click();
-
-    // Custom tab becomes selected
-    await expect(customTab).toHaveAttribute('aria-selected', 'true');
-
-    // Custom filter panel is visible with heading
-    await expect(page.getByText('Custom Report Filters')).toBeVisible();
-
-    // "From" date input is visible
-    await expect(page.locator('#date-from')).toBeVisible();
-
-    // "To" date input is visible
-    await expect(page.locator('#date-to')).toBeVisible();
-
-    // Domain filter dropdown is visible
-    await expect(page.locator('#custom-domain')).toBeVisible();
-
-    // Keywords input is visible
-    await expect(page.locator('#keywords')).toBeVisible();
-
-    // "Generate Custom Report" button is visible
-    await expect(
-      page.getByRole('button', { name: 'Generate Custom Report' }),
-    ).toBeVisible();
-  });
+  // ID-126.5: the three former tablist tests ("mode selector tabs are present
+  // and functional", "clicking Daily tab...", "clicking Custom tab...") were
+  // DELETED — they asserted a removed Period/Daily/Custom tablist UI that no
+  // longer exists in app/change-reports/page.tsx. The current page collapses
+  // Daily/Custom into a single period <Select> (aria-label="Report period");
+  // the "Custom…" option reveals the inline filter panel. Custom-panel +
+  // period-Select behaviour is covered by the rewritten "period selector
+  // dropdown" test below and the "Change Reports -- custom filter
+  // interactions" describe.
 
   test('period selector dropdown shows period options', async ({
     authenticatedPage: page,
   }) => {
+    // The period <Select> renders in both empty (hero) and loaded (bar)
+    // states; stub the empty state so this test is deterministic and immune to
+    // any rows seeded concurrently by the populated describe (the
+    // change_reports table is global) and never triggers a real generation.
+    await stubEmptyChangeReports(page);
+
     await page.goto('/change-reports');
 
     const section = page.locator('section[aria-label="Change reports"]');
     await expect(section).toBeVisible({ timeout: 15000 });
 
-    // Ensure "Period" tab is active (default)
-    const presetTab = page.locator('#tab-preset');
-    await expect(presetTab).toHaveAttribute('aria-selected', 'true');
-
-    // Click the period select trigger (within the tabpanel).
-    // The period selector should ALWAYS be visible on the default Period tab.
-    const tabpanel = page.locator('#digest-content-panel');
-    const selectTrigger = tabpanel.getByRole('combobox').first();
+    // The period selector is a Radix <Select> labelled "Report period",
+    // defaulting to "Last 7 days".
+    const selectTrigger = page.getByRole('combobox', { name: 'Report period' });
     await expect(selectTrigger).toBeVisible({ timeout: 10000 });
-
-    // Verify "Last 7 days" is the default selected value
     await expect(selectTrigger).toHaveText(/Last 7 days/);
 
     await selectTrigger.click();
 
-    // Dropdown listbox appears with period options
+    // The listbox shows the preset period options.
     const listbox = page.getByRole('listbox');
-    await expect(listbox.getByText('Last 7 days')).toBeVisible();
-    await expect(listbox.getByText('Last 14 days')).toBeVisible();
-    await expect(listbox.getByText('Last 30 days')).toBeVisible();
+    await expect(
+      listbox.getByRole('option', { name: 'Last 7 days' }),
+    ).toBeVisible();
+    await expect(
+      listbox.getByRole('option', { name: 'Last 14 days' }),
+    ).toBeVisible();
+    await expect(
+      listbox.getByRole('option', { name: 'Last 30 days' }),
+    ).toBeVisible();
+    // "Custom…" is a progressive-disclosure option that reveals the inline
+    // filter panel (exercised by the custom-filter-interactions describe).
+    await expect(
+      listbox.getByRole('option', { name: 'Custom…' }),
+    ).toBeVisible();
 
     // Close dropdown
     await page.keyboard.press('Escape');
@@ -159,6 +167,13 @@ test.describe('Change Reports page', () => {
   test('generate button is present and clickable', async ({
     authenticatedPage: page,
   }) => {
+    // Force the empty state and hold the generate endpoint pending so this
+    // test never hits the real AI API or writes a row to the GLOBAL
+    // change_reports table (a previously-untagged write here persisted as an
+    // orphan row in the prod-acting DB and reordered the seeded
+    // populated-state tests).
+    await stubEmptyChangeReports(page);
+
     await page.goto('/change-reports');
 
     const section = page.locator('section[aria-label="Change reports"]');
@@ -173,16 +188,20 @@ test.describe('Change Reports page', () => {
     await expect(generateButton).toBeVisible();
     await expect(generateButton).toBeEnabled();
 
-    // Button is clickable (no error thrown on click)
-    // NOTE: Do NOT wait for generation to complete -- it calls the AI API
+    // Button is clickable (no error thrown on click).
     await generateButton.click();
 
-    // Verify the click registered — the section remains visible (no crash)
-    // and the button changes to "Generating..." state. Wait for the button
-    // state change rather than an arbitrary timeout.
-    await expect(page.getByRole('button', { name: /Generating/ })).toBeVisible({
+    // Verify the click registered — while the generate mutation is pending
+    // (held open by the mock), the page surfaces the "Generating your
+    // report..." status and the action button flips to "Cancel report
+    // generation". (The former /Generating/ button name no longer exists — the
+    // current UI shows a Cancel button plus a status paragraph.)
+    await expect(page.getByText('Generating your report...')).toBeVisible({
       timeout: 5000,
     });
+    await expect(
+      page.getByRole('button', { name: 'Cancel report generation' }),
+    ).toBeVisible();
   });
 
   // WS3: this test moved into the serial `populated` describe at the end of
@@ -191,27 +210,14 @@ test.describe('Change Reports page', () => {
 
   // Asserts the empty-state hero with generate controls. The change_reports
   // table is GLOBAL, so the populated `describe` at the end of this file may
-  // have seeded rows present concurrently; we route-mock the latest/list
-  // endpoints to an empty response so this test deterministically observes the
-  // empty state it is designed to assert (its premise has always been "the DB
-  // is empty").
+  // have seeded rows present concurrently; stubEmptyChangeReports forces an
+  // empty response (and holds generate pending) so this test deterministically
+  // observes the empty state it is designed to assert (its premise has always
+  // been "the DB is empty").
   test('empty state shows hero with generate controls', async ({
     authenticatedPage: page,
   }) => {
-    await page.route('**/api/change-reports/latest', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ digest: null }),
-      }),
-    );
-    await page.route('**/api/change-reports/list**', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ digests: [], total: 0 }),
-      }),
-    );
+    await stubEmptyChangeReports(page);
 
     await page.goto('/change-reports');
 
@@ -246,15 +252,15 @@ test.describe('Change Reports -- custom filter interactions', () => {
   test('custom domain filter shows active filter badge', async ({
     authenticatedPage: page,
   }) => {
+    await stubEmptyChangeReports(page);
     await page.goto('/change-reports');
 
     const section = page.locator('section[aria-label="Change reports"]');
     await expect(section).toBeVisible({ timeout: 15000 });
 
-    // Click "Custom" tab
-    const customTab = page.locator('#tab-custom');
-    await customTab.click();
-    await expect(customTab).toHaveAttribute('aria-selected', 'true');
+    // Reveal the custom filter panel by selecting "Custom…" in the period
+    // Select (the former custom tab no longer exists).
+    await revealCustomFilterPanel(page);
 
     // Open the domain filter select
     const domainSelect = page.locator('#custom-domain');
@@ -289,15 +295,15 @@ test.describe('Change Reports -- custom filter interactions', () => {
   test('custom keyword filter shows individual keyword badges', async ({
     authenticatedPage: page,
   }) => {
+    await stubEmptyChangeReports(page);
     await page.goto('/change-reports');
 
     const section = page.locator('section[aria-label="Change reports"]');
     await expect(section).toBeVisible({ timeout: 15000 });
 
-    // Click "Custom" tab
-    const customTab = page.locator('#tab-custom');
-    await customTab.click();
-    await expect(customTab).toHaveAttribute('aria-selected', 'true');
+    // Reveal the custom filter panel by selecting "Custom…" in the period
+    // Select (the former custom tab no longer exists).
+    await revealCustomFilterPanel(page);
 
     // Fill the keywords input with "ai agents, cloud"
     const keywordsInput = page.locator('#keywords');
