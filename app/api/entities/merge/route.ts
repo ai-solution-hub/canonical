@@ -63,16 +63,14 @@ export const POST = defineRoute(
         );
       }
 
-      // RPC returns a jsonb object with merge results
-      const result = data as {
-        merged: boolean;
-        target: string;
-        entity_type: string;
-        mentions_updated: number;
-        relationship_sources_updated: number;
-        relationship_targets_updated: number;
-        duplicates_removed: number;
-      };
+      // ID-70: merge_entities now returns a single typed row (RETURNS TABLE).
+      const result = data?.[0];
+      if (!result) {
+        return NextResponse.json(
+          { error: 'Merge returned no result' },
+          { status: 500 },
+        );
+      }
 
       return NextResponse.json({
         merged: result.merged,

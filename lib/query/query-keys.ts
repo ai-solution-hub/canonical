@@ -402,6 +402,18 @@ export const queryKeys = {
     pair: (pairId: string) => ['admin', 'near-dup-pair', pairId] as const,
   },
 
+  // Admin Cross-Workspace Q&A Dedup Proposals (ID-120 {120.8} — TECH P-4)
+  // Mirrors `adminNearDup`: a list/queue key (optional status filter) + a
+  // per-proposal detail key. The queue key carries the curator's status
+  // filter (pending / approved / rejected / all) so switching the filter
+  // bar busts the cache cleanly.
+  adminQaDedup: {
+    all: ['admin', 'qa-dedup-proposals'] as const,
+    queue: (filters?: Record<string, unknown>) =>
+      ['admin', 'qa-dedup-proposals', 'queue', filters ?? {}] as const,
+    proposal: (id: string) => ['admin', 'qa-dedup-proposal', id] as const,
+  },
+
   // ---------------------------------------------------------------------------
   // Eval engine (ID-104) — cost aggregate + future refinement keys
   // ---------------------------------------------------------------------------

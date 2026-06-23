@@ -242,19 +242,22 @@ function setupDefaultMock(
   // [0] get_dashboard_attention_counts, [1] get_grouped_activity_feed
   let rpcIdx = 0;
   const rpcResponses = [
-    // [0] attention counts
+    // [0] attention counts — ID-70: RETURNS TABLE → a single-row array; the
+    // consumer reads data[0] and Zod-parses the freshness_summary jsonb column.
     {
-      data: {
-        governance_review_count: overrides.governanceCount ?? 0,
-        unverified_count: overrides.unverifiedCount ?? 0,
-        quality_flag_count: overrides.qualityFlagsCount ?? 0,
-        stale_content_count: defaultFreshness.stale,
-        expired_content_count: defaultFreshness.expired,
-        expiring_content_date_count: overrides.expiringContentDateCount ?? 0,
-        unread_notification_count: overrides.notificationsCount ?? 0,
-        coverage_gap_count: overrides.coverageGapCount ?? 0,
-        freshness_summary: defaultFreshness,
-      },
+      data: [
+        {
+          governance_review_count: overrides.governanceCount ?? 0,
+          unverified_count: overrides.unverifiedCount ?? 0,
+          quality_flag_count: overrides.qualityFlagsCount ?? 0,
+          stale_content_count: defaultFreshness.stale,
+          expired_content_count: defaultFreshness.expired,
+          expiring_content_date_count: overrides.expiringContentDateCount ?? 0,
+          unread_notification_count: overrides.notificationsCount ?? 0,
+          coverage_gap_count: overrides.coverageGapCount ?? 0,
+          freshness_summary: defaultFreshness,
+        },
+      ],
       error: null,
     },
     // [1] recent activity
