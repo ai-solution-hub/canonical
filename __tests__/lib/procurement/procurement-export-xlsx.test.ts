@@ -14,7 +14,7 @@ function makeMetadata(
   overrides: Partial<ExportProcurementMetadata> = {},
 ): ExportProcurementMetadata {
   return {
-    bid_name: 'IT Support Services',
+    procurement_name: 'IT Support Services',
     buyer: 'NHS Greater Manchester',
     reference_number: 'NHS-GM-2026-001',
     deadline: '2026-04-15T17:00:00Z',

@@ -361,7 +361,7 @@ function buildCoverSection(
       alignment: AlignmentType.CENTER,
       children: [
         new TextRun({
-          text: metadata.bid_name,
+          text: metadata.procurement_name,
           font: 'Calibri',
           size: 72, // 36pt
           bold: true,

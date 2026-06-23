@@ -244,6 +244,7 @@ export const POST = defineRoute(
                 ? { answer_standard: insertContent }
                 : {}),
               metadata: {
+                // source_bid_* JSONB keys intentionally not renamed — zero readers (TS/Python/SQL); historical key-drift harmless until a reader is added (ID-61 strategy §2 Item 4)
                 source_bid_id: id,
                 source_bid_name: bid.name,
                 source_question_id: integration.question_id,

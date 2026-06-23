@@ -113,7 +113,7 @@ export async function fetchProcurementExportData(
     unknown
   >;
   const exportMetadata: ExportProcurementMetadata = {
-    bid_name: bid.name,
+    procurement_name: bid.name,
     buyer: (procurementMetadata.buyer as string) || 'Unknown Buyer',
     reference_number: (procurementMetadata.reference_number as string) || null,
     deadline: (procurementMetadata.deadline as string) || null,

@@ -322,7 +322,7 @@ function buildSummarySheet(
 
   // Procurement metadata (rows 3–8)
   const metaRows: [string, string][] = [
-    ['Procurement Title', metadata.bid_name],
+    ['Procurement Title', metadata.procurement_name],
     ['Buyer', metadata.buyer],
     ['Reference', metadata.reference_number || '--'],
     [

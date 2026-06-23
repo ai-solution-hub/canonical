@@ -34,7 +34,7 @@ export interface ExportCitation {
 
 /** Procurement metadata for the cover page */
 export interface ExportProcurementMetadata {
-  bid_name: string;
+  procurement_name: string;
   buyer: string;
   reference_number: string | null;
   deadline: string | null;
