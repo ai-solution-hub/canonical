@@ -1,0 +1,146 @@
+# ID-128.1 — Nightly Playwright lane (full chromium-desktop project).
+#
+# The PR-blocking `e2e-smoke` job in ci.yml runs only `--project=smoke`
+# (~6 @smoke-tagged specs). The other 41 of the 47 e2e/tests/* specs run in
+# NO workflow. This lane runs the full `chromium-desktop` project on a daily
+# off-peak schedule so those specs execute somewhere automated.
+#
+# NOT PR-blocking — scheduled + manual only (no `pull_request` trigger). It
+# hard-fails (goes red) when any spec fails so breakage is visible; the PR gate
+# is unaffected. Mobile (`chromium-mobile`) is deferred to a fast-follow (v1 is
+# desktop-only).
+#
+# Required secrets / vars (Staging environment scope — per
+# docs/runbooks/github-environments.md §2): identical to the `e2e-smoke` job in
+# ci.yml (staging Supabase URL/keys + server-boot secrets + TEST_USER_1/2/3).
+#
+# Workflow-injection mitigation: all github context + secret values arrive via
+# the step-level `env:` block, never inline ${{ }} in run: steps (mirrors
+# e2e-smoke + eval-nightly + staging-reference-refresh).
+
+name: E2E nightly
+
+on:
+  schedule:
+    # Daily at 04:00 UTC — staggered one hour after the 03:00 UTC eval-nightly
+    # and staging-reference-refresh lanes to avoid contention on the shared CI
+    # Supabase project.
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+concurrency:
+  # Share the cross-PR serialisation group with e2e-smoke + integration so only
+  # one job touches the shared staging Supabase project at a time. Queue (do not
+  # cancel) so a manual dispatch never clobbers an in-flight scheduled run.
+  group: integration-staging-e2e
+  cancel-in-progress: false
+
+jobs:
+  e2e-desktop:
+    name: E2E — full chromium-desktop project
+    runs-on: ubuntu-latest
+    # Staging env scope per docs/runbooks/github-environments.md §2 —
+    # carries staging Supabase URL/keys + TEST_USER_1/2/3 credentials.
+    # Case-sensitive: must exactly match `Staging`.
+    environment: Staging
+    # Generous cap: 47 specs at workers=1 with retries=2 run far longer than the
+    # ~5-min smoke subset. The Playwright --global-timeout below fails inside the
+    # runner first; this is the outer backstop.
+    timeout-minutes: 60
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: "1.3.4"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright browsers (chromium only)
+        # chromium-desktop uses Desktop Chrome only (per playwright.config.ts).
+        # `--with-deps` installs the Linux system libraries the GH-hosted runner
+        # doesn't carry by default.
+        run: bunx playwright install --with-deps chromium
+
+      - name: Cleanup stale test artifacts (staging preflight)
+        env:
+          ALLOW_STALE_TEST_ARTIFACT_CLEANUP: "1"
+          TEST_ARTIFACT_CLEANUP_MIN_AGE_MINUTES: "120"
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: bun run cleanup:stale-test-artifacts
+
+      - name: Run Playwright (full chromium-desktop project)
+        # --global-timeout / --max-failures override the smoke-tuned config caps
+        # (playwright.config.ts sets globalTimeout 12min + maxFailures 5 under
+        # CI, which would prematurely kill / abort the full 47-spec run). 0 =
+        # no max-failures cap so the lane reports EVERY failing spec, not just
+        # the first five. --global-timeout=3000000 (50min) sits under the
+        # 60-min job cap.
+        env:
+          # Staging Supabase connection — env scope resolves these from the
+          # `Staging` GH environment.
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Server-side secrets the dev server boots with (lib/env-server.ts
+          # validates at module load — every Zod-required field must be set or
+          # `bun run dev` fails at first import).
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          # Mirror to NEXT_PUBLIC_* for the client schema (same pattern as the
+          # e2e-smoke job).
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
+            ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+          NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
+          AI_EMBEDDING_MODEL: ${{ vars.AI_EMBEDDING_MODEL }}
+          AI_EMBEDDING_DIMS: ${{ vars.AI_EMBEDDING_DIMS }}
+          # Test-user credentials — pre-seeded into staging by
+          # scripts/seed-e2e-users.ts (per docs/runbooks/staging-refresh.md §4).
+          TEST_USER_1_EMAIL: ${{ vars.TEST_USER_1_EMAIL }}
+          TEST_USER_1_PASSWORD: ${{ secrets.TEST_USER_1_PASSWORD }}
+          TEST_USER_2_EMAIL: ${{ vars.TEST_USER_2_EMAIL }}
+          TEST_USER_2_PASSWORD: ${{ secrets.TEST_USER_2_PASSWORD }}
+          TEST_USER_3_EMAIL: ${{ vars.TEST_USER_3_EMAIL }}
+          TEST_USER_3_PASSWORD: ${{ secrets.TEST_USER_3_PASSWORD }}
+        run:
+          bunx playwright test --project=chromium-desktop
+          --global-timeout=3000000 --max-failures=0
+
+      - name: Cleanup orphaned content_history rows (staging)
+        if: always()
+        env:
+          ALLOW_ORPHAN_CONTENT_HISTORY_CLEANUP: "1"
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: bun run cleanup:orphaned-content-history
+
+      - name: Upload Playwright report
+        # Always upload — the HTML report is the primary triage artefact for the
+        # nightly run (pass/fail breakdown across all 47 specs), not only on red.
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playwright-nightly-report-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+          if-no-files-found: ignore
