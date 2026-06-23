@@ -3729,7 +3729,17 @@ export type Database = {
       }
       get_dashboard_attention_counts: {
         Args: { p_role?: string; p_user_id: string }
-        Returns: Json
+        Returns: {
+          coverage_gap_count: number
+          expired_content_count: number
+          expiring_content_date_count: number
+          freshness_summary: Json
+          governance_review_count: number
+          quality_flag_count: number
+          stale_content_count: number
+          unread_notification_count: number
+          unverified_count: number
+        }[]
       }
       get_due_feed_sources: {
         Args: { max_sources?: number }
@@ -3954,7 +3964,13 @@ export type Database = {
           user_id: string
         }[]
       }
-      get_user_tag_counts: { Args: never; Returns: Json }
+      get_user_tag_counts: {
+        Args: never
+        Returns: {
+          count: number
+          tag: string
+        }[]
+      }
       hybrid_search: {
         Args: {
           include_superseded?: boolean
@@ -3995,7 +4011,15 @@ export type Database = {
           p_source_names: string[]
           p_target_name: string
         }
-        Returns: Json
+        Returns: {
+          duplicates_removed: number
+          entity_type: string
+          mentions_updated: number
+          merged: boolean
+          relationship_sources_updated: number
+          relationship_targets_updated: number
+          target: string
+        }[]
       }
       merge_item_metadata: {
         Args: { p_item_id: string; p_new_data: Json }
@@ -6994,6 +7018,81 @@ export type Database = {
           },
         ]
       }
+      q_a_pair_dedup_proposals: {
+        Row: {
+          created_at: string
+          id: string
+          pair_a_fingerprint: string | null
+          pair_a_id: string
+          pair_a_source_form_response_id: string | null
+          pair_a_source_workspace_id: string | null
+          pair_b_fingerprint: string | null
+          pair_b_id: string
+          pair_b_source_form_response_id: string | null
+          pair_b_source_workspace_id: string | null
+          proposed_survivor_id: string
+          resolved_at: string | null
+          resolved_by: string | null
+          resolved_survivor_id: string | null
+          similarity_score: number
+          status: string
+          survivor_reason: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          pair_a_fingerprint?: string | null
+          pair_a_id: string
+          pair_a_source_form_response_id?: string | null
+          pair_a_source_workspace_id?: string | null
+          pair_b_fingerprint?: string | null
+          pair_b_id: string
+          pair_b_source_form_response_id?: string | null
+          pair_b_source_workspace_id?: string | null
+          proposed_survivor_id: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resolved_survivor_id?: string | null
+          similarity_score: number
+          status?: string
+          survivor_reason: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          pair_a_fingerprint?: string | null
+          pair_a_id?: string
+          pair_a_source_form_response_id?: string | null
+          pair_a_source_workspace_id?: string | null
+          pair_b_fingerprint?: string | null
+          pair_b_id?: string
+          pair_b_source_form_response_id?: string | null
+          pair_b_source_workspace_id?: string | null
+          proposed_survivor_id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resolved_survivor_id?: string | null
+          similarity_score?: number
+          status?: string
+          survivor_reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "q_a_pair_dedup_proposals_pair_a_id_fkey"
+            columns: ["pair_a_id"]
+            isOneToOne: false
+            referencedRelation: "q_a_pairs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "q_a_pair_dedup_proposals_pair_b_id_fkey"
+            columns: ["pair_b_id"]
+            isOneToOne: false
+            referencedRelation: "q_a_pairs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       q_a_pair_history: {
         Row: {
           alternate_question_phrasings: string[]
@@ -8445,7 +8544,17 @@ export type Database = {
       }
       get_dashboard_attention_counts: {
         Args: { p_role?: string; p_user_id: string }
-        Returns: Json
+        Returns: {
+          coverage_gap_count: number
+          expired_content_count: number
+          expiring_content_date_count: number
+          freshness_summary: Json
+          governance_review_count: number
+          quality_flag_count: number
+          stale_content_count: number
+          unread_notification_count: number
+          unverified_count: number
+        }[]
       }
       get_document_version_chain: {
         Args: { p_document_id: string }
@@ -8785,17 +8894,14 @@ export type Database = {
         }[]
       }
       get_user_role: { Args: never; Returns: string }
-      get_user_tag_counts: { Args: never; Returns: Json }
-      get_verification_stats: { Args: never; Returns: Json }
-      get_workspace_counts: { Args: never; Returns: Json }
-      get_workspace_item_counts: {
+      get_user_tag_counts: {
         Args: never
         Returns: {
-          item_count: number
-          last_activity: string
-          workspace_id: string
+          count: number
+          tag: string
         }[]
       }
+      get_verification_stats: { Args: never; Returns: Json }
       grant_standard_public_table_access: {
         Args: { target_table: unknown }
         Returns: undefined
@@ -8844,7 +8950,15 @@ export type Database = {
           p_source_names: string[]
           p_target_name: string
         }
-        Returns: Json
+        Returns: {
+          duplicates_removed: number
+          entity_type: string
+          mentions_updated: number
+          merged: boolean
+          relationship_sources_updated: number
+          relationship_targets_updated: number
+          target: string
+        }[]
       }
       merge_item_metadata: {
         Args: { p_item_id: string; p_new_data: Json }

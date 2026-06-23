@@ -1,6 +1,9 @@
 [tool.pytest.ini_options]
 testpaths = ["scripts/tests"]
-pythonpath = ["scripts", "scripts/tests"]
+# Repo root "." FIRST so worktree-based test runs resolve scripts.* to the
+# worktree copy, not the main checkout (scripts/ is a namespace package — the
+# _NamespacePath merge otherwise shadows new worktree modules; ID-120.6 hazard).
+pythonpath = [".", "scripts", "scripts/tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]

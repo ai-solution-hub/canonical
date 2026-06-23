@@ -797,3 +797,278 @@ export async function fetchContentIngestStatus(
     `/api/ingest/folder-drop/status?${params.toString()}`,
   );
 }
+
+// ---------------------------------------------------------------------------
+// Cross-Workspace Q&A Dedup Proposals — curator review surface
+// (ID-120 {120.8} — TECH P-4)
+// ---------------------------------------------------------------------------
+//
+// READS go directly through the role-scoped Supabase client (mirroring
+// `fetchEvalCostAggregate` above) — NOT a bespoke GET route. The detail view
+// must show BOTH question texts AND BOTH answers side-by-side (INV-10), so the
+// fetchers join `q_a_pair_dedup_proposals` to `q_a_pairs` (the proposal store
+// itself only carries denormalised provenance + the survivor nomination, never
+// the Q/A text). The role-scoped client is RLS-gated to admin/editor (INV-22):
+// a viewer's SELECT returns zero rows.
+//
+// MUTATIONS (approve / reject) POST to the {120.7} routes
+// (`/api/q-a-pairs/dedup-proposals/[proposalId]/approve|reject`) which run the
+// curator-role-scoped merge write — no app-side q_a_pairs write happens here.
+//
+// Supabase safety: `tryQuery()` from `@/lib/supabase/safe` — never a raw
+// `.from().select()` with an unchecked `error` (ESLint
+// `local/no-unchecked-supabase-error`).
+
+import type { Database } from '@/supabase/types/database.types';
+
+type DedupProposalRow =
+  Database['public']['Tables']['q_a_pair_dedup_proposals']['Row'];
+
+/** Curator-facing status filter for the proposal queue. */
+/** @public */
+export type QaDedupStatusFilter = 'pending' | 'approved' | 'rejected' | 'all';
+
+/**
+ * One member (Q&A pair) of a dedup proposal, hydrated from `q_a_pairs` with
+ * the denormalised provenance snapshot carried on the proposal row. Both the
+ * question AND the answer text are present so the detail view can render them
+ * side-by-side (INV-10).
+ */
+/** @public */
+export interface QaDedupPairMember {
+  id: string;
+  questionText: string | null;
+  answerText: string | null;
+  publicationStatus: string | null;
+  /** Snapshot-by-value provenance from the proposal row (INV-16). */
+  sourceWorkspaceId: string | null;
+  sourceFormResponseId: string | null;
+  /** ISO timestamp; the UI formats DD/MM/YYYY. */
+  updatedAt: string | null;
+}
+
+/**
+ * A dedup proposal flattened for the curator list view. `spansWorkspaces` /
+ * `spansForms` drive the non-colour-only "spans workspaces/forms" badge
+ * (INV-11/18) — computed from the two provenance snapshots.
+ */
+/** @public */
+export interface QaDedupProposalSummary {
+  id: string;
+  status: DedupProposalRow['status'];
+  /**
+   * Cosine similarity (subordinate "match strength" affordance only — NEVER an
+   * AI-confidence headline, INV-23).
+   */
+  similarityScore: number;
+  proposedSurvivorId: string;
+  survivorReason: string;
+  resolvedSurvivorId: string | null;
+  createdAt: string;
+  pairAId: string;
+  pairBId: string;
+  /** True when the two members carry different (non-null) source workspaces. */
+  spansWorkspaces: boolean;
+  /** True when the two members carry different (non-null) source forms. */
+  spansForms: boolean;
+}
+
+/** Full proposal detail: summary + both hydrated pair members. */
+/** @public */
+export interface QaDedupProposalDetail extends QaDedupProposalSummary {
+  pairA: QaDedupPairMember;
+  pairB: QaDedupPairMember;
+}
+
+/** Result shape returned by the approve / reject mutation routes ({120.7}). */
+/** @public */
+export interface QaDedupResolveResult {
+  proposal: DedupProposalRow;
+  survivor_id?: string;
+  archived_id?: string;
+}
+
+const QA_DEDUP_PROPOSAL_COLUMNS =
+  'id, status, similarity_score, proposed_survivor_id, survivor_reason, resolved_survivor_id, created_at, pair_a_id, pair_b_id, pair_a_source_workspace_id, pair_b_source_workspace_id, pair_a_source_form_response_id, pair_b_source_form_response_id' as const;
+
+/**
+ * Shape of one proposal row as selected for the list/detail reads — the
+ * provenance columns are read directly off the proposal store (snapshot by
+ * value), never re-joined from `q_a_pairs`.
+ */
+type DedupProposalSelectRow = Pick<
+  DedupProposalRow,
+  | 'id'
+  | 'status'
+  | 'similarity_score'
+  | 'proposed_survivor_id'
+  | 'survivor_reason'
+  | 'resolved_survivor_id'
+  | 'created_at'
+  | 'pair_a_id'
+  | 'pair_b_id'
+  | 'pair_a_source_workspace_id'
+  | 'pair_b_source_workspace_id'
+  | 'pair_a_source_form_response_id'
+  | 'pair_b_source_form_response_id'
+>;
+
+/** True when both ids are non-null and differ (a genuine cross-boundary span). */
+function spans(a: string | null, b: string | null): boolean {
+  return a !== null && b !== null && a !== b;
+}
+
+function toSummary(row: DedupProposalSelectRow): QaDedupProposalSummary {
+  return {
+    id: row.id,
+    status: row.status,
+    similarityScore: Number(row.similarity_score),
+    proposedSurvivorId: row.proposed_survivor_id,
+    survivorReason: row.survivor_reason,
+    resolvedSurvivorId: row.resolved_survivor_id,
+    createdAt: row.created_at,
+    pairAId: row.pair_a_id,
+    pairBId: row.pair_b_id,
+    spansWorkspaces: spans(
+      row.pair_a_source_workspace_id,
+      row.pair_b_source_workspace_id,
+    ),
+    spansForms: spans(
+      row.pair_a_source_form_response_id,
+      row.pair_b_source_form_response_id,
+    ),
+  };
+}
+
+/**
+ * Fetch the curator queue of dedup proposals, optionally filtered by status.
+ * Newest-first. RLS denies a viewer (INV-22) — they receive zero rows.
+ */
+export async function fetchAdminQaDedupProposals(
+  filters: { status?: QaDedupStatusFilter } = {},
+): Promise<QaDedupProposalSummary[]> {
+  const supabase = createClient();
+  const status = filters.status ?? 'pending';
+
+  let builder = supabase
+    .from('q_a_pair_dedup_proposals')
+    .select(QA_DEDUP_PROPOSAL_COLUMNS)
+    .order('created_at', { ascending: false });
+  if (status !== 'all') {
+    builder = builder.eq('status', status);
+  }
+
+  const result = await tryQuery<DedupProposalSelectRow[]>(
+    builder,
+    'admin.qa_dedup.proposals.list',
+  );
+  if (!result.ok) throw result.error;
+  return (result.data ?? []).map(toSummary);
+}
+
+/** Column slice read off `q_a_pairs` to hydrate a proposal member's Q+A text. */
+type QaPairMemberRow = Pick<
+  Database['public']['Tables']['q_a_pairs']['Row'],
+  | 'id'
+  | 'question_text'
+  | 'answer_standard'
+  | 'publication_status'
+  | 'updated_at'
+>;
+
+/**
+ * Fetch one proposal plus both hydrated members (Q+A text from `q_a_pairs`).
+ * Throws if the proposal is absent (or RLS-hidden from a viewer).
+ */
+export async function fetchAdminQaDedupProposal(
+  proposalId: string,
+): Promise<QaDedupProposalDetail> {
+  const supabase = createClient();
+
+  const proposalResult = await tryQuery<DedupProposalSelectRow | null>(
+    supabase
+      .from('q_a_pair_dedup_proposals')
+      .select(QA_DEDUP_PROPOSAL_COLUMNS)
+      .eq('id', proposalId)
+      .maybeSingle(),
+    'admin.qa_dedup.proposal.read',
+  );
+  if (!proposalResult.ok) throw proposalResult.error;
+  if (proposalResult.data === null) {
+    throw new ApiError('Dedup proposal not found', 404, 'not_found');
+  }
+  const summary = toSummary(proposalResult.data);
+
+  const membersResult = await tryQuery<QaPairMemberRow[]>(
+    supabase
+      .from('q_a_pairs')
+      .select(
+        'id, question_text, answer_standard, publication_status, updated_at',
+      )
+      .in('id', [summary.pairAId, summary.pairBId]),
+    'admin.qa_dedup.proposal.members',
+  );
+  if (!membersResult.ok) throw membersResult.error;
+  const byId = new Map((membersResult.data ?? []).map((row) => [row.id, row]));
+
+  const hydrate = (
+    pairId: string,
+    sourceWorkspaceId: string | null,
+    sourceFormResponseId: string | null,
+  ): QaDedupPairMember => {
+    const row = byId.get(pairId);
+    return {
+      id: pairId,
+      questionText: row?.question_text ?? null,
+      answerText: row?.answer_standard ?? null,
+      publicationStatus: row?.publication_status ?? null,
+      sourceWorkspaceId,
+      sourceFormResponseId,
+      updatedAt: row?.updated_at ?? null,
+    };
+  };
+
+  return {
+    ...summary,
+    pairA: hydrate(
+      summary.pairAId,
+      proposalResult.data.pair_a_source_workspace_id,
+      proposalResult.data.pair_a_source_form_response_id,
+    ),
+    pairB: hydrate(
+      summary.pairBId,
+      proposalResult.data.pair_b_source_workspace_id,
+      proposalResult.data.pair_b_source_form_response_id,
+    ),
+  };
+}
+
+/**
+ * Approve a dedup proposal ({120.7} route). `survivorId`, when supplied, is the
+ * curator's override of the proposer's nomination (INV-13); when omitted the
+ * route defaults to `proposed_survivor_id`. The route archives the non-survivor
+ * then flips the proposal `status='approved'`. A 409 surfaces a concurrent
+ * resolve / already-archived state.
+ */
+export async function postAdminQaDedupApprove(
+  proposalId: string,
+  body: { survivorId?: string } = {},
+): Promise<QaDedupResolveResult> {
+  return mutationFetchJson<QaDedupResolveResult>(
+    `/api/q-a-pairs/dedup-proposals/${proposalId}/approve`,
+    body.survivorId ? { survivor_id: body.survivorId } : {},
+  );
+}
+
+/**
+ * Reject a dedup proposal ({120.7} route). Sets `status='rejected'` and writes
+ * NOTHING to `q_a_pairs` (INV-13) — both members stay published.
+ */
+export async function postAdminQaDedupReject(
+  proposalId: string,
+): Promise<QaDedupResolveResult> {
+  return mutationFetchJson<QaDedupResolveResult>(
+    `/api/q-a-pairs/dedup-proposals/${proposalId}/reject`,
+    {},
+  );
+}

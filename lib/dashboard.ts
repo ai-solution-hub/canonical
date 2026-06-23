@@ -17,6 +17,7 @@ import {
   bidResponseRowToRecentWork,
 } from '@/lib/activity/team-changes';
 import { buildBidSummary } from '@/lib/activity/bid-summary';
+import { parseJsonb, FreshnessSummarySchema } from '@/lib/validation/jsonb';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -410,23 +411,11 @@ export async function fetchUnifiedDashboardData(
     const { data, error } = results[0].value;
     if (error) {
       errors.push('attention_counts RPC failed');
-    } else if (data) {
-      const counts = data as {
-        governance_review_count: number;
-        unverified_count: number;
-        quality_flag_count: number;
-        stale_content_count: number;
-        expired_content_count: number;
-        expiring_content_date_count: number;
-        unread_notification_count: number;
-        coverage_gap_count: number;
-        freshness_summary: {
-          fresh: number;
-          aging: number;
-          stale: number;
-          expired: number;
-        };
-      };
+    } else if (data && data[0]) {
+      // ID-70: get_dashboard_attention_counts now returns a single typed row
+      // (RETURNS TABLE) — 8 scalar columns + a freshness_summary jsonb column
+      // validated at this boundary via parseJsonb (matches get_filter_counts).
+      const counts = data[0];
       governance_review_count = counts.governance_review_count ?? 0;
       unverified_count = counts.unverified_count ?? 0;
       quality_flag_count = counts.quality_flag_count ?? 0;
@@ -435,11 +424,12 @@ export async function fetchUnifiedDashboardData(
       expiring_content_date_count = counts.expiring_content_date_count ?? 0;
       unread_notification_count = counts.unread_notification_count ?? 0;
       coverage_gap_count = counts.coverage_gap_count ?? 0;
-      if (counts.freshness_summary) {
-        freshness_summary.fresh = counts.freshness_summary.fresh ?? 0;
-        freshness_summary.aging = counts.freshness_summary.aging ?? 0;
-        freshness_summary.stale = counts.freshness_summary.stale ?? 0;
-        freshness_summary.expired = counts.freshness_summary.expired ?? 0;
+      const fs = parseJsonb(FreshnessSummarySchema, counts.freshness_summary);
+      if (fs) {
+        freshness_summary.fresh = fs.fresh;
+        freshness_summary.aging = fs.aging;
+        freshness_summary.stale = fs.stale;
+        freshness_summary.expired = fs.expired;
       }
     }
   } else {

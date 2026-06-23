@@ -397,16 +397,20 @@ describe('POST /api/entities/merge', () => {
   it('returns 200 with merge result on success', async () => {
     configureRole(mockSupabase, 'admin');
 
+    // ID-70: merge_entities now returns a single typed row (RETURNS TABLE) —
+    // the route reads data[0], so the mock returns a one-element array.
     mockSupabase.rpc.mockResolvedValueOnce({
-      data: {
-        merged: true,
-        target: 'Acme Corporation',
-        entity_type: 'organisation',
-        mentions_updated: 5,
-        relationship_sources_updated: 1,
-        relationship_targets_updated: 0,
-        duplicates_removed: 2,
-      },
+      data: [
+        {
+          merged: true,
+          target: 'Acme Corporation',
+          entity_type: 'organisation',
+          mentions_updated: 5,
+          relationship_sources_updated: 1,
+          relationship_targets_updated: 0,
+          duplicates_removed: 2,
+        },
+      ],
       error: null,
     });
 
