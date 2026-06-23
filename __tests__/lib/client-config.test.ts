@@ -31,7 +31,7 @@ describe('CLIENT_CONFIG', () => {
       'content_layers',
       'draft_status',
       'ai_integration',
-      'bid_management',
+      'procurement_management',
     ];
     for (const feature of expectedFeatures) {
       expect(CLIENT_CONFIG.features[feature]).toBeDefined();
@@ -156,7 +156,7 @@ describe('isFeatureEnabled', () => {
     expect(isFeatureEnabled('tag_management')).toBe(true);
     expect(isFeatureEnabled('draft_status')).toBe(true);
     expect(isFeatureEnabled('ai_integration')).toBe(true);
-    expect(isFeatureEnabled('bid_management')).toBe(true);
+    expect(isFeatureEnabled('procurement_management')).toBe(true);
   });
 
   it('returns true for coverage_dashboard and content_layers (enabled Session 59)', () => {

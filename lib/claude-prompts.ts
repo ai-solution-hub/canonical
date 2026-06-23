@@ -8,7 +8,7 @@
  * This keeps prompts readable and lets Claude search the KB naturally.
  */
 
-import type { ActiveBidSummary } from '@/lib/dashboard';
+import type { ActiveProcurementSummary } from '@/lib/dashboard';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -27,7 +27,7 @@ export interface ClaudePrompt {
     | 'governance'
     | 'quality'
     | 'freshness'
-    | 'bid'
+    | 'procurement'
     | 'coverage'
     | 'general'
     | 'ingestion'
@@ -38,7 +38,9 @@ export interface ClaudePrompt {
 // Procurement prompts
 // ---------------------------------------------------------------------------
 
-export function generateProcurementPrompt(bid: ActiveBidSummary): ClaudePrompt {
+export function generateProcurementPrompt(
+  bid: ActiveProcurementSummary,
+): ClaudePrompt {
   const totalQ = bid.total_questions;
   const answeredQ = bid.answered_questions;
   const remainingQ = totalQ - answeredQ;
@@ -66,12 +68,12 @@ export function generateProcurementPrompt(bid: ActiveBidSummary): ClaudePrompt {
       remainingQ > 0
         ? `${remainingQ} questions remaining${deadlineText}`
         : `Review bid progress${deadlineText}`,
-    category: 'bid',
+    category: 'procurement',
   };
 }
 
 export function generateProcurementDeadlinePrompt(
-  bid: ActiveBidSummary,
+  bid: ActiveProcurementSummary,
 ): ClaudePrompt {
   const deadlineText =
     bid.days_until_deadline === 0
@@ -82,7 +84,7 @@ export function generateProcurementDeadlinePrompt(
     label: 'Review before deadline',
     prompt: `The "${bid.name}" bid deadline is ${deadlineText}. Show me the current progress and help me prioritise a final review of the drafted responses before submission.`,
     description: `Deadline ${deadlineText}`,
-    category: 'bid',
+    category: 'procurement',
   };
 }
 
