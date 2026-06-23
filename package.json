@@ -151,7 +151,7 @@
     "@types/react-dom": "^19",
     "@types/turndown": "^5.0.6",
     "@vitest/coverage-v8": "^4.1.6",
-    "dotenv": "16",
+    "dotenv": "17",
     "eslint": "^9",
     "eslint-config-next": "^16",
     "eslint-plugin-react-hooks": "^7.0.0",
