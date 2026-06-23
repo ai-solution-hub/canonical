@@ -1,7 +1,11 @@
 import { defineRoute } from '@/lib/api/define-route';
 import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
+import {
+  resolveDedupSubject,
+  subjectHistorySnapshot,
+  writeDedupHistory,
+} from '@/lib/dedup/review-actions';
 import { safeErrorMessage } from '@/lib/error';
-import { logger } from '@/lib/logger';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { setSupersession, SupersessionError } from '@/lib/supersession/set';
 import { parseBody } from '@/lib/validation';
@@ -62,40 +66,33 @@ export const POST = defineRoute(
       // 1. Idempotency guard on subject (the helper does its own checks but
       //    this route is gated on the suspected_duplicate flow specifically —
       //    the path id is always the queue row regardless of direction).
-      const { data: subject, error: subjectErr } = await supabase
-        .from('content_items')
-        .select(
-          'id, title, suggested_title, content, brief, detail, reference, metadata, dedup_status, archived_at, superseded_by',
-        )
-        .eq('id', id)
-        .single();
-
-      if (subjectErr && subjectErr.code !== 'PGRST116') {
-        logger.error(
-          {
-            err: subjectErr,
-            op: 'admin.content-dedup.supersede.load_subject',
-          },
-          'Failed to load dedup subject',
-        );
-        return NextResponse.json(
-          { error: 'Failed to load dedup subject' },
-          { status: 500 },
-        );
-      }
-      if (!subject) {
-        return NextResponse.json({ error: 'Item not found' }, { status: 404 });
-      }
-
-      if (subject.dedup_status !== 'suspected_duplicate') {
+      const resolved = await resolveDedupSubject(
+        supabase,
+        id,
+        'admin.content-dedup.supersede.load_subject',
+      );
+      if (!resolved.ok) {
+        if (resolved.reason === 'load_error') {
+          return NextResponse.json(
+            { error: 'Failed to load dedup subject' },
+            { status: 500 },
+          );
+        }
+        if (resolved.reason === 'not_found') {
+          return NextResponse.json(
+            { error: 'Item not found' },
+            { status: 404 },
+          );
+        }
         return NextResponse.json(
           {
             error: 'row already resolved',
-            current_status: subject.dedup_status,
+            current_status: resolved.currentStatus,
           },
           { status: 409 },
         );
       }
+      const subject = resolved.subject;
 
       // 2. Derive (oldId, newId) from direction. The path id is ALWAYS the
       //    subject (queue row); direction selects which side becomes the
@@ -183,24 +180,6 @@ export const POST = defineRoute(
 
       if (direction === 'canonical-supersedes-subject') {
         // Direction A: 1 row against the subject (the retired side).
-        const { data: latestSubjectHistory, error: latestSubjectHistoryErr } =
-          await supabase
-            .from('content_history')
-            .select('version')
-            .eq('content_item_id', id)
-            .order('version', { ascending: false })
-            .limit(1);
-
-        if (latestSubjectHistoryErr) {
-          logBestEffortWarn(
-            'admin.dedup.supersede.history_version_lookup',
-            'Failed to read latest content_history version for subject',
-            { subjectId: id, error: latestSubjectHistoryErr },
-          );
-        }
-
-        const subjectVersion = (latestSubjectHistory?.[0]?.version ?? 0) + 1;
-
         const subjectHistoryMetadata = {
           ...baseSubjectMeta,
           superseded_by: canonicalId,
@@ -209,30 +188,26 @@ export const POST = defineRoute(
           peerId: canonicalId,
         };
 
-        const { error: subjectHistoryErr } = await supabase
-          .from('content_history')
-          .insert({
-            content_item_id: id,
-            version: subjectVersion,
-            title: subject.title || subject.suggested_title || 'Untitled',
-            content: subject.content || '',
-            brief: subject.brief,
-            detail: subject.detail,
-            reference: subject.reference,
+        await writeDedupHistory(
+          supabase,
+          {
+            contentItemId: id,
+            ...subjectHistorySnapshot(subject),
             metadata: subjectHistoryMetadata,
-            change_type: 'merge',
-            change_summary: summary,
-            change_reason: 'dedup_admin_review_superseded',
-            created_by: user.id,
-          });
-
-        if (subjectHistoryErr) {
-          logBestEffortWarn(
-            'admin.dedup.supersede.history_insert',
-            'Failed to insert dedup audit history for subject',
-            { subjectId: id, error: subjectHistoryErr },
-          );
-        }
+            changeType: 'merge',
+            changeSummary: summary,
+            changeReason: 'dedup_admin_review_superseded',
+            createdBy: user.id,
+          },
+          {
+            op: 'admin.dedup.supersede',
+            errorChannel: 'bestEffort',
+            versionLookupMessage:
+              'Failed to read latest content_history version for subject',
+            insertMessage: 'Failed to insert dedup audit history for subject',
+            warnContext: { subjectId: id },
+          },
+        );
 
         return NextResponse.json({
           pathId: id,
@@ -244,26 +219,10 @@ export const POST = defineRoute(
       }
 
       // Direction B: 2 rows. Each content_item_id has its own version sequence,
-      // so we look up the next version per row independently.
-      const { data: latestCanonicalHistory, error: latestCanonicalHistoryErr } =
-        await supabase
-          .from('content_history')
-          .select('version')
-          .eq('content_item_id', canonicalId)
-          .order('version', { ascending: false })
-          .limit(1);
+      // so writeDedupHistory looks up the next version per row independently.
 
-      if (latestCanonicalHistoryErr) {
-        logBestEffortWarn(
-          'admin.dedup.supersede.history_version_lookup',
-          'Failed to read latest content_history version for canonical (retired side)',
-          { canonicalId, error: latestCanonicalHistoryErr },
-        );
-      }
-
-      const canonicalVersion = (latestCanonicalHistory?.[0]?.version ?? 0) + 1;
-
-      // First row: against the RETIRED canonical (change_type='merge').
+      // First row: against the RETIRED canonical (change_type='merge'). The
+      // synthetic snapshot uses placeholder literals, NOT subjectHistorySnapshot.
       const canonicalHistoryMetadata = {
         superseded_by: id,
         dedup_review_action: 'supersede',
@@ -271,50 +230,33 @@ export const POST = defineRoute(
         peerId: id,
       };
 
-      const { error: canonicalHistoryErr } = await supabase
-        .from('content_history')
-        .insert({
-          content_item_id: canonicalId,
-          version: canonicalVersion,
+      await writeDedupHistory(
+        supabase,
+        {
+          contentItemId: canonicalId,
           title: 'Superseded canonical',
           content: '',
           brief: null,
           detail: null,
           reference: null,
           metadata: canonicalHistoryMetadata,
-          change_type: 'merge',
-          change_summary: summary,
-          change_reason: 'dedup_admin_review_superseded',
-          created_by: user.id,
-        });
-
-      if (canonicalHistoryErr) {
-        logBestEffortWarn(
-          'admin.dedup.supersede.history_insert',
-          'Failed to insert dedup audit history for retired canonical',
-          { canonicalId, error: canonicalHistoryErr },
-        );
-      }
+          changeType: 'merge',
+          changeSummary: summary,
+          changeReason: 'dedup_admin_review_superseded',
+          createdBy: user.id,
+        },
+        {
+          op: 'admin.dedup.supersede',
+          errorChannel: 'bestEffort',
+          versionLookupMessage:
+            'Failed to read latest content_history version for canonical (retired side)',
+          insertMessage:
+            'Failed to insert dedup audit history for retired canonical',
+          warnContext: { canonicalId },
+        },
+      );
 
       // Second row: against the KEPT subject (change_type='metadata_change').
-      const { data: latestSubjectHistory, error: latestSubjectHistoryErr } =
-        await supabase
-          .from('content_history')
-          .select('version')
-          .eq('content_item_id', id)
-          .order('version', { ascending: false })
-          .limit(1);
-
-      if (latestSubjectHistoryErr) {
-        logBestEffortWarn(
-          'admin.dedup.supersede.history_version_lookup',
-          'Failed to read latest content_history version for subject (kept side)',
-          { subjectId: id, error: latestSubjectHistoryErr },
-        );
-      }
-
-      const subjectVersion = (latestSubjectHistory?.[0]?.version ?? 0) + 1;
-
       const subjectHistoryMetadata = {
         ...baseSubjectMeta,
         dedup_review_action: 'supersede',
@@ -323,30 +265,27 @@ export const POST = defineRoute(
         resolution: 'kept_as_canonical',
       };
 
-      const { error: subjectHistoryErr } = await supabase
-        .from('content_history')
-        .insert({
-          content_item_id: id,
-          version: subjectVersion,
-          title: subject.title || subject.suggested_title || 'Untitled',
-          content: subject.content || '',
-          brief: subject.brief,
-          detail: subject.detail,
-          reference: subject.reference,
+      await writeDedupHistory(
+        supabase,
+        {
+          contentItemId: id,
+          ...subjectHistorySnapshot(subject),
           metadata: subjectHistoryMetadata,
-          change_type: 'metadata_change',
-          change_summary: summary,
-          change_reason: 'dedup_admin_review_superseded',
-          created_by: user.id,
-        });
-
-      if (subjectHistoryErr) {
-        logBestEffortWarn(
-          'admin.dedup.supersede.history_insert',
-          'Failed to insert dedup audit history for kept subject',
-          { subjectId: id, error: subjectHistoryErr },
-        );
-      }
+          changeType: 'metadata_change',
+          changeSummary: summary,
+          changeReason: 'dedup_admin_review_superseded',
+          createdBy: user.id,
+        },
+        {
+          op: 'admin.dedup.supersede',
+          errorChannel: 'bestEffort',
+          versionLookupMessage:
+            'Failed to read latest content_history version for subject (kept side)',
+          insertMessage:
+            'Failed to insert dedup audit history for kept subject',
+          warnContext: { subjectId: id },
+        },
+      );
 
       return NextResponse.json({
         pathId: id,

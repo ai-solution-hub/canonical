@@ -1,5 +1,10 @@
 import { defineRoute } from '@/lib/api/define-route';
 import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
+import {
+  resolveDedupSubject,
+  subjectHistorySnapshot,
+  writeDedupHistory,
+} from '@/lib/dedup/review-actions';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
 import { parseBody } from '@/lib/validation';
@@ -45,40 +50,33 @@ export const POST = defineRoute(
       const { note } = parsed.data;
 
       // 1. Idempotency guard.
-      const { data: subject, error: subjectErr } = await supabase
-        .from('content_items')
-        .select(
-          'id, title, suggested_title, content, brief, detail, reference, metadata, dedup_status, archived_at, superseded_by',
-        )
-        .eq('id', id)
-        .single();
-
-      if (subjectErr && subjectErr.code !== 'PGRST116') {
-        logger.error(
-          {
-            err: subjectErr,
-            op: 'admin.content-dedup.confirm-unique.load_subject',
-          },
-          'Failed to load dedup subject',
-        );
-        return NextResponse.json(
-          { error: 'Failed to load dedup subject' },
-          { status: 500 },
-        );
-      }
-      if (!subject) {
-        return NextResponse.json({ error: 'Item not found' }, { status: 404 });
-      }
-
-      if (subject.dedup_status !== 'suspected_duplicate') {
+      const resolved = await resolveDedupSubject(
+        supabase,
+        id,
+        'admin.content-dedup.confirm-unique.load_subject',
+      );
+      if (!resolved.ok) {
+        if (resolved.reason === 'load_error') {
+          return NextResponse.json(
+            { error: 'Failed to load dedup subject' },
+            { status: 500 },
+          );
+        }
+        if (resolved.reason === 'not_found') {
+          return NextResponse.json(
+            { error: 'Item not found' },
+            { status: 404 },
+          );
+        }
         return NextResponse.json(
           {
             error: 'row already resolved',
-            current_status: subject.dedup_status,
+            current_status: resolved.currentStatus,
           },
           { status: 409 },
         );
       }
+      const subject = resolved.subject;
 
       // 2. Flip dedup_status only — `archived_at` stays NULL.
       const { data: updated, error: updateErr } = await supabase
@@ -100,54 +98,29 @@ export const POST = defineRoute(
       }
 
       // 3. content_history snapshot — change_type='metadata_change'.
-      const { data: latestHistory, error: latestHistoryErr } = await supabase
-        .from('content_history')
-        .select('version')
-        .eq('content_item_id', id)
-        .order('version', { ascending: false })
-        .limit(1);
-
-      if (latestHistoryErr) {
-        logger.error(
-          {
-            err: latestHistoryErr,
-            op: 'admin.content-dedup.confirm-unique.history_version_lookup',
-          },
-          'Failed to read latest content_history version',
-        );
-      }
-
-      const nextVersion = (latestHistory?.[0]?.version ?? 0) + 1;
+      //    Best-effort: a failure here does not surface a 500; it is logged.
       const summary = note
         ? `Confirmed unique via admin dedup review: ${note}`
         : 'Confirmed unique via admin dedup review';
 
-      const { error: historyErr } = await supabase
-        .from('content_history')
-        .insert({
-          content_item_id: id,
-          version: nextVersion,
-          title: subject.title || subject.suggested_title || 'Untitled',
-          content: subject.content || '',
-          brief: subject.brief,
-          detail: subject.detail,
-          reference: subject.reference,
+      await writeDedupHistory(
+        supabase,
+        {
+          contentItemId: id,
+          ...subjectHistorySnapshot(subject),
           metadata: subject.metadata,
-          change_type: 'metadata_change',
-          change_summary: summary,
-          change_reason: 'dedup_admin_review_confirmed_unique',
-          created_by: user.id,
-        });
-
-      if (historyErr) {
-        logger.error(
-          {
-            err: historyErr,
-            op: 'admin.content-dedup.confirm-unique.history_insert',
-          },
-          'Failed to insert dedup audit history',
-        );
-      }
+          changeType: 'metadata_change',
+          changeSummary: summary,
+          changeReason: 'dedup_admin_review_confirmed_unique',
+          createdBy: user.id,
+        },
+        {
+          op: 'admin.content-dedup.confirm-unique',
+          errorChannel: 'logger',
+          versionLookupMessage: 'Failed to read latest content_history version',
+          insertMessage: 'Failed to insert dedup audit history',
+        },
+      );
 
       return NextResponse.json({
         id,
