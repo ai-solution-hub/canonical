@@ -1,8 +1,11 @@
 'use client';
 
 import { useMemo } from 'react';
+import { diffWords } from 'diff';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { computeLineDiff, OP_CLASS, OP_PREFIX } from '@/lib/diff/line-diff';
+import type { RenderMode } from '@/lib/diff/unified-revision';
 
 /**
  * RevisionDiffView — v1 MINIMAL user-edit Diff-UI (ID-59 {59.12}).
@@ -23,8 +26,10 @@ import { cn } from '@/lib/utils';
  * assistive tech can browse it linearly. Identical revisions render an
  * explicit "no changes" state, never a blank panel.
  *
- * Richer side-by-side markdown + inline word-level highlighting is v1.1
- * (OQ-59-4) and intentionally out of scope here.
+ * ID-117 {117.7}: LCS primitive extracted to lib/diff/line-diff.ts (CMP-2
+ * struck). New renderMode prop added — default 'unified-line' preserves
+ * byte-identical output for the two existing callers (INV-12). Additional
+ * modes: 'side-by-side' (old↔new columns) and 'word-inline' (diffWords spans).
  */
 
 /** A single revision, normalised from a content_history / q_a_pair_history row. */
@@ -50,104 +55,22 @@ interface RevisionDiffViewProps {
   older: RevisionBlob;
   /** The later of the two revisions (rendered as additions / new side). */
   newer: RevisionBlob;
+  /**
+   * Render strategy for the diff pane.
+   *
+   * - `'unified-line'` (default) — single-column unified line diff using the
+   *   LCS primitive. Output is byte-identical to the pre-117.7 behaviour so
+   *   the two existing callers (CompareVersionsPanel, QARevisionHistory) need
+   *   no change (INV-12 regression gate).
+   * - `'side-by-side'` — old text in the left column, new text in the right
+   *   column, each with OP_CLASS semantic tokens and OP_PREFIX gutters (INV-10/13).
+   * - `'word-inline'` — unified view with word-level highlighting via diffWords
+   *   from the `diff` package (INV-10/11). Line-level context rows remain; only
+   *   changed lines are highlighted at the word level.
+   */
+  renderMode?: RenderMode;
   className?: string;
 }
-
-type DiffOp = 'add' | 'remove' | 'context';
-
-interface DiffLine {
-  op: DiffOp;
-  text: string;
-}
-
-/**
- * Compute the LCS table (lengths) for two line arrays.
- *
- * Standard O(n·m) DP. Revision bodies are modest, so this is comfortably
- * fast for the v1 minimal view and avoids pulling in a diff dependency for
- * the line-level comparison.
- */
-function buildLcsTable(a: readonly string[], b: readonly string[]): number[][] {
-  const m = a.length;
-  const n = b.length;
-  const table: number[][] = Array.from({ length: m + 1 }, () =>
-    new Array<number>(n + 1).fill(0),
-  );
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      if (a[i - 1] === b[j - 1]) {
-        table[i][j] = table[i - 1][j - 1] + 1;
-      } else {
-        table[i][j] = Math.max(table[i - 1][j], table[i][j - 1]);
-      }
-    }
-  }
-  return table;
-}
-
-/**
- * Walk the LCS table back-to-front to produce ordered diff ops.
- *
- * Ties prefer `remove` before `add` so removals appear before their
- * replacements — matches `git diff` intuition.
- */
-function computeLineDiff(oldText: string, newText: string): DiffLine[] {
-  if (oldText === newText) {
-    return oldText
-      .split('\n')
-      .map((text) => ({ op: 'context' as const, text }));
-  }
-  if (oldText.length === 0) {
-    return newText.split('\n').map((text) => ({ op: 'add' as const, text }));
-  }
-  if (newText.length === 0) {
-    return oldText.split('\n').map((text) => ({ op: 'remove' as const, text }));
-  }
-
-  const a = oldText.split('\n');
-  const b = newText.split('\n');
-  const table = buildLcsTable(a, b);
-
-  const out: DiffLine[] = [];
-  let i = a.length;
-  let j = b.length;
-  while (i > 0 && j > 0) {
-    if (a[i - 1] === b[j - 1]) {
-      out.push({ op: 'context', text: a[i - 1] });
-      i--;
-      j--;
-    } else if (table[i - 1][j] >= table[i][j - 1]) {
-      out.push({ op: 'remove', text: a[i - 1] });
-      i--;
-    } else {
-      out.push({ op: 'add', text: b[j - 1] });
-      j--;
-    }
-  }
-  while (i > 0) {
-    out.push({ op: 'remove', text: a[i - 1] });
-    i--;
-  }
-  while (j > 0) {
-    out.push({ op: 'add', text: b[j - 1] });
-    j--;
-  }
-  return out.reverse();
-}
-
-/** Semantic-token classes per op — teal for additions, rose for removals. */
-const OP_CLASS: Record<DiffOp, string> = {
-  add: 'bg-status-success/10 text-status-success',
-  remove: 'bg-status-error/10 text-status-error line-through',
-  context: 'text-muted-foreground',
-};
-
-/** Non-colour gutter marker so meaning never depends on hue (WCAG 2.1 AA). */
-const OP_PREFIX: Record<DiffOp, string> = {
-  add: '[+]',
-  remove: '[-]',
-  context: '   ',
-};
 
 function changeTypeLabel(type: string): string {
   switch (type) {
@@ -226,11 +149,21 @@ function RevisionMeta({
   );
 }
 
-export function RevisionDiffView({
+// ---------------------------------------------------------------------------
+// Render-mode sub-components
+// ---------------------------------------------------------------------------
+
+/**
+ * Unified line diff — the default mode (INV-12: byte-identical to pre-117.7).
+ * Uses OP_CLASS semantic tokens and OP_PREFIX non-colour gutters (INV-13).
+ */
+function UnifiedLineDiff({
   older,
   newer,
-  className,
-}: RevisionDiffViewProps) {
+}: {
+  older: RevisionBlob;
+  newer: RevisionBlob;
+}) {
   const lines = useMemo(
     () => computeLineDiff(older.text, newer.text),
     [older.text, newer.text],
@@ -241,6 +174,278 @@ export function RevisionDiffView({
     [lines],
   );
 
+  if (!hasChanges) {
+    return (
+      <p
+        className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground"
+        data-testid="revision-diff-empty"
+      >
+        No changes between these versions.
+      </p>
+    );
+  }
+
+  return (
+    <pre
+      role="log"
+      aria-label="Revision text diff"
+      className="overflow-x-auto rounded-md border bg-card p-3 font-mono text-xs leading-relaxed"
+    >
+      {lines.map((line, idx) => (
+        <div
+          key={`${idx}-${line.op}`}
+          className={cn('flex gap-2 px-1', OP_CLASS[line.op])}
+        >
+          <span aria-hidden="true" className="select-none">
+            {OP_PREFIX[line.op]}
+          </span>
+          <span className="whitespace-pre-wrap break-words">
+            {line.op === 'add' ? `[Added] ${line.text}` : null}
+            {line.op === 'remove' ? `[Removed] ${line.text}` : null}
+            {line.op === 'context' ? line.text : null}
+          </span>
+        </div>
+      ))}
+    </pre>
+  );
+}
+
+/**
+ * Side-by-side mode — old text in the left column, new text in the right column.
+ * Both columns use OP_CLASS semantic tokens and OP_PREFIX non-colour gutters (INV-13).
+ */
+function SideBySideDiff({
+  older,
+  newer,
+}: {
+  older: RevisionBlob;
+  newer: RevisionBlob;
+}) {
+  const lines = useMemo(
+    () => computeLineDiff(older.text, newer.text),
+    [older.text, newer.text],
+  );
+
+  const hasChanges = useMemo(
+    () => lines.some((line) => line.op !== 'context'),
+    [lines],
+  );
+
+  if (!hasChanges) {
+    return (
+      <p
+        className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground"
+        data-testid="revision-diff-empty"
+      >
+        No changes between these versions.
+      </p>
+    );
+  }
+
+  // Partition into old (remove + context) and new (add + context) columns
+  const oldLines = lines.filter((l) => l.op === 'remove' || l.op === 'context');
+  const newLines = lines.filter((l) => l.op === 'add' || l.op === 'context');
+
+  return (
+    <div className="flex gap-2">
+      <div className="flex-1 min-w-0">
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Older version
+        </p>
+        <pre
+          data-testid="side-by-side-old"
+          aria-label="Older revision text"
+          className="overflow-x-auto rounded-md border bg-card p-3 font-mono text-xs leading-relaxed"
+        >
+          {oldLines.map((line, idx) => (
+            <div
+              key={`old-${idx}-${line.op}`}
+              className={cn('flex gap-2 px-1', OP_CLASS[line.op])}
+            >
+              <span aria-hidden="true" className="select-none">
+                {OP_PREFIX[line.op]}
+              </span>
+              <span className="whitespace-pre-wrap break-words">
+                {line.op === 'remove' ? `[Removed] ${line.text}` : line.text}
+              </span>
+            </div>
+          ))}
+        </pre>
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Newer version
+        </p>
+        <pre
+          data-testid="side-by-side-new"
+          aria-label="Newer revision text"
+          className="overflow-x-auto rounded-md border bg-card p-3 font-mono text-xs leading-relaxed"
+        >
+          {newLines.map((line, idx) => (
+            <div
+              key={`new-${idx}-${line.op}`}
+              className={cn('flex gap-2 px-1', OP_CLASS[line.op])}
+            >
+              <span aria-hidden="true" className="select-none">
+                {OP_PREFIX[line.op]}
+              </span>
+              <span className="whitespace-pre-wrap break-words">
+                {line.op === 'add' ? `[Added] ${line.text}` : line.text}
+              </span>
+            </div>
+          ))}
+        </pre>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Word-inline mode — unified view with word-level diffWords highlighting.
+ * Changed lines show inline word spans using OP_CLASS semantic tokens (INV-10/13).
+ * Unchanged lines render as context using the same LCS partitioning.
+ */
+function WordInlineDiff({
+  older,
+  newer,
+}: {
+  older: RevisionBlob;
+  newer: RevisionBlob;
+}) {
+  const lines = useMemo(
+    () => computeLineDiff(older.text, newer.text),
+    [older.text, newer.text],
+  );
+
+  const hasChanges = useMemo(
+    () => lines.some((line) => line.op !== 'context'),
+    [lines],
+  );
+
+  if (!hasChanges) {
+    return (
+      <p
+        className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground"
+        data-testid="revision-diff-empty"
+      >
+        No changes between these versions.
+      </p>
+    );
+  }
+
+  // For word-inline we pair up adjacent remove+add sequences so we can run
+  // diffWords across the pair. Context lines render as-is.
+  //
+  // Strategy: walk the lines in order; when we encounter a remove immediately
+  // followed by an add, use diffWords for word-level highlighting across that
+  // pair. Standalone removes or adds get the standard OP_CLASS treatment.
+  const rendered: React.ReactNode[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (
+      line.op === 'remove' &&
+      i + 1 < lines.length &&
+      lines[i + 1].op === 'add'
+    ) {
+      // Paired remove+add — run diffWords for word-level highlighting
+      const oldLine = line.text;
+      const newLine = lines[i + 1].text;
+      const wordParts = diffWords(oldLine, newLine);
+
+      rendered.push(
+        <div
+          key={`word-remove-${i}`}
+          className={cn('flex gap-2 px-1', OP_CLASS.remove)}
+        >
+          <span aria-hidden="true" className="select-none">
+            {OP_PREFIX.remove}
+          </span>
+          <span className="whitespace-pre-wrap break-words">
+            {wordParts.map((part, pi) =>
+              part.removed ? (
+                <mark
+                  key={pi}
+                  className="bg-status-error/20 text-status-error rounded px-0.5"
+                >
+                  {part.value}
+                </mark>
+              ) : !part.added ? (
+                <span key={pi}>{part.value}</span>
+              ) : null,
+            )}
+          </span>
+        </div>,
+      );
+
+      rendered.push(
+        <div
+          key={`word-add-${i}`}
+          className={cn('flex gap-2 px-1', OP_CLASS.add)}
+        >
+          <span aria-hidden="true" className="select-none">
+            {OP_PREFIX.add}
+          </span>
+          <span className="whitespace-pre-wrap break-words">
+            {wordParts.map((part, pi) =>
+              part.added ? (
+                <mark
+                  key={pi}
+                  className="bg-status-success/20 text-status-success rounded px-0.5"
+                >
+                  {part.value}
+                </mark>
+              ) : !part.removed ? (
+                <span key={pi}>{part.value}</span>
+              ) : null,
+            )}
+          </span>
+        </div>,
+      );
+
+      i += 2;
+    } else {
+      // Context, standalone remove, or standalone add
+      rendered.push(
+        <div
+          key={`${i}-${line.op}`}
+          className={cn('flex gap-2 px-1', OP_CLASS[line.op])}
+        >
+          <span aria-hidden="true" className="select-none">
+            {OP_PREFIX[line.op]}
+          </span>
+          <span className="whitespace-pre-wrap break-words">
+            {line.op === 'add' ? `[Added] ${line.text}` : null}
+            {line.op === 'remove' ? `[Removed] ${line.text}` : null}
+            {line.op === 'context' ? line.text : null}
+          </span>
+        </div>,
+      );
+      i++;
+    }
+  }
+
+  return (
+    <pre
+      role="log"
+      aria-label="Revision text diff"
+      className="overflow-x-auto rounded-md border bg-card p-3 font-mono text-xs leading-relaxed"
+    >
+      {rendered}
+    </pre>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main export
+// ---------------------------------------------------------------------------
+
+export function RevisionDiffView({
+  older,
+  newer,
+  renderMode = 'unified-line',
+  className,
+}: RevisionDiffViewProps) {
   return (
     <div className={cn('space-y-3', className)}>
       <div className="flex flex-col gap-3 sm:flex-row">
@@ -248,35 +453,12 @@ export function RevisionDiffView({
         <RevisionMeta revision={newer} sideLabel="Newer" />
       </div>
 
-      {hasChanges ? (
-        <pre
-          role="log"
-          aria-label="Revision text diff"
-          className="overflow-x-auto rounded-md border bg-card p-3 font-mono text-xs leading-relaxed"
-        >
-          {lines.map((line, idx) => (
-            <div
-              key={`${idx}-${line.op}`}
-              className={cn('flex gap-2 px-1', OP_CLASS[line.op])}
-            >
-              <span aria-hidden="true" className="select-none">
-                {OP_PREFIX[line.op]}
-              </span>
-              <span className="whitespace-pre-wrap break-words">
-                {line.op === 'add' ? `[Added] ${line.text}` : null}
-                {line.op === 'remove' ? `[Removed] ${line.text}` : null}
-                {line.op === 'context' ? line.text : null}
-              </span>
-            </div>
-          ))}
-        </pre>
+      {renderMode === 'side-by-side' ? (
+        <SideBySideDiff older={older} newer={newer} />
+      ) : renderMode === 'word-inline' ? (
+        <WordInlineDiff older={older} newer={newer} />
       ) : (
-        <p
-          className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground"
-          data-testid="revision-diff-empty"
-        >
-          No changes between these versions.
-        </p>
+        <UnifiedLineDiff older={older} newer={newer} />
       )}
     </div>
   );

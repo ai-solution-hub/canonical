@@ -141,7 +141,9 @@ describe('MCP tool annotation coverage (P0-19 regression guard)', () => {
     // 42 = 43 − 2 + 1 (ID-71.10 part 2 M32/B-INV-32 dedup: the dedup pair
     // find_duplicate_candidates + find_all_duplicates → ONE parameterised
     // `find_duplicates` (scope: 'item' | 'all')).
-    expect(tools.length).toBe(42);
+    // 41 = 42 − 1 (ID-117.12: get_document_diff retired with the legacy
+    // diff-display surface / source_document_diffs engine).
+    expect(tools.length).toBe(41);
   });
 
   it('every registered tool declares all four ToolAnnotations fields', () => {

@@ -327,7 +327,7 @@ describe('computeDocumentDiff — full-text fallback', () => {
     expect(result.entries.every((e) => e.diff_mode === 'full_text')).toBe(true);
   });
 
-  it('sets diffAvailable to true for prose documents with changes', () => {
+  it('produces diff entries for prose documents with changes', () => {
     const result = computeDocumentDiff(
       OLD_ID,
       NEW_ID,
@@ -335,7 +335,8 @@ describe('computeDocumentDiff — full-text fallback', () => {
       'Updated policy text.',
     );
 
-    // The route checks `diffResult.entries.length > 0` to set diffAvailable
+    // The upload route gates the impact/notification rehome on
+    // `diffResult.entries.length > 0` (ID-117.11/.12).
     expect(result.entries.length).toBeGreaterThan(0);
   });
 

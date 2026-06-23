@@ -493,7 +493,6 @@ export interface AuditTrailBundle {
   feed_flags: Record<string, unknown>[];
   tag_morphology_drift_flags: Record<string, unknown>[];
   review_assignments: Record<string, unknown>[];
-  source_document_diffs: Record<string, unknown>[];
   source_documents: Record<string, unknown>[];
   taxonomy_domains: Record<string, unknown>[];
   taxonomy_subtopics: Record<string, unknown>[];
@@ -592,7 +591,6 @@ export async function assembleAuditTrailBundle(
     feedFlags,
     tagMorphologyDriftFlags,
     reviewAssignments,
-    sourceDocumentDiffs,
     sourceDocuments,
     taxonomyDomains,
     taxonomySubtopics,
@@ -644,12 +642,6 @@ export async function assembleAuditTrailBundle(
     ),
     fetchByAnyColumn(
       client,
-      'source_document_diffs',
-      ['created_by', 'reviewed_by'],
-      subjectUuid,
-    ),
-    fetchByAnyColumn(
-      client,
       'source_documents',
       ['archived_by', 'uploaded_by'],
       subjectUuid,
@@ -688,7 +680,6 @@ export async function assembleAuditTrailBundle(
     feed_flags: feedFlags,
     tag_morphology_drift_flags: tagMorphologyDriftFlags,
     review_assignments: reviewAssignments,
-    source_document_diffs: sourceDocumentDiffs,
     source_documents: sourceDocuments,
     taxonomy_domains: taxonomyDomains,
     taxonomy_subtopics: taxonomySubtopics,

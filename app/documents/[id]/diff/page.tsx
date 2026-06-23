@@ -1,15 +1,52 @@
 import type { Metadata } from 'next';
-import { createClient } from '@/lib/supabase/server';
-import { tryQuery } from '@/lib/supabase/safe';
-import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { notFound } from 'next/navigation';
-import {
-  SourceDocumentDiffReview,
-  type DiffReviewEntry,
-} from '@/components/source-document/source-document-diff-review';
+import { createClient } from '@/lib/supabase/server';
+import { sb, tryQuery } from '@/lib/supabase/safe';
+import { resolveUserDisplayNames } from '@/lib/users/display-names';
+import { sourceDocumentRevisionToUnified } from '@/lib/diff/adapters/source-document-revision';
+import { UnifiedDiffContainer } from '@/components/diff/unified-diff-container';
+import type { Tables } from '@/supabase/types/database.types';
+import type { UnifiedDiff } from '@/lib/diff/unified-revision';
+
+/**
+ * /documents/[id]/diff — the binary view-depth of the unified diff surface
+ * (ID-117 {117.10}, cluster F+A; INV-1/17/18/19/20).
+ *
+ * REBUILT (S39x): this page NO LONGER reads the legacy `source_document_diffs`
+ * table (DROPPED in {117.13}). It resolves the version pair via the
+ * `source_documents.parent_id` chain — the requested document is the NEWER side,
+ * its `parent_id` is the OLDER side — and renders the binary depth of the
+ * shared `UnifiedDiffContainer`. Where there is no `parent_id` (initial ingest),
+ * it shows a clear "no previous version" notice rather than a crash or a 404.
+ *
+ * Workspace scoping (INV-19): all reads use the RLS-scoped client
+ * (`createClient()` from `@/lib/supabase/server`), so a document the requesting
+ * user cannot see returns no row → notFound(); a valid, visible document always
+ * renders something (never a 404-gap).
+ *
+ * Read-only (INV-17/18) + AI-invisible (INV-20) are enforced inside
+ * `UnifiedDiffContainer` / `BinaryDiffPane` — this page wires data only.
+ */
+
+/** Columns the diff surface needs from a source_documents row. */
+const SOURCE_DOC_COLUMNS =
+  'id, filename, version, parent_id, storage_path, mime_type, extracted_text, uploaded_by, created_at';
+
+type DiffDocRow = Pick<
+  Tables<'source_documents'>,
+  | 'id'
+  | 'filename'
+  | 'version'
+  | 'parent_id'
+  | 'storage_path'
+  | 'mime_type'
+  | 'extracted_text'
+  | 'uploaded_by'
+  | 'created_at'
+>;
 
 // ---------------------------------------------------------------------------
-// Dynamic page title (Item 3: C5-QW-Diff-1)
+// Metadata
 // ---------------------------------------------------------------------------
 
 export async function generateMetadata({
@@ -20,124 +57,29 @@ export async function generateMetadata({
   const { id: documentId } = await params;
   const supabase = await createClient();
 
+  // Best-effort: a failed title lookup must not break metadata generation.
   const docResult = await tryQuery(
     supabase
       .from('source_documents')
-      .select('id, filename, version, parent_id')
+      .select('filename, version')
       .eq('id', documentId)
-      .single(),
-    'documents.diff.metadata.source_document',
+      .maybeSingle(),
+    'documents.diff.metadata',
   );
-  if (!docResult.ok) {
-    logBestEffortWarn(
-      'documents.diff.metadata.source_document',
-      'source_documents lookup failed; using fallback title',
-      {
-        documentId,
-        err: docResult.error.message,
-        code: docResult.error.code,
-      },
-    );
-  }
   const doc = docResult.ok ? docResult.data : null;
 
   if (!doc) {
-    return { title: 'Diff Review' };
-  }
-
-  // Determine old/new versions
-  let oldVersion = doc.version;
-  let newVersion = doc.version;
-  const filename = doc.filename;
-
-  // Check if this document is the old side of a diff
-  const diffAsOldResult = await tryQuery(
-    supabase
-      .from('source_document_diffs')
-      .select('new_document_id')
-      .eq('old_document_id', documentId)
-      .limit(1),
-    'documents.diff.metadata.diff_as_old',
-  );
-  if (!diffAsOldResult.ok) {
-    logBestEffortWarn(
-      'documents.diff.metadata.diff_as_old',
-      'source_document_diffs lookup (as old) failed',
-      { documentId, err: diffAsOldResult.error.message },
-    );
-  }
-  const diffAsOld = diffAsOldResult.ok ? diffAsOldResult.data : null;
-
-  if (diffAsOld && diffAsOld.length > 0) {
-    const childResult = await tryQuery(
-      supabase
-        .from('source_documents')
-        .select('version')
-        .eq('id', diffAsOld[0].new_document_id)
-        .single(),
-      'documents.diff.metadata.child',
-    );
-    if (!childResult.ok) {
-      logBestEffortWarn(
-        'documents.diff.metadata.child',
-        'child source_document lookup failed',
-        { err: childResult.error.message },
-      );
-    }
-    const child = childResult.ok ? childResult.data : null;
-
-    if (child) {
-      oldVersion = doc.version;
-      newVersion = child.version;
-    }
-  } else {
-    // Check if this document is the new side of a diff
-    const diffAsNewResult = await tryQuery(
-      supabase
-        .from('source_document_diffs')
-        .select('old_document_id')
-        .eq('new_document_id', documentId)
-        .limit(1),
-      'documents.diff.metadata.diff_as_new',
-    );
-    if (!diffAsNewResult.ok) {
-      logBestEffortWarn(
-        'documents.diff.metadata.diff_as_new',
-        'source_document_diffs lookup (as new) failed',
-        { documentId, err: diffAsNewResult.error.message },
-      );
-    }
-    const diffAsNew = diffAsNewResult.ok ? diffAsNewResult.data : null;
-
-    if (diffAsNew && diffAsNew.length > 0) {
-      const parentResult = await tryQuery(
-        supabase
-          .from('source_documents')
-          .select('version')
-          .eq('id', diffAsNew[0].old_document_id)
-          .single(),
-        'documents.diff.metadata.parent',
-      );
-      if (!parentResult.ok) {
-        logBestEffortWarn(
-          'documents.diff.metadata.parent',
-          'parent source_document lookup failed',
-          { err: parentResult.error.message },
-        );
-      }
-      const parent = parentResult.ok ? parentResult.data : null;
-
-      if (parent) {
-        oldVersion = parent.version;
-        newVersion = doc.version;
-      }
-    }
+    return { title: 'Document comparison' };
   }
 
   return {
-    title: `Diff Review: ${filename} v${oldVersion} vs v${newVersion}`,
+    title: `Document comparison: ${doc.filename} v${doc.version}`,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
 
 export default async function DocumentDiffPage({
   params,
@@ -147,218 +89,120 @@ export default async function DocumentDiffPage({
   const { id: documentId } = await params;
   const supabase = await createClient();
 
-  // Fetch the document
-  const { data: doc, error: docErr } = await supabase
-    .from('source_documents')
-    .select('id, filename, version, created_at, parent_id')
-    .eq('id', documentId)
-    .single();
-
-  if (docErr || !doc) {
-    notFound();
-  }
-
-  // Determine the diff pair: this document could be either the old or new side.
-  let oldDoc: {
-    id: string;
-    filename: string;
-    version: number;
-    created_at: string;
-  } = doc;
-  let newDoc: typeof oldDoc | null = null;
-
-  // Try as old_document_id first
-  const diffAsOldResult = await tryQuery(
+  // The requested document is the NEWER side of the comparison. A real DB
+  // error throws (→ error.tsx); a null result (no/invisible row) → notFound().
+  const newerRow = await sb(
     supabase
-      .from('source_document_diffs')
-      .select('new_document_id')
-      .eq('old_document_id', documentId)
-      .limit(1),
-    'documents.diff.page.diff_as_old',
+      .from('source_documents')
+      .select(SOURCE_DOC_COLUMNS)
+      .eq('id', documentId)
+      .maybeSingle<DiffDocRow>(),
+    'documents.diff.newer',
   );
-  if (!diffAsOldResult.ok) {
-    logBestEffortWarn(
-      'documents.diff.page.diff_as_old',
-      'source_document_diffs lookup (as old) failed',
-      { documentId, err: diffAsOldResult.error.message },
-    );
-  }
-  const diffAsOld = diffAsOldResult.ok ? diffAsOldResult.data : null;
 
-  if (diffAsOld && diffAsOld.length > 0) {
-    const childResult = await tryQuery(
-      supabase
-        .from('source_documents')
-        .select('id, filename, version, created_at')
-        .eq('id', diffAsOld[0].new_document_id)
-        .single(),
-      'documents.diff.page.child',
-    );
-    if (!childResult.ok) {
-      logBestEffortWarn(
-        'documents.diff.page.child',
-        'child source_document lookup failed',
-        { err: childResult.error.message },
-      );
-    }
-    const child = childResult.ok ? childResult.data : null;
-
-    if (child) {
-      newDoc = child;
-    }
-  }
-
-  // If not found as old, try as new_document_id
-  if (!newDoc) {
-    const diffAsNewResult = await tryQuery(
-      supabase
-        .from('source_document_diffs')
-        .select('old_document_id')
-        .eq('new_document_id', documentId)
-        .limit(1),
-      'documents.diff.page.diff_as_new',
-    );
-    if (!diffAsNewResult.ok) {
-      logBestEffortWarn(
-        'documents.diff.page.diff_as_new',
-        'source_document_diffs lookup (as new) failed',
-        { documentId, err: diffAsNewResult.error.message },
-      );
-    }
-    const diffAsNew = diffAsNewResult.ok ? diffAsNewResult.data : null;
-
-    if (diffAsNew && diffAsNew.length > 0) {
-      const parentResult = await tryQuery(
-        supabase
-          .from('source_documents')
-          .select('id, filename, version, created_at')
-          .eq('id', diffAsNew[0].old_document_id)
-          .single(),
-        'documents.diff.page.parent',
-      );
-      if (!parentResult.ok) {
-        logBestEffortWarn(
-          'documents.diff.page.parent',
-          'parent source_document lookup failed',
-          { err: parentResult.error.message },
-        );
-      }
-      const parent = parentResult.ok ? parentResult.data : null;
-
-      if (parent) {
-        newDoc = {
-          id: doc.id,
-          filename: doc.filename,
-          version: doc.version,
-          created_at: doc.created_at,
-        };
-        oldDoc = parent;
-      }
-    }
-  }
-
-  if (!newDoc) {
+  // RLS-invisible or non-existent → 404 (do not leak cross-workspace existence).
+  if (!newerRow) {
     notFound();
   }
 
-  // Fetch all diff entries for this document pair
-  const { data: entries, error: entriesErr } = await supabase
-    .from('source_document_diffs')
-    .select(
-      'id, diff_type, diff_mode, old_question, new_question, old_content, new_content, similarity_score, affected_content_item_id, status',
-    )
-    .eq('old_document_id', oldDoc.id)
-    .eq('new_document_id', newDoc.id)
-    .order('diff_type');
-
-  if (entriesErr) {
+  // No predecessor → this is the initial ingest; render a clear notice, not a
+  // crash and not a 404 (the document itself is valid and visible).
+  if (!newerRow.parent_id) {
     return (
-      <section
-        aria-label="Document diff review"
-        className="container px-4 py-8"
-      >
-        <div className="mx-auto max-w-4xl rounded-lg border border-destructive/30 bg-destructive/5 p-8 text-center">
-          <p className="text-sm text-destructive">
-            Failed to load diff entries: {entriesErr.message}
+      <section aria-label="Document comparison" className="container px-4 py-8">
+        <header className="mb-6">
+          <h1 className="text-xl font-semibold text-foreground">
+            {newerRow.filename}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Version {newerRow.version}
+          </p>
+        </header>
+        <div className="rounded-lg border bg-muted/30 p-8 text-center">
+          <p className="text-sm text-muted-foreground">
+            This is the first version of this document — there is no previous
+            version to compare against.
           </p>
         </div>
       </section>
     );
   }
 
-  // Collect affected content item IDs to fetch titles in bulk
-  const affectedIds = (entries ?? [])
-    .map((e) => e.affected_content_item_id)
-    .filter((id): id is string => id !== null);
+  // The OLDER side is the parent in the version chain. A real DB error throws
+  // (→ error.tsx); a null result (parent removed/invisible) → notice below.
+  const olderRow = await sb(
+    supabase
+      .from('source_documents')
+      .select(SOURCE_DOC_COLUMNS)
+      .eq('id', newerRow.parent_id)
+      .maybeSingle<DiffDocRow>(),
+    'documents.diff.older',
+  );
 
-  let affectedTitles: Record<string, string> = {};
-  if (affectedIds.length > 0) {
-    const itemsResult = await tryQuery(
-      supabase.from('content_items').select('id, title').in('id', affectedIds),
-      'documents.diff.page.affected_titles',
+  // Parent exists in the chain but is not visible to this user (or was removed):
+  // show a notice rather than 404-gapping the visible newer document.
+  if (!olderRow) {
+    return (
+      <section aria-label="Document comparison" className="container px-4 py-8">
+        <header className="mb-6">
+          <h1 className="text-xl font-semibold text-foreground">
+            {newerRow.filename}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Version {newerRow.version}
+          </p>
+        </header>
+        <div className="rounded-lg border bg-muted/30 p-8 text-center">
+          <p className="text-sm text-muted-foreground">
+            The previous version of this document is no longer available to
+            compare against.
+          </p>
+        </div>
+      </section>
     );
-    if (!itemsResult.ok) {
-      logBestEffortWarn(
-        'documents.diff.page.affected_titles',
-        'content_items affected-titles bulk fetch failed',
-        { count: affectedIds.length, err: itemsResult.error.message },
-      );
-    }
-    const items = itemsResult.ok ? itemsResult.data : null;
-
-    if (items) {
-      affectedTitles = Object.fromEntries(
-        items.map((item) => [item.id, item.title ?? 'Untitled']),
-      );
-    }
   }
 
-  // Build summary counts
-  const summary = { added: 0, removed: 0, modified: 0, unchanged: 0 };
-  for (const entry of entries ?? []) {
-    const type = entry.diff_type as keyof typeof summary;
-    if (type in summary) {
-      summary[type]++;
-    }
-  }
+  // Resolve uploader UUIDs → display names for both rows (single round trip).
+  const uploaderIds = [olderRow.uploaded_by, newerRow.uploaded_by].filter(
+    (id): id is string => id !== null,
+  );
+  const resolved = await resolveUserDisplayNames(supabase, uploaderIds);
+  const displayNames = new Map<string, string>(
+    [...resolved.entries()].map(([id, info]) => [id, info.display_name]),
+  );
 
-  // Build entries for the component
-  const reviewEntries: DiffReviewEntry[] = (entries ?? []).map((entry) => ({
-    id: entry.id,
-    diff_type: entry.diff_type as DiffReviewEntry['diff_type'],
-    diff_mode: (entry.diff_mode ?? 'qa') as DiffReviewEntry['diff_mode'],
-    old_question: entry.old_question ?? undefined,
-    new_question: entry.new_question ?? undefined,
-    old_content: entry.old_content ?? undefined,
-    new_content: entry.new_content ?? undefined,
-    similarity_score: entry.similarity_score ?? undefined,
-    affected_item: entry.affected_content_item_id
-      ? {
-          id: entry.affected_content_item_id,
-          title: affectedTitles[entry.affected_content_item_id] ?? 'Untitled',
-        }
-      : undefined,
-    status: entry.status,
-  }));
+  // Project both rows into the unified revision abstraction. The OLDER and NEWER
+  // sides are distinct source_documents rows, so each carries its OWN recordId
+  // (its own source_documents.id) — the binary leg mints two distinct URLs.
+  const diff: UnifiedDiff = {
+    older: sourceDocumentRevisionToUnified(
+      olderRow as Tables<'source_documents'>,
+      olderRow.id,
+      displayNames,
+    ),
+    newer: sourceDocumentRevisionToUnified(
+      newerRow as Tables<'source_documents'>,
+      newerRow.id,
+      displayNames,
+    ),
+  };
 
   return (
-    <section aria-label="Document diff review" className="container px-4 py-8">
-      <SourceDocumentDiffReview
-        documentId={oldDoc.id}
-        oldDocument={{
-          id: oldDoc.id,
-          filename: oldDoc.filename,
-          version: oldDoc.version,
-          uploaded_at: oldDoc.created_at,
-        }}
-        newDocument={{
-          id: newDoc.id,
-          filename: newDoc.filename,
-          version: newDoc.version,
-          uploaded_at: newDoc.created_at,
-        }}
-        summary={summary}
-        entries={reviewEntries}
+    <section aria-label="Document comparison" className="container px-4 py-8">
+      <header className="mb-6">
+        <h1 className="text-xl font-semibold text-foreground">
+          {newerRow.filename}
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Comparing v{olderRow.version} with v{newerRow.version}
+        </p>
+      </header>
+
+      <UnifiedDiffContainer
+        diff={diff}
+        viewDepth="binary"
+        olderDocId={olderRow.id}
+        newerDocId={newerRow.id}
       />
     </section>
   );
