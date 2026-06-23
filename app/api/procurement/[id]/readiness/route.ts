@@ -80,7 +80,7 @@ function assessQualityData(qualityData: QualityData | null): {
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/bids/:id/readiness
+// GET /api/procurement/:id/readiness
 // ---------------------------------------------------------------------------
 
 export const GET = defineRoute(

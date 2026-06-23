@@ -28,7 +28,7 @@ import { parseBody } from '@/lib/validation';
  *     because Knowledge Hub `client_id` is non-UUID `'default'`).
  *
  * Pattern: HTTP 202 + `{ job_id, pipeline_run_id, status: 'queued',
- * deduplicated }` (mirrors `app/api/bids/[id]/responses/draft-all/route.ts`
+ * deduplicated }` (mirrors `app/api/procurement/[id]/responses/draft-all/route.ts`
  * + spec §3.4 step 3).
  *
  * pipeline_runs Pattern 2 (spec §6.3): the producer pre-allocates the

@@ -43,7 +43,7 @@ function isValidDocx(buffer: ArrayBuffer): boolean {
 const TERMINAL_BID_STATUSES = new Set(['won', 'lost', 'withdrawn']);
 
 // ──────────────────────────────────────────
-// POST /api/bids/:id/templates -- upload a template
+// POST /api/procurement/:id/templates -- upload a template
 // ──────────────────────────────────────────
 
 export const maxDuration = 30;
@@ -236,7 +236,7 @@ export const POST = defineRoute(
 );
 
 // ──────────────────────────────────────────
-// GET /api/bids/:id/templates -- list templates for a bid
+// GET /api/procurement/:id/templates -- list templates for a bid
 // ──────────────────────────────────────────
 
 export const GET = defineRoute(
