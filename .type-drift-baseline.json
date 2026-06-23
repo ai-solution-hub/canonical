@@ -78,6 +78,12 @@
     }
   },
   {
+    "interface": "QaDedupResolveResult",
+    "declaredAt": {
+      "file": "lib/query/fetchers.ts"
+    }
+  },
+  {
     "interface": "PipelineRunsRecentResponse",
     "declaredAt": {
       "file": "app/api/admin/pipeline-runs/recent/route.ts"
