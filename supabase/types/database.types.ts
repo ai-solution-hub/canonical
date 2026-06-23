@@ -2552,6 +2552,81 @@ export type Database = {
           },
         ]
       }
+      q_a_pair_dedup_proposals: {
+        Row: {
+          created_at: string | null
+          id: string | null
+          pair_a_fingerprint: string | null
+          pair_a_id: string | null
+          pair_a_source_form_response_id: string | null
+          pair_a_source_workspace_id: string | null
+          pair_b_fingerprint: string | null
+          pair_b_id: string | null
+          pair_b_source_form_response_id: string | null
+          pair_b_source_workspace_id: string | null
+          proposed_survivor_id: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          resolved_survivor_id: string | null
+          similarity_score: number | null
+          status: string | null
+          survivor_reason: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string | null
+          pair_a_fingerprint?: string | null
+          pair_a_id?: string | null
+          pair_a_source_form_response_id?: string | null
+          pair_a_source_workspace_id?: string | null
+          pair_b_fingerprint?: string | null
+          pair_b_id?: string | null
+          pair_b_source_form_response_id?: string | null
+          pair_b_source_workspace_id?: string | null
+          proposed_survivor_id?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resolved_survivor_id?: string | null
+          similarity_score?: number | null
+          status?: string | null
+          survivor_reason?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string | null
+          pair_a_fingerprint?: string | null
+          pair_a_id?: string | null
+          pair_a_source_form_response_id?: string | null
+          pair_a_source_workspace_id?: string | null
+          pair_b_fingerprint?: string | null
+          pair_b_id?: string | null
+          pair_b_source_form_response_id?: string | null
+          pair_b_source_workspace_id?: string | null
+          proposed_survivor_id?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resolved_survivor_id?: string | null
+          similarity_score?: number | null
+          status?: string | null
+          survivor_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "q_a_pair_dedup_proposals_pair_a_id_fkey"
+            columns: ["pair_a_id"]
+            isOneToOne: false
+            referencedRelation: "q_a_pairs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "q_a_pair_dedup_proposals_pair_b_id_fkey"
+            columns: ["pair_b_id"]
+            isOneToOne: false
+            referencedRelation: "q_a_pairs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       q_a_pair_history: {
         Row: {
           alternate_question_phrasings: string[] | null
@@ -2637,6 +2712,7 @@ export type Database = {
           question_embedding: string | null
           question_text: string | null
           scope_tag: string[] | null
+          source_document_id: string | null
           source_form_response_id: string | null
           source_question_id: string | null
           source_workspace_id: string | null
@@ -2658,6 +2734,7 @@ export type Database = {
           question_embedding?: string | null
           question_text?: string | null
           scope_tag?: string[] | null
+          source_document_id?: string | null
           source_form_response_id?: string | null
           source_question_id?: string | null
           source_workspace_id?: string | null
@@ -2679,6 +2756,7 @@ export type Database = {
           question_embedding?: string | null
           question_text?: string | null
           scope_tag?: string[] | null
+          source_document_id?: string | null
           source_form_response_id?: string | null
           source_question_id?: string | null
           source_workspace_id?: string | null

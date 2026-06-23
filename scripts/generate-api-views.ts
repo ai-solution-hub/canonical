@@ -117,6 +117,7 @@ export const SURFACE_TABLES: readonly string[] = [
   'pipeline_runs',
   'processing_queue',
   'q_a_extractions',
+  'q_a_pair_dedup_proposals',
   'q_a_pair_history',
   'q_a_pairs',
   'read_marks',
