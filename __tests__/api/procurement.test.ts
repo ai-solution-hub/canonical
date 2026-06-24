@@ -172,7 +172,7 @@ describe('GET /api/procurement', () => {
     expect(body.error).toBe('Unauthorised');
   });
 
-  it('returns 200 with bids array on success', async () => {
+  it('returns 200 with procurements array on success', async () => {
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: [MOCK_BID], error: null, count: 1 }),
@@ -188,9 +188,9 @@ describe('GET /api/procurement', () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.bids).toHaveLength(1);
-    expect(body.bids[0].id).toBe(VALID_UUID);
-    expect(body.bids[0].question_stats).toEqual({
+    expect(body.procurements).toHaveLength(1);
+    expect(body.procurements[0].id).toBe(VALID_UUID);
+    expect(body.procurements[0].question_stats).toEqual({
       workspace_id: VALID_UUID,
       total: 5,
       answered: 3,
@@ -198,16 +198,16 @@ describe('GET /api/procurement', () => {
     expect(body.total).toBe(1);
     expect(body.limit).toBe(50);
     expect(body.offset).toBe(0);
-    // Happy path: failed_bid_ids is absent (matches H13 sibling-when-non-empty
-    // convention).
-    expect(body).not.toHaveProperty('failed_bid_ids');
+    // Happy path: failed_procurement_ids is absent (matches H13
+    // sibling-when-non-empty convention).
+    expect(body).not.toHaveProperty('failed_procurement_ids');
   });
 
-  it('surfaces failed_bid_ids[] when fallback per-bid stats fail (WP5)', async () => {
+  it('surfaces failed_procurement_ids[] when fallback per-bid stats fail (WP5)', async () => {
     // Two bids in the list. The batch RPC errors (forcing the per-bid
     // fallback path), then one of the per-bid RPCs errors and the other
     // succeeds. The response must surface only the failing bid id under
-    // `failed_bid_ids` while the successful bid still gets question_stats.
+    // `failed_procurement_ids` while the successful bid still gets question_stats.
     const SECOND_UUID = 'b2c3d4e5-f6a7-8901-bcde-f23456789012';
     const SECOND_BID = {
       ...MOCK_BID,
@@ -226,7 +226,7 @@ describe('GET /api/procurement', () => {
         data: null,
         error: { code: '42883', message: 'function does not exist' },
       })
-      // First per-bid call fails (this is the bid id we expect in failed_bid_ids).
+      // First per-bid call fails (this is the bid id we expect in failed_procurement_ids).
       .mockResolvedValueOnce({
         data: null,
         error: { code: 'PGRST500', message: 'stats lookup failed' },
@@ -243,10 +243,10 @@ describe('GET /api/procurement', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
 
-    expect(body.bids).toHaveLength(2);
-    expect(body.failed_bid_ids).toEqual([VALID_UUID]);
+    expect(body.procurements).toHaveLength(2);
+    expect(body.failed_procurement_ids).toEqual([VALID_UUID]);
 
-    const successful = body.bids.find(
+    const successful = body.procurements.find(
       (b: { id: string }) => b.id === SECOND_UUID,
     );
     expect(successful?.question_stats).toEqual({
@@ -255,7 +255,9 @@ describe('GET /api/procurement', () => {
       answered: 2,
     });
 
-    const failed = body.bids.find((b: { id: string }) => b.id === VALID_UUID);
+    const failed = body.procurements.find(
+      (b: { id: string }) => b.id === VALID_UUID,
+    );
     expect(failed?.question_stats).toBeNull();
   });
 });

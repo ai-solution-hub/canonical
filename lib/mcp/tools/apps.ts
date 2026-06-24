@@ -475,7 +475,7 @@ export async function registerAppTools(server: McpServer): Promise<void> {
           count: bids.length,
           total_count: bids.length,
           has_more: false,
-          bids: bids.map((bid) => ({
+          procurements: bids.map((bid) => ({
             id: bid.id,
             name: bid.name,
             buyer: bid.buyer,

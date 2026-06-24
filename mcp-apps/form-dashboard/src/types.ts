@@ -4,7 +4,7 @@ export interface BidDashboardData {
   count: number;
   total_count: number;
   has_more: boolean;
-  bids: BidSummary[];
+  procurements: BidSummary[];
   focused_form_detail?: FormDetailData;
 }
 

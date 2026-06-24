@@ -76,7 +76,7 @@ export default function FormsPage() {
       const response = await fetch('/api/procurement');
       if (!response.ok) throw new Error('Failed to fetch bids');
       const data = await response.json();
-      setProcurements(data.bids ?? []);
+      setProcurements(data.procurements ?? []);
     } catch (err) {
       logger.error({ err }, 'Failed to load bids');
       toast.error('Failed to load bids');

@@ -25,7 +25,7 @@ interface EffectivenessData {
   losing_citations: number;
   pending_citations: number;
   win_rate: number;
-  bids: ProcurementCitation[];
+  procurements: ProcurementCitation[];
 }
 
 interface ContentEffectivenessPanelProps {
@@ -226,14 +226,14 @@ export function ContentEffectivenessPanel({
   // Determine if we have decided outcomes
   const hasDecidedOutcomes = data.winning_citations + data.losing_citations > 0;
   const winRatePct = Math.round(data.win_rate * 100);
-  const distinctProcurements = data.bids.length;
+  const distinctProcurements = data.procurements.length;
 
   // Determine visible bids
   const MAX_VISIBLE = 5;
   const visibleProcurements = showAll
-    ? data.bids
-    : data.bids.slice(0, MAX_VISIBLE);
-  const hasMore = data.bids.length > MAX_VISIBLE;
+    ? data.procurements
+    : data.procurements.slice(0, MAX_VISIBLE);
+  const hasMore = data.procurements.length > MAX_VISIBLE;
 
   return (
     <section
@@ -294,7 +294,7 @@ export function ContentEffectivenessPanel({
       )}
 
       {/* Procurement history list */}
-      {data.bids.length > 0 && (
+      {data.procurements.length > 0 && (
         <div className="mt-4">
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Procurement History
@@ -334,7 +334,7 @@ export function ContentEffectivenessPanel({
               type="button"
             >
               <ChevronDown className="size-3" aria-hidden="true" />
-              Show all ({data.bids.length})
+              Show all ({data.procurements.length})
             </button>
           )}
         </div>

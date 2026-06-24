@@ -26,7 +26,7 @@ interface EffectivenessResponse {
   losing_citations: number;
   pending_citations: number;
   win_rate: number;
-  bids: ProcurementCitation[];
+  procurements: ProcurementCitation[];
 }
 
 // ---------------------------------------------------------------------------
@@ -129,9 +129,9 @@ export const GET = defineRoute(
         );
       }
 
-      // Build the bid list, deduplicating by workspace_id
+      // Build the procurement list, deduplicating by workspace_id
       const seenWorkspaces = new Set<string>();
-      const bids: ProcurementCitation[] = [];
+      const procurements: ProcurementCitation[] = [];
 
       for (const citation of citations ?? []) {
         const response = citation.form_responses as unknown as {
@@ -157,7 +157,7 @@ export const GET = defineRoute(
             ? outcome
             : null;
 
-        bids.push({
+        procurements.push({
           workspace_id: workspace.id,
           workspace_name: workspace.name ?? 'Untitled bid',
           buyer: (workspace.domain_metadata?.buyer as string | null) ?? null,
@@ -173,7 +173,7 @@ export const GET = defineRoute(
         losing_citations: losingCitations,
         pending_citations: pendingCitations,
         win_rate: winRate,
-        bids,
+        procurements,
       };
 
       return NextResponse.json(response);
