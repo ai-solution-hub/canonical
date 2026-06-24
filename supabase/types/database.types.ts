@@ -3051,7 +3051,6 @@ export type Database = {
           original_filename: string | null
           parent_id: string | null
           pipeline_run_id: string | null
-          pullmd_share_id: string | null
           source_url: string | null
           status: string | null
           storage_path: string | null
@@ -3075,7 +3074,6 @@ export type Database = {
           original_filename?: string | null
           parent_id?: string | null
           pipeline_run_id?: string | null
-          pullmd_share_id?: string | null
           source_url?: string | null
           status?: string | null
           storage_path?: string | null
@@ -3099,7 +3097,6 @@ export type Database = {
           original_filename?: string | null
           parent_id?: string | null
           pipeline_run_id?: string | null
-          pullmd_share_id?: string | null
           source_url?: string | null
           status?: string | null
           storage_path?: string | null
@@ -7682,7 +7679,6 @@ export type Database = {
           original_filename: string | null
           parent_id: string | null
           pipeline_run_id: string | null
-          pullmd_share_id: string | null
           source_url: string | null
           status: string
           storage_path: string
@@ -7706,7 +7702,6 @@ export type Database = {
           original_filename?: string | null
           parent_id?: string | null
           pipeline_run_id?: string | null
-          pullmd_share_id?: string | null
           source_url?: string | null
           status?: string
           storage_path: string
@@ -7730,7 +7725,6 @@ export type Database = {
           original_filename?: string | null
           parent_id?: string | null
           pipeline_run_id?: string | null
-          pullmd_share_id?: string | null
           source_url?: string | null
           status?: string
           storage_path?: string
