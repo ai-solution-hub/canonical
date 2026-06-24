@@ -1,0 +1,210 @@
+# deploy/coolify/docker-compose.platform-staging.yaml
+#
+# ID-127.5: PLATFORM STAGING Coolify env — the cocoindex ingestion pipeline for the
+#           Platform (canonical) stack, on its own Coolify-managed compose network,
+#           targeting the PLATFORM STAGING Supabase project. Cloned from
+#           deploy/coolify/docker-compose.staging.yaml.
+#           (ID-129.1: the HTML→Markdown extractor stack was decommissioned and removed;
+#           cocoindex no longer depends on it. The HTML cleaner is bundled IN the cocoindex
+#           image — in-process /extract — so there is correctly NO separate service.)
+#
+# PLATFORM stack vs the client (on-prem) stack:
+#   This compose is the PLATFORM (canonical) pipeline, hosted on Server B (87.106.72.59),
+#   distinct from the client on-prem co-location stack. It is cocoindex-only (BI-4) — the
+#   legacy HTML→Markdown extractor sidecar stack never existed here.
+#
+# Naming (CRITICAL — Traefik Host MUST match the live DNS → Server B 87.106.72.59):
+#   The router/service id and Host are platform-scoped and DNS-authoritative. The Host
+#   uses ca-platform-pipeline-staging.aisolutionhub.co.uk (matches the live DNS record); a
+#   mismatched Host 404s at the Traefik edge.
+#
+# BURN-SAFE BY CONSTRUCTION (ID-83 / bl-221):
+#   The worker boots LIFESPAN-ONLY (coco.start_blocking()) and NEVER walks the corpus at
+#   boot, so a deploy/restart is burn-safe regardless of COCOINDEX_SOURCE_PATH's value —
+#   the SOURCE_PATH-blanking burn-valve is RETIRED. COCOINDEX_SOURCE_PATH MAY now stay set
+#   permanently to the platform-staging corpus path (e.g. /cocoindex-state/corpus); the
+#   corpus walk fires ONLY via the on-demand POST /walk trigger (a Coolify scheduled task /
+#   operator curl). The O-Q8 app_main idle early-return survives as a defence-in-depth
+#   backstop (see scripts/tests/test_cocoindex_flow_idle_mode.py). Stand up the scheduled
+#   task per docs/runbooks/onprem-b1-deploy.md §B2.
+#
+# Secrets discipline (invariant 10 / {66.10}):
+#   ALL secret env values (API keys, DSN, tokens, admin creds) are injected by Coolify's
+#   per-app encrypted env at deploy time. This file contains NO literal secret values —
+#   secret vars are ${VAR} refs only. NO platform DB ref / secret / DSN is hardcoded here;
+#   the operator pastes platform-staging values per the runbook.
+#
+# Image-tag discipline:
+#   cocoindex — NEVER :latest. COCOINDEX_IMAGE_TAG is a required variable
+#     (${COCOINDEX_IMAGE_TAG:?}) that must be set to a pinned sha- tag from the {66.7}
+#     onprem-deploy.yml GH Action (e.g. sha-abc1234). Staging may pin a release-candidate
+#     tag ahead of prod to validate it. The image path
+#     ghcr.io/${GHCR_OWNER}/kh-cocoindex-pipeline is the SHARED artefact — never renamed.
+
+name: ca-pipeline-platform-staging
+
+services:
+  # ----------------------------------------------------------------------------
+  # cocoindex — Platform ingestion pipeline (STAGING).
+  #
+  # Image built + pushed to ghcr.io by {66.7}. The tag MUST be a pinned sha- tag —
+  # never :latest. COCOINDEX_IMAGE_TAG is required: compose refuses to start if unset.
+  # ----------------------------------------------------------------------------
+  cocoindex-platform-staging:
+    image: "ghcr.io/${GHCR_OWNER:-ai-solution-hub}/kh-cocoindex-pipeline:${COCOINDEX_IMAGE_TAG:?set to a pinned sha- tag from {66.7}}"
+    container_name: ca-cocoindex-platform-staging
+    restart: unless-stopped
+    # Resource caps (drift §3 fix — the old box ran with NONE). Protective limits so a
+    # runaway walk cannot take down the host. Honoured by `docker compose up` (Coolify,
+    # non-swarm). Final sizing is the deferred ID-127.14 metrics task; walks are
+    # one-at-a-time (scheduled tasks disabled / supervised) so a simultaneous peak is not
+    # expected, and the 1.5 GB cap per container keeps total < host RAM.
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1536M
+        reservations:
+          memory: 256M
+    # Run as root: buildpack images run as uid 1000 (cnb), but a fresh Docker named-volume
+    # mount is root-owned, so the non-root user hits "Permission denied (os error 13)"
+    # initialising the LMDB engine store at /cocoindex-state/lmdb. root resolves it durably
+    # for this single-tenant backend pipeline sidecar (no untrusted code exec).
+    user: "0:0"
+
+    # --------------------------------------------------------------------------
+    # HTTPS ingress (ID-88.1) — Traefik path-scoped routing via the coolify-proxy.
+    #
+    # Inv-13: /stage is deliberately NOT routed — it stays compose-internal only.
+    # This path scope (exactly /walk + /health + /extract) IS the public-exposure
+    # guard: /walk is bearer-gated by the app itself (the route validates
+    # `Authorization: Bearer ${CRON_SECRET}`), /extract is bearer-gated on its OWN
+    # dedicated `Authorization: Bearer ${EXTRACT_API_TOKEN}` ({112.6}, a different
+    # blast radius from CRON_SECRET) and self-enforces a 20 MB per-route body cap,
+    # and /health is intentionally public-readable (liveness only — no data). Any
+    # other path (incl. /stage) gets no router and Traefik 404s it at the edge.
+    #
+    # The coolify-proxy (Traefik) is already attached to this app's compose
+    # network, so labels alone route — NO compose `networks:` change is needed.
+    # Labels-only routing: the Coolify app FQDN ("Domains") field stays UNSET —
+    # see docs/runbooks/onprem-b1-deploy.md §"Pipeline HTTPS ingress (ID-88.1)".
+    # The distinct router/service name (ca-cocoindex-platform-staging-walk) avoids
+    # collision with Coolify-generated router labels if an FQDN is ever set;
+    # the explicit router→service binding keeps this router unambiguous in that
+    # merged-labels scenario. The Host MUST match the live DNS record
+    # (ca-platform-pipeline-staging.aisolutionhub.co.uk → Server B 87.106.72.59) — a
+    # mismatched Host 404s. certresolver `letsencrypt` is the Coolify v4 default
+    # ACME resolver name in the coolify-proxy Traefik config.
+    # --------------------------------------------------------------------------
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.ca-cocoindex-platform-staging-walk.rule=Host(`ca-platform-pipeline-staging.aisolutionhub.co.uk`) && (PathPrefix(`/walk`) || PathPrefix(`/health`) || PathPrefix(`/extract`))
+      - traefik.http.routers.ca-cocoindex-platform-staging-walk.entrypoints=https
+      - traefik.http.routers.ca-cocoindex-platform-staging-walk.tls=true
+      - traefik.http.routers.ca-cocoindex-platform-staging-walk.tls.certresolver=letsencrypt
+      - traefik.http.routers.ca-cocoindex-platform-staging-walk.service=ca-cocoindex-platform-staging-walk
+      - traefik.http.services.ca-cocoindex-platform-staging-walk.loadbalancer.server.port=8080
+
+    environment:
+      # --- Boot-required vars (must be present before /health serves) ---
+      # COCOINDEX_DB_DSN is the asyncpg PLATFORM-STAGING Supabase pooler string (NOT the
+      # LMDB path). Boot-required: flow.py:_build_dsn() needs it during @coco.lifespan
+      # asyncpg pool creation, before /health can serve. Build it from the platform-staging
+      # POSTGRES_PASSWORD and the region-qualified pooler host
+      # (aws-<n>-eu-west-2.pooler.supabase.com); see the runbook and
+      # docs/runbooks/cocoindex-deploy.md §0.1. Value injected by Coolify.
+      COCOINDEX_DB_DSN: ${COCOINDEX_DB_DSN}
+
+      # COCOINDEX_DB is the cocoindex ENGINE's internal LMDB state-store path.
+      # Boot-required: environment.start_sync() raises ValueError when unset.
+      # The platform-staging volume mounts the persistent disk at the parent directory.
+      COCOINDEX_DB: /cocoindex-state/lmdb
+
+      # COCOINDEX_SOURCE_PATH: corpus directory for ingest.
+      # ID-83 / bl-221: this MAY now stay set permanently to the PLATFORM-STAGING corpus
+      # path under the platform-staging volume (e.g. /cocoindex-state/corpus), isolated
+      # from the production corpus by the separate volume below. Boot NO LONGER walks the
+      # corpus — the worker enters the cocoindex lifespan via coco.start_blocking() at boot
+      # (NO walk) and the corpus walk fires ONLY via the on-demand POST /walk trigger (a
+      # Coolify scheduled task or a supervised operator curl). A deploy/restart is
+      # burn-safe by construction regardless of this value — the SOURCE_PATH-blanking
+      # burn-valve is RETIRED. Leaving it unset still works (the :- default resolves to
+      # empty): /walk then returns a named 400 ("nothing to walk") rather than walking.
+      # Stand up the per-env Coolify scheduled task per docs/runbooks/onprem-b1-deploy.md §B2.
+      COCOINDEX_SOURCE_PATH: ${COCOINDEX_SOURCE_PATH:-}
+
+      # LMDB virtual map size — sparse virtual reservation, not pre-allocation. 4 GiB
+      # default matches the disk-backed sizing; operator may override via Coolify env.
+      COCOINDEX_LMDB_MAP_SIZE: ${COCOINDEX_LMDB_MAP_SIZE:-4294967296}
+
+      # --- Pipeline webhook (zero app change — env-only) ---
+      # Best-effort POST; flow.py:_emit_pipeline_run_webhook reads from os.environ.
+      # For PLATFORM STAGING this targets the platform-staging app host (the staging
+      # deployment's app/api/internal/pipeline-runs/record) — NOT the production app URL.
+      # Value injected by Coolify.
+      PIPELINE_RUN_WEBHOOK_URL: ${PIPELINE_RUN_WEBHOOK_URL}
+      CRON_SECRET: ${CRON_SECRET}
+
+      # --- /extract pure-cleaner bearer ({112.6}) ---
+      # DEDICATED bearer for the Traefik-reachable POST /extract route — a
+      # SEPARATE secret from CRON_SECRET (different blast radius: CRON_SECRET
+      # gates the corpus-walk trigger; EXTRACT_API_TOKEN gates only the
+      # stateless HTML cleaner). The route fails CLOSED (401) when this is unset.
+      # Value injected by Coolify; never a literal here.
+      EXTRACT_API_TOKEN: ${EXTRACT_API_TOKEN}
+
+      # --- Image forensic-correlation key (bl-271) ---
+      # flow.py:2923 reads os.environ["IMAGE_SHA"] -> threaded to the webhook ->
+      # stamped onto pipeline_runs.result.extractor_version. IMAGE_SHA died at the
+      # Cloud Run -> Coolify cutover (S298) because no compose env supplied it.
+      # Reuse the already-required sha-pinned image tag so every run records the
+      # exact image it ran on, matching the `image:` line above.
+      IMAGE_SHA: ${COCOINDEX_IMAGE_TAG}
+
+      # --- Supabase / API secrets (PLATFORM STAGING values, injected by Coolify) ---
+      # SUPABASE_* MUST be the platform-staging project values, NOT production.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      SENTRY_AUTH_TOKEN: ${SENTRY_AUTH_TOKEN}
+
+    volumes:
+      # PLATFORM-STAGING named volume — DISTINCT from production's
+      # `ca-cocoindex-platform-state`. The engine store lands at /cocoindex-state/lmdb
+      # (COCOINDEX_DB); a staged corpus, once added, goes in a subdir set via
+      # COCOINDEX_SOURCE_PATH. Keeping this separate from production guarantees platform
+      # staging ingest never reads or mutates the live production corpus.
+      - ca-cocoindex-platform-staging-state:/cocoindex-state
+
+    # Liveness healthcheck — container-restart purposes ONLY; explicitly NOT the datapath
+    # signal ({66.15} watches pipeline_runs row arrival in Supabase, not container liveness).
+    # The buildpack image ships NO curl/wget and python is not on the exec PATH, so we probe
+    # the HTTP wrapper's port via bash /dev/tcp (path-independent, no external deps).
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+# ------------------------------------------------------------------------------
+# Volumes
+#
+# ca-cocoindex-platform-staging-state: the PLATFORM-STAGING cocoindex engine LMDB state
+# store (+ the platform-staging corpus directory once ingest is activated). A plain
+# local-driver named volume is disk-backed on the host NVMe (Docker stores named volumes
+# under /var/lib/docker/volumes). It is DISTINCT from production's
+# `ca-cocoindex-platform-state` volume, so platform staging ingest never touches the live
+# production corpus and a staging teardown never destroys production state. Coolify
+# persists named volumes across redeploys but does NOT back them up natively; LMDB loss
+# costs a memo-rebuild only, never KH data (Supabase is canonical). See the runbook
+# teardown note.
+# ------------------------------------------------------------------------------
+volumes:
+  ca-cocoindex-platform-staging-state:
+    driver: local
