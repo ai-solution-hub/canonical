@@ -83,7 +83,7 @@ services:
     # --------------------------------------------------------------------------
     labels:
       - traefik.enable=true
-      - traefik.http.routers.kh-cocoindex-prod-walk.rule=Host(`kh-pipeline.aisolutionhub.co.uk`) && (PathPrefix(`/walk`) || PathPrefix(`/health`) || PathPrefix(`/extract`))
+      - traefik.http.routers.kh-cocoindex-prod-walk.rule=Host(`ca-client-pipeline.aisolutionhub.co.uk`) && (PathPrefix(`/walk`) || PathPrefix(`/health`) || PathPrefix(`/extract`))
       - traefik.http.routers.kh-cocoindex-prod-walk.entrypoints=https
       - traefik.http.routers.kh-cocoindex-prod-walk.tls=true
       - traefik.http.routers.kh-cocoindex-prod-walk.tls.certresolver=letsencrypt

@@ -106,7 +106,7 @@ services:
     # --------------------------------------------------------------------------
     labels:
       - traefik.enable=true
-      - traefik.http.routers.kh-cocoindex-staging-walk.rule=Host(`kh-pipeline-staging.aisolutionhub.co.uk`) && (PathPrefix(`/walk`) || PathPrefix(`/health`) || PathPrefix(`/extract`))
+      - traefik.http.routers.kh-cocoindex-staging-walk.rule=Host(`ca-client-pipeline-staging.aisolutionhub.co.uk`) && (PathPrefix(`/walk`) || PathPrefix(`/health`) || PathPrefix(`/extract`))
       - traefik.http.routers.kh-cocoindex-staging-walk.entrypoints=https
       - traefik.http.routers.kh-cocoindex-staging-walk.tls=true
       - traefik.http.routers.kh-cocoindex-staging-walk.tls.certresolver=letsencrypt
