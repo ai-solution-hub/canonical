@@ -175,7 +175,7 @@ describe('GET /api/items/[id]/effectiveness', () => {
     expect(json.content_item_id).toBe(CONTENT_ID);
     expect(json.total_citations).toBe(0);
     expect(json.winning_citations).toBe(0);
-    expect(json.bids).toEqual([]);
+    expect(json.procurements).toEqual([]);
   });
 
   it('correctly calculates win rate from mock RPC response', async () => {
@@ -282,11 +282,11 @@ describe('GET /api/items/[id]/effectiveness', () => {
 
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json.bids).toHaveLength(2);
-    expect(json.bids[0].workspace_name).toBe('NHS Digital Redesign');
-    expect(json.bids[0].outcome).toBe('won');
-    expect(json.bids[0].buyer).toBe('NHS England');
-    expect(json.bids[1].workspace_name).toBe('Council Portal');
-    expect(json.bids[1].outcome).toBe('lost');
+    expect(json.procurements).toHaveLength(2);
+    expect(json.procurements[0].workspace_name).toBe('NHS Digital Redesign');
+    expect(json.procurements[0].outcome).toBe('won');
+    expect(json.procurements[0].buyer).toBe('NHS England');
+    expect(json.procurements[1].workspace_name).toBe('Council Portal');
+    expect(json.procurements[1].outcome).toBe('lost');
   });
 });
