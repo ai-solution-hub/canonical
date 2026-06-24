@@ -53,7 +53,6 @@ function makeSourceDocRow(
     op_id: null,
     original_filename: 'report.pdf',
     pipeline_run_id: null,
-    pullmd_share_id: null,
     source_url: null,
     status: 'processed',
     workspace_id: 'ws-00000000-0000-0000-0000-000000000001',

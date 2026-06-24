@@ -4,22 +4,20 @@ The URL-mode verify driver is the URL parameterisation of the ID-62
 verify-driver primitive (Inv-21): fixture step = ONE gate-passed
 `feed_articles` row seeded via service-role PostgREST insert (NOT `/stage`
 byte-staging); trigger step = `POST {worker}/walk` (bearer-gated bl-221
-route); assertion surfaced via exit code = the Inv-9 `GET {PULLMD}/s/<id>`
-round-trip (Inv-23). Row-shape assertions are NOT the driver's job — they
+route); assertion surfaced via exit code = the landed `source_documents`
+row poll (Inv-23). Row-shape assertions are NOT the driver's job — they
 live in `__tests__/integration/cocoindex/url-landing-set.integration.test.ts`
 (Inv-22 single assertion surface).
 
 Tests drive the contract with MOCKED HTTP callables (no live Supabase, no
-live worker, no live pullmd — the {62.7}/{62.9} test precedent):
+live worker — the {62.7}/{62.9} test precedent):
 
   - the seed step's PostgREST request shapes (gate-passed row: passed=true,
     title NOT NULL, published_at set, external_url normalised);
   - walk-trigger semantics: 202 accepted; 409 retried (walk in flight —
     the hourly Coolify fallback can collide); 401/400/503 fail fast;
-  - the Inv-9 round-trip: 2xx + a non-empty body (corrected contract, S319
-    B1 probe — `GET /s/:id` serves NO `X-Share-Id` header; that header set
-    is the `GET /api` surface, and identity is proven by path resolution),
-    each failure mode exiting non-zero;
+  - the landing poll: the deterministic uuid5 sd row is observed, else the
+    deadline returns a non-ok verdict;
   - the second-walk idempotency leg: re-POST `/walk` in the same
     invocation + `pipeline_runs` terminal-row wait;
   - `run()` exit-code semantics end-to-end over injected deps.
@@ -46,7 +44,6 @@ PROOF_URL = "https://example.com/"
 WORKSPACE_ID = "11111111-1111-4111-8111-111111111111"
 FEED_SOURCE_ID = "22222222-2222-4222-8222-222222222222"
 ARTICLE_ID = "33333333-3333-4333-8333-333333333333"
-SHARE_ID = "abcd1234"
 
 # uuid5(fbfaf1ff-1ee4-583c-9757-1674465b2ec1, "sd:https://example.com/") —
 # pinned literal so namespace/seed drift breaks loudly (mirrors flow.py's
@@ -121,7 +118,6 @@ def _config(**overrides: Any) -> "vd.DriverConfig":
         service_role_key="service-role-test-key",
         worker_url="https://worker.test",
         cron_secret="cron-secret-test",
-        pullmd_url="http://localhost:3000",
         timeout=5.0,
         sd_poll_deadline=2.0,
         sd_poll_interval=0.0,
@@ -300,104 +296,34 @@ class TestWalkTrigger:
 
 
 # ──────────────────────────────────────────────────────────────────────────
-# §4 — landed-row poll (pullmd_share_id read; NOT a row-shape assertion)
+# §4 — landed-row poll (sd-row existence; NOT a row-shape assertion)
 # ──────────────────────────────────────────────────────────────────────────
 
 
-class TestPollShareId:
-    def test_returns_share_id_when_row_lands(self) -> None:
+class TestPollLandedSdRow:
+    def test_returns_true_when_row_lands(self) -> None:
         http = FakeHttp()
         http.route(
             "GET",
             "/rest/v1/source_documents",
-            _response(
-                200, [{"id": SD_ID_FOR_PROOF_URL, "pullmd_share_id": SHARE_ID}]
-            ),
+            _response(200, [{"id": SD_ID_FOR_PROOF_URL}]),
         )
-        share_id = vd.poll_pullmd_share_id(_config(), _deps(http))
-        assert share_id == SHARE_ID
+        assert vd.poll_landed_sd_row(_config(), _deps(http)) is True
         # The poll filters on the deterministic uuid5 sd id.
         [sd_get] = http.calls_to("GET", "/rest/v1/source_documents")
         assert sd_get["params"]["id"] == f"eq.{SD_ID_FOR_PROOF_URL}"
 
-    def test_returns_none_when_row_never_lands(self) -> None:
+    def test_returns_false_when_row_never_lands(self) -> None:
         http = FakeHttp()
         http.route("GET", "/rest/v1/source_documents", _response(200, []))
-        share_id = vd.poll_pullmd_share_id(
-            _config(sd_poll_deadline=0.2), _deps(http)
+        assert (
+            vd.poll_landed_sd_row(_config(sd_poll_deadline=0.2), _deps(http))
+            is False
         )
-        assert share_id is None
-
-    def test_null_share_id_keeps_polling_to_timeout(self) -> None:
-        http = FakeHttp()
-        http.route(
-            "GET",
-            "/rest/v1/source_documents",
-            _response(
-                200, [{"id": SD_ID_FOR_PROOF_URL, "pullmd_share_id": None}]
-            ),
-        )
-        share_id = vd.poll_pullmd_share_id(
-            _config(sd_poll_deadline=0.2), _deps(http)
-        )
-        assert share_id is None
 
 
 # ──────────────────────────────────────────────────────────────────────────
-# §5 — Inv-9 round-trip (2xx + non-empty body; corrected contract, S319:
-# GET /s/:id serves NO X-Share-Id header — that set is the GET /api surface,
-# per the live B1 header probe. Identity is proven by path resolution.)
-# ──────────────────────────────────────────────────────────────────────────
-
-
-class TestPullmdRoundTrip:
-    def _http_with(self, resp: Mock) -> FakeHttp:
-        http = FakeHttp()
-        http.route("GET", f"/s/{SHARE_ID}", resp)
-        return http
-
-    def test_200_non_empty_without_share_id_header_ok(self) -> None:
-        # Probed reality (B1, S319): /s/:id replies with ONLY
-        # X-Powered-By/Content-Type/Content-Length/ETag/Date — a 2xx
-        # non-empty response with NO X-Share-Id header is a PASS.
-        http = self._http_with(
-            _response(
-                200,
-                "# markdown",
-                {"Content-Type": "text/markdown", "Content-Length": "225"},
-            )
-        )
-        ok, detail = vd.pullmd_round_trip(_config(), _deps(http), SHARE_ID)
-        assert ok
-        # Content-Type is surfaced for operator visibility, not asserted.
-        assert "text/markdown" in detail
-
-    def test_200_non_empty_bare_headers_ok(self) -> None:
-        # Even a headerless 2xx non-empty reply passes — the body check is
-        # the contract; no response-header equality is part of Inv-9.
-        http = self._http_with(_response(200, "# markdown"))
-        ok, _detail = vd.pullmd_round_trip(_config(), _deps(http), SHARE_ID)
-        assert ok
-
-    def test_empty_body_fails(self) -> None:
-        http = self._http_with(
-            _response(200, "", {"Content-Type": "text/markdown"})
-        )
-        ok, detail = vd.pullmd_round_trip(_config(), _deps(http), SHARE_ID)
-        assert not ok
-        assert "empty" in detail
-
-    def test_404_stale_share_id_fails(self) -> None:
-        # The stale-share-id-after-pullmd-recreate shape hit live: the sd
-        # row's share id no longer resolves → 404 → exit non-zero.
-        http = self._http_with(_response(404, "not found"))
-        ok, detail = vd.pullmd_round_trip(_config(), _deps(http), SHARE_ID)
-        assert not ok
-        assert "404" in detail
-
-
-# ──────────────────────────────────────────────────────────────────────────
-# §6 — second-walk idempotency leg (pipeline_runs terminal wait)
+# §5 — second-walk idempotency leg (pipeline_runs terminal wait)
 # ──────────────────────────────────────────────────────────────────────────
 
 
@@ -460,15 +386,7 @@ class TestRunExitCodes:
         http.route(
             "GET",
             "/rest/v1/source_documents",
-            _response(
-                200, [{"id": SD_ID_FOR_PROOF_URL, "pullmd_share_id": SHARE_ID}]
-            ),
-        )
-        # Probed /s/:id reply shape (S319): markdown body, NO X-Share-Id.
-        http.route(
-            "GET",
-            f"/s/{SHARE_ID}",
-            _response(200, "# md", {"Content-Type": "text/markdown"}),
+            _response(200, [{"id": SD_ID_FOR_PROOF_URL}]),
         )
         http.route(
             "GET",
@@ -484,20 +402,20 @@ class TestRunExitCodes:
         # Walk 1 (trigger) + walk 2 (idempotency leg) in the SAME invocation.
         assert len(http.calls_to("POST", "/walk")) == 2
 
-    def test_round_trip_failure_exits_non_zero(self) -> None:
+    def test_landing_poll_failure_exits_non_zero(self) -> None:
         http = self._happy_http()
-        # Re-route the pullmd GET to an empty body (routes are first-match,
-        # so rebuild with the failing handler first).
+        # Re-route the sd landing poll to an empty result (routes are
+        # first-match, so rebuild with the failing handler first).
         failing = FakeHttp()
         failing.route(
             "GET",
-            f"/s/{SHARE_ID}",
-            _response(200, "", {"Content-Type": "text/markdown"}),
+            "/rest/v1/source_documents",
+            _response(200, []),
         )
         failing.routes.extend(http.routes)
-        exit_code = vd.run_with(_config(), _deps(failing))
+        exit_code = vd.run_with(_config(sd_poll_deadline=0.2), _deps(failing))
         assert exit_code == 1
-        # The second walk never fires — the round-trip gate failed first.
+        # The second walk never fires — the landing gate failed first.
         assert len(failing.calls_to("POST", "/walk")) == 1
 
     def test_second_walk_failed_run_exits_non_zero(self) -> None:
@@ -521,9 +439,9 @@ class TestRunExitCodes:
         assert len(http.calls_to("POST", "/walk")) == 1
 
     def test_missing_env_exits_2(self, monkeypatch: Any) -> None:
-        # Only the genuinely required vars are removed — PULLMD_SERVICE_URL and
-        # COCOINDEX_URL_VERIFY_URL default (localhost:3000 / PROOF_URL_DEFAULT)
-        # and must NOT be needed for the exit-2 required-env diagnostic.
+        # Only the genuinely required vars are removed — COCOINDEX_URL_VERIFY_URL
+        # defaults (PROOF_URL_DEFAULT) and must NOT be needed for the exit-2
+        # required-env diagnostic.
         for var in (
             "NEXT_PUBLIC_SUPABASE_URL",
             "SUPABASE_URL",

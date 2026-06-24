@@ -3,7 +3,7 @@
 Stages (flow-scope):
   1. source walk            -> connectors.localfs.walk_dir(live=True, recursive=True)
   2. binary conversion      -> per-MIME adapters (P-3): docling for PDF/DOCX/XLSX,
-                               pullmd HTTP client for HTML, passthrough for markdown
+                               in-process Trafilatura for URL HTML, passthrough for markdown
   3. LLM extraction         -> Path A: @coco.fn(memo=True) extractors call anthropic
                                SDK + Pydantic TypeAdapter validation
   4. embedding              -> LiteLLMEmbedder("text-embedding-3-large",
@@ -75,11 +75,9 @@ from scripts.cocoindex_pipeline._coco_api import (
     mount_table_target,
 )
 from scripts.cocoindex_pipeline.adapters import (
-    _PULLMD_X_SOURCE_METHODS,  # CHECK-enum-safe X-Source mapping (75.10 step 2)
     _docling_to_markdown,  # PDF-route inner tier for URL items (75.10 / D-12)
-    _pullmd_fetch,  # epoch-keyed PullMD fetch (75.9 / D-4)
     convert_binary_to_markdown,  # P-3 outer-tier adapter (28.7 — LANDED)
-    extract_source_provenance,  # Stage-6 pullmd provenance fan-out (42.9 §WP-E)
+    extract_source_provenance,  # Stage-6 extraction-method provenance (42.9 §WP-E)
 )
 
 # ── Stage 3 imports — Path A canonical (S256 W1 / WP4) ─────────────────────
@@ -102,10 +100,11 @@ from scripts.cocoindex_pipeline.canonicalisation import (
 )
 from scripts.cocoindex_pipeline.entity_context import extract_entity_context
 # ID-112.7 — the worker HTML branch cleans fetched HTML IN-PROCESS via the
-# single shared Trafilatura cleaner ({112.5}), replacing the retired PullMD
-# fetch+extract hop (PI-1). NO HTTP hop to POST /extract — the worker IS the
-# caller (TECH §B2 topology); it owns the fetch behind the step-1 `validate_url`
-# SSRF gate (PI-3 — the cleaner itself is a pure HTML→text function, no fetch).
+# single shared Trafilatura cleaner ({112.5}), replacing the retired
+# fetch+extract sidecar hop (PI-1). NO HTTP hop to a sidecar extractor — the
+# worker IS the caller (TECH §B2 topology); it owns the fetch behind the step-1
+# `validate_url` SSRF gate (PI-3 — the cleaner itself is a pure HTML→text
+# function, no fetch).
 from scripts.cocoindex_pipeline.extract import (
     GateVerdict,
     apply_quality_gate,
@@ -1250,12 +1249,10 @@ SOURCE_DOCUMENTS_SCHEMA = TableSchema(
         "mime_type": ColumnDef(type="text", nullable=False),
         "file_size": ColumnDef(type="integer", nullable=False),
         "op_id": ColumnDef(type="uuid", nullable=True),  # stamped per-flow (28.9)
-        # Pullmd extraction provenance (ID-42.9, TECH §WP-E) — fanned out from the
-        # PullmdResult headers via `extract_source_provenance` (NOT the str-only
-        # convert_binary_to_markdown). Both nullable per the CHECK-enum migration
-        # 20260526074944_id42_pullmd_provenance.sql.
+        # Extraction provenance (ID-42.9, TECH §WP-E) — fanned out via
+        # `extract_source_provenance` (NOT the str-only convert_binary_to_markdown).
+        # Nullable per the CHECK-enum migration `20260526074944_id42_provenance`.
         "extraction_method": ColumnDef(type="text", nullable=True),
-        "pullmd_share_id": ColumnDef(type="text", nullable=True),
         # URL provenance (ID-75 BI-4; M1 §3 — 20260606121451_id75_reference_
         # items_layer.sql). URL-sourced documents write the normalised URL
         # (= storage_path, RESEARCH constraint 2); the localfs branch writes an
@@ -1278,7 +1275,7 @@ REFERENCE_ITEMS_SCHEMA = TableSchema(
     columns={
         "id": ColumnDef(type="uuid", nullable=False),
         "title": ColumnDef(type="text", nullable=False),
-        # PullMD/Docling markdown — the canonical body of record (BI-3).
+        # Extracted markdown/text — the canonical body of record (BI-3).
         "body": ColumnDef(type="text", nullable=False),
         "summary": ColumnDef(type="text", nullable=True),
         # Canonical normalised URL — the join contract (BI-4).
@@ -2082,9 +2079,8 @@ async def _ingest_content_branch(
     # ── Stage 6 prep: provenance fan-out (ID-42.9, TECH §WP-E) ───────────────
     # Resolved via the SEPARATE provenance helper (NOT convert_binary_to_markdown,
     # whose `-> str` content_text contract must stay intact). The file corpus
-    # resolves docling/passthrough provenance only — the localfs HTML→PullMD
-    # branch is retired (ID-75 WP-D); HTML/pullmd provenance lands via the URL
-    # source instead.
+    # resolves docling/passthrough provenance only — the localfs HTML branch is
+    # retired (ID-75 WP-D); HTML provenance lands via the URL source instead.
     provenance = await extract_source_provenance(file)
 
     # ── Stage 3: Path A extraction (direct anthropic inside @coco.fn) ───────
@@ -2152,10 +2148,9 @@ async def _ingest_content_branch(
             "mime_type": _resolve_source_mime(file.file_path.path),
             "file_size": await file.size(),
             "op_id": op_id,
-            # Pullmd provenance (ID-42.9 §WP-E) — nullable; only HTML/pullmd and
-            # Docling paths populate them (passthrough leaves both None).
+            # Extraction provenance (ID-42.9 §WP-E) — nullable; only the Docling
+            # path populates it (passthrough leaves it None).
             "extraction_method": provenance.extraction_method,
-            "pullmd_share_id": provenance.pullmd_share_id,
             # ID-75 BI-4: a localfs file has NO source URL — explicit None so
             # the localfs/URL provenance split is visible at the write site.
             "source_url": None,
@@ -2539,7 +2534,7 @@ async def _ingest_qa_sidecar_branch(
 
     # ── Mint the INV-8 linkage anchor: ONE source_documents row. This is NOT a
     # content_items row (the content branch's `:2066-2088` analogue, minus the
-    # pullmd provenance fan-out the sidecar path never resolves). ──────────────
+    # extraction-provenance fan-out the sidecar path never resolves). ──────────
     sd_target.declare_row(
         row={
             "id": source_document_id,
@@ -2620,7 +2615,8 @@ async def _url_is_pdf(url: str) -> bool:
 
     `.pdf` path-suffix check first (cheap, deterministic); otherwise an httpx
     HEAD content-type sniff for `application/pdf`. HEAD failure ⇒ assume HTML
-    and let PullMD try — its failure is contained per-item (BI-19).
+    and let the in-process extractor try — its failure is contained per-item
+    (BI-19).
     """
     if urlsplit(url).path.lower().endswith(".pdf"):
         return True
@@ -2648,30 +2644,6 @@ async def _fetch_url_bytes(url: str) -> bytes:
         resp = await client.get(url)
     resp.raise_for_status()
     return resp.content
-
-
-def _pullmd_extraction_method(x_source: str | None) -> str | None:
-    """Map a PullMD X-Source onto `source_documents.extraction_method`.
-
-    Re-implements the {75.9}-retired localfs guard at the URL write site
-    (WP-C step 2): only the five known X-Source values map to
-    `pullmd_<x_source>`; an unrecognised / missing X-Source DEGRADES to None
-    with a structured warning — `pullmd_<unknown>` would violate the
-    CHECK enum on `source_documents.extraction_method`
-    (20260526074944_id42_pullmd_provenance.sql) at insert time.
-    """
-    if x_source in _PULLMD_X_SOURCE_METHODS:
-        return f"pullmd_{x_source}"
-    if x_source is not None:
-        _logger.warning(
-            json.dumps(
-                {
-                    "event": "cocoindex.pullmd_unknown_x_source",
-                    "x_source": x_source,
-                }
-            )
-        )
-    return None
 
 
 async def _log_ssrf_rejection(
@@ -2771,11 +2743,11 @@ async def ingest_url(
     EXECUTOR-VERIFY-1 ({75.8}, SUPPORTED) verified empirically that the engine
     fingerprints a frozen dataclass on module, qualname and field VALUES, so
     the scalar-positional fallback is not needed. `content_epoch` rides the
-    item (D-4): a bumped epoch re-fetches via `_pullmd_fetch`'s (url, epoch)
-    memo. {75.17} real-engine probe CORRECTION to the earlier Inv-11 framing:
+    item (D-4): a bumped epoch re-fetches via the item-level (url, epoch) memo.
+    {75.17} real-engine probe CORRECTION to the earlier Inv-11 framing:
     the memo fingerprint ALSO covers the `flow_op_id` kwarg, and `app_main`
     mints a fresh op_id per walk — so across walks this component RE-RUNS for
-    every enumerated item (cheaply: `_pullmd_fetch` memo-hits on an unchanged
+    every enumerated item (cheaply: the item-level memo hits on an unchanged
     epoch). The step-7/8 backlink deferral depends on exactly this re-run
     (convergence by walk 2); a true memo-hit happens only within one walk /
     op_id.
@@ -2881,9 +2853,8 @@ async def _ingest_url_body(
         return  # ZERO rows — siblings unaffected (BI-21)
 
     # ── Step 2: PDF sniff (D-12) + fetch ─────────────────────────────────────
-    pullmd_share_id: str | None = None
     if await _url_is_pdf(item.url):
-        # PDF route (BI-20): SSRF-validated GET → Docling. Never PullMD.
+        # PDF route (BI-20): SSRF-validated GET → Docling.
         pdf_bytes = await _fetch_url_bytes(item.url)
         markdown = await _docling_to_markdown(pdf_bytes, _url_filename(item.url))
         extraction_method: str | None = "docling"
@@ -2893,7 +2864,7 @@ async def _ingest_url_body(
     else:
         # HTML route (ID-112.7, PI-1): SSRF-validated GET → in-process
         # Trafilatura clean ({112.5} `clean_html`) → content-length gate. The
-        # PullMD fetch+extract hop is RETIRED here — `_fetch_url_bytes` reuses
+        # sidecar fetch+extract hop is RETIRED here — `_fetch_url_bytes` reuses
         # the SAME SSRF-validated GET as the PDF branch (step 1's `validate_url`
         # already gated this URL for every route), so no new SSRF surface is
         # introduced; the cleaner is a pure HTML→text function (no fetch).
@@ -2945,8 +2916,7 @@ async def _ingest_url_body(
         # The downstream variable stays `markdown` but now holds clean TEXT —
         # clean text is exactly what feeds classification, embedding, and the
         # `reference_items.body` write (Markdown was never load-bearing on the
-        # URL path; PI-1). `pullmd_share_id` stays None (in-house extractor, no
-        # share id; the column is nullable).
+        # URL path; PI-1).
         markdown = cleaned
         extraction_method = "trafilatura"
         mime_type = "text/html"
@@ -2982,7 +2952,6 @@ async def _ingest_url_body(
             "content_hash": content_hash,
             "op_id": op_id,
             "extraction_method": extraction_method,
-            "pullmd_share_id": pullmd_share_id,
         }
     )
     _bump("postgres_upsert")  # Inv-17: source_documents row upsert
@@ -3029,7 +2998,7 @@ async def _ingest_url_body(
     # probe), so every subsequent walk would re-hit the same race (zero
     # convergence — the S319 defect). Walk 2 re-runs this component (the
     # per-walk `flow_op_id` kwarg busts the `@coco.fn(memo=True)` fingerprint
-    # — real-engine probed at {75.17}; `_pullmd_fetch`'s own (url, epoch) memo
+    # — real-engine probed at {75.17}; the item-level (url, epoch) memo
     # keeps the re-run cheap) and the backlink then lands against the ri row
     # flushed at the end of walk 1. ANY other error — including a
     # ForeignKeyViolation on a DIFFERENT constraint — still raises into the

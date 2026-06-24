@@ -44,13 +44,12 @@ function ingestionSourceLabel(
 /**
  * Map `source_documents.extraction_method` to a plain-language line (B-28).
  * The column is a CHECK-constrained text with producer-prefixed values
- * (`pullmd_*`, `docling*`, `trafilatura*`); we surface the producer in plain
+ * (`docling*`, `trafilatura*`); we surface the producer in plain
  * language and never the raw enum value.
  */
 function extractionMethodLabel(method: string | null): string | null {
   if (!method) return null;
   const lower = method.toLowerCase();
-  if (lower.startsWith('pullmd')) return 'Extracted via pullmd';
   if (lower.startsWith('docling')) return 'Extracted via Docling';
   if (lower.startsWith('trafilatura')) return 'Extracted via Trafilatura';
   return 'Extracted from a source document';

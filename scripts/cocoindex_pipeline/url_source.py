@@ -8,7 +8,7 @@ filtered predicate and the BI-8 cross-workspace URL-dedup grouping that
 reference implementation is the localfs `DirWalker`
 (`cocoindex/connectors/localfs/_source.py`, RESEARCH §4.1).
 
-Contract (TECH §3 WP-C, docs/specs/ID-75-pullmd-cocoindex/TECH.md):
+Contract (TECH §3 WP-C, the ID-75 URL-cocoindex spec):
 
 - ONE SELECT over `feed_articles` — NO `feed_sources` read, NO scoring logic
   (BI-18; scoring stays the TS poller's concern).
@@ -97,7 +97,7 @@ class UrlItem:
 
     content_epoch: str
     """Max `ingested_at` across the URL's ledger rows, ISO 8601 string —
-    the D-4 memo token. A bumped epoch forces a fresh PullMD fetch."""
+    the D-4 memo token. A bumped epoch forces a fresh fetch + extraction."""
 
     ledger_urls: tuple[str, ...]
     """RAW stored `external_url` values — the D-7 backlink predicate

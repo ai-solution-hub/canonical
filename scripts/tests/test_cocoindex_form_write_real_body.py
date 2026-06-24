@@ -23,7 +23,7 @@ module-level fixture fakes). Each patched symbol is classified:
 Disposition table (symbol → class → covering / new test):
 
   -- (1) OUTSIDE-WORLD SEAMS (LLM / network / DB / embedder) --
-  convert_binary_to_markdown  (1)  test_cocoindex_adapters.py (Docling/pullmd seam;
+  convert_binary_to_markdown  (1)  test_cocoindex_adapters.py (Docling seam;
                                     flow-level patch is correct — it is the binary
                                     conversion boundary).
   extract_classification      (1)  test_cocoindex_extractors.py /
@@ -36,9 +36,6 @@ Disposition table (symbol → class → covering / new test):
                                     test_cocoindex_flow_embedding_stage_count.py
                                     (_get_embedder / OpenAI seam, real dimension proof).
   _get_embedder               (1)  test_cocoindex_flow_embedding.py (OpenAI client ctor).
-  _pullmd_http_get            (1)  test_cocoindex_adapters.py (httpx/pullmd HTTP seam;
-                                    epoch-keyed _pullmd_fetch delegates to it —
-                                    ID-75.9 WP-D/D-4; localfs HTML routing retired).
   asyncpg.create_pool         (1)  test_cocoindex_flow_write_path.py::TestLifespanProvidesDbCtx
                                     (the lifespan body is exercised; only the asyncpg
                                     pool ctor — the DB seam — is faked).

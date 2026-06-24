@@ -82,10 +82,9 @@ import {
 //
 // `COCOINDEX_STAGING_URL` is the canonical env var per the 28.14 dispatch
 // brief. It does NOT yet exist locally or in CI — staging deploy was
-// unblocked at S257 W2 but newly surfaced missing GCP Secret Manager values
-// (PIPELINE_RUN_WEBHOOK_URL + PULLMD_SERVICE_URL — deferred S258 carry-
-// forward). Tests therefore skip 100% locally; the body is the future
-// contract.
+// unblocked at S257 W2 but newly surfaced a missing GCP Secret Manager value
+// (PIPELINE_RUN_WEBHOOK_URL — deferred S258 carry-forward). Tests therefore
+// skip 100% locally; the body is the future contract.
 // ---------------------------------------------------------------------------
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);

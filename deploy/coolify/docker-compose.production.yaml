@@ -1,25 +1,17 @@
 # deploy/coolify/docker-compose.production.yaml
 #
-# ID-66.8: Co-location compose — cocoindex + pullmd + Playwright + Trafilatura
-#           on one Coolify-managed compose network.
+# ID-66.8: Co-location compose — cocoindex on one Coolify-managed compose network.
+#           (ID-129.1: the HTML→Markdown extractor stack was decommissioned and
+#           removed; cocoindex no longer depends on it.)
 #
 # Spec:    docs/specs/ID-66-onprem-pivot/TECH.md §"1. Co-location docker-compose.yaml"
 # Subtask: docs/reference/task-list.json task 66, subtask 8
 #
-# Satisfies invariants 1, 2, 3, 4, 11 from PRODUCT.md:
-#   1 — All four services on a single host / one compose network.
-#   2 — cocoindex reaches pullmd over the host-local compose alias (http://pullmd:3000).
-#   3 — The {62.1} reachability defect is dissolved: no VPC/NAT/ingress:internal hop.
-#   4 — pullmd→Playwright/Trafilatura wiring preserved verbatim from the Cloud Run
-#       manifest (cloudrun/services/staging-pullmd.yaml).
-#  11 — PULLMD_SERVICE_URL is a non-secret host-local value; no longer in Secret Manager.
-#
 # Secrets discipline (invariant 10 / {66.10}):
-#   ALL secret env values (API keys, DSN, tokens, admin creds) are injected by
-#   Coolify's per-app encrypted env at deploy time ({66.10}).  This file contains
-#   NO literal secret values.  Secret vars are either bare keys (Coolify injects
-#   them automatically when the key name matches a Coolify env var) or ${VAR} refs.
-#   PULLMD_SERVICE_URL is the one plaintext non-secret — it is the host-local alias.
+#   ALL secret env values (API keys, DSN, tokens) are injected by Coolify's per-app
+#   encrypted env at deploy time ({66.10}).  This file contains NO literal secret
+#   values.  Secret vars are either bare keys (Coolify injects them automatically
+#   when the key name matches a Coolify env var) or ${VAR} refs.
 #
 # Volume discipline ({66.9}):
 #   The LMDB engine store and corpus mount are owned by subtask {66.9}.  A minimal
@@ -31,9 +23,6 @@
 #   cocoindex — NEVER :latest.  Tag is a required variable (${COCOINDEX_IMAGE_TAG:?})
 #     that must be set to the pinned sha- tag produced by the {66.7} onprem-deploy.yml
 #     GH Action (e.g. sha-abc1234).  The build will refuse to start if the var is unset.
-#   pullmd    — aeternalabshq/pullmd:2.0.0  (concrete version, NOT :latest)
-#   playwright / trafilatura — :2 major tag; resolve to a digest before first deploy
-#     per docs/runbooks/pullmd-deploy.md §4 (see TODO comments on those services).
 
 name: kh-onprem
 
@@ -89,15 +78,6 @@ services:
       - traefik.http.services.kh-cocoindex-prod-walk.loadbalancer.server.port=8080
 
     environment:
-      # --- Compose-alias repoint (OQ-66-2): env-only, NO source change to adapters.py ---
-      # http://pullmd:3000 is the host-local compose service alias.  This is the
-      # non-secret value that replaces the Cloud Run *.run.app Secret Manager entry.
-      PULLMD_SERVICE_URL: "http://pullmd:3000"
-
-      # --- Defence-in-depth Bearer auth ---
-      # Retained even on host-local network per TECH §1.  Value injected by Coolify ({66.10}).
-      PULLMD_API_TOKEN: ${PULLMD_API_TOKEN}
-
       # --- Boot-required vars (must be present before /health serves) ---
       # Carry-over from the retired Cloud Run staging cocoindex service config.
       # COCOINDEX_DB_DSN is the asyncpg Supabase pooler string (NOT the LMDB path).
@@ -185,93 +165,6 @@ services:
       retries: 3
       start_period: 60s
 
-    depends_on:
-      - pullmd
-
-  # ----------------------------------------------------------------------------
-  # pullmd — HTML→Markdown extractor (AGPL; kept as a separate service for licence
-  # boundary — the AGPL binary never lands inside the MIT+proprietary cocoindex image).
-  #
-  # Carried over verbatim from cloudrun/services/staging-pullmd.yaml.
-  # Port 3000 is the compose-internal alias; no external port exposure needed
-  # (cocoindex reaches pullmd via the http://pullmd:3000 alias on the compose network).
-  # ----------------------------------------------------------------------------
-  pullmd:
-    image: "aeternalabshq/pullmd:2.0.0"
-    restart: unless-stopped
-    environment:
-      # Bearer-gated; single-admin bootstrap (pullmd exits at boot without these).
-      PULLMD_AUTH_MODE: "single-admin"
-      # Values injected by Coolify ({66.10}).
-      PULLMD_ADMIN_EMAIL: ${PULLMD_ADMIN_EMAIL}
-      PULLMD_ADMIN_PASSWORD: ${PULLMD_ADMIN_PASSWORD}
-      PULLMD_API_TOKEN: ${PULLMD_API_TOKEN}
-      # S319 {62.10}: pullmd 2.x never reads PULLMD_API_TOKEN — minted pmd_ tokens
-      # live in an EPHEMERAL store (wiped on every recreate), so the worker's static
-      # bearer 401s. PULLMD_AUTH_TOKEN is the upstream-documented static-bearer path
-      # ("legacy bearer token compat, single-admin mode only, removed in v3.0" —
-      # maps to the admin user). Same secret value; survives restarts. The ${...}
-      # interpolation self-aligns the worker-sent and pullmd-validated values from
-      # ONE Coolify env var (S321 operator-verified on staging). Landed at {75.15}
-      # cutover, mirrored from the staging compose (S319 {62.10} fix).
-      PULLMD_AUTH_TOKEN: ${PULLMD_API_TOKEN}
-
-      # Sidecar wiring — compose-alias form of the in-pod localhost wiring from
-      # the Cloud Run manifest (cloudrun/services/staging-pullmd.yaml:105-108).
-      # Ports + paths are the upstream docker-compose contract (README).
-      PLAYWRIGHT_URL: "http://playwright:8002/render"
-      TRAFILATURA_URL: "http://trafilatura:8001/extract"
-
-      # S319 {75.18}: PERSISTENT SQLite store — was /tmp/pullmd-cache.db (ephemeral;
-      # wiped on every recreate). This single DB is pullmd's ONLY store: the
-      # `conversions` table holds the 8-hex share ids that `GET /s/:id` serves, and
-      # the auth layer (users, sessions, minted pmd_ tokens) reuses the SAME db
-      # handle (upstream server.js: `createCache(process.env.CACHE_DB || './data/cache.db')`
-      # then `createAuth({ db: cache.db, ... })`). With /tmp, every Coolify
-      # recreate/redeploy 404'd ALL persisted reference_items.pullmd_share_id values
-      # (S319 live-observed). /data is the upstream-blessed store dir: the pullmd
-      # Dockerfile runs `mkdir -p /data && chown -R app:app /app /data` before
-      # `USER app`, so a fresh named volume mounted there inherits app:app ownership
-      # (Docker copies the image mountpoint content + ownership into an empty named
-      # volume) — no user override needed. better-sqlite3 still does not mkdir the
-      # parent; the volume mount guarantees /data exists. Landed at {75.15} cutover,
-      # mirrored from the staging compose.
-      CACHE_DB: "/data/pullmd-cache.db"
-
-    volumes:
-      # {75.18}: share-link store persistence — survives container recreate/redeploy.
-      # Loss of this volume invalidates persisted reference_items.pullmd_share_id
-      # permalinks (they 404) but never KH data (markdown is canonical in Supabase).
-      - pullmd-data-production:/data
-
-    depends_on:
-      - playwright
-      - trafilatura
-
-  # ----------------------------------------------------------------------------
-  # playwright — JS-render sidecar for pullmd (~3.7 GB image).
-  # Listens on :8002 (/render).
-  #
-  # Pinned to the :2 manifest-list digest (resolved 2026-05-31 via the Docker Hub
-  # registry API; pullmd-deploy.md §4). Multi-arch index digest — Docker resolves the
-  # host arch from the list. Re-pin when the upstream :2 tag is bumped.
-  # ----------------------------------------------------------------------------
-  playwright:
-    image: "aeternalabshq/pullmd-playwright@sha256:af1993dfbbb7d41f0587b4087c7287d4b872706c139427316202157bf5bb0523" # :2
-    restart: unless-stopped
-
-  # ----------------------------------------------------------------------------
-  # trafilatura — fallback HTML extractor sidecar for pullmd.
-  # Listens on :8001 (/extract).
-  #
-  # Pinned to the :2 manifest-list digest (resolved 2026-05-31 via the Docker Hub
-  # registry API; pullmd-deploy.md §4). Multi-arch index digest — Docker resolves the
-  # host arch from the list. Re-pin when the upstream :2 tag is bumped.
-  # ----------------------------------------------------------------------------
-  trafilatura:
-    image: "aeternalabshq/pullmd-trafilatura@sha256:1e8b2f77ace91041cb4bae7f248e2f5af67f587b7cb719cdd19c4bb39c640800" # :2
-    restart: unless-stopped
-
 # ------------------------------------------------------------------------------
 # Volumes
 #
@@ -288,17 +181,7 @@ services:
 # /cocoindex-state/lmdb (COCOINDEX_DB); the corpus, once activated, goes in a subdir
 # set via COCOINDEX_SOURCE_PATH (TECH §2 — "the same volume can host the corpus
 # directory"), so no separate corpus volume is needed for B1.
-#
-# pullmd-data-production ({75.18}): pullmd's SQLite store (CACHE_DB=/data/pullmd-cache.db) —
-# share-link ids (`GET /s/:id` permalinks recorded in reference_items.pullmd_share_id),
-# plus users/sessions/minted pmd_ tokens (one DB, shared by cache + auth). Named volume so
-# the store SURVIVES Coolify recreates/redeploys — the S319 defect was this store living
-# in container /tmp, invalidating every persisted share id on recreate. Loss costs
-# share-link 404s only, never KH data (extracted markdown is canonical in Supabase).
-# See docs/runbooks/onprem-b1-deploy.md §"pullmd share-link store persistence".
 # ------------------------------------------------------------------------------
 volumes:
   cocoindex-state:
-    driver: local
-  pullmd-data-production:
     driver: local

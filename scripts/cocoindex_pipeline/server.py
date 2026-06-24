@@ -280,7 +280,7 @@ async def _stage_handler(request: web.Request) -> web.Response:
     URL items ({75.11} WP-G): a URL-sourced reference item is staged by
     seeding a gate-passed `feed_articles` ledger row (`passed = true`), NOT
     by staging bytes — the walk's URL source (`FeedUrlSource`, mounted in
-    `flow.app_main`) enumerates the ledger directly and PullMD/Docling fetch
+    `flow.app_main`) enumerates the ledger directly and fetches + extracts
     the body at ingest time. `/stage` remains file-fixture-only; the {62.10}
     URL proof seeds its ledger row, then issues the same `POST /walk`.
 
@@ -292,9 +292,8 @@ async def _stage_handler(request: web.Request) -> web.Response:
 
     Failure model (Inv-5): a client-correctable mis-wire is a NAMED 400, never
     a silent accept and never a 5xx. 5xx is reserved for an unambiguous
-    server-side mount failure. The handler imports no pullmd binary and no
-    Playwright driver, so the cloudbuild AGPL assertion stays green
-    (TECH-CONSTRAINT-AGPL). It does not touch `_health_handler` /
+    server-side mount failure. The handler imports no heavy extraction binary,
+    keeping the build surface lean. It does not touch `_health_handler` /
     `worker_is_healthy()` — adding /stage cannot flip /health to 503 (Inv-6).
     """
     # (1) Resolve the corpus root; loud-reject a mis-wire as a named 400 [Inv-5].

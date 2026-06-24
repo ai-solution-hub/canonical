@@ -6,16 +6,16 @@
  * THE single row-assertion surface for the URL landing set (ID-62 Inv-22 —
  * the URL-mode verify driver at deploy/onprem/verify/verify_driver.py does
  * NOT re-implement row assertions; it seeds the ledger row, POSTs /walk,
- * exit-codes the Inv-9 pullmd round-trip, and re-walks for the idempotency
+ * exit-codes the landing round-trip, and re-walks for the idempotency
  * leg). This file asserts the EVIDENCE PAIR the walk must land — explicitly
  * NOT a content_items landing (the pre-O4 framing is superseded):
  *
  *   1. source_documents row at id = uuid5(NS, 'sd:' + normalisedUrl) with
  *      source_url = storage_path = normalisedUrl, populated filename /
- *      mime_type / file_size, extraction_method LIKE 'pullmd_%', and a
- *      non-null pullmd_share_id.
+ *      mime_type / file_size, and extraction_method in
+ *      {'trafilatura', 'docling'} (ID-112.7 in-process extraction).
  *   2. reference_items row at id = uuid5(NS, 'ri:' + normalisedUrl) with a
- *      non-empty PullMD-markdown body, embedding NOT NULL,
+ *      non-empty extracted body, embedding NOT NULL,
  *      source_document_id = the sd id, ingestion_source = 'rss_feed', and
  *      published_at round-tripping the seeded ledger value.
  *   3. ZERO content_items rows at uuid5(NS, 'ci:' + normalisedUrl) OR with
@@ -45,7 +45,7 @@
  *        __tests__/integration/cocoindex/url-landing-set.integration.test.ts
  *
  * References:
- *   - docs/specs/ID-75-pullmd-cocoindex/TECH.md §5 (landing-set contract).
+ *   - the ID-75 URL-cocoindex spec, TECH.md §5 (landing-set contract).
  *   - docs/specs/id-62-fixture-staging-infra/TECH.md Inv-21/22/23/27.
  *   - scripts/cocoindex_pipeline/flow.py (_KH_PIPELINE_DOC_NS + uuid5 mint).
  *   - docs/reference/test-philosophy.md (behaviour-not-implementation).
@@ -168,7 +168,7 @@ describe.skipIf(!ENABLED)('URL landing set (ID-75 TECH §5)', () => {
     const { data, error } = await client
       .from('source_documents')
       .select(
-        'id, source_url, storage_path, filename, mime_type, file_size, extraction_method, pullmd_share_id',
+        'id, source_url, storage_path, filename, mime_type, file_size, extraction_method',
       )
       .eq('id', sdId);
     expect(error).toBeNull();
@@ -180,8 +180,9 @@ describe.skipIf(!ENABLED)('URL landing set (ID-75 TECH §5)', () => {
     expect(sd.filename).toBeTruthy();
     expect(sd.mime_type).toBeTruthy();
     expect(sd.file_size).toBeGreaterThan(0);
-    expect(sd.extraction_method).toMatch(/^pullmd_/);
-    expect(sd.pullmd_share_id).toBeTruthy();
+    // ID-112.7: the URL HTML path extracts in-process via Trafilatura; the PDF
+    // path stamps 'docling'. Either is valid for the proof URL.
+    expect(sd.extraction_method).toMatch(/^(trafilatura|docling)$/);
   });
 
   it('lands the reference_items half of the evidence pair (§5.2)', async () => {
@@ -196,7 +197,7 @@ describe.skipIf(!ENABLED)('URL landing set (ID-75 TECH §5)', () => {
 
     const ri = data![0]!;
     expect(ri.source_url).toBe(normalised);
-    expect(ri.body).toBeTruthy(); // non-empty PullMD markdown
+    expect(ri.body).toBeTruthy(); // non-empty extracted body
     expect(ri.embedding).not.toBeNull(); // whole-record embedding (BI-17)
     expect(ri.source_document_id).toBe(sdId);
     expect(ri.ingestion_source).toBe('rss_feed');

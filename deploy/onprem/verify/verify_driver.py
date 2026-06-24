@@ -14,16 +14,13 @@ a fork of the file-fixture driver, it is the URL (fixture, assertion) pair):
     `Authorization: Bearer ${CRON_SECRET}` (the existing bl-221 route; no new
     server surface). A 409 (walk already in flight — e.g. the hourly Coolify
     fallback task) is retried until accepted or deadline.
-  - **Assertion surfaced via exit code (Inv-23)** — the Inv-9 round-trip:
-    read `pullmd_share_id` off the landed `source_documents` row (id =
-    uuid5(NS, "sd:" + normalised URL)) and `GET {PULLMD}/s/<share_id>` over
-    localhost (pullmd sibling, ID-66 §1-b), asserting 2xx + a non-empty
-    body — ONE HTTP call within the driver invocation, never attempted
-    off-host. CORRECTED CONTRACT (B1 live probe, S319): `GET /s/:id`
-    carries NO `X-Share-Id` response header — that header set belongs to
-    pullmd's `GET /api` surface (TECH O1 observation). The share id IS the
-    request path, so identity is proven by resolution; no header equality
-    is asserted.
+  - **Assertion surfaced via exit code (Inv-23)** — poll for the landed
+    `source_documents` row (id = uuid5(NS, "sd:" + normalised URL)) to
+    confirm the walk produced the landing row. Row-SHAPE assertions are NOT
+    re-implemented here (Inv-22) — the SINGLE row-assertion surface is the
+    Vitest landing-set file. ID-112.7 / ID-129.2: HTML extraction is fully
+    in-process (Trafilatura); there is no external extractor service to
+    round-trip, so the landing poll IS the host-side proof.
   - **Second-walk idempotency leg** — re-`POST /walk` in the SAME invocation
     (retry-on-409 doubles as the walk-1-completed signal: the bl-221
     single-flight lock 409s while walk 1 runs), then wait for the walk-2
@@ -43,9 +40,9 @@ parameterisation: it runs IN-CONTAINER (the buildpack image packages
 `scripts/` only) and its no-Supabase boundary is test-enforced
 (`scripts/tests/test_cocoindex_verify_driver.py` asserts the module imports
 no Supabase/SQL symbol). The URL parameterisation REQUIRES service-role
-Supabase access (seed + share-id read) and the pullmd localhost sibling, so
-it is a HOST-side tool — co-located with `live-verify.sh` under
-`deploy/onprem/verify/`. The stage driver is deliberately untouched.
+Supabase access (seed + landing-row read), so it is a HOST-side tool —
+co-located with `live-verify.sh` under `deploy/onprem/verify/`. The stage
+driver is deliberately untouched.
 
 Row-shape assertions are NOT re-implemented here (Inv-22): the SINGLE
 row-assertion surface for the TECH §5 landing set is
@@ -59,21 +56,19 @@ Run (from the repo checkout root — PEP 420 namespace import)::
     CRON_SECRET=<redacted> \
     NEXT_PUBLIC_SUPABASE_URL=https://<staging-project-ref>.supabase.co \
     SUPABASE_SERVICE_ROLE_KEY=<redacted> \
-    PULLMD_SERVICE_URL=http://<pullmd-container-ip>:3000 \
     python3 -m deploy.onprem.verify.verify_driver
 
 Exit semantics (Inv-23):
-  - 0   — seed landed, walk accepted, sd row landed with a share id, the
-          `/s/<id>` round-trip returned 2xx with a non-empty body, and
+  - 0   — seed landed, walk accepted, the sd landing row was observed, and
           (unless `--skip-second-walk`) the second walk reached a
           `completed` pipeline_runs row.
   - 1   — any step failed (the failing step + diagnostic is printed).
   - 2   — configuration error (missing env), printed by name.
 
-HTTP client: `requests` against PostgREST / the worker / pullmd — no
-supabase-py dependency, mirroring the stage driver's requests-only style.
-The proof URL defaults to https://example.com/ (IANA-reserved per RFC 2606:
-content-stable, purpose-built for examples — politeness + determinism).
+HTTP client: `requests` against PostgREST / the worker — no supabase-py
+dependency, mirroring the stage driver's requests-only style. The proof URL
+defaults to https://example.com/ (IANA-reserved per RFC 2606: content-stable,
+purpose-built for examples — politeness + determinism).
 """
 
 from __future__ import annotations
@@ -105,8 +100,8 @@ _KH_PIPELINE_DOC_NS = uuid.UUID("fbfaf1ff-1ee4-583c-9757-1674465b2ec1")
 _KH_CANONICAL_PIPELINE_NAME = "kh_canonical_pipeline"
 
 # IANA-reserved example domain (RFC 2606) — content-stable and explicitly
-# intended for documentation/testing use, so repeated PullMD fetches are
-# polite and deterministic. Normalises to itself.
+# intended for documentation/testing use, so repeated fetches are polite and
+# deterministic. Normalises to itself.
 PROOF_URL_DEFAULT = "https://example.com/"
 
 # Deterministic seed values. The feed source is INACTIVE so the TS RSS
@@ -130,7 +125,6 @@ class DriverConfig:
     service_role_key: str
     worker_url: str
     cron_secret: str
-    pullmd_url: str
     timeout: float = 30.0
     sd_poll_deadline: float = 900.0
     sd_poll_interval: float = 10.0
@@ -212,7 +206,7 @@ def seed_ledger_row(config: DriverConfig, deps: Deps) -> SeedOutcome:
 
     Idempotent across driver re-runs: an existing verify row is PATCHed —
     `passed=true` re-asserted and `ingested_at` bumped so the content epoch
-    (D-4 memo token) forces a fresh PullMD fetch on the next walk.
+    (D-4 memo token) forces a fresh fetch + extraction on the next walk.
     """
     normalised = normalise_url(config.proof_url)
     headers = _rest_headers(config)
@@ -385,15 +379,15 @@ def walk_until_accepted(config: DriverConfig, deps: Deps) -> tuple[bool, str]:
 
 
 # ──────────────────────────────────────────────────────────────────────────
-# Step 3 — read pullmd_share_id off the landed source_documents row
+# Step 3 — poll for the landed source_documents row (the exit-code assertion)
 # ──────────────────────────────────────────────────────────────────────────
 
 
-def poll_pullmd_share_id(config: DriverConfig, deps: Deps) -> str | None:
-    """Poll for the landed sd row's non-null `pullmd_share_id`.
+def poll_landed_sd_row(config: DriverConfig, deps: Deps) -> bool:
+    """Poll for the landed sd row at the deterministic uuid5 PK.
 
     Landing plumbing only — row-SHAPE assertions stay in the Vitest surface
-    (Inv-22). Returns the share id, or None on deadline.
+    (Inv-22). Returns True once the row is observed, False on deadline.
     """
     sd_id = sd_document_id(config.proof_url)
     headers = _rest_headers(config)
@@ -402,60 +396,18 @@ def poll_pullmd_share_id(config: DriverConfig, deps: Deps) -> str | None:
         resp = deps.http_get(
             _rest_url(config, "source_documents"),
             headers=headers,
-            params={"select": "id,pullmd_share_id", "id": f"eq.{sd_id}"},
+            params={"select": "id", "id": f"eq.{sd_id}"},
             timeout=config.timeout,
         )
-        rows = _rows(resp)
-        if rows:
-            share_id = rows[0].get("pullmd_share_id")
-            if share_id:
-                return str(share_id)
+        if _rows(resp):
+            return True
         if deps.monotonic() >= deadline:
-            return None
+            return False
         deps.sleep(config.sd_poll_interval)
 
 
 # ──────────────────────────────────────────────────────────────────────────
-# Step 4 — Inv-9 round-trip (the exit-code assertion, Inv-23)
-# ──────────────────────────────────────────────────────────────────────────
-
-
-def pullmd_round_trip(
-    config: DriverConfig, deps: Deps, share_id: str
-) -> tuple[bool, str]:
-    """GET {PULLMD}/s/<share_id>: 2xx + a non-empty body.
-
-    CORRECTED CONTRACT (B1 live probe, S319): `GET /s/:id` serves NO
-    `X-Share-Id` response header — observed headers are only
-    X-Powered-By / Content-Type / Content-Length / ETag / Date; the
-    X-Share-Id header set belongs to pullmd's `GET /api` surface (TECH O1
-    observation). The share id is the request path, so identity is already
-    proven by resolution: a stale share id (e.g. after a pullmd recreate)
-    resolves 404 and exits non-zero. The observed Content-Type is reported
-    in the success detail for operator visibility (text/markdown live) but
-    deliberately NOT asserted — 2xx + non-empty body is the contract.
-    """
-    url = f"{config.pullmd_url.rstrip('/')}/s/{share_id}"
-    try:
-        resp = deps.http_get(url, timeout=config.timeout)
-    except requests.RequestException as exc:
-        return False, f"transport error GETting {url}: {exc!r}"
-    if not 200 <= resp.status_code < 300:
-        return (
-            False,
-            f"round-trip non-2xx (HTTP {resp.status_code}): {resp.text[:300]}",
-        )
-    if not resp.text:
-        return False, f"round-trip returned an empty body (GET {url})"
-    content_type = resp.headers.get("Content-Type", "<unset>")
-    return (
-        True,
-        f"round-trip OK ({len(resp.text)} bytes, Content-Type {content_type})",
-    )
-
-
-# ──────────────────────────────────────────────────────────────────────────
-# Step 5 — second-walk idempotency leg (pipeline_runs terminal wait)
+# Step 4 — second-walk idempotency leg (pipeline_runs terminal wait)
 # ──────────────────────────────────────────────────────────────────────────
 
 
@@ -512,9 +464,9 @@ def wait_for_terminal_pipeline_run(
 
 
 def run_with(config: DriverConfig, deps: Deps) -> int:
-    """Drive seed → walk → share-id poll → round-trip → second walk.
+    """Drive seed → walk → landing poll → second walk.
 
-    Returns the process exit code (0 pass / 1 fail) — Inv-23: the round-trip
+    Returns the process exit code (0 pass / 1 fail) — Inv-23: the landing
     verdict IS the exit code; no row-shape assertions are re-implemented
     here (Inv-22 — those are the Vitest landing-set file's job).
     """
@@ -536,21 +488,14 @@ def run_with(config: DriverConfig, deps: Deps) -> int:
         return 1
     _log(f"walk 1: {detail}")
 
-    share_id = poll_pullmd_share_id(config, deps)
-    if share_id is None:
+    if not poll_landed_sd_row(config, deps):
         _log(
-            "FAIL sd poll: no source_documents row with a non-null "
-            f"pullmd_share_id within {config.sd_poll_deadline}s "
+            "FAIL sd poll: no source_documents row landed within "
+            f"{config.sd_poll_deadline}s "
             f"(id {sd_document_id(config.proof_url)})"
         )
         return 1
-    _log(f"sd row landed: pullmd_share_id={share_id}")
-
-    ok, detail = pullmd_round_trip(config, deps, share_id)
-    if not ok:
-        _log(f"FAIL Inv-9 round-trip: {detail}")
-        return 1
-    _log(f"Inv-9 round-trip: {detail}")
+    _log(f"sd row landed (id {sd_document_id(config.proof_url)})")
 
     if config.second_walk:
         since_iso = datetime.now(timezone.utc).isoformat()
@@ -589,8 +534,8 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="python3 -m deploy.onprem.verify.verify_driver",
         description=(
             "URL-mode verify driver (ID-62 {62.10}): seed ONE gate-passed "
-            "feed_articles row, POST /walk, exit-code the pullmd /s/<id> "
-            "round-trip, then re-walk for the idempotency leg."
+            "feed_articles row, POST /walk, exit-code the sd landing-row "
+            "poll, then re-walk for the idempotency leg."
         ),
     )
     parser.add_argument(
@@ -651,7 +596,6 @@ def run(argv: list[str] | None = None) -> int:
         service_role_key=os.environ["SUPABASE_SERVICE_ROLE_KEY"],
         worker_url=os.environ["COCOINDEX_WORKER_URL"],
         cron_secret=os.environ["CRON_SECRET"],
-        pullmd_url=os.environ.get("PULLMD_SERVICE_URL", "http://localhost:3000"),
         timeout=args.timeout,
         sd_poll_deadline=args.sd_poll_deadline,
         second_walk=not args.skip_second_walk,
