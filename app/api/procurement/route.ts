@@ -42,13 +42,13 @@ const ProcurementBidSchema = z.object({
   question_stats: z.unknown(),
 });
 const GetProcurementResponseSchema = z.object({
-  bids: z.array(ProcurementBidSchema),
+  procurements: z.array(ProcurementBidSchema),
   total: z.number(),
   limit: z.number(),
   offset: z.number(),
   // Sibling field present only when the per-bid stats fallback produced a
   // failure (H13 "absent when empty" convention).
-  failed_bid_ids: z.array(z.string()).optional(),
+  failed_procurement_ids: z.array(z.string()).optional(),
 });
 export const GET = defineRoute(
   GetProcurementResponseSchema,
@@ -96,9 +96,9 @@ export const GET = defineRoute(
       const procurementIds = (workspaces ?? []).map((p) => p.id);
       const statsMap = new Map<string, Record<string, unknown>>();
       // Track per-bid stats failures so the response can surface them as a
-      // sibling `failed_bid_ids` field. Mirrors the H13 pattern in
+      // sibling `failed_procurement_ids` field. Mirrors the H13 pattern in
       // `app/api/freshness/calculate/route.ts` (S151 silent-failure remediation).
-      const failedBidIds: string[] = [];
+      const failedProcurementIds: string[] = [];
 
       if (procurementIds.length > 0) {
         const { data: batchStats, error: batchError } = await supabase.rpc(
@@ -136,7 +136,7 @@ export const GET = defineRoute(
           );
           for (const { procurementId, stats, failed } of fallbackResults) {
             if (stats) statsMap.set(procurementId, stats);
-            if (failed) failedBidIds.push(procurementId);
+            if (failed) failedProcurementIds.push(procurementId);
           }
         } else if (batchStats) {
           for (const row of batchStats) {
@@ -158,24 +158,24 @@ export const GET = defineRoute(
         };
       });
 
-      // `failed_bid_ids` is a sibling field, only present when the fallback
-      // loop produced at least one failure. Matches the H13 "absent when
-      // empty" convention so existing consumers see no shape change in the
-      // happy path.
+      // `failed_procurement_ids` is a sibling field, only present when the
+      // fallback loop produced at least one failure. Matches the H13 "absent
+      // when empty" convention so existing consumers see no shape change in
+      // the happy path.
       const response: {
-        bids: typeof bids;
+        procurements: typeof bids;
         total: number;
         limit: number;
         offset: number;
-        failed_bid_ids?: string[];
+        failed_procurement_ids?: string[];
       } = {
-        bids,
+        procurements: bids,
         total: count ?? bids.length,
         limit,
         offset,
       };
-      if (failedBidIds.length > 0) {
-        response.failed_bid_ids = failedBidIds;
+      if (failedProcurementIds.length > 0) {
+        response.failed_procurement_ids = failedProcurementIds;
       }
       return NextResponse.json(response);
     } catch (err) {

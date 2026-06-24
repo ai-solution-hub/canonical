@@ -804,7 +804,7 @@ describe('MCP App trigger tools #22-23', () => {
       expect(data).toHaveProperty('count');
       expect(data).toHaveProperty('total_count');
       expect(data).toHaveProperty('has_more');
-      expect(data).toHaveProperty('bids');
+      expect(data).toHaveProperty('procurements');
       expect(data.offset).toBe(0);
       expect(data.count).toBe(2);
       expect(data.total_count).toBe(2);
@@ -823,7 +823,7 @@ describe('MCP App trigger tools #22-23', () => {
         structuredContent: ProcurementDashboardData;
       };
 
-      const bids = result.structuredContent.bids;
+      const bids = result.structuredContent.procurements;
       expect(bids).toHaveLength(2);
 
       expect(bids[0]).toEqual({
@@ -854,7 +854,7 @@ describe('MCP App trigger tools #22-23', () => {
         structuredContent: ProcurementDashboardData;
       };
 
-      expect(result.structuredContent.bids).toEqual([]);
+      expect(result.structuredContent.procurements).toEqual([]);
       expect(result.structuredContent.count).toBe(0);
       expect(result.structuredContent.total_count).toBe(0);
       expect(result.content[0].text).toContain('No active procurements found');
@@ -973,8 +973,8 @@ describe('MCP App trigger tools #22-23', () => {
         structuredContent: ProcurementDashboardData;
       };
 
-      // Should still return bids but no focused detail
-      expect(result.structuredContent.bids).toHaveLength(2);
+      // Should still return procurements but no focused detail
+      expect(result.structuredContent.procurements).toHaveLength(2);
       expect(result.structuredContent.focused_form_detail).toBeUndefined();
     });
 
@@ -1037,8 +1037,8 @@ describe('MCP App trigger tools #22-23', () => {
         structuredContent: ProcurementDashboardData;
       };
 
-      expect(result.structuredContent.bids[0].buyer).toBeNull();
-      expect(result.structuredContent.bids[0].deadline).toBeNull();
+      expect(result.structuredContent.procurements[0].buyer).toBeNull();
+      expect(result.structuredContent.procurements[0].deadline).toBeNull();
     });
 
     it('should include sections in focused_form_detail when form_id provided', async () => {

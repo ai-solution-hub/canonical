@@ -49,7 +49,7 @@ function handleHostContextChanged(ctx: McpUiHostContext): void {
 app.ontoolresult = (result) => {
   try {
     const data = result.structuredContent as unknown as BidDashboardData;
-    if (!data || !Array.isArray(data.bids)) {
+    if (!data || !Array.isArray(data.procurements)) {
       const text = result.content?.find(
         (c: { type: string }) => c.type === 'text',
       ) as { text?: string } | undefined;
@@ -145,10 +145,10 @@ function renderEmpty(message: string): void {
 function renderDashboard(): void {
   if (!dashboardData) return;
 
-  const { bids, total_count } = dashboardData;
+  const { procurements, total_count } = dashboardData;
 
   // Sort bids: overdue first, then by days_until_deadline ascending
-  const sortedBids = [...bids].sort((a, b) => {
+  const sortedBids = [...procurements].sort((a, b) => {
     const urgencyA = getUrgencyOrder(a);
     const urgencyB = getUrgencyOrder(b);
     return urgencyA - urgencyB;

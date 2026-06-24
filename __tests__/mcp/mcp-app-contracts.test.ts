@@ -79,7 +79,7 @@ interface ClientBidDashboardData {
   count: number;
   total_count: number;
   has_more: boolean;
-  bids: ClientBidSummary[];
+  procurements: ClientBidSummary[];
   focused_form_detail?: ClientBidDetailData;
 }
 
@@ -186,7 +186,7 @@ function makeBidDashboardData(): ServerBidDashboardData &
     count: 2,
     total_count: 2,
     has_more: false,
-    bids: [
+    procurements: [
       {
         id: 'bid-001',
         name: 'NHS Digital Transformation',
@@ -348,13 +348,13 @@ describe('MCP App contract: ProcurementDashboardData', () => {
     expect(data.count).toBe(2);
     expect(data.total_count).toBe(2);
     expect(data.has_more).toBe(false);
-    expect(data.bids).toBeInstanceOf(Array);
-    expect(data.bids).toHaveLength(2);
+    expect(data.procurements).toBeInstanceOf(Array);
+    expect(data.procurements).toHaveLength(2);
   });
 
   it('bid summary includes all required fields', () => {
     const data = makeBidDashboardData();
-    const bid = data.bids[0];
+    const bid = data.procurements[0];
     expect(bid).toHaveProperty('id');
     expect(bid).toHaveProperty('name');
     expect(bid).toHaveProperty('buyer');
@@ -368,14 +368,16 @@ describe('MCP App contract: ProcurementDashboardData', () => {
 
   it('buyer can be null', () => {
     const data = makeBidDashboardData();
-    const nullBuyer = data.bids.find((b) => b.buyer === null);
+    const nullBuyer = data.procurements.find((b) => b.buyer === null);
     expect(nullBuyer).toBeDefined();
     expect(nullBuyer!.name).toBe('MoD Cyber Security');
   });
 
   it('days_until_deadline can be negative (overdue)', () => {
     const data = makeBidDashboardData();
-    const overdue = data.bids.find((b) => (b.days_until_deadline ?? 0) < 0);
+    const overdue = data.procurements.find(
+      (b) => (b.days_until_deadline ?? 0) < 0,
+    );
     expect(overdue).toBeDefined();
     expect(overdue!.days_until_deadline).toBe(-8);
   });
@@ -386,9 +388,9 @@ describe('MCP App contract: ProcurementDashboardData', () => {
       count: 0,
       total_count: 0,
       has_more: false,
-      bids: [],
+      procurements: [],
     };
-    expect(data.bids).toHaveLength(0);
+    expect(data.procurements).toHaveLength(0);
     expect(data.total_count).toBe(0);
   });
 

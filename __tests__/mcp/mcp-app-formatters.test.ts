@@ -108,7 +108,7 @@ const sampleBidDashboard: ProcurementDashboardData = {
   count: 2,
   total_count: 2,
   has_more: false,
-  bids: [
+  procurements: [
     {
       id: 'bid-001',
       name: 'NHS Digital Transformation',
@@ -352,7 +352,7 @@ describe('formatProcurementDashboard', () => {
       count: 0,
       total_count: 0,
       has_more: false,
-      bids: [],
+      procurements: [],
     };
     const result = formatProcurementDashboard(noBids);
 
@@ -366,7 +366,7 @@ describe('formatProcurementDashboard', () => {
       count: 1,
       total_count: 1,
       has_more: false,
-      bids: [sampleBidDashboard.bids[0]],
+      procurements: [sampleBidDashboard.procurements[0]],
     };
     const result = formatProcurementDashboard(singleBid);
 
@@ -380,7 +380,7 @@ describe('formatProcurementDashboard', () => {
       count: 1,
       total_count: 1,
       has_more: false,
-      bids: [
+      procurements: [
         {
           id: 'bid-003',
           name: 'Draft Proposal',
@@ -405,7 +405,7 @@ describe('formatProcurementDashboard', () => {
       count: 1,
       total_count: 1,
       has_more: false,
-      bids: [
+      procurements: [
         {
           id: 'bid-004',
           name: 'Empty Procurement',
@@ -430,7 +430,7 @@ describe('formatProcurementDashboard', () => {
       count: 1,
       total_count: 1,
       has_more: false,
-      bids: [
+      procurements: [
         {
           id: 'bid-005',
           name: 'Deadline No Days',

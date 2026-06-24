@@ -45,7 +45,7 @@ function createEffectivenessData(overrides: Record<string, unknown> = {}) {
     losing_citations: 3,
     pending_citations: 4,
     win_rate: 0.625,
-    bids: [
+    procurements: [
       {
         workspace_id: 'ws-1',
         workspace_name: 'NHS Digital Redesign',
@@ -90,7 +90,7 @@ describe('ContentEffectivenessPanel', () => {
 
   it('renders empty state when total_citations is 0', async () => {
     mockFetchResponse(
-      createEffectivenessData({ total_citations: 0, bids: [] }),
+      createEffectivenessData({ total_citations: 0, procurements: [] }),
     );
 
     render(<ContentEffectivenessPanel contentItemId={CONTENT_ID} />);
@@ -110,7 +110,7 @@ describe('ContentEffectivenessPanel', () => {
         losing_citations: 0,
         pending_citations: 5,
         win_rate: 0,
-        bids: [
+        procurements: [
           {
             workspace_id: 'ws-1',
             workspace_name: 'Test Procurement',
@@ -191,7 +191,7 @@ describe('ContentEffectivenessPanel', () => {
       cited_at: `2026-01-${String(i + 1).padStart(2, '0')}T10:00:00Z`,
     }));
 
-    mockFetchResponse(createEffectivenessData({ bids: manyBids }));
+    mockFetchResponse(createEffectivenessData({ procurements: manyBids }));
 
     render(<ContentEffectivenessPanel contentItemId={CONTENT_ID} />);
 
@@ -233,7 +233,7 @@ describe('ContentEffectivenessPanel', () => {
   it('accessibility: outcome badges have aria-label text', async () => {
     mockFetchResponse(
       createEffectivenessData({
-        bids: [
+        procurements: [
           {
             workspace_id: 'ws-1',
             workspace_name: 'Won Procurement',

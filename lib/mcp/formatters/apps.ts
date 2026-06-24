@@ -110,7 +110,7 @@ export interface ProcurementDashboardData {
   count: number;
   total_count: number;
   has_more: boolean;
-  bids: Array<{
+  procurements: Array<{
     id: string;
     name: string;
     buyer: string | null;
@@ -134,12 +134,12 @@ export function formatProcurementDashboard(
     '',
   ];
 
-  if (data.bids.length === 0) {
+  if (data.procurements.length === 0) {
     lines.push('No active procurements found.');
     return lines.join('\n');
   }
 
-  for (const bid of data.bids) {
+  for (const bid of data.procurements) {
     const progress =
       bid.total_questions > 0
         ? `${Math.round((bid.answered_questions / bid.total_questions) * 100)}%`
