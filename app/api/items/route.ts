@@ -334,7 +334,7 @@ export const POST = withRequestContext(
           hasBrief: !!brief,
           hasDetail: !!detail,
           hasReference: !!reference,
-          isBidDiscovered: false,
+          isProcurementDiscovered: false,
           title,
         });
         suggestedLayer = suggestion;

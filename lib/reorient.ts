@@ -12,11 +12,11 @@ import { getUserDisplayName } from '@/lib/users/self-display-name';
 import { dedupeRecentWorkByEntity } from '@/lib/activity/recent-work';
 import {
   contentHistoryRowToTeamChange,
-  bidResponseRowToTeamChange,
+  formResponseRowToTeamChange,
   contentHistoryRowToRecentWork,
-  bidResponseRowToRecentWork,
+  formResponseRowToRecentWork,
 } from '@/lib/activity/team-changes';
-import { buildBidSummary } from '@/lib/activity/bid-summary';
+import { buildProcurementSummary } from '@/lib/activity/bid-summary';
 
 // ---------------------------------------------------------------------------
 // Main data fetching function
@@ -94,7 +94,7 @@ export async function fetchReorientData(
   const nowIso = new Date().toISOString();
 
   // Run remaining queries in parallel (active procurements via shared helper)
-  const [results, activeBidsResult] = await Promise.all([
+  const [results, activeProcurementsResult] = await Promise.all([
     Promise.allSettled([
       // 0: Team changes since last active
       supabase
@@ -190,7 +190,7 @@ export async function fetchReorientData(
       errors.push('bid_response team_changes query failed');
     } else if (data) {
       for (const row of data) {
-        team_changes.push(bidResponseRowToTeamChange(row));
+        team_changes.push(formResponseRowToTeamChange(row));
       }
     }
   } else {
@@ -225,7 +225,7 @@ export async function fetchReorientData(
       errors.push('bid_response my_recent_work query failed');
     } else if (data) {
       for (const row of data) {
-        my_recent_work.push(bidResponseRowToRecentWork(row));
+        my_recent_work.push(formResponseRowToRecentWork(row));
       }
     }
   } else {
@@ -243,8 +243,9 @@ export async function fetchReorientData(
   const latestRecentWork = dedupeRecentWorkByEntity(my_recent_work).slice(0, 5);
 
   // --- Extract active procurements with question stats (from shared helper) ---
-  const { workspaces: procurementWorkspaces, statsMap } = activeBidsResult;
-  const bid_summary = buildBidSummary(procurementWorkspaces, statsMap);
+  const { workspaces: procurementWorkspaces, statsMap } =
+    activeProcurementsResult;
+  const bid_summary = buildProcurementSummary(procurementWorkspaces, statsMap);
 
   // --- Extract freshness counts ---
   let staleOrExpired = 0;

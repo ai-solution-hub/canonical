@@ -10,7 +10,7 @@ import {
   produceStaleContentItems,
   produceQualityFlagItems,
   produceUnverifiedItems,
-  produceBidDeadlineItems,
+  produceProcurementDeadlineItems,
   produceExpiringCertItems,
   produceExpiringContentDateItems,
   produceUnreadNotificationItems,
@@ -21,13 +21,15 @@ import {
   buildAttentionItems,
 } from '@/lib/attention';
 import type { AttentionItem, AttentionSourceData } from '@/lib/attention';
-import type { ActiveBidSummary } from '@/lib/dashboard';
+import type { ActiveProcurementSummary } from '@/lib/dashboard';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeBid(overrides: Partial<ActiveBidSummary> = {}): ActiveBidSummary {
+function makeBid(
+  overrides: Partial<ActiveProcurementSummary> = {},
+): ActiveProcurementSummary {
   return {
     id: 'bid-1',
     name: 'Test Procurement',
@@ -180,8 +182,8 @@ describe('produceUnverifiedItems', () => {
   });
 });
 
-describe('produceBidDeadlineItems', () => {
-  const baseBid: ActiveBidSummary = {
+describe('produceProcurementDeadlineItems', () => {
+  const baseBid: ActiveProcurementSummary = {
     id: 'bid-1',
     name: 'Test Procurement',
     buyer: 'ACME',
@@ -194,7 +196,7 @@ describe('produceBidDeadlineItems', () => {
   };
 
   it('returns empty for no bids', () => {
-    expect(produceBidDeadlineItems([])).toEqual([]);
+    expect(produceProcurementDeadlineItems([])).toEqual([]);
   });
 
   it('skips bids with normal urgency', () => {
@@ -203,7 +205,7 @@ describe('produceBidDeadlineItems', () => {
       deadline: '2099-12-31',
       days_until_deadline: 365,
     };
-    expect(produceBidDeadlineItems([bid])).toEqual([]);
+    expect(produceProcurementDeadlineItems([bid])).toEqual([]);
   });
 
   it('returns critical for overdue bids', () => {
@@ -212,7 +214,7 @@ describe('produceBidDeadlineItems', () => {
       deadline: '2020-01-01',
       days_until_deadline: -100,
     };
-    const items = produceBidDeadlineItems([bid]);
+    const items = produceProcurementDeadlineItems([bid]);
     expect(items).toHaveLength(1);
     expect(items[0].severity).toBe('critical');
     expect(items[0].deadline).toBe('2020-01-01');
@@ -223,26 +225,26 @@ describe('produceBidDeadlineItems', () => {
       .toISOString()
       .split('T')[0];
     const bid = { ...baseBid, deadline: tomorrow, days_until_deadline: 1 };
-    const items = produceBidDeadlineItems([bid]);
+    const items = produceProcurementDeadlineItems([bid]);
     expect(items).toHaveLength(1);
     expect(items[0].severity).toBe('high');
   });
 
   it('shows answered-question progress in the detail line', () => {
     const bid = { ...baseBid, deadline: '2020-01-01', days_until_deadline: -1 };
-    const items = produceBidDeadlineItems([bid]);
+    const items = produceProcurementDeadlineItems([bid]);
     expect(items[0].detail).toContain('5/10 questions answered');
   });
 
   it('is visible to admin, editor, and viewer', () => {
     const bid = { ...baseBid, deadline: '2020-01-01', days_until_deadline: -1 };
-    const items = produceBidDeadlineItems([bid]);
+    const items = produceProcurementDeadlineItems([bid]);
     expect(items[0].role_visibility).toEqual(['admin', 'editor', 'viewer']);
   });
 
   it('returns empty array for bids with no deadline', () => {
     const bids = [makeBid({ deadline: null })];
-    expect(produceBidDeadlineItems(bids)).toEqual([]);
+    expect(produceProcurementDeadlineItems(bids)).toEqual([]);
   });
 
   it('maps approaching bids (< 14 days) to medium severity', () => {
@@ -254,7 +256,7 @@ describe('produceBidDeadlineItems', () => {
         days_until_deadline: 7,
       }),
     ];
-    const items = produceBidDeadlineItems(bids);
+    const items = produceProcurementDeadlineItems(bids);
     expect(items).toHaveLength(1);
     expect(items[0].severity).toBe('medium');
   });
@@ -269,7 +271,7 @@ describe('produceBidDeadlineItems', () => {
         days_until_deadline: 2,
       }),
     ];
-    const items = produceBidDeadlineItems(bids);
+    const items = produceProcurementDeadlineItems(bids);
     expect(items[0].title).toContain('Acme Procurement');
     expect(items[0].title).toContain('2 days remaining');
   });
@@ -283,7 +285,7 @@ describe('produceBidDeadlineItems', () => {
         days_until_deadline: 0,
       }),
     ];
-    const items = produceBidDeadlineItems(bids);
+    const items = produceProcurementDeadlineItems(bids);
     expect(items).toHaveLength(1);
     expect(items[0].title).toContain('due today');
   });
@@ -298,7 +300,7 @@ describe('produceBidDeadlineItems', () => {
         days_until_deadline: 1,
       }),
     ];
-    const items = produceBidDeadlineItems(bids);
+    const items = produceProcurementDeadlineItems(bids);
     expect(items[0].detail).toContain('Widget Co');
   });
 
@@ -311,7 +313,7 @@ describe('produceBidDeadlineItems', () => {
         deadline: soonDate.toISOString(),
       }),
     ];
-    const items = produceBidDeadlineItems(bids);
+    const items = produceProcurementDeadlineItems(bids);
     expect(items[0].entity_type).toBe('workspace');
     expect(items[0].entity_id).toBe('bid-abc-123');
     expect(items[0].action_url).toBe('/bids/bid-abc-123');
@@ -332,7 +334,7 @@ describe('produceBidDeadlineItems', () => {
         deadline: soonDate.toISOString(),
       }),
     ];
-    const items = produceBidDeadlineItems(bids);
+    const items = produceProcurementDeadlineItems(bids);
     expect(items).toHaveLength(2);
     expect(items[0].id).toBe('attention-bid-bid-1');
     expect(items[1].id).toBe('attention-bid-bid-2');

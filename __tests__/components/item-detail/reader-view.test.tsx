@@ -125,7 +125,9 @@ vi.mock('@/components/item-detail/related-content-section', () => ({
 }));
 
 vi.mock('@/components/item-detail/qa-provenance-sections', () => ({
-  QAUsedInBids: () => <div data-testid="qa-used-in-bids">QAUsedInBids</div>,
+  QAUsedInProcurements: () => (
+    <div data-testid="qa-used-in-bids">QAUsedInProcurements</div>
+  ),
   QARelatedPairs: () => (
     <div data-testid="qa-related-pairs">QARelatedPairs</div>
   ),

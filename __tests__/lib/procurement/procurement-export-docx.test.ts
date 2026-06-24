@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
-  generateBidDocx,
+  generateProcurementDocx,
   markdownToDocxParagraphs,
 } from '@/lib/domains/procurement/procurement-export-docx';
 import type {
   ExportQuestion,
-  ExportBidMetadata,
+  ExportProcurementMetadata,
 } from '@/lib/domains/procurement/procurement-export-types';
 
 // ---------------------------------------------------------------------------
@@ -13,10 +13,10 @@ import type {
 // ---------------------------------------------------------------------------
 
 function makeMetadata(
-  overrides: Partial<ExportBidMetadata> = {},
-): ExportBidMetadata {
+  overrides: Partial<ExportProcurementMetadata> = {},
+): ExportProcurementMetadata {
   return {
-    bid_name: 'IT Support Services',
+    procurement_name: 'IT Support Services',
     buyer: 'NHS Greater Manchester',
     reference_number: 'NHS-GM-2026-001',
     deadline: '2026-04-15T17:00:00Z',
@@ -57,12 +57,14 @@ function makeQuestion(overrides: Partial<ExportQuestion> = {}): ExportQuestion {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('generateBidDocx', () => {
+describe('generateProcurementDocx', () => {
   // -----------------------------------------------------------------------
   // 1. Full data generation
   // -----------------------------------------------------------------------
   it('should generate a DOCX buffer with full data', async () => {
-    const buffer = await generateBidDocx(makeMetadata(), [makeQuestion()]);
+    const buffer = await generateProcurementDocx(makeMetadata(), [
+      makeQuestion(),
+    ]);
     expect(buffer).toBeInstanceOf(Buffer);
     expect(buffer.length).toBeGreaterThan(0);
   });
@@ -71,7 +73,9 @@ describe('generateBidDocx', () => {
   // 2. PK magic bytes (ZIP format)
   // -----------------------------------------------------------------------
   it('should produce a buffer starting with PK magic bytes', async () => {
-    const buffer = await generateBidDocx(makeMetadata(), [makeQuestion()]);
+    const buffer = await generateProcurementDocx(makeMetadata(), [
+      makeQuestion(),
+    ]);
     expect(buffer[0]).toBe(0x50); // P
     expect(buffer[1]).toBe(0x4b); // K
   });
@@ -80,10 +84,14 @@ describe('generateBidDocx', () => {
   // 3. includeCover: false
   // -----------------------------------------------------------------------
   it('should generate a smaller DOCX without cover page', async () => {
-    const withCover = await generateBidDocx(makeMetadata(), [makeQuestion()], {
-      includeCover: true,
-    });
-    const withoutCover = await generateBidDocx(
+    const withCover = await generateProcurementDocx(
+      makeMetadata(),
+      [makeQuestion()],
+      {
+        includeCover: true,
+      },
+    );
+    const withoutCover = await generateProcurementDocx(
       makeMetadata(),
       [makeQuestion()],
       { includeCover: false },
@@ -98,9 +106,13 @@ describe('generateBidDocx', () => {
   // 4. includeToc: false
   // -----------------------------------------------------------------------
   it('should generate a valid DOCX without table of contents', async () => {
-    const buffer = await generateBidDocx(makeMetadata(), [makeQuestion()], {
-      includeToc: false,
-    });
+    const buffer = await generateProcurementDocx(
+      makeMetadata(),
+      [makeQuestion()],
+      {
+        includeToc: false,
+      },
+    );
     expect(buffer.length).toBeGreaterThan(0);
     expect(buffer[0]).toBe(0x50);
     expect(buffer[1]).toBe(0x4b);
@@ -110,12 +122,12 @@ describe('generateBidDocx', () => {
   // 5. includeCitations: false
   // -----------------------------------------------------------------------
   it('should generate a valid DOCX without citations', async () => {
-    const withCitations = await generateBidDocx(
+    const withCitations = await generateProcurementDocx(
       makeMetadata(),
       [makeQuestion()],
       { includeCitations: true },
     );
-    const withoutCitations = await generateBidDocx(
+    const withoutCitations = await generateProcurementDocx(
       makeMetadata(),
       [makeQuestion()],
       { includeCitations: false },
@@ -137,12 +149,20 @@ describe('generateBidDocx', () => {
       }),
     ];
 
-    const withUnanswered = await generateBidDocx(makeMetadata(), questions, {
-      includeUnanswered: true,
-    });
-    const withoutUnanswered = await generateBidDocx(makeMetadata(), questions, {
-      includeUnanswered: false,
-    });
+    const withUnanswered = await generateProcurementDocx(
+      makeMetadata(),
+      questions,
+      {
+        includeUnanswered: true,
+      },
+    );
+    const withoutUnanswered = await generateProcurementDocx(
+      makeMetadata(),
+      questions,
+      {
+        includeUnanswered: false,
+      },
+    );
 
     // Excluding unanswered should produce a smaller document
     expect(withoutUnanswered.length).toBeLessThan(withUnanswered.length);
@@ -158,10 +178,10 @@ describe('generateBidDocx', () => {
         'Advanced response with significantly more detailed content and additional paragraphs explaining the approach.',
     });
 
-    const standard = await generateBidDocx(makeMetadata(), [question], {
+    const standard = await generateProcurementDocx(makeMetadata(), [question], {
       useAdvancedVariant: false,
     });
-    const advanced = await generateBidDocx(makeMetadata(), [question], {
+    const advanced = await generateProcurementDocx(makeMetadata(), [question], {
       useAdvancedVariant: true,
     });
 
@@ -173,9 +193,13 @@ describe('generateBidDocx', () => {
   // 8. Custom company name
   // -----------------------------------------------------------------------
   it('should generate a valid DOCX with a custom company name', async () => {
-    const buffer = await generateBidDocx(makeMetadata(), [makeQuestion()], {
-      companyName: 'Acme Solutions Ltd',
-    });
+    const buffer = await generateProcurementDocx(
+      makeMetadata(),
+      [makeQuestion()],
+      {
+        companyName: 'Acme Solutions Ltd',
+      },
+    );
     expect(buffer.length).toBeGreaterThan(0);
     expect(buffer[0]).toBe(0x50);
     expect(buffer[1]).toBe(0x4b);
@@ -206,11 +230,11 @@ describe('generateBidDocx', () => {
       }),
     ];
 
-    const buffer = await generateBidDocx(makeMetadata(), questions);
+    const buffer = await generateProcurementDocx(makeMetadata(), questions);
     // Should produce a valid document — multiple sections means more content
     expect(buffer.length).toBeGreaterThan(0);
 
-    const singleSection = await generateBidDocx(makeMetadata(), [
+    const singleSection = await generateProcurementDocx(makeMetadata(), [
       makeQuestion(),
     ]);
     expect(buffer.length).toBeGreaterThan(singleSection.length);
@@ -225,7 +249,7 @@ describe('generateBidDocx', () => {
       section_sequence: 99,
     });
 
-    const buffer = await generateBidDocx(makeMetadata(), [question]);
+    const buffer = await generateProcurementDocx(makeMetadata(), [question]);
     expect(buffer.length).toBeGreaterThan(0);
     expect(buffer[0]).toBe(0x50);
   });
@@ -252,7 +276,7 @@ describe('generateBidDocx', () => {
     ];
 
     // Both orderings should produce a valid document of the same content
-    const buffer = await generateBidDocx(makeMetadata(), questions);
+    const buffer = await generateProcurementDocx(makeMetadata(), questions);
     expect(buffer.length).toBeGreaterThan(0);
     expect(buffer[0]).toBe(0x50);
   });
@@ -282,7 +306,7 @@ describe('generateBidDocx', () => {
       }),
     ];
 
-    const buffer = await generateBidDocx(makeMetadata(), questions);
+    const buffer = await generateProcurementDocx(makeMetadata(), questions);
     expect(buffer.length).toBeGreaterThan(0);
     expect(buffer[0]).toBe(0x50);
   });
@@ -298,7 +322,7 @@ describe('generateBidDocx', () => {
       citations: [],
     });
 
-    const buffer = await generateBidDocx(makeMetadata(), [question]);
+    const buffer = await generateProcurementDocx(makeMetadata(), [question]);
     expect(buffer.length).toBeGreaterThan(0);
     expect(buffer[0]).toBe(0x50);
   });
@@ -314,7 +338,7 @@ describe('generateBidDocx', () => {
       word_limit: 500,
     });
 
-    const buffer = await generateBidDocx(makeMetadata(), [question]);
+    const buffer = await generateProcurementDocx(makeMetadata(), [question]);
     expect(buffer.length).toBeGreaterThan(0);
   });
 
@@ -329,7 +353,7 @@ describe('generateBidDocx', () => {
       word_limit: 5,
     });
 
-    const buffer = await generateBidDocx(makeMetadata(), [question]);
+    const buffer = await generateProcurementDocx(makeMetadata(), [question]);
     expect(buffer.length).toBeGreaterThan(0);
   });
 
@@ -342,7 +366,7 @@ describe('generateBidDocx', () => {
       word_limit: null,
     });
 
-    const buffer = await generateBidDocx(makeMetadata(), [question]);
+    const buffer = await generateProcurementDocx(makeMetadata(), [question]);
     expect(buffer.length).toBeGreaterThan(0);
   });
 
@@ -350,7 +374,7 @@ describe('generateBidDocx', () => {
   // 17. Empty questions array
   // -----------------------------------------------------------------------
   it('should generate a valid DOCX with empty questions array', async () => {
-    const buffer = await generateBidDocx(makeMetadata(), []);
+    const buffer = await generateProcurementDocx(makeMetadata(), []);
     expect(buffer.length).toBeGreaterThan(0);
     expect(buffer[0]).toBe(0x50);
     expect(buffer[1]).toBe(0x4b);
@@ -367,7 +391,7 @@ describe('generateBidDocx', () => {
         'Our comprehensive approach covers all scenarios.',
     });
 
-    const buffer = await generateBidDocx(makeMetadata(), [question]);
+    const buffer = await generateProcurementDocx(makeMetadata(), [question]);
     expect(buffer.length).toBeGreaterThan(0);
     expect(buffer[0]).toBe(0x50);
     expect(buffer[1]).toBe(0x4b);
@@ -377,11 +401,15 @@ describe('generateBidDocx', () => {
   // 19. All options disabled
   // -----------------------------------------------------------------------
   it('should generate a valid DOCX with all optional sections disabled', async () => {
-    const buffer = await generateBidDocx(makeMetadata(), [makeQuestion()], {
-      includeCover: false,
-      includeToc: false,
-      includeCitations: false,
-    });
+    const buffer = await generateProcurementDocx(
+      makeMetadata(),
+      [makeQuestion()],
+      {
+        includeCover: false,
+        includeToc: false,
+        includeCitations: false,
+      },
+    );
     expect(buffer.length).toBeGreaterThan(0);
     expect(buffer[0]).toBe(0x50);
     expect(buffer[1]).toBe(0x4b);
@@ -396,12 +424,16 @@ describe('generateBidDocx', () => {
       response_text_advanced: null,
     });
 
-    const standard = await generateBidDocx(makeMetadata(), [question], {
+    const standard = await generateProcurementDocx(makeMetadata(), [question], {
       useAdvancedVariant: false,
     });
-    const advancedFallback = await generateBidDocx(makeMetadata(), [question], {
-      useAdvancedVariant: true,
-    });
+    const advancedFallback = await generateProcurementDocx(
+      makeMetadata(),
+      [question],
+      {
+        useAdvancedVariant: true,
+      },
+    );
 
     // Both should produce similar output since advanced is null
     // (minor differences possible due to ZIP compression non-determinism)
@@ -437,7 +469,7 @@ describe('generateBidDocx', () => {
       }),
     ];
 
-    const buffer = await generateBidDocx(makeMetadata(), questions);
+    const buffer = await generateProcurementDocx(makeMetadata(), questions);
     expect(buffer.length).toBeGreaterThan(0);
     expect(buffer[0]).toBe(0x50);
   });
@@ -447,12 +479,12 @@ describe('generateBidDocx', () => {
   // -----------------------------------------------------------------------
   it('should handle special characters in bid name and buyer', async () => {
     const metadata = makeMetadata({
-      bid_name: 'IT Support & Infrastructure — Phase "One"',
+      procurement_name: 'IT Support & Infrastructure — Phase "One"',
       buyer: "O'Brien & Associates Ltd",
       estimated_value: '£1,500,000',
     });
 
-    const buffer = await generateBidDocx(metadata, [makeQuestion()]);
+    const buffer = await generateProcurementDocx(metadata, [makeQuestion()]);
     expect(buffer.length).toBeGreaterThan(0);
     expect(buffer[0]).toBe(0x50);
   });
@@ -468,7 +500,7 @@ describe('generateBidDocx', () => {
       notes: null,
     });
 
-    const buffer = await generateBidDocx(metadata, [makeQuestion()]);
+    const buffer = await generateProcurementDocx(metadata, [makeQuestion()]);
     expect(buffer.length).toBeGreaterThan(0);
     expect(buffer[0]).toBe(0x50);
   });
@@ -497,7 +529,7 @@ describe('generateBidDocx', () => {
       ],
     });
 
-    const buffer = await generateBidDocx(makeMetadata(), [question]);
+    const buffer = await generateProcurementDocx(makeMetadata(), [question]);
     expect(buffer.length).toBeGreaterThan(0);
   });
 
@@ -507,7 +539,7 @@ describe('generateBidDocx', () => {
   it('should handle questions with no citations', async () => {
     const question = makeQuestion({ citations: [] });
 
-    const buffer = await generateBidDocx(makeMetadata(), [question], {
+    const buffer = await generateProcurementDocx(makeMetadata(), [question], {
       includeCitations: true,
     });
     expect(buffer.length).toBeGreaterThan(0);
@@ -585,7 +617,7 @@ describe('markdownToDocxParagraphs', () => {
     expect(result).toHaveLength(1);
   });
 
-  it('generates valid DOCX when used through generateBidDocx with markdown content', async () => {
+  it('generates valid DOCX when used through generateProcurementDocx with markdown content', async () => {
     const question = makeQuestion({
       response_text:
         '## Technical Approach\n\n' +
@@ -597,7 +629,7 @@ describe('markdownToDocxParagraphs', () => {
         'Our *comprehensive* methodology ensures compliance.',
     });
 
-    const buffer = await generateBidDocx(makeMetadata(), [question]);
+    const buffer = await generateProcurementDocx(makeMetadata(), [question]);
     expect(buffer).toBeInstanceOf(Buffer);
     expect(buffer.length).toBeGreaterThan(0);
     // Valid ZIP (DOCX is a ZIP container)

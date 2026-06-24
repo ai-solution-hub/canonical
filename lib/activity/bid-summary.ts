@@ -15,7 +15,7 @@ import { getDeadlineUrgency, getDaysUntilDeadline } from '@/lib/dashboard';
  * (lib/reorient.ts), which previously inlined byte-identical builders (one as a
  * `.map`, one as a `for…push` — behaviour identical).
  */
-export function buildBidSummary(
+export function buildProcurementSummary(
   workspaces: ProcurementWorkspaceRow[],
   statsMap: Map<string, ProcurementQuestionStats>,
 ): ProcurementBriefing[] {

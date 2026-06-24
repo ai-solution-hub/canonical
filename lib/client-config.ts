@@ -63,7 +63,7 @@ export interface ClientConfig {
     /** AI integration: AI drafting, classification, Claude bridge */
     ai_integration: FeatureToggle;
     /** Procurement management: full bid workflow */
-    bid_management: FeatureToggle;
+    procurement_management: FeatureToggle;
   };
   /** Content layer vocabulary — drives validation, UI labels, coverage grouping */
   layer_vocabulary: LayerDefinition[];
@@ -133,7 +133,7 @@ export const CLIENT_CONFIG = {
       label: 'AI Integration',
       description: 'AI classification, summary generation, and Claude bridge',
     },
-    bid_management: {
+    procurement_management: {
       enabled: true,
       label: 'Procurement Management',
       description: 'Full bid workflow: extraction, drafting, review, export',

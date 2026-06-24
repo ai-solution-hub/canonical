@@ -547,7 +547,7 @@ async function isJobCancelled(jobId: string | undefined): Promise<boolean> {
  * @param authContext Dispatcher-provided auth context. Currently unused
  *   inside the handler (the dispatcher's `reValidateAuthContext` gate
  *   already authenticated the run); the parameter is preserved for
- *   parity with `runBidDraftAllJob` and forward-compatibility (e.g. an
+ *   parity with `runFormDraftAllJob` and forward-compatibility (e.g. an
  *   `updated_by` audit field on `content_items`).
  * @param jobId Optional `processing_queue.id` for cooperative-cancel
  *   polling. The dispatcher passes the row's id; tests may omit.
@@ -556,7 +556,7 @@ export async function runBatchReclassifyJob(
   body: BatchReclassifyBody,
   supabase: SupabaseClient<Database>,
   // Dispatcher passes the auth context for forward-compat. Currently unused
-  // inside the handler body — preserved for parity with `runBidDraftAllJob`
+  // inside the handler body — preserved for parity with `runFormDraftAllJob`
   // and forward-compatibility (e.g. an `updated_by` audit field on
   // `content_items`).
   _authContext: BatchReclassifyAuthContext,
@@ -902,7 +902,7 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
           hasBrief: false,
           hasDetail: false,
           hasReference: false,
-          isBidDiscovered: false,
+          isProcurementDiscovered: false,
           title: item.title || item.suggested_title || '',
         });
 

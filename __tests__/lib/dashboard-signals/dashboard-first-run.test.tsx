@@ -30,7 +30,7 @@ const ALWAYS_VISIBLE = [
   'McpSetupNudge',
   'ReorientSection',
   'UnifiedAttentionSection',
-  'ActiveBidsSection',
+  'ActiveProcurementsSection',
   'OwnedContentHealth',
 ] as const;
 
@@ -140,6 +140,6 @@ describe('Dashboard first-run signals', () => {
 
     expect(ALWAYS_VISIBLE).toContain('ReorientSection');
     expect(ALWAYS_VISIBLE).toContain('UnifiedAttentionSection');
-    expect(ALWAYS_VISIBLE).toContain('ActiveBidsSection');
+    expect(ALWAYS_VISIBLE).toContain('ActiveProcurementsSection');
   });
 });

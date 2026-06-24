@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useBidExport } from '@/hooks/procurement/use-procurement-export';
+import { useProcurementExport } from '@/hooks/procurement/use-procurement-export';
 
 interface ProcurementExportMenuProps {
   procurementId: string;
@@ -22,10 +22,11 @@ export function ProcurementExportMenu({
   procurementName,
   hasQuestions,
 }: ProcurementExportMenuProps) {
-  const { exporting, isExporting, handleExport, handlePrint } = useBidExport({
-    procurementId,
-    procurementName,
-  });
+  const { exporting, isExporting, handleExport, handlePrint } =
+    useProcurementExport({
+      procurementId,
+      procurementName,
+    });
 
   return (
     <DropdownMenu>

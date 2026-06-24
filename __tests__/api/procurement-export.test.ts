@@ -37,11 +37,15 @@ vi.mock('next/headers', () => ({
 
 // Mock the export generation libraries — they produce binary output we don't need
 vi.mock('@/lib/domains/procurement/procurement-export-docx', () => ({
-  generateBidDocx: vi.fn().mockResolvedValue(Buffer.from('mock-docx-content')),
+  generateProcurementDocx: vi
+    .fn()
+    .mockResolvedValue(Buffer.from('mock-docx-content')),
 }));
 
 vi.mock('@/lib/domains/procurement/procurement-export-xlsx', () => ({
-  generateBidXlsx: vi.fn().mockResolvedValue(Buffer.from('mock-xlsx-content')),
+  generateProcurementXlsx: vi
+    .fn()
+    .mockResolvedValue(Buffer.from('mock-xlsx-content')),
 }));
 
 // Suppress console.error noise

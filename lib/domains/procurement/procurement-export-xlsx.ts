@@ -15,7 +15,7 @@ import { stripMarkdown } from '@/lib/content/strip-markdown';
 import { BRANDING } from '@/lib/client-config';
 import type {
   ExportQuestion,
-  ExportBidMetadata,
+  ExportProcurementMetadata,
   XlsxExportOptions,
 } from '@/lib/domains/procurement/procurement-export-types';
 
@@ -300,7 +300,7 @@ function buildResponsesSheet(
  */
 function buildSummarySheet(
   workbook: ExcelJS.Workbook,
-  metadata: ExportBidMetadata,
+  metadata: ExportProcurementMetadata,
   questions: ExportQuestion[],
 ): void {
   const sheet = workbook.addWorksheet('Summary');
@@ -322,7 +322,7 @@ function buildSummarySheet(
 
   // Procurement metadata (rows 3–8)
   const metaRows: [string, string][] = [
-    ['Procurement Title', metadata.bid_name],
+    ['Procurement Title', metadata.procurement_name],
     ['Buyer', metadata.buyer],
     ['Reference', metadata.reference_number || '--'],
     [
@@ -422,8 +422,8 @@ function buildSummarySheet(
  * @param options - Export configuration
  * @returns Buffer containing the .xlsx file
  */
-export async function generateBidXlsx(
-  metadata: ExportBidMetadata,
+export async function generateProcurementXlsx(
+  metadata: ExportProcurementMetadata,
   questions: ExportQuestion[],
   options: XlsxExportOptions = {},
 ): Promise<Buffer> {

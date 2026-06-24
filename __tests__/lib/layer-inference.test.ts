@@ -15,7 +15,7 @@ function baseInput(
     hasBrief: false,
     hasDetail: false,
     hasReference: false,
-    isBidDiscovered: false,
+    isProcurementDiscovered: false,
     title: 'Test item',
     ...overrides,
   };
@@ -26,18 +26,18 @@ function baseInput(
 // ---------------------------------------------------------------------------
 
 describe('inferLayer — Rule 1: Procurement-discovered content', () => {
-  it('returns bid_detail with high confidence when isBidDiscovered is true', () => {
-    const result = inferLayer(baseInput({ isBidDiscovered: true }));
+  it('returns bid_detail with high confidence when isProcurementDiscovered is true', () => {
+    const result = inferLayer(baseInput({ isProcurementDiscovered: true }));
     expect(result.suggestedLayer).toBe('bid_detail');
     expect(result.confidence).toBe('high');
     expect(result.reason).toContain('bid workspace');
   });
 
-  it('overrides other signals when isBidDiscovered is true', () => {
+  it('overrides other signals when isProcurementDiscovered is true', () => {
     // Even if content type is research, bid-discovered wins
     const result = inferLayer(
       baseInput({
-        isBidDiscovered: true,
+        isProcurementDiscovered: true,
         contentType: 'research',
         ingestionSource: 'url_import',
         hasReference: true,
@@ -293,7 +293,7 @@ describe('inferLayer — Priority ordering', () => {
   it('Rule 1 (bid-discovered) beats Rule 2 (bid library)', () => {
     const result = inferLayer(
       baseInput({
-        isBidDiscovered: true,
+        isProcurementDiscovered: true,
         ingestionSource: 'bid_library',
         contentType: 'q_a_pair',
       }),
@@ -400,7 +400,7 @@ describe('inferLayer — Edge cases', () => {
   it('returns a valid LayerSuggestion shape for all inputs', () => {
     const inputs: LayerInferenceInput[] = [
       baseInput(),
-      baseInput({ isBidDiscovered: true }),
+      baseInput({ isProcurementDiscovered: true }),
       baseInput({ ingestionSource: 'bid_library', contentType: 'q_a_pair' }),
       baseInput({ hasReference: true }),
       baseInput({ hasBrief: true, hasDetail: true }),

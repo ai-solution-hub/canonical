@@ -38,7 +38,7 @@ import type {
 } from '@/types/procurement';
 import { logger } from '@/lib/logger/client';
 
-const BIDS_PER_PAGE = 20;
+const PROCUREMENTS_PER_PAGE = 20;
 
 type StatusFilter = 'all' | 'draft' | 'active' | 'submitted' | 'completed';
 type SortOption = 'newest' | 'deadline' | 'alphabetical';
@@ -89,7 +89,7 @@ export default function FormsPage() {
     fetchProcurements();
   }, [fetchProcurements]);
 
-  const filteredBids = useMemo(() => {
+  const filteredProcurements = useMemo(() => {
     const allowedStates = FILTER_STATES[statusFilter];
     const result = allowedStates
       ? bids.filter((bid) => {
@@ -127,11 +127,11 @@ export default function FormsPage() {
   // Pagination
   const totalPages = Math.max(
     1,
-    Math.ceil(filteredBids.length / BIDS_PER_PAGE),
+    Math.ceil(filteredProcurements.length / PROCUREMENTS_PER_PAGE),
   );
-  const paginatedBids = filteredBids.slice(
-    (currentPage - 1) * BIDS_PER_PAGE,
-    currentPage * BIDS_PER_PAGE,
+  const paginatedProcurements = filteredProcurements.slice(
+    (currentPage - 1) * PROCUREMENTS_PER_PAGE,
+    currentPage * PROCUREMENTS_PER_PAGE,
   );
 
   // Reset to page 1 when filter or sort changes
@@ -139,7 +139,7 @@ export default function FormsPage() {
     setCurrentPage(1);
   }, [statusFilter, sortBy]);
 
-  function handleBidCreated(bid: { id: string; name: string }) {
+  function handleProcurementCreated(bid: { id: string; name: string }) {
     toast.success(`Procurement "${bid.name}" created`);
     router.push(`/procurement/${bid.id}`);
   }
@@ -244,7 +244,7 @@ export default function FormsPage() {
               canEdit={canEdit}
               onCreateClick={() => setShowCreate(true)}
             />
-          ) : filteredBids.length === 0 ? (
+          ) : filteredProcurements.length === 0 ? (
             <p
               className="py-8 text-center text-sm text-muted-foreground"
               role="status"
@@ -253,13 +253,13 @@ export default function FormsPage() {
             </p>
           ) : viewMode === 'grid' ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {paginatedBids.map((bid) => (
+              {paginatedProcurements.map((bid) => (
                 <ProcurementListCard key={bid.id} bid={bid} />
               ))}
             </div>
           ) : (
             <div className="divide-y rounded-lg border">
-              {paginatedBids.map((bid) => (
+              {paginatedProcurements.map((bid) => (
                 <ProcurementListRow key={bid.id} bid={bid} />
               ))}
             </div>
@@ -267,7 +267,7 @@ export default function FormsPage() {
         </div>
 
         {/* Pagination */}
-        {!loading && filteredBids.length > BIDS_PER_PAGE && (
+        {!loading && filteredProcurements.length > PROCUREMENTS_PER_PAGE && (
           <div className="mt-6 flex items-center justify-center gap-2">
             <Button
               variant="outline"
@@ -301,7 +301,7 @@ export default function FormsPage() {
         <ProcurementCreationWizard
           open={showCreate}
           onOpenChange={setShowCreate}
-          onCreated={handleBidCreated}
+          onCreated={handleProcurementCreated}
         />
       </div>
     </ErrorBoundary>

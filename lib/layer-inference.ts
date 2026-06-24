@@ -24,7 +24,7 @@ export interface LayerInferenceInput {
   hasDetail: boolean;
   hasReference: boolean;
   /** Whether the item originated from a bid workspace */
-  isBidDiscovered: boolean;
+  isProcurementDiscovered: boolean;
   /** Title text (for keyword heuristics) */
   title: string;
 }
@@ -80,7 +80,7 @@ const BID_DETAIL_TYPES = new Set([
  */
 export function inferLayer(input: LayerInferenceInput): LayerSuggestion {
   // Rule 1: Procurement-discovered content
-  if (input.isBidDiscovered) {
+  if (input.isProcurementDiscovered) {
     return {
       suggestedLayer: LAYER_BID_DETAIL,
       reason:

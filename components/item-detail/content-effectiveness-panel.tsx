@@ -226,11 +226,13 @@ export function ContentEffectivenessPanel({
   // Determine if we have decided outcomes
   const hasDecidedOutcomes = data.winning_citations + data.losing_citations > 0;
   const winRatePct = Math.round(data.win_rate * 100);
-  const distinctBids = data.bids.length;
+  const distinctProcurements = data.bids.length;
 
   // Determine visible bids
   const MAX_VISIBLE = 5;
-  const visibleBids = showAll ? data.bids : data.bids.slice(0, MAX_VISIBLE);
+  const visibleProcurements = showAll
+    ? data.bids
+    : data.bids.slice(0, MAX_VISIBLE);
   const hasMore = data.bids.length > MAX_VISIBLE;
 
   return (
@@ -266,7 +268,7 @@ export function ContentEffectivenessPanel({
         </div>
         <div>
           <p className="text-sm font-semibold text-foreground">
-            {distinctBids}
+            {distinctProcurements}
           </p>
           <p className="text-xs text-muted-foreground">bids used in</p>
         </div>
@@ -298,7 +300,7 @@ export function ContentEffectivenessPanel({
             Procurement History
           </h3>
           <ul className="divide-y divide-border" role="list">
-            {visibleBids.map((bid) => (
+            {visibleProcurements.map((bid) => (
               <li
                 key={bid.workspace_id}
                 className="flex items-center justify-between py-2"

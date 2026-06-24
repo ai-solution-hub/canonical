@@ -33,8 +33,8 @@ export interface ExportCitation {
 }
 
 /** Procurement metadata for the cover page */
-export interface ExportBidMetadata {
-  bid_name: string;
+export interface ExportProcurementMetadata {
+  procurement_name: string;
   buyer: string;
   reference_number: string | null;
   deadline: string | null;

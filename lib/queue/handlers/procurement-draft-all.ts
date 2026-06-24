@@ -129,7 +129,7 @@ export interface ProcurementDraftAllAuthContext {
  * job-level outcome is `'completed'` (or `'completed_with_errors'` via
  * pipeline_runs) when at least one question succeeded.
  */
-export async function runBidDraftAllJob(
+export async function runFormDraftAllJob(
   body: ProcurementDraftAllBody,
   supabase: SupabaseClient<Database>,
   authContext: ProcurementDraftAllAuthContext,

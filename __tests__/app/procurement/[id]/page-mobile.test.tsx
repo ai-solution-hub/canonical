@@ -101,7 +101,7 @@ vi.mock('@/hooks/procurement/use-procurement-actions', () => ({
 }));
 
 vi.mock('@/hooks/procurement/use-procurement-readiness', () => ({
-  useBidReadiness: () => ({
+  useProcurementReadiness: () => ({
     procurementStatus: null,
     readinessPercentage: 0,
     isLoading: false,

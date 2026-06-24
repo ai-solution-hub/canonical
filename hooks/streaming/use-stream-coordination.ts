@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDraftStream } from '@/hooks/streaming/use-draft-stream';
-import { useBidSession } from '@/hooks/procurement/use-procurement-session';
-import { useBidResponseActions } from '@/hooks/procurement/use-procurement-response-actions';
+import { useProcurementSession } from '@/hooks/procurement/use-procurement-session';
+import { useFormResponseActions } from '@/hooks/procurement/use-procurement-response-actions';
 import { queryKeys } from '@/lib/query/query-keys';
 import { toast } from 'sonner';
 import type { useContentLibraryDrawer } from '@/hooks/use-content-library-drawer';
@@ -171,9 +171,9 @@ interface UseStreamCoordinationReturn {
  * question navigation, and response actions for the bid session page.
  *
  * Composes three sub-hooks:
- * - `useBidSession` — TanStack Query data layer (bid, questions, response)
+ * - `useProcurementSession` — TanStack Query data layer (bid, questions, response)
  * - `useDraftStream` — SSE streaming (unchanged imperative hook)
- * - `useBidResponseActions` — TanStack mutations (save, accept, flag, regenerate)
+ * - `useFormResponseActions` — TanStack mutations (save, accept, flag, regenerate)
  *
  * This orchestrator manages editor content state, streaming throttle effects,
  * keyboard shortcuts, and navigation with stream cancellation.
@@ -195,10 +195,10 @@ export function useStreamCoordination({
     response,
     responseLoading,
     navigatorQuestions,
-    invalidateBidData,
+    invalidateProcurementData,
     invalidateResponse,
     queryClient,
-  } = useBidSession(procurementId);
+  } = useProcurementSession(procurementId);
 
   // ── Streaming (SSE) ──
   const stream = useDraftStream(procurementId);
@@ -297,7 +297,7 @@ export function useStreamCoordination({
     handleCitationClick,
     actionLoading,
     loadingAction,
-  } = useBidResponseActions({
+  } = useFormResponseActions({
     procurementId,
     response,
     currentQuestion,
@@ -308,7 +308,7 @@ export function useStreamCoordination({
     lastEditorUpdateRef,
     stream,
     editorInstanceRef,
-    invalidateBidData,
+    invalidateProcurementData,
     invalidateResponse,
   });
 
@@ -423,8 +423,8 @@ export function useStreamCoordination({
 
   // ── Imperative refetch wrappers (exposed for version history restore) ──
   const fetchProcurementData = useCallback(async () => {
-    await invalidateBidData();
-  }, [invalidateBidData]);
+    await invalidateProcurementData();
+  }, [invalidateProcurementData]);
 
   const fetchResponse = useCallback(async () => {
     await invalidateResponse();

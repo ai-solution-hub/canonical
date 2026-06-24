@@ -66,8 +66,8 @@ import { TenderUpload } from '@/components/procurement/tender-upload';
 import { TenderMetadataPrompt } from '@/components/procurement/tender-metadata-prompt';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useFormActions } from '@/hooks/procurement/use-procurement-actions';
-import { useBidExport } from '@/hooks/procurement/use-procurement-export';
-import { useBidReadiness } from '@/hooks/procurement/use-procurement-readiness';
+import { useProcurementExport } from '@/hooks/procurement/use-procurement-export';
+import { useProcurementReadiness } from '@/hooks/procurement/use-procurement-readiness';
 import { formatDateUK } from '@/lib/format';
 import { getDeadlineProximity } from '@/lib/domains/procurement/procurement-helpers';
 import { PROCUREMENT_WORKFLOW_LABELS } from '@/lib/domains/procurement/procurement-workflow';
@@ -138,7 +138,7 @@ export default function ProcurementDetailPage({
     isLoading: readinessLoading,
     error: readinessError,
     refresh: refreshReadiness,
-  } = useBidReadiness(id);
+  } = useProcurementReadiness(id);
 
   if (loading) {
     return (
@@ -565,10 +565,11 @@ function MobileActionMenu({
   onShowOutcomeDialog: () => void;
   onDelete: () => void;
 }) {
-  const { exporting, isExporting, handleExport, handlePrint } = useBidExport({
-    procurementId,
-    procurementName,
-  });
+  const { exporting, isExporting, handleExport, handlePrint } =
+    useProcurementExport({
+      procurementId,
+      procurementName,
+    });
 
   const filteredTransitions = regularTransitions.filter(
     (t) => t !== 'withdrawn',

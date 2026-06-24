@@ -9,7 +9,7 @@ import { isActive } from '@/lib/domains/procurement/procurement-workflow';
 import type { ProcurementWorkflowState } from '@/types/procurement';
 import type { Workspace } from '@/types/content';
 
-export interface ActiveBidWorkspace {
+export interface ActiveProcurementWorkspace {
   id: string;
   name: string;
   color: string;
@@ -19,7 +19,7 @@ export interface ActiveBidWorkspace {
 /** @public */
 export interface UseQuickAssignReturn {
   /** Active bid workspaces (fetched once, cached) */
-  activeWorkspaces: ActiveBidWorkspace[];
+  activeWorkspaces: ActiveProcurementWorkspace[];
   /** Map of item ID to set of assigned workspace IDs */
   itemAssignments: Map<string, Set<string>>;
   /** Loading state for workspace list */
@@ -36,7 +36,9 @@ export interface UseQuickAssignReturn {
   loadAssignments: (itemIds: string[]) => Promise<void>;
 }
 
-function filterActiveBids(workspaces: Workspace[]): ActiveBidWorkspace[] {
+function filterActiveProcurements(
+  workspaces: Workspace[],
+): ActiveProcurementWorkspace[] {
   return workspaces
     .filter((ws) => {
       if (ws.type !== 'bid') return false;
@@ -92,7 +94,11 @@ export function useQuickAssign(): UseQuickAssignReturn {
   // Workspace query — replaces useEffect + fetchedRef
   // -------------------------------------------------------------------------
 
-  const workspacesQuery = useQuery<Workspace[], Error, ActiveBidWorkspace[]>({
+  const workspacesQuery = useQuery<
+    Workspace[],
+    Error,
+    ActiveProcurementWorkspace[]
+  >({
     queryKey: queryKeys.workspaces.list,
     queryFn: async () => {
       const data = await fetchJson<Workspace[] | { workspaces: Workspace[] }>(
@@ -100,7 +106,7 @@ export function useQuickAssign(): UseQuickAssignReturn {
       );
       return Array.isArray(data) ? data : (data.workspaces ?? []);
     },
-    select: filterActiveBids,
+    select: filterActiveProcurements,
     staleTime: 5 * 60 * 1000, // Workspaces rarely change
   });
 

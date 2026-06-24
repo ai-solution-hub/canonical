@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QuickAssignButton } from '@/components/content/quick-assign-button';
-import type { ActiveBidWorkspace } from '@/hooks/use-quick-assign';
+import type { ActiveProcurementWorkspace } from '@/hooks/use-quick-assign';
 
 // Mock next/link
 vi.mock('next/link', () => ({
@@ -25,7 +25,7 @@ vi.mock('next/link', () => ({
 // Test data
 // ---------------------------------------------------------------------------
 
-const WORKSPACES: ActiveBidWorkspace[] = [
+const WORKSPACES: ActiveProcurementWorkspace[] = [
   {
     id: 'ws-1',
     name: 'Procurement Alpha',

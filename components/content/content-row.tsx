@@ -27,7 +27,7 @@ import { useTaxonomy } from '@/contexts/taxonomy-context';
 import type { ContentListItem, SearchResult } from '@/types/content';
 import type { OnOptimisticUpdate } from '@/hooks/review/use-quick-review';
 import { QuickReviewActions } from '@/components/content/quick-review-actions';
-import type { ActiveBidWorkspace } from '@/hooks/use-quick-assign';
+import type { ActiveProcurementWorkspace } from '@/hooks/use-quick-assign';
 import { QuickAssignButton } from '@/components/content/quick-assign-button';
 import { stripMarkdown } from '@/lib/content/strip-markdown';
 
@@ -42,7 +42,7 @@ interface ContentRowProps {
   /** Callback for optimistic item state updates */
   onQuickReviewUpdate?: OnOptimisticUpdate;
   /** Active bid workspaces for quick-assign (from parent context) */
-  activeWorkspaces?: ActiveBidWorkspace[];
+  activeWorkspaces?: ActiveProcurementWorkspace[];
   /** Set of workspace IDs this item is assigned to */
   assignedWorkspaceIds?: Set<string>;
   /** Callback when workspace assignment changes */

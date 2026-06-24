@@ -182,7 +182,7 @@ const DEFAULT_FEATURES: Record<FeatureName, FeatureToggle> = {
   content_layers: { enabled: false, label: 'Content Layers', description: '' },
   draft_status: { enabled: true, label: 'Draft Status', description: '' },
   ai_integration: { enabled: true, label: 'AI Integration', description: '' },
-  bid_management: {
+  procurement_management: {
     enabled: true,
     label: 'Procurement Management',
     description: '',

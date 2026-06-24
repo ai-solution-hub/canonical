@@ -32,7 +32,7 @@ import { Badge } from '@/components/ui/badge';
 import type { ContentListItem, SearchResult } from '@/types/content';
 import type { OnOptimisticUpdate } from '@/hooks/review/use-quick-review';
 import { QuickReviewActions } from '@/components/content/quick-review-actions';
-import type { ActiveBidWorkspace } from '@/hooks/use-quick-assign';
+import type { ActiveProcurementWorkspace } from '@/hooks/use-quick-assign';
 import { QuickAssignButton } from '@/components/content/quick-assign-button';
 import { stripMarkdown } from '@/lib/content/strip-markdown';
 
@@ -150,7 +150,7 @@ function CardHeaderRow({
 }: {
   item: ContentListItem | SearchResult;
   isRead?: boolean;
-  activeWorkspaces?: ActiveBidWorkspace[];
+  activeWorkspaces?: ActiveProcurementWorkspace[];
   assignedWorkspaceIds?: Set<string>;
   onAssignmentChange?: (
     itemId: string,
@@ -402,7 +402,7 @@ interface ContentCardProps {
   /** Callback for optimistic item state updates (verify/flag actions) */
   onQuickReviewUpdate?: OnOptimisticUpdate;
   /** Active bid workspaces for quick-assign (from parent context) */
-  activeWorkspaces?: ActiveBidWorkspace[];
+  activeWorkspaces?: ActiveProcurementWorkspace[];
   /** Set of workspace IDs this item is assigned to */
   assignedWorkspaceIds?: Set<string>;
   /** Callback when workspace assignment changes */

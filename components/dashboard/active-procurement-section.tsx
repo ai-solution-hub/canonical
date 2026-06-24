@@ -6,11 +6,11 @@ import {
   generateProcurementPrompt,
   generateProcurementDeadlinePrompt,
 } from '@/lib/claude-prompts';
-import type { ActiveBidSummary } from '@/lib/dashboard';
+import type { ActiveProcurementSummary } from '@/lib/dashboard';
 import type { Procurement, ProcurementMetadata } from '@/types/procurement';
 
-/** Adapt the dashboard's flat ActiveBidSummary into the Procurement shape expected by ProcurementListCard. */
-function toBid(summary: ActiveBidSummary): Procurement {
+/** Adapt the dashboard's flat ActiveProcurementSummary into the Procurement shape expected by ProcurementListCard. */
+function toProcurement(summary: ActiveProcurementSummary): Procurement {
   return {
     id: summary.id,
     name: summary.name,
@@ -45,11 +45,13 @@ function toBid(summary: ActiveBidSummary): Procurement {
   };
 }
 
-interface ActiveBidsSectionProps {
-  bids: ActiveBidSummary[];
+interface ActiveProcurementsSectionProps {
+  bids: ActiveProcurementSummary[];
 }
 
-export function ActiveBidsSection({ bids }: ActiveBidsSectionProps) {
+export function ActiveProcurementsSection({
+  bids,
+}: ActiveProcurementsSectionProps) {
   return (
     <section
       aria-label="Active procurements"
@@ -92,7 +94,7 @@ export function ActiveBidsSection({ bids }: ActiveBidsSectionProps) {
             return (
               <ProcurementListCard
                 key={bid.id}
-                bid={toBid(bid)}
+                bid={toProcurement(bid)}
                 claudePrompt={prompt}
               />
             );

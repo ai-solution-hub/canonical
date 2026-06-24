@@ -1,7 +1,7 @@
 /**
  * QAProvenanceSections Component Tests
  *
- * Tests QAUsedInBids and QARelatedPairs — empty state returns null,
+ * Tests QAUsedInProcurements and QARelatedPairs — empty state returns null,
  * workspace/pair rendering, link targets, and "Untitled" fallback.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -21,7 +21,7 @@ vi.mock('next/link', () => ({
 }));
 
 import {
-  QAUsedInBids,
+  QAUsedInProcurements,
   QARelatedPairs,
 } from '@/components/item-detail/qa-provenance-sections';
 
@@ -29,7 +29,7 @@ import {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('QAUsedInBids', () => {
+describe('QAUsedInProcurements', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -38,7 +38,7 @@ describe('QAUsedInBids', () => {
   });
 
   it('returns null when workspaces array is empty', () => {
-    const { container } = render(<QAUsedInBids workspaces={[]} />);
+    const { container } = render(<QAUsedInProcurements workspaces={[]} />);
     expect(container.innerHTML).toBe('');
   });
 
@@ -47,7 +47,7 @@ describe('QAUsedInBids', () => {
       { id: 'w1', name: 'Project Alpha' },
       { id: 'w2', name: 'Project Beta' },
     ];
-    render(<QAUsedInBids workspaces={workspaces} />);
+    render(<QAUsedInProcurements workspaces={workspaces} />);
     expect(screen.getByText(/Used in 2 bids/i)).toBeInTheDocument();
   });
 
@@ -56,7 +56,7 @@ describe('QAUsedInBids', () => {
       { id: 'w1', name: 'Project Alpha' },
       { id: 'w2', name: 'Project Beta' },
     ];
-    render(<QAUsedInBids workspaces={workspaces} />);
+    render(<QAUsedInProcurements workspaces={workspaces} />);
     expect(screen.getByText('Project Alpha').closest('a')).toHaveAttribute(
       'href',
       '/procurement/w1',
