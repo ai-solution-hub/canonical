@@ -9,10 +9,17 @@
 #
 # SCOPE — the BUILD half ({66.7}) builds-and-pushes; the DEPLOY half ({66.11})
 # bumps the Coolify image tag and triggers a Coolify deploy of the freshly-built
-# pinned tag (see the `deploy-cocoindex` job below):
-#   * The Coolify pull/deploy webhook was {66.11} — now wired as a SECOND job that
-#     `needs:` the build job (so a deploy can NEVER fire on a tag that was not
-#     built + pushed + pull-verified — the "never a stale image" ordering guard).
+# pinned tag. PUSH NO LONGER DEPLOYS (ID-127.6 + ID-127.16): a push to main /
+# staging builds + pushes the image only. The PLATFORM deploy is now
+# workflow_dispatch-ONLY (the `deploy-cocoindex-platform` / `-platform-staging`
+# jobs below, gated on the `deploy_platform` / `deploy_platform_staging` inputs).
+# CLIENT pipeline deploys are REMOVED from this workflow entirely — they run OFF
+# the platform GH environments (Coolify-direct now; a future per-client GitHub
+# Environment before client-2). See the client-pipeline comment block by the
+# platform deploy jobs. NO client app UUID appears in this PUBLIC repo.
+#   * The Coolify pull/deploy webhook was {66.11} — now wired as platform deploy
+#     jobs that `needs:` the build job (so a deploy can NEVER fire on a tag that
+#     was not built + pushed + pull-verified — the "never a stale image" guard).
 #   * Only the cocoindex image is KH-built — HTML extraction is now fully
 #     in-process (Trafilatura, ID-112), so there is no upstream extractor
 #     sidecar image; this workflow builds exactly ONE image.
@@ -54,15 +61,21 @@
 # and touches no Coolify state.
 #
 # ─────────────────────────────────────────────────────────────────────────────
-# Activation review items (resolved S288 — ID-66.7; staging arm added S309 / bl-222):
-#   1. ✅ DEPLOY BRANCHES = `main` (prod) + `staging` (staging mirror, added S309).
-#      The staging on-prem mirror now EXISTS: Liam added `COOLIFY_API_TOKEN` to the
-#      Staging GH environment (the only blocker), so a push to `staging` builds the
-#      staging-branch sha image and deploys it to the staging Coolify compose project
-#      (app uuid resolved from the `Staging` GH environment secret) via the
-#      `deploy-cocoindex-staging` job below.
-#      The prod `deploy-cocoindex` job is now branch-guarded (`refs/heads/main`) so a
-#      push to `staging` never fires the prod deploy.
+# Activation review items (resolved S288 — ID-66.7; staging arm S309 / bl-222;
+# deploy-separation ID-127.6 + ID-127.16 + AMENDMENT OQ-2):
+#   1. ✅ BUILD BRANCHES = `main` + `staging` — a push to either builds + pushes the
+#      branch sha image (the `detect-changes` + `build-and-push-cocoindex` jobs).
+#      DEPLOY is now DISPATCH-ONLY and PLATFORM-only: there is NO push-triggered
+#      deploy. The PLATFORM cocoindex app is deployed via the
+#      `deploy-cocoindex-platform` (prod) / `deploy-cocoindex-platform-staging`
+#      (staging) jobs below — each fires ONLY on a workflow_dispatch with its
+#      `deploy_platform` / `deploy_platform_staging` input set true. AMENDMENT OQ-2
+#      (ratified, SUPERSEDES the stale TECH "add a Platform GH environment" text):
+#      these REUSE the existing `Production` / `Staging` GH environments — their
+#      `COOLIFY_BASE_URL` + `COOLIFY_API_TOKEN` already point at the Server B Coolify
+#      control-plane, and `COOLIFY_APP_UUID` in each is the PLATFORM prod/staging app
+#      UUID (operator-set later — never hardcoded). CLIENT deploys are REMOVED from
+#      this workflow (ID-127.16) — no client app UUID in this PUBLIC repo.
 #   2. ✅ EXTERNAL REFS PINNED to commit SHAs (workflow-injection hardening per the
 #      cloud-run-deploy.yml header). SHAs resolved 2026-05-31; floated version in the
 #      trailing comment. setup-pack moved off the v5.8.11 placeholder to current v5.12.3.
@@ -81,15 +94,35 @@ on:
         required: false
         default: "manual"
       deploy:
-        # Build-only dry-run escape hatch ({66.11}): set false to build + push +
-        # pull-verify the image WITHOUT touching the host (no tag bump, no Coolify
-        # deploy). Defaults true so a plain dispatch behaves like a push. A `push`
-        # event always deploys (this input is workflow_dispatch-only).
-        description:
-          "Trigger the Coolify deploy after build (false = build-only dry-run)"
+        # VESTIGIAL since the deploy-separation (ID-127.6): no job reads this input
+        # any more. Push never deploys, and the PLATFORM deploys are gated on the
+        # dedicated `deploy_platform` / `deploy_platform_staging` inputs below — NOT
+        # on this flag. Retained only to avoid breaking saved dispatch forms; safe
+        # to drop in a later cleanup.
+        description: "(vestigial — no effect) historic build-only dry-run flag"
         required: false
         type: boolean
         default: true
+      deploy_platform:
+        # PLATFORM PROD deploy gate (ID-127.6 + AMENDMENT OQ-2). Platform tracks
+        # `main` too, so a push must NEVER auto-deploy it (BI-9 intermittent +
+        # burn-safety) — the platform deploy is workflow_dispatch-ONLY and fires
+        # only when this input is explicitly true. Reuses the existing `Production`
+        # GH environment (its COOLIFY_BASE_URL + COOLIFY_API_TOKEN already point at
+        # the Server B Coolify control-plane); COOLIFY_APP_UUID in `Production` is
+        # the PLATFORM prod app UUID (operator-set, never hardcoded here).
+        description: "Deploy the Platform PROD cocoindex app"
+        required: false
+        type: boolean
+        default: false
+      deploy_platform_staging:
+        # PLATFORM STAGING deploy gate — identical contract to deploy_platform but
+        # against the existing `Staging` GH environment (COOLIFY_APP_UUID there is
+        # the PLATFORM staging app UUID). workflow_dispatch-ONLY; never push-fired.
+        description: "Deploy the Platform STAGING cocoindex app"
+        required: false
+        type: boolean
+        default: false
       source_sha:
         # ID-113.6 release re-tag: the full or abbreviated commit SHA of a
         # known-good image already published as ${IMAGE}:sha-<sha>. When set
@@ -111,7 +144,7 @@ on:
         required: false
         default: ""
   push:
-    branches: [main, staging] # main → prod deploy; staging → staging deploy (bl-222, S309). Branch-guarded per job below.
+    branches: [main, staging] # main + staging → BUILD-ONLY (build + push the branch sha image). NO push-triggered deploy (ID-127.6) — platform deploys are workflow_dispatch-only.
     # NO paths: filter (ID-86 / bl-236) — GitHub inspects only the first 300
     # changed files of a push compare, silently skipping the workflow on
     # align-class pushes. Path relevance is now decided by the `detect-changes`
@@ -268,17 +301,57 @@ jobs:
           echo "Published ${IMAGE}:${TAG}"
 
       - name: Image-size budget check (T-OQ4 — log + warn, never fail)
+        # GENUINELY never fails. The build step above used `pack build … --publish`,
+        # which pushes the image STRAIGHT to ghcr.io and does NOT load it into the
+        # local Docker daemon — so `docker image inspect` here errored "No such
+        # image", and under `set -euo pipefail` that aborted this "never fail" step
+        # and (via `needs:`) skipped BOTH deploy jobs (run 28125818103 false-fail).
+        # FIX: read the size from the REGISTRY manifest (no multi-GB pull) by summing
+        # the layer `size` fields from `docker buildx imagetools inspect --raw`
+        # (compressed/on-the-wire bytes — an APPROXIMATE signal vs the on-disk budget).
+        # The whole step is best-effort: NO `set -e`, every failure path falls
+        # through to a `::notice::` skip, and the step ALWAYS `exit 0`.
         run: |
-          set -euo pipefail
-          SIZE="$(docker image inspect "${IMAGE}:${TAG}" --format '{{.Size}}')"
-          BUDGET=5691392819 # 5.3 GB
-          GB="$(awk "BEGIN{printf \"%.2f\", ${SIZE}/1024/1024/1024}")"
-          echo "cocoindex image size: ${GB} GB (budget 5.3 GB)"
-          if [ "${SIZE}" -gt "${BUDGET}" ]; then
-            echo "::warning::cocoindex image ${GB} GB exceeds the 5.3 GB budget (T-OQ4: warn-only, build continues)."
-          else
-            echo "OK: within 5.3 GB budget."
+          # Deliberately NO `set -e` — this step must never return non-zero.
+          set -uo pipefail
+          BUDGET=5691392819 # 5.3 GB (on-disk reference budget)
+          # Sum the compressed layer sizes from the registry manifest WITHOUT
+          # pulling the image. buildx imagetools --raw emits the manifest JSON;
+          # the layer `size` fields are the compressed on-the-wire bytes. For a
+          # multi-arch manifest list there are no top-level layers, so this sums
+          # to 0 and we fall through to the registry-read-failed skip below.
+          RAW="$(docker buildx imagetools inspect "${IMAGE}:${TAG}" --raw 2>/dev/null || true)"
+          SIZE=""
+          if [ -n "${RAW}" ]; then
+            # Sum every layer `size` (jq if available, else a portable grep/awk
+            # fallback so we never hard-depend on jq being on the runner).
+            if command -v jq >/dev/null 2>&1; then
+              SIZE="$(printf '%s' "${RAW}" | jq '[.layers[]?.size] | add // 0' 2>/dev/null || true)"
+            else
+              SIZE="$(printf '%s' "${RAW}" \
+                | grep -oE '"size"[[:space:]]*:[[:space:]]*[0-9]+' \
+                | grep -oE '[0-9]+' \
+                | awk '{s+=$1} END{print s+0}')"
+            fi
           fi
+          # Positive-form numeric guard: the arithmetic `-gt` test errors (exit 2,
+          # redirected to /dev/null) for empty / non-numeric / float SIZE and is
+          # false for 0 — so ONLY a valid positive integer enters the budget
+          # branch; everything else falls to the skip. (Deliberately NOT a
+          # `*[!0-9]*` case-glob nor a `! [ … ] 2>/dev/null` negation — both were
+          # verified to misbehave across bash 3.2 / shell variants in testing.)
+          if [ "${SIZE}" -gt 0 ] 2>/dev/null; then
+            GB="$(awk "BEGIN{printf \"%.2f\", ${SIZE}/1024/1024/1024}")"
+            echo "cocoindex image size (registry, compressed/approx): ${GB} GB (budget 5.3 GB)"
+            if [ "${SIZE}" -gt "${BUDGET}" ]; then
+              echo "::warning::cocoindex image ~${GB} GB (compressed) exceeds the 5.3 GB budget (T-OQ4: warn-only, build continues)."
+            else
+              echo "OK: ~${GB} GB within 5.3 GB budget (compressed/approx — on-disk size is larger)."
+            fi
+          else
+            echo "::notice::image-size check skipped (image not local; registry read unavailable)"
+          fi
+          exit 0
 
       - name: Job summary
         run: |
@@ -291,57 +364,95 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ───────────────────────────────────────────────────────────────────────────
-  # DEPLOY HALF — {66.11}: bump the Coolify image tag to the just-built pinned
-  # tag and trigger a Coolify deploy of THAT tag. Coolify re-clones the git
-  # compose and PULLS the finished image (it never builds on the host).
+  # CLIENT PIPELINE DEPLOYS — NOT in this workflow.
   #
-  # ORDERING GUARD (never a stale image): `needs: build-and-push-cocoindex`
-  # means this job only runs after the build job has built + pushed +
-  # pull-verified `${IMAGE}:${TAG}`. The PATCH below sets COCOINDEX_IMAGE_TAG to
-  # the SAME `${{ env.TAG }}` the build job published, so the bumped tag is
-  # byte-identical to the built tag.
+  # Client pipeline deploys run OFF this workflow and off the platform GH
+  # environments — via direct Coolify API/MCP now, and a future per-client GitHub
+  # Environment (client-<name>-prod/staging) before client-2. No client app UUID
+  # appears in this public repo. Refs: ID-127.16, ID-113 per-client release pins.
   #
-  # BURN GUARD — INFORMATIONAL since ID-83 / bl-221 (boot is decoupled): this
-  # job touches ONLY COCOINDEX_IMAGE_TAG and does NOT set COCOINDEX_SOURCE_PATH —
-  # but that avoidance is NO LONGER load-bearing for burn-safety. The burn guard
-  # is now ARCHITECTURAL: the cocoindex worker boots lifespan-only
-  # (coco.start_blocking()) and never walks the corpus at boot, so the
-  # deploy/restart this job triggers is burn-safe by construction whether or not
-  # COCOINDEX_SOURCE_PATH is set. The corpus walk fires only via the on-demand
-  # POST /walk trigger (a Coolify scheduled task / operator curl). We still leave
-  # SOURCE_PATH to Coolify env / the operator. The "Action is the SOLE deploy
-  # trigger" guarantee (Coolify git-auto-deploy disabled) remains an OPERATOR
-  # action — see docs/runbooks/onprem-b1-deploy.md §B2.
+  # This workflow now deploys ONLY the PLATFORM cocoindex app, and ONLY on an
+  # explicit workflow_dispatch (never on push — see the platform deploy jobs below).
   # ───────────────────────────────────────────────────────────────────────────
-  deploy-cocoindex:
-    name: Bump Coolify tag + deploy (on-host pull)
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # PLATFORM PROD DEPLOY — ID-127.6 + AMENDMENT OQ-2: bump the platform Coolify
+  # image tag to the just-built pinned tag and trigger a Coolify deploy of THAT
+  # tag. Coolify re-clones the git compose and PULLS the finished image (it never
+  # builds on the host).
+  #
+  # DISPATCH-ONLY (BI-9 + burn-safety): Platform tracks `main`, so a push must
+  # NEVER auto-deploy it. This job fires ONLY on a workflow_dispatch where the
+  # operator explicitly set deploy_platform == true — NO push event reaches it.
+  #
+  # ENVIRONMENT REUSE (AMENDMENT OQ-2 SUPERSEDES the stale TECH "new Platform GH
+  # environment" text): the platform deploy REUSES the existing `Production` GH
+  # environment. Its COOLIFY_BASE_URL + COOLIFY_API_TOKEN already point at the
+  # Server B Coolify control-plane; COOLIFY_APP_UUID in `Production` is the
+  # PLATFORM prod app UUID (operator-set later — NEVER hardcoded here).
+  #
+  # EMPTY-UUID GATE: GitHub forbids `secrets.*` in a job-level `if:`, so the empty
+  # check cannot live in the `if:`. Instead the FIRST step probes COOLIFY_APP_UUID
+  # and sets a `configured` step output; every subsequent step is guarded on it.
+  # When the platform app is not yet provisioned (UUID empty) the job emits a
+  # ::notice:: and concludes SUCCESS (no-op skip) — it must never fail closed.
+  #
+  # ORDERING GUARD (never a stale image): `needs: build-and-push-cocoindex` means
+  # this job only runs after the build job has built + pushed + pull-verified
+  # `${IMAGE}:${TAG}`. The PATCH below sets COCOINDEX_IMAGE_TAG to the SAME
+  # `${{ env.TAG }}` the build job published, so the bumped tag is byte-identical
+  # to the built tag.
+  #
+  # BURN GUARD — INFORMATIONAL since ID-83 / bl-221 (boot is decoupled): this job
+  # touches ONLY COCOINDEX_IMAGE_TAG and does NOT set COCOINDEX_SOURCE_PATH — but
+  # that avoidance is NO LONGER load-bearing for burn-safety. The burn guard is now
+  # ARCHITECTURAL: the cocoindex worker boots lifespan-only (coco.start_blocking())
+  # and never walks the corpus at boot, so the deploy/restart this job triggers is
+  # burn-safe by construction whether or not COCOINDEX_SOURCE_PATH is set. The walk
+  # fires only via the on-demand POST /walk trigger. The "Action is the SOLE deploy
+  # trigger" guarantee (Coolify git-auto-deploy disabled) remains an OPERATOR action
+  # — see docs/runbooks/onprem-b1-deploy.md §B2.
+  # ───────────────────────────────────────────────────────────────────────────
+  deploy-cocoindex-platform:
+    name:
+      Bump Coolify tag + deploy — PLATFORM PROD (dispatch-only, on-host pull)
     needs: [detect-changes, build-and-push-cocoindex]
     runs-on: ubuntu-latest
-    # `Production` GH environment (case-sensitive) resolves COOLIFY_API_TOKEN
-    # (added S294) + COOLIFY_BASE_URL (Server B control-plane = http://87.106.72.59:8000).
+    # `Production` GH environment (case-sensitive) resolves COOLIFY_API_TOKEN +
+    # COOLIFY_BASE_URL (Server B control-plane) + COOLIFY_APP_UUID (platform prod app).
     environment: Production
     timeout-minutes: 10
-    # A `push` always deploys; a `workflow_dispatch` deploys unless the operator
-    # set deploy=false (build-only dry-run). github.event.inputs.deploy is the
-    # boolean input serialised to the string "true"/"false".
-    # BRANCH GUARD (bl-222 / S309): the build job now also triggers on push to
-    # `staging`. The `refs/heads/main` guard keeps this PROD deploy job firing ONLY
-    # in the prod (main) context — a push to `staging` deploys via the
-    # `deploy-cocoindex-staging` job below, never here.
-    # CHANGE-DETECTION GATE (ID-86 / bl-236): composed with the relevance output
-    # — a docs-only push to main skips the deploy (and the build it needs:).
+    # DISPATCH-ONLY + input-gated: this job is INERT on every push (the platform
+    # also tracks `main`, but a push must never auto-deploy it — BI-9 + burn-safety).
+    # It fires only when the operator explicitly requests the platform prod deploy.
     if:
-      needs.detect-changes.outputs.relevant == 'true' && github.ref ==
-      'refs/heads/main' && (github.event_name == 'push' ||
-      github.event.inputs.deploy == 'true')
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.deploy_platform == 'true'
     env:
-      # Per-environment Coolify app uuid, resolved from the `Production` GH environment
-      # secret — NOT a literal: ai-solution-hub/canonical is PUBLIC, so client app UUIDs
-      # must not be committed. Full parameterization (matrix/reusable workflow across the
-      # client + platform deploy targets) is tracked as id-127.16.
+      # Platform prod Coolify app uuid, resolved from the `Production` GH
+      # environment secret — NEVER a literal (ai-solution-hub/canonical is PUBLIC).
+      # Operator sets this to the PLATFORM prod app UUID; if unset the job no-ops to
+      # success via the empty-UUID gate below.
       COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
     steps:
+      - name: Probe platform COOLIFY_APP_UUID (empty-UUID gate)
+        id: gate
+        env:
+          # secrets.* are forbidden in a job-level `if:`, so map the UUID into the
+          # shell env here and emit a `configured` step output. Never echo the value.
+          COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+        run: |
+          set -euo pipefail
+          if [ -n "${COOLIFY_APP_UUID}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "platform COOLIFY_APP_UUID is set — proceeding with deploy."
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::platform COOLIFY_APP_UUID not set — skipping deploy (platform app not yet provisioned)"
+          fi
+
       - name: Bump COCOINDEX_IMAGE_TAG in Coolify (PATCH — update in place)
+        if: steps.gate.outputs.configured == 'true'
         env:
           # Map secrets / dynamic values into the shell env (never interpolate
           # ${{ }} directly inside run: — injection-safe, and no secret is echoed).
@@ -370,6 +481,7 @@ jobs:
       - name:
           Trigger Coolify deploy of the pinned tag (host pulls — no on-host
           build)
+        if: steps.gate.outputs.configured == 'true'
         env:
           COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
           COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
@@ -385,68 +497,85 @@ jobs:
           echo "Triggered Coolify deploy of ${COOLIFY_APP_UUID} (pinned tag pull)."
 
       - name: Deploy summary
+        if: steps.gate.outputs.configured == 'true'
         env:
           DEPLOY_TAG: ${{ env.TAG }}
         run: |
           set -euo pipefail
           {
-            echo "### onprem-deploy — Coolify tag bump + deploy ({66.11})"
+            echo "### onprem-deploy — Coolify tag bump + deploy — PLATFORM PROD (ID-127.6)"
             echo ""
             echo "- **Tag bumped:** \`COCOINDEX_IMAGE_TAG\` → \`${DEPLOY_TAG}\` (PATCH, in place — never duplicated)"
             echo "- **Deploy:** triggered on \`${COOLIFY_APP_UUID}\` (host pulls the pinned tag; never builds on-host)"
+            echo "- **Trigger:** workflow_dispatch with \`deploy_platform=true\` (dispatch-only — a push never auto-deploys the platform)"
             echo "- **Burn guard (architectural, ID-83 / bl-221):** boot is decoupled — the worker boots lifespan-only and never walks the corpus, so this deploy/restart is burn-safe regardless of \`COCOINDEX_SOURCE_PATH\` (the walk fires only via on-demand POST /walk). This Action still leaves SOURCE_PATH to Coolify env (informational, no longer burn-critical)."
             echo "- **Reminder:** this Action is the **SOLE deploy trigger** — Coolify git-auto-deploy MUST stay disabled (see \`docs/runbooks/onprem-b1-deploy.md\` §B2)"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ───────────────────────────────────────────────────────────────────────────
-  # STAGING DEPLOY HALF — bl-222 / S309: a faithful mirror of `deploy-cocoindex`
-  # for the STAGING on-prem compose project. Triggered ONLY by a push to the
-  # `staging` branch (the build job builds the staging-branch sha image; this job
-  # bumps the staging Coolify COCOINDEX_IMAGE_TAG to THAT tag + triggers a deploy).
+  # PLATFORM STAGING DEPLOY — ID-127.6 + AMENDMENT OQ-2: identical shape to the
+  # platform PROD job above, against the existing `Staging` GH environment.
   #
-  # ORDERING GUARD (never a stale image): `needs: build-and-push-cocoindex`
-  # means this job only runs after the build job has built + pushed +
-  # pull-verified `${IMAGE}:${TAG}`. The PATCH below sets COCOINDEX_IMAGE_TAG to
-  # the SAME `${{ env.TAG }}` the build job published, so the bumped tag is
-  # byte-identical to the built tag.
+  # DISPATCH-ONLY: fires ONLY on a workflow_dispatch where the operator explicitly
+  # set deploy_platform_staging == true — NO push event reaches it.
   #
-  # BURN GUARD — INFORMATIONAL since ID-83 / bl-221 (boot is decoupled): this
-  # job touches ONLY COCOINDEX_IMAGE_TAG and does NOT set COCOINDEX_SOURCE_PATH —
-  # but that avoidance is NO LONGER load-bearing for burn-safety. The burn guard
-  # is now ARCHITECTURAL: the cocoindex worker boots lifespan-only
-  # (coco.start_blocking()) and never walks the corpus at boot, so the
-  # deploy/restart this job triggers is burn-safe by construction whether or not
-  # COCOINDEX_SOURCE_PATH is set. The corpus walk fires only via the on-demand
-  # POST /walk trigger (a Coolify scheduled task / operator curl). We still leave
-  # SOURCE_PATH to Coolify env / the operator. The "Action is the SOLE deploy
-  # trigger" guarantee (Coolify git-auto-deploy disabled) remains an OPERATOR
-  # action — see docs/runbooks/onprem-b1-deploy.md §B2.
+  # ENVIRONMENT REUSE (AMENDMENT OQ-2): REUSES the existing `Staging` GH
+  # environment. Its COOLIFY_BASE_URL + COOLIFY_API_TOKEN already point at the
+  # Server B Coolify control-plane; COOLIFY_APP_UUID in `Staging` is the PLATFORM
+  # staging app UUID (operator-set later — NEVER hardcoded here).
+  #
+  # EMPTY-UUID GATE: same as the prod job — the FIRST step probes COOLIFY_APP_UUID
+  # (secrets.* are forbidden in a job-level `if:`) and sets a `configured` output;
+  # subsequent steps are guarded on it. Unprovisioned UUID → ::notice:: + SUCCESS.
+  #
+  # ORDERING GUARD (never a stale image): `needs: build-and-push-cocoindex` —
+  # PATCHes COCOINDEX_IMAGE_TAG to the SAME `${{ env.TAG }}` the build published.
+  #
+  # BURN GUARD — INFORMATIONAL since ID-83 / bl-221 (boot is decoupled): touches
+  # ONLY COCOINDEX_IMAGE_TAG, never COCOINDEX_SOURCE_PATH; the burn guard is now
+  # ARCHITECTURAL (lifespan-only boot, no walk), so the deploy/restart is burn-safe
+  # by construction. The walk fires only via on-demand POST /walk. The "Action is
+  # the SOLE deploy trigger" guarantee (Coolify git-auto-deploy disabled) remains
+  # an OPERATOR action — see docs/runbooks/onprem-b1-deploy.md §B2.
   # ───────────────────────────────────────────────────────────────────────────
-  deploy-cocoindex-staging:
-    name: Bump Coolify tag + deploy — STAGING (on-host pull)
+  deploy-cocoindex-platform-staging:
+    name:
+      Bump Coolify tag + deploy — PLATFORM STAGING (dispatch-only, on-host pull)
     needs: [detect-changes, build-and-push-cocoindex]
     runs-on: ubuntu-latest
-    # `Staging` GH environment (case-sensitive) resolves COOLIFY_API_TOKEN
-    # (added S309 — the bl-222 unblocker) + COOLIFY_BASE_URL (already on Staging).
+    # `Staging` GH environment (case-sensitive) resolves COOLIFY_API_TOKEN +
+    # COOLIFY_BASE_URL + COOLIFY_APP_UUID (platform staging app).
     environment: Staging
     timeout-minutes: 10
-    # Mirror of the prod job's gate, scoped to the staging branch: a `push` (to
-    # `staging`) always deploys; a `workflow_dispatch` deploys unless the operator
-    # set deploy=false. The `refs/heads/staging` guard keeps this STAGING deploy
-    # job firing ONLY in the staging context (a push to `main` deploys via the
-    # prod `deploy-cocoindex` job above, never here).
-    # CHANGE-DETECTION GATE (ID-86 / bl-236): composed with the relevance output
-    # — a docs-only push to staging skips the deploy (and the build it needs:).
+    # DISPATCH-ONLY + input-gated: INERT on every push; fires only when the
+    # operator explicitly requests the platform staging deploy.
     if:
-      needs.detect-changes.outputs.relevant == 'true' && github.ref ==
-      'refs/heads/staging' && (github.event_name == 'push' ||
-      github.event.inputs.deploy == 'true')
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.deploy_platform_staging == 'true'
     env:
-      # Per-environment Coolify app uuid, resolved from the `Staging` GH environment
-      # secret — NOT a literal (public repo; same rationale as the prod job + id-127.16).
+      # Platform staging Coolify app uuid, resolved from the `Staging` GH
+      # environment secret — NEVER a literal (public repo). If unset the job no-ops
+      # to success via the empty-UUID gate below.
       COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
     steps:
+      - name: Probe platform COOLIFY_APP_UUID (empty-UUID gate)
+        id: gate
+        env:
+          # secrets.* are forbidden in a job-level `if:`, so map the UUID into the
+          # shell env here and emit a `configured` step output. Never echo the value.
+          COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+        run: |
+          set -euo pipefail
+          if [ -n "${COOLIFY_APP_UUID}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "platform COOLIFY_APP_UUID is set — proceeding with deploy."
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::platform COOLIFY_APP_UUID not set — skipping deploy (platform app not yet provisioned)"
+          fi
+
       - name: Bump COCOINDEX_IMAGE_TAG in Coolify (PATCH — update in place)
+        if: steps.gate.outputs.configured == 'true'
         env:
           # Map secrets / dynamic values into the shell env (never interpolate
           # ${{ }} directly inside run: — injection-safe, and no secret is echoed).
@@ -475,6 +604,7 @@ jobs:
       - name:
           Trigger Coolify deploy of the pinned tag (host pulls — no on-host
           build)
+        if: steps.gate.outputs.configured == 'true'
         env:
           COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
           COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
@@ -490,15 +620,17 @@ jobs:
           echo "Triggered Coolify deploy of ${COOLIFY_APP_UUID} (pinned tag pull)."
 
       - name: Deploy summary
+        if: steps.gate.outputs.configured == 'true'
         env:
           DEPLOY_TAG: ${{ env.TAG }}
         run: |
           set -euo pipefail
           {
-            echo "### onprem-deploy — Coolify tag bump + deploy — STAGING (bl-222)"
+            echo "### onprem-deploy — Coolify tag bump + deploy — PLATFORM STAGING (ID-127.6)"
             echo ""
             echo "- **Tag bumped:** \`COCOINDEX_IMAGE_TAG\` → \`${DEPLOY_TAG}\` (PATCH, in place — never duplicated)"
             echo "- **Deploy:** triggered on \`${COOLIFY_APP_UUID}\` (staging host pulls the pinned tag; never builds on-host)"
+            echo "- **Trigger:** workflow_dispatch with \`deploy_platform_staging=true\` (dispatch-only — a push never auto-deploys the platform)"
             echo "- **Burn guard (architectural, ID-83 / bl-221):** boot is decoupled — the worker boots lifespan-only and never walks the corpus, so this deploy/restart is burn-safe regardless of \`COCOINDEX_SOURCE_PATH\` (the walk fires only via on-demand POST /walk). This Action still leaves SOURCE_PATH to Coolify env (informational, no longer burn-critical)."
             echo "- **Reminder:** this Action is the **SOLE deploy trigger** — Coolify git-auto-deploy MUST stay disabled (see \`docs/runbooks/onprem-b1-deploy.md\` §B2)"
           } >> "$GITHUB_STEP_SUMMARY"
