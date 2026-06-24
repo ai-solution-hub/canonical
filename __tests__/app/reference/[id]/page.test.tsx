@@ -87,7 +87,7 @@ function makeSourceDocument(
     filename: 'procurement-trends.md',
     mime_type: 'text/markdown',
     file_size: 20480,
-    extraction_method: 'pullmd_url',
+    extraction_method: 'trafilatura_url',
     source_url: 'https://example.com/procurement-trends',
     created_at: '2026-01-16T09:30:00Z',
     ...overrides,
@@ -229,9 +229,9 @@ describe('ReferenceDetailPage', () => {
 
     // Prefers original_filename over filename.
     expect(screen.getByText(/procurement-trends\.html/)).toBeInTheDocument();
-    // Plain-language extraction method, never the raw `pullmd_url` enum.
-    expect(screen.getByText(/Extracted via pullmd/)).toBeInTheDocument();
-    expect(screen.queryByText(/pullmd_url/)).not.toBeInTheDocument();
+    // Plain-language extraction method, never the raw `trafilatura_url` enum.
+    expect(screen.getByText(/Extracted via Trafilatura/)).toBeInTheDocument();
+    expect(screen.queryByText(/trafilatura_url/)).not.toBeInTheDocument();
     // Landed date in DD/MM/YYYY (created_at proxy for fetched-at).
     expect(screen.getByText(/16\/01\/2026/)).toBeInTheDocument();
     // Plus the ingestion_source plain-language line (B-2).
