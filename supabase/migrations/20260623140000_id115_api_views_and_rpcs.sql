@@ -1536,7 +1536,7 @@ GRANT EXECUTE ON FUNCTION api.find_similar_content(query_embedding vector, simil
 -- api.get_aggregate_win_rate_stats()  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_aggregate_win_rate_stats();
 CREATE FUNCTION api.get_aggregate_win_rate_stats()
-  RETURNS TABLE(scope text, total_citations bigint, winning_citations bigint, losing_citations bigint, pending_citations bigint, win_rate numeric, unique_items_cited bigint, unique_bids bigint)
+  RETURNS TABLE(scope text, total_citations bigint, winning_citations bigint, losing_citations bigint, pending_citations bigint, win_rate numeric, unique_items_cited bigint, unique_procurements bigint)
   LANGUAGE sql
   SECURITY INVOKER
   SET search_path = public, extensions

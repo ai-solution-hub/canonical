@@ -3744,8 +3744,8 @@ export type Database = {
           pending_citations: number
           scope: string
           total_citations: number
-          unique_bids: number
           unique_items_cited: number
+          unique_procurements: number
           win_rate: number
           winning_citations: number
         }[]
@@ -8537,8 +8537,8 @@ export type Database = {
           pending_citations: number
           scope: string
           total_citations: number
-          unique_bids: number
           unique_items_cited: number
+          unique_procurements: number
           win_rate: number
           winning_citations: number
         }[]
@@ -8782,7 +8782,7 @@ export type Database = {
           workspace_id: string
         }[]
       }
-      get_form_summary: { Args: { bid_workspace_id: string }; Returns: Json }
+      get_form_summary: { Args: { workspace_id: string }; Returns: Json }
       get_freshness_breakdown: {
         Args: never
         Returns: {

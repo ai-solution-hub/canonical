@@ -117,7 +117,7 @@ describe('GET /api/analytics/win-rate', () => {
           pending_citations: '8',
           win_rate: '0.63',
           unique_items_cited: '16',
-          unique_bids: '8',
+          unique_procurements: '8',
         },
         {
           scope: 'compliance',
@@ -127,7 +127,7 @@ describe('GET /api/analytics/win-rate', () => {
           pending_citations: '0',
           win_rate: '0.50',
           unique_items_cited: '5',
-          unique_bids: '4',
+          unique_procurements: '4',
         },
         {
           scope: 'security',
@@ -137,7 +137,7 @@ describe('GET /api/analytics/win-rate', () => {
           pending_citations: '0',
           win_rate: '0.75',
           unique_items_cited: '8',
-          unique_bids: '6',
+          unique_procurements: '6',
         },
       ],
       error: null,
@@ -152,7 +152,7 @@ describe('GET /api/analytics/win-rate', () => {
     expect(json.overall.total_citations).toBe(24);
     expect(json.overall.winning_citations).toBe(10);
     expect(json.overall.win_rate).toBe(0.63);
-    expect(json.overall.unique_bids).toBe(8);
+    expect(json.overall.unique_procurements).toBe(8);
 
     // Domain breakdown — sorted by win_rate descending
     expect(json.by_domain).toHaveLength(2);
@@ -175,7 +175,7 @@ describe('GET /api/analytics/win-rate', () => {
           pending_citations: '0',
           win_rate: '0',
           unique_items_cited: '0',
-          unique_bids: '0',
+          unique_procurements: '0',
         },
       ],
       error: null,
@@ -205,7 +205,7 @@ describe('GET /api/analytics/win-rate', () => {
           pending_citations: '5',
           win_rate: '0.60', // 3 / (3 + 2) = 0.60
           unique_items_cited: '7',
-          unique_bids: '5',
+          unique_procurements: '5',
         },
       ],
       error: null,
@@ -233,7 +233,7 @@ describe('GET /api/analytics/win-rate', () => {
           pending_citations: '6',
           win_rate: '0.57',
           unique_items_cited: '10',
-          unique_bids: '6',
+          unique_procurements: '6',
         },
         {
           scope: 'corporate',
@@ -243,7 +243,7 @@ describe('GET /api/analytics/win-rate', () => {
           pending_citations: '1',
           win_rate: '0.33',
           unique_items_cited: '3',
-          unique_bids: '2',
+          unique_procurements: '2',
         },
         {
           scope: 'security',
@@ -253,7 +253,7 @@ describe('GET /api/analytics/win-rate', () => {
           pending_citations: '0',
           win_rate: '0.75',
           unique_items_cited: '5',
-          unique_bids: '3',
+          unique_procurements: '3',
         },
         {
           scope: 'compliance',
@@ -263,7 +263,7 @@ describe('GET /api/analytics/win-rate', () => {
           pending_citations: '0',
           win_rate: '0.50',
           unique_items_cited: '4',
-          unique_bids: '3',
+          unique_procurements: '3',
         },
       ],
       error: null,

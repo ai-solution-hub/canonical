@@ -48,7 +48,7 @@ describe('ContentPerformanceSection — freshness-token contract', () => {
         losing_citations: 2,
         pending_citations: 0,
         unique_items_cited: 6,
-        unique_bids: 4,
+        unique_procurements: 4,
       },
       by_domain: [],
     });

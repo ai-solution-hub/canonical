@@ -16,7 +16,7 @@ interface DomainStats {
   pending_citations: number;
   win_rate: number;
   unique_items_cited: number;
-  unique_bids: number;
+  unique_procurements: number;
 }
 
 interface OverallStats {
@@ -26,7 +26,7 @@ interface OverallStats {
   pending_citations: number;
   win_rate: number;
   unique_items_cited: number;
-  unique_bids: number;
+  unique_procurements: number;
 }
 
 interface AggregateWinRateData {
@@ -216,7 +216,7 @@ export function ContentPerformanceSection() {
           </div>
           <div className="rounded-lg border p-3">
             <p className="text-2xl font-bold text-foreground">
-              {overall.unique_bids}
+              {overall.unique_procurements}
             </p>
             <p className="text-xs text-muted-foreground">Bids</p>
           </div>

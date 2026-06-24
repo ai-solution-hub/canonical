@@ -16,7 +16,7 @@ interface DomainStats {
   pending_citations: number;
   win_rate: number;
   unique_items_cited: number;
-  unique_bids: number;
+  unique_procurements: number;
 }
 
 interface OverallStats {
@@ -26,7 +26,7 @@ interface OverallStats {
   pending_citations: number;
   win_rate: number;
   unique_items_cited: number;
-  unique_bids: number;
+  unique_procurements: number;
 }
 
 interface AggregateWinRateResponse {
@@ -45,7 +45,7 @@ const WinRateStatsSchema = z.object({
   pending_citations: z.number(),
   win_rate: z.number(),
   unique_items_cited: z.number(),
-  unique_bids: z.number(),
+  unique_procurements: z.number(),
 });
 const WinRateResponseSchema = z.object({
   overall: WinRateStatsSchema,
@@ -87,7 +87,7 @@ export const GET = defineRoute(WinRateResponseSchema, async () => {
       pending_citations: Number(overallRow?.pending_citations ?? 0),
       win_rate: Number(overallRow?.win_rate ?? 0),
       unique_items_cited: Number(overallRow?.unique_items_cited ?? 0),
-      unique_bids: Number(overallRow?.unique_bids ?? 0),
+      unique_procurements: Number(overallRow?.unique_procurements ?? 0),
     };
 
     // Build domain stats, sorted by win_rate descending (not alphabetical)
@@ -101,7 +101,7 @@ export const GET = defineRoute(WinRateResponseSchema, async () => {
           pending_citations: unknown;
           win_rate: unknown;
           unique_items_cited: unknown;
-          unique_bids: unknown;
+          unique_procurements: unknown;
         }) => ({
           domain: r.scope,
           total_citations: Number(r.total_citations ?? 0),
@@ -110,7 +110,7 @@ export const GET = defineRoute(WinRateResponseSchema, async () => {
           pending_citations: Number(r.pending_citations ?? 0),
           win_rate: Number(r.win_rate ?? 0),
           unique_items_cited: Number(r.unique_items_cited ?? 0),
-          unique_bids: Number(r.unique_bids ?? 0),
+          unique_procurements: Number(r.unique_procurements ?? 0),
         }),
       )
       .sort((a: DomainStats, b: DomainStats) => b.win_rate - a.win_rate);
