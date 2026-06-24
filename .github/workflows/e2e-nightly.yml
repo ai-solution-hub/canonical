@@ -35,6 +35,13 @@ concurrency:
   group: integration-staging-e2e
   cancel-in-progress: false
 
+# PLATFORM_PROJECT_REF — this repo's own dev/CI Supabase project, the only
+# project ref CI targets. Client prod/staging refs are per-client and never
+# committed (ID-68 / theme 12). Sourced from a repo secret and exposed to every
+# job/step so the scripts/lib/project-refs.ts guards resolve.
+env:
+  PLATFORM_PROJECT_REF: ${{ secrets.PLATFORM_PROJECT_REF }}
+
 jobs:
   e2e-desktop:
     name: E2E — full chromium-desktop project
