@@ -48,7 +48,7 @@ import {
 // Facet mapping — which AttentionItem.type belongs to which queue facet.
 //
 // `source_document_change` is deliberately ABSENT (scoped OUT of v1 — it has
-// no producer in lib/attention.ts). `bid_deadline` and `unread_notifications`
+// no producer in lib/attention.ts). `procurement_deadline` and `unread_notifications`
 // are not queue-review items and are excluded from both facets.
 // ---------------------------------------------------------------------------
 
@@ -164,7 +164,7 @@ export async function registerReviewTools(server: McpServer): Promise<void> {
         const attentionItems = buildAttentionItems(sourceData);
 
         // Map each producer item to a facet; drop items with no queue facet
-        // (bid_deadline, unread_notifications, source_document_change).
+        // (procurement_deadline, unread_notifications, source_document_change).
         const queueItems: QueueItem[] = [];
         for (const item of attentionItems) {
           const itemFacet = FACET_BY_TYPE[item.type];

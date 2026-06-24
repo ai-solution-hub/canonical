@@ -336,8 +336,8 @@ describe('produceProcurementDeadlineItems', () => {
     ];
     const items = produceProcurementDeadlineItems(bids);
     expect(items).toHaveLength(2);
-    expect(items[0].id).toBe('attention-bid-bid-1');
-    expect(items[1].id).toBe('attention-bid-bid-2');
+    expect(items[0].id).toBe('attention-procurement-bid-1');
+    expect(items[1].id).toBe('attention-procurement-bid-2');
   });
 });
 
@@ -645,7 +645,7 @@ describe('buildAttentionItems', () => {
     };
     const items = buildAttentionItems(data);
     expect(items.length).toBe(1);
-    expect(items[0].type).toBe('bid_deadline');
+    expect(items[0].type).toBe('procurement_deadline');
     expect(items[0].severity).toBe('critical');
   });
 
@@ -698,7 +698,7 @@ describe('buildAttentionItems', () => {
     expect(types.has('expired_content')).toBe(true);
     expect(types.has('quality_flag')).toBe(true);
     expect(types.has('unverified_content')).toBe(true);
-    expect(types.has('bid_deadline')).toBe(true);
+    expect(types.has('procurement_deadline')).toBe(true);
     expect(types.has('expiring_certification')).toBe(true);
     expect(types.has('expiring_content_date')).toBe(true);
     expect(types.has('unread_notifications')).toBe(true);

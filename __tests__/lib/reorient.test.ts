@@ -703,7 +703,7 @@ describe('fetchReorientData', () => {
 
       expect(result.urgent.length).toBeGreaterThanOrEqual(3);
       // Overdue bid should be first (priority 1)
-      expect(result.urgent[0].type).toBe('bid_deadline');
+      expect(result.urgent[0].type).toBe('procurement_deadline');
       expect(result.urgent[0].priority).toBe(1);
       // Content expired (priority 2) before review pending (priority 3)
       const priorities = result.urgent.map((u) => u.priority);

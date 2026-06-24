@@ -82,7 +82,7 @@ const TYPE_ICONS: Record<AttentionItem['type'], LucideIcon> = {
   expired_content: AlertTriangle,
   quality_flag: Flag,
   unverified_content: Eye,
-  bid_deadline: Clock,
+  procurement_deadline: Clock,
   expiring_certification: Shield,
   expiring_content_date: Clock,
   source_document_change: FileText,
