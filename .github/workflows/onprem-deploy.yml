@@ -59,7 +59,8 @@
 #      The staging on-prem mirror now EXISTS: Liam added `COOLIFY_API_TOKEN` to the
 #      Staging GH environment (the only blocker), so a push to `staging` builds the
 #      staging-branch sha image and deploys it to the staging Coolify compose project
-#      (uuid ljurtiab99kb6dst38k76419) via the `deploy-cocoindex-staging` job below.
+#      (app uuid resolved from the `Staging` GH environment secret) via the
+#      `deploy-cocoindex-staging` job below.
 #      The prod `deploy-cocoindex` job is now branch-guarded (`refs/heads/main`) so a
 #      push to `staging` never fires the prod deploy.
 #   2. ✅ EXTERNAL REFS PINNED to commit SHAs (workflow-injection hardening per the
@@ -317,7 +318,7 @@ jobs:
     needs: [detect-changes, build-and-push-cocoindex]
     runs-on: ubuntu-latest
     # `Production` GH environment (case-sensitive) resolves COOLIFY_API_TOKEN
-    # (added S294) + COOLIFY_BASE_URL (operator must create = http://77.68.122.71:8000).
+    # (added S294) + COOLIFY_BASE_URL (Server B control-plane = http://87.106.72.59:8000).
     environment: Production
     timeout-minutes: 10
     # A `push` always deploys; a `workflow_dispatch` deploys unless the operator
@@ -334,9 +335,11 @@ jobs:
       'refs/heads/main' && (github.event_name == 'push' ||
       github.event.inputs.deploy == 'true')
     env:
-      # NON-secret Coolify app uuid (git-sourced Docker Compose app
-      # `kh-onprem-pipeline-git`). Safe as a literal — it is not a credential.
-      COOLIFY_APP_UUID: ybiczck7f7e1xbdev3bk89cr
+      # Per-environment Coolify app uuid, resolved from the `Production` GH environment
+      # secret — NOT a literal: ai-solution-hub/canonical is PUBLIC, so client app UUIDs
+      # must not be committed. Full parameterization (matrix/reusable workflow across the
+      # client + platform deploy targets) is tracked as id-127.16.
+      COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
     steps:
       - name: Bump COCOINDEX_IMAGE_TAG in Coolify (PATCH — update in place)
         env:
@@ -439,9 +442,9 @@ jobs:
       'refs/heads/staging' && (github.event_name == 'push' ||
       github.event.inputs.deploy == 'true')
     env:
-      # NON-secret Coolify app uuid (staging git-sourced Docker Compose app).
-      # Safe as a literal — it is not a credential.
-      COOLIFY_APP_UUID: ljurtiab99kb6dst38k76419
+      # Per-environment Coolify app uuid, resolved from the `Staging` GH environment
+      # secret — NOT a literal (public repo; same rationale as the prod job + id-127.16).
+      COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
     steps:
       - name: Bump COCOINDEX_IMAGE_TAG in Coolify (PATCH — update in place)
         env:

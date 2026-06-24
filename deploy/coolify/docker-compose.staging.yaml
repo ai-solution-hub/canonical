@@ -61,6 +61,19 @@ services:
     image: "ghcr.io/${GHCR_OWNER:-ai-solution-hub}/kh-cocoindex-pipeline:${COCOINDEX_IMAGE_TAG:?set to a pinned sha- tag from {66.7}}"
     container_name: kh-cocoindex-staging
     restart: unless-stopped
+    # Resource caps (drift §3 fix — the old box ran with NONE). Protective limits so a
+    # runaway walk cannot take down the 4 vCPU / 4 GB Server A host (which runs BOTH the
+    # prod + staging client apps). Honoured by `docker compose up` (Coolify, non-swarm).
+    # Final sizing is the deferred ID-127.14 metrics task; walks are one-at-a-time
+    # (scheduled tasks disabled / supervised) so a simultaneous prod+staging peak is not
+    # expected, and the 1.5 GB cap per container keeps total < host RAM.
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1536M
+        reservations:
+          memory: 256M
     # Run as root: buildpack images run as uid 1000 (cnb), but a fresh Docker named-volume
     # mount is root-owned, so the non-root user hits "Permission denied (os error 13)"
     # initialising the LMDB engine store at /cocoindex-state/lmdb. root resolves it durably
