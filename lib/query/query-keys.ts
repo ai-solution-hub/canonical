@@ -324,17 +324,22 @@ export const queryKeys = {
     layers: (itemId: string) => ['qa-provenance', 'layers', itemId] as const,
   },
 
-  // Bids
-  bids: {
-    all: ['bids'] as const,
-    list: ['bids', 'list'] as const,
-    detail: (id: string) => ['bids', 'detail', id] as const,
+  // Procurement
+  procurement: {
+    all: ['procurement'] as const,
+    list: ['procurement', 'list'] as const,
+    detail: (id: string) => ['procurement', 'detail', id] as const,
     questions: (procurementId: string) =>
-      ['bids', 'questions', procurementId] as const,
+      ['procurement', 'questions', procurementId] as const,
     readiness: (procurementId: string) =>
-      ['bids', 'readiness', procurementId] as const,
+      ['procurement', 'readiness', procurementId] as const,
     responseByQuestion: (procurementId: string, questionId: string) =>
-      ['bids', 'response-by-question', procurementId, questionId] as const,
+      [
+        'procurement',
+        'response-by-question',
+        procurementId,
+        questionId,
+      ] as const,
   },
 
   // Background queue jobs — `processing_queue` polling (S224 §5.4.1).

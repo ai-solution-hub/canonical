@@ -54,7 +54,7 @@ function useFormData(id: string) {
   // queryFn returns a sentinel on 404 and the navigation is performed in
   // a side-effect hook below.
   const procurementQuery = useQuery({
-    queryKey: queryKeys.bids.detail(id),
+    queryKey: queryKeys.procurement.detail(id),
     queryFn: async () => {
       const response = await fetch(`/api/procurement/${id}`);
       if (!response.ok) {
@@ -85,7 +85,7 @@ function useFormData(id: string) {
   ]);
 
   const questionsQuery = useQuery({
-    queryKey: queryKeys.bids.questions(id),
+    queryKey: queryKeys.procurement.questions(id),
     queryFn: async () => {
       const response = await fetch(`/api/procurement/${id}/questions`);
       if (!response.ok) throw new Error('Failed to fetch questions');
@@ -151,7 +151,9 @@ function useFormTransitions(
       toast.success(
         `Procurement moved to ${PROCUREMENT_WORKFLOW_LABELS[newStatus]}`,
       );
-      queryClient.invalidateQueries({ queryKey: queryKeys.bids.detail(id) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.procurement.detail(id),
+      });
     },
     onError: (err: Error) => {
       toast.error(err.message || 'Failed to update status');
@@ -388,8 +390,12 @@ export function useFormActions({ id }: UseFormActionsParams) {
     },
     onSuccess: (result: { matched: number }) => {
       toast.success(`Matched ${result.matched} questions against KB`);
-      queryClient.invalidateQueries({ queryKey: queryKeys.bids.detail(id) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.bids.questions(id) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.procurement.detail(id),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.procurement.questions(id),
+      });
     },
     onError: (err: Error) => {
       toast.error(err.message || 'Failed to match questions');
@@ -513,9 +519,11 @@ export function useFormActions({ id }: UseFormActionsParams) {
       if (totalCost > 0) {
         toast.info(`Total cost: $${totalCost.toFixed(4)}`);
       }
-      queryClient.invalidateQueries({ queryKey: queryKeys.bids.detail(id) });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.bids.questions(id),
+        queryKey: queryKeys.procurement.detail(id),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.procurement.questions(id),
       });
       // eslint-disable-next-line react-hooks/set-state-in-effect -- clearing polling key in response to async terminal job status from useQuery
       setActiveJobId(null);
@@ -549,7 +557,9 @@ export function useFormActions({ id }: UseFormActionsParams) {
 
   function handleOutcomeRecorded(outcome: string, candidates: KBCandidate[]) {
     setShowOutcomeDialog(false);
-    queryClient.invalidateQueries({ queryKey: queryKeys.bids.detail(id) });
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.procurement.detail(id),
+    });
     if (candidates.length > 0) {
       setKBCandidates(candidates);
       setShowKBReview(true);
@@ -558,7 +568,9 @@ export function useFormActions({ id }: UseFormActionsParams) {
 
   function clearExtractedMetadata() {
     setExtractedMetadata(null);
-    queryClient.invalidateQueries({ queryKey: queryKeys.bids.detail(id) });
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.procurement.detail(id),
+    });
   }
 
   function handleKBIntegrationComplete(result: {
@@ -567,7 +579,9 @@ export function useFormActions({ id }: UseFormActionsParams) {
   }) {
     setShowKBReview(false);
     setKBCandidates([]);
-    queryClient.invalidateQueries({ queryKey: queryKeys.bids.detail(id) });
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.procurement.detail(id),
+    });
     toast.success(
       `KB integration complete: ${result.created} created, ${result.updated} updated`,
     );

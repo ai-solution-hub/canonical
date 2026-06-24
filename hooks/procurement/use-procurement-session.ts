@@ -99,7 +99,7 @@ export function useProcurementSession(
   // the effect below so the query closure stays free of unstable references
   // and satisfies @tanstack/query/exhaustive-deps.
   const procurementQuery = useQuery({
-    queryKey: queryKeys.bids.detail(procurementId),
+    queryKey: queryKeys.procurement.detail(procurementId),
     queryFn: () => fetchProcurementSummary(procurementId),
   });
 
@@ -112,7 +112,7 @@ export function useProcurementSession(
 
   // ── Questions query ──
   const questionsQuery = useQuery({
-    queryKey: queryKeys.bids.questions(procurementId),
+    queryKey: queryKeys.procurement.questions(procurementId),
     queryFn: () => fetchProcurementQuestions(procurementId),
   });
 
@@ -143,7 +143,7 @@ export function useProcurementSession(
   // and continue to work because TanStack Query matches by prefix.
   const responseQuery = useQuery({
     queryKey: [
-      ...queryKeys.bids.responseByQuestion(
+      ...queryKeys.procurement.responseByQuestion(
         procurementId,
         currentQuestion?.id ?? '',
       ),
@@ -188,17 +188,17 @@ export function useProcurementSession(
   // ── Imperative invalidation wrappers ──
   const invalidateProcurementData = useCallback(async () => {
     await queryClient.invalidateQueries({
-      queryKey: queryKeys.bids.detail(procurementId),
+      queryKey: queryKeys.procurement.detail(procurementId),
     });
     await queryClient.invalidateQueries({
-      queryKey: queryKeys.bids.questions(procurementId),
+      queryKey: queryKeys.procurement.questions(procurementId),
     });
   }, [queryClient, procurementId]);
 
   const invalidateResponse = useCallback(async () => {
     if (!currentQuestion) return;
     await queryClient.invalidateQueries({
-      queryKey: queryKeys.bids.responseByQuestion(
+      queryKey: queryKeys.procurement.responseByQuestion(
         procurementId,
         currentQuestion.id,
       ),

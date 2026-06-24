@@ -43,14 +43,14 @@ export function useDraftStream(procurementId: string) {
   const [state, setState] = useState<StreamState>(INITIAL_STATE);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Invalidate bid caches when stream completes
+  // Invalidate procurement caches when stream completes
   useEffect(() => {
     if (state.phase === 'done') {
       queryClient.invalidateQueries({
-        queryKey: queryKeys.bids.questions(procurementId),
+        queryKey: queryKeys.procurement.questions(procurementId),
       });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.bids.detail(procurementId),
+        queryKey: queryKeys.procurement.detail(procurementId),
       });
     }
   }, [state.phase, procurementId, queryClient]);
