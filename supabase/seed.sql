@@ -109,27 +109,42 @@ ON CONFLICT (user_id) DO NOTHING;
 --   d0...02 = CI test feed source
 --   e0...01 = CI test company profile
 
--- 2·0. Core application_type ('procurement').
--- The 'procurement' core application_type was originally established by an early
--- migration ("migration 1.4 backfill") that was FOLDED INTO the
--- 20260617130000_squash_baseline squash — but the squash captured only the
+-- 2·0. Core application_types (the full 6-type durable ontology).
+-- The core application_types were originally established by early migrations
+-- ("migration 1.4 backfill" + the S246 T2 6-type seed) that were FOLDED INTO
+-- the 20260617130000_squash_baseline squash — but the squash captured only the
 -- application_types SCHEMA, not its core DATA rows (same squash-fidelity gap as
--- the ensure_rls event trigger; see id-115 {115.15}). On a fresh/reset DB the
--- table is therefore EMPTY, so §2a's `WHERE key = 'procurement'` subquery returns
--- NULL and the workspace insert aborts with a NOT-NULL violation on
--- application_type_id. Re-seed the client-agnostic core row here (provenance
--- 'core', true across ALL deployments — same durable-core-ontology pattern as §4)
--- so the surface tables resolve. Idempotent on the natural key; the row's UUID is
--- deterministic but immaterial — every consumer resolves it by key='procurement'.
-INSERT INTO public.application_types (id, key, label, label_plural, provenance)
-VALUES (
-  'a1000000-0000-4000-8000-000000000001',
-  'procurement',
-  'Procurement',
-  'Procurement',
-  'core'
-)
-ON CONFLICT (key) DO NOTHING;
+-- the ensure_rls event trigger; see id-115 {115.15}). On a fresh/reset DB or a
+-- freshly-provisioned Supabase branch the table is therefore EMPTY, so §2a's
+-- `WHERE key = 'procurement'` subquery returns NULL and the workspace insert
+-- aborts with a NOT-NULL violation on application_type_id; and the /workspaces
+-- launcher renders no cards (e2e/tests/workspaces.spec.ts @smoke needs the
+-- Procurements card + the Sales Proposals coming-soon card). Re-seed ALL SIX
+-- client-agnostic core rows here (provenance 'core', identical across every
+-- deployment — the durable-core-ontology pattern of §4), mirroring the live
+-- Platform/client DBs EXACTLY (label, label_plural, description, icon, colour).
+-- active-vs-coming-soon is CODE-side (CLIENT_CONFIG in
+-- hooks/workspaces/use-application-types.ts), NOT data, so this seed is purely
+-- the ontology rows. DO UPDATE (not DO NOTHING) so a stale row self-corrects on
+-- re-seed — e.g. a pre-S248 singular label_plural 'Procurement' is rewritten to
+-- 'Procurements'. UUIDs are deterministic but immaterial — every consumer
+-- resolves by key.
+INSERT INTO public.application_types (id, key, label, label_plural, description, default_icon, default_colour, provenance)
+VALUES
+  ('a1000000-0000-4000-8000-000000000001', 'procurement',         'Procurement',         'Procurements',          'Manage bid responses and tender submissions using your knowledge base', 'briefcase',      '#d4880f', 'core'),
+  ('a1000000-0000-4000-8000-000000000002', 'intelligence',        'Intelligence',        'Intelligence Streams',  'Sector and competitor news feeds tailored to your company profile.',     'newspaper',      '#059669', 'core'),
+  ('a1000000-0000-4000-8000-000000000003', 'sales_proposal',      'Sales Proposal',      'Sales Proposals',       'Draft and manage sales proposals drawing on your knowledge base',        'file-signature', '#0d9488', 'core'),
+  ('a1000000-0000-4000-8000-000000000004', 'product_guide',       'Product Guide',       'Product Guides',        'Product Guide',                                                         NULL,             NULL,      'core'),
+  ('a1000000-0000-4000-8000-000000000005', 'competitor_research', 'Competitor Research', 'Competitor Researchs',  'Competitor Research',                                                   NULL,             NULL,      'core'),
+  ('a1000000-0000-4000-8000-000000000006', 'training_onboarding', 'Training Onboarding', 'Training Onboardings',  'Training Onboarding',                                                   NULL,             NULL,      'core')
+ON CONFLICT (key) DO UPDATE SET
+  label         = EXCLUDED.label,
+  label_plural  = EXCLUDED.label_plural,
+  description   = EXCLUDED.description,
+  default_icon  = EXCLUDED.default_icon,
+  default_colour = EXCLUDED.default_colour,
+  provenance    = EXCLUDED.provenance,
+  updated_at    = now();
 
 -- 2a. Test workspace (required by feed_prompts, feed_sources, and E2E tests)
 -- NB: `workspaces.type` (was 'bid') was DROPPED in 20260520120828
