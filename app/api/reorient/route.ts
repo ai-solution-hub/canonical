@@ -11,7 +11,7 @@ export const maxDuration = 60;
 // field-for-field including nested item types.
 const ReorientUrgentItemSchema = z.object({
   type: z.enum([
-    'bid_deadline',
+    'procurement_deadline',
     'review_pending',
     'content_expired',
     'quality_flag',

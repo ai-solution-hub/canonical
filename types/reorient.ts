@@ -30,7 +30,7 @@ export interface ReorientData {
 
 export interface UrgentItem {
   type:
-    | 'bid_deadline'
+    | 'procurement_deadline'
     | 'review_pending'
     | 'content_expired'
     | 'quality_flag'

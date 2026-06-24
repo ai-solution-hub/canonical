@@ -296,7 +296,7 @@ export async function fetchReorientData(
   for (const bid of bid_summary) {
     if (bid.urgency === 'overdue') {
       urgent.push({
-        type: 'bid_deadline',
+        type: 'procurement_deadline',
         priority: 1,
         title: `${bid.name} — deadline passed`,
         detail: bid.deadline
@@ -309,7 +309,7 @@ export async function fetchReorientData(
     } else if (bid.urgency === 'urgent') {
       const days = bid.days_until_deadline;
       urgent.push({
-        type: 'bid_deadline',
+        type: 'procurement_deadline',
         priority: 2,
         title: `${bid.name} — ${days === 0 ? 'due today' : `${days} day${days === 1 ? '' : 's'} left`}`,
         detail: `${bid.answered_questions}/${bid.total_questions} questions drafted`,

@@ -276,7 +276,7 @@ function buildUrgentSection(items: UrgentItem[]): HTMLElement {
       ? 'urgent-icon urgent-icon--overdue'
       : 'urgent-icon';
     const icon =
-      item.type === 'bid_deadline'
+      item.type === 'procurement_deadline'
         ? isOverdue
           ? '!'
           : '⏰'
@@ -303,7 +303,7 @@ function buildUrgentSection(items: UrgentItem[]): HTMLElement {
     const statusEl = document.createElement('div');
 
     // Action Logic
-    if (item.type === 'bid_deadline') {
+    if (item.type === 'procurement_deadline') {
       if (isOverdue) {
         // Overdue: Primary = draft answers, Secondary = detail
         const btnDraft = document.createElement('button');

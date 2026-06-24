@@ -32,7 +32,7 @@ export interface AttentionItem {
     | 'expired_content'
     | 'quality_flag'
     | 'unverified_content'
-    | 'bid_deadline'
+    | 'procurement_deadline'
     | 'expiring_certification'
     | 'expiring_content_date'
     | 'source_document_change'
@@ -274,8 +274,8 @@ export function produceProcurementDeadlineItems(
         : '';
 
     items.push({
-      id: `attention-bid-${bid.id}`,
-      type: 'bid_deadline',
+      id: `attention-procurement-${bid.id}`,
+      type: 'procurement_deadline',
       severity,
       entity_type: 'workspace',
       entity_id: bid.id,
