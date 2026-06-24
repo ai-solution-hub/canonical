@@ -268,17 +268,57 @@ jobs:
           echo "Published ${IMAGE}:${TAG}"
 
       - name: Image-size budget check (T-OQ4 — log + warn, never fail)
+        # GENUINELY never fails. The build step above used `pack build … --publish`,
+        # which pushes the image STRAIGHT to ghcr.io and does NOT load it into the
+        # local Docker daemon — so `docker image inspect` here errored "No such
+        # image", and under `set -euo pipefail` that aborted this "never fail" step
+        # and (via `needs:`) skipped BOTH deploy jobs (run 28125818103 false-fail).
+        # FIX: read the size from the REGISTRY manifest (no multi-GB pull) by summing
+        # the layer `size` fields from `docker buildx imagetools inspect --raw`
+        # (compressed/on-the-wire bytes — an APPROXIMATE signal vs the on-disk budget).
+        # The whole step is best-effort: NO `set -e`, every failure path falls
+        # through to a `::notice::` skip, and the step ALWAYS `exit 0`.
         run: |
-          set -euo pipefail
-          SIZE="$(docker image inspect "${IMAGE}:${TAG}" --format '{{.Size}}')"
-          BUDGET=5691392819 # 5.3 GB
-          GB="$(awk "BEGIN{printf \"%.2f\", ${SIZE}/1024/1024/1024}")"
-          echo "cocoindex image size: ${GB} GB (budget 5.3 GB)"
-          if [ "${SIZE}" -gt "${BUDGET}" ]; then
-            echo "::warning::cocoindex image ${GB} GB exceeds the 5.3 GB budget (T-OQ4: warn-only, build continues)."
-          else
-            echo "OK: within 5.3 GB budget."
+          # Deliberately NO `set -e` — this step must never return non-zero.
+          set -uo pipefail
+          BUDGET=5691392819 # 5.3 GB (on-disk reference budget)
+          # Sum the compressed layer sizes from the registry manifest WITHOUT
+          # pulling the image. buildx imagetools --raw emits the manifest JSON;
+          # the layer `size` fields are the compressed on-the-wire bytes. For a
+          # multi-arch manifest list there are no top-level layers, so this sums
+          # to 0 and we fall through to the registry-read-failed skip below.
+          RAW="$(docker buildx imagetools inspect "${IMAGE}:${TAG}" --raw 2>/dev/null || true)"
+          SIZE=""
+          if [ -n "${RAW}" ]; then
+            # Sum every layer `size` (jq if available, else a portable grep/awk
+            # fallback so we never hard-depend on jq being on the runner).
+            if command -v jq >/dev/null 2>&1; then
+              SIZE="$(printf '%s' "${RAW}" | jq '[.layers[]?.size] | add // 0' 2>/dev/null || true)"
+            else
+              SIZE="$(printf '%s' "${RAW}" \
+                | grep -oE '"size"[[:space:]]*:[[:space:]]*[0-9]+' \
+                | grep -oE '[0-9]+' \
+                | awk '{s+=$1} END{print s+0}')"
+            fi
           fi
+          # Positive-form numeric guard: the arithmetic `-gt` test errors (exit 2,
+          # redirected to /dev/null) for empty / non-numeric / float SIZE and is
+          # false for 0 — so ONLY a valid positive integer enters the budget
+          # branch; everything else falls to the skip. (Deliberately NOT a
+          # `*[!0-9]*` case-glob nor a `! [ … ] 2>/dev/null` negation — both were
+          # verified to misbehave across bash 3.2 / shell variants in testing.)
+          if [ "${SIZE}" -gt 0 ] 2>/dev/null; then
+            GB="$(awk "BEGIN{printf \"%.2f\", ${SIZE}/1024/1024/1024}")"
+            echo "cocoindex image size (registry, compressed/approx): ${GB} GB (budget 5.3 GB)"
+            if [ "${SIZE}" -gt "${BUDGET}" ]; then
+              echo "::warning::cocoindex image ~${GB} GB (compressed) exceeds the 5.3 GB budget (T-OQ4: warn-only, build continues)."
+            else
+              echo "OK: ~${GB} GB within 5.3 GB budget (compressed/approx — on-disk size is larger)."
+            fi
+          else
+            echo "::notice::image-size check skipped (image not local; registry read unavailable)"
+          fi
+          exit 0
 
       - name: Job summary
         run: |
