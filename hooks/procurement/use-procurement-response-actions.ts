@@ -102,7 +102,7 @@ export function useFormResponseActions({
       // Invalidate response cache
       if (currentQuestion) {
         queryClient.invalidateQueries({
-          queryKey: queryKeys.bids.responseByQuestion(
+          queryKey: queryKeys.procurement.responseByQuestion(
             procurementId,
             currentQuestion.id,
           ),

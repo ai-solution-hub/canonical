@@ -1244,10 +1244,10 @@ describe('useDraftStream', () => {
       });
 
       expect(invalidateSpy).toHaveBeenCalledWith({
-        queryKey: ['bids', 'questions', 'bid-1'],
+        queryKey: ['procurement', 'questions', 'bid-1'],
       });
       expect(invalidateSpy).toHaveBeenCalledWith({
-        queryKey: ['bids', 'detail', 'bid-1'],
+        queryKey: ['procurement', 'detail', 'bid-1'],
       });
     });
 
@@ -1318,10 +1318,10 @@ describe('useDraftStream', () => {
       });
 
       expect(invalidateSpy).toHaveBeenCalledWith({
-        queryKey: ['bids', 'questions', 'bid-42'],
+        queryKey: ['procurement', 'questions', 'bid-42'],
       });
       expect(invalidateSpy).toHaveBeenCalledWith({
-        queryKey: ['bids', 'detail', 'bid-42'],
+        queryKey: ['procurement', 'detail', 'bid-42'],
       });
     });
   });

@@ -368,16 +368,16 @@ export function useStreamCoordination({
       }
       // Invalidate cached data — TanStack refetches in the background
       queryClient.invalidateQueries({
-        queryKey: queryKeys.bids.responseByQuestion(
+        queryKey: queryKeys.procurement.responseByQuestion(
           procurementId,
           currentQuestion?.id ?? '',
         ),
       });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.bids.detail(procurementId),
+        queryKey: queryKeys.procurement.detail(procurementId),
       });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.bids.questions(procurementId),
+        queryKey: queryKeys.procurement.questions(procurementId),
       });
       toast.success('Response drafted successfully');
     }

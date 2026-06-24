@@ -51,7 +51,7 @@ export function useProcurementReadiness(
   const queryClient = useQueryClient();
 
   const query = useQuery<ReadinessData>({
-    queryKey: queryKeys.bids.readiness(procurementId),
+    queryKey: queryKeys.procurement.readiness(procurementId),
     queryFn: () =>
       fetchJson<ReadinessData>(`/api/procurement/${procurementId}/readiness`),
     enabled: !!procurementId,
@@ -60,7 +60,7 @@ export function useProcurementReadiness(
 
   const refresh = useCallback(() => {
     queryClient.invalidateQueries({
-      queryKey: queryKeys.bids.readiness(procurementId),
+      queryKey: queryKeys.procurement.readiness(procurementId),
     });
   }, [queryClient, procurementId]);
 
