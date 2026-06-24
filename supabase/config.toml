@@ -68,9 +68,10 @@ enabled = true
 sql_paths = ["./seed.sql"]
 
 [remotes.staging]
-# Points at the Platform dev/CI project (canonical's own). Client project refs
-# are per-client and never committed (ID-68 / theme 12).
-project_id = "zjqbrdctesqvouboziae"
+# The Platform persistent STAGING branch (canonical's own; parent project = the
+# Platform prod ref zjqbrdctesqvouboziae). Client project refs are per-client and
+# never committed (ID-68 / theme 12).
+project_id = "rbwqewalexrzgxtvcqrh"
 
 [remotes.staging.db.seed]
 enabled = true
@@ -79,9 +80,10 @@ sql_paths = ["./seed.sql"]
 # Sign-up domain restriction hook — staging branch.
 # Generic, config-driven function defined in
 # supabase/migrations/20260603121652_hook_restrict_signup_to_allowed_domain.sql.
-# Reads the allowed domain from the per-deploy `app.allowed_signup_domain` GUC
-# (set out of band, never in migration history); fail-closed when unset. Replays
-# on every branch creation; this block wires it into the staging auth pipeline.
+# Reads the allowed domain from the single-row `public.signup_policy` config table
+# (set per-environment out of band; ID-68.21 GUC->config-table pivot superseded the
+# dead `app.allowed_signup_domain` GUC); fail-closed when unset. Replays on every
+# branch creation; this block wires it into the staging auth pipeline.
 [remotes.staging.auth.hook.before_user_created]
 enabled = true
 uri = "pg-functions://postgres/public/hook_restrict_signup_to_allowed_domain"
