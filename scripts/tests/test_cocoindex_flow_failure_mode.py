@@ -1840,15 +1840,6 @@ class TestUrlPerItemFailureIsolation:
 
         monkeypatch.setattr(flow, "_fetch_url_bytes", _fake_fetch_url_bytes)
 
-        # The PullMD seam is RETIRED on the HTML route ({112.7}) — assert it is
-        # never reached (a call here would be a regression).
-        async def _forbidden_pullmd_fetch(url: str, content_epoch: str):
-            raise AssertionError(
-                "_pullmd_fetch must not be called on the HTML route ({112.7})"
-            )
-
-        monkeypatch.setattr(flow, "_pullmd_fetch", _forbidden_pullmd_fetch)
-
         # No network: never HEAD-sniff; both URLs take the HTML route.
         async def _never_pdf(url: str) -> bool:
             return False

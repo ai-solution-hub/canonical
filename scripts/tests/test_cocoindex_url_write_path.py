@@ -7,10 +7,9 @@ network/LLM seams are stubbed. No external DB, no env vars, no Rust engine.
 
 ID-112.7 re-point: the HTML branch fetches raw HTML via ``_fetch_url_bytes``
 and cleans it IN-PROCESS via the shared Trafilatura cleaner (``clean_html`` +
-``apply_quality_gate``), retiring the PullMD fetch+extract hop on this datapath
-(PI-1). ``_pullmd_fetch`` is no longer reached on the HTML route — these tests
-assert that, and that the cleaned TEXT (not Markdown) is the canonical body
-with ``extraction_method == "trafilatura"`` and a NULL ``pullmd_share_id``.
+``apply_quality_gate``), retiring the prior fetch+extract sidecar hop on this
+datapath (PI-1). These tests assert the cleaned TEXT (not Markdown) is the
+canonical body with ``extraction_method == "trafilatura"``.
 
 WHAT THIS PROVES (TECH §3 WP-C steps 1-8 + §4 BI-mapping):
 
@@ -18,15 +17,13 @@ WHAT THIS PROVES (TECH §3 WP-C steps 1-8 + §4 BI-mapping):
     contract and ZERO ``ci_target`` interactions (BI-1 — structurally
     impossible: ``ingest_url`` has no ci/qa/em/cc target in its signature).
   - The HTML body is the boilerplate-stripped clean text from ``clean_html``,
-    ``extraction_method == "trafilatura"``, ``pullmd_share_id`` is NULL, and
-    ``_pullmd_fetch`` is NEVER called on the HTML route (PI-1 / ID-112.7).
+    with ``extraction_method == "trafilatura"`` (PI-1 / ID-112.7).
   - A too-short extraction is a structured per-item failure
     (``cocoindex.url_extraction_rejected``) that lands ZERO partial rows
     (PI-5 / BI-19).
   - Landing twice declares the SAME deterministic uuid5 PKs — declare_row is
     a PK-keyed UPSERT, so the DB count stays 1 (BI-2 / PI-8).
-  - A PDF URL routes to Docling over fetched bytes — PullMD is never called
-    (BI-20 / D-12).
+  - A PDF URL routes to Docling over fetched bytes (BI-20 / D-12).
   - An SSRF-rejected URL lands ZERO rows and writes one
     ``ingestion_quality_log`` row + a structured log (BI-21 / D-9).
   - The D-7 backlink UPDATE hits ALL ledger rows for a 2-workspace URL
@@ -37,7 +34,7 @@ WHAT THIS PROVES (TECH §3 WP-C steps 1-8 + §4 BI-mapping):
 Async tests follow the repo convention (no pytest-asyncio plugin): drive
 coroutines via ``asyncio.run`` inside sync test functions.
 
-Reference: docs/specs/ID-75-pullmd-cocoindex/TECH.md §3 WP-C + §4 (BI-1..BI-10,
+Reference: the ID-75 URL-cocoindex spec, TECH.md §3 WP-C + §4 (BI-1..BI-10,
 BI-19..BI-21).
 """
 
@@ -174,20 +171,8 @@ def _wire(
     in-process ``clean_html`` + ``apply_quality_gate`` from {112.5}).
 
     ID-112.7: the HTML route now fetches raw HTML via ``_fetch_url_bytes`` and
-    cleans it in-process. ``_pullmd_fetch`` is stubbed to RAISE — any HTML-path
-    call to it is a regression (the seam was retired), and ``pullmd_calls``
-    stays empty in the happy path.
+    cleans it in-process — there is no separate fetch+extract hop.
     """
-    pullmd_calls: list[tuple[str, str]] = []
-
-    async def _forbidden_pullmd_fetch(url: str, content_epoch: str):
-        pullmd_calls.append((url, content_epoch))
-        raise AssertionError(
-            "_pullmd_fetch must not be called on the HTML route (ID-112.7)"
-        )
-
-    monkeypatch.setattr(flow, "_pullmd_fetch", _forbidden_pullmd_fetch)
-
     fetch_calls: list[str] = []
 
     async def _fake_fetch_url_bytes(url: str) -> bytes:
@@ -220,7 +205,6 @@ def _wire(
     monkeypatch.setattr(flow.coco, "use_context", lambda key: pool)
 
     return {
-        "pullmd_calls": pullmd_calls,
         "fetch_calls": fetch_calls,
         "pool": pool,
     }
@@ -297,12 +281,21 @@ class TestUrlLandingDeclaresEvidencePair:
         assert sd_row["mime_type"] == "text/html"
         assert sd_row["file_size"] == len(encoded)
         assert sd_row["content_hash"] == hashlib.sha256(encoded).hexdigest()
-        # ID-112.7: in-house Trafilatura clean — no pullmd provenance.
+        # ID-112.7: in-house Trafilatura clean — extraction_method 'trafilatura'.
         assert sd_row["extraction_method"] == "trafilatura"
-        assert sd_row["pullmd_share_id"] is None, (
-            "the in-house cleaner mints no share id; the column is left NULL"
-        )
         assert sd_row["op_id"] == run_op_id
+        # ID-129.2: the declared key set carries no retired share-id column.
+        assert set(sd_row) == {
+            "id",
+            "storage_path",
+            "source_url",
+            "filename",
+            "mime_type",
+            "file_size",
+            "content_hash",
+            "op_id",
+            "extraction_method",
+        }
 
         # BI-3: the full reference_items contract.
         ri_row = ri.rows[0]
@@ -344,11 +337,8 @@ class TestUrlLandingDeclaresEvidencePair:
         assert "created_at" not in ri_row
         assert "updated_at" not in ri_row
 
-        # ID-112.7: the HTML route fetches raw bytes; PullMD is never reached.
+        # ID-112.7: the HTML route fetches raw bytes and cleans them in-process.
         assert handles["fetch_calls"] == [item.url]
-        assert handles["pullmd_calls"] == [], (
-            "_pullmd_fetch must never be called on the HTML route (PI-1)"
-        )
 
         # Inv-17 stage counters (WP-C step 8).
         assert counter.counts == {
@@ -435,8 +425,8 @@ class TestUrlIdempotencyAndUpdate:
     ) -> None:
         """A re-fetch that returns CHANGED HTML re-cleans the body and
         recomputes the hash UNDER THE SAME PK (BI-2 / D-4 update-in-place).
-        The body now tracks the fetched HTML content (ID-112.7), not the
-        PullMD epoch key."""
+        The body now tracks the fetched HTML content (ID-112.7), keyed by the
+        item-level (url, epoch) memo."""
         flow = _flow_module()
 
         pages = {
@@ -477,20 +467,16 @@ class TestUrlIdempotencyAndUpdate:
 
 
 class TestUrlPdfRoute:
-    def test_pdf_url_routes_to_docling_and_never_calls_pullmd(
+    def test_pdf_url_routes_to_docling(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         flow = _flow_module()
-        from unittest.mock import AsyncMock
 
         real_sniff = flow._url_is_pdf  # the REAL D-12 sniff — suffix-first
         _wire(flow, monkeypatch)
         # Restore the real sniff: the .pdf suffix short-circuits BEFORE any
         # HTTP, so no network is touched (that is the behaviour under test).
         monkeypatch.setattr(flow, "_url_is_pdf", real_sniff)
-
-        pullmd = AsyncMock(name="_pullmd_fetch")
-        monkeypatch.setattr(flow, "_pullmd_fetch", pullmd)
 
         pdf_bytes = b"%PDF-1.4 stub bytes"
 
@@ -510,13 +496,13 @@ class TestUrlPdfRoute:
         item = _make_item(url="https://example.com/reports/annual.pdf")
         ri, sd = _ingest(flow, item)
 
-        # The .pdf suffix short-circuits the sniff — no PullMD call (BI-20).
-        assert pullmd.await_count == 0, "PDF must never route to PullMD"
+        # The .pdf suffix short-circuits the sniff straight to Docling (BI-20).
         assert docling_calls == [(pdf_bytes, "annual.pdf")]
 
         sd_row = sd.rows[0]
         assert sd_row["extraction_method"] == "docling"
-        assert sd_row["pullmd_share_id"] is None
+        # ID-129.2: the retired share-id column is no longer declared.
+        assert "share_id" not in " ".join(sd_row)
         assert sd_row["mime_type"] == "application/pdf"
         assert sd_row["file_size"] == len(pdf_bytes)
         assert sd_row["content_hash"] == hashlib.sha256(pdf_bytes).hexdigest()
@@ -526,7 +512,7 @@ class TestUrlPdfRoute:
         self,
     ) -> None:
         """D-12: extensionless URL ⇒ httpx HEAD content-type sniff; a HEAD
-        failure assumes HTML and lets PullMD try."""
+        failure assumes HTML and lets the in-process extractor try."""
         flow = _flow_module()
 
         class _FakeResponse:
@@ -571,7 +557,7 @@ class TestUrlPdfRoute:
         )
         assert asyncio.run(flow._url_is_pdf(url)) is False
 
-        # HEAD failure ⇒ assume HTML, let PullMD try (D-12).
+        # HEAD failure ⇒ assume HTML, let the in-process extractor try (D-12).
         flow.httpx.AsyncClient = _client_factory(
             error=httpx.ConnectError("boom")
         )
@@ -590,8 +576,8 @@ class TestUrlSsrfRejection:
         flow = _flow_module()
         from unittest.mock import AsyncMock
 
-        pullmd = AsyncMock(name="_pullmd_fetch")
-        monkeypatch.setattr(flow, "_pullmd_fetch", pullmd)
+        fetch = AsyncMock(name="_fetch_url_bytes")
+        monkeypatch.setattr(flow, "_fetch_url_bytes", fetch)
 
         ledger_ids = [
             {"id": "33333333-3333-4333-8333-333333333333"},
@@ -612,7 +598,7 @@ class TestUrlSsrfRejection:
         # ZERO rows — the rejected item declares nothing (BI-21/BI-19).
         assert ri.rows == []
         assert sd.rows == []
-        assert pullmd.await_count == 0, "rejected URL must never be fetched"
+        assert fetch.await_count == 0, "rejected URL must never be fetched"
 
         # ONE ingestion_quality_log row via the raw pool (D-9).
         inserts = [
@@ -719,9 +705,8 @@ class TestHtmlQualityGate:
         # next walk re-runs it (memo miss on a failure-aborted run).
         assert ri.rows == [], "a REJECT verdict must land no reference_items row"
         assert sd.rows == [], "a REJECT verdict must land no source_documents row"
-        # The HTML WAS fetched (the gate runs post-fetch), but PullMD never ran.
+        # The HTML WAS fetched (the gate runs post-fetch).
         assert handles["fetch_calls"] == [item.url]
-        assert handles["pullmd_calls"] == []
 
         # Structured per-item failure — same shape as the SSRF rejection log.
         events = [
@@ -766,7 +751,7 @@ class TestHtmlQualityGate:
         # WARN proceeds: the row still lands with the trafilatura provenance.
         assert len(ri.rows) == 1 and len(sd.rows) == 1
         assert sd.rows[0]["extraction_method"] == "trafilatura"
-        assert handles["pullmd_calls"] == []
+        assert handles["fetch_calls"] == [item.url]
 
         events = [
             json.loads(r.message)
@@ -780,51 +765,6 @@ class TestHtmlQualityGate:
         ]
         assert len(warn_events) == 1
         assert warn_events[0]["source_url"] == item.url
-
-
-# ── Pullmd extraction-method mapping (live until {112.13} terminal deletion) ──
-
-
-class TestPullmdExtractionMethodMapping:
-    """`_pullmd_extraction_method` is dead on the HTML datapath after {112.7}
-    but stays in the module until the terminal pullmd deletion ({112.13}) —
-    these unit-level guards keep its CHECK-enum-safety contract pinned."""
-
-    def test_known_x_sources_map_to_pullmd_methods(self) -> None:
-        flow = _flow_module()
-        assert flow._pullmd_extraction_method("readability") == (
-            "pullmd_readability"
-        )
-        assert flow._pullmd_extraction_method("trafilatura") == (
-            "pullmd_trafilatura"
-        )
-        assert flow._pullmd_extraction_method(None) is None
-
-    def test_missing_x_source_header_degrades_silently_without_warning(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """A MISSING X-Source header (None) degrades to None SILENTLY — the
-        warning is reserved for a PRESENT-but-unknown value, matching the
-        {75.9}-retired guard's `x_source in set` / else-warn shape."""
-        flow = _flow_module()
-
-        with caplog.at_level(logging.WARNING, logger=flow.__name__):
-            assert flow._pullmd_extraction_method(None) is None
-
-        events = [
-            json.loads(r.message)
-            for r in caplog.records
-            if r.message.startswith("{")
-        ]
-        warn_events = [
-            e
-            for e in events
-            if e.get("event") == "cocoindex.pullmd_unknown_x_source"
-        ]
-        assert warn_events == [], (
-            "a missing X-Source header must degrade to None WITHOUT the "
-            "unknown-X-Source warning"
-        )
 
 
 # ── Module-source guard: 'ci:' is never seeded from a URL (BI-2) ────────────

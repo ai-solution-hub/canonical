@@ -1352,22 +1352,20 @@ class TestContentFingerprintAwaited:
         )
 
 
-# ── 42.9 — pullmd provenance lands on the source_documents write ──────────────
+# ── 42.9 — extraction provenance lands on the source_documents write ──────────
 
 
 class TestSourceDocumentProvenanceWritePath:
-    """The recorded source_documents row carries extraction_method + pullmd_share_id.
+    """The recorded source_documents row carries the extraction_method provenance.
 
     Proves the WIRING SHAPE (ID-42.9 §WP-E): ``ingest_file`` resolves provenance
     via ``extract_source_provenance`` (the real helper, routing by suffix) and
-    writes ``extraction_method`` / ``pullmd_share_id`` into the declare_row dict.
-    Stubs ONLY at the ``_pullmd_http_get``/httpx boundary per
-    docs/reference/test-philosophy.md — the live-service proof is {42.10}'s job.
-    The content_text path (Stage 3-6) stays stubbed so this is a pure shape test.
+    writes ``extraction_method`` into the declare_row dict. The content_text path
+    (Stage 3-6) stays stubbed so this is a pure shape test.
 
-    ID-75 WP-D: the localfs HTML→PullMD branch is RETIRED — a staged
-    .html/.htm now fails LOUDLY per-file (LocalfsHtmlRetiredError) with NO
-    PullMD call; HTML content lands via the URL source instead.
+    ID-75 WP-D: the localfs HTML branch is RETIRED — a staged .html/.htm now
+    fails LOUDLY per-file (LocalfsHtmlRetiredError); HTML content lands via the
+    URL source instead.
     """
 
     @staticmethod
@@ -1406,31 +1404,27 @@ class TestSourceDocumentProvenanceWritePath:
         asyncio.run(_exercise())
         return sd
 
-    def test_html_source_raises_loud_retired_error_with_no_pullmd_call(
+    def test_html_source_raises_loud_retired_error(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A staged .html fails LOUDLY (LocalfsHtmlRetiredError) — NO PullMD call.
+        """A staged .html fails LOUDLY (LocalfsHtmlRetiredError).
 
         ID-75 WP-D: HTML content lands via the URL source; the file corpus does
-        not route HTML to PullMD (a local file path is unreachable for the
-        service anyway). The error propagates out of ``ingest_file`` and is
+        not route HTML to the URL extractor (a local file path is unreachable
+        for it anyway). The error propagates out of ``ingest_file`` and is
         contained per-file at the mount boundary (ID-80.9) — one bad .html
         never aborts the batch. ZERO rows land on any target.
         """
         flow = _flow_module()
-        from unittest.mock import AsyncMock
         import sys as _sys
 
         self._stub_extractors(flow, monkeypatch)
 
         # convert_binary_to_markdown is NOT stubbed: the REAL adapter routing
         # must raise the named error at Stage 2 — that is the behaviour under
-        # test. Stub only the pullmd HTTP boundary to prove it is never reached.
-        # Resolve the EXACT adapters module flow imported the helpers from
+        # test. Resolve the EXACT adapters module flow imported the helpers from
         # (module-identity-agnostic, as the sibling tests do).
         adapters = _sys.modules[flow.extract_source_provenance.__module__]
-        pullmd_http = AsyncMock(name="_pullmd_http_get")
-        monkeypatch.setattr(adapters, "_pullmd_http_get", pullmd_http)
 
         from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
 
@@ -1450,17 +1444,13 @@ class TestSourceDocumentProvenanceWritePath:
         with pytest.raises(adapters.LocalfsHtmlRetiredError):
             asyncio.run(_exercise())
 
-        # The retired branch must never reach the PullMD HTTP boundary…
-        assert pullmd_http.await_count == 0, (
-            "PullMD was called for a localfs HTML file — the retired branch leaked"
-        )
-        # …and the failed file declares ZERO rows on every target.
+        # The failed file declares ZERO rows on every target.
         assert ci.rows == []
         assert qa.rows == []
         assert sd.rows == []
         assert em.rows == []
 
-    def test_docling_source_carries_docling_method_and_null_share_id(
+    def test_docling_source_carries_docling_method(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         flow = _flow_module()
@@ -1480,7 +1470,6 @@ class TestSourceDocumentProvenanceWritePath:
 
         assert len(sd.rows) == 1
         assert sd.rows[0]["extraction_method"] == "docling"
-        assert sd.rows[0]["pullmd_share_id"] is None
 
     def test_passthrough_source_carries_null_provenance(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -1500,7 +1489,6 @@ class TestSourceDocumentProvenanceWritePath:
 
         assert len(sd.rows) == 1
         assert sd.rows[0]["extraction_method"] is None
-        assert sd.rows[0]["pullmd_share_id"] is None
 
 
 # ── 28.21/28.22 — no fictional dataflow API survives ──────────────────────────

@@ -13,9 +13,9 @@
 #   * The Coolify pull/deploy webhook was {66.11} — now wired as a SECOND job that
 #     `needs:` the build job (so a deploy can NEVER fire on a tag that was not
 #     built + pushed + pull-verified — the "never a stale image" ordering guard).
-#   * pullmd / playwright / trafilatura are UPSTREAM aeternalabshq/* images
-#     (pulled by the {66.8} compose); only the cocoindex image is KH-built, so
-#     this workflow builds exactly ONE image.
+#   * Only the cocoindex image is KH-built — HTML extraction is now fully
+#     in-process (Trafilatura, ID-112), so there is no upstream extractor
+#     sidecar image; this workflow builds exactly ONE image.
 #   * NO KH application-code changes — it packages scripts/cocoindex_pipeline/*.py
 #     unchanged; the build config preserves the original Cloud Build setup
 #     (same google-22 builder, GOOGLE_ENTRYPOINT, runtime, Python version).
@@ -121,8 +121,8 @@ permissions:
   packages: write # GITHUB_TOKEN push to ghcr.io/<owner>/*
 
 env:
-  # Pinned, content-addressable tag — NEVER :latest (mirrors the pullmd
-  # no-:latest discipline at cloud-run-deploy.yml:458). Rollback ({66.12}) =
+  # Pinned, content-addressable tag — NEVER :latest (the no-:latest
+  # discipline at cloud-run-deploy.yml:458). Rollback ({66.12}) =
   # re-point Coolify to a prior sha- tag; no rebuild.
   IMAGE: ghcr.io/${{ github.repository_owner }}/kh-cocoindex-pipeline
   TAG: sha-${{ github.sha }}
@@ -255,7 +255,7 @@ jobs:
           # subsequent runs with an unchanged requirements.txt cache-hit the deps
           # layer (~9 min cold -> ~2-4 min warm; a requirements.txt change re-seeds it).
           # The :buildcache tag is SEPARATE from the pinned :sha- app image, so the
-          # Inv-9 assertion + size-budget steps below still inspect ONLY the app image.
+          # The size-budget step below still inspects ONLY the app image.
           pack build "${IMAGE}:${TAG}" \
             --path "${CTX}" \
             --builder gcr.io/buildpacks/builder:google-22 \
@@ -265,28 +265,6 @@ jobs:
             --env "GOOGLE_PYTHON_VERSION=3.13.13" \
             --publish
           echo "Published ${IMAGE}:${TAG}"
-
-      - name:
-          Inv-9 assertion — cocoindex image carries NO pullmd / Playwright (AGPL
-          boundary)
-        run: |
-          set -euo pipefail
-          # --publish pushes straight to the registry without a local load; pull
-          # the just-pushed digest back to inspect it (ports cloudbuild-cocoindex.yaml
-          # step "assert-inv9-no-pullmd-no-playwright"). pullmd (AGPL) + Playwright
-          # ship as their own upstream compose services — they must never be baked
-          # into the cocoindex image.
-          docker pull "${IMAGE}:${TAG}"
-          RAW="$(docker image inspect "${IMAGE}:${TAG}")"
-          if printf '%s' "$RAW" | grep -qiE 'pullmd'; then
-            echo "::error::Inv-9 FAIL — pullmd entry detected in cocoindex image (AGPL boundary violated)."
-            exit 1
-          fi
-          if printf '%s' "$RAW" | grep -qiE 'playwright|chromium|playwright-driver'; then
-            echo "::error::Inv-9 FAIL — Playwright/Chromium dependency detected in cocoindex image."
-            exit 1
-          fi
-          echo "Inv-9 PASS: zero pullmd entries, zero Playwright dependencies."
 
       - name: Image-size budget check (T-OQ4 — log + warn, never fail)
         run: |

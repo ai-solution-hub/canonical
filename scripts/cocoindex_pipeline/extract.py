@@ -2,8 +2,8 @@
 
 One in-house cleaner, two call sites (Task ID-112 PRODUCT.md §B):
 
-* the cocoindex worker imports ``clean_html`` in-process to replace its
-  pullmd HTML branch ({112.7}), and
+* the cocoindex worker imports ``clean_html`` in-process to handle its
+  URL HTML branch ({112.7}), and
 * the ``POST /extract`` worker endpoint ({112.6}) calls ``clean_html`` +
   ``apply_quality_gate`` so the synchronous TS manual route reaches the
   identical cleaning behaviour over HTTP.

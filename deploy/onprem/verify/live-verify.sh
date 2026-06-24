@@ -55,7 +55,7 @@
 # URL-MODE LEG (ID-62 {62.10} — NOT part of this script's sequence): the URL
 # landing-set proof is the SIBLING host-side driver
 # deploy/onprem/verify/verify_driver.py (seed gate-passed feed_articles row →
-# POST {worker}/walk → pullmd /s/<id> round-trip → second-walk idempotency
+# POST {worker}/walk → sd landing-row poll → second-walk idempotency
 # leg), followed by the Vitest landing-set file
 # __tests__/integration/cocoindex/url-landing-set.integration.test.ts. It
 # targets the STAGING worker (COCOINDEX_WORKER_URL) + staging Supabase — not
@@ -66,7 +66,6 @@
 #   KH_REPO_DIR              repo checkout the Vitest step runs from (REQUIRED)
 #   VERIFY_ENV_FILE          host secrets env file (default /root/.kh-live-verify.env)
 #   COCOINDEX_CONTAINER      container name/id (default: resolved by image grep)
-#   PULLMD_CONTAINER         pullmd container name/id (default: resolved by image grep)
 #   COCOINDEX_INTERNAL_PORT  sidecar port inside the container (default 8080 = $PORT default)
 #   FIXTURE_SET              verify_driver --fixtures set (default templates)
 #   WALK_TIMEOUT_SECS        max wait for the pre-Vitest walk to complete (default 900)
@@ -114,10 +113,6 @@ if [[ -z "${COCOINDEX_CONTAINER:-}" ]]; then
 fi
 [[ -n "${COCOINDEX_CONTAINER:-}" ]] || die "could not resolve the cocoindex container — set COCOINDEX_CONTAINER explicitly"
 log "cocoindex container: ${COCOINDEX_CONTAINER}"
-
-if [[ -z "${PULLMD_CONTAINER:-}" ]]; then
-  PULLMD_CONTAINER="$(docker ps --format '{{.Names}}\t{{.Image}}' | grep -i 'pullmd' | head -1 | cut -f1 || true)"
-fi
 
 [[ -f "$VERIFY_ENV_FILE" ]] || die "secrets env file not found: $VERIFY_ENV_FILE (NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY)"
 [[ -d "$KH_REPO_DIR" ]] || die "KH_REPO_DIR does not exist: $KH_REPO_DIR"
@@ -252,13 +247,6 @@ if [[ -z "${COCOINDEX_STAGING_URL:-}" ]]; then
 fi
 log "COCOINDEX_STAGING_URL=${COCOINDEX_STAGING_URL}"
 
-PULLMD_SERVICE_URL="${PULLMD_SERVICE_URL:-}"
-if [[ -z "$PULLMD_SERVICE_URL" && -n "${PULLMD_CONTAINER:-}" ]]; then
-  PULLMD_IP="$(container_ip "$PULLMD_CONTAINER" || true)"
-  [[ -n "$PULLMD_IP" ]] && PULLMD_SERVICE_URL="http://${PULLMD_IP}:3000"
-fi
-log "PULLMD_SERVICE_URL=${PULLMD_SERVICE_URL:-<unset — Tier-4 agpl-boundary will skip>}"
-
 # ──────────────────────────────────────────────────────────────────────────
 # Step 5 — walk pump (background). Tier-1/Tier-2 files stage their OWN
 # fixtures in beforeAll DURING the Vitest run; under ID-83 nothing walks those
@@ -295,8 +283,7 @@ log "step 5: walk pump started (pid=${PUMP_PID}, every ${WALK_PUMP_INTERVAL_SECS
 # docs/runbooks/onprem-b1-deploy.md §ID-62):
 #
 #   LIVE  — Tier-1 (all 20 stage+poll files), Tier-2 (form-extraction{,-rls}),
-#           Tier-3 health-probe + transient-retry, Tier-4 agpl-boundary
-#           (when PULLMD_SERVICE_URL resolves), Tier-5 (all 5 no-gate files).
+#           Tier-3 health-probe + transient-retry, Tier-5 (all 5 no-gate files).
 #
 #   DEFERRED (Tier-3, 6 of 8):
 #     sidecar-cold-start        — needs an operator-driven cold-start cycle
@@ -306,9 +293,8 @@ log "step 5: walk pump started (pid=${PUMP_PID}, every ${WALK_PUMP_INTERVAL_SECS
 #     sidecar-mime-coverage     — beforeAll staging is a 28.18-era stub
 #                                 ("FUTURE: drop one fixture per MIME") — the
 #                                 file polls prefixes nothing stages; enabling
-#                                 it fails deterministically. HTML branch is
-#                                 additionally ID-75-gated (PullMD cannot read
-#                                 staged local files).
+#                                 it fails deterministically. HTML is no longer
+#                                 a file-corpus MIME (ID-75 WP-D / ID-112.7).
 #     sidecar-version-metadata  — beforeAll empty; polls its own random prefix
 #                                 that nothing stages (28.18 stub).
 #     stage-topology            — beforeAll staging stubbed (28.18 stub).
@@ -350,7 +336,6 @@ VITEST_EXIT=0
   export COCOINDEX_STAGING_URL
   export COCOINDEX_FIXTURE_STAGING_URL="$COCOINDEX_STAGING_URL"
   export COCOINDEX_SOURCE_PATH="/cocoindex-state/corpus"
-  export PULLMD_SERVICE_URL
   bun x vitest run --config vitest.integration.config.ts \
     __tests__/integration/cocoindex \
     form-extraction \

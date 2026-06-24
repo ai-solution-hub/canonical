@@ -7,7 +7,7 @@
  * `docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md`):
  *
  * > "For a successfully-processed source file under the supported MIME set
- * > (PDF / DOCX / XLSX via Docling; HTML via pullmd; markdown direct), the
+ * > (PDF / DOCX / XLSX via Docling; HTML via in-process extraction; markdown direct), the
  * > resulting `content_items` row is observable via a primary-key SELECT
  * > within the latency budget defined per `pipeline_runs` SLA at v1
  * > (acceptance-test budget: ≤ 120 s end-to-end on the 35-file canonical
@@ -54,7 +54,7 @@ const TOTAL_BUDGET_MS = PER_FILE_BUDGET_MS + POLL_GRACE_MS;
 beforeAll(async () => {
   if (!ENABLED) return;
   // FUTURE: drop one markdown fixture via the fixture-staging endpoint.
-  // Markdown direct ingest is the fastest path (no Docling / pullmd), so
+  // Markdown direct ingest is the fastest path (no Docling / HTML extraction), so
   // measures the floor of the per-file budget — proves the budget against
   // the easiest-case MIME.
 }, 30_000);
