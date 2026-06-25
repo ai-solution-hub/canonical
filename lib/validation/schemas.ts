@@ -849,7 +849,7 @@ export const ExtractBodySchema = z.object({
 // Procurement Infrastructure Schemas (Phase 6A)
 // ──────────────────────────────────────────
 
-/** POST /api/bids */
+/** POST /api/procurement */
 export const ProcurementCreateBodySchema = z.object({
   name: z.string().trim().min(1, 'Procurement name is required').max(200),
   description: z.string().max(2000).optional(),
@@ -860,7 +860,7 @@ export const ProcurementCreateBodySchema = z.object({
   notes: z.string().max(5000).optional(),
 });
 
-/** PATCH /api/bids/:id */
+/** PATCH /api/procurement/[id] */
 export const ProcurementUpdateBodySchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
   description: z.string().max(2000).nullable().optional(),
@@ -869,32 +869,19 @@ export const ProcurementUpdateBodySchema = z.object({
   reference_number: z.string().max(100).nullable().optional(),
   estimated_value: z.string().max(100).nullable().optional(),
   notes: z.string().max(5000).nullable().optional(),
-  status: z
-    .enum([
-      'draft',
-      'questions_extracted',
-      'matching',
-      'drafting',
-      'in_review',
-      'ready_for_export',
-      'submitted',
-      'won',
-      'lost',
-      'withdrawn',
-    ])
-    .optional(),
+  status: z.enum(PROCUREMENT_WORKFLOW_STATES).optional(),
   submission_date: z.string().datetime({ offset: true }).optional(),
   outcome: z.enum(['won', 'lost', 'withdrawn']).optional(),
   outcome_notes: z.string().max(5000).optional(),
 });
 
-/** POST /api/bids/:id/questions/extract */
+/** POST /api/procurement/[id]/questions/extract */
 export const QuestionExtractBodySchema = z.object({
   document_path: z.string().min(1, 'Document path is required'),
   format: z.enum(['docx', 'pdf']),
 });
 
-/** POST /api/bids/:id/questions */
+/** POST /api/procurement/[id]/questions */
 // NOTE: evaluation_weight is capped at 100 by Zod (for percentage weights),
 // which is intentionally stricter than the DB column NUMERIC(5,2) max of 999.99.
 export const QuestionCreateBodySchema = z.object({
@@ -908,7 +895,7 @@ export const QuestionCreateBodySchema = z.object({
   evaluation_weight: z.number().min(0).max(100).optional(),
 });
 
-/** PATCH /api/bids/:id/questions/:qId */
+/** PATCH /api/procurement/[id]/questions/[qId] */
 export const QuestionUpdateBodySchema = z.object({
   section_name: z.string().max(200).nullable().optional(),
   question_text: z.string().trim().min(1).max(5000).optional(),
@@ -919,7 +906,7 @@ export const QuestionUpdateBodySchema = z.object({
   assigned_to: z.string().uuid().nullable().optional(),
 });
 
-/** POST /api/bids/:id/questions/match */
+/** POST /api/procurement/[id]/questions/match */
 export const QuestionMatchBodySchema = z.object({
   question_ids: z.array(z.string().uuid()).optional(),
   force: z.boolean().default(false),
@@ -929,31 +916,31 @@ export const QuestionMatchBodySchema = z.object({
 // Procurement Response Schemas (Phase 6B)
 // ──────────────────────────────────────────
 
-/** POST /api/bids/:id/responses/draft */
+/** POST /api/procurement/[id]/responses/draft */
 export const ResponseDraftBodySchema = z.object({
   question_ids: z.array(z.string().uuid()).optional(),
   model_tier: z.enum(['analysis', 'drafting']).default('drafting'),
   force: z.boolean().default(false),
 });
 
-/** POST /api/bids/:id/responses/draft-stream — single question, SSE */
+/** POST /api/procurement/[id]/responses/draft-stream — single question, SSE */
 export const ResponseDraftStreamBodySchema = z.object({
   question_id: z.string().uuid(),
   model_tier: z.enum(['analysis', 'drafting']).default('drafting'),
 });
 
-/** POST /api/bids/:id/responses/draft-all */
+/** POST /api/procurement/[id]/responses/draft-all */
 export const ResponseDraftAllBodySchema = z.object({
   model_tier: z.enum(['analysis', 'drafting']).default('drafting'),
   skip_existing: z.boolean().default(true),
 });
 
-/** POST /api/bids/:id/responses/estimate */
+/** POST /api/procurement/[id]/responses/estimate */
 export const CostEstimateBodySchema = z.object({
   skip_existing: z.boolean().default(true),
 });
 
-/** PATCH /api/bids/:id/responses/:rId */
+/** PATCH /api/procurement/[id]/responses/[rId] */
 export const ResponseUpdateBodySchema = z.object({
   response_text: z.string().max(100000).optional(),
   response_text_advanced: z.string().max(100000).nullable().optional(),
@@ -974,25 +961,25 @@ export const TenderExtractedMetadataSchema = z.object({
   confidence: z.number().min(0).max(1),
 });
 
-/** POST /api/bids/:id/responses/:rId/restore */
+/** POST /api/procurement/[id]/responses/[rId]/restore */
 export const ResponseRestoreBodySchema = z.object({
   version: z.number().int().min(1),
 });
 
-/** POST /api/bids/:id/responses/:rId/regenerate */
+/** POST /api/procurement/[id]/responses/[rId]/regenerate */
 export const ResponseRegenerateBodySchema = z.object({
   instructions: z.string().trim().min(1).max(2000),
   model_tier: z.enum(['analysis', 'drafting']).default('drafting'),
 });
 
-/** POST /api/bids/:id/outcome */
+/** POST /api/procurement/[id]/outcome */
 export const ProcurementOutcomeBodySchema = z.object({
   outcome: z.enum(['won', 'lost', 'withdrawn']),
   notes: z.string().max(5000).optional(),
   integrate_to_kb: z.boolean().default(false),
 });
 
-/** POST /api/bids/:id/outcome/integrate */
+/** POST /api/procurement/[id]/outcome/integrate */
 export const KBIntegrationBodySchema = z.object({
   integrations: z.array(
     z.object({
@@ -1020,18 +1007,7 @@ export const KBIntegrationBodySchema = z.object({
 export const ProcurementMetadataSchema = z
   .object({
     buyer: z.string(),
-    status: z.enum([
-      'draft',
-      'questions_extracted',
-      'matching',
-      'drafting',
-      'in_review',
-      'ready_for_export',
-      'submitted',
-      'won',
-      'lost',
-      'withdrawn',
-    ]),
+    status: z.enum(PROCUREMENT_WORKFLOW_STATES),
     deadline: z.string().datetime({ offset: true }).nullable(),
     reference_number: z.string().max(100).nullable(),
     estimated_value: z.string().max(100).nullable(),
@@ -1137,7 +1113,7 @@ export type FormOutcome = z.infer<typeof FormOutcomeSchema>;
 // Procurement Export Schemas (Phase 7A)
 // ──────────────────────────────────────────
 
-/** POST /api/bids/:id/export/docx */
+/** POST /api/procurement/[id]/export/docx */
 export const DocxExportBodySchema = z.object({
   include_cover: z.boolean().default(true),
   include_toc: z.boolean().default(true),
@@ -1147,7 +1123,7 @@ export const DocxExportBodySchema = z.object({
   company_name: z.string().max(200).default(BRANDING.productName),
 });
 
-/** POST /api/bids/:id/export/xlsx */
+/** POST /api/procurement/[id]/export/xlsx */
 export const XlsxExportBodySchema = z.object({
   include_summary: z.boolean().default(true),
   include_unanswered: z.boolean().default(true),
@@ -2079,22 +2055,9 @@ export const InsightsParamsSchema = z.object({
   author: z.string().max(200).optional(),
 });
 
-/** GET /api/bids */
-const VALID_BID_STATUSES = [
-  'draft',
-  'questions_extracted',
-  'matching',
-  'drafting',
-  'in_review',
-  'ready_for_export',
-  'submitted',
-  'won',
-  'lost',
-  'withdrawn',
-] as const;
-
+/** GET /api/procurement */
 export const ProcurementListParamsSchema = z.object({
-  status: z.enum(VALID_BID_STATUSES).optional(),
+  status: z.enum(PROCUREMENT_WORKFLOW_STATES).optional(),
   limit: z
     .number()
     .int()
@@ -2231,7 +2194,7 @@ export const WorkspaceDeleteParamsSchema = z.object({
   permanent: booleanParam.optional(),
 });
 
-/** GET /api/bids/[id]/tender/download */
+/** GET /api/procurement/[id]/tender/download */
 export const TenderDownloadParamsSchema = z.object({
   path: z.string().min(1, 'Storage path is required').max(500),
 });
