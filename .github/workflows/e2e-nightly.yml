@@ -27,6 +27,19 @@ on:
     # Supabase project.
     - cron: "0 4 * * *"
   workflow_dispatch:
+    inputs:
+      specs:
+        description:
+          "Optional space-separated spec paths to run (default: full
+          chromium-desktop project)"
+        required: false
+        default: ""
+      auth_debug:
+        description:
+          "Set to 1 to enable [E2E_AUTH_DEBUG] fixture redirect-cause
+          diagnostics"
+        required: false
+        default: ""
 
 concurrency:
   # Share the cross-PR serialisation group with e2e-smoke + integration so only
@@ -127,9 +140,16 @@ jobs:
           TEST_USER_2_PASSWORD: ${{ secrets.TEST_USER_2_PASSWORD }}
           TEST_USER_3_EMAIL: ${{ vars.TEST_USER_3_EMAIL }}
           TEST_USER_3_PASSWORD: ${{ secrets.TEST_USER_3_PASSWORD }}
+          # Targeted re-run + auth diagnostics (workflow_dispatch only; both empty
+          # on the scheduled run). SPECS is passed via env and expanded unquoted in
+          # run: — NOT inline ${{ }} — per the workflow-injection mitigation. It is
+          # a maintainer-supplied dispatch input (space-separated spec paths), not
+          # attacker-controlled event data.
+          SPECS: ${{ inputs.specs }}
+          E2E_AUTH_DEBUG: ${{ inputs.auth_debug }}
         run:
           bunx playwright test --project=chromium-desktop
-          --global-timeout=3000000 --max-failures=0
+          --global-timeout=3000000 --max-failures=0 $SPECS
 
       - name: Cleanup orphaned content_history rows (staging)
         if: always()
