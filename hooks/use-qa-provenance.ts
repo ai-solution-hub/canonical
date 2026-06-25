@@ -78,9 +78,11 @@ export function useQAProvenance({
       // via nested JOIN. 'bid' maps to 'procurement' per Q-OQR1-02.
       const { data } = await supabase
         .from('content_item_workspaces')
-        .select(
-          'workspace_id, workspaces:workspace_id(id, name, application_types(key))',
-        )
+        // Embed by relation name, not FK column: the client runs in the `api`
+        // schema (lib/supabase/schema.ts), whose views carry no FK constraints,
+        // so `workspaces:workspace_id` 400s with PGRST200. The single FK makes
+        // `workspaces` unambiguous.
+        .select('workspace_id, workspaces(id, name, application_types(key))')
         .eq('content_item_id', itemId);
       if (!data) return [];
       return (data as unknown as WorkspaceJoinRow[])
