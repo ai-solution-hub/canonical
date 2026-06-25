@@ -152,9 +152,20 @@ jobs:
           # attacker-controlled event data.
           SPECS: ${{ inputs.specs }}
           E2E_AUTH_DEBUG: ${{ inputs.auth_debug }}
+          # TEMPORARY (remove when id-130 {130.9} regenerates the api.* views):
+          # exclude the bid-* specs (playwright.config.ts honours E2E_EXCLUDE_BID).
+          # They all fail on `api.bid_questions`, and unskipped the retry storm
+          # truncates the 50-min run so the rest of the suite never executes (S420).
+          E2E_EXCLUDE_BID: "1"
         run:
+          # --workers=3 (parallel — safe now the destructive sign-out test owns a
+          # dedicated user, S420) + --retries=1 (a surfacing lane doesn't need the
+          # PR gate's 2 retries; 1 still absorbs a single flake) override the CI
+          # config defaults (workers=1, retries=2) so the full suite completes
+          # within the budget instead of truncating.
           bunx playwright test --project=chromium-desktop
-          --global-timeout=3000000 --max-failures=0 $SPECS
+          --global-timeout=3000000 --max-failures=0 --workers=3 --retries=1
+          $SPECS
 
       - name: Cleanup orphaned content_history rows (staging)
         if: always()
