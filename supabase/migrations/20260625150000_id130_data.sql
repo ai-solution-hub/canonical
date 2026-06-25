@@ -17,7 +17,8 @@
 --   * squash baseline — form_templates NOT-NULL base columns (workspace_id, name, filename,
 --       storage_path, file_size, mime_type[CHECK pdf/docx/xlsx], status[def 'uploaded'],
 --       ingest_source[def 'pipeline']); procurement_workspaces_workspace_id_key UNIQUE (L8403);
---       form_templates_form_type_fkey → form_types.key ('bid' is a seeded CV key).
+--       form_templates_form_type_fkey → form_types.key ('bid' re-asserted by STEP 0 below —
+--       the 20260617130000 squash dropped the form_types core-CV seed).
 --
 -- IDEMPOTENT / re-runnable on staging:
 --   * mint guarded by NOT EXISTS (one form per workspace; a re-apply does not double-mint);
@@ -28,6 +29,27 @@
 --
 -- domain_metadata is KEPT (NOT dropped) for reversibility — the per-engagement field drop is a
 -- deferred Follow-up (gated on zero readers), not this Subtask.
+
+-- ============================================================================
+-- STEP 0 — re-assert the form_types core CV (squash-regression repair).
+-- The June-17 squash (20260617130000) CREATEd form_types DDL-only and DROPPED the
+-- pre-squash seed (was in 20260520120828); nothing in the post-squash chain re-seeds it,
+-- so a rebuilt DB (e.g. staging, a fresh client DB) has an EMPTY form_types and the STEP 9a
+-- mint's form_templates_form_type_fkey → form_types.key('bid') FK-violates. Idempotent
+-- (ON CONFLICT DO NOTHING): a no-op on prod (8 rows already present, pqq already re-keyed to
+-- psq by spine 20260625120000 STEP 6, which runs before this file). Mirrors the
+-- form_outcome_types self-seed in the spine (line 27) and the seed.sql application_types re-home.
+-- ============================================================================
+INSERT INTO "public"."form_types" ("key", "label", "provenance", "applicable_application_types") VALUES
+    ('bid',                     'Bid',                              'core', ARRAY['procurement']::"text"[]),
+    ('rfp',                     'RFP (Request For Proposal)',       'core', ARRAY['procurement']::"text"[]),
+    ('psq',                     'Selection Questionnaire (SQ/PSQ)', 'core', ARRAY['procurement']::"text"[]),
+    ('itt',                     'ITT (Invitation To Tender)',       'core', ARRAY['procurement']::"text"[]),
+    ('tender',                  'Tender',                           'core', ARRAY['procurement']::"text"[]),
+    ('checklist',               'Checklist',                        'core', ARRAY['procurement','sales_proposal','product_guide']::"text"[]),
+    ('questionnaire',           'Questionnaire',                    'core', ARRAY['procurement','competitor_research']::"text"[]),
+    ('sales_proposal_template', 'Sales Proposal Template',          'core', ARRAY['sales_proposal']::"text"[])
+ON CONFLICT ("key") DO NOTHING;
 
 -- ============================================================================
 -- STEP 9a — T-B22: mint one form_templates row per live procurement workspace.

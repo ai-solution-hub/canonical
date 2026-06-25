@@ -146,6 +146,31 @@ ON CONFLICT (key) DO UPDATE SET
   provenance    = EXCLUDED.provenance,
   updated_at    = now();
 
+-- 2·0b. Core form_types CV (the eight-type durable ontology).
+-- Same squash-fidelity gap as §2·0: the pre-squash form_type seed (in
+-- 20260520120828_t2_combined_pr_intel_shape_b_form_type_split) was FOLDED INTO the
+-- 20260617130000 squash as SCHEMA-only — the squash CREATEd public.form_types but DROPPED
+-- its core DATA rows. On a fresh/reset DB or a freshly-provisioned branch the table is
+-- EMPTY, so any FK to form_types.key breaks (e.g. ID-130 {130.8} mints form_type='bid').
+-- Re-seed all eight client-agnostic core rows here (provenance 'core', identical across
+-- every deployment), mirroring the live Platform/client DBs. Key is 'psq' (NOT the pre-2023
+-- 'pqq' — ID-130 AD-4 re-keyed it for Procurement Act 2023 supplier-selection terminology;
+-- spine 20260625120000 STEP 6). DO UPDATE so a stale label/key self-corrects on re-seed.
+INSERT INTO public.form_types (key, label, provenance, applicable_application_types)
+VALUES
+  ('bid',                     'Bid',                              'core', ARRAY['procurement']),
+  ('rfp',                     'RFP (Request For Proposal)',       'core', ARRAY['procurement']),
+  ('psq',                     'Selection Questionnaire (SQ/PSQ)', 'core', ARRAY['procurement']),
+  ('itt',                     'ITT (Invitation To Tender)',       'core', ARRAY['procurement']),
+  ('tender',                  'Tender',                           'core', ARRAY['procurement']),
+  ('checklist',               'Checklist',                        'core', ARRAY['procurement','sales_proposal','product_guide']),
+  ('questionnaire',           'Questionnaire',                    'core', ARRAY['procurement','competitor_research']),
+  ('sales_proposal_template', 'Sales Proposal Template',          'core', ARRAY['sales_proposal'])
+ON CONFLICT (key) DO UPDATE SET
+  label                        = EXCLUDED.label,
+  provenance                   = EXCLUDED.provenance,
+  applicable_application_types = EXCLUDED.applicable_application_types;
+
 -- 2a. Test workspace (required by feed_prompts, feed_sources, and E2E tests)
 -- NB: `workspaces.type` (was 'bid') was DROPPED in 20260520120828
 -- (t2_combined_pr_intel_shape_b_form_type_split) and replaced by a NOT-NULL

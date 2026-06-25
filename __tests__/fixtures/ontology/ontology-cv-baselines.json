@@ -188,7 +188,7 @@
       "provenance_model": "hybrid",
       "client_extensible": true,
       "editable_via": "admin_ui",
-      "core_seed_path": "supabase/migrations/20260520120828_t2_combined_pr_intel_shape_b_form_type_split.sql",
+      "core_seed_path": "supabase/seed.sql",
       "related_layers": [2, 3, 5],
       "status": "active",
       "baseline_values": [
@@ -205,8 +205,8 @@
           "applicable_application_types": ["procurement"]
         },
         {
-          "key": "pqq",
-          "label": "PQQ (Pre-Qualification Questionnaire)",
+          "key": "psq",
+          "label": "Selection Questionnaire (SQ/PSQ)",
           "provenance": "core",
           "applicable_application_types": ["procurement"]
         },
