@@ -131,12 +131,21 @@ enabled = true
 # The maximum file size allowed (e.g. "5MB", "500KB").
 file_size_limit = "50MiB"
 
-# Uncomment to configure local storage buckets
-# [storage.buckets.images]
-# public = false
-# file_size_limit = "50MiB"
-# allowed_mime_types = ["image/png", "image/jpeg"]
-# objects_path = "./images"
+# Configure local storage buckets
+[storage.buckets.documents]
+public = false
+file_size_limit = "50MiB"
+allowed_mime_types = ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain", "text/markdown"]
+
+[storage.buckets.templates]
+public = false
+file_size_limit = "50MiB"
+allowed_mime_types = ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/json"]
+
+[storage.buckets.tender-documents]
+public = false
+file_size_limit = "50MiB"
+allowed_mime_types = ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
 
 # Uncomment to allow connections via S3 compatible clients
 # [storage.s3_protocol]
@@ -173,7 +182,7 @@ enabled = true
 # in emails.
 site_url = "http://127.0.0.1:3000"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://knowledge-hub-git-staging-tw-group.vercel.app/auth/callback", "https://knowledge-hub-git-production-readiness-tw-group.vercel.app/auth/callback", "https://knowledge-hub-git-production-readiness-tw-group.vercel.app/**", "https://knowledge-hub-git-staging-tw-group.vercel.app/**"]
+additional_redirect_urls = ["https://canonical-platform-git-staging-tw-group.vercel.app/auth/callback", "https://canonical-platform-git-staging-tw-group.vercel.app/**", "https://canonical-platform-git-*-tw-group.vercel.app/**"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to the local API URL (http://127.0.0.1:<port>/auth/v1).
@@ -368,11 +377,11 @@ enabled = false
 # OAuth server configuration
 [auth.oauth_server]
 # Enable OAuth server functionality
-enabled = false
+enabled = true
 # Path for OAuth consent flow UI
 authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
-allow_dynamic_registration = false
+allow_dynamic_registration = true
 
 [edge_runtime]
 enabled = true
