@@ -192,9 +192,21 @@ CREATE INDEX IF NOT EXISTS "idx_q_a_pairs_source_form_template_id" ON "public"."
 
 -- ============================================================================
 -- STEP 6 — form_types pqq -> psq re-key (AD-4)
--- 0 form rows reference the pqq key (FK-safe). Idempotent: no-ops if pqq absent / psq present.
--- ============================================================================
-UPDATE "public"."form_types"
-SET "key" = 'psq',
-    "label" = 'Selection Questionnaire (SQ/PSQ)'
-WHERE "key" = 'pqq';
+-- form_types may carry the legacy 'pqq' key on pre-AD-4 DBs (e.g. platform prod:
+-- 8 keys incl 'pqq'). THREE NO-ACTION FK children reference form_types.key —
+-- form_templates.form_type, form_template_requirements.template_type (66 catalogue
+-- rows on prod), question_matches.question_kind — so a bare UPDATE rename is
+-- impossible (ON UPDATE NO ACTION blocks it regardless of order). Instead: assert
+-- the canonical 'psq' (copying the legacy row's provenance/applicable), repoint
+-- every child off 'pqq', then drop the orphaned 'pqq'. Fully idempotent: a no-op on
+-- fresh DBs (form_types is empty at this point — squash dropped the seed; the
+-- {130.8} data migration STEP 0 + seed.sql assert 'psq' later) and on already-
+-- migrated DBs (staging, where STEP 6 already ran with 0 child references).
+INSERT INTO "public"."form_types" ("key", "label", "provenance", "applicable_application_types")
+  SELECT 'psq', 'Selection Questionnaire (SQ/PSQ)', "provenance", "applicable_application_types"
+  FROM "public"."form_types" WHERE "key" = 'pqq'
+  ON CONFLICT ("key") DO NOTHING;
+UPDATE "public"."form_templates"             SET "form_type"     = 'psq' WHERE "form_type"     = 'pqq';
+UPDATE "public"."form_template_requirements" SET "template_type" = 'psq' WHERE "template_type" = 'pqq';
+UPDATE "public"."question_matches"           SET "question_kind" = 'psq' WHERE "question_kind" = 'pqq';
+DELETE FROM "public"."form_types" WHERE "key" = 'pqq';
