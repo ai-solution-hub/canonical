@@ -20,7 +20,7 @@
 # Callers OVERRIDE the entrypoint (`docker run --entrypoint /bin/sh ... -ec '<tar+upload>'`),
 # so this image declares none (tar + /bin/sh + date come from the base).
 #
-# Build (on the IONOS host):  docker build -t kh-lmdb-backup-tools:latest -f Dockerfile.tools .
+# Build (on the IONOS host):  docker build -t canonical-lmdb-backup-tools:latest -f Dockerfile.tools .
 FROM debian:bookworm-slim
 
 RUN apt-get update \
