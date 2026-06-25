@@ -4,17 +4,18 @@ import userEvent from '@testing-library/user-event';
 import { QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { createTestQueryClient } from '@/__tests__/helpers/query-wrapper';
+import {
+  createMockSupabaseTable,
+  type MockSupabaseTable,
+} from '@/__tests__/helpers/mock-supabase';
 
 // ---------------------------------------------------------------------------
 // Mock Supabase client — the picker fetches its option list at runtime from
-// api.form_types (CV is the single source of truth, T-B12). We mock the
-// `.from('form_types').select(...).contains(...).order(...)` chain.
+// api.form_types (CV is the single source of truth, T-B12) via the
+// `.from('form_types').select(...).contains(...).order(...)` chain, awaited by
+// tryQuery. We use the shared createMockSupabaseTable() factory rather than a
+// hand-rolled chain (__tests__/CLAUDE.md: never hand-roll Supabase mocks).
 // ---------------------------------------------------------------------------
-
-const mockSelect = vi.fn();
-const mockContains = vi.fn();
-const mockOrder = vi.fn();
-const mockFrom = vi.fn();
 
 const { mockCreateClient } = vi.hoisted(() => ({
   mockCreateClient: vi.fn(),
@@ -41,15 +42,17 @@ const FORM_TYPE_ROWS = [
   { key: 'tender', label: 'Tender' },
 ];
 
+let mockClient: MockSupabaseTable;
+
+// Configure the shared single-table mock: the picker awaits the query chain,
+// which resolves to `{ data, error }` (createMockSupabaseTable's thenable).
 function setupMockSupabase(
   data: { key: string; label: string }[] | null = FORM_TYPE_ROWS,
   error: unknown = null,
-) {
-  mockOrder.mockReturnValue(Promise.resolve({ data, error }));
-  mockContains.mockReturnValue({ order: mockOrder });
-  mockSelect.mockReturnValue({ contains: mockContains });
-  mockFrom.mockReturnValue({ select: mockSelect });
-  mockCreateClient.mockReturnValue({ from: mockFrom });
+): MockSupabaseTable {
+  mockClient = createMockSupabaseTable({ data, error });
+  mockCreateClient.mockReturnValue(mockClient);
+  return mockClient;
 }
 
 function renderPicker(
@@ -82,10 +85,11 @@ describe('FormTypePicker', () => {
 
     // CV is the single source of truth — the component queries the view and
     // filters by the procurement application type, rather than hardcoding.
-    expect(mockFrom).toHaveBeenCalledWith('form_types');
-    expect(mockContains).toHaveBeenCalledWith('applicable_application_types', [
-      'procurement',
-    ]);
+    expect(mockClient.from).toHaveBeenCalledWith('form_types');
+    expect(mockClient._chain.contains).toHaveBeenCalledWith(
+      'applicable_application_types',
+      ['procurement'],
+    );
 
     // All 7 procurement-applicable options render, by their UK human labels.
     for (const row of FORM_TYPE_ROWS) {
@@ -178,6 +182,23 @@ describe('FormTypePicker', () => {
     // alone) live inside the selected option.
     expect(selectedOption).toHaveAttribute('aria-checked', 'true');
     expect(selectedOption).toHaveTextContent(/selected/i);
+  });
+
+  it('shows a loading state while the option list is in flight', () => {
+    // Keep the query pending: the awaited chain never settles.
+    mockClient._chain.then.mockImplementation(() => {});
+    renderPicker({ inferredFormType: 'itt' });
+
+    expect(screen.getByRole('status')).toHaveTextContent(/loading form types/i);
+  });
+
+  it('shows an error state when the option list fails to load', async () => {
+    setupMockSupabase(null, { message: 'form_types fetch failed' });
+    renderPicker({ inferredFormType: 'itt' });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /could not load form types/i,
+    );
   });
 });
 
