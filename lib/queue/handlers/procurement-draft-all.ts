@@ -4,8 +4,9 @@
  * Spec: `docs/specs/§5.4.1-batch-draft-all-spec.md` §4 (handler signature),
  * §5 (retry classification), §6.3 (pipeline_runs Pattern 2 linkage).
  * Source-of-truth for the loop body: literal extraction from
- * `app/api/bids/[id]/responses/draft-all/route.ts:80-301` (the pre-S224
- * synchronous loop), with these adjustments:
+ * `app/api/procurement/[id]/responses/draft-all/route.ts` (the pre-S224
+ * synchronous loop, since removed when the route was renamed `bids`→
+ * `procurement`), with these adjustments:
  *
  *   - `form_id` lifted from path-param to body field (per spec §3.1).
  *   - `supabase` is the worker's service-role client (RLS-bypassing).
@@ -60,7 +61,8 @@ export interface ProcurementDraftAllBody extends Record<string, unknown> {
 
 /**
  * Per-question result entry — same shape as the pre-S224 sync route's
- * results array (`app/api/bids/[id]/responses/draft-all/route.ts:131-137`).
+ * results array (`app/api/procurement/[id]/responses/draft-all/route.ts`,
+ * since removed).
  */
 export interface ProcurementDraftAllQuestionResult {
   question_id: string;
