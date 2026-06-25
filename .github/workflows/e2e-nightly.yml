@@ -103,6 +103,47 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: bun run cleanup:stale-test-artifacts
 
+      - name: Build (Next.js prod)
+        # id-128 {128.6}: the nightly serves a local PRODUCTION build via `next
+        # start` (the run step sets PLAYWRIGHT_WEB_SERVER_CMD='bun run start')
+        # instead of `bun dev`. `next dev` compiles each route on first hit; under
+        # --workers=3 on a 2-core runner that produced run #9's 196 ×
+        # `page.goto: Timeout 15000ms` storm. A prod build is precompiled, so the
+        # cold-compile cliff — and the cascade + 50-min truncation — disappear.
+        #
+        # ★ LOAD-BEARING: NEXT_PUBLIC_E2E (and every NEXT_PUBLIC_*) is client-
+        # inlined (lib/env-client.ts) and therefore BAKED AT BUILD TIME, not at
+        # `next start`. It MUST be set in THIS step's env, or the served bundle
+        # lacks E2E test-mode (overlay/third-party suppression) and specs flake.
+        # Env block mirrors ci.yml's "Build (Next.js)" step + NEXT_PUBLIC_E2E.
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          # Production stores bare names; mirror to NEXT_PUBLIC_* for the client schema.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
+            ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+          NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
+          # ★ Bakes E2E test mode into the served bundle (see note above).
+          NEXT_PUBLIC_E2E: "true"
+          # VERCEL_GIT_COMMIT_SHA is Vercel-only; substitute github.sha so the Sentry release tag resolves.
+          VERCEL_GIT_COMMIT_SHA: ${{ github.sha }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          AI_SUMMARY_MODEL: ${{ vars.AI_SUMMARY_MODEL }}
+          AI_EMBEDDING_MODEL: ${{ vars.AI_EMBEDDING_MODEL }}
+          AI_EMBEDDING_DIMS: ${{ vars.AI_EMBEDDING_DIMS }}
+          CLASSIFICATION_BATCH_SIZE: ${{ vars.CLASSIFICATION_BATCH_SIZE }}
+        run: bun run build
+
       - name: Run Playwright (full chromium-desktop project)
         # --global-timeout / --max-failures override the smoke-tuned config caps
         # (playwright.config.ts sets globalTimeout 12min + maxFailures 5 under
@@ -111,6 +152,10 @@ jobs:
         # the first five. --global-timeout=3000000 (50min) sits under the
         # 60-min job cap.
         env:
+          # id-128 {128.6}: serve the prebuilt app via `next start` (the Build
+          # step above) instead of `bun dev` — routes are precompiled, so there is
+          # no compile-on-first-hit. Smoke/local leave this unset → `bun dev`.
+          PLAYWRIGHT_WEB_SERVER_CMD: "bun run start"
           # Staging Supabase connection — env scope resolves these from the
           # `Staging` GH environment.
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}

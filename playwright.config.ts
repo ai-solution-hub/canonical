@@ -120,7 +120,12 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'bun dev',
+    // id-128 {128.6}: the nightly serves a local PRODUCTION build via `next start`
+    // (it sets PLAYWRIGHT_WEB_SERVER_CMD='bun run start'), so every route is
+    // precompiled — there is NO next-dev compile-on-first-hit, which is what
+    // produced run #9's `page.goto: Timeout 15000ms` storm under --workers=3.
+    // Smoke + local default to `bun dev` (env unset) — unchanged.
+    command: process.env.PLAYWRIGHT_WEB_SERVER_CMD ?? 'bun dev',
     port: Number(process.env.PLAYWRIGHT_WEB_SERVER_PORT ?? 3000),
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
