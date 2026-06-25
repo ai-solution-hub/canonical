@@ -77,6 +77,15 @@ ALTER FUNCTION "public"."get_content_win_rate"("p_content_item_id" "uuid") OWNER
 -- Re-emit public grants (CREATE OR REPLACE preserves the existing ACL, but re-stating is
 -- idempotent and keeps the least-privilege posture explicit; public is not Data-API-exposed).
 REVOKE ALL ON FUNCTION "public"."get_content_win_rate"("p_content_item_id" "uuid") FROM PUBLIC;
+-- Strip the residual explicit anon grant. CREATE OR REPLACE preserves the prior ACL and
+-- REVOKE … FROM PUBLIC does NOT remove an explicit anon role grant — and live staging shows
+-- public.get_content_win_rate still grants anon. generate-api-views.ts mirrors the PUBLIC fn's
+-- proacl roles onto the api wrapper, so leaving anon here would make {130.9} regenerate the
+-- api.get_content_win_rate wrapper WITH anon, drifting from the live no-anon api wrapper
+-- (ID-115 removed it) → generate-api-views --check failure. Revoking anon here aligns the
+-- public fn with get_aggregate_win_rate_stats' posture (authenticated+service_role only) and
+-- ID-115 least-privilege.
+REVOKE EXECUTE ON FUNCTION "public"."get_content_win_rate"("p_content_item_id" "uuid") FROM "anon";
 GRANT ALL ON FUNCTION "public"."get_content_win_rate"("p_content_item_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_content_win_rate"("p_content_item_id" "uuid") TO "service_role";
 
