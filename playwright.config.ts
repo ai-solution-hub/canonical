@@ -44,11 +44,14 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : 3,
   // id-128 {128.7}: the sharded nightly sets PW_BLOB_REPORT=1 so each shard emits
-  // a `blob` report; a downstream `merge-reports` job stitches the shards into one
-  // aggregated HTML report. Smoke + non-sharded CI keep html/list/github; local
-  // keeps html/list. (Unset PW_BLOB_REPORT → unchanged for every existing lane.)
+  // a `blob` report (the merge source) ALONGSIDE `list` + `github` — blob alone
+  // suppresses all console output, so the shard CI logs would be empty and the
+  // surfacing lane would show zero failure detail (only the merged HTML artifact
+  // would). `merge-reports` reads the blob and ignores the rest. Smoke +
+  // non-sharded CI keep html/list/github; local keeps html/list. (Unset
+  // PW_BLOB_REPORT → unchanged for every existing lane.)
   reporter: process.env.PW_BLOB_REPORT
-    ? [['blob']]
+    ? [['blob'], ['list'], ['github']]
     : process.env.CI
       ? [['html'], ['list'], ['github']]
       : [['html'], ['list']],
