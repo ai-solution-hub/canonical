@@ -12,7 +12,7 @@ export const selectors = {
     header: 'header',
     mainNav: 'nav[aria-label="Main navigation"]',
     mobileNav: 'nav[aria-label="Mobile navigation"]',
-    homeLink: 'a:has-text("Knowledge Hub")',
+    homeLink: 'a:has-text("Canonical")',
     browseLink: 'a[href="/browse"]',
     libraryLink: 'a[href="/library"]',
     coverageLink: 'a[href="/coverage"]',

@@ -172,10 +172,8 @@ authTest.describe('Authentication — authenticated session', () => {
     async ({ authenticatedPage: page }) => {
       await page.goto('/');
 
-      // The home page should have the Knowledge Hub brand in the header
-      await expect(
-        page.getByRole('link', { name: 'Knowledge Hub' }),
-      ).toBeVisible();
+      // The home page should have the Canonical brand in the header
+      await expect(page.getByRole('link', { name: 'Canonical' })).toBeVisible();
 
       // Should NOT be on the login page
       await expect(page).not.toHaveURL(/\/login/);
@@ -256,7 +254,7 @@ authTest.describe('Authentication — authenticated session', () => {
       await page.waitForURL('**/login**', { timeout: 10000 });
       await expect(page).toHaveURL(/\/login/);
       await expect(
-        page.getByRole('heading', { name: 'Knowledge Hub' }),
+        page.getByRole('heading', { name: 'Canonical' }),
       ).toBeVisible();
 
       // Prove the session is actually dead — hitting a protected page

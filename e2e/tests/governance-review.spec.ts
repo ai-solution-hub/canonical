@@ -253,9 +253,9 @@ test.describe('Review page — queue state', () => {
     authenticatedPage: page,
   }) => {
     await page.goto('/');
-    await expect(page.getByRole('link', { name: 'Knowledge Hub' })).toBeVisible(
-      { timeout: 10000 },
-    );
+    await expect(page.getByRole('link', { name: 'Canonical' })).toBeVisible({
+      timeout: 10000,
+    });
 
     // Use responsive helper — opens hamburger on mobile, clicks directly on desktop
     await navigateViaHeader(page, 'Review');

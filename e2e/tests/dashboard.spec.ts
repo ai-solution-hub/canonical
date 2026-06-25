@@ -20,15 +20,15 @@ import { isMobileViewport, searchFromHeader } from '../helpers/responsive';
 // ---------------------------------------------------------------------------
 
 test.describe('Dashboard -- hero and search', () => {
-  test('dashboard loads with Knowledge Hub heading and hero search', async ({
+  test('dashboard loads with Canonical heading and hero search', async ({
     authenticatedPage: page,
   }) => {
     await page.goto('/');
 
     // h1 heading
-    await expect(
-      page.getByRole('heading', { name: 'Knowledge Hub' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Canonical' })).toBeVisible({
+      timeout: 10000,
+    });
 
     // Hero search input within the Search section
     const searchSection = page.locator('section[aria-label="Search"]');
@@ -43,9 +43,9 @@ test.describe('Dashboard -- hero and search', () => {
   }) => {
     await page.goto('/');
 
-    await expect(
-      page.getByRole('heading', { name: 'Knowledge Hub' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Canonical' })).toBeVisible({
+      timeout: 10000,
+    });
 
     if (isMobileViewport(page)) {
       // On mobile, the hero search bar is still visible on the dashboard.
@@ -76,9 +76,9 @@ test.describe('Dashboard -- attention and bids sections', () => {
   }) => {
     await page.goto('/');
 
-    await expect(
-      page.getByRole('heading', { name: 'Knowledge Hub' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Canonical' })).toBeVisible({
+      timeout: 10000,
+    });
 
     // UnifiedAttentionSection has aria-label="Items needing attention"
     const attentionSection = page
@@ -92,9 +92,9 @@ test.describe('Dashboard -- attention and bids sections', () => {
   }) => {
     await page.goto('/');
 
-    await expect(
-      page.getByRole('heading', { name: 'Knowledge Hub' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Canonical' })).toBeVisible({
+      timeout: 10000,
+    });
 
     // ActiveBidsSection has aria-label="Active bids"
     // Use .first() in case Suspense re-render creates a transient duplicate
@@ -222,9 +222,9 @@ test.describe('Dashboard -- compliance status', () => {
   }) => {
     await page.goto('/');
 
-    await expect(
-      page.getByRole('heading', { name: 'Knowledge Hub' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Canonical' })).toBeVisible({
+      timeout: 10000,
+    });
 
     // ComplianceStatusSection has aria-label="Compliance status"
     const complianceSection = page
@@ -256,9 +256,9 @@ test.describe('Dashboard -- reorientation', () => {
   }) => {
     await page.goto('/');
 
-    await expect(
-      page.getByRole('heading', { name: 'Knowledge Hub' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Canonical' })).toBeVisible({
+      timeout: 10000,
+    });
 
     // The WelcomeBack component renders a <p role="status"> with a greeting
     // that depends on time of day: "Good morning", "Good afternoon", or "Good evening"
@@ -279,9 +279,9 @@ test.describe('Dashboard -- recent activity', () => {
   }) => {
     await page.goto('/');
 
-    await expect(
-      page.getByRole('heading', { name: 'Knowledge Hub' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Canonical' })).toBeVisible({
+      timeout: 10000,
+    });
 
     // Recent activity section (defined in app/page.tsx with aria-label)
     const activitySection = page
@@ -304,10 +304,10 @@ test.describe('Dashboard -- viewer role', () => {
   }) => {
     await page.goto('/');
 
-    // Knowledge Hub heading is visible — viewer can access the dashboard
-    await expect(
-      page.getByRole('heading', { name: 'Knowledge Hub' }),
-    ).toBeVisible({ timeout: 10000 });
+    // Canonical heading is visible — viewer can access the dashboard
+    await expect(page.getByRole('heading', { name: 'Canonical' })).toBeVisible({
+      timeout: 10000,
+    });
 
     // Hero search is available for viewer
     const searchSection = page.locator('section[aria-label="Search"]');
@@ -327,9 +327,9 @@ test.describe('Dashboard -- mobile layout', () => {
 
     await page.goto('/');
 
-    await expect(
-      page.getByRole('heading', { name: 'Knowledge Hub' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Canonical' })).toBeVisible({
+      timeout: 10000,
+    });
 
     // Hero search should still be visible on mobile
     const searchSection = page.locator('section[aria-label="Search"]');
@@ -374,9 +374,9 @@ test.describe('Dashboard -- partial-failure warnings banner', () => {
   }) => {
     await page.goto('/');
 
-    await expect(
-      page.getByRole('heading', { name: 'Knowledge Hub' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Canonical' })).toBeVisible({
+      timeout: 10000,
+    });
 
     // Wait for at least one downstream Suspense boundary to resolve so the
     // assertion runs against the fully-hydrated dashboard, not the skeleton

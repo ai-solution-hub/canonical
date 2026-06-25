@@ -2,7 +2,7 @@
  * WP2 Phase 1 spec — 8.0.1 OAuth consent flow
  *
  * IMPORTANT — corrected after Phase 2 adversarial review:
- *   Knowledge Hub does NOT have custom `mcp_oauth_*` tables. OAuth is fully
+ *   Canonical does NOT have custom `mcp_oauth_*` tables. OAuth is fully
  *   delegated to Supabase Auth's built-in OAuth (`supabase.auth.oauth.*`).
  *   The consent route is `/oauth/consent?authorization_id=<id>` (NOT
  *   `/oauth/authorize?...`). Authorization, grant, code, and token state
