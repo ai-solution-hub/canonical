@@ -1632,26 +1632,22 @@ async function runWriteToolChecks(
   // Track items created for cleanup
   const createdItemIds: string[] = [];
 
-  // FC-60: create_content_item — config-gated on the cocoindex worker. On the
-  // platform there is no worker (COCOINDEX_WORKER_URL unset = bl-301); the
-  // folder-drop ingest path raises a loud config error by design
-  // (lib/upload/folder-drop.ts:137), so config-skip rather than fail — this
-  // auto-runs once a platform worker is provisioned (FC-106 infra-skip precedent).
-  if (!process.env.COCOINDEX_WORKER_URL) {
-    record(
-      'Write Tools',
-      'FC-60',
-      'create_content_item',
-      'SKIP',
-      'COCOINDEX_WORKER_URL unset — folder-drop ingest unavailable (bl-301 platform worker); infra-skipped',
-    );
-  } else {
+  // FC-60: create_content_item — exercised via the SYNCHRONOUS reference_ingest
+  // branch (source_url supplied), so the tool returns a real content_items UUID
+  // immediately with no dependency on the cocoindex worker. The source-less
+  // folder-drop /stage→/walk path is async + compose-internal by design (Inv-13)
+  // and returns no synchronous id, so it is unsuitable for a deterministic
+  // functional-correctness check — that round-trip stays covered by the
+  // integration suite. primary_domain is set to skip the classify call.
+  {
     const result = await callTool(
       'create_content_item',
       {
         title: '[MCP-EVAL] FC-60 functional correctness test',
         content: 'Temporary item for functional correctness evaluation.',
         content_type: 'note',
+        source_url: 'https://example.com/mcp-eval/fc-60',
+        primary_domain: 'general',
         governance_review_status: 'draft',
       },
       accessToken,
@@ -2094,25 +2090,20 @@ async function runWriteToolChecks(
     }
   }
 
-  // FC-65: delete_content_item — config-gated on the cocoindex worker (setup
-  // creates an item via folder-drop ingest first). On the platform there is no
-  // worker (COCOINDEX_WORKER_URL unset = bl-301); config-skip rather than fail
-  // (FC-60 / FC-106 precedent).
-  if (!process.env.COCOINDEX_WORKER_URL) {
-    record(
-      'Write Tools',
-      'FC-65',
-      'delete_content_item',
-      'SKIP',
-      'COCOINDEX_WORKER_URL unset — cannot create the delete-test item (bl-301 platform worker); infra-skipped',
-    );
-  } else {
+  // FC-65: delete_content_item — creates the delete-test item via the
+  // SYNCHRONOUS reference_ingest branch (source_url supplied) so it returns a
+  // real UUID to delete, with no cocoindex-worker dependency (see FC-60). The
+  // async folder-drop create returns no synchronous id and so could not seed a
+  // deterministic delete target.
+  {
     const createResult = await callTool(
       'create_content_item',
       {
         title: '[MCP-EVAL] FC-65 delete test',
         content: 'Temporary item for delete_content_item test.',
         content_type: 'note',
+        source_url: 'https://example.com/mcp-eval/fc-65',
+        primary_domain: 'general',
         governance_review_status: 'draft',
       },
       accessToken,
