@@ -1,0 +1,113 @@
+# deploy/coolify/docker-compose.goose.yaml
+#
+# ID-71.26 — Wave 3: goose runtime substrate on the co-located IONOS/Coolify box
+#            (pilot-gated). A NEW Coolify-managed service, its OWN container — it
+#            does NOT share the cocoindex image/compose (docker-compose.production.yaml).
+#
+# Spec:    ${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-71-ai-tooling/goose-pilot-deploy-plan.md
+#          + TECH.md §MVP (B-INV-18/21, HC-1/HC-2/HC-4)
+# Subtask: task-list id 71, subtask 26
+#
+# DESIGN (ratified, goose-pilot-deploy-plan.md §Decisions):
+#   - BOOT-IDLE: the container boots to `sleep infinity` and NEVER runs goose on
+#     start. The pilot recipe fires ONLY via ONE Coolify *scheduled task* invoking
+#     /goose/run-pilot.sh (mirrors the cocoindex boot-never-walks burn gate). Real
+#     cost risk is Anthropic token-burn, not local compute (inference = remote
+#     Anthropic, MCP = remote Vercel); boot-idle bounds it to one run per tick.
+#   - HEALTHCHECK = pgrep on the idle process — NO goosed daemon, NO TLS port — so
+#     it sidesteps goose #7685 (self-signed-TLS health-probe wrinkle).
+#   - REMOTE-MCP: the recipe reaches KH at ${GOOSE_MCP_URL} (prod /api/mcp/mcp) with
+#     a Supabase OAuth bearer + `X-MCP-Actor: headless` (lib/mcp/actor.ts opt-in →
+#     propose-writes allowed, publication REFUSED).
+#
+# Secrets discipline (inv 10): NO literal secret values here. Every secret is a
+#   ${VAR} ref injected by Coolify's per-app encrypted env at deploy time.
+#
+# Image-tag discipline: NEVER a tag (never :latest). The image is DIGEST-pinned
+#   (pin-and-soak, B-INV-21). GOOSE_IMAGE_DIGEST is a required var resolved from
+#   release v1.38.0 — compose refuses to start if unset.
+#   # TODO(G1, B-INV-21): resolve the sha256 digest of ghcr.io/block/goose:v1.38.0
+#   #   (`docker buildx imagetools inspect ghcr.io/block/goose:v1.38.0`) and set
+#   #   GOOSE_IMAGE_DIGEST in Coolify. Ratifying this pin is the G6 adopt gate.
+
+name: kh-goose-pilot
+
+services:
+  # ----------------------------------------------------------------------------
+  # goose — headless KH runtime (goose `goose run` + remote-MCP, NOT the goosed
+  # daemon). Co-located on the Platform box (Server B 87.106.72.59) which already
+  # runs cocoindex. Sized conservatively: the ~16 GB box already carries burn-guard
+  # pressure from the ~5.3 GB cocoindex build, so this container is capped at 512M.
+  # ----------------------------------------------------------------------------
+  goose:
+    # DIGEST-pinned, never a tag. The var value MUST be `sha256:<digest>` resolved
+    # from v1.38.0 (see TODO above). The :? guard fails the deploy if it is unset.
+    image: "ghcr.io/block/goose@${GOOSE_IMAGE_DIGEST:?set to sha256:<digest> resolved from ghcr.io/block/goose:v1.38.0 — never a tag (B-INV-21 pin-and-soak)}"
+    restart: unless-stopped
+
+    # BOOT-IDLE (the burn gate). The container does nothing until the Coolify
+    # scheduled task invokes /goose/run-pilot.sh. A deploy/restart therefore costs
+    # ZERO Anthropic spend by construction — identical guarantee to cocoindex's
+    # boot-never-walks. Do NOT replace this with a goose entrypoint.
+    command: ["sleep", "infinity"]
+
+    # Resource caps — conservative on the shared ~16 GB box (cocoindex co-tenant).
+    # Local footprint is orchestration/IO only (inference is remote Anthropic), so
+    # 512M is generous headroom; watch the burn guard during the G5 soak.
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          memory: 128M
+
+    environment:
+      # --- goose provider/model (mirrors goose/config.yaml; env wins) ---
+      GOOSE_PROVIDER: ${GOOSE_PROVIDER:-anthropic}
+      # OQ-E (Liam ratify at G1): confirm the exact model id for the pilot.
+      GOOSE_MODEL: ${GOOSE_MODEL:-claude-sonnet-4-6}
+      # Anthropic inference key — the ONLY real spend path. Injected by Coolify.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+
+      # --- Remote-MCP target (KH MCP server, Streamable-HTTP transport) ---
+      # Default = PROD MCP endpoint (APP_URL + /api/mcp/[transport] → transport `mcp`).
+      # Override per-env in Coolify to point at staging.
+      # OQ-E (Liam ratify at G1): confirm the prod MCP URL.
+      GOOSE_MCP_URL: ${GOOSE_MCP_URL:-https://kh.aisolutionhub.co.uk/api/mcp/mcp}
+
+      # --- Outbound push channel (the FC delivery leg, M30/HC-4) ---
+      # OQ-C (Liam ratify at G4): the concrete push webhook. push-channel.ts is a
+      # server lib (not an MCP tool), so the pilot's push leg is a builtin-shell
+      # curl in run-pilot.sh until it is wrapped as a `deliver_briefing` MCP tool.
+      MCP_PUSH_WEBHOOK_URL: ${MCP_PUSH_WEBHOOK_URL}
+
+      # --- Headless service-actor (mints the per-run Supabase OAuth bearer) ---
+      # OQ-B (Liam ratify at G2): a DEDICATED `editor`-role Supabase service-actor
+      # user + per-run password-grant (recommended) vs goose-native OAuth. run-pilot.sh
+      # password-grants these for a short-lived bearer; the `editor` role earns
+      # propose-writes (drafts) but publication stays human-gated (B-INV-6).
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY}
+      GOOSE_SERVICE_ACTOR_EMAIL: ${GOOSE_SERVICE_ACTOR_EMAIL}
+      GOOSE_SERVICE_ACTOR_PASSWORD: ${GOOSE_SERVICE_ACTOR_PASSWORD}
+
+    volumes:
+      # Recipe + config + wrapper provisioning.
+      # OQ-D (Liam ratify at G3): Coolify BIND-MOUNT (recommended — keeps the recipe
+      # versioned in-repo, redeploy-stable) vs Coolify file-mounts. Bind-mounts the
+      # in-repo goose dir read-only at /goose; run-pilot.sh + o4-pilot.yaml +
+      # config.yaml all resolve under /goose. In Coolify set the app "Base Directory"
+      # to this compose's dir so the relative ./goose source path resolves.
+      - ./goose:/goose:ro
+
+    # Liveness probe — #7685-safe. We do NOT run goosed (no ~103-endpoint REST
+    # surface, no self-signed TLS port), so we probe the idle process directly.
+    # pgrep is in coreutils/procps; if the goose image lacks it, fall back to a
+    # marker-file touched by run-pilot.sh (resolve at G1 image tool-probe).
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'sleep infinity' >/dev/null 2>&1 || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 20s

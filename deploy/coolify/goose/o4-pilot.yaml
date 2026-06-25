@@ -1,0 +1,70 @@
+# deploy/coolify/goose/o4-pilot.yaml
+#
+# ID-71.27 — Wave 3: the MVP pilot recipe (riskiest-assumption-first proof).
+# Satisfies B-INV-18/21 (M18/M21, §MVP). Exercises, in ONE slice:
+#   HC-1  briefing read     — read the O4 reorientation via remote-MCP.
+#   HC-2  propose-row       — create_content_item with publication_status=draft (M30).
+#   HC-4  push + queue write — deliver to ONE outbound channel + the propose-row.
+#
+# Spec: ${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-71-ai-tooling/{TECH.md §MVP, goose-pilot-deploy-plan.md}
+# Subtask: task-list id 71, subtask 27.
+#
+# GATE: goose is committed as the launch substrate ONLY on pilot success (the
+#       reorientation_briefing workflow is propose-only — auto-apply is OFF at
+#       launch, lib/mcp/actor.ts AUTO_APPLY_WORKFLOWS.reorientation_briefing=false).
+#
+# OQ-E (Liam ratify at G1): confirm the goose recipe schema (extension type/header
+#   templating) against the pinned v1.38.0 and the prod MCP URL.
+
+version: "1.0.0"
+title: "O4 reorientation pilot — briefing → push + propose-row"
+description: >-
+  Headless O4 reorientation briefing. Reads the current reorientation snapshot from
+  Knowledge Hub over remote-MCP, drafts ONE briefing, delivers it to one outbound
+  channel, and files ONE draft (propose-row) into the review queue. Never publishes.
+
+# Remote-MCP into KH. Streamable-HTTP transport at /api/mcp/mcp. The bearer is
+# minted per-run by run-pilot.sh (password-grant for the editor service-actor) and
+# exported as MCP_BEARER_TOKEN; X-MCP-Actor: headless opts into the headless posture
+# (propose-writes allowed, publication refused at the surface — B-INV-6).
+extensions:
+  - type: streamable_http
+    name: knowledge-hub
+    uri: "${GOOSE_MCP_URL}"
+    headers:
+      Authorization: "Bearer ${MCP_BEARER_TOKEN}"
+      X-MCP-Actor: "headless"
+    # Generous timeout — remote Vercel + Anthropic round-trips.
+    timeout: 300
+    bundled: false
+
+settings:
+  goose_provider: anthropic
+  goose_model: claude-sonnet-4-6
+
+# Persistent guidance for the run. Propose-only is non-negotiable: a headless actor
+# CANNOT publish (the surface refuses it). The whole pilot is one read + one draft +
+# one push — no loops, no bulk writes, no publish attempts.
+instructions: >-
+  You are the Knowledge Hub headless reorientation agent, running one scheduled
+  pilot tick. You may ONLY use the knowledge-hub MCP tools. You are a headless
+  actor: you may create draft/propose-write content but you MUST NOT publish — the
+  surface will refuse a publish and route it to the human gate. Do exactly the
+  steps in the prompt, once, then stop. Do not retry destructively or fan out.
+
+prompt: >-
+  1. Read the current O4 reorientation briefing from Knowledge Hub via the
+     reorientation MCP tool (HC-1).
+  2. Compose ONE concise reorientation briefing from what you read.
+  3. Deliver that briefing to the single configured outbound channel (HC-4 push).
+     # OQ-C (Liam ratify at G4): push-channel.ts is a server lib, not yet an MCP
+     # tool. Until a `deliver_briefing` MCP tool exists, the push leg posts to
+     # ${MCP_PUSH_WEBHOOK_URL} via the builtin shell (curl) — confirm the webhook.
+  4. Create EXACTLY ONE content item via create_content_item with
+     publication_status = draft (the propose-row / queue write, HC-2/M30). Do NOT
+     publish it. Stop after one draft.
+
+# Single scheduled tick per invocation (Coolify scheduled task → run-pilot.sh). No
+# in-recipe loop: one read, one push, one propose-row, then exit.
+retry:
+  max_retries: 0
