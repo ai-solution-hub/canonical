@@ -65,9 +65,11 @@ export default async function ItemDetailPage({
     tryQuery(
       supabase
         .from('feed_articles')
-        .select(
-          'published_at, feed_sources:feed_source_id (name, url, source_type)',
-        )
+        // Embed by relation name, not FK column: the client runs in the `api`
+        // schema (lib/supabase/schema.ts), whose views carry no FK constraints,
+        // so `feed_sources:feed_source_id` 400s with PGRST200. The single FK
+        // makes `feed_sources` unambiguous.
+        .select('published_at, feed_sources (name, url, source_type)')
         .eq('content_item_id', id)
         .maybeSingle(),
       'item.detail.feed_article',
