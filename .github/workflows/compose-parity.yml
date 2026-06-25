@@ -1,0 +1,57 @@
+# Compose structural-parity guard (ID-127.8 / BI-15 Change B).
+#
+# Asserts the Platform PRODUCTION ingestion compose
+# (deploy/coolify/docker-compose.platform.yaml) still conforms to the shared
+# cocoindex service structural template: the ${COCOINDEX_IMAGE_TAG:?} hard-fail
+# image form, the /cocoindex-state/lmdb engine wiring, the Traefik
+# /walk + /health + /extract path scope, the bash /dev/tcp healthcheck probe,
+# and the required env keyset (TECH.md §BI-15 Change B).
+#
+# WARN-ONLY / NON-REQUIRED (mirrors token-parity.yml, ID-114):
+#   This workflow is intentionally NOT listed in ci.yml and must never become a
+#   required check. It surfaces structural drift on push to main (a build-time
+#   warning) and on demand via workflow_dispatch — an operator decides, the
+#   merge is not blocked. v1 is deliberately advisory.
+#
+# Unlike token-parity, this guard needs NO private-docs bridge: the compose it
+# checks lives in this repo, so the job is a plain checkout + Bun run.
+
+name: compose-parity
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "deploy/coolify/**"
+      - "scripts/ci/check-compose-parity.ts"
+      - ".github/workflows/compose-parity.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: compose-parity-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Platform compose structural parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.0
+        with:
+          fetch-depth: 1
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.4"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run compose-parity guard
+        run: bun run scripts/ci/check-compose-parity.ts
