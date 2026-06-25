@@ -362,6 +362,31 @@ export const queryKeys = {
         ['procurement', 'forms', 'list', procurementId] as const,
       detail: (formId: string) =>
         ['procurement', 'forms', 'detail', formId] as const,
+      // -------------------------------------------------------------------
+      // Form-scoped composer handles (ID-130 {130.15}, TECH T-B20). The
+      // composer re-anchors from the workspace altitude to the FORM: a form's
+      // questions (B-4 re-key), the per-question response, and the form's
+      // readiness roll-up. These EXTEND the {130.12}/{130.13} namespace (new
+      // members only) and mirror the umbrella-scoped `procurement.questions` /
+      // `responseByQuestion` / `readiness` keys, re-keyed to the form template.
+      // Match candidates remain corpus-level (B-20 guardrail) — these key only
+      // the form-scoped QUESTIONS, never the corpus.
+      // -------------------------------------------------------------------
+      /** The question set for one form (re-keyed from workspace → form, B-4). */
+      questions: (formTemplateId: string) =>
+        ['procurement', 'forms', formTemplateId, 'questions'] as const,
+      /** The current response to one of a form's questions. */
+      responseByQuestion: (formTemplateId: string, questionId: string) =>
+        [
+          'procurement',
+          'forms',
+          formTemplateId,
+          'response-by-question',
+          questionId,
+        ] as const,
+      /** The form's readiness roll-up (per-form, not umbrella-wide). */
+      readiness: (formTemplateId: string) =>
+        ['procurement', 'forms', formTemplateId, 'readiness'] as const,
     },
     /**
      * Controlled-vocabulary form_type options, fetched at runtime from
