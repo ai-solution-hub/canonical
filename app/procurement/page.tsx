@@ -74,11 +74,11 @@ export default function FormsPage() {
   const fetchProcurements = useCallback(async () => {
     try {
       const response = await fetch('/api/procurement');
-      if (!response.ok) throw new Error('Failed to fetch bids');
+      if (!response.ok) throw new Error('Failed to fetch procurements');
       const data = await response.json();
       setProcurements(data.procurements ?? []);
     } catch (err) {
-      logger.error({ err }, 'Failed to load bids');
+      logger.error({ err }, 'Failed to load procurements');
       toast.error('Failed to load procurements');
     } finally {
       setLoading(false);
