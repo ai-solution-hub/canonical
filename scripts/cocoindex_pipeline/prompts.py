@@ -116,7 +116,7 @@ Return ONLY a single JSON object — no markdown fences, no commentary, no pream
 FIELD CONSTRAINTS
 
 - extraction_kind: MUST be the exact string "q_a_form".
-- form_metadata.form_type: MUST be ONE of: bid, rfp, pqq, itt, tender, checklist, questionnaire, sales_proposal_template.
+- form_metadata.form_type: MUST be ONE of: bid, rfp, psq, itt, tender, checklist, questionnaire, sales_proposal_template.
 - form_metadata.form_format: MUST be ONE of: docx, xlsx, pdf, html, md.
 - form_metadata.deadline: if present, MUST be a valid ISO 8601 UTC datetime string (e.g. "2026-06-30T17:00:00Z").
 - qa_pairs[*].question_text: non-empty string verbatim from the document.
@@ -127,7 +127,7 @@ FIELD CONSTRAINTS
 
 GUIDANCE
 
-- Choose `bid` / `rfp` / `pqq` / `itt` / `tender` for procurement forms; `checklist` / `questionnaire` for non-procurement structured forms; `sales_proposal_template` for outbound sales templates.
+- Choose `bid` / `rfp` / `psq` / `itt` / `tender` for procurement forms; `checklist` / `questionnaire` for non-procurement structured forms; `sales_proposal_template` for outbound sales templates.
 - Mark a question `mandatory` when the form indicates a required response (e.g. "must", "required", marked with asterisks); otherwise `optional`.
 - If the document is NOT a form (e.g. a policy or methodology), still return a valid JSON object with `qa_pairs: []` — do NOT invent Q&A pairs from non-form content.
 - Use UK English (organise, behaviour, colour) in any descriptive fields.

@@ -4,10 +4,10 @@
  *
  * Reads the LOCAL Supabase Postgres catalog (post-`db reset`) and emits the
  * idempotent migration
- * `supabase/migrations/20260623140000_id115_api_views_and_rpcs.sql` (re-timestamped
- * after the 20260617130000 squash baseline — see OUTPUT_FILE below):
+ * `supabase/migrations/20260625160000_id130_api_views_regen.sql` (re-timestamped
+ * after the ID-130 spine — see OUTPUT_FILE below):
  *
- *   1. 60 × `CREATE VIEW api.<t> WITH (security_invoker = true)` — 1:1 over the
+ *   1. 61 × `CREATE VIEW api.<t> WITH (security_invoker = true)` — 1:1 over the
  *      public base tables in the Data API surface, EXPLICIT ordered column lists
  *      (never `SELECT *`), every FK column projected verbatim so PostgREST
  *      relationship inference fires (S1 spike GREEN). Generated columns
@@ -55,16 +55,20 @@ const DB_URL =
 
 const MIGRATIONS_DIR = join(import.meta.dir, '..', 'supabase', 'migrations');
 // Fixed filename — stable across regens so the idempotency diff is meaningful.
-// Re-timestamped to AFTER 20260617130000_squash_baseline (id-115 {115.15}): the
-// original 20260616120100 file was folded INTO that squash and no longer exists
-// on disk, which made `--check` fail with "<file> does not exist". This forward
-// migration re-emits the same generated surface as idempotent DROP/CREATE (every
-// view + fn is `DROP ... IF EXISTS` then `CREATE`), so it applies cleanly on a
-// fresh stack (CI grant-guard, local `db reset`) and is a no-op rebuild on hosted
-// where the objects already exist — no superuser, no ordering risk.
+// Re-timestamped to AFTER the ID-130 spine (id-130 {130.9}): the api surface now
+// mirrors ID-130 tables/columns (form_outcome_types, form_templates.outcome/
+// workflow_state, form_questions.form_template_id, q_a_pairs.source_form_template_id)
+// that the spine 20260625120000 creates — so the generated migration MUST apply
+// AFTER it. The earlier 20260623140000_id115_api_views_and_rpcs.sql stays the
+// PRE-ID-130 baseline (the ID-115 surface, on which 20260624120000's anon-revoke
+// still depends); this forward migration re-emits the FULL post-ID-130 surface as
+// idempotent DROP/CREATE (every view + fn is `DROP ... IF EXISTS` then `CREATE`),
+// so it applies cleanly on a fresh stack (local `db reset`, fresh client DB) and is
+// a no-op rebuild on hosted where the objects already exist — no superuser, no
+// ordering risk. Both files fold into the next squash baseline.
 const OUTPUT_FILE = join(
   MIGRATIONS_DIR,
-  '20260623140000_id115_api_views_and_rpcs.sql',
+  '20260625160000_id130_api_views_regen.sql',
 );
 
 const ROLES = ['anon', 'authenticated', 'service_role'] as const;
@@ -100,6 +104,7 @@ export const SURFACE_TABLES: readonly string[] = [
   'feed_flags',
   'feed_prompts',
   'feed_sources',
+  'form_outcome_types',
   'form_questions',
   'form_response_history',
   'form_responses',

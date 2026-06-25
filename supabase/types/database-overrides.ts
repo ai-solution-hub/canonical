@@ -24,14 +24,23 @@
  *   - feed_prompts.Row.performance_snapshot -> FeedPromptPerformanceSnapshot | null
  *   - processing_queue.Row.payload          -> QueueJobPayload<Record<string, unknown>>
  *
+ * ID-130 {130.9} adds the form-engagement column overrides (text columns the
+ * generator types as `string | null`, narrowed to their domain unions):
+ *   - form_templates.Row.workflow_state    -> ProcurementWorkflowState | null
+ *   - form_templates.Row.outcome           -> FormOutcomeValue | null
+ *
  * Out of scope (later subtasks 47.6–47.9): RPC `Returns` overrides, Insert /
  * Update column overrides, DB migrations, consumer migration.
  */
 
 import type { Database as Gen } from '@/supabase/types/database.types';
-import type { ProcurementMetadata } from '@/types/procurement';
+import type {
+  ProcurementMetadata,
+  ProcurementWorkflowState,
+} from '@/types/procurement';
 import type { SummaryData } from '@/types/content';
 import type { QueueJobPayload } from '@/lib/queue/envelope';
+import type { FormOutcomeValue } from '@/lib/validation/schemas';
 
 /**
  * Performance snapshot stored as JSONB on `feed_prompts.performance_snapshot`.
@@ -77,7 +86,11 @@ type OverrideRow<T extends keyof GenTables, RowPatch> = Omit<
 
 type MergedTables = Omit<
   GenTables,
-  'workspaces' | 'content_items' | 'feed_prompts' | 'processing_queue'
+  | 'workspaces'
+  | 'content_items'
+  | 'feed_prompts'
+  | 'processing_queue'
+  | 'form_templates'
 > & {
   workspaces: OverrideRow<
     'workspaces',
@@ -94,6 +107,17 @@ type MergedTables = Omit<
   processing_queue: OverrideRow<
     'processing_queue',
     { payload: QueueJobPayload<Record<string, unknown>> }
+  >;
+  // ID-130 {130.9}: narrow the form-engagement text columns to their domain
+  // unions. `outcome` is FK-validated against the `form_outcome_types` CV and
+  // app-validated by `FormOutcomeSchema` (stage-appropriate subset); the column
+  // itself is NULLable (NULL until a terminal outcome is recorded).
+  form_templates: OverrideRow<
+    'form_templates',
+    {
+      workflow_state: ProcurementWorkflowState | null;
+      outcome: FormOutcomeValue | null;
+    }
   >;
 };
 

@@ -198,7 +198,7 @@ def _qa_form_json() -> str:
         {
             "extraction_kind": "q_a_form",
             "form_metadata": {
-                "form_type": "pqq",
+                "form_type": "psq",
                 "form_format": "docx",
                 "form_title": "Cyber Security PQQ",
                 "issuing_organisation": "Crown Commercial Service",
@@ -400,7 +400,7 @@ class TestExtractQAForm:
         ):
             result = asyncio.run(extract_qa_form("Test form content text."))
         assert isinstance(result, QAFormExtraction)
-        assert result.form_metadata.form_type == "pqq"
+        assert result.form_metadata.form_type == "psq"
         assert result.form_metadata.form_format == "docx"
         assert len(result.qa_pairs) == 2
         assert result.qa_pairs[0].expected_response_kind == "mandatory"
@@ -750,7 +750,7 @@ class TestExtractorsTolerateFencedResponse:
         ):
             result = asyncio.run(extract_qa_form("doc text"))
         assert isinstance(result, QAFormExtraction)
-        assert result.form_metadata.form_type == "pqq"
+        assert result.form_metadata.form_type == "psq"
 
     def test_entity_mentions_tolerate_fenced_response(self):
         mock_client = _make_mock_client(self._fence(_entity_mentions_json()))

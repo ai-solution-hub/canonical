@@ -218,7 +218,7 @@ class TestQAFormVariant:
             **base_fields_json,
             "extraction_kind": "q_a_form",
             "form_metadata": {
-                "form_type": "pqq",
+                "form_type": "psq",
                 "form_format": "docx",
                 "form_title": "Cyber Security Pre-Qualification",
                 "issuing_organisation": "Crown Commercial Service",
@@ -253,7 +253,7 @@ class TestQAFormVariant:
         ta = TypeAdapter(ExtractionOutput)
         parsed = ta.validate_json(json.dumps(payload))
         assert isinstance(parsed, QAFormExtraction)
-        assert parsed.form_metadata.form_type == "pqq"
+        assert parsed.form_metadata.form_type == "psq"
         assert len(parsed.qa_pairs) == 2
         assert parsed.qa_pairs[0].expected_response_kind == "mandatory"
         assert parsed.qa_pairs[1].expected_response_kind == "optional"
@@ -1246,7 +1246,7 @@ class TestLLMOutputOmitsStampedFields:
     def test_qa_form_validates_without_stamped_fields(self) -> None:
         payload = {
             "extraction_kind": "q_a_form",
-            "form_metadata": {"form_type": "pqq", "form_format": "docx"},
+            "form_metadata": {"form_type": "psq", "form_format": "docx"},
             "qa_pairs": [
                 {
                     "question_text": "Do you hold ISO 27001:2022 certification?",
@@ -1256,7 +1256,7 @@ class TestLLMOutputOmitsStampedFields:
         }
         parsed = _qa_form_adapter.validate_json(json.dumps(payload))
         assert isinstance(parsed, QAFormExtraction)
-        assert parsed.form_metadata.form_type == "pqq"
+        assert parsed.form_metadata.form_type == "psq"
         assert not hasattr(parsed, "op_id")
         assert not hasattr(parsed, "content_items_id")
 
@@ -1324,14 +1324,14 @@ class TestMemoHitSerdeRoundTrip:
 
     def test_qa_form_core_survives_memo_hit_roundtrip(self) -> None:
         core = QAFormExtraction(
-            form_metadata=FormMetadata(form_type="pqq", form_format="docx"),
+            form_metadata=FormMetadata(form_type="psq", form_format="docx"),
             qa_pairs=[
                 QAPair(question_text="Q?", expected_response_kind="mandatory")
             ],
         )
         restored = self._memo_hit_roundtrip(QAFormExtraction, core)
         assert isinstance(restored, QAFormExtraction)
-        assert restored.form_metadata.form_type == "pqq"
+        assert restored.form_metadata.form_type == "psq"
 
     def test_entity_mention_core_survives_memo_hit_roundtrip(self) -> None:
         core = EntityMentionExtraction(
@@ -1388,12 +1388,12 @@ class TestMemoHitSerdeRoundTrip:
                 # so the q_a_form variant must equally fail the strict memo-HIT
                 # round-trip — close the FAIL-before witness gap (Checker note).
                 # `form_metadata` is the only required field beyond the stamp;
-                # form_type="pqq" / form_format="docx" are known-valid (see the
+                # form_type="psq" / form_format="docx" are known-valid (see the
                 # passing TestQAFormVariant cases + the taxonomy snapshot).
                 QAFormExtractionStamped,
                 {
                     "form_metadata": FormMetadata(
-                        form_type="pqq", form_format="docx"
+                        form_type="psq", form_format="docx"
                     ),
                 },
             ),
@@ -1436,7 +1436,7 @@ class TestMemoHitSerdeRoundTrip:
 
         qa = QAFormExtraction(
             form_metadata=FormMetadata(
-                form_type="pqq",
+                form_type="psq",
                 form_format="docx",
                 deadline=datetime(2026, 7, 1, 12, 0, 0, tzinfo=timezone.utc),
             ),

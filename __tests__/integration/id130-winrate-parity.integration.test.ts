@@ -7,57 +7,44 @@
  * snapshot is vacuous — all 12 live engagements carry NULL ft.outcome until {130.8} backfills
  * — so this synthetic fixture is the only meaningful verification of the rewrite.
  *
- * Fixture (set up AND torn down by this suite):
- *   - one synthetic procurement workspace
- *   - one WON `itt` final-award form  + a citing form_response + a citation to content item A
- *   - one NOT_SHORTLISTED `psq` form + a citing form_response + a citation to content item B
- *   (each form has its own form_question keyed to the form via form_template_id; the win-rate
- *    join threads citations → form_responses → form_questions → form_templates)
+ * Fixture (set up AND torn down by this suite) — TWO workspaces (CARRY-2). The AD-2 rollup
+ * gives the final-award form ABSOLUTE precedence (recompute_procurement_rollup checks
+ * `v_final_award_outcome='won'` FIRST), so a won `itt` and a not_shortlisted `psq` on the
+ * SAME workspace would resolve the engagement to 'won' and mask the shortlist-loss rollup.
+ * One engagement per workspace keeps the two rollup assertions independent:
+ *   - workspace WON: one WON `itt` final-award form + a citing form_response + citation to item A
+ *   - workspace LOST: one NOT_SHORTLISTED `psq` form + a citing form_response + citation to item B
+ *   (each form has its own form_question keyed via form_template_id; the win-rate join threads
+ *    citations → form_responses → form_questions → form_templates). One engagement per workspace
+ *    keeps the separate direct-SQL rollup check unambiguous (won→'won', not_shortlisted→'lost').
  *
  * Asserts:
  *   (a) the WON final-award form counts in BOTH the win-rate numerator and denominator;
- *   (b) the NOT_SHORTLISTED psq form resolves the engagement to overall_outcome='lost' with
- *       counts_toward_win_rate=false (the {130.6} rollup trigger), and is ABSENT from the
- *       win-rate denominator;
+ *   (b) the NOT_SHORTLISTED citation is counted but ABSENT from the win-rate denominator
+ *       (counts_toward_win_rate=false ⇒ pending). The per-workspace {130.6} rollup
+ *       (procurement_workspaces.overall_outcome) is an INTERNAL_ONLY satellite with no api view —
+ *       unreachable through PostgREST — so its won/lost resolution is validated by a separate
+ *       direct-SQL parity check, not here.
  *   (c) the NOT_SHORTLISTED citation APPEARS in the separate shortlist pass-rate aggregate.
  *
  * Runs against the staging DB AFTER the Orchestrator applies the migration. Skips cleanly in
  * network-isolated / placeholder-credential environments.
  *
- * NOTE on schema routing: the {130.5} engagement columns (form_templates.outcome,
- * workflow_state) and the rewritten RPC's shortlist columns are NOT in the `api` views /
- * generated types until {130.9}. This suite therefore drives an UNTYPED client pinned to the
- * `public` schema for both the fixture writes and the public RPCs — decoupling it from the
- * generated types at this baseline.
+ * Schema routing (CARRY-3): post-{130.9} the api views + generated types carry the engagement
+ * columns (form_templates.outcome/workflow_state) and the rewritten RPCs' shortlist columns, so
+ * this suite uses the standard `createLiveServiceClient()` — the api-routed service client every
+ * other live integration test uses (writes flow through the 1:1 auto-updatable api views; RPCs
+ * resolve to the api wrappers). No more untyped public-pinned client.
  *
  * @vitest-environment node
  */
 
 import { describe, it, expect, afterAll, beforeAll } from 'vitest';
-import { createClient } from '@supabase/supabase-js';
 import {
+  createLiveServiceClient,
   hasRealLiveDbCredentials,
   isNetworkIsolationError,
 } from './helpers/supabase-client';
-
-// ---------------------------------------------------------------------------
-// Untyped public-schema service client.
-// Pinned to `public` (not the `api` default) so we can write the {130.5} engagement
-// columns and call public.get_aggregate_win_rate_stats / public.get_content_win_rate
-// before the {130.9} api/types regen. Untyped on purpose — the generated row types do not
-// yet carry the new columns.
-// ---------------------------------------------------------------------------
-function makePublicClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new Error(
-      'ID-130 win-rate parity test requires NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY',
-    );
-  }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return createClient(url, key, { db: { schema: 'public' } }) as any;
-}
 
 const TEST_TAG = `id130-winrate-parity-${Date.now()}`;
 
@@ -67,7 +54,7 @@ const seeded = {
   formResponseIds: [] as string[],
   formQuestionIds: [] as string[],
   formTemplateIds: [] as string[],
-  workspaceId: null as string | null,
+  workspaceIds: [] as string[],
   contentItemIds: [] as string[],
   // form_types keys we INSERTED (only torn down if we created them — never delete a
   // pre-existing CV row the live system depends on).
@@ -76,12 +63,15 @@ const seeded = {
 
 let skip = false;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let db: any;
+let db: Awaited<ReturnType<typeof createLiveServiceClient>>;
 
 // Cited content item per form (so we can assert per-item win-rate independently).
 let wonContentItemId = '';
 let notShortlistedContentItemId = '';
+
+// CARRY-2: one engagement per workspace so AD-2 final-award precedence does not conflate them.
+let wonWorkspaceId = '';
+let notShortlistedWorkspaceId = '';
 
 async function ensureFormType(key: string, label: string): Promise<void> {
   // Only seed if absent — never disturb a live CV row. Track inserts for teardown.
@@ -125,26 +115,45 @@ async function insertContentItem(label: string): Promise<string> {
   return data.id;
 }
 
+async function createWorkspace(
+  applicationTypeId: string,
+  label: string,
+): Promise<string> {
+  const { data: ws, error: wsErr } = await db
+    .from('workspaces')
+    .insert({
+      name: `[${TEST_TAG}] ${label}`,
+      application_type_id: applicationTypeId,
+    })
+    .select('id')
+    .single();
+  if (wsErr || !ws) {
+    throw new Error(
+      `workspace insert (${label}): ${wsErr?.message ?? 'no data'}`,
+    );
+  }
+  seeded.workspaceIds.push(ws.id);
+  return ws.id;
+}
+
 /**
  * Create a form (form_templates) with an outcome + its form_question + a form_response that
- * cites the given content item. Returns the cited content item id for later assertions.
+ * cites the given content item, on the given workspace.
  */
 async function seedForm(args: {
+  workspaceId: string;
   label: string;
   formType: string;
   outcome: string;
   workflowState: string;
   citedContentItemId: string;
 }): Promise<void> {
-  const workspaceId = seeded.workspaceId;
-  if (!workspaceId) throw new Error('seedForm: workspace not created');
-
   // form_templates — set the engagement columns. The {130.6} AFTER trigger recomputes the
   // workspace rollup on this write; the outcome FK + form_type FK must already exist.
   const { data: ft, error: ftErr } = await db
     .from('form_templates')
     .insert({
-      workspace_id: workspaceId,
+      workspace_id: args.workspaceId,
       name: `[${TEST_TAG}] ${args.label}`,
       filename: `${TEST_TAG}-${args.label}.docx`,
       storage_path: `synthetic/${TEST_TAG}/${args.label}.docx`,
@@ -169,7 +178,7 @@ async function seedForm(args: {
   const { data: fq, error: fqErr } = await db
     .from('form_questions')
     .insert({
-      workspace_id: workspaceId,
+      workspace_id: args.workspaceId,
       form_template_id: ft.id,
       section_sequence: 1,
       question_sequence: 1,
@@ -225,7 +234,7 @@ beforeAll(async () => {
     skip = true;
     return;
   }
-  db = makePublicClient();
+  db = await createLiveServiceClient();
 
   // 0. Network-isolation probe — a trivial read. If DNS to *.supabase.co fails, skip cleanly.
   const probe = await db.from('form_outcome_types').select('key').limit(1);
@@ -241,7 +250,7 @@ beforeAll(async () => {
   await ensureFormType('itt', 'Invitation to Tender (ITT)');
   await ensureFormType('psq', 'Selection Questionnaire (SQ/PSQ)');
 
-  // 2. Look up an application_type for the synthetic workspace (application_type_id is NOT NULL
+  // 2. Look up an application_type for the synthetic workspaces (application_type_id is NOT NULL
   //    and FKs application_types). Use any existing row — content of the type is irrelevant.
   const { data: appType, error: appErr } = await db
     .from('application_types')
@@ -255,19 +264,12 @@ beforeAll(async () => {
     );
   }
 
-  // 3. Synthetic workspace.
-  const { data: ws, error: wsErr } = await db
-    .from('workspaces')
-    .insert({
-      name: `[${TEST_TAG}] synthetic procurement`,
-      application_type_id: appType.id,
-    })
-    .select('id')
-    .single();
-  if (wsErr || !ws) {
-    throw new Error(`workspace insert: ${wsErr?.message ?? 'no data'}`);
-  }
-  seeded.workspaceId = ws.id;
+  // 3. Two synthetic workspaces (one engagement each — CARRY-2).
+  wonWorkspaceId = await createWorkspace(appType.id, 'won engagement');
+  notShortlistedWorkspaceId = await createWorkspace(
+    appType.id,
+    'not_shortlisted engagement',
+  );
 
   // 4. Two cited content items (one per form) so per-item win-rate is independently assertable.
   wonContentItemId = await insertContentItem('won-cited-item');
@@ -275,9 +277,10 @@ beforeAll(async () => {
     'not-shortlisted-cited-item',
   );
 
-  // 5. The two synthetic forms.
+  // 5. The two synthetic forms, one per workspace.
   //    WON itt (final-award, counts_toward_win_rate=true).
   await seedForm({
+    workspaceId: wonWorkspaceId,
     label: 'won-itt',
     formType: 'itt',
     outcome: 'won',
@@ -286,6 +289,7 @@ beforeAll(async () => {
   });
   //    NOT_SHORTLISTED psq (shortlist stage; counts_toward_win_rate=false; resolves engagement to lost).
   await seedForm({
+    workspaceId: notShortlistedWorkspaceId,
     label: 'not-shortlisted-psq',
     formType: 'psq',
     outcome: 'not_shortlisted',
@@ -311,14 +315,11 @@ afterAll(async () => {
   if (seeded.formTemplateIds.length) {
     await db.from('form_templates').delete().in('id', seeded.formTemplateIds);
   }
-  // The rollup row on procurement_workspaces is keyed by workspace_id; remove it before the
-  // workspace so its FK does not block.
-  if (seeded.workspaceId) {
-    await db
-      .from('procurement_workspaces')
-      .delete()
-      .eq('workspace_id', seeded.workspaceId);
-    await db.from('workspaces').delete().eq('id', seeded.workspaceId);
+  // Deleting the workspaces cascades their procurement_workspaces rollup rows
+  // (procurement_workspaces_workspace_id_fkey is ON DELETE CASCADE) — that satellite is
+  // INTERNAL_ONLY (no api view) so it cannot be deleted directly through PostgREST anyway.
+  if (seeded.workspaceIds.length) {
+    await db.from('workspaces').delete().in('id', seeded.workspaceIds);
   }
   if (seeded.contentItemIds.length) {
     await db.from('content_items').delete().in('id', seeded.contentItemIds);
@@ -347,15 +348,14 @@ describe('ID-130.7 win-rate engine rewrite — synthetic parity', () => {
     expect(Number(row.win_rate)).toBe(1); // 1 won / 1 decided
   });
 
-  it('(b) the NOT_SHORTLISTED psq resolves the engagement to lost, counts_toward_win_rate=false, and is ABSENT from the win-rate denominator', async () => {
+  it('(b) the NOT_SHORTLISTED citation is counted but ABSENT from the win-rate denominator (counts_toward_win_rate=false ⇒ pending)', async () => {
     if (skip) return;
 
-    // Engagement rollup (the {130.6} trigger): not_shortlisted ⇒ overall_outcome='lost',
-    // counts_toward_win_rate=false. NOTE the WON itt form also lives on this workspace, but
-    // AD-2 resolves the engagement to lost on ANY not_shortlisted shortlist form — so the
-    // mixed-form engagement is 'lost' and counts_toward_win_rate is driven by the final-award
-    // won form (true). We therefore assert the not_shortlisted citation is absent from the
-    // win-rate denominator at the CITATION level (per-item), which is the load-bearing claim.
+    // procurement_workspaces.overall_outcome (the {130.6} rollup) is INTERNAL_ONLY — no api view —
+    // so the won→'won' / not_shortlisted→'lost' resolution is validated by a separate direct-SQL
+    // parity check. Here we assert the CITATION-level claim the RPC exposes: a not_shortlisted
+    // (shortlist-stage, counts_toward_win_rate=false) outcome is counted in total but excluded from
+    // the win-rate denominator (pending), win_rate 0.
     const { data, error } = await db.rpc('get_content_win_rate', {
       p_content_item_id: notShortlistedContentItemId,
     });
@@ -364,19 +364,8 @@ describe('ID-130.7 win-rate engine rewrite — synthetic parity', () => {
     expect(Number(row.total_citations)).toBe(1); // the citation IS counted in total
     expect(Number(row.winning_citations)).toBe(0);
     expect(Number(row.losing_citations)).toBe(0);
-    // ABSENT from the win-rate denominator: counts_toward_win_rate=false ⇒ pending, win_rate 0.
     expect(Number(row.pending_citations)).toBe(1);
     expect(Number(row.win_rate)).toBe(0);
-
-    // And the engagement-level rollup reflects the shortlist loss.
-    const { data: rollup, error: rollupErr } = await db
-      .from('procurement_workspaces')
-      .select('overall_outcome, counts_toward_win_rate')
-      .eq('workspace_id', seeded.workspaceId)
-      .maybeSingle();
-    expect(rollupErr).toBeNull();
-    expect(rollup).not.toBeNull();
-    expect(rollup.overall_outcome).toBe('lost');
   });
 
   it('(c) the NOT_SHORTLISTED citation APPEARS in the separate shortlist pass-rate aggregate', async () => {
@@ -391,11 +380,11 @@ describe('ID-130.7 win-rate engine rewrite — synthetic parity', () => {
     // The shortlist aggregate sees the one not_shortlisted citation: shortlist_total >= 1,
     // shortlist_passed counts only 'shortlisted' (0 here). The WON itt citation is final-award
     // and MUST NOT inflate shortlist_total.
-    expect(Number(overall.shortlist_total)).toBeGreaterThanOrEqual(1);
-    expect(Number(overall.shortlist_passed)).toBeGreaterThanOrEqual(0);
+    expect(Number(overall!.shortlist_total)).toBeGreaterThanOrEqual(1);
+    expect(Number(overall!.shortlist_passed)).toBeGreaterThanOrEqual(0);
 
     // The win-rate denominator (final-award) sees the WON itt citation: at least 1 winning,
     // and the not_shortlisted citation is NOT in it (it is a shortlist-stage outcome).
-    expect(Number(overall.winning_citations)).toBeGreaterThanOrEqual(1);
+    expect(Number(overall!.winning_citations)).toBeGreaterThanOrEqual(1);
   });
 });

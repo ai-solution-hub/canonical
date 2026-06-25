@@ -6,7 +6,7 @@
 -- Re-run the generator (not a hand edit) after a public table/column/RPC lands;
 -- the api-grant-guard drift check (ID-115 S10) fails CI on an un-mirrored table.
 --
--- Views:     59 security_invoker 1:1 views (explicit cols, FK verbatim).
+-- Views:     61 security_invoker 1:1 views (explicit cols, FK verbatim).
 -- Functions: 72 INVOKER entrypoints/wrappers (search_path=public,extensions).
 -- Grants:    views fail-closed (explicit GRANT, anon<=SELECT); functions REVOKE
 --            EXECUTE FROM PUBLIC then GRANT mirrored roles (set_config sole anon-exec).
@@ -20,7 +20,7 @@
 SET search_path = public, extensions;
 
 -- ----------------------------------------------------------------------------
--- VIEWS (59)
+-- VIEWS (61)
 -- ----------------------------------------------------------------------------
 -- ai_call_events ────────────────────────────────────────────────────────
 DROP VIEW IF EXISTS api.ai_call_events;
@@ -38,7 +38,6 @@ CREATE VIEW api.ai_call_events WITH (security_invoker = true) AS
     outcome_signal,
     created_at
   FROM public.ai_call_events;
-GRANT SELECT ON api.ai_call_events TO anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON api.ai_call_events TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON api.ai_call_events TO service_role;
 
@@ -105,7 +104,6 @@ CREATE VIEW api.citations WITH (security_invoker = true) AS
     created_at,
     created_by
   FROM public.citations;
-GRANT SELECT ON api.citations TO anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON api.citations TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON api.citations TO service_role;
 
@@ -305,8 +303,6 @@ CREATE VIEW api.content_propagation_version WITH (security_invoker = true) AS
     payload_checksum,
     applied_at
   FROM public.content_propagation_version;
-GRANT SELECT ON api.content_propagation_version TO anon;
-GRANT SELECT, INSERT, UPDATE, DELETE ON api.content_propagation_version TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON api.content_propagation_version TO service_role;
 
 -- coverage_targets ──────────────────────────────────────────────────────
@@ -389,7 +385,6 @@ CREATE VIEW api.eval_baseline_audit WITH (security_invoker = true) AS
     registry_version,
     at
   FROM public.eval_baseline_audit;
-GRANT SELECT ON api.eval_baseline_audit TO anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON api.eval_baseline_audit TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON api.eval_baseline_audit TO service_role;
 
@@ -405,7 +400,6 @@ CREATE VIEW api.eval_baselines WITH (security_invoker = true) AS
     promoted_by,
     promoted_at
   FROM public.eval_baselines;
-GRANT SELECT ON api.eval_baselines TO anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON api.eval_baselines TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON api.eval_baselines TO service_role;
 
@@ -422,7 +416,6 @@ CREATE VIEW api.eval_runs WITH (security_invoker = true) AS
     run_at,
     source
   FROM public.eval_runs;
-GRANT SELECT ON api.eval_runs TO anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON api.eval_runs TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON api.eval_runs TO service_role;
 
@@ -444,7 +437,6 @@ CREATE VIEW api.eval_touchpoints WITH (security_invoker = true) AS
     created_at,
     updated_at
   FROM public.eval_touchpoints;
-GRANT SELECT ON api.eval_touchpoints TO anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON api.eval_touchpoints TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON api.eval_touchpoints TO service_role;
 
@@ -543,6 +535,21 @@ GRANT SELECT ON api.feed_sources TO anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON api.feed_sources TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON api.feed_sources TO service_role;
 
+-- form_outcome_types ────────────────────────────────────────────────────
+DROP VIEW IF EXISTS api.form_outcome_types;
+CREATE VIEW api.form_outcome_types WITH (security_invoker = true) AS
+  SELECT
+    key,
+    label,
+    stage,
+    applicable_form_types,
+    counts_toward_win_rate,
+    provenance
+  FROM public.form_outcome_types;
+GRANT SELECT ON api.form_outcome_types TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON api.form_outcome_types TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON api.form_outcome_types TO service_role;
+
 -- form_questions ────────────────────────────────────────────────────────
 DROP VIEW IF EXISTS api.form_questions;
 CREATE VIEW api.form_questions WITH (security_invoker = true) AS
@@ -563,7 +570,8 @@ CREATE VIEW api.form_questions WITH (security_invoker = true) AS
     created_by,
     created_at,
     updated_at,
-    template_requirement_id
+    template_requirement_id,
+    form_template_id
   FROM public.form_questions;
 GRANT SELECT ON api.form_questions TO anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON api.form_questions TO authenticated;
@@ -698,7 +706,13 @@ CREATE VIEW api.form_templates WITH (security_invoker = true) AS
     deadline,
     issuing_organisation,
     evaluation_methodology,
-    status_reason
+    status_reason,
+    outcome,
+    outcome_recorded_at,
+    outcome_recorded_by,
+    outcome_notes,
+    submission_date,
+    workflow_state
   FROM public.form_templates;
 GRANT SELECT ON api.form_templates TO anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON api.form_templates TO authenticated;
@@ -936,6 +950,32 @@ GRANT SELECT ON api.q_a_extractions TO anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON api.q_a_extractions TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON api.q_a_extractions TO service_role;
 
+-- q_a_pair_dedup_proposals ──────────────────────────────────────────────
+DROP VIEW IF EXISTS api.q_a_pair_dedup_proposals;
+CREATE VIEW api.q_a_pair_dedup_proposals WITH (security_invoker = true) AS
+  SELECT
+    id,
+    pair_a_id,
+    pair_b_id,
+    similarity_score,
+    proposed_survivor_id,
+    survivor_reason,
+    status,
+    pair_a_source_workspace_id,
+    pair_b_source_workspace_id,
+    pair_a_source_form_response_id,
+    pair_b_source_form_response_id,
+    pair_a_fingerprint,
+    pair_b_fingerprint,
+    resolved_survivor_id,
+    resolved_by,
+    created_at,
+    resolved_at
+  FROM public.q_a_pair_dedup_proposals;
+GRANT SELECT ON api.q_a_pair_dedup_proposals TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON api.q_a_pair_dedup_proposals TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON api.q_a_pair_dedup_proposals TO service_role;
+
 -- q_a_pair_history ──────────────────────────────────────────────────────
 DROP VIEW IF EXISTS api.q_a_pair_history;
 CREATE VIEW api.q_a_pair_history WITH (security_invoker = true) AS
@@ -986,7 +1026,8 @@ CREATE VIEW api.q_a_pairs WITH (security_invoker = true) AS
     edit_intent,
     source_form_response_id,
     source_question_id,
-    source_document_id
+    source_document_id,
+    source_form_template_id
   FROM public.q_a_pairs;
 GRANT SELECT ON api.q_a_pairs TO anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON api.q_a_pairs TO authenticated;
@@ -1082,8 +1123,6 @@ CREATE VIEW api.signup_policy WITH (security_invoker = true) AS
     id,
     allowed_domain
   FROM public.signup_policy;
-GRANT SELECT ON api.signup_policy TO anon;
-GRANT SELECT, INSERT, UPDATE, DELETE ON api.signup_policy TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON api.signup_policy TO service_role;
 
 -- source_documents ──────────────────────────────────────────────────────
@@ -1109,7 +1148,6 @@ CREATE VIEW api.source_documents WITH (security_invoker = true) AS
     archived_at,
     archived_by,
     op_id,
-    pullmd_share_id,
     extraction_method,
     source_url
   FROM public.source_documents;
@@ -1222,8 +1260,6 @@ CREATE VIEW api.tenant_config WITH (security_invoker = true) AS
     created_at,
     updated_at
   FROM public.tenant_config;
-GRANT SELECT ON api.tenant_config TO anon;
-GRANT SELECT, INSERT, UPDATE, DELETE ON api.tenant_config TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON api.tenant_config TO service_role;
 
 -- user_notification_prefs ───────────────────────────────────────────────
@@ -1253,7 +1289,7 @@ CREATE VIEW api.user_profiles WITH (security_invoker = true) AS
     updated_at
   FROM public.user_profiles;
 GRANT SELECT ON api.user_profiles TO anon;
-GRANT SELECT, INSERT, UPDATE, DELETE ON api.user_profiles TO authenticated;
+GRANT SELECT ON api.user_profiles TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON api.user_profiles TO service_role;
 
 -- user_roles ────────────────────────────────────────────────────────────
@@ -1323,7 +1359,7 @@ AS $api$
   SELECT public._test_delete_broken_auth_user(probe_id => probe_id);
 $api$;
 REVOKE EXECUTE ON FUNCTION api._test_delete_broken_auth_user(probe_id uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api._test_delete_broken_auth_user(probe_id uuid) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api._test_delete_broken_auth_user(probe_id uuid) TO service_role;
 
 -- api._test_insert_broken_auth_user(probe_id uuid, probe_email text)  [INVOKER wrapper over SECURITY DEFINER public fn]
 DROP FUNCTION IF EXISTS api._test_insert_broken_auth_user(probe_id uuid, probe_email text);
@@ -1336,7 +1372,7 @@ AS $api$
   SELECT public._test_insert_broken_auth_user(probe_id => probe_id, probe_email => probe_email);
 $api$;
 REVOKE EXECUTE ON FUNCTION api._test_insert_broken_auth_user(probe_id uuid, probe_email text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api._test_insert_broken_auth_user(probe_id uuid, probe_email text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api._test_insert_broken_auth_user(probe_id uuid, probe_email text) TO service_role;
 
 -- api.bulk_delete_tags(p_tags text[], p_type text)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.bulk_delete_tags(p_tags text[], p_type text);
@@ -1349,7 +1385,7 @@ AS $api$
   SELECT public.bulk_delete_tags(p_tags => p_tags, p_type => p_type);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.bulk_delete_tags(p_tags text[], p_type text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.bulk_delete_tags(p_tags text[], p_type text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.bulk_delete_tags(p_tags text[], p_type text) TO authenticated, service_role;
 
 -- api.bulk_merge_tags(p_sources text[], p_target text, p_type text)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.bulk_merge_tags(p_sources text[], p_target text, p_type text);
@@ -1362,7 +1398,7 @@ AS $api$
   SELECT public.bulk_merge_tags(p_sources => p_sources, p_target => p_target, p_type => p_type);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.bulk_merge_tags(p_sources text[], p_target text, p_type text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.bulk_merge_tags(p_sources text[], p_target text, p_type text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.bulk_merge_tags(p_sources text[], p_target text, p_type text) TO authenticated, service_role;
 
 -- api.check_content_exists(ids uuid[])  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.check_content_exists(ids uuid[]);
@@ -1375,7 +1411,7 @@ AS $api$
   SELECT * FROM public.check_content_exists(ids => ids);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.check_content_exists(ids uuid[]) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.check_content_exists(ids uuid[]) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.check_content_exists(ids uuid[]) TO authenticated, service_role;
 
 -- api.claim_next_job()  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.claim_next_job();
@@ -1388,7 +1424,7 @@ AS $api$
   SELECT * FROM public.claim_next_job();
 $api$;
 REVOKE EXECUTE ON FUNCTION api.claim_next_job() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.claim_next_job() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.claim_next_job() TO authenticated, service_role;
 
 -- api.cleanup_filtered_articles()  [INVOKER wrapper over SECURITY DEFINER public fn]
 DROP FUNCTION IF EXISTS api.cleanup_filtered_articles();
@@ -1401,7 +1437,7 @@ AS $api$
   SELECT public.cleanup_filtered_articles();
 $api$;
 REVOKE EXECUTE ON FUNCTION api.cleanup_filtered_articles() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.cleanup_filtered_articles() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.cleanup_filtered_articles() TO authenticated, service_role;
 
 -- api.count_auth_users()  [INVOKER wrapper over SECURITY DEFINER public fn]
 DROP FUNCTION IF EXISTS api.count_auth_users();
@@ -1414,7 +1450,7 @@ AS $api$
   SELECT public.count_auth_users();
 $api$;
 REVOKE EXECUTE ON FUNCTION api.count_auth_users() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.count_auth_users() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.count_auth_users() TO service_role;
 
 -- api.delete_tag(p_tag text, p_type text)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.delete_tag(p_tag text, p_type text);
@@ -1427,7 +1463,7 @@ AS $api$
   SELECT public.delete_tag(p_tag => p_tag, p_type => p_type);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.delete_tag(p_tag text, p_type text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.delete_tag(p_tag text, p_type text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.delete_tag(p_tag text, p_type text) TO authenticated, service_role;
 
 -- api.filter_by_keywords(keyword_list text[], match_mode text)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.filter_by_keywords(keyword_list text[], match_mode text);
@@ -1440,7 +1476,7 @@ AS $api$
   SELECT * FROM public.filter_by_keywords(keyword_list => keyword_list, match_mode => match_mode);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.filter_by_keywords(keyword_list text[], match_mode text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.filter_by_keywords(keyword_list text[], match_mode text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.filter_by_keywords(keyword_list text[], match_mode text) TO authenticated, service_role;
 
 -- api.filter_by_keywords(search_terms text[])  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.filter_by_keywords(search_terms text[]);
@@ -1453,7 +1489,7 @@ AS $api$
   SELECT * FROM public.filter_by_keywords(search_terms => search_terms);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.filter_by_keywords(search_terms text[]) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.filter_by_keywords(search_terms text[]) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.filter_by_keywords(search_terms text[]) TO authenticated, service_role;
 
 -- api.find_duplicate_pairs(similarity_threshold numeric, p_domain text, limit_count integer)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.find_duplicate_pairs(similarity_threshold numeric, p_domain text, limit_count integer);
@@ -1466,7 +1502,7 @@ AS $api$
   SELECT * FROM public.find_duplicate_pairs(similarity_threshold => similarity_threshold, p_domain => p_domain, limit_count => limit_count);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.find_duplicate_pairs(similarity_threshold numeric, p_domain text, limit_count integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.find_duplicate_pairs(similarity_threshold numeric, p_domain text, limit_count integer) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.find_duplicate_pairs(similarity_threshold numeric, p_domain text, limit_count integer) TO authenticated, service_role;
 
 -- api.find_duplicate_tags(p_type text)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.find_duplicate_tags(p_type text);
@@ -1479,7 +1515,7 @@ AS $api$
   SELECT * FROM public.find_duplicate_tags(p_type => p_type);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.find_duplicate_tags(p_type text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.find_duplicate_tags(p_type text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.find_duplicate_tags(p_type text) TO authenticated, service_role;
 
 -- api.find_exact_duplicates(p_content_hash text, p_exclude_id uuid)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.find_exact_duplicates(p_content_hash text, p_exclude_id uuid);
@@ -1492,7 +1528,7 @@ AS $api$
   SELECT * FROM public.find_exact_duplicates(p_content_hash => p_content_hash, p_exclude_id => p_exclude_id);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.find_exact_duplicates(p_content_hash text, p_exclude_id uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.find_exact_duplicates(p_content_hash text, p_exclude_id uuid) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.find_exact_duplicates(p_content_hash text, p_exclude_id uuid) TO authenticated, service_role;
 
 -- api.find_related_items(p_item_id uuid, p_similarity_threshold double precision, p_limit_count integer)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.find_related_items(p_item_id uuid, p_similarity_threshold double precision, p_limit_count integer);
@@ -1505,7 +1541,7 @@ AS $api$
   SELECT * FROM public.find_related_items(p_item_id => p_item_id, p_similarity_threshold => p_similarity_threshold, p_limit_count => p_limit_count);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.find_related_items(p_item_id uuid, p_similarity_threshold double precision, p_limit_count integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.find_related_items(p_item_id uuid, p_similarity_threshold double precision, p_limit_count integer) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.find_related_items(p_item_id uuid, p_similarity_threshold double precision, p_limit_count integer) TO authenticated, service_role;
 
 -- api.find_similar_content(query_embedding vector, similarity_threshold double precision, limit_count integer)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.find_similar_content(query_embedding vector, similarity_threshold double precision, limit_count integer);
@@ -1518,7 +1554,7 @@ AS $api$
   SELECT * FROM public.find_similar_content(query_embedding => query_embedding, similarity_threshold => similarity_threshold, limit_count => limit_count);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.find_similar_content(query_embedding vector, similarity_threshold double precision, limit_count integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.find_similar_content(query_embedding vector, similarity_threshold double precision, limit_count integer) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.find_similar_content(query_embedding vector, similarity_threshold double precision, limit_count integer) TO authenticated, service_role;
 
 -- api.find_similar_content(query_embedding vector, similarity_threshold numeric, limit_count integer)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.find_similar_content(query_embedding vector, similarity_threshold numeric, limit_count integer);
@@ -1531,12 +1567,12 @@ AS $api$
   SELECT * FROM public.find_similar_content(query_embedding => query_embedding, similarity_threshold => similarity_threshold, limit_count => limit_count);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.find_similar_content(query_embedding vector, similarity_threshold numeric, limit_count integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.find_similar_content(query_embedding vector, similarity_threshold numeric, limit_count integer) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.find_similar_content(query_embedding vector, similarity_threshold numeric, limit_count integer) TO authenticated, service_role;
 
 -- api.get_aggregate_win_rate_stats()  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_aggregate_win_rate_stats();
 CREATE FUNCTION api.get_aggregate_win_rate_stats()
-  RETURNS TABLE(scope text, total_citations bigint, winning_citations bigint, losing_citations bigint, pending_citations bigint, win_rate numeric, unique_items_cited bigint, unique_procurements bigint)
+  RETURNS TABLE(scope text, total_citations bigint, winning_citations bigint, losing_citations bigint, pending_citations bigint, win_rate numeric, unique_items_cited bigint, unique_procurements bigint, shortlist_total bigint, shortlist_passed bigint, shortlist_pass_rate numeric)
   LANGUAGE sql
   SECURITY INVOKER
   SET search_path = public, extensions
@@ -1544,7 +1580,7 @@ AS $api$
   SELECT * FROM public.get_aggregate_win_rate_stats();
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_aggregate_win_rate_stats() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_aggregate_win_rate_stats() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_aggregate_win_rate_stats() TO authenticated, service_role;
 
 -- api.get_all_tag_counts()  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_all_tag_counts();
@@ -1557,7 +1593,7 @@ AS $api$
   SELECT * FROM public.get_all_tag_counts();
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_all_tag_counts() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_all_tag_counts() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_all_tag_counts() TO authenticated, service_role;
 
 -- api.get_author_analysis(p_author_name text)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_author_analysis(p_author_name text);
@@ -1570,7 +1606,7 @@ AS $api$
   SELECT public.get_author_analysis(p_author_name => p_author_name);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_author_analysis(p_author_name text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_author_analysis(p_author_name text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_author_analysis(p_author_name text) TO authenticated, service_role;
 
 -- api.get_content_gaps()  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_content_gaps();
@@ -1583,7 +1619,7 @@ AS $api$
   SELECT public.get_content_gaps();
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_content_gaps() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_content_gaps() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_content_gaps() TO authenticated, service_role;
 
 -- api.get_content_owner_stats()  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_content_owner_stats();
@@ -1596,7 +1632,7 @@ AS $api$
   SELECT * FROM public.get_content_owner_stats();
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_content_owner_stats() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_content_owner_stats() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_content_owner_stats() TO authenticated, service_role;
 
 -- api.get_content_win_rate(p_content_item_id uuid)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_content_win_rate(p_content_item_id uuid);
@@ -1609,7 +1645,7 @@ AS $api$
   SELECT * FROM public.get_content_win_rate(p_content_item_id => p_content_item_id);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_content_win_rate(p_content_item_id uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_content_win_rate(p_content_item_id uuid) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_content_win_rate(p_content_item_id uuid) TO authenticated, service_role;
 
 -- api.get_coverage_matrix(p_layer text)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_coverage_matrix(p_layer text);
@@ -1622,7 +1658,7 @@ AS $api$
   SELECT * FROM public.get_coverage_matrix(p_layer => p_layer);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_coverage_matrix(p_layer text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_coverage_matrix(p_layer text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_coverage_matrix(p_layer text) TO authenticated, service_role;
 
 -- api.get_coverage_summary()  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_coverage_summary();
@@ -1635,7 +1671,7 @@ AS $api$
   SELECT * FROM public.get_coverage_summary();
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_coverage_summary() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_coverage_summary() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_coverage_summary() TO authenticated, service_role;
 
 -- api.get_dashboard_attention_counts(p_user_id uuid, p_role text)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_dashboard_attention_counts(p_user_id uuid, p_role text);
@@ -1648,7 +1684,7 @@ AS $api$
   SELECT * FROM public.get_dashboard_attention_counts(p_user_id => p_user_id, p_role => p_role);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_dashboard_attention_counts(p_user_id uuid, p_role text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_dashboard_attention_counts(p_user_id uuid, p_role text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_dashboard_attention_counts(p_user_id uuid, p_role text) TO authenticated, service_role;
 
 -- api.get_due_feed_sources(max_sources integer)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_due_feed_sources(max_sources integer);
@@ -1661,7 +1697,7 @@ AS $api$
   SELECT * FROM public.get_due_feed_sources(max_sources => max_sources);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_due_feed_sources(max_sources integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_due_feed_sources(max_sources integer) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_due_feed_sources(max_sources integer) TO authenticated, service_role;
 
 -- api.get_entity_list_aggregated(p_type text, p_search text, p_variants_only boolean, p_type_conflicts boolean, p_limit integer, p_offset integer)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_entity_list_aggregated(p_type text, p_search text, p_variants_only boolean, p_type_conflicts boolean, p_limit integer, p_offset integer);
@@ -1674,7 +1710,7 @@ AS $api$
   SELECT public.get_entity_list_aggregated(p_type => p_type, p_search => p_search, p_variants_only => p_variants_only, p_type_conflicts => p_type_conflicts, p_limit => p_limit, p_offset => p_offset);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_entity_list_aggregated(p_type text, p_search text, p_variants_only boolean, p_type_conflicts boolean, p_limit integer, p_offset integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_entity_list_aggregated(p_type text, p_search text, p_variants_only boolean, p_type_conflicts boolean, p_limit integer, p_offset integer) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_entity_list_aggregated(p_type text, p_search text, p_variants_only boolean, p_type_conflicts boolean, p_limit integer, p_offset integer) TO authenticated, service_role;
 
 -- api.get_entity_summary(p_entity_name text, p_entity_type text, p_limit integer)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_entity_summary(p_entity_name text, p_entity_type text, p_limit integer);
@@ -1687,7 +1723,7 @@ AS $api$
   SELECT * FROM public.get_entity_summary(p_entity_name => p_entity_name, p_entity_type => p_entity_type, p_limit => p_limit);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_entity_summary(p_entity_name text, p_entity_type text, p_limit integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_entity_summary(p_entity_name text, p_entity_type text, p_limit integer) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_entity_summary(p_entity_name text, p_entity_type text, p_limit integer) TO authenticated, service_role;
 
 -- api.get_filter_counts()  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_filter_counts();
@@ -1700,7 +1736,7 @@ AS $api$
   SELECT public.get_filter_counts();
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_filter_counts() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_filter_counts() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_filter_counts() TO authenticated, service_role;
 
 -- api.get_filter_ratio_trend(p_workspace_id uuid, p_granularity text, p_period_days integer)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_filter_ratio_trend(p_workspace_id uuid, p_granularity text, p_period_days integer);
@@ -1713,7 +1749,7 @@ AS $api$
   SELECT * FROM public.get_filter_ratio_trend(p_workspace_id => p_workspace_id, p_granularity => p_granularity, p_period_days => p_period_days);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_filter_ratio_trend(p_workspace_id uuid, p_granularity text, p_period_days integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_filter_ratio_trend(p_workspace_id uuid, p_granularity text, p_period_days integer) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_filter_ratio_trend(p_workspace_id uuid, p_granularity text, p_period_days integer) TO authenticated, service_role;
 
 -- api.get_form_question_stats(p_project_id uuid)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_form_question_stats(p_project_id uuid);
@@ -1726,7 +1762,7 @@ AS $api$
   SELECT * FROM public.get_form_question_stats(p_project_id => p_project_id);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_form_question_stats(p_project_id uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_form_question_stats(p_project_id uuid) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_form_question_stats(p_project_id uuid) TO authenticated, service_role;
 
 -- api.get_form_question_stats_batch(p_project_ids uuid[])  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_form_question_stats_batch(p_project_ids uuid[]);
@@ -1739,7 +1775,7 @@ AS $api$
   SELECT * FROM public.get_form_question_stats_batch(p_project_ids => p_project_ids);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_form_question_stats_batch(p_project_ids uuid[]) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_form_question_stats_batch(p_project_ids uuid[]) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_form_question_stats_batch(p_project_ids uuid[]) TO authenticated, service_role;
 
 -- api.get_freshness_breakdown()  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_freshness_breakdown();
@@ -1752,7 +1788,7 @@ AS $api$
   SELECT * FROM public.get_freshness_breakdown();
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_freshness_breakdown() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_freshness_breakdown() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_freshness_breakdown() TO authenticated, service_role;
 
 -- api.get_grouped_activity_feed(p_limit integer, p_is_admin boolean, p_before timestamp with time zone)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_grouped_activity_feed(p_limit integer, p_is_admin boolean, p_before timestamp with time zone);
@@ -1765,7 +1801,7 @@ AS $api$
   SELECT * FROM public.get_grouped_activity_feed(p_limit => p_limit, p_is_admin => p_is_admin, p_before => p_before);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_grouped_activity_feed(p_limit integer, p_is_admin boolean, p_before timestamp with time zone) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_grouped_activity_feed(p_limit integer, p_is_admin boolean, p_before timestamp with time zone) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_grouped_activity_feed(p_limit integer, p_is_admin boolean, p_before timestamp with time zone) TO authenticated, service_role;
 
 -- api.get_guide_content(p_guide_slug text)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_guide_content(p_guide_slug text);
@@ -1778,7 +1814,7 @@ AS $api$
   SELECT * FROM public.get_guide_content(p_guide_slug => p_guide_slug);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_guide_content(p_guide_slug text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_guide_content(p_guide_slug text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_guide_content(p_guide_slug text) TO authenticated, service_role;
 
 -- api.get_guide_coverage()  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_guide_coverage();
@@ -1791,7 +1827,7 @@ AS $api$
   SELECT * FROM public.get_guide_coverage();
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_guide_coverage() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_guide_coverage() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_guide_coverage() TO authenticated, service_role;
 
 -- api.get_item_workspaces(p_item_id uuid)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_item_workspaces(p_item_id uuid);
@@ -1804,7 +1840,7 @@ AS $api$
   SELECT * FROM public.get_item_workspaces(p_item_id => p_item_id);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_item_workspaces(p_item_id uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_item_workspaces(p_item_id uuid) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_item_workspaces(p_item_id uuid) TO authenticated, service_role;
 
 -- api.get_items_with_quality_flags()  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_items_with_quality_flags();
@@ -1817,7 +1853,7 @@ AS $api$
   SELECT * FROM public.get_items_with_quality_flags();
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_items_with_quality_flags() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_items_with_quality_flags() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_items_with_quality_flags() TO authenticated, service_role;
 
 -- api.get_popular_keywords(p_limit integer)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_popular_keywords(p_limit integer);
@@ -1830,7 +1866,7 @@ AS $api$
   SELECT * FROM public.get_popular_keywords(p_limit => p_limit);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_popular_keywords(p_limit integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_popular_keywords(p_limit integer) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_popular_keywords(p_limit integer) TO authenticated, service_role;
 
 -- api.get_quality_issue_counts()  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_quality_issue_counts();
@@ -1843,7 +1879,7 @@ AS $api$
   SELECT * FROM public.get_quality_issue_counts();
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_quality_issue_counts() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_quality_issue_counts() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_quality_issue_counts() TO authenticated, service_role;
 
 -- api.get_reading_patterns(p_days integer)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_reading_patterns(p_days integer);
@@ -1856,7 +1892,7 @@ AS $api$
   SELECT public.get_reading_patterns(p_days => p_days);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_reading_patterns(p_days integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_reading_patterns(p_days integer) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_reading_patterns(p_days integer) TO authenticated, service_role;
 
 -- api.get_review_breakdown_stats()  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_review_breakdown_stats();
@@ -1869,7 +1905,7 @@ AS $api$
   SELECT public.get_review_breakdown_stats();
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_review_breakdown_stats() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_review_breakdown_stats() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_review_breakdown_stats() TO authenticated, service_role;
 
 -- api.get_tag_counts_filtered(p_type text, p_min_count integer, p_search text, p_limit integer, p_offset integer)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_tag_counts_filtered(p_type text, p_min_count integer, p_search text, p_limit integer, p_offset integer);
@@ -1882,7 +1918,7 @@ AS $api$
   SELECT * FROM public.get_tag_counts_filtered(p_type => p_type, p_min_count => p_min_count, p_search => p_search, p_limit => p_limit, p_offset => p_offset);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_tag_counts_filtered(p_type text, p_min_count integer, p_search text, p_limit integer, p_offset integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_tag_counts_filtered(p_type text, p_min_count integer, p_search text, p_limit integer, p_offset integer) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_tag_counts_filtered(p_type text, p_min_count integer, p_search text, p_limit integer, p_offset integer) TO authenticated, service_role;
 
 -- api.get_tags_by_domain(p_type text)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_tags_by_domain(p_type text);
@@ -1895,7 +1931,7 @@ AS $api$
   SELECT * FROM public.get_tags_by_domain(p_type => p_type);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_tags_by_domain(p_type text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_tags_by_domain(p_type text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_tags_by_domain(p_type text) TO authenticated, service_role;
 
 -- api.get_topic_deep_dive(p_keyword text)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_topic_deep_dive(p_keyword text);
@@ -1908,7 +1944,7 @@ AS $api$
   SELECT public.get_topic_deep_dive(p_keyword => p_keyword);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_topic_deep_dive(p_keyword text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_topic_deep_dive(p_keyword text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_topic_deep_dive(p_keyword text) TO authenticated, service_role;
 
 -- api.get_topic_layers(p_topic_id text)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_topic_layers(p_topic_id text);
@@ -1921,7 +1957,7 @@ AS $api$
   SELECT * FROM public.get_topic_layers(p_topic_id => p_topic_id);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_topic_layers(p_topic_id text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_topic_layers(p_topic_id text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_topic_layers(p_topic_id text) TO authenticated, service_role;
 
 -- api.get_trend_analysis(p_days integer, p_min_count integer)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_trend_analysis(p_days integer, p_min_count integer);
@@ -1934,7 +1970,7 @@ AS $api$
   SELECT * FROM public.get_trend_analysis(p_days => p_days, p_min_count => p_min_count);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_trend_analysis(p_days integer, p_min_count integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_trend_analysis(p_days integer, p_min_count integer) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_trend_analysis(p_days integer, p_min_count integer) TO authenticated, service_role;
 
 -- api.get_unique_authors()  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_unique_authors();
@@ -1947,7 +1983,7 @@ AS $api$
   SELECT * FROM public.get_unique_authors();
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_unique_authors() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_unique_authors() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_unique_authors() TO authenticated, service_role;
 
 -- api.get_user_display_names(user_ids uuid[])  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_user_display_names(user_ids uuid[]);
@@ -1960,7 +1996,7 @@ AS $api$
   SELECT * FROM public.get_user_display_names(user_ids => user_ids);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_user_display_names(user_ids uuid[]) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_user_display_names(user_ids uuid[]) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_user_display_names(user_ids uuid[]) TO authenticated, service_role;
 
 -- api.get_user_tag_counts()  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.get_user_tag_counts();
@@ -1973,7 +2009,7 @@ AS $api$
   SELECT * FROM public.get_user_tag_counts();
 $api$;
 REVOKE EXECUTE ON FUNCTION api.get_user_tag_counts() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.get_user_tag_counts() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.get_user_tag_counts() TO authenticated, service_role;
 
 -- api.hybrid_search(query_embedding vector, query_text text, similarity_threshold numeric, limit_count integer, include_superseded boolean, visibility_filter character varying)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.hybrid_search(query_embedding vector, query_text text, similarity_threshold numeric, limit_count integer, include_superseded boolean, visibility_filter character varying);
@@ -1986,7 +2022,7 @@ AS $api$
   SELECT * FROM public.hybrid_search(query_embedding => query_embedding, query_text => query_text, similarity_threshold => similarity_threshold, limit_count => limit_count, include_superseded => include_superseded, visibility_filter => visibility_filter);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.hybrid_search(query_embedding vector, query_text text, similarity_threshold numeric, limit_count integer, include_superseded boolean, visibility_filter character varying) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.hybrid_search(query_embedding vector, query_text text, similarity_threshold numeric, limit_count integer, include_superseded boolean, visibility_filter character varying) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.hybrid_search(query_embedding vector, query_text text, similarity_threshold numeric, limit_count integer, include_superseded boolean, visibility_filter character varying) TO authenticated, service_role;
 
 -- api.list_public_tables()  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.list_public_tables();
@@ -1999,7 +2035,7 @@ AS $api$
   SELECT * FROM public.list_public_tables();
 $api$;
 REVOKE EXECUTE ON FUNCTION api.list_public_tables() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.list_public_tables() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.list_public_tables() TO authenticated, service_role;
 
 -- api.merge_entities(p_source_names text[], p_target_name text, p_entity_type text)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.merge_entities(p_source_names text[], p_target_name text, p_entity_type text);
@@ -2012,7 +2048,7 @@ AS $api$
   SELECT * FROM public.merge_entities(p_source_names => p_source_names, p_target_name => p_target_name, p_entity_type => p_entity_type);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.merge_entities(p_source_names text[], p_target_name text, p_entity_type text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.merge_entities(p_source_names text[], p_target_name text, p_entity_type text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.merge_entities(p_source_names text[], p_target_name text, p_entity_type text) TO authenticated, service_role;
 
 -- api.merge_item_metadata(p_item_id uuid, p_new_data jsonb)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.merge_item_metadata(p_item_id uuid, p_new_data jsonb);
@@ -2025,7 +2061,7 @@ AS $api$
   SELECT public.merge_item_metadata(p_item_id => p_item_id, p_new_data => p_new_data);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.merge_item_metadata(p_item_id uuid, p_new_data jsonb) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.merge_item_metadata(p_item_id uuid, p_new_data jsonb) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.merge_item_metadata(p_item_id uuid, p_new_data jsonb) TO authenticated, service_role;
 
 -- api.merge_tags(p_source text, p_target text, p_type text)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.merge_tags(p_source text, p_target text, p_type text);
@@ -2038,7 +2074,7 @@ AS $api$
   SELECT public.merge_tags(p_source => p_source, p_target => p_target, p_type => p_type);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.merge_tags(p_source text, p_target text, p_type text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.merge_tags(p_source text, p_target text, p_type text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.merge_tags(p_source text, p_target text, p_type text) TO authenticated, service_role;
 
 -- api.q_a_extractions_promotion_candidates()  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.q_a_extractions_promotion_candidates();
@@ -2051,7 +2087,7 @@ AS $api$
   SELECT * FROM public.q_a_extractions_promotion_candidates();
 $api$;
 REVOKE EXECUTE ON FUNCTION api.q_a_extractions_promotion_candidates() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.q_a_extractions_promotion_candidates() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.q_a_extractions_promotion_candidates() TO authenticated, service_role;
 
 -- api.q_a_get_verbatim(p_pair_id uuid)  [INVOKER wrapper over SECURITY DEFINER public fn]
 DROP FUNCTION IF EXISTS api.q_a_get_verbatim(p_pair_id uuid);
@@ -2064,7 +2100,7 @@ AS $api$
   SELECT * FROM public.q_a_get_verbatim(p_pair_id => p_pair_id);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.q_a_get_verbatim(p_pair_id uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.q_a_get_verbatim(p_pair_id uuid) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.q_a_get_verbatim(p_pair_id uuid) TO authenticated, service_role;
 
 -- api.q_a_search(p_query text, p_query_embedding vector, p_limit integer)  [INVOKER wrapper over SECURITY DEFINER public fn]
 DROP FUNCTION IF EXISTS api.q_a_search(p_query text, p_query_embedding vector, p_limit integer);
@@ -2077,7 +2113,7 @@ AS $api$
   SELECT * FROM public.q_a_search(p_query => p_query, p_query_embedding => p_query_embedding, p_limit => p_limit);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.q_a_search(p_query text, p_query_embedding vector, p_limit integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.q_a_search(p_query text, p_query_embedding vector, p_limit integer) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.q_a_search(p_query text, p_query_embedding vector, p_limit integer) TO authenticated, service_role;
 
 -- api.question_match_recompute(p_form_question_id uuid, p_query text, p_query_embedding vector, p_question_kind text, p_scope_tag text[], p_anti_scope_tag text[], p_limit integer)  [INVOKER wrapper over SECURITY DEFINER public fn]
 DROP FUNCTION IF EXISTS api.question_match_recompute(p_form_question_id uuid, p_query text, p_query_embedding vector, p_question_kind text, p_scope_tag text[], p_anti_scope_tag text[], p_limit integer);
@@ -2090,7 +2126,7 @@ AS $api$
   SELECT public.question_match_recompute(p_form_question_id => p_form_question_id, p_query => p_query, p_query_embedding => p_query_embedding, p_question_kind => p_question_kind, p_scope_tag => p_scope_tag, p_anti_scope_tag => p_anti_scope_tag, p_limit => p_limit);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.question_match_recompute(p_form_question_id uuid, p_query text, p_query_embedding vector, p_question_kind text, p_scope_tag text[], p_anti_scope_tag text[], p_limit integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.question_match_recompute(p_form_question_id uuid, p_query text, p_query_embedding vector, p_question_kind text, p_scope_tag text[], p_anti_scope_tag text[], p_limit integer) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.question_match_recompute(p_form_question_id uuid, p_query text, p_query_embedding vector, p_question_kind text, p_scope_tag text[], p_anti_scope_tag text[], p_limit integer) TO authenticated, service_role;
 
 -- api.question_match_search(p_form_question_id uuid, p_question_kind text, p_limit integer)  [INVOKER wrapper over SECURITY DEFINER public fn]
 DROP FUNCTION IF EXISTS api.question_match_search(p_form_question_id uuid, p_question_kind text, p_limit integer);
@@ -2103,7 +2139,7 @@ AS $api$
   SELECT * FROM public.question_match_search(p_form_question_id => p_form_question_id, p_question_kind => p_question_kind, p_limit => p_limit);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.question_match_search(p_form_question_id uuid, p_question_kind text, p_limit integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.question_match_search(p_form_question_id uuid, p_question_kind text, p_limit integer) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.question_match_search(p_form_question_id uuid, p_question_kind text, p_limit integer) TO authenticated, service_role;
 
 -- api.reap_stuck_jobs(p_timeout_seconds integer)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.reap_stuck_jobs(p_timeout_seconds integer);
@@ -2116,7 +2152,7 @@ AS $api$
   SELECT public.reap_stuck_jobs(p_timeout_seconds => p_timeout_seconds);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.reap_stuck_jobs(p_timeout_seconds integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.reap_stuck_jobs(p_timeout_seconds integer) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.reap_stuck_jobs(p_timeout_seconds integer) TO authenticated, service_role;
 
 -- api.recalculate_all_freshness()  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.recalculate_all_freshness();
@@ -2129,7 +2165,7 @@ AS $api$
   SELECT * FROM public.recalculate_all_freshness();
 $api$;
 REVOKE EXECUTE ON FUNCTION api.recalculate_all_freshness() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.recalculate_all_freshness() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.recalculate_all_freshness() TO authenticated, service_role;
 
 -- api.reference_get_verbatim(p_reference_id uuid)  [INVOKER wrapper over SECURITY DEFINER public fn]
 DROP FUNCTION IF EXISTS api.reference_get_verbatim(p_reference_id uuid);
@@ -2142,7 +2178,7 @@ AS $api$
   SELECT * FROM public.reference_get_verbatim(p_reference_id => p_reference_id);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.reference_get_verbatim(p_reference_id uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.reference_get_verbatim(p_reference_id uuid) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.reference_get_verbatim(p_reference_id uuid) TO authenticated, service_role;
 
 -- api.reference_ingest(p_source_url text, p_title text, p_body text, p_summary text, p_primary_domain text, p_primary_subtopic text, p_embedding vector, p_published_at timestamp with time zone, p_filename text, p_mime_type text, p_file_size integer, p_content_hash text, p_extraction_metadata jsonb, p_op_id uuid)  [INVOKER wrapper over SECURITY DEFINER public fn]
 DROP FUNCTION IF EXISTS api.reference_ingest(p_source_url text, p_title text, p_body text, p_summary text, p_primary_domain text, p_primary_subtopic text, p_embedding vector, p_published_at timestamp with time zone, p_filename text, p_mime_type text, p_file_size integer, p_content_hash text, p_extraction_metadata jsonb, p_op_id uuid);
@@ -2155,7 +2191,7 @@ AS $api$
   SELECT * FROM public.reference_ingest(p_source_url => p_source_url, p_title => p_title, p_body => p_body, p_summary => p_summary, p_primary_domain => p_primary_domain, p_primary_subtopic => p_primary_subtopic, p_embedding => p_embedding, p_published_at => p_published_at, p_filename => p_filename, p_mime_type => p_mime_type, p_file_size => p_file_size, p_content_hash => p_content_hash, p_extraction_metadata => p_extraction_metadata, p_op_id => p_op_id);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.reference_ingest(p_source_url text, p_title text, p_body text, p_summary text, p_primary_domain text, p_primary_subtopic text, p_embedding vector, p_published_at timestamp with time zone, p_filename text, p_mime_type text, p_file_size integer, p_content_hash text, p_extraction_metadata jsonb, p_op_id uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.reference_ingest(p_source_url text, p_title text, p_body text, p_summary text, p_primary_domain text, p_primary_subtopic text, p_embedding vector, p_published_at timestamp with time zone, p_filename text, p_mime_type text, p_file_size integer, p_content_hash text, p_extraction_metadata jsonb, p_op_id uuid) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.reference_ingest(p_source_url text, p_title text, p_body text, p_summary text, p_primary_domain text, p_primary_subtopic text, p_embedding vector, p_published_at timestamp with time zone, p_filename text, p_mime_type text, p_file_size integer, p_content_hash text, p_extraction_metadata jsonb, p_op_id uuid) TO authenticated, service_role;
 
 -- api.reference_search(p_query text, p_query_embedding vector, p_limit integer)  [INVOKER wrapper over SECURITY DEFINER public fn]
 DROP FUNCTION IF EXISTS api.reference_search(p_query text, p_query_embedding vector, p_limit integer);
@@ -2168,7 +2204,7 @@ AS $api$
   SELECT * FROM public.reference_search(p_query => p_query, p_query_embedding => p_query_embedding, p_limit => p_limit);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.reference_search(p_query text, p_query_embedding vector, p_limit integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.reference_search(p_query text, p_query_embedding vector, p_limit integer) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.reference_search(p_query text, p_query_embedding vector, p_limit integer) TO authenticated, service_role;
 
 -- api.rename_tag(p_old text, p_new text, p_type text)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.rename_tag(p_old text, p_new text, p_type text);
@@ -2181,7 +2217,7 @@ AS $api$
   SELECT public.rename_tag(p_old => p_old, p_new => p_new, p_type => p_type);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.rename_tag(p_old text, p_new text, p_type text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.rename_tag(p_old text, p_new text, p_type text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.rename_tag(p_old text, p_new text, p_type text) TO authenticated, service_role;
 
 -- api.search_for_form_response(query_embedding vector, query_text text, limit_count integer, include_superseded boolean, visibility_filter character varying)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.search_for_form_response(query_embedding vector, query_text text, limit_count integer, include_superseded boolean, visibility_filter character varying);
@@ -2194,7 +2230,7 @@ AS $api$
   SELECT * FROM public.search_for_form_response(query_embedding => query_embedding, query_text => query_text, limit_count => limit_count, include_superseded => include_superseded, visibility_filter => visibility_filter);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.search_for_form_response(query_embedding vector, query_text text, limit_count integer, include_superseded boolean, visibility_filter character varying) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.search_for_form_response(query_embedding vector, query_text text, limit_count integer, include_superseded boolean, visibility_filter character varying) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.search_for_form_response(query_embedding vector, query_text text, limit_count integer, include_superseded boolean, visibility_filter character varying) TO authenticated, service_role;
 
 -- api.set_config(setting text, value text, is_local boolean)  [INVOKER wrapper over SECURITY DEFINER public fn]
 DROP FUNCTION IF EXISTS api.set_config(setting text, value text, is_local boolean);
@@ -2220,7 +2256,7 @@ AS $api$
   SELECT * FROM public.suggest_tags(p_prefix => p_prefix, p_type => p_type);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.suggest_tags(p_prefix text, p_type text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.suggest_tags(p_prefix text, p_type text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.suggest_tags(p_prefix text, p_type text) TO authenticated, service_role;
 
 -- api.toggle_star(item_id uuid)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.toggle_star(item_id uuid);
@@ -2233,7 +2269,7 @@ AS $api$
   SELECT public.toggle_star(item_id => item_id);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.toggle_star(item_id uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.toggle_star(item_id uuid) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.toggle_star(item_id uuid) TO authenticated, service_role;
 
 -- api.toggle_star(p_item_id uuid, p_starred boolean)  [INVOKER entrypoint]
 DROP FUNCTION IF EXISTS api.toggle_star(p_item_id uuid, p_starred boolean);
@@ -2246,5 +2282,5 @@ AS $api$
   SELECT public.toggle_star(p_item_id => p_item_id, p_starred => p_starred);
 $api$;
 REVOKE EXECUTE ON FUNCTION api.toggle_star(p_item_id uuid, p_starred boolean) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.toggle_star(p_item_id uuid, p_starred boolean) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION api.toggle_star(p_item_id uuid, p_starred boolean) TO authenticated, service_role;
 

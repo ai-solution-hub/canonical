@@ -605,8 +605,8 @@
       "label": "ITT (Invitation To Tender)"
     },
     {
-      "key": "pqq",
-      "label": "PQQ (Pre-Qualification Questionnaire)"
+      "key": "psq",
+      "label": "Selection Questionnaire (SQ/PSQ)"
     },
     {
       "key": "questionnaire",

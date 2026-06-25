@@ -155,15 +155,15 @@ const VALID_ENTITY_TYPES = [
   'methodology',
 ] as const;
 
+// The canonical form_type CV (ID-130 AD-4) — mirrors the validator's set
+// (scripts/cocoindex_pipeline/extraction.py:_load_canonical_form_types). `psq`
+// re-keyed from the pre-2023 `pqq`; framework/dps/gcloud are NOT canonical CV keys.
 const VALID_FORM_TYPES = [
   'bid',
   'rfp',
-  'pqq',
+  'psq',
   'itt',
   'tender',
-  'framework',
-  'dps',
-  'gcloud',
   'checklist',
   'questionnaire',
   'sales_proposal_template',
