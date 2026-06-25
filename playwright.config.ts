@@ -43,9 +43,15 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : 3,
-  reporter: process.env.CI
-    ? [['html'], ['list'], ['github']]
-    : [['html'], ['list']],
+  // id-128 {128.7}: the sharded nightly sets PW_BLOB_REPORT=1 so each shard emits
+  // a `blob` report; a downstream `merge-reports` job stitches the shards into one
+  // aggregated HTML report. Smoke + non-sharded CI keep html/list/github; local
+  // keeps html/list. (Unset PW_BLOB_REPORT → unchanged for every existing lane.)
+  reporter: process.env.PW_BLOB_REPORT
+    ? [['blob']]
+    : process.env.CI
+      ? [['html'], ['list'], ['github']]
+      : [['html'], ['list']],
   // Web-first assertions auto-retry up to this budget before failing — gives
   // settling UI (view transitions, debounced effects) room to converge without
   // a fixed sleep. Sits above the per-assertion default (5s) but below the
@@ -120,7 +126,12 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'bun dev',
+    // id-128 {128.6}: the nightly serves a local PRODUCTION build via `next start`
+    // (it sets PLAYWRIGHT_WEB_SERVER_CMD='bun run start'), so every route is
+    // precompiled — there is NO next-dev compile-on-first-hit, which is what
+    // produced run #9's `page.goto: Timeout 15000ms` storm under --workers=3.
+    // Smoke + local default to `bun dev` (env unset) — unchanged.
+    command: process.env.PLAYWRIGHT_WEB_SERVER_CMD ?? 'bun dev',
     port: Number(process.env.PLAYWRIGHT_WEB_SERVER_PORT ?? 3000),
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
