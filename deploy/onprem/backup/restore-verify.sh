@@ -22,6 +22,17 @@ TOOLING_IMAGE="${TOOLING_IMAGE:-canonical-lmdb-backup-tools:latest}"
 command -v docker >/dev/null 2>&1 || { echo "[restore] ERROR: docker not found" >&2; exit 1; }
 [[ -f "${SECRETS_ENV_FILE}" ]] || { echo "[restore] ERROR: no ${SECRETS_ENV_FILE}" >&2; exit 1; }
 
+# Tooling image is local-only (never pushed) and Coolify's force_docker_cleanup prunes
+# it between runs — rebuild from the co-located Dockerfile.tools if missing (see
+# lmdb-backup-cold.sh for the full rationale). A pruned image otherwise fails the restore
+# on an unrecoverable registry pull — the worst moment to discover it.
+if ! docker image inspect "${TOOLING_IMAGE}" >/dev/null 2>&1; then
+  DOCKERFILE_TOOLS="${DOCKERFILE_TOOLS:-$(dirname "$0")/Dockerfile.tools}"
+  [[ -f "${DOCKERFILE_TOOLS}" ]] || { echo "[restore] ERROR: tooling image ${TOOLING_IMAGE} missing and no Dockerfile.tools at ${DOCKERFILE_TOOLS}" >&2; exit 1; }
+  echo "[restore] tooling image ${TOOLING_IMAGE} missing (likely Coolify-pruned) — rebuilding from ${DOCKERFILE_TOOLS}" >&2
+  docker build -t "${TOOLING_IMAGE}" -f "${DOCKERFILE_TOOLS}" "$(dirname "${DOCKERFILE_TOOLS}")" >&2 || { echo "[restore] ERROR: rebuild failed" >&2; exit 1; }
+fi
+
 OUT="$(mktemp -d)"
 trap 'rm -rf "${OUT}"' EXIT
 

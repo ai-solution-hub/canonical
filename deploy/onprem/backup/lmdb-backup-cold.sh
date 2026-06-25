@@ -65,6 +65,22 @@ LMDB_VOLUME_NAME="${LMDB_VOLUME_NAME:-cocoindex-state}"
 LMDB_HOST_DIR="${LMDB_HOST_DIR:-/var/lib/docker/volumes/${APP_UUID}_${LMDB_VOLUME_NAME}/_data/lmdb/mdb}"
 [[ -f "${LMDB_HOST_DIR}/data.mdb" ]] || die "no data.mdb in ${LMDB_HOST_DIR}."
 
+# --- Tooling image: rebuild if missing -----------------------------------------
+# The sidecar image is built locally on the host and NEVER pushed to a registry, so a
+# `docker run` of a pruned image fails on an unrecoverable registry pull. Coolify's
+# scheduled `force_docker_cleanup` prunes images with no running container — which the
+# idle backup sidecar always is between nightly runs — so the image silently vanishes
+# and the cron then stops/restarts the cocoindex container but ships NOTHING. Rebuild
+# it from the co-located Dockerfile.tools BEFORE we quiesce the container, so a build
+# failure never costs a stop/start window.
+if ! docker image inspect "${TOOLING_IMAGE}" >/dev/null 2>&1; then
+  DOCKERFILE_TOOLS="${DOCKERFILE_TOOLS:-$(dirname "$0")/Dockerfile.tools}"
+  [[ -f "${DOCKERFILE_TOOLS}" ]] || die "tooling image ${TOOLING_IMAGE} missing and no Dockerfile.tools at ${DOCKERFILE_TOOLS} to rebuild from."
+  log "Tooling image ${TOOLING_IMAGE} missing (likely pruned by Coolify cleanup) — rebuilding from ${DOCKERFILE_TOOLS}."
+  docker build -t "${TOOLING_IMAGE}" -f "${DOCKERFILE_TOOLS}" "$(dirname "${DOCKERFILE_TOOLS}")" >&2 \
+    || die "failed to rebuild tooling image ${TOOLING_IMAGE}."
+fi
+
 SNAP="$(mktemp -d)"
 STOPPED=0
 cleanup() {
