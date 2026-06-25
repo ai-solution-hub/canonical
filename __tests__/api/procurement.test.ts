@@ -65,6 +65,45 @@ const VALID_CREATE_BODY = {
   description: 'A new bid',
 };
 
+// ID-130 T-B1 / T-B8: the umbrella GET reads workspace identity + the roll-up +
+// the child-form list (NOT domain_metadata); PATCH transitions the single-v1
+// form's workflow_state. These fixtures mirror the real `.select()` projections.
+const FORM_ID = '00000000-0000-4000-8000-0000000000aa';
+
+const MOCK_WORKSPACE = {
+  id: VALID_UUID,
+  name: 'Test Procurement',
+  description: 'A test bid',
+  is_archived: false,
+  created_by: 'test-user-id',
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
+  updated_by: null,
+};
+
+const MOCK_ROLLUP = {
+  nearest_deadline: '2026-03-01T00:00:00Z',
+  overall_outcome: 'in_progress',
+  counts_toward_win_rate: false,
+  rollup_updated_at: '2026-01-02T00:00:00Z',
+};
+
+const MOCK_FORM = {
+  id: FORM_ID,
+  form_type: 'bid',
+  name: 'Tender response',
+  workflow_state: 'draft',
+  outcome: null,
+  outcome_notes: null,
+  deadline: '2026-03-01T00:00:00Z',
+  submission_date: null,
+  issuing_organisation: 'Acme Corp',
+  outcome_recorded_at: null,
+  outcome_recorded_by: null,
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -419,11 +458,21 @@ describe('GET /api/procurement/[id]', () => {
     expect(body.error).toBe('Procurement not found');
   });
 
-  it('returns 200 with bid data, question stats, and tender documents', async () => {
+  it('returns 200 with the roll-up, child-form list, stats, and documents (not domain_metadata)', async () => {
+    // Workspace identity (single) -> roll-up (maybeSingle) -> forms (awaited
+    // list -> .then) -> stats (rpc) -> storage.
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: MOCK_BID,
+      data: MOCK_WORKSPACE,
       error: null,
     });
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: MOCK_ROLLUP,
+      error: null,
+    });
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [MOCK_FORM], error: null }),
+    );
 
     mockSupabase.rpc.mockResolvedValueOnce({
       data: [{ total: 10, answered: 7, approved: 3 }],
@@ -457,6 +506,19 @@ describe('GET /api/procurement/[id]', () => {
     const body = await res.json();
     expect(body.id).toBe(VALID_UUID);
     expect(body.name).toBe('Test Procurement');
+
+    // The umbrella read surface no longer leaks the deprecated domain_metadata.
+    expect(body).not.toHaveProperty('domain_metadata');
+
+    // Roll-up read off procurement_workspaces.
+    expect(body.rollup).toEqual(MOCK_ROLLUP);
+
+    // Child-form list read off form_templates.
+    expect(body.forms).toHaveLength(1);
+    expect(body.forms[0].id).toBe(FORM_ID);
+    expect(body.forms[0].workflow_state).toBe('draft');
+    expect(body.forms[0].form_type).toBe('bid');
+
     expect(body.question_stats).toEqual({
       total: 10,
       answered: 7,
@@ -469,12 +531,37 @@ describe('GET /api/procurement/[id]', () => {
     expect(body.warnings).toBeUndefined();
   });
 
+  it('returns a null roll-up + empty forms for a brand-new umbrella', async () => {
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: MOCK_WORKSPACE,
+      error: null,
+    });
+    // No roll-up row yet -> maybeSingle returns null (default).
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+    // No forms yet -> empty list (default .then).
+
+    const req = createTestRequest(`/api/procurement/${VALID_UUID}`);
+    const res = await getBid(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.rollup).toBeNull();
+    expect(body.forms).toEqual([]);
+    // A missing roll-up is an expected state, not a failure — no warning.
+    expect(body.warnings).toBeUndefined();
+  });
+
   it('returns 200 with warnings[] when stats RPC fails (partial response)', async () => {
     // S152A WP4: H2 was flipped from fail-fast to partial-response. Procurement
     // detail is a composite view (overview, questions, drafting, outcome,
     // documents tabs) and a transient stats glitch must not 500 the page.
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: MOCK_BID,
+      data: MOCK_WORKSPACE,
       error: null,
     });
 
@@ -503,13 +590,16 @@ describe('GET /api/procurement/[id]', () => {
     expect(body.question_stats).toBeNull();
     expect(body.tender_documents).toEqual([]);
     expect(Array.isArray(body.warnings)).toBe(true);
-    expect(body.warnings).toHaveLength(1);
-    expect(body.warnings[0]).toMatch(/Question stats could not be loaded/);
+    expect(
+      body.warnings.some((w: string) =>
+        /Question stats could not be loaded/.test(w),
+      ),
+    ).toBe(true);
   });
 
   it('returns 200 with warnings[] when storage list fails (partial response)', async () => {
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: MOCK_BID,
+      data: MOCK_WORKSPACE,
       error: null,
     });
 
@@ -543,8 +633,11 @@ describe('GET /api/procurement/[id]', () => {
       approved: 3,
     });
     expect(body.tender_documents).toEqual([]);
-    expect(body.warnings).toHaveLength(1);
-    expect(body.warnings[0]).toMatch(/Tender documents could not be listed/);
+    expect(
+      body.warnings.some((w: string) =>
+        /Tender documents could not be listed/.test(w),
+      ),
+    ).toBe(true);
   });
 });
 
@@ -608,24 +701,43 @@ describe('PATCH /api/procurement/[id]', () => {
     expect(res.status).toBe(404);
   });
 
-  it('returns 200 on successful metadata update', async () => {
+  it('re-anchors metadata: buyer -> form, name -> workspace, no domain_metadata writer', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const updatedBid = {
-      ...MOCK_BID,
-      name: 'Updated Procurement',
-      domain_metadata: { ...MOCK_BID.domain_metadata, buyer: 'Updated Buyer' },
-    };
-
+    // Workspace verify (single, includes domain_metadata for residual merge).
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: MOCK_BID,
+      data: { ...MOCK_WORKSPACE, domain_metadata: { buyer: 'Acme Corp' } },
       error: null,
     });
-
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: updatedBid,
-      error: null,
-    });
+    // .then sequence: 1 = form fetch, 2 = form UPDATE, 3 = workspace UPDATE.
+    let thenCallCount = 0;
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) {
+          return resolve({ data: [MOCK_FORM], error: null });
+        }
+        if (thenCallCount === 2) {
+          return resolve({
+            data: [{ ...MOCK_FORM, issuing_organisation: 'Updated Buyer' }],
+            error: null,
+          });
+        }
+        if (thenCallCount === 3) {
+          return resolve({
+            data: [
+              {
+                id: VALID_UUID,
+                name: 'Updated Procurement',
+                description: 'A test bid',
+              },
+            ],
+            error: null,
+          });
+        }
+        return resolve({ data: [], error: null });
+      },
+    );
 
     const req = createTestRequest(`/api/procurement/${VALID_UUID}`, {
       method: 'PATCH',
@@ -638,27 +750,42 @@ describe('PATCH /api/procurement/[id]', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.name).toBe('Updated Procurement');
-    expect(body.domain_metadata.buyer).toBe('Updated Buyer');
+    expect(body).not.toHaveProperty('domain_metadata');
 
-    // Content-of-write: the patch must merge the new buyer into
-    // domain_metadata, preserve the prior status, and stamp updated_by.
-    const updateArg = mockSupabase._chain.update.mock.calls[0][0];
-    expect(updateArg).toMatchObject({
-      domain_metadata: expect.objectContaining({
-        buyer: 'Updated Buyer',
-        status: 'draft',
-      }),
+    // Content-of-write: buyer re-anchors to the FORM's issuing_organisation
+    // (call 0 = form UPDATE); name lands on the workspace (call 1 = workspace
+    // UPDATE). NEITHER update writes a deprecated domain_metadata engagement key.
+    const formUpdateArg = mockSupabase._chain.update.mock.calls[0][0];
+    expect(formUpdateArg).toMatchObject({
+      issuing_organisation: 'Updated Buyer',
+    });
+    expect(formUpdateArg).not.toHaveProperty('domain_metadata');
+    expect(formUpdateArg).not.toHaveProperty('status');
+
+    const workspaceUpdateArg = mockSupabase._chain.update.mock.calls[1][0];
+    expect(workspaceUpdateArg).toMatchObject({
+      name: 'Updated Procurement',
       updated_by: 'test-user-id',
     });
+    // No residual metadata fields were sent, so no domain_metadata write at all.
+    expect(workspaceUpdateArg).not.toHaveProperty('domain_metadata');
   });
 
-  it('returns 400 for invalid state transition', async () => {
+  it('returns 400 for invalid state transition (validated against the form)', async () => {
     configureRole(mockSupabase, 'editor');
 
+    // Workspace verify, then the form fetch returns a draft-state form.
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: MOCK_BID,
+      data: { ...MOCK_WORKSPACE, domain_metadata: {} },
       error: null,
     });
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [{ id: FORM_ID, form_type: 'bid', workflow_state: 'draft' }],
+          error: null,
+        }),
+    );
 
     const req = createTestRequest(`/api/procurement/${VALID_UUID}`, {
       method: 'PATCH',
@@ -675,26 +802,34 @@ describe('PATCH /api/procurement/[id]', () => {
     expect(body.requested_status).toBe('submitted');
   });
 
-  it('returns 200 for valid state transition (draft -> questions_extracted)', async () => {
+  it('returns 200 for a valid form transition (draft -> questions_extracted)', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const transitionedBid = {
-      ...MOCK_BID,
-      domain_metadata: {
-        ...MOCK_BID.domain_metadata,
-        status: 'questions_extracted',
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { ...MOCK_WORKSPACE, domain_metadata: {} },
+      error: null,
+    });
+    let thenCallCount = 0;
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) {
+          // form fetch (current state draft)
+          return resolve({
+            data: [{ id: FORM_ID, form_type: 'bid', workflow_state: 'draft' }],
+            error: null,
+          });
+        }
+        if (thenCallCount === 2) {
+          // form UPDATE returns the written row
+          return resolve({
+            data: [{ ...MOCK_FORM, workflow_state: 'questions_extracted' }],
+            error: null,
+          });
+        }
+        return resolve({ data: [], error: null });
       },
-    };
-
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: MOCK_BID,
-      error: null,
-    });
-
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: transitionedBid,
-      error: null,
-    });
+    );
 
     const req = createTestRequest(`/api/procurement/${VALID_UUID}`, {
       method: 'PATCH',
@@ -706,7 +841,15 @@ describe('PATCH /api/procurement/[id]', () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.domain_metadata.status).toBe('questions_extracted');
+    expect(body.workflow_state).toBe('questions_extracted');
+
+    // The transition writes the FORM's workflow_state, not a domain_metadata key.
+    const formUpdateArg = mockSupabase._chain.update.mock.calls[0][0];
+    expect(formUpdateArg).toMatchObject({
+      workflow_state: 'questions_extracted',
+    });
+    expect(formUpdateArg).not.toHaveProperty('domain_metadata');
+    expect(formUpdateArg).not.toHaveProperty('status');
   });
 });
 

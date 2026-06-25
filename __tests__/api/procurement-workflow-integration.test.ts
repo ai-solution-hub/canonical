@@ -41,41 +41,46 @@ import { PATCH } from '@/app/api/procurement/[id]/route';
 // ---------------------------------------------------------------------------
 
 const VALID_UUID = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
+const FORM_ID = '00000000-0000-4000-8000-0000000000aa';
 
 function configureRole(role: 'admin' | 'editor' | 'viewer') {
   configureRoleHelper(mockSupabase, role);
 }
 
+// ID-130 T-B8/T-B10: a status PATCH now transitions the FORM's workflow_state.
+// The route sequence after the role lookup is: workspace verify (`.single()`),
+// single-v1 form fetch (awaited list -> `.then`). `configureBidFetch` queues the
+// workspace row + the form row carrying `workflow_state`.
 function configureBidFetch(status: string) {
-  // Second .single() call is the bid fetch
+  // Workspace verify — the procurement discriminator + id/name/description.
   mockSupabase._chain.single.mockResolvedValueOnce({
     data: {
       id: VALID_UUID,
       name: 'Test Procurement',
       description: null,
-      status,
       domain_metadata: { buyer: 'Test Buyer' },
     },
     error: null,
   });
+  // Single-v1 form fetch (awaited list) — the live workflow_state lives here.
+  mockSupabase._chain.then.mockImplementationOnce(
+    (resolve: (v: unknown) => void) =>
+      resolve({
+        data: [{ id: FORM_ID, form_type: 'bid', workflow_state: status }],
+        error: null,
+      }),
+  );
 }
 
 function configureUpdateSuccess(status: string) {
-  mockSupabase._chain.single.mockResolvedValueOnce({
-    data: {
-      id: VALID_UUID,
-      name: 'Test Procurement',
-      description: null,
-      status,
-      domain_metadata: { buyer: 'Test Buyer' },
-      is_archived: false,
-      created_by: 'test-user-id',
-      created_at: '2026-01-01T00:00:00Z',
-      updated_at: new Date().toISOString(),
-      updated_by: 'test-user-id',
-    },
-    error: null,
-  });
+  // Form UPDATE returns the written row (row-count verify).
+  mockSupabase._chain.then.mockImplementationOnce(
+    (resolve: (v: unknown) => void) =>
+      resolve({
+        data: [{ id: FORM_ID, workflow_state: status }],
+        error: null,
+      }),
+  );
 }
 
 function resetMocks() {
@@ -149,7 +154,7 @@ describe('Procurement state machine via PATCH /api/bids/[id]', () => {
     expect(response.status).toBe(200);
 
     const body = await response.json();
-    expect(body.status).toBe('questions_extracted');
+    expect(body.workflow_state).toBe('questions_extracted');
   });
 
   it('allows questions_extracted → matching', async () => {
