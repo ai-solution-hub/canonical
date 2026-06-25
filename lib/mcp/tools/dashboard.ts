@@ -128,7 +128,7 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
           // Non-critical — ownership context is supplementary
         }
 
-        let markdown = truncateResponse(formatReorientation(data));
+        let markdown = formatReorientation(data);
 
         // Append ownership section if the user owns any items
         if (ownershipSummary && ownershipSummary.owned_items > 0) {
@@ -146,6 +146,10 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
           }
           markdown += '\n' + ownerSection.join('\n');
         }
+
+        // Truncate the FINAL assembled markdown (body + ownership) so the
+        // 10k cap is enforced on what is actually returned (TE-05).
+        markdown = truncateResponse(markdown);
 
         const structuredData = {
           ...data,

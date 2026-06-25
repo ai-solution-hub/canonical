@@ -229,7 +229,8 @@ export function formatReorientation(data: ReorientData): string {
   // Procurement summary
   if (data.bid_summary.length > 0) {
     lines.push('## Procurement Summary', '');
-    for (const bid of data.bid_summary) {
+    const displayedBids = data.bid_summary.slice(0, 10);
+    for (const bid of displayedBids) {
       const progress = formatProgress(
         bid.answered_questions,
         bid.total_questions,
@@ -251,6 +252,12 @@ export function formatReorientation(data: ReorientData): string {
         );
       }
       lines.push('');
+    }
+    if (data.bid_summary.length > 10) {
+      lines.push(
+        `- ...and ${data.bid_summary.length - 10} more procurements`,
+        '',
+      );
     }
   }
 
