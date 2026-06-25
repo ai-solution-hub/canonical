@@ -3,7 +3,7 @@
 # restore-verify.sh — exercise the {66.14} LMDB backup restore path (inv 15 / inv 7).
 # ID-66.14 (canonical-pipeline / on-prem B1).
 #
-# Downloads the newest backup object from S3 (via the kh-lmdb-backup-tools sidecar,
+# Downloads the newest backup object from S3 (via the canonical-lmdb-backup-tools sidecar,
 # which carries awscli), untars it, and verifies the restored data.mdb is a VALID
 # LMDB env — by checking the meta-page magic (0xBEEFC0DE at byte offset 16) and a
 # non-zero size. NB: `mdb_stat` CANNOT be used to validate it (the same LMDB
@@ -12,13 +12,13 @@
 # integrity proof. A real restore then untars data.mdb into the env dir on the
 # (stopped) volume; see the {66.14} "Restore procedure" in the runbook.
 #
-# CONFIG: APP_UUID (req), SECRETS_ENV_FILE [/root/kh-secrets/lmdb-backup.env],
-#         TOOLING_IMAGE [kh-lmdb-backup-tools:latest].
+# CONFIG: APP_UUID (req), SECRETS_ENV_FILE [/root/canonical-secrets/lmdb-backup.env],
+#         TOOLING_IMAGE [canonical-lmdb-backup-tools:latest].
 set -euo pipefail
 
 : "${APP_UUID:?APP_UUID is required.}"
-SECRETS_ENV_FILE="${SECRETS_ENV_FILE:-/root/kh-secrets/lmdb-backup.env}"
-TOOLING_IMAGE="${TOOLING_IMAGE:-kh-lmdb-backup-tools:latest}"
+SECRETS_ENV_FILE="${SECRETS_ENV_FILE:-/root/canonical-secrets/lmdb-backup.env}"
+TOOLING_IMAGE="${TOOLING_IMAGE:-canonical-lmdb-backup-tools:latest}"
 command -v docker >/dev/null 2>&1 || { echo "[restore] ERROR: docker not found" >&2; exit 1; }
 [[ -f "${SECRETS_ENV_FILE}" ]] || { echo "[restore] ERROR: no ${SECRETS_ENV_FILE}" >&2; exit 1; }
 

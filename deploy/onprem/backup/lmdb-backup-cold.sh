@@ -22,7 +22,7 @@
 #   The container is ALWAYS restarted (EXIT trap), even if the copy/upload fails.
 #
 # DESIGN: the HOST does the quiesce + copy (it needs only `docker` + `cp`); the
-#   tar + S3 upload run inside the kh-lmdb-backup-tools sidecar image (it carries
+#   tar + S3 upload run inside the canonical-lmdb-backup-tools sidecar image (it carries
 #   awscli + zstd), so the host needs NO awscli (Ubuntu 24.04 dropped the package)
 #   and the host shell never sees the secret VALUES — they reach the sidecar only
 #   via `docker run --env-file`.
@@ -30,9 +30,11 @@
 # CONFIG (env)
 #   APP_UUID            Coolify app uuid — resolves BOTH the running container name
 #                       (suffix changes per redeploy) and the on-host volume path. REQUIRED.
-#   SECRETS_ENV_FILE    Host env-file with BACKUP_S3_BUCKET + AWS_* [/root/kh-secrets/lmdb-backup.env].
-#   TOOLING_IMAGE       Upload sidecar image [kh-lmdb-backup-tools:latest].
+#   SECRETS_ENV_FILE    Host env-file with BACKUP_S3_BUCKET + AWS_* [/root/canonical-secrets/lmdb-backup.env].
+#   TOOLING_IMAGE       Upload sidecar image [canonical-lmdb-backup-tools:latest].
 #   COCOINDEX_CONTAINER / LMDB_HOST_DIR   Optional explicit overrides.
+#   LMDB_VOLUME_NAME    Docker volume suffix (Coolify names volumes <APP_UUID>_<name>);
+#                       differs per app, so set it per env [cocoindex-state].
 #   (in the env-file:) BACKUP_S3_BUCKET (req), BACKUP_S3_PREFIX [lmdb/cocoindex-state],
 #                       BACKUP_ENV_LABEL [production], AWS_ENDPOINT_URL, AWS_REGION,
 #                       AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY.
@@ -47,14 +49,20 @@ die() { printf '[lmdb-cold] ERROR: %s\n' "$*" >&2; exit 1; }
 
 command -v docker >/dev/null 2>&1 || die "docker not found."
 : "${APP_UUID:?APP_UUID is required (the Coolify app uuid).}"
-SECRETS_ENV_FILE="${SECRETS_ENV_FILE:-/root/kh-secrets/lmdb-backup.env}"
-TOOLING_IMAGE="${TOOLING_IMAGE:-kh-lmdb-backup-tools:latest}"
+SECRETS_ENV_FILE="${SECRETS_ENV_FILE:-/root/canonical-secrets/lmdb-backup.env}"
+TOOLING_IMAGE="${TOOLING_IMAGE:-canonical-lmdb-backup-tools:latest}"
 [[ -f "${SECRETS_ENV_FILE}" ]] || die "secrets env-file not found: ${SECRETS_ENV_FILE}"
 
-COCOINDEX_CONTAINER="${COCOINDEX_CONTAINER:-$(docker ps --filter "name=cocoindex-${APP_UUID}" --format '{{.Names}}' | head -1)}"
+# Coolify names the container cocoindex-<app-slug>-<APP_UUID>-<random>; the UUID is the
+# only stable, unique token (the random suffix changes per redeploy), so filter on it.
+COCOINDEX_CONTAINER="${COCOINDEX_CONTAINER:-$(docker ps --filter "name=${APP_UUID}" --format '{{.Names}}' | head -1)}"
 [[ -n "${COCOINDEX_CONTAINER}" ]] || die "no running cocoindex container for app ${APP_UUID}."
 # cocoindex 1.x nests the LMDB env one level under COCOINDEX_DB=/cocoindex-state/lmdb.
-LMDB_HOST_DIR="${LMDB_HOST_DIR:-/var/lib/docker/volumes/${APP_UUID}_cocoindex-state/_data/lmdb/mdb}"
+# LMDB_VOLUME_NAME is the docker volume suffix; it differs per app — e.g.
+# ca-cocoindex-platform-state (prod) vs ca-cocoindex-platform-staging-state (staging).
+# Override LMDB_HOST_DIR directly to bypass the constructed path entirely.
+LMDB_VOLUME_NAME="${LMDB_VOLUME_NAME:-cocoindex-state}"
+LMDB_HOST_DIR="${LMDB_HOST_DIR:-/var/lib/docker/volumes/${APP_UUID}_${LMDB_VOLUME_NAME}/_data/lmdb/mdb}"
 [[ -f "${LMDB_HOST_DIR}/data.mdb" ]] || die "no data.mdb in ${LMDB_HOST_DIR}."
 
 SNAP="$(mktemp -d)"
