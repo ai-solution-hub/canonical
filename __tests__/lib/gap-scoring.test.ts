@@ -62,9 +62,9 @@ describe('getTemplateTypeWeight', () => {
     expect(getTemplateTypeWeight('sq')).toBe(10);
   });
 
-  it('returns 10 for PQQ templates', () => {
-    expect(getTemplateTypeWeight('PQQ')).toBe(10);
-    expect(getTemplateTypeWeight('pqq')).toBe(10);
+  it('returns 10 for PSQ templates', () => {
+    expect(getTemplateTypeWeight('PSQ')).toBe(10);
+    expect(getTemplateTypeWeight('psq')).toBe(10);
   });
 
   it('returns 7 for ITT templates', () => {

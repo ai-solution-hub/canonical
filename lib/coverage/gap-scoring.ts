@@ -22,10 +22,10 @@ import type {
 // Template type weight lookup
 // ---------------------------------------------------------------------------
 
-/** Template type weighting — gateway stages (SQ/PQQ) rank highest. */
+/** Template type weighting — gateway stages (SQ/PSQ) rank highest. */
 const TEMPLATE_TYPE_WEIGHTS: Record<string, number> = {
   sq: 10,
-  pqq: 10,
+  psq: 10,
   itt: 7,
   rfp: 7,
 };
@@ -33,7 +33,7 @@ const DEFAULT_TEMPLATE_TYPE_WEIGHT = 3;
 
 /**
  * Get the template type score for a given template type string.
- * SQ/PQQ = 10, ITT/RFP = 7, everything else = 3.
+ * SQ/PSQ = 10, ITT/RFP = 7, everything else = 3.
  */
 export function getTemplateTypeWeight(templateType: string): number {
   return TEMPLATE_TYPE_WEIGHTS[templateType.toLowerCase()] ?? DEFAULT_TEMPLATE_TYPE_WEIGHT;
@@ -82,7 +82,7 @@ export function scoreTaxonomyGap(input: TaxonomyGapInput): number {
 export interface TemplateGapInput {
   /** Whether the requirement is mandatory (null treated as false) */
   is_mandatory: boolean | null;
-  /** Template type string (e.g. 'SQ', 'PQQ', 'ITT', 'RFP') */
+  /** Template type string (e.g. 'SQ', 'PSQ', 'ITT', 'RFP') */
   template_type: string;
   /** Whether this gap has persisted for 3+ consecutive weeks */
   is_persistent_gap: boolean;

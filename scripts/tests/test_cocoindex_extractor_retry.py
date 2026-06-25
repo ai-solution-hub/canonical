@@ -153,7 +153,7 @@ def _qa_form_json() -> str:
         {
             "extraction_kind": "q_a_form",
             "form_metadata": {
-                "form_type": "pqq",
+                "form_type": "psq",
                 "form_format": "docx",
                 "form_title": "Test PQQ",
                 "issuing_organisation": "TestOrg",

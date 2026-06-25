@@ -5,6 +5,7 @@ import { logger } from '@/lib/logger/client';
 import { validateWebUrl } from '@/lib/intelligence/url-validation';
 import { CONTENT_TYPE_VALUES } from '@/lib/ontology/content-type-registry';
 import { BRANDING } from '@/lib/client-config';
+import { PROCUREMENT_WORKFLOW_STATES } from '@/types/procurement';
 
 // ──────────────────────────────────────────
 // Tag morphology — domain uncountable registration
@@ -1056,6 +1057,81 @@ export function parseProcurementMetadata(
   }
   return result.data;
 }
+
+// ──────────────────────────────────────────
+// Form outcome validation (ID-130 AD-4)
+// ──────────────────────────────────────────
+
+/**
+ * Per-stage `form_type` sets — the compile-time mirror of the
+ * `form_outcome_types` CV's `applicable_form_types` (ID-130 AD-4). A form's
+ * STAGE (shortlist vs final-award) determines which outcome values it may
+ * carry. The DB CV is the source of truth (FK `form_templates.outcome →
+ * form_outcome_types.key`); these tuples + `FormOutcomeSchema` are the
+ * app-layer mirror that enforces the *stage-appropriate subset* (a `psq` form
+ * may only resolve to a shortlist outcome). Adding an outcome value or shifting
+ * a form-type's stage is a CV row edit that moves WITH these tuples — there is
+ * no frozen CHECK to migrate.
+ *
+ * @public
+ */
+export const FINAL_AWARD_FORM_TYPES = ['itt', 'tender', 'bid', 'rfp'] as const;
+/** Shortlist-stage form types (mirror of `form_outcome_types.applicable_form_types`). @public */
+export const SHORTLIST_FORM_TYPES = [
+  'psq',
+  'questionnaire',
+  'checklist',
+] as const;
+
+/** Final-award outcomes — these ENTER the win-rate denominator (`counts_toward_win_rate=true`). @public */
+export const FINAL_AWARD_OUTCOMES = ['won', 'lost'] as const;
+/** Shortlist outcomes — resolve the engagement but do NOT enter the win-rate denominator. @public */
+export const SHORTLIST_OUTCOMES = ['shortlisted', 'not_shortlisted'] as const;
+
+/**
+ * Union of the four seeded `form_outcome_types.key` values across both stages.
+ * @public
+ */
+export type FormOutcomeValue =
+  | (typeof FINAL_AWARD_OUTCOMES)[number]
+  | (typeof SHORTLIST_OUTCOMES)[number];
+
+const finalAwardFormFields = {
+  workflow_state: z.enum(PROCUREMENT_WORKFLOW_STATES),
+  outcome: z.enum(FINAL_AWARD_OUTCOMES).nullable(),
+};
+const shortlistFormFields = {
+  workflow_state: z.enum(PROCUREMENT_WORKFLOW_STATES),
+  outcome: z.enum(SHORTLIST_OUTCOMES).nullable(),
+};
+
+/**
+ * Validates a procurement form's `{form_type, workflow_state, outcome}` triad,
+ * discriminated on `form_type` so the *stage-appropriate* outcome subset is
+ * enforced (ID-130 AD-4 / B-5): final-award forms (`{itt,tender,bid,rfp}`)
+ * carry `won`/`lost`; shortlist forms (`{psq,questionnaire,checklist}`) carry
+ * `shortlisted`/`not_shortlisted`. `withdrawn` is a `workflow_state` TERMINAL,
+ * not an outcome — a withdrawn form has `workflow_state='withdrawn'` and
+ * `outcome=null` (B-8/B-9). `sales_proposal_template` is intentionally absent:
+ * it is a sales-domain form with no procurement outcome stage.
+ *
+ * @public
+ */
+export const FormOutcomeSchema = z.discriminatedUnion('form_type', [
+  z.object({ form_type: z.literal('itt'), ...finalAwardFormFields }),
+  z.object({ form_type: z.literal('tender'), ...finalAwardFormFields }),
+  z.object({ form_type: z.literal('bid'), ...finalAwardFormFields }),
+  z.object({ form_type: z.literal('rfp'), ...finalAwardFormFields }),
+  z.object({ form_type: z.literal('psq'), ...shortlistFormFields }),
+  z.object({ form_type: z.literal('questionnaire'), ...shortlistFormFields }),
+  z.object({ form_type: z.literal('checklist'), ...shortlistFormFields }),
+]);
+
+/**
+ * Inferred type of a validated procurement form outcome triad.
+ * @public
+ */
+export type FormOutcome = z.infer<typeof FormOutcomeSchema>;
 
 // ──────────────────────────────────────────
 // Procurement Export Schemas (Phase 7A)

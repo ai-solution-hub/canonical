@@ -1470,6 +1470,33 @@ export type Database = {
           },
         ]
       }
+      form_outcome_types: {
+        Row: {
+          applicable_form_types: string[] | null
+          counts_toward_win_rate: boolean | null
+          key: string | null
+          label: string | null
+          provenance: string | null
+          stage: string | null
+        }
+        Insert: {
+          applicable_form_types?: string[] | null
+          counts_toward_win_rate?: boolean | null
+          key?: string | null
+          label?: string | null
+          provenance?: string | null
+          stage?: string | null
+        }
+        Update: {
+          applicable_form_types?: string[] | null
+          counts_toward_win_rate?: boolean | null
+          key?: string | null
+          label?: string | null
+          provenance?: string | null
+          stage?: string | null
+        }
+        Relationships: []
+      }
       form_questions: {
         Row: {
           assigned_to: string | null
@@ -1477,6 +1504,7 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           evaluation_weight: number | null
+          form_template_id: string | null
           has_variants: boolean | null
           id: string | null
           matched_content_ids: string[] | null
@@ -1496,6 +1524,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           evaluation_weight?: number | null
+          form_template_id?: string | null
           has_variants?: boolean | null
           id?: string | null
           matched_content_ids?: string[] | null
@@ -1515,6 +1544,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           evaluation_weight?: number | null
+          form_template_id?: string | null
           has_variants?: boolean | null
           id?: string | null
           matched_content_ids?: string[] | null
@@ -1541,6 +1571,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_questions_form_template_id_fkey"
+            columns: ["form_template_id"]
+            isOneToOne: false
+            referencedRelation: "form_templates"
             referencedColumns: ["id"]
           },
           {
@@ -1879,11 +1916,17 @@ export type Database = {
           mapped_count: number | null
           mime_type: string | null
           name: string | null
+          outcome: string | null
+          outcome_notes: string | null
+          outcome_recorded_at: string | null
+          outcome_recorded_by: string | null
           status: string | null
           status_reason: string | null
           storage_path: string | null
           structure_path: string | null
+          submission_date: string | null
           updated_at: string | null
+          workflow_state: string | null
           workspace_id: string | null
         }
         Insert: {
@@ -1902,11 +1945,17 @@ export type Database = {
           mapped_count?: number | null
           mime_type?: string | null
           name?: string | null
+          outcome?: string | null
+          outcome_notes?: string | null
+          outcome_recorded_at?: string | null
+          outcome_recorded_by?: string | null
           status?: string | null
           status_reason?: string | null
           storage_path?: string | null
           structure_path?: string | null
+          submission_date?: string | null
           updated_at?: string | null
+          workflow_state?: string | null
           workspace_id?: string | null
         }
         Update: {
@@ -1925,11 +1974,17 @@ export type Database = {
           mapped_count?: number | null
           mime_type?: string | null
           name?: string | null
+          outcome?: string | null
+          outcome_notes?: string | null
+          outcome_recorded_at?: string | null
+          outcome_recorded_by?: string | null
           status?: string | null
           status_reason?: string | null
           storage_path?: string | null
           structure_path?: string | null
+          submission_date?: string | null
           updated_at?: string | null
+          workflow_state?: string | null
           workspace_id?: string | null
         }
         Relationships: [
@@ -1945,6 +2000,13 @@ export type Database = {
             columns: ["form_type"]
             isOneToOne: false
             referencedRelation: "form_types"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "form_templates_outcome_fkey"
+            columns: ["outcome"]
+            isOneToOne: false
+            referencedRelation: "form_outcome_types"
             referencedColumns: ["key"]
           },
           {
@@ -2714,6 +2776,7 @@ export type Database = {
           scope_tag: string[] | null
           source_document_id: string | null
           source_form_response_id: string | null
+          source_form_template_id: string | null
           source_question_id: string | null
           source_workspace_id: string | null
           superseded_by: string | null
@@ -2736,6 +2799,7 @@ export type Database = {
           scope_tag?: string[] | null
           source_document_id?: string | null
           source_form_response_id?: string | null
+          source_form_template_id?: string | null
           source_question_id?: string | null
           source_workspace_id?: string | null
           superseded_by?: string | null
@@ -2758,6 +2822,7 @@ export type Database = {
           scope_tag?: string[] | null
           source_document_id?: string | null
           source_form_response_id?: string | null
+          source_form_template_id?: string | null
           source_question_id?: string | null
           source_workspace_id?: string | null
           superseded_by?: string | null
@@ -2771,6 +2836,13 @@ export type Database = {
             columns: ["source_form_response_id"]
             isOneToOne: false
             referencedRelation: "form_responses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "q_a_pairs_source_form_template_id_fkey"
+            columns: ["source_form_template_id"]
+            isOneToOne: false
+            referencedRelation: "form_templates"
             referencedColumns: ["id"]
           },
           {

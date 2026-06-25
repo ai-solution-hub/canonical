@@ -67,7 +67,7 @@ const templateGap: TemplateGap = {
   action_href: '/coverage?tab=templates&template=ISO-27001&section=A5',
   action_label: 'View requirement',
   template_name: 'ISO 27001',
-  template_type: 'pqq',
+  template_type: 'psq',
   section_ref: 'A5',
   section_name: 'Information Security Policies',
   requirement_text: 'Information security policy',

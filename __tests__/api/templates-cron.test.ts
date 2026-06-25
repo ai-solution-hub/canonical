@@ -1766,7 +1766,7 @@ describe('GET /api/cron/content-gaps', () => {
 
     // fetchTemplateRequirements
     mockFetchTemplateRequirements.mockResolvedValue([
-      { template_type: 'pqq', requirement_id: 'req-1', section: 'S1' },
+      { template_type: 'psq', requirement_id: 'req-1', section: 'S1' },
     ]);
 
     // computeTemplateCoverage — req-new is a gap, req-old is no longer present (resolved)
