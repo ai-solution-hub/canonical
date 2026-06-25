@@ -146,11 +146,12 @@ $$;
 
 ALTER FUNCTION "public"."recompute_procurement_rollup"("p_workspace_id" "uuid") OWNER TO "postgres";
 
--- Grants (TECH step 12): no anon EXECUTE; authenticated + service_role only.
-REVOKE ALL ON FUNCTION "public"."recompute_procurement_rollup"("p_workspace_id" "uuid") FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION "public"."recompute_procurement_rollup"("p_workspace_id" "uuid") FROM anon;
-GRANT EXECUTE ON FUNCTION "public"."recompute_procurement_rollup"("p_workspace_id" "uuid") TO "authenticated";
-GRANT EXECUTE ON FUNCTION "public"."recompute_procurement_rollup"("p_workspace_id" "uuid") TO "service_role";
+-- ACL: leave the default (PUBLIC EXECUTE). The public schema is NOT exposed via the Data API
+-- (db_schema = 'api'), so a public-schema fn is not anon-reachable — per
+-- 20260624120000_id115_api_schema_anon_revoke.sql L27-30, public-schema residual grants are
+-- latent defence-in-depth handled separately, NOT per-new-function. Default PUBLIC EXECUTE is
+-- also safest for a trigger-invoked fn: it fires regardless of the writer's role, whereas an
+-- explicit REVOKE-from-PUBLIC + narrow GRANT could break a write from an unlisted role.
 
 COMMENT ON FUNCTION "public"."recompute_procurement_rollup"("p_workspace_id" "uuid") IS 'ID-130 T-B7/AD-2 — recompute the materialised roll-up row on procurement_workspaces for one workspace. Idempotent UPSERT (ON CONFLICT workspace_id). Reads the form_outcome_types CV for stage/denominator classification (never an inlined form_type list). nearest_deadline = MIN(deadline) over non-terminal forms; overall_outcome won/lost/in_progress per the latest final-award-stage form + withdrawn/not_shortlisted signals; counts_toward_win_rate = reached a counts_toward_win_rate=true form with a terminal won/lost outcome.';
 
@@ -185,9 +186,9 @@ $$;
 
 ALTER FUNCTION "public"."form_templates_recompute_rollup_trigger"() OWNER TO "postgres";
 
-REVOKE ALL ON FUNCTION "public"."form_templates_recompute_rollup_trigger"() FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION "public"."form_templates_recompute_rollup_trigger"() FROM anon;
-GRANT ALL ON FUNCTION "public"."form_templates_recompute_rollup_trigger"() TO "service_role";
+-- ACL: default (PUBLIC EXECUTE) retained — public schema is not Data-API-exposed (see the
+-- recompute fn note above); default EXECUTE is also the safe posture for a trigger fn so it
+-- fires regardless of the writer's role.
 
 COMMENT ON FUNCTION "public"."form_templates_recompute_rollup_trigger"() IS 'ID-130 T-B7/AD-2 — AFTER-trigger fn that recomputes the parent procurement_workspaces rollup when a form''s engagement columns (outcome/workflow_state/deadline/submission_date) change. Recomputes OLD + NEW workspace on DELETE / workspace_id change.';
 
@@ -198,9 +199,8 @@ CREATE TRIGGER "form_templates_recompute_rollup"
     FOR EACH ROW
     EXECUTE FUNCTION "public"."form_templates_recompute_rollup_trigger"();
 
--- ============================================================================
--- FOLD-IN — {130.5} Checker nit: the spine's outcome/form_type cross-check trigger fn shipped
--- WITHOUT an anon REVOKE. Add it here per the TECH step 12 convention (matches the Unit-E
--- form_response_auto_version precedent). Idempotent — REVOKE of an absent grant is a no-op.
--- ============================================================================
-REVOKE EXECUTE ON FUNCTION "public"."form_templates_outcome_form_type_check"() FROM anon;
+-- NOTE: the {130.5} fold-in anon-REVOKE on form_templates_outcome_form_type_check() was REMOVED
+-- here — it was a false-positive Checker nit. public-schema fns are not Data-API-exposed
+-- (db_schema = 'api'), so a per-function anon REVOKE is unnecessary; residual public-schema grants
+-- are latent defence-in-depth addressed separately (20260624120000_id115_api_schema_anon_revoke.sql
+-- L27-30), not per-new-function.
