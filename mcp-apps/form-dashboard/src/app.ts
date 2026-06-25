@@ -6,14 +6,14 @@ import {
   type McpUiHostContext,
 } from '@modelcontextprotocol/ext-apps';
 import type {
-  BidDashboardData,
-  BidSummary,
+  ProcurementDashboardData,
+  ProcurementSummary,
   FormDetailData,
   BidQuestionSummary,
   BidQuestionDetailData,
   KBSearchResult,
   Urgency,
-  ExpandedBidState,
+  ExpandedProcurementState,
   ExpandedQuestionState,
 } from './types';
 import './styles.css';
@@ -23,8 +23,8 @@ import './styles.css';
 const app = new App({ name: 'Bid Dashboard', version: '1.0.0' });
 
 const root = document.getElementById('app')!;
-let dashboardData: BidDashboardData | null = null;
-let expandedBid: ExpandedBidState | null = null;
+let dashboardData: ProcurementDashboardData | null = null;
+let expandedBid: ExpandedProcurementState | null = null;
 
 // -- Initial state: loading --------------------------------------------------
 
@@ -48,7 +48,8 @@ function handleHostContextChanged(ctx: McpUiHostContext): void {
 
 app.ontoolresult = (result) => {
   try {
-    const data = result.structuredContent as unknown as BidDashboardData;
+    const data =
+      result.structuredContent as unknown as ProcurementDashboardData;
     if (!data || !Array.isArray(data.procurements)) {
       const text = result.content?.find(
         (c: { type: string }) => c.type === 'text',
@@ -62,7 +63,7 @@ app.ontoolresult = (result) => {
     if (data.focused_form_detail) {
       const detail = data.focused_form_detail as unknown as FormDetailData;
       expandedBid = {
-        bidId: detail.id,
+        procurementId: detail.id,
         loading: false,
         detail,
         expandedQuestion: null,
@@ -191,7 +192,10 @@ function renderDashboard(): void {
   }
 }
 
-function buildSummaryBar(bids: BidSummary[], totalCount: number): HTMLElement {
+function buildSummaryBar(
+  bids: ProcurementSummary[],
+  totalCount: number,
+): HTMLElement {
   const bar = createElement('div', {
     className: 'summary-bar',
     attrs: { role: 'region', 'aria-label': 'Bid pipeline summary' },
@@ -245,9 +249,9 @@ function buildSummaryBar(bids: BidSummary[], totalCount: number): HTMLElement {
   return bar;
 }
 
-function buildBidCard(bid: BidSummary): HTMLElement {
+function buildBidCard(bid: ProcurementSummary): HTMLElement {
   const urgency = getUrgency(bid.days_until_deadline);
-  const isExpanded = expandedBid?.bidId === bid.id;
+  const isExpanded = expandedBid?.procurementId === bid.id;
 
   const card = createElement('div', {
     className: buildCardClassName(urgency, isExpanded),
@@ -344,7 +348,7 @@ function buildDeadlineBadge(
   return badge;
 }
 
-function buildProgressSection(bid: BidSummary): HTMLElement {
+function buildProgressSection(bid: ProcurementSummary): HTMLElement {
   const section = createElement('div', { className: 'bid-card-progress' });
 
   const labels = createElement('div', { className: 'progress-labels' });
@@ -404,7 +408,7 @@ function buildProgressSection(bid: BidSummary): HTMLElement {
   return section;
 }
 
-function buildDetailSection(state: ExpandedBidState): HTMLElement {
+function buildDetailSection(state: ExpandedProcurementState): HTMLElement {
   const section = createElement('div', { className: 'bid-detail' });
 
   if (state.loading) {
@@ -628,7 +632,7 @@ function buildBreakdownSection(
 
 function buildQuestionList(
   detail: FormDetailData,
-  state: ExpandedBidState,
+  state: ExpandedProcurementState,
 ): HTMLElement {
   const container = createElement('div', { className: 'question-sections' });
 
@@ -670,7 +674,7 @@ function buildQuestionList(
 
 function buildQuestionRow(
   q: BidQuestionSummary,
-  state: ExpandedBidState,
+  state: ExpandedProcurementState,
 ): HTMLElement {
   const isExpanded = state.expandedQuestion?.questionId === q.id;
 
@@ -1024,34 +1028,39 @@ function buildKBResultsList(results: KBSearchResult[]): HTMLElement {
 
 // -- Bid expansion -----------------------------------------------------------
 
-async function toggleBidExpansion(bidId: string): Promise<void> {
+async function toggleBidExpansion(procurementId: string): Promise<void> {
   // Collapse if already expanded
-  if (expandedBid?.bidId === bidId) {
+  if (expandedBid?.procurementId === procurementId) {
     expandedBid = null;
     renderDashboard();
     return;
   }
 
   // Start loading
-  expandedBid = { bidId, loading: true, detail: null, expandedQuestion: null };
+  expandedBid = {
+    procurementId,
+    loading: true,
+    detail: null,
+    expandedQuestion: null,
+  };
   renderDashboard();
 
   try {
     const result = await app.callServerTool({
       name: 'get_procurement_detail',
-      arguments: { id: bidId },
+      arguments: { id: procurementId },
     });
 
     const detail = result.structuredContent as unknown as FormDetailData;
     expandedBid = {
-      bidId,
+      procurementId,
       loading: false,
       detail: detail?.id ? detail : null,
       expandedQuestion: null,
     };
   } catch (err) {
     expandedBid = {
-      bidId,
+      procurementId,
       loading: false,
       detail: null,
       error: err instanceof Error ? err.message : 'Failed to load bid detail',
@@ -1072,7 +1081,7 @@ function getUrgency(daysUntil: number | null): Urgency {
   return 'normal';
 }
 
-function getUrgencyOrder(bid: BidSummary): number {
+function getUrgencyOrder(bid: ProcurementSummary): number {
   const urgency = getUrgency(bid.days_until_deadline);
   const order: Record<Urgency, number> = {
     overdue: 0,

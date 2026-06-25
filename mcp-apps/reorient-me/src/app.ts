@@ -12,7 +12,7 @@ import type {
   UrgentItem,
   TeamChange,
   RecentWorkItem,
-  BidBriefing,
+  ProcurementBriefing,
 } from './types';
 import './styles.css';
 
@@ -531,7 +531,7 @@ function buildRecentWorkSection(items: RecentWorkItem[]): HTMLElement {
   return section;
 }
 
-function buildBidSummarySection(bids: BidBriefing[]): HTMLElement {
+function buildBidSummarySection(bids: ProcurementBriefing[]): HTMLElement {
   const section = document.createElement('div');
   section.className = 'briefing-block';
   section.innerHTML = `<h2 class="briefing-block-header">💼 Active Bids</h2>`;

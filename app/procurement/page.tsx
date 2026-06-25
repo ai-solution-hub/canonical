@@ -79,7 +79,7 @@ export default function FormsPage() {
       setProcurements(data.procurements ?? []);
     } catch (err) {
       logger.error({ err }, 'Failed to load bids');
-      toast.error('Failed to load bids');
+      toast.error('Failed to load procurements');
     } finally {
       setLoading(false);
     }
@@ -145,14 +145,16 @@ export default function FormsPage() {
   }
 
   return (
-    <ErrorBoundary label="Error loading bids">
+    <ErrorBoundary label="Error loading procurements">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-foreground">Bids</h1>
+            <h1 className="text-xl font-semibold text-foreground">
+              Procurement
+            </h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              Manage bid submissions and tender responses
+              Manage your procurement engagements and the forms within them
             </p>
           </div>
           {canEdit && (
@@ -221,7 +223,7 @@ export default function FormsPage() {
               >
                 <SelectTrigger
                   className="h-8 w-[160px] text-xs"
-                  aria-label="Sort bids by"
+                  aria-label="Sort procurements by"
                 >
                   <SelectValue placeholder="Sort by..." />
                 </SelectTrigger>
@@ -249,7 +251,7 @@ export default function FormsPage() {
               className="py-8 text-center text-sm text-muted-foreground"
               role="status"
             >
-              No bids match the selected filter.
+              No procurements match the selected filter.
             </p>
           ) : viewMode === 'grid' ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -260,7 +262,7 @@ export default function FormsPage() {
           ) : (
             <div className="divide-y rounded-lg border">
               {paginatedProcurements.map((bid) => (
-                <ProcurementListRow key={bid.id} bid={bid} />
+                <ProcurementListRow key={bid.id} procurement={bid} />
               ))}
             </div>
           )}
@@ -321,9 +323,11 @@ function EmptyState({
         className="size-10 text-muted-foreground/50"
         aria-hidden="true"
       />
-      <h2 className="mt-4 text-lg font-medium text-foreground">No bids yet</h2>
+      <h2 className="mt-4 text-lg font-medium text-foreground">
+        No procurements yet
+      </h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Create your first bid to start managing tender responses.
+        Create your first procurement to start managing tender responses.
       </p>
       {canEdit && (
         <Button onClick={onCreateClick} className="mt-4 gap-1.5">
@@ -335,20 +339,20 @@ function EmptyState({
   );
 }
 
-function ProcurementListRow({ bid }: { bid: Procurement }) {
-  const metadata = bid.domain_metadata as ProcurementMetadata;
+function ProcurementListRow({ procurement }: { procurement: Procurement }) {
+  const metadata = procurement.domain_metadata as ProcurementMetadata;
   const procurementStatus =
-    bid.status as import('@/types/procurement').ProcurementWorkflowState;
+    procurement.status as import('@/types/procurement').ProcurementWorkflowState;
   const proximity = getDeadlineProximity(metadata.deadline);
 
   return (
     <Link
-      href={`/procurement/${bid.id}`}
+      href={`/procurement/${procurement.id}`}
       className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-accent/50"
     >
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-foreground">
-          {bid.name}
+          {procurement.name}
         </p>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
           {metadata.buyer && (
