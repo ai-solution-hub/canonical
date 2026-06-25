@@ -106,7 +106,16 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
   workerData: [
     async ({}, use, workerInfo) => {
       const supabase = createServiceClient();
-      const prefix = `[E2E-W${workerInfo.workerIndex}]`;
+      // id-128 {128.7}: shard-aware prefix so concurrent shards don't collide on
+      // the shared staging DB. Each shard restarts workerIndex at 0, so without
+      // the shard component shard-1-W0 and shard-2-W0 would both seed `[E2E-W0]`
+      // and clobber each other's rows. The cleanup/teardown sweeps already match
+      // `[E2E-%` broadly, so both shapes are reaped. Smoke/local (no --shard →
+      // config.shard is null) keep the original `[E2E-W{n}]` prefix unchanged.
+      const shard = workerInfo.config.shard;
+      const prefix = shard
+        ? `[E2E-S${shard.current}-W${workerInfo.workerIndex}]`
+        : `[E2E-W${workerInfo.workerIndex}]`;
 
       // --- Compute timestamps ---
       const now = Date.now();
