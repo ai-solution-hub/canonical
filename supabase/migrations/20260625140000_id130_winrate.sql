@@ -207,6 +207,12 @@ ALTER FUNCTION "public"."get_aggregate_win_rate_stats"() OWNER TO "postgres";
 
 -- Re-emit the public grants the DROP cleared (squash baseline L12454-56 / Unit-E L136-38).
 REVOKE ALL ON FUNCTION "public"."get_aggregate_win_rate_stats"() FROM PUBLIC;
+-- {130.9} carry: REVOKE … FROM PUBLIC does NOT strip an explicit anon role grant (identical to
+-- get_content_win_rate above) — the 42P13 DROP-recreate re-acquired Supabase's default anon
+-- EXECUTE. generate-api-views.ts mirrors the public fn's proacl onto api.get_aggregate_win_rate_stats,
+-- so this REVOKE keeps `generate-api-views --check` no-anon-clean (the api wrapper below is already
+-- no-anon; this aligns the public fn so a regen does not re-introduce anon on the wrapper).
+REVOKE EXECUTE ON FUNCTION "public"."get_aggregate_win_rate_stats"() FROM "anon";
 GRANT ALL ON FUNCTION "public"."get_aggregate_win_rate_stats"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_aggregate_win_rate_stats"() TO "service_role";
 
