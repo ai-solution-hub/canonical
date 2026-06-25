@@ -502,7 +502,17 @@ describe('POST /api/bids/:id/outcome', () => {
 // ---------------------------------------------------------------------------
 
 describe('POST /api/bids/:id/outcome/integrate', () => {
-  beforeEach(resetMocks);
+  // ID-130 {130.17}: the won-state gate now reads the form's outcome
+  // (form_templates.outcome via .maybeSingle), NOT workspaces.status. Default
+  // the form-gate fetch to a won form so the happy-path tests exercise the
+  // post-re-anchor gate; the not-won test overrides this below.
+  beforeEach(() => {
+    resetMocks();
+    mockSupabase._chain.maybeSingle.mockResolvedValue({
+      data: { outcome: 'won', workflow_state: 'won' },
+      error: null,
+    });
+  });
 
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
@@ -599,17 +609,22 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
     expect(json.error).toBe('Procurement not found');
   });
 
-  it('returns 400 when bid is not in won state', async () => {
+  it('returns 400 when the form outcome is not won', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Procurement found but in 'submitted' state
+    // Procurement found, but the form's outcome is not 'won' (ID-130 {130.17}:
+    // the gate reads form_templates.outcome, not workspaces.status). A submitted
+    // form has outcome=null (not yet decided).
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {
         id: BID_ID,
         name: 'Test Procurement',
-        status: 'submitted',
         domain_metadata: {},
       },
+      error: null,
+    });
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: { outcome: null, workflow_state: 'submitted' },
       error: null,
     });
 
@@ -627,8 +642,8 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
 
     expect(res.status).toBe(400);
     const json = await res.json();
-    expect(json.error).toContain('only available for won bids');
-    expect(json.current_status).toBe('submitted');
+    expect(json.error).toContain('only available for won procurements');
+    expect(json.current_outcome).toBeNull();
   });
 
   it('returns 200 with skip action counted correctly', async () => {
