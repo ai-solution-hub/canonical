@@ -392,7 +392,7 @@ export async function seedPublicationReviewFixture(
 // ── Test user definitions ──────────────────────────────────────────────────
 
 interface TestUserSpec {
-  label: 'admin' | 'editor' | 'viewer';
+  label: 'admin' | 'editor' | 'viewer' | 'signout';
   email: string;
   passwordEnv: string;
   role: 'admin' | 'editor' | 'viewer';
@@ -420,6 +420,18 @@ const TEST_USERS: TestUserSpec[] = [
     passwordEnv: 'TEST_USER_3_PASSWORD',
     role: 'viewer',
     displayName: 'E2E Test Viewer',
+  },
+  {
+    // Dedicated user for the destructive sign-out test (auth.spec.ts). The
+    // sign-out test calls supabase.auth.signOut() at GLOBAL scope, revoking
+    // ALL of this user's sessions — so it MUST NOT share a user with any other
+    // spec (S420). 'admin' role so it renders the same shell the sign-out test
+    // originally exercised. Used only via e2e/.auth/signout.json.
+    label: 'signout',
+    email: 'test.user4@test-kb-aish.co.uk',
+    passwordEnv: 'TEST_USER_4_PASSWORD',
+    role: 'admin',
+    displayName: 'E2E Test Sign-out User',
   },
 ];
 

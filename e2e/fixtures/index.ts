@@ -25,6 +25,12 @@ type CombinedFixtures = {
   editorPage: Page;
   /** A page with an authenticated viewer session. */
   viewerPage: Page;
+  /**
+   * A page authenticated as the DEDICATED sign-out user (TEST_USER_4), in its
+   * own browser context. Used ONLY by the destructive sign-out test so its
+   * global sign-out never revokes the shared admin/editor/viewer sessions (S420).
+   */
+  signoutPage: Page;
 };
 
 /**
@@ -102,6 +108,17 @@ export const test = testDataTest.extend<CombinedFixtures>({
     const page = await ctx.newPage();
     await hideDevOverlays(page);
     await gotoAuthedShell(page, 'viewer');
+    await use(page);
+    await ctx.close();
+  },
+
+  signoutPage: async ({ browser }, use) => {
+    const ctx: BrowserContext = await browser.newContext({
+      storageState: 'e2e/.auth/signout.json',
+    });
+    const page = await ctx.newPage();
+    await hideDevOverlays(page);
+    await gotoAuthedShell(page, 'signout');
     await use(page);
     await ctx.close();
   },

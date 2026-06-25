@@ -1,21 +1,17 @@
 import { expect } from '@playwright/test';
-import type { Browser, Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { DB_OPTION } from '@/lib/supabase/schema';
 
 /**
- * Shared E2E auth-session helpers.
+ * Shared E2E auth-session helper.
  *
  * `loginAndSave` is the single source of truth for minting a Supabase session
  * and persisting it as a Playwright storageState file (chunked `@supabase/ssr`
- * cookies). Used by:
- *  - `e2e/auth.setup.ts` — the setup project that authenticates admin/editor/
- *    viewer once before the suite.
- *  - `restoreAdminSession` below — re-provisions the shared admin session after
- *    the destructive sign-out test (see auth.spec.ts).
- *
- * Keeping both paths on ONE implementation guarantees the restored cookie format
- * is byte-identical to setup's, so the middleware accepts it identically.
+ * cookies). Used by `e2e/auth.setup.ts` — the setup project that authenticates
+ * admin / editor / viewer + the dedicated sign-out user (TEST_USER_4) once
+ * before the suite. One implementation keeps every saved storageState's cookie
+ * format identical, so the middleware accepts them all identically.
  */
 
 // @supabase/ssr chunks auth cookies at ~3180 chars.
@@ -96,34 +92,4 @@ export async function loginAndSave(
 
   // Save the authenticated browser state
   await page.context().storageState({ path: savePath });
-}
-
-/**
- * Re-provision the shared admin storageState (`e2e/.auth/admin.json`) with a
- * FRESH Supabase session.
- *
- * WHY: the auth.spec.ts "can sign out" test clicks the real Sign-out button,
- * which calls `supabase.auth.signOut()` at GLOBAL scope (sign-out-button.tsx) —
- * revoking EVERY session for the admin user, including the one in admin.json
- * that all `chromium-desktop` specs share. Without re-provisioning, every spec
- * ordered after auth.spec gets `403 session_not_found` from `getUser()` and is
- * redirected to /login (S420 root cause of the nightly redirect storm + 50-min
- * truncation). A fresh `signInWithPassword` after the sign-out mints a NEW admin
- * session, so subsequent specs load a live session.
- */
-export async function restoreAdminSession(browser: Browser): Promise<void> {
-  const context = await browser.newContext();
-  const page = await context.newPage();
-  try {
-    await loginAndSave(
-      page,
-      'TEST_USER_1_EMAIL',
-      'TEST_USER_1_PASSWORD',
-      'test.user1@test-kb-aish.co.uk',
-      'Welcome12391.',
-      'e2e/.auth/admin.json',
-    );
-  } finally {
-    await context.close();
-  }
 }
