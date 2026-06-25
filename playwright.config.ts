@@ -17,6 +17,26 @@ require('dotenv').config({
 
 const authFile = 'e2e/.auth/admin.json';
 
+// task-view (task-mirror) specs exercise the vendored task-view patch-server,
+// not Canonical product surfaces — they are excluded from the Canonical browser
+// projects (and therefore the nightly chromium-desktop lane). Their failures
+// (e.g. `spawn bun ENOENT` from the spawned patch-server) are tracked + fixed
+// in the task-view lane, not gated against Canonical. The spec file is retained
+// so it can still be run via an explicit invocation.
+const taskViewSpecs = '**/task-mirror-*.spec.ts';
+
+// Specs the Canonical browser projects skip. task-view is ALWAYS excluded (it
+// drives the vendored task-view patch-server, not Canonical surfaces). bid-* are
+// TEMPORARILY excluded only when E2E_EXCLUDE_BID is set (the nightly sets it):
+// every bid-* spec currently fails on `api.bid_questions` while id-130 {130.9}
+// regenerates the api.* views on staging, and — unskipped, with retries — the
+// resulting failures exhaust the nightly's 50-min budget so the rest of the
+// suite never runs. Remove E2E_EXCLUDE_BID from e2e-nightly.yml when {130.9} lands.
+const nightlyExcludedSpecs = [
+  taskViewSpecs,
+  ...(process.env.E2E_EXCLUDE_BID ? ['**/bid-*.spec.ts'] : []),
+];
+
 export default defineConfig({
   testDir: './e2e/tests',
   fullyParallel: true,
@@ -65,6 +85,7 @@ export default defineConfig({
     // --- Browser projects: depend on setup, load saved state ---
     {
       name: 'chromium-desktop',
+      testIgnore: nightlyExcludedSpecs,
       use: {
         ...devices['Desktop Chrome'],
         storageState: authFile,
@@ -73,6 +94,7 @@ export default defineConfig({
     },
     {
       name: 'chromium-mobile',
+      testIgnore: nightlyExcludedSpecs,
       use: {
         ...devices['Pixel 5'],
         hasTouch: false, // Use mouse events — testing layout, not touch gestures

@@ -14,9 +14,9 @@ import { test, expect } from '../fixtures';
 test.describe('Dashboard compliance status section', { tag: '@wave1' }, () => {
   test.beforeEach(async ({ authenticatedPage: page }) => {
     await page.goto('/');
-    await expect(
-      page.getByRole('heading', { name: 'Knowledge Hub' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Canonical' })).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test('compliance status section renders with the seeded data', async ({

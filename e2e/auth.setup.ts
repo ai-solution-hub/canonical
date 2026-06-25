@@ -1,86 +1,13 @@
-import { test as setup, expect } from '@playwright/test';
-import { createClient } from '@supabase/supabase-js';
-import { DB_OPTION } from '@/lib/supabase/schema';
+import { test as setup } from '@playwright/test';
+import { loginAndSave } from './fixtures/auth-session';
 
 /**
- * Authenticate a test user via the Supabase API and save browser state.
- * Builds chunked auth cookies matching the @supabase/ssr format.
+ * Authenticate the three test users (admin / editor / viewer) via the Supabase
+ * API and save their browser state. The cookie-minting logic lives in
+ * `e2e/fixtures/auth-session.ts` (`loginAndSave`) so the destructive sign-out
+ * test in auth.spec.ts can re-provision the shared admin session with a
+ * byte-identical cookie format after it performs a global sign-out (S420).
  */
-async function loginAndSave(
-  page: import('@playwright/test').Page,
-  emailEnv: string,
-  passwordEnv: string,
-  defaultEmail: string,
-  defaultPassword: string,
-  savePath: string,
-): Promise<void> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error(
-      'Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY env vars. ' +
-        'Ensure .env and .env.local are present.',
-    );
-  }
-
-  // ID-115 (S9): route to the exposed api schema
-  const supabase = createClient(supabaseUrl, supabaseAnonKey, { ...DB_OPTION });
-
-  const email = process.env[emailEnv] || defaultEmail;
-  const password = process.env[passwordEnv] || defaultPassword;
-
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-  if (error || !data.session) {
-    throw new Error(
-      `Auth setup failed for ${email}: ${error?.message ?? 'No session returned'}`,
-    );
-  }
-
-  // Build session cookies matching @supabase/ssr chunked format
-  const projectRef = new URL(supabaseUrl).hostname.split('.')[0];
-  const cookieName = `sb-${projectRef}-auth-token`;
-  const sessionPayload = JSON.stringify({
-    access_token: data.session.access_token,
-    refresh_token: data.session.refresh_token,
-    token_type: 'bearer',
-    expires_in: data.session.expires_in,
-    expires_at: data.session.expires_at,
-    user: data.session.user,
-  });
-
-  // @supabase/ssr chunks cookies at ~3180 chars
-  const CHUNK_SIZE = 3180;
-  const chunks: string[] = [];
-  for (let i = 0; i < sessionPayload.length; i += CHUNK_SIZE) {
-    chunks.push(sessionPayload.slice(i, i + CHUNK_SIZE));
-  }
-
-  const cookies = chunks.map((chunk, i) => ({
-    name: chunks.length === 1 ? `${cookieName}.0` : `${cookieName}.${i}`,
-    value: chunk,
-    domain: 'localhost',
-    path: '/',
-    httpOnly: false,
-    secure: false,
-    sameSite: 'Lax' as const,
-  }));
-
-  await page.context().addCookies(cookies);
-
-  // Navigate and verify auth works.
-  // Default `navigationTimeout` is 15s (playwright.config.ts). Bumped to 30s
-  // here to absorb Turbopack cold-start variance during the auth setup
-  // project — the dev server may not be warm on first run.
-  await page.goto('/', { timeout: 30000 });
-  await expect(page).not.toHaveURL(/\/login/, { timeout: 10000 });
-
-  // Save the authenticated browser state
-  await page.context().storageState({ path: savePath });
-}
 
 // --- Authenticate all 3 test users ---
 
@@ -114,5 +41,20 @@ setup('authenticate as viewer', async ({ page }) => {
     'test.user3@test-kb-aish.co.uk',
     'Welcome12391.',
     'e2e/.auth/viewer.json',
+  );
+});
+
+setup('authenticate as sign-out user', async ({ page }) => {
+  // Dedicated user (TEST_USER_4) used ONLY by the destructive sign-out test in
+  // auth.spec.ts. Saved to e2e/.auth/signout.json so the test's GLOBAL sign-out
+  // revokes only THIS user's sessions and never touches the shared admin /
+  // editor / viewer sessions the rest of the suite depends on (S420).
+  await loginAndSave(
+    page,
+    'TEST_USER_4_EMAIL',
+    'TEST_USER_4_PASSWORD',
+    'test.user4@test-kb-aish.co.uk',
+    'Welcome12391.',
+    'e2e/.auth/signout.json',
   );
 });

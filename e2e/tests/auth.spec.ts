@@ -172,10 +172,8 @@ authTest.describe('Authentication — authenticated session', () => {
     async ({ authenticatedPage: page }) => {
       await page.goto('/');
 
-      // The home page should have the Knowledge Hub brand in the header
-      await expect(
-        page.getByRole('link', { name: 'Knowledge Hub' }),
-      ).toBeVisible();
+      // The home page should have the Canonical brand in the header
+      await expect(page.getByRole('link', { name: 'Canonical' })).toBeVisible();
 
       // Should NOT be on the login page
       await expect(page).not.toHaveURL(/\/login/);
@@ -233,7 +231,12 @@ authTest.describe('Authentication — authenticated session', () => {
 
   authTest(
     'can sign out via the header button and cannot re-enter protected pages',
-    async ({ authenticatedPage: page }) => {
+    // Uses the DEDICATED sign-out user (signoutPage / TEST_USER_4), NOT the
+    // shared admin session. The Sign-out button calls supabase.auth.signOut() at
+    // GLOBAL scope, which revokes every session for this user — so it must own a
+    // session no other spec shares, else it cascades `403 session_not_found` →
+    // /login into the rest of the run (S420 root cause).
+    async ({ signoutPage: page }) => {
       await page.goto('/');
 
       // On mobile the Sign out button lives inside the hamburger drawer;
@@ -256,7 +259,7 @@ authTest.describe('Authentication — authenticated session', () => {
       await page.waitForURL('**/login**', { timeout: 10000 });
       await expect(page).toHaveURL(/\/login/);
       await expect(
-        page.getByRole('heading', { name: 'Knowledge Hub' }),
+        page.getByRole('heading', { name: 'Canonical' }),
       ).toBeVisible();
 
       // Prove the session is actually dead — hitting a protected page

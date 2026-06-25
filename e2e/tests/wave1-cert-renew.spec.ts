@@ -18,9 +18,9 @@ import { test, expect } from '../fixtures';
 test.describe('Certification renewal button', { tag: '@wave1' }, () => {
   test.beforeEach(async ({ authenticatedPage: page }) => {
     await page.goto('/');
-    await expect(
-      page.getByRole('heading', { name: 'Knowledge Hub' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Canonical' })).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test('certification cards render with entity names', async ({
