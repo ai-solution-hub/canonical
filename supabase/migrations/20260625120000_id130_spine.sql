@@ -32,6 +32,19 @@ VALUES
     ('lost',            'Lost',            'final_award',  ARRAY['itt', 'tender', 'bid', 'rfp']::"text"[],       true,  'core')
 ON CONFLICT ("key") DO NOTHING;
 
+-- RLS + grants — public read-only CV, mirroring sibling CV form_types EXACTLY
+-- (squash baseline: ENABLE ROW LEVEL SECURITY + form_types_select_all FOR SELECT USING (true)
+-- + GRANT ALL TO anon/authenticated/service_role). Without RLS this brand-new public table
+-- trips the rls_disabled_in_public advisor and is live on PostgREST the moment it exists.
+ALTER TABLE "public"."form_outcome_types" ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "form_outcome_types_select_all" ON "public"."form_outcome_types";
+CREATE POLICY "form_outcome_types_select_all" ON "public"."form_outcome_types" FOR SELECT USING (true);
+
+GRANT ALL ON TABLE "public"."form_outcome_types" TO "anon";
+GRANT ALL ON TABLE "public"."form_outcome_types" TO "authenticated";
+GRANT ALL ON TABLE "public"."form_outcome_types" TO "service_role";
+
 -- ============================================================================
 -- STEP 2 — form_templates engagement columns (T-B4 additive, T-B12, T-B13)
 -- buyer REUSES existing issuing_organisation (no new col); deadline already present.
@@ -69,6 +82,9 @@ COMMENT ON COLUMN "public"."form_templates"."outcome_recorded_by" IS 'User who r
 COMMENT ON COLUMN "public"."form_templates"."outcome_notes" IS 'Free-text notes accompanying the recorded outcome.';
 COMMENT ON COLUMN "public"."form_templates"."submission_date" IS 'When this form was submitted to the buyer (distinct from deadline). NULL = not yet submitted.';
 COMMENT ON COLUMN "public"."form_templates"."workflow_state" IS 'The 10-state procurement workflow axis (default draft). Orthogonal to status (analysis-pipeline) and outcome (per-stage resolution). ID-130 T-B12.';
+
+-- FK covering index (unindexed_foreign_keys advisor convention, per 20260619120100_index_unindexed_fks.sql).
+CREATE INDEX IF NOT EXISTS "idx_form_templates_outcome" ON "public"."form_templates" USING "btree" ("outcome");
 
 -- Optional cross-check: a recorded outcome must be applicable to the form_type.
 -- form_type is NULLable (app_upload pre-classification) and outcome is NULLable, so the trigger
@@ -130,6 +146,10 @@ END $$;
 
 COMMENT ON COLUMN "public"."form_questions"."form_template_id" IS 'FK to the owning form (form_templates.id), ON DELETE CASCADE. ID-130 T-B3. Additive this Task — workspace_id retained; questions re-keyed in {130.8}.';
 
+-- FK covering index (unindexed_foreign_keys advisor convention). Most important of the three:
+-- this FK is ON DELETE CASCADE, so the index also accelerates cascade deletes.
+CREATE INDEX IF NOT EXISTS "idx_form_questions_form_template_id" ON "public"."form_questions" USING "btree" ("form_template_id");
+
 -- ============================================================================
 -- STEP 4 — procurement_workspaces rollup columns (T-B21)
 -- Rollup cache populated by the recompute fn/trigger in {130.6} — additive cols only here.
@@ -166,6 +186,9 @@ BEGIN
 END $$;
 
 COMMENT ON COLUMN "public"."q_a_pairs"."source_form_template_id" IS 'Provenance: the form (form_templates.id) this Q&A pair was sourced from. NULLable. ID-130 T-B23.';
+
+-- FK covering index (unindexed_foreign_keys advisor convention).
+CREATE INDEX IF NOT EXISTS "idx_q_a_pairs_source_form_template_id" ON "public"."q_a_pairs" USING "btree" ("source_form_template_id");
 
 -- ============================================================================
 -- STEP 6 — form_types pqq -> psq re-key (AD-4)
