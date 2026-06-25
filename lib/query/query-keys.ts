@@ -340,6 +340,30 @@ export const queryKeys = {
         procurementId,
         questionId,
       ] as const,
+    // ---------------------------------------------------------------------
+    // Form-scoped namespace (ID-130 {130.12}, TECH T-B16/T-B14/T-B12 —
+    // FIX 3). ESTABLISHED here for the form_type picker; {130.13}/{130.15}
+    // EXTEND these sub-keys (add new members), never rewrite them. The model
+    // is a procurement WORKSPACE umbrella holding many FORMS (B-1), each
+    // carrying one form_type drawn from the api.form_types controlled
+    // vocabulary (the single source of truth).
+    // ---------------------------------------------------------------------
+    /** A form is a child artefact of a procurement (PSQ/ITT/tender/…). */
+    forms: {
+      all: ['procurement', 'forms'] as const,
+      detail: (formId: string) =>
+        ['procurement', 'forms', 'detail', formId] as const,
+    },
+    /**
+     * Controlled-vocabulary form_type options, fetched at runtime from
+     * `api.form_types` filtered to the procurement application type. `list`
+     * is the picker's option-fetch key (T-B12: CV is the single source of
+     * truth, so a future CV add/remove needs no code change).
+     */
+    formTypes: {
+      all: ['procurement', 'form-types'] as const,
+      list: ['procurement', 'form-types', 'list'] as const,
+    },
   },
 
   // Background queue jobs — `processing_queue` polling (S224 §5.4.1).
