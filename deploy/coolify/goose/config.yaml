@@ -1,0 +1,13 @@
+# deploy/coolify/goose/config.yaml
+#
+# ID-71.26 — goose provider/model config for the headless pilot runtime.
+# Bind-mounted into the container at /goose/config.yaml (docker-compose.goose.yaml).
+#
+# The compose env (GOOSE_PROVIDER / GOOSE_MODEL) is authoritative and mirrors these
+# values; this file is the in-repo declarative reference and is what run-pilot.sh
+# points goose at via GOOSE_CONFIG_PATH. Keep the two in lockstep.
+#
+# OQ-E (Liam ratify at G1): confirm the exact model id for the pilot.
+
+GOOSE_PROVIDER: anthropic
+GOOSE_MODEL: claude-sonnet-4-6
