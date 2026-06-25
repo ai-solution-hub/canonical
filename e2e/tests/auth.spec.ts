@@ -3,6 +3,7 @@ import { test as authTest } from '../fixtures';
 import { getVisibleNavLinks, isMobileViewport } from '../helpers/responsive';
 import { hideDevOverlays } from '../helpers/dev-overlays';
 import { attachConsoleGate, type ConsoleGate } from '../helpers/console-gate';
+import { restoreAdminSession } from '../fixtures/auth-session';
 
 /**
  * Flow 0: Authentication
@@ -167,6 +168,22 @@ baseTest.describe(
 );
 
 authTest.describe('Authentication — authenticated session', () => {
+  // The "can sign out" test below clicks the real Sign-out button, which calls
+  // supabase.auth.signOut() at GLOBAL scope (components/shell/sign-out-button.tsx)
+  // — revoking EVERY session for the shared admin user, including the one in
+  // e2e/.auth/admin.json that all chromium-desktop specs share. Re-provision a
+  // fresh admin session after the destructive test so it stays isolated and does
+  // not cascade `403 session_not_found` → /login into every spec ordered after
+  // it (S420 root cause of the nightly redirect storm + 50-min truncation).
+  // afterEach (not afterAll) so a Playwright retry of the sign-out test also
+  // starts from a live session; title-guarded so the 3 non-destructive tests
+  // skip the extra re-auth.
+  authTest.afterEach(async ({ browser }, testInfo) => {
+    if (testInfo.title.includes('sign out')) {
+      await restoreAdminSession(browser);
+    }
+  });
+
   authTest(
     'authenticated user sees the home page',
     async ({ authenticatedPage: page }) => {
