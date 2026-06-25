@@ -6,10 +6,8 @@ import type { ProcurementWorkflowState } from '@/lib/domains/procurement/procure
 import { canTransition } from '@/lib/domains/procurement/procurement-workflow';
 import { parseBody } from '@/lib/validation';
 import {
-  FINAL_AWARD_FORM_TYPES,
-  FormOutcomeSchema,
   ProcurementOutcomeBodySchema,
-  SHORTLIST_FORM_TYPES,
+  validateFormOutcome,
 } from '@/lib/validation/schemas';
 import { tryQuery } from '@/lib/supabase/safe';
 import type { Database } from '@/supabase/types/database.types';
@@ -32,35 +30,6 @@ const UUID_RE =
 // This route is NEVER a writer of the deprecated `domain_metadata` engagement
 // keys (split-brain guard). The roll-up is recomputed by the {130.6} AFTER
 // trigger on the form's engagement-column writes.
-
-/** Known procurement form types (mirror of the `form_outcome_types` CV stages). */
-const KNOWN_FORM_TYPES = new Set<string>([
-  ...FINAL_AWARD_FORM_TYPES,
-  ...SHORTLIST_FORM_TYPES,
-]);
-
-/**
- * App-layer mirror of the DB `form_templates_outcome_form_type_check` trigger
- * (ID-130 AD-4 / T-B5). Returns a human-readable error string if the outcome is
- * not stage-appropriate for the form_type, or `null` when the triad is valid (or
- * the form_type is unclassified — the DB FK + trigger remain the backstop).
- */
-function validateFormOutcome(
-  formType: string | null,
-  workflowState: string,
-  outcome: string | null,
-): string | null {
-  if (!formType || !KNOWN_FORM_TYPES.has(formType)) return null;
-  const result = FormOutcomeSchema.safeParse({
-    form_type: formType,
-    workflow_state: workflowState,
-    outcome,
-  });
-  if (!result.success) {
-    return `Outcome "${outcome ?? 'null'}" is not valid for a "${formType}" form`;
-  }
-  return null;
-}
 
 export const POST = defineRoute(
   z.unknown(),

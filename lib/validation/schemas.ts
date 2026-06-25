@@ -1109,6 +1109,43 @@ export const FormOutcomeSchema = z.discriminatedUnion('form_type', [
  */
 export type FormOutcome = z.infer<typeof FormOutcomeSchema>;
 
+/** Known procurement form types (mirror of the `form_outcome_types` CV stages). */
+export const KNOWN_FORM_TYPES = new Set<string>([
+  ...FINAL_AWARD_FORM_TYPES,
+  ...SHORTLIST_FORM_TYPES,
+]);
+
+/**
+ * App-layer mirror of the DB `form_templates_outcome_form_type_check` trigger
+ * (ID-130 AD-4 / T-B5). Returns a human-readable error string if the outcome is
+ * not stage-appropriate for the form_type, or `null` when the triad is valid (or
+ * the form_type is unclassified — the DB FK + trigger remain the backstop).
+ *
+ * Co-located here (not inline in the route handlers) so the route files stay
+ * free of inline `.safeParse(` — the validation-sweep guard requires
+ * route-body validation to go through parseBody/parseSearchParams; this is
+ * domain-triad validation of a constructed object, which belongs in the schema
+ * module alongside FormOutcomeSchema.
+ *
+ * @public
+ */
+export function validateFormOutcome(
+  formType: string | null,
+  workflowState: string,
+  outcome: string | null,
+): string | null {
+  if (!formType || !KNOWN_FORM_TYPES.has(formType)) return null;
+  const result = FormOutcomeSchema.safeParse({
+    form_type: formType,
+    workflow_state: workflowState,
+    outcome,
+  });
+  if (!result.success) {
+    return `Outcome "${outcome ?? 'null'}" is not valid for a "${formType}" form`;
+  }
+  return null;
+}
+
 // ──────────────────────────────────────────
 // Procurement Export Schemas (Phase 7A)
 // ──────────────────────────────────────────
