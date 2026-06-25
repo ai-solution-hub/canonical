@@ -54,7 +54,7 @@ async function gotoAuthedShell(page: Page, role: string): Promise<void> {
       const authChunks = cookies
         .filter((c) => c.name.includes('-auth-token'))
         .sort((a, b) => a.name.localeCompare(b.name));
-      let probe = 'skipped';
+      let probe: string;
       try {
         const supaUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
         const anon = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '';
