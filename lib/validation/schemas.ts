@@ -875,6 +875,45 @@ export const ProcurementUpdateBodySchema = z.object({
   outcome_notes: z.string().max(5000).optional(),
 });
 
+/**
+ * Closed list of procurement-applicable `form_type` keys (ID-130 TECH T-B12,
+ * post AD-4 `pqq`->`psq` rename). This is the minimal compile-time tuple used
+ * for request-body validation where Zod needs the closed set — the runtime
+ * single source of truth remains the `api.form_types` CV (the picker fetches
+ * its option list from there, {130.12}). The picker keeps its own client-side
+ * copy (`procurementFormTypeKeys` in `components/procurement/form-type-picker`)
+ * for the same compile-time-tuple reason; this server-side copy avoids pulling
+ * the 'use client' picker module into API routes.
+ */
+export const PROCUREMENT_FORM_TYPE_KEYS = [
+  'bid',
+  'checklist',
+  'itt',
+  'psq',
+  'questionnaire',
+  'rfp',
+  'tender',
+] as const;
+
+/**
+ * POST /api/procurement/[id]/forms — add-a-form (ID-130 {130.13}, B-16/B-19).
+ * The picker confirms a `form_type` (confirm-first; the route never accepts an
+ * empty/inferred-but-unconfirmed type — `form_type` is required here, B-14).
+ */
+export const CreateProcurementFormBodySchema = z.object({
+  form_type: z.enum(PROCUREMENT_FORM_TYPE_KEYS),
+  name: z.string().trim().min(1).max(200).optional(),
+});
+
+/**
+ * PATCH /api/procurement/[id]/forms — confirm/override an existing form's
+ * inferred `form_type` (B-16: the confirmed/overridden choice is authoritative).
+ */
+export const UpdateProcurementFormTypeBodySchema = z.object({
+  form_id: z.string().uuid(),
+  form_type: z.enum(PROCUREMENT_FORM_TYPE_KEYS),
+});
+
 /** POST /api/procurement/[id]/questions/extract */
 export const QuestionExtractBodySchema = z.object({
   document_path: z.string().min(1, 'Document path is required'),

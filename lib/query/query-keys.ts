@@ -351,6 +351,15 @@ export const queryKeys = {
     /** A form is a child artefact of a procurement (PSQ/ITT/tender/…). */
     forms: {
       all: ['procurement', 'forms'] as const,
+      /**
+       * The child-form list for one procurement umbrella ({130.13}, B-19).
+       * Used by the detail surface's net-new form-list and busted after the
+       * add-a-form create mutation. The umbrella detail query
+       * (`procurement.detail(id)`) carries the forms today, so this key is the
+       * stable handle for any future forms-only fetch + targeted invalidation.
+       */
+      list: (procurementId: string) =>
+        ['procurement', 'forms', 'list', procurementId] as const,
       detail: (formId: string) =>
         ['procurement', 'forms', 'detail', formId] as const,
     },

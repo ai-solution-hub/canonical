@@ -373,7 +373,7 @@ describe('ProcurementDetailPage', () => {
     );
     renderWithQuery(<ProcurementDetailPage params={mockParams} />);
     expect(screen.getByText('Procurement not found')).toBeInTheDocument();
-    expect(screen.getByText('Return to Bids')).toBeInTheDocument();
+    expect(screen.getByText('Return to Procurement')).toBeInTheDocument();
   });
 
   it('shows not-found state when procurementStatus is null', () => {
@@ -416,9 +416,9 @@ describe('ProcurementDetailPage', () => {
     expect(screen.getAllByText('REF-001').length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders back link to bids list', () => {
+  it('renders back link to the procurement list (B-17, "Back to Procurement")', () => {
     renderWithQuery(<ProcurementDetailPage params={mockParams} />);
-    const backLink = screen.getByText('Back to Bids');
+    const backLink = screen.getByText('Back to Procurement');
     expect(backLink.closest('a')).toHaveAttribute('href', '/procurement');
   });
 

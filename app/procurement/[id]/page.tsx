@@ -51,6 +51,10 @@ import {
   ProcurementWorkflowBadge,
   ProcurementWorkflowStepper,
 } from '@/components/procurement/procurement-workflow-indicator';
+import {
+  getProcurementForms,
+  getProcurementRollup,
+} from '@/lib/domains/procurement/procurement-detail-shape';
 import { ProcurementExportMenu } from '@/components/procurement/procurement-export-menu';
 import {
   ReadinessChecklist,
@@ -58,6 +62,7 @@ import {
 } from '@/components/procurement/readiness-checklist';
 import { CostEstimateDialog } from '@/components/coverage/cost-estimate-dialog';
 import { ProcurementOutcomeDialog } from '@/components/procurement/procurement-outcome';
+import { ProcurementFormsCard } from '@/components/procurement/procurement-forms-card';
 import { KBIntegrationReview } from '@/components/procurement/kb-integration-review';
 import { ConfidenceDot } from '@/components/shared/confidence-badge';
 import { QuestionList } from '@/components/procurement/question-list';
@@ -156,7 +161,7 @@ export default function ProcurementDetailPage({
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="size-4" aria-hidden="true" />
-          Back to Bids
+          Back to Procurement
         </Link>
         <div
           className="mt-8 flex flex-col items-center justify-center py-20 text-center"
@@ -173,7 +178,7 @@ export default function ProcurementDetailPage({
             This bid may have been deleted or you may not have access.
           </p>
           <Button asChild variant="outline" className="mt-4">
-            <Link href="/procurement">Return to Bids</Link>
+            <Link href="/procurement">Return to Procurement</Link>
           </Button>
         </div>
       </div>
@@ -188,7 +193,7 @@ export default function ProcurementDetailPage({
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
       >
         <ArrowLeft className="size-4" aria-hidden="true" />
-        Back to Bids
+        Back to Procurement
       </Link>
 
       {/* Header */}
@@ -408,6 +413,7 @@ export default function ProcurementDetailPage({
         {activeTab === 'overview' && (
           <OverviewTab
             bid={bid}
+            metadata={metadata}
             procurementId={id}
             procurementStatus={procurementStatus}
             stats={stats}
@@ -689,6 +695,7 @@ function MobileActionMenu({
 
 function OverviewTab({
   bid,
+  metadata,
   procurementId,
   procurementStatus,
   stats,
@@ -705,6 +712,7 @@ function OverviewTab({
   onRefreshReadiness,
 }: {
   bid: Procurement;
+  metadata: ProcurementMetadata | null;
   procurementId: string;
   procurementStatus: ProcurementWorkflowState;
   stats: ProcurementQuestionStats | null;
@@ -722,7 +730,9 @@ function OverviewTab({
   readinessError: string | null;
   onRefreshReadiness: () => void;
 }) {
-  const metadata = bid.domain_metadata as ProcurementMetadata;
+  // {130.13} re-point: `metadata` is derived from the new umbrella read-shape
+  // by the hook ({130.11} removed `bid.domain_metadata`) and passed in as a
+  // prop. It may be null for an umbrella with no forms yet.
   const postureBreakdown = stats
     ? [
         {
@@ -754,6 +764,16 @@ function OverviewTab({
         onShowOutcomeDialog={onShowOutcomeDialog}
         onShowKBReview={onShowKBReview}
       />
+
+      {/* Forms — net-new multi-form navigation + roll-up ({130.13}, B-7/B-19) */}
+      <div className="lg:col-span-2">
+        <ProcurementFormsCard
+          procurementId={procurementId}
+          forms={getProcurementForms(bid)}
+          rollup={getProcurementRollup(bid)}
+          canEdit={canEdit}
+        />
+      </div>
 
       {/* Progress */}
       <div className="rounded-lg border bg-card p-4">
@@ -823,11 +843,11 @@ function OverviewTab({
       {/* Procurement details — spans 2 columns when confidence card is absent to avoid grid asymmetry */}
       {(() => {
         const hasDetails =
-          metadata.estimated_value ||
-          metadata.reference_number ||
-          metadata.deadline ||
+          metadata?.estimated_value ||
+          metadata?.reference_number ||
+          metadata?.deadline ||
           bid.description ||
-          metadata.notes;
+          metadata?.notes;
         return (
           <div
             className={cn(
@@ -838,19 +858,19 @@ function OverviewTab({
             <h2 className="text-sm font-medium text-foreground">Details</h2>
             {hasDetails ? (
               <dl className="mt-3 space-y-2 text-sm">
-                {metadata.estimated_value && (
+                {metadata?.estimated_value && (
                   <div className="flex justify-between">
                     <dt className="text-muted-foreground">Estimated Value</dt>
                     <dd className="font-medium">{metadata.estimated_value}</dd>
                   </div>
                 )}
-                {metadata.reference_number && (
+                {metadata?.reference_number && (
                   <div className="flex justify-between">
                     <dt className="text-muted-foreground">Reference</dt>
                     <dd className="font-medium">{metadata.reference_number}</dd>
                   </div>
                 )}
-                {metadata.deadline && (
+                {metadata?.deadline && (
                   <div className="flex justify-between">
                     <dt className="text-muted-foreground">Deadline</dt>
                     <dd className="font-medium">
@@ -864,7 +884,7 @@ function OverviewTab({
                     <dd className="mt-1 text-foreground">{bid.description}</dd>
                   </div>
                 )}
-                {metadata.notes && (
+                {metadata?.notes && (
                   <div>
                     <dt className="text-muted-foreground">Notes</dt>
                     <dd className="mt-1 text-foreground">{metadata.notes}</dd>
