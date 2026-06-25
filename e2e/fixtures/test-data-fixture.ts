@@ -273,33 +273,45 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         .insert(junctionRecords)
         .throwOnError();
 
-      // --- Procurement questions (from centralised shapes) ---
-      const questions = CORE_BID_QUESTIONS.map((q) => ({
-        ...q,
-        project_id: procurementId,
-      }));
+      // --- Procurement questions + responses (from centralised shapes) ---
+      // SKIPPED when E2E_EXCLUDE_BID is set: id-130 {130.5} dropped the
+      // api.bid_questions view ({130.9} regenerates the api.* views), so seeding
+      // bid_questions/bid_responses throws `Could not find the table
+      // 'api.bid_questions'` for EVERY worker — which masked the real residual of
+      // the non-bid specs (the spec-level `**/bid-*.spec.ts` exclusion alone did
+      // not, because this shared worker seed runs for every workerData spec).
+      // Gated in lockstep with playwright.config.ts. Remove — and re-thread onto
+      // the form_questions model — when {130.9} lands. The downstream cleanup is
+      // already guarded by `responseIds.length > 0`, so empty arrays are safe.
+      let questionIds: string[] = [];
+      let responseIds: string[] = [];
+      if (!process.env.E2E_EXCLUDE_BID) {
+        const questions = CORE_BID_QUESTIONS.map((q) => ({
+          ...q,
+          project_id: procurementId,
+        }));
 
-      const { data: qs } = await supabase
-        .from('bid_questions')
-        .insert(questions)
-        .select('id')
-        .throwOnError();
+        const { data: qs } = await supabase
+          .from('bid_questions')
+          .insert(questions)
+          .select('id')
+          .throwOnError();
 
-      const questionIds = (qs ?? []).map((q) => q.id);
+        questionIds = (qs ?? []).map((q) => q.id);
 
-      // --- Procurement responses (from centralised shapes) ---
-      const responses = CORE_BID_RESPONSES.map((r, i) => ({
-        ...r,
-        question_id: questionIds[i],
-      }));
+        const responses = CORE_BID_RESPONSES.map((r, i) => ({
+          ...r,
+          question_id: questionIds[i],
+        }));
 
-      const { data: resps } = await supabase
-        .from('bid_responses')
-        .insert(responses)
-        .select('id')
-        .throwOnError();
+        const { data: resps } = await supabase
+          .from('bid_responses')
+          .insert(responses)
+          .select('id')
+          .throwOnError();
 
-      const responseIds = (resps ?? []).map((r) => r.id);
+        responseIds = (resps ?? []).map((r) => r.id);
+      }
 
       // --- Advance bid to drafting state ---
       //
