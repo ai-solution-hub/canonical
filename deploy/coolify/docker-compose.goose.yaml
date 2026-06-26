@@ -69,8 +69,11 @@ services:
       GOOSE_PROVIDER: ${GOOSE_PROVIDER:-anthropic}
       # OQ-E (Liam ratify at G1): confirm the exact model id for the pilot.
       GOOSE_MODEL: ${GOOSE_MODEL:-claude-sonnet-4-6}
-      # Anthropic inference key — the ONLY real spend path. Injected by Coolify.
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      # Anthropic inference key — the ONLY real spend path. Liam set this in Coolify
+      # (platform staging + prod) under the namespaced var GOOSE_ANTHROPIC_API_KEY;
+      # map it onto the ANTHROPIC_API_KEY that goose actually reads. :? fails the
+      # deploy if it is unset, so the burn path can never silently mis-key.
+      ANTHROPIC_API_KEY: ${GOOSE_ANTHROPIC_API_KEY:?set GOOSE_ANTHROPIC_API_KEY in Coolify (the goose Anthropic inference key)}
 
       # --- Remote-MCP target (KH MCP server, Streamable-HTTP transport) ---
       # Default = PROD MCP endpoint (APP_URL + /api/mcp/[transport] → transport `mcp`).
