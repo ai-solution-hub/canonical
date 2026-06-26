@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# deploy/coolify/goose/run-pilot.sh
+# deploy/coolify/goose-pilot/goose/run-pilot.sh
 #
 # ID-71.26 — the per-run wrapper the Coolify SCHEDULED TASK invokes (NOT the
 # container entrypoint; the container is boot-idle). One invocation == one pilot

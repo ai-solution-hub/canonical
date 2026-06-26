@@ -1,4 +1,4 @@
-# deploy/coolify/docker-compose.goose.yaml
+# deploy/coolify/goose-pilot/docker-compose.yaml
 #
 # ID-71.26 — Wave 3: goose runtime substrate on the co-located IONOS/Coolify box
 #            (pilot-gated). A NEW Coolify-managed service, its OWN container — it
