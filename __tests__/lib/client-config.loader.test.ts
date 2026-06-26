@@ -28,11 +28,36 @@ describe('loadBranding', () => {
     expect(branding.productName).toBe('Canonical');
   });
 
-  it('emits console.warn for KH default primary (below 3:1)', () => {
+  it('emits the [branding] contrast advisory server-side (build/SSR log)', () => {
+    // Branding contrast advisories are deployment-config diagnostics: emitted
+    // once server-side (visible in the build/SSR + CI log), never in the
+    // browser where a full page load would repeat them and drown the E2E
+    // console gate. Stub `window` away to exercise the server path under jsdom.
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    loadBranding('default');
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[branding]'));
-    warnSpy.mockRestore();
+    vi.stubGlobal('window', undefined);
+    try {
+      loadBranding('default');
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[branding]'),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('does NOT emit the [branding] advisory in the browser (window defined)', () => {
+    // jsdom provides `window`; the advisory must stay out of the browser
+    // console so the E2E gate's signal-to-noise stays high.
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      loadBranding('default');
+      expect(warnSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('[branding]'),
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
   it('resolves to default for an overlay id absent from the public tree', () => {

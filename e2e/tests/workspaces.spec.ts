@@ -82,7 +82,7 @@ test.describe('Workspaces page', { tag: '@smoke' }, () => {
     await expect(countText).toBeVisible({ timeout: 2000 });
   });
 
-  test('bids card navigates to bid list on click', async ({
+  test('procurements card navigates to the procurement list on click', async ({
     authenticatedPage: page,
   }) => {
     await page.goto('/workspaces');
@@ -91,15 +91,19 @@ test.describe('Workspaces page', { tag: '@smoke' }, () => {
       { timeout: 10000 },
     );
 
-    const bidsCard = page.locator('a[aria-label^="Procurements"]').first();
-    await expect(bidsCard).toBeVisible();
+    const procurementsCard = page
+      .locator('a[aria-label^="Procurements"]')
+      .first();
+    await expect(procurementsCard).toBeVisible();
 
-    await bidsCard.click();
+    await procurementsCard.click();
 
     await expect(page).toHaveURL('/procurement', { timeout: 10000 });
-    await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
-      timeout: 10000,
-    });
+    // {130.14} renamed the list heading "Bids" -> "Procurement" (ontology:
+    // procurement is the workspace/application_type; "bid" is now a form_type).
+    await expect(
+      page.getByRole('heading', { name: 'Procurement' }),
+    ).toBeVisible({ timeout: 10000 });
   });
 
   test('coming soon workspace card is visually disabled', async ({

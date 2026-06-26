@@ -627,10 +627,16 @@ export function loadBranding(idOverride?: string): BrandingConfig {
 
   const parsed = BrandingConfigSchema.parse(raw);
   const report = validateBrandingContrast(parsed);
-  for (const w of report.warnings) {
-    // Build-time warning — printed to the build log so it's visible in
-    // CI, but does not fail the build.
-    logger.warn(`[branding] ${w}`);
+  // Contrast advisories are deployment-config diagnostics, not runtime events:
+  // emit them once server-side (visible in the build/SSR + CI log) and NOT in
+  // the browser, where a full page load repeats them on every navigation and
+  // drowns the console (the active client's primary trips the 3:1 non-text
+  // threshold). The E2E console-gate still allowlists `[branding]` defensively;
+  // this keeps the noise out of the browser console entirely.
+  if (typeof window === 'undefined') {
+    for (const w of report.warnings) {
+      logger.warn(`[branding] ${w}`);
+    }
   }
   if (report.errors.length > 0) {
     throw new Error(
