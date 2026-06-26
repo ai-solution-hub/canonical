@@ -1064,11 +1064,14 @@ export const ProcurementMetadataSchema = z
 /**
  * Parse and validate `workspaces.domain_metadata` for procurement workspaces.
  *
- * Absent metadata (`null`/`undefined`) is a VALID state post-ID-130 form
- * re-anchor — tender/form data now lives in `form_templates`, and app/seed-
- * created procurement rows may carry no domain_metadata yet. Treat absent as
- * "no metadata" (return `null`, no warning); only a PRESENT-but-malformed value
- * is genuinely invalid and worth a warn.
+ * `domain_metadata` is the canonical WORKSPACE-LEVEL home for engagement fields
+ * (buyer/deadline/status): populated by the create path (POST /api/procurement)
+ * and KEPT by the {130.8} data migration, which lifts a COPY onto `form_templates`
+ * for the form-altitude model — it does NOT move the data out. So `null`/`undefined`
+ * means a workspace with NO engagement metadata set (e.g. bare/ambient rows) — a
+ * VALID "absent" state, not a malformed one. Treat absent as "no metadata" (return
+ * `null`, no warning); only a PRESENT-but-malformed value is genuinely invalid and
+ * worth a warn.
  */
 export function parseProcurementMetadata(
   raw: unknown,
