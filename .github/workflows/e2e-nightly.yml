@@ -95,7 +95,7 @@ jobs:
           node-version-file: ".node-version"
 
       - name: Cache Next.js build cache
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v4
         with:
           path: .next/cache
           key:
