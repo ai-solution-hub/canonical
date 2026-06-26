@@ -26,9 +26,11 @@
 # Image-tag discipline: NEVER a tag (never :latest). The image is DIGEST-pinned
 #   (pin-and-soak, B-INV-21). GOOSE_IMAGE_DIGEST is a required var resolved from
 #   release v1.38.0 — compose refuses to start if unset.
-#   # TODO(G1, B-INV-21): resolve the sha256 digest of ghcr.io/block/goose:v1.38.0
-#   #   (`docker buildx imagetools inspect ghcr.io/block/goose:v1.38.0`) and set
-#   #   GOOSE_IMAGE_DIGEST in Coolify. Ratifying this pin is the G6 adopt gate.
+#   # G1 RESOLVED (S424): ghcr.io/block/goose has NO v1.38.0 *container* tag (Block
+#   #   stopped version-tagging containers ~1.23.x; `latest` tracks current = goose
+#   #   1.30.0). Pin the immutable digest of `latest`:
+#   #     GOOSE_IMAGE_DIGEST=sha256:d85a724ee487425f38ce015323adf2003591268ee515d9018ac89450ed7d3a5a
+#   #   Set it in Coolify (kh-goose-pilot app env). Ratifying this pin is the G6 gate.
 
 name: kh-goose-pilot
 
@@ -103,10 +105,10 @@ services:
 
     # Liveness probe — #7685-safe. We do NOT run goosed (no ~103-endpoint REST
     # surface, no self-signed TLS port), so we probe the idle process directly.
-    # pgrep is in coreutils/procps; if the goose image lacks it, fall back to a
-    # marker-file touched by run-pilot.sh (resolve at G1 image tool-probe).
+    # G1 RESOLVED (S424): the goose image lacks `pgrep`, so we probe PID 1's cmdline
+    # via /proc (the boot-idle `sleep infinity` is PID 1) — pgrep-free, no marker file.
     healthcheck:
-      test: ["CMD-SHELL", "pgrep -f 'sleep infinity' >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "grep -qa sleep /proc/1/cmdline 2>/dev/null || exit 1"]
       interval: 60s
       timeout: 10s
       retries: 3
