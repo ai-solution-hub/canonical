@@ -300,6 +300,40 @@ jobs:
             --publish
           echo "Published ${IMAGE}:${TAG}"
 
+      - name:
+          Inv-9 assertion — cocoindex image carries NO Playwright / Chromium
+          (extraction is in-process Trafilatura, ID-112)
+        run: |
+          set -euo pipefail
+          # The cocoindex image is built by buildpacks from EXACTLY requirements.txt
+          # (the pip surface) + scripts/ (the Python source) — there is no Dockerfile.
+          # HTML extraction is fully in-process (Trafilatura, ID-112); a Playwright /
+          # Chromium browser binary must NEVER be baked into this image, and it can only
+          # enter via a pip dependency or a pipeline-source import. We assert on those
+          # two surfaces rather than `docker image inspect` on the pushed image:
+          # `pack build … --publish` does NOT load the image into the local daemon (see
+          # the size-budget step below — `docker image inspect` errors "No such image"
+          # post-publish), and a metadata grep would miss a filesystem-baked binary
+          # anyway. The dependency + import surface is the authoritative, deterministic
+          # gate.
+          #
+          # RESTORED after id-129 (75d9146e) removed this negative-assertion as
+          # collateral alongside the (correctly-removed) pullmd image grep — the two
+          # were double-duty in one step and the Playwright/Chromium guard was lost when
+          # pullmd retired. NO pullmd coupling is reintroduced here (PullMD is fully
+          # decommissioned).
+          if grep -qiE 'playwright|chromium' requirements.txt; then
+            echo "::error::Inv-9 FAIL — Playwright/Chromium dependency detected in requirements.txt (the cocoindex image must stay browser-free; extraction is in-process Trafilatura)."
+            grep -niE 'playwright|chromium' requirements.txt
+            exit 1
+          fi
+          if grep -rqiE 'playwright|chromium' scripts/cocoindex_pipeline --include='*.py'; then
+            echo "::error::Inv-9 FAIL — Playwright/Chromium reference in the cocoindex pipeline source (scripts/cocoindex_pipeline/**.py)."
+            grep -rniE 'playwright|chromium' scripts/cocoindex_pipeline --include='*.py'
+            exit 1
+          fi
+          echo "Inv-9 PASS: zero Playwright/Chromium pip dependencies (requirements.txt) and zero references in the cocoindex pipeline source."
+
       - name: Image-size budget check (T-OQ4 — log + warn, never fail)
         # GENUINELY never fails. The build step above used `pack build … --publish`,
         # which pushes the image STRAIGHT to ghcr.io and does NOT load it into the

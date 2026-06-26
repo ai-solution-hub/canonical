@@ -59,7 +59,6 @@ const IngestUrlResponseSchema = z.union([
     primary_domain: z.string().nullable(),
     primary_subtopic: z.string().nullable(),
     warnings: z.array(z.string()),
-    dedup_status: z.literal('clean'),
   }),
 ]);
 
@@ -317,7 +316,6 @@ export const POST = withRequestContext(
         primary_domain: row.primary_domain,
         primary_subtopic: row.primary_subtopic,
         warnings,
-        dedup_status: 'clean' as const,
       });
     } catch (err) {
       logger.error({ err, op: 'ingest_url' }, 'Failed to ingest URL');

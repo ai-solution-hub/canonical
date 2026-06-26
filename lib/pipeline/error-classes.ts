@@ -1,4 +1,4 @@
-// Inv-25 — canonical 6-class stage-level error vocabulary for the
+// Inv-25 — canonical 7-class stage-level error vocabulary for the
 // cocoindex Python pipeline. Distinct from the pydantic-level sub-classes
 // in `_PYDANTIC_ERROR_TO_ERROR_CLASS` (extraction.py) which sit
 // WITHIN `extraction_validation_failed`.
@@ -15,7 +15,7 @@
 import { z } from 'zod';
 
 /**
- * The 6-class stage-level error vocabulary (Inv-25):
+ * The 7-class stage-level error vocabulary (Inv-25):
  *
  * - `extraction_validation_failed` — Pydantic rejected LLM response.
  * - `extraction_provider_unavailable` — Anthropic/LiteLLM 5xx exhaust.
@@ -23,6 +23,10 @@ import { z } from 'zod';
  * - `binary_conversion_failed` — Docling raised (Stage 2).
  * - `embedding_failed` — LiteLLMEmbedder raised (Stage 4; stub).
  * - `entity_resolution_failed` — entity_resolution raised (Stage 5; stub).
+ * - `qa_dedup_proposer_failed` — the ID-120 Q&A dedup proposer post-pass
+ *   raised (classifier at `scripts/cocoindex_pipeline/flow.py:369`). The
+ *   proposer is CONTAINED — its failure classifies the run but the walk's
+ *   primary ingest already landed.
  */
 export const PIPELINE_ERROR_CLASSES = [
   'extraction_validation_failed',
@@ -31,6 +35,7 @@ export const PIPELINE_ERROR_CLASSES = [
   'binary_conversion_failed',
   'embedding_failed',
   'entity_resolution_failed',
+  'qa_dedup_proposer_failed',
 ] as const;
 
 export type PipelineErrorClass = (typeof PIPELINE_ERROR_CLASSES)[number];
@@ -38,6 +43,6 @@ export type PipelineErrorClass = (typeof PIPELINE_ERROR_CLASSES)[number];
 /**
  * Zod schema for trust-boundary validation. No `unknown` fallback —
  * the sidecar is the only legitimate emitter, required to map every
- * exception to one of the 6 canonical classes.
+ * exception to one of the 7 canonical classes.
  */
 export const PipelineErrorClassSchema = z.enum(PIPELINE_ERROR_CLASSES);
