@@ -111,7 +111,11 @@ services:
       # in-repo goose dir read-only at /goose; run-pilot.sh + o4-pilot.yaml +
       # config.yaml all resolve under /goose. In Coolify set the app "Base Directory"
       # to this compose's dir so the relative ./goose source path resolves.
-      - ./goose:/goose:ro
+      # G4 RESOLVED (S424): Coolify resolves compose VOLUME paths from the REPO/ARTIFACT
+      # ROOT, not the app Base Directory (Base Directory only locates the compose file).
+      # So the source must be the FULL repo path — a base-dir-relative `./goose` mounted
+      # an empty <root>/goose → "run-pilot.sh: No such file or directory".
+      - ./deploy/coolify/goose-pilot/goose:/goose:ro
 
     # Liveness probe — #7685-safe. We do NOT run goosed (no ~103-endpoint REST
     # surface, no self-signed TLS port), so we probe the idle process directly.
