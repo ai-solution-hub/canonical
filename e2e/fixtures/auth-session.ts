@@ -43,8 +43,24 @@ export async function loginAndSave(
   // ID-115 (S9): route to the exposed api schema
   const supabase = createClient(supabaseUrl, supabaseAnonKey, { ...DB_OPTION });
 
-  const email = process.env[emailEnv] || defaultEmail;
-  const password = process.env[passwordEnv] || defaultPassword;
+  // D4 (S424, test-philosophy §2.1 false-pass): in CI, REQUIRE the TEST_USER_*
+  // secrets — never silently fall back to the committed default creds. The
+  // fallback would mask a missing/rotated secret as a GREEN run (the setup
+  // would authenticate with stale committed creds instead of failing loudly),
+  // exactly the conditional-false-pass the investigation flagged. Local keeps
+  // the convenience defaults so `bun run test:e2e` works without an 8-var
+  // .env.local.
+  const inCI = !!process.env.CI;
+  const email = process.env[emailEnv] || (inCI ? '' : defaultEmail);
+  const password = process.env[passwordEnv] || (inCI ? '' : defaultPassword);
+  if (!email || !password) {
+    throw new Error(
+      `Auth setup misconfigured: missing ${emailEnv} / ${passwordEnv} in CI. ` +
+        `Refusing to fall back to committed default credentials (that would ` +
+        `mask a missing/rotated secret as a green run). Set the TEST_USER_* ` +
+        `vars/secrets in the Staging GitHub environment.`,
+    );
+  }
 
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
