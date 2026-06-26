@@ -7,7 +7,9 @@
 #   3. Plugin vocabulary (.claude/plugins/knowledge-hub/1.0.0/ files)
 #   4. Plugin bundle (lib/mcp/plugin-bundle.ts)
 #
-# Commits changes to main and POSTs an HMAC-signed callback on completion.
+# Commits changes to staging (staging-first: main advances from a verified
+# staging, so this bot must NOT push straight to the gated main) and POSTs an
+# HMAC-signed callback on completion.
 #
 # Spec: docs/specs/p0-tx-taxonomy-sync-spec.md §3.1.2, §5.5
 # Plan: docs/plans/p0-tx-taxonomy-sync-plan.md WP5
@@ -37,10 +39,10 @@ jobs:
       DISPATCH_RUN_ID: ${{ github.event.client_payload.run_id }}
 
     steps:
-      - name: Checkout main
+      - name: Checkout staging
         uses: actions/checkout@v7.0.0
         with:
-          ref: main
+          ref: staging
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -74,7 +76,7 @@ jobs:
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add -A
             git commit -m "chore(taxonomy): automated sync [skip ci]"
-            git push origin main
+            git push origin staging
             echo "changes=true" >> "$GITHUB_OUTPUT"
           else
             echo "changes=false" >> "$GITHUB_OUTPUT"
