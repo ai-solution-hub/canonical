@@ -404,14 +404,19 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
 
       const params = createTestParams({ id: BID_UUID });
 
-      // Procurement fetch — must be in "won" state
+      // Procurement fetch — workspace identity (ID-130 {130.17}: the won-state
+      // gate now reads the form's outcome via .maybeSingle, not workspaces.status).
       mockSupabase._chain.single.mockResolvedValueOnce({
         data: {
           id: BID_UUID,
           name: 'Test Procurement',
-          status: 'won',
           domain_metadata: { domain: 'waste-management' },
         },
+        error: null,
+      });
+      // Form-outcome gate — the workspace's v1 form is 'won'.
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+        data: { outcome: 'won', workflow_state: 'won' },
         error: null,
       });
 
