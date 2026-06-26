@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures';
+import { searchBrowseByPrefix } from '../helpers/browse-prefix-search';
 
 /**
  * Wave 1: Item Detail Date Features
@@ -271,33 +272,29 @@ test.describe(
 );
 
 test.describe('Item detail — quality score badge', { tag: '@wave1' }, () => {
-  test('browse page content cards show quality score badges', async ({
+  test('worker-seeded browse card shows a quality score badge', async ({
     authenticatedPage: page,
+    workerData,
   }) => {
-    await page.goto('/browse');
-
-    // Wait for content to load
-    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
-      timeout: 10000,
-    });
-
-    // QualityBadge renders with aria-label="Quality score: N out of 100 - {label}".
-    // Worker fixture seeds 12 content items; QualityBadge always renders on
-    // every ContentCard (no conditional in the component). Previous
-    // `if (badgeCount > 0)` conditional silently passed on empty DBs per
-    // `feedback_e2e_conditional_false_pass`.
-    const qualityBadges = page.locator('span[aria-label^="Quality score:"]');
-    await expect(qualityBadges.first()).toBeVisible({ timeout: 10000 });
+    // test-philosophy.md §2.1: read the QualityBadge off THIS worker's
+    // prefix-scoped card, not `.first()` (which could be an ambient staging
+    // item). QualityBadge renders only inside ContentCard (browse grid /
+    // search-result cards) — never on /item/[id] — so we scope the
+    // search-result card returned by the prefix helper. The previous
+    // `.first()` read silently passed on ambient data.
+    const workerCard = await searchBrowseByPrefix(page, workerData.prefix);
+    const badge = workerCard
+      .locator('span[aria-label^="Quality score:"]')
+      .first();
+    await badge.scrollIntoViewIfNeeded();
+    await expect(badge).toBeVisible({ timeout: 10000 });
 
     // Verify the aria-label format
-    const ariaLabel = await qualityBadges.first().getAttribute('aria-label');
+    const ariaLabel = await badge.getAttribute('aria-label');
     expect(ariaLabel).toMatch(/Quality score: \d+ out of 100/);
 
     // The badge should contain a numeric score
-    const firstBadge = qualityBadges.first();
-    const scoreText = await firstBadge
-      .locator('span.font-semibold')
-      .textContent();
+    const scoreText = await badge.locator('span.font-semibold').textContent();
     const score = parseInt(scoreText ?? '0', 10);
     expect(score).toBeGreaterThanOrEqual(0);
     expect(score).toBeLessThanOrEqual(100);
@@ -305,20 +302,19 @@ test.describe('Item detail — quality score badge', { tag: '@wave1' }, () => {
 
   test('quality badge uses semantic colour tokens', async ({
     authenticatedPage: page,
+    workerData,
   }) => {
-    await page.goto('/browse');
-    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
-      timeout: 10000,
-    });
-
-    // Worker fixture seeds 12 content items; QualityBadge renders on every
-    // ContentCard. Previous `if (badgeCount > 0)` conditional silently
-    // passed on empty DBs per `feedback_e2e_conditional_false_pass`.
-    const qualityBadges = page.locator('span[aria-label^="Quality score:"]');
-    await expect(qualityBadges.first()).toBeVisible({ timeout: 10000 });
+    // test-philosophy.md §2.1: read the badge off THIS worker's prefix-scoped
+    // card, not `.first()` (ambient).
+    const workerCard = await searchBrowseByPrefix(page, workerData.prefix);
+    const badge = workerCard
+      .locator('span[aria-label^="Quality score:"]')
+      .first();
+    await badge.scrollIntoViewIfNeeded();
+    await expect(badge).toBeVisible({ timeout: 10000 });
 
     // The badge should use semantic quality or freshness tokens, not raw Tailwind colours
-    const className = await qualityBadges.first().getAttribute('class');
+    const className = await badge.getAttribute('class');
     // Quality badges use quality-good, quality-moderate, primary, freshness-stale, or destructive tokens
     const hasSemanticToken = className?.match(
       /quality-good|quality-moderate|text-primary|freshness-stale|text-destructive/,
@@ -328,21 +324,20 @@ test.describe('Item detail — quality score badge', { tag: '@wave1' }, () => {
 
   test('quality badge shows breakdown in title attribute', async ({
     authenticatedPage: page,
+    workerData,
   }) => {
-    await page.goto('/browse');
-    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
-      timeout: 10000,
-    });
-
-    // Worker fixture seeds 12 content items; QualityBadge renders on every
-    // ContentCard with the full breakdown title (admin/canEdit context, so
-    // `simplified` is false). Previous `if (badgeCount > 0)` conditional
-    // silently passed on empty DBs per `feedback_e2e_conditional_false_pass`.
-    const qualityBadges = page.locator('span[aria-label^="Quality score:"]');
-    await expect(qualityBadges.first()).toBeVisible({ timeout: 10000 });
+    // test-philosophy.md §2.1: read the badge off THIS worker's prefix-scoped
+    // card, not `.first()` (ambient). Admin/canEdit context, so the badge
+    // renders the full (non-simplified) breakdown title.
+    const workerCard = await searchBrowseByPrefix(page, workerData.prefix);
+    const badge = workerCard
+      .locator('span[aria-label^="Quality score:"]')
+      .first();
+    await badge.scrollIntoViewIfNeeded();
+    await expect(badge).toBeVisible({ timeout: 10000 });
 
     // QualityBadge sets a title attribute with the score breakdown
-    const title = await qualityBadges.first().getAttribute('title');
+    const title = await badge.getAttribute('title');
     // Breakdown format: "Freshness: N/30, Confidence: N/20, ..."
     expect(title).toContain('Freshness:');
     expect(title).toContain('Confidence:');

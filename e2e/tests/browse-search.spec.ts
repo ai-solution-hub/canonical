@@ -1,5 +1,10 @@
 import { test, expect } from '../fixtures';
 import { searchFromHeader } from '../helpers/responsive';
+import {
+  searchBrowseByPrefix,
+  PREFIX_SEARCH_ANCHOR_TITLE,
+  escapePrefix,
+} from '../helpers/browse-prefix-search';
 
 /**
  * Flow 2: Content Browse and Search
@@ -176,18 +181,18 @@ test.describe('Search', () => {
     await expect(page).toHaveURL(/\/browse\?q=/);
   });
 
-  test('search via browse page loads and shows results for a query', async ({
+  test('search via browse page shows the worker-seeded result', async ({
     authenticatedPage: page,
+    workerData,
   }) => {
-    await page.goto('/browse?q=IT+support');
-
-    // Either search results appear or an empty/no-results message
-    const hasResults = page.locator('a[href^="/item/"]').first();
-    const emptyState = page
-      .getByText(/no results/i)
-      .or(page.getByText(/try a different/i));
-
-    await expect(hasResults.or(emptyState)).toBeVisible({ timeout: 15000 });
+    // test-philosophy.md §2.1: assert against worker-seeded rows, never
+    // ambient staging content. Anchor the semantic search on the unique
+    // seeded title "Cyber Essentials Compliance" (content item [3], which
+    // carries a pre-computed embedding) and hard-assert THIS worker's
+    // prefixed card is visible. The previous `hasResults.or(emptyState)`
+    // soft guard passed even when the query returned zero matches.
+    const workerCard = await searchBrowseByPrefix(page, workerData.prefix);
+    await expect(workerCard).toContainText(PREFIX_SEARCH_ANCHOR_TITLE);
   });
 
   test('search results link to item detail pages', async ({
@@ -227,8 +232,9 @@ test.describe('Live preview dropdown', () => {
     });
   });
 
-  test('type 3 chars in inline search — preview dropdown appears with results', async ({
+  test('typing a seeded title in inline search — preview shows the worker row', async ({
     authenticatedPage: page,
+    workerData,
   }) => {
     // The inline SearchBar on /browse has role="combobox"
     const searchInput = page.locator(
@@ -236,8 +242,11 @@ test.describe('Live preview dropdown', () => {
     );
     await searchInput.waitFor({ state: 'visible' });
     await searchInput.click();
-    // Type a 3-char query likely to match content in the KB (broad term)
-    await searchInput.fill('pol');
+    // test-philosophy.md §2.1: anchor the live-preview query on the unique
+    // seeded title (content item [3], pre-computed embedding) rather than a
+    // broad term ("pol"). The previous `if (linkCount > 0) … else "See all
+    // results"` branch silently passed on an ambient-only DB.
+    await searchInput.fill(PREFIX_SEARCH_ANCHOR_TITLE);
 
     // Wait for preview results region to appear (debounce + fetch)
     const previewRegion = page.locator(
@@ -245,16 +254,13 @@ test.describe('Live preview dropdown', () => {
     );
     await expect(previewRegion).toBeVisible({ timeout: 5000 });
 
-    // Should have at least one preview result link
-    const previewLinks = previewRegion.locator('a[href^="/item/"]');
-    const linkCount = await previewLinks.count();
-    // If there are zero matches in the DB for "pol", the region still renders
-    // with "See all results" — check for that as a minimum
-    if (linkCount > 0) {
-      await expect(previewLinks.first()).toBeVisible();
-    } else {
-      await expect(previewRegion.getByText('See all results')).toBeVisible();
-    }
+    // Hard-assert THIS worker's seeded "Cyber Essentials Compliance" row is
+    // among the preview results, targeted by its known id — robust against
+    // other workers' identically-titled rows and ambient staging matches.
+    const workerPreviewLink = previewRegion.locator(
+      `a[href="/item/${workerData.staleItemId}"]`,
+    );
+    await expect(workerPreviewLink).toBeVisible({ timeout: 5000 });
   });
 
   test('type 2 chars — no preview, Popular topics still visible', async ({
@@ -281,35 +287,34 @@ test.describe('Live preview dropdown', () => {
     // We assert the preview is absent — that is the spec requirement.
   });
 
-  test('click preview result — navigates to /item/{id}', async ({
+  test('click preview result — navigates to the seeded /item/{id}', async ({
     authenticatedPage: page,
+    workerData,
   }) => {
     const searchInput = page.locator(
       'form[aria-label="Search content"] [role="combobox"]',
     );
     await searchInput.waitFor({ state: 'visible' });
     await searchInput.click();
-    // "the" is near-universal in indexed content; at least one preview match
-    // should exist in any realistic test DB. If it does not, the test SHOULD
-    // fail rather than silently pass — the spec (§7.3) requires asserting
-    // navigation, which is meaningless without a real click.
-    await searchInput.fill('the');
+    // test-philosophy.md §2.1: anchor on worker-seeded content item [0]
+    // ("IT Support Policy", pre-computed embedding) and click THAT worker's
+    // own row — replacing the ambient "the" query, which asserted nothing
+    // about worker-seeded data.
+    await searchInput.fill('IT Support Policy');
 
     const previewRegion = page.locator(
       '[data-testid="preview-results-region"]',
     );
     await expect(previewRegion).toBeVisible({ timeout: 5000 });
 
-    const firstLink = previewRegion.locator('a[href^="/item/"]').first();
-    // Fail-honest: require at least one preview result. If this throws on a
-    // cleanroom DB, the seed data is missing — not a test bug.
-    await expect(firstLink).toBeVisible({ timeout: 5000 });
-    const href = await firstLink.getAttribute('href');
-    expect(href).toBeTruthy();
-    await firstLink.click();
-    await expect(page).toHaveURL(/\/item\//);
+    // Target THIS worker's seeded item [0] directly by id, then click it.
+    const workerPreviewLink = previewRegion.locator(
+      `a[href="/item/${workerData.articleId}"]`,
+    );
+    await expect(workerPreviewLink).toBeVisible({ timeout: 5000 });
+    await workerPreviewLink.click();
     await expect(page).toHaveURL(
-      new RegExp(href!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+      new RegExp(`/item/${escapePrefix(workerData.articleId)}`),
     );
   });
 
