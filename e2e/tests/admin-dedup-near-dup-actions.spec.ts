@@ -567,6 +567,15 @@ test.describe('Admin Near-Duplicate Actions — §1.9 mutating actions', () => {
   //
   // This test does NOT need per-test seeded subjects — it relies on the
   // worker fixture's pairs all being below the 0.99 threshold.
+  //
+  // {128.9} ACCEPTED AMBIENT-ABSENCE RESIDUAL (ratified by Liam): the
+  // empty-state at THRESHOLD_MAX=0.99 asserts the GLOBAL absence of any
+  // ≥0.99 cosine pair, which cannot be self-seeded (0.99 is the slider
+  // ceiling and fixtures cap at SIM_HIGH≈0.975). This is the deliberate
+  // exception to test-philosophy §2.1's "assert only against worker-seeded
+  // rows" — it fails honestly if an ambient ≥0.99 pair ever appears, so it
+  // is sound, not a conditional-false-pass. A future §2.1 audit should NOT
+  // re-flag this assertion as ambient-coupling.
   // ─────────────────────────────────────────────────────────────────────
   test('AC10 — empty state renders at upper threshold (no pairs surface)', async ({
     authenticatedPage: page,
