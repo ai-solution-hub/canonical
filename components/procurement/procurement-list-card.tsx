@@ -46,8 +46,14 @@ export function ProcurementListCard({
   className,
   claudePrompt,
 }: ProcurementListCardProps) {
+  // domain_metadata may be null (app/seed-created procurement rows with no
+  // tender metadata): parse returns null and the raw fallback is also null, so
+  // `metadata` can be null. Guard every access — a malformed row must degrade
+  // gracefully, never crash the whole list via the ErrorBoundary.
   const metadata = (parseProcurementMetadata(bid.domain_metadata) ??
-    bid.domain_metadata) as ProcurementMetadata;
+    bid.domain_metadata) as ProcurementMetadata | null;
+  const buyer = metadata?.buyer ?? null;
+  const deadline = metadata?.deadline ?? null;
   const procurementStatus = bid.status as ProcurementMetadata['status'];
   const stats = bid.question_stats;
   const totalQuestions = stats?.total_questions ?? 0;
@@ -80,7 +86,7 @@ export function ProcurementListCard({
     : [];
 
   // Deadline proximity calculation (shared helper)
-  const deadlineProximity = getDeadlineProximity(metadata.deadline);
+  const deadlineProximity = getDeadlineProximity(deadline);
 
   return (
     <div
@@ -110,16 +116,16 @@ export function ProcurementListCard({
 
         {/* Buyer and deadline */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-          {metadata.buyer && (
+          {buyer && (
             <span className="inline-flex items-center gap-1.5">
               <Building2 className="size-3.5" aria-hidden="true" />
-              {metadata.buyer}
+              {buyer}
             </span>
           )}
-          {metadata.deadline && (
+          {deadline && (
             <span className="inline-flex items-center gap-1.5">
               <Calendar className="size-3.5" aria-hidden="true" />
-              {formatDateUK(metadata.deadline)}
+              {formatDateUK(deadline)}
             </span>
           )}
           {deadlineProximity && (
