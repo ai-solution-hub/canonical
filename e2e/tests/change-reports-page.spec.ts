@@ -3,10 +3,12 @@ import { test, expect } from '../fixtures';
 import { createServiceClient } from '../fixtures/supabase';
 import {
   type ChangeReportFixtureData,
+  STUB_TAXONOMY_DOMAIN_NAME,
   cleanupChangeReports,
   countChangeReportFixtureRows,
   generateChangeReportRunId,
   seedChangeReports,
+  stubTaxonomyDomains,
 } from '../fixtures/change-reports-fixture';
 
 /**
@@ -253,6 +255,13 @@ test.describe('Change Reports -- custom filter interactions', () => {
     authenticatedPage: page,
   }) => {
     await stubEmptyChangeReports(page);
+    // Stub taxonomy_domains to a single deterministic domain so the domain
+    // <Select> always offers exactly one selectable option beyond "All
+    // domains". This replaces the former `if (optionCount > 1)` soft guard
+    // (which false-passed whenever the ambient test DB had no domains) with an
+    // UNCONDITIONAL hard assertion against worker-controlled data
+    // (test-philosophy.md §2.1).
+    await stubTaxonomyDomains(page);
     await page.goto('/change-reports');
 
     const section = page.locator('section[aria-label="Change reports"]');
@@ -269,27 +278,26 @@ test.describe('Change Reports -- custom filter interactions', () => {
     // Click to open the select
     await domainSelect.click();
 
-    // Select the first non-"All domains" option
+    // The stubbed domain is the only non-"All domains" option — select it
+    // directly (Playwright auto-waits for it to render, so no count guard is
+    // needed; if the option never appears the test fails, which is the point).
     const listbox = page.getByRole('listbox');
-    const options = listbox.getByRole('option');
-    const optionCount = await options.count();
+    await listbox
+      .getByRole('option', { name: STUB_TAXONOMY_DOMAIN_NAME, exact: true })
+      .click();
 
-    if (optionCount > 1) {
-      // Click the second option (first non-"All domains" one)
-      await options.nth(1).click();
+    // An "Active filters:" label appears unconditionally.
+    await expect(page.getByText('Active filters:')).toBeVisible({
+      timeout: 5000,
+    });
 
-      // An "Active filters:" label appears
-      await expect(page.getByText('Active filters:')).toBeVisible({
-        timeout: 5000,
-      });
-
-      // A badge with the selected domain name is visible
-      // The badge has a remove button
-      const removeDomainButton = page.locator(
-        '[aria-label^="Remove domain filter"]',
-      );
-      await expect(removeDomainButton).toBeVisible();
-    }
+    // The active-filter badge for the stubbed domain renders with a remove
+    // button whose aria-label echoes the selected domain name verbatim —
+    // asserting the badge against the known stubbed domain, not ambient data.
+    const removeDomainButton = page.locator(
+      `[aria-label="Remove domain filter: ${STUB_TAXONOMY_DOMAIN_NAME}"]`,
+    );
+    await expect(removeDomainButton).toBeVisible();
   });
 
   test('custom keyword filter shows individual keyword badges', async ({
