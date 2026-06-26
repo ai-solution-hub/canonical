@@ -50,10 +50,17 @@ services:
     # BOOT-IDLE (the burn gate). The container does nothing until the Coolify
     # scheduled task invokes /goose/run-pilot.sh. A deploy/restart therefore costs
     # ZERO Anthropic spend by construction — identical guarantee to cocoindex's
-    # boot-never-walks. Do NOT replace this with a goose entrypoint.
-    command: ["sleep", "infinity"]
+    # boot-never-walks.
+    # G3 RESOLVED (S424): the image ENTRYPOINT is ["/usr/local/bin/goose"] (CMD
+    # ["--help"]), so a bare `command: [sleep, infinity]` runs `goose sleep infinity`
+    # → "unrecognized subcommand" → crash-loop. OVERRIDE the entrypoint to sleep
+    # (and replace the image CMD via command) for a true boot-idle. run-pilot.sh
+    # still invokes `goose run` directly (goose is on PATH), so the scheduled task
+    # is unaffected.
+    entrypoint: ["sleep"]
+    command: ["infinity"]
 
-    # Resource caps — conservative on the shared ~16 GB box (cocoindex co-tenant).
+    # Resource caps — conservative on the shared ~4 GB box (cocoindex co-tenant).
     # Local footprint is orchestration/IO only (inference is remote Anthropic), so
     # 512M is generous headroom; watch the burn guard during the G5 soak.
     deploy:
