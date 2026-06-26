@@ -221,11 +221,17 @@ jobs:
         # Serves the prebuilt app via `next start` (PLAYWRIGHT_WEB_SERVER_CMD),
         # so routes are precompiled — no compile-on-first-hit ({128.6}). Each
         # shard emits a blob report (PW_BLOB_REPORT) that merge-reports stitches.
-        # --max-failures=0 / --global-timeout=1080000 (18m) override the config's
-        # smoke-tuned caps; {128.8} moves these to env-driven config.
+        # Fail-fast budgets are config-driven ({128.8}) via PW_MAX_FAILURES /
+        # PW_GLOBAL_TIMEOUT_MS in the env block above — no magic CLI flags.
         env:
           PLAYWRIGHT_WEB_SERVER_CMD: "bun run start"
           PW_BLOB_REPORT: "1"
+          # {128.8}: fail-fast budgets are now config-driven — playwright.config.ts
+          # reads these. A sick shard bails at 4 failures (~2 min) instead of
+          # burning the budget; the 18-min hard cap sits under the 20-min job
+          # timeout. Smoke/local leave these unset → CI defaults (5 / 12 min).
+          PW_MAX_FAILURES: "4"
+          PW_GLOBAL_TIMEOUT_MS: "1080000"
           # Staging Supabase connection — env scope resolves these from the
           # `Staging` GH environment. `next start` reads the server vars at boot.
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
@@ -272,8 +278,7 @@ jobs:
           SHARD_TOTAL: ${{ matrix.shardTotal }}
         run:
           bunx playwright test --project=chromium-desktop
-          --shard=$SHARD_INDEX/$SHARD_TOTAL --workers=2 --retries=1
-          --max-failures=0 --global-timeout=1080000 $SPECS
+          --shard=$SHARD_INDEX/$SHARD_TOTAL --workers=2 --retries=1 $SPECS
 
       - name: Upload blob report
         if: always()
