@@ -1089,6 +1089,81 @@ describe('useFormActions (TanStack Query)', () => {
     expect(result.current.procurementStatus).toBeNull();
   });
 
+  // ─── 15b. New {130.11} read-shape re-point ({130.13}) ─────────────────
+  //
+  // The umbrella GET now returns `forms` + `rollup` (no top-level
+  // `status`/`domain_metadata`). The hook re-points: procurementStatus derives
+  // from the primary form's `workflow_state`; metadata from the form + rollup.
+
+  it('derives procurementStatus + metadata from the new forms/rollup shape', async () => {
+    mockFetchSuccess({
+      bid: {
+        id: TEST_BID_ID,
+        name: 'New shape procurement',
+        description: null,
+        forms: [
+          {
+            id: 'form-1',
+            form_type: 'psq',
+            name: 'PSQ',
+            workflow_state: 'in_review',
+            outcome: null,
+            outcome_notes: null,
+            deadline: '2026-07-01T00:00:00.000Z',
+            submission_date: null,
+            issuing_organisation: 'Acme Council',
+            outcome_recorded_at: null,
+            outcome_recorded_by: null,
+            created_at: '2026-06-01T00:00:00.000Z',
+            updated_at: '2026-06-01T00:00:00.000Z',
+          },
+        ],
+        rollup: {
+          nearest_deadline: '2026-07-01T00:00:00.000Z',
+          overall_outcome: null,
+          counts_toward_win_rate: null,
+          rollup_updated_at: null,
+        },
+        question_stats: { total_questions: 0 },
+      },
+    });
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
+      wrapper: Wrapper,
+    });
+
+    await waitFor(() => {
+      expect(result.current.bid).not.toBeNull();
+    });
+
+    expect(result.current.procurementStatus).toBe('in_review');
+    expect(result.current.metadata?.buyer).toBe('Acme Council');
+    expect(result.current.metadata?.deadline).toBe('2026-07-01T00:00:00.000Z');
+  });
+
+  it('defaults procurementStatus to draft for an umbrella with no forms yet', async () => {
+    mockFetchSuccess({
+      bid: {
+        id: TEST_BID_ID,
+        name: 'Empty umbrella',
+        description: null,
+        forms: [],
+        rollup: null,
+        question_stats: { total_questions: 0 },
+      },
+    });
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
+      wrapper: Wrapper,
+    });
+
+    await waitFor(() => {
+      expect(result.current.bid).not.toBeNull();
+    });
+
+    expect(result.current.procurementStatus).toBe('draft');
+  });
+
   it('computes availableTransitions from bid state machine', async () => {
     mockGetAvailableTransitions.mockReturnValue(['in_review', 'withdrawn']);
     mockFetchSuccess();

@@ -340,6 +340,64 @@ export const queryKeys = {
         procurementId,
         questionId,
       ] as const,
+    // ---------------------------------------------------------------------
+    // Form-scoped namespace (ID-130 {130.12}, TECH T-B16/T-B14/T-B12 —
+    // FIX 3). ESTABLISHED here for the form_type picker; {130.13}/{130.15}
+    // EXTEND these sub-keys (add new members), never rewrite them. The model
+    // is a procurement WORKSPACE umbrella holding many FORMS (B-1), each
+    // carrying one form_type drawn from the api.form_types controlled
+    // vocabulary (the single source of truth).
+    // ---------------------------------------------------------------------
+    /** A form is a child artefact of a procurement (PSQ/ITT/tender/…). */
+    forms: {
+      all: ['procurement', 'forms'] as const,
+      /**
+       * The child-form list for one procurement umbrella ({130.13}, B-19).
+       * Used by the detail surface's net-new form-list and busted after the
+       * add-a-form create mutation. The umbrella detail query
+       * (`procurement.detail(id)`) carries the forms today, so this key is the
+       * stable handle for any future forms-only fetch + targeted invalidation.
+       */
+      list: (procurementId: string) =>
+        ['procurement', 'forms', 'list', procurementId] as const,
+      detail: (formId: string) =>
+        ['procurement', 'forms', 'detail', formId] as const,
+      // -------------------------------------------------------------------
+      // Form-scoped composer handles (ID-130 {130.15}, TECH T-B20). The
+      // composer re-anchors from the workspace altitude to the FORM: a form's
+      // questions (B-4 re-key), the per-question response, and the form's
+      // readiness roll-up. These EXTEND the {130.12}/{130.13} namespace (new
+      // members only) and mirror the umbrella-scoped `procurement.questions` /
+      // `responseByQuestion` / `readiness` keys, re-keyed to the form template.
+      // Match candidates remain corpus-level (B-20 guardrail) — these key only
+      // the form-scoped QUESTIONS, never the corpus.
+      // -------------------------------------------------------------------
+      /** The question set for one form (re-keyed from workspace → form, B-4). */
+      questions: (formTemplateId: string) =>
+        ['procurement', 'forms', formTemplateId, 'questions'] as const,
+      /** The current response to one of a form's questions. */
+      responseByQuestion: (formTemplateId: string, questionId: string) =>
+        [
+          'procurement',
+          'forms',
+          formTemplateId,
+          'response-by-question',
+          questionId,
+        ] as const,
+      /** The form's readiness roll-up (per-form, not umbrella-wide). */
+      readiness: (formTemplateId: string) =>
+        ['procurement', 'forms', formTemplateId, 'readiness'] as const,
+    },
+    /**
+     * Controlled-vocabulary form_type options, fetched at runtime from
+     * `api.form_types` filtered to the procurement application type. `list`
+     * is the picker's option-fetch key (T-B12: CV is the single source of
+     * truth, so a future CV add/remove needs no code change).
+     */
+    formTypes: {
+      all: ['procurement', 'form-types'] as const,
+      list: ['procurement', 'form-types', 'list'] as const,
+    },
   },
 
   // Background queue jobs — `processing_queue` polling (S224 §5.4.1).

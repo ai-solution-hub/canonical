@@ -1,14 +1,14 @@
 /** Data shape from the show_bid_dashboard trigger tool */
-export interface BidDashboardData {
+export interface ProcurementDashboardData {
   offset: number;
   count: number;
   total_count: number;
   has_more: boolean;
-  procurements: BidSummary[];
+  procurements: ProcurementSummary[];
   focused_form_detail?: FormDetailData;
 }
 
-export interface BidSummary {
+export interface ProcurementSummary {
   id: string;
   name: string;
   buyer: string | null;
@@ -97,9 +97,9 @@ export interface ExpandedQuestionState {
   error?: string;
 }
 
-/** State for expanded bid detail */
-export interface ExpandedBidState {
-  bidId: string;
+/** State for expanded procurement detail */
+export interface ExpandedProcurementState {
+  procurementId: string;
   loading: boolean;
   detail: FormDetailData | null;
   error?: string;

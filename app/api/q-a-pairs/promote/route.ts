@@ -58,7 +58,15 @@ interface SourceResponseRow {
   question_id: string;
   response_text: string | null;
   response_text_advanced: string | null;
-  form_questions: { id: string; question_text: string } | null;
+  // {130.15} (T-B21): the originating question carries the form altitude
+  // (`form_template_id`, T-B4 re-key) and retains its workspace linkage. Both
+  // flow onto the corpus pair as provenance — see the insert below.
+  form_questions: {
+    id: string;
+    question_text: string;
+    form_template_id: string | null;
+    workspace_id: string | null;
+  } | null;
 }
 
 const PromoteResponseSchema = z.object({
@@ -68,6 +76,10 @@ const PromoteResponseSchema = z.object({
   lineage: z.object({
     source_form_response_id: z.string(),
     source_question_id: z.string(),
+    // {130.15} (T-B21): the originating form's id. Nullable — a question that
+    // pre-dates the form re-key (or one not yet form-keyed) promotes with null
+    // form lineage; the corpus pair stays corpus-level regardless.
+    source_form_template_id: z.string().nullable(),
   }),
 });
 
@@ -94,7 +106,7 @@ export const POST = defineRoute(
         supabase
           .from('form_responses')
           .select(
-            'id, question_id, response_text, response_text_advanced, form_questions ( id, question_text )',
+            'id, question_id, response_text, response_text_advanced, form_questions ( id, question_text, form_template_id, workspace_id )',
           )
           .eq('id', parsed.source_form_response_id)
           .single(),
@@ -119,6 +131,15 @@ export const POST = defineRoute(
       // The originating question: prefer the explicit body value, else derive it
       // from the source response's FK. Both reference form_questions(id).
       const sourceQuestionId = parsed.source_question_id ?? source.question_id;
+
+      // {130.15} (T-B21): the originating form + workspace, derived from the
+      // question the response answered. Recorded as provenance on the corpus
+      // pair ALONGSIDE the response/question lineage — the corpus stays
+      // corpus-level (no partition). Both are nullable: a question not yet
+      // form-keyed promotes with null form lineage.
+      const sourceFormTemplateId =
+        source.form_questions?.form_template_id ?? null;
+      const sourceWorkspaceId = source.form_questions?.workspace_id ?? null;
 
       const questionText = source.form_questions?.question_text;
       if (!questionText) {
@@ -166,6 +187,9 @@ export const POST = defineRoute(
             edit_intent: editIntent,
             source_form_response_id: parsed.source_form_response_id,
             source_question_id: sourceQuestionId,
+            // {130.15} (T-B21): originating form + workspace provenance.
+            source_form_template_id: sourceFormTemplateId,
+            source_workspace_id: sourceWorkspaceId,
           })
           .select('*')
           .single(),
@@ -185,6 +209,7 @@ export const POST = defineRoute(
           lineage: {
             source_form_response_id: parsed.source_form_response_id,
             source_question_id: sourceQuestionId,
+            source_form_template_id: sourceFormTemplateId,
           },
         },
         { status: 201 },

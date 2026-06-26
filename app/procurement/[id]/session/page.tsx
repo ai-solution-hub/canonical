@@ -37,6 +37,7 @@ import { useContentLibraryDrawer } from '@/hooks/use-content-library-drawer';
 import { useCitationOrphans } from '@/hooks/use-citation-orphans';
 import { useDraftRecovery } from '@/hooks/streaming/use-draft-recovery';
 import { useStreamCoordination } from '@/hooks/streaming/use-stream-coordination';
+import { deriveProcurementStatus } from '@/lib/domains/procurement/procurement-detail-shape';
 import { cn } from '@/lib/utils';
 import type { Editor } from '@/components/procurement/response-editor';
 import type { ProcurementWorkflowState } from '@/types/procurement';
@@ -261,10 +262,13 @@ export default function ProcurementSessionPage({
   const orphanedSourceIds = useCitationOrphans(citationSourceIds);
 
   // Citation panel default-expanded for admin role or review-or-later bid states (P1-4)
+  // {130.13} re-point: the umbrella state now derives from the primary child
+  // form's workflow_state ({130.11} removed `bid.status`).
+  const procurementState = deriveProcurementStatus(bid);
   const citationDefaultExpanded =
     role === 'admin' ||
-    (bid?.status != null &&
-      (REVIEW_OR_LATER_STATES as readonly string[]).includes(bid.status));
+    (procurementState != null &&
+      (REVIEW_OR_LATER_STATES as readonly string[]).includes(procurementState));
 
   const procurementName = bid?.name;
 

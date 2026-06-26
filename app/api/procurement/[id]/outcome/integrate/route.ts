@@ -8,7 +8,6 @@ import {
 import { htmlToPlainText } from '@/lib/editor-utils';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
-import type { ProcurementWorkflowState } from '@/lib/domains/procurement/procurement-workflow';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { KBIntegrationBodySchema } from '@/lib/validation/schemas';
@@ -57,13 +56,15 @@ export const POST = defineRoute(
       const skipDedup = skip_dedup === true && role === 'admin';
       const { checkExactDuplicate } = await import('@/lib/dedup/content-dedup');
 
-      // Verify bid exists and is in won state.
+      // Verify the procurement exists. Identity (name, domain hint) lives on the
+      // workspace; the won-state GATE now reads the FORM, not workspaces.status.
+      // ID-130 {130.11} re-anchored per-stage outcome onto form_templates and
+      // stopped writing workspaces.status — reading it here was a
+      // split-read-brain that blocked KB integration for ALL won procurements.
       // Post-T2: discriminator via application_types JOIN.
       const { data: bid, error: procurementError } = await supabase
         .from('workspaces')
-        .select(
-          'id, name, status, domain_metadata, application_types!inner(key)',
-        )
+        .select('id, name, domain_metadata, application_types!inner(key)')
         .eq('id', id)
         .eq('application_types.key', 'procurement')
         .single();
@@ -79,14 +80,31 @@ export const POST = defineRoute(
         string,
         unknown
       >;
-      const procurementStatus =
-        (bid.status as ProcurementWorkflowState) ?? 'draft';
 
-      if (procurementStatus !== 'won') {
+      // Won-state gate (ID-130 {130.11}/{130.17}): the engagement is single-form
+      // v1 — the terminal outcome lives on form_templates.outcome. Read the
+      // workspace's form and gate KB integration on a 'won' outcome.
+      const { data: form, error: formError } = await supabase
+        .from('form_templates')
+        .select('outcome, workflow_state')
+        .eq('workspace_id', id)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (formError) {
+        return NextResponse.json(
+          { error: 'Failed to read the procurement form outcome' },
+          { status: 500 },
+        );
+      }
+
+      const formOutcome = form?.outcome ?? null;
+      if (formOutcome !== 'won') {
         return NextResponse.json(
           {
-            error: `KB integration is only available for won bids (current status: "${procurementStatus}")`,
-            current_status: procurementStatus,
+            error: `KB integration is only available for won procurements (current outcome: "${formOutcome ?? 'none'}")`,
+            current_outcome: formOutcome,
           },
           { status: 400 },
         );

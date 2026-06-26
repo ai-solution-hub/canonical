@@ -372,8 +372,12 @@ export async function promoteCorpusExtractions(
     //   question_embedding        ← omitted/NULL (step 4 sets it)
     //   source_form_response_id   ← omitted (route-i pairs have no form lineage)
     //   source_question_id        ← omitted (route-i pairs have no form lineage)
-    //   source_workspace_id       ← omitted (nullable/defaulted; mirrors
-    //                               route-iii lines 155-164 which also omit it)
+    //   source_form_template_id   ← omitted ({130.15}/T-B21: .docx imports land
+    //                               corpus-level with NO form origin — the form
+    //                               provenance is for UC5 form-response promotion
+    //                               only; the corpus-import guardrail is retained)
+    //   source_workspace_id       ← omitted (nullable/defaulted; .docx imports
+    //                               carry no workspace/form origin)
     //   superseded_by             ← omitted/NULL
     const pairInsert: Database['public']['Tables']['q_a_pairs']['Insert'] = {
       question_text: extraction.extracted_question_text,
@@ -665,8 +669,10 @@ async function ensureFileExists(absPath: string): Promise<void> {
 // extraction row with the re-extracted carried text. This helper re-converges
 // the linked pair by re-syncing ONLY the CARRIED set — the NOT-CARRIED
 // lifecycle set (publication_status, superseded_by, source_workspace_id,
-// edit_intent, valid_from/valid_to, created_at/updated_at, source_document_id)
-// is STRUCTURALLY excluded from the payload (the S233 gate, INV-9).
+// source_form_template_id ({130.15}/T-B21 — lineage provenance, preserved across
+// re-promotion, never clobbered by the carried set), edit_intent,
+// valid_from/valid_to, created_at/updated_at, source_document_id) is STRUCTURALLY
+// excluded from the payload (the S233 gate, INV-9).
 //
 // The payload is a typed `Pick<…Update, CARRIED_REPROMOTE_FIELDS>` so the
 // exclusion is COMPILE-CHECKED: adding a not-carried key to the literal is a

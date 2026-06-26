@@ -849,7 +849,7 @@ export const ExtractBodySchema = z.object({
 // Procurement Infrastructure Schemas (Phase 6A)
 // ──────────────────────────────────────────
 
-/** POST /api/bids */
+/** POST /api/procurement */
 export const ProcurementCreateBodySchema = z.object({
   name: z.string().trim().min(1, 'Procurement name is required').max(200),
   description: z.string().max(2000).optional(),
@@ -860,7 +860,7 @@ export const ProcurementCreateBodySchema = z.object({
   notes: z.string().max(5000).optional(),
 });
 
-/** PATCH /api/bids/:id */
+/** PATCH /api/procurement/[id] */
 export const ProcurementUpdateBodySchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
   description: z.string().max(2000).nullable().optional(),
@@ -869,32 +869,58 @@ export const ProcurementUpdateBodySchema = z.object({
   reference_number: z.string().max(100).nullable().optional(),
   estimated_value: z.string().max(100).nullable().optional(),
   notes: z.string().max(5000).nullable().optional(),
-  status: z
-    .enum([
-      'draft',
-      'questions_extracted',
-      'matching',
-      'drafting',
-      'in_review',
-      'ready_for_export',
-      'submitted',
-      'won',
-      'lost',
-      'withdrawn',
-    ])
-    .optional(),
+  status: z.enum(PROCUREMENT_WORKFLOW_STATES).optional(),
   submission_date: z.string().datetime({ offset: true }).optional(),
   outcome: z.enum(['won', 'lost', 'withdrawn']).optional(),
   outcome_notes: z.string().max(5000).optional(),
 });
 
-/** POST /api/bids/:id/questions/extract */
+/**
+ * Closed list of procurement-applicable `form_type` keys (ID-130 TECH T-B12,
+ * post AD-4 `pqq`->`psq` rename). This is the minimal compile-time tuple used
+ * for request-body validation where Zod needs the closed set — the runtime
+ * single source of truth remains the `api.form_types` CV (the picker fetches
+ * its option list from there, {130.12}). The picker keeps its own client-side
+ * copy (`procurementFormTypeKeys` in `components/procurement/form-type-picker`)
+ * for the same compile-time-tuple reason; this server-side copy avoids pulling
+ * the 'use client' picker module into API routes.
+ */
+export const PROCUREMENT_FORM_TYPE_KEYS = [
+  'bid',
+  'checklist',
+  'itt',
+  'psq',
+  'questionnaire',
+  'rfp',
+  'tender',
+] as const;
+
+/**
+ * POST /api/procurement/[id]/forms — add-a-form (ID-130 {130.13}, B-16/B-19).
+ * The picker confirms a `form_type` (confirm-first; the route never accepts an
+ * empty/inferred-but-unconfirmed type — `form_type` is required here, B-14).
+ */
+export const CreateProcurementFormBodySchema = z.object({
+  form_type: z.enum(PROCUREMENT_FORM_TYPE_KEYS),
+  name: z.string().trim().min(1).max(200).optional(),
+});
+
+/**
+ * PATCH /api/procurement/[id]/forms — confirm/override an existing form's
+ * inferred `form_type` (B-16: the confirmed/overridden choice is authoritative).
+ */
+export const UpdateProcurementFormTypeBodySchema = z.object({
+  form_id: z.string().uuid(),
+  form_type: z.enum(PROCUREMENT_FORM_TYPE_KEYS),
+});
+
+/** POST /api/procurement/[id]/questions/extract */
 export const QuestionExtractBodySchema = z.object({
   document_path: z.string().min(1, 'Document path is required'),
   format: z.enum(['docx', 'pdf']),
 });
 
-/** POST /api/bids/:id/questions */
+/** POST /api/procurement/[id]/questions */
 // NOTE: evaluation_weight is capped at 100 by Zod (for percentage weights),
 // which is intentionally stricter than the DB column NUMERIC(5,2) max of 999.99.
 export const QuestionCreateBodySchema = z.object({
@@ -908,7 +934,7 @@ export const QuestionCreateBodySchema = z.object({
   evaluation_weight: z.number().min(0).max(100).optional(),
 });
 
-/** PATCH /api/bids/:id/questions/:qId */
+/** PATCH /api/procurement/[id]/questions/[qId] */
 export const QuestionUpdateBodySchema = z.object({
   section_name: z.string().max(200).nullable().optional(),
   question_text: z.string().trim().min(1).max(5000).optional(),
@@ -919,7 +945,7 @@ export const QuestionUpdateBodySchema = z.object({
   assigned_to: z.string().uuid().nullable().optional(),
 });
 
-/** POST /api/bids/:id/questions/match */
+/** POST /api/procurement/[id]/questions/match */
 export const QuestionMatchBodySchema = z.object({
   question_ids: z.array(z.string().uuid()).optional(),
   force: z.boolean().default(false),
@@ -929,31 +955,31 @@ export const QuestionMatchBodySchema = z.object({
 // Procurement Response Schemas (Phase 6B)
 // ──────────────────────────────────────────
 
-/** POST /api/bids/:id/responses/draft */
+/** POST /api/procurement/[id]/responses/draft */
 export const ResponseDraftBodySchema = z.object({
   question_ids: z.array(z.string().uuid()).optional(),
   model_tier: z.enum(['analysis', 'drafting']).default('drafting'),
   force: z.boolean().default(false),
 });
 
-/** POST /api/bids/:id/responses/draft-stream — single question, SSE */
+/** POST /api/procurement/[id]/responses/draft-stream — single question, SSE */
 export const ResponseDraftStreamBodySchema = z.object({
   question_id: z.string().uuid(),
   model_tier: z.enum(['analysis', 'drafting']).default('drafting'),
 });
 
-/** POST /api/bids/:id/responses/draft-all */
+/** POST /api/procurement/[id]/responses/draft-all */
 export const ResponseDraftAllBodySchema = z.object({
   model_tier: z.enum(['analysis', 'drafting']).default('drafting'),
   skip_existing: z.boolean().default(true),
 });
 
-/** POST /api/bids/:id/responses/estimate */
+/** POST /api/procurement/[id]/responses/estimate */
 export const CostEstimateBodySchema = z.object({
   skip_existing: z.boolean().default(true),
 });
 
-/** PATCH /api/bids/:id/responses/:rId */
+/** PATCH /api/procurement/[id]/responses/[rId] */
 export const ResponseUpdateBodySchema = z.object({
   response_text: z.string().max(100000).optional(),
   response_text_advanced: z.string().max(100000).nullable().optional(),
@@ -974,25 +1000,25 @@ export const TenderExtractedMetadataSchema = z.object({
   confidence: z.number().min(0).max(1),
 });
 
-/** POST /api/bids/:id/responses/:rId/restore */
+/** POST /api/procurement/[id]/responses/[rId]/restore */
 export const ResponseRestoreBodySchema = z.object({
   version: z.number().int().min(1),
 });
 
-/** POST /api/bids/:id/responses/:rId/regenerate */
+/** POST /api/procurement/[id]/responses/[rId]/regenerate */
 export const ResponseRegenerateBodySchema = z.object({
   instructions: z.string().trim().min(1).max(2000),
   model_tier: z.enum(['analysis', 'drafting']).default('drafting'),
 });
 
-/** POST /api/bids/:id/outcome */
+/** POST /api/procurement/[id]/outcome */
 export const ProcurementOutcomeBodySchema = z.object({
   outcome: z.enum(['won', 'lost', 'withdrawn']),
   notes: z.string().max(5000).optional(),
   integrate_to_kb: z.boolean().default(false),
 });
 
-/** POST /api/bids/:id/outcome/integrate */
+/** POST /api/procurement/[id]/outcome/integrate */
 export const KBIntegrationBodySchema = z.object({
   integrations: z.array(
     z.object({
@@ -1020,18 +1046,7 @@ export const KBIntegrationBodySchema = z.object({
 export const ProcurementMetadataSchema = z
   .object({
     buyer: z.string(),
-    status: z.enum([
-      'draft',
-      'questions_extracted',
-      'matching',
-      'drafting',
-      'in_review',
-      'ready_for_export',
-      'submitted',
-      'won',
-      'lost',
-      'withdrawn',
-    ]),
+    status: z.enum(PROCUREMENT_WORKFLOW_STATES),
     deadline: z.string().datetime({ offset: true }).nullable(),
     reference_number: z.string().max(100).nullable(),
     estimated_value: z.string().max(100).nullable(),
@@ -1133,11 +1148,48 @@ export const FormOutcomeSchema = z.discriminatedUnion('form_type', [
  */
 export type FormOutcome = z.infer<typeof FormOutcomeSchema>;
 
+/** Known procurement form types (mirror of the `form_outcome_types` CV stages). */
+export const KNOWN_FORM_TYPES = new Set<string>([
+  ...FINAL_AWARD_FORM_TYPES,
+  ...SHORTLIST_FORM_TYPES,
+]);
+
+/**
+ * App-layer mirror of the DB `form_templates_outcome_form_type_check` trigger
+ * (ID-130 AD-4 / T-B5). Returns a human-readable error string if the outcome is
+ * not stage-appropriate for the form_type, or `null` when the triad is valid (or
+ * the form_type is unclassified — the DB FK + trigger remain the backstop).
+ *
+ * Co-located here (not inline in the route handlers) so the route files stay
+ * free of inline `.safeParse(` — the validation-sweep guard requires
+ * route-body validation to go through parseBody/parseSearchParams; this is
+ * domain-triad validation of a constructed object, which belongs in the schema
+ * module alongside FormOutcomeSchema.
+ *
+ * @public
+ */
+export function validateFormOutcome(
+  formType: string | null,
+  workflowState: string,
+  outcome: string | null,
+): string | null {
+  if (!formType || !KNOWN_FORM_TYPES.has(formType)) return null;
+  const result = FormOutcomeSchema.safeParse({
+    form_type: formType,
+    workflow_state: workflowState,
+    outcome,
+  });
+  if (!result.success) {
+    return `Outcome "${outcome ?? 'null'}" is not valid for a "${formType}" form`;
+  }
+  return null;
+}
+
 // ──────────────────────────────────────────
 // Procurement Export Schemas (Phase 7A)
 // ──────────────────────────────────────────
 
-/** POST /api/bids/:id/export/docx */
+/** POST /api/procurement/[id]/export/docx */
 export const DocxExportBodySchema = z.object({
   include_cover: z.boolean().default(true),
   include_toc: z.boolean().default(true),
@@ -1147,7 +1199,7 @@ export const DocxExportBodySchema = z.object({
   company_name: z.string().max(200).default(BRANDING.productName),
 });
 
-/** POST /api/bids/:id/export/xlsx */
+/** POST /api/procurement/[id]/export/xlsx */
 export const XlsxExportBodySchema = z.object({
   include_summary: z.boolean().default(true),
   include_unanswered: z.boolean().default(true),
@@ -2079,22 +2131,9 @@ export const InsightsParamsSchema = z.object({
   author: z.string().max(200).optional(),
 });
 
-/** GET /api/bids */
-const VALID_BID_STATUSES = [
-  'draft',
-  'questions_extracted',
-  'matching',
-  'drafting',
-  'in_review',
-  'ready_for_export',
-  'submitted',
-  'won',
-  'lost',
-  'withdrawn',
-] as const;
-
+/** GET /api/procurement */
 export const ProcurementListParamsSchema = z.object({
-  status: z.enum(VALID_BID_STATUSES).optional(),
+  status: z.enum(PROCUREMENT_WORKFLOW_STATES).optional(),
   limit: z
     .number()
     .int()
@@ -2231,7 +2270,7 @@ export const WorkspaceDeleteParamsSchema = z.object({
   permanent: booleanParam.optional(),
 });
 
-/** GET /api/bids/[id]/tender/download */
+/** GET /api/procurement/[id]/tender/download */
 export const TenderDownloadParamsSchema = z.object({
   path: z.string().min(1, 'Storage path is required').max(500),
 });

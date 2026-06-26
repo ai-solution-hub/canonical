@@ -9,6 +9,11 @@
  *  - `arbitrate()` / `arbitrateMany()` are NOT called;
  *  - the source read uses `form_*` naming (form_responses / form_questions);
  *  - the authorised (RLS-scoped) client is used — no service-role escalation.
+ *
+ * ID-130 {130.15} (T-B21): promotion now ALSO records the originating form's
+ * lineage on the corpus pair — `source_form_template_id` (net-new) ALONGSIDE
+ * `source_workspace_id`, both derived from the originating `form_questions` row.
+ * The corpus stays corpus-level (no partition); these are provenance columns.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
@@ -67,6 +72,8 @@ import { POST } from '@/app/api/q-a-pairs/promote/route';
 const RESPONSE_ID = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 const QUESTION_ID = 'b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e';
 const NEW_PAIR_ID = 'c1d2e3f4-a5b6-4c7d-8e9f-1a2b3c4d5e6f';
+const FORM_TEMPLATE_ID = 'd1e2f3a4-b5c6-4d7e-8f9a-2b3c4d5e6f70';
+const WORKSPACE_ID = 'e1f2a3b4-c5d6-4e7f-8a9b-3c4d5e6f7081';
 
 function sourceResponseRow() {
   return {
@@ -77,6 +84,11 @@ function sourceResponseRow() {
     form_questions: {
       id: QUESTION_ID,
       question_text: 'What information security certifications do you hold?',
+      // {130.15}: the originating question carries the form altitude (T-B4 re-key)
+      // and retains its workspace linkage — both flow onto the corpus pair as
+      // provenance.
+      form_template_id: FORM_TEMPLATE_ID,
+      workspace_id: WORKSPACE_ID,
     },
   };
 }
@@ -105,6 +117,8 @@ function configurePromotionSuccess(client: MockSupabaseClient) {
       edit_intent: 'cosmetic',
       source_form_response_id: RESPONSE_ID,
       source_question_id: QUESTION_ID,
+      source_form_template_id: FORM_TEMPLATE_ID,
+      source_workspace_id: WORKSPACE_ID,
     },
     error: null,
   });
@@ -150,6 +164,59 @@ describe('POST /api/q-a-pairs/promote', () => {
       sourceResponseRow().form_questions.question_text,
     );
     expect(insertArg.answer_standard).toBe(sourceResponseRow().response_text);
+  });
+
+  it('records the originating form + workspace lineage on the corpus pair (T-B21)', async () => {
+    configureAuth(mockSupabase).asEditor();
+    configurePromotionSuccess(mockSupabase);
+
+    const res = await POST(
+      promoteRequest({ source_form_response_id: RESPONSE_ID }),
+    );
+    expect(res.status).toBe(201);
+
+    // NET-NEW: the corpus pair records BOTH the originating form_template_id and
+    // the workspace_id, derived from the originating question (the corpus stays
+    // corpus-level — this is provenance, not a partition).
+    const insertArg = mockSupabase._chain.insert.mock.calls[0][0];
+    expect(insertArg.source_form_template_id).toBe(FORM_TEMPLATE_ID);
+    expect(insertArg.source_workspace_id).toBe(WORKSPACE_ID);
+
+    // The form lineage is also surfaced on the response contract.
+    const json = await res.json();
+    expect(json.lineage.source_form_template_id).toBe(FORM_TEMPLATE_ID);
+  });
+
+  it('promotes with NULL form lineage when the question is not yet form-keyed', async () => {
+    configureAuth(mockSupabase).asEditor();
+    // Source question pre-dates the form re-key: no form_template_id/workspace_id.
+    const row = sourceResponseRow();
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        ...row,
+        form_questions: {
+          id: row.form_questions.id,
+          question_text: row.form_questions.question_text,
+          form_template_id: null,
+          workspace_id: null,
+        },
+      },
+      error: null,
+    });
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: NEW_PAIR_ID, publication_status: 'draft' },
+      error: null,
+    });
+
+    const res = await POST(
+      promoteRequest({ source_form_response_id: RESPONSE_ID }),
+    );
+    expect(res.status).toBe(201);
+
+    // Promotion still succeeds; provenance columns are null (corpus-level pair).
+    const insertArg = mockSupabase._chain.insert.mock.calls[0][0];
+    expect(insertArg.source_form_template_id).toBeNull();
+    expect(insertArg.source_workspace_id).toBeNull();
   });
 
   it('reads the source via form_* tables (not stale bid_*)', async () => {

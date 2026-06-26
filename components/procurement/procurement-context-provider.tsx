@@ -8,11 +8,11 @@ import {
   useRef,
   type ReactNode,
 } from 'react';
-import { parseProcurementMetadata } from '@/lib/validation/schemas';
-import type {
-  ProcurementMetadata,
-  ProcurementQuestion,
-} from '@/types/procurement';
+import {
+  deriveProcurementMetadata,
+  deriveProcurementStatus,
+} from '@/lib/domains/procurement/procurement-detail-shape';
+import type { ProcurementQuestion } from '@/types/procurement';
 
 // ────────────────────────────────────────────
 // Context value types
@@ -93,17 +93,18 @@ export function ProcurementContextProvider({
       const res = await fetch(`/api/procurement/${procurementId}`);
       if (!res.ok) return;
       const data = await res.json();
-      const metadata = (parseProcurementMetadata(data.domain_metadata) ??
-        data.domain_metadata ??
-        {}) as ProcurementMetadata;
+      // {130.13} re-point: the umbrella detail GET ({130.11}) moved the
+      // engagement facts onto the primary child form. Derive the summary view
+      // from the new read-shape (with a graceful legacy fallback).
+      const metadata = deriveProcurementMetadata(data);
       const stats = data.question_stats;
 
       setProcurement({
         id: data.id,
         name: data.name,
-        buyer: metadata.buyer ?? null,
-        deadline: metadata.deadline ?? null,
-        status: data.status ?? 'draft',
+        buyer: metadata?.buyer ?? null,
+        deadline: metadata?.deadline ?? null,
+        status: deriveProcurementStatus(data) ?? 'draft',
         totalQuestions: stats?.total_questions ?? 0,
         draftedCount: stats?.drafted_count ?? 0,
         reviewedCount: 0, // Not tracked separately yet

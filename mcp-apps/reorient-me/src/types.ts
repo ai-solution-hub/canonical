@@ -5,7 +5,7 @@ export interface ReorientAppData {
   urgent: UrgentItem[];
   team_changes: TeamChange[];
   my_recent_work: RecentWorkItem[];
-  bid_summary: BidBriefing[];
+  bid_summary: ProcurementBriefing[];
   counts: {
     unread_notifications: number;
     pending_reviews: number;
@@ -56,7 +56,7 @@ export interface RecentWorkItem {
   question_id?: string;
 }
 
-export interface BidBriefing {
+export interface ProcurementBriefing {
   id: string;
   name: string;
   buyer: string | null;

@@ -56,9 +56,36 @@ import { POST as postIntegrate } from '@/app/api/procurement/[id]/outcome/integr
 // ---------------------------------------------------------------------------
 
 const BID_ID = '00000000-0000-4000-8000-000000000001';
+const FORM_ID = '00000000-0000-4000-8000-000000000099';
 const QUESTION_ID = '00000000-0000-4000-8000-000000000010';
 const QUESTION_ID_2 = '00000000-0000-4000-8000-000000000011';
 const CONTENT_ID = '00000000-0000-4000-8000-000000000020';
+
+// ID-130 T-B9: outcome recording now targets the FORM. The route sequence after
+// the auth role lookup is: workspace verify (`.single()`), single-v1 form fetch
+// (awaited list -> `.then`), then the form UPDATE (awaited list -> `.then`).
+// `configureWorkspaceAndForm` queues the workspace row + the form-fetch result so
+// each test only needs to add the UPDATE outcome (and any KB queries).
+function configureWorkspaceAndForm(
+  workflowState: string,
+  formType: string | null = 'bid',
+) {
+  // workspace verify — only the procurement discriminator + id matter now.
+  mockSupabase._chain.single.mockResolvedValueOnce({
+    data: { id: BID_ID },
+    error: null,
+  });
+  // single-v1 form fetch (awaited list).
+  mockSupabase._chain.then.mockImplementationOnce(
+    (resolve: (v: unknown) => void) =>
+      resolve({
+        data: [
+          { id: FORM_ID, form_type: formType, workflow_state: workflowState },
+        ],
+        error: null,
+      }),
+  );
+}
 
 function resetMocks() {
   vi.clearAllMocks();
@@ -203,15 +230,9 @@ describe('POST /api/bids/:id/outcome', () => {
   it('returns 400 when state transition is invalid', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Procurement found but in 'draft' state — cannot transition to 'won'
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: {
-        id: BID_ID,
-        status: 'draft',
-        domain_metadata: {},
-      },
-      error: null,
-    });
+    // Form found but in 'draft' state — cannot transition to 'won'. The
+    // transition is validated against the FORM's workflow_state (T-B10).
+    configureWorkspaceAndForm('draft');
 
     const req = createTestRequest(`/api/procurement/${BID_ID}/outcome`, {
       method: 'POST',
@@ -227,22 +248,38 @@ describe('POST /api/bids/:id/outcome', () => {
     expect(json.requested_outcome).toBe('won');
   });
 
+  it('returns 409 when the workspace has no form', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Workspace verify succeeds, but the single-v1 form fetch returns empty.
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: BID_ID },
+      error: null,
+    });
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    const req = createTestRequest(`/api/procurement/${BID_ID}/outcome`, {
+      method: 'POST',
+      body: { outcome: 'won' },
+    });
+    const params = createTestParams({ id: BID_ID });
+    const res = await postOutcome(req, { params });
+
+    expect(res.status).toBe(409);
+  });
+
   it('returns 200 on successful outcome (won without KB integration)', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Procurement found in 'submitted' state
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: {
-        id: BID_ID,
-        status: 'submitted',
-        domain_metadata: { buyer: 'ACME Corp' },
-      },
-      error: null,
-    });
+    // Form found in 'submitted' state.
+    configureWorkspaceAndForm('submitted');
 
-    // Update succeeds (awaited via .then)
+    // Form UPDATE succeeds and returns the written row (row-count verify).
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: FORM_ID }], error: null }),
     );
 
     const req = createTestRequest(`/api/procurement/${BID_ID}/outcome`, {
@@ -258,22 +295,15 @@ describe('POST /api/bids/:id/outcome', () => {
     expect(json.kb_candidates).toEqual([]);
   });
 
-  it('returns 200 on successful lost outcome with notes', async () => {
+  it('records the terminal outcome + audit atomically onto the form', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Procurement found in 'submitted' state
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: {
-        id: BID_ID,
-        status: 'submitted',
-        domain_metadata: {},
-      },
-      error: null,
-    });
+    configureWorkspaceAndForm('submitted');
 
-    // Update succeeds
+    // Form UPDATE succeeds.
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: FORM_ID }], error: null }),
     );
 
     const req = createTestRequest(`/api/procurement/${BID_ID}/outcome`, {
@@ -288,44 +318,68 @@ describe('POST /api/bids/:id/outcome', () => {
     expect(json.status).toBe('lost');
     expect(json.kb_candidates).toEqual([]);
 
-    // The lost outcome is persisted via a void UPDATE — the route discards the
-    // result and the response `json.status` merely echoes the request input
-    // (NOT a DB read-back), so the UPDATE payload is the sole proof that the
-    // `status` column AND the outcome notes/recorder are actually persisted.
-    expect(mockSupabase._chain.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: 'lost',
-        updated_by: 'test-user-id',
-        domain_metadata: expect.objectContaining({
-          outcome: 'lost',
-          outcome_notes: 'Price was too high',
-          outcome_recorded_by: 'test-user-id',
-        }),
-      }),
+    // The outcome is persisted via a void UPDATE onto the FORM — the response
+    // merely echoes the request input, so the UPDATE payload is the sole proof
+    // that workflow_state + the {outcome, outcome_notes, recorded_at/by} triad
+    // are persisted ATOMICALLY (one form UPDATE), with the audit provenance set
+    // server-side. It must NOT carry a domain_metadata writer.
+    const updateArg = mockSupabase._chain.update.mock.calls[0][0];
+    expect(updateArg).toMatchObject({
+      workflow_state: 'lost',
+      outcome: 'lost',
+      outcome_notes: 'Price was too high',
+      outcome_recorded_by: 'test-user-id',
+    });
+    expect(typeof updateArg.outcome_recorded_at).toBe('string');
+    expect(updateArg).not.toHaveProperty('domain_metadata');
+    expect(updateArg).not.toHaveProperty('status');
+  });
+
+  it('withdrawn sets workflow_state=withdrawn with outcome=NULL and no audit', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    configureWorkspaceAndForm('submitted');
+
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: FORM_ID }], error: null }),
     );
+
+    const req = createTestRequest(`/api/procurement/${BID_ID}/outcome`, {
+      method: 'POST',
+      body: { outcome: 'withdrawn' },
+    });
+    const params = createTestParams({ id: BID_ID });
+    const res = await postOutcome(req, { params });
+
+    expect(res.status).toBe(200);
+
+    // withdrawn is a workflow terminal, NOT an outcome (AD-4): the form's
+    // workflow_state flips to 'withdrawn' and outcome is cleared to NULL, with
+    // NO audit provenance written.
+    const updateArg = mockSupabase._chain.update.mock.calls[0][0];
+    expect(updateArg).toMatchObject({
+      workflow_state: 'withdrawn',
+      outcome: null,
+    });
+    expect(updateArg).not.toHaveProperty('outcome_recorded_at');
+    expect(updateArg).not.toHaveProperty('outcome_recorded_by');
   });
 
   it('returns KB candidates when won with integrate_to_kb', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Procurement found in 'submitted' state
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: {
-        id: BID_ID,
-        status: 'submitted',
-        domain_metadata: {},
-      },
-      error: null,
-    });
+    // Form found in 'submitted' state (consumes the form-fetch .then-once).
+    configureWorkspaceAndForm('submitted');
 
-    // Update succeeds
+    // Subsequent .then calls: 1 = form UPDATE, 2 = form_questions, 3 = responses
     let thenCallCount = 0;
     mockSupabase._chain.then.mockImplementation(
       (resolve: (v: unknown) => void) => {
         thenCallCount++;
         if (thenCallCount === 1) {
-          // workspace update
-          return resolve({ data: null, error: null });
+          // form UPDATE (returns the written row for the row-count verify)
+          return resolve({ data: [{ id: FORM_ID }], error: null });
         }
         if (thenCallCount === 2) {
           // form_questions query
@@ -370,20 +424,12 @@ describe('POST /api/bids/:id/outcome', () => {
     expect(json.kb_candidates[0].recommendation).toBe('update_existing');
   });
 
-  it('returns 500 when workspace update fails', async () => {
+  it('returns 500 when the form update fails', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Procurement found in 'submitted' state
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: {
-        id: BID_ID,
-        status: 'submitted',
-        domain_metadata: {},
-      },
-      error: null,
-    });
+    configureWorkspaceAndForm('submitted');
 
-    // Update fails
+    // Form UPDATE fails.
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
@@ -407,17 +453,14 @@ describe('POST /api/bids/:id/outcome', () => {
   it('recommends new_entry when response has no source_content_ids', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Procurement in submitted state
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: BID_ID, status: 'submitted', domain_metadata: {} },
-      error: null,
-    });
+    configureWorkspaceAndForm('submitted');
 
     let thenCallCount = 0;
     mockSupabase._chain.then.mockImplementation(
       (resolve: (v: unknown) => void) => {
         thenCallCount++;
-        if (thenCallCount === 1) return resolve({ data: null, error: null });
+        if (thenCallCount === 1)
+          return resolve({ data: [{ id: FORM_ID }], error: null });
         if (thenCallCount === 2) {
           return resolve({
             data: [{ id: QUESTION_ID, question_text: 'New question' }],
@@ -459,7 +502,17 @@ describe('POST /api/bids/:id/outcome', () => {
 // ---------------------------------------------------------------------------
 
 describe('POST /api/bids/:id/outcome/integrate', () => {
-  beforeEach(resetMocks);
+  // ID-130 {130.17}: the won-state gate now reads the form's outcome
+  // (form_templates.outcome via .maybeSingle), NOT workspaces.status. Default
+  // the form-gate fetch to a won form so the happy-path tests exercise the
+  // post-re-anchor gate; the not-won test overrides this below.
+  beforeEach(() => {
+    resetMocks();
+    mockSupabase._chain.maybeSingle.mockResolvedValue({
+      data: { outcome: 'won', workflow_state: 'won' },
+      error: null,
+    });
+  });
 
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
@@ -556,17 +609,22 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
     expect(json.error).toBe('Procurement not found');
   });
 
-  it('returns 400 when bid is not in won state', async () => {
+  it('returns 400 when the form outcome is not won', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Procurement found but in 'submitted' state
+    // Procurement found, but the form's outcome is not 'won' (ID-130 {130.17}:
+    // the gate reads form_templates.outcome, not workspaces.status). A submitted
+    // form has outcome=null (not yet decided).
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {
         id: BID_ID,
         name: 'Test Procurement',
-        status: 'submitted',
         domain_metadata: {},
       },
+      error: null,
+    });
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: { outcome: null, workflow_state: 'submitted' },
       error: null,
     });
 
@@ -584,8 +642,8 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
 
     expect(res.status).toBe(400);
     const json = await res.json();
-    expect(json.error).toContain('only available for won bids');
-    expect(json.current_status).toBe('submitted');
+    expect(json.error).toContain('only available for won procurements');
+    expect(json.current_outcome).toBeNull();
   });
 
   it('returns 200 with skip action counted correctly', async () => {

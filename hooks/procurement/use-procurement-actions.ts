@@ -10,9 +10,12 @@ import {
   getAvailableTransitions,
   PROCUREMENT_WORKFLOW_LABELS,
 } from '@/lib/domains/procurement/procurement-workflow';
+import {
+  deriveProcurementMetadata,
+  deriveProcurementStatus,
+} from '@/lib/domains/procurement/procurement-detail-shape';
 import type {
   Procurement,
-  ProcurementMetadata,
   ProcurementWorkflowState,
   ExtractionResult,
   KBCandidate,
@@ -165,7 +168,10 @@ function useFormTransitions(
   const handleStatusTransition = useCallback(
     async (newStatus: ProcurementWorkflowState) => {
       if (!bid) return;
-      const currentStatus = bid.status as ProcurementWorkflowState;
+      // {130.13} re-point: the umbrella workflow state derives from the primary
+      // form's `workflow_state` (B-8), not the removed `bid.status`.
+      const currentStatus =
+        deriveProcurementStatus(bid) ?? ('draft' as ProcurementWorkflowState);
       if (!canTransition(currentStatus, newStatus)) {
         toast.error(
           `Cannot transition from ${PROCUREMENT_WORKFLOW_LABELS[currentStatus]} to ${PROCUREMENT_WORKFLOW_LABELS[newStatus]}`,
@@ -588,10 +594,12 @@ export function useFormActions({ id }: UseFormActionsParams) {
   }
 
   // Computed values
-  const metadata = bid ? (bid.domain_metadata as ProcurementMetadata) : null;
-  const procurementStatus = bid
-    ? ((bid.status ?? 'draft') as ProcurementWorkflowState)
-    : null;
+  // {130.13} re-point: the umbrella detail GET ({130.11}) no longer returns
+  // `bid.status` / `bid.domain_metadata` — the per-stage facts live on the
+  // primary child form, with `deadline` falling back to the roll-up. The
+  // derivation also tolerates the legacy shape for a graceful migration read.
+  const metadata = deriveProcurementMetadata(bid);
+  const procurementStatus = deriveProcurementStatus(bid);
   const totalQuestions = stats?.total_questions ?? 0;
   const completedCount =
     (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0);
