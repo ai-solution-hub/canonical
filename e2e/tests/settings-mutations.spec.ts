@@ -1,6 +1,26 @@
 import { test, expect } from '../fixtures';
 import { getSettingsNav } from '../helpers/responsive';
 
+// ---------------------------------------------------------------------------
+// Deterministic reference-data fixtures (ID-128 {128.9})
+// ---------------------------------------------------------------------------
+//
+// Liam ratified treating taxonomy + governance reference data as AMBIENT →
+// SEED it deterministically so these specs can HARD-assert equality against a
+// known domain name (NOT `> 0`) per test-philosophy.md §2.1. The rows are
+// provisioned by `bun run seed:e2e-users`
+// (scripts/seed-e2e-users.ts → seedTaxonomyGovernanceFixture). These literals
+// MUST stay in lock-step with that script.
+//
+// Taxonomy domain: seeded slug 'e2e-seeded-domain'. The DomainCard renders
+// formatDomainName(name) → kebab-case to Title Case; 'e2e' is not in the
+// abbreviation list so it title-cases to 'E2e' (lib/taxonomy/taxonomy-format.ts).
+const SEEDED_TAXONOMY_DOMAIN_DISPLAY = 'E2e Seeded Domain';
+// Governance rule: governance_config.domain stores the taxonomy slug verbatim
+// (matches the real Add-Domain flow, which submits the SelectItem value = the
+// taxonomy domain slug). The config row renders config.domain unformatted.
+const SEEDED_GOVERNANCE_DOMAIN = 'e2e-seeded-domain';
+
 /**
  * Flow: Settings Mutations
  *
@@ -36,22 +56,15 @@ test.describe('Settings -- Team management', () => {
     const emailElements = main.getByText(/@/);
     await expect(emailElements.first()).toBeVisible({ timeout: 10000 });
 
-    // At least one role badge should be visible
-    const roleBadges = ['Admin', 'Editor', 'Viewer'];
-    let foundRole = false;
-    for (const role of roleBadges) {
-      if (
-        await main
-          .getByText(role, { exact: true })
-          .first()
-          .isVisible({ timeout: 2000 })
-          .catch(() => false)
-      ) {
-        foundRole = true;
-        break;
-      }
-    }
-    expect(foundRole).toBe(true);
+    // HARD assert the admin's own role badge. The authenticated user for this
+    // spec is the seeded admin (test.user1, role 'admin' via
+    // `bun run seed:e2e-users`), and the team table renders the current user's
+    // own row with a static "Admin" Badge. The prior soft
+    // `.catch(() => false)` loop over Admin/Editor/Viewer silently passed
+    // whenever the role badges drifted (test-philosophy §2.1).
+    await expect(main.getByText('Admin', { exact: true }).first()).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test('non-current-user row has role dropdown with Admin/Editor/Viewer options', async ({
@@ -182,10 +195,21 @@ test.describe('Settings -- Content Organisation (Taxonomy)', () => {
       main.getByRole('heading', { name: /Categories/ }),
     ).toBeVisible();
 
-    // At least one domain card should be rendered (production DB has domains)
-    // Domain reorder buttons ("Move domain up/down") confirm domains exist
-    const domainButtons = main.getByRole('button', { name: /Move domain/ });
-    await expect(domainButtons.first()).toBeVisible({ timeout: 10000 });
+    // HARD assert the deterministically seeded taxonomy domain card by its
+    // known display name. `bun run seed:e2e-users` seeds a taxonomy_domains row
+    // name='e2e-seeded-domain'; the DomainCard renders formatDomainName(name)
+    // → 'E2e Seeded Domain'. This replaces the prior ambient-dependent
+    // ">=1 Move domain button" check that silently passed on whatever staging
+    // taxonomy happened to exist (test-philosophy §2.1).
+    await expect(
+      main.getByText(SEEDED_TAXONOMY_DOMAIN_DISPLAY, { exact: true }),
+    ).toBeVisible({ timeout: 15000 });
+
+    // Domain reorder controls confirm the cards are real, interactive domain
+    // rows (the seeded domain guarantees at least one reorder button renders).
+    await expect(
+      main.getByRole('button', { name: 'Move domain up' }).first(),
+    ).toBeVisible({ timeout: 10000 });
   });
 
   test('add domain button opens dialog with required fields', async ({
@@ -280,15 +304,26 @@ test.describe('Settings -- Quality Review (Governance)', () => {
     );
     await expect(configList).toBeVisible({ timeout: 3000 });
 
-    // At least one domain row should exist
-    const listItems = configList.locator('[role="listitem"]');
-    const itemCount = await listItems.count();
-    expect(itemCount).toBeGreaterThan(0);
+    // HARD assert the deterministically seeded governance rule row by its known
+    // domain. `bun run seed:e2e-users` seeds a governance_config row
+    // domain='e2e-seeded-domain' preset='light_touch'; the row renders
+    // config.domain verbatim plus a 'Light-touch' preset badge. This replaces
+    // the prior `itemCount > 0` check that silently passed on whatever ambient
+    // staging governance reference data existed (test-philosophy §2.1).
+    const seededConfigRow = configList
+      .locator('[role="listitem"]')
+      .filter({ hasText: SEEDED_GOVERNANCE_DOMAIN });
+    await expect(seededConfigRow).toHaveCount(1);
 
-    // Each row has a domain name and a preset badge (Light-touch or Strict)
-    const firstItem = listItems.first();
-    await expect(firstItem.locator('.text-sm.font-medium')).toBeVisible();
-    await expect(firstItem.locator('[data-slot="badge"]')).toBeVisible();
+    // The seeded row's domain label is rendered verbatim (hard equality).
+    await expect(seededConfigRow.locator('.text-sm.font-medium')).toHaveText(
+      SEEDED_GOVERNANCE_DOMAIN,
+    );
+
+    // The seeded row carries its preset badge (light_touch → 'Light-touch').
+    await expect(seededConfigRow.locator('[data-slot="badge"]')).toHaveText(
+      'Light-touch',
+    );
 
     // "Content Freshness" section should also be visible below governance config
     await expect(
