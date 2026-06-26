@@ -197,24 +197,21 @@ test.describe('Search', () => {
 
   test('search results link to item detail pages', async ({
     authenticatedPage: page,
+    workerData,
   }) => {
-    await page.goto('/browse?q=SLA');
+    // test-philosophy.md §2.1: assert against the worker-seeded result, not an
+    // ambient `?q=SLA` match + `.first()`. searchBrowseByPrefix anchors the
+    // semantic search on the unique seeded title and returns THIS worker's
+    // result card (an `<a>` → /item/{id}), hard-asserting it is visible.
+    const workerCard = await searchBrowseByPrefix(page, workerData.prefix);
 
-    // Wait for results to load. Hard-assert at least one result so a
-    // cleanroom DB returning zero matches fails honestly rather than
-    // silently skipping the navigation assertion.
-    const firstResult = page.locator('a[href^="/item/"]').first();
-    await expect(firstResult).toBeVisible({ timeout: 10000 });
-
-    const href = await firstResult.getAttribute('href');
-    await firstResult.click();
+    const href = await workerCard.getAttribute('href');
+    await workerCard.click();
     await expect(page).toHaveURL(/\/item\//);
 
-    // Verify we navigated to the correct item
+    // Verify we navigated to the worker-seeded item's own detail page.
     if (href) {
-      await expect(page).toHaveURL(
-        new RegExp(href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
-      );
+      await expect(page).toHaveURL(new RegExp(escapePrefix(href)));
     }
   });
 });
