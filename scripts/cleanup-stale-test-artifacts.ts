@@ -154,24 +154,37 @@ async function selectIdsByPrefix(
   return Array.from(ids);
 }
 
+// Bound the PostgREST `in.(…)` request-URI length. A `.in(col, ids)` serialises
+// every id into the URL; the prefix sweep above can return up to ~5000 UUIDs
+// (5 prefixes × limit 1000), which blows past the Supabase gateway's ~8 KB URI
+// cap → a bare-text "400 Bad Request" (non-JSON, so PostgREST surfaces it as the
+// literal message "Bad Request"). That silently no-ops the ENTIRE cleanup loop
+// (each delete logs a warning, returns 0) and is why stale rows accumulate.
+const DELETE_BATCH_SIZE = 100; // ~100 UUIDs ≈ 4 KB URI, safely under the cap
+
 async function deleteByIds(
   table: string,
   column: string,
   ids: string[],
 ): Promise<number> {
   if (ids.length === 0) return 0;
-  const { count, error } = await supabase
-    .from(table)
-    .delete({ count: 'exact' })
-    .in(column, ids);
+  let deleted = 0;
+  for (let i = 0; i < ids.length; i += DELETE_BATCH_SIZE) {
+    const batch = ids.slice(i, i + DELETE_BATCH_SIZE);
+    const { count, error } = await supabase
+      .from(table)
+      .delete({ count: 'exact' })
+      .in(column, batch);
 
-  if (error) {
-    console.warn(
-      `Warning: failed to delete ${table}.${column} rows: ${error.message}`,
-    );
-    return 0;
+    if (error) {
+      console.warn(
+        `Warning: failed to delete ${table}.${column} rows: ${error.message}`,
+      );
+      continue;
+    }
+    deleted += count ?? 0;
   }
-  return count ?? 0;
+  return deleted;
 }
 
 const contentItemIds = await selectContentItemIdsByPrefix(
