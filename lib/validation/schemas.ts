@@ -1061,13 +1061,22 @@ export const ProcurementMetadataSchema = z
   })
   .passthrough();
 
-/** Parse and validate domain_metadata for bid workspaces */
+/**
+ * Parse and validate `workspaces.domain_metadata` for procurement workspaces.
+ *
+ * Absent metadata (`null`/`undefined`) is a VALID state post-ID-130 form
+ * re-anchor — tender/form data now lives in `form_templates`, and app/seed-
+ * created procurement rows may carry no domain_metadata yet. Treat absent as
+ * "no metadata" (return `null`, no warning); only a PRESENT-but-malformed value
+ * is genuinely invalid and worth a warn.
+ */
 export function parseProcurementMetadata(
   raw: unknown,
 ): z.infer<typeof ProcurementMetadataSchema> | null {
+  if (raw == null) return null;
   const result = ProcurementMetadataSchema.safeParse(raw);
   if (!result.success) {
-    logger.warn({ err: result.error.format() }, 'Invalid bid metadata');
+    logger.warn({ err: result.error.format() }, 'Invalid procurement metadata');
     return null;
   }
   return result.data;
