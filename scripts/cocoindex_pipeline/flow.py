@@ -227,7 +227,7 @@ def _emit_upsert_log(
 # ── Inv-25 stage-level error classification (P-8 — ID-28.13) ─────────────────
 
 
-# Canonical 6-class stage-level error vocabulary per PRODUCT Inv-25.
+# Canonical 7-class stage-level error vocabulary per PRODUCT Inv-25.
 # Mirror of `lib/pipeline/error-classes.ts::PIPELINE_ERROR_CLASSES`.
 # Source-of-truth lives in the TS module (consumed by the Vercel route's
 # Zod validator); this Python tuple is the emitter-side reflection. The
@@ -240,6 +240,7 @@ _PIPELINE_ERROR_CLASSES: tuple[str, ...] = (
     "binary_conversion_failed",
     "embedding_failed",
     "entity_resolution_failed",
+    "qa_dedup_proposer_failed",
 )
 
 
@@ -303,7 +304,7 @@ class _QaDedupProposerStageError(Exception):
 
 
 def _classify_stage_exception(exc: BaseException) -> str | None:
-    """Map a Python exception to the Inv-25 6-class stage-level vocabulary.
+    """Map a Python exception to the Inv-25 7-class stage-level vocabulary.
 
     Returns the canonical class string when the exception type matches a
     known stage-failure pattern, or `None` when the exception is unmapped
@@ -348,7 +349,7 @@ def _classify_stage_exception(exc: BaseException) -> str | None:
       exc: The exception instance to classify.
 
     Returns:
-      One of the 6 canonical class strings, or `None` for unmapped types.
+      One of the 7 canonical class strings, or `None` for unmapped types.
     """
     # Stage-5 entity-resolution failure (ID-53.15, T-OQ1). MUST precede the
     # anthropic.APIError branch below: a Stage-5-wrapped
@@ -1960,7 +1961,7 @@ async def _ingest_file_body(
         except ResolutionFailure as exc:
             # AmbiguousResolution (and any future subtype): a genuine manifest
             # mis-wire. LOUD `cocoindex.stage_error` + ZERO rows on every
-            # target — neither branch runs. error_class is one of the six
+            # target — neither branch runs. error_class is one of the seven
             # canonical PIPELINE_ERROR_CLASSES (the webhook route Zod-validates
             # it); an ambiguous manifest prefix is an input-validation failure,
             # so `extraction_validation_failed` is the canonical class.
@@ -3774,7 +3775,7 @@ async def app_main() -> None:
     except Exception as exc:  # noqa: BLE001 — capture for rollup status
         # Inv-16/17/18: failures still land a pipeline_runs row so the
         # invocation count stays honest. Inv-25: classify the exception to
-        # one of the 6 canonical classes; unmapped types fall back to the
+        # one of the 7 canonical classes; unmapped types fall back to the
         # Python class name + an `unclassified` marker log so the Vercel
         # route's Zod validator surfaces drift as a loud 4xx.
         flow_status = "failed"

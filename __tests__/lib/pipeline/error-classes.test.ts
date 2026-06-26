@@ -1,5 +1,5 @@
 /**
- * Tests for lib/pipeline/error-classes.ts — Inv-25 6-class error vocabulary.
+ * Tests for lib/pipeline/error-classes.ts — Inv-25 7-class error vocabulary.
  *
  * Subtask ID-28.13 — TECH.md §P-8 failure-mode wiring. The error-classes
  * module is the canonical TS-side enumeration that the cocoindex Python
@@ -7,7 +7,7 @@
  * validates against.
  *
  * Acceptance (per testStrategy):
- *   - PIPELINE_ERROR_CLASSES is the exact 6-element tuple from PRODUCT
+ *   - PIPELINE_ERROR_CLASSES is the exact 7-element tuple from PRODUCT
  *     Inv-25 (stage-level, NOT pydantic-level sub-classes).
  *   - PipelineErrorClass is the union-of-literals type.
  *   - PipelineErrorClassSchema accepts every member, rejects unknown
@@ -17,7 +17,7 @@
  *   docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-25 (verbatim
  *   enumeration: extraction_validation_failed | extraction_provider_
  *   unavailable | postgres_write_failed | binary_conversion_failed |
- *   embedding_failed | entity_resolution_failed).
+ *   embedding_failed | entity_resolution_failed | qa_dedup_proposer_failed).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -31,9 +31,9 @@ import {
 // Enum exports
 // ---------------------------------------------------------------------------
 
-describe('PIPELINE_ERROR_CLASSES — Inv-25 6-class vocabulary', () => {
-  it('contains exactly six members', () => {
-    expect(PIPELINE_ERROR_CLASSES).toHaveLength(6);
+describe('PIPELINE_ERROR_CLASSES — Inv-25 7-class vocabulary', () => {
+  it('contains exactly seven members', () => {
+    expect(PIPELINE_ERROR_CLASSES).toHaveLength(7);
   });
 
   it('matches the Inv-25 enumeration verbatim', () => {
@@ -48,6 +48,7 @@ describe('PIPELINE_ERROR_CLASSES — Inv-25 6-class vocabulary', () => {
         'binary_conversion_failed',
         'embedding_failed',
         'entity_resolution_failed',
+        'qa_dedup_proposer_failed',
       ]),
     );
   });

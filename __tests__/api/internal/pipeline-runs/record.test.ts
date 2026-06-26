@@ -287,7 +287,7 @@ describe('POST /api/internal/pipeline-runs/record — body validation', () => {
     expect(res.status).toBe(200);
   });
 
-  it('accepts every member of the Inv-25 6-class error vocabulary', async () => {
+  it('accepts every member of the Inv-25 7-class error vocabulary', async () => {
     // ID-28.13: the route MUST accept every value the Python sidecar can
     // emit. The vocabulary lives in `lib/pipeline/error-classes.ts` and
     // matches the Inv-25 enumeration verbatim.
@@ -298,6 +298,7 @@ describe('POST /api/internal/pipeline-runs/record — body validation', () => {
       'binary_conversion_failed',
       'embedding_failed',
       'entity_resolution_failed',
+      'qa_dedup_proposer_failed',
     ];
 
     for (const errorClass of errorClasses) {
@@ -311,7 +312,7 @@ describe('POST /api/internal/pipeline-runs/record — body validation', () => {
     }
   });
 
-  it('rejects an unknown errorClass with HTTP 400 (Inv-25 6-class enum)', async () => {
+  it('rejects an unknown errorClass with HTTP 400 (Inv-25 7-class enum)', async () => {
     // ID-28.13: the route tightens the prior `z.string().optional()` to
     // the strict `PipelineErrorClassSchema` so the Python sidecar cannot
     // accidentally land an unmapped class string in
@@ -331,7 +332,7 @@ describe('POST /api/internal/pipeline-runs/record — body validation', () => {
     // ID-28.13 / Q-EX2 cross-boundary guard: pydantic-level sub-classes
     // (`invalid_enum`, `missing_required`, etc.) come from
     // `_PYDANTIC_ERROR_TO_ERROR_CLASS` in extraction.py — they live one
-    // abstraction level deeper than the 6-class stage-level vocabulary.
+    // abstraction level deeper than the 7-class stage-level vocabulary.
     // The Python sidecar must surface the wrapping stage class
     // (`extraction_validation_failed`); leaking the pydantic class up
     // to the webhook would let operators filter on a vocabulary they

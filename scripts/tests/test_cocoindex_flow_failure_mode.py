@@ -3,7 +3,7 @@
 Verifies:
 
   - `_classify_stage_exception()` maps Python exception types to the
-    6-class stage-level vocabulary per PRODUCT Inv-25:
+    7-class stage-level vocabulary per PRODUCT Inv-25:
       * Pydantic ValidationError → 'extraction_validation_failed'
       * anthropic.APIStatusError 5xx / RateLimitError → 'extraction_provider_unavailable'
       * asyncpg.PostgresError → 'postgres_write_failed'
@@ -246,12 +246,12 @@ with stubbed_sys_modules(
 
 
 # ============================================================================
-# STAGE EXCEPTION CLASSIFICATION (Inv-25 6-class vocabulary)
+# STAGE EXCEPTION CLASSIFICATION (Inv-25 7-class vocabulary)
 # ============================================================================
 
 
 class TestClassifyStageException:
-    """`_classify_stage_exception()` maps Python exceptions to the 6-class enum."""
+    """`_classify_stage_exception()` maps Python exceptions to the 7-class enum."""
 
     def test_helper_function_is_exposed(self):
         assert hasattr(flow, "_classify_stage_exception")
@@ -356,7 +356,7 @@ class TestClassifyStageException:
     def test_generic_exception_returns_none(self):
         # Unmapped exceptions return None so the caller can decide between
         # 'log only' (the default behaviour) and an escalation strategy.
-        # NOT a fallback to one of the six classes — we want operators to
+        # NOT a fallback to one of the seven classes — we want operators to
         # see honest 'unclassified' failures in pipeline_runs.error_class
         # rather than miscategorised ones.
         assert flow._classify_stage_exception(RuntimeError("???")) is None
@@ -690,7 +690,7 @@ class TestPerRowUpsertAtomicity:
 
 
 class TestFailedRunWebhookEmitsClassifiedErrorClass:
-    """The webhook emitter accepts every member of the 6-class vocabulary."""
+    """The webhook emitter accepts every member of the 7-class vocabulary."""
 
     URL = "https://kh.example.org/api/internal/pipeline-runs/record"
     SECRET = "test-cron-secret"
@@ -729,9 +729,9 @@ class TestFailedRunWebhookEmitsClassifiedErrorClass:
         active_session_cls = getattr(flow.aiohttp, "ClientSession", None)
         return getattr(active_session_cls, "last_json", None)
 
-    def test_emits_each_of_the_six_stage_classes(self):
+    def test_emits_each_of_the_seven_stage_classes(self):
         # Per ID-28.13, flow.py's webhook emitter must forward each of the
-        # 6 stage-level classes verbatim. The Vercel route's Zod schema
+        # 7 stage-level classes verbatim. The Vercel route's Zod schema
         # (Slice 2) is the validation layer; flow.py just has to ship the
         # correct vocabulary.
         #
@@ -760,6 +760,7 @@ class TestFailedRunWebhookEmitsClassifiedErrorClass:
             "binary_conversion_failed",
             "embedding_failed",
             "entity_resolution_failed",
+            "qa_dedup_proposer_failed",
         ]:
             payload = self._emit_with(cls)
             assert payload is not None, (
@@ -1099,7 +1100,7 @@ class TestPydanticErrorDetail:
         assert detail == {"pydantic_class": "missing_required", "stage": "flow"}
 
     def test_coarse_class_stays_extraction_validation_failed(self):
-        # Inv-25: the 6-class stage-level vocabulary is untouched — the SAME
+        # Inv-25: the 7-class stage-level vocabulary is untouched — the SAME
         # exception still classifies coarse as extraction_validation_failed
         # while the fine class rides the detail object alongside it.
         exc = self._validation_error()

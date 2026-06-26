@@ -20,7 +20,7 @@
  * Empirical grounding (Q-EX2 / OQ-3) — observed in worktree on 22/05/2026:
  *
  * - `lib/pipeline/error-classes.ts` (PRESENT, SIGNATURE MATCHES):
- *     6-class stage-level Inv-25 vocabulary —
+ *     7-class stage-level Inv-25 vocabulary —
  *     `extraction_validation_failed`, `extraction_provider_unavailable`,
  *     `postgres_write_failed`, `binary_conversion_failed`,
  *     `embedding_failed`, `entity_resolution_failed`. Per the dispatch
@@ -33,7 +33,7 @@
  * - `app/api/internal/pipeline-runs/record/route.ts` (PRESENT,
  *   SIGNATURE MATCHES):
  *     Zod `BodySchema` validates inbound payloads at the trust boundary;
- *     `errorClass: PipelineErrorClassSchema.optional()` accepts the 6-class
+ *     `errorClass: PipelineErrorClassSchema.optional()` accepts the 7-class
  *     enum only. The route composes `result.error_class = errorClass`
  *     before calling `recordPipelineRun()`. Lands in
  *     `pipeline_runs.result.error_class` (JSONB) per Inv-25 forensic
@@ -52,7 +52,7 @@
  *     `/api/internal/pipeline-runs/record` simulating what the cocoindex
  *     sidecar emits on a Pydantic ValidationError. Assert the
  *     pipeline_runs row lands with status='failed' + error_class in the
- *     6-class enum. STATUS: testable BUT this asserts the webhook
+ *     7-class enum. STATUS: testable BUT this asserts the webhook
  *     contract, NOT the end-to-end flow → validation → record path. The
  *     webhook contract is owned by 28.11 (sidecar webhook bridge) and
  *     28.13 (failure-mode wiring); duplicating coverage here muddles the
@@ -89,7 +89,7 @@
  *     (validation-failure shape).
  *   - docs/specs/id-36-cocoindex-extraction-contract/TECH.md §4.1 (Pydantic error
  *     → error_class mapping).
- *   - lib/pipeline/error-classes.ts (6-class Inv-25 vocabulary).
+ *   - lib/pipeline/error-classes.ts (7-class Inv-25 vocabulary).
  *   - app/api/internal/pipeline-runs/record/route.ts (Zod schema).
  *   - scripts/cocoindex_pipeline/extraction.py lines 304-346
  *     (`_PYDANTIC_ERROR_TO_ERROR_CLASS` + `classify_pydantic_error`).
@@ -104,7 +104,7 @@ import {
 } from '../helpers/supabase-client';
 
 // ---------------------------------------------------------------------------
-// 6-class Inv-25 stage-level error vocabulary — verbatim from
+// 7-class Inv-25 stage-level error vocabulary — verbatim from
 // `lib/pipeline/error-classes.ts`. Mirrored here as a value array (not
 // imported) so the test file remains self-contained and the canonical
 // source-of-truth lookup is one grep away (`PIPELINE_ERROR_CLASSES`).
@@ -117,6 +117,7 @@ const PIPELINE_ERROR_CLASSES = [
   'binary_conversion_failed',
   'embedding_failed',
   'entity_resolution_failed',
+  'qa_dedup_proposer_failed',
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -124,7 +125,7 @@ const PIPELINE_ERROR_CLASSES = [
 // `_PYDANTIC_ERROR_TO_ERROR_CLASS` in
 // `scripts/cocoindex_pipeline/extraction.py` lines 304-331. These sub-
 // classes live one abstraction below `extraction_validation_failed` (the
-// top-level 6-class) and are emitted by `classify_pydantic_error()` from
+// top-level 7-class) and are emitted by `classify_pydantic_error()` from
 // the first error in a `ValidationError`. The dispatch brief explicitly
 // requires the test to assert classification to one of these sub-classes.
 //
@@ -134,7 +135,7 @@ const PIPELINE_ERROR_CLASSES = [
 // Pydantic-level sub-class may land in `result.pydantic_error_class` or
 // similar — its DB landing surface is owned by 28.13 schema-design and
 // may not be observable here without 28.13's persisted-sub-class
-// substrate. The test asserts the TOP-LEVEL 6-class membership; sub-class
+// substrate. The test asserts the TOP-LEVEL 7-class membership; sub-class
 // observability is documented as a 28.13 follow-up.
 // ---------------------------------------------------------------------------
 
@@ -235,7 +236,7 @@ afterAll(async () => {
 describe.skipIf(!ENABLED)(
   'Inv-22 — malformed Anthropic response produces structured pipeline_runs failure record',
   () => {
-    it('pipeline_runs row lands with status="failed" and error_class in 6-class vocabulary', async () => {
+    it('pipeline_runs row lands with status="failed" and error_class in 7-class vocabulary', async () => {
       // Inv-22 verifiability: "ingest a contrived input that produces an
       // invalid LLM response (mock the LLM to return a malformed
       // discriminator); assert pipeline_runs shows a failure record".
@@ -275,12 +276,12 @@ describe.skipIf(!ENABLED)(
       expect(result).not.toBeNull();
       const errorClass = result!.error_class as string | undefined;
       expect(errorClass).toBeDefined();
-      // Strict membership check against the 6-class Inv-25 vocabulary.
+      // Strict membership check against the 7-class Inv-25 vocabulary.
       expect(PIPELINE_ERROR_CLASSES).toContain(errorClass);
 
       // For a Pydantic ValidationError, the top-level error_class MUST be
       // `extraction_validation_failed` (Inv-25 + extraction.py contract).
-      // Any other 6-class value would indicate a different stage failed
+      // Any other 7-class value would indicate a different stage failed
       // (e.g. postgres_write_failed) — which is a valid pipeline_runs
       // failure but NOT the Inv-22 contract.
       expect(errorClass).toBe('extraction_validation_failed');
@@ -356,7 +357,7 @@ describe.skipIf(!ENABLED)(
       // This assertion is GATED on a 28.13 schema-design decision: when
       // 28.13 persists the Pydantic-level sub-class (one of
       // PYDANTIC_LEVEL_ERROR_CLASSES) in addition to the top-level
-      // 6-class, this test verifies the sub-class lands in
+      // 7-class, this test verifies the sub-class lands in
       // pipeline_runs.result.pydantic_error_class.
       //
       // If the sub-class persistence is NOT YET shipped, this test
