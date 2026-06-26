@@ -204,7 +204,9 @@ describe('POST /api/ingest/url — reference-layer ingest (ID-110 {110.6})', () 
     expect(json.id).toBe(REF_ID);
     expect(json.title).toBe('Example Page');
     expect(json.source_url).toBe('https://example.com/a');
-    expect(json.dedup_status).toBe('clean');
+    // The reference path runs NO dedup — the response must not advertise a
+    // (hardcoded, misleading) dedup_status (bl-314).
+    expect(json).not.toHaveProperty('dedup_status');
   });
 
   it('cleans HTML via the B1 /extract endpoint and records trafilatura provenance (PI-9/PI-11)', async () => {

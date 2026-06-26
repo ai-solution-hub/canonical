@@ -34,7 +34,6 @@ interface IngestResult {
   primary_domain?: string;
   primary_subtopic?: string;
   warnings: string[];
-  dedup_status: 'clean';
 }
 
 const INITIAL_STEPS: IngestionStep[] = [

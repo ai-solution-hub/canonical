@@ -8,7 +8,7 @@
  *   `source_documents` row per normalised URL — via the owner-gated
  *   `reference_ingest` SECURITY DEFINER RPC, and returns the reduced contract:
  *     { id, title, source_url, summary, primary_domain, primary_subtopic,
- *       warnings, dedup_status }
+ *       warnings }
  *   It no longer infers layer / suggests topic / suggests guide sections /
  *   runs similarity dedup, and it writes ZERO `content_items` rows. The old
  *   assertions in this suite (content_items landing + layer/topic suggestions
@@ -148,7 +148,8 @@ test.describe('Content ingestion -- 8.0.5 URL ingestion (reference layer)', () =
     expect(ingestBody.url_already_exists).toBeFalsy();
     expect(ingestBody.id).toBeTruthy();
     expect(ingestBody.source_url).toBeTruthy();
-    expect(ingestBody.dedup_status).toBe('clean');
+    // The reference path runs NO dedup — no (misleading) dedup_status (bl-314).
+    expect(ingestBody).not.toHaveProperty('dedup_status');
     expect(ingestBody).not.toHaveProperty('suggested_layer');
     expect(ingestBody).not.toHaveProperty('content_type');
     expect(ingestBody).not.toHaveProperty('topic_suggestion');
