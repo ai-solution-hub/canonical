@@ -498,8 +498,11 @@ describe('MCP tools #14-16', () => {
         };
       };
 
+      // ID-131.10 (BI-26): get_content_win_rate arg renamed p_content_item_id ->
+      // p_q_a_pair_id. The tool surface stays content_item-shaped (input content_item_id);
+      // only the RPC arg key changed, so the asserted value is unchanged.
       expect(supabase.rpc).toHaveBeenCalledWith('get_content_win_rate', {
-        p_content_item_id: 'item-001',
+        p_q_a_pair_id: 'item-001',
       });
 
       expect(result.content[0].text).toContain('Content Effectiveness');

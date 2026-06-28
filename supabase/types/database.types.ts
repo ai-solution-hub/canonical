@@ -4564,12 +4564,15 @@ export type Database = {
       citations: {
         Row: {
           citation_type: string
+          cited_concept_path: string | null
           cited_content_item_id: string | null
           cited_end: number | null
           cited_kind: Database["public"]["Enums"]["cited_target_kind"]
           cited_location_kind: string | null
           cited_q_a_pair_id: string | null
           cited_q_a_pair_version: number | null
+          cited_reference_item_id: string | null
+          cited_source_document_id: string | null
           cited_start: number | null
           cited_text: string | null
           cited_version: number | null
@@ -4581,12 +4584,15 @@ export type Database = {
         }
         Insert: {
           citation_type?: string
+          cited_concept_path?: string | null
           cited_content_item_id?: string | null
           cited_end?: number | null
           cited_kind: Database["public"]["Enums"]["cited_target_kind"]
           cited_location_kind?: string | null
           cited_q_a_pair_id?: string | null
           cited_q_a_pair_version?: number | null
+          cited_reference_item_id?: string | null
+          cited_source_document_id?: string | null
           cited_start?: number | null
           cited_text?: string | null
           cited_version?: number | null
@@ -4598,12 +4604,15 @@ export type Database = {
         }
         Update: {
           citation_type?: string
+          cited_concept_path?: string | null
           cited_content_item_id?: string | null
           cited_end?: number | null
           cited_kind?: Database["public"]["Enums"]["cited_target_kind"]
           cited_location_kind?: string | null
           cited_q_a_pair_id?: string | null
           cited_q_a_pair_version?: number | null
+          cited_reference_item_id?: string | null
+          cited_source_document_id?: string | null
           cited_start?: number | null
           cited_text?: string | null
           cited_version?: number | null
@@ -4626,6 +4635,20 @@ export type Database = {
             columns: ["cited_q_a_pair_id"]
             isOneToOne: false
             referencedRelation: "q_a_pairs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "citations_cited_reference_item_id_fkey"
+            columns: ["cited_reference_item_id"]
+            isOneToOne: false
+            referencedRelation: "reference_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "citations_cited_source_document_id_fkey"
+            columns: ["cited_source_document_id"]
+            isOneToOne: false
+            referencedRelation: "source_documents"
             referencedColumns: ["id"]
           },
           {
@@ -8961,7 +8984,7 @@ export type Database = {
         }[]
       }
       get_content_win_rate: {
-        Args: { p_content_item_id: string }
+        Args: { p_q_a_pair_id: string }
         Returns: {
           losing_citations: number
           pending_citations: number
@@ -9754,7 +9777,12 @@ export type Database = {
           }
     }
     Enums: {
-      cited_target_kind: "content_item" | "q_a_pair"
+      cited_target_kind:
+        | "content_item"
+        | "q_a_pair"
+        | "reference_item"
+        | "source_document"
+        | "concept"
       citing_entity_kind: "form_response"
       outcome_signal: "win" | "fail" | "loop" | "refusal"
     }
@@ -9887,7 +9915,13 @@ export const Constants = {
   },
   public: {
     Enums: {
-      cited_target_kind: ["content_item", "q_a_pair"],
+      cited_target_kind: [
+        "content_item",
+        "q_a_pair",
+        "reference_item",
+        "source_document",
+        "concept",
+      ],
       citing_entity_kind: ["form_response"],
       outcome_signal: ["win", "fail", "loop", "refusal"],
     },
