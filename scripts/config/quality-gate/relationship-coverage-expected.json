@@ -1,5 +1,5 @@
 {
-  "description": "Per content_type minimum ratio of items with at least one entity_relationships row where source_item_id = items.id (check 3.5 entity_relationship_coverage). Thresholds derived from S182 entity-relationships audit §2.2a; each ~60-70% of observed NEW-corpus value to absorb per-run variance without masking regressions.",
+  "description": "Per content_type minimum ratio of items with at least one entity_relationships row where source_document_id = items.id (check 3.5 entity_relationship_coverage). Thresholds derived from S182 entity-relationships audit §2.2a; each ~60-70% of observed NEW-corpus value to absorb per-run variance without masking regressions.",
   "baseline_date": "2026-04-21",
   "baseline_source": "docs/audits/entity-relationships-old-vs-new-diff-s182.md §2.2a",
   "profile_thresholds": {

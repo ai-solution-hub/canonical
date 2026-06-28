@@ -220,7 +220,7 @@ export async function cleanupContentFixtures(
   await client
     .from('entity_relationships')
     .delete()
-    .in('source_item_id', contentItemIds);
+    .in('source_document_id', contentItemIds);
   await client.from('content_items').delete().in('id', contentItemIds);
 
   console.log(`[fixtures] Cleaned up ${contentItemIds.length} fixture items`);
