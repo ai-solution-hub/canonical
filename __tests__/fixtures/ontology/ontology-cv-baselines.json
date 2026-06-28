@@ -2,7 +2,7 @@
   "_meta": {
     "extracted_from": "docs/ontology/*.md frontmatter at public commit 96bdc1fa (ID-68.27 OQ-E branch (b) cutover)",
     "live_source": "${KH_PRIVATE_DOCS_DIR}/src/content/docs/ontology/ (private docs-site repo, canonical home)",
-    "purpose": "Frozen parity baselines for the CVs with lib-/snapshot-side counterparts: content_type, platform, requirement_type, form_type.",
+    "purpose": "Frozen parity baselines for the CVs with lib-/snapshot-side counterparts: content_type, platform, requirement_type, form_type. ID-133 BI-5 added the two KG-ontology CVs entity_type (Layer 5) + relationship (Layer 6) as the public mirror of the extraction.py Literals — each baseline value carries the per-value provenance keys (provenance_model/client_extensible/editable_via); their Python Literal == TS const == this fixture is enforced by TestEntityTypeParity / TestRelationshipParity in scripts/tests/test_cocoindex_extraction.py.",
     "update_protocol": "When a baseline changes in the private CV register, update the matching frontmatter block here in the same change that regenerates scripts/tests/fixtures/taxonomy_snapshot.json (bun run sync:taxonomy)."
   },
   "cvs": [
@@ -239,6 +239,206 @@
           "label": "Sales Proposal Template",
           "provenance": "core",
           "applicable_application_types": ["sales_proposal"]
+        }
+      ]
+    },
+    {
+      "cv_name": "entity_type",
+      "layer": 5,
+      "provenance_model": "hybrid",
+      "client_extensible": true,
+      "editable_via": "database_migration",
+      "core_seed_path": null,
+      "related_layers": [6],
+      "status": "active",
+      "baseline_values": [
+        {
+          "key": "organisation",
+          "label": "Organisation",
+          "provenance": "core",
+          "provenance_model": "core",
+          "client_extensible": false,
+          "editable_via": "database_migration"
+        },
+        {
+          "key": "certification",
+          "label": "Certification",
+          "provenance": "core",
+          "provenance_model": "core",
+          "client_extensible": false,
+          "editable_via": "database_migration"
+        },
+        {
+          "key": "regulation",
+          "label": "Regulation",
+          "provenance": "core",
+          "provenance_model": "core",
+          "client_extensible": false,
+          "editable_via": "database_migration"
+        },
+        {
+          "key": "framework",
+          "label": "Framework",
+          "provenance": "core",
+          "provenance_model": "core",
+          "client_extensible": false,
+          "editable_via": "database_migration"
+        },
+        {
+          "key": "capability",
+          "label": "Capability",
+          "provenance": "core",
+          "provenance_model": "core",
+          "client_extensible": false,
+          "editable_via": "database_migration"
+        },
+        {
+          "key": "person",
+          "label": "Person",
+          "provenance": "core",
+          "provenance_model": "core",
+          "client_extensible": false,
+          "editable_via": "database_migration"
+        },
+        {
+          "key": "technology",
+          "label": "Technology",
+          "provenance": "core",
+          "provenance_model": "core",
+          "client_extensible": false,
+          "editable_via": "database_migration"
+        },
+        {
+          "key": "project",
+          "label": "Project",
+          "provenance": "core",
+          "provenance_model": "core",
+          "client_extensible": false,
+          "editable_via": "database_migration"
+        },
+        {
+          "key": "sector",
+          "label": "Sector",
+          "provenance": "core",
+          "provenance_model": "core",
+          "client_extensible": false,
+          "editable_via": "database_migration"
+        },
+        {
+          "key": "product",
+          "label": "Product",
+          "provenance": "core",
+          "provenance_model": "core",
+          "client_extensible": false,
+          "editable_via": "database_migration"
+        },
+        {
+          "key": "standard",
+          "label": "Standard",
+          "provenance": "core",
+          "provenance_model": "core",
+          "client_extensible": false,
+          "editable_via": "database_migration"
+        },
+        {
+          "key": "methodology",
+          "label": "Methodology",
+          "provenance": "core",
+          "provenance_model": "core",
+          "client_extensible": false,
+          "editable_via": "database_migration"
+        }
+      ]
+    },
+    {
+      "cv_name": "relationship",
+      "layer": 6,
+      "provenance_model": "hybrid",
+      "client_extensible": true,
+      "editable_via": "database_migration",
+      "core_seed_path": null,
+      "related_layers": [5],
+      "status": "active",
+      "baseline_values": [
+        {
+          "key": "holds",
+          "label": "Holds",
+          "provenance": "core",
+          "provenance_model": "core",
+          "client_extensible": false,
+          "editable_via": "database_migration"
+        },
+        {
+          "key": "complies_with",
+          "label": "Complies With",
+          "provenance": "core",
+          "provenance_model": "core",
+          "client_extensible": false,
+          "editable_via": "database_migration"
+        },
+        {
+          "key": "delivers_to",
+          "label": "Delivers To",
+          "provenance": "core",
+          "provenance_model": "core",
+          "client_extensible": false,
+          "editable_via": "database_migration"
+        },
+        {
+          "key": "uses",
+          "label": "Uses",
+          "provenance": "core",
+          "provenance_model": "core",
+          "client_extensible": false,
+          "editable_via": "database_migration"
+        },
+        {
+          "key": "demonstrated_by",
+          "label": "Demonstrated By",
+          "provenance": "core",
+          "provenance_model": "core",
+          "client_extensible": false,
+          "editable_via": "database_migration"
+        },
+        {
+          "key": "requires",
+          "label": "Requires",
+          "provenance": "core",
+          "provenance_model": "core",
+          "client_extensible": false,
+          "editable_via": "database_migration"
+        },
+        {
+          "key": "part_of",
+          "label": "Part Of",
+          "provenance": "core",
+          "provenance_model": "core",
+          "client_extensible": false,
+          "editable_via": "database_migration"
+        },
+        {
+          "key": "supersedes",
+          "label": "Supersedes",
+          "provenance": "core",
+          "provenance_model": "core",
+          "client_extensible": false,
+          "editable_via": "database_migration"
+        },
+        {
+          "key": "references",
+          "label": "References",
+          "provenance": "core",
+          "provenance_model": "core",
+          "client_extensible": false,
+          "editable_via": "database_migration"
+        },
+        {
+          "key": "evidences",
+          "label": "Evidences",
+          "provenance": "core",
+          "provenance_model": "core",
+          "client_extensible": false,
+          "editable_via": "database_migration"
         }
       ]
     }

@@ -28,6 +28,7 @@ import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import get_args
 from uuid import UUID, uuid4
 
 import pytest
@@ -43,6 +44,7 @@ from scripts.cocoindex_pipeline.extraction import (
     QAFormExtraction,
     QAFormExtractionStamped,
     QAPair,
+    RelationshipExtraction,
     _UNSTAMPED_UUID,
     _VALID_CONTENT_TYPES,
     _VALID_DOMAINS,
@@ -856,6 +858,18 @@ class TestNormaliseEntitySpan:
 
 _REPO_ROOT = Path(__file__).parent.parent.parent
 _SCHEMAS_TS_PATH = _REPO_ROOT / "lib" / "validation" / "schemas.ts"
+# ID-133 BI-5: the TS `relationship` vocabulary is a UNION TYPE on the
+# `ExtractedRelationship` interface in `lib/ai/classify.ts` (NOT a
+# `const … as const` array), and the public mirror of both KG CVs lives in the
+# ontology baseline fixture — the third leg the parity guards bind.
+_CLASSIFY_TS_PATH = _REPO_ROOT / "lib" / "ai" / "classify.ts"
+_ONTOLOGY_BASELINES_FIXTURE_PATH = (
+    _REPO_ROOT
+    / "__tests__"
+    / "fixtures"
+    / "ontology"
+    / "ontology-cv-baselines.json"
+)
 
 
 def _extract_ts_string_array(source: str, var_name: str) -> list[str]:
@@ -878,34 +892,122 @@ def _extract_ts_string_array(source: str, var_name: str) -> list[str]:
     return re.findall(r"'([^']+)'", body)
 
 
+def _extract_ts_union_members(
+    source: str, interface_name: str, field_name: str
+) -> list[str]:
+    """Extract the single-quoted members of a TS string-literal UNION field.
+
+    ID-133 BI-5: `ExtractedRelationship.relationship` in `lib/ai/classify.ts`
+    is a `| 'holds' | 'complies_with' | …` union, NOT a `const … as const`
+    array, so `_extract_ts_string_array` cannot parse it. This sibling scopes
+    to the interface body, then to the named field's union (up to its
+    terminating `;`), and returns the quoted members in source order — so
+    JSDoc prose and sibling fields (e.g. `source_scope`) never leak in.
+    """
+    iface_pattern = re.compile(
+        rf"export\s+interface\s+{interface_name}\s*\{{(.*?)\}}",
+        re.DOTALL,
+    )
+    iface_match = iface_pattern.search(source)
+    if not iface_match:
+        raise ValueError(
+            f"Could not find interface {interface_name} in TS source"
+        )
+    body = iface_match.group(1)
+    field_pattern = re.compile(rf"\b{field_name}\s*:\s*(.*?);", re.DOTALL)
+    field_match = field_pattern.search(body)
+    if not field_match:
+        raise ValueError(
+            f"Could not find field {field_name} in interface {interface_name}"
+        )
+    return re.findall(r"'([^']+)'", field_match.group(1))
+
+
+def _fixture_baseline_keys(cv_name: str) -> list[str]:
+    """Return the `baseline_values` keys (source order) for a CV in the public
+    ontology baseline fixture — the third parity leg (Decision A public mirror)."""
+    data = json.loads(_ONTOLOGY_BASELINES_FIXTURE_PATH.read_text())
+    for cv in data["cvs"]:
+        if cv["cv_name"] == cv_name:
+            return [bv["key"] for bv in cv["baseline_values"]]
+    raise ValueError(
+        f"CV {cv_name!r} not found in {_ONTOLOGY_BASELINES_FIXTURE_PATH.name}"
+    )
+
+
 class TestEntityTypeParity:
-    """Q-EX2 §5.4 — Python Literal vs TS VALID_ENTITY_TYPES."""
+    """Q-EX2 §5.4 + ID-133 BI-5 — entity_type TRIPLE-bind.
+
+    Binds three legs in lockstep: the Python `EntityMentionExtraction.entity_type`
+    Literal, the TS `VALID_ENTITY_TYPES` const (`lib/validation/schemas.ts`), and
+    the public `entity_type` CV baseline_values keys in
+    `__tests__/fixtures/ontology/ontology-cv-baselines.json` (Decision A public
+    mirror). Any drift between the three fails here.
+    """
 
     def test_python_literal_matches_ts_constant(self) -> None:
-        # Python source of truth — the Literal in EntityMentionExtraction
-        python_entity_types = [
-            "organisation",
-            "certification",
-            "regulation",
-            "framework",
-            "capability",
-            "person",
-            "technology",
-            "project",
-            "sector",
-            "product",
-            "standard",
-            "methodology",
-        ]
-        # TS source of truth — VALID_ENTITY_TYPES at schemas.ts:1506-1519
+        # Python source of truth — the Literal in EntityMentionExtraction,
+        # read directly off the model so the test cannot drift from the runtime.
+        python_entity_types = list(
+            get_args(
+                EntityMentionExtraction.model_fields["entity_type"].annotation
+            )
+        )
+        # TS source of truth — VALID_ENTITY_TYPES (`const … as const` array).
         ts_source = _SCHEMAS_TS_PATH.read_text()
         ts_entity_types = _extract_ts_string_array(
             ts_source, "VALID_ENTITY_TYPES"
         )
+        # Third leg — the public fixture baseline (ID-133 BI-5 / Decision A).
+        fixture_entity_types = _fixture_baseline_keys("entity_type")
         assert python_entity_types == ts_entity_types, (
             f"entity_type parity drift between Python "
             f"EntityMentionExtraction Literal and TS VALID_ENTITY_TYPES. "
             f"Python: {python_entity_types}. TS: {ts_entity_types}"
+        )
+        assert python_entity_types == fixture_entity_types, (
+            f"entity_type parity drift between Python "
+            f"EntityMentionExtraction Literal and the public ontology fixture "
+            f"baseline_values. Python: {python_entity_types}. "
+            f"Fixture: {fixture_entity_types}"
+        )
+
+
+class TestRelationshipParity:
+    """ID-133 BI-5 — relationship TRIPLE-bind (no equivalent guard existed).
+
+    Binds the Python `RelationshipExtraction.relationship` Literal, the TS
+    `ExtractedRelationship.relationship` UNION (`lib/ai/classify.ts` — a union
+    type, not a `const … as const` array, so extracted via
+    `_extract_ts_union_members`), and the public `relationship` CV
+    baseline_values keys in the ontology baseline fixture. Any drift fails here.
+    """
+
+    def test_python_literal_matches_ts_union_and_fixture(self) -> None:
+        # Python source of truth — the Literal on the RelationshipExtraction core.
+        python_relationships = list(
+            get_args(
+                RelationshipExtraction.model_fields["relationship"].annotation
+            )
+        )
+        # TS source of truth — the ExtractedRelationship.relationship union.
+        ts_source = _CLASSIFY_TS_PATH.read_text()
+        ts_relationships = _extract_ts_union_members(
+            ts_source, "ExtractedRelationship", "relationship"
+        )
+        # Third leg — the public fixture baseline (ID-133 BI-5 / Decision A).
+        fixture_relationships = _fixture_baseline_keys("relationship")
+        assert python_relationships == ts_relationships, (
+            f"relationship parity drift between Python "
+            f"RelationshipExtraction Literal and TS "
+            f"ExtractedRelationship.relationship union. "
+            f"Python: {python_relationships}. TS: {ts_relationships}"
+        )
+        assert python_relationships == fixture_relationships, (
+            f"relationship parity drift between Python "
+            f"RelationshipExtraction Literal and the public ontology fixture "
+            f"baseline_values. Python: {python_relationships}. "
+            f"Fixture: {fixture_relationships}"
         )
 
 
@@ -1200,6 +1302,72 @@ class TestOutOfTaxonomySoftWarn:
                 classification_confidence=0.5,
             )
         assert classify_pydantic_error(exc_info.value) == "invalid_enum"
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# ID-133 BI-5 — enforcement-semantics invariant (TECH §"Enforcement-semantics
+# invariant"). The pass changes WHAT is gated, NOT the HARD/SOFT line:
+#   - closed enums (entity_type, relationship) HARD-reject → RAISE
+#   - open dimensions (primary_domain) SOFT-WARN → row written, counter bumped,
+#     never raises (`_surface_out_of_taxonomy_classification` UNTOUCHED).
+# This single class pins both halves so the BI-5 promotion provably did not move
+# the enforcement line.
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class TestEnforcementSemanticsInvariant:
+    """ID-133 BI-5 — HARD-reject (closed enums) vs SOFT-WARN (open dimensions)."""
+
+    def test_junk_entity_type_hard_rejects(self, base_fields: dict) -> None:
+        """A junk `entity_type` still RAISES → invalid_enum (closed-enum
+        HARD-reject; BI-5 did not weaken it)."""
+        with pytest.raises(ValidationError) as exc_info:
+            EntityMentionExtraction(
+                **base_fields,
+                entity_type="not_a_real_entity_type",  # type: ignore[arg-type]
+                entity_name="Acme Corp",
+                source_span_start=0,
+                source_span_end=9,
+                mention_confidence=0.8,
+            )
+        assert classify_pydantic_error(exc_info.value) == "invalid_enum"
+
+    def test_junk_relationship_hard_rejects(self) -> None:
+        """A junk `relationship` still RAISES → invalid_enum (closed-enum
+        HARD-reject on the RelationshipExtraction Literal)."""
+        with pytest.raises(ValidationError) as exc_info:
+            RelationshipExtraction(
+                source="Acme Corp",
+                relationship="not_a_real_relationship",  # type: ignore[arg-type]
+                target="ISO 27001",
+            )
+        assert classify_pydantic_error(exc_info.value) == "invalid_enum"
+
+    def test_junk_primary_domain_soft_warns(
+        self, base_fields: dict, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A junk `primary_domain` does NOT raise — the row is written UNCHANGED,
+        the bound counter is bumped, and a warning is logged (open-dimension
+        SOFT-WARN; `_surface_out_of_taxonomy_classification` untouched)."""
+        counter = _RecordingMissCounter()
+        with caplog.at_level("WARNING"):
+            extraction = _build_classification_under_counter(
+                counter,
+                base_fields,
+                content_type="policy",
+                primary_domain="not_a_real_domain",
+                classification_confidence=0.8,
+            )
+        # No raise; row written unchanged.
+        assert isinstance(extraction, ClassificationExtraction)
+        assert extraction.primary_domain == "not_a_real_domain"
+        # Counter bumped for the open dimension.
+        assert counter.recorded == [("primary_domain", "not_a_real_domain")]
+        assert any(
+            "out-of-taxonomy" in rec.getMessage()
+            and "primary_domain" in rec.getMessage()
+            for rec in caplog.records
+        )
 
 
 # ──────────────────────────────────────────────────────────────────────────

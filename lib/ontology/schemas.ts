@@ -46,6 +46,16 @@ const BaselineValueSchema = z.object({
   label: z.string().min(1),
   provenance: z.enum(PROVENANCE_VALUES),
   definition: z.string().min(1).optional(),
+  // Per-value provenance for the KG-ontology CVs `34-entity-type.md` (Layer 5)
+  // and `35-relationship.md` (Layer 6) — ID-133 BI-5 / Decision B. All three
+  // keys are OPTIONAL, so the existing 33 CVs (whose baseline values carry only
+  // key/label/provenance/definition) are unaffected and continue to validate.
+  // These mirror the CV-level provenance triple and are the forward-compat
+  // bridge to a future DB-backed allowed_types/allowed_relations register
+  // (TECH §BI-5, Decision B).
+  provenance_model: z.enum(PROVENANCE_MODEL_VALUES).optional(),
+  client_extensible: z.boolean().optional(),
+  editable_via: z.enum(EDITABLE_VIA_VALUES).optional(),
 });
 
 /**

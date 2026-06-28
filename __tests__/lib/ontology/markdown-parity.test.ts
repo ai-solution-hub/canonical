@@ -94,11 +94,19 @@ describe('Ontology Baseline Parity', () => {
     ).toHaveLength(0);
   });
 
-  it('the fixture freezes exactly the four parity-relevant CVs', () => {
+  it('the fixture freezes exactly the six parity-relevant CVs', () => {
+    // content_type / platform / requirement_type / form_type are the original
+    // snapshot/lib-side mirrors; entity_type (Layer 5) + relationship (Layer 6)
+    // are the ID-133 BI-5 KG-ontology mirrors of the extraction.py Literals
+    // (public mirror per Decision A). The latter two have NO taxonomy_snapshot
+    // counterpart — their parity is Python-Literal ↔ TS-const ↔ this fixture,
+    // enforced in scripts/tests/test_cocoindex_extraction.py, NOT here.
     expect(cvs.map((cv) => cv.cv_name).sort()).toEqual([
       'content_type',
+      'entity_type',
       'form_type',
       'platform',
+      'relationship',
       'requirement_type',
     ]);
   });
@@ -130,10 +138,17 @@ describe('Ontology Baseline Parity', () => {
         for (const cv of databaseMigrationCVs) {
           const snapshotKey = SNAPSHOT_KEY_BY_CV_NAME[cv.cv_name];
           if (!snapshotKey) {
-            // No snapshot key wired for this CV yet. Schema validation has
-            // already passed (case 1), so this is a known gap — skip without
-            // failing the build. Adding the key to SNAPSHOT_KEY_BY_CV_NAME
-            // wires it into the parity check.
+            // No snapshot key wired for this CV. Two reasons land here:
+            //   (a) deliberate snapshot-exempt CVs — the ID-133 BI-5 KG-ontology
+            //       CVs `entity_type` (Layer 5) + `relationship` (Layer 6) carry
+            //       editable_via=database_migration but have NO
+            //       taxonomy_snapshot.json counterpart; their parity is
+            //       Python-Literal ↔ TS-const ↔ fixture (the Python guards), so
+            //       they MUST NOT be cross-checked against the snapshot here.
+            //   (b) a CV whose snapshot key is simply not wired yet.
+            // Schema validation has already passed (case 1), so skipping is safe
+            // either way; wiring a snapshot key into SNAPSHOT_KEY_BY_CV_NAME opts
+            // a CV into this DB-CHECK parity comparison.
             continue;
           }
           const dbValues = snapshot![snapshotKey];
@@ -343,6 +358,92 @@ describe('Ontology Baseline Parity', () => {
         const messages = result.error.issues.map((i) => i.message).join(' | ');
         expect(messages).toContain('Layer-5-only');
         expect(messages).toContain('source_of_truth');
+      }
+    });
+  });
+
+  // Per-value provenance keys on BaselineValueSchema (ID-133 BI-5 / Decision B;
+  // TECH §BI-5 "Testing and validation" BI-5 bullet). The three keys
+  // (provenance_model / client_extensible / editable_via) are OPTIONAL, so the
+  // existing 33-CV register baseline values (which carry none of them) remain
+  // valid, and a KG-ontology baseline value carrying all three round-trips
+  // intact. Validated through the real `OntologyCVSchema`, which parses
+  // baseline_values via the nested (extended) `BaselineValueSchema`.
+  describe('per-value provenance keys (BaselineValueSchema, ID-133 BI-5)', () => {
+    it('backward-compat: a baseline value with the three optional keys ABSENT still validates', () => {
+      const cvWithoutOptionalKeys = {
+        cv_name: 'legacy_cv_no_optional_keys',
+        layer: 1 as const,
+        provenance_model: 'core' as const,
+        client_extensible: false,
+        editable_via: 'database_migration' as const,
+        core_seed_path: null,
+        status: 'active' as const,
+        related_layers: [],
+        baseline_values: [
+          // Exactly the pre-ID-133 baseline-value shape: key/label/provenance,
+          // none of the three new optional keys.
+          {
+            key: 'legacy_value',
+            label: 'Legacy Value',
+            provenance: 'core' as const,
+          },
+        ],
+      };
+      const result = OntologyCVSchema.safeParse(cvWithoutOptionalKeys);
+      expect(
+        result.success,
+        result.success
+          ? ''
+          : result.error.issues
+              .map((i) => `${i.path.join('.')}: ${i.message}`)
+              .join('\n'),
+      ).toBe(true);
+      if (result.success) {
+        const bv = result.data.baseline_values![0];
+        expect(bv.provenance_model).toBeUndefined();
+        expect(bv.client_extensible).toBeUndefined();
+        expect(bv.editable_via).toBeUndefined();
+      }
+    });
+
+    it('round-trip: a baseline value carrying provenance_model/client_extensible/editable_via parses and preserves all three', () => {
+      const cvWithOptionalKeys = {
+        cv_name: 'kg_cv_with_per_value_provenance',
+        // Layer 6 mirrors `35-relationship.md` — baseline_values required and
+        // each value carries the per-value provenance triple.
+        layer: 6 as const,
+        provenance_model: 'hybrid' as const,
+        client_extensible: true,
+        editable_via: 'database_migration' as const,
+        core_seed_path: null,
+        status: 'active' as const,
+        related_layers: [5 as const],
+        baseline_values: [
+          {
+            key: 'holds',
+            label: 'Holds',
+            provenance: 'core' as const,
+            provenance_model: 'core' as const,
+            client_extensible: false,
+            editable_via: 'database_migration' as const,
+          },
+        ],
+      };
+      const result = OntologyCVSchema.safeParse(cvWithOptionalKeys);
+      expect(
+        result.success,
+        result.success
+          ? ''
+          : result.error.issues
+              .map((i) => `${i.path.join('.')}: ${i.message}`)
+              .join('\n'),
+      ).toBe(true);
+      if (result.success) {
+        const bv = result.data.baseline_values![0];
+        expect(bv.provenance_model).toBe('core');
+        expect(bv.client_extensible).toBe(false);
+        expect(bv.editable_via).toBe('database_migration');
       }
     });
   });
