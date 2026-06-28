@@ -165,7 +165,7 @@ export async function seedContentFixtures(
   type ChunkInsert = Database['public']['Tables']['content_chunks']['Insert'];
   const chunks: ChunkInsert[] = contentItemIds.map((itemId, i) => ({
     id: deterministicUuid(100 + i),
-    content_item_id: itemId,
+    source_document_id: itemId,
     content: `Chunk content for fixture item ${i}. This is the primary text chunk.`,
     position: 0,
     word_count: 12,
@@ -208,7 +208,7 @@ export async function cleanupContentFixtures(
   await client
     .from('content_chunks')
     .delete()
-    .in('content_item_id', contentItemIds);
+    .in('source_document_id', contentItemIds);
   await client
     .from('content_history')
     .delete()
@@ -216,7 +216,7 @@ export async function cleanupContentFixtures(
   await client
     .from('entity_mentions')
     .delete()
-    .in('content_item_id', contentItemIds);
+    .in('source_document_id', contentItemIds);
   await client
     .from('entity_relationships')
     .delete()

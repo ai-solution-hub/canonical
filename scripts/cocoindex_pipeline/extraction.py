@@ -6,7 +6,7 @@ Hosts:
     SDK directly + validate via Pydantic `TypeAdapter` (Q-EX2 §3.1).
   - `stamp_extraction_base()` for post-memo flow-scope stamping — it
     CONSTRUCTS a full `*Stamped` type from a stamp-free core + the resolved
-    op_id / content_items_id / extracted_at (bl-220 / ID-74).
+    op_id / source_document_id / extracted_at (bl-220 / ID-74).
   - `_anthropic_retry` — KH-owned tenacity wrapper around the SDK call
     (Inv-23; cocoindex 1.0.3 has no built-in retry primitive for
     `@coco.fn` extractors).
@@ -186,7 +186,7 @@ _logger = logging.getLogger(__name__)
 
 
 # Post-validation stamp placeholders (PRODUCT Inv-5 — the LLM "does not
-# generate" op_id / content_items_id / extracted_at). They live on the
+# generate" op_id / source_document_id / extracted_at). They live on the
 # `_ExtractionStamp` mixin (below), which only the post-memo `*Stamped` types
 # inherit — NOT the stamp-free CORE shapes the memo extractors return. An
 # all-zero UUID / epoch timestamp is an unmistakable "unstamped" marker;
@@ -239,7 +239,7 @@ class _ExtractionCore(BaseModel):
 class _ExtractionStamp(BaseModel):
     """The 3 flow-stamped fields, added ONLY to the post-memo `*Stamped` types.
 
-    `op_id`, `content_items_id`, `extracted_at` are NOT emitted by the LLM
+    `op_id`, `source_document_id`, `extracted_at` are NOT emitted by the LLM
     (PRODUCT Inv-5: "the model does not generate them") AND must NOT live on the
     memoised return type: cocoindex memo serde JSON-round-trips them (UUID /
     datetime → strings) and re-validates STRICT on a memo HIT, which rejects the
@@ -258,7 +258,7 @@ class _ExtractionStamp(BaseModel):
         default=_UNSTAMPED_UUID,
         description="Cocoindex per-flow op_id (02-data-flow §5.1).",
     )
-    content_items_id: UUID = Field(
+    source_document_id: UUID = Field(
         default=_UNSTAMPED_UUID,
         description="FK to content_items row whose content_text was the input.",
     )
@@ -542,7 +542,7 @@ class ClassificationExtraction(_ExtractionCore):
 # (`class XStamped(XCore, _ExtractionStamp)`), so downstream readers that switch
 # on `extraction_kind` or read LLM fields work unchanged on the stamped shape.
 #
-# Inv-5 is preserved: the full stamped shape (op_id / content_items_id /
+# Inv-5 is preserved: the full stamped shape (op_id / source_document_id /
 # extracted_at present) is what flow.py's row writers see — the LLM does not
 # generate these; the flow wrapper stamps them.
 # ---------------------------------------------------------------------------
@@ -679,7 +679,7 @@ def stamp_extraction_base(
     | EntityMentionExtraction,
     *,
     op_id: UUID | None = None,
-    content_items_id: UUID | None = None,
+    source_document_id: UUID | None = None,
 ) -> (
     ClassificationExtractionStamped
     | QAFormExtractionStamped
@@ -689,24 +689,24 @@ def stamp_extraction_base(
 
     NOT memoised — values change per flow run, and this runs OUTSIDE the memo
     boundary (PRODUCT Inv-5: "the flow wrapper stamps each ExtractionOutput";
-    the LLM does not generate op_id / content_items_id / extracted_at).
+    the LLM does not generate op_id / source_document_id / extracted_at).
 
     bl-220 / ID-74: the memo extractors now return a stamp-FREE core
     (`ClassificationExtraction` / `QAFormExtraction` / `EntityMentionExtraction`),
     so this CONSTRUCTS the matching full `*Stamped` type from the core's fields +
-    the resolved op_id / content_items_id / `datetime.now(timezone.utc)` — it does
+    the resolved op_id / source_document_id / `datetime.now(timezone.utc)` — it does
     NOT `model_copy(update=...)` (the core has no stamp fields to update). The
     stamp fields therefore never cross cocoindex memo serde, so the strict
     UUID/datetime memo-HIT deser failure cannot recur. Passing an already-`*Stamped`
     instance back in is tolerated (re-resolved to the same stamped class).
 
-    When `op_id` / `content_items_id` are omitted, reads them from the
+    When `op_id` / `source_document_id` are omitted, reads them from the
     currently-bound `FLOW_META_CTX` so the call-site does not have to
     thread metadata through every `.transform()` chain. Explicit kwargs
     take precedence. Raises `RuntimeError` rather than silently stamping
     zero UUIDs when no binding is active.
     """
-    if op_id is None or content_items_id is None:
+    if op_id is None or source_document_id is None:
         # Canonical single-namespace import post-{67.2} (kept function-local to
         # preserve lazy-import timing). One module copy means a single
         # ContextVar store, so bound metadata is always visible here.
@@ -716,25 +716,25 @@ def stamp_extraction_base(
         if meta is None:
             raise RuntimeError(
                 "stamp_extraction_base() called without explicit op_id / "
-                "content_items_id AND no FLOW_META_CTX binding is active. "
+                "source_document_id AND no FLOW_META_CTX binding is active. "
                 "Wrap the call in `async with bind_flow_meta(op_id=..., "
-                "content_items_id=...):` or pass explicit kwargs."
+                "source_document_id=...):` or pass explicit kwargs."
             )
         resolved_op_id = op_id if op_id is not None else meta.op_id
-        if content_items_id is None:
-            if meta.content_items_id is None:
+        if source_document_id is None:
+            if meta.source_document_id is None:
                 raise RuntimeError(
                     "stamp_extraction_base() called without explicit "
-                    "content_items_id AND FLOW_META_CTX has content_items_id=None. "
-                    "Rebind FLOW_META_CTX with a non-None content_items_id "
+                    "source_document_id AND FLOW_META_CTX has source_document_id=None. "
+                    "Rebind FLOW_META_CTX with a non-None source_document_id "
                     "before invoking the per-row stamping path."
                 )
-            resolved_content_items_id = meta.content_items_id
+            resolved_source_document_id = meta.source_document_id
         else:
-            resolved_content_items_id = content_items_id
+            resolved_source_document_id = source_document_id
     else:
         resolved_op_id = op_id
-        resolved_content_items_id = content_items_id
+        resolved_source_document_id = source_document_id
 
     # Pick the full stamped class for this core (constructed OUTSIDE the memo
     # boundary). Resolve on the EXACT class so an already-stamped instance passed
@@ -744,12 +744,12 @@ def stamp_extraction_base(
     # dump excluding any stamp fields already present (idempotent re-stamp) so the
     # construct call sets them exactly once from the resolved values.
     core_fields = extraction.model_dump(
-        exclude={"op_id", "content_items_id", "extracted_at"}
+        exclude={"op_id", "source_document_id", "extracted_at"}
     )
     return stamped_cls(
         **core_fields,
         op_id=resolved_op_id,
-        content_items_id=resolved_content_items_id,
+        source_document_id=resolved_source_document_id,
         extracted_at=datetime.now(timezone.utc),
     )
 
@@ -960,7 +960,7 @@ def _cached_system_block(prompt: str) -> list[dict[str, object]]:
     and `messages.stream(...)` accepts
     `system: Union[str, Iterable[TextBlockParam]]`.
 
-    Flow-stamp fields (op_id / content_items_id / extracted_at) stay OUT of
+    Flow-stamp fields (op_id / source_document_id / extracted_at) stay OUT of
     the prompt — they are stamped POST-memo by `stamp_extraction_base()`
     (see prompts.py module docstring) — so the cached block is byte-stable
     across documents, which is precisely what makes it cacheable.
@@ -1034,7 +1034,7 @@ async def _anthropic_message(client, /, **create_kwargs) -> anthropic.types.Mess
 async def extract_classification(content_text: str) -> ClassificationExtraction:
     """Classification extractor — validates LLM JSON into `ClassificationExtraction`.
 
-    Returns the STAMP-FREE core (bl-220 / ID-74): no op_id / content_items_id /
+    Returns the STAMP-FREE core (bl-220 / ID-74): no op_id / source_document_id /
     extracted_at cross the memo boundary. The flow wrapper stamps the full
     `*Stamped` shape post-memo via `stamp_extraction_base()`. Memo key is
     `(content_text,)` per Inv-21.

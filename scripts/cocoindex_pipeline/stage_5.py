@@ -12,7 +12,7 @@ per-document canonicals with the KH entity embedder (§P-7) + KH PairResolver
 
 bl-225: when two DISTINCT per-document canonicals in the SAME document resolve
 to one cross-document value, the post-pass would have issued two UPDATEs to that
-value and collided on UNIQUE(canonical_name, entity_type, content_item_id). The
+value and collided on UNIQUE(canonical_name, entity_type, source_document_id). The
 resolution write-back therefore COLLAPSES each post-resolution collision group
 to a single highest-confidence survivor (mirroring the DB function
 `delete_duplicate_entity_mentions`) and DELETEs the losers (no FK dependents →
@@ -99,22 +99,22 @@ async def _select_run_entity_mentions(
     """Read this run's `entity_mentions` rows, op_id-scoped (Inv-5).
 
     Returns the rows the per-item phase wrote in this run (`id`,
-    `canonical_name`, `entity_type`, `content_item_id`, `confidence`). Only
+    `canonical_name`, `entity_type`, `source_document_id`, `confidence`). Only
     op_id-matching rows are selected — NULL-op_id rows (app-side writes) and
     prior-run rows are NOT read here, so the post-pass never UPDATEs rows
     outside the in-flight run. (ID-80.14: cross-op COLLISION detection happens
     separately and key-scoped via `_select_prior_op_key_holders` — see the
     module header for the documented Inv-5 boundary.)
 
-    bl-225: `content_item_id` is now SELECTed so the post-resolution collapse
+    bl-225: `source_document_id` is now SELECTed so the post-resolution collapse
     can group by the natural unique key (canonical_name, entity_type,
-    content_item_id) — the constraint that crashed when two distinct per-doc
+    source_document_id) — the constraint that crashed when two distinct per-doc
     canonicals in the SAME document resolved to one value. `confidence` is
     SELECTed so the survivor of a collision group is the highest-confidence row
     (mirroring `delete_duplicate_entity_mentions`).
     """
     return await db_pool.fetch(
-        "SELECT id, canonical_name, entity_type, content_item_id, confidence "
+        "SELECT id, canonical_name, entity_type, source_document_id, confidence "
         "FROM public.entity_mentions "
         "WHERE op_id = $1",
         op_id,
@@ -168,7 +168,7 @@ async def _select_prior_op_key_holders(
     already hold a natural key a current-op survivor is about to UPDATE into.
 
     `keys` is the exact list of post-resolution `(canonical_name, entity_type,
-    content_item_id)` targets the Step-5 collapse planned UPDATEs for. The read
+    source_document_id)` targets the Step-5 collapse planned UPDATEs for. The read
     is op-AGNOSTIC by design — `op_id IS DISTINCT FROM $4` matches prior-op
     rows AND NULL-op_id app-side rows (both can hold the key and both made the
     S316 D1 collision invisible to the op-scoped `collision_groups`) — but it
@@ -185,14 +185,14 @@ async def _select_prior_op_key_holders(
     if not keys:
         return []
     return await db_pool.fetch(
-        "SELECT em.id, em.canonical_name, em.entity_type, em.content_item_id, "
+        "SELECT em.id, em.canonical_name, em.entity_type, em.source_document_id, "
         "       em.confidence "
         "FROM public.entity_mentions em "
         "JOIN unnest($1::text[], $2::text[], $3::uuid[]) "
-        "  AS k(canonical_name, entity_type, content_item_id) "
+        "  AS k(canonical_name, entity_type, source_document_id) "
         "  ON em.canonical_name = k.canonical_name "
         " AND em.entity_type = k.entity_type "
-        " AND em.content_item_id = k.content_item_id "
+        " AND em.source_document_id = k.source_document_id "
         "WHERE em.op_id IS DISTINCT FROM $4",
         [k[0] for k in keys],
         [k[1] for k in keys],
@@ -235,7 +235,7 @@ async def _run_stage_5_resolution(
     # Inv-10: outputs are consistent with legacy entity_aliases reads.
     # The row id is carried as its native uuid.UUID (NOT str()) so the Step-6
     # UPDATE bind satisfies asyncpg's strict uuid typing — see DEVIATION note.
-    # bl-225: each tuple now also carries content_item_id + confidence so Step 5
+    # bl-225: each tuple now also carries source_document_id + confidence so Step 5
     # can group by the post-resolution natural key and pick a deterministic
     # highest-confidence survivor per collision group.
     name_pairs: list[tuple[UUID, str, str, UUID, float | None]] = [
@@ -243,7 +243,7 @@ async def _run_stage_5_resolution(
             row["id"],
             alias_map.get(row["canonical_name"], row["canonical_name"]),
             row["entity_type"],
-            row["content_item_id"],
+            row["source_document_id"],
             row["confidence"],
         )
         for row in rows
@@ -342,13 +342,13 @@ async def _run_stage_5_resolution(
         )
 
     # Step 5: walk ResolvedEntities.canonical_of() and GROUP by the
-    # POST-resolution natural unique key (content_item_id, entity_type,
+    # POST-resolution natural unique key (source_document_id, entity_type,
     # resolved). This is the bl-225 fix: `resolve_entities` resolves over a NAME
-    # SET, agnostic of content_item_id, so two DISTINCT per-doc canonicals in
+    # SET, agnostic of source_document_id, so two DISTINCT per-doc canonicals in
     # the SAME document (e.g. "eir 2004" + "environmental information
     # regulations 2004") can resolve to ONE value. The old row-by-row logic
     # then issued two UPDATEs to that value — the second collided with the first
-    # on UNIQUE(canonical_name, entity_type, content_item_id) and crashed. We
+    # on UNIQUE(canonical_name, entity_type, source_document_id) and crashed. We
     # instead collapse each collision group to a single survivor and DELETE the
     # losers (NO FK dependents reference entity_mentions → cascade-safe).
     #
@@ -360,7 +360,7 @@ async def _run_stage_5_resolution(
     # Inv-20 ("unresolved retains the per-document canonical") and is harmless
     # under 1.0.3 (canonical_of never returns None).
     #
-    # group key (content_item_id, entity_type, resolved)
+    # group key (source_document_id, entity_type, resolved)
     #   -> [(row_id, alias_applied_canonical, confidence)]
     collision_groups: dict[
         tuple[UUID, str, str], list[tuple[UUID, str, float | None]]
@@ -369,7 +369,7 @@ async def _run_stage_5_resolution(
         row_id,
         alias_applied_canonical,
         entity_type,
-        content_item_id,
+        source_document_id,
         confidence,
     ) in name_pairs:
         resolved = resolved_by_type[entity_type].canonical_of(
@@ -377,7 +377,7 @@ async def _run_stage_5_resolution(
         )
         if resolved is None:
             resolved = alias_applied_canonical  # Inv-20: unresolved retains canonical.
-        collision_groups[(content_item_id, entity_type, resolved)].append(
+        collision_groups[(source_document_id, entity_type, resolved)].append(
             (row_id, alias_applied_canonical, confidence)
         )
 
@@ -387,7 +387,7 @@ async def _run_stage_5_resolution(
     # for the Step-6 execution below.
     planned_updates: list[tuple[UUID, str, str, UUID, float | None]] = []
     deletes: list[UUID] = []  # current-op loser row ids collapsed into a survivor
-    for (content_item_id, entity_type, resolved), members in collision_groups.items():
+    for (source_document_id, entity_type, resolved), members in collision_groups.items():
         # survivor: highest confidence, then smallest id (deterministic; mirrors
         # delete_duplicate_entity_mentions ORDER BY confidence DESC NULLS LAST,
         # created_at ASC — id is the deterministic proxy for created_at here
@@ -399,7 +399,7 @@ async def _run_stage_5_resolution(
         )
         if survivor_alias_applied != resolved:  # PRESERVE original skip-condition
             planned_updates.append(
-                (survivor_id, resolved, entity_type, content_item_id, survivor_conf)
+                (survivor_id, resolved, entity_type, source_document_id, survivor_conf)
             )
         for member_id, _aa, _conf in members:
             if member_id != survivor_id:
@@ -409,7 +409,7 @@ async def _run_stage_5_resolution(
     # `collision_groups` only ever contains the CURRENT op's rows (Step 2 is
     # op_id-scoped), so a PRIOR-op (or NULL-op app-side) row already holding a
     # survivor's UPDATE-target key (canonical_name, entity_type,
-    # content_item_id) is structurally invisible above — the survivor's UPDATE
+    # source_document_id) is structurally invisible above — the survivor's UPDATE
     # would collide with it (UniqueViolationError, walk-wide failure on any
     # re-ingest with cross-op mention history). Widen collision DETECTION to
     # the exact planned target keys regardless of op (a key-scoped read — see
@@ -434,11 +434,11 @@ async def _run_stage_5_resolution(
             [(u[1], u[2], u[3]) for u in planned_updates],
         )
         holders_by_key: dict[tuple[str, str, UUID], asyncpg.Record] = {
-            (r["canonical_name"], r["entity_type"], r["content_item_id"]): r
+            (r["canonical_name"], r["entity_type"], r["source_document_id"]): r
             for r in prior_holders
         }
-        for row_id, resolved, entity_type, content_item_id, conf in planned_updates:
-            prior = holders_by_key.get((resolved, entity_type, content_item_id))
+        for row_id, resolved, entity_type, source_document_id, conf in planned_updates:
+            prior = holders_by_key.get((resolved, entity_type, source_document_id))
             if prior is None:
                 updates.append((row_id, resolved))
                 continue
@@ -463,7 +463,7 @@ async def _run_stage_5_resolution(
     # DELETE-FIRST IS LOAD-BEARING: a survivor may UPDATE INTO a canonical
     # currently held by a loser (in-op OR prior-op); deleting losers first
     # prevents that transient collision on UNIQUE(canonical_name, entity_type,
-    # content_item_id).
+    # source_document_id).
     # Wrapped in a single transaction; exceptions propagate to the flow's outer
     # `except` (the §P-10 failure routing) — never swallowed (CLAUDE.md "no
     # silent failures").

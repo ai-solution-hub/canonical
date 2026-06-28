@@ -85,7 +85,7 @@ export async function seedEntityFixtures(
 
     mentions.push({
       id: deterministicUuid(i),
-      content_item_id: itemId,
+      source_document_id: itemId,
       entity_name: canonical,
       canonical_name: canonical,
       entity_type: entityType,
@@ -130,7 +130,7 @@ export async function seedEntityFixtures(
       source_entity: source,
       target_entity: target,
       relationship_type: relationshipTypes[i]!,
-      source_item_id: contentItemIds[i % contentItemIds.length],
+      source_document_id: contentItemIds[i % contentItemIds.length],
       confidence: 0.75,
     });
   }

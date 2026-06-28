@@ -700,7 +700,7 @@ class TestRouteLessManifestBackwardCompat:
 class TestQaSidecarRouteWritesSidecarTargetsOnly:
     """ID-59 {59.26} (TECH-qa-sidecar P1): a `__qa__/` file on the
     ``route:"qa_sidecar"`` prefix mints ONE source_documents row (the INV-8
-    linkage anchor) + N q_a_extractions rows (``source_content_item_id IS
+    linkage anchor) + N q_a_extractions rows (``source_document_id IS
     NULL``) — and ZERO content_items / content_chunks / entity_mentions
     (PRODUCT INV-5). A sibling ``content``-route file on the SAME walk still
     mints content_items (the branches are mutually exclusive)."""
@@ -711,7 +711,7 @@ class TestQaSidecarRouteWritesSidecarTargetsOnly:
         flow = _flow_module()
         calls = _observe_path_a_seams(flow, monkeypatch)
 
-        # Two Q&A pairs so the qa: uuid5 PK + the source_content_item_id=None
+        # Two Q&A pairs so the qa: uuid5 PK + the source_document_id=None
         # INV-5 marker are exercised on more than one row.
         async def _two_pair_qa(content_text: str):
             return {
@@ -760,7 +760,7 @@ class TestQaSidecarRouteWritesSidecarTargetsOnly:
         assert out["ft"].rows == []
         assert out["ftf"].rows == []
 
-        # ── N q_a_extractions, each with source_content_item_id IS NULL. ──────
+        # ── N q_a_extractions, each with source_document_id IS NULL. ──────
         assert len(out["qa"].rows) == 2, "one q_a_extractions row per Q&A pair"
         # Frozen per-index qa: uuid5 oracles for "__qa__/foo.md" (same namespace
         # as the sd: literal above) — pinned, not recomputed from flow.
@@ -769,8 +769,8 @@ class TestQaSidecarRouteWritesSidecarTargetsOnly:
             uuid.UUID("01d73f65-2385-565f-a5b5-2f9b88cfa878"),  # qa:{rel}:1
         ]
         for idx, qa_row in enumerate(out["qa"].rows):
-            assert qa_row["source_content_item_id"] is None, (
-                "a sidecar mints NO content_item — source_content_item_id must "
+            assert qa_row["source_document_id"] is None, (
+                "a sidecar mints NO content_item — source_document_id must "
                 "be NULL (the INV-5 structural marker)"
             )
             assert qa_row["id"] == expected_qa_ids[idx], (
@@ -842,7 +842,7 @@ class TestQaSidecarRouteWritesSidecarTargetsOnly:
         assert out_qa["em"].rows == []
         assert len(out_qa["sd"].rows) == 1, "__qa__/foo.md mints ONE source_documents"
         assert len(out_qa["qa"].rows) == 1
-        assert out_qa["qa"].rows[0]["source_content_item_id"] is None
+        assert out_qa["qa"].rows[0]["source_document_id"] is None
         assert calls_qa["classification"] == 0, "no content classification for sidecar"
 
     def test_qa_sidecar_route_typo_rejected_at_manifest_load(

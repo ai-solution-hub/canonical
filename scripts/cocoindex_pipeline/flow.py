@@ -479,7 +479,7 @@ def _redact_error_message(msg: str, *, max_length: int = 200) -> str:
       2. Replace UUID-shaped substrings with the placeholder `<uuid>` so
          per-row identifiers don't leak through error messages — operator
          forensic correlation is via the structured-log `op_id` /
-         `content_items_id` fields, not the message body.
+         `source_document_id` fields, not the message body.
       3. Truncate to `max_length` (default 200) characters so provider
          5xx responses that echo user-supplied payloads cannot bloat the
          log surface.
@@ -503,7 +503,7 @@ def _emit_stage_error_log(
     op_id: uuid.UUID | str,
     stage: str,
     error_class: str,
-    content_items_id: uuid.UUID | str | None,
+    source_document_id: uuid.UUID | str | None,
     error_message: str,
 ) -> None:
     """Emit one Cloud-Run-parseable structured ERROR log per stage failure.
@@ -514,20 +514,20 @@ def _emit_stage_error_log(
 
       {"event": "cocoindex.stage_error", "op_id": "<uuid>",
        "stage": "<stage>", "error_class": "<one of PIPELINE_ERROR_CLASSES>",
-       "content_items_id": "<uuid>"|null,
+       "source_document_id": "<uuid>"|null,
        "error_message": "<truncated to 200 chars, UUIDs redacted>"}
 
     PII redaction: `error_message` is truncated + has UUID-shaped
     substrings replaced with `<uuid>`. Operator forensic correlation is
-    via the structured `op_id` / `content_items_id` fields.
+    via the structured `op_id` / `source_document_id` fields.
     """
     payload: dict[str, object | None] = {
         "event": "cocoindex.stage_error",
         "op_id": str(op_id),
         "stage": stage,
         "error_class": error_class,
-        "content_items_id": (
-            str(content_items_id) if content_items_id is not None else None
+        "source_document_id": (
+            str(source_document_id) if source_document_id is not None else None
         ),
         "error_message": _redact_error_message(error_message),
     }
@@ -537,7 +537,7 @@ def _emit_stage_error_log(
 def _emit_workspace_unmapped_warn(
     *,
     op_id: uuid.UUID | str,
-    content_items_id: uuid.UUID | str | None,
+    source_document_id: uuid.UUID | str | None,
     error_message: str,
 ) -> None:
     """Emit ONE benign WARNING-level structured log for an unmapped path.
@@ -555,7 +555,7 @@ def _emit_workspace_unmapped_warn(
     Contract shape (WARNING level):
 
       {"event": "workspace_resolution.unmapped", "op_id": "<uuid>",
-       "content_items_id": "<uuid>"|null,
+       "source_document_id": "<uuid>"|null,
        "reason": "<truncated to 200 chars, UUIDs redacted>"}
 
     Reuses `_redact_error_message` for the same PII redaction as the error
@@ -564,8 +564,8 @@ def _emit_workspace_unmapped_warn(
     payload: dict[str, object | None] = {
         "event": "workspace_resolution.unmapped",
         "op_id": str(op_id),
-        "content_items_id": (
-            str(content_items_id) if content_items_id is not None else None
+        "source_document_id": (
+            str(source_document_id) if source_document_id is not None else None
         ),
         "reason": _redact_error_message(error_message),
     }
@@ -779,17 +779,17 @@ def _record_extraction_success(
     *,
     stage_counts: dict[str, int],
     items_created: list[str],
-    content_items_id: uuid.UUID | str,
+    source_document_id: uuid.UUID | str,
 ) -> None:
     """Record one successful LLM-extraction pass.
 
     Increments `stage_counts['llm_extraction']` and appends the
-    stringified `content_items_id` to `items_created` (de-duplicated per
+    stringified `source_document_id` to `items_created` (de-duplicated per
     row — Inv-4 idempotency).
 
     Per the ID-28.16 brief acceptance: "stage_counts['llm_extraction']
     reflects extraction count per flow run" + "items_created[] populated
-    with content_items_id list per flow run". Each `.transform()`-fed
+    with source_document_id list per flow run". Each `.transform()`-fed
     extractor invocation calls this helper once on success.
 
     The 3-extractor pattern (classification + qa_form + entity_mentions)
@@ -799,8 +799,8 @@ def _record_extraction_success(
 
     Args:
       stage_counts:     Per-stage counter dict (mutated in-place).
-      items_created:    List of created content_items_id strings (mutated in-place).
-      content_items_id: The row whose content was extracted from.
+      items_created:    List of created source_document_id strings (mutated in-place).
+      source_document_id: The row whose content was extracted from.
 
     PRODUCT invariants honoured:
       - Inv-16 (one pipeline_runs row per invocation rollup).
@@ -808,7 +808,7 @@ def _record_extraction_success(
       - Inv-4 (idempotency — items_created de-duplicated per row).
     """
     stage_counts["llm_extraction"] += 1
-    cid_str = str(content_items_id)
+    cid_str = str(source_document_id)
     if cid_str not in items_created:
         items_created.append(cid_str)
 
@@ -817,7 +817,7 @@ def _record_extraction_failure(
     *,
     stage_counts: dict[str, int],
     items_created: list[str],
-    content_items_id: uuid.UUID | str,
+    source_document_id: uuid.UUID | str,
 ) -> None:
     """Record one failed LLM-extraction pass.
 
@@ -831,7 +831,7 @@ def _record_extraction_failure(
     Future versions may add per-failure counters without breaking the
     call-site contract.
     """
-    _ = (stage_counts, items_created, content_items_id)  # unused at v1
+    _ = (stage_counts, items_created, source_document_id)  # unused at v1
 
 
 async def _emit_pipeline_run_webhook(
@@ -1212,7 +1212,11 @@ CONTENT_ITEMS_SCHEMA = TableSchema(
 Q_A_EXTRACTIONS_SCHEMA = TableSchema(
     columns={
         "id": ColumnDef(type="uuid", nullable=False),
-        "source_content_item_id": ColumnDef(type="uuid", nullable=True),
+        # ID-131 {131.8} M2 (BI-15): re-parented off content_items onto
+        # source_documents (rename source_content_item_id -> source_document_id
+        # + ADD FK in id131_extract_reparent). Nullable — the qa_sidecar branch
+        # writes None (no source_documents row minted for a sidecar).
+        "source_document_id": ColumnDef(type="uuid", nullable=True),
         "extractor_kind": ColumnDef(type="text", nullable=False),
         "extracted_question_text": ColumnDef(type="text", nullable=False),
         "extracted_answer_text": ColumnDef(type="text", nullable=True),
@@ -1315,7 +1319,9 @@ REFERENCE_ITEMS_SCHEMA = TableSchema(
 ENTITY_MENTIONS_SCHEMA = TableSchema(
     columns={
         "id": ColumnDef(type="uuid", nullable=False),
-        "content_item_id": ColumnDef(type="uuid", nullable=False),
+        # ID-131 {131.8} M2 (BI-14): re-parented onto source_documents
+        # (rename content_item_id -> source_document_id + ADD FK).
+        "source_document_id": ColumnDef(type="uuid", nullable=False),
         "entity_type": ColumnDef(type="text", nullable=False),
         "entity_name": ColumnDef(type="text", nullable=False),
         "canonical_name": ColumnDef(type="text", nullable=False),
@@ -1345,7 +1351,10 @@ ENTITY_RELATIONSHIPS_SCHEMA = TableSchema(
         "source_entity": ColumnDef(type="text", nullable=False),
         "relationship_type": ColumnDef(type="text", nullable=False),
         "target_entity": ColumnDef(type="text", nullable=False),
-        "source_item_id": ColumnDef(type="uuid", nullable=False),
+        # ID-131 {131.8} M2 (BI-14): re-parented onto source_documents
+        # (rename source_item_id -> source_document_id, repoint FK ON DELETE
+        # SET NULL preserved in id131_extract_reparent).
+        "source_document_id": ColumnDef(type="uuid", nullable=False),
         "confidence": ColumnDef(type="numeric", nullable=True),
     },
     primary_key=("id",),
@@ -1395,7 +1404,9 @@ CHUNK_MIN_SIZE_BYTES = 1000
 CONTENT_CHUNKS_SCHEMA = TableSchema(
     columns={
         "id": ColumnDef(type="uuid", nullable=False),
-        "content_item_id": ColumnDef(type="uuid", nullable=False),
+        # ID-131 {131.8} M2 (BI-14): re-parented onto source_documents
+        # (rename content_item_id -> source_document_id + ADD FK).
+        "source_document_id": ColumnDef(type="uuid", nullable=False),
         "content": ColumnDef(type="text", nullable=False),
         # `position` / `char_count` / `word_count` are smallint/integer columns;
         # declared `integer` (no smallint ColumnDef precedent in this module) —
@@ -1601,17 +1612,17 @@ def _field(obj: object, name: str, default: Any = None) -> Any:
     return getattr(obj, name, default)
 
 
-def _stamp_if_model(obj: Any, *, op_id: "uuid.UUID", content_items_id: "uuid.UUID") -> Any:
+def _stamp_if_model(obj: Any, *, op_id: "uuid.UUID", source_document_id: "uuid.UUID") -> Any:
     """Stamp an extraction's flow metadata via `stamp_extraction_base`, but
     ONLY when ``obj`` is a genuine Pydantic extraction model ({66.16}).
 
     PRODUCT Inv-5 [RATIFIED-S241] requires every extraction variant to carry
-    op_id / content_items_id / extracted_at, populated by the flow wrapper —
+    op_id / source_document_id / extracted_at, populated by the flow wrapper —
     OUTSIDE the memo boundary (bl-220 / ID-74). The production Path-A extractors
     return the stamp-FREE core types (`ClassificationExtraction` /
     `QAFormExtraction` / `EntityMentionExtraction`); `stamp_extraction_base`
     CONSTRUCTS the matching full `*Stamped` type from the core + the resolved
-    op_id / content_items_id / extracted_at, and that stamped object is what the
+    op_id / source_document_id / extracted_at, and that stamped object is what the
     downstream row writers read. The deterministic write-path test stubs return
     plain dicts (which have no `model_dump`), so those are passed through
     untouched. The shape-agnostic guard mirrors `_field`: a dict goes straight
@@ -1623,7 +1634,7 @@ def _stamp_if_model(obj: Any, *, op_id: "uuid.UUID", content_items_id: "uuid.UUI
     if isinstance(obj, dict) or not hasattr(obj, "model_dump"):
         return obj
     return stamp_extraction_base(
-        obj, op_id=op_id, content_items_id=content_items_id
+        obj, op_id=op_id, source_document_id=source_document_id
     )
 
 
@@ -1946,8 +1957,10 @@ async def _ingest_file_body(
         manifest = flow_context_module.current_workspace_manifest()
 
     # Deterministic per-document uuid5 (a pure function of rel_path) used ONLY
-    # for error-log attribution on the fork failure paths below.
-    content_item_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"ci:{rel_path}")
+    # for error-log attribution on the fork failure paths below. ID-131 {131.8}
+    # Part C: attribute to the source_documents id (sd: uuid5) — the canonical
+    # record identity post-re-parent.
+    source_document_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"sd:{rel_path}")
 
     route = "content"  # default: no manifest active (Path-A-only runs)
     resolution: Resolution | None = None
@@ -1962,7 +1975,7 @@ async def _ingest_file_body(
             # and route down the content branch.
             _emit_workspace_unmapped_warn(
                 op_id=op_id,
-                content_items_id=content_item_id,
+                source_document_id=source_document_id,
                 error_message=str(exc),
             )
         except ResolutionFailure as exc:
@@ -1976,7 +1989,7 @@ async def _ingest_file_body(
                 op_id=op_id,
                 stage="workspace_resolution",
                 error_class="extraction_validation_failed",
-                content_items_id=content_item_id,
+                source_document_id=source_document_id,
                 error_message=str(exc),
             )
             return
@@ -2120,7 +2133,7 @@ async def _ingest_content_branch(
 
     # ── Inv-5 [RATIFIED-S241]: stamp the outer-tier flow metadata onto each
     # extraction object ({66.16} stamp-wiring). PRODUCT Inv-5 mandates that every
-    # variant carries op_id / content_items_id / extracted_at populated by THIS
+    # variant carries op_id / source_document_id / extracted_at populated by THIS
     # flow wrapper (not the LLM, which omits them by design → they arrive at the
     # `_UNSTAMPED_*` sentinels). We stamp here, once content_item_id exists, with
     # EXPLICIT kwargs — NOT a FLOW_META_CTX read: cocoindex runs this body on its
@@ -2133,9 +2146,9 @@ async def _ingest_content_branch(
     # stamp-free core shapes, which `stamp_extraction_base` turns into the full
     # `*Stamped` type here, OUTSIDE the memo boundary (bl-220 / ID-74).
     classification = _stamp_if_model(
-        classification, op_id=op_id, content_items_id=content_item_id
+        classification, op_id=op_id, source_document_id=source_document_id
     )
-    qa_form = _stamp_if_model(qa_form, op_id=op_id, content_items_id=content_item_id)
+    qa_form = _stamp_if_model(qa_form, op_id=op_id, source_document_id=source_document_id)
 
     # content_fingerprint is an ASYNC METHOD on FileLike returning bytes
     # (cocoindex resources/file.py L172 → connectorkits.fingerprint); await it
@@ -2249,7 +2262,9 @@ async def _ingest_content_branch(
                     "id": uuid.uuid5(
                         _KH_PIPELINE_DOC_NS, f"chunk:{rel_path}:{position}"
                     ),
-                    "content_item_id": content_item_id,
+                    # ID-131 {131.8} M2 (BI-14): chunks parent the source_documents
+                    # record directly (re-parented off content_items).
+                    "source_document_id": source_document_id,
                     "content": chunk.text,
                     "position": position,
                     "char_count": len(chunk.text),
@@ -2275,7 +2290,9 @@ async def _ingest_content_branch(
         qa_target.declare_row(
             row={
                 "id": uuid.uuid5(_KH_PIPELINE_DOC_NS, f"qa:{rel_path}:{idx}"),
-                "source_content_item_id": content_item_id,
+                # ID-131 {131.8} M2 (BI-15): q&a extractions parent the
+                # source_documents record directly (re-parented off content_items).
+                "source_document_id": source_document_id,
                 "extractor_kind": "llm_extraction",
                 "extracted_question_text": _field(pair, "question_text", ""),
                 "extracted_answer_text": _field(pair, "answer_text"),
@@ -2372,7 +2389,7 @@ async def _ingest_content_branch(
         # carries the flow op_id + this row's content_item_id (explicit kwargs —
         # the daemon-thread boundary forbids a FLOW_META_CTX read, {66.19}/S294).
         mention = _stamp_if_model(
-            mention, op_id=op_id, content_items_id=content_item_id
+            mention, op_id=op_id, source_document_id=source_document_id
         )
         context_snippet = extract_entity_context(content_text, mention.entity_name)
         # ID-101 §{101.8}: MERGE holder keys into the span metadata — span keys
@@ -2385,7 +2402,9 @@ async def _ingest_content_branch(
                     _KH_PIPELINE_DOC_NS,
                     f"em:{rel_path}:{per_doc_canonical}:{entity_type}",
                 ),
-                "content_item_id": content_item_id,
+                # ID-131 {131.8} M2 (BI-14): mentions parent the source_documents
+                # record directly (re-parented off content_items).
+                "source_document_id": source_document_id,
                 "entity_type": mention.entity_type,
                 "entity_name": mention.entity_name,
                 "canonical_name": per_doc_canonical,
@@ -2460,7 +2479,9 @@ async def _ingest_content_branch(
                     "source_entity": source_c,
                     "relationship_type": predicate,
                     "target_entity": target_c,
-                    "source_item_id": content_item_id,
+                    # ID-131 {131.8} M2 (BI-14): relationships parent the
+                    # source_documents record directly (re-parented off content_items).
+                    "source_document_id": source_document_id,
                     "confidence": 1.0,
                 }
             for row in _er_dedup.values():
@@ -2573,9 +2594,11 @@ async def _ingest_qa_sidecar_branch(
         qa_target.declare_row(
             row={
                 "id": uuid.uuid5(_KH_PIPELINE_DOC_NS, f"qa:{rel_path}:{idx}"),
-                # INV-5: no content_item minted for a sidecar — the column is
-                # nullable; this is the structural "no content rows" marker.
-                "source_content_item_id": None,
+                # INV-5: no source_documents row minted for a sidecar — the
+                # column is nullable; this is the structural "no content rows"
+                # marker. ID-131 {131.8} M2: renamed source_content_item_id ->
+                # source_document_id (BI-15).
+                "source_document_id": None,
                 "extractor_kind": "llm_extraction",
                 "extracted_question_text": _field(pair, "question_text", ""),
                 "extracted_answer_text": _field(pair, "answer_text"),
@@ -3088,8 +3111,9 @@ async def _ingest_form_branch(
     # pure function of rel_path — no clock, no I/O), recomputed here ONLY for
     # error-log attribution (the suffix-guard and FormExtractionError
     # stage_error events below). No form-branch row write uses it, so the two
-    # branches stay decoupled.
-    content_item_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"ci:{rel_path}")
+    # branches stay decoupled. ID-131 {131.8} Part C: attribute to the
+    # source_documents id (sd: uuid5) — the canonical record identity.
+    source_document_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"sd:{rel_path}")
 
     # ── Secondary suffix guard (ID-80.8, 80.2 §B.3 candidate 5) ─────────────
     # A non-form suffix (.md/.txt/.html) under a `route:"forms"` prefix is a
@@ -3102,7 +3126,7 @@ async def _ingest_form_branch(
             op_id=op_id,
             stage="workspace_resolution",
             error_class="extraction_validation_failed",
-            content_items_id=content_item_id,
+            source_document_id=source_document_id,
             error_message=(
                 f"manifest mis-wire: non-form suffix {suffix!r} under a "
                 f"route:'forms' prefix (rel_path={rel_path!r}) — content files "
@@ -3136,7 +3160,7 @@ async def _ingest_form_branch(
             op_id=op_id,
             stage="form_extraction",
             error_class="extraction_validation_failed",
-            content_items_id=content_item_id,
+            source_document_id=source_document_id,
             error_message=str(exc),
         )
         ft_target.declare_row(
@@ -3388,7 +3412,7 @@ async def app_main() -> None:
             op_id=run_op_id,
             stage=manifest_stage,
             error_class="extraction_validation_failed",
-            content_items_id=None,
+            source_document_id=None,
             error_message=str(exc),
         )
         await _emit_pipeline_run_webhook(
@@ -3578,7 +3602,7 @@ async def app_main() -> None:
                     stage="ingest_item",
                     error_class=_classify_stage_exception(exc)
                     or type(exc).__name__,
-                    content_items_id=None,
+                    source_document_id=None,
                     error_message=_redact_error_message(str(exc)),
                 )
                 return None  # swallow → batch continues (80.2 §B.4)
@@ -3647,7 +3671,7 @@ async def app_main() -> None:
                     stage="ingest_item",
                     error_class=_classify_stage_exception(exc)
                     or type(exc).__name__,
-                    content_items_id=None,
+                    source_document_id=None,
                     error_message=_redact_error_message(str(exc)),
                 )
                 return None  # swallow → batch continues (BI-19)
@@ -3712,7 +3736,7 @@ async def app_main() -> None:
         # `except Exception` rollup handler below.
         try:
             resolved_count = await _run_stage_5_resolution(
-                meta=FlowRunMeta(op_id=run_op_id, content_items_id=None),
+                meta=FlowRunMeta(op_id=run_op_id, source_document_id=None),
                 db_pool=coco.use_context(DB_CTX),
                 flow_stage_counter=flow_stage_counter,
             )
@@ -3772,7 +3796,7 @@ async def app_main() -> None:
                 stage="qa_dedup_proposer",
                 error_class=_classify_stage_exception(exc)
                 or type(exc).__name__,
-                content_items_id=None,
+                source_document_id=None,
                 error_message=str(exc),
             )
 
@@ -3822,7 +3846,7 @@ async def app_main() -> None:
             op_id=run_op_id,
             stage="flow",
             error_class=flow_error_class,
-            content_items_id=None,
+            source_document_id=None,
             error_message=flow_error_message,
         )
         raise

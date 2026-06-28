@@ -12,7 +12,7 @@ Verifies:
 
   - `_emit_stage_error_log()` emits a single structured-log JSON line at
     ERROR level with the contract shape
-    `{event, op_id, stage, error_class, content_items_id, error_message}`
+    `{event, op_id, stage, error_class, source_document_id, error_message}`
     per PRODUCT Inv-26.
 
   - PII redaction policy:
@@ -20,7 +20,7 @@ Verifies:
       * UUID-shaped substrings in the error message are replaced with
         `<uuid>`.
       * The structured log emits ONLY error_class + truncated/redacted
-        error_message + op_id + stage + content_items_id — no LLM
+        error_message + op_id + stage + source_document_id — no LLM
         response payload, no API key, no raw stack trace.
 
   - The Inv-27 per-row UPSERT atomicity contract: a synthetic 5-row
@@ -475,13 +475,13 @@ class TestEmitStageErrorLog:
 
     def test_emits_required_fields(self, caplog):
         op_id = uuid.UUID("11111111-1111-4111-8111-111111111111")
-        content_items_id = uuid.UUID("22222222-2222-4222-8222-222222222222")
+        source_document_id = uuid.UUID("22222222-2222-4222-8222-222222222222")
         with caplog.at_level(logging.ERROR, logger="scripts.cocoindex_pipeline.flow"):
             flow._emit_stage_error_log(
                 op_id=op_id,
                 stage="llm_extraction",
                 error_class="extraction_validation_failed",
-                content_items_id=content_items_id,
+                source_document_id=source_document_id,
                 error_message="malformed JSON from provider",
             )
 
@@ -494,7 +494,7 @@ class TestEmitStageErrorLog:
         assert payload["op_id"] == str(op_id)
         assert payload["stage"] == "llm_extraction"
         assert payload["error_class"] == "extraction_validation_failed"
-        assert payload["content_items_id"] == str(content_items_id)
+        assert payload["source_document_id"] == str(source_document_id)
         assert "error_message" in payload
 
     def test_error_message_is_truncated_to_200_chars(self, caplog):
@@ -506,7 +506,7 @@ class TestEmitStageErrorLog:
                 op_id=uuid.uuid4(),
                 stage="llm_extraction",
                 error_class="extraction_provider_unavailable",
-                content_items_id=None,
+                source_document_id=None,
                 error_message=long_msg,
             )
 
@@ -528,7 +528,7 @@ class TestEmitStageErrorLog:
                 op_id=uuid.uuid4(),
                 stage="llm_extraction",
                 error_class="extraction_validation_failed",
-                content_items_id=None,
+                source_document_id=None,
                 error_message=msg,
             )
 
@@ -554,7 +554,7 @@ class TestEmitStageErrorLog:
                 op_id=uuid.uuid4(),
                 stage="llm_extraction",
                 error_class="extraction_validation_failed",
-                content_items_id=None,
+                source_document_id=None,
                 error_message=msg,
             )
 
@@ -563,9 +563,9 @@ class TestEmitStageErrorLog:
         assert "ACME Confidential" not in payload["error_message"]
         assert "input_value=<redacted>" in payload["error_message"]
 
-    def test_content_items_id_none_serialises_as_null(self, caplog):
+    def test_source_document_id_none_serialises_as_null(self, caplog):
         # When the failure happens before per-row binding (e.g. Stage 1
-        # source-walk failure), there is no content_items_id yet. The
+        # source-walk failure), there is no source_document_id yet. The
         # field must still appear in the payload (Inv-26 contract) but
         # encoded as JSON null.
         with caplog.at_level(logging.ERROR, logger="scripts.cocoindex_pipeline.flow"):
@@ -573,13 +573,13 @@ class TestEmitStageErrorLog:
                 op_id=uuid.uuid4(),
                 stage="source_walk",
                 error_class="binary_conversion_failed",
-                content_items_id=None,
+                source_document_id=None,
                 error_message="boom",
             )
 
         error_records = [r for r in caplog.records if r.levelno == logging.ERROR]
         payload = json.loads(error_records[0].message)
-        assert payload["content_items_id"] is None
+        assert payload["source_document_id"] is None
 
     def test_payload_is_machine_parseable_json(self, caplog):
         # The container log collector picks JSON-formatted log lines into
@@ -590,7 +590,7 @@ class TestEmitStageErrorLog:
                 op_id=uuid.uuid4(),
                 stage="embedding",
                 error_class="embedding_failed",
-                content_items_id=uuid.uuid4(),
+                source_document_id=uuid.uuid4(),
                 error_message="provider 500",
             )
 

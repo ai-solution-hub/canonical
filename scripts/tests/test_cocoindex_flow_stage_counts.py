@@ -14,7 +14,7 @@ Verifies:
     extractor invocation block, and emits the rollup webhook at flow-end
     with the populated stage_counts + items_created.
   - The wiring discipline: stage_counts['llm_extraction'] increments
-    apply per-content_items_id (3 extractors fired on 1 content row → 3
+    apply per-source_document_id (3 extractors fired on 1 content row → 3
     increments, items_created has 1 entry).
 
 The cocoindex / aiohttp / asyncpg / docling modules are all stubbed at
@@ -190,24 +190,24 @@ class TestRecordExtractionSuccess:
     def test_increments_llm_extraction_stage_count(self):
         stage_counts = flow._empty_stage_counts()
         items_created: list[str] = []
-        content_items_id = uuid.uuid4()
+        source_document_id = uuid.uuid4()
         flow._record_extraction_success(
             stage_counts=stage_counts,
             items_created=items_created,
-            content_items_id=content_items_id,
+            source_document_id=source_document_id,
         )
         assert stage_counts["llm_extraction"] == 1
 
     def test_appends_to_items_created(self):
         stage_counts = flow._empty_stage_counts()
         items_created: list[str] = []
-        content_items_id = uuid.uuid4()
+        source_document_id = uuid.uuid4()
         flow._record_extraction_success(
             stage_counts=stage_counts,
             items_created=items_created,
-            content_items_id=content_items_id,
+            source_document_id=source_document_id,
         )
-        assert items_created == [str(content_items_id)]
+        assert items_created == [str(source_document_id)]
 
     def test_multiple_calls_accumulate(self):
         stage_counts = flow._empty_stage_counts()
@@ -217,7 +217,7 @@ class TestRecordExtractionSuccess:
             flow._record_extraction_success(
                 stage_counts=stage_counts,
                 items_created=items_created,
-                content_items_id=cid,
+                source_document_id=cid,
             )
         assert stage_counts["llm_extraction"] == 3
         assert items_created == [str(cid) for cid in ids]
@@ -228,7 +228,7 @@ class TestRecordExtractionSuccess:
         flow._record_extraction_success(
             stage_counts=stage_counts,
             items_created=items_created,
-            content_items_id=uuid.uuid4(),
+            source_document_id=uuid.uuid4(),
         )
         # Only llm_extraction incremented; the other 6 stages remain zero.
         assert stage_counts["source_walk"] == 0
@@ -238,10 +238,10 @@ class TestRecordExtractionSuccess:
         assert stage_counts["chunking"] == 0
         assert stage_counts["postgres_upsert"] == 0
 
-    def test_dedupes_items_created_on_repeated_content_items_id(self):
+    def test_dedupes_items_created_on_repeated_source_document_id(self):
         """The 3-extractor pattern (classification + qa_form + entity_mentions)
         fires THREE times per content_items row — but `items_created` is the
-        set of content_items_id values for the run, so each row should
+        set of source_document_id values for the run, so each row should
         appear exactly ONCE in the list (per Inv-4 idempotency)."""
         stage_counts = flow._empty_stage_counts()
         items_created: list[str] = []
@@ -251,7 +251,7 @@ class TestRecordExtractionSuccess:
             flow._record_extraction_success(
                 stage_counts=stage_counts,
                 items_created=items_created,
-                content_items_id=row_id,
+                source_document_id=row_id,
             )
         # stage_counts['llm_extraction'] reflects ALL 3 extraction passes
         assert stage_counts["llm_extraction"] == 3
@@ -273,7 +273,7 @@ class TestRecordExtractionFailure:
         flow._record_extraction_failure(
             stage_counts=stage_counts,
             items_created=items_created,
-            content_items_id=uuid.uuid4(),
+            source_document_id=uuid.uuid4(),
         )
         # Failed extractions DO NOT increment llm_extraction — that counter
         # is success-only; failures route through error_class on the
@@ -292,7 +292,7 @@ class TestAppMainFlowMetaCtxBinding:
 
     The brief acceptance:
       "FLOW_META_CTX bound at app_main; every emitted extracted row carries
-       op_id + content_items_id + extracted_at via stamp_extraction_base."
+       op_id + source_document_id + extracted_at via stamp_extraction_base."
 
     This test exercises the idle-mode early-return path (COCOINDEX_SOURCE_PATH
     unset) — confirms the binding wiring is in place WITHOUT booting the

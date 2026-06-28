@@ -81,7 +81,7 @@ function setupEntityUpdate(entityType: string, contentIds: string[]) {
       resolve({
         data: contentIds.map((cid) => ({
           entity_type: entityType,
-          content_item_id: cid,
+          source_document_id: cid,
         })),
         error: null,
         count: contentIds.length,

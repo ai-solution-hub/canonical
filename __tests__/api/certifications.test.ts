@@ -142,7 +142,7 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
         {
           source_entity: 'example client limited',
           target_entity: 'iso 27001',
-          source_item_id: UUID_1,
+          source_document_id: UUID_1,
         },
       ],
       // Mention: entity_type=certification but NO metadata.holder field
@@ -151,7 +151,7 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
           canonical_name: 'iso 27001',
           entity_type: 'certification',
           entity_type_override: null,
-          content_item_id: UUID_2,
+          source_document_id: UUID_2,
           metadata: {},
         },
       ],
@@ -177,7 +177,7 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
         {
           source_entity: 'example datacentre europe',
           target_entity: 'iso 27001',
-          source_item_id: UUID_1,
+          source_document_id: UUID_1,
         },
       ],
       // Mention: certification with holder='self', but the relationship
@@ -187,7 +187,7 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
           canonical_name: 'iso 27001',
           entity_type: 'certification',
           entity_type_override: null,
-          content_item_id: UUID_2,
+          source_document_id: UUID_2,
           metadata: { holder: 'self' },
         },
       ],
@@ -209,7 +209,7 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
         {
           source_entity: 'example client limited',
           target_entity: 'iso 9001',
-          source_item_id: UUID_1,
+          source_document_id: UUID_1,
         },
       ],
       // Mention: certification with holder='self'
@@ -218,7 +218,7 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
           canonical_name: 'iso 9001',
           entity_type: 'certification',
           entity_type_override: null,
-          content_item_id: UUID_3,
+          source_document_id: UUID_3,
           metadata: { holder: 'self' },
         },
       ],
@@ -247,12 +247,12 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
         {
           source_entity: 'example client limited',
           target_entity: 'cyber essentials',
-          source_item_id: UUID_1,
+          source_document_id: UUID_1,
         },
         {
           source_entity: 'example client limited',
           target_entity: 'iso 9001',
-          source_item_id: UUID_3,
+          source_document_id: UUID_3,
         },
       ],
       // Mentions: one supplier cert and one self cert
@@ -261,14 +261,14 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
           canonical_name: 'cyber essentials',
           entity_type: 'certification',
           entity_type_override: null,
-          content_item_id: UUID_2,
+          source_document_id: UUID_2,
           metadata: { holder: 'supplier', supplier_name: 'Example Datacentre' },
         },
         {
           canonical_name: 'iso 9001',
           entity_type: 'certification',
           entity_type_override: null,
-          content_item_id: UUID_4,
+          source_document_id: UUID_4,
           metadata: { holder: 'self' },
         },
       ],

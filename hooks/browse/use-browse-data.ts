@@ -238,7 +238,7 @@ async function resolveEntityIds(
 ): Promise<string[] | null> {
   if (!filters.entity && !filters.entity_type) return null;
 
-  let query = supabase.from('entity_mentions').select('content_item_id');
+  let query = supabase.from('entity_mentions').select('source_document_id');
 
   if (filters.entity) {
     query = query.eq('canonical_name', filters.entity);
@@ -255,7 +255,7 @@ async function resolveEntityIds(
   return [
     ...new Set(
       (data ?? []).map(
-        (row: { content_item_id: string }) => row.content_item_id,
+        (row: { source_document_id: string }) => row.source_document_id,
       ),
     ),
   ];

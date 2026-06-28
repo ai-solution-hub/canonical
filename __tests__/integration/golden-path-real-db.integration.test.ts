@@ -72,13 +72,13 @@ afterAll(async () => {
     await serviceClient
       .from('entity_relationships')
       .delete()
-      .eq('source_item_id', itemId);
+      .eq('source_document_id', itemId);
 
     // 2. Entity mentions
     await serviceClient
       .from('entity_mentions')
       .delete()
-      .eq('content_item_id', itemId);
+      .eq('source_document_id', itemId);
 
     // 3. Content history
     await serviceClient
@@ -177,7 +177,7 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
     const { data: entities, error } = await serviceClient
       .from('entity_mentions')
       .select('*')
-      .eq('content_item_id', itemId!);
+      .eq('source_document_id', itemId!);
 
     expect(error).toBeNull();
     expect(entities).toBeTruthy();
@@ -244,7 +244,7 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
     const { data: certEntities, error } = await serviceClient
       .from('entity_mentions')
       .select('canonical_name, entity_type, metadata')
-      .eq('content_item_id', itemId!)
+      .eq('source_document_id', itemId!)
       .eq('entity_type', 'certification');
 
     expect(error).toBeNull();
@@ -396,7 +396,7 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
     const { data: relationships, error } = await serviceClient
       .from('entity_relationships')
       .select('*')
-      .eq('source_item_id', itemId!);
+      .eq('source_document_id', itemId!);
 
     expect(error).toBeNull();
 
@@ -454,7 +454,7 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
     const { data: entities } = await serviceClient
       .from('entity_mentions')
       .select('id')
-      .eq('content_item_id', itemId!);
+      .eq('source_document_id', itemId!);
 
     expect(entities).toBeTruthy();
     if (entities!.length === 0) {

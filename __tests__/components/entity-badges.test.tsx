@@ -279,7 +279,7 @@ describe('EntityBadges', () => {
       'id, entity_type, canonical_name, confidence',
     );
     expect(mockChain.eq).toHaveBeenCalledWith(
-      'content_item_id',
+      'source_document_id',
       'item-abc-123',
     );
     expect(mockChain.order).toHaveBeenCalledWith('entity_type');

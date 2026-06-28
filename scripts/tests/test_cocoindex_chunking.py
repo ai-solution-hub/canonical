@@ -11,7 +11,7 @@ WHAT THIS PROVES (56.8 — chunking stage):
     N `declare_row` calls for a ~5000-byte sample (2 <= N <= 6 — RecursiveSplitter
     respects min_chunk_size + recursive boundaries, so the bound is loose).
   - Every recorded chunk row stamps the bound flow op_id, the parent
-    `content_item_id` (the `ci:` uuid5), a monotonic 0-indexed `position`, and a
+    `source_document_id` (the `sd:` uuid5), a monotonic 0-indexed `position`, and a
     `content`/`char_count`/`word_count` triple consistent with the chunk text.
   - NO heading-derived keys (`heading_text` / `heading_level` / `heading_path` /
     `parent_chunk_id`) are present in any chunk row dict — they fall to NULL (the
@@ -302,22 +302,23 @@ class TestChunkingStageWritePath:
             f"(approx {approx}); got {len(cc.rows)}"
         )
 
-        # Stable per-document parent id (the ci: uuid5) the chunk rows attach to.
-        # FROZEN uuid5 literal over _KH_PIPELINE_DOC_NS
+        # ID-131 {131.8} M2 (BI-14): chunks re-parented onto source_documents —
+        # the stable per-document parent id is now the `sd:` uuid5 the chunk rows
+        # attach to. FROZEN uuid5 literal over _KH_PIPELINE_DOC_NS
         # ("fbfaf1ff-1ee4-583c-9757-1674465b2ec1") for rel_path "test/long-doc.md"
         # — transcribed, not re-derived from flow, so a drifted namespace or seed
         # string is caught (S398 frozen-literal oracle discipline).
         rel_path = _REL_PATH
-        content_item_id = uuid.UUID("e8c394bd-894b-5dfb-a479-e68e16ca508a")
-        assert content_item_id == uuid.uuid5(
-            flow._KH_PIPELINE_DOC_NS, f"ci:{rel_path}"
-        ), "frozen ci: uuid5 literal drifted from the live namespace+seed derivation"
+        source_document_id = uuid.UUID("2e350d1e-6e2e-5ac2-b90b-08c5847b9d5b")
+        assert source_document_id == uuid.uuid5(
+            flow._KH_PIPELINE_DOC_NS, f"sd:{rel_path}"
+        ), "frozen sd: uuid5 literal drifted from the live namespace+seed derivation"
 
         for position, row in enumerate(cc.rows):
             # C-21 / C-13: op_id stamped == bound flow op_id.
             assert row["op_id"] == run_op_id
-            # C-13: FK to the parent content_items row.
-            assert row["content_item_id"] == content_item_id
+            # C-13: FK to the parent source_documents row (re-parented, M2).
+            assert row["source_document_id"] == source_document_id
             # C-13: position is 0-indexed and monotonic.
             assert row["position"] == position
             # content / char_count / word_count are internally consistent.

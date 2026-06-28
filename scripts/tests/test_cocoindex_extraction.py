@@ -65,7 +65,7 @@ from scripts.cocoindex_pipeline.flow_context import bind_taxonomy_miss_counter
 #
 # The 3 LLM-output shapes (`ClassificationExtraction` / `QAFormExtraction` /
 # `EntityMentionExtraction`) are now the STAMP-FREE cores the memo extractors
-# return — they carry NO op_id / content_items_id / extracted_at fields, and
+# return — they carry NO op_id / source_document_id / extracted_at fields, and
 # their `strict`, extra="forbid" config REJECTS those fields if supplied. So the
 # shared base-field fixtures are EMPTY: a core construction / a core
 # `validate_json` payload supplies only the LLM fields. The stamp fields live on
@@ -76,14 +76,14 @@ from scripts.cocoindex_pipeline.flow_context import bind_taxonomy_miss_counter
 
 # Retained for the post-memo stamp assertions (the `extracted_at > _EXTRACTED_AT`
 # witness in TestStampExtractionBase). _OP_ID / _CONTENT_ID were dropped: the
-# stamp-free cores take no op_id / content_items_id, and the stamp tests mint
+# stamp-free cores take no op_id / source_document_id, and the stamp tests mint
 # fresh uuid4() values inline.
 _EXTRACTED_AT = datetime(2026, 5, 22, 12, 0, 0, tzinfo=timezone.utc)
 
 
 @pytest.fixture
 def base_fields() -> dict:
-    """Empty — the stamp-free cores take no op_id / content_items_id /
+    """Empty — the stamp-free cores take no op_id / source_document_id /
     extracted_at (bl-220). Kept as a fixture so the many variant constructions
     that spread `**base_fields` need no signature change."""
     return {}
@@ -575,7 +575,7 @@ class TestClassifyPydanticError:
         covered after the bl-220 split."""
         payload = {
             "op_id": "not-a-uuid",
-            "content_items_id": "b1111111-1111-4111-8111-111111111111",
+            "source_document_id": "b1111111-1111-4111-8111-111111111111",
             "extracted_at": "2026-05-22T12:00:00Z",
             "content_type": "article",
             "primary_domain": "compliance",
@@ -617,7 +617,7 @@ class TestClassifyPydanticError:
 
 class TestExtractionBaseFields:
     """bl-220 / ID-74: the memo-returned CORE shapes carry NO op_id /
-    content_items_id / extracted_at. PRODUCT Inv-5 is preserved by stamping the
+    source_document_id / extracted_at. PRODUCT Inv-5 is preserved by stamping the
     full `*Stamped` shape POST-memo (see TestStampExtractionBase) — the LLM never
     generates these fields, and they must never cross the cocoindex memo serde
     (which strict-re-validates on a HIT and would reject the string UUID/datetime
@@ -637,7 +637,7 @@ class TestExtractionBaseFields:
         parsed = ta.validate_json(json.dumps(payload))
         assert isinstance(parsed, ClassificationExtraction)
         assert not hasattr(parsed, "op_id")
-        assert not hasattr(parsed, "content_items_id")
+        assert not hasattr(parsed, "source_document_id")
         assert not hasattr(parsed, "extracted_at")
         assert "op_id" not in type(parsed).model_fields
 
@@ -669,7 +669,7 @@ class TestStampExtractionBase:
     """Q-EX2 §3.2 / bl-220 — plain-Python helper, NOT @coco.fn.
 
     Post bl-220 / ID-74: `stamp_extraction_base` CONSTRUCTS the full `*Stamped`
-    type from a stamp-FREE core + the resolved op_id / content_items_id /
+    type from a stamp-FREE core + the resolved op_id / source_document_id /
     extracted_at (it no longer `model_copy`s a model that already has the fields,
     because the core has none). The stamped result is what flow.py's row writers
     read; the input core never carries the stamp fields (that is the whole point —
@@ -694,12 +694,12 @@ class TestStampExtractionBase:
         stamped = stamp_extraction_base(
             original,
             op_id=new_op_id,
-            content_items_id=new_content_id,
+            source_document_id=new_content_id,
         )
         assert isinstance(stamped, ClassificationExtractionStamped)
         # Stamp fields set from the resolved values
         assert stamped.op_id == new_op_id
-        assert stamped.content_items_id == new_content_id
+        assert stamped.source_document_id == new_content_id
         assert stamped.extracted_at > _EXTRACTED_AT  # post-now() > the 2026 fixture
         # Variant fields preserved
         assert stamped.content_type == "research"
@@ -720,7 +720,7 @@ class TestStampExtractionBase:
         stamped = stamp_extraction_base(
             original,
             op_id=uuid4(),
-            content_items_id=uuid4(),
+            source_document_id=uuid4(),
         )
         # Input core unchanged — still stamp-free
         assert not hasattr(original, "op_id")
@@ -731,7 +731,7 @@ class TestStampExtractionBase:
     def test_explicit_kwargs_call_still_works_post_28_16(
         self, base_fields: dict
     ) -> None:
-        """ID-28.16 changed `op_id` / `content_items_id` to optional kwargs
+        """ID-28.16 changed `op_id` / `source_document_id` to optional kwargs
         that fall back to FLOW_META_CTX when omitted. The pre-28.16 explicit
         call signature (positional, kwargs both supplied) MUST still work
         — backwards-compat with WP3 / WP4 call-sites that pass explicit
@@ -751,10 +751,10 @@ class TestStampExtractionBase:
         stamped = stamp_extraction_base(
             original,
             op_id=new_op_id,
-            content_items_id=new_content_id,
+            source_document_id=new_content_id,
         )
         assert stamped.op_id == new_op_id
-        assert stamped.content_items_id == new_content_id
+        assert stamped.source_document_id == new_content_id
 
     def test_missing_args_raises_runtime_error_when_no_binding(
         self, base_fields: dict
@@ -797,7 +797,7 @@ class TestNormaliseEntitySpan:
         end: int,
     ) -> EntityMentionExtraction:
         # bl-220: EntityMentionExtraction is the stamp-free core — no op_id /
-        # content_items_id / extracted_at.
+        # source_document_id / extracted_at.
         return EntityMentionExtraction(
             entity_type="organisation",
             entity_name=content_text[start:end].strip(),
@@ -1374,7 +1374,7 @@ class TestEnforcementSemanticsInvariant:
 # §5.1 inv 5 — LLM-output faithfulness (bl-220 / ID-74; {66.16} S295 lineage)
 #
 # The live `extract_*` extractors call `_*_adapter.validate_json(response_text)`
-# on raw Anthropic JSON that OMITS op_id / content_items_id / extracted_at (the
+# on raw Anthropic JSON that OMITS op_id / source_document_id / extracted_at (the
 # LLM does not generate them per PRODUCT Inv-5). Post bl-220 the adapters target
 # the STAMP-FREE core shapes, so these three fields are not even declared on the
 # memo-returned type — the LLM-output JSON validates cleanly AND the round-tripped
@@ -1387,13 +1387,13 @@ class TestEnforcementSemanticsInvariant:
 class TestLLMOutputOmitsStampedFields:
     """The validation contract the live extractors feed (`_classification_adapter`
     / `_qa_form_adapter` / `_entity_mentions_adapter`) accepts LLM JSON that omits
-    op_id / content_items_id / extracted_at, and (bl-220) returns a STAMP-FREE
+    op_id / source_document_id / extracted_at, and (bl-220) returns a STAMP-FREE
     core that carries none of those fields — they are added only post-memo by
     `stamp_extraction_base` (PRODUCT Inv-5)."""
 
     def test_classification_validates_without_stamped_fields(self) -> None:
         # Byte-for-byte the shape `extract_classification` feeds the adapter:
-        # the classifier's own fields, NO op_id / content_items_id /
+        # the classifier's own fields, NO op_id / source_document_id /
         # extracted_at.
         payload = {
             "extraction_kind": "classification",
@@ -1408,7 +1408,7 @@ class TestLLMOutputOmitsStampedFields:
         assert parsed.content_type == "policy"
         # bl-220: the core carries NO stamp fields (stamped post-memo).
         assert not hasattr(parsed, "op_id")
-        assert not hasattr(parsed, "content_items_id")
+        assert not hasattr(parsed, "source_document_id")
         assert not hasattr(parsed, "extracted_at")
 
     def test_qa_form_validates_without_stamped_fields(self) -> None:
@@ -1426,7 +1426,7 @@ class TestLLMOutputOmitsStampedFields:
         assert isinstance(parsed, QAFormExtraction)
         assert parsed.form_metadata.form_type == "psq"
         assert not hasattr(parsed, "op_id")
-        assert not hasattr(parsed, "content_items_id")
+        assert not hasattr(parsed, "source_document_id")
 
     def test_entity_mentions_validate_without_stamped_fields(self) -> None:
         # `extract_entity_mentions` validates a JSON ARRAY via the list adapter.
@@ -1577,7 +1577,7 @@ class TestMemoHitSerdeRoundTrip:
         boundary."""
         stamped = stamped_cls(
             op_id=UUID("a0000000-0000-4000-8000-000000000001"),
-            content_items_id=UUID("b1111111-1111-4111-8111-111111111111"),
+            source_document_id=UUID("b1111111-1111-4111-8111-111111111111"),
             extracted_at=datetime(2026, 5, 22, 12, 0, 0, tzinfo=timezone.utc),
             **kwargs,
         )

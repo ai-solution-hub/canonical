@@ -307,11 +307,12 @@ class TestIngestFileWritePath:
             "primary_subtopic must be persisted to content_items (OQ-63-9)"
         )
 
-        # q_a_extractions: one row per qa_pair, op_id stamped, FK to content_items.
+        # q_a_extractions: one row per qa_pair, op_id stamped, FK to source_documents.
         assert len(qa.rows) == 2, "expected one q_a_extractions row per qa_pair"
         qa_row = qa.rows[0]
         assert qa_row["op_id"] == run_op_id
-        assert qa_row["source_content_item_id"] == ci_row["id"]
+        # ID-131 {131.8} M2 (BI-15): q_a_extractions re-parented onto source_documents.
+        assert qa_row["source_document_id"] == sd.rows[0]["id"]
         assert qa_row["extracted_question_text"] == "What is X?"
         assert qa_row["extractor_kind"] == "llm_extraction", (
             "extractor_kind must be llm_extraction (OQ-54-E CHECK constraint)"
@@ -837,7 +838,7 @@ class TestIngestFileRelationshipWritePath:
     ``entity_relationships`` row per distinct canonical triple onto
     ``er_target`` — with the EXACT legacy TS column set (RULING 2): ``id``,
     ``source_entity``, ``relationship_type``, ``target_entity``,
-    ``source_item_id``, ``confidence`` — and NO ``op_id`` / ``created_at``
+    ``source_document_id``, ``confidence`` — and NO ``op_id`` / ``created_at``
     (migration-verified absent / PG server default). ``confidence`` is a flat
     ``1.0`` (Inv-16 parity with the TS writer).
     """
@@ -912,7 +913,7 @@ class TestIngestFileRelationshipWritePath:
                 )
 
         asyncio.run(_exercise())
-        return er, ci
+        return er, ci, sd
 
     def test_relationship_rows_match_legacy_column_set(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -927,12 +928,14 @@ class TestIngestFileRelationshipWritePath:
             self._rel(flow, "ACME Ltd", "holds", "ISO 9001"),
             self._rel(flow, "ACME Ltd", "complies_with", "GDPR"),
         ]
-        er, ci = self._ingest_once(
+        er, _, sd = self._ingest_once(
             flow, triples, tmp_path, run_op_id, monkeypatch
         )
 
         assert len(er.rows) == 2, "one entity_relationships row per distinct triple"
-        content_item_id = ci.rows[0]["id"]
+        # ID-131 {131.8} M2 (BI-14): entity_relationships re-parented onto
+        # source_documents — the FK target is the sd row, not the content_items row.
+        source_document_id = sd.rows[0]["id"]
 
         # Endpoints are canonicalised (lowercase resolve-alias chain), payload is
         # EXACTLY the legacy TS column set — NO op_id, NO created_at (RULING 2).
@@ -941,7 +944,7 @@ class TestIngestFileRelationshipWritePath:
             "source_entity",
             "relationship_type",
             "target_entity",
-            "source_item_id",
+            "source_document_id",
             "confidence",
         }
         for row in er.rows:
@@ -951,8 +954,8 @@ class TestIngestFileRelationshipWritePath:
             )
             assert "op_id" not in row, "op_id is absent from entity_relationships (RULING 2)"
             assert "created_at" not in row, "created_at is a PG server default — omitted"
-            assert row["source_item_id"] == content_item_id, (
-                "source_item_id must FK the content_items row this doc produced"
+            assert row["source_document_id"] == source_document_id, (
+                "source_document_id must FK the source_documents row this doc produced"
             )
             assert row["confidence"] == 1.0, "confidence is a flat 1.0 (Inv-16 TS parity)"
 
@@ -971,7 +974,7 @@ class TestIngestFileRelationshipWritePath:
 
         run_op_id = uuid.uuid4()
         triples = [self._rel(flow, "ACME Ltd", "holds", "ISO 9001")]
-        er, _ = self._ingest_once(flow, triples, tmp_path, run_op_id, monkeypatch)
+        er, _, _ = self._ingest_once(flow, triples, tmp_path, run_op_id, monkeypatch)
 
         rel_path = (tmp_path / "rel-doc.md").as_posix()
         # Endpoints are canonicalised via the SAME chain the write site uses —
@@ -994,7 +997,7 @@ class TestIngestFileRelationshipWritePath:
         flow = _flow_module()
 
         run_op_id = uuid.uuid4()
-        er, _ = self._ingest_once(flow, [], tmp_path, run_op_id, monkeypatch)
+        er, _, _ = self._ingest_once(flow, [], tmp_path, run_op_id, monkeypatch)
         assert er.rows == [], "no triples extracted → zero entity_relationships rows"
 
     def test_duplicate_triples_dedup_per_doc(
@@ -1010,7 +1013,7 @@ class TestIngestFileRelationshipWritePath:
             self._rel(flow, "ACME Ltd", "holds", "ISO 9001"),
             self._rel(flow, "acme ltd", "holds", "iso 9001"),
         ]
-        er, _ = self._ingest_once(flow, triples, tmp_path, run_op_id, monkeypatch)
+        er, _, _ = self._ingest_once(flow, triples, tmp_path, run_op_id, monkeypatch)
         assert len(er.rows) == 1, "duplicate canonical triples collapse to one row"
 
     def test_same_doc_two_runs_yields_identical_relationship_pks(
@@ -1025,8 +1028,8 @@ class TestIngestFileRelationshipWritePath:
         assert run_a != run_b
         triples_a = [self._rel(flow, "ACME Ltd", "holds", "ISO 9001")]
         triples_b = [self._rel(flow, "ACME Ltd", "holds", "ISO 9001")]
-        er_a, _ = self._ingest_once(flow, triples_a, tmp_path, run_a, monkeypatch)
-        er_b, _ = self._ingest_once(flow, triples_b, tmp_path, run_b, monkeypatch)
+        er_a, _, _ = self._ingest_once(flow, triples_a, tmp_path, run_a, monkeypatch)
+        er_b, _, _ = self._ingest_once(flow, triples_b, tmp_path, run_b, monkeypatch)
 
         assert len(er_a.rows) == 1 and len(er_b.rows) == 1
         assert er_a.rows[0]["id"] == er_b.rows[0]["id"], (
@@ -1053,7 +1056,7 @@ class TestIngestFileRelationshipWritePath:
             _RawTriple("ACME Ltd", "holds", "ISO 9001"),
         ]
         run_op_id = uuid.uuid4()
-        er, _ = self._ingest_once(flow, triples, tmp_path, run_op_id, monkeypatch)
+        er, _, _ = self._ingest_once(flow, triples, tmp_path, run_op_id, monkeypatch)
         assert len(er.rows) == 1, "out-of-set predicate skipped; valid triple kept"
         assert er.rows[0]["relationship_type"] == "holds"
 
@@ -1088,14 +1091,16 @@ class TestInv19QaDeclareSnapshot:
     # Hard-coded uuid5 values for _KH_PIPELINE_DOC_NS
     # ("fbfaf1ff-1ee4-583c-9757-1674465b2ec1") over the pinned rel_path —
     # computed once and FROZEN so namespace or seed-string drift is caught.
-    _CI_ID = uuid.UUID("390cb80c-ae52-5769-b3db-1c34df81a7a1")  # ci:{rel}
+    # ID-131 {131.8} M2 (BI-15): q_a_extractions re-parented onto source_documents,
+    # so the golden parent FK is now the sd: uuid5 (was the ci: uuid5).
+    _SD_ID = uuid.UUID("f1623a97-eeb2-5462-8589-8d42633b6cb2")  # sd:{rel}
     _QA0_ID = uuid.UUID("1552220b-1f2b-5901-adc9-b84b94a5a099")  # qa:{rel}:0
     _QA1_ID = uuid.UUID("05be7ffd-305c-55f9-9068-805d1fa1fae9")  # qa:{rel}:1
 
     _GOLDEN_QA_ROWS = [
         {
             "id": _QA0_ID,
-            "source_content_item_id": _CI_ID,
+            "source_document_id": _SD_ID,
             "extractor_kind": "llm_extraction",
             "extracted_question_text": "What is X?",
             "extracted_answer_text": "X is Y.",
@@ -1117,7 +1122,7 @@ class TestInv19QaDeclareSnapshot:
         },
         {
             "id": _QA1_ID,
-            "source_content_item_id": _CI_ID,
+            "source_document_id": _SD_ID,
             "extractor_kind": "llm_extraction",
             "extracted_question_text": "What is Z?",
             "extracted_answer_text": "Z is W.",
@@ -2273,7 +2278,7 @@ class TestFormWriteSkipAndFailurePaths:
         )
         # (b) The benign WARNING soft-warn IS emitted exactly once.
         assert len(warns) == 1, "exactly one unmapped soft-warn must be emitted"
-        assert warns[0]["content_items_id"] is not None
+        assert warns[0]["source_document_id"] is not None
         # (e) Content still wrote (workspace-agnostic canonical layer, ID-69 BI-1).
         assert len(out["ci"].rows) == 1, (
             "content_items must still write on an unmapped path — workspace "
@@ -2841,7 +2846,7 @@ class TestCanonicalRecordHasNoIntrinsicWorkspace:
 
 class TestStampExtractionBaseWiredIntoIngest:
     """PRODUCT Inv-5 [RATIFIED-S241]: every extraction variant carries op_id,
-    content_items_id, and extracted_at — populated by the outer-tier cocoindex
+    source_document_id, and extracted_at — populated by the outer-tier cocoindex
     flow wrapper, NOT by the LLM.
 
     Before {66.16} stamp-wiring, ``flow.py`` imported ``stamp_extraction_base``
@@ -2979,8 +2984,15 @@ class TestStampExtractionBaseWiredIntoIngest:
 
         asyncio.run(_exercise())
 
-        # The row's deterministic content_item_id (flow.py seeds it on rel_path).
+        # ID-131 {131.8} Part C: the stamp now carries the row's deterministic
+        # source_document_id (sd: uuid5), seeded on rel_path — the canonical
+        # record identity post-re-parent (was the ci: uuid5).
         rel_path = src.as_posix()
+        expected_source_document_id = uuid.uuid5(
+            flow._KH_PIPELINE_DOC_NS, f"sd:{rel_path}"
+        )
+        # The retained content_items row (ci_target write) still keys on the
+        # ci: uuid5 — asserted below against ci.rows[0]["id"].
         expected_content_item_id = uuid.uuid5(
             flow._KH_PIPELINE_DOC_NS, f"ci:{rel_path}"
         )
@@ -2998,21 +3010,21 @@ class TestStampExtractionBaseWiredIntoIngest:
             assert kwargs.get("op_id") == run_op_id, (
                 "stamp must be called with the explicit flow op_id kwarg"
             )
-            assert kwargs.get("content_items_id") == expected_content_item_id, (
-                "stamp must be called with the explicit row content_item_id kwarg"
+            assert kwargs.get("source_document_id") == expected_source_document_id, (
+                "stamp must be called with the explicit row source_document_id kwarg"
             )
             # bl-220 / ID-74: the INPUT is the stamp-FREE core the memo extractor
             # returns — it carries NO stamp fields (they must not cross the memo
             # boundary). The stamp is therefore a genuine CONSTRUCT-from-core, not
             # a sentinel overwrite.
             assert not hasattr(input_obj, "op_id")
-            assert not hasattr(input_obj, "content_items_id")
+            assert not hasattr(input_obj, "source_document_id")
             assert not hasattr(input_obj, "extracted_at")
             # The RESULT (the *Stamped* type) carries the flow op_id + the row's
-            # content_item_id and a real (post-sentinel) extracted_at — Inv-5 is
+            # source_document_id and a real (post-sentinel) extracted_at — Inv-5 is
             # satisfied on the object the row writers read.
             assert stamped.op_id == run_op_id
-            assert stamped.content_items_id == expected_content_item_id
+            assert stamped.source_document_id == expected_source_document_id
             assert stamped.extracted_at > _UNSTAMPED_AT
 
         # BEHAVIOUR-PRESERVING: the stamped object op_id EQUALS the flow op_id
@@ -3319,7 +3331,7 @@ class TestWorkspacePathFixes:
         """{66.16}/BUG-F (S297): duplicate (canonical, type) entity mentions
         collapse to ONE entity_mentions row.
 
-        Prod enforces UNIQUE (canonical_name, entity_type, content_item_id). The
+        Prod enforces UNIQUE (canonical_name, entity_type, source_document_id). The
         old em:{rel_path}:{idx} PK declared one row PER raw mention, so two
         mentions of the same entity produced two rows with distinct ids that the
         cocoindex ON CONFLICT (id) upsert did not absorb -> UniqueViolationError.

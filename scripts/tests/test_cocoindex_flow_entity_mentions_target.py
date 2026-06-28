@@ -97,7 +97,7 @@ class TestEntityMentionsSchemaDeclaration:
         block = source[start : start + 800]
         for col in (
             '"id"',
-            '"content_item_id"',
+            '"source_document_id"',
             '"entity_type"',
             '"entity_name"',
             '"canonical_name"',

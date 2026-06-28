@@ -37,7 +37,7 @@ export const GET = defineRoute(
       const { data: mentions, error: mentionsError } = await supabase
         .from('entity_mentions')
         .select(
-          'entity_type, entity_type_override, entity_name, content_item_id, confidence, context_snippet, metadata',
+          'entity_type, entity_type_override, entity_name, source_document_id, confidence, context_snippet, metadata',
         )
         .eq('canonical_name', decodedName);
 
@@ -71,7 +71,7 @@ export const GET = defineRoute(
 
       for (const m of mentions) {
         variantNames.add(m.entity_name);
-        contentItemIds.add(m.content_item_id);
+        contentItemIds.add(m.source_document_id);
         typesSeen.add(m.entity_type);
         if (m.entity_type_override) {
           typesSeen.add(m.entity_type_override);
