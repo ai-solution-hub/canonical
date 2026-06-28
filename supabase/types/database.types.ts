@@ -9094,8 +9094,8 @@ export type Database = {
         Returns: {
           confidence: number
           relationship_type: string
+          source_document_id: string
           source_entity: string
-          source_item_id: string
           target_entity: string
         }[]
       }

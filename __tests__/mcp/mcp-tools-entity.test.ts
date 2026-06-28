@@ -186,7 +186,7 @@ describe('MCP tools #14-16', () => {
             source_entity: 'Acme Ltd',
             relationship_type: 'holds',
             target_entity: 'ISO 27001',
-            source_item_id: 'item-001',
+            source_document_id: 'item-001',
             confidence: 0.95,
           },
         ],
@@ -199,7 +199,7 @@ describe('MCP tools #14-16', () => {
             source_entity: string;
             relationship_type: string;
             target_entity: string;
-            source_item_id: string;
+            source_document_id: string;
             confidence: number;
           }>;
         };
@@ -222,7 +222,7 @@ describe('MCP tools #14-16', () => {
         source_entity: 'Acme Ltd',
         relationship_type: 'holds',
         target_entity: 'ISO 27001',
-        source_item_id: 'item-001',
+        source_document_id: 'item-001',
         confidence: 0.95,
       });
     });

@@ -40,14 +40,14 @@ const sampleRelationships: EntityRelationship[] = [
     source_entity: 'Acme Ltd',
     relationship_type: 'holds',
     target_entity: 'ISO 27001',
-    source_item_id: 'item-001',
+    source_document_id: 'item-001',
     confidence: 0.95,
   },
   {
     source_entity: 'Acme Ltd',
     relationship_type: 'holds',
     target_entity: 'Cyber Essentials',
-    source_item_id: 'item-004',
+    source_document_id: 'item-004',
     confidence: 0.88,
   },
 ];
@@ -135,7 +135,7 @@ describe('formatEntitySummary', () => {
         source_entity: 'Acme Ltd',
         relationship_type: 'complies_with',
         target_entity: 'GDPR',
-        source_item_id: 'item-005',
+        source_document_id: 'item-005',
         confidence: 0.9,
       },
     ];

@@ -116,7 +116,7 @@ export async function registerEntityTools(server: McpServer): Promise<void> {
               source_entity: row.source_entity,
               relationship_type: row.relationship_type,
               target_entity: row.target_entity,
-              source_item_id: row.source_item_id,
+              source_document_id: row.source_document_id,
               confidence: Number(row.confidence),
             }));
           }
