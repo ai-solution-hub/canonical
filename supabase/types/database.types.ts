@@ -7713,6 +7713,8 @@ export type Database = {
           source_document_id: string
           source_url: string
           summary: string | null
+          superseded_by: string | null
+          thumbnail_url: string | null
           title: string
           updated_at: string
         }
@@ -7730,6 +7732,8 @@ export type Database = {
           source_document_id: string
           source_url: string
           summary?: string | null
+          superseded_by?: string | null
+          thumbnail_url?: string | null
           title: string
           updated_at?: string
         }
@@ -7747,6 +7751,8 @@ export type Database = {
           source_document_id?: string
           source_url?: string
           summary?: string | null
+          superseded_by?: string | null
+          thumbnail_url?: string | null
           title?: string
           updated_at?: string
         }
@@ -7756,6 +7762,13 @@ export type Database = {
             columns: ["source_document_id"]
             isOneToOne: false
             referencedRelation: "source_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reference_items_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "reference_items"
             referencedColumns: ["id"]
           },
         ]
@@ -7935,9 +7948,15 @@ export type Database = {
       }
       source_documents: {
         Row: {
+          ai_keywords: string[] | null
           archived_at: string | null
           archived_by: string | null
+          captured_date: string | null
+          classification_confidence: number | null
+          classification_reasoning: string | null
+          classified_at: string | null
           content_hash: string
+          content_type: string
           created_at: string
           extracted_text: string | null
           extraction_metadata: Json | null
@@ -7950,17 +7969,33 @@ export type Database = {
           original_filename: string | null
           parent_id: string | null
           pipeline_run_id: string | null
+          primary_domain: string
+          primary_subtopic: string
+          publication_status: string
+          secondary_domain: string | null
+          secondary_subtopic: string | null
           source_url: string | null
           status: string
           storage_path: string
+          suggested_title: string | null
+          summary: string | null
+          summary_data: Json | null
+          updated_at: string | null
+          updated_by: string | null
           uploaded_by: string | null
           version: number
           workspace_id: string | null
         }
         Insert: {
+          ai_keywords?: string[] | null
           archived_at?: string | null
           archived_by?: string | null
+          captured_date?: string | null
+          classification_confidence?: number | null
+          classification_reasoning?: string | null
+          classified_at?: string | null
           content_hash: string
+          content_type: string
           created_at?: string
           extracted_text?: string | null
           extraction_metadata?: Json | null
@@ -7973,17 +8008,33 @@ export type Database = {
           original_filename?: string | null
           parent_id?: string | null
           pipeline_run_id?: string | null
+          primary_domain?: string
+          primary_subtopic?: string
+          publication_status?: string
+          secondary_domain?: string | null
+          secondary_subtopic?: string | null
           source_url?: string | null
           status?: string
           storage_path: string
+          suggested_title?: string | null
+          summary?: string | null
+          summary_data?: Json | null
+          updated_at?: string | null
+          updated_by?: string | null
           uploaded_by?: string | null
           version?: number
           workspace_id?: string | null
         }
         Update: {
+          ai_keywords?: string[] | null
           archived_at?: string | null
           archived_by?: string | null
+          captured_date?: string | null
+          classification_confidence?: number | null
+          classification_reasoning?: string | null
+          classified_at?: string | null
           content_hash?: string
+          content_type?: string
           created_at?: string
           extracted_text?: string | null
           extraction_metadata?: Json | null
@@ -7996,9 +8047,19 @@ export type Database = {
           original_filename?: string | null
           parent_id?: string | null
           pipeline_run_id?: string | null
+          primary_domain?: string
+          primary_subtopic?: string
+          publication_status?: string
+          secondary_domain?: string | null
+          secondary_subtopic?: string | null
           source_url?: string | null
           status?: string
           storage_path?: string
+          suggested_title?: string | null
+          summary?: string | null
+          summary_data?: Json | null
+          updated_at?: string | null
+          updated_by?: string | null
           uploaded_by?: string | null
           version?: number
           workspace_id?: string | null
