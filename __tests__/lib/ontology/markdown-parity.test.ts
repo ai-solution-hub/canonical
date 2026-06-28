@@ -19,21 +19,30 @@
  *   - the ontology Zod schema contract (`lib/ontology/schemas.ts`)
  *   - the content-type registry (`lib/ontology/content-type-registry.ts`)
  *   - the DB-derived taxonomy snapshot parity
- *   - the loader's fail-loud contract now that the public register is gone
- *     (PC-25 Inv 29 — no silent fallback)
+ *   - a loader-free privacy tripwire asserting the public register directory
+ *     is absent (PC-25 Inv 29 — no public register). The dead ontology loader
+ *     (`lib/ontology/loader.ts`) was retired at ID-133 BI-7 (Decision A: zero
+ *     production callers), so the old fail-loud-loader half of this guard is
+ *     gone — the privacy-regression intent is preserved by the direct
+ *     directory-absence assertion below.
  *
  * Spec: `wp6-ontology-harness/TECH.md` §5.4 + §7; ID-68.27 record holdback
- * (b), branch (b) ratified S324.
+ * (b), branch (b) ratified S324; ID-133 TECH §BI-7 + Decision A.
  */
 import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
 
-import { loadOntologyCVs, ONTOLOGY_DIR } from '@/lib/ontology/loader';
 import { OntologyCVSchema, type OntologyCV } from '@/lib/ontology/schemas';
 import { CONTENT_TYPE_VALUES } from '@/lib/ontology/content-type-registry';
 
 const PROJECT_ROOT = join(__dirname, '../../..');
+
+// Local, loader-free path constant for the privacy tripwire below. The dead
+// `lib/ontology/loader.ts` (which exported `ONTOLOGY_DIR`) was retired at
+// ID-133 BI-7 — this asserts the PUBLIC register directory is absent directly,
+// without importing any loader.
+const PUBLIC_ONTOLOGY_DIR = resolve(PROJECT_ROOT, 'docs', 'ontology');
 const SNAPSHOT_PATH = join(
   PROJECT_ROOT,
   'scripts/tests/fixtures/taxonomy_snapshot.json',
@@ -240,15 +249,18 @@ describe('Ontology Baseline Parity', () => {
     ).toHaveLength(0);
   });
 
-  it('the public docs/ontology/ register is gone and the loader fails loudly (ID-68.27 OQ-E branch (b) / PC-25 Inv 29)', () => {
+  it('the public docs/ontology/ register is gone (ID-68.27 OQ-E branch (b) / PC-25 Inv 29; loader-free since ID-133 BI-7)', () => {
     // Branch-(b) privacy tripwire: the CV register is fully private. If
     // this case fails because the directory exists, someone has re-added
     // ontology markdown to the PUBLIC repo — that is a privacy regression,
-    // not a fixture problem. If it fails because the loader stopped
-    // throwing, the fail-loud contract (no silent fallback) has been
-    // weakened.
-    expect(existsSync(ONTOLOGY_DIR)).toBe(false);
-    expect(() => loadOntologyCVs()).toThrowError(/ONTOLOGY_DIR does not exist/);
+    // not a fixture problem.
+    //
+    // The fail-loud-loader half of this guard was dropped at ID-133 BI-7
+    // (Decision A): the dead `lib/ontology/loader.ts` was retired (zero
+    // production callers), so there is no loader to assert against. The
+    // privacy-regression intent is preserved by asserting the public
+    // register directory is absent directly.
+    expect(existsSync(PUBLIC_ONTOLOGY_DIR)).toBe(false);
   });
 
   // Per-layer relaxation cases (form-extraction TECH §2.6c — Layer-5
