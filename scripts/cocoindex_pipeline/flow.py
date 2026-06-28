@@ -1640,6 +1640,13 @@ def _stamp_if_model(obj: Any, *, op_id: "uuid.UUID", content_items_id: "uuid.UUI
 _KH_PIPELINE_DOC_NS = uuid.UUID("fbfaf1ff-1ee4-583c-9757-1674465b2ec1")
 
 
+# Frozen for ID-131 {131.5}: ID-132 concept embedding key namespace
+# (record_embeddings owner_kind='concept'; BI-20/21). Value is deterministic:
+# uuid.uuid5(_KH_PIPELINE_DOC_NS, "concept"). MUST NOT change after the first OKF
+# bundle publish — drift orphans the bundle vector index.
+_KH_CONCEPT_NS = uuid.UUID("fd4ba596-2223-591b-b25c-1046022aced5")
+
+
 # The workspace manifest filename — lives at the ingest source root, loaded ONCE
 # at flow start (app_main) and ALSO enumerated by walk_dir as an item. It is NOT
 # content: ingest_file skips it ({66.23}/BUG-B, S297) so it never reaches
