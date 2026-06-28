@@ -7,11 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.5"
-  }
   api: {
     Tables: {
       [_ in never]: never
@@ -7586,6 +7581,123 @@ export type Database = {
           },
         ]
       }
+      record_embeddings: {
+        Row: {
+          created_at: string
+          embedding: string | null
+          id: string
+          model: string
+          owner_id: string
+          owner_kind: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          model: string
+          owner_id: string
+          owner_kind: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          model?: string
+          owner_id?: string
+          owner_kind?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      record_lifecycle: {
+        Row: {
+          content_owner_id: string | null
+          created_at: string
+          domain: string | null
+          expiry_date: string | null
+          freshness: string | null
+          freshness_checked_at: string | null
+          governance_review_due: string | null
+          governance_review_status: string | null
+          governance_reviewer_id: string | null
+          id: string
+          lifecycle_type: string | null
+          next_review_date: string | null
+          owner_id: string | null
+          owner_kind: string
+          previous_freshness: string | null
+          q_a_pair_id: string | null
+          review_cadence_days: number | null
+          source_document_id: string | null
+          updated_at: string
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          content_owner_id?: string | null
+          created_at?: string
+          domain?: string | null
+          expiry_date?: string | null
+          freshness?: string | null
+          freshness_checked_at?: string | null
+          governance_review_due?: string | null
+          governance_review_status?: string | null
+          governance_reviewer_id?: string | null
+          id?: string
+          lifecycle_type?: string | null
+          next_review_date?: string | null
+          owner_id?: string | null
+          owner_kind: string
+          previous_freshness?: string | null
+          q_a_pair_id?: string | null
+          review_cadence_days?: number | null
+          source_document_id?: string | null
+          updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          content_owner_id?: string | null
+          created_at?: string
+          domain?: string | null
+          expiry_date?: string | null
+          freshness?: string | null
+          freshness_checked_at?: string | null
+          governance_review_due?: string | null
+          governance_review_status?: string | null
+          governance_reviewer_id?: string | null
+          id?: string
+          lifecycle_type?: string | null
+          next_review_date?: string | null
+          owner_id?: string | null
+          owner_kind?: string
+          previous_freshness?: string | null
+          q_a_pair_id?: string | null
+          review_cadence_days?: number | null
+          source_document_id?: string | null
+          updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "record_lifecycle_q_a_pair_id_fkey"
+            columns: ["q_a_pair_id"]
+            isOneToOne: false
+            referencedRelation: "q_a_pairs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "record_lifecycle_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "source_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reference_items: {
         Row: {
           body: string
@@ -9676,3 +9788,4 @@ export const Constants = {
     },
   },
 } as const
+
