@@ -56,6 +56,24 @@ function makeSourceDocRow(
     source_url: null,
     status: 'processed',
     workspace_id: 'ws-00000000-0000-0000-0000-000000000001',
+    // {131.9} classification + inline-hot cols (re-homed off content_items).
+    // content_type is a classification output, unknown at ingest → null.
+    content_type: null,
+    primary_domain: 'unclassified',
+    primary_subtopic: 'unclassified',
+    secondary_domain: null,
+    secondary_subtopic: null,
+    ai_keywords: null,
+    summary: null,
+    suggested_title: null,
+    classified_at: null,
+    classification_confidence: null,
+    classification_reasoning: null,
+    captured_date: null,
+    summary_data: null,
+    publication_status: 'published',
+    updated_by: null,
+    updated_at: null,
     ...overrides,
   };
 }

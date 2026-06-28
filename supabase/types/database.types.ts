@@ -7956,7 +7956,7 @@ export type Database = {
           classification_reasoning: string | null
           classified_at: string | null
           content_hash: string
-          content_type: string
+          content_type: string | null
           created_at: string
           extracted_text: string | null
           extraction_metadata: Json | null
@@ -7995,7 +7995,7 @@ export type Database = {
           classification_reasoning?: string | null
           classified_at?: string | null
           content_hash: string
-          content_type: string
+          content_type?: string | null
           created_at?: string
           extracted_text?: string | null
           extraction_metadata?: Json | null
@@ -8034,7 +8034,7 @@ export type Database = {
           classification_reasoning?: string | null
           classified_at?: string | null
           content_hash?: string
-          content_type?: string
+          content_type?: string | null
           created_at?: string
           extracted_text?: string | null
           extraction_metadata?: Json | null
