@@ -135,10 +135,32 @@ Orchestrator evaluates the rule directly - the predicate:
 
 **In-scope** findings go to a fix-Executor.
 **Out-of-scope** findings go to the `workflow-curator` agent, which runs
-`triage-finding` then writes to roadmap / backlog / subtask via
-`update-roadmap-backlog`.
+`triage-finding` then writes to roadmap / backlog / subtask / **decision-register**
+via `update-roadmap-backlog` (the register write routes back through the Orchestrator —
+see Decision-register wiring).
 
 For the full Checker JSON output schema, verdict mapping, the three fix-flows, and Curator routing detail, see [references/checker-output-schema.md](references/checker-output-schema.md).
+
+---
+
+## Decision-register wiring
+
+The decision register (`${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/decision-register.md`,
+`DR-NNN`) is the durable, read-at-start store of settled cross-cutting rulings and
+won't-fixes. It binds the Orchestrator at three moments:
+
+- **Composing briefs.** Surface the relevant in-force (`accepted`) DRs in a Planner /
+  Executor brief's Context section so the worker does not re-propose or re-implement a
+  settled ruling — cite `DR-NNN`, don't restate the ruling.
+- **Writing rulings.** A `DR-NNN` entry is written ONLY on the MAIN checkout — never in a
+  worker branch (mirrors the ledger-write rule). Workers (Planner, Executor, Checker,
+  Curator) return **DR-intents**; the Orchestrator allocates the `DR-NNN` id and appends
+  the entry on `main` (or routes it to `handoff` for session-close write). An in-branch
+  register edit bypasses id-allocation exactly as an in-branch ledger write does.
+- **Disposing findings.** `DR` is the 5th finding disposition (beside subtask / roadmap /
+  backlog / no-action): a finding that is a settled won't-fix ruling routes to the
+  `workflow-curator`, which returns a DR-intent for the Orchestrator to write. See Finding
+  routing.
 
 ---
 

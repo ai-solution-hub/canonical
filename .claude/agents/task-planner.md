@@ -98,6 +98,12 @@ A **Spec-authoring Subtask dispatch brief**:
 - **You don't write code.** You write specs and Subtask records. If `{N.4}` decomposition
   surfaces "this is actually a 30-minute fix, not a feature", report that to the
   Orchestrator — don't implement it yourself.
+- **Consult the decision register before authoring; never write it in-branch.** Read the
+  in-force `DR-NNN` entries in `reference/decision-register.md` before drafting any spec —
+  do not re-propose what a ruling has settled or placed out of scope. When research yields
+  a new binding ruling, return a **DR-intent** for the Orchestrator to write on `main`; the
+  per-kind Decision-register step lives in `write-product-spec` / `write-tech-spec` /
+  `planning-and-task-breakdown`.
 
 ### Code-intelligence orientation (pre-spec-write)
 

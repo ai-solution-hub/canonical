@@ -146,6 +146,20 @@ analysis would miss.
     relevant.
 <!-- code-intel:planner-citation-end -->
 
+### Decision register
+
+Before drafting, read the in-force entries of the decision register
+(`${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/decision-register.md`) — the durable
+store of settled cross-cutting rulings and won't-fixes (`DR-NNN`). Do not re-propose
+behaviour a `DR` has already settled or ruled out of scope; where the spec must touch a
+settled area, cite the governing `DR-NNN` rather than re-litigating it.
+
+If the research behind this spec yields a new binding ruling — a hard-to-reverse or
+"explicitly-not-doing" decision a future session would otherwise re-litigate — do not
+append to the register yourself. Return a **DR-intent** (the proposed ruling, one to three
+sentences) to the Orchestrator, who writes it on `main`; workers never write the register
+in-branch (`DR-NNN` ids are allocated on `main`).
+
 ## Structure
 
 Required sections:

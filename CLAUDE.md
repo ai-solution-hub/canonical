@@ -148,6 +148,13 @@ Mempalace MCP is the canonical memory system (`mempalace_diary_read/write`,
 filter errors (`Error finding id` — upstream #1665, HNSW↔sqlite drift after bulk add/delete;
 affects MCP **and** CLI) — search without the wing filter and filter results client-side.
 
+**Proactive recall (read-at-start).** The SessionStart hook `.claude/hooks/mempal-recall.sh`
+injects a lock-free (`mode=ro&immutable=1`, no chromadb writer — DR-009/DR-003) FTS digest of
+prior context — seeded by branch + cwd basename, diary-first, CHECKPOINT-noise filtered — on
+session `startup`/`clear`. Beyond that automatic digest, MUST run a branch + active-task-seeded
+recall pass (the `mempalace-recall` skill) before relying on memory of prior work, decisions,
+or people; honour the #1665 workaround above (no `wing` filter; filter client-side).
+
 **On-demand historic stores**: the `knowledge-hub-archive` repo is mined into a separate palace,
 searchable via `mempalace --palace ~/.mempalace-archive search "…"` (CLI only; point-in-time /
 possibly-superseded — verify against current docs-site before trusting); the full pre-S355
