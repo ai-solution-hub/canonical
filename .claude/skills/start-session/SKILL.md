@@ -68,11 +68,11 @@ Notes:
 
 Surface the current live production domain (per-deploy config, never tracked in source): `grep '^APP_URL' .env.local`
 
-Read these documents in parallel to load context:
+Read these documents in parallel to load context. **Load anchor first** — `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/platform-context.md` (current operational facts: four-DB topology, deploy hosts, key anchors; follow its progressive-disclosure pointers for depth).
 
 ### 2a: Memory recall
 
-Call `mempalace_diary_read` (`agent_name: claude`, `last_n: 3`) for the most recent diary entries. For recall during the session, use `mempalace_search` and `mempalace_kg_query`; any errors are transient and should resolve on retry.
+Call `mempalace_diary_read` (`agent_name: claude`, `last_n: 3`) — skip `CHECKPOINT:` auto-noise rows, read the narrative entries. Then run **branch + active-task-seeded** recall via `mempalace_search` / `mempalace_kg_query` per the `mempalace-recall` skill. Search **without** a `wing` filter (upstream #1665) and filter client-side; if vector search errors, the lock-free `mode=ro` sqlite FTS read is the fallback (**DR-009** — recall is read-only).
 
 ### 2b: Task-list state inspection (slice reads ONLY)
 
@@ -121,6 +121,31 @@ opens with the strategic "why this Task matters" — not just the tactical task 
    `capability_theme` (unset or operational), emit an **explicit** note —
    *"no owning theme — operational Task"* — rather than a silent skip. Never fall back to
    reading the full roadmap.
+
+### 2f: Reconciliation sweep (prompt-independent)
+
+Reconcile against the ledger so the session never re-flags or re-implements settled work:
+
+```bash
+bun scripts/ledger-cli.ts list task --status in_progress
+bun scripts/ledger-cli.ts list task --status done --since <lastSessionDate>   # date of the prior retro/handoff
+```
+
+Done-status is a **don't-re-flag signal ONLY** — never import done-task `details` as current
+truth (**DR-002**). Archived done-tasks are CLI-invisible; non-archived done-tasks are
+visible but stale. Cross-check the sweep against the continuation-prompt-named ids.
+
+### 2g: Settled-state read-back (retros + decision register)
+
+Load the durable settled state the deltas-only prompt omits:
+
+- **Retros:** `bun scripts/ledger-cli.ts list retro --recent 3` → surface `unresolved_questions`,
+  `workflow_improvements`, `failed_assumptions`. Do NOT present `workflow_improvements` as
+  ratified — they are observations, not rulings.
+- **Decision register:** read the in-force (`accepted`, non-superseded) entries from
+  `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/decision-register.md` — the binding
+  settled-rulings guardrail (`DR-NNN`). Surface titles + one-line rulings; do **not** dump the
+  whole file. These hold until superseded; honour them when planning.
 
 ---
 
