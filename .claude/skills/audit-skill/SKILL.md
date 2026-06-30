@@ -68,7 +68,7 @@ before editing. What to do with each category:
 | **C — Un-extracted reference blocks** (inlined rubrics/templates/metric defs with **no** code-intel marker) | **Extract** to `references/` (Step 5). |
 | **D — Cross-file / cross-repo duplication** (a block triplicated across sibling agents/skills) | **Report only.** A single-file pass cannot safely single-source across files — removing the block here breaks the file unless the shared reference already exists. Flag for a coordinated pass. |
 | **E — Stale cross-refs** (dead path citations, orphaned reference links, stale numeric budgets) | **Fix** where the correct target is unambiguous; **flag** where it is not. |
-| **P — Protected pins** (`<!-- code-intel:* -->` anchor blocks; any block whose strings a test in `__tests__/` asserts) | **Never touch.** Deliberate inline pins (e.g. ID-23 code-intelligence anchors guarded by `__tests__/docs/code-intelligence-integration.test.ts`). Do not extract, do not remove markers, do not strip the asserted strings. Report only. |
+| **P — Protected pins** (`<!-- code-intel:* -->` anchor blocks; any block whose strings a test in `__tests__/` asserts) | **Never touch.** Deliberate inline pins (e.g. code-intelligence anchors guarded by `__tests__/docs/code-intelligence-integration.test.ts`). Do not extract, do not remove markers, do not strip the asserted strings. Report only. |
 
 Auto-strip A, B, C, E within the target+related set. Never auto-apply D or P.
 
@@ -91,7 +91,7 @@ inlined in the body:
 3. **No duplication:** each fact lives in EITHER the body OR a reference, never both.
 
 **Never extract a `<!-- code-intel:* -->` block.** Those markers are not extraction debt —
-they are ID-23 code-intelligence anchors, pinned inline and guarded by
+they are code-intelligence anchors, pinned inline and guarded by
 `__tests__/docs/code-intelligence-integration.test.ts`, which asserts both the anchor pair
 and the required strings live *in the file*. Extracting them or removing the markers breaks
 CI. Leave them verbatim and report them under category P. The same holds for any block a test

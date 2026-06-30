@@ -89,7 +89,7 @@ Content deliberately pinned inline and guarded by a test. Extracting, moving, or
 breaks CI even though it *looks* like an un-extracted reference block.
 
 Detection cues:
-- `<!-- code-intel:* -->` anchor pairs — in this repo these are ID-23 code-intelligence
+- `<!-- code-intel:* -->` anchor pairs — in this repo these are code-intelligence
   anchors, guarded by `__tests__/docs/code-intelligence-integration.test.ts` (it asserts the
   anchor pair AND required strings live in the file; some are "duplicated by design").
 - Any block whose distinctive strings a file under `__tests__/` asserts (find via the
