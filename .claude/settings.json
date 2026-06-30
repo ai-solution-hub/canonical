@@ -66,6 +66,17 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/mempal-recall.sh\""
+          }
+        ]
+      }
     ]
   },
   "worktree": {
