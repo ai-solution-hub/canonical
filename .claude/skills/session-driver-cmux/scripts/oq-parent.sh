@@ -282,13 +282,12 @@ oq_decide() {
         || return 1
 
     # Write to a temp file so we can validate before publishing.
-    # Respect ${TMPDIR} (sandbox allowlist is /tmp/claude*, not bare /tmp —
-    # bl-214); fall back to /tmp when TMPDIR is unset.
+    # Respect ${TMPDIR} (sandbox allowlist is /tmp/claude*, not bare /tmp);
+    # fall back to /tmp when TMPDIR is unset.
     local tmp_validate
     # Trailing-X template: BSD/macOS mktemp only randomises a TRAILING X-run —
     # with a ".json" suffix after the Xs it creates the LITERAL filename, so any
-    # two oq_decide calls sharing TMPDIR collide (bl-230 root cause, S320:
-    # proven 15/15 on concurrent pairs; presented as flaky test_decide failures).
+    # two oq_decide calls sharing TMPDIR would collide on the same path.
     tmp_validate="$(mktemp "${TMPDIR:-/tmp}/oq-decide-validate.json.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -f '$tmp_validate'" EXIT
@@ -332,7 +331,7 @@ oq_decide() {
 # oq_resolve_project_root
 #
 # Resolve the MAIN working-tree root even when CWD is inside a linked worktree.
-# Inlined here per the session-driver-cmux convention (ID-27 {27.6}/{27.7}); the
+# Inlined here per the session-driver-cmux convention; the
 # five sibling scripts (wait-for-fleet.sh, watch-fleet.sh, converse.sh,
 # stop-worker.sh, send-prompt.sh) each carry the same helper.  Prefixed `oq_` to
 # avoid clobbering a sourcing parent's own resolve_project_root.
@@ -360,13 +359,13 @@ oq_resolve_project_root() {
 # long-lived one, because both compute the same set-difference over the same
 # on-disk records (OQ-INV-30).
 #
-# Events-base resolution (S281 ID-43 re-point amendment):
+# Events-base resolution:
 #   events_base = $1 if supplied, else
 #                 ${KH_CMUX_EVENTS_DIR:-$(oq_resolve_project_root)/.claude/cmux-events}
 #   The base MUST be CWD-independent: deriving it from `git rev-parse
 #   --show-toplevel` resolves to whichever worktree the orchestrator's CWD sits
 #   inside and silently points at a non-existent events dir whenever the CWD has
-#   drifted into a worktree (the S277/S279 "events unreadable" regression).  The
+#   drifted into a worktree (the "events unreadable" regression).  The
 #   --git-common-dir-based oq_resolve_project_root + the KH_CMUX_EVENTS_DIR
 #   override (honoured by every sibling script) enumerate the MAIN repo's events
 #   tree regardless of the orchestrator's runtime CWD.

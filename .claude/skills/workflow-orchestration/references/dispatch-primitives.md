@@ -43,9 +43,7 @@ prompt. The brief carries:
   `scripts/cocoindex_pipeline/flow.py`), include a symbol→line index in the
   brief (`grep -n "def \|class \|function " <file>`) and instruct Grep-first
   navigation. Workers cannot hold such files and otherwise pay a heavy
-  `Read@offset` paging tax (S337 dup-read root-cause: ~70% of the corpus
-  "duplicated reads" were navigation paging on >2,000-line files). Do NOT pin
-  whole-file excerpts for these.
+  `Read@offset` paging tax. Do NOT pin whole-file excerpts for these.
 - **Worktree directive** — verification gate as first action (`pwd && git branch --show-current && git fetch origin <track> && git reset --hard origin/<track> && git branch --show-current` — verbatim, no `cd` prefix). Use relative paths throughout. Commit before finishing. **Never `cd` to absolute knowledge-hub paths.**
 - **Escalation rule** — if the sub-agent finds unexpected production
   behaviour, STOP and escalate. Do not silently work around (CLAUDE.md
@@ -75,12 +73,10 @@ every worker / sub-orchestrator dispatch brief:
   error` is usually transient; retry once. If it persists for a given MCP tool,
   fall back to the non-MCP equivalent (e.g. raw CLI) and note the tool name for
   the friction register."
-- **GitHub ops (ID-92.12):** "Use `gh-axi` for every GitHub operation — it
+- **GitHub ops:** "Use `gh-axi` for every GitHub operation — it
   replaces raw `gh` (NOT git): pre-aggregated CI rollups, structured error
   translation; `gh-axi api` is the raw-API escape hatch. Fall back to raw `gh`
   only for subcommands `gh-axi` does not wrap. Never run `gh-axi setup hooks`."
-  (Corpus measurement 2026-06-10: raw `gh` still outnumbered `gh-axi` 126:22 —
-  carry this line until the adoption gap closes.)
 
 ### Result-size discipline (carry into EVERY brief)
 
@@ -146,10 +142,10 @@ write, mid-session escalation, or a durable attachable terminal →
 report, and the value is keeping the per-item intermediate reads OUT of
 the orchestrator's context → **`/workflows`**.
 
-### ID-48.21 pilot (scope + constraints)
+### `/workflows` pilot (scope + constraints)
 
 One workflow is piloted on `/workflows`: the **workflow-evaluator
-efficiency sweep** (the `evaluate-workflow` lane, {48.5}), saved as
+efficiency sweep** (the `evaluate-workflow` lane), saved as
 `.claude/workflows/evaluator-efficiency-sweep.js`. It fans out the
 read-only RESEARCH §7 corpus sweep so the per-session metric reads are
 offloaded from the O-of-O context. This is a deliberate fit: the sweep is

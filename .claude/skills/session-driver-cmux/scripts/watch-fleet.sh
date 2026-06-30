@@ -27,7 +27,7 @@ set -uo pipefail
 # (in_list returns 1 on miss, jq -e in conditionals, grep -c on empty files).
 # Resolve the MAIN working-tree root even when CWD is inside a linked worktree.
 # --git-common-dir points at <main>/.git for every linked worktree; its parent
-# is the canonical main root. Falls back to --show-toplevel then pwd. (ID-27.6/27.7)
+# is the canonical main root. Falls back to --show-toplevel then pwd.
 resolve_project_root() {
   local common_dir
   common_dir="$(git rev-parse --git-common-dir 2>/dev/null)" \
@@ -65,7 +65,7 @@ seen_oq_lines() { printf '%s' "$SEEN_OQ" | tr ' ' '\n' | awk -F: -v s="$1" '$1==
 # Self-seed FINAL/SEND suppression from artefacts ALREADY present at arm time.
 # A FINAL_REPORT / SESSION_END check trips on mere existence, so a watcher armed
 # against a dirty events dir (prior sessions' completed reports left on disk)
-# would otherwise trip and exit on poll 1 — the S291 "watch-fleet exits
+# would otherwise trip and exit on poll 1 — the "watch-fleet exits
 # immediately" friction. Anything that APPEARS during the watch window is still
 # reported (its sid is not in the seeded set). The caller's SEEN_* (re-arm loop)
 # is preserved — we only append, never overwrite.
@@ -112,10 +112,9 @@ while [ "$poll" -lt "$MAX_POLLS" ]; do
       report="${report}
   $name ($sid): FINAL_REPORT in events dir"
     fi
-    # OQ-pending.md at worktree ROOT (per S267 brief contract) + events dir only.
+    # OQ-pending.md at worktree ROOT (per the brief contract) + events dir only.
     # Root-only by design: a recursive find catches committed historical corpus
-    # copies (e.g. the S265 subo-ast OQ-pending.md, 143 lines — session corpus
-    # now lives in the private docs-site repo per ID-68 PC-25) in every
+    # copies (session corpus lives in the private docs-site repo) in every
     # checkout -> false trips on every worker. Workers are briefed to write at root.
     # Count distinct OQ headings (^## OQ), NOT line count: workers elaborate an
     # already-handled OQ's prose after the parent reads it -> line growth = false

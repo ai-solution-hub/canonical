@@ -22,19 +22,18 @@ Pick by payload complexity: named flags for small Creates; positional JSON or
 
 ## Write-time gates (run before any byte is written)
 
-The server substrate (ID-90.22 moved enforcement server-side; the CLI routes
-mutations through the transport) runs these in order. Any failure → exit 1,
-nothing written, error envelope on stderr:
+The server substrate runs these in order. Any failure → exit 1, nothing written,
+error envelope on stderr:
 
 1. **Schema parse** — Zod parse on the proposed post-write document. Roadmap +
    task schemas are `.strict()`; extra fields fail here. Code: `schema-error`.
-2. **Record-set delta gate** ({35.16}) — the post-write id-set must equal the
+2. **Record-set delta gate** — the post-write id-set must equal the
    pre-write set under the intended delta (∅ / +1 / −1). Catches silent drops
    or duplicates. Code: `record-set-violation`.
-3. **Budget gate** ({35.17}) — budgeted fields checked against `LEDGER_BUDGETS`
+3. **Budget gate** — budgeted fields checked against `LEDGER_BUDGETS`
    (`lib/validation/ledger-budgets.ts`). Code: `budget-exceeded`. `--force`
    downgrades to a soft warning — the ONLY legitimate use of `--force`.
-4. **Mirror regen** ({35.18}, default-on) — per-record `.md` mirrors at
+4. **Mirror regen** (default-on) — per-record `.md` mirrors at
    `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/{tasks,backlog,roadmap}/`
    regenerated after every write. `--no-regen-mirrors` opts out for batch edits
    (run `bash scripts/regen-mirrors.sh` once at the end). `--regen-mirrors` is a
@@ -95,7 +94,7 @@ Run it across the relevant branches, take the max `tasks[].id`, add 1.
 
 One subcommand per (record-kind, mutation-type) pair — no aggregate "edit"
 surface. Every mutating command is minimal-diff (scoped) by default
-(cmux-concurrency-safe, ratified default #4). Reads:
+(cmux-concurrency-safe). Reads:
 
 | Read | Command |
 |---|---|
@@ -132,8 +131,8 @@ Deletes:
 | Subtask under a Task | `delete-subtask <taskId.subId>` |
 
 There is NO `delete-task` and NO `delete-roadmap`. Dotted `<taskId.subId>` is
-the canonical subtask id form (legacy space-separated `<taskId> <subId>` still
-accepted). Verify the exact form per command via `<command> --help`.
+the canonical subtask id form (the space-separated `<taskId> <subId>` form is
+also accepted). Verify the exact form per command via `<command> --help`.
 
 Bulk: `add-subtask <taskId> <subtaskJson>` (single) and `add-subtasks <taskId>
 --file <json|->` (JSON array, one scoped multi-splice, per-record budget
@@ -256,8 +255,7 @@ warnings: [...]
 
 ## Rank auto-shift algorithm (backlog `rank` Update)
 
-The CLI does NOT encapsulate auto-shift — it is curator-side work (P-OQ-3
-default):
+The CLI does NOT encapsulate auto-shift — it is curator-side work:
 
 1. Read backlog `items[]` via `get backlog <id>` (or full read if needed).
 2. Filter to the target tier: `item.priority == target.priority && item.id != target.id`.

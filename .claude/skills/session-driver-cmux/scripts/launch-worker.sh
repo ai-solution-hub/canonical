@@ -119,7 +119,7 @@ fi
 # --- Set up paths ---
 
 # EVENTS_BASE honours the KH_CMUX_EVENTS_DIR override for symmetry with the
-# monitoring scripts (ID-27.6). PROJECT_ROOT stays anchored to the explicit
+# monitoring scripts. PROJECT_ROOT stays anchored to the explicit
 # BASE_DIR launch argument — launch-worker is the events WRITER, not a
 # CWD-relative reader, so it does not use resolve_project_root().
 EVENTS_BASE="${KH_CMUX_EVENTS_DIR:-${PROJECT_ROOT}/.claude/cmux-events}"
@@ -167,7 +167,7 @@ if cmux --json list-workspaces 2>/dev/null \
   exit 1
 fi
 
-# --- Pre-flight collision checks (FX-3 ID-28.3 S62C) ---
+# --- Pre-flight collision checks ---
 #
 # Distinguish branch-already-exists vs worktree-path-already-exists BEFORE
 # the opaque `git worktree add` error. Each shape emits a specific recovery
@@ -247,9 +247,9 @@ else
   echo "Warning: ${PROVISION_SCRIPT} missing/not executable — worktree left unprovisioned (no symlinks/copies)." >&2
 fi
 
-# --- Install prettier pre-commit hook into the worker worktree (ID-48.12) ---
+# --- Install prettier pre-commit hook into the worker worktree ---
 #
-# Belt-and-braces with the project-level format-pre-commit (ID-48.8): every
+# Belt-and-braces with the project-level format-pre-commit: every
 # worker worktree gets its own .git/hooks/pre-commit that runs prettier on
 # staged files, so worker commits land already-formatted. Worktrees use a
 # separate hooks dir (`.git/worktrees/<name>/hooks/`) per git, so we install
