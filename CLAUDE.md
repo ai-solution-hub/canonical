@@ -56,8 +56,12 @@ its `publicRoutes` allowlist or they silently redirect to `/login`.
 
 ## Environment & Database
 
-- `.env.local` targets the Platform Supabase DB (`zjqbrdctesqvouboziae`), which is currently acting as both prod & staging;
-  prod-targeted CLI work opts in via `--env=prod`. Runbook:
+- `.env.local` targets the **Platform staging** DB (`rbwqewalexrzgxtvcqrh`,
+  `PLATFORM_PROJECT_REF`) — the local-dev + CI target since the staging-first cutover. The
+  platform runs separate **staging** + **prod** DBs (Platform prod `zjqbrdctesqvouboziae`),
+  and each client its own prod + staging project; the full four-DB topology + client refs
+  live in the private runbook (kept out of this public repo). Prod-targeted CLI work opts in
+  via `--env=prod`. Runbook:
   `${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/local-development.md`.
 - Schema is canonically the generated types (`Tables<'x'>` / `Enums<'x'>` from
   `supabase/types/database.types.ts` + JSONB overrides). Migration/DDL/project-ref/RLS
@@ -105,7 +109,9 @@ subcommands for writes (run `bun scripts/ledger-cli.ts` for usage).
 
 Resolve the checkout via `KH_PRIVATE_DOCS_DIR` (sibling clone locally; GitHub-App token
 checkout in CI — `.github/actions/resolve-private-docs/`). Under
-`${KH_PRIVATE_DOCS_DIR}/src/content/docs/`: `reference/state-of-the-product.md`,
+`${KH_PRIVATE_DOCS_DIR}/src/content/docs/`: **`reference/platform-context.md`** (load at
+session start — current four-DB topology, deploy hosts + key context anchors, with
+progressive-disclosure pointers into the runbooks), `reference/state-of-the-product.md`,
 `reference/skill-routing-map.md`, `reference/test-philosophy.md`, `runbooks/` (ci, local-development,
 staging-refresh, github-environments, onprem-b1-deploy), `design/` (Warm Meridian),
 `continuation-prompts/`, `specs/`.
@@ -120,7 +126,7 @@ staging-refresh, github-environments, onprem-b1-deploy), `design/` (Warm Meridia
 
 - Vercel (Next.js) + IONOS VPS/Coolify for the ingestion pipeline
   (`onprem-deploy.yml`); staging URL
-  https://canonical-git-staging-tw-group.vercel.app; `staging` branch is
+  https://canonical-platform-git-staging-tw-group.vercel.app; `staging` branch is
   deploy-only. GitHub: https://github.com/ai-solution-hub/canonical.
 - PR-blocking CI (`ci.yml`): 8 parallel jobs; draft PRs skip CI. Topology +
   failure-mode table: `${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/ci.md`.

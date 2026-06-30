@@ -20,9 +20,10 @@
  *
  *   bun scripts/ledger-cli.ts <subcommand> [args] [--flags]
  *   read (no write gate):
- *     show           <ledger> <id>                 (ledger: task|roadmap|backlog)
+ *     show           <ledger> <id>                 (ledger: task|roadmap|backlog|retro)
  *     get            <ledger> <id> [field]         (single-field read; no field = show)
  *     schema         [ledger|recordKind]           (field names + types + budgets)
+ *     list           <ledger> [filters]            (read-only filtered snapshot; default `list task`)
  *   status flips / field edits:
  *     flip-task      <taskId> <status>
  *     flip-subtask   <taskId.subId> <status>      (legacy <taskId> <subId> <status>)
@@ -424,6 +425,12 @@ interface ParsedArgs {
      * back-compat with pre-existing `ParsedArgs.flags` literals.
      */
     append?: boolean;
+    /**
+     * `list --ids-only` — project each matched record to just its id (the result
+     * `records` array becomes a bare id string[]). Read-only; list-subcommand
+     * only. Overrides `--fields` when both are supplied. Optional for back-compat.
+     */
+    idsOnly?: boolean;
     ledgerDir: string;
     /**
      * ID-35.15 named value-flags. Each consumes the next argv token. Absent
@@ -485,6 +492,25 @@ interface ParsedArgs {
     addTasks?: string;
     removeTasks?: string;
     reorder?: string;
+    /**
+     * `list` read-only filter/projection value-flags. All consume the next argv
+     * token and are stored as RAW STRING tokens (the integer ones, `recent` /
+     * `limit`, are coerced + range-checked at the `list` call site, never here —
+     * parseArgs stays a pure tokeniser). List-subcommand only; `--status`,
+     * `--depends` etc. reuse their existing keys. Optional for back-compat.
+     *   - `since`     : ISO date; keep records whose date field is on/after it.
+     *   - `theme`     : theme-id filter (task.capability_theme / a roadmap id).
+     *   - `dependsOn` : keep records whose dependency array contains this id.
+     *   - `recent`    : last-N (raw string → Number() at the call site).
+     *   - `limit`     : output cap (raw string → Number() at the call site).
+     *   - `fields`    : csv output projection (default id,title,status).
+     */
+    since?: string;
+    theme?: string;
+    dependsOn?: string;
+    recent?: string;
+    limit?: string;
+    fields?: string;
   };
 }
 
@@ -520,6 +546,15 @@ const VALUE_FLAGS: Record<string, keyof ParsedArgs['flags']> = {
   '--add-tasks': 'addTasks',
   '--remove-tasks': 'removeTasks',
   '--reorder': 'reorder',
+  // `list` read-only filter/projection flags (each consumes the next token).
+  // `--status`/`--depends` are NOT re-listed — `list` reuses their VALUE_FLAGS
+  // keys above. Registered here so the reject-unknown guard accepts them.
+  '--since': 'since',
+  '--theme': 'theme',
+  '--depends-on': 'dependsOn',
+  '--recent': 'recent',
+  '--limit': 'limit',
+  '--fields': 'fields',
 };
 
 /** ID-35.15 boolean flags. Presence sets the corresponding `flags` key true. */
@@ -538,6 +573,8 @@ const BOOLEAN_FLAGS: Record<string, keyof ParsedArgs['flags']> = {
   // overwriting. Restricted to the `notes` field at the call site; absent
   // (the default) preserves the pre-{35.39} overwrite behaviour exactly.
   '--append': 'append',
+  // `list --ids-only` — project matched records to a bare id string[].
+  '--ids-only': 'idsOnly',
 };
 
 /** Sorted union of every known flag — surfaced in the reject-unknown error. */
@@ -1175,6 +1212,21 @@ const SUBCOMMAND_HELP: Record<
     synopsis:
       'schema [ledger|recordKind] — print field names + types + budgets',
   },
+  list: {
+    synopsis:
+      'list <ledger> [filters] — read-only filtered snapshot (ledger: task|roadmap|backlog|retro)',
+    flags:
+      'default `list task` = every non-cancelled Task as {id,title,status}; ' +
+      '--status <csv> (overrides the cancelled-exclusion default) | ' +
+      '--since <ISO> (task.updatedAt / retro.date) | ' +
+      '--theme <id> (task.capability_theme / roadmap id) | ' +
+      '--depends-on <id> (records whose dependency array contains id) | ' +
+      '--recent <n> (most-recent-first; retro by session id) | ' +
+      '--limit <n> (output cap; default 200) | ' +
+      '--fields <csv> (projection; default id,title,status) | --ids-only. ' +
+      'Result carries total vs shown + a truncated flag — never silently floods ' +
+      'or truncates. deprecated records are always excluded.',
+  },
   'flip-task': {
     synopsis:
       'flip-task <taskId> <status> — set a Task status (the CANONICAL verb ' +
@@ -1336,9 +1388,10 @@ const SUBCOMMAND_HELP: Record<
 };
 
 const USAGE = `ledger-cli — mutate the KH workflow ledgers
-  show           <ledger> <id>                 (ledger: task|roadmap|backlog)
+  show           <ledger> <id>                 (ledger: task|roadmap|backlog|retro)
   get            <ledger> <id> [field]         (single-field read; no field = show)
   schema         [ledger|recordKind]           (print field names + types + budgets)
+  list           <ledger> [filters]            (read-only snapshot; default "list task" = non-cancelled {id,title,status})
   flip-task      <taskId> <status>
   flip-subtask   <taskId.subId> <status>        (legacy <taskId> <subId> <status>)
   update-subtask <taskId.subId> <field> <value>
@@ -2206,6 +2259,253 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           `target must be one of: task|roadmap|backlog|subtask|theme|item (got "${target}")`,
         );
       return { ok: true, subcommand: 'schema', result: out };
+    }
+
+    // ── read-only list / snapshot (owner's task-snapshot affordance) ─────────
+    // `list <ledger> [filters]` projects records to a compact, filtered list.
+    // The canonical use is `list task` → every NON-cancelled Task as
+    // {id,title,status} for relatedness / dependency investigation. Read-only:
+    // no write gate, no mirror regen. NEVER silently floods or truncates — the
+    // `result` envelope always carries `total` (matched) vs `shown` (returned)
+    // and a `truncated` flag, and a filter the record kind has no field for
+    // surfaces a warning rather than being dropped in silence.
+    case 'list': {
+      const ledger = p[0];
+      if (!ledger)
+        return cliErr(
+          'list',
+          'missing-args',
+          'list <ledger> [--status csv --since ISO --theme id --depends-on id --recent n --limit n --fields csv --ids-only] (ledger: task|roadmap|backlog|retro)',
+        );
+      if (!(ledger in LEDGER_FILES))
+        return cliErr(
+          'list',
+          'bad-ledger',
+          `ledger must be task|roadmap|backlog|retro`,
+        );
+
+      // Coerce the integer flags up-front — parseArgs stores them as raw string
+      // tokens. A non-integer / negative value is a hard error (never a silent
+      // slice): `--recent abc` must reject, not return everything.
+      const coerceCount = (
+        raw: string | undefined,
+        flag: string,
+      ): { ok: true; value?: number } | { ok: false; result: CliResult } => {
+        if (raw === undefined) return { ok: true };
+        const n = Number(raw);
+        if (!Number.isInteger(n) || n < 0)
+          return {
+            ok: false,
+            result: cliErr(
+              'list',
+              'bad-flag-value',
+              `${flag} must be a non-negative integer (got "${raw}")`,
+            ),
+          };
+        return { ok: true, value: n };
+      };
+      const recentC = coerceCount(flags.recent, '--recent');
+      if (!recentC.ok) return recentC.result;
+      const limitC = coerceCount(flags.limit, '--limit');
+      if (!limitC.ok) return limitC.result;
+      const recent = recentC.value;
+      const limit = limitC.value;
+
+      const loaded = await loadLedger(ledgerPath(dir, ledger as LedgerName));
+      if (!loaded.ok) return loaded.result;
+      const d = loaded.detected;
+
+      // Per-ledger field map: which record field each filter/projection reads.
+      // Keyed by ledger NAME (not d.kind) so the backlog 'else' is explicit.
+      // Retros have NO status and NO title — identity is id (S<digits>) + date +
+      // track; `--since` reads the ISO `date`; `deprecated` is honoured below.
+      const META: Record<
+        LedgerName,
+        {
+          dateField?: string;
+          themeField?: string;
+          dependsField?: string;
+          hasStatus: boolean;
+          defaultFields: string[];
+        }
+      > = {
+        task: {
+          dateField: 'updatedAt',
+          themeField: 'capability_theme',
+          dependsField: 'dependencies',
+          hasStatus: true,
+          defaultFields: ['id', 'title', 'status'],
+        },
+        roadmap: {
+          themeField: 'id',
+          hasStatus: true,
+          defaultFields: ['id', 'title', 'status'],
+        },
+        backlog: {
+          dependsField: 'dependencies',
+          hasStatus: true,
+          defaultFields: ['id', 'title', 'status'],
+        },
+        retro: {
+          dateField: 'date',
+          hasStatus: false,
+          defaultFields: ['id', 'date', 'track'],
+        },
+      };
+      const meta = META[ledger as LedgerName];
+
+      const records = (d.kind === 'task-list'
+        ? d.data.tasks
+        : d.kind === 'roadmap'
+          ? d.data.themes
+          : d.kind === 'retro'
+            ? d.data.retros
+            : d.data.items) as unknown as Record<string, unknown>[];
+
+      const warnings: string[] = [];
+      const inert = (flag: string, why: string) =>
+        warnings.push(`${flag} ignored: ${why}`);
+
+      let matched = records;
+
+      // --status (csv). An explicit --status OVERRIDES the snapshot default
+      // (cancelled-exclusion) below — the caller asked for specific statuses.
+      if (flags.status !== undefined) {
+        if (meta.hasStatus) {
+          const wanted = new Set(
+            flags.status
+              .split(',')
+              .map((s) => s.trim())
+              .filter((s) => s.length > 0),
+          );
+          matched = matched.filter((r) => wanted.has(String(r.status ?? '')));
+        } else {
+          inert('--status', `${ledger} records have no status field`);
+        }
+      } else if (ledger === 'task') {
+        // Owner's snapshot default: `list task` with no --status returns every
+        // Task EXCEPT cancelled.
+        matched = matched.filter((r) => String(r.status ?? '') !== 'cancelled');
+      }
+
+      // --since (ISO date; lexical compare works for zero-padded ISO 8601).
+      if (flags.since !== undefined) {
+        if (meta.dateField) {
+          const since = flags.since;
+          const field = meta.dateField;
+          matched = matched.filter((r) => {
+            const v = r[field];
+            return typeof v === 'string' && v >= since;
+          });
+        } else {
+          inert('--since', `${ledger} records have no date field`);
+        }
+      }
+
+      // --theme (task.capability_theme; for roadmap, the theme's own id).
+      if (flags.theme !== undefined) {
+        if (meta.themeField) {
+          const theme = flags.theme;
+          const field = meta.themeField;
+          matched = matched.filter((r) => String(r[field] ?? '') === theme);
+        } else {
+          inert('--theme', `${ledger} records have no theme field`);
+        }
+      }
+
+      // --depends-on (records whose dependency array contains the id).
+      if (flags.dependsOn !== undefined) {
+        if (meta.dependsField) {
+          const dep = flags.dependsOn;
+          const field = meta.dependsField;
+          matched = matched.filter((r) => {
+            const deps = r[field];
+            return Array.isArray(deps) && deps.map(String).includes(dep);
+          });
+        } else {
+          inert('--depends-on', `${ledger} records have no dependency field`);
+        }
+      }
+
+      // Always drop deprecated records (only retro carries the field today).
+      matched = matched.filter((r) => r.deprecated !== true);
+
+      // `total` is the count matching ALL filters — recency ordering and the
+      // output cap below are DISPLAY limits, reported transparently as `shown`
+      // vs `total` so the list never silently truncates.
+      const total = matched.length;
+
+      // --recent n: most-recent-first, take n. Recency key per kind:
+      //   retro          → session number parsed from the S<digits> id
+      //   task           → updatedAt (ISO string)
+      //   roadmap/backlog → document order (last record = most recent)
+      let ordered = matched;
+      if (recent !== undefined) {
+        const byRecencyDesc = [...matched];
+        if (ledger === 'retro') {
+          byRecencyDesc.sort(
+            (a, b) =>
+              Number(String(b.id ?? '').replace(/^S/, '')) -
+              Number(String(a.id ?? '').replace(/^S/, '')),
+          );
+        } else if (ledger === 'task') {
+          byRecencyDesc.sort((a, b) =>
+            String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? '')),
+          );
+        } else {
+          byRecencyDesc.reverse();
+        }
+        ordered = byRecencyDesc.slice(0, recent);
+      }
+
+      // Output cap: explicit --limit wins; else --recent already bounded it;
+      // else a default bound so an unfiltered list never floods.
+      const DEFAULT_CAP = 200;
+      const cap =
+        limit !== undefined
+          ? limit
+          : recent !== undefined
+            ? ordered.length
+            : DEFAULT_CAP;
+      const rows = ordered.slice(0, cap);
+
+      // Projection. --ids-only (bare id[]) overrides --fields; else --fields csv;
+      // else the kind's default identity fields.
+      const projFields = flags.idsOnly
+        ? ['id']
+        : flags.fields !== undefined
+          ? flags.fields
+              .split(',')
+              .map((s) => s.trim())
+              .filter((s) => s.length > 0)
+          : meta.defaultFields;
+
+      const projected = flags.idsOnly
+        ? rows.map((r) => r.id)
+        : rows.map((r) => {
+            const out: Record<string, unknown> = {};
+            for (const f of projFields) out[f] = r[f];
+            return out;
+          });
+
+      const truncated = rows.length < total;
+      if (truncated)
+        warnings.push(
+          `showing ${rows.length} of ${total} matched ${ledger} record(s) — pass --limit to raise the cap or add filters to narrow`,
+        );
+
+      return {
+        ok: true,
+        subcommand: 'list',
+        result: {
+          ledger,
+          total,
+          shown: rows.length,
+          truncated,
+          records: projected,
+        },
+        ...(warnings.length ? { warnings } : {}),
+      };
     }
 
     // ── task-list field edits ───────────────────────────────────────────────

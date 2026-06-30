@@ -1,9 +1,9 @@
-# Shared discipline — canonical cross-role rules (WS-B2)
+# Shared discipline — canonical cross-role rules
 
-Canonical home for rules that previously lived duplicated across the workflow agent files
-(`.claude/agents/*.md`) and skills (`.claude/skills/*`). Each consuming file carries a
-ONE-LINE binding summary plus a pointer here; this file carries the elaboration. Edit rule
-semantics HERE, never re-elaborate in a consumer.
+Canonical home for rules shared across the workflow agent files (`.claude/agents/*.md`)
+and skills (`.claude/skills/*`). Each consuming file carries a ONE-LINE binding summary
+plus a pointer here; this file carries the elaboration. Edit rule semantics HERE, never
+re-elaborate in a consumer.
 
 Sections: §Code-intelligence discipline · §KH quality bars · §Spec-chain right-sizing ·
 §Subtask dependency constraints · §State machine · §Empirical verification · §Escalation
@@ -62,8 +62,7 @@ signals roadmap (Branch B), fewer/narrower signals backlog (Branch C).
 
 ## KH quality bars
 
-Non-negotiable on every change; the Checker FAILs violations. (Superset — folds in the
-formerly Executor-only and implement-subtask-only items.)
+Non-negotiable on every change; the Checker FAILs violations.
 
 - **Semantic tokens only** — no raw Tailwind colours in components; new tokens in
   `app/globals.css` per
@@ -112,16 +111,16 @@ heavier tier (a `status_note` update), never silently proceeds.
 
 ## Subtask dependency constraints
 
-- **Sibling-only Subtask dependencies (§3.3 / A6 — forcing function).** Implementation
+- **Sibling-only Subtask dependencies (forcing function).** Implementation
   Subtasks within a Task may depend on other Subtasks OF THE SAME TASK only. Cross-Task
   dependencies live at the Task level (`Task.dependencies[]`), never the Subtask level.
   Wanting "ID-15.7 depends on ID-22.4" means the Task boundary is wrong — either **split**
   the other Task so the dependency surfaces at Task level, or **merge** the two Tasks so
   it becomes sibling-level. Escalate to the Orchestrator; never bend the constraint
   silently.
-- **25-Subtask soft ceiling (§3.4 / A7).** A decomposition approaching 25 Subtasks within
-  one Task is a strong Task-boundary signal — propose a Task split. It is a planning
-  signal, not a hard cap (empirical TM data §7: 5/7 example Tasks at exactly 25).
+- **25-Subtask soft ceiling.** A decomposition approaching 25 Subtasks within one Task is
+  a strong Task-boundary signal — propose a Task split. It is a planning signal, not a
+  hard cap.
 
 ## State machine
 
@@ -132,7 +131,7 @@ the initial `pending`; the Executor moves `pending → in_progress` ONLY; the Ch
 ONLY role that sets a Subtask `done` (PASS verdict, zero further-action findings); the
 Orchestrator owns `deferred` / `cancelled` and is the ONLY role that closes a Task.
 
-## Empirical verification (OQ-3 — Q-EX2 forcing function)
+## Empirical verification
 
 **Rule:** Before returning any spec ({N.1} RESEARCH / {N.2} PRODUCT / {N.3} TECH / {N.4}
 PLAN) that cites external-library APIs (cocoindex symbols, anthropic SDK shapes, supabase
@@ -141,57 +140,15 @@ non-pinned-major-version, etc.), run a **pre-ratification empirical import-and-c
 check** against the version pinned in `requirements.txt` (Python) / `package.json`
 (TypeScript) and record the result in the spec.
 
-**Why this is a forcing function (Q-EX2 — S252 cocoindex precedent):** Specs that cite
-external-library APIs without empirical verification drift silently. The Q-EX2 cocoindex
-extraction-contract spec cited `cocoindex.ExtractByLlm` / `LlmSpec` / `LlmApiType` from a
-phase-B doc that surveyed cocoindex 0.3.x; the 1.0.0 restructure removed those symbols and
-the drift propagated unchecked from S242 RESEARCH → S252 TECH → S253 PLAN → S256 Executor
-escalation. The fix cost two sessions; an empirical check at spec-ratification time would
-have caught it on day one. Canonical record:
-`knowledge-hub-archive (sibling checkout) audits/cocoindex-1.0.3-extractbyllm-spec-reality-investigation.md`.
+**Why it's a forcing function:** specs that cite external-library APIs without empirical
+verification drift silently — a cited symbol can vanish in a library's major-version
+restructure and propagate unchecked from RESEARCH through to Executor escalation. An
+import-and-call check at ratification time catches it on day one.
 
-**What to verify:**
-
-1. **Identify cited external symbols.** Grep the spec for module names (`import X from`
-   patterns in code blocks; "uses `pkg.foo()`" in prose; SDK / API references). List per
-   `module.symbol`.
-2. **Look up the pinned version.** Python: `grep '^<package>' requirements.txt`.
-   TypeScript: `jq -r '.dependencies["<package>"]' package.json` (also check
-   `devDependencies`).
-3. **Run the import-and-call check** (sandbox-disabled where needed for cocoindex or other
-   LMDB-touching packages):
-   ```
-   python3 -c "from <module> import <symbol>; print(<symbol>)"
-   ```
-   TypeScript symbols — use ast-dataflow `references` or `tsc --noEmit` against a
-   throwaway file that imports the symbol; runtime `bun --print` may not surface type-only
-   export mismatches.
-4. **Record verification in the spec** (a `## Verification` section, or a footnote near
-   each citation): date (DD/MM/YYYY), pinned version (`<package>==<version>`), symbol path
-   checked, and result — `PRESENT` / `ABSENT` / `SIGNATURE_DRIFT` (signature differs from
-   cited shape) / `BEHAVIOUR_DRIFT` (signature matches but runtime behaviour differs from
-   spec assumption).
-
-**Escalation on failure:**
-
-- `ABSENT` or `SIGNATURE_DRIFT` → STOP. Do not return the spec for ratification. Escalate
-  to the Orchestrator with verification evidence and recommend either (a) spec revision to
-  use the actual installed API, or (b) version-pin upgrade if the cited shape exists in a
-  newer release.
-- `BEHAVIOUR_DRIFT` (signature OK, runtime semantics changed) → record the drift inline
-  and either revise the spec or surface to the Orchestrator for amend-in-place.
-  Orchestrator's call.
-
-**Scope:** applies to external-library symbols in RESEARCH / PRODUCT / TECH / PLAN
-artefacts and any Subtask `details` referencing external library calls — including
-externally-sourced claims gathered during `{N.1}` research (never accepted from prose).
-Does NOT apply to internal KH symbols (covered by ast-dataflow + gitnexus + Knip),
-test-internal helpers, or standard-library / framework built-ins (Next.js, React, Node,
-Python stdlib).
-
-**Checker cross-check:** the Checker re-runs a fresh import-and-call check at audit time
-and verifies the recorded block matches the current pin (see `task-checker.md`
-`empirical-grounding` axis for the severity mapping).
+Full protocol (identify cited symbols → pinned-version lookup → import-and-call check →
+record `PRESENT`/`ABSENT`/`SIGNATURE_DRIFT`/`BEHAVIOUR_DRIFT` → escalation severity → scope
+boundary → Checker cross-check):
+`.claude/agents/references/shared-discipline-empirical-verification.md`.
 
 ## Escalation rule
 
@@ -239,13 +196,13 @@ the MAIN checkout only** — never raw `Edit` on the JSON ledgers (task-list,
 product-backlog, product-roadmap, product-retros, or their markdown mirrors), and never an
 in-branch write or commit from a worktree. The ID-90 daemon serialises behind one mutex
 per main-checkout ledger directory, so an in-branch `chore(ledger)` commit bypasses it
-entirely (the bl-287/288 3-way id collision). Worktree workers RETURN ledger-write intents
+entirely. Worktree workers RETURN ledger-write intents
 (status flips, journal appends, item creates) in their report; the Orchestrator — or the
 Curator via `update-roadmap-backlog`, which wraps the CLI — applies every write on MAIN,
 where id allocation happens under the mutex. The worktree pre-commit guard hard-blocks
-staged ledger paths by design. As of ID-90.22 the enforcement point (serialisation,
-budget + record-set gates, mirror regen) is server-side in the task-view patch-server
-substrate; the CLI is the operator surface (invariant 57). Canonical full protocol:
+staged ledger paths by design. The enforcement point (serialisation, budget + record-set
+gates, mirror regen) is server-side in the task-view patch-server substrate; the CLI is
+the operator surface. Canonical full protocol:
 `.claude/skills/workflow-orchestration/SKILL.md` §Ledger field-discipline.
 
 ## Spec-tier budget

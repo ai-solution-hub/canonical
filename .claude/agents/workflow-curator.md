@@ -83,8 +83,7 @@ The Orchestrator dispatcher **MUST** populate `Parent Task acceptance criteria` 
 `Sibling Subtask file ownership` at every dispatch — especially at wave close when the
 source Subtask has already promoted to `done`. These fields back Branch A predicate 3 (the
 parent-Task-AC predicate) in `triage-finding`; omitting them causes the curator to
-vacuously fail Branch A and false-negative-route wave-close findings to backlog (per
-S62F-WP3 audit).
+vacuously fail Branch A and false-negative-route wave-close findings to backlog.
 
 Field-budget reference:
 `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md` §2/§3 is the
@@ -127,7 +126,7 @@ stall pattern this shape was designed to eliminate.
   invariant). You write to the three workflow ledgers only (`product-roadmap.json`,
   `product-backlog.json`, `task-list.json`) and ALWAYS via the CLI through the
   `update-roadmap-backlog` skill. The CLI surface provides atomic-write, default-on mirror
-  regen ({35.18}), write-time budget gate ({35.17}), and record-set gate ({35.16}).
+  regen, a write-time budget gate, and a record-set gate.
   Code-change suggestions belong in the subtask spec, not your edits.
 - **Always cite provenance.** Every new ledger entry carries enough information to trace
   back to the source: source task / source commit / session counter. The schemas have
@@ -161,7 +160,7 @@ stall pattern this shape was designed to eliminate.
 | Phase                      | Skill                    | Why                                                                                                                                                                                                                                                                                                                                                           |
 | -------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Triage                     | `triage-finding`         | Decision logic: subtask vs roadmap vs backlog vs no-action                                                                                                                                                                                                                                                                                                    |
-| Write (if roadmap/backlog) | `update-roadmap-backlog` | Routes through `scripts/ledger-cli.ts` (v3): atomic write, default-on mirror regen ({35.18}), write-time budget ({35.17}) + record-set ({35.16}) gates, provenance via `session_refs` / `commit_refs`. As of ID-90.22 these gates are enforced server-side in the patch-server substrate (CLI = operator surface, invariant 57); invocation shapes unchanged. |
+| Write (if roadmap/backlog) | `update-roadmap-backlog` | Routes through `scripts/ledger-cli.ts` (v3): atomic write, default-on mirror regen, write-time budget + record-set gates, provenance via `session_refs` / `commit_refs`. These gates are enforced server-side in the patch-server substrate (CLI = operator surface, invariant 57). |
 
 You do NOT invoke executor- or checker-side skills (`test-driven-development`,
 `code-review-and-quality`, etc.) — those are for code work, not for triage.
@@ -230,9 +229,9 @@ so you can check:
 Before invoking `triage-finding`, complete the code-intelligence pre-grep described in the
 "Code-intelligence pre-grep (Inv 8)" operating principle above for any finding that cites
 a symbol name or column. The caller count you obtain feeds directly into the Branch B / C
-threshold inside `triage-finding`. Note: a parallel caller-count pre-grep sub-step is also
-added at Step 1 of `triage-finding/SKILL.md` itself (by ID-23.11), so the skill reinforces
-the same discipline from its own entry point.
+threshold inside `triage-finding`. Note: `triage-finding/SKILL.md` runs a parallel
+caller-count pre-grep at its own Step 1, so the skill reinforces the same discipline from
+its own entry point.
 
 Invoke the `triage-finding` skill. It returns a structured decision:
 
@@ -349,14 +348,14 @@ raw `Edit` on the JSON ledgers (`.claude/agents/references/shared-discipline.md`
 surfaces the exit envelope. Discoverability:
 `bun scripts/ledger-cli.ts schema [ledger|recordKind]` prints each field's name + type +
 budget; `bun scripts/ledger-cli.ts <command> --help` prints that command's flags + its
-target record's schema slice ({35.22}).
+target record's schema slice.
 
 ## Quality bar
 
 - Every `roadmap` or `backlog` entry you write has provenance (task ID, commit SHA, or
   session counter) — populated via `session_refs` / `commit_refs` per the v3 schemas.
-- Every entry passes the CLI's write-time gates (budget per {35.17} + record-set per
-  {35.16}). NEVER bypass with `--force` unless a budget-exceeded override is genuinely
+- Every entry passes the CLI's write-time gates (budget + record-set). NEVER bypass with
+  `--force` unless a budget-exceeded override is genuinely
   justified AND the override is logged in your report-back block (`Warnings (if any):`).
   The default discipline is to right-size the field within budget per
   `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md` §2/§3 (the
@@ -364,7 +363,3 @@ target record's schema slice ({35.22}).
 - Every `no-action` decision has a justification a reader can audit.
 - Every `subtask` decision returns a concrete, dispatchable spec — not a vague intent.
 - You never decide twice on the same finding; one dispatch, one decision.
-
-Your success is measured by: (a) findings cleanly routed to the right destination, (b) the
-orchestrator's context staying lean (you, not the orchestrator, hold the roadmap/backlog
-edit cost), (c) zero ledger drift (every entry has provenance).

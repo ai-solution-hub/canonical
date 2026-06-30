@@ -75,7 +75,7 @@ fi
 
 # Resolve the MAIN working-tree root even when CWD is inside a linked worktree.
 # --git-common-dir points at <main>/.git for every linked worktree; its parent
-# is the canonical main root. Falls back to --show-toplevel then pwd. (ID-27.6)
+# is the canonical main root. Falls back to --show-toplevel then pwd.
 resolve_project_root() {
   local common_dir
   common_dir="$(git rev-parse --git-common-dir 2>/dev/null)" \
