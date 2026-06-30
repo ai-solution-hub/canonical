@@ -29,6 +29,11 @@ Before writing any code, operate in read-only mode:
 - Identify existing patterns and conventions
 - Map dependencies between components
 - Note risks and unknowns
+- Read the in-force decision register (in this repo:
+  `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/decision-register.md`, the `DR-NNN`
+  entries) — do not decompose into tasks work a ruling has already settled or placed out
+  of scope; surface a newly-discovered binding ruling as a **DR-intent** for the
+  orchestrator to record, rather than baking the decision silently into a task
 
 **Do NOT write code during planning.** The output is a plan document, not implementation.
 

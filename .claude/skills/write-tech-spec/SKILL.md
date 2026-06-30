@@ -122,6 +122,19 @@ Knowledge Hub conventions to ground the plan in:
   `bun run sync:taxonomy` after taxonomy changes.
 - **Code intelligence** — see `.gitnexus/CLAUDE.md` and `.ast-dataflow/CLAUDE.md`.
 
+### Decision register
+
+Before drafting, read the in-force entries of the decision register
+(`${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/decision-register.md`) — the durable
+store of settled cross-cutting rulings and won't-fixes (`DR-NNN`). Do not re-propose an
+approach a `DR` has already settled or ruled out of scope; where the plan must touch a
+settled area, cite the governing `DR-NNN` rather than re-deriving the decision.
+
+If research for this spec yields a new binding ruling — a hard-to-reverse architectural or
+"explicitly-not-doing" decision a future session would otherwise re-litigate — return a
+**DR-intent** to the Orchestrator (it writes on `main`) rather than appending to the
+register yourself; workers never write the register in-branch.
+
 ## Structure
 
 Required sections:

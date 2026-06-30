@@ -15,7 +15,7 @@ allowed-tools: Read, Grep, Glob, Bash
 
 # triage-finding — Decision Logic for Out-of-Scope Findings
 
-Decides how to route a finding surfaced during workflow execution: keep it inside the current Task as a Subtask (ID-N.M), promote to roadmap, promote to backlog, or close as no-action. Returns a structured decision; does **not** perform any writes.
+Decides how to route a finding surfaced during workflow execution: keep it inside the current Task as a Subtask (ID-N.M), promote to roadmap, promote to backlog, record as a settled decision-register ruling (a DR-intent the Orchestrator writes on `main`), or close as no-action. Returns a structured decision; does **not** perform any writes.
 
 This skill is the decision half of the curator's job. The write half is `update-roadmap-backlog`.
 
@@ -221,9 +221,40 @@ backlog_slot:
 
 > `rank` default is `null`. The schema does NOT enforce uniqueness or contiguity within a priority tier; the `update-roadmap-backlog` Create / Update flows enforce discipline via the auto-shift collision policy.
 
+### Branch E — Is it a settled, re-litigable ruling? (decision-register)
+
+Reached when Branches A–C did not match and the finding is a **deliberate won't-fix or
+scope-boundary ruling** — "we are explicitly NOT doing this", "X is settled as Y" — that a
+future session would otherwise **re-propose or re-litigate** because the rationale is not
+written down anywhere durable.
+
+A finding routes to Branch E when **both** hold:
+
+1. The correct disposition is "no code change / won't-fix / explicitly-not-doing" (so it is
+   not a subtask, roadmap, or backlog candidate).
+2. It is a cross-cutting ruling a future session would re-derive or re-argue if it were not
+   recorded — the decision-register trigger: *would a future session re-flag, re-implement,
+   or re-litigate this if it weren't written down?*
+
+This is what separates Branch E from Branch D: a **trivial** won't-fix (style nit,
+debatable refactor) is `no-action` (D); a **re-litigable** cross-cutting won't-fix ruling
+is `decision-register` (E), recorded so it stays settled.
+
+**If both hold → Decision: `decision-register`.** Return a **DR-intent** — the proposed
+ruling in one to three sentences, no implementation detail. You do **not** write the
+register: `DR-NNN` entries are written on `main` by the Orchestrator / handoff (the
+register is not one of the three workflow ledgers, so `update-roadmap-backlog` does not
+touch it).
+
+```yaml
+decision_register_intent:
+  ruling: "{the settled ruling, 1-3 sentences — what is decided and what is ruled out}"
+  supersedes: null | "DR-NNN"  # set only if this ruling overrides an existing in-force entry
+```
+
 ### Branch D — None of the above
 
-If none of A, B, C match, the finding does not warrant action.
+If none of A, B, C, E match, the finding does not warrant action.
 
 **Decision: `no-action`.**
 
@@ -243,7 +274,7 @@ Possible reasons:
 Return to the curator agent:
 
 ```yaml
-decision: subtask | roadmap | backlog | no-action
+decision: subtask | roadmap | backlog | no-action | decision-register
 
 justification: |
   {one-paragraph explanation of why this decision was reached.
@@ -274,6 +305,11 @@ backlog_slot:
   priority: "..."
   status: "..."
   rank: null | {integer}
+
+# Branch E populated (decision-register — settled re-litigable ruling)
+decision_register_intent:
+  ruling: "..."
+  supersedes: null | "DR-NNN"
 
 # Branch D populated
 noaction_reason: "..."
