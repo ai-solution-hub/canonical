@@ -21,6 +21,7 @@ at session close (the file is written to, and committed in, the docs-site checko
 | Task / Subtask state, `details`, `testStrategy`, what shipped + SHAs | the ledgers — slice-read via `bun scripts/ledger-cli.ts show task <id>` (docs-site `ledgers/`; `<info added on …>` journals) |
 | Per-terminal scope, bootstrap reads, file ownership, sequence/gates  | the per-Task cmux briefs (`.claude/cmux-briefs/cmux-brief-*.md` |
 | Recency-weighted multi-session history                           | Mempalace diary (`mempalace_diary_read agent=claude`)                          |
+| Settled cross-cutting rulings / won't-fixes (binding)            | the Decision Register — `reference/decision-register.md` (cite NEW `DR-NNN` here; start-session reads in-force entries) |
 
 ---
 
@@ -75,15 +76,27 @@ Working directory: `{cwd}` ({branch}).
 {3-4 lines: what the next session orchestrates + the O-of-O operating mode —
 delegate heavy lifting to subagents/terminals, keep main-session context lean.}
 
+## Completed this session (Tasks + SHAs)
+
+{Done work the next session must NOT re-flag or redo — Task/Subtask ids + merge/PR SHA
+only (the ledger holds the detail; never reproduce it). Omit if nothing shipped.}
+
 ## Deployment Approach
 
 {Table: Terminal/Worktree Subagent | brief file | sequence/gate one-liner. The brief + ledger hold
 the detail.}
 
+## Settled this session (Decision Register)
+
+{New binding rulings / won't-fixes written to `reference/decision-register.md` this session —
+cite the NEW ids only (e.g. `DR-011`–`DR-013`), one line each. Do NOT re-list older in-force
+DRs (start-session reads them). Authored in Step 3a. Omit if nothing was settled.}
+
 ## Session deltas / decisions NOT in the ledger
 
-{Bullets: only what a fresh orchestrator cannot derive from the ledger/specs —
-ratifications, schema/process changes, gotchas, strategic options.}
+{Bullets: only what a fresh orchestrator cannot derive from the ledger/specs/register —
+NON-binding deltas: schema/process changes, gotchas, strategic options. Binding rulings go to
+the register above, not here.}
 
 ## Session Carry
 
@@ -94,10 +107,38 @@ ratifications, schema/process changes, gotchas, strategic options.}
 {Commands that hit sandbox friction this session — allowlist candidates and any
 bypass notes (e.g. needs `dangerouslyDisableSandbox`). Omit if none.}
 
+## Mechanical state (auto-generated)
+
+{Paste the output of `bash scripts/session-close-report.sh` (Step 3b) — branch/HEAD,
+orphaned worktrees, open PRs + CI, index freshness.}
+
 ## Pre-reqs (Liam)
 
 {Only items needing Liam action before the next session starts. Omit if none.}
 ````
+
+---
+
+## Step 3a — Write settled rulings to the Decision Register
+
+Extract the session's **binding** rulings / won't-fixes (those a future session must not
+re-litigate) and append them to
+`${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/decision-register.md` as `DR-NNN` entries
+(newest at top; 1-3 sentences + `**Status:** accepted · S{NNN}`). Workers return
+**DR-intents**; you (O-of-O) write them on `main`. Then cite only the NEW ids in the prompt's
+*Settled this session* section. Boundary: a binding ruling → register; an observation /
+friction → the retro (Step 7). Skip if the session settled nothing.
+
+## Step 3b — Mechanical state generator
+
+Run the read-only generator and paste its block into the prompt's *Mechanical state* section:
+
+```bash
+bash scripts/session-close-report.sh
+```
+
+It emits branch/HEAD, named worktrees (orphan check), open PRs + CI (`gh-axi`), and index
+freshness — the mechanically-derivable state, so the prompt's prose stays deltas-only.
 
 ---
 
@@ -182,7 +223,7 @@ bun scripts/ledger-cli.ts create-retro --file /tmp/retro-S{NNN}.json
 ```
 
 `id` is **MANDATORY** and must match `/^S\d+$/` — the session number, e.g.
-`"S347"` (there is NO auto-id for retros). Required scalars: `id`, `session_id`,
+`"S{NNN}"` (there is NO auto-id for retros). Required scalars: `id`, `session_id`,
 `date` (YYYY-MM-DD), `track`; the six category arrays + `session_refs` /
 `commit_refs` / `cross_doc_links` default to empty when omitted. The write goes
 through the mutex-mediated ledger server to `product-retros.json` (docs-site
@@ -207,3 +248,5 @@ partially blocked). ~600-1500 chars; one event per segment; entity codes + `.✓
 - [ ] No emojis; plain English (Liam-readable); all paths repo-relative.
 - [ ] Total length ≤ ~100 lines (longer needs explicit justification).
 - [ ] A fresh orchestrator can start from this prompt + the ledger + the briefs alone.
+- [ ] Binding rulings written to the Decision Register (new `DR-NNN` cited, not re-listed);
+      Completed + Mechanical-state sections present (or explicitly omitted as empty).
