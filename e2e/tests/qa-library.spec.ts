@@ -687,7 +687,7 @@ test.describe('Q&A Library page', () => {
     await expect(page.locator('[data-qa-row]').first()).toBeVisible();
   });
 
-  test('viewer does not see bulk action checkboxes', async ({
+  test('viewer sees selection checkboxes but not the admin bulk-delete action', async ({
     viewerPage: page,
     workerData,
   }) => {
@@ -702,27 +702,32 @@ test.describe('Q&A Library page', () => {
       timeout: 20000,
     });
 
-    // Check whether select-all checkbox is visible to the viewer
-    // Wait a moment for role hook to resolve and checkboxes to render
-    const selectAll = page.getByLabel(/select all/i);
-    const isSelectAllVisible = await selectAll
-      .isVisible({ timeout: 5000 })
-      .catch(() => false);
+    // Ratified contract (test-philosophy.md §2.1): selection UI is NOT
+    // role-gated — viewers DO see the select-all header checkbox
+    // (app/library/library-content.tsx:515-526, rendered on
+    // `!isLoading && items.length > 0`, aria-label "Select all Q&A pairs")
+    // and the per-row checkboxes (components/qa/qa-row.tsx:74-79, rendered
+    // whenever `onToggleSelect` is passed — library-content.tsx:606,617 pass
+    // it unconditionally — aria-label `Select "<title>"`). Only the bulk
+    // DELETE action is admin-gated
+    // (components/browse/bulk-action-toolbar.tsx:123 `{isAdmin && …}`).
 
-    if (isSelectAllVisible) {
-      // Checkboxes are visible — verify that clicking does not show admin-only
-      // delete button in the toolbar
-      await selectAll.click();
-      // The toolbar appears but delete should be gated on admin
-      await expect(page.getByText(/\d+ selected/)).toBeVisible();
-      // Admin-only delete button should not be present
-      await expect(
-        page.getByRole('button', { name: /delete/i }),
-      ).not.toBeVisible();
-    } else {
-      // Checkboxes are not visible for viewers — assertion passes
-      await expect(selectAll).not.toBeVisible();
-    }
+    // 1. Viewer DOES see the select-all header checkbox.
+    const selectAll = page.getByLabel(/select all/i);
+    await expect(selectAll).toBeVisible({ timeout: 10000 });
+
+    // 2. Viewer DOES see the per-row selection checkbox.
+    const firstRow = page.locator('[data-qa-row]').first();
+    await expect(firstRow).toBeVisible();
+    await expect(firstRow.getByLabel(/^Select "/)).toBeVisible();
+
+    // 3. Selecting rows reveals the bulk-action toolbar ("N selected"), but the
+    //    admin-only Delete control must NEVER render for a viewer.
+    await selectAll.click();
+    await expect(page.getByText(/\d+ selected/)).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /delete/i }),
+    ).not.toBeVisible();
   });
 });
 

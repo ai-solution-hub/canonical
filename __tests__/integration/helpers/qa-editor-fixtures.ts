@@ -90,7 +90,7 @@ export async function cleanupItem(itemId: string | null): Promise<void> {
     await serviceClient
       .from('content_chunks')
       .delete()
-      .eq('content_item_id', itemId);
+      .eq('source_document_id', itemId);
     await serviceClient
       .from('content_history')
       .delete()
@@ -98,7 +98,7 @@ export async function cleanupItem(itemId: string | null): Promise<void> {
     await serviceClient
       .from('entity_mentions')
       .delete()
-      .eq('content_item_id', itemId);
+      .eq('source_document_id', itemId);
     await serviceClient.from('content_items').delete().eq('id', itemId);
   } catch (err) {
     // Surface for triage but don't re-throw — cleanup runs best-effort

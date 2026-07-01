@@ -174,9 +174,9 @@ describe('RelatedByEntities', () => {
       // Step 2: Other items share these entities
       {
         data: [
-          { content_item_id: 'item-2', canonical_name: 'ISO 27001' },
-          { content_item_id: 'item-2', canonical_name: 'Cyber Essentials' },
-          { content_item_id: 'item-3', canonical_name: 'ISO 27001' },
+          { source_document_id: 'item-2', canonical_name: 'ISO 27001' },
+          { source_document_id: 'item-2', canonical_name: 'Cyber Essentials' },
+          { source_document_id: 'item-3', canonical_name: 'ISO 27001' },
         ],
         error: null,
       },
@@ -226,7 +226,7 @@ describe('RelatedByEntities', () => {
     configureThreeQueries(
       { data: [{ canonical_name: 'React' }], error: null },
       {
-        data: [{ content_item_id: 'item-42', canonical_name: 'React' }],
+        data: [{ source_document_id: 'item-42', canonical_name: 'React' }],
         error: null,
       },
       {
@@ -257,7 +257,7 @@ describe('RelatedByEntities', () => {
     configureThreeQueries(
       { data: [{ canonical_name: 'Testing' }], error: null },
       {
-        data: [{ content_item_id: 'item-5', canonical_name: 'Testing' }],
+        data: [{ source_document_id: 'item-5', canonical_name: 'Testing' }],
         error: null,
       },
       {
@@ -294,7 +294,7 @@ describe('RelatedByEntities', () => {
         error: null,
       },
       {
-        data: [{ content_item_id: 'item-2', canonical_name: 'ISO 27001' }],
+        data: [{ source_document_id: 'item-2', canonical_name: 'ISO 27001' }],
         error: null,
       },
       {
@@ -343,11 +343,11 @@ describe('RelatedByEntities', () => {
       },
       {
         data: [
-          { content_item_id: 'item-2', canonical_name: 'Entity A' },
-          { content_item_id: 'item-2', canonical_name: 'Entity B' },
-          { content_item_id: 'item-2', canonical_name: 'Entity C' },
-          { content_item_id: 'item-2', canonical_name: 'Entity D' },
-          { content_item_id: 'item-2', canonical_name: 'Entity E' },
+          { source_document_id: 'item-2', canonical_name: 'Entity A' },
+          { source_document_id: 'item-2', canonical_name: 'Entity B' },
+          { source_document_id: 'item-2', canonical_name: 'Entity C' },
+          { source_document_id: 'item-2', canonical_name: 'Entity D' },
+          { source_document_id: 'item-2', canonical_name: 'Entity E' },
         ],
         error: null,
       },
@@ -418,7 +418,7 @@ describe('RelatedByEntities', () => {
     configureThreeQueries(
       { data: [{ canonical_name: 'ISO 27001' }], error: null },
       {
-        data: [{ content_item_id: 'item-2', canonical_name: 'ISO 27001' }],
+        data: [{ source_document_id: 'item-2', canonical_name: 'ISO 27001' }],
         error: null,
       },
       { data: null, error: detailError },
@@ -438,7 +438,7 @@ describe('RelatedByEntities', () => {
     configureThreeQueries(
       { data: [{ canonical_name: 'ISO 27001' }], error: null },
       {
-        data: [{ content_item_id: 'item-2', canonical_name: 'ISO 27001' }],
+        data: [{ source_document_id: 'item-2', canonical_name: 'ISO 27001' }],
         error: null,
       },
       // Details query returns items but none match the IDs (e.g. filtered by governance)
@@ -460,7 +460,7 @@ describe('RelatedByEntities', () => {
     configureThreeQueries(
       { data: [{ canonical_name: 'Testing' }], error: null },
       {
-        data: [{ content_item_id: 'item-2', canonical_name: 'Testing' }],
+        data: [{ source_document_id: 'item-2', canonical_name: 'Testing' }],
         error: null,
       },
       {
@@ -491,7 +491,7 @@ describe('RelatedByEntities', () => {
     configureThreeQueries(
       { data: [{ canonical_name: 'Testing' }], error: null },
       {
-        data: [{ content_item_id: 'item-2', canonical_name: 'Testing' }],
+        data: [{ source_document_id: 'item-2', canonical_name: 'Testing' }],
         error: null,
       },
       {
@@ -522,7 +522,7 @@ describe('RelatedByEntities', () => {
     configureThreeQueries(
       { data: [{ canonical_name: 'React' }], error: null },
       {
-        data: [{ content_item_id: 'item-2', canonical_name: 'React' }],
+        data: [{ source_document_id: 'item-2', canonical_name: 'React' }],
         error: null,
       },
       {
@@ -560,10 +560,10 @@ describe('RelatedByEntities', () => {
       {
         data: [
           // item-2 shares 1 entity
-          { content_item_id: 'item-2', canonical_name: 'Entity A' },
+          { source_document_id: 'item-2', canonical_name: 'Entity A' },
           // item-3 shares 2 entities
-          { content_item_id: 'item-3', canonical_name: 'Entity A' },
-          { content_item_id: 'item-3', canonical_name: 'Entity B' },
+          { source_document_id: 'item-3', canonical_name: 'Entity A' },
+          { source_document_id: 'item-3', canonical_name: 'Entity B' },
         ],
         error: null,
       },
@@ -612,7 +612,7 @@ describe('RelatedByEntities', () => {
 
     await waitFor(() => {
       expect(mockChain.neq).toHaveBeenCalledWith(
-        'content_item_id',
+        'source_document_id',
         'item-current',
       );
     });

@@ -4,7 +4,7 @@ Reference detail for `update-roadmap-backlog` Create mode. The SKILL.md body
 covers when to Create and which command to call; read this when composing a
 Create payload and you need the per-field source + CLI flag.
 
-Field budgets and the write-time gate are in `references/cli-mechanics.md`.
+Field budgets and the write-time gate are in `cli-mechanics.md`.
 Live-truth source for any field type/budget: `bun scripts/ledger-cli.ts schema
 <recordKind>` — trust it over this doc.
 
@@ -15,21 +15,18 @@ Every Create carries provenance in `session_refs` + `commit_refs` (+
 do NOT accept a separate `metadata.source` field. At minimum pass
 `session_refs: [session_counter]`.
 
-## Roadmap theme — `RoadmapThemeSchema` (Shape A)
+## Roadmap theme — `RoadmapThemeSchema`
 
-Shape A (PRODUCT inv 6-9; TECH §3.1/§4.2): the roadmap is a flat list of
-**themes** (multi-month capability areas), NOT typed-item sections. The
-pre-Shape-A field set (`section_id`, `phase_label`, `severity`, `priority`,
-`status_note`, `owner`, `depends_on`, `blocks`, `coordinates_with`) is dropped
-wholesale.
+The roadmap is a flat list of **themes** (multi-month capability areas), NOT
+typed-item sections.
 
 | Field | Source | CLI flag |
 |---|---|---|
 | `id` | Next free bare-digit id across `themes[]` (`BARE_ID_REGEX`). Auto-id is local-only. | `--id` (or auto) |
 | `title` | `triage_payload.roadmap_proposed_theme.title`. UK English. | `--title` |
 | `description` | Multi-paragraph Markdown — why the capability matters, outcome shape. | `--description` |
-| `time_horizon` | `triage_payload…time_horizon`. Default `"later"` (PRODUCT inv 13a). Enum `now\|next\|later`. | positional JSON |
-| `status` | Default `"pending"` (P-OQ-1). Enum `pending\|in_progress\|done`. | `--status` |
+| `time_horizon` | `triage_payload…time_horizon`. Default `"later"`. Enum `now\|next\|later`. | positional JSON |
+| `status` | Default `"pending"`. Enum `pending\|in_progress\|done`. | `--status` |
 | `linked_tasks` | `triage_payload…initial_linked_tasks[]` or `[]`. | positional JSON |
 | `linked_backlog` | `triage_payload…initial_linked_backlog[]` or `[]`. | positional JSON |
 | `session_refs` | `[session_counter]` (+ `source_task_id` if present). | positional JSON |
@@ -37,10 +34,10 @@ wholesale.
 | `cross_doc_links` | `[{ path, anchor, raw }]` if the finding cites a spec, else `[]`. | positional JSON |
 | `notes` | Free text; default `null`. | `--notes` |
 
-**Soft-cap (PRODUCT inv 8):** before appending, count `themes[]`. A 13th theme
-does not hard-block, but the write surfaces a soft-cap warning in `warnings[]`.
-When it fires, consider merging two overlapping themes. Re-evaluation cadence is
-quarterly (RESEARCH §4.5).
+**Soft-cap:** before appending, count `themes[]`. A 13th theme does not
+hard-block, but the write surfaces a soft-cap warning in `warnings[]`. When it
+fires, consider merging two overlapping themes. Re-evaluation cadence is
+quarterly.
 
 ## Backlog item — `BacklogItemSchema`
 
@@ -71,7 +68,7 @@ want recorded.
 
 | Field | Source | CLI flag |
 |---|---|---|
-| `id` | **MUST = cross-branch `MAX_ID + 1`** (PRODUCT inv 10). Auto-id is local-only — pre-compute via the docs-site sweep (see `references/cli-mechanics.md` §"Cross-branch MAX-ID"). | `--id` |
+| `id` | **MUST = cross-branch `MAX_ID + 1`** (PRODUCT inv 10). Auto-id is local-only — pre-compute via the docs-site sweep (see `cli-mechanics.md` §"Cross-branch MAX-ID"). | `--id` |
 | `title` | Human-readable. UK English. | `--title` |
 | `description` | One-paragraph overview. **Budget ≤1500.** | `--description` |
 | `status` | Default `"pending"`; `"done"` only for retrospective Tasks. | `--status` |
@@ -82,7 +79,7 @@ want recorded.
 | `cross_doc_links` | Spec-substrate links; auto-filled to `[]`. | positional JSON |
 | `session_refs` | `[session_counter]`; auto-filled to `[]`. | positional JSON |
 | `commit_refs` | `[source_commit_sha]` or auto-filled `[]`. | positional JSON |
-| `capability_theme` | Optional. Roadmap theme id back-link (ID-30 PR-A). Distinct from `umbrella_id`. | positional JSON |
+| `capability_theme` | Optional. Roadmap theme id back-link. Distinct from `umbrella_id`. | positional JSON |
 
 `capability_theme` (on the Task, points at a roadmap theme) and `umbrella_id`
 (drives the `umbrellas.json` membership append) are orthogonal — both may be

@@ -360,7 +360,7 @@ class _MockMessageResponse:
         self.stop_reason = stop_reason
 
 
-# bl-220 / ID-74: stamp-free core fixture — no op_id / content_items_id /
+# bl-220 / ID-74: stamp-free core fixture — no op_id / source_document_id /
 # extracted_at (stamped post-memo, not by the LLM / the memo extractor).
 def _classification_json() -> str:
     return json.dumps(

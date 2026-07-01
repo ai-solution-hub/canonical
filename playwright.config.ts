@@ -70,8 +70,19 @@ export default defineConfig({
   // Hydration-mismatch root-cause investigation is tracked as backlog item
   // bl-337 (BUG-S19-HYD) — resolved via suppressHydrationWarning on the
   // dashboard activity-feed relative-time spans.
-  globalTimeout: process.env.CI ? 12 * 60_000 : undefined,
-  maxFailures: process.env.CI ? 5 : 0,
+  // {128.8}: env-overridable so the sharded nightly drives tighter fail-fast
+  // budgets (PW_GLOBAL_TIMEOUT_MS / PW_MAX_FAILURES per shard) while smoke and
+  // local keep the CI defaults below — env unset → byte-identical to before.
+  globalTimeout: process.env.PW_GLOBAL_TIMEOUT_MS
+    ? Number(process.env.PW_GLOBAL_TIMEOUT_MS)
+    : process.env.CI
+      ? 12 * 60_000
+      : undefined,
+  maxFailures: process.env.PW_MAX_FAILURES
+    ? Number(process.env.PW_MAX_FAILURES)
+    : process.env.CI
+      ? 5
+      : 0,
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000',
     trace: 'on-first-retry',

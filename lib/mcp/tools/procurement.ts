@@ -540,10 +540,15 @@ export async function registerProcurementTools(
       try {
         const supabase = createMcpClient(extra.authInfo);
 
+        // ID-131.10 (BI-26): get_content_win_rate re-anchored content_item -> q_a_pair;
+        // arg renamed p_content_item_id -> p_q_a_pair_id. Key updated for the regenerated
+        // public types; this tool stays content_item-shaped (input content_item_id) until
+        // its surface is re-anchored to q_a_pairs (M5 / ID-131.11), so the value is still a
+        // content_item id and the win-rate is vacuous in the interim (citations = 0).
         const { data: rows, error } = await supabase.rpc(
           'get_content_win_rate',
           {
-            p_content_item_id: args.content_item_id,
+            p_q_a_pair_id: args.content_item_id,
           },
         );
 

@@ -4,7 +4,7 @@ Verifies the FLOW_META_CTX context-binding substrate that backs
 `stamp_extraction_base()` per Q-EX2 TECH §3.2 + ID-28.16 brief acceptance.
 
 Covers:
-- `FlowRunMeta` Pydantic dataclass shape (op_id + content_items_id).
+- `FlowRunMeta` Pydantic dataclass shape (op_id + source_document_id).
 - `FLOW_META_CTX: coco.ContextKey[FlowRunMeta]` symbol identity preserved
   per the brief's Liam-ratified Option (a) name.
 - `bind_flow_meta()` async context manager binds + restores per-task.
@@ -50,32 +50,32 @@ import pytest
 
 
 class TestFlowRunMeta:
-    """The FlowRunMeta payload carries op_id + content_items_id."""
+    """The FlowRunMeta payload carries op_id + source_document_id."""
 
     def test_module_exposes_flow_run_meta(self) -> None:
         from scripts.cocoindex_pipeline import flow_context
 
         assert hasattr(flow_context, "FlowRunMeta")
 
-    def test_construct_with_op_id_and_content_items_id(self) -> None:
+    def test_construct_with_op_id_and_source_document_id(self) -> None:
         from scripts.cocoindex_pipeline.flow_context import FlowRunMeta
 
         op_id = uuid4()
-        content_items_id = uuid4()
-        meta = FlowRunMeta(op_id=op_id, content_items_id=content_items_id)
+        source_document_id = uuid4()
+        meta = FlowRunMeta(op_id=op_id, source_document_id=source_document_id)
         assert meta.op_id == op_id
-        assert meta.content_items_id == content_items_id
+        assert meta.source_document_id == source_document_id
 
-    def test_content_items_id_is_optional(self) -> None:
+    def test_source_document_id_is_optional(self) -> None:
         """Flow start emits before any content_items row exists; the
-        per-row stamper provides content_items_id at extractor-invocation
+        per-row stamper provides source_document_id at extractor-invocation
         time. The payload must accept None for the pre-row state."""
         from scripts.cocoindex_pipeline.flow_context import FlowRunMeta
 
         op_id = uuid4()
-        meta = FlowRunMeta(op_id=op_id, content_items_id=None)
+        meta = FlowRunMeta(op_id=op_id, source_document_id=None)
         assert meta.op_id == op_id
-        assert meta.content_items_id is None
+        assert meta.source_document_id is None
 
 
 # ============================================================================
@@ -175,16 +175,16 @@ class TestBindFlowMeta:
         )
 
         op_id = uuid4()
-        content_items_id = uuid4()
+        source_document_id = uuid4()
 
         async def _exercise() -> None:
             async with bind_flow_meta(
-                op_id=op_id, content_items_id=content_items_id
+                op_id=op_id, source_document_id=source_document_id
             ):
                 meta = current_flow_meta()
                 assert meta is not None
                 assert meta.op_id == op_id
-                assert meta.content_items_id == content_items_id
+                assert meta.source_document_id == source_document_id
 
         asyncio.run(_exercise())
 
@@ -196,15 +196,15 @@ class TestBindFlowMeta:
 
         async def _exercise() -> None:
             assert current_flow_meta() is None
-            async with bind_flow_meta(op_id=uuid4(), content_items_id=uuid4()):
+            async with bind_flow_meta(op_id=uuid4(), source_document_id=uuid4()):
                 assert current_flow_meta() is not None
             # On exit the value reverts.
             assert current_flow_meta() is None
 
         asyncio.run(_exercise())
 
-    def test_bind_allows_none_content_items_id(self) -> None:
-        """Flow start emits before any per-row content_items_id is known."""
+    def test_bind_allows_none_source_document_id(self) -> None:
+        """Flow start emits before any per-row source_document_id is known."""
         from scripts.cocoindex_pipeline.flow_context import (
             bind_flow_meta,
             current_flow_meta,
@@ -213,11 +213,11 @@ class TestBindFlowMeta:
         op_id = uuid4()
 
         async def _exercise() -> None:
-            async with bind_flow_meta(op_id=op_id, content_items_id=None):
+            async with bind_flow_meta(op_id=op_id, source_document_id=None):
                 meta = current_flow_meta()
                 assert meta is not None
                 assert meta.op_id == op_id
-                assert meta.content_items_id is None
+                assert meta.source_document_id is None
 
         asyncio.run(_exercise())
 
@@ -236,7 +236,7 @@ class TestPerTaskIsolation:
         op_id_c = uuid4()
 
         async def _task(op_id: UUID) -> UUID | None:
-            async with bind_flow_meta(op_id=op_id, content_items_id=None):
+            async with bind_flow_meta(op_id=op_id, source_document_id=None):
                 await asyncio.sleep(0.001)
                 meta = current_flow_meta()
                 return meta.op_id if meta else None
@@ -252,11 +252,11 @@ class TestPerTaskIsolation:
 
 class TestStampWithFlowMeta:
     """`stamp_extraction_base()` can read from FLOW_META_CTX when no
-    explicit op_id / content_items_id are passed (28.16 contract)."""
+    explicit op_id / source_document_id are passed (28.16 contract)."""
 
     def test_stamp_reads_from_flow_meta_ctx(self) -> None:
         """When `stamp_extraction_base()` is called WITHOUT explicit
-        op_id / content_items_id, it falls back to reading from
+        op_id / source_document_id, it falls back to reading from
         `current_flow_meta()`. This is the 28.16 flow-scope wiring
         primitive — extractor outputs are stamped at flow-scope without
         the call-site needing to plumb op_id through `.transform()` chains.
@@ -275,7 +275,7 @@ class TestStampWithFlowMeta:
         # Build a placeholder extraction with throwaway base fields — these
         # will be replaced by the stamping operation.
         # bl-220 / ID-74: ClassificationExtraction is the stamp-free core (no
-        # op_id / content_items_id / extracted_at); stamp_extraction_base
+        # op_id / source_document_id / extracted_at); stamp_extraction_base
         # CONSTRUCTS the stamped type from it + the resolved values.
         original = ClassificationExtraction(
             content_type="research",
@@ -285,19 +285,19 @@ class TestStampWithFlowMeta:
 
         async def _exercise() -> ClassificationExtraction:
             async with bind_flow_meta(
-                op_id=run_op_id, content_items_id=row_id
+                op_id=run_op_id, source_document_id=row_id
             ):
-                # Call WITHOUT explicit op_id / content_items_id — the
+                # Call WITHOUT explicit op_id / source_document_id — the
                 # helper reads from FLOW_META_CTX.
                 stamped = stamp_extraction_base(original)
                 return stamped  # type: ignore[return-value]
 
         stamped = asyncio.run(_exercise())
         assert stamped.op_id == run_op_id
-        assert stamped.content_items_id == row_id
+        assert stamped.source_document_id == row_id
 
     def test_explicit_args_override_flow_meta_ctx(self) -> None:
-        """Explicit op_id / content_items_id kwargs override the
+        """Explicit op_id / source_document_id kwargs override the
         FLOW_META_CTX-bound values — call-site-provided values win.
 
         This preserves the pre-28.16 explicit-stamping call signature so
@@ -317,7 +317,7 @@ class TestStampWithFlowMeta:
         explicit_row_id = UUID("dddddddd-dddd-4ddd-8ddd-dddddddddddd")
 
         # bl-220 / ID-74: ClassificationExtraction is the stamp-free core (no
-        # op_id / content_items_id / extracted_at); stamp_extraction_base
+        # op_id / source_document_id / extracted_at); stamp_extraction_base
         # CONSTRUCTS the stamped type from it + the resolved values.
         original = ClassificationExtraction(
             content_type="research",
@@ -327,21 +327,21 @@ class TestStampWithFlowMeta:
 
         async def _exercise() -> ClassificationExtraction:
             async with bind_flow_meta(
-                op_id=ctx_op_id, content_items_id=ctx_row_id
+                op_id=ctx_op_id, source_document_id=ctx_row_id
             ):
                 stamped = stamp_extraction_base(
                     original,
                     op_id=explicit_op_id,
-                    content_items_id=explicit_row_id,
+                    source_document_id=explicit_row_id,
                 )
                 return stamped  # type: ignore[return-value]
 
         stamped = asyncio.run(_exercise())
         assert stamped.op_id == explicit_op_id
-        assert stamped.content_items_id == explicit_row_id
+        assert stamped.source_document_id == explicit_row_id
 
     def test_stamp_raises_when_no_args_and_no_context(self) -> None:
-        """When no explicit op_id / content_items_id are passed AND no
+        """When no explicit op_id / source_document_id are passed AND no
         FLOW_META_CTX is bound, the helper raises rather than silently
         stamping zero UUIDs. This protects against the "forgot to bind"
         operator error from landing zeroed rows in Postgres."""
@@ -353,7 +353,7 @@ class TestStampWithFlowMeta:
         )
 
         # bl-220 / ID-74: ClassificationExtraction is the stamp-free core (no
-        # op_id / content_items_id / extracted_at); stamp_extraction_base
+        # op_id / source_document_id / extracted_at); stamp_extraction_base
         # CONSTRUCTS the stamped type from it + the resolved values.
         original = ClassificationExtraction(
             content_type="research",
@@ -381,7 +381,7 @@ class TestStampWithFlowMeta:
 # also cross 28.13's file-ownership boundary).
 #
 # Design intent: the counter binding is a SEPARATE context-var from the
-# `FLOW_META_CTX` (which carries op_id + content_items_id only). Keeping them
+# `FLOW_META_CTX` (which carries op_id + source_document_id only). Keeping them
 # separate preserves the immutability of the `FlowRunMeta` dataclass and
 # avoids coupling flow_context.py to flow.py's _FlowRetryCounter class.
 

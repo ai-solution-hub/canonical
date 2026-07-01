@@ -14,7 +14,7 @@
 # DIRECTORY LAYOUT CONVENTION:
 #   <oq_root>/              — root passed to oq_emit / oq_cancel
 #     questions/<oq_id>.json   — OQ records (worker writes)
-#     decisions/<oq_id>.json   — decision records (parent writes — ID-43.7)
+#     decisions/<oq_id>.json   — decision records (parent writes)
 #     oq-state.json            — lifecycle marker (worker writes)
 #
 # EXIT CODES FOR oq_emit:

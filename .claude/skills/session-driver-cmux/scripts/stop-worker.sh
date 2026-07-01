@@ -3,7 +3,7 @@ set -euo pipefail
 
 # KH session-driver-cmux: stop a worker gracefully.
 #
-# Order of operations (FX-1 ID-28.1 ratification, S62C):
+# Order of operations:
 # 1. Send /exit to the cmux workspace.
 # 2. Wait up to 10s for session_end.
 # 3. SAFETY: dirty-tree check on the worker's worktree (BEFORE workspace close
@@ -24,7 +24,7 @@ set -euo pipefail
 #                    list` lookup when meta file is absent (post-failure
 #                    re-run scenario). Default: branch retained, parent
 #                    orchestrator owns its lifecycle.
-#                    SAFETY (kh-S260): deletion is GATED on an unmerged-commit
+#                    SAFETY: deletion is GATED on an unmerged-commit
 #                    pre-check against the integration ref (default `main`,
 #                    override via $KH_CMUX_INTEGRATION_REF). If the branch has
 #                    commits not in that ref (by patch-id), deletion is REFUSED
@@ -34,28 +34,28 @@ set -euo pipefail
 #                    Bypass the unmerged-commit gate and force-delete (git
 #                    branch -D). Use only to deliberately discard unwanted work.
 #   --archive <dir>  Archive worker corpus artefacts to <dir>/<worker-name>/
-#                    BEFORE the teardown rm -rf $EVENTS_DIR (ID-48.15, RESEARCH
-#                    §13.2 + §13.5). The 4 canonical artefacts copied are
+#                    BEFORE the teardown rm -rf $EVENTS_DIR. The 4 canonical
+#                    artefacts copied are
 #                    {events.jsonl, oq-pending.md, final_report.yaml, meta.json}
 #                    — any missing files are logged + skipped (best-effort,
 #                    forward-compatible with workers that do not emit all four).
-#                    Required by the workflow-evaluator data layer ({48.5} /
-#                    {48.14}) so historical session corpus survives teardown.
-#                    Callers typically point <dir> at
+#                    Required by the workflow-evaluator data layer so historical
+#                    session corpus survives teardown. Callers typically point
+#                    <dir> at
 #                    ${KH_PRIVATE_DOCS_DIR}/src/content/docs/workflow-evaluation/sessions/S<NNN>/
-#                    (the private docs-site checkout — ID-68 PC-25).
+#                    (the private docs-site checkout).
 #
-#                    ARCHIVE IS THE DEFAULT (ID-48.17, fixes S280 B1/B2 — the
-#                    S274 fleet was lost + manifest tombstones because archive
-#                    was opt-in). When neither --archive nor --no-archive is
-#                    given, the corpus is archived to a DERIVED default dir (see
-#                    --no-archive). Pass --archive <dir> to override the target.
+#                    ARCHIVE IS THE DEFAULT (an opt-in archive silently lost
+#                    worker corpus on teardown). When neither --archive nor
+#                    --no-archive is given, the corpus is archived to a DERIVED
+#                    default dir (see --no-archive). Pass --archive <dir> to
+#                    override the target.
 #   --no-archive     Opt OUT of the default archive (the prior opt-in teardown
 #                    behaviour). Use for throwaway / experimental workers whose
 #                    corpus is not worth preserving.
 #
-#                    At archive time the per-worker token roll-up (ID-48.17,
-#                    lib/workflow-evaluation/token-rollup.ts) is invoked over
+#                    At archive time the per-worker token roll-up
+#                    (lib/workflow-evaluation/token-rollup.ts) is invoked over
 #                    meta.json.session_id and writes token_usage_by_role +
 #                    token_usage_total into the ARCHIVED final_report.yaml. This
 #                    runs at archive time (not at evaluator run-time) because the
@@ -73,7 +73,7 @@ shift 2
 FORCE=0
 DELETE_BRANCH=0
 FORCE_DELETE_BRANCH=0
-# Archive is the DEFAULT (ID-48.17): ARCHIVE=1 unless --no-archive is passed.
+# Archive is the DEFAULT: ARCHIVE=1 unless --no-archive is passed.
 # ARCHIVE_DIR empty + ARCHIVE=1 => derive a default target from meta.json (see
 # the archive block below). An explicit --archive <dir> sets ARCHIVE_DIR.
 ARCHIVE=1
@@ -122,7 +122,7 @@ fi
 
 # Resolve the MAIN working-tree root even when CWD is inside a linked worktree.
 # --git-common-dir points at <main>/.git for every linked worktree; its parent
-# is the canonical main root. Falls back to --show-toplevel then pwd. (ID-27.6)
+# is the canonical main root. Falls back to --show-toplevel then pwd.
 resolve_project_root() {
   local common_dir
   common_dir="$(git rev-parse --git-common-dir 2>/dev/null)" \
@@ -295,7 +295,7 @@ if [ "$DELETE_BRANCH" -eq 1 ]; then
   elif ! git -C "$PROJECT_ROOT" show-ref --verify --quiet "refs/heads/${BRANCH_NAME}"; then
     echo "Note: branch '$BRANCH_NAME' already gone — nothing to delete." >&2
   else
-    # P1 SAFETY (kh-S260 hardening of the S61 carryover --delete-branch gap):
+    # P1 SAFETY — guard the default --delete-branch path:
     # gate the default delete on an explicit unmerged-commit pre-check so a
     # clean stop can never silently destroy worker SHAs that were never
     # cherry-picked / merged. `git cherry <ref> <branch>` flags commits absent
@@ -323,28 +323,26 @@ if [ "$DELETE_BRANCH" -eq 1 ]; then
   fi
 fi
 
-# --- Archive worker corpus BEFORE teardown (ID-48.15 + ID-48.17) ---
+# --- Archive worker corpus BEFORE teardown ---
 #
-# Archive is the DEFAULT teardown behaviour (ID-48.17, fixes S280 B1/B2). When
-# ARCHIVE=1 (i.e. --no-archive was NOT passed) we copy the 4 canonical artefacts
-# the evaluator data layer ({48.5} / {48.14}) depends on into
-# <archive-dir>/<worker-name>/ before the teardown rm -rf destroys them.
-# Best-effort: any missing file is logged + skipped (workers that do not emit
-# all four — e.g. an early-failure worker with no final_report.yaml — still
-# archive what they did produce). RESEARCH §13.2 + §13.5; PLAN §S271 ADDENDUM.
+# Archive is the DEFAULT teardown behaviour. When ARCHIVE=1 (i.e. --no-archive
+# was NOT passed) we copy the 4 canonical artefacts the evaluator data layer
+# depends on into <archive-dir>/<worker-name>/ before the teardown rm -rf
+# destroys them. Best-effort: any missing file is logged + skipped (workers that
+# do not emit all four — e.g. an early-failure worker with no final_report.yaml
+# — still archive what they did produce).
 #
 # Default dir derivation (when no explicit --archive <dir> is given):
-#   base    = ${KH_PRIVATE_DOCS_DIR}/src/content/docs/workflow-evaluation/sessions/   (range-complete corpus)
+#   base    = ${KH_PRIVATE_DOCS_DIR}/src/content/docs/workflow-evaluation/sessions/
 #   segment = meta.json.session_number (e.g. "S282") if present,
 #             else "S<session_number>" stripped of any leading S,
 #             else a "session-<SESSION_ID>" fallback so the corpus is never lost.
 # We derive a sensible default so a bare `stop-worker.sh <name> <sid>` still
-# preserves the corpus, rather than silently dropping it (the S274 footgun).
+# preserves the corpus, rather than silently dropping it.
 #
-# ID-68 PC-25 (re-authored from the never-landed Phase-0a predecessor knob):
-# the session corpus lives in the PRIVATE docs-site repo. The default base
-# resolves via the one standing bridge knob KH_PRIVATE_DOCS_DIR and FAILS
-# LOUDLY when unset (Inv 29 — no silent fallback to the in-repo docs/ tree).
+# The session corpus lives in the PRIVATE docs-site repo. The default base
+# resolves via the standing bridge knob KH_PRIVATE_DOCS_DIR and FAILS LOUDLY
+# when unset (no silent fallback to the in-repo docs/ tree).
 # Pass --archive <dir> to override, or --no-archive to skip archiving.
 
 if [ "$ARCHIVE" -eq 1 ] && [ -d "$EVENTS_DIR" ]; then
@@ -386,7 +384,7 @@ if [ "$ARCHIVE" -eq 1 ] && [ -d "$EVENTS_DIR" ]; then
       fi
     done
 
-    # --- Token roll-up into the ARCHIVED final_report.yaml (ID-48.17) ---
+    # --- Token roll-up into the ARCHIVED final_report.yaml ---
     #
     # Join meta.json.session_id -> the worker's Claude Code session transcript
     # and sum the real message.usage per assistant turn, then patch

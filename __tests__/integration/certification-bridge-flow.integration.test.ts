@@ -61,7 +61,7 @@ afterAll(async () => {
       await serviceClient
         .from('entity_mentions')
         .delete()
-        .eq('content_item_id', itemId);
+        .eq('source_document_id', itemId);
 
       await serviceClient.from('content_items').delete().eq('id', itemId);
     }
@@ -123,7 +123,7 @@ async function createEntityMention(
   const { data, error } = await serviceClient
     .from('entity_mentions')
     .insert({
-      content_item_id: contentItemId,
+      source_document_id: contentItemId,
       entity_name: canonicalName,
       canonical_name: canonicalName.toLowerCase(),
       entity_type: entityType,
@@ -222,7 +222,7 @@ describe('Certification Bridge Flow — Real DB Integration', () => {
     const { data: dbMentions, error: dbError } = await serviceClient
       .from('entity_mentions')
       .select('entity_name, entity_type, metadata')
-      .eq('content_item_id', itemId)
+      .eq('source_document_id', itemId)
       .eq('entity_type', 'certification');
 
     expect(dbError).toBeNull();

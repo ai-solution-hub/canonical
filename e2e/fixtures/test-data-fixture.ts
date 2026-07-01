@@ -191,7 +191,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       const entityRelationshipInserts = entityRelationshipShapes
         .filter((r) => itemIds[r.itemIndex])
         .map((r) => ({
-          source_item_id: itemIds[r.itemIndex],
+          source_document_id: itemIds[r.itemIndex],
           source_entity: r.source_entity,
           target_entity: r.target_entity,
           relationship_type: r.relationship_type,
@@ -594,7 +594,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         await supabase
           .from('entity_relationships')
           .delete()
-          .in('source_item_id', itemIds);
+          .in('source_document_id', itemIds);
       }
 
       // 6. Content items and workspaces (by prefix)

@@ -28,6 +28,7 @@ import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import get_args
 from uuid import UUID, uuid4
 
 import pytest
@@ -43,6 +44,7 @@ from scripts.cocoindex_pipeline.extraction import (
     QAFormExtraction,
     QAFormExtractionStamped,
     QAPair,
+    RelationshipExtraction,
     _UNSTAMPED_UUID,
     _VALID_CONTENT_TYPES,
     _VALID_DOMAINS,
@@ -63,7 +65,7 @@ from scripts.cocoindex_pipeline.flow_context import bind_taxonomy_miss_counter
 #
 # The 3 LLM-output shapes (`ClassificationExtraction` / `QAFormExtraction` /
 # `EntityMentionExtraction`) are now the STAMP-FREE cores the memo extractors
-# return — they carry NO op_id / content_items_id / extracted_at fields, and
+# return — they carry NO op_id / source_document_id / extracted_at fields, and
 # their `strict`, extra="forbid" config REJECTS those fields if supplied. So the
 # shared base-field fixtures are EMPTY: a core construction / a core
 # `validate_json` payload supplies only the LLM fields. The stamp fields live on
@@ -74,14 +76,14 @@ from scripts.cocoindex_pipeline.flow_context import bind_taxonomy_miss_counter
 
 # Retained for the post-memo stamp assertions (the `extracted_at > _EXTRACTED_AT`
 # witness in TestStampExtractionBase). _OP_ID / _CONTENT_ID were dropped: the
-# stamp-free cores take no op_id / content_items_id, and the stamp tests mint
+# stamp-free cores take no op_id / source_document_id, and the stamp tests mint
 # fresh uuid4() values inline.
 _EXTRACTED_AT = datetime(2026, 5, 22, 12, 0, 0, tzinfo=timezone.utc)
 
 
 @pytest.fixture
 def base_fields() -> dict:
-    """Empty — the stamp-free cores take no op_id / content_items_id /
+    """Empty — the stamp-free cores take no op_id / source_document_id /
     extracted_at (bl-220). Kept as a fixture so the many variant constructions
     that spread `**base_fields` need no signature change."""
     return {}
@@ -573,7 +575,7 @@ class TestClassifyPydanticError:
         covered after the bl-220 split."""
         payload = {
             "op_id": "not-a-uuid",
-            "content_items_id": "b1111111-1111-4111-8111-111111111111",
+            "source_document_id": "b1111111-1111-4111-8111-111111111111",
             "extracted_at": "2026-05-22T12:00:00Z",
             "content_type": "article",
             "primary_domain": "compliance",
@@ -615,7 +617,7 @@ class TestClassifyPydanticError:
 
 class TestExtractionBaseFields:
     """bl-220 / ID-74: the memo-returned CORE shapes carry NO op_id /
-    content_items_id / extracted_at. PRODUCT Inv-5 is preserved by stamping the
+    source_document_id / extracted_at. PRODUCT Inv-5 is preserved by stamping the
     full `*Stamped` shape POST-memo (see TestStampExtractionBase) — the LLM never
     generates these fields, and they must never cross the cocoindex memo serde
     (which strict-re-validates on a HIT and would reject the string UUID/datetime
@@ -635,7 +637,7 @@ class TestExtractionBaseFields:
         parsed = ta.validate_json(json.dumps(payload))
         assert isinstance(parsed, ClassificationExtraction)
         assert not hasattr(parsed, "op_id")
-        assert not hasattr(parsed, "content_items_id")
+        assert not hasattr(parsed, "source_document_id")
         assert not hasattr(parsed, "extracted_at")
         assert "op_id" not in type(parsed).model_fields
 
@@ -667,7 +669,7 @@ class TestStampExtractionBase:
     """Q-EX2 §3.2 / bl-220 — plain-Python helper, NOT @coco.fn.
 
     Post bl-220 / ID-74: `stamp_extraction_base` CONSTRUCTS the full `*Stamped`
-    type from a stamp-FREE core + the resolved op_id / content_items_id /
+    type from a stamp-FREE core + the resolved op_id / source_document_id /
     extracted_at (it no longer `model_copy`s a model that already has the fields,
     because the core has none). The stamped result is what flow.py's row writers
     read; the input core never carries the stamp fields (that is the whole point —
@@ -692,12 +694,12 @@ class TestStampExtractionBase:
         stamped = stamp_extraction_base(
             original,
             op_id=new_op_id,
-            content_items_id=new_content_id,
+            source_document_id=new_content_id,
         )
         assert isinstance(stamped, ClassificationExtractionStamped)
         # Stamp fields set from the resolved values
         assert stamped.op_id == new_op_id
-        assert stamped.content_items_id == new_content_id
+        assert stamped.source_document_id == new_content_id
         assert stamped.extracted_at > _EXTRACTED_AT  # post-now() > the 2026 fixture
         # Variant fields preserved
         assert stamped.content_type == "research"
@@ -718,7 +720,7 @@ class TestStampExtractionBase:
         stamped = stamp_extraction_base(
             original,
             op_id=uuid4(),
-            content_items_id=uuid4(),
+            source_document_id=uuid4(),
         )
         # Input core unchanged — still stamp-free
         assert not hasattr(original, "op_id")
@@ -729,7 +731,7 @@ class TestStampExtractionBase:
     def test_explicit_kwargs_call_still_works_post_28_16(
         self, base_fields: dict
     ) -> None:
-        """ID-28.16 changed `op_id` / `content_items_id` to optional kwargs
+        """ID-28.16 changed `op_id` / `source_document_id` to optional kwargs
         that fall back to FLOW_META_CTX when omitted. The pre-28.16 explicit
         call signature (positional, kwargs both supplied) MUST still work
         — backwards-compat with WP3 / WP4 call-sites that pass explicit
@@ -749,10 +751,10 @@ class TestStampExtractionBase:
         stamped = stamp_extraction_base(
             original,
             op_id=new_op_id,
-            content_items_id=new_content_id,
+            source_document_id=new_content_id,
         )
         assert stamped.op_id == new_op_id
-        assert stamped.content_items_id == new_content_id
+        assert stamped.source_document_id == new_content_id
 
     def test_missing_args_raises_runtime_error_when_no_binding(
         self, base_fields: dict
@@ -795,7 +797,7 @@ class TestNormaliseEntitySpan:
         end: int,
     ) -> EntityMentionExtraction:
         # bl-220: EntityMentionExtraction is the stamp-free core — no op_id /
-        # content_items_id / extracted_at.
+        # source_document_id / extracted_at.
         return EntityMentionExtraction(
             entity_type="organisation",
             entity_name=content_text[start:end].strip(),
@@ -856,6 +858,18 @@ class TestNormaliseEntitySpan:
 
 _REPO_ROOT = Path(__file__).parent.parent.parent
 _SCHEMAS_TS_PATH = _REPO_ROOT / "lib" / "validation" / "schemas.ts"
+# ID-133 BI-5: the TS `relationship` vocabulary is a UNION TYPE on the
+# `ExtractedRelationship` interface in `lib/ai/classify.ts` (NOT a
+# `const … as const` array), and the public mirror of both KG CVs lives in the
+# ontology baseline fixture — the third leg the parity guards bind.
+_CLASSIFY_TS_PATH = _REPO_ROOT / "lib" / "ai" / "classify.ts"
+_ONTOLOGY_BASELINES_FIXTURE_PATH = (
+    _REPO_ROOT
+    / "__tests__"
+    / "fixtures"
+    / "ontology"
+    / "ontology-cv-baselines.json"
+)
 
 
 def _extract_ts_string_array(source: str, var_name: str) -> list[str]:
@@ -878,34 +892,122 @@ def _extract_ts_string_array(source: str, var_name: str) -> list[str]:
     return re.findall(r"'([^']+)'", body)
 
 
+def _extract_ts_union_members(
+    source: str, interface_name: str, field_name: str
+) -> list[str]:
+    """Extract the single-quoted members of a TS string-literal UNION field.
+
+    ID-133 BI-5: `ExtractedRelationship.relationship` in `lib/ai/classify.ts`
+    is a `| 'holds' | 'complies_with' | …` union, NOT a `const … as const`
+    array, so `_extract_ts_string_array` cannot parse it. This sibling scopes
+    to the interface body, then to the named field's union (up to its
+    terminating `;`), and returns the quoted members in source order — so
+    JSDoc prose and sibling fields (e.g. `source_scope`) never leak in.
+    """
+    iface_pattern = re.compile(
+        rf"export\s+interface\s+{interface_name}\s*\{{(.*?)\}}",
+        re.DOTALL,
+    )
+    iface_match = iface_pattern.search(source)
+    if not iface_match:
+        raise ValueError(
+            f"Could not find interface {interface_name} in TS source"
+        )
+    body = iface_match.group(1)
+    field_pattern = re.compile(rf"\b{field_name}\s*:\s*(.*?);", re.DOTALL)
+    field_match = field_pattern.search(body)
+    if not field_match:
+        raise ValueError(
+            f"Could not find field {field_name} in interface {interface_name}"
+        )
+    return re.findall(r"'([^']+)'", field_match.group(1))
+
+
+def _fixture_baseline_keys(cv_name: str) -> list[str]:
+    """Return the `baseline_values` keys (source order) for a CV in the public
+    ontology baseline fixture — the third parity leg (Decision A public mirror)."""
+    data = json.loads(_ONTOLOGY_BASELINES_FIXTURE_PATH.read_text())
+    for cv in data["cvs"]:
+        if cv["cv_name"] == cv_name:
+            return [bv["key"] for bv in cv["baseline_values"]]
+    raise ValueError(
+        f"CV {cv_name!r} not found in {_ONTOLOGY_BASELINES_FIXTURE_PATH.name}"
+    )
+
+
 class TestEntityTypeParity:
-    """Q-EX2 §5.4 — Python Literal vs TS VALID_ENTITY_TYPES."""
+    """Q-EX2 §5.4 + ID-133 BI-5 — entity_type TRIPLE-bind.
+
+    Binds three legs in lockstep: the Python `EntityMentionExtraction.entity_type`
+    Literal, the TS `VALID_ENTITY_TYPES` const (`lib/validation/schemas.ts`), and
+    the public `entity_type` CV baseline_values keys in
+    `__tests__/fixtures/ontology/ontology-cv-baselines.json` (Decision A public
+    mirror). Any drift between the three fails here.
+    """
 
     def test_python_literal_matches_ts_constant(self) -> None:
-        # Python source of truth — the Literal in EntityMentionExtraction
-        python_entity_types = [
-            "organisation",
-            "certification",
-            "regulation",
-            "framework",
-            "capability",
-            "person",
-            "technology",
-            "project",
-            "sector",
-            "product",
-            "standard",
-            "methodology",
-        ]
-        # TS source of truth — VALID_ENTITY_TYPES at schemas.ts:1506-1519
+        # Python source of truth — the Literal in EntityMentionExtraction,
+        # read directly off the model so the test cannot drift from the runtime.
+        python_entity_types = list(
+            get_args(
+                EntityMentionExtraction.model_fields["entity_type"].annotation
+            )
+        )
+        # TS source of truth — VALID_ENTITY_TYPES (`const … as const` array).
         ts_source = _SCHEMAS_TS_PATH.read_text()
         ts_entity_types = _extract_ts_string_array(
             ts_source, "VALID_ENTITY_TYPES"
         )
+        # Third leg — the public fixture baseline (ID-133 BI-5 / Decision A).
+        fixture_entity_types = _fixture_baseline_keys("entity_type")
         assert python_entity_types == ts_entity_types, (
             f"entity_type parity drift between Python "
             f"EntityMentionExtraction Literal and TS VALID_ENTITY_TYPES. "
             f"Python: {python_entity_types}. TS: {ts_entity_types}"
+        )
+        assert python_entity_types == fixture_entity_types, (
+            f"entity_type parity drift between Python "
+            f"EntityMentionExtraction Literal and the public ontology fixture "
+            f"baseline_values. Python: {python_entity_types}. "
+            f"Fixture: {fixture_entity_types}"
+        )
+
+
+class TestRelationshipParity:
+    """ID-133 BI-5 — relationship TRIPLE-bind (no equivalent guard existed).
+
+    Binds the Python `RelationshipExtraction.relationship` Literal, the TS
+    `ExtractedRelationship.relationship` UNION (`lib/ai/classify.ts` — a union
+    type, not a `const … as const` array, so extracted via
+    `_extract_ts_union_members`), and the public `relationship` CV
+    baseline_values keys in the ontology baseline fixture. Any drift fails here.
+    """
+
+    def test_python_literal_matches_ts_union_and_fixture(self) -> None:
+        # Python source of truth — the Literal on the RelationshipExtraction core.
+        python_relationships = list(
+            get_args(
+                RelationshipExtraction.model_fields["relationship"].annotation
+            )
+        )
+        # TS source of truth — the ExtractedRelationship.relationship union.
+        ts_source = _CLASSIFY_TS_PATH.read_text()
+        ts_relationships = _extract_ts_union_members(
+            ts_source, "ExtractedRelationship", "relationship"
+        )
+        # Third leg — the public fixture baseline (ID-133 BI-5 / Decision A).
+        fixture_relationships = _fixture_baseline_keys("relationship")
+        assert python_relationships == ts_relationships, (
+            f"relationship parity drift between Python "
+            f"RelationshipExtraction Literal and TS "
+            f"ExtractedRelationship.relationship union. "
+            f"Python: {python_relationships}. TS: {ts_relationships}"
+        )
+        assert python_relationships == fixture_relationships, (
+            f"relationship parity drift between Python "
+            f"RelationshipExtraction Literal and the public ontology fixture "
+            f"baseline_values. Python: {python_relationships}. "
+            f"Fixture: {fixture_relationships}"
         )
 
 
@@ -1203,10 +1305,76 @@ class TestOutOfTaxonomySoftWarn:
 
 
 # ──────────────────────────────────────────────────────────────────────────
+# ID-133 BI-5 — enforcement-semantics invariant (TECH §"Enforcement-semantics
+# invariant"). The pass changes WHAT is gated, NOT the HARD/SOFT line:
+#   - closed enums (entity_type, relationship) HARD-reject → RAISE
+#   - open dimensions (primary_domain) SOFT-WARN → row written, counter bumped,
+#     never raises (`_surface_out_of_taxonomy_classification` UNTOUCHED).
+# This single class pins both halves so the BI-5 promotion provably did not move
+# the enforcement line.
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class TestEnforcementSemanticsInvariant:
+    """ID-133 BI-5 — HARD-reject (closed enums) vs SOFT-WARN (open dimensions)."""
+
+    def test_junk_entity_type_hard_rejects(self, base_fields: dict) -> None:
+        """A junk `entity_type` still RAISES → invalid_enum (closed-enum
+        HARD-reject; BI-5 did not weaken it)."""
+        with pytest.raises(ValidationError) as exc_info:
+            EntityMentionExtraction(
+                **base_fields,
+                entity_type="not_a_real_entity_type",  # type: ignore[arg-type]
+                entity_name="Acme Corp",
+                source_span_start=0,
+                source_span_end=9,
+                mention_confidence=0.8,
+            )
+        assert classify_pydantic_error(exc_info.value) == "invalid_enum"
+
+    def test_junk_relationship_hard_rejects(self) -> None:
+        """A junk `relationship` still RAISES → invalid_enum (closed-enum
+        HARD-reject on the RelationshipExtraction Literal)."""
+        with pytest.raises(ValidationError) as exc_info:
+            RelationshipExtraction(
+                source="Acme Corp",
+                relationship="not_a_real_relationship",  # type: ignore[arg-type]
+                target="ISO 27001",
+            )
+        assert classify_pydantic_error(exc_info.value) == "invalid_enum"
+
+    def test_junk_primary_domain_soft_warns(
+        self, base_fields: dict, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A junk `primary_domain` does NOT raise — the row is written UNCHANGED,
+        the bound counter is bumped, and a warning is logged (open-dimension
+        SOFT-WARN; `_surface_out_of_taxonomy_classification` untouched)."""
+        counter = _RecordingMissCounter()
+        with caplog.at_level("WARNING"):
+            extraction = _build_classification_under_counter(
+                counter,
+                base_fields,
+                content_type="policy",
+                primary_domain="not_a_real_domain",
+                classification_confidence=0.8,
+            )
+        # No raise; row written unchanged.
+        assert isinstance(extraction, ClassificationExtraction)
+        assert extraction.primary_domain == "not_a_real_domain"
+        # Counter bumped for the open dimension.
+        assert counter.recorded == [("primary_domain", "not_a_real_domain")]
+        assert any(
+            "out-of-taxonomy" in rec.getMessage()
+            and "primary_domain" in rec.getMessage()
+            for rec in caplog.records
+        )
+
+
+# ──────────────────────────────────────────────────────────────────────────
 # §5.1 inv 5 — LLM-output faithfulness (bl-220 / ID-74; {66.16} S295 lineage)
 #
 # The live `extract_*` extractors call `_*_adapter.validate_json(response_text)`
-# on raw Anthropic JSON that OMITS op_id / content_items_id / extracted_at (the
+# on raw Anthropic JSON that OMITS op_id / source_document_id / extracted_at (the
 # LLM does not generate them per PRODUCT Inv-5). Post bl-220 the adapters target
 # the STAMP-FREE core shapes, so these three fields are not even declared on the
 # memo-returned type — the LLM-output JSON validates cleanly AND the round-tripped
@@ -1219,13 +1387,13 @@ class TestOutOfTaxonomySoftWarn:
 class TestLLMOutputOmitsStampedFields:
     """The validation contract the live extractors feed (`_classification_adapter`
     / `_qa_form_adapter` / `_entity_mentions_adapter`) accepts LLM JSON that omits
-    op_id / content_items_id / extracted_at, and (bl-220) returns a STAMP-FREE
+    op_id / source_document_id / extracted_at, and (bl-220) returns a STAMP-FREE
     core that carries none of those fields — they are added only post-memo by
     `stamp_extraction_base` (PRODUCT Inv-5)."""
 
     def test_classification_validates_without_stamped_fields(self) -> None:
         # Byte-for-byte the shape `extract_classification` feeds the adapter:
-        # the classifier's own fields, NO op_id / content_items_id /
+        # the classifier's own fields, NO op_id / source_document_id /
         # extracted_at.
         payload = {
             "extraction_kind": "classification",
@@ -1240,7 +1408,7 @@ class TestLLMOutputOmitsStampedFields:
         assert parsed.content_type == "policy"
         # bl-220: the core carries NO stamp fields (stamped post-memo).
         assert not hasattr(parsed, "op_id")
-        assert not hasattr(parsed, "content_items_id")
+        assert not hasattr(parsed, "source_document_id")
         assert not hasattr(parsed, "extracted_at")
 
     def test_qa_form_validates_without_stamped_fields(self) -> None:
@@ -1258,7 +1426,7 @@ class TestLLMOutputOmitsStampedFields:
         assert isinstance(parsed, QAFormExtraction)
         assert parsed.form_metadata.form_type == "psq"
         assert not hasattr(parsed, "op_id")
-        assert not hasattr(parsed, "content_items_id")
+        assert not hasattr(parsed, "source_document_id")
 
     def test_entity_mentions_validate_without_stamped_fields(self) -> None:
         # `extract_entity_mentions` validates a JSON ARRAY via the list adapter.
@@ -1409,7 +1577,7 @@ class TestMemoHitSerdeRoundTrip:
         boundary."""
         stamped = stamped_cls(
             op_id=UUID("a0000000-0000-4000-8000-000000000001"),
-            content_items_id=UUID("b1111111-1111-4111-8111-111111111111"),
+            source_document_id=UUID("b1111111-1111-4111-8111-111111111111"),
             extracted_at=datetime(2026, 5, 22, 12, 0, 0, tzinfo=timezone.utc),
             **kwargs,
         )

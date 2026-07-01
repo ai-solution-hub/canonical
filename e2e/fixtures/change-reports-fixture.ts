@@ -30,11 +30,64 @@
  * There are no FK children: `item_ids` is a plain `uuid[]` array on the row
  * itself (we seed it empty), so teardown is a single DELETE by tag.
  */
+import type { Page } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ChangeReportDomainSummary } from '@/types/change-reports';
 
 /** Tag key written into `change_reports.metadata` for precise teardown. */
 export const CHANGE_REPORT_FIXTURE_TAG = 'e2e_change_report_fixture_run_id';
+
+/**
+ * The single deterministic taxonomy-domain name injected by
+ * {@link stubTaxonomyDomains}. The change-reports custom filter renders one
+ * <SelectItem> per domain `name` (see app/change-reports/page.tsx) and the
+ * active-filter badge + its remove button echo the selected `name` verbatim,
+ * so the owning spec asserts the badge UNCONDITIONALLY against this constant.
+ */
+export const STUB_TAXONOMY_DOMAIN_NAME = 'cyber-security';
+
+/**
+ * Route-mock `taxonomy_domains` to a DETERMINISTIC single-domain list so the
+ * custom-filter domain <Select> always offers exactly one selectable domain
+ * (`STUB_TAXONOMY_DOMAIN_NAME`) beyond the "All domains" sentinel.
+ *
+ * WHY THIS EXISTS
+ * ---------------
+ * `contexts/taxonomy-context.tsx` populates the domain options via a direct
+ * supabase-js read:
+ *   from('taxonomy_domains').select('id, name, …').eq('is_active', true)
+ * which resolves to `GET …/rest/v1/taxonomy_domains?select=…`. The test DB's
+ * domain set is ambient and non-deterministic (it can legitimately be empty),
+ * which is exactly why the spec previously soft-guarded its badge assertion
+ * with `if (optionCount > 1)` — a vacuous false-pass whenever no domain seed
+ * existed. Stubbing the REST read to a fixed single domain lets the spec drop
+ * the guard and hard-assert the active-filter badge against a known name,
+ * never against ambient staging content (test-philosophy.md §2.1).
+ *
+ * Mirrors the `stubEmptyChangeReports` pattern in change-reports-page.spec.ts:
+ * route-mock BEFORE `page.goto`, deterministic JSON body, no DB mutation.
+ *
+ * Must be called BEFORE `page.goto`.
+ */
+export async function stubTaxonomyDomains(page: Page): Promise<void> {
+  await page.route('**/rest/v1/taxonomy_domains*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          id: '00000000-0000-0000-0000-0000000000d1',
+          name: STUB_TAXONOMY_DOMAIN_NAME,
+          display_name: 'Cyber Security',
+          display_order: 0,
+          colour: 'blue',
+          is_active: true,
+          provenance: 'manual',
+        },
+      ]),
+    }),
+  );
+}
 
 export interface SeededChangeReport {
   id: string;

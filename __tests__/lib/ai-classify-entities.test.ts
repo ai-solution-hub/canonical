@@ -513,7 +513,7 @@ describe('classifyContent — entity extraction', () => {
       expect(mockSupabase.from).toHaveBeenCalledWith('entity_mentions');
       // Post-S157 WP2: also verify delete-before-insert fires on
       // re-classification. The classify.ts Step 13a clears any stale
-      // rows for this content_item_id before the filtered upsert so
+      // rows for this source_document_id before the filtered upsert so
       // that entity_mentions always reflects the CURRENT classifier
       // state, not an accumulation of prior filter-rule drafts.
       expect(mockSupabase._chain.delete).toHaveBeenCalled();
@@ -521,7 +521,7 @@ describe('classifyContent — entity extraction', () => {
       // mention landed canonicalised + lowercased with full confidence.
       expect(whereUpserted('entity_mentions')).toContainEqual(
         expect.objectContaining({
-          content_item_id: ITEM_ID,
+          source_document_id: ITEM_ID,
           entity_type: 'certification',
           entity_name: 'ISO27001',
           canonical_name: 'iso 27001', // canonicalised + lowercased for case-insensitive index
@@ -530,7 +530,7 @@ describe('classifyContent — entity extraction', () => {
       );
       // Conflict-resolution semantics: upsert-merge on the dedup key.
       expect(upsertOptions('entity_mentions')).toEqual({
-        onConflict: 'canonical_name,entity_type,content_item_id',
+        onConflict: 'canonical_name,entity_type,source_document_id',
         ignoreDuplicates: false,
       });
     });
@@ -561,7 +561,7 @@ describe('classifyContent — entity extraction', () => {
           source_entity: 'acme limited', // canonicalised + lowercased
           relationship_type: 'holds',
           target_entity: 'iso 27001', // canonicalised + lowercased
-          source_item_id: ITEM_ID,
+          source_document_id: ITEM_ID,
           confidence: 1.0,
         }),
       );
@@ -569,7 +569,7 @@ describe('classifyContent — entity extraction', () => {
       expect(upsertOptions('entity_relationships')).toEqual(
         expect.objectContaining({
           onConflict:
-            'source_entity,relationship_type,target_entity,source_item_id',
+            'source_entity,relationship_type,target_entity,source_document_id',
           ignoreDuplicates: true,
         }),
       );
@@ -679,7 +679,7 @@ describe('classifyContent — entity extraction', () => {
       // state for "classifier extracted nothing now" is "zero rows",
       // not "whatever was there before". Entity_relationships follows
       // the old skip-on-empty rule since there is no equivalent stale-
-      // data accumulation vector (relationships key off `source_item_id`
+      // data accumulation vector (relationships key off `source_document_id`
       // and are inserted, not upserted).
       mockCreate.mockResolvedValueOnce(
         createToolUseResponse({
@@ -772,7 +772,7 @@ describe('classifyContent — entity extraction', () => {
       expect(upsertOptions('entity_relationships')).toEqual(
         expect.objectContaining({
           onConflict:
-            'source_entity,relationship_type,target_entity,source_item_id',
+            'source_entity,relationship_type,target_entity,source_document_id',
           ignoreDuplicates: true,
         }),
       );

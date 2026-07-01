@@ -56,7 +56,7 @@ oq_id=$(oq_emit "$WORKER_ID" 43 plan \
 - For a **blocking** OQ, pass a `checkpoint_ref` (opaque to the channel) that
   lets you resume the blocked step **without re-running it** after the decision.
 
-## The two-state contract (OQ-INV-8 / OQ-INV-24) — load-bearing
+## The two-state contract — load-bearing
 
 - **Blocking OQ:** after emit, your `oq-state.json` flips to `awaiting-decision`.
   Make **no** progress that depends on the answer. You MAY do independent

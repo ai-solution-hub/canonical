@@ -14,17 +14,14 @@ Checker, Workflow Curator) via the built-in `Agent` tool or `session-driver-cmux
 
 If the continuation prompt includes usage of cmux terminals, chain from this `workflow-orchestration` to the `session-driver-cmux` skill to prepare and deploy sub-orchestrators.
 
-### Context economics (the *why* behind orchestrate-don't-implement)
+### Context economics
 
-Every conversation turn re-sends the entire growing context, so cost scales with turn
-COUNT, not just per-turn work — the axi benchmark records that "the savings from a smaller
-initial context are consumed by accumulation across additional turns." Inline executor-grade
-work on the orchestrator main thread is therefore the single most expensive shape: a
-long-lived 1h-TTL cache-write thread whose context only grows. Corpus evidence (ID-92): all
-24 sessions exceeding 400K peak context were orchestrator mains doing executor-grade work
-inline — zero subagents. Self-diagnosis signature: **peak context > 400K AND sub:main
-flat-token ratio < 0.2** (near-zero spawning). If you see this shape, stop and delegate — a
-dispatched sub-agent pays its own context, not yours.
+Cost scales with turn COUNT, not just per-turn work — every turn re-sends the entire
+growing context, so inline executor-grade work on the orchestrator main thread is the
+single most expensive shape: a long-lived thread whose context only grows. Self-diagnosis
+signature: **peak context > 400K AND sub:main flat-token ratio < 0.2** (near-zero
+spawning). If you see this shape, stop and delegate — a dispatched sub-agent pays its own
+context, not yours.
 
 ---
 
@@ -61,8 +58,8 @@ SESSION
   fresh Planner per subtask, Checker gates each output, Liam ratifies before
   implementation. Right-size the spec chain via the four named tiers (Full chain /
   PRODUCT+PLAN / TECH+PLAN / Spec-free) — the Orchestrator decides the tier at
-  Task open, records it as a terse `status_note` marker (≤300-char budget,
-  invariant 57), and an under-specified Task that later reveals compound
+  Task open, records it as a terse `status_note` marker (≤300-char budget),
+  and an under-specified Task that later reveals compound
   invariants ESCALATES to a heavier tier, never silently proceeds. Full tier
   definitions: `.claude/agents/references/shared-discipline.md` §Spec-chain
   right-sizing and §Spec-tier budget.
@@ -111,7 +108,7 @@ After every subtask PASS (or PASS_WITH_NOTES with all notes resolved),
 the Orchestrator owns the merge. Executors invoke `commit-commands` per
 subtask. **On conflict**: invoke the `resolve-merge-conflicts` skill.
 
-**Pre-integration preflight (WS-A4 — F2 friction killer).** Before any
+**Pre-integration preflight.** Before any
 cherry-pick / merge batch:
 
 1. **Stop competing watchers** — kill or pause background git-watchers
@@ -138,10 +135,32 @@ Orchestrator evaluates the rule directly - the predicate:
 
 **In-scope** findings go to a fix-Executor.
 **Out-of-scope** findings go to the `workflow-curator` agent, which runs
-`triage-finding` then writes to roadmap / backlog / subtask via
-`update-roadmap-backlog`.
+`triage-finding` then writes to roadmap / backlog / subtask / **decision-register**
+via `update-roadmap-backlog` (the register write routes back through the Orchestrator —
+see Decision-register wiring).
 
 For the full Checker JSON output schema, verdict mapping, the three fix-flows, and Curator routing detail, see [references/checker-output-schema.md](references/checker-output-schema.md).
+
+---
+
+## Decision-register wiring
+
+The decision register (`${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/decision-register.md`,
+`DR-NNN`) is the durable, read-at-start store of settled cross-cutting rulings and
+won't-fixes. It binds the Orchestrator at three moments:
+
+- **Composing briefs.** Surface the relevant in-force (`accepted`) DRs in a Planner /
+  Executor brief's Context section so the worker does not re-propose or re-implement a
+  settled ruling — cite `DR-NNN`, don't restate the ruling.
+- **Writing rulings.** A `DR-NNN` entry is written ONLY on the MAIN checkout — never in a
+  worker branch (mirrors the ledger-write rule). Workers (Planner, Executor, Checker,
+  Curator) return **DR-intents**; the Orchestrator allocates the `DR-NNN` id and appends
+  the entry on `main` (or routes it to `handoff` for session-close write). An in-branch
+  register edit bypasses id-allocation exactly as an in-branch ledger write does.
+- **Disposing findings.** `DR` is the 5th finding disposition (beside subtask / roadmap /
+  backlog / no-action): a finding that is a settled won't-fix ruling routes to the
+  `workflow-curator`, which returns a DR-intent for the Orchestrator to write. See Finding
+  routing.
 
 ---
 
@@ -364,17 +383,15 @@ The Orchestrator does not declare a Task `done` without:
 
 The Orchestrator owns ledger writes for status transitions, journal-block
 appends, Subtask additions, and Task opens. All writes route through the
-`bun scripts/ledger-cli.ts` façade — never raw `Edit` on the JSON ledgers. As of
-ID-90.22 the CLI is server-unconditional: the **enforcement point** (serialisation,
-record-set + budget gates, mirror regen) lives in the task-view patch-server
-substrate, while the CLI is the **operator surface**; its invocation shapes are
-unchanged (invariant 57). Per-field discipline - **Canonical
-reference:** `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md`
+`bun scripts/ledger-cli.ts` façade — never raw `Edit` on the JSON ledgers. The CLI is the
+**operator surface**; the **enforcement point** (serialisation, record-set + budget gates,
+mirror regen) lives in the task-view patch-server substrate. Per-field discipline —
+**Canonical reference:** `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md`
 
 **Ledger writes are MAIN-checkout-only — never in a worker branch.** This section
 is the **canonical home** for the clash-free ledger-write protocol; the
 `session-driver-cmux` and `task-executor` worker-side notes cross-reference it
-rather than restate it. The ID-90 daemon serialises behind **one mutex per ledger
+rather than restate it. The daemon serialises behind **one mutex per ledger
 directory**, so it only de-conflicts writers that all target the *same*
 main-checkout ledger directory. Sub-orchestrators and executors dispatched into
 their own worktrees (via `session-driver-cmux` or `Agent` `isolation: "worktree"`)
@@ -383,10 +400,7 @@ mirrors (docs-site) in their branch — an in-branch `chore(ledger)` commit bypa
 entirely. Workers **return ledger-write intents** (flip {N.M} done with journal X,
 create backlog item Y); **the Orchestrator applies every returned intent via
 `ledger-cli.ts` on the MAIN checkout** — id allocation for creates happens here,
-under the mutex, never in a worker. *Evidence (S-current):* three parallel
-sub-orchestrators each committed ledger deltas in-branch → bl-287/bl-288 collided
-3-ways (same ids reused), forcing manual de-dup, re-ID, and journal replay — the
-exact clash the single mutex exists to prevent.
+under the mutex, never in a worker.
 
 | Field | Shape | Load-bearing for |
 |---|---|---|
@@ -398,7 +412,7 @@ exact clash the single mutex exists to prevent.
 | `testStrategy` (Subtask) | One-line acceptance criterion the Checker verifies against | Checker contract. |
 | `cross_doc_links` | Repo-relative path + anchor + raw text per `DocLinkSchema` | Doc-graph traversal. |
 | Commit messages | Body + bullets per `commit-commands` convention | Per-commit immutable audit. |
-| Continuation prompts (`${KH_PRIVATE_DOCS_DIR}/src/content/docs/continuation-prompts/` — relocated to the private docs-site repo per ID-68.34) | Multi-section session handoff | Session-to-session context transfer. |
+| Continuation prompts (`${KH_PRIVATE_DOCS_DIR}/src/content/docs/continuation-prompts/`) | Multi-section session handoff | Session-to-session context transfer. |
 | Mempalace diary (`mempalace_diary_write`) | AAAK pipe-delimited per-WP segments | Cross-session recall. |
 
 **Budget gate is HARD for Subtask `description` (≤250) and `testStrategy` (≤300):** Records MUST be authored within budget on the first pass; relocate any overflow into the unbudgeted `details` field.
@@ -415,7 +429,7 @@ invoke `bun scripts/ledger-cli.ts promote <backlogId> <taskJson>`**.
 
 ```bash
 bun scripts/ledger-cli.ts promote <backlogId> <taskJson>
-# Optional: bind the new Task to a roadmap theme (ID-35.39 Item A).
+# Optional: bind the new Task to a roadmap theme.
 bun scripts/ledger-cli.ts promote <backlogId> <taskJson> \
   --capability-theme <themeId>
 ```
@@ -440,8 +454,8 @@ we committed to doing this?* Yes → Task List; not yet → Backlog).
 If you are a sub-orchestrators and you hit an Open Question that cannot be resolved in-scope, you must NOT silently proceed or block indefinitely. Use the OQ-escalation channel: `.claude/skills/session-driver-cmux/oq-brief-fragment.md`
 
 The OQ protocol is implemented as a durable file-per-record mailbox under each worker's
-`.claude/cmux-events/<sid>/oq/` directory. The helper scripts sit beside the five
-dispatch scripts:
+`.claude/cmux-events/<sid>/oq/` directory. The helper scripts sit in
+`.claude/skills/session-driver-cmux/scripts/`, beside the five dispatch scripts:
 
 | Script | Side | Functions |
 | --- | --- | --- |

@@ -259,7 +259,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             .select(
               'id, heading_text, heading_level, heading_path, position, char_count, word_count',
             )
-            .eq('content_item_id', args.id!)
+            .eq('source_document_id', args.id!)
             .order('position'),
           'mcp.content.get_item.chunks',
         );

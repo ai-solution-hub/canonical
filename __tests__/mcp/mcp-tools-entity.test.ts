@@ -186,7 +186,7 @@ describe('MCP tools #14-16', () => {
             source_entity: 'Acme Ltd',
             relationship_type: 'holds',
             target_entity: 'ISO 27001',
-            source_item_id: 'item-001',
+            source_document_id: 'item-001',
             confidence: 0.95,
           },
         ],
@@ -199,7 +199,7 @@ describe('MCP tools #14-16', () => {
             source_entity: string;
             relationship_type: string;
             target_entity: string;
-            source_item_id: string;
+            source_document_id: string;
             confidence: number;
           }>;
         };
@@ -222,7 +222,7 @@ describe('MCP tools #14-16', () => {
         source_entity: 'Acme Ltd',
         relationship_type: 'holds',
         target_entity: 'ISO 27001',
-        source_item_id: 'item-001',
+        source_document_id: 'item-001',
         confidence: 0.95,
       });
     });
@@ -498,8 +498,11 @@ describe('MCP tools #14-16', () => {
         };
       };
 
+      // ID-131.10 (BI-26): get_content_win_rate arg renamed p_content_item_id ->
+      // p_q_a_pair_id. The tool surface stays content_item-shaped (input content_item_id);
+      // only the RPC arg key changed, so the asserted value is unchanged.
       expect(supabase.rpc).toHaveBeenCalledWith('get_content_win_rate', {
-        p_content_item_id: 'item-001',
+        p_q_a_pair_id: 'item-001',
       });
 
       expect(result.content[0].text).toContain('Content Effectiveness');

@@ -82,7 +82,7 @@ export function RelatedByEntities({
       const { data: myEntities, error: entError } = await supabase
         .from('entity_mentions')
         .select('canonical_name')
-        .eq('content_item_id', contentItemId);
+        .eq('source_document_id', contentItemId);
 
       if (entError) {
         captureClientException(entError, {
@@ -106,9 +106,9 @@ export function RelatedByEntities({
       // Step 2: Find other items that share these entities
       const { data: sharedMentions, error: sharedError } = await supabase
         .from('entity_mentions')
-        .select('content_item_id, canonical_name')
+        .select('source_document_id, canonical_name')
         .in('canonical_name', myEntityNames)
-        .neq('content_item_id', contentItemId);
+        .neq('source_document_id', contentItemId);
 
       if (sharedError) {
         captureClientException(sharedError, {
@@ -126,18 +126,18 @@ export function RelatedByEntities({
         return;
       }
 
-      // Group by content_item_id and count shared entities
+      // Group by source_document_id and count shared entities
       const itemMap = new Map<
         string,
         { count: number; entities: Set<string> }
       >();
       for (const mention of sharedMentions) {
-        const existing = itemMap.get(mention.content_item_id);
+        const existing = itemMap.get(mention.source_document_id);
         if (existing) {
           existing.entities.add(mention.canonical_name);
           existing.count = existing.entities.size;
         } else {
-          itemMap.set(mention.content_item_id, {
+          itemMap.set(mention.source_document_id, {
             count: 1,
             entities: new Set([mention.canonical_name]),
           });

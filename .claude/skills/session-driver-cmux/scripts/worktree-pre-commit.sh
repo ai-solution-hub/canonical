@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# Pre-commit hook installed into each session-driver-cmux worker worktree
-# (ID-48.12). Runs prettier on staged files so worker commits land
-# already-formatted — complements the project-level format-pre-commit
-# (ID-48.8) belt-and-braces.
+# Pre-commit hook installed into each session-driver-cmux worker worktree.
+# Runs prettier on staged files so worker commits land already-formatted —
+# complements the project-level format-pre-commit, belt-and-braces.
 #
 # Strategy: format only staged files (not the whole tree). Re-add formatted
 # files to the index so the commit captures the formatted content. If
@@ -31,13 +30,14 @@ fi
 
 cd "$REPO_ROOT"
 
-# --- Clash-free ledger guard (ID-92.23) -----------------------------------
-# Workers run in isolated worktrees, so the ID-90 ledger daemon mutex — which
-# is per main-checkout ledger directory — CANNOT de-conflict their writes. An
-# in-branch `chore(ledger)` commit bypasses the mutex entirely (the bl-287/288
-# 3-way id collision). Block any staged ledger JSON or its md mirror so a stray
-# in-branch ledger write fails loudly here; workers RETURN ledger-write intents
-# in final_report.yaml instead, and the Orchestrator applies them on MAIN. See
+# --- Clash-free ledger guard -----------------------------------------------
+# Workers run in isolated worktrees, so the ledger daemon mutex — which is per
+# main-checkout ledger directory — CANNOT de-conflict their writes. An
+# in-branch `chore(ledger)` commit bypasses the mutex entirely. Block any
+# staged ledger JSON or its md mirror (the ledgers live in the private
+# docs-site repo under src/content/docs/ledgers/) so a stray in-branch ledger
+# write fails loudly here; workers RETURN ledger-write intents in
+# final_report.yaml instead, and the Orchestrator applies them on MAIN. See
 # .claude/skills/workflow-orchestration/SKILL.md → Ledger field-discipline.
 #
 # ROLLOUT CAVEAT: this hook is copied into each worktree at launch
@@ -48,7 +48,7 @@ cd "$REPO_ROOT"
 # (a failed/empty staged-name query never blocks). `|| true` keeps an empty
 # grep from aborting under `set -euo pipefail`.
 STAGED_LEDGER=$(git diff --cached --name-only --diff-filter=ACMR \
-  | grep -E '^docs/reference/(task-list|product-backlog|product-roadmap|product-retros)\.json$|^docs/reference/(tasks|backlog)/.*\.md$' \
+  | grep -E '^src/content/docs/ledgers/(task-list|product-backlog|product-roadmap|product-retros|umbrellas)\.json$|^src/content/docs/ledgers/(tasks|backlog|roadmap)/.*\.md$' \
   || true)
 
 if [ -n "$STAGED_LEDGER" ]; then
@@ -59,10 +59,10 @@ if [ -n "$STAGED_LEDGER" ]; then
   done <<<"$STAGED_LEDGER"
   echo "" >&2
   echo "Workers (worktree sub-orchestrators + executors) MUST NOT commit ledger" >&2
-  echo "writes in-branch. The ID-90 daemon mutex is per main-checkout ledger" >&2
-  echo "directory, so an in-branch chore(ledger) commit bypasses it (bl-287/288" >&2
-  echo "3-way id collision). RETURN ledger-write intents in final_report.yaml;" >&2
-  echo "the Orchestrator applies them via ledger-cli.ts on the MAIN checkout." >&2
+  echo "writes in-branch. The ledger daemon mutex is per main-checkout ledger" >&2
+  echo "directory, so an in-branch chore(ledger) commit bypasses it and races" >&2
+  echo "id allocation. RETURN ledger-write intents in final_report.yaml; the" >&2
+  echo "Orchestrator applies them via ledger-cli.ts on the MAIN checkout." >&2
   echo "" >&2
   exit 1
 fi

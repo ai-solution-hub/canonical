@@ -11,20 +11,20 @@ bl-225 reached the live Path-B burn (op ``7af673af``):
     asyncpg.exceptions.UniqueViolationError: duplicate key value violates
     unique constraint
     "entity_mentions_canonical_name_entity_type_content_item_id_key"
-    DETAIL: Key (canonical_name, entity_type, content_item_id)=
+    DETAIL: Key (canonical_name, entity_type, source_document_id)=
       (environmental information regulations 2004, regulation, 077b27e7-...)
       already exists.
 
 ROOT CAUSE: ``resolve_entities`` resolves over a NAME SET, agnostic of
-``content_item_id``. When TWO DISTINCT per-doc canonicals in the SAME document
+``source_document_id``. When TWO DISTINCT per-doc canonicals in the SAME document
 (e.g. ``"eir 2004"`` + ``"environmental information regulations 2004"``)
 resolve to the SAME canonical, the OLD Step-6 issued TWO row-by-row UPDATEs
 setting both rows to that canonical → the second collided with the first on
-``UNIQUE(canonical_name, entity_type, content_item_id)`` (migration
+``UNIQUE(canonical_name, entity_type, source_document_id)`` (migration
 20260416102457:4363) and crashed the cocoindex update thread.
 
 THE FIX (this file proves it): Step 5 groups by the POST-resolution natural key
-``(content_item_id, entity_type, resolved)`` and collapses each collision group
+``(source_document_id, entity_type, resolved)`` and collapses each collision group
 to a single survivor (highest confidence, then smallest id — mirroring the DB
 function ``delete_duplicate_entity_mentions`` ``ORDER BY confidence DESC NULLS
 LAST``). Step 6 DELETEs the losers FIRST, then UPDATEs survivors — both
@@ -33,7 +33,7 @@ op_id-scoped.
 WHAT THIS FILE PROVES
 ---------------------
 The fake asyncpg pool/conn MODELS the unique constraint in memory: an UPDATE
-that would create a duplicate ``(canonical_name, entity_type, content_item_id)``
+that would create a duplicate ``(canonical_name, entity_type, source_document_id)``
 RAISES ``asyncpg.exceptions.UniqueViolationError`` — exactly as production did.
 So this is a TRUE regression: run the OLD row-by-row-UPDATE body against this
 fixture and the fake raises; run the FIXED collapse body and it completes.
@@ -130,7 +130,7 @@ class _Row:
     id: uuid.UUID
     canonical_name: str
     entity_type: str
-    content_item_id: uuid.UUID
+    source_document_id: uuid.UUID
     confidence: float | None
 
 
@@ -142,7 +142,7 @@ class _FakeConn:
 
     Holds rows keyed by id. ``execute`` applies the Stage-6 DELETE / UPDATE to
     the store and RAISES ``UniqueViolationError`` if an UPDATE would create a
-    duplicate ``(canonical_name, entity_type, content_item_id)`` — modelling
+    duplicate ``(canonical_name, entity_type, source_document_id)`` — modelling
     ``entity_mentions_canonical_name_entity_type_content_item_id_key``. This is
     what makes the test a TRUE bl-225 regression: the OLD row-by-row body trips
     this raise; the FIXED collapse body never does.
@@ -154,7 +154,7 @@ class _FakeConn:
         self.updated: list[tuple[uuid.UUID, str]] = []
 
     def _natural_key(self, row: _Row) -> tuple[str, str, uuid.UUID]:
-        return (row.canonical_name, row.entity_type, row.content_item_id)
+        return (row.canonical_name, row.entity_type, row.source_document_id)
 
     @asynccontextmanager
     async def transaction(self):  # type: ignore[no-untyped-def]
@@ -186,14 +186,14 @@ class _FakeConn:
                 id=target.id,
                 canonical_name=str(new_canonical),
                 entity_type=target.entity_type,
-                content_item_id=target.content_item_id,
+                source_document_id=target.source_document_id,
                 confidence=target.confidence,
             )
             new_key = self._natural_key(prospective)
             for other_id, other in self.rows.items():
                 if other_id != row_id and self._natural_key(other) == new_key:
                     # This is the bl-225 collision: another row already holds
-                    # the (canonical_name, entity_type, content_item_id) key.
+                    # the (canonical_name, entity_type, source_document_id) key.
                     raise _UNIQUE_VIOLATION(
                         "duplicate key value violates unique constraint "
                         '"entity_mentions_canonical_name_entity_type_'
@@ -294,13 +294,13 @@ class _FakePool:
             return out
         if "FROM public.entity_mentions" in query:
             # Mirror _select_run_entity_mentions: id, canonical_name,
-            # entity_type, content_item_id, confidence.
+            # entity_type, source_document_id, confidence.
             return [
                 {
                     "id": r.id,
                     "canonical_name": r.canonical_name,
                     "entity_type": r.entity_type,
-                    "content_item_id": r.content_item_id,
+                    "source_document_id": r.source_document_id,
                     "confidence": r.confidence,
                 }
                 for r in self.conn.rows.values()
@@ -336,7 +336,7 @@ class _OpRow:
     id: uuid.UUID
     canonical_name: str
     entity_type: str
-    content_item_id: uuid.UUID
+    source_document_id: uuid.UUID
     confidence: float | None
     op_id: uuid.UUID
 
@@ -350,7 +350,7 @@ class _OpScopedFakeConn:
     ``(canonical, id, op_id)`` and only mutates when the row's ``op_id`` equals
     the bound op. A foreign-op row (different ``op_id``) is therefore physically
     unreachable — exactly the by-construction Inv-5/Inv-7 guarantee. Also
-    enforces the same UNIQUE(canonical_name, entity_type, content_item_id) the
+    enforces the same UNIQUE(canonical_name, entity_type, source_document_id) the
     base conn models, so seeding-induced collapses still cannot collide.
     """
 
@@ -360,7 +360,7 @@ class _OpScopedFakeConn:
         self.updated: list[tuple[uuid.UUID, str]] = []
 
     def _natural_key(self, row: _OpRow) -> tuple[str, str, uuid.UUID]:
-        return (row.canonical_name, row.entity_type, row.content_item_id)
+        return (row.canonical_name, row.entity_type, row.source_document_id)
 
     @asynccontextmanager
     async def transaction(self):  # type: ignore[no-untyped-def]
@@ -417,7 +417,7 @@ class _OpScopedFakeConn:
                 id=target.id,
                 canonical_name=str(new_canonical),
                 entity_type=target.entity_type,
-                content_item_id=target.content_item_id,
+                source_document_id=target.source_document_id,
                 confidence=target.confidence,
                 op_id=target.op_id,
             )
@@ -461,7 +461,7 @@ class _OpScopedFakePool(_FakePool):
         if "op_id IS DISTINCT FROM $4" in query:
             # ID-80.14 cross-op key-holder probe (`_select_prior_op_key_holders`):
             # binds $1/$2/$3 = parallel arrays of the EXACT colliding
-            # (canonical_name, entity_type, content_item_id) keys, $4 = the
+            # (canonical_name, entity_type, source_document_id) keys, $4 = the
             # current op. Returns rows holding one of those keys whose op_id IS
             # DISTINCT FROM the current op (prior-op + NULL-op rows). The
             # key-scoping is ENFORCED: a row not matching a probed key is never
@@ -479,12 +479,12 @@ class _OpScopedFakePool(_FakePool):
                     "id": r.id,
                     "canonical_name": r.canonical_name,
                     "entity_type": r.entity_type,
-                    "content_item_id": r.content_item_id,
+                    "source_document_id": r.source_document_id,
                     "confidence": r.confidence,
                 }
                 for r in self.op_conn.rows.values()
                 if r.op_id != current_op
-                and (r.canonical_name, r.entity_type, r.content_item_id)
+                and (r.canonical_name, r.entity_type, r.source_document_id)
                 in probed_keys
             ]
         if (
@@ -500,7 +500,7 @@ class _OpScopedFakePool(_FakePool):
                     "id": r.id,
                     "canonical_name": r.canonical_name,
                     "entity_type": r.entity_type,
-                    "content_item_id": r.content_item_id,
+                    "source_document_id": r.source_document_id,
                     "confidence": r.confidence,
                 }
                 for r in self.op_conn.rows.values()
@@ -1065,9 +1065,9 @@ def test_new_mention_chains_under_seeded_existing(
 
     op_id = uuid.uuid4()
     entity_type = "standard"
-    content_item_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000a1")
+    source_document_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000a1")
     mention_id = uuid.UUID("00000000-0000-4000-8000-000000000101")
-    rows = [_Row(mention_id, "iso 27001", entity_type, content_item_id, 0.8)]
+    rows = [_Row(mention_id, "iso 27001", entity_type, source_document_id, 0.8)]
     conn = _FakeConn(rows)
     # The seeded existing canonical (op-agnostic — prior-run or NULL-op_id).
     pool = _FakePool(conn, seed_rows=[("ISO 27001", entity_type)])
@@ -1137,9 +1137,9 @@ def test_foreign_op_seed_row_never_written(
 
     op_id = uuid.uuid4()
     entity_type = "standard"
-    content_item_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000a2")
+    source_document_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000a2")
     mention_id = uuid.UUID("00000000-0000-4000-8000-000000000201")
-    rows = [_Row(mention_id, "iso 27001", entity_type, content_item_id, 0.8)]
+    rows = [_Row(mention_id, "iso 27001", entity_type, source_document_id, 0.8)]
     conn = _FakeConn(rows)
     pool = _FakePool(conn, seed_rows=[("ISO 27001", entity_type)])
 
@@ -1186,12 +1186,12 @@ def test_only_in_flight_op_rows_written_with_seed_roster(
 
     op_id = uuid.uuid4()
     entity_type = "regulation"
-    content_item_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000a3")
+    source_document_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000a3")
     in_flight_short = uuid.UUID("00000000-0000-4000-8000-000000000301")  # 0.9 survivor
     in_flight_long = uuid.UUID("00000000-0000-4000-8000-000000000302")  # 0.7 loser
     rows = [
-        _Row(in_flight_short, "eir 2004", entity_type, content_item_id, 0.9),
-        _Row(in_flight_long, "eir 2004 regs", entity_type, content_item_id, 0.7),
+        _Row(in_flight_short, "eir 2004", entity_type, source_document_id, 0.9),
+        _Row(in_flight_long, "eir 2004 regs", entity_type, source_document_id, 0.7),
     ]
     conn = _FakeConn(rows)
     # Seeded existing canonical (foreign-op). Both in-flight names chain under it
@@ -1264,10 +1264,10 @@ def test_two_existing_seeds_never_merged(monkeypatch: pytest.MonkeyPatch) -> Non
 
     op_id = uuid.uuid4()
     entity_type = "organisation"
-    content_item_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000b1")
+    source_document_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000b1")
     mention_id = uuid.UUID("00000000-0000-4000-8000-000000000401")
     # The single in-flight mention is UNRELATED to either seed (no near-match).
-    rows = [_Row(mention_id, "Stark Industries", entity_type, content_item_id, 0.8)]
+    rows = [_Row(mention_id, "Stark Industries", entity_type, source_document_id, 0.8)]
     conn = _FakeConn(rows)
     pool = _FakePool(
         conn,
@@ -1330,9 +1330,9 @@ def test_seeded_existing_no_match_no_event(monkeypatch: pytest.MonkeyPatch) -> N
 
     op_id = uuid.uuid4()
     entity_type = "standard"
-    content_item_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000b2")
+    source_document_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000b2")
     mention_id = uuid.UUID("00000000-0000-4000-8000-000000000501")
-    rows = [_Row(mention_id, "GDPR", entity_type, content_item_id, 0.8)]
+    rows = [_Row(mention_id, "GDPR", entity_type, source_document_id, 0.8)]
     conn = _FakeConn(rows)
     pool = _FakePool(conn, seed_rows=[("ISO 27001", entity_type)])
 
@@ -1368,7 +1368,7 @@ def test_seeded_target_bl225_collapse(monkeypatch: pytest.MonkeyPatch) -> None:
     ``"EIR 2004 regs"``. The collapse must: pick the 0.9 survivor (highest
     confidence, smallest id tie-break), UPDATE it into the seeded canonical,
     DELETE the 0.7 loser FIRST (so the survivor's UPDATE does not transiently
-    collide on UNIQUE(canonical_name, entity_type, content_item_id)), raise NO
+    collide on UNIQUE(canonical_name, entity_type, source_document_id)), raise NO
     UniqueViolation, and emit the ``cocoindex.stage_5.collapsed`` structured log.
 
     Falsifiability: were the collapse skipped (old row-by-row body), the second
@@ -1382,7 +1382,7 @@ def test_seeded_target_bl225_collapse(monkeypatch: pytest.MonkeyPatch) -> None:
 
     op_id = uuid.uuid4()
     entity_type = "regulation"
-    content_item_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000b3")
+    source_document_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000b3")
     survivor_id = uuid.UUID("00000000-0000-4000-8000-000000000601")  # 0.9 survivor
     loser_id = uuid.UUID("00000000-0000-4000-8000-000000000602")  # 0.7 loser
     seeded_target = "EIR 2004"  # the existing both per-doc canonicals chain under
@@ -1391,9 +1391,9 @@ def test_seeded_target_bl225_collapse(monkeypatch: pytest.MonkeyPatch) -> None:
         #   "eir 2004"       — case-fold equal to the seed;
         #   "eir 2004 regs"  — contains the lowered seed as a substring.
         # So BOTH chain under the seeded existing under the PINNED stub → they
-        # collapse to ONE group keyed (content_item_id, entity_type, "EIR 2004").
-        _Row(survivor_id, "eir 2004", entity_type, content_item_id, 0.9),
-        _Row(loser_id, "eir 2004 regs", entity_type, content_item_id, 0.7),
+        # collapse to ONE group keyed (source_document_id, entity_type, "EIR 2004").
+        _Row(survivor_id, "eir 2004", entity_type, source_document_id, 0.9),
+        _Row(loser_id, "eir 2004 regs", entity_type, source_document_id, 0.7),
     ]
     conn = _FakeConn(rows)
     # Seeded existing canonical (foreign-op chaining target).
@@ -1471,10 +1471,10 @@ def test_alias_applied_pre_resolution_and_roster_not_aliased(
 
     op_id = uuid.uuid4()
     entity_type = "regulation"
-    content_item_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000b4")
+    source_document_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000b4")
     mention_id = uuid.UUID("00000000-0000-4000-8000-000000000701")
     # The per-doc canonical is the ALIAS KEY; the active alias rewrites it.
-    rows = [_Row(mention_id, "eir 2004", entity_type, content_item_id, 0.8)]
+    rows = [_Row(mention_id, "eir 2004", entity_type, source_document_id, 0.8)]
     conn = _FakeConn(rows)
     pool = _FakePool(
         conn,
@@ -1564,9 +1564,9 @@ def test_unresolved_mention_retains_canonical_with_seed_roster(
 
     op_id = uuid.uuid4()
     entity_type = "standard"
-    content_item_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000b5")
+    source_document_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000b5")
     mention_id = uuid.UUID("00000000-0000-4000-8000-000000000801")
-    rows = [_Row(mention_id, "Zphqx Protocol", entity_type, content_item_id, 0.8)]
+    rows = [_Row(mention_id, "Zphqx Protocol", entity_type, source_document_id, 0.8)]
     conn = _FakeConn(rows)
     # NON-empty seed roster, but lexically distant from the obscure mention.
     pool = _FakePool(conn, seed_rows=[("ISO 27001", entity_type)])
@@ -1640,7 +1640,7 @@ def test_foreign_op_row_byte_for_byte_unchanged(
         id=foreign_id,
         canonical_name="ISO 27001",
         entity_type=entity_type,
-        content_item_id=foreign_cid,
+        source_document_id=foreign_cid,
         confidence=0.95,
         op_id=foreign_op,
     )
@@ -1649,7 +1649,7 @@ def test_foreign_op_row_byte_for_byte_unchanged(
         id=in_flight_id,
         canonical_name="iso 27001",
         entity_type=entity_type,
-        content_item_id=in_flight_cid,
+        source_document_id=in_flight_cid,
         confidence=0.8,
         op_id=current_op,
     )
@@ -1664,7 +1664,7 @@ def test_foreign_op_row_byte_for_byte_unchanged(
         foreign_row.id,
         foreign_row.canonical_name,
         foreign_row.entity_type,
-        foreign_row.content_item_id,
+        foreign_row.source_document_id,
         foreign_row.confidence,
         foreign_row.op_id,
     )
@@ -1687,7 +1687,7 @@ def test_foreign_op_row_byte_for_byte_unchanged(
         after_row.id,
         after_row.canonical_name,
         after_row.entity_type,
-        after_row.content_item_id,
+        after_row.source_document_id,
         after_row.confidence,
         after_row.op_id,
     )
@@ -1814,12 +1814,12 @@ def test_roster_excludes_in_flight_names_so_run2_chains(
 
     op_id = uuid.uuid4()
     entity_type = "standard"
-    content_item_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000d1")
+    source_document_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000d1")
     mention_id = uuid.UUID("00000000-0000-4000-8000-000000000a01")
     # Run 2's single in-flight mention — a case-fold near-match of run 1's
     # canonical. By Stage-5 time this row is ALREADY in entity_mentions, so the
     # op-agnostic roster SELECT will surface "iso 27001" as a self-match too.
-    rows = [_Row(mention_id, "iso 27001", entity_type, content_item_id, 0.8)]
+    rows = [_Row(mention_id, "iso 27001", entity_type, source_document_id, 0.8)]
     conn = _FakeConn(rows)
     # The foreign/prior-run canonical "ISO 27001" lives in the table (op-agnostic
     # corpus). The realistic pool UNIONs this with the in-flight conn.rows.
@@ -1909,7 +1909,7 @@ def test_roster_excludes_in_flight_names_so_run2_chains(
 # THE DEFECT (live-smoke-diagnosed, walk op 9382c6a2): the bl-225 collapse
 # groups ONLY the current op's rows (`_select_run_entity_mentions` is
 # op_id-scoped), so a prior-op row already holding the survivor's UPDATE-target
-# key `(canonical_name, entity_type, content_item_id)` is structurally
+# key `(canonical_name, entity_type, source_document_id)` is structurally
 # invisible to `collision_groups`. The survivor's UPDATE then collides with the
 # prior-op key-holder — UniqueViolationError, walk-wide failure. Live pair:
 # survivor 2597d787 ("Modern Slavery Act 2015", current op) UPDATEd to
@@ -1956,7 +1956,7 @@ def _msa_fixture(
         id=prior_id,
         canonical_name=_MSA_CANONICAL,  # already carries the target canonical
         entity_type=_MSA_TYPE,
-        content_item_id=_MSA_CID,
+        source_document_id=_MSA_CID,
         confidence=prior_confidence,
         op_id=prior_op,
     )
@@ -1964,7 +1964,7 @@ def _msa_fixture(
         id=current_id,
         canonical_name=_MSA_CURRENT_PERDOC,
         entity_type=_MSA_TYPE,
-        content_item_id=_MSA_CID,
+        source_document_id=_MSA_CID,
         confidence=current_confidence,
         op_id=current_op,
     )
@@ -2001,7 +2001,7 @@ def test_cross_op_prior_holder_wins_current_row_collapsed(
         conn.rows[prior_id].id,
         conn.rows[prior_id].canonical_name,
         conn.rows[prior_id].entity_type,
-        conn.rows[prior_id].content_item_id,
+        conn.rows[prior_id].source_document_id,
         conn.rows[prior_id].confidence,
         conn.rows[prior_id].op_id,
     )
@@ -2029,7 +2029,7 @@ def test_cross_op_prior_holder_wins_current_row_collapsed(
         survivor.id,
         survivor.canonical_name,
         survivor.entity_type,
-        survivor.content_item_id,
+        survivor.source_document_id,
         survivor.confidence,
         survivor.op_id,
     )

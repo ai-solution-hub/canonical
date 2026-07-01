@@ -69,24 +69,46 @@ export interface ConsoleGate {
   assertNoConsoleViolations(): void;
 }
 
+/** Options for {@link attachConsoleGate}. */
+export interface ConsoleGateOptions {
+  /**
+   * Additional known-benign message prefixes to tolerate FOR THIS GATE ONLY,
+   * on top of the module-global {@link ALLOWED_CONSOLE_PREFIXES}. Use this for
+   * spec-local noise that must NOT be globally suppressed — so every other
+   * spec keeps the strict gate. Each entry must be justified at the call site
+   * with the same rigour as a global allowlist addition. Matched by
+   * `startsWith` against the rendered console / page-error text.
+   */
+  readonly allowPrefixes?: readonly string[];
+}
+
 /**
  * Attach the gate to a page. Call BEFORE the navigation you want to cover so
  * the listeners catch errors fired during the initial load, then call
  * `assertNoConsoleViolations()` once the page has settled.
+ *
+ * Pass `options.allowPrefixes` to tolerate spec-local benign messages without
+ * widening the module-global allowlist (keeps the gate strict elsewhere).
  */
-export function attachConsoleGate(page: Page): ConsoleGate {
+export function attachConsoleGate(
+  page: Page,
+  options: ConsoleGateOptions = {},
+): ConsoleGate {
   const violations: ConsoleViolation[] = [];
+  const extraAllowed = options.allowPrefixes ?? [];
+  const allowed = (text: string): boolean =>
+    isAllowed(text) || extraAllowed.some((prefix) => text.startsWith(prefix));
 
   page.on('pageerror', (error: Error) => {
     const text = error.message;
-    if (isAllowed(text)) return;
+    if (allowed(text)) return;
     violations.push({ kind: 'pageerror', text });
   });
 
   page.on('console', (message: ConsoleMessage) => {
     if (!GATED_CONSOLE_TYPES.has(message.type())) return;
     const text = message.text();
-    if (isAllowed(text)) return;
+    if (allowed(text)) return;
     violations.push({ kind: 'console', level: message.type(), text });
   });
 

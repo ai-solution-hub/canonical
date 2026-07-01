@@ -290,8 +290,8 @@ class TestQaSidecarNTimeFixpoint:
             assert out["cc"].rows == [], "ZERO content_chunks every re-walk (INV-5)"
             assert out["em"].rows == [], "ZERO entity_mentions every re-walk (INV-5)"
             for qa_row in out["qa"].rows:
-                assert qa_row["source_content_item_id"] is None, (
-                    "source_content_item_id stays NULL across re-walks (INV-5)"
+                assert qa_row["source_document_id"] is None, (
+                    "source_document_id stays NULL across re-walks (INV-5)"
                 )
 
         # ── COCO.10: no content-only LLM pass ever runs for a sidecar, on ANY

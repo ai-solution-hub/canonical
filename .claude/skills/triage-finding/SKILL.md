@@ -15,15 +15,15 @@ allowed-tools: Read, Grep, Glob, Bash
 
 # triage-finding — Decision Logic for Out-of-Scope Findings
 
-Decides how to route a finding surfaced during workflow execution: keep it inside the current Task as a Subtask (ID-N.M), promote to roadmap, promote to backlog, or close as no-action. Returns a structured decision; does **not** perform any writes.
+Decides how to route a finding surfaced during workflow execution: keep it inside the current Task as a Subtask (ID-N.M), promote to roadmap, promote to backlog, record as a settled decision-register ruling (a DR-intent the Orchestrator writes on `main`), or close as no-action. Returns a structured decision; does **not** perform any writes.
 
 This skill is the decision half of the curator's job. The write half is `update-roadmap-backlog`.
 
-**Terminology (per s48-feedback B2):** Tasks are addressed by `ID-N` (e.g. `ID-15`); Subtasks by `ID-N.M` (e.g. `ID-15.3`). This convention is consistent across the task list, backlog, roadmap, and all workflow prompts/docs. Earlier phrasing that referred to identifiers as `task` followed by hyphen-id or `subtask` followed by hyphen-id is retired in favour of `ID-N` / `ID-N.M`.
+Tasks are addressed by `ID-N` (e.g. `ID-15`); Subtasks by `ID-N.M` (e.g. `ID-15.3`).
 
-**Ledger CLI (v3) — read-only affordance:** This skill is decision-only and does not write. For targeted reads of a single ledger record (e.g. inspecting a candidate-duplicate's `linked_backlog[]`, `track`, or `priority`), prefer `bun scripts/ledger-cli.ts get <ledger> <id> [field]` or `bun scripts/ledger-cli.ts show <ledger> <id>` (the `Bash` allowed-tool is the channel) over loading the full backlog or full roadmap via `Read` + `Grep`. The CLI command surface is documented in `lib/ledger/README.md`; `bun scripts/ledger-cli.ts schema [ledger|recordKind]` prints each field's name + type + budget so curator decisions (which carry into `update-roadmap-backlog` writes) can be authored against the explicit schema rather than guessed. Subtask subcommands accept a unified dotted id-form `<taskId.subId>` (`update-subtask`, `flip-subtask`, `append-journal`, `delete-subtask`; legacy space-separated `<taskId> <subId>` still works) — see `bun scripts/ledger-cli.ts --help` when handing off to a write-mode skill.
+**Ledger CLI — read-only affordance:** This skill is decision-only and does not write. For targeted reads of a single ledger record (e.g. inspecting a candidate-duplicate's `linked_backlog[]`, `track`, or `priority`), prefer `bun scripts/ledger-cli.ts get <ledger> <id> [field]` or `bun scripts/ledger-cli.ts show <ledger> <id>` (the `Bash` allowed-tool is the channel) over loading the full backlog or full roadmap via `Read` + `Grep`. The CLI command surface is documented in `lib/ledger/README.md`; `bun scripts/ledger-cli.ts schema [ledger|recordKind]` prints each field's name + type + budget so decisions can be authored against the explicit schema.
 
-**Field budgets:** Decision payloads carrying free-text fields (`subtask_spec.scope`, `backlog_slot.description`, `roadmap_proposed_theme.description`) are subject to the write-time budgets enforced downstream when `scripts/ledger-cli.ts` is invoked. As of ID-90.22 the budget gate fires server-side in the task-view patch-server substrate (the CLI is the operator surface, the substrate is the enforcement point — invariant 57); the budget thresholds and the `budget-exceeded` reject behaviour are unchanged, so size decision output the same way. The canonical budgets live in `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md` §2/§3 (Task.description ≤1500, Subtask.description ≤250, Subtask.testStrategy ≤300, Subtask.details unbudgeted append-only) — cite that doc when sizing decision output.
+**Field budgets:** Decision payloads carrying free-text fields (`subtask_spec.scope`, `backlog_slot.description`, `roadmap_proposed_theme.description`) are subject to write-time budgets enforced downstream when `scripts/ledger-cli.ts` is invoked; over-budget fields hard-reject. The canonical budgets live in `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md` §2/§3 (Task.description ≤1500, Subtask.description ≤250, Subtask.testStrategy ≤300, Subtask.details unbudgeted append-only) — compose decision output within budget.
 
 ---
 
@@ -100,15 +100,15 @@ This ensures the routing rationale is visible in the ledger and the curator can 
 
 Walk the decision tree in order. Stop at the first match.
 
-**Green-baseline rule — NEVER backlog a CI-red regression (top-of-tree gate):** A CI-red / failing-CI-job / baseline-guard breach (knip, agents-md-shape, reference-doc-paths) / build-break (`tsc`) regression is **never** routed to the backlog. It is an in-scope Subtask of the active Task (or of a dedicated baseline-health Task) and MUST be held open until the baseline is green again. The backlog is only for tactical future improvements that do NOT block the current green baseline. *Precedent: CI-red/guard breaches parked in backlog let a `tsc` build-break hide on `main` for ~4 sessions inside known-red CI.*
+**Green-baseline rule — NEVER backlog a CI-red regression (top-of-tree gate):** A CI-red / failing-CI-job / baseline-guard breach (knip, agents-md-shape, reference-doc-paths) / build-break (`tsc`) regression is **never** routed to the backlog. It is an in-scope Subtask of the active Task (or of a dedicated baseline-health Task) and MUST be held open until the baseline is green again. The backlog is only for tactical future improvements that do NOT block the current green baseline.
 
 **Committed-work rule — concrete defects go to the Task List, not the backlog (per `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md` §0):** A finding that is *committed* work — a discovered defect/regression we will fix, or a scoped fix on a committed path (e.g. the critical path) — routes to the **Task List** (a new Task, or a Subtask if in-scope per Branch A), NOT the backlog. Branch C (backlog) is for *uncommitted candidates* only: items that still need a product/prioritisation decision before they would be worked. The commitment test: *have we committed to doing this?* Yes → Task List; not yet → Backlog.
 
 **Recurrence rule — is this a recurrence of a prior flagged finding? → Task List, not backlog (per `task-list-discipline.md` §0; A3 resolve-at-source loop):** Before walking Branch A, ask: *is this finding a recurrence of one the `evaluate-workflow` recurring-finding surface has already flagged* — the same canonical key seen across ≥3 distinct sessions (e.g. the `recurring-issue-thrash` flag)? A recurrence-class finding is **committed work** per §0: the recurrence itself is the signal that the root cause must be fixed at source (a skill, a dispatch-brief template, or a CLAUDE.md gotcha), and that source fix is work we commit to, not an uncommitted candidate. So it routes to the **Task List** — a fix-at-source Subtask under the owning Task, or a new Task — NOT the backlog. This is the triage entry point for the A3 resolve-at-source loop: the loop's *fix at source* step lands as a Task-List item, never a backlog park. *Do not* re-route a recurrence the O-of-O has already marked `ignored` / `won't-fix` unless it is **materially different** (a different root cause or a wider blast radius) — an identical recurrence of a won't-fix finding is `no-action` (Branch D), not a fresh Task.
 
-**Liam-driven promote (no finding source) — short-circuit at the top of the tree (per S62E sub-o 2 §2 carry-forward):**
+**Liam-driven promote (no finding source) — short-circuit at the top of the tree:**
 
-This skill's canonical input is a finding packet from a `task-executor` or `task-checker`. However, the workflow-orchestration skill (or Orchestrator directly per S60 ratification) may invoke this skill on a backlog item being picked up for implementation — there is no finding source, only an Orchestrator-or-Liam decision to promote. When invoked under that shape:
+This skill's canonical input is a finding packet from a `task-executor` or `task-checker`. However, the workflow-orchestration skill (or the Orchestrator directly) may invoke this skill on a backlog item being picked up for implementation — there is no finding source, only an Orchestrator-or-Liam decision to promote. When invoked under that shape:
 
 - `finding.source` is set to `orchestrator-direct` (or `liam-direct`); `finding.source_context` carries the backlog item id; `finding.description` carries the Orchestrator's promotion rationale; `finding.evidence` is empty or carries the backlog item's existing `notes`.
 - **Decision is short-circuit:** `decision: subtask` (Promote target = task-list) when Liam direction names a parent Task; `decision: roadmap`/`backlog` are NOT reachable from a Liam-driven promote (the item is already on the backlog). The actual Promote write is performed by `update-roadmap-backlog` Promote mode, which fires `bun scripts/ledger-cli.ts promote <backlogId> <taskJson>` — the atomic backlog-delete + task-create write. The skill never invokes that CLI directly.
@@ -122,7 +122,7 @@ This skill's canonical input is a finding packet from a `task-executor` or `task
 
 ### Branch A — Is it in-scope for the current Subtask? (binary rule)
 
-**Binary in-scope-ness rule (per s48-feedback B10; parent-Task-AC predicate added per S62F-WP3 audit):**
+**Binary in-scope-ness rule:**
 
 A finding is **IN-SCOPE** (and therefore routed as a Subtask under the current Task ID-N) when **any** of these predicates holds:
 
@@ -162,7 +162,7 @@ The orchestrator allocates the new Subtask ID-N.M and decides whether to fold it
 
 Reached only when Branch A's binary in-scope-ness rule returned OUT-OF-SCOPE.
 
-Under Shape A (per `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-30-roadmap-backlog-consolidation/PRODUCT.md` inv 13 a + TECH §4.1), the Roadmap is a flat list of **themes** — multi-month capability areas, each with `linked_tasks[]` and `linked_backlog[]` chaining out to active work items. Branch B is reserved exclusively for findings that surface a **new capability theme not already on the Roadmap**.
+Under Shape A, the Roadmap is a flat list of **themes** — multi-month capability areas, each with `linked_tasks[]` and `linked_backlog[]` chaining out to active work items. Branch B is reserved exclusively for findings that surface a **new capability theme not already on the Roadmap**.
 
 A finding routes to Branch B when **both** of these hold:
 
@@ -177,12 +177,12 @@ Propose the theme shape (the `update-roadmap-backlog` skill Create-mode populate
 roadmap_proposed_theme:
   title: "{short capability name — e.g. 'multi-tenant deployments'}"
   description: "{multi-sentence Markdown — why this capability matters; outcome shape}"
-  time_horizon: "later"  # default per PRODUCT inv 13 a + P-OQ-2; curator may revise to now | next
+  time_horizon: "later"  # default; curator may revise to now | next
   initial_linked_tasks: ["{source_task_id, if relevant}"]  # may be empty
   initial_linked_backlog: []  # empty by default; populated as backlog items accumulate
 ```
 
-The curator (via `update-roadmap-backlog` Create) appends the theme to `themes[]`, populates `id` from next-free-bare-digit, and fills required schema fields (`status: "pending"` default per P-OQ-1; `session_refs` / `commit_refs` from provenance).
+The curator (via `update-roadmap-backlog` Create) appends the theme to `themes[]`, populates `id` from next-free-bare-digit, and fills required schema fields (`status: "pending"` default; `session_refs` / `commit_refs` from provenance).
 
 > If only condition 1 OR only condition 2 holds — e.g. uncovered but single-feature/weeks — route to Branch C as a `backlog` candidate. Branch B is for **new theme** introductions; existing themes accept new linked work via Branch C.
 
@@ -198,7 +198,7 @@ A finding is a **backlog** candidate when **all** of these hold:
 4. The finding does not cause any active Task ID-N's `## Acceptance criteria` to fail (otherwise Branch A's parent-Task-AC predicate would have matched).
 5. The current Subtask ID-N.M is not already touching the same surface (otherwise Branch A's file-path predicate would have matched).
 
-This is the most common destination for non-blocking out-of-scope findings. Under Shape A (per PRODUCT inv 13 b + TECH §4.1), Branch C output gains `rank` — the within-priority-tier deterministic ordering integer (PRODUCT inv 3). The curator may set `rank` explicitly when the finding's evidence carries an obvious ordering signal; otherwise it defaults to `null` and the curator (or `update-roadmap-backlog` Update mode) sets it later.
+This is the most common destination for non-blocking out-of-scope findings. Under Shape A, Branch C output gains `rank` — the within-priority-tier deterministic ordering integer. The curator may set `rank` explicitly when the finding's evidence carries an obvious ordering signal; otherwise it defaults to `null` and the curator (or `update-roadmap-backlog` Update mode) sets it later.
 
 **If yes → Decision: `backlog`.**
 
@@ -216,14 +216,45 @@ backlog_slot:
   type: "feature" | "research" | "infra" | "tech_debt"
   priority: "high" | "medium" | "low"  # default medium unless evidence supports otherwise
   status: "spec_needed" | "needs_research" | "parked" | "ready"
-  rank: null | {integer}  # default null per PRODUCT inv 3; set explicitly if ordering signal present
+  rank: null | {integer}  # default null; set explicitly if ordering signal present
 ```
 
-> `rank` default is `null`. The schema does NOT enforce uniqueness or contiguity within a priority tier (PRODUCT inv 3); the `update-roadmap-backlog` Create / Update flows enforce discipline via the auto-shift collision policy (P-OQ-3 default).
+> `rank` default is `null`. The schema does NOT enforce uniqueness or contiguity within a priority tier; the `update-roadmap-backlog` Create / Update flows enforce discipline via the auto-shift collision policy.
+
+### Branch E — Is it a settled, re-litigable ruling? (decision-register)
+
+Reached when Branches A–C did not match and the finding is a **deliberate won't-fix or
+scope-boundary ruling** — "we are explicitly NOT doing this", "X is settled as Y" — that a
+future session would otherwise **re-propose or re-litigate** because the rationale is not
+written down anywhere durable.
+
+A finding routes to Branch E when **both** hold:
+
+1. The correct disposition is "no code change / won't-fix / explicitly-not-doing" (so it is
+   not a subtask, roadmap, or backlog candidate).
+2. It is a cross-cutting ruling a future session would re-derive or re-argue if it were not
+   recorded — the decision-register trigger: *would a future session re-flag, re-implement,
+   or re-litigate this if it weren't written down?*
+
+This is what separates Branch E from Branch D: a **trivial** won't-fix (style nit,
+debatable refactor) is `no-action` (D); a **re-litigable** cross-cutting won't-fix ruling
+is `decision-register` (E), recorded so it stays settled.
+
+**If both hold → Decision: `decision-register`.** Return a **DR-intent** — the proposed
+ruling in one to three sentences, no implementation detail. You do **not** write the
+register: `DR-NNN` entries are written on `main` by the Orchestrator / handoff (the
+register is not one of the three workflow ledgers, so `update-roadmap-backlog` does not
+touch it).
+
+```yaml
+decision_register_intent:
+  ruling: "{the settled ruling, 1-3 sentences — what is decided and what is ruled out}"
+  supersedes: null | "DR-NNN"  # set only if this ruling overrides an existing in-force entry
+```
 
 ### Branch D — None of the above
 
-If none of A, B, C match, the finding does not warrant action.
+If none of A, B, C, E match, the finding does not warrant action.
 
 **Decision: `no-action`.**
 
@@ -238,12 +269,12 @@ Possible reasons:
 
 ## Step 3: Output the decision
 
-> **Write-time gates (downstream — informational):** The decision payload's downstream consumer (`update-roadmap-backlog` → `scripts/ledger-cli.ts`) enforces field budgets per {35.17} and the record-set delta per {35.16}; over-budget fields hard-reject unless `--force` is explicitly passed. Compose `subtask_spec.scope`, `backlog_slot.description`, and `roadmap_proposed_theme.description` within budget so the write succeeds first-try. Field budgets and write semantics live in `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md` §2/§3.
+> **Write-time gates (downstream — informational):** The decision payload's downstream consumer (`update-roadmap-backlog` → `scripts/ledger-cli.ts`) enforces field budgets and the record-set delta; over-budget fields hard-reject unless `--force` is explicitly passed. Compose `subtask_spec.scope`, `backlog_slot.description`, and `roadmap_proposed_theme.description` within budget (see preamble) so the write succeeds first-try.
 
 Return to the curator agent:
 
 ```yaml
-decision: subtask | roadmap | backlog | no-action
+decision: subtask | roadmap | backlog | no-action | decision-register
 
 justification: |
   {one-paragraph explanation of why this decision was reached.
@@ -275,6 +306,11 @@ backlog_slot:
   status: "..."
   rank: null | {integer}
 
+# Branch E populated (decision-register — settled re-litigable ruling)
+decision_register_intent:
+  ruling: "..."
+  supersedes: null | "DR-NNN"
+
 # Branch D populated
 noaction_reason: "..."
 noaction_cross_reference: "{existing-item-id} in {file}" | null
@@ -295,7 +331,7 @@ You do not write provenance yourself, but the curator passes your decision to `u
 - Source commit SHA (if from a checker).
 - Session counter (e.g. `kh-prod-readiness-s47`).
 
-The `update-roadmap-backlog` skill attaches this to the resulting ledger entry via the schema-appropriate fields. Under the current `BacklogItemSchema` and `RoadmapThemeSchema`, both surfaces use `session_refs` + `commit_refs` (verified against `lib/validation/backlog-schema.ts` lines 132–138 and `lib/validation/roadmap-schema.ts` lines 146–148). The earlier `surfaced` field name is a stale pre-v2 reference and has been retired.
+The `update-roadmap-backlog` skill attaches this to the resulting ledger entry via the schema-appropriate fields. Under `BacklogItemSchema` and `RoadmapThemeSchema` (`lib/validation/backlog-schema.ts`, `lib/validation/roadmap-schema.ts`), both surfaces use `session_refs` + `commit_refs`.
 
 > **CLI input shape:** When provenance fields are involved, the curator-side input going INTO `update-roadmap-backlog` should be a JSON object (positional-JSON or `--file <path>`), not flag-by-flag — the CLI's named-flag mode covers only a subset of fields (per `bun scripts/ledger-cli.ts --help`: `--title --description --status --depends 1,2 --priority --id`), and `--session-refs` / `--commit-refs` are NOT named flags.
 
@@ -308,9 +344,9 @@ The `update-roadmap-backlog` skill attaches this to the resulting ledger entry v
 3. **Promoting style nits to the roadmap.** Roadmap is strategic capability; "rename this variable for clarity" is not roadmap material.
 4. **Missing existing coverage.** Always check roadmap + backlog before promoting; duplicates fragment the ledger.
 5. **Following legacy file naming when applying decision logic.** Target semantics drive the decision; the write layer (`bun scripts/ledger-cli.ts` invoked via `update-roadmap-backlog`) reconciles to the current ledgers (`${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/{task-list,product-roadmap,product-backlog}.json`).
-6. **Inventing a grey-area "judgement call" for Branch A.** The binary rule is intentional (per s48-feedback B10). If the executor "noticed it while in the area" but the file-path is outside `subtask_file_ownership`, the finding is not a spec-compliance issue against the Subtask slice, and the parent-Task-AC predicate also does not hold, it is OUT-OF-SCOPE. Route to B / C / D.
-7. **Routing a tactical item to Branch B — it belongs on Backlog.** Under Shape A (per PRODUCT inv 13 a + TECH §4.1), Branch B = **new capability theme** only. A single-feature finding routes to Branch C even if it touches a theme's `linked_backlog` area or extends a theme's `linked_tasks[]` chain. Adding work to an existing theme is NOT a Branch B event — it is Branch C creating a backlog entry that the curator (or update-roadmap-backlog Update mode) later links into the theme. Only genuinely-new capability theme introductions justify Branch B.
-8. **Treating wave-close findings as fully OOS when the current Subtask is closed.** When the orchestrator routes a wave-close batch where the source Subtask has already promoted to `done`, the curator MUST re-anchor Branch A on (a) sibling pending/in-progress Subtasks under the same parent Task ID-N, and (b) the parent Task's `## Acceptance criteria` (Branch A predicate 3). Treating the empty "current Subtask" context as definitively OOS produces false-negative Branch A misses (per S62F-WP3 audit — items 152/153/154 routed to backlog despite blocking ID-9 Third-1 acceptance).
+6. **Inventing a grey-area "judgement call" for Branch A.** The binary rule is intentional. If the executor "noticed it while in the area" but the file-path is outside `subtask_file_ownership`, the finding is not a spec-compliance issue against the Subtask slice, and the parent-Task-AC predicate also does not hold, it is OUT-OF-SCOPE. Route to B / C / D.
+7. **Routing a tactical item to Branch B — it belongs on Backlog.** Under Shape A, Branch B = **new capability theme** only. A single-feature finding routes to Branch C even if it touches a theme's `linked_backlog` area or extends a theme's `linked_tasks[]` chain. Adding work to an existing theme is NOT a Branch B event — it is Branch C creating a backlog entry that the curator (or update-roadmap-backlog Update mode) later links into the theme. Only genuinely-new capability theme introductions justify Branch B.
+8. **Treating wave-close findings as fully OOS when the current Subtask is closed.** When the orchestrator routes a wave-close batch where the source Subtask has already promoted to `done`, the curator MUST re-anchor Branch A on (a) sibling pending/in-progress Subtasks under the same parent Task ID-N, and (b) the parent Task's `## Acceptance criteria` (Branch A predicate 3). Treating the empty "current Subtask" context as definitively OOS produces false-negative Branch A misses.
 9. **Demoting a started/in-flight Subtask to the backlog at session close.** Do NOT demote a started/in-flight Subtask to the backlog at session close. In-flight Subtasks carry over across session boundaries as `in_progress`/`pending` Subtask records — committed work stays on the Task List; the backlog is only for not-yet-committed ideas.
 
 ---

@@ -186,97 +186,26 @@ KH "Worktree isolation rules" from CLAUDE.md apply unchanged:
 ### Ledger writes — clash-free protocol
 
 cmux workers (sub-orchestrators included) MUST NOT mutate or commit the ledger
-JSONs — `docs/reference/{task-list,product-backlog,product-roadmap,product-retros}.json`
-or their `docs/reference/{tasks,backlog}/*.md` mirrors — in their worktree
-branch. Workers instead **RETURN ledger-write intents** to the Orchestrator (e.g.
+JSONs — the `task-list` / `product-backlog` / `product-roadmap` / `product-retros`
+files (and their per-record `tasks/` / `backlog/` mirrors) under the private
+docs-site `ledgers/` tree — in their worktree branch. Workers instead **RETURN
+ledger-write intents** to the Orchestrator (e.g.
 "flip {N.M} done with journal X", "create backlog item Y"; see the
 `ledger_intents` contract under *Final-report convention* below), and the
 Orchestrator applies every write via `ledger-cli.ts` against the MAIN checkout.
 
 > **Canonical protocol + rationale** (one mutex per ledger directory, why an
-> in-branch `chore(ledger)` commit bypasses it, the bl-287/288 3-way collision):
+> in-branch `chore(ledger)` commit bypasses it):
 > `.claude/skills/workflow-orchestration/SKILL.md` → *Ledger field-discipline*.
 > This note is the worker-facing summary; that section is the source of truth.
 
 ---
 
-## Reference: script summary
+## Reference: scripts
 
-| Script               | Usage                                                                                            | Description                                                  |
-| -------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
-| `launch-worker.sh`   | `<worker-name> <base-dir> [--branch <ref>] [--brief <file>] [extra-claude-args...]`              | Create worktree + cmux workspace, launch claude              |
-| `send-prompt.sh`     | `<worker-name> <prompt-text>`                                                                    | Send text to a worker (no wait)                              |
-| `converse.sh`        | `<worker-name> <session-id> <prompt> [timeout=120]`                                              | send-prompt + wait-for-stop + return last assistant text     |
-| `read-turn.sh`       | `<session-id> [--full]`                                                                          | Render a worker's last turn (thinking + tool_use + tool_result + text) as markdown. `--full` un-truncates tool_results (default 5 lines) |
-| `wait-for-fleet.sh`  | `--mode any\|all [--timeout S] <session-id>...`                                                  | Wait for any-of or all-of a set of workers to emit `stop`    |
-| `stop-worker.sh`     | `<worker-name> <session-id> [--force] [--delete-branch]`                                         | /exit, close workspace, verify clean tree, remove worktree; optionally delete worker branch |
-| `watch-fleet.sh`     | `[env: IGNORE SEEN_OQ SEEN_FINAL SEEN_SEND INTERVAL MAX_POLLS QUIET_POLLS]`                      | Smart multi-signal watcher: exits (wakes parent) on any actionable fleet event (session_end / final_report.* / OQ-heading growth / AskUserQuestion stall / stop pause / fleet-quiet). Complements `wait-for-fleet.sh`. |
-
-**`--brief <file>`**: copies the file into the worker worktree as
-`.cmux-brief.md` and auto-sends "Read .cmux-brief.md before any work." after
-`session_start`.
-
-**`stop-worker.sh`**: runs the dirty-tree safety check BEFORE closing the cmux
-workspace. Exit-2 (dirty tree, no `--force`) therefore leaves the cmux
-workspace alive — operator can re-attach to inspect, then either commit the
-work or re-run with `--force`. The dirty-tree check excludes
-`.cmux-brief.md` (script-managed artefact placed by `--brief`).
-
-**`--delete-branch`**: after worktree removal, deletes the worker branch
-(`cmux-worker-<name>-<sha>`). Falls back to `git worktree list` lookup when
-the meta file is missing (post-failure re-run scenario). Default OFF — the
-parent orchestrator usually needs the branch alive long enough to
-cherry-pick / merge. Pass once cherry-pick / merge is confirmed.
-
-**`.worktreeinclude` honour**: if `<project-root>/.worktreeinclude` exists,
-`launch-worker.sh` reads it as a list of literal file paths (one per line,
-`#` comments skipped) and copies each existing source from project root into
-the new worktree. Plain paths only — no glob expansion. Canonical case:
-`.env.local`.
-
-### Monitoring: `wait-for-fleet.sh` vs `watch-fleet.sh`
-
-Two monitoring primitives:
-
-- `wait-for-fleet.sh` — block-on-`stop` primitive: blocks until any-of / all-of a
-  named session set emits `stop`. Use for race / first-to-finish gating.
-- `watch-fleet.sh` — smart multi-signal watcher: scans every worker's
-  `events.jsonl` + worktree and EXITS (waking the parent) on the FIRST actionable
-  signal across the fleet — `session_end`, a `final_report.*` in the events dir,
-  a new `## OQ` heading in a worker's root `OQ-pending.md`, an `AskUserQuestion`
-  stall, a `stop` pause, or fleet-wide quiet. Exit 0 = tripped (report on stdout);
-  exit 2 = max-poll timeout (re-arm).
-
-Canonical orchestrator loop:
-
-    launch-worker  ->  send-prompt  ->  watch-fleet.sh
-                                          (exit 2: re-arm; exit 0: act on report)
-                                       ->  stop-worker
-
-Cross-reference: the OQ-escalation channel
-(`${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-43-oq-escalation/`) shares the events-dir transport but carries
-worker->parent *decisions* (questions needing a ruling); `watch-fleet.sh` carries
-*lifecycle / attention* signals. Distinct payloads, same directory.
-
-### Reading worker output
-
-`converse.sh` returns only the worker's final assistant text. To collect a
-worker's full last turn — thinking blocks, `tool_use` calls, `tool_result`s,
-and assistant text — as markdown, use the KH-local `read-turn.sh` (it resolves
-the worker cwd from `<sid>/meta.json` and encodes the Claude projects dir name
-to match this layout; the upstream superpowers script reads the wrong
-`/tmp/claude-workers/<id>.meta` path and mis-encodes dotted worktree paths):
-
-```bash
-"$SD_SCRIPTS/read-turn.sh" "$SESSION_ID"          # tool_results truncated to 5 lines
-"$SD_SCRIPTS/read-turn.sh" "$SESSION_ID" --full   # tool_results rendered in full
-```
-
-Or read the events JSONL directly:
-
-```bash
-jq -c '.' .claude/cmux-events/"$SESSION_ID"/events.jsonl
-```
+Full per-script argument tables, the `wait-for-fleet.sh` vs `watch-fleet.sh`
+monitoring comparison, and how to read a worker's full turn (`read-turn.sh`):
+read `references/session-driver-cmux-scripts.md`.
 
 ---
 
@@ -300,7 +229,7 @@ S2=$(echo "$R2" | jq -r '.session_id')
 S3=$(echo "$R3" | jq -r '.session_id')
 
 # Each brief MUST carry the explicit dispatch cadence — a bare "load the skill"
-# made S267 workers act as leaf executors (direct authoring, no Checker):
+# makes workers act as leaf executors (direct authoring, no Checker):
 # "Load workflow-orchestration. You are a SUB-ORCHESTRATOR, not a leaf worker:
 # for every Subtask DISPATCH a task-planner and/or task-executor via the Agent
 # tool, then GATE each with a task-checker (FAIL→fix→PASS) BEFORE committing.
@@ -313,8 +242,9 @@ S3=$(echo "$R3" | jq -r '.session_id')
 # (`git show --stat` before a full diff, scope `git`/`grep` to explicit paths,
 # narrow searches, read summarised verdicts), and write any >64K artefact to a
 # file and return the PATH — a convention, not a programmatic block. The
-# canonical statement is `references/dispatch-primitives.md` → *Result-size
-# discipline*; inherit it so your own sub-dispatches carry it too."
+# canonical statement is
+# `.claude/skills/workflow-orchestration/references/dispatch-primitives.md` →
+# *Result-size discipline*; inherit it so your own sub-dispatches carry it too."
 "$SD_SCRIPTS/send-prompt.sh" subo-id-23 "$(cat .claude/cmux-briefs/cmux-brief-id-23.md)"
 "$SD_SCRIPTS/send-prompt.sh" subo-id-24 "$(cat .claude/cmux-briefs/cmux-brief-id-24.md)"
 "$SD_SCRIPTS/send-prompt.sh" subo-id-25 "$(cat .claude/cmux-briefs/cmux-brief-id-25.md)"
@@ -375,7 +305,7 @@ For long-running sub-orchestrators where the parent may want to converse mid-ses
 - **`session_end` event** fires ONLY when the worker hits `/exit`. Reserve this for
   definitive-teardown polling.
 
-Anti-pattern (S62E observed): orchestrator-side custom watcher polling `grep -c
+Anti-pattern: an orchestrator-side custom watcher polling `grep -c
 '"event":"session_end"'`. The watcher never fired despite the worker emitting many
 `stop` events, because `session_end` requires `/exit` — workers that pause naturally
 between turns don't emit it. Result: orchestrator missed every mid-session interaction
@@ -453,7 +383,7 @@ clash-free protocol* above). `ledger_intents` is a list; each intent carries:
   journal text, the backlog item fields).
 
 Author any `description` (≤250) and `testStrategy` (≤300) values inside `args`
-**within budget on the first pass** (invariant 57) — overflow belongs in the
+**within budget on the first pass** — overflow belongs in the
 unbudgeted `details`, not trimmed at apply-time. The Orchestrator replays each
 intent through the `ledger-cli.ts` façade on the MAIN checkout; this doc names the
 façade only and intentionally carries no invocation recipe (the verb→flag mapping
@@ -485,9 +415,8 @@ If the user wants to take over a running worker:
 - **Workers are full Claude sessions.** No shared state with the orchestrator
   except via files on disk and the event stream. Pass data through the
   worker's worktree (committed) or via `/tmp/...` (uncommitted scratch).
-- **Phase B (interactive) verifies end-to-end.** This SKILL.md and the scripts
-  are the dispatch contract — empirical validation against a live cmux
-  daemon happens in a follow-up interactive session.
+- **The SKILL.md and scripts are the dispatch contract.** Empirical end-to-end
+  validation runs against a live cmux daemon in an interactive session.
 
 ---
 
@@ -518,6 +447,6 @@ on any actionable signal (incl. OQ-heading growth / a worker parked in
 blocked worker's open OQs in FIFO order) → `oq_decide` (write
 `decisions/<oq_id>.json`). The decision **file** is always authoritative; the
 optional `send-prompt.sh` nudge only wakes the worker's poll sooner and is never
-correctness-bearing. Two-state contract (OQ-INV-24): a worker with an undecided
+correctness-bearing. Two-state contract: a worker with an undecided
 **blocking** OQ stays in `awaiting-decision` and does **not** `/exit` until the
 decision lands.

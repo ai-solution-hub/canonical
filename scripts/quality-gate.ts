@@ -802,15 +802,15 @@ export async function entity_relationship_coverage(
     );
 
     const ids = items.map((r) => r.id as string);
-    const relRows = await fetchAllInBatches<{ source_item_id: string }>(
+    const relRows = await fetchAllInBatches<{ source_document_id: string }>(
       ctx.sb,
       'entity_relationships',
       ids,
-      'source_item_id',
-      (q) => q.select('source_item_id'),
+      'source_document_id',
+      (q) => q.select('source_document_id'),
     );
     const withRels = new Set<string>();
-    for (const row of relRows) withRels.add(row.source_item_id);
+    for (const row of relRows) withRels.add(row.source_document_id);
 
     const byType: Record<string, { total: number; withR: number }> = {};
     for (const r of items) {
@@ -1493,7 +1493,7 @@ export async function audit_required_relationships(
       ctx.sb,
       'entity_relationships',
       itemIds,
-      'source_item_id',
+      'source_document_id',
       (q) => q.select('relationship_type'),
     );
     const foundTypes = new Set<string>();

@@ -106,7 +106,7 @@ def _require_disposable_dsn() -> str:
 # text-embedding-3-large (empirically: "ISO 27001"~"iso 27001" dist 0.06,
 # ~"ISO-27001" dist 0.04; "Cyber Essentials"~"Cyber Essentials Plus" dist 0.12 —
 # all well inside max_distance=0.3) and pass the pg_trgm prefilter (similarity
-# >= 0.3). Each test uses a UNIQUE content_item_id + a scoped cleanup so reruns
+# >= 0.3). Each test uses a UNIQUE source_document_id + a scoped cleanup so reruns
 # are idempotent.
 
 class _StageCounter:
@@ -125,7 +125,7 @@ async def _seed_mention(
     *,
     canonical: str,
     entity_type: str,
-    content_item_id: uuid.UUID,
+    source_document_id: uuid.UUID,
     op_id: uuid.UUID | None,
     confidence: float = 0.9,
 ) -> uuid.UUID:
@@ -137,11 +137,11 @@ async def _seed_mention(
     row_id = uuid.uuid4()
     await conn.execute(
         "INSERT INTO public.entity_mentions "
-        "(id, content_item_id, entity_type, entity_name, canonical_name, "
+        "(id, source_document_id, entity_type, entity_name, canonical_name, "
         " confidence, op_id) "
         "VALUES ($1, $2, $3, $4, $5, $6, $7)",
         row_id,
-        content_item_id,
+        source_document_id,
         entity_type,
         canonical,
         canonical,
@@ -233,7 +233,7 @@ def test_crossrun_same_entity_converges_to_one_canonical() -> None:
                     conn,
                     canonical=run1_canonical,
                     entity_type=entity_type,
-                    content_item_id=cid1,
+                    source_document_id=cid1,
                     op_id=op1,
                 )
 
@@ -249,7 +249,7 @@ def test_crossrun_same_entity_converges_to_one_canonical() -> None:
                     conn,
                     canonical=run2_perdoc,
                     entity_type=entity_type,
-                    content_item_id=cid2,
+                    source_document_id=cid2,
                     op_id=op2,
                 )
             changed = await _run_stage5(pool, op2)
@@ -339,7 +339,7 @@ def test_crossrun_pinned_override_of_longer_name() -> None:
                     conn,
                     canonical=short_canonical,
                     entity_type=entity_type,
-                    content_item_id=cid1,
+                    source_document_id=cid1,
                     op_id=op1,
                     confidence=0.95,
                 )
@@ -349,7 +349,7 @@ def test_crossrun_pinned_override_of_longer_name() -> None:
             # to assert byte-for-byte invariance across run 2 (Inv-3 + Inv-7).
             async with pool.acquire() as conn:
                 before = await conn.fetchrow(
-                    "SELECT id, content_item_id, entity_type, entity_name, "
+                    "SELECT id, source_document_id, entity_type, entity_name, "
                     "canonical_name, confidence, op_id, normalisation_version, "
                     "metadata FROM public.entity_mentions WHERE id = $1",
                     run1_id,
@@ -358,7 +358,7 @@ def test_crossrun_pinned_override_of_longer_name() -> None:
                     conn,
                     canonical=long_perdoc,
                     entity_type=entity_type,
-                    content_item_id=cid2,
+                    source_document_id=cid2,
                     op_id=op2,
                     confidence=0.9,
                 )
@@ -366,7 +366,7 @@ def test_crossrun_pinned_override_of_longer_name() -> None:
 
             async with pool.acquire() as conn:
                 after = await conn.fetchrow(
-                    "SELECT id, content_item_id, entity_type, entity_name, "
+                    "SELECT id, source_document_id, entity_type, entity_name, "
                     "canonical_name, confidence, op_id, normalisation_version, "
                     "metadata FROM public.entity_mentions WHERE id = $1",
                     run1_id,
@@ -436,12 +436,12 @@ def test_crossrun_null_op_id_canonical_chains() -> None:
                     conn,
                     canonical=null_op_canonical,
                     entity_type=entity_type,
-                    content_item_id=cid_null,
+                    source_document_id=cid_null,
                     op_id=None,  # NULL op_id — the app-side write shape
                     confidence=0.99,
                 )
                 before = await conn.fetchrow(
-                    "SELECT id, content_item_id, entity_type, entity_name, "
+                    "SELECT id, source_document_id, entity_type, entity_name, "
                     "canonical_name, confidence, op_id, normalisation_version, "
                     "metadata FROM public.entity_mentions WHERE id = $1",
                     null_op_id,
@@ -450,7 +450,7 @@ def test_crossrun_null_op_id_canonical_chains() -> None:
                     conn,
                     canonical=run_perdoc,
                     entity_type=entity_type,
-                    content_item_id=cid_run,
+                    source_document_id=cid_run,
                     op_id=op_a,
                     confidence=0.8,
                 )
@@ -459,7 +459,7 @@ def test_crossrun_null_op_id_canonical_chains() -> None:
 
             async with pool.acquire() as conn:
                 after = await conn.fetchrow(
-                    "SELECT id, content_item_id, entity_type, entity_name, "
+                    "SELECT id, source_document_id, entity_type, entity_name, "
                     "canonical_name, confidence, op_id, normalisation_version, "
                     "metadata FROM public.entity_mentions WHERE id = $1",
                     null_op_id,
@@ -525,7 +525,7 @@ def test_crossrun_full_reprocess_idempotent_mapping() -> None:
                     conn,
                     canonical=name,
                     entity_type=entity_type,
-                    content_item_id=uuid.uuid4(),
+                    source_document_id=uuid.uuid4(),
                     op_id=op_id,
                     # Distinct confidences so any collapse tie-break is deterministic
                     # (none expected here — distinct content items).

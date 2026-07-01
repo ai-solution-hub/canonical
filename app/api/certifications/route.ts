@@ -126,7 +126,7 @@ export const GET = defineRoute(CertificationReportResponseSchema, async () => {
     // 1. Get all 'holds' relationships
     const { data: relationships, error: relsError } = await supabase
       .from('entity_relationships')
-      .select('source_entity, target_entity, source_item_id')
+      .select('source_entity, target_entity, source_document_id')
       .eq('relationship_type', 'holds');
 
     if (relsError) {
@@ -183,7 +183,7 @@ export const GET = defineRoute(CertificationReportResponseSchema, async () => {
     const { data: mentions, error: mentionsError } = await supabase
       .from('entity_mentions')
       .select(
-        'canonical_name, entity_type, entity_type_override, content_item_id, metadata',
+        'canonical_name, entity_type, entity_type_override, source_document_id, metadata',
       )
       .in('canonical_name', targetEntities);
 
@@ -201,7 +201,7 @@ export const GET = defineRoute(CertificationReportResponseSchema, async () => {
 
     // 3. Get content item titles for evidence links
     const contentItemIds = [
-      ...new Set((mentions ?? []).map((m) => m.content_item_id)),
+      ...new Set((mentions ?? []).map((m) => m.source_document_id)),
     ];
 
     let contentItems: { id: string; title: string }[] = [];
@@ -251,7 +251,7 @@ export const GET = defineRoute(CertificationReportResponseSchema, async () => {
         mentionMap.set(m.canonical_name, agg);
       }
       agg.mention_count++;
-      agg.content_item_ids.add(m.content_item_id);
+      agg.content_item_ids.add(m.source_document_id);
 
       // Merge metadata — later mentions with metadata override earlier ones
       if (

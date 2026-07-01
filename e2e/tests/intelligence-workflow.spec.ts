@@ -79,9 +79,13 @@ test.describe('Intelligence article review', () => {
 
     // SI-L6: stronger assertion — verify the seed-data article title appears in
     // the DOM, not just that some card rendered. The fixture seeds articles
-    // with the worker prefix to avoid cross-test interference.
+    // with the worker prefix to avoid cross-test interference. The title must
+    // match the actually-seeded passed article (buildIntelligenceFeedArticles
+    // in e2e/fixtures/test-data.ts: 'Major Cyber Security Regulation Update',
+    // relevance 0.92, passed:true) — the prior 'High-Relevance Government
+    // Article' literal never matched any seed (latent-red since b4e7837c).
     const seedTitle = page.getByText(
-      `${workerData.prefix} High-Relevance Government Article`,
+      `${workerData.prefix} Major Cyber Security Regulation Update`,
       { exact: false },
     );
     await expect(seedTitle).toBeVisible({ timeout: 5000 });
@@ -195,9 +199,12 @@ test.describe('Intelligence RSS output', () => {
     expect(body).toContain('<rss');
     expect(body).toContain('<channel>');
     // SI-L6: stronger assertion — verify the seed-data article title appears
-    // in the RSS body, not just that XML structure rendered.
+    // in the RSS body, not just that XML structure rendered. Matches the
+    // actually-seeded passed article (test-data.ts: 'Major Cyber Security
+    // Regulation Update', passed:true) — the prior 'High-Relevance Government
+    // Article' literal never matched any seed (latent-red since b4e7837c).
     expect(body).toContain(
-      `${workerData.prefix} High-Relevance Government Article`,
+      `${workerData.prefix} Major Cyber Security Regulation Update`,
     );
   });
 
