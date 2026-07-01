@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# deploy/coolify/goose/run-pilot.sh
+# deploy/coolify/goose-pilot/goose/run-pilot.sh
 #
 # ID-71.26 — the per-run wrapper the Coolify SCHEDULED TASK invokes (NOT the
 # container entrypoint; the container is boot-idle). One invocation == one pilot
@@ -12,9 +12,10 @@
 #      `Authorization: Bearer …` + `X-MCP-Actor: headless`.
 #   3. Run the pilot recipe ONE-SHOT, no persisted session.
 #
-# OQ-B (Liam ratify at G1/G2): verify `curl` AND `python3` (or `jq`) are present in
-#   ghcr.io/block/goose:v1.38.0 — the token mint below needs an HTTP client + JSON
-#   parse. If absent, either switch the image or mint the token in a sidecar.
+# OQ-B (RESOLVED G1, S424): the goose image (ghcr.io/block/goose@sha256:d85a724e…,
+#   = goose 1.30.0, Debian 12) ships `curl` but NOT `python3`/`jq`. The token mint
+#   below therefore parses the GoTrue JSON with `grep`+`sed` (both present) instead
+#   of python3 — no image change needed (`access_token` is a flat top-level field).
 set -euo pipefail
 
 # --- Required env (injected by Coolify; see docker-compose.goose.yaml) ----------
@@ -41,9 +42,13 @@ _token_response="$(
     -d "{\"email\":\"${GOOSE_SERVICE_ACTOR_EMAIL}\",\"password\":\"${GOOSE_SERVICE_ACTOR_PASSWORD}\"}"
 )"
 
+# Pure-shell extraction (no python3/jq in the goose image — see OQ-B note above).
+# GoTrue returns access_token as a flat top-level JSON string field.
 MCP_BEARER_TOKEN="$(
   printf '%s' "${_token_response}" \
-    | python3 -c 'import sys,json; print(json.load(sys.stdin)["access_token"])'
+    | grep -o '"access_token":"[^"]*"' \
+    | head -1 \
+    | sed 's/^"access_token":"//; s/"$//'
 )"
 unset _token_response
 export MCP_BEARER_TOKEN

@@ -1,4 +1,4 @@
-# deploy/coolify/goose/config.yaml
+# deploy/coolify/goose-pilot/goose/config.yaml
 #
 # ID-71.26 — goose provider/model config for the headless pilot runtime.
 # Bind-mounted into the container at /goose/config.yaml (docker-compose.goose.yaml).

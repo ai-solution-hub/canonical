@@ -1,4 +1,4 @@
-# deploy/coolify/docker-compose.goose.yaml
+# deploy/coolify/goose-pilot/docker-compose.yaml
 #
 # ID-71.26 — Wave 3: goose runtime substrate on the co-located IONOS/Coolify box
 #            (pilot-gated). A NEW Coolify-managed service, its OWN container — it
@@ -26,9 +26,11 @@
 # Image-tag discipline: NEVER a tag (never :latest). The image is DIGEST-pinned
 #   (pin-and-soak, B-INV-21). GOOSE_IMAGE_DIGEST is a required var resolved from
 #   release v1.38.0 — compose refuses to start if unset.
-#   # TODO(G1, B-INV-21): resolve the sha256 digest of ghcr.io/block/goose:v1.38.0
-#   #   (`docker buildx imagetools inspect ghcr.io/block/goose:v1.38.0`) and set
-#   #   GOOSE_IMAGE_DIGEST in Coolify. Ratifying this pin is the G6 adopt gate.
+#   # G1 RESOLVED (S424): ghcr.io/block/goose has NO v1.38.0 *container* tag (Block
+#   #   stopped version-tagging containers ~1.23.x; `latest` tracks current = goose
+#   #   1.30.0). Pin the immutable digest of `latest`:
+#   #     GOOSE_IMAGE_DIGEST=sha256:d85a724ee487425f38ce015323adf2003591268ee515d9018ac89450ed7d3a5a
+#   #   Set it in Coolify (kh-goose-pilot app env). Ratifying this pin is the G6 gate.
 
 name: kh-goose-pilot
 
@@ -48,10 +50,17 @@ services:
     # BOOT-IDLE (the burn gate). The container does nothing until the Coolify
     # scheduled task invokes /goose/run-pilot.sh. A deploy/restart therefore costs
     # ZERO Anthropic spend by construction — identical guarantee to cocoindex's
-    # boot-never-walks. Do NOT replace this with a goose entrypoint.
-    command: ["sleep", "infinity"]
+    # boot-never-walks.
+    # G3 RESOLVED (S424): the image ENTRYPOINT is ["/usr/local/bin/goose"] (CMD
+    # ["--help"]), so a bare `command: [sleep, infinity]` runs `goose sleep infinity`
+    # → "unrecognized subcommand" → crash-loop. OVERRIDE the entrypoint to sleep
+    # (and replace the image CMD via command) for a true boot-idle. run-pilot.sh
+    # still invokes `goose run` directly (goose is on PATH), so the scheduled task
+    # is unaffected.
+    entrypoint: ["sleep"]
+    command: ["infinity"]
 
-    # Resource caps — conservative on the shared ~16 GB box (cocoindex co-tenant).
+    # Resource caps — conservative on the shared ~4 GB box (cocoindex co-tenant).
     # Local footprint is orchestration/IO only (inference is remote Anthropic), so
     # 512M is generous headroom; watch the burn guard during the G5 soak.
     deploy:
@@ -67,8 +76,11 @@ services:
       GOOSE_PROVIDER: ${GOOSE_PROVIDER:-anthropic}
       # OQ-E (Liam ratify at G1): confirm the exact model id for the pilot.
       GOOSE_MODEL: ${GOOSE_MODEL:-claude-sonnet-4-6}
-      # Anthropic inference key — the ONLY real spend path. Injected by Coolify.
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      # Anthropic inference key — the ONLY real spend path. Liam set this in Coolify
+      # (platform staging + prod) under the namespaced var GOOSE_ANTHROPIC_API_KEY;
+      # map it onto the ANTHROPIC_API_KEY that goose actually reads. :? fails the
+      # deploy if it is unset, so the burn path can never silently mis-key.
+      ANTHROPIC_API_KEY: ${GOOSE_ANTHROPIC_API_KEY:?set GOOSE_ANTHROPIC_API_KEY in Coolify (the goose Anthropic inference key)}
 
       # --- Remote-MCP target (KH MCP server, Streamable-HTTP transport) ---
       # Default = PROD MCP endpoint (APP_URL + /api/mcp/[transport] → transport `mcp`).
@@ -99,14 +111,18 @@ services:
       # in-repo goose dir read-only at /goose; run-pilot.sh + o4-pilot.yaml +
       # config.yaml all resolve under /goose. In Coolify set the app "Base Directory"
       # to this compose's dir so the relative ./goose source path resolves.
-      - ./goose:/goose:ro
+      # G4 RESOLVED (S424): Coolify resolves compose VOLUME paths from the REPO/ARTIFACT
+      # ROOT, not the app Base Directory (Base Directory only locates the compose file).
+      # So the source must be the FULL repo path — a base-dir-relative `./goose` mounted
+      # an empty <root>/goose → "run-pilot.sh: No such file or directory".
+      - ./deploy/coolify/goose-pilot/goose:/goose:ro
 
     # Liveness probe — #7685-safe. We do NOT run goosed (no ~103-endpoint REST
     # surface, no self-signed TLS port), so we probe the idle process directly.
-    # pgrep is in coreutils/procps; if the goose image lacks it, fall back to a
-    # marker-file touched by run-pilot.sh (resolve at G1 image tool-probe).
+    # G1 RESOLVED (S424): the goose image lacks `pgrep`, so we probe PID 1's cmdline
+    # via /proc (the boot-idle `sleep infinity` is PID 1) — pgrep-free, no marker file.
     healthcheck:
-      test: ["CMD-SHELL", "pgrep -f 'sleep infinity' >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "grep -qa sleep /proc/1/cmdline 2>/dev/null || exit 1"]
       interval: 60s
       timeout: 10s
       retries: 3

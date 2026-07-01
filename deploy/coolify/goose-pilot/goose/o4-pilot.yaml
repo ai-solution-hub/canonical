@@ -1,4 +1,4 @@
-# deploy/coolify/goose/o4-pilot.yaml
+# deploy/coolify/goose-pilot/goose/o4-pilot.yaml
 #
 # ID-71.27 — Wave 3: the MVP pilot recipe (riskiest-assumption-first proof).
 # Satisfies B-INV-18/21 (M18/M21, §MVP). Exercises, in ONE slice:
