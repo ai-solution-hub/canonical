@@ -3,13 +3,13 @@
  *
  * The docs operators (docubot + the five docs skills) live in the PRIVATE
  * knowledge-hub-docs-site repo (TECH PC-27 / PRODUCT Inv 27). This thin
- * public-side bridge is the ONLY remnant: on every merged PR to `main` it
+ * public-side bridge is the ONLY remnant: on every merged PR to `staging` it
  * mints a GitHub App installation token and fires a `repository_dispatch`
  * (`kh-public-pr-merged`) into the private repo, where docubot.yml consumes
  * the event.
  *
  * Guards:
- *   1. Trigger surface is exactly pull_request closed on main (thin — no
+ *   1. Trigger surface is exactly pull_request closed on staging (thin — no
  *      issue_comment / pull_request_review_comment per the Inv-25 lesson).
  *   2. Job filters to merged==true (closed-without-merge must not dispatch).
  *   3. App-token mint via actions/create-github-app-token, scoped to the
@@ -58,11 +58,13 @@ describe('docs-dispatch.yml workflow shape (ID-68.26 / TECH PC-27)', () => {
     expect(Object.keys(jobs)).toEqual(['dispatch']);
   });
 
-  it('triggers on pull_request closed against main (only)', () => {
+  it('triggers on pull_request closed against staging (only)', () => {
     expect(Object.keys(on)).toEqual(['pull_request']);
     const pr = on.pull_request as { types?: string[]; branches?: string[] };
     expect(pr.types).toEqual(['closed']);
-    expect(pr.branches).toEqual(['main']);
+    // Staging-first cutover: feature PRs land on `staging` first, so the
+    // docs-dispatch bridge fires on merges to staging (was `main`).
+    expect(pr.branches).toEqual(['staging']);
   });
 
   it('filters the job to merged==true (closed-without-merge must not dispatch)', () => {
