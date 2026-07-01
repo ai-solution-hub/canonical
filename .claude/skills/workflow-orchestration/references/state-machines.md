@@ -35,4 +35,4 @@ The schema enforces the subtask-status subset via
 `SubtaskStatus = TaskListStatus.exclude(['spec_needed', 'imp_deferred'])`
 in `lib/validation/task-list-schema.ts`. `spec_needed` and `imp_deferred` remain
 Task-level-only and cannot be written to subtasks. `cancelled` is valid at
-both Task and Subtask level (PRODUCT inv 21 amended, S261 Liam request).
+both Task and Subtask level.

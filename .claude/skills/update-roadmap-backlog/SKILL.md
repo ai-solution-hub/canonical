@@ -22,8 +22,7 @@ Create / Read / Update / Delete / Promote lifecycle.
 **All writes route through `bun scripts/ledger-cli.ts` — never `Edit` on the
 ledgers.** The CLI is the operator-facing mutation surface; enforcement
 (serialisation, write-time gates, mirror regen) lives server-side in the
-task-view patch-server substrate (invariant 57). Compose call shapes against
-the CLI exactly; only *where* the work happens moved.
+task-view patch-server substrate.
 
 The ledgers live in the private docs-site, NOT the code repo:
 `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/`. The CLI resolves this path
@@ -32,9 +31,8 @@ path. **Never wholesale-`Read` the JSON** (`task-list.json` is multi-MB) — use
 `show` / `get` slice reads.
 
 The CLI write boundary enforces, in order: schema parse, the record-set delta
-gate (∅/+1/−1), the budget gate, then default-on mirror regen. Validation
-happens **before** any byte is written — there is no post-write round-trip step.
-Detail (gates, error codes, exit envelope, budgets): **read
+gate (∅/+1/−1), the budget gate, then default-on mirror regen — all **before**
+any byte is written. Detail (gates, error codes, exit envelope, budgets): **read
 `references/cli-mechanics.md`**.
 
 ## Operation modes
@@ -60,11 +58,11 @@ two-surface validation.
 
 | Field | Description |
 |-------|-------------|
-| `target` | `roadmap`, `backlog`, or `task-list` (the **target semantics**, not a filename) — `task-list` writes a new top-level Task via `open-task` (T-OQ-2 RATIFIED). |
+| `target` | `roadmap`, `backlog`, or `task-list` (the **target semantics**, not a filename) — `task-list` writes a new top-level Task via `open-task`. |
 | `finding_detail` | The finding from the source agent, summarised for ledger storage. |
 | `provenance.source_task_id` | Workpackage ID (e.g. `WP1.2`) or null. |
 | `provenance.source_commit_sha` | Short SHA from the source commit, or null. |
-| `provenance.session_counter` | Session ID (e.g. `kh-prod-readiness-s47`). |
+| `provenance.session_counter` | Session ID. |
 | `triage_payload` | The full `triage-finding` output (section / track / type / priority). Field budgets apply — see `references/cli-mechanics.md`. |
 | `umbrella_id` | `string` (kebab-case) or `null` (default `null`). When non-null AND the destination resolves to a top-level Task: triggers Step 6 (umbrella membership via `update-umbrella`). Ignored for Subtask or roadmap/backlog destinations. |
 
@@ -116,10 +114,9 @@ per-field source → CLI-flag mapping for each record kind is in
 
 - **Provenance is mandatory** — at minimum `session_refs: [session_counter]`.
   Roadmap + task schemas are `.strict()`; no `metadata.source` field.
-- **Backlog `description` budget is ≤500, `title` ≤80** (not 1500). Task
-  `description` ≤1500.
+- **Backlog `description` ≤500, `title` ≤80; Task `description` ≤1500.**
 - **Roadmap soft-cap:** a 13th theme does not hard-block but surfaces a soft-cap
-  warning — consider merging overlapping themes (PRODUCT inv 8).
+  warning — consider merging overlapping themes.
 - **`open-task` auto-fills** the optional nullable/array fields and stamps
   `updatedAt` — supply only meaningful fields + provenance.
 
@@ -182,10 +179,9 @@ bun scripts/ledger-cli.ts update-umbrella <umbrella_id> --add-tasks <new-task-id
 mirrored and has no budgeted fields. Verify the surface via `bun
 scripts/ledger-cli.ts update-umbrella --help`.
 
-**Commit-coupling (PRODUCT inv 17 — load-bearing):** the caller MUST include
-BOTH the `task-list.json` and `umbrellas.json` edits in a **single commit** (the
-round-trip test catches broken references; orphans warn but don't fail per
-P-OQ-2).
+**Commit-coupling (load-bearing):** the caller MUST include BOTH the
+`task-list.json` and `umbrellas.json` edits in a **single commit** — the
+round-trip test catches broken references (orphans warn but don't fail).
 
 `capability_theme` (set on the Task, points at a roadmap theme) and `umbrella_id`
 are orthogonal — both may be supplied in the same Create or Promote.
@@ -223,8 +219,8 @@ bumps; `notes` append; `rank` re-rank.
    - `priority` (backlog): shared `Priority` enum.
    - `notes` (backlog/roadmap): default **overwrites**; pass `--append` to
      concatenate (newline-joined). `--append` is notes-only.
-   - `rank` (backlog): integer or `null`; no uniqueness/contiguity enforced
-     (PRODUCT inv 3). See rank auto-shift below.
+   - `rank` (backlog): integer or `null`; no uniqueness/contiguity enforced.
+     See rank auto-shift below.
    - `time_horizon` (roadmap theme): `now | next | later`.
 4. **Invoke the subcommand:**
 
@@ -235,9 +231,9 @@ bumps; `notes` append; `rank` re-rank.
    bun scripts/ledger-cli.ts append-journal 35.38 "session-context …"
    ```
 
-5. **Rank auto-shift** (backlog `rank` Update only, P-OQ-3 default): the CLI does
-   NOT encapsulate this — it is curator-side algorithm work. Steps + report
-   field in `references/cli-mechanics.md` §"Rank auto-shift".
+5. **Rank auto-shift** (backlog `rank` Update only): the CLI does NOT encapsulate
+   this — it is curator-side algorithm work. Steps + report field in
+   `references/cli-mechanics.md` §"Rank auto-shift".
 6. **Report** the `UPDATE COMPLETE` packet (template in `references/cli-mechanics.md`).
 
 ### What Update is NOT
@@ -293,8 +289,6 @@ removes a Subtask under a Task — not part of the backlog-cleanup flow below.)
   done`; a completed Task is `flip-task <id> done`.
 - **Not for cleanup of stale-but-not-cancelled items** — those remain until the
   product owner explicitly cancels them.
-- **Not for typo corrections** — field fixes use Update; full rewrites pair
-  Delete with Create.
 - **Not the backlog → task-list path** — use Promote (Delete loses
   source→destination traceability).
 - **Not available for whole Tasks or themes** — reclassifying a Task to a backlog
@@ -364,7 +358,7 @@ the destination `details` automatically.
 3. **Umbrella membership (optional — Step 6).** If `umbrella_id` is non-null AND
    `destination_shape === 'new_top_level_task'`, run `update-umbrella
    <umbrella_id> --add-tasks <new-task-id>` and include it in the same commit as
-   the promote write (PRODUCT inv 17 commit-coupling).
+   the promote write (commit-coupling, above).
 
 4. **Report** the Promote packet (envelope + YAML in `references/cli-mechanics.md`).
 
@@ -390,44 +384,23 @@ the destination `details` automatically.
    fields fail `schema-error` at write time.
 3. **UK English throughout.** "colour", "organisation", "behaviour",
    DD/MM/YYYY dates.
-4. **Forward-looking roadmap (Shape A).** Theme `status: pending | in_progress |
-   done`; `done` themes retain in-place (Update only, never deleted).
+4. **Forward-looking roadmap.** Theme `status: pending | in_progress | done`;
+   `done` themes retain in-place (Update only, never deleted).
 5. **No closure values in backlog status** (`spec_needed | needs_research |
    parked | ready | blocked`). Picked-up items are Promoted; cancelled /
    reclassified items are Deleted. Backlog never carries `done`.
 6. **Never `git commit` from this skill.** The CLI writes the JSON; the
    Orchestrator commits. Applies to all four modes.
-7. **Field budgets enforced at write time** (`${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md`).
-   Compose within budget; `--force` is not a routine escape.
-8. **Minimal-diff (scoped) is the global default** for every mutating command.
+7. **Field budgets enforced at write time.** Compose within budget; `--force` is
+   not a routine escape — its only legitimate use is downgrading
+   `budget-exceeded`; right-size the field instead.
+8. **One finding → exactly one ledger.** A finding goes to roadmap OR backlog,
+   never both; reclassification is `delete-backlog` + `create-theme`, not
+   concurrent writes.
+9. **Minimal-diff (scoped) is the global default** for every mutating command.
    `--scoped` is a deprecated no-op. Use `--whole-file` only for a deliberate
-   whole-file rewrite.
-
----
-
-## Failure modes to avoid
-
-1. **Forgetting provenance** — every Create needs at least `session_counter`, or
-   edits can't be traced.
-2. **An unknown field on a `.strict()` record** → `schema-error` at write time.
-3. **Committing from this skill** — the Orchestrator owns commit sequencing.
-4. **Writing to both files for one finding** — a finding goes to exactly one of
-   roadmap or backlog (reclassifications use `delete-backlog` + `create-theme`,
-   not concurrent writes).
-5. **`--whole-file` on a routine single-record edit** — minimal-diff is the
-   default; `--whole-file` re-serialises the whole file and collides with
-   sibling cmux terminals. `--scoped` is a no-op (never required).
-6. **`delete-backlog` for `done` closures** — a completed theme is
-   `update-roadmap <id> status done`; a completed Task is `flip-task <id> done`.
-7. **Overwriting `notes` without `--append`** — default `update-backlog/roadmap
-   <id> notes <value>` overwrites; pass `--append` to preserve history
-   (notes-only).
-8. **A 13th theme without checking the soft cap** — the write surfaces a soft-cap
-   warning (PRODUCT inv 8); consider merging overlapping themes.
-9. **Forgetting `--rank N` on Create** into an otherwise-unranked tier — auto-id
-   does NOT auto-rank; set `--rank 1` to anchor future inserts.
-10. **`--force` outside a genuine budget override** — its only legitimate use is
-    downgrading `budget-exceeded`; right-size the field instead.
+   whole-file rewrite (it re-serialises the whole file and collides with sibling
+   cmux terminals).
 
 ---
 
@@ -450,9 +423,8 @@ the destination `details` automatically.
 ## What this skill is NOT
 
 - Not the decision skill. `triage-finding` decides; this skill writes.
-- Not a code-edit skill. Only the JSON ledgers — via the CLI.
-- Not a raw-`Edit` skill. `Edit` is not in `allowed-tools`; writes route through
-  `bun scripts/ledger-cli.ts` exclusively.
+- Not a code-edit skill, and not a raw-`Edit` skill. Only the JSON ledgers, and
+  only via `bun scripts/ledger-cli.ts` (`Edit` is not in `allowed-tools`).
 - Not a commit skill. The Orchestrator commits.
 - Not Taskmaster-coupled. No `task-master` commands.
 - Not a closure-via-Delete mechanism. Completed items are status-flipped via
