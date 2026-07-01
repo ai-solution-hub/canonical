@@ -131,7 +131,7 @@ class _MockMessageResponse:
 
 # ── Canonical happy-path JSON fixtures ──────────────────────────────────────
 # bl-220 / ID-74: the memo extractors return STAMP-FREE cores, so these LLM-output
-# fixtures carry NO op_id / content_items_id / extracted_at (the cores reject them
+# fixtures carry NO op_id / source_document_id / extracted_at (the cores reject them
 # as extra_forbidden). The stamp fields are added post-memo by stamp_extraction_base.
 
 

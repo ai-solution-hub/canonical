@@ -13,11 +13,14 @@ import { cn } from '@/lib/utils';
 
 interface DisputeRow {
   id: string;
-  content_item_id: string;
+  source_document_id: string;
   disputed_field: string;
   status: string;
   created_at: string;
-  content_items: { title: string } | null;
+  // ID-131 {131.8} M2 (BI-10): classification_disputes re-parented onto
+  // source_documents — the embedded parent is the source document (its filename
+  // stands in for the IMS content_items.title).
+  source_documents: { filename: string } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -52,7 +55,7 @@ export default function DisputesTabStub() {
           supabase
             .from('classification_disputes')
             .select(
-              'id, content_item_id, disputed_field, status, created_at, content_items(title)',
+              'id, source_document_id, disputed_field, status, created_at, source_documents(filename)',
             )
             .order('created_at', { ascending: false })
             .limit(50),
@@ -132,7 +135,7 @@ export default function DisputesTabStub() {
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0 flex-1 space-y-1">
                     <p className="text-sm font-medium text-foreground truncate">
-                      {dispute.content_items?.title ?? 'Unknown item'}
+                      {dispute.source_documents?.filename ?? 'Unknown item'}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       Disputed field:{' '}

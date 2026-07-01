@@ -1,7 +1,7 @@
-"""Flow-scope meta-context for per-flow op_id + content_items_id propagation.
+"""Flow-scope meta-context for per-flow op_id + source_document_id propagation.
 
 `stamp_extraction_base()` (extraction.py) reads the current flow's op_id +
-content_items_id from `FLOW_META_CTX` without callers having to thread the
+source_document_id from `FLOW_META_CTX` without callers having to thread the
 metadata through every `.transform()` chain argument.
 
 cocoindex 1.0.3 reality check (SIGNATURE_DRIFT from spec sketch):
@@ -37,12 +37,12 @@ import cocoindex as coco
 class FlowRunMeta:
     """Per-flow metadata propagated to extraction post-processing.
 
-    `content_items_id` is None at flow start (before any row is bound) and
+    `source_document_id` is None at flow start (before any row is bound) and
     rebound when stamping a specific extracted row. Frozen for immutability.
     """
 
     op_id: UUID
-    content_items_id: UUID | None = None
+    source_document_id: UUID | None = None
 
 
 def _build_flow_meta_ctx() -> coco.ContextKey[FlowRunMeta]:
@@ -85,13 +85,13 @@ _flow_meta_var: contextvars.ContextVar[FlowRunMeta | None] = (
 async def bind_flow_meta(
     *,
     op_id: UUID,
-    content_items_id: UUID | None = None,
+    source_document_id: UUID | None = None,
 ) -> AsyncIterator[FlowRunMeta]:
     """Bind FLOW_META_CTX for the duration of the wrapped async block.
 
     Token-based reset on exit — safe against nesting + exceptions.
     """
-    meta = FlowRunMeta(op_id=op_id, content_items_id=content_items_id)
+    meta = FlowRunMeta(op_id=op_id, source_document_id=source_document_id)
     token = _flow_meta_var.set(meta)
     try:
         yield meta

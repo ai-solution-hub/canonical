@@ -74,7 +74,7 @@ interface ExcludedEntity {
 }
 
 export interface GoldStandardItem {
-  content_item_id: string;
+  source_document_id: string;
   title: string;
   domain: string;
   content_type: string;
@@ -89,7 +89,7 @@ export interface DbEntity {
 }
 
 export interface ItemScore {
-  content_item_id: string;
+  source_document_id: string;
   title: string;
   domain: string;
   precision: number;
@@ -196,9 +196,9 @@ async function fetchEntitiesForItems(
 ): Promise<Map<string, DbEntity[]>> {
   const { data, error } = await supabase
     .from('entity_mentions')
-    .select('content_item_id, entity_type, entity_name, canonical_name')
-    .in('content_item_id', itemIds)
-    .order('content_item_id')
+    .select('source_document_id, entity_type, entity_name, canonical_name')
+    .in('source_document_id', itemIds)
+    .order('source_document_id')
     .order('entity_type')
     .order('canonical_name');
 
@@ -209,7 +209,7 @@ async function fetchEntitiesForItems(
 
   const map = new Map<string, DbEntity[]>();
   for (const row of data ?? []) {
-    const id = row.content_item_id;
+    const id = row.source_document_id;
     if (!map.has(id)) map.set(id, []);
     map.get(id)!.push({
       entity_type: row.entity_type,
@@ -445,7 +445,7 @@ export function scoreItem(
   const correctlyTyped = tp - typeErrors.length;
 
   return {
-    content_item_id: gold.content_item_id,
+    source_document_id: gold.source_document_id,
     title: gold.title,
     domain: gold.domain,
     precision: totalExtracted > 0 ? tp / totalExtracted : 1.0,
@@ -676,7 +676,7 @@ function printEntityDetail(
   if (verbose) {
     console.log('\n--- PER-ITEM DETAIL ---\n');
     for (const s of scores) {
-      console.log(`\n  [${s.content_item_id}] ${s.title.slice(0, 70)}`);
+      console.log(`\n  [${s.source_document_id}] ${s.title.slice(0, 70)}`);
       console.log(
         `    P=${(s.precision * 100).toFixed(0)}%  R=${(s.recall * 100).toFixed(0)}%  TA=${(s.type_accuracy * 100).toFixed(0)}%  EC=${(s.exclusion_compliance * 100).toFixed(0)}%`,
       );
@@ -746,7 +746,9 @@ async function main() {
 
   // Filter to single item if requested
   if (itemFilter) {
-    goldStandard = goldStandard.filter((g) => g.content_item_id === itemFilter);
+    goldStandard = goldStandard.filter(
+      (g) => g.source_document_id === itemFilter,
+    );
     if (goldStandard.length === 0) {
       console.error(`Item ${itemFilter} not found in gold standard`);
       process.exit(1);
@@ -754,7 +756,7 @@ async function main() {
   }
 
   const supabase = createServiceClient();
-  const itemIds = goldStandard.map((g) => g.content_item_id);
+  const itemIds = goldStandard.map((g) => g.source_document_id);
   let entityMap: Map<string, DbEntity[]>;
 
   if (mode === 'live') {
@@ -786,10 +788,10 @@ async function main() {
       try {
         const entities = await classifyAndExtractEntities(
           supabase,
-          gold.content_item_id,
+          gold.source_document_id,
           validateFlag,
         );
-        entityMap.set(gold.content_item_id, entities);
+        entityMap.set(gold.source_document_id, entities);
         completed++;
 
         if (!jsonOutput) {
@@ -806,7 +808,7 @@ async function main() {
         console.error(
           `  [${completed + 1}/${goldStandard.length}] FAILED: ${gold.title.slice(0, 60)} — ${err instanceof Error ? err.message : String(err)}`,
         );
-        entityMap.set(gold.content_item_id, []);
+        entityMap.set(gold.source_document_id, []);
         completed++;
       }
     }
@@ -825,7 +827,7 @@ async function main() {
   // Score each item
   const scores: ItemScore[] = [];
   for (const gold of goldStandard) {
-    const extracted = entityMap.get(gold.content_item_id) ?? [];
+    const extracted = entityMap.get(gold.source_document_id) ?? [];
     scores.push(scoreItem(gold, extracted));
   }
 

@@ -112,11 +112,11 @@ afterAll(async () => {
       await serviceClient
         .from('entity_relationships')
         .delete()
-        .eq('source_item_id', itemId);
+        .eq('source_document_id', itemId);
       await serviceClient
         .from('entity_mentions')
         .delete()
-        .eq('content_item_id', itemId);
+        .eq('source_document_id', itemId);
       await serviceClient
         .from('content_history')
         .delete()
@@ -143,11 +143,11 @@ afterAll(async () => {
       await serviceClient
         .from('entity_relationships')
         .delete()
-        .eq('source_item_id', itemId);
+        .eq('source_document_id', itemId);
       await serviceClient
         .from('entity_mentions')
         .delete()
-        .eq('content_item_id', itemId);
+        .eq('source_document_id', itemId);
       await serviceClient
         .from('content_history')
         .delete()
@@ -160,11 +160,11 @@ afterAll(async () => {
       await serviceClient
         .from('entity_mentions')
         .delete()
-        .eq('content_item_id', itemId);
+        .eq('source_document_id', itemId);
       await serviceClient
         .from('entity_relationships')
         .delete()
-        .eq('source_item_id', itemId);
+        .eq('source_document_id', itemId);
       await serviceClient
         .from('content_history')
         .delete()

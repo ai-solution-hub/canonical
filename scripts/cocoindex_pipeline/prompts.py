@@ -22,7 +22,7 @@ The prompts are written to:
    12-value `entity_type` Literal, the 8-value `form_type` set
    (snapshot-backed; see `extraction.py:_VALID_FORM_TYPES`), the
    2-value `expected_response_kind` Literal — so prompt drift is rare.
-3. Omit the flow-stamp fields (`op_id`, `content_items_id`,
+3. Omit the flow-stamp fields (`op_id`, `source_document_id`,
    `extracted_at`). Those are NOT on the memo-returned core shapes at all
    (bl-220 / ID-74); the flow wrapper stamps the full `*Stamped` type
    POST-memo via `stamp_extraction_base()` — asking the model to emit them

@@ -24,7 +24,7 @@ const ITEM_A = '11111111-1111-4111-8111-111111111111';
 /** Build an EntityMentionRow with sensible defaults. */
 function row(overrides: Partial<EntityMentionRow>): EntityMentionRow {
   return {
-    content_item_id: ITEM_A,
+    source_document_id: ITEM_A,
     entity_type: 'certification',
     entity_name: 'ISO 27001',
     canonical_name: 'iso 27001',

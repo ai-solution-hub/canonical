@@ -245,7 +245,6 @@ export type Database = {
       }
       classification_disputes: {
         Row: {
-          content_item_id: string | null
           created_at: string | null
           current_value: Json | null
           disputed_by: string | null
@@ -256,11 +255,11 @@ export type Database = {
           resolution_notes: string | null
           resolved_at: string | null
           resolved_by: string | null
+          source_document_id: string | null
           status: string | null
           updated_at: string | null
         }
         Insert: {
-          content_item_id?: string | null
           created_at?: string | null
           current_value?: Json | null
           disputed_by?: string | null
@@ -271,11 +270,11 @@ export type Database = {
           resolution_notes?: string | null
           resolved_at?: string | null
           resolved_by?: string | null
+          source_document_id?: string | null
           status?: string | null
           updated_at?: string | null
         }
         Update: {
-          content_item_id?: string | null
           created_at?: string | null
           current_value?: Json | null
           disputed_by?: string | null
@@ -286,17 +285,11 @@ export type Database = {
           resolution_notes?: string | null
           resolved_at?: string | null
           resolved_by?: string | null
+          source_document_id?: string | null
           status?: string | null
           updated_at?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "classification_disputes_content_item_id_fkey"
-            columns: ["content_item_id"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "classification_disputes_disputed_by_fkey"
             columns: ["disputed_by"]
@@ -309,6 +302,13 @@ export type Database = {
             columns: ["resolved_by"]
             isOneToOne: false
             referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "classification_disputes_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "source_documents"
             referencedColumns: ["id"]
           },
         ]
@@ -391,7 +391,6 @@ export type Database = {
         Row: {
           char_count: number | null
           content: string | null
-          content_item_id: string | null
           created_at: string | null
           embedding: string | null
           heading_level: number | null
@@ -401,13 +400,13 @@ export type Database = {
           op_id: string | null
           parent_chunk_id: string | null
           position: number | null
+          source_document_id: string | null
           updated_at: string | null
           word_count: number | null
         }
         Insert: {
           char_count?: number | null
           content?: string | null
-          content_item_id?: string | null
           created_at?: string | null
           embedding?: string | null
           heading_level?: number | null
@@ -417,13 +416,13 @@ export type Database = {
           op_id?: string | null
           parent_chunk_id?: string | null
           position?: number | null
+          source_document_id?: string | null
           updated_at?: string | null
           word_count?: number | null
         }
         Update: {
           char_count?: number | null
           content?: string | null
-          content_item_id?: string | null
           created_at?: string | null
           embedding?: string | null
           heading_level?: number | null
@@ -433,6 +432,7 @@ export type Database = {
           op_id?: string | null
           parent_chunk_id?: string | null
           position?: number | null
+          source_document_id?: string | null
           updated_at?: string | null
           word_count?: number | null
         }
@@ -442,6 +442,13 @@ export type Database = {
             columns: ["parent_chunk_id"]
             isOneToOne: false
             referencedRelation: "content_chunks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_chunks_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "source_documents"
             referencedColumns: ["id"]
           },
         ]
@@ -921,7 +928,6 @@ export type Database = {
         Row: {
           canonical_name: string | null
           confidence: number | null
-          content_item_id: string | null
           context_snippet: string | null
           created_at: string | null
           entity_name: string | null
@@ -931,11 +937,11 @@ export type Database = {
           metadata: Json | null
           normalisation_version: number | null
           op_id: string | null
+          source_document_id: string | null
         }
         Insert: {
           canonical_name?: string | null
           confidence?: number | null
-          content_item_id?: string | null
           context_snippet?: string | null
           created_at?: string | null
           entity_name?: string | null
@@ -945,11 +951,11 @@ export type Database = {
           metadata?: Json | null
           normalisation_version?: number | null
           op_id?: string | null
+          source_document_id?: string | null
         }
         Update: {
           canonical_name?: string | null
           confidence?: number | null
-          content_item_id?: string | null
           context_snippet?: string | null
           created_at?: string | null
           entity_name?: string | null
@@ -959,8 +965,17 @@ export type Database = {
           metadata?: Json | null
           normalisation_version?: number | null
           op_id?: string | null
+          source_document_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "entity_mentions_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "source_documents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       entity_relationships: {
         Row: {
@@ -968,8 +983,8 @@ export type Database = {
           created_at: string | null
           id: string | null
           relationship_type: string | null
+          source_document_id: string | null
           source_entity: string | null
-          source_item_id: string | null
           target_entity: string | null
         }
         Insert: {
@@ -977,8 +992,8 @@ export type Database = {
           created_at?: string | null
           id?: string | null
           relationship_type?: string | null
+          source_document_id?: string | null
           source_entity?: string | null
-          source_item_id?: string | null
           target_entity?: string | null
         }
         Update: {
@@ -986,16 +1001,16 @@ export type Database = {
           created_at?: string | null
           id?: string | null
           relationship_type?: string | null
+          source_document_id?: string | null
           source_entity?: string | null
-          source_item_id?: string | null
           target_entity?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "entity_relationships_source_item_id_fkey"
-            columns: ["source_item_id"]
+            foreignKeyName: "entity_relationships_source_document_id_fkey"
+            columns: ["source_document_id"]
             isOneToOne: false
-            referencedRelation: "content_items"
+            referencedRelation: "source_documents"
             referencedColumns: ["id"]
           },
         ]
@@ -2565,7 +2580,7 @@ export type Database = {
           op_id: string | null
           promoted_to_pair_id: string | null
           scope_tags: string[] | null
-          source_content_item_id: string | null
+          source_document_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -2583,7 +2598,7 @@ export type Database = {
           op_id?: string | null
           promoted_to_pair_id?: string | null
           scope_tags?: string[] | null
-          source_content_item_id?: string | null
+          source_document_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -2601,7 +2616,7 @@ export type Database = {
           op_id?: string | null
           promoted_to_pair_id?: string | null
           scope_tags?: string[] | null
-          source_content_item_id?: string | null
+          source_document_id?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -2610,6 +2625,13 @@ export type Database = {
             columns: ["promoted_to_pair_id"]
             isOneToOne: false
             referencedRelation: "q_a_pairs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "q_a_extractions_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "source_documents"
             referencedColumns: ["id"]
           },
         ]
@@ -4547,12 +4569,15 @@ export type Database = {
       citations: {
         Row: {
           citation_type: string
+          cited_concept_path: string | null
           cited_content_item_id: string | null
           cited_end: number | null
           cited_kind: Database["public"]["Enums"]["cited_target_kind"]
           cited_location_kind: string | null
           cited_q_a_pair_id: string | null
           cited_q_a_pair_version: number | null
+          cited_reference_item_id: string | null
+          cited_source_document_id: string | null
           cited_start: number | null
           cited_text: string | null
           cited_version: number | null
@@ -4564,12 +4589,15 @@ export type Database = {
         }
         Insert: {
           citation_type?: string
+          cited_concept_path?: string | null
           cited_content_item_id?: string | null
           cited_end?: number | null
           cited_kind: Database["public"]["Enums"]["cited_target_kind"]
           cited_location_kind?: string | null
           cited_q_a_pair_id?: string | null
           cited_q_a_pair_version?: number | null
+          cited_reference_item_id?: string | null
+          cited_source_document_id?: string | null
           cited_start?: number | null
           cited_text?: string | null
           cited_version?: number | null
@@ -4581,12 +4609,15 @@ export type Database = {
         }
         Update: {
           citation_type?: string
+          cited_concept_path?: string | null
           cited_content_item_id?: string | null
           cited_end?: number | null
           cited_kind?: Database["public"]["Enums"]["cited_target_kind"]
           cited_location_kind?: string | null
           cited_q_a_pair_id?: string | null
           cited_q_a_pair_version?: number | null
+          cited_reference_item_id?: string | null
+          cited_source_document_id?: string | null
           cited_start?: number | null
           cited_text?: string | null
           cited_version?: number | null
@@ -4612,6 +4643,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "citations_cited_reference_item_id_fkey"
+            columns: ["cited_reference_item_id"]
+            isOneToOne: false
+            referencedRelation: "reference_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "citations_cited_source_document_id_fkey"
+            columns: ["cited_source_document_id"]
+            isOneToOne: false
+            referencedRelation: "source_documents"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "citations_citing_form_response_id_fkey"
             columns: ["citing_form_response_id"]
             isOneToOne: false
@@ -4629,7 +4674,6 @@ export type Database = {
       }
       classification_disputes: {
         Row: {
-          content_item_id: string
           created_at: string
           current_value: Json
           disputed_by: string | null
@@ -4640,11 +4684,11 @@ export type Database = {
           resolution_notes: string | null
           resolved_at: string | null
           resolved_by: string | null
+          source_document_id: string
           status: string
           updated_at: string
         }
         Insert: {
-          content_item_id: string
           created_at?: string
           current_value?: Json
           disputed_by?: string | null
@@ -4655,11 +4699,11 @@ export type Database = {
           resolution_notes?: string | null
           resolved_at?: string | null
           resolved_by?: string | null
+          source_document_id: string
           status?: string
           updated_at?: string
         }
         Update: {
-          content_item_id?: string
           created_at?: string
           current_value?: Json
           disputed_by?: string | null
@@ -4670,17 +4714,11 @@ export type Database = {
           resolution_notes?: string | null
           resolved_at?: string | null
           resolved_by?: string | null
+          source_document_id?: string
           status?: string
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "classification_disputes_content_item_id_fkey"
-            columns: ["content_item_id"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "classification_disputes_disputed_by_fkey"
             columns: ["disputed_by"]
@@ -4693,6 +4731,13 @@ export type Database = {
             columns: ["resolved_by"]
             isOneToOne: false
             referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "classification_disputes_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "source_documents"
             referencedColumns: ["id"]
           },
         ]
@@ -4804,7 +4849,6 @@ export type Database = {
         Row: {
           char_count: number
           content: string
-          content_item_id: string
           created_at: string
           embedding: string | null
           heading_level: number | null
@@ -4814,13 +4858,13 @@ export type Database = {
           op_id: string | null
           parent_chunk_id: string | null
           position: number
+          source_document_id: string
           updated_at: string
           word_count: number
         }
         Insert: {
           char_count?: number
           content: string
-          content_item_id: string
           created_at?: string
           embedding?: string | null
           heading_level?: number | null
@@ -4830,13 +4874,13 @@ export type Database = {
           op_id?: string | null
           parent_chunk_id?: string | null
           position: number
+          source_document_id: string
           updated_at?: string
           word_count?: number
         }
         Update: {
           char_count?: number
           content?: string
-          content_item_id?: string
           created_at?: string
           embedding?: string | null
           heading_level?: number | null
@@ -4846,6 +4890,7 @@ export type Database = {
           op_id?: string | null
           parent_chunk_id?: string | null
           position?: number
+          source_document_id?: string
           updated_at?: string
           word_count?: number
         }
@@ -4855,6 +4900,13 @@ export type Database = {
             columns: ["parent_chunk_id"]
             isOneToOne: false
             referencedRelation: "content_chunks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_chunks_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "source_documents"
             referencedColumns: ["id"]
           },
         ]
@@ -5396,7 +5448,6 @@ export type Database = {
         Row: {
           canonical_name: string
           confidence: number | null
-          content_item_id: string
           context_snippet: string | null
           created_at: string | null
           entity_name: string
@@ -5406,11 +5457,11 @@ export type Database = {
           metadata: Json | null
           normalisation_version: number | null
           op_id: string | null
+          source_document_id: string
         }
         Insert: {
           canonical_name: string
           confidence?: number | null
-          content_item_id: string
           context_snippet?: string | null
           created_at?: string | null
           entity_name: string
@@ -5420,11 +5471,11 @@ export type Database = {
           metadata?: Json | null
           normalisation_version?: number | null
           op_id?: string | null
+          source_document_id: string
         }
         Update: {
           canonical_name?: string
           confidence?: number | null
-          content_item_id?: string
           context_snippet?: string | null
           created_at?: string | null
           entity_name?: string
@@ -5434,8 +5485,17 @@ export type Database = {
           metadata?: Json | null
           normalisation_version?: number | null
           op_id?: string | null
+          source_document_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "entity_mentions_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "source_documents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       entity_pair_resolutions: {
         Row: {
@@ -5473,8 +5533,8 @@ export type Database = {
           created_at: string | null
           id: string
           relationship_type: string
+          source_document_id: string | null
           source_entity: string
-          source_item_id: string | null
           target_entity: string
         }
         Insert: {
@@ -5482,8 +5542,8 @@ export type Database = {
           created_at?: string | null
           id?: string
           relationship_type: string
+          source_document_id?: string | null
           source_entity: string
-          source_item_id?: string | null
           target_entity: string
         }
         Update: {
@@ -5491,16 +5551,16 @@ export type Database = {
           created_at?: string | null
           id?: string
           relationship_type?: string
+          source_document_id?: string | null
           source_entity?: string
-          source_item_id?: string | null
           target_entity?: string
         }
         Relationships: [
           {
-            foreignKeyName: "entity_relationships_source_item_id_fkey"
-            columns: ["source_item_id"]
+            foreignKeyName: "entity_relationships_source_document_id_fkey"
+            columns: ["source_document_id"]
             isOneToOne: false
-            referencedRelation: "content_items"
+            referencedRelation: "source_documents"
             referencedColumns: ["id"]
           },
         ]
@@ -7193,7 +7253,7 @@ export type Database = {
           op_id: string | null
           promoted_to_pair_id: string | null
           scope_tags: string[]
-          source_content_item_id: string | null
+          source_document_id: string | null
           updated_at: string
         }
         Insert: {
@@ -7211,7 +7271,7 @@ export type Database = {
           op_id?: string | null
           promoted_to_pair_id?: string | null
           scope_tags?: string[]
-          source_content_item_id?: string | null
+          source_document_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -7229,7 +7289,7 @@ export type Database = {
           op_id?: string | null
           promoted_to_pair_id?: string | null
           scope_tags?: string[]
-          source_content_item_id?: string | null
+          source_document_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -7238,6 +7298,13 @@ export type Database = {
             columns: ["promoted_to_pair_id"]
             isOneToOne: false
             referencedRelation: "q_a_pairs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "q_a_extractions_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "source_documents"
             referencedColumns: ["id"]
           },
         ]
@@ -7586,6 +7653,123 @@ export type Database = {
           },
         ]
       }
+      record_embeddings: {
+        Row: {
+          created_at: string
+          embedding: string | null
+          id: string
+          model: string
+          owner_id: string
+          owner_kind: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          model: string
+          owner_id: string
+          owner_kind: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          model?: string
+          owner_id?: string
+          owner_kind?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      record_lifecycle: {
+        Row: {
+          content_owner_id: string | null
+          created_at: string
+          domain: string | null
+          expiry_date: string | null
+          freshness: string | null
+          freshness_checked_at: string | null
+          governance_review_due: string | null
+          governance_review_status: string | null
+          governance_reviewer_id: string | null
+          id: string
+          lifecycle_type: string | null
+          next_review_date: string | null
+          owner_id: string | null
+          owner_kind: string
+          previous_freshness: string | null
+          q_a_pair_id: string | null
+          review_cadence_days: number | null
+          source_document_id: string | null
+          updated_at: string
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          content_owner_id?: string | null
+          created_at?: string
+          domain?: string | null
+          expiry_date?: string | null
+          freshness?: string | null
+          freshness_checked_at?: string | null
+          governance_review_due?: string | null
+          governance_review_status?: string | null
+          governance_reviewer_id?: string | null
+          id?: string
+          lifecycle_type?: string | null
+          next_review_date?: string | null
+          owner_id?: string | null
+          owner_kind: string
+          previous_freshness?: string | null
+          q_a_pair_id?: string | null
+          review_cadence_days?: number | null
+          source_document_id?: string | null
+          updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          content_owner_id?: string | null
+          created_at?: string
+          domain?: string | null
+          expiry_date?: string | null
+          freshness?: string | null
+          freshness_checked_at?: string | null
+          governance_review_due?: string | null
+          governance_review_status?: string | null
+          governance_reviewer_id?: string | null
+          id?: string
+          lifecycle_type?: string | null
+          next_review_date?: string | null
+          owner_id?: string | null
+          owner_kind?: string
+          previous_freshness?: string | null
+          q_a_pair_id?: string | null
+          review_cadence_days?: number | null
+          source_document_id?: string | null
+          updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "record_lifecycle_q_a_pair_id_fkey"
+            columns: ["q_a_pair_id"]
+            isOneToOne: false
+            referencedRelation: "q_a_pairs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "record_lifecycle_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "source_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reference_items: {
         Row: {
           body: string
@@ -7601,6 +7785,8 @@ export type Database = {
           source_document_id: string
           source_url: string
           summary: string | null
+          superseded_by: string | null
+          thumbnail_url: string | null
           title: string
           updated_at: string
         }
@@ -7618,6 +7804,8 @@ export type Database = {
           source_document_id: string
           source_url: string
           summary?: string | null
+          superseded_by?: string | null
+          thumbnail_url?: string | null
           title: string
           updated_at?: string
         }
@@ -7635,6 +7823,8 @@ export type Database = {
           source_document_id?: string
           source_url?: string
           summary?: string | null
+          superseded_by?: string | null
+          thumbnail_url?: string | null
           title?: string
           updated_at?: string
         }
@@ -7644,6 +7834,13 @@ export type Database = {
             columns: ["source_document_id"]
             isOneToOne: false
             referencedRelation: "source_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reference_items_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "reference_items"
             referencedColumns: ["id"]
           },
         ]
@@ -7823,9 +8020,15 @@ export type Database = {
       }
       source_documents: {
         Row: {
+          ai_keywords: string[] | null
           archived_at: string | null
           archived_by: string | null
+          captured_date: string | null
+          classification_confidence: number | null
+          classification_reasoning: string | null
+          classified_at: string | null
           content_hash: string
+          content_type: string | null
           created_at: string
           extracted_text: string | null
           extraction_metadata: Json | null
@@ -7838,17 +8041,33 @@ export type Database = {
           original_filename: string | null
           parent_id: string | null
           pipeline_run_id: string | null
+          primary_domain: string
+          primary_subtopic: string
+          publication_status: string
+          secondary_domain: string | null
+          secondary_subtopic: string | null
           source_url: string | null
           status: string
           storage_path: string
+          suggested_title: string | null
+          summary: string | null
+          summary_data: Json | null
+          updated_at: string | null
+          updated_by: string | null
           uploaded_by: string | null
           version: number
           workspace_id: string | null
         }
         Insert: {
+          ai_keywords?: string[] | null
           archived_at?: string | null
           archived_by?: string | null
+          captured_date?: string | null
+          classification_confidence?: number | null
+          classification_reasoning?: string | null
+          classified_at?: string | null
           content_hash: string
+          content_type?: string | null
           created_at?: string
           extracted_text?: string | null
           extraction_metadata?: Json | null
@@ -7861,17 +8080,33 @@ export type Database = {
           original_filename?: string | null
           parent_id?: string | null
           pipeline_run_id?: string | null
+          primary_domain?: string
+          primary_subtopic?: string
+          publication_status?: string
+          secondary_domain?: string | null
+          secondary_subtopic?: string | null
           source_url?: string | null
           status?: string
           storage_path: string
+          suggested_title?: string | null
+          summary?: string | null
+          summary_data?: Json | null
+          updated_at?: string | null
+          updated_by?: string | null
           uploaded_by?: string | null
           version?: number
           workspace_id?: string | null
         }
         Update: {
+          ai_keywords?: string[] | null
           archived_at?: string | null
           archived_by?: string | null
+          captured_date?: string | null
+          classification_confidence?: number | null
+          classification_reasoning?: string | null
+          classified_at?: string | null
           content_hash?: string
+          content_type?: string | null
           created_at?: string
           extracted_text?: string | null
           extraction_metadata?: Json | null
@@ -7884,9 +8119,19 @@ export type Database = {
           original_filename?: string | null
           parent_id?: string | null
           pipeline_run_id?: string | null
+          primary_domain?: string
+          primary_subtopic?: string
+          publication_status?: string
+          secondary_domain?: string | null
+          secondary_subtopic?: string | null
           source_url?: string | null
           status?: string
           storage_path?: string
+          suggested_title?: string | null
+          summary?: string | null
+          summary_data?: Json | null
+          updated_at?: string | null
+          updated_by?: string | null
           uploaded_by?: string | null
           version?: number
           workspace_id?: string | null
@@ -8744,7 +8989,7 @@ export type Database = {
         }[]
       }
       get_content_win_rate: {
-        Args: { p_content_item_id: string }
+        Args: { p_q_a_pair_id: string }
         Returns: {
           losing_citations: number
           pending_citations: number
@@ -8877,8 +9122,8 @@ export type Database = {
         Returns: {
           confidence: number
           relationship_type: string
+          source_document_id: string
           source_entity: string
-          source_item_id: string
           target_entity: string
         }[]
       }
@@ -9219,7 +9464,7 @@ export type Database = {
           op_id: string | null
           promoted_to_pair_id: string | null
           scope_tags: string[]
-          source_content_item_id: string | null
+          source_document_id: string | null
           updated_at: string
         }[]
         SetofOptions: {
@@ -9537,7 +9782,12 @@ export type Database = {
           }
     }
     Enums: {
-      cited_target_kind: "content_item" | "q_a_pair"
+      cited_target_kind:
+        | "content_item"
+        | "q_a_pair"
+        | "reference_item"
+        | "source_document"
+        | "concept"
       citing_entity_kind: "form_response"
       outcome_signal: "win" | "fail" | "loop" | "refusal"
     }
@@ -9670,7 +9920,13 @@ export const Constants = {
   },
   public: {
     Enums: {
-      cited_target_kind: ["content_item", "q_a_pair"],
+      cited_target_kind: [
+        "content_item",
+        "q_a_pair",
+        "reference_item",
+        "source_document",
+        "concept",
+      ],
       citing_entity_kind: ["form_response"],
       outcome_signal: ["win", "fail", "loop", "refusal"],
     },

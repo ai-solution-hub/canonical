@@ -25,7 +25,7 @@ import {
 describe('Entity Classification Eval — scoring logic', () => {
   it('scores a perfect match correctly', () => {
     const gold: GoldStandardItem = {
-      content_item_id: '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d',
+      source_document_id: '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d',
       title: 'Test item',
       domain: 'security',
       content_type: 'article',
@@ -56,7 +56,7 @@ describe('Entity Classification Eval — scoring logic', () => {
 
   it('detects false positives', () => {
     const gold: GoldStandardItem = {
-      content_item_id: '2a3b4c5d-6e7f-4a8b-9c0d-1e2f3a4b5c6d',
+      source_document_id: '2a3b4c5d-6e7f-4a8b-9c0d-1e2f3a4b5c6d',
       title: 'Test item',
       domain: 'security',
       content_type: 'article',
@@ -96,7 +96,7 @@ describe('Entity Classification Eval — scoring logic', () => {
 
   it('detects false negatives', () => {
     const gold: GoldStandardItem = {
-      content_item_id: '3a4b5c6d-7e8f-4a9b-0c1d-2e3f4a5b6c7d',
+      source_document_id: '3a4b5c6d-7e8f-4a9b-0c1d-2e3f4a5b6c7d',
       title: 'Test item',
       domain: 'corporate',
       content_type: 'q_a_pair',
@@ -132,7 +132,7 @@ describe('Entity Classification Eval — scoring logic', () => {
 
   it('detects type errors', () => {
     const gold: GoldStandardItem = {
-      content_item_id: '4a5b6c7d-8e9f-4a0b-1c2d-3e4f5a6b7c8d',
+      source_document_id: '4a5b6c7d-8e9f-4a0b-1c2d-3e4f5a6b7c8d',
       title: 'Test item',
       domain: 'security',
       content_type: 'article',
@@ -161,7 +161,7 @@ describe('Entity Classification Eval — scoring logic', () => {
 
   it('detects exclusion failures', () => {
     const gold: GoldStandardItem = {
-      content_item_id: '5a6b7c8d-9e0f-4a1b-2c3d-4e5f6a7b8c9d',
+      source_document_id: '5a6b7c8d-9e0f-4a1b-2c3d-4e5f6a7b8c9d',
       title: 'Test item',
       domain: 'security',
       content_type: 'article',
@@ -187,7 +187,7 @@ describe('Entity Classification Eval — scoring logic', () => {
 
   it('fuzzy-matches via Ltd/Limited normalisation', () => {
     const gold: GoldStandardItem = {
-      content_item_id: '6a7b8c9d-0e1f-4a2b-3c4d-5e6f7a8b9c0d',
+      source_document_id: '6a7b8c9d-0e1f-4a2b-3c4d-5e6f7a8b9c0d',
       title: 'Test item',
       domain: 'corporate',
       content_type: 'q_a_pair',
@@ -216,7 +216,7 @@ describe('Entity Classification Eval — scoring logic', () => {
 
   it('returns 1.0 precision for empty extraction with no expected', () => {
     const gold: GoldStandardItem = {
-      content_item_id: '7a8b9c0d-1e2f-4a3b-4c5d-6e7f8a9b0c1d',
+      source_document_id: '7a8b9c0d-1e2f-4a3b-4c5d-6e7f8a9b0c1d',
       title: 'Test item',
       domain: 'security',
       content_type: 'article',
@@ -231,7 +231,7 @@ describe('Entity Classification Eval — scoring logic', () => {
 
   it('matches an alias listed in alternate_names', () => {
     const gold: GoldStandardItem = {
-      content_item_id: '8a9b0c1d-2e3f-4a4b-5c6d-7e8f9a0b1c2d',
+      source_document_id: '8a9b0c1d-2e3f-4a4b-5c6d-7e8f9a0b1c2d',
       title: 'Test item',
       domain: 'security',
       content_type: 'article',
@@ -261,7 +261,7 @@ describe('Entity Classification Eval — scoring logic', () => {
 
   it('accepts a type listed in alternate_types without a type error', () => {
     const gold: GoldStandardItem = {
-      content_item_id: '9a0b1c2d-3e4f-4a5b-6c7d-8e9f0a1b2c3d',
+      source_document_id: '9a0b1c2d-3e4f-4a5b-6c7d-8e9f0a1b2c3d',
       title: 'Test item',
       domain: 'security',
       content_type: 'article',

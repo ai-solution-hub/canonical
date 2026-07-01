@@ -133,7 +133,7 @@ async function seedExtraction(opts: {
         : 'Test answer for corpus promotion.',
     promoted_to_pair_id: opts.promotedToPairId ?? null,
     invalidated_at: opts.invalidated ? new Date().toISOString() : null,
-    source_content_item_id: opts.sourceContentItemId ?? null,
+    source_document_id: opts.sourceContentItemId ?? null,
   };
   const { data, error } = await db
     .from('q_a_extractions')
@@ -327,7 +327,7 @@ describe.skipIf(!RUN_INTEGRATION)(
     // -----------------------------------------------------------------------
     // Test 5 ({59.24} OQ-2 retirement — no replacement):
     //   Seed an invalidated extraction linked to a published pair.
-    //   source_content_item_id is NULL (no FK needed; no replacement possible).
+    //   source_document_id is NULL (no FK needed; no replacement possible).
     //   Run promoteCorpusExtractions → assert old pair becomes 'archived'
     //   with superseded_by=NULL, retired_no_replacement===1.
     //   Assert the {64.15} history trigger wrote a q_a_pair_history row.
@@ -337,7 +337,7 @@ describe.skipIf(!RUN_INTEGRATION)(
       const oldPairId = await seedPair({ embedded: true });
 
       // Seed an invalidated extraction linked to that published pair
-      // source_content_item_id=null → no replacement lookup possible
+      // source_document_id=null → no replacement lookup possible
       const invalidatedExtractionId = await seedExtraction({
         promotedToPairId: oldPairId,
         invalidated: true,

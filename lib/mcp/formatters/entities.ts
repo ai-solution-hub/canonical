@@ -24,7 +24,7 @@ export interface EntityRelationship {
   source_entity: string;
   relationship_type: string;
   target_entity: string;
-  source_item_id: string;
+  source_document_id: string;
   confidence: number;
 }
 

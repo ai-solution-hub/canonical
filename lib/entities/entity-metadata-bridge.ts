@@ -145,7 +145,7 @@ export async function bridgeTemporalReferencesToEntities(
   const { data: mentions, error: mentionError } = await supabase
     .from('entity_mentions')
     .select('id, canonical_name, entity_type, metadata')
-    .eq('content_item_id', contentItemId)
+    .eq('source_document_id', contentItemId)
     .in('entity_type', Array.from(TEMPORAL_ENTITY_TYPES));
 
   if (mentionError || !mentions?.length) return;

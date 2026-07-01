@@ -77,9 +77,15 @@ export const GET = defineRoute(
       }
 
       // Get win-rate stats from RPC
+      // ID-131.10 (BI-26): get_content_win_rate is re-anchored content_item -> q_a_pair
+      // and its arg is renamed p_content_item_id -> p_q_a_pair_id. The arg KEY is updated
+      // here to satisfy the regenerated public types; the VALUE remains this route's `id`
+      // (a content_item id) until the IMS item routes are re-anchored to q_a_pairs once
+      // search returns q_a_pair ids (M5 / ID-131.11) — so the win-rate is vacuous (0) in
+      // the interim, the accepted atomic-at-deploy intermediate (citations = 0).
       const { data: rpcData, error: rpcError } = await supabase.rpc(
         'get_content_win_rate',
-        { p_content_item_id: id },
+        { p_q_a_pair_id: id },
       );
 
       if (rpcError) {

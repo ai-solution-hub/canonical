@@ -144,13 +144,13 @@ interface HoldsRelationship {
   source_entity: string;
   target_entity: string;
   relationship_type: string;
-  source_item_id: string | null;
+  source_document_id: string | null;
   confidence: number | null;
 }
 
 interface EntityMention {
   id: string;
-  content_item_id: string;
+  source_document_id: string;
   entity_type: string;
   entity_name: string;
   canonical_name: string;
@@ -493,7 +493,7 @@ async function fetchHoldsRelationships(
   const { data, error } = await supabase
     .from('entity_relationships')
     .select(
-      'id, source_entity, target_entity, relationship_type, source_item_id, confidence',
+      'id, source_entity, target_entity, relationship_type, source_document_id, confidence',
     )
     .eq('relationship_type', 'holds')
     .order('source_entity');
@@ -515,9 +515,9 @@ async function fetchEntityMentions(
   const { data, error } = await supabase
     .from('entity_mentions')
     .select(
-      'id, content_item_id, entity_type, entity_name, canonical_name, confidence, context_snippet, metadata',
+      'id, source_document_id, entity_type, entity_name, canonical_name, confidence, context_snippet, metadata',
     )
-    .eq('content_item_id', itemId);
+    .eq('source_document_id', itemId);
 
   if (error) {
     throw new Error(
@@ -551,19 +551,19 @@ async function fetchItemTitle(
 }
 
 /**
- * Group holds relationships by source_item_id.
+ * Group holds relationships by source_document_id.
  */
 function groupBySourceItem(
   rels: HoldsRelationship[],
 ): Map<string, HoldsRelationship[]> {
   const map = new Map<string, HoldsRelationship[]>();
   for (const rel of rels) {
-    if (!rel.source_item_id) continue;
-    const existing = map.get(rel.source_item_id);
+    if (!rel.source_document_id) continue;
+    const existing = map.get(rel.source_document_id);
     if (existing) {
       existing.push(rel);
     } else {
-      map.set(rel.source_item_id, [rel]);
+      map.set(rel.source_document_id, [rel]);
     }
   }
   return map;
@@ -1392,7 +1392,7 @@ async function fetchAllRelationships(
   const { data, error } = await supabase
     .from('entity_relationships')
     .select('source_entity, relationship_type, target_entity')
-    .eq('source_item_id', itemId);
+    .eq('source_document_id', itemId);
   if (error) {
     throw new Error(
       `Failed to fetch relationships for ${itemId}: ${error.message}`,

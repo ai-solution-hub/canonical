@@ -638,7 +638,7 @@ export async function runBatchReclassifyJob(
       while (pageMore) {
         const { data: mentionPage, error: mentionError } = await supabase
           .from('entity_mentions')
-          .select('content_item_id')
+          .select('source_document_id')
           .range(mentionOffset, mentionOffset + mentionPageSize - 1);
 
         if (mentionError) {
@@ -650,7 +650,7 @@ export async function runBatchReclassifyJob(
           pageMore = false;
         } else {
           for (const r of mentionPage) {
-            mentionedSet.add(r.content_item_id);
+            mentionedSet.add(r.source_document_id);
           }
           if (mentionPage.length < mentionPageSize) {
             pageMore = false;
@@ -957,7 +957,7 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
       // Insert entity mentions (delete-then-insert; clean slate on reclassify).
       if (entities.length > 0) {
         const entityRows = entities.map((e) => ({
-          content_item_id: item.id,
+          source_document_id: item.id,
           entity_type: e.type,
           entity_name: e.name,
           canonical_name: e.canonical_name,
@@ -968,7 +968,7 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
         await supabase
           .from('entity_mentions')
           .delete()
-          .eq('content_item_id', item.id);
+          .eq('source_document_id', item.id);
 
         const { error: entityError } = await supabase
           .from('entity_mentions')
@@ -989,14 +989,14 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
       await supabase
         .from('entity_relationships')
         .delete()
-        .eq('source_item_id', item.id);
+        .eq('source_document_id', item.id);
 
       if (relationships.length > 0) {
         const relRows = relationships.map((r) => ({
           source_entity: r.source,
           relationship_type: r.relationship,
           target_entity: r.target,
-          source_item_id: item.id,
+          source_document_id: item.id,
           confidence: 1.0,
         }));
 

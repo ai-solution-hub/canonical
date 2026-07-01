@@ -1,6 +1,6 @@
 /**
  * Regression tests for S174 WP3 — dedupe entity_mention rows by
- * (content_item_id, canonical_name, entity_type) before upsert.
+ * (source_document_id, canonical_name, entity_type) before upsert.
  *
  * Background: during S169 evals, a handful of items per 93-item run
  * failed to persist entity mentions with Postgres error 21000
@@ -28,7 +28,7 @@ const ITEM_B = '22222222-2222-4222-8222-222222222222';
 /** Build an EntityMentionRow with sensible defaults for the fields a test doesn't pin. */
 function row(overrides: Partial<EntityMentionRow>): EntityMentionRow {
   return {
-    content_item_id: ITEM_A,
+    source_document_id: ITEM_A,
     entity_type: 'certification',
     entity_name: 'ISO 27001',
     canonical_name: 'iso 27001',
@@ -82,7 +82,7 @@ describe('dedupeEntityMentionRows', () => {
     const [merged] = result;
     expect(merged.canonical_name).toBe('iso 27001');
     expect(merged.entity_type).toBe('certification');
-    expect(merged.content_item_id).toBe(ITEM_A);
+    expect(merged.source_document_id).toBe(ITEM_A);
     expect(merged.confidence).toBe(0.95); // max
     expect(merged.entity_name).toBe('ISO 27001'); // first encountered
     expect(merged.context_snippet).toBe('first snippet'); // first non-null
@@ -183,7 +183,7 @@ describe('dedupeEntityMentionRows', () => {
     expect(tripleB.context_snippet).toBe('gdpr ctx'); // first non-null
   });
 
-  it('rows with different entity_type but same canonical_name + content_item_id are NOT collapsed', () => {
+  it('rows with different entity_type but same canonical_name + source_document_id are NOT collapsed', () => {
     const input: EntityMentionRow[] = [
       row({
         canonical_name: 'acme',
@@ -206,15 +206,15 @@ describe('dedupeEntityMentionRows', () => {
     ]);
   });
 
-  it('rows with same canonical_name + type but different content_item_id are NOT collapsed', () => {
+  it('rows with same canonical_name + type but different source_document_id are NOT collapsed', () => {
     const input: EntityMentionRow[] = [
       row({
-        content_item_id: ITEM_A,
+        source_document_id: ITEM_A,
         canonical_name: 'gdpr',
         entity_type: 'regulation',
       }),
       row({
-        content_item_id: ITEM_B,
+        source_document_id: ITEM_B,
         canonical_name: 'gdpr',
         entity_type: 'regulation',
       }),
@@ -223,12 +223,12 @@ describe('dedupeEntityMentionRows', () => {
     const result = dedupeEntityMentionRows(input);
 
     expect(result).toHaveLength(2);
-    expect(result.map((r) => r.content_item_id)).toEqual([ITEM_A, ITEM_B]);
+    expect(result.map((r) => r.source_document_id)).toEqual([ITEM_A, ITEM_B]);
   });
 
   it('does not mutate the input array or its row objects', () => {
     const original: EntityMentionRow = {
-      content_item_id: ITEM_A,
+      source_document_id: ITEM_A,
       entity_type: 'certification',
       entity_name: 'ISO 27001',
       canonical_name: 'iso 27001',
@@ -236,7 +236,7 @@ describe('dedupeEntityMentionRows', () => {
       context_snippet: null,
     };
     const duplicate: EntityMentionRow = {
-      content_item_id: ITEM_A,
+      source_document_id: ITEM_A,
       entity_type: 'certification',
       entity_name: 'ISO27001',
       canonical_name: 'iso 27001',

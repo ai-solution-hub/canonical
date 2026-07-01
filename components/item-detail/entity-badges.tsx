@@ -93,7 +93,7 @@ export function EntityBadges({ contentItemId, className }: EntityBadgesProps) {
       const { data, error: fetchError } = await supabase
         .from('entity_mentions')
         .select('id, entity_type, canonical_name, confidence')
-        .eq('content_item_id', contentItemId)
+        .eq('source_document_id', contentItemId)
         .order('entity_type')
         .order('canonical_name');
 

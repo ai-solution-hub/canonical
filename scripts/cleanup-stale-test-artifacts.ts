@@ -203,7 +203,7 @@ for (const [table, column] of [
   ['content_history', 'content_item_id'],
   ['content_item_workspaces', 'content_item_id'],
   ['entity_mentions', 'content_item_id'],
-  ['entity_relationships', 'source_item_id'],
+  ['entity_relationships', 'source_document_id'],
   ['classification_disputes', 'content_item_id'],
   ['ingestion_quality_log', 'content_item_id'],
   ['read_marks', 'content_item_id'],

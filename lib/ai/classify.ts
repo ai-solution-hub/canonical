@@ -404,7 +404,7 @@ export function shouldExcludeEntity(entity: ExtractedEntity): boolean {
  * coupled to downstream DB schema churn.
  */
 export interface EntityMentionRow {
-  content_item_id: string;
+  source_document_id: string;
   entity_type: string;
   entity_name: string;
   canonical_name: string;
@@ -414,7 +414,7 @@ export interface EntityMentionRow {
 }
 
 /**
- * Collapse duplicate `(content_item_id, canonical_name, entity_type)`
+ * Collapse duplicate `(source_document_id, canonical_name, entity_type)`
  * triples to a single row before the `entity_mentions` upsert.
  *
  * Background: the `canonicalise() + resolveAlias() + toLowerCase()`
@@ -430,7 +430,7 @@ export interface EntityMentionRow {
  * - `confidence`: max across the group.
  * - `entity_name`: first encountered (preserves Pass 2 confirmed order).
  * - `context_snippet`: first non-null in group; null if all null.
- * - `content_item_id` / `entity_type` / `canonical_name`: identical by
+ * - `source_document_id` / `entity_type` / `canonical_name`: identical by
  *   construction of the dedup key; taken from the first row.
  *
  * Deterministic: stable input order produces stable output order (rows
@@ -464,7 +464,7 @@ export function dedupeEntityMentionRows(
   const order: string[] = [];
 
   for (const row of rows) {
-    const key = `${row.content_item_id}::${row.canonical_name}::${row.entity_type}`;
+    const key = `${row.source_document_id}::${row.canonical_name}::${row.entity_type}`;
     const existing = byKey.get(key);
     if (!existing) {
       // Clone so we don't mutate caller's input when merging later
@@ -488,7 +488,7 @@ export function dedupeEntityMentionRows(
       const rowObj = toPlainObject(row.metadata);
       existing.metadata = { ...existingObj, ...rowObj };
     }
-    // entity_name / content_item_id / entity_type / canonical_name:
+    // entity_name / source_document_id / entity_type / canonical_name:
     // first-wins — already set from the initial row.
   }
 
@@ -1788,7 +1788,7 @@ ${contentForClassification}`,
   // reflect the CURRENT classifier state — not a merge of current output
   // with rows left over from prior runs. The previous upsert was gated on
   // `ignoreDuplicates: true` with `onConflict:
-  // 'canonical_name,entity_type,content_item_id'`, which meant rows
+  // 'canonical_name,entity_type,source_document_id'`, which meant rows
   // extracted under an older filter rule set (e.g. before S143 filter
   // expansions, before S157 WP2 post-canonicalise filter) were never
   // evicted — they stayed in entity_mentions indefinitely. This caused
@@ -1805,7 +1805,7 @@ ${contentForClassification}`,
   const { error: deleteExistingError } = await supabase
     .from('entity_mentions')
     .delete()
-    .eq('content_item_id', itemId);
+    .eq('source_document_id', itemId);
   if (deleteExistingError) {
     logBestEffortWarn(
       'classify.entity.delete_existing_failed',
@@ -1863,7 +1863,7 @@ ${contentForClassification}`,
             ? stripPersonDescriptors(e.canonical_name)
             : e.canonical_name;
         return {
-          content_item_id: itemId,
+          source_document_id: itemId,
           entity_type: e.type,
           entity_name: name,
           canonical_name: resolveAlias(
@@ -1983,7 +1983,7 @@ ${contentForClassification}`,
         if (dedupedEntityRows.length < filteredEntityRows.length) {
           const seen = new Map<string, number>();
           for (const row of filteredEntityRows) {
-            const key = `${row.content_item_id}::${row.canonical_name}::${row.entity_type}`;
+            const key = `${row.source_document_id}::${row.canonical_name}::${row.entity_type}`;
             seen.set(key, (seen.get(key) ?? 0) + 1);
           }
           const collapsedTriples = Array.from(seen.entries())
@@ -2003,7 +2003,7 @@ ${contentForClassification}`,
         }
 
         // INSERT (not upsert) is safe here because Step 13a already
-        // deleted any existing rows for this content_item_id.
+        // deleted any existing rows for this source_document_id.
         // onConflict/ignoreDuplicates were load-bearing previously when
         // stale rows could exist — with the delete-before-insert pattern
         // they are no longer needed. Keeping onConflict as a last-line
@@ -2012,7 +2012,7 @@ ${contentForClassification}`,
         const { error: entityError } = await supabase
           .from('entity_mentions')
           .upsert(dedupedEntityRows, {
-            onConflict: 'canonical_name,entity_type,content_item_id',
+            onConflict: 'canonical_name,entity_type,source_document_id',
             ignoreDuplicates: false,
           });
 
@@ -2038,7 +2038,7 @@ ${contentForClassification}`,
         source_entity: resolveAlias(canonicalise(r.source)).toLowerCase(),
         relationship_type: r.relationship,
         target_entity: resolveAlias(canonicalise(r.target)).toLowerCase(),
-        source_item_id: itemId,
+        source_document_id: itemId,
         confidence: 1.0,
       }));
 
@@ -2050,7 +2050,7 @@ ${contentForClassification}`,
         .from('entity_relationships')
         .upsert(relRows, {
           onConflict:
-            'source_entity,relationship_type,target_entity,source_item_id',
+            'source_entity,relationship_type,target_entity,source_document_id',
           ignoreDuplicates: true,
         });
 

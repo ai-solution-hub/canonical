@@ -281,7 +281,7 @@ function makeContentRow(id: string, overrides: Record<string, unknown> = {}) {
 //           → resolves via chain default
 //        c. entity_mentions.insert(rows) — only if entities.length > 0
 //           → resolves via chain default { error: null }
-//        d. entity_relationships.delete().eq('source_item_id', ...)
+//        d. entity_relationships.delete().eq('source_document_id', ...)
 //           → resolves via chain default
 //        e. entity_relationships.insert(rows) — only if relationships.length > 0
 //           → resolves via chain default { error: null }

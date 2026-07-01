@@ -170,7 +170,7 @@ def _make_mock_client(
 # ── Canonical happy-path JSON fixtures ──────────────────────────────────────
 # These are the LLM-produced JSON payloads — byte-for-byte the shape the live
 # extractors feed `_*_adapter.validate_json(...)`. The LLM omits op_id /
-# content_items_id / extracted_at per prompts.py instruction, and bl-220 / ID-74
+# source_document_id / extracted_at per prompts.py instruction, and bl-220 / ID-74
 # makes the memo extractor return types STAMP-FREE cores, so these fixtures must
 # NOT carry the 3 stamp fields (the strict, extra="forbid" core shapes reject
 # them as `extra_forbidden`). The stamp fields are added POST-memo by
@@ -1134,7 +1134,7 @@ class TestPromptCachePassthrough:
 
     def test_flow_stamp_fields_stay_out_of_both_blocks(self):
         """No regression on prompts.py flow-stamp discipline: op_id /
-        content_items_id / extracted_at never enter the prompt or the user
+        source_document_id / extracted_at never enter the prompt or the user
         message (they are stamped POST-memo by stamp_extraction_base)."""
         for extractor, prompt, payload in self._cases():
             mock_client = _make_mock_client(payload)
@@ -1148,7 +1148,7 @@ class TestPromptCachePassthrough:
                 captured[0]["system"][0]["text"]
                 + captured[0]["messages"][0]["content"]
             )
-            for stamp_field in ("op_id", "content_items_id", "extracted_at"):
+            for stamp_field in ("op_id", "source_document_id", "extracted_at"):
                 assert stamp_field not in sent_text, (
                     f"{extractor}: flow-stamp field {stamp_field!r} must stay "
                     f"out of the prompt (prompts.py flow-stamp discipline)"

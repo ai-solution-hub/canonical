@@ -215,7 +215,7 @@ afterAll(async () => {
     await serviceClient
       .from('entity_relationships')
       .delete()
-      .in('source_item_id', Array.from(seededContentItemIds));
+      .in('source_document_id', Array.from(seededContentItemIds));
     await serviceClient
       .from('content_items')
       .delete()

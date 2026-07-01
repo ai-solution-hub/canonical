@@ -92,7 +92,7 @@ export const PATCH = defineRoute(
         try {
           const { data: entityInfo, error: entityInfoError } = await supabase
             .from('entity_mentions')
-            .select('entity_type, content_item_id')
+            .select('entity_type, source_document_id')
             .eq('canonical_name', decodedName);
 
           if (entityInfoError) {
@@ -111,7 +111,7 @@ export const PATCH = defineRoute(
               const contentIds = [
                 ...new Set(
                   entityInfo
-                    .map((e) => e.content_item_id)
+                    .map((e) => e.source_document_id)
                     .filter(Boolean) as string[],
                 ),
               ];
