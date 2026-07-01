@@ -131,6 +131,44 @@ GRID_OVERFLOW: Card, Tabs, Textarea are set to `cfg.overrides.<Name>={cardMode:'
 (their multi-cell stories cropped in the product grid; column = one cell per row, full
 width).
 
+## Wave 5 (S407) — composite product-surface RECIPES (not new components)
+
+The remaining 66 floor cards are structural sub-parts (deliberately unauthored — see
+above). To "build out the design system" without filling noise, Wave 5 added **composite
+recipes**: realistic Canonical product surfaces assembled from the primitives, authored as
+extra named-export stories on the container components. **KEY CONSTRAINT** (verified in
+`.ds-sync/lib/previews.mjs` + `package-build.mjs`): a preview MUST be named after an
+exported `components/ui` component — `writePreviewFiles`/`buildPreviews` iterate the
+component list; a `previews/<X>.tsx` where X isn't exported is logged "stale" and dropped.
+So recipes can't be standalone arbitrarily-named cards; they attach to a container and
+render as additional `.ds-cell` cells inside that component's card (column-mode stacks all
+PascalCase exports; the `900x700` marker is just the thumbnail crop — content scrolls).
+
+Recipes added (grounded in real surfaces via a codebase sweep — authentic domain copy +
+the real bid/freshness/priority-tier/template semantic tokens, used inline as
+`var(--<token>)` / `var(--<token>-bg)` since utility classes aren't all compiled):
+
+- **Card.tsx** (now 7 cells): kept Default + WithAction; added `BidCoverageSummary`
+  (workflow Pill + buyer/deadline + question Progress +
+  strong/partial/needs-SME/no-content posture dots), `CoverageStats` (4-up stat-tile grid:
+  total/fresh%/gaps/expired), `PriorityGap` (critical Pill + Taxonomy badge + close-gap
+  action), `FeedSource` (status dot + RSS/cadence/last-polled + Active/Archive),
+  `TemplateCompletion` (confirmed/skipped/failed 3-stat grid + Download/Refill).
+- **Tabs.tsx** (now 3 cells): kept Default + LineVariant; added `BidWorkspace`
+  (Overview/Coverage/Sources/Activity; Coverage tab carries dual Progress + posture
+  badges).
+
+Local file-level helpers (`Pill`, `Dot`, `StatTile`) live INSIDE the preview .tsx — they
+are not exported PascalCase, so they don't become cells. Build → validate (92/92 render
+clean) → DELTA push (11 files: both component dirs + `_preview/{Card,Tabs}.js` +
+`_ds_sync.json` anchor — `_ds_bundle.*` unchanged, components/ui untouched). Render
+screenshots in `ds-bundle/_screenshots/general__{Card,Tabs}.png`.
+
+FUTURE: same recipe pattern fits the overlay containers (`Dialog`/`Sheet`/`Popover` — but
+they're `cardMode:single` + fixed viewport, so each holds ONE rich cell, and the
+open-state recipe `defaultOpen`+single must be preserved) and `Accordion` (sectioned bid
+content).
+
 ## DropdownMenuLabel — now INCLUDED (wave 3)
 
 Was excluded on the first upload (rendered blank standalone — Radix menu sub-part). Wave 3
