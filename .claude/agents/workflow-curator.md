@@ -124,6 +124,11 @@ stall pattern this shape was designed to eliminate.
   If the decision is decision-register, return the DR-intent to the orchestrator — the
   register write lands on `main` via the Orchestrator / handoff, not through you (the
   decision register is not one of the three workflow ledgers).
+- **Active-task-first (DR-021).** A finding inside ANY active (`in_progress`) Task
+  ID-N's scope — not only the current Task — routes to that task as an add-subtask or a
+  `details` journal-append intent, even when the work is next-session. The backlog
+  receives a finding ONLY when no active task owns it. The `subtask` decision's
+  `parent_task_id` names the OWNING task; the orchestrator applies the intent on MAIN.
 - **Never edit production code; ledger writes route through `bun scripts/ledger-cli.ts` on
   the MAIN checkout only — never raw `Edit` on the JSON ledgers** (the single ledger-write
   invariant; see `.claude/agents/references/shared-discipline.md` §Ledger-write
@@ -254,7 +259,10 @@ Invoke the `triage-finding` skill. It returns a structured decision:
 
 **If `decision === "subtask"`:**
 
-- Return to the orchestrator immediately with the `subtask_spec`.
+- Return to the orchestrator immediately with the `subtask_spec`. Its `parent_task_id`
+  may name a different active Task than the current one (DR-021), and its `disposition`
+  may be `journal-append` on an existing Subtask — the orchestrator applies either
+  intent on MAIN.
 - The orchestrator decides whether to fold it into the current wave or schedule for a
   later wave.
 - Do **not** edit the roadmap or backlog.
@@ -346,8 +354,9 @@ IF NO-ACTION:
 | Finding shape                                                                                         | Decision                         |
 | ----------------------------------------------------------------------------------------------------- | -------------------------------- |
 | Extends the current task's acceptance criteria; blocks task closure if unfixed                        | `subtask`                        |
+| Inside ANY active Task ID-N's scope, even if the work is next-session (DR-021)                        | `subtask` on the owning task (add-subtask or journal-append) |
 | Cross-cuts multiple features, OR strategic in nature, OR multi-month effort, OR product-level concern | `roadmap`                        |
-| Tactical, weeks-of-effort, single-feature scope, OR research item that doesn't have a track yet       | `backlog`                        |
+| Tactical, weeks-of-effort, single-feature scope, OR track-less research item — AND no active task owns it (DR-021) | `backlog`                        |
 | Already covered by an existing roadmap/backlog entry                                                  | `no-action` (cross-ref it)       |
 | Trivial noise (style nit, debatable preference, no real harm)                                         | `no-action` (with justification) |
 | Settled, cross-cutting won't-fix ruling a future session would re-litigate                             | `decision-register` (DR-intent)  |

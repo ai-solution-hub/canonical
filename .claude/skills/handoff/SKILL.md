@@ -129,6 +129,15 @@ re-litigate) and append them to
 *Settled this session* section. Boundary: a binding ruling → register; an observation /
 friction → the retro (Step 7). Skip if the session settled nothing.
 
+### Finding disposition at close (DR-021)
+
+Findings still unrouted at session close follow the active-task-first rule: a finding
+inside an active Task ID-N's scope goes to THAT task — `bun scripts/ledger-cli.ts
+add-subtask <taskId> …` or a `details` journal append — even when the work is
+next-session. The backlog receives a finding only when no active task owns it; settled
+rulings go to the register (Step 3a). Never park owned work in the backlog or in the
+prompt's prose.
+
 ## Step 3b — Mechanical state generator
 
 Run the read-only generator and paste its block into the prompt's *Mechanical state* section:

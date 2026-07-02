@@ -139,6 +139,13 @@ Orchestrator evaluates the rule directly - the predicate:
 via `update-roadmap-backlog` (the register write routes back through the Orchestrator —
 see Decision-register wiring).
 
+**Active-task-first (DR-021).** Out-of-scope for the current Subtask does NOT default to
+backlog: a finding inside ANY active Task ID-N's scope routes to THAT task — as an
+add-subtask or a `details` journal append, even when the work is next-session. The
+backlog receives a finding only when no active task owns it; settled cross-cutting
+rulings route to the decision register. The curator returns the owning-task intent; the
+Orchestrator applies it via `ledger-cli.ts` on MAIN.
+
 For the full Checker JSON output schema, verdict mapping, the three fix-flows, and Curator routing detail, see [references/checker-output-schema.md](references/checker-output-schema.md).
 
 ---

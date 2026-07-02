@@ -2,14 +2,16 @@
 name: triage-finding
 description:
   Decide whether a finding surfaced by a task-executor or task-checker
-  is (a) a Subtask of the current Task (ID-N.M), (b) a roadmap promotion
-  (strategic / cross-cutting), (c) a backlog promotion (tactical /
-  single-feature), or (d) no-action with justification. Decision uses the
-  binary in-scope-ness rule: file-path within Subtask file_ownership OR axis
-  is spec-compliance against the Subtask slice = IN-SCOPE; else OUT-OF-SCOPE.
-  No grey area. Returns a structured decision the workflow-curator agent can
-  act on. Triggered by the workflow-curator agent when the orchestrator
-  routes a finding for triage.
+  is (a) a Subtask of an active Task (ID-N.M — the current Task, or any
+  active Task that owns the finding's scope per DR-021), (b) a roadmap
+  promotion (strategic / cross-cutting), (c) a backlog promotion (tactical /
+  single-feature, only when no active task owns it), (d) no-action with
+  justification, or (e) a settled decision-register ruling (DR-intent).
+  Decision uses the binary in-scope-ness rule: file-path within Subtask
+  file_ownership OR axis is spec-compliance against the Subtask slice =
+  IN-SCOPE; else OUT-OF-SCOPE. No grey area. Returns a structured decision
+  the workflow-curator agent can act on. Triggered by the workflow-curator
+  agent when the orchestrator routes a finding for triage.
 allowed-tools: Read, Grep, Glob, Bash
 ---
 
@@ -106,6 +108,17 @@ Walk the decision tree in order. Stop at the first match.
 
 **Recurrence rule — is this a recurrence of a prior flagged finding? → Task List, not backlog (per `task-list-discipline.md` §0; A3 resolve-at-source loop):** Before walking Branch A, ask: *is this finding a recurrence of one the `evaluate-workflow` recurring-finding surface has already flagged* — the same canonical key seen across ≥3 distinct sessions (e.g. the `recurring-issue-thrash` flag)? A recurrence-class finding is **committed work** per §0: the recurrence itself is the signal that the root cause must be fixed at source (a skill, a dispatch-brief template, or a CLAUDE.md gotcha), and that source fix is work we commit to, not an uncommitted candidate. So it routes to the **Task List** — a fix-at-source Subtask under the owning Task, or a new Task — NOT the backlog. This is the triage entry point for the A3 resolve-at-source loop: the loop's *fix at source* step lands as a Task-List item, never a backlog park. *Do not* re-route a recurrence the O-of-O has already marked `ignored` / `won't-fix` unless it is **materially different** (a different root cause or a wider blast radius) — an identical recurrence of a won't-fix finding is `no-action` (Branch D), not a fresh Task.
 
+**Active-task-first rule (DR-021) — an active ID-N owns its in-scope findings:** Before
+routing anything to Branch C, check whether ANY active (`in_progress`) Task ID-N — not
+only the current Task — owns the finding's scope (`bun scripts/ledger-cli.ts list task
+--status in_progress`, then slice-read candidate owners). If an active task owns it,
+**Decision: `subtask`** with `parent_task_id` set to the OWNING task, materialised as an
+add-subtask — or, when an existing Subtask of that task already owns the surface, as a
+`details` journal-append intent on that Subtask (set `disposition: journal-append` +
+`journal_target`). This holds even when the work is next-session. The backlog receives a
+finding ONLY when no active task owns it; a settled cross-cutting ruling routes to
+Branch E (decision-register), not either ledger.
+
 **Liam-driven promote (no finding source) — short-circuit at the top of the tree:**
 
 This skill's canonical input is a finding packet from a `task-executor` or `task-checker`. However, the workflow-orchestration skill (or the Orchestrator directly) may invoke this skill on a backlog item being picked up for implementation — there is no finding source, only an Orchestrator-or-Liam decision to promote. When invoked under that shape:
@@ -141,7 +154,7 @@ The intent of the binary rule is to preserve task-driven discipline: the current
 
 ```yaml
 title: "Fix {short description}"
-parent_task_id: "ID-N"  # the current Task; the new Subtask will be allocated ID-N.M
+parent_task_id: "ID-N"  # the OWNING active Task (usually the current Task; any active task per DR-021)
 scope: "{specific change required}"
 acceptance_criteria:
   - "{measurable condition 1}"
@@ -151,7 +164,9 @@ suggested_skills:
 estimated_effort: "{<30min | 30min-1h | 1-2h}"
 file_ownership_allowed:
   - "{specific file or glob}"
-in_scope_predicate_matched: "file-path" | "axis" | "parent-task-ac"  # which of the binary predicates triggered
+in_scope_predicate_matched: "file-path" | "axis" | "parent-task-ac" | "active-task-scope"  # which predicate triggered
+disposition: "add-subtask" | "journal-append"  # journal-append when an existing Subtask of the owning task already covers the surface (DR-021)
+journal_target: null | "ID-N.M"  # required when disposition is journal-append
 ```
 
 The orchestrator allocates the new Subtask ID-N.M and decides whether to fold it into the current wave or schedule it for a fix wave.
@@ -197,6 +212,7 @@ A finding is a **backlog** candidate when **all** of these hold:
 3. No sibling pending/in-progress Subtask under any active Task ID-N owns the affected surface (otherwise Branch A's parent-Task-AC predicate would have matched).
 4. The finding does not cause any active Task ID-N's `## Acceptance criteria` to fail (otherwise Branch A's parent-Task-AC predicate would have matched).
 5. The current Subtask ID-N.M is not already touching the same surface (otherwise Branch A's file-path predicate would have matched).
+6. NO active (`in_progress`) Task ID-N owns the finding's scope at Task level (DR-021 — the active-task-first rule above; an owning active task takes the finding as add-subtask or journal-append, even for next-session work).
 
 This is the most common destination for non-blocking out-of-scope findings. Under Shape A, Branch C output gains `rank` — the within-priority-tier deterministic ordering integer. The curator may set `rank` explicitly when the finding's evidence carries an obvious ordering signal; otherwise it defaults to `null` and the curator (or `update-roadmap-backlog` Update mode) sets it later.
 
@@ -280,15 +296,18 @@ justification: |
   {one-paragraph explanation of why this decision was reached.
    Cite which branch (A/B/C/D) and which specific criteria triggered it.}
 
-# Branch A populated (also short-circuit Liam-driven promote — see Step 2 preamble)
+# Branch A populated (also active-task-first DR-021 + short-circuit Liam-driven promote — see Step 2 preamble)
 subtask_spec:
   title: "..."
+  parent_task_id: "ID-N"  # the owning active Task
   scope: "..."
   acceptance_criteria: ["...", "..."]
   suggested_skills: ["..."]
   estimated_effort: "..."
   file_ownership_allowed: ["..."]
-  in_scope_predicate_matched: "file-path" | "axis" | "parent-task-ac" | "liam-direction"
+  in_scope_predicate_matched: "file-path" | "axis" | "parent-task-ac" | "active-task-scope" | "liam-direction"
+  disposition: "add-subtask" | "journal-append"
+  journal_target: null | "ID-N.M"
 
 # Branch B populated (Shape A — capability theme promotion)
 roadmap_proposed_theme:
@@ -339,7 +358,7 @@ The `update-roadmap-backlog` skill attaches this to the resulting ledger entry v
 
 ## Failure modes to avoid
 
-1. **Defaulting everything to backlog.** Backlog should not be a dumping ground. Use `no-action` when warranted.
+1. **Defaulting everything to backlog.** Backlog should not be a dumping ground. Use `no-action` when warranted — and NEVER backlog a finding an active Task ID-N owns (DR-021 active-task-first rule): that finding is a `subtask` (add-subtask or journal-append) on the owning task.
 2. **Defaulting everything to subtask.** Subtasks balloon the current Task ID-N's scope. Apply the binary in-scope-ness rule strictly — `subtask` requires **file-path within `subtask_file_ownership`, OR axis = spec-compliance against the Subtask slice, OR parent-Task-AC = a parent-Task acceptance-criterion failure or sibling-Subtask file-ownership hit**. Anything else is OUT-OF-SCOPE.
 3. **Promoting style nits to the roadmap.** Roadmap is strategic capability; "rename this variable for clarity" is not roadmap material.
 4. **Missing existing coverage.** Always check roadmap + backlog before promoting; duplicates fragment the ledger.
