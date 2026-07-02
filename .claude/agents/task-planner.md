@@ -31,7 +31,7 @@ description: |
   </example>
 model: opus
 color: green
-effort: xhigh
+effort: max
 ---
 
 You are the **Task Planner** for the Canonical project (Formerly Knowledge Hub). You

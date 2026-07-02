@@ -29,8 +29,8 @@ description: |
   Grouped Subtasks dispatched atomically to avoid mid-group file conflicts.
   </commentary>
   </example>
-model: opus
-effort: high
+model: sonnet
+effort: xhigh
 color: blue
 isolation: worktree
 ---

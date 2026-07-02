@@ -1,12 +1,12 @@
 ---
-name: run-knowledge-hub
-description: Launch recipe for the Knowledge Hub Next.js app locally. Use when the /run or /verify skill needs a deterministic local launch path for Knowledge Hub — install commands, environment setup, the launch command, and the port to observe — instead of re-deriving the dev-server invocation each time. Also use when a human asks how to start the KH dev server locally.
+name: run-canonical
+description: Launch recipe for the Canonical Next.js app locally. Use when the /run or /verify skill needs a deterministic local launch path for Canonical — install commands, environment setup, the launch command, and the port to observe — instead of re-deriving the dev-server invocation each time. Also use when a human asks how to start the Canonical dev server locally.
 ---
 
-# Run Knowledge Hub (launch recipe)
+# Run Canonical (launch recipe)
 
 This is a **launch recipe**, not a general-purpose skill. It captures the exact
-sequence to bring the Knowledge Hub Next.js app up locally so that `/run` and
+sequence to bring the Canonical Next.js app up locally so that `/run` and
 `/verify` have one deterministic launch path and do not re-derive it per
 invocation. Keep it tight: install → environment → launch → observe.
 
@@ -16,9 +16,9 @@ If either diverges from this recipe, those are authoritative — update this fil
 
 ## What launches
 
-- **App:** Knowledge Hub — Next.js 16 (App Router) via Turbopack.
+- **App:** Canonical — Next.js 16 (App Router) via Turbopack.
 - **Port:** `3000`. **URL to observe:** `http://localhost:3000`.
-- **Backend:** Supabase. Local dev hits the **staging** branch by default
+- **Backend:** Supabase. Local dev hits the Platform **staging** branch by default
   (the staging project ref recorded in `.env.local`) — never prod. Prod is
   opt-in only.
 
@@ -49,15 +49,15 @@ runtime-critical variables (use the staging values recorded in `.env.local`):
 
 ```text
 # Supabase — STAGING (default)
-SUPABASE_URL=https://<staging-project-ref>.supabase.co
-NEXT_PUBLIC_SUPABASE_URL=https://<staging-project-ref>.supabase.co
-SUPABASE_PUBLISHABLE_KEY=sb_publishable_T_9lvCgslAlyw2gCCpVbKQ_NZWmym5R
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_T_9lvCgslAlyw2gCCpVbKQ_NZWmym5R
+SUPABASE_URL=https://<platform-project-ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_URL=https://<platform-project-ref>.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_iqF62OuENdcmScqijL1uZA_VUlcLOyB
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_iqF62OuENdcmScqijL1uZA_VUlcLOyB
 SUPABASE_SERVICE_ROLE_KEY=<staging service-role JWT>
 POSTGRES_PASSWORD=<staging DB password>
 
 # App URL + client (must be set or BRANDING falls back and corrupts holder derivation)
-NEXT_PUBLIC_APP_URL=https://knowledge-hub-git-staging-tw-group.vercel.app
+NEXT_PUBLIC_APP_URL=https://canonical-platform-git-staging-tw-group.vercel.app
 NEXT_PUBLIC_CLIENT_ID=<client-id>   # use the value from .env.local
 
 # Upstream APIs (same values either env)
@@ -66,7 +66,7 @@ OPENAI_API_KEY=<key>
 ```
 
 `NEXT_PUBLIC_CLIENT_ID=<client-id>` (use the value recorded in `.env.local`) is load-bearing: if it is missing, branding falls
-back to "Knowledge Hub" and downstream holder derivation breaks. Full variable
+back to "Canonical" and downstream holder derivation breaks. Full variable
 matrix + how to source each staging value:
 `local-development.md` §2 (`${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/local-development.md`).
 
@@ -78,7 +78,7 @@ the CLI link. The CLI link is independent of `.env.local` and can silently go
 stale (or point at prod from a prior session), so link explicitly:
 
 ```bash
-/opt/homebrew/bin/supabase link --project-ref <staging-project-ref>
+/opt/homebrew/bin/supabase link --project-ref <platform-project-ref>
 cat supabase/.temp/project-ref   # expect: the staging project ref from .env.local
 ```
 
@@ -119,7 +119,7 @@ edit `.env.local` to prod for a routine local launch.
 
 ```bash
 bun install                                                      # deps (first run / lockfile change)
-/opt/homebrew/bin/supabase link --project-ref <staging-project-ref>  # staging link (CLI work)
+/opt/homebrew/bin/supabase link --project-ref <platform-project-ref>  # staging link (CLI work)
 bun dev                                                          # Turbopack → http://localhost:3000
 # observe http://localhost:3000
 ```
