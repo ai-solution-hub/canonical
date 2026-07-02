@@ -1,15 +1,15 @@
 # Knowledge Hub Pipeline Dependencies
 # Core AI
-anthropic==0.79.0
-openai==2.21.0
-pydantic==2.12.5
+anthropic==0.115.1
+openai==2.44.0
+pydantic==2.13.4
 
 # Morphology (tag singularisation — parity with TS pluralize via inflect.singular_noun)
 inflect==7.5.0
 
 # Content extraction
-trafilatura==2.0.0
-requests==2.33.0
+trafilatura==2.1.0
+requests==2.34.2
 extruct==0.18.0
 # beautifulsoup4 pin consolidated to the single ==4.15.0 declaration below (docling's
 # HTML backend section) — previously duplicated here as a floating >=4.12.0 floor,
@@ -17,7 +17,7 @@ extruct==0.18.0
 lxml>=5.0.0
 
 # PDF extraction (used by Python scripts only; JS routes use unpdf)
-pdfplumber==0.11.9
+pdfplumber==0.11.10
 
 # XLSX extraction (used by ID-52 Path B Python form extractor;
 # transitive via cocoindex today but pinned explicitly as a direct
@@ -53,7 +53,7 @@ bert-score>=0.3.13
 # scheme is unchanged (ID-89 RESEARCH §3.3, changelog-verified; bl-239 probe
 # scripts/tests/test_file_branch_memo_fingerprint.py stays the executable guard). Bump must
 # precede the ID-45 full-corpus re-ingest so the run lands on 1.0.7.
-cocoindex[postgres]==1.0.7
+cocoindex[postgres]==1.0.14
 # Docling: MIT-licensed document converter + layout model (1.8 GB weights).
 # Pre-warmed into the image at build time so the model weights ship in-image.
 # Pinned to docling-slim with NO-OCR extras (S437): the full `docling` meta-package
@@ -81,7 +81,7 @@ beautifulsoup4==4.15.0
 scipy==1.18.0
 # faiss-cpu: similarity index backing Stage-5 entity-resolution canonicalisation
 # (TECH §P-12 / Inv-18). Exact-pinned to 1.14.2 for deterministic IndexFlatIP behaviour.
-faiss-cpu==1.14.2
+faiss-cpu==1.14.3
 # litellm: backs the Stage-4 embedding op — cocoindex.ops.litellm.LiteLLMEmbedder
 # ("text-embedding-3-large", dimensions=1024) → vector(1024) (ID-49.2). NOT used
 # for LLM extraction (that path is Anthropic-direct via a custom @coco.fn — there
