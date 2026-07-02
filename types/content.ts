@@ -138,6 +138,34 @@ export interface SearchResult extends Omit<ContentListItem, 'user_tags'> {
   user_tags?: ContentListItem['user_tags'];
 }
 
+/**
+ * Polymorphic search-result shape returned by the ID-131.11 (G-SEARCH) grain-
+ * aware `hybrid_search` UNION over the typed L-records substrate
+ * (source_documents / content_chunks → source_document / q_a_pairs /
+ * reference_items). The 8 value-path fields mirror the MCP `SearchResult`
+ * mapping (`id, title, suggested_title, summary, content_type, primary_domain,
+ * primary_subtopic, similarity`); `owner_kind` identifies the record class
+ * (equal to `content_type` on the RPC rows).
+ *
+ * Distinct from `SearchResult` above, which still extends the content_items-
+ * shaped `ContentListItem`. Migrating the ~6 UI consumers off `SearchResult`
+ * onto this polymorphic shape — and the eventual removal of `SearchResult` — is
+ * owned by ID-131.17 (G-IMS-DELETE) + ID-131.21 (G-MANUAL-QA); this type is
+ * introduced ahead of that coordinated change.
+ */
+export interface PolymorphicSearchResult {
+  id: string;
+  title: string | null;
+  suggested_title: string | null;
+  summary: string | null;
+  content_type: string | null;
+  primary_domain: string | null;
+  primary_subtopic: string | null;
+  owner_kind: string;
+  similarity: number;
+  snippet?: string | null;
+}
+
 /** Workspace (from workspaces table) */
 export interface Workspace {
   id: string;
