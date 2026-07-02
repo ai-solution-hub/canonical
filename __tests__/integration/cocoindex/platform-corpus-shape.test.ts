@@ -155,7 +155,7 @@ describe('Platform seam-coverage corpus — vendored tree shape (TECH §2.1/§2.
       expect(formsMapping?.route).toBe('forms');
     });
 
-    it('uses a NON-uuid placeholder for workspace_id (RATIFY-1b: no hardcoded uuid)', () => {
+    it('carries a NON-uuid placeholder workspace_id (RATIFY-1b: no hardcoded uuid)', () => {
       const formsMapping = manifest.mappings?.find(
         (m) => m.path_prefix === 'forms/procurement/',
       );

@@ -56,7 +56,7 @@ describe('ReuploadBanner — identical match', () => {
     ).toBeInTheDocument();
   });
 
-  it('uses semantic amber/aging colour tokens, not raw Tailwind', () => {
+  it('shows the identical-match banner in the aging freshness style, not raw Tailwind colours', () => {
     const { container } = render(
       <ReuploadBanner
         matchType="identical"
@@ -117,7 +117,7 @@ describe('ReuploadBanner — new version', () => {
     expect(screen.getByText(/Creating version 5/)).toBeInTheDocument();
   });
 
-  it('uses semantic primary colour tokens, not raw Tailwind', () => {
+  it('shows the new-version banner in the primary style, not the aging freshness style', () => {
     const { container } = render(
       <ReuploadBanner
         matchType="new_version"
@@ -202,7 +202,7 @@ describe('ReuploadBanner — accessibility', () => {
 // ---------------------------------------------------------------------------
 
 describe('ReuploadBanner — className', () => {
-  it('applies additional className to the container', () => {
+  it('renders the caller-provided className on the alert container', () => {
     const { container } = render(
       <ReuploadBanner
         matchType="identical"

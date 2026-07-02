@@ -56,12 +56,6 @@ export function LineVariant() {
 // tab carries a composite panel (progress + confidence posture) so the recipe
 // shows real content in context, not an empty tab body.
 export function BidWorkspace() {
-  const row: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    fontSize: 13,
-  };
   return (
     <Tabs defaultValue="coverage" style={{ width: 560 }}>
       <TabsList>

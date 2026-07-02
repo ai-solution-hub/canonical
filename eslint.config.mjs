@@ -20,6 +20,10 @@ const eslintConfig = defineConfig([
     // Local code-intelligence artefact dir (gitignored, untracked) — not
     // part of the repo, must never be linted (bl-272).
     '.gitnexus/**',
+    // Local developer scratch dir (gitignored) — not part of the repo, must
+    // never be linted (S437 T2 follow-up). NB .design-sync/ is deliberately
+    // NOT ignored: it is repo-tracked, so its .tsx previews stay linted.
+    '.user-scratch/**',
     '.cache/**',
     'docs-site/.astro/**',
     // Deliberately-dead ast-dataflow test fixtures — these contain unused
