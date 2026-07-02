@@ -1722,6 +1722,24 @@ class TestPerItemFailureIsolation:
         assert flow_start.get("item_failures") is None
 
 
+def _sd_rows_from_pool(pool) -> list[dict]:
+    """Reconstruct source_documents rows from the S437 raw-pool UPSERT capture.
+
+    id-131: the URL sd PARENT no longer flows through the engine `sd_target`;
+    it is written by `_upsert_source_document` as a raw-pool autocommit
+    `INSERT ... ON CONFLICT (id)` on the ledger pool (`pool.executed`). Each
+    captured `source_documents` INSERT's positional args are mapped back onto
+    its column names so the URL sd landing reads as it did off `sd_target`.
+    """
+    rows: list[dict] = []
+    for sql, args in pool.executed:
+        if "INSERT INTO public.source_documents" not in sql:
+            continue
+        cols = [c.strip() for c in sql.split("(", 1)[1].split(")", 1)[0].split(",")]
+        rows.append(dict(zip(cols, args)))
+    return rows
+
+
 class TestUrlPerItemFailureIsolation:
     """{75.11} BI-19: URL-branch per-item containment at the mount boundary.
 
@@ -1759,13 +1777,38 @@ class TestUrlPerItemFailureIsolation:
             pass
 
     class _FakeLedgerPool:
-        """asyncpg-pool stand-in: `fetch` returns the passed-URL ledger rows."""
+        """asyncpg-pool stand-in: `fetch` returns the passed-URL ledger rows;
+        `acquire()` yields a connection recording the S437 (id-131) raw-pool
+        `_upsert_source_document` sd INSERTs.
+
+        The URL sd PARENT no longer flows through the engine `sd_target` — it is
+        written in-component on THIS pool (autocommit UPSERT) BEFORE the step-6
+        `ri_target.declare_row`, so the URL sd landing is read off `executed`.
+        """
 
         def __init__(self, rows: list[dict]) -> None:
             self._rows = rows
+            self.executed: list[tuple[str, tuple]] = []
 
         async def fetch(self, sql: str) -> list[dict]:
             return list(self._rows)
+
+        def acquire(self):
+            pool = self
+
+            class _Conn:
+                async def execute(self, sql: str, *args: object) -> str:
+                    pool.executed.append((sql, args))
+                    return "INSERT 0 1"
+
+            class _Acquire:
+                async def __aenter__(self) -> "_Conn":
+                    return _Conn()
+
+                async def __aexit__(self, *exc: object) -> None:
+                    return None
+
+            return _Acquire()
 
     @staticmethod
     def _ledger_row(url: str, title: str, ingested_at: str) -> dict:
@@ -1823,7 +1866,7 @@ class TestUrlPerItemFailureIsolation:
         # (a fetch error contained per-item at the BI-19 mount boundary). The
         # success case returns realistic HTML so the REAL in-process
         # `clean_html` produces a body that clears the {112.5} quality gate.
-        harness = {"fail_urls": {self._URL_A}}
+        harness = {"fail_urls": {self._URL_A}, "pool": pool}
 
         _CLEAN_HTML_BODY = (
             b"<html><body><main><article><h1>Fetched guide</h1><p>"
@@ -1971,7 +2014,9 @@ class TestUrlPerItemFailureIsolation:
         asyncio.run(flow.app_main())
 
         ri_rows = targets["reference_items"].rows
-        sd_rows = targets["source_documents"].rows
+        # S437 (id-131): the URL sd PARENT lands via the raw-pool UPSERT, not
+        # the engine `sd_target` — reconstruct it from the pool capture.
+        sd_rows = _sd_rows_from_pool(harness["pool"])
 
         # 1. Sibling B's sd+ri pair lands; A lands ZERO rows (BI-19).
         assert [r["source_url"] for r in ri_rows] == [self._URL_B], (
@@ -2061,7 +2106,9 @@ class TestUrlPerItemFailureIsolation:
         #    a raise here would have made the engine DISCARD them (the
         #    {75.16}-proven faulted-item contract), killing convergence.
         ri_rows = targets["reference_items"].rows
-        sd_rows = targets["source_documents"].rows
+        # S437 (id-131): the URL sd PARENT lands via the raw-pool UPSERT, not
+        # the engine `sd_target` — reconstruct it from the pool capture.
+        sd_rows = _sd_rows_from_pool(harness["pool"])
         assert sorted(r["source_url"] for r in ri_rows) == sorted(
             [self._URL_A, self._URL_B]
         )

@@ -233,6 +233,27 @@ def _ingest(
     return ri, sd
 
 
+def _sd_upserts_from_pool(pool: _FakePool) -> list[dict]:
+    """Reconstruct source_documents rows from the raw-pool UPSERT capture.
+
+    S437 (id-131) FK-ordering fix: the URL sd PARENT no longer flows through
+    the engine ``sd_target``; it is written by ``_upsert_source_document`` as a
+    raw-pool autocommit ``INSERT ... ON CONFLICT (id)`` on the SAME DB_CTX pool
+    the SSRF/backlink paths use (``pool.conn.executed``). Each captured
+    ``source_documents`` INSERT's positional args are mapped back onto its
+    column names so the BI-4 field-contract assertions read the landed row
+    exactly as they did off ``sd_target.declare_row``.
+    """
+    rows: list[dict] = []
+    for sql, args in pool.conn.executed:
+        if "INSERT INTO public.source_documents" not in sql:
+            continue
+        cols_segment = sql.split("(", 1)[1].split(")", 1)[0]
+        columns = [c.strip() for c in cols_segment.split(",")]
+        rows.append(dict(zip(columns, args)))
+    return rows
+
+
 # ── Landing: the sd+ri evidence pair (BI-1/BI-3/BI-4) ───────────────────────
 
 
@@ -253,10 +274,15 @@ class TestUrlLandingDeclaresEvidencePair:
             _FIXTURE_HTML.decode("utf-8"), url=item.url
         )
 
-        ri, sd = _ingest(flow, item, op_id=run_op_id, stage_counter=counter)
+        ri, _sd = _ingest(flow, item, op_id=run_op_id, stage_counter=counter)
+
+        # S437 (id-131): the sd PARENT lands via the raw-pool UPSERT
+        # (`_upsert_source_document`), NOT the engine `sd_target` — reconstruct
+        # it from the pool capture. The ri CHILD still flows through its target.
+        sd_rows = _sd_upserts_from_pool(handles["pool"])
 
         # Exactly ONE row on each target — the evidence pair.
-        assert len(sd.rows) == 1, "expected one source_documents row"
+        assert len(sd_rows) == 1, "expected one source_documents row"
         assert len(ri.rows) == 1, "expected one reference_items row"
 
         encoded = expected_body.encode()
@@ -267,7 +293,7 @@ class TestUrlLandingDeclaresEvidencePair:
         # re-derived from flow) so a namespace/seed drift fails loudly.
 
         # BI-4: source_documents carries the URL identity + provenance.
-        sd_row = sd.rows[0]
+        sd_row = sd_rows[0]
         assert sd_row["id"] == uuid.UUID(
             "bd67461b-1e3c-5bbd-b277-4dc6efccc9ab"  # sd:{url}
         )
@@ -375,9 +401,10 @@ class TestUrlLandingDeclaresEvidencePair:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         flow = _flow_module()
-        _wire(flow, monkeypatch)
-        _ri, sd = _ingest(flow, _make_item(url="https://example.com/"))
-        assert sd.rows[0]["filename"] == "example.com", (
+        handles = _wire(flow, monkeypatch)
+        _ri, _sd = _ingest(flow, _make_item(url="https://example.com/"))
+        sd_rows = _sd_upserts_from_pool(handles["pool"])
+        assert sd_rows[0]["filename"] == "example.com", (
             "no path segment ⇒ filename falls back to the hostname (BI-4)"
         )
 
@@ -406,18 +433,23 @@ class TestUrlIdempotencyAndUpdate:
         so the DB row count stays 1 (BI-2 / PI-8). The PKs are URL-seeded and
         UNCHANGED by the ID-112.7 datapath re-point."""
         flow = _flow_module()
-        _wire(flow, monkeypatch)
+        handles = _wire(flow, monkeypatch)
         item = _make_item()
 
-        ri1, sd1 = _ingest(flow, item)
-        ri2, sd2 = _ingest(flow, item)
+        # S437 (id-131): both landings share ONE raw pool, so snapshot the sd
+        # UPSERT capture between them — the second landing appends a second row.
+        ri1, _sd1 = _ingest(flow, item)
+        sd_after_1 = _sd_upserts_from_pool(handles["pool"])
+        ri2, _sd2 = _ingest(flow, item)
+        sd_after_2 = _sd_upserts_from_pool(handles["pool"])
 
-        assert sd1.rows[0]["id"] == sd2.rows[0]["id"]
+        assert len(sd_after_1) == 1 and len(sd_after_2) == 2
+        assert sd_after_1[0]["id"] == sd_after_2[1]["id"]
         assert ri1.rows[0]["id"] == ri2.rows[0]["id"]
         # PI-8: the uuid5 seeds are URL-derived, unaffected by the cutover.
         # Pinned to frozen literals over _KH_PIPELINE_DOC_NS for the item.url
         # "https://example.com/articles/insight" (not re-derived from flow).
-        assert sd1.rows[0]["id"] == uuid.UUID("bd67461b-1e3c-5bbd-b277-4dc6efccc9ab")
+        assert sd_after_1[0]["id"] == uuid.UUID("bd67461b-1e3c-5bbd-b277-4dc6efccc9ab")
         assert ri1.rows[0]["id"] == uuid.UUID("d315a098-4fbc-554b-982f-396b2ecec8fe")
 
     def test_changed_page_content_updates_body_under_same_pk(
@@ -442,23 +474,25 @@ class TestUrlIdempotencyAndUpdate:
         async def _fetch_changing(url: str) -> bytes:
             return pages[which["page"]]
 
-        _wire(flow, monkeypatch)  # base seams (classifier/embedder/pool/sniff)
+        handles = _wire(flow, monkeypatch)  # base seams (classifier/embedder/pool/sniff)
         monkeypatch.setattr(flow, "_fetch_url_bytes", _fetch_changing)
 
         item = _make_item()
         which["page"] = "v1"
-        ri1, sd1 = _ingest(flow, item)
+        ri1, _sd1 = _ingest(flow, item)
+        sd_after_1 = _sd_upserts_from_pool(handles["pool"])
         which["page"] = "v2"
-        ri2, sd2 = _ingest(flow, item)
+        ri2, _sd2 = _ingest(flow, item)
+        sd_after_2 = _sd_upserts_from_pool(handles["pool"])
 
         # Same PKs — the UPSERT updates in place (D-4 / PI-8)…
         assert ri1.rows[0]["id"] == ri2.rows[0]["id"]
-        assert sd1.rows[0]["id"] == sd2.rows[0]["id"]
+        assert sd_after_1[0]["id"] == sd_after_2[1]["id"]
         # …with the re-cleaned body + recomputed hash riding the new declare.
         assert "First version body content." in ri1.rows[0]["body"]
         assert "Second version" in ri2.rows[0]["body"]
         assert ri1.rows[0]["body"] != ri2.rows[0]["body"]
-        assert sd2.rows[0]["content_hash"] == hashlib.sha256(
+        assert sd_after_2[1]["content_hash"] == hashlib.sha256(
             ri2.rows[0]["body"].encode()
         ).hexdigest()
 
@@ -473,7 +507,7 @@ class TestUrlPdfRoute:
         flow = _flow_module()
 
         real_sniff = flow._url_is_pdf  # the REAL D-12 sniff — suffix-first
-        _wire(flow, monkeypatch)
+        handles = _wire(flow, monkeypatch)
         # Restore the real sniff: the .pdf suffix short-circuits BEFORE any
         # HTTP, so no network is touched (that is the behaviour under test).
         monkeypatch.setattr(flow, "_url_is_pdf", real_sniff)
@@ -494,12 +528,14 @@ class TestUrlPdfRoute:
         monkeypatch.setattr(flow, "_docling_to_markdown", _fake_docling)
 
         item = _make_item(url="https://example.com/reports/annual.pdf")
-        ri, sd = _ingest(flow, item)
+        ri, _sd = _ingest(flow, item)
 
         # The .pdf suffix short-circuits the sniff straight to Docling (BI-20).
         assert docling_calls == [(pdf_bytes, "annual.pdf")]
 
-        sd_row = sd.rows[0]
+        # S437 (id-131): the sd row lands via the raw-pool UPSERT, not sd_target.
+        sd_rows = _sd_upserts_from_pool(handles["pool"])
+        sd_row = sd_rows[0]
         assert sd_row["extraction_method"] == "docling"
         # ID-129.2: the retired share-id column is no longer declared.
         assert "share_id" not in " ".join(sd_row)
@@ -746,11 +782,13 @@ class TestHtmlQualityGate:
         )
 
         with caplog.at_level(logging.WARNING, logger=flow.__name__):
-            ri, sd = _ingest(flow, item)
+            ri, _sd = _ingest(flow, item)
 
         # WARN proceeds: the row still lands with the trafilatura provenance.
-        assert len(ri.rows) == 1 and len(sd.rows) == 1
-        assert sd.rows[0]["extraction_method"] == "trafilatura"
+        # S437 (id-131): the sd row lands via the raw-pool UPSERT, not sd_target.
+        sd_rows = _sd_upserts_from_pool(handles["pool"])
+        assert len(ri.rows) == 1 and len(sd_rows) == 1
+        assert sd_rows[0]["extraction_method"] == "trafilatura"
         assert handles["fetch_calls"] == [item.url]
 
         events = [
