@@ -121,9 +121,24 @@ class _FakeDocumentStream:
 # real 1.8 GB package; envs WITH it never trigger a real `import docling` here.
 _docling_bm_stub = types.ModuleType("docling.datamodel.base_models")
 _docling_bm_stub.DocumentStream = _FakeDocumentStream
+# `InputFormat` (S437 OCR-disable change): adapters.py imports it from
+# base_models and uses it only as the `format_options` dict key
+# `InputFormat.PDF`; a MagicMock's auto-child `.PDF` is a hashable stand-in.
+_docling_bm_stub.InputFormat = MagicMock(name="docling…base_models.InputFormat")
+# `docling.datamodel.pipeline_options` hosts `PdfPipelineOptions` (S437): the
+# lazy `from docling.datamodel.pipeline_options import PdfPipelineOptions` inside
+# `_docling_to_markdown` needs a concrete module to resolve against, so mirror
+# the base_models stub with a real ModuleType. `PdfPipelineOptions(do_ocr=False)`
+# just returns a child mock. (`PdfFormatOption` needs no stub — it comes off the
+# MagicMock `docling.document_converter` stub automatically.)
+_docling_po_stub = types.ModuleType("docling.datamodel.pipeline_options")
+_docling_po_stub.PdfPipelineOptions = MagicMock(
+    name="docling…pipeline_options.PdfPipelineOptions"
+)
 sys.modules.setdefault("docling", _docling_stub)
 sys.modules.setdefault("docling.document_converter", _docling_dc_stub)
 sys.modules.setdefault("docling.datamodel.base_models", _docling_bm_stub)
+sys.modules.setdefault("docling.datamodel.pipeline_options", _docling_po_stub)
 
 
 with stubbed_sys_modules({"cocoindex": _coco_stub}):
