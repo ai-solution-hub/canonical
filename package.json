@@ -101,7 +101,6 @@
     "docx-preview": "^0.3.7",
     "dompurify": "^3.4.3",
     "exceljs": "4.4.0",
-    "gray-matter": "^4.0.3",
     "lucide-react": "^0.575.0",
     "mammoth": "^1.12.0",
     "mcp-handler": "^1.1.0",
