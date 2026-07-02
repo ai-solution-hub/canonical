@@ -122,10 +122,28 @@ async def _docling_to_markdown(content_bytes: bytes, filename: str) -> str:
     # image layer (28.6 P-1); test envs stub via unittest.mock.patch.
     from io import BytesIO  # noqa: PLC0415
 
-    from docling.datamodel.base_models import DocumentStream  # noqa: PLC0415
-    from docling.document_converter import DocumentConverter  # noqa: PLC0415
+    from docling.datamodel.base_models import (  # noqa: PLC0415
+        DocumentStream,
+        InputFormat,
+    )
+    from docling.datamodel.pipeline_options import PdfPipelineOptions  # noqa: PLC0415
+    from docling.document_converter import (  # noqa: PLC0415
+        DocumentConverter,
+        PdfFormatOption,
+    )
 
-    converter = DocumentConverter()
+    # Text-only extraction posture: disable Docling's default PDF OCR
+    # (`do_ocr=True`). With OCR on, Docling initialises the rapidocr engine,
+    # which imports cv2 (opencv) → `libxcb.so.1: cannot open shared object
+    # file` at runtime in the buildpacks image (no X11 libs). DOCX/XLSX have no
+    # OCR stage, so their extraction behaviour is unchanged.
+    converter = DocumentConverter(
+        format_options={
+            InputFormat.PDF: PdfFormatOption(
+                pipeline_options=PdfPipelineOptions(do_ocr=False)
+            )
+        }
+    )
     source = DocumentStream(name=filename, stream=BytesIO(content_bytes))
     result = converter.convert(source)
     return result.document.export_to_markdown()
