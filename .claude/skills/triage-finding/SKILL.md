@@ -47,16 +47,13 @@ The curator agent invokes this skill with a finding packet:
 | `task_context.parent_task_acceptance_criteria` | Parent Task ID-N's `## Acceptance criteria` excerpt (PRODUCT.md). Required input for Branch A predicate 3; the Orchestrator dispatcher MUST populate this — especially at wave close when the source Subtask has promoted to `done` and the Subtask-level fields above are stale. |
 | `task_context.sibling_subtask_file_ownership` | Map of `{ subtask_id: file_ownership_allowed_globs }` for pending/in-progress sibling Subtasks under the same parent Task ID-N. Required input for Branch A predicate 3 (file-path arm). |
 
-You also read the roadmap + backlog ledgers (at `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/`) to check for existing coverage — **slice reads only**, never wholesale `Read`:
-
-- Candidate themes / existing coverage: `bun scripts/ledger-cli.ts show roadmap <themeId>`.
-- Candidate tracks / existing coverage: `bun scripts/ledger-cli.ts show backlog <itemId>`.
+You also read the roadmap + backlog ledgers (at `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/`) to check for existing coverage — **slice reads only** (`show roadmap <themeId>` / `show backlog <itemId>`), never wholesale `Read`.
 
 ---
 
 ## Step 1: Check for existing coverage
 
-Before deciding anything new, check whether the roadmap or backlog already covers the finding's subject area. For record-anchored lookups (e.g. inspecting a candidate-duplicate's `linked_backlog[]` or `track`), use `bun scripts/ledger-cli.ts get <ledger> <id> [field]` / `show <ledger> <id>` (slice reads — see `lib/ledger/README.md` `read` group). For a thematic sweep across a ledger, `grep` the ledger JSON under `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/` for the term that names the finding's domain (`auth`, `design tokens`, `barrel exports`, etc.) — cheaper than a wholesale `Read`.
+Before deciding anything new, check whether the roadmap or backlog already covers the finding's subject area: record-anchored lookups via the ledger CLI (see preamble); thematic sweeps via `grep` on the ledger JSONs for the term that names the finding's domain (`auth`, `design tokens`, `barrel exports`, etc.) — cheaper than a wholesale `Read`.
 
 If an existing roadmap or backlog item already covers this finding:
 
@@ -106,7 +103,7 @@ Walk the decision tree in order. Stop at the first match.
 
 **Committed-work rule — concrete defects go to the Task List, not the backlog (per `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md` §0):** A finding that is *committed* work — a discovered defect/regression we will fix, or a scoped fix on a committed path (e.g. the critical path) — routes to the **Task List** (a new Task, or a Subtask if in-scope per Branch A), NOT the backlog. Branch C (backlog) is for *uncommitted candidates* only: items that still need a product/prioritisation decision before they would be worked. The commitment test: *have we committed to doing this?* Yes → Task List; not yet → Backlog.
 
-**Recurrence rule — is this a recurrence of a prior flagged finding? → Task List, not backlog (per `task-list-discipline.md` §0; A3 resolve-at-source loop):** Before walking Branch A, ask: *is this finding a recurrence of one the `evaluate-workflow` recurring-finding surface has already flagged* — the same canonical key seen across ≥3 distinct sessions (e.g. the `recurring-issue-thrash` flag)? A recurrence-class finding is **committed work** per §0: the recurrence itself is the signal that the root cause must be fixed at source (a skill, a dispatch-brief template, or a CLAUDE.md gotcha), and that source fix is work we commit to, not an uncommitted candidate. So it routes to the **Task List** — a fix-at-source Subtask under the owning Task, or a new Task — NOT the backlog. This is the triage entry point for the A3 resolve-at-source loop: the loop's *fix at source* step lands as a Task-List item, never a backlog park. *Do not* re-route a recurrence the O-of-O has already marked `ignored` / `won't-fix` unless it is **materially different** (a different root cause or a wider blast radius) — an identical recurrence of a won't-fix finding is `no-action` (Branch D), not a fresh Task.
+**Recurrence rule — is this a recurrence of a prior flagged finding? → Task List, not backlog (per `task-list-discipline.md` §0; A3 resolve-at-source loop):** Before walking Branch A, ask: *is this finding a recurrence of one the `evaluate-workflow` recurring-finding surface has already flagged* — the same canonical key seen across ≥3 distinct sessions (e.g. the `recurring-issue-thrash` flag)? A recurrence-class finding is **committed work** per §0: the recurrence itself is the signal that the root cause must be fixed at source (a skill, a dispatch-brief template, or a CLAUDE.md gotcha), and that source fix is work we commit to, not an uncommitted candidate. So it routes to the **Task List** — a fix-at-source Subtask under the owning Task, or a new Task — NOT the backlog. *Do not* re-route a recurrence the O-of-O has already marked `ignored` / `won't-fix` unless it is **materially different** (a different root cause or a wider blast radius) — an identical recurrence of a won't-fix finding is `no-action` (Branch D), not a fresh Task.
 
 **Active-task-first rule (DR-021) — an active ID-N owns its in-scope findings:** Before
 routing anything to Branch C, check whether ANY active (`in_progress`) Task ID-N — not
@@ -130,7 +127,7 @@ This skill's canonical input is a finding packet from a `task-executor` or `task
 
 **If the case is genuinely ambiguous after walking the tree** (roadmap-vs-backlog unclear, impact radius unclear, "already covered" debatable):
 
-- **If the Advisor tool is available** (Anthropic beta `advisor-tool-2026-03-01`): invoke it before forcing a decision. The advisor sees your full transcript (finding packet + roadmap/backlog reads) and returns advice on the branch-A/B/C/D choice. Record the decision yourself — advisor returns text only, not a write.
+- **If the Advisor tool is available** (Anthropic beta `advisor-tool-2026-03-01`): invoke it before forcing a decision. The advisor sees your full transcript (finding packet + roadmap/backlog reads) and returns advice on the branch-A/B/C/D/E choice. Record the decision yourself — advisor returns text only, not a write.
 - **If advisor is not available**: return `decision: ambiguous` with `ambiguity_reason` and `suggested_resolution`. Do **not** default-promote ambiguous findings — that creates ledger noise. The orchestrator escalates to the product owner.
 
 ### Branch A — Is it in-scope for the current Subtask? (binary rule)
@@ -147,8 +144,6 @@ If **any** predicate holds → IN-SCOPE → **Decision: `subtask`**.
 If **none** of the predicates hold → OUT-OF-SCOPE → continue to Branch B / C / D.
 
 **No grey area.** There is no fourth "judgement call" path. If the finding does not pass file-path, axis, or parent-Task-AC, it is out-of-scope by definition — even if the executor "noticed it while in the area" or it "feels related". Out-of-scope findings route to Branch B, C, or D per the cross-cutting / tactical / no-action criteria below.
-
-The intent of the binary rule is to preserve task-driven discipline: the current Subtask has a tightly-bounded scope, and findings that fall outside that boundary belong on a different ledger entry (Subtask under another Task, backlog item, or roadmap entry).
 
 **Produce a Subtask spec when Branch A matches:**
 
@@ -173,11 +168,11 @@ The orchestrator allocates the new Subtask ID-N.M and decides whether to fold it
 
 > **Write substrate (downstream — informational):** The Orchestrator or `update-roadmap-backlog` materialises this spec via `bun scripts/ledger-cli.ts add-subtask <parent_task_id> --title <…> --description <…> --test-strategy <…> [--depends N,M]` (see `lib/ledger/README.md`). Omit `--id` — auto-id allocates the next available integer per Task. Keep `scope` + `acceptance_criteria` within the field budgets (see preamble) so the write does not hard-reject.
 
-### Branch B — Is it a new capability theme? (Shape A — "capability theme promotion")
+### Branch B — Is it a new capability theme? ("capability theme promotion")
 
 Reached only when Branch A's binary in-scope-ness rule returned OUT-OF-SCOPE.
 
-Under Shape A, the Roadmap is a flat list of **themes** — multi-month capability areas, each with `linked_tasks[]` and `linked_backlog[]` chaining out to active work items. Branch B is reserved exclusively for findings that surface a **new capability theme not already on the Roadmap**.
+The Roadmap is a flat list of **themes** — multi-month capability areas, each with `linked_tasks[]` and `linked_backlog[]` chaining out to active work items. Branch B is reserved exclusively for findings that surface a **new capability theme not already on the Roadmap**.
 
 A finding routes to Branch B when **both** of these hold:
 
@@ -201,7 +196,7 @@ The curator (via `update-roadmap-backlog` Create) appends the theme to `themes[]
 
 > If only condition 1 OR only condition 2 holds — e.g. uncovered but single-feature/weeks — route to Branch C as a `backlog` candidate. Branch B is for **new theme** introductions; existing themes accept new linked work via Branch C.
 
-### Branch C — Is it an active work item? (Shape A — "active work item promotion")
+### Branch C — Is it an active work item? ("active work item promotion")
 
 Reached only when Branches A and B did not match.
 
@@ -214,7 +209,7 @@ A finding is a **backlog** candidate when **all** of these hold:
 5. The current Subtask ID-N.M is not already touching the same surface (otherwise Branch A's file-path predicate would have matched).
 6. NO active (`in_progress`) Task ID-N owns the finding's scope at Task level (DR-021 — the active-task-first rule above; an owning active task takes the finding as add-subtask or journal-append, even for next-session work).
 
-This is the most common destination for non-blocking out-of-scope findings. Under Shape A, Branch C output gains `rank` — the within-priority-tier deterministic ordering integer. The curator may set `rank` explicitly when the finding's evidence carries an obvious ordering signal; otherwise it defaults to `null` and the curator (or `update-roadmap-backlog` Update mode) sets it later.
+This is the most common destination for non-blocking out-of-scope findings. Branch C output includes `rank` — the within-priority-tier deterministic ordering integer. The curator may set `rank` explicitly when the finding's evidence carries an obvious ordering signal; otherwise it defaults to `null` and the curator (or `update-roadmap-backlog` Update mode) sets it later.
 
 **If yes → Decision: `backlog`.**
 
@@ -294,7 +289,7 @@ decision: subtask | roadmap | backlog | no-action | decision-register
 
 justification: |
   {one-paragraph explanation of why this decision was reached.
-   Cite which branch (A/B/C/D) and which specific criteria triggered it.}
+   Cite which branch (A/B/C/D/E) and which specific criteria triggered it.}
 
 # Branch A populated (also active-task-first DR-021 + short-circuit Liam-driven promote — see Step 2 preamble)
 subtask_spec:
@@ -309,7 +304,7 @@ subtask_spec:
   disposition: "add-subtask" | "journal-append"
   journal_target: null | "ID-N.M"
 
-# Branch B populated (Shape A — capability theme promotion)
+# Branch B populated (capability theme promotion)
 roadmap_proposed_theme:
   title: "..."
   description: "..."
@@ -317,7 +312,7 @@ roadmap_proposed_theme:
   initial_linked_tasks: ["..."]
   initial_linked_backlog: ["..."]
 
-# Branch C populated (Shape A — active work item promotion)
+# Branch C populated (active work item promotion)
 backlog_slot:
   track: "..."
   type: "..."
@@ -362,11 +357,9 @@ The `update-roadmap-backlog` skill attaches this to the resulting ledger entry v
 2. **Defaulting everything to subtask.** Subtasks balloon the current Task ID-N's scope. Apply the binary in-scope-ness rule strictly — `subtask` requires **file-path within `subtask_file_ownership`, OR axis = spec-compliance against the Subtask slice, OR parent-Task-AC = a parent-Task acceptance-criterion failure or sibling-Subtask file-ownership hit**. Anything else is OUT-OF-SCOPE.
 3. **Promoting style nits to the roadmap.** Roadmap is strategic capability; "rename this variable for clarity" is not roadmap material.
 4. **Missing existing coverage.** Always check roadmap + backlog before promoting; duplicates fragment the ledger.
-5. **Following legacy file naming when applying decision logic.** Target semantics drive the decision; the write layer (`bun scripts/ledger-cli.ts` invoked via `update-roadmap-backlog`) reconciles to the current ledgers (`${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/{task-list,product-roadmap,product-backlog}.json`).
-6. **Inventing a grey-area "judgement call" for Branch A.** The binary rule is intentional. If the executor "noticed it while in the area" but the file-path is outside `subtask_file_ownership`, the finding is not a spec-compliance issue against the Subtask slice, and the parent-Task-AC predicate also does not hold, it is OUT-OF-SCOPE. Route to B / C / D.
-7. **Routing a tactical item to Branch B — it belongs on Backlog.** Under Shape A, Branch B = **new capability theme** only. A single-feature finding routes to Branch C even if it touches a theme's `linked_backlog` area or extends a theme's `linked_tasks[]` chain. Adding work to an existing theme is NOT a Branch B event — it is Branch C creating a backlog entry that the curator (or update-roadmap-backlog Update mode) later links into the theme. Only genuinely-new capability theme introductions justify Branch B.
-8. **Treating wave-close findings as fully OOS when the current Subtask is closed.** When the orchestrator routes a wave-close batch where the source Subtask has already promoted to `done`, the curator MUST re-anchor Branch A on (a) sibling pending/in-progress Subtasks under the same parent Task ID-N, and (b) the parent Task's `## Acceptance criteria` (Branch A predicate 3). Treating the empty "current Subtask" context as definitively OOS produces false-negative Branch A misses.
-9. **Demoting a started/in-flight Subtask to the backlog at session close.** Do NOT demote a started/in-flight Subtask to the backlog at session close. In-flight Subtasks carry over across session boundaries as `in_progress`/`pending` Subtask records — committed work stays on the Task List; the backlog is only for not-yet-committed ideas.
+5. **Routing a tactical item to Branch B — it belongs on Backlog.** Branch B = **new capability theme** only. A single-feature finding routes to Branch C even if it touches a theme's `linked_backlog` area or extends a theme's `linked_tasks[]` chain. Adding work to an existing theme is NOT a Branch B event — it is Branch C creating a backlog entry that the curator (or update-roadmap-backlog Update mode) later links into the theme. Only genuinely-new capability theme introductions justify Branch B.
+6. **Treating wave-close findings as fully OOS when the current Subtask is closed.** When the orchestrator routes a wave-close batch where the source Subtask has already promoted to `done`, the curator MUST re-anchor Branch A on (a) sibling pending/in-progress Subtasks under the same parent Task ID-N, and (b) the parent Task's `## Acceptance criteria` (Branch A predicate 3). Treating the empty "current Subtask" context as definitively OOS produces false-negative Branch A misses.
+7. **Demoting a started/in-flight Subtask to the backlog at session close.** In-flight Subtasks carry over across session boundaries as `in_progress`/`pending` Subtask records — committed work stays on the Task List; the backlog is only for not-yet-committed ideas.
 
 ---
 
@@ -375,12 +368,6 @@ The `update-roadmap-backlog` skill attaches this to the resulting ledger entry v
 Five worked decision walks — one per branch outcome (cross-cutting → roadmap; rename consequence → subtask; style nit → subtask/no-action; feature tech-debt → backlog; new capability → roadmap) — live in [references/examples.md](references/examples.md).
 
 ---
-
-## What this skill is NOT
-
-- Not a write skill. No file edits; output is a decision only.
-- Not a code-review skill. Doesn't audit code; takes a finding as input.
-- Not Taskmaster-coupled. No `task-master` commands.
 
 ## What hands off to `update-roadmap-backlog`
 

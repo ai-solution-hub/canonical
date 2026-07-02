@@ -2,8 +2,8 @@
 name: handoff
 description:
   Generate the orchestrator-of-orchestrators continuation prompt at session
-  close. Triggers on "handoff", "continuation prompt", "wrap up session", "create handoff". 
-  allowed-tools: Read, Write, Edit, Bash, Grep, Glob
+  close. Triggers on "handoff", "continuation prompt", "wrap up session", "create handoff".
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
 # Session Handoff
@@ -19,7 +19,7 @@ at session close (the file is written to, and committed in, the docs-site checko
 | Content                                                          | Lives in                                                                       |
 | ---------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | Task / Subtask state, `details`, `testStrategy`, what shipped + SHAs | the ledgers — slice-read via `bun scripts/ledger-cli.ts show task <id>` (docs-site `ledgers/`; `<info added on …>` journals) |
-| Per-terminal scope, bootstrap reads, file ownership, sequence/gates  | the per-Task cmux briefs (`.claude/cmux-briefs/cmux-brief-*.md` |
+| Per-terminal scope, bootstrap reads, file ownership, sequence/gates  | the per-Task cmux briefs (`.claude/cmux-briefs/cmux-brief-*.md`) |
 | Recency-weighted multi-session history                           | Mempalace diary (`mempalace_diary_read agent=claude`)                          |
 | Settled cross-cutting rulings / won't-fixes (binding)            | the Decision Register — `reference/decision-register.md` (cite NEW `DR-NNN` here; start-session reads in-force entries) |
 
@@ -43,10 +43,8 @@ Confirm before drafting (ask Liam if unsure):
 4. Decisions made this session not yet in the ledger / specs / memory?
 5. Gotchas not yet in CLAUDE.md or memory?
 6. Allowlist candidates + sandbox bypass notes — any commands that hit sandbox
-   friction this session and should be allowlisted or carried forward (e.g. a
-   zsh word-split quirk; a tool that needed `dangerouslyDisableSandbox` such as
-   the chrome-devtools-axi bridge binding a localhost port; the documented
-   `next build` Turbopack sandbox failure)?
+   friction this session and should be allowlisted or carried forward (e.g.
+   commands that needed `dangerouslyDisableSandbox`)?
 
 ---
 

@@ -9,7 +9,7 @@ allowed-tools: Read, Bash, Grep, Glob, Edit, Write, Skill, Agent
 
 The Orchestrator does not write production code, audit commits, or edit the
 roadmap/backlog. Its job is decomposition, dispatch, gating, merge sequencing,
-and finding routing. It disptaches the four other roles (Task Planner, Task Executor, Task
+and finding routing. It dispatches the four other roles (Task Planner, Task Executor, Task
 Checker, Workflow Curator) via the built-in `Agent` tool or `session-driver-cmux` (fleet).
 
 If the continuation prompt includes usage of cmux terminals, chain from this `workflow-orchestration` to the `session-driver-cmux` skill to prepare and deploy sub-orchestrators.
@@ -412,7 +412,7 @@ under the mutex, never in a worker.
 | Field | Shape | Load-bearing for |
 |---|---|---|
 | `last_updated` (roadmap file-level) | Single-line `ca-{track}-S{N} {wave} close-out — {short marker}` | Freshness guard on roadmap only. |
-| Subtask `details` `<info added on …>` blocks | Multi-line narrative permitted; structured journal blocks per PRODUCT inv 13 | Per-Subtask traceability. THE canonical home for session-by-session narrative (commits, test counts, OQ ratifications, Checker verdicts, Curator decisions). |
+| Subtask `details` `<info added on …>` blocks | Multi-line narrative permitted; structured journal blocks | Per-Subtask traceability. THE canonical home for session-by-session narrative (commits, test counts, OQ ratifications, Checker verdicts, Curator decisions). |
 | Task `description` | One paragraph: compact what+why, ≤1500 chars; rationale → `docs/` + `cross_doc_links` pointer, not inlined; updated only on scope amendment | Cross-doc cross-reference target. NOT a journal. |
 | Subtask `description` | One-sentence summary, ≤250 chars; not a copy of `details` | Subtask scan label. |
 | Task `status_note` | Short rationale for current status (`blocked: waiting on X`); ≤300 chars | Status-line context only. Bump on status flip. |
@@ -429,10 +429,8 @@ under the mutex, never in a worker.
 ## Backlog pickup → Promote
 
 When the Orchestrator or Liam selects a backlog item from
-the backlog ledger (`bun scripts/ledger-cli.ts show backlog <id>`) to implement, the **first action is to
-invoke `bun scripts/ledger-cli.ts promote <backlogId> <taskJson>`**.
-
-**Canonical invocation:**
+the backlog ledger (`bun scripts/ledger-cli.ts show backlog <id>`) to implement, the
+**first action is the promote CLI**:
 
 ```bash
 bun scripts/ledger-cli.ts promote <backlogId> <taskJson>
@@ -458,7 +456,7 @@ we committed to doing this?* Yes → Task List; not yet → Backlog).
 
 ## Escalation
 
-If you are a sub-orchestrators and you hit an Open Question that cannot be resolved in-scope, you must NOT silently proceed or block indefinitely. Use the OQ-escalation channel: `.claude/skills/session-driver-cmux/oq-brief-fragment.md`
+If you are a sub-orchestrator and you hit an Open Question that cannot be resolved in-scope, you must NOT silently proceed or block indefinitely. Use the OQ-escalation channel: `.claude/skills/session-driver-cmux/oq-brief-fragment.md`
 
 The OQ protocol is implemented as a durable file-per-record mailbox under each worker's
 `.claude/cmux-events/<sid>/oq/` directory. The helper scripts sit in

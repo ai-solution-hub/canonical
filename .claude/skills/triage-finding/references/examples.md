@@ -1,9 +1,9 @@
 # triage-finding — Worked Examples
 
 Five worked decision walks for the `triage-finding` decision tree. The contract itself
-lives in `SKILL.md` Step 2 (Branch A/B/C/D); these examples only illustrate it.
+lives in `SKILL.md` Step 2 (Branch A/B/C/D/E); these examples only illustrate it.
 
-## Example 1 — Cross-cutting auth pattern (Shape A routing)
+## Example 1 — Cross-cutting auth pattern (roadmap routing)
 
 **Finding:** "Found that all routes under `app/api/coverage/` use the old `getAuthorisedClient()` return-shape `{ authorised }` instead of the new `{ success }` pattern. Out of scope for current Subtask ID-7.3 (which is one specific coverage route)."
 
@@ -11,7 +11,7 @@ lives in `SKILL.md` Step 2 (Branch A/B/C/D); these examples only illustrate it.
 - Branch A (file-path predicate): `app/api/coverage/*` files outside `subtask_file_ownership` (Subtask ID-7.3 owns only one route). NOT IN-SCOPE.
 - Branch A (axis predicate): The finding is not a spec-compliance issue against Subtask ID-7.3's slice — Subtask ID-7.3's spec only requires its one route conform. NOT IN-SCOPE.
 - Branch A → OUT-OF-SCOPE. Continue.
-- Branch B (Shape A — new capability theme): condition 1 — check existing themes via `bun scripts/ledger-cli.ts show roadmap <themeId>` for coverage of "auth pattern modernisation". No existing theme. condition 2 — multi-route refactor that cross-cuts auth surface; multi-week scope. BOTH HOLD.
+- Branch B (new capability theme): condition 1 — check existing themes via `bun scripts/ledger-cli.ts show roadmap <themeId>` for coverage of "auth pattern modernisation". No existing theme. condition 2 — multi-route refactor that cross-cuts auth surface; multi-week scope. BOTH HOLD.
 - **Decision: `roadmap`** with `roadmap_proposed_theme` `{ title: "auth pattern modernisation", time_horizon: "next", initial_linked_tasks: [], initial_linked_backlog: [] }`.
 
 ## Example 2 — Direct consequence of current change
@@ -36,7 +36,7 @@ lives in `SKILL.md` Step 2 (Branch A/B/C/D); these examples only illustrate it.
 
 > Binary in-scope-ness governs routing, not effort. The Orchestrator may still defer or skip a low-value Subtask after seeing the spec.
 
-## Example 4 — Feature-scoped tech debt (Shape A — rank default null)
+## Example 4 — Feature-scoped tech debt (rank default null)
 
 **Finding:** "The search filter component (`components/search/Filter.tsx`) re-renders on every keystroke because of an unstable empty-array default. Out of scope for current Subtask ID-14.2 (which is in `components/change-reports/`)."
 
@@ -44,11 +44,11 @@ lives in `SKILL.md` Step 2 (Branch A/B/C/D); these examples only illustrate it.
 - Branch A (file-path predicate): `components/search/Filter.tsx` is OUTSIDE Subtask ID-14.2's `file_ownership_allowed` (`components/change-reports/**`). NOT IN-SCOPE.
 - Branch A (axis predicate): Not a spec-compliance issue against Subtask ID-14.2's slice. NOT IN-SCOPE.
 - Branch A → OUT-OF-SCOPE. Continue.
-- Branch B (Shape A)? condition 1 — search is already covered by an existing theme (e.g. "search experience"). FAILS condition 1. Skip Branch B.
+- Branch B? condition 1 — search is already covered by an existing theme (e.g. "search experience"). FAILS condition 1. Skip Branch B.
 - Branch C? Yes — tactical, single-feature, weeks-scope, no current Task touches search.
 - **Decision: `backlog`** in `track: search`, `type: tech_debt`, `priority: medium`, `rank: null` (no obvious within-tier ordering signal — curator may rank later).
 
-## Example 5 — New capability theme proposal (Shape A — Branch B routing)
+## Example 5 — New capability theme proposal (Branch B routing)
 
 **Finding (Checker surfacing):** "While verifying Subtask ID-22.3's auth-coupling cleanup, noticed the codebase has no abstraction for tenant-scoped DB connections. Multi-tenant deployments would require a new layer in `lib/supabase/` plus per-route propagation of a tenant id. Out of scope for current Subtask ID-22.3 (which only touches one route)."
 
@@ -56,7 +56,7 @@ lives in `SKILL.md` Step 2 (Branch A/B/C/D); these examples only illustrate it.
 - Branch A (file-path predicate): the proposed change spans `lib/supabase/**` and many routes — OUTSIDE Subtask ID-22.3's `file_ownership_allowed` (`app/api/coverage/route.ts`). NOT IN-SCOPE.
 - Branch A (axis predicate): Subtask ID-22.3's spec doesn't mention multi-tenancy — not a spec-compliance issue against that slice. NOT IN-SCOPE.
 - Branch A → OUT-OF-SCOPE. Continue.
-- Branch B (Shape A — new capability theme):
+- Branch B (new capability theme):
   - condition 1 — inspect existing themes via `bun scripts/ledger-cli.ts show roadmap <themeId>`. No existing theme covers "multi-tenant deployments" (none of the theme `linked_tasks[]` or `linked_backlog[]` enumerate tenant-scoping work). HOLDS.
   - condition 2 — multi-month scope, cuts across every authenticated route, requires schema changes (tenant id columns), middleware changes (request-context propagation), and possibly RLS rewrites. Genuinely cross-cutting at the headline level. HOLDS.
 - BOTH conditions hold → **Decision: `roadmap`** with:

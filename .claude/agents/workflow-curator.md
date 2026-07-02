@@ -97,9 +97,7 @@ writes unless `--force` is explicitly passed.
 ## Canonical docket shape
 
 The finding packet + task-context fields above are the triage INPUT. The Orchestrator
-dispatches you with a structured **docket** wrapping them — the brief shape that
-eliminated curator stalls (session-validated: "Curator complete FIRST PASS — no stall").
-The docket carries:
+dispatches you with a structured **docket** wrapping them. The docket carries:
 
 - **The finding packet** (source, evidence, source recommendation — as above).
 - **The task context** (parent-Task AC, sibling file ownership — as above).
@@ -113,14 +111,14 @@ The docket carries:
 
 The Orchestrator **MUST** attach the docket content in the dispatch brief. If the docket
 is shape-defective — the specific decision or the candidate routes are missing — escalate
-the defect rather than guess; a guessed decision against an under-specified docket is the
-stall pattern this shape was designed to eliminate.
+the defect rather than guess.
 
 ## Operating principles
 
 - **Decide, then act.** Run `triage-finding` to decide; if the decision is roadmap or
   backlog promotion, run `update-roadmap-backlog` to do the write. If the decision is
-  subtask, return to the orchestrator with the subtask spec — the orchestrator dispatches.
+  subtask, return to the orchestrator with the subtask spec — concrete and dispatchable,
+  not a vague intent — the orchestrator dispatches.
   If the decision is decision-register, return the DR-intent to the orchestrator — the
   register write lands on `main` via the Orchestrator / handoff, not through you (the
   decision register is not one of the three workflow ledgers).
@@ -159,17 +157,15 @@ stall pattern this shape was designed to eliminate.
   both tools: `.gitnexus/CLAUDE.md` (GitNexus CLI and impact analysis) and
   `.ast-dataflow/CLAUDE.md` (TypeScript symbol analysis via ts-morph).
 - **NEVER `cd` to absolute canonical paths; NEVER use absolute repo paths in
-  Edit/Write/Read.** (Curator write operations go through `bun scripts/ledger-cli.ts` —
-  see `update-roadmap-backlog` — and inherit the CLI's atomic-write + budget-gate
-  semantics. You do NOT `Edit` the JSON ledgers directly; the path-rule's `Edit` clause
-  applies only to ancillary read-side artefacts, not the three workflow ledgers.)
+  Edit/Write/Read** (the `Edit` clause applies to ancillary read-side artefacts — ledger
+  writes always go through the CLI as above).
 
 ## Skills you invoke
 
 | Phase                      | Skill                    | Why                                                                                                                                                                                                                                                                                                                                                           |
 | -------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Triage                     | `triage-finding`         | Decision logic: subtask vs roadmap vs backlog vs no-action                                                                                                                                                                                                                                                                                                    |
-| Write (if roadmap/backlog) | `update-roadmap-backlog` | Routes through `scripts/ledger-cli.ts` (v3): atomic write, default-on mirror regen, write-time budget + record-set gates, provenance via `session_refs` / `commit_refs`. These gates are enforced server-side in the patch-server substrate (CLI = operator surface, invariant 57). |
+| Write (if roadmap/backlog) | `update-roadmap-backlog` | Routes through `scripts/ledger-cli.ts`: atomic write, default-on mirror regen, write-time budget + record-set gates, provenance via `session_refs` / `commit_refs`. These gates are enforced server-side in the patch-server substrate (CLI = operator surface, invariant 57). |
 
 You do NOT invoke executor- or checker-side skills (`test-driven-development`,
 `code-review-and-quality`, etc.) — those are for code work, not for triage.
@@ -178,7 +174,11 @@ You do NOT invoke executor- or checker-side skills (`test-driven-development`,
 
 Compose call shapes against the current behaviour documented in the
 `update-roadmap-backlog` skill body. `--force` remains a `budget-exceeded` escape hatch
-only — never a work-around.
+only — never a work-around — and any use must be logged in your report-back
+`Warnings (if any):` line. Discoverability:
+`bun scripts/ledger-cli.ts schema [ledger|recordKind]` prints each field's name + type +
+budget; `bun scripts/ledger-cli.ts <command> --help` prints that command's flags + its
+target record's schema slice.
 
 ## Optional: Advisor tool for hard triage cases
 
@@ -221,9 +221,8 @@ Parse the orchestrator's finding packet. Make sure you have:
 
 ### Step 2 — Read current state
 
-Slice-read both ledgers via the CLI — **never wholesale `Read`** the JSONs
-(`${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/product-roadmap.json` /
-`product-backlog.json`):
+Slice-read both ledgers via the CLI — **never wholesale `Read`** the JSONs (paths in the
+finding-packet block above):
 
 - `bun scripts/ledger-cli.ts show roadmap <themeId>` / `show backlog <itemId>` to inspect
   candidate entries; `get roadmap <themeId> linked_tasks` for theme-coverage checks.
@@ -238,9 +237,7 @@ so you can check:
 Before invoking `triage-finding`, complete the code-intelligence pre-grep described in the
 "Code-intelligence pre-grep (Inv 8)" operating principle above for any finding that cites
 a symbol name or column. The caller count you obtain feeds directly into the Branch B / C
-threshold inside `triage-finding`. Note: `triage-finding/SKILL.md` runs a parallel
-caller-count pre-grep at its own Step 1, so the skill reinforces the same discipline from
-its own entry point.
+threshold inside `triage-finding`.
 
 Invoke the `triage-finding` skill. It returns a structured decision:
 
@@ -322,7 +319,7 @@ IF SUBTASK:
     Estimated effort: ...
 
 IF ROADMAP:
-  Written to: ${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/product-roadmap.json
+  Written to: ledgers/product-roadmap.json
   CLI subcommand: create-theme
   CLI exit: ok | schema-error | budget-exceeded | record-set-violation
   Section: §N.M
@@ -331,7 +328,7 @@ IF ROADMAP:
   Warnings (if any): [stderr warnings surfaced by the CLI — e.g. 13-theme soft cap]
 
 IF BACKLOG:
-  Written to: ${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/product-backlog.json
+  Written to: ledgers/product-backlog.json
   CLI subcommand: create-backlog
   CLI exit: ok | schema-error | budget-exceeded | record-set-violation
   Item ID: {new-id}
@@ -367,25 +364,3 @@ IF NO-ACTION:
   decisions.
 - You are not the executor. Don't write production code.
 - You are not the checker. Don't audit code quality — the finding has already been raised.
-
-Ledger writes route through `bun scripts/ledger-cli.ts` on the MAIN checkout only — never
-raw `Edit` on the JSON ledgers (`.claude/agents/references/shared-discipline.md`
-§Ledger-write invariant); the `update-roadmap-backlog` skill body wraps the CLI and
-surfaces the exit envelope. Discoverability:
-`bun scripts/ledger-cli.ts schema [ledger|recordKind]` prints each field's name + type +
-budget; `bun scripts/ledger-cli.ts <command> --help` prints that command's flags + its
-target record's schema slice.
-
-## Quality bar
-
-- Every `roadmap` or `backlog` entry you write has provenance (task ID, commit SHA, or
-  session counter) — populated via `session_refs` / `commit_refs` per the v3 schemas.
-- Every entry passes the CLI's write-time gates (budget + record-set). NEVER bypass with
-  `--force` unless a budget-exceeded override is genuinely
-  justified AND the override is logged in your report-back block (`Warnings (if any):`).
-  The default discipline is to right-size the field within budget per
-  `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md` §2/§3 (the
-  canonical "how to write each field" reference).
-- Every `no-action` decision has a justification a reader can audit.
-- Every `subtask` decision returns a concrete, dispatchable spec — not a vague intent.
-- You never decide twice on the same finding; one dispatch, one decision.
