@@ -2790,9 +2790,18 @@ async def _upsert_source_document(
          the INSERT race cannot recur — parent-before-child by construction;
       2. the URL sd row is no longer engine-tracked, so full_reprocess never
          issues the RESTRICT-blocked DELETE for it (the engine re-exports only
-         what it declares). `ri` stays engine-managed — its own delete is safe
-         (`feed_articles.reference_item_id → reference_items` is ON DELETE SET
-         NULL, and no grandchildren reference `reference_items`).
+         what it declares). `ri` stays engine-managed — its own delete never
+         BLOCKS, because every FK pointing at `reference_items` is non-RESTRICT:
+         `feed_articles.reference_item_id` is ON DELETE SET NULL;
+         `citations.cited_reference_item_id → reference_items` is ON DELETE
+         CASCADE (migration `20260628191703_id131_cite_ext_winrate_fix.sql`);
+         and the `reference_items.superseded_by` self-FK is ON DELETE SET NULL.
+         OPERATIONAL CAVEAT — non-blocking is NOT side-effect-free: now that
+         full_reprocess actually COMPLETES (the id-131 posture), the ri
+         delete-then-re-export FIRES the `citations → reference_items` CASCADE,
+         deleting the citation rows of every re-exported ri. Verify `citations`
+         is empty (or that the cascade is acceptable) before a live
+         full_reprocess of the URL ledger.
 
     Identity remains the deterministic `sd:{url}` uuid5 (write-model §2 R1: the
     FK never established the relationship — the uuid5 derivation does), so
@@ -2924,6 +2933,10 @@ async def _ingest_url_body(
     ORDERING (BI-19): `declare_row` runs only AFTER fetch + extraction
     succeed — a failed item lands NO partial rows, and because nothing was
     declared the next walk re-runs it (memo miss on a failure-aborted run).
+    NARROW EXCEPTION (S437, id-131): the step-5 sd write is now a raw-pool
+    autocommit, so a raise BETWEEN that commit and the step-6 ri declare can
+    leave one orphan sd row — benign and self-healing (the next walk re-runs
+    the item and the `sd:{url}` uuid5 UPSERTs the same row, ri included).
 
     BACKLINK DEFERRAL ({75.17}): the step-7/8 backlink write races the
     engine's post-return target flush, so its
