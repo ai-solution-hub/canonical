@@ -179,7 +179,7 @@ describe('find (granularity=chunk) handler', () => {
     );
   });
 
-  it('passes content_item_id through to the renamed RPC filter_source_document_id param', async () => {
+  it('filters chunk search to the given source document (renamed filter_source_document_id param)', async () => {
     const handler = getChunkHandler();
     mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
 
