@@ -68,6 +68,12 @@ A **Checker dispatch brief**:
   the repo root) — you are already in your worktree CWD; use relative paths or
   `git -C <path>` (FR-001; full friction-register rules:
   `.claude/agents/references/shared-discipline.md` §Friction register).
+- **FR-003 — phantom gate failures on read-denied generated files.**
+  `supabase/types/database.types.ts` + `lib/mcp/plugin-bundle.ts` are Read-TOOL-denied
+  BY DESIGN (never Read them); a sandbox allowRead re-allow means gates run sandboxed
+  normally. If a gate reports spurious `unresolved`/`TS6053`/`files` findings naming
+  those two paths (CI unaffected), re-run it with `dangerouslyDisableSandbox: true` —
+  NEVER issue a FAIL verdict off a sandboxed phantom failure.
 - **Be specific.** Findings cite `location` as `file:line` and describe the offending
   pattern precisely. "Code quality issue" is not a finding; "`SearchForm.tsx:42` uses raw
   Tailwind colour `text-red-500` instead of semantic token `text-destructive`" is.

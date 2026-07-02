@@ -182,6 +182,13 @@ convention lines):
   this session, Read it first (the harness hard-errors "File has not been read yet",
   costing a retry). Batch the Read with sibling Reads in the same turn to avoid serial
   round-trips.
+- **FR-003 (read-denied generated files → phantom gate failures):**
+  `supabase/types/database.types.ts` and `lib/mcp/plugin-bundle.ts` are `Read`-TOOL-denied
+  by design (context-budget guard) — never Read them. A `sandbox.filesystem.allowRead`
+  re-allow lets Bash-invoked `knip`/`tsc`/`vitest`/`eslint` stat them, so gates run
+  SANDBOXED normally. If a gate still reports PHANTOM failures naming those two paths
+  (spurious `unresolved`/`TS6053`/`files` findings — CI is unaffected), re-run that gate
+  with `dangerouslyDisableSandbox: true` and report the recurrence.
 - **FR-004 (`.git/index.lock`):** If a git command fails with
   `.git/index.lock: File exists`, do NOT blindly `rm` the lock — first confirm no sibling
   git process is running, then `rm -f .git/index.lock` and retry once.

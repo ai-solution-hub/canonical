@@ -7,7 +7,9 @@
 #   - last event == AskUserQuestion, stable 2 polls   -> headless stall
 #   - last event == stop, stable 2 polls              -> paused (done / needs nudge / awaiting-decision)
 #   - OQ-pending.md (found ANYWHERE in worktree) grew beyond seen lines  (SEEN_OQ="<sid>:<lines> ...")
-#   - oq/oq-state.json lifecycle_state=awaiting-decision (skip if sid in SEEN_BLOCKED)
+#   - oq/oq-state.json lifecycle_state=awaiting-decision (skip if "<sid>:<oq_id>"
+#     in SEEN_BLOCKED, where oq_id = the record's blocked_on; bare sids do NOT
+#     suppress — a worker's second blocking OQ must re-trip; F8)
 #     -- the SECOND OQ surface; watching only OQ-pending.md left the watcher
 #        blind to oq_emit blocking questions (F7 friction, WS-A6).
 #   - final_report.* in events dir                    (skip if sid in SEEN_FINAL)
@@ -135,12 +137,18 @@ while [ "$poll" -lt "$MAX_POLLS" ]; do
     fi
     # Second OQ surface: oq/oq-state.json lifecycle marker (oq_emit blocking
     # channel). awaiting-decision = worker is BLOCKED on a parent decision —
-    # trip unless the caller already handled it (sid in SEEN_BLOCKED). (WS-A6)
+    # trip unless the caller already handled THIS oq (SEEN_BLOCKED keys on
+    # "<sid>:<oq_id>", mirroring SEEN_OQ's "<sid>:<count>" — a bare sid never
+    # matches, so a worker's SECOND blocking OQ re-trips; F8/WS-A6). oq_id is
+    # oq-state.json's blocked_on field.
     sfile="$d/oq/oq-state.json"
-    if [ -f "$sfile" ] && ! in_list "$sid" "$SEEN_BLOCKED"; then
+    if [ -f "$sfile" ]; then
       lstate=$(jq -r '.lifecycle_state // empty' "$sfile" 2>/dev/null)
-      [ "$lstate" = "awaiting-decision" ] && report="${report}
-  $name ($sid): OQ-STATE awaiting-decision (oq/oq-state.json — blocking)"
+      if [ "$lstate" = "awaiting-decision" ]; then
+        boq=$(jq -r '.blocked_on // "unknown"' "$sfile" 2>/dev/null)
+        in_list "${sid}:${boq}" "$SEEN_BLOCKED" || report="${report}
+  $name ($sid): OQ-STATE awaiting-decision on ${boq} (oq/oq-state.json — blocking)"
+      fi
     fi
     # abtop context-saturation probe (C3/WS-C). jq does the float compare; a
     # blank result = below threshold, no abtop data, or null context. SEEN_SAT

@@ -70,6 +70,15 @@ WORKTREE_PATH=$(echo "$RESULT" | jq -r '.worktree_path')
 EVENTS_FILE=$(echo "$RESULT" | jq -r '.events_file')
 ```
 
+**Model pinning (Opus-fleet default).** Unrecognised args pass through to the
+`claude` invocation (`EXTRA_ARGS`). PIN every sub-orchestrator explicitly —
+un-pinned workers silently inherit the user's default model (now Fable 5):
+
+```bash
+RESULT=$("$SD_SCRIPTS/launch-worker.sh" my-worker . \
+  --model claude-opus-4-8 --effort xhigh)
+```
+
 The script:
 
 1. Validates `cmux` is reachable.

@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "CMD=$(jq -r '.tool_input.command' 2>/dev/null); if echo \"$CMD\" | grep -qE '(^|[[:space:]]|;|&&|\\|\\|)cd[[:space:]]+/Users/liamj/Documents/development/canonical(/|[[:space:]]|$|;)'; then echo 'BLOCKED: bash command contains cd to the canonical repo. This causes commits to leak to the wrong branch. Drop the cd prefix; use relative paths from your CWD (sibling repos like knowledge-hub-docs-site are NOT blocked).' >&2; exit 2; fi"
+            "command": "CMD=$(jq -r '.tool_input.command' 2>/dev/null); if echo \"$CMD\" | grep -qE '(^|[[:space:]]|;|&&|\\|\\|)cd[[:space:]]+/Users/liamj/Documents/development/canonical(/|[[:space:]]|$|;)'; then FIX=$(printf '%s' \"$CMD\" | sed -E 's#^[[:space:]]*cd[[:space:]]+/Users/liamj/Documents/development/canonical/?[[:space:]]*(&&|;)[[:space:]]*##'); if [ -n \"$FIX\" ] && [ \"$FIX\" != \"$CMD\" ]; then echo \"BLOCKED: bash command contains cd to the canonical repo (wrong-branch commit-leak guard). Re-run EXACTLY this corrected command (cd prefix stripped): $FIX\" >&2; else echo 'BLOCKED: bash command contains cd to the canonical repo. This causes commits to leak to the wrong branch. Drop the cd prefix; use relative paths from your CWD (sibling repos like knowledge-hub-docs-site are NOT blocked).' >&2; fi; exit 2; fi"
           },
           {
             "type": "command",
@@ -85,12 +85,20 @@
   "sandbox": {
     "network": {
       "allowUnixSockets": ["/tmp/cmux.sock", "/private/tmp/cmux.sock", "~/.local/state/cmux/cmux.sock"],
-      "allowedDomains": ["github.com", "*.github.com", "codeload.github.com", "objects.githubusercontent.com"],
+      "allowedDomains": [
+        "github.com",
+        "*.github.com",
+        "codeload.github.com",
+        "objects.githubusercontent.com",
+        "*.supabase.com",
+        "*.supabase.co"
+      ],
       "allowLocalBinding": true
     },
     "filesystem": {
       "allowWrite": [
         "~/Documents/development/canonical/.claude/cmux-events",
+        "~/Documents/development/canonical/.git",
         "~/Documents/development/knowledge-hub-docs-site/**",
         "~/Documents/development/knowledge-hub-docs-site/.claude",
         ".claude/**",
@@ -98,7 +106,8 @@
         "supabase/types/database.types.ts",
         "~/.claude/.sentinels",
         "~/.gitnexus"
-      ]
+      ],
+      "allowRead": ["supabase/types/database.types.ts", "lib/mcp/plugin-bundle.ts"]
     }
   }
 }
