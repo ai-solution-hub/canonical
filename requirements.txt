@@ -30,7 +30,7 @@ docxtpl>=0.19.0
 # static binary: the cocoindex image is buildpack-built ({66.7}) with no apt
 # layer, so a system pandoc is unavailable — pypandoc_binary bundles one that
 # docx_utils._resolve_pandoc_path() finds via pypandoc.get_pandoc_path() ({80.3}).
-pypandoc_binary>=1.13
+pypandoc_binary>=1.17
 
 # Environment
 # Floor pinned to CocoIndex's own requirement (>=1.1.0): litellm's loose
