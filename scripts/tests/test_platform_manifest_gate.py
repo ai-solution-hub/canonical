@@ -216,6 +216,26 @@ def _write_manifest(
     )
 
 
+def _sd_rows_from_pool(pool: object) -> list[dict]:
+    """Reconstruct source_documents rows from the S438 raw-pool UPSERT capture.
+
+    S437/S438 (id-131): the sd PARENT no longer flows through the engine
+    `sd_target`; it is written by `_upsert_source_document` as a raw-pool
+    autocommit `INSERT ... ON CONFLICT (id)` on the run's `_EmptyLedgerPool`
+    (`pool.executed`, stashed at `targets["_sd_pool"]`). Each captured
+    `source_documents` INSERT's positional args are mapped back onto its
+    column names so callers read the landed row as they did off
+    `targets["source_documents"].rows`.
+    """
+    rows: list[dict] = []
+    for sql, args in pool.executed:  # type: ignore[attr-defined]
+        if "INSERT INTO public.source_documents" not in sql:
+            continue
+        cols = [c.strip() for c in sql.split("(", 1)[1].split(")", 1)[0].split(",")]
+        rows.append(dict(zip(cols, args)))
+    return rows
+
+
 def _target_set() -> dict[str, _FakeTarget]:
     """The full mount-target set ``app_main`` requests (all ten tables)."""
     return {
@@ -353,11 +373,44 @@ def _run_app_main_over_dir(
     # ── The URL source branch ({75.11}) builds a pool via coco.use_context and
     # iterates its snapshot — return an EMPTY ledger so this stays a pure
     # localfs-branch harness.
+    #
+    # S438 (id-131 follow-on): the localfs content branch now ALSO resolves
+    # this SAME pool via `coco.use_context(DB_CTX)` for the raw-pool
+    # `_upsert_source_document` sd write (S437's fix extended to localfs) — an
+    # `acquire()` seam is required so the content file's sd write does not
+    # crash on a missing attribute. A SINGLE pool instance is returned on
+    # every `use_context` call (not one-per-call) so its `executed` capture
+    # accumulates every sd UPSERT across the whole run — callers that need the
+    # landed sd row read it back via `targets["_sd_pool"]` +
+    # `_sd_rows_from_pool` (the sd row no longer flows through the
+    # `source_documents` `_FakeTarget`).
     class _EmptyLedgerPool:
+        def __init__(self) -> None:
+            self.executed: list[tuple[str, tuple]] = []
+
         async def fetch(self, sql):
             return []
 
-    monkeypatch.setattr(flow.coco, "use_context", lambda key: _EmptyLedgerPool())
+        def acquire(self):
+            pool = self
+
+            class _Conn:
+                async def execute(self, sql: str, *args: object) -> str:
+                    pool.executed.append((sql, args))
+                    return "INSERT 0 1"
+
+            class _Acquire:
+                async def __aenter__(self) -> "_Conn":
+                    return _Conn()
+
+                async def __aexit__(self, *exc: object) -> None:
+                    return None
+
+            return _Acquire()
+
+    _sd_pool = _EmptyLedgerPool()
+    targets["_sd_pool"] = _sd_pool  # type: ignore[assignment]
+    monkeypatch.setattr(flow.coco, "use_context", lambda key: _sd_pool)
 
     # ── Capture the flow-start / flow-end webhook emissions (no live HTTP).
     async def _fake_webhook(**kwargs):
@@ -402,7 +455,9 @@ class TestManifestPresentContentCorpusIngests:
         )
 
         ci = targets["content_items"]
-        sd = targets["source_documents"]
+        # S438: the sd row lands via the raw-pool UPSERT, not the
+        # `source_documents` _FakeTarget — reconstruct it from the pool capture.
+        sd_rows = _sd_rows_from_pool(targets["_sd_pool"])  # type: ignore[arg-type]
         resolve_calls = targets["_resolve_calls"]  # type: ignore[index]
 
         # (a) NO manifest_missing abort: the run completed and a content_items
@@ -414,7 +469,7 @@ class TestManifestPresentContentCorpusIngests:
             "unconditionally at flow start)"
         )
         assert len(ci.rows) == 1, "the content .md must land exactly one content_items row"
-        assert len(sd.rows) == 1
+        assert len(sd_rows) == 1
 
         # The deployed entrypoint resolved the rel_path against the loaded
         # manifest (the fork ran on the worker thread).
@@ -575,10 +630,19 @@ class TestReingestMintsIdenticalIdentities:
         # duplicate. The expected PK is the deployed flow's own seed
         # (uuid5 over _KH_PIPELINE_DOC_NS), recomputed here as the oracle.
         ns = flow._KH_PIPELINE_DOC_NS
+        # S438: source_documents no longer lands on its `_FakeTarget` — read it
+        # back from the raw-pool UPSERT capture instead (mirrors the URL route,
+        # S437).
+        rows_by_table = {
+            "content_items": (targets_a["content_items"].rows, targets_b["content_items"].rows),
+            "source_documents": (
+                _sd_rows_from_pool(targets_a["_sd_pool"]),  # type: ignore[arg-type]
+                _sd_rows_from_pool(targets_b["_sd_pool"]),  # type: ignore[arg-type]
+            ),
+        }
         for table, seed in (("content_items", "ci:stable.md"),
                             ("source_documents", "sd:stable.md")):
-            rows_a = targets_a[table].rows
-            rows_b = targets_b[table].rows
+            rows_a, rows_b = rows_by_table[table]
             assert len(rows_a) == 1 and len(rows_b) == 1
             expected_pk = uuid.uuid5(ns, seed)
             assert rows_a[0]["id"] == rows_b[0]["id"] == expected_pk, (

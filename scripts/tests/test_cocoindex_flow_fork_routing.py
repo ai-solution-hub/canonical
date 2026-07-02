@@ -183,6 +183,74 @@ def _spy_trim(flow: object, monkeypatch: pytest.MonkeyPatch) -> list[tuple]:
     return trims
 
 
+class _SdPool:
+    """Minimal raw-pool double capturing every ``execute`` call.
+
+    S438 (id-131 follow-on): the content branch writes the sd PARENT via the
+    raw-pool `_upsert_source_document` autocommit UPSERT (S437's fix extended
+    to localfs), resolved via `coco.use_context(DB_CTX)`.
+    """
+
+    def __init__(self) -> None:
+        self.executed: list[tuple[str, tuple]] = []
+
+    def acquire(self) -> object:
+        pool = self
+
+        class _Conn:
+            async def execute(self, sql: str, *args: object) -> str:
+                pool.executed.append((sql, args))
+                return "INSERT 0 1"
+
+        class _Acquire:
+            async def __aenter__(self) -> "_Conn":
+                return _Conn()
+
+            async def __aexit__(self, *exc: object) -> None:
+                return None
+
+        return _Acquire()
+
+
+class _SdTarget:
+    """Duck-types ``_FakeTarget`` (``.table_name`` / ``.rows``) for the
+    ``source_documents`` slot, but sources ``.rows`` from WHICHEVER write path
+    actually fired:
+
+      - the qa_sidecar branch (``_ingest_qa_sidecar_branch``) still calls
+        ``sd_target.declare_row`` directly — captured in ``self._declared``;
+      - the content branch (``_ingest_content_branch``) now writes the sd
+        PARENT via the S438 raw-pool ``_upsert_source_document`` UPSERT —
+        reconstructed from the ``_SdPool`` capture.
+
+    A single ``ingest_file`` call only ever exercises ONE branch, so ``.rows``
+    can safely prefer the declared rows and fall back to the pool capture —
+    every existing ``out["sd"].rows`` assertion in this file keeps working
+    unchanged regardless of which branch a given test drives.
+    """
+
+    table_name = "source_documents"
+
+    def __init__(self, pool: _SdPool) -> None:
+        self._pool = pool
+        self._declared: list[dict] = []
+
+    def declare_row(self, *, row: dict) -> None:
+        self._declared.append(row)
+
+    @property
+    def rows(self) -> list[dict]:
+        if self._declared:
+            return self._declared
+        rows: list[dict] = []
+        for sql, args in self._pool.executed:
+            if "INSERT INTO public.source_documents" not in sql:
+                continue
+            cols = [c.strip() for c in sql.split("(", 1)[1].split(")", 1)[0].split(",")]
+            rows.append(dict(zip(cols, args)))
+        return rows
+
+
 def _drive_ingest(flow: object, fake_file: object, *, manifest: object) -> dict:
     """Drive one real ``ingest_file`` under bind_flow_meta +
     bind_workspace_manifest, with ALL SEVEN targets recording (including
@@ -192,10 +260,16 @@ def _drive_ingest(flow: object, fake_file: object, *, manifest: object) -> dict:
         bind_workspace_manifest,
     )
 
+    # S438: `coco.use_context(DB_CTX)` now also backs the content branch's
+    # raw-pool sd write — `flow.coco` is a FRESH MagicMock per `_flow_module()`
+    # call, so direct assignment (no monkeypatch) is safe and self-contained.
+    pool = _SdPool()
+    flow.coco.use_context = lambda key: pool  # type: ignore[attr-defined]
+
     targets = {
         "ci": _FakeTarget("content_items"),
         "qa": _FakeTarget("q_a_extractions"),
-        "sd": _FakeTarget("source_documents"),
+        "sd": _SdTarget(pool),
         "em": _FakeTarget("entity_mentions"),
         "ft": _FakeTarget("form_templates"),
         "ftf": _FakeTarget("form_template_fields"),

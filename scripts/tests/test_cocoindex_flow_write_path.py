@@ -154,6 +154,83 @@ async def _fake_relationships_empty(content_text: str) -> list:
     return []
 
 
+# ── S438 raw-pool sd capture (mirrors test_cocoindex_url_write_path.py) ───────
+# S437 (id-131) moved the URL sd write off the engine `sd_target` onto a
+# raw-pool autocommit UPSERT (`_upsert_source_document`); S438 extends that to
+# the localfs content branch. A bare `MagicMock` `coco.use_context` return
+# value silently no-ops the write (asyncpg async methods round-trip through
+# AsyncMock without raising), so tests that never inspect `sd.rows` content
+# stay green either way — but any test asserting on the LANDED sd row must
+# stub a real capturing pool and read the row back from it, not from
+# `sd_target.rows` (which the content branch no longer populates).
+
+
+class _FakePoolConn:
+    """asyncpg connection double recording ``execute`` calls."""
+
+    def __init__(self) -> None:
+        self.executed: list[tuple[str, tuple]] = []
+
+    async def execute(self, sql: str, *args: object) -> str:
+        self.executed.append((sql, args))
+        return "INSERT 0 1"
+
+
+class _FakePoolAcquire:
+    def __init__(self, conn: _FakePoolConn) -> None:
+        self._conn = conn
+
+    async def __aenter__(self) -> _FakePoolConn:
+        return self._conn
+
+    async def __aexit__(self, *exc: object) -> None:
+        return None
+
+
+class _FakePool:
+    """asyncpg pool double — ``acquire()`` yields the shared ``_FakePoolConn``."""
+
+    def __init__(self) -> None:
+        self.conn = _FakePoolConn()
+
+    def acquire(self) -> _FakePoolAcquire:
+        return _FakePoolAcquire(self.conn)
+
+
+def _wire_pool(flow: object, monkeypatch: pytest.MonkeyPatch) -> "_FakePool":
+    """Stub ``coco.use_context`` to return a capturing raw pool.
+
+    Every content-branch test that reads the landed ``source_documents`` row
+    needs this — the row now lands via ``_upsert_source_document`` (S437/S438),
+    not ``sd_target.declare_row``.
+    """
+    pool = _FakePool()
+    monkeypatch.setattr(flow.coco, "use_context", lambda key: pool)
+    return pool
+
+
+def _sd_upserts_from_pool(pool: "_FakePool") -> list[dict]:
+    """Reconstruct source_documents rows from the raw-pool UPSERT capture.
+
+    S438 (id-131 follow-on): the localfs content-branch sd PARENT no longer
+    flows through the engine ``sd_target``; it is written by
+    ``_upsert_source_document`` as a raw-pool autocommit
+    ``INSERT ... ON CONFLICT (id)`` (mirrors
+    ``test_cocoindex_url_write_path._sd_upserts_from_pool``, S437). Each
+    captured ``source_documents`` INSERT's positional args are mapped back
+    onto its column names so assertions read the landed row exactly as they
+    did off ``sd_target.declare_row``.
+    """
+    rows: list[dict] = []
+    for sql, args in pool.conn.executed:
+        if "INSERT INTO public.source_documents" not in sql:
+            continue
+        cols_segment = sql.split("(", 1)[1].split(")", 1)[0]
+        columns = [c.strip() for c in cols_segment.split(",")]
+        rows.append(dict(zip(columns, args)))
+    return rows
+
+
 # ── 28.21 — declare_row write-path shape ──────────────────────────────────────
 
 
@@ -234,6 +311,7 @@ class TestIngestFileWritePath:
         sd = _FakeTarget("source_documents")
         em = _FakeTarget("entity_mentions")
 
+        pool = _wire_pool(flow, monkeypatch)
         run_op_id = uuid.uuid4()
 
         async def _exercise() -> None:
@@ -247,29 +325,34 @@ class TestIngestFileWritePath:
 
         asyncio.run(_exercise())
 
+        # S438 (id-131 follow-on): the sd PARENT lands via the raw-pool UPSERT
+        # (`_upsert_source_document`), NOT the engine `sd_target` — reconstruct
+        # it from the pool capture (mirrors the URL route, S437).
+        sd_rows = _sd_upserts_from_pool(pool)
+
         # source_documents: exactly one row, op_id stamped, storage_path
         # DERIVED FROM THE FILE (file.file_path.path.as_posix()) — NOT a
         # phantom rel_path param that mount_each would never supply.
-        assert len(sd.rows) == 1, "expected one source_documents row"
-        assert sd.rows[0]["op_id"] == run_op_id
-        assert sd.rows[0]["storage_path"] == src.as_posix(), (
+        assert len(sd_rows) == 1, "expected one source_documents row"
+        assert sd_rows[0]["op_id"] == run_op_id
+        assert sd_rows[0]["storage_path"] == src.as_posix(), (
             "storage_path must derive from file.file_path.path, not a param"
         )
         # ID-64.11 (S296): the NOT-NULL source_documents metadata is written —
         # filename (basename), mime_type (suffix-resolved), file_size (bytes) —
         # and content_hash is the prod column (renamed from content_fingerprint,
         # which does not exist in prod).
-        assert sd.rows[0]["filename"] == "doc-one.md"
-        assert sd.rows[0]["mime_type"] == "text/markdown"
-        assert sd.rows[0]["file_size"] == src.stat().st_size
-        assert isinstance(sd.rows[0]["content_hash"], str) and sd.rows[0]["content_hash"]
-        assert "content_fingerprint" not in sd.rows[0], (
+        assert sd_rows[0]["filename"] == "doc-one.md"
+        assert sd_rows[0]["mime_type"] == "text/markdown"
+        assert sd_rows[0]["file_size"] == src.stat().st_size
+        assert isinstance(sd_rows[0]["content_hash"], str) and sd_rows[0]["content_hash"]
+        assert "content_fingerprint" not in sd_rows[0], (
             "content_fingerprint does not exist in prod — must be content_hash"
         )
         # ID-75 BI-4: the localfs branch writes an EXPLICIT source_url None —
         # only URL-sourced documents populate it (the provenance split is
         # visible at the write site).
-        assert sd.rows[0]["source_url"] is None, (
+        assert sd_rows[0]["source_url"] is None, (
             "localfs files have no source URL — explicit None (ID-75 BI-4)"
         )
 
@@ -296,7 +379,7 @@ class TestIngestFileWritePath:
             "content_text_hash is GENERATED ALWAYS — must be omitted from the row"
         )
         # content_items row references the source_documents row it came from.
-        assert ci_row["source_document_id"] == sd.rows[0]["id"]
+        assert ci_row["source_document_id"] == sd_rows[0]["id"]
         # ID-63.7 (OQ-63-9): the classification's domain AND subtopic are
         # persisted to content_items on the cocoindex re-ingest path (today
         # neither was written). Both keys ride the declare_row payload.
@@ -312,7 +395,7 @@ class TestIngestFileWritePath:
         qa_row = qa.rows[0]
         assert qa_row["op_id"] == run_op_id
         # ID-131 {131.8} M2 (BI-15): q_a_extractions re-parented onto source_documents.
-        assert qa_row["source_document_id"] == sd.rows[0]["id"]
+        assert qa_row["source_document_id"] == sd_rows[0]["id"]
         assert qa_row["extracted_question_text"] == "What is X?"
         assert qa_row["extractor_kind"] == "llm_extraction", (
             "extractor_kind must be llm_extraction (OQ-54-E CHECK constraint)"
@@ -499,6 +582,8 @@ class TestIngestFileStageCounters:
         sd = _FakeTarget("source_documents")
         em = _FakeTarget("entity_mentions")
 
+        pool = _wire_pool(flow, monkeypatch)
+
         async def _exercise() -> None:
             # NO bind_stage_counter — `_bump` must be a no-op.
             async with bind_flow_meta(op_id=uuid.uuid4()):
@@ -506,7 +591,8 @@ class TestIngestFileStageCounters:
 
         asyncio.run(_exercise())  # must not raise
 
-        assert len(sd.rows) == 1 and len(ci.rows) == 1
+        # S438: the sd row lands via the raw-pool UPSERT, not sd_target.
+        assert len(_sd_upserts_from_pool(pool)) == 1 and len(ci.rows) == 1
 
 
 # ── 28.21 — mount_each → ingest_file arity contract (regression guard) ────────
@@ -609,6 +695,7 @@ class TestMountEachArityContract:
         em = _FakeTarget("entity_mentions")
         er = _FakeTarget("entity_relationships")
 
+        pool = _wire_pool(flow, monkeypatch)
         run_op_id = uuid.uuid4()
 
         # Keyed feed: (relative_path_str, File) — the key is what mount_each
@@ -630,19 +717,22 @@ class TestMountEachArityContract:
 
         asyncio.run(_exercise())
 
+        # S438: the sd rows land via the raw-pool UPSERT, not sd_target.
+        sd_rows = _sd_upserts_from_pool(pool)
+
         # Both files flowed through the 4-arg contract: one sd + one ci + one
         # qa row PER source file (2 of each).
-        assert len(sd.rows) == 2, "expected one source_documents row per file"
+        assert len(sd_rows) == 2, "expected one source_documents row per file"
         assert len(ci.rows) == 2, "expected one content_items row per file"
         assert len(qa.rows) == 2, "expected one q_a_extractions row per file"
 
         # Each row carries the run op_id (plain field from current_flow_meta()).
-        assert {r["op_id"] for r in sd.rows} == {run_op_id}
+        assert {r["op_id"] for r in sd_rows} == {run_op_id}
         assert {r["op_id"] for r in ci.rows} == {run_op_id}
 
         # storage_path derives from EACH File's own path (proves the per-item
         # File reached the body, not a single phantom param).
-        assert {r["storage_path"] for r in sd.rows} == {
+        assert {r["storage_path"] for r in sd_rows} == {
             src_one.as_posix(),
             src_two.as_posix(),
         }
@@ -655,7 +745,7 @@ class TestMountEachArityContract:
 
         # Distinct stable PKs per document (idempotency substrate — uuid5 keyed
         # on the per-document identity, NOT uuid4 which would break Inv-4).
-        assert len({r["id"] for r in sd.rows}) == 2
+        assert len({r["id"] for r in sd_rows}) == 2
         assert len({r["id"] for r in ci.rows}) == 2
 
     def test_ingest_file_signature_matches_mount_each_extra_args(self) -> None:
@@ -784,12 +874,15 @@ class TestStablePrimaryKeysAcrossRuns:
         sd = _FakeTarget("source_documents")
         em = _FakeTarget("entity_mentions")
 
+        pool = _wire_pool(flow, monkeypatch)
+
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=run_op_id):
                 await flow.ingest_file(fake_file, ci, qa, sd, em, None, None)  # type: ignore[attr-defined]
 
         asyncio.run(_exercise())
-        return {"ci": ci.rows, "qa": qa.rows, "sd": sd.rows}
+        # S438: the sd row lands via the raw-pool UPSERT, not sd_target.
+        return {"ci": ci.rows, "qa": qa.rows, "sd": _sd_upserts_from_pool(pool)}
 
     def test_same_document_two_runs_yields_identical_pks_but_new_op_id(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -905,6 +998,8 @@ class TestIngestFileRelationshipWritePath:
         em = _FakeTarget("entity_mentions")
         er = _FakeTarget("entity_relationships")
 
+        pool = _wire_pool(flow, monkeypatch)
+
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=run_op_id):
                 # er_target is the LAST positional extra arg (RULING 1).
@@ -913,7 +1008,8 @@ class TestIngestFileRelationshipWritePath:
                 )
 
         asyncio.run(_exercise())
-        return er, ci, sd
+        # S438: the sd row lands via the raw-pool UPSERT, not sd_target.
+        return er, ci, _sd_upserts_from_pool(pool)
 
     def test_relationship_rows_match_legacy_column_set(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -935,7 +1031,9 @@ class TestIngestFileRelationshipWritePath:
         assert len(er.rows) == 2, "one entity_relationships row per distinct triple"
         # ID-131 {131.8} M2 (BI-14): entity_relationships re-parented onto
         # source_documents — the FK target is the sd row, not the content_items row.
-        source_document_id = sd.rows[0]["id"]
+        # S438: `sd` is the raw-pool UPSERT capture (a list of row dicts), not
+        # a `_FakeTarget` — the sd row no longer flows through sd_target.
+        source_document_id = sd[0]["id"]
 
         # Endpoints are canonicalised (lowercase resolve-alias chain), payload is
         # EXACTLY the legacy TS column set — NO op_id, NO created_at (RULING 2).
@@ -1059,6 +1157,210 @@ class TestIngestFileRelationshipWritePath:
         er, _, _ = self._ingest_once(flow, triples, tmp_path, run_op_id, monkeypatch)
         assert len(er.rows) == 1, "out-of-set predicate skipped; valid triple kept"
         assert er.rows[0]["relationship_type"] == "holds"
+
+
+# ── S438 (id-131 follow-on) — localfs content-branch sd raw-pool FK ordering ──
+
+
+class TestSourceDocumentRawPoolFkOrdering:
+    """S438: extends the S437/id-131 raw-pool sd UPSERT fix to the localfs
+    content branch (``_ingest_content_branch``).
+
+    Staging walk f1fd0add: PDF ingestion via the LOCALFS route aborted with an
+    asyncpg ``ForeignKeyViolationError`` — an engine-child ``entity_mentions``/
+    ``entity_relationships`` INSERT raced the ``source_documents`` parent row.
+    Both children were re-parented directly onto ``source_documents`` by
+    migration ``20260628200000_id131_extract_reparent.sql`` (M2/BI-14), so the
+    SAME INSERT-ordering hazard the URL route hit (S437: an engine-declared
+    child flushing before its engine-declared parent, because cocoindex's
+    per-target autocommit flush order is uncoordinated —
+    cocoindex-write-model.md §2 R1) now also threatens the localfs route. The
+    fix mirrors S437 exactly: the sd row is written via the SAME
+    ``_upsert_source_document`` raw-pool autocommit UPSERT, synchronously,
+    BEFORE any of the engine-declared ci/cc/em/er children.
+    """
+
+    def test_sd_row_lands_via_raw_pool_not_engine_target(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The content-branch sd row no longer flows through ``sd_target`` —
+        it lands via the raw-pool capture, with the same BI-4 field contract
+        (localfs files carry an explicit ``source_url=None``)."""
+        flow = _flow_module()
+        from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
+
+        markdown = "# Doc\n\nBody for the FK-ordering proof."
+
+        async def _fake_convert(file: object) -> str:
+            return markdown
+
+        async def _fake_classification(content_text: str):
+            return {"content_type": "case_study"}
+
+        async def _fake_qa(content_text: str):
+            return {"qa_pairs": []}
+
+        async def _fake_entities(content_text: str):
+            return []
+
+        async def _fake_embed(content_text: str) -> list[float]:
+            return [0.0] * 1024
+
+        monkeypatch.setattr(flow, "convert_binary_to_markdown", _fake_convert)
+        monkeypatch.setattr(flow, "extract_classification", _fake_classification)
+        monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
+        monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+        monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
+        monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
+
+        src = tmp_path / "raw-pool-doc.md"
+        src.write_text(markdown)
+        fake_file = _FakeFile(src)
+
+        pool = _wire_pool(flow, monkeypatch)
+
+        ci = _FakeTarget("content_items")
+        qa = _FakeTarget("q_a_extractions")
+        sd = _FakeTarget("source_documents")
+        em = _FakeTarget("entity_mentions")
+
+        run_op_id = uuid.uuid4()
+
+        async def _exercise() -> None:
+            async with bind_flow_meta(op_id=run_op_id):
+                await flow.ingest_file(fake_file, ci, qa, sd, em, None, None)
+
+        asyncio.run(_exercise())
+
+        # S438: the engine sd_target NEVER receives a declare_row call — the
+        # sd PARENT is committed in-component via the raw pool instead.
+        assert sd.rows == [], (
+            "the localfs content-branch sd row must no longer flow through "
+            "the engine sd_target (S438 raw-pool cutover)"
+        )
+
+        sd_rows = _sd_upserts_from_pool(pool)
+        assert len(sd_rows) == 1, "expected exactly one raw-pool sd UPSERT"
+        sd_row = sd_rows[0]
+        assert sd_row["storage_path"] == src.as_posix()
+        assert sd_row["op_id"] == run_op_id
+        assert sd_row["source_url"] is None, (
+            "localfs files have no source URL — explicit None (ID-75 BI-4)"
+        )
+        assert ci.rows[0]["source_document_id"] == sd_row["id"]
+
+    def test_sd_raw_pool_write_precedes_entity_children_declares(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Staging walk f1fd0add: the sd raw-pool write must be IN-ORDER
+        before BOTH the entity_mentions and entity_relationships declares —
+        the exact FK-ordering guarantee S437 gave the URL route (`ri_target`),
+        now extended to localfs (BI-14 re-parent)."""
+        flow = _flow_module()
+        from scripts.cocoindex_pipeline.extraction import RelationshipExtraction
+        from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
+
+        markdown = "# Doc\n\nACME Ltd holds ISO 9001."
+
+        async def _fake_convert(file: object) -> str:
+            return markdown
+
+        async def _fake_classification(content_text: str):
+            return {"content_type": "case_study"}
+
+        async def _fake_qa(content_text: str):
+            return {"qa_pairs": []}
+
+        import types
+
+        mention = types.SimpleNamespace(
+            entity_type="certification",
+            entity_name="ISO 9001",
+            mention_confidence=0.9,
+            source_span_start=0,
+            source_span_end=9,
+        )
+
+        async def _fake_entities(content_text: str):
+            return [mention]
+
+        async def _fake_relationships(content_text: str):
+            return [
+                RelationshipExtraction(
+                    source="ACME Ltd", relationship="holds", target="ISO 9001"
+                )
+            ]
+
+        async def _fake_embed(content_text: str) -> list[float]:
+            return [0.0] * 1024
+
+        monkeypatch.setattr(flow, "convert_binary_to_markdown", _fake_convert)
+        monkeypatch.setattr(flow, "extract_classification", _fake_classification)
+        monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
+        monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+        monkeypatch.setattr(flow, "extract_relationships", _fake_relationships)
+        monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
+
+        src = tmp_path / "ordering-doc.md"
+        src.write_text(markdown)
+        fake_file = _FakeFile(src)
+
+        order: list[str] = []
+
+        class _OrderedConn:
+            async def execute(self, sql: str, *args: object) -> str:
+                if "INSERT INTO public.source_documents" in sql:
+                    order.append("sd_upsert")
+                return "INSERT 0 1"
+
+        class _OrderedAcquire:
+            async def __aenter__(self) -> "_OrderedConn":
+                return _OrderedConn()
+
+            async def __aexit__(self, *exc: object) -> None:
+                return None
+
+        class _OrderedPool:
+            def acquire(self) -> "_OrderedAcquire":
+                return _OrderedAcquire()
+
+        monkeypatch.setattr(flow.coco, "use_context", lambda key: _OrderedPool())
+
+        ci = _FakeTarget("content_items")
+        qa = _FakeTarget("q_a_extractions")
+        sd = _FakeTarget("source_documents")
+
+        class _OrderingTarget(_FakeTarget):
+            def declare_row(self, *, row: dict) -> None:
+                order.append(f"{self.table_name}_declare")
+                super().declare_row(row=row)
+
+        em = _OrderingTarget("entity_mentions")
+        er = _OrderingTarget("entity_relationships")
+
+        async def _exercise() -> None:
+            async with bind_flow_meta(op_id=uuid.uuid4()):
+                await flow.ingest_file(
+                    fake_file, ci, qa, sd, em, None, None, None, er
+                )
+
+        asyncio.run(_exercise())
+
+        assert "sd_upsert" in order
+        assert "entity_mentions_declare" in order
+        assert "entity_relationships_declare" in order
+        assert order.index("sd_upsert") < order.index(
+            "entity_mentions_declare"
+        ), (
+            "the sd raw-pool UPSERT must commit BEFORE the entity_mentions "
+            "declare (S438 FK-ordering fix, staging walk f1fd0add)"
+        )
+        assert order.index("sd_upsert") < order.index(
+            "entity_relationships_declare"
+        ), (
+            "the sd raw-pool UPSERT must commit BEFORE the "
+            "entity_relationships declare (S438 FK-ordering fix)"
+        )
 
 
 # ── ID-80.10 — Inv-19: Path-A q_a declare payload untouched by form routing ───
@@ -1332,13 +1634,16 @@ class TestContentFingerprintAwaited:
         sd = _FakeTarget("source_documents")
         em = _FakeTarget("entity_mentions")
 
+        pool = _wire_pool(flow, monkeypatch)
+
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=uuid.uuid4()):
                 await flow.ingest_file(fake_file, ci, qa, sd, em, None, None)
 
         asyncio.run(_exercise())
 
-        fingerprint = sd.rows[0]["content_hash"]
+        # S438: the sd row lands via the raw-pool UPSERT, not sd_target.
+        fingerprint = _sd_upserts_from_pool(pool)[0]["content_hash"]
         # Must be a text-safe string (the column is text), NOT a bound method
         # nor a coroutine nor raw bytes.
         assert isinstance(fingerprint, str), (
@@ -1394,7 +1699,9 @@ class TestSourceDocumentProvenanceWritePath:
         monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
     @staticmethod
-    def _ingest(flow: object, fake_file: object) -> "_FakeTarget":
+    def _ingest(
+        flow: object, fake_file: object, monkeypatch: pytest.MonkeyPatch
+    ) -> list[dict]:
         from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
 
         ci = _FakeTarget("content_items")
@@ -1402,12 +1709,15 @@ class TestSourceDocumentProvenanceWritePath:
         sd = _FakeTarget("source_documents")
         em = _FakeTarget("entity_mentions")
 
+        pool = _wire_pool(flow, monkeypatch)
+
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=uuid.uuid4()):
                 await flow.ingest_file(fake_file, ci, qa, sd, em, None, None)  # type: ignore[attr-defined]
 
         asyncio.run(_exercise())
-        return sd
+        # S438: the sd row lands via the raw-pool UPSERT, not sd_target.
+        return _sd_upserts_from_pool(pool)
 
     def test_html_source_raises_loud_retired_error(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -1471,10 +1781,10 @@ class TestSourceDocumentProvenanceWritePath:
 
         src = tmp_path / "report.pdf"
         src.write_bytes(b"%PDF-1.4 stub")
-        sd = self._ingest(flow, _FakeFile(src))
+        sd_rows = self._ingest(flow, _FakeFile(src), monkeypatch)
 
-        assert len(sd.rows) == 1
-        assert sd.rows[0]["extraction_method"] == "docling"
+        assert len(sd_rows) == 1
+        assert sd_rows[0]["extraction_method"] == "docling"
 
     def test_passthrough_source_carries_null_provenance(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -1490,10 +1800,10 @@ class TestSourceDocumentProvenanceWritePath:
 
         src = tmp_path / "notes.md"
         src.write_text("# Markdown body")
-        sd = self._ingest(flow, _FakeFile(src))
+        sd_rows = self._ingest(flow, _FakeFile(src), monkeypatch)
 
-        assert len(sd.rows) == 1
-        assert sd.rows[0]["extraction_method"] is None
+        assert len(sd_rows) == 1
+        assert sd_rows[0]["extraction_method"] is None
 
 
 # ── 28.21/28.22 — no fictional dataflow API survives ──────────────────────────
@@ -2645,10 +2955,15 @@ def _stub_canonical_extractors(
 
 
 def _run_ingest(
-    flow: object, fake_file: object
-) -> tuple["_FakeTarget", "_FakeTarget"]:
+    flow: object, fake_file: object, monkeypatch: pytest.MonkeyPatch
+) -> tuple["_FakeTarget", list[dict]]:
     """Drive one real ``ingest_file`` (no manifest bound → Path A only) and
-    return the (content_items, source_documents) fake targets.
+    return the (content_items fake target, source_documents raw-pool rows).
+
+    S438 (id-131 follow-on): the localfs content-branch sd PARENT now lands
+    via the SAME raw-pool autocommit UPSERT the URL route uses (S437) — NOT
+    the engine ``sd_target`` — so callers read the sd row from the pool
+    capture (``_sd_upserts_from_pool``), not a ``_FakeTarget.rows`` list.
     """
     from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
 
@@ -2657,12 +2972,14 @@ def _run_ingest(
     sd = _FakeTarget("source_documents")
     em = _FakeTarget("entity_mentions")
 
+    pool = _wire_pool(flow, monkeypatch)
+
     async def _exercise() -> None:
         async with bind_flow_meta(op_id=uuid.uuid4()):
             await flow.ingest_file(fake_file, ci, qa, sd, em, None, None)  # type: ignore[attr-defined]
 
     asyncio.run(_exercise())
-    return ci, sd
+    return ci, _sd_upserts_from_pool(pool)
 
 
 class TestReingestUpsertPreservesAssociations:
@@ -2694,7 +3011,7 @@ class TestReingestUpsertPreservesAssociations:
         _stub_canonical_extractors(
             flow, monkeypatch, markdown="# Policy v1\n\nOriginal body text."
         )
-        ci_first, _ = _run_ingest(flow, _FakeFile(src))
+        ci_first, _ = _run_ingest(flow, _FakeFile(src), monkeypatch)
 
         assert len(ci_first.rows) == 1, "expected one content_items row on ingest"
         content_item_id = ci_first.rows[0]["id"]
@@ -2713,7 +3030,7 @@ class TestReingestUpsertPreservesAssociations:
             monkeypatch,
             markdown="# Policy v2\n\nRevised body text — substantially changed.",
         )
-        ci_second, _ = _run_ingest(flow, _FakeFile(src))
+        ci_second, _ = _run_ingest(flow, _FakeFile(src), monkeypatch)
 
         # (a) Identity is unchanged — uuid5 is a pure function of rel_path.
         assert len(ci_second.rows) == 1
@@ -2758,9 +3075,9 @@ class TestReingestUpsertPreservesAssociations:
         b.write_text("# B\n\nbody b")
 
         _stub_canonical_extractors(flow, monkeypatch, markdown="# A\n\nbody a")
-        ci_a, _ = _run_ingest(flow, _FakeFile(a))
+        ci_a, _ = _run_ingest(flow, _FakeFile(a), monkeypatch)
         _stub_canonical_extractors(flow, monkeypatch, markdown="# B\n\nbody b")
-        ci_b, _ = _run_ingest(flow, _FakeFile(b))
+        ci_b, _ = _run_ingest(flow, _FakeFile(b), monkeypatch)
 
         assert ci_a.rows[0]["id"] != ci_b.rows[0]["id"], (
             "distinct documents must get distinct content_item_ids"
@@ -2783,7 +3100,7 @@ class TestCanonicalRecordHasNoIntrinsicWorkspace:
         src.write_text("# Doc\n\nbody")
         _stub_canonical_extractors(flow, monkeypatch, markdown="# Doc\n\nbody")
 
-        ci, sd = _run_ingest(flow, _FakeFile(src))
+        ci, sd = _run_ingest(flow, _FakeFile(src), monkeypatch)
 
         # BI-1: no workspace key on the declared content_items row…
         ci_row = ci.rows[0]
@@ -2798,7 +3115,8 @@ class TestCanonicalRecordHasNoIntrinsicWorkspace:
         # fields a downstream consumer needs are all present un-associated.
         assert ci_row["content"] == "# Doc\n\nbody"
         assert len(ci_row["embedding"]) == 1024
-        assert ci_row["source_document_id"] == sd.rows[0]["id"]
+        # S438: `sd` is the raw-pool UPSERT capture (a list of row dicts).
+        assert ci_row["source_document_id"] == sd[0]["id"]
 
     def test_source_documents_row_never_carries_workspace(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -2808,11 +3126,12 @@ class TestCanonicalRecordHasNoIntrinsicWorkspace:
         src.write_text("# Doc\n\nbody")
         _stub_canonical_extractors(flow, monkeypatch, markdown="# Doc\n\nbody")
 
-        _, sd = _run_ingest(flow, _FakeFile(src))
+        _, sd = _run_ingest(flow, _FakeFile(src), monkeypatch)
 
         # BI-2: the source_documents provenance row carries no workspace — the
         # canonical-path equivalent of `source_documents.workspace_id IS NULL`.
-        sd_row = sd.rows[0]
+        # S438: `sd` is the raw-pool UPSERT capture (a list of row dicts).
+        sd_row = sd[0]
         assert "workspace_id" not in sd_row, (
             "source_documents must NEVER carry a workspace (BI-2) — workspace "
             "association is written ONLY to content_item_workspaces"
@@ -2829,7 +3148,7 @@ class TestCanonicalRecordHasNoIntrinsicWorkspace:
         src.write_text("# Doc\n\nbody")
         _stub_canonical_extractors(flow, monkeypatch, markdown="# Doc\n\nbody")
 
-        ci, _ = _run_ingest(flow, _FakeFile(src))
+        ci, _ = _run_ingest(flow, _FakeFile(src), monkeypatch)
         ci_row = ci.rows[0]
 
         # The classifier output landed on its own columns…
@@ -2976,6 +3295,7 @@ class TestStampExtractionBaseWiredIntoIngest:
         sd = _FakeTarget("source_documents")
         em = _FakeTarget("entity_mentions")
 
+        pool = _wire_pool(flow, monkeypatch)
         run_op_id = uuid.uuid4()
 
         async def _exercise() -> None:
@@ -3029,7 +3349,8 @@ class TestStampExtractionBaseWiredIntoIngest:
 
         # BEHAVIOUR-PRESERVING: the stamped object op_id EQUALS the flow op_id
         # already written to every row (the row writes are unchanged).
-        assert sd.rows[0]["op_id"] == run_op_id
+        # S438: the sd row lands via the raw-pool UPSERT, not sd_target.
+        assert _sd_upserts_from_pool(pool)[0]["op_id"] == run_op_id
         assert ci.rows[0]["op_id"] == run_op_id
         assert ci.rows[0]["id"] == expected_content_item_id
         assert {row["op_id"] for row in qa.rows} == {run_op_id}
@@ -3088,6 +3409,8 @@ class TestStampExtractionBaseWiredIntoIngest:
         sd = _FakeTarget("source_documents")
         em = _FakeTarget("entity_mentions")
 
+        pool = _wire_pool(flow, monkeypatch)
+
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=uuid.uuid4()):
                 await flow.ingest_file(_FakeFile(src), ci, qa, sd, em, None, None)
@@ -3098,8 +3421,12 @@ class TestStampExtractionBaseWiredIntoIngest:
             "stamp_extraction_base must NOT be called for plain-dict extractor "
             "outputs — only genuine extraction-core instances are stamped"
         )
-        # Rows still landed normally.
-        assert len(sd.rows) == 1 and len(ci.rows) == 1 and len(qa.rows) == 1
+        # Rows still landed normally. S438: sd lands via the raw-pool UPSERT.
+        assert (
+            len(_sd_upserts_from_pool(pool)) == 1
+            and len(ci.rows) == 1
+            and len(qa.rows) == 1
+        )
 
 
 # ── {66.22}/{66.23} (S297) — workspace rel_path + manifest-skip fixes ─────────
@@ -3216,6 +3543,8 @@ class TestWorkspacePathFixes:
         ft = _FakeTarget("form_templates")
         ftf = _FakeTarget("form_template_fields")
 
+        pool = _wire_pool(flow, monkeypatch)
+
         async def _exercise() -> None:
             await flow.ingest_file(
                 fake_file,
@@ -3233,14 +3562,17 @@ class TestWorkspacePathFixes:
 
         asyncio.run(_exercise())
 
+        # S438: the sd row lands via the raw-pool UPSERT, not sd_target.
+        sd_rows = _sd_upserts_from_pool(pool)
+
         # BUG-A: storage_path is the SOURCE-RELATIVE POSIX string, NOT the
         # absolute prod path. (Also the seed of the deterministic uuid5 PKs.)
-        assert sd.rows[0]["storage_path"] == "test/doc.md", (
+        assert sd_rows[0]["storage_path"] == "test/doc.md", (
             "storage_path must be source-relative (the manifest prefix matches "
             "the relative form, not the absolute prod path)"
         )
         # Content lands independently of workspace resolution (ID-69 BI-1).
-        assert len(ci.rows) == 1 and len(sd.rows) == 1
+        assert len(ci.rows) == 1 and len(sd_rows) == 1
         # resolve_workspace SUCCEEDED — no workspace_resolution stage error.
         assert [e for e in stage_errors if e.get("stage") == "workspace_resolution"] == [], (
             "resolve_workspace must succeed against the source-relative rel_path "

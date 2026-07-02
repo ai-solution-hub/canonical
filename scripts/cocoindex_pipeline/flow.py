@@ -2091,6 +2091,11 @@ async def _ingest_content_branch(
     `er_target` (ID-101 §{101.7}) is the `entity_relationships` UPSERT target. A
     DEFAULTED trailing positional (None for the legacy callers that omit it); when
     supplied, the relationship declare loop runs AFTER the entity_mentions loop.
+
+    S438 (id-131 follow-on, FK-ordering): the `source_documents` parent row is
+    written via the raw-pool `_upsert_source_document` (S437/id-131) BEFORE any
+    of ci/cc/em/er declare — see that function's docstring and the write-site
+    comment above the call for the staging walk f1fd0add evidence.
     """
     # ── Stage 2: binary → markdown (per-MIME adapter, P-3) ──────────────────
     content_text = await convert_binary_to_markdown(file)
@@ -2155,27 +2160,40 @@ async def _ingest_content_branch(
     # and encode to hex so it lands in the `text` content_fingerprint column.
     content_fingerprint = (await file.content_fingerprint()).hex()
 
-    sd_target.declare_row(
-        row={
-            "id": source_document_id,
-            "storage_path": rel_path,
-            # ID-64.10/64.11 (S296): prod column is `content_hash` (rename); the
-            # value is the same awaited file content-hash hex computed above.
-            "content_hash": content_fingerprint,
-            # ID-64.11 (S296): the NOT-NULL file-metadata cols, derived from the
-            # File (Q1.9 Option α slim-and-keep). original_filename is relaxed to
-            # NULLABLE by the companion migration (α retires it), so it is omitted.
-            "filename": file.file_path.path.name,
-            "mime_type": _resolve_source_mime(file.file_path.path),
-            "file_size": await file.size(),
-            "op_id": op_id,
-            # Extraction provenance (ID-42.9 §WP-E) — nullable; only the Docling
-            # path populates it (passthrough leaves it None).
-            "extraction_method": provenance.extraction_method,
-            # ID-75 BI-4: a localfs file has NO source URL — explicit None so
-            # the localfs/URL provenance split is visible at the write site.
-            "source_url": None,
-        }
+    # S438 (id-131 follow-on): written via the SAME raw-pool autocommit UPSERT
+    # the URL route uses (`_upsert_source_document`, S437/id-131) — NOT
+    # `sd_target.declare_row` — so the sd PARENT is committed in-component
+    # BEFORE the engine flushes the ci/cc/em/er children declared below, all
+    # of which now FK onto `source_documents` (migration
+    # `20260628200000_id131_extract_reparent.sql`, M2/BI-14). Staging walk
+    # f1fd0add: an `entity_mentions`/`entity_relationships` INSERT raced the sd
+    # parent and hit `ForeignKeyViolationError` — the engine's per-target
+    # autocommit flush order across `sd_target` vs `em_target`/`er_target` is
+    # not guaranteed (cocoindex-write-model.md §2 R1), the same INSERT-ordering
+    # class the URL fix closed for `reference_items`. See
+    # `_upsert_source_document` for the full FK-ordering rationale. `sd_target`
+    # is retained on this function's signature (mount_each positional
+    # contract, threaded from `_ingest_file_body`) but the localfs
+    # content-branch sd row no longer flushes through it.
+    await _upsert_source_document(
+        source_document_id=source_document_id,
+        storage_path=rel_path,
+        # ID-75 BI-4: a localfs file has NO source URL — explicit None so
+        # the localfs/URL provenance split is visible at the write site.
+        source_url=None,
+        # ID-64.10/64.11 (S296): prod column is `content_hash` (rename); the
+        # value is the same awaited file content-hash hex computed above.
+        content_hash=content_fingerprint,
+        # ID-64.11 (S296): the NOT-NULL file-metadata cols, derived from the
+        # File (Q1.9 Option α slim-and-keep). original_filename is relaxed to
+        # NULLABLE by the companion migration (α retires it), so it is omitted.
+        filename=file.file_path.path.name,
+        mime_type=_resolve_source_mime(file.file_path.path),
+        file_size=await file.size(),
+        op_id=op_id,
+        # Extraction provenance (ID-42.9 §WP-E) — nullable; only the Docling
+        # path populates it (passthrough leaves it None).
+        extraction_method=provenance.extraction_method,
     )
     _bump("postgres_upsert")  # Inv-17: source_documents row upsert
 
@@ -2755,7 +2773,7 @@ async def _upsert_source_document(
     *,
     source_document_id: "uuid.UUID",
     storage_path: str,
-    source_url: str,
+    source_url: str | None,
     filename: str,
     mime_type: str,
     file_size: int,
@@ -2763,10 +2781,11 @@ async def _upsert_source_document(
     op_id: "uuid.UUID",
     extraction_method: str | None,
 ) -> None:
-    """Raw-pool autocommit UPSERT of the URL path's source_documents parent.
+    """Raw-pool autocommit UPSERT of the source_documents parent row.
 
-    S437 (id-131) FK-ordering fix. `reference_items.source_document_id`
-    REFERENCES `source_documents(id)` **ON DELETE RESTRICT** (migration
+    S437 (id-131) FK-ordering fix, originally for the URL path only.
+    `reference_items.source_document_id` REFERENCES `source_documents(id)`
+    **ON DELETE RESTRICT** (migration
     `20260606121451_id75_reference_items_layer.sql`) — a CROSS-TARGET FK the
     cocoindex write-model (`cocoindex-write-model.md` §2 R1) says the engine's
     uncoordinated per-target autocommit flush CANNOT order. Two live hazards
@@ -2780,11 +2799,25 @@ async def _upsert_source_document(
         `update or delete on source_documents violates
         reference_items_source_document_id_fkey`.
 
-    The fix (no schema change per S437) takes the URL sd row OFF the
+    S438 (id-131 follow-on): staging walk f1fd0add hit the SAME INSERT-ordering
+    class on the LOCALFS content route — `entity_mentions` / `entity_relationships`
+    (both re-parented onto `source_documents` by migration
+    `20260628200000_id131_extract_reparent.sql`, M2/BI-14) raced the sd parent
+    and raised `ForeignKeyViolationError` on their
+    `*_source_document_id_fkey` constraints (CASCADE / SET NULL — not RESTRICT,
+    but the engine's per-target flush order is still uncoordinated, so the
+    INSERT-ordering hazard applies regardless of the child's ON DELETE action).
+    `_ingest_content_branch` (flow.py) now calls this SAME function — no
+    forked variant — with `source_url=None` (ID-75 BI-4: a localfs file has no
+    source URL).
+
+    The fix (no schema change per S437) takes the sd row OFF the
     engine-managed `sd_target` and writes it here on the SAME env-scope DB_CTX
     pool `_backlink_feed_articles` uses, but SYNCHRONOUSLY in-component
-    (autocommit) BEFORE the `ri_target.declare_row` that follows. Two intended
-    consequences:
+    (autocommit) BEFORE the engine-declared children that follow (the URL
+    route's `ri_target.declare_row`; the localfs route's `ci_target` /
+    `cc_target` / `em_target` / `er_target` declares). Two intended
+    consequences (as originally reasoned for the URL path — S437):
 
       1. the sd parent is COMMITTED before the engine flushes the ri child, so
          the INSERT race cannot recur — parent-before-child by construction;
@@ -2803,12 +2836,14 @@ async def _upsert_source_document(
          is empty (or that the cascade is acceptable) before a live
          full_reprocess of the URL ledger.
 
-    Identity remains the deterministic `sd:{url}` uuid5 (write-model §2 R1: the
-    FK never established the relationship — the uuid5 derivation does), so
+    Identity remains the deterministic per-item uuid5 (`sd:{url}` for the URL
+    route, `sd:{rel_path}` for localfs — write-model §2 R1: the FK never
+    established the relationship — the uuid5 derivation does), so
     `ON CONFLICT (id)` mirrors declare_row's PK-only idempotent UPSERT. The raw
-    write raises IN-COMPONENT on any fault, so `bound_ingest_url`'s {80.9}
-    per-item containment tallies it and the batch survives (converge-by-walk-2,
-    {75.16}/{75.17}) rather than a whole-TaskGroup abort. Columns + on-conflict
+    write raises IN-COMPONENT on any fault, so the per-item containment at
+    each route's mount boundary (`bound_ingest_url` {80.9}; `bound_ingest_file`)
+    tallies it and the batch survives (converge-by-walk-2, {75.16}/{75.17} for
+    the URL route) rather than a whole-TaskGroup abort. Columns + on-conflict
     set mirror the prior `sd_target.declare_row` payload exactly (all scalar —
     no jsonb/vector, so no connection codec is needed; write-model §2 R2).
     """

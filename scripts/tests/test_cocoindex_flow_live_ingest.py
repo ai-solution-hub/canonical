@@ -107,6 +107,77 @@ class _FakeTarget:
         pass
 
 
+class _SdPool:
+    """Raw-pool double resolved via ``coco.use_context(DB_CTX)`` for BOTH:
+
+      - the {75.11} URL-source ledger snapshot (``fetch`` — this file stays a
+        pure localfs-branch harness, so it always returns an empty ledger);
+      - the S438 (id-131 follow-on) content-branch ``source_documents`` PARENT
+        raw-pool ``_upsert_source_document`` autocommit UPSERT (``acquire`` —
+        S437's fix extended to localfs), capturing every ``execute`` call.
+
+    Both resolve on the SAME worker thread as ``declare_row`` — list.append
+    stays atomic under the GIL for this single-writer harness, same reasoning
+    as ``_FakeTarget`` above.
+    """
+
+    def __init__(self) -> None:
+        self.executed: list[tuple[str, tuple]] = []
+
+    async def fetch(self, sql: str) -> list[dict]:
+        return []
+
+    def acquire(self) -> object:
+        pool = self
+
+        class _Conn:
+            async def execute(self, sql: str, *args: object) -> str:
+                pool.executed.append((sql, args))
+                return "INSERT 0 1"
+
+        class _Acquire:
+            async def __aenter__(self) -> "_Conn":
+                return _Conn()
+
+            async def __aexit__(self, *exc: object) -> None:
+                return None
+
+        return _Acquire()
+
+
+class _SdTarget:
+    """Duck-types ``_FakeTarget`` (``.table_name`` / ``.rows``) for the
+    ``source_documents`` slot, but reads ``.rows`` from the S438 raw-pool
+    capture — the content branch no longer flushes the sd row through the
+    engine target's ``declare_row``. This file drives ONLY the content route
+    (no forms / qa_sidecar tests), so ``declare_row`` is a tripwire: if a
+    future test routes a file through ``_ingest_qa_sidecar_branch`` (the one
+    surviving ``sd_target.declare_row`` caller) it must fail loudly here
+    rather than silently landing on the wrong capture.
+    """
+
+    table_name = "source_documents"
+
+    def __init__(self, pool: _SdPool) -> None:
+        self._pool = pool
+
+    def declare_row(self, *, row: dict) -> None:
+        raise AssertionError(
+            "source_documents must land via the S438 raw-pool UPSERT, not "
+            "sd_target.declare_row, on the localfs content branch"
+        )
+
+    @property
+    def rows(self) -> list[dict]:
+        rows: list[dict] = []
+        for sql, args in self._pool.executed:
+            if "INSERT INTO public.source_documents" not in sql:
+                continue
+            cols = [c.strip() for c in sql.split("(", 1)[1].split(")", 1)[0].split(",")]
+            rows.append(dict(zip(cols, args)))
+        return rows
+
+
 class _FakeFile:
     """localfs.File stand-in with a RELATIVE ``file_path.path`` (the production
     shape: localfs paths are relative to ``COCOINDEX_SOURCE_PATH`` so the
@@ -391,11 +462,15 @@ def _run_app_main_over_dir(
     # and iterates its snapshot on a second mount_each — return an EMPTY
     # passed-URL ledger so this file stays a pure localfs-branch harness (the
     # URL branch has its own suite in test_cocoindex_flow_failure_mode.py).
-    class _EmptyLedgerPool:
-        async def fetch(self, sql):
-            return []
-
-    monkeypatch.setattr(flow.coco, "use_context", lambda key: _EmptyLedgerPool())
+    #
+    # S438 (id-131 follow-on): the SAME pool now also backs the content
+    # branch's raw-pool `_upsert_source_document` sd write — swap
+    # `targets["source_documents"]` for the `_SdTarget` duck-type so every
+    # existing `targets["source_documents"].rows` read in this file resolves
+    # against the pool capture instead of an unused `declare_row` list.
+    sd_pool = _SdPool()
+    targets["source_documents"] = _SdTarget(sd_pool)
+    monkeypatch.setattr(flow.coco, "use_context", lambda key: sd_pool)
 
     # ── Silence the flow-start / flow-end webhook emission.
     async def _fake_webhook(**kwargs):

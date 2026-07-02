@@ -1645,9 +1645,30 @@ class TestPerItemFailureIsolation:
         # and iterates it on the second mount_each — give the URL source an
         # empty ledger (zero passed URLs) so this test stays a pure
         # localfs-branch scenario.
+        #
+        # S438 (id-131 follow-on): the localfs content branch now ALSO resolves
+        # this SAME pool via `coco.use_context(DB_CTX)` for the raw-pool
+        # `_upsert_source_document` sd write (S437's fix extended to localfs) —
+        # give it an `acquire()` seam (mirrors the URL route's
+        # `_FakeLedgerPool.acquire()`, added at S437/id-131) so the good
+        # content file's sd write does not crash on a missing attribute.
         class _EmptyLedgerPool:
             async def fetch(self, sql):
                 return []
+
+            def acquire(self):
+                class _Conn:
+                    async def execute(self, sql: str, *args: object) -> str:
+                        return "INSERT 0 1"
+
+                class _Acquire:
+                    async def __aenter__(self) -> "_Conn":
+                        return _Conn()
+
+                    async def __aexit__(self, *exc: object) -> None:
+                        return None
+
+                return _Acquire()
 
         monkeypatch.setattr(
             flow.coco, "use_context", lambda key: _EmptyLedgerPool()
