@@ -180,10 +180,12 @@ class TestIngestFileAcceptsEmTarget:
         # content_chunks chunk-row UPSERT target) is appended as a DEFAULTED 8th
         # positional. ID-101 §{101.7} extended it to nine: er_target (the
         # entity_relationships UPSERT target) is appended as a DEFAULTED 9th
-        # positional so the prior 7-/8-arg callers stay valid (RULING 1).
-        assert len(params) == 9, (
+        # positional. ID-131 {131.11} extended it to ten: re_target (the
+        # record_embeddings polymorphic UPSERT target) is appended as a DEFAULTED
+        # 10th positional so the prior 7-/8-/9-arg callers stay valid (RULING 1).
+        assert len(params) == 10, (
             "ingest_file positional params must be exactly "
-            "(file, ci, qa, sd, em, ft, ftf, cc, er); "
+            "(file, ci, qa, sd, em, ft, ftf, cc, er, re); "
             f"got {params}"
         )
 
@@ -210,9 +212,15 @@ class TestIngestFileAcceptsEmTarget:
             f"the fourth extra arg of ingest_file must be named 'em_target'; "
             f"got params={params}"
         )
-        assert params[5:] == ["ft_target", "ftf_target", "cc_target", "er_target"], (
-            f"the fifth..eighth extra args must be ft_target, ftf_target, "
-            f"cc_target, er_target (positional order); got params={params}"
+        assert params[5:] == [
+            "ft_target",
+            "ftf_target",
+            "cc_target",
+            "er_target",
+            "re_target",
+        ], (
+            f"the fifth..ninth extra args must be ft_target, ftf_target, "
+            f"cc_target, er_target, re_target (positional order); got params={params}"
         )
 
 

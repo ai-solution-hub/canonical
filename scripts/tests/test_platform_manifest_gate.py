@@ -250,6 +250,8 @@ def _target_set() -> dict[str, _FakeTarget]:
             "form_template_fields",
             "content_chunks",
             "reference_items",
+            # ID-131 {131.11}: the polymorphic embedding store app_main now mounts.
+            "record_embeddings",
         )
     }
 

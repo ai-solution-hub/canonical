@@ -243,11 +243,17 @@ def _ingest_with_cc(
     fake_file: object,
     *,
     cc_target: object,
+    re_target: object = None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> uuid.UUID:
     """Drive one ingest_file with the chunk target as the 8th positional arg.
 
     Returns the bound run op_id so callers can assert it is stamped on rows.
+
+    ID-131 {131.11}: `re_target` (the polymorphic `record_embeddings` write
+    target) is the 10th positional (after cc_target, er_target); defaulting it
+    to None keeps the existing chunk-shape callers untouched while the
+    record-embeddings dual-write tests pass a `_FakeTarget`.
     """
     from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
 
@@ -261,7 +267,7 @@ def _ingest_with_cc(
     async def _exercise() -> None:
         async with bind_flow_meta(op_id=run_op_id):
             await flow.ingest_file(
-                fake_file, ci, qa, sd, em, None, None, cc_target
+                fake_file, ci, qa, sd, em, None, None, cc_target, None, re_target
             )
 
     asyncio.run(_exercise())
@@ -428,8 +434,14 @@ class TestChunkingStageWritePath:
                 inspect.Parameter.POSITIONAL_OR_KEYWORD,
             )
         ]
-        assert params[-2:] == ["cc_target", "er_target"], (
-            f"the 8th/9th positionals must be cc_target, er_target; got {params}"
+        # ID-131 {131.11}: `re_target` (the record_embeddings write target) is
+        # appended as a DEFAULTED 10th positional AFTER er_target (RULING 1
+        # trailing-positional idiom), so the last THREE positionals are now
+        # cc_target, er_target, re_target — all defaulting to None so the
+        # 7-/8-/9-arg legacy callers stay valid.
+        assert params[-3:] == ["cc_target", "er_target", "re_target"], (
+            f"the 8th/9th/10th positionals must be cc_target, er_target, "
+            f"re_target; got {params}"
         )
         assert sig.parameters["cc_target"].default is None, (
             "cc_target must default to None so 7-arg callers stay valid"
@@ -437,3 +449,69 @@ class TestChunkingStageWritePath:
         assert sig.parameters["er_target"].default is None, (
             "er_target must default to None so 7-/8-arg callers stay valid"
         )
+        assert sig.parameters["re_target"].default is None, (
+            "re_target must default to None so 7-/8-/9-arg callers stay valid"
+        )
+
+
+class TestChunkRecordEmbeddingsWrite:
+    """ID-131 {131.11}: each chunk's embedding is ALSO written to the
+    polymorphic `record_embeddings` store (owner_kind='content_chunk'), keyed
+    on the chunk's OWN deterministic PK so a re-ingest UPSERTs (S429 F3 fold-in).
+    """
+
+    def test_each_chunk_declares_a_record_embeddings_row(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        flow = _flow_module()
+        _stub_path_a(flow, monkeypatch)
+
+        src = tmp_path / "re-doc.md"
+        src.write_text(_SAMPLE_TEXT)
+        _REL_PATH = "test/re-doc.md"
+        fake_file = _FakeFile(src, logical_path=_REL_PATH)
+
+        cc = _FakeTarget("content_chunks")
+        re = _FakeTarget("record_embeddings")
+        _ingest_with_cc(
+            flow, fake_file, cc_target=cc, re_target=re, monkeypatch=monkeypatch
+        )
+
+        # One record_embeddings row per chunk row — the dual-write is 1:1.
+        assert len(re.rows) == len(cc.rows) > 0, (
+            "expected exactly one record_embeddings row per content_chunks row"
+        )
+
+        rel_path = _REL_PATH
+        for position, (cc_row, re_row) in enumerate(zip(cc.rows, re.rows)):
+            # owner_kind is the chunk grain's polymorphic tag.
+            assert re_row["owner_kind"] == "content_chunk"
+            # owner_id MUST be the chunk's OWN PK (the same uuid5 the inline
+            # content_chunks row carries) so re-ingest UPSERTs, not duplicates.
+            assert re_row["owner_id"] == cc_row["id"]
+            assert re_row["owner_id"] == uuid.uuid5(
+                flow._KH_PIPELINE_DOC_NS, f"chunk:{rel_path}:{position}"
+            )
+            # model is the shared embedding-model constant (not a literal).
+            assert re_row["model"] == flow.EMBEDDING_MODEL
+            # the embedding vector is the SAME length-1024 vector.
+            assert re_row["embedding"] == cc_row["embedding"]
+            assert len(re_row["embedding"]) == 1024
+            # the row carries ONLY the record_embeddings natural key + vector —
+            # no synthetic `id` (PG-defaulted) and no per-run op_id (which would
+            # mint duplicates on re-ingest — the _KH_PIPELINE_DOC_NS warning).
+            assert set(re_row) == {"owner_kind", "owner_id", "model", "embedding"}
+
+    def test_no_re_target_skips_record_embeddings_write(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """re_target defaults to None — the chunk row still lands but no
+        record_embeddings row is declared (guard `if re_target is not None`)."""
+        flow = _flow_module()
+        _stub_path_a(flow, monkeypatch)
+        src = tmp_path / "no-re.md"
+        src.write_text(_SAMPLE_TEXT)
+        cc = _FakeTarget("content_chunks")
+        # re_target omitted → defaults None.
+        _ingest_with_cc(flow, _FakeFile(src), cc_target=cc, monkeypatch=monkeypatch)
+        assert len(cc.rows) > 0, "chunk rows still land without a re_target"
