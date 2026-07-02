@@ -707,19 +707,24 @@ class TestMountEachArityContract:
             "ingest_file must NOT lead with rel_path — mount_each passes "
             "fn(File, *extra_args); the key is never forwarded to fn"
         )
-        # First positional is the File item value; remaining eight are the targets.
-        assert len(positional) == 9, (
+        # First positional is the File item value; remaining nine are the targets.
+        # ID-131 {131.11} appended a DEFAULTED 10th positional `re_target=None`
+        # (the polymorphic record_embeddings write target) AFTER er_target, per
+        # the RULING 1 trailing-positional idiom — so app_main supplies it as the
+        # last extra arg in mount_each while the 7-/8-/9-arg callers stay valid.
+        assert len(positional) == 10, (
             f"ingest_file positional params must be exactly "
-            f"(file, ci, qa, sd, em, ft, ftf, cc, er); got {positional}"
+            f"(file, ci, qa, sd, em, ft, ftf, cc, er, re); got {positional}"
         )
-        assert positional[-4:] == [
+        assert positional[-5:] == [
             "ft_target",
             "ftf_target",
             "cc_target",
             "er_target",
+            "re_target",
         ], (
-            "the last four positional extra args must be ft_target, ftf_target, "
-            f"cc_target, er_target (positional order); got {positional}"
+            "the last five positional extra args must be ft_target, ftf_target, "
+            f"cc_target, er_target, re_target (positional order); got {positional}"
         )
         # cc_target is DEFAULTED to None so 7-arg legacy callers stay valid.
         assert sig.parameters["cc_target"].default is None, (
@@ -729,6 +734,11 @@ class TestMountEachArityContract:
         # (ID-101 §{101.7} RULING 1 — defaulted trailing positional).
         assert sig.parameters["er_target"].default is None, (
             "er_target must default to None (the 7-/8-arg callers omit it)"
+        )
+        # re_target is DEFAULTED to None so 7-/8-/9-arg legacy callers stay valid
+        # (ID-131 {131.11} RULING 1 — defaulted trailing positional).
+        assert sig.parameters["re_target"].default is None, (
+            "re_target must default to None (the 7-/8-/9-arg callers omit it)"
         )
 
 

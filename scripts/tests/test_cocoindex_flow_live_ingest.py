@@ -454,6 +454,8 @@ class TestLiveIngestAcrossDaemonThreadBoundary:
             "content_chunks": _FakeTarget("content_chunks"),
             # {75.11}: the URL source's write target — mounted on every walk.
             "reference_items": _FakeTarget("reference_items"),
+            # ID-131 {131.11}: the polymorphic embedding store app_main now mounts.
+            "record_embeddings": _FakeTarget("record_embeddings"),
         }
 
         run_op_id, stage_counter = _run_app_main_over_dir(
@@ -551,6 +553,8 @@ class TestLiveIngestAcrossDaemonThreadBoundary:
             "content_chunks": _FakeTarget("content_chunks"),
             # {75.11}: the URL source's write target — mounted on every walk.
             "reference_items": _FakeTarget("reference_items"),
+            # ID-131 {131.11}: the polymorphic embedding store app_main now mounts.
+            "record_embeddings": _FakeTarget("record_embeddings"),
         }
 
         run_op_id, _stage_counter = _run_app_main_over_dir(

@@ -1426,6 +1426,79 @@ CONTENT_CHUNKS_SCHEMA = TableSchema(
 )
 
 
+# ── ID-131 {131.11} — polymorphic embedding store (S429 F3 fold-in) ──────────
+# `public.record_embeddings` (Migration M1b — LANDED) is the OKF L-records
+# embedding store: ONE row per (typed record, model) carrying its vector, so an
+# embedding lives beside its owner via a polymorphic (owner_kind, owner_id) pair
+# rather than an INLINE `vector` column on each typed table. This target is the
+# WRITE half of the refactor — the pipeline dual-writes each grain's embedding
+# here (in addition to the still-present inline column, which a sibling slice
+# DROPS later; do NOT drop it here). The SQL READ half is a sibling slice too.
+#
+# `primary_key=("owner_kind", "owner_id", "model")` IS the M1b
+# `UNIQUE(owner_kind, owner_id, model)` — cocoindex's `mount_table_target`
+# builds the row UPSERT as `ON CONFLICT (<primary_key>) DO UPDATE SET <non-pk
+# cols>` (verified against installed cocoindex 1.0.3
+# `connectors/postgres/_target.py::_schedule_upserts`), so the composite key
+# arbitrates the UNIQUE and a re-ingest UPSERTs the SAME natural-key row instead
+# of minting a duplicate. This is the natural idempotency key — NOT the synthetic
+# `id` (which carries a PG `gen_random_uuid()` default and is deliberately OMITTED
+# from the schema, exactly like the `content_text_hash GENERATED ALWAYS` /
+# `created_at` / `updated_at` omissions above). `owner_id` MUST be the typed
+# record's OWN deterministic uuid5 PK (the same id the inline row used), which is
+# what keeps the composite key stable across re-walks (see the
+# `_KH_PIPELINE_DOC_NS` idempotency note below — NEVER seed with a per-run op_id).
+# `embedding` reuses the shared `_encode_pgvector` wire-format encoder + the
+# `vector(1024)` width contract (`EMBEDDING_DIMENSIONS`, ID-49.2).
+RECORD_EMBEDDINGS_SCHEMA = TableSchema(
+    columns={
+        "owner_kind": ColumnDef(type="text", nullable=False),
+        "owner_id": ColumnDef(type="uuid", nullable=False),
+        "model": ColumnDef(type="text", nullable=False),
+        "embedding": ColumnDef(
+            type="vector(1024)",
+            nullable=False,
+            encoder=_encode_pgvector,
+        ),
+    },
+    primary_key=("owner_kind", "owner_id", "model"),
+)
+
+
+def _declare_record_embedding(
+    re_target: Any,
+    *,
+    owner_kind: str,
+    owner_id: "uuid.UUID",
+    embedding: list[float],
+) -> None:
+    """Declare ONE polymorphic `record_embeddings` row (ID-131 {131.11}).
+
+    The record-embeddings dual-write seam: the SAME vector the caller writes to
+    its inline `embedding` column is ALSO declared here, keyed on the owning
+    typed record via `(owner_kind, owner_id, model)`. `owner_id` MUST be the
+    typed record's OWN deterministic PK so a re-ingest UPSERTs the same row
+    (the M1b UNIQUE arbitrates via the composite primary_key). `model` is the
+    shared `EMBEDDING_MODEL` constant — never a literal — so the read side can
+    filter by model without a magic string.
+
+    Guarded on `re_target is not None`: the 7-/8-/9-arg legacy + unit-test
+    callers pass `re_target=None` (mirroring the `cc_target`/`er_target` guards)
+    and skip the dual-write entirely. `source_documents` is DELIBERATELY never a
+    caller here — SD is provenance-only and is never embedded (BI-29).
+    """
+    if re_target is None:
+        return
+    re_target.declare_row(
+        row={
+            "owner_kind": owner_kind,
+            "owner_id": owner_id,
+            "model": EMBEDDING_MODEL,
+            "embedding": embedding,
+        }
+    )
+
+
 # ── ID-52 Path B form-extraction substrate (TECH §2.5) ───────────────────────
 
 # Pipeline service-account user id (CLAUDE.md gotcha: NEVER a literal string in
@@ -1698,6 +1771,7 @@ async def ingest_file(
     ftf_target: Any,
     cc_target: Any = None,
     er_target: Any = None,
+    re_target: Any = None,
     *,
     flow_op_id: "uuid.UUID | None" = None,
     flow_stage_counter: Any = None,
@@ -1740,6 +1814,14 @@ async def ingest_file(
     branch AFTER the entity_mentions declares and declares one entity_relationships
     row per distinct canonicalised triple (Inv-4 / Inv-16 parity with the legacy TS
     writer at lib/ai/classify.ts:1785-1819).
+
+    `re_target` (ID-131 {131.11}) is the `record_embeddings` polymorphic write
+    target. It is a DEFAULTED 10th positional (defaults to None) appended AFTER
+    `er_target` (RULING 1 — trailing defaulted positional, before the keyword-only
+    `*`) so the existing 7-/8-/9-arg callers stay valid: when None, the
+    record-embeddings dual-write is skipped. When supplied, the content branch
+    declares one `record_embeddings` row per content_chunk (owner_kind
+    'content_chunk') alongside the inline `content_chunks.embedding` write.
 
     This is the reactive 1.0.3 write path proven in RESEARCH.md §R2/§R3 — the
     per-MIME conversion (Stage 2, P-3) and Path A extraction (Stage 3) run as
@@ -1868,6 +1950,7 @@ async def ingest_file(
             ftf_target,
             cc_target,
             er_target,
+            re_target,
             op_id=op_id,
             stage_counter=stage_counter,
             flow_workspace_manifest=flow_workspace_manifest,
@@ -1886,6 +1969,7 @@ async def _ingest_file_body(
     ftf_target: Any,
     cc_target: Any,
     er_target: Any = None,
+    re_target: Any = None,
     *,
     op_id: "uuid.UUID",
     stage_counter: Any,
@@ -2063,6 +2147,7 @@ async def _ingest_file_body(
         em_target,
         cc_target,
         er_target,
+        re_target,
         op_id=op_id,
         _bump=_bump,
     )
@@ -2077,6 +2162,7 @@ async def _ingest_content_branch(
     em_target: Any,
     cc_target: Any,
     er_target: Any = None,
+    re_target: Any = None,
     *,
     op_id: "uuid.UUID",
     _bump: Any,
@@ -2255,13 +2341,15 @@ async def _ingest_content_branch(
         )
         for position, chunk in enumerate(chunks):
             chunk_embedding = await embed_content_text(chunk.text)
+            # Deterministic per-(document,position) PK so a re-ingest UPSERTs the
+            # same rows (idempotency — mirrors ftf:/em: idiom). Hoisted to a local
+            # so the SAME id is the content_chunks PK AND the record_embeddings
+            # `owner_id` (ID-131 {131.11}) — the two writes MUST agree or the
+            # polymorphic embedding would orphan from its chunk on re-ingest.
+            chunk_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"chunk:{rel_path}:{position}")
             cc_target.declare_row(
                 row={
-                    # Deterministic per-(document,position) PK so a re-ingest
-                    # UPSERTs the same rows (idempotency — mirrors ftf:/em: idiom).
-                    "id": uuid.uuid5(
-                        _KH_PIPELINE_DOC_NS, f"chunk:{rel_path}:{position}"
-                    ),
+                    "id": chunk_id,
                     # ID-131 {131.8} M2 (BI-14): chunks parent the source_documents
                     # record directly (re-parented off content_items).
                     "source_document_id": source_document_id,
@@ -2277,6 +2365,17 @@ async def _ingest_content_branch(
                     # boundary. → NULL for the 3 nullable cols; heading_path →
                     # DB default '{}'. Kept nullable until {56.14}/{56.15}.
                 }
+            )
+            # ID-131 {131.11}: dual-write the chunk's vector to the polymorphic
+            # record_embeddings store keyed on the chunk's OWN PK. No-op when
+            # re_target is None (7-/8-/9-arg legacy callers). The inline
+            # content_chunks.embedding write above stays until a sibling slice
+            # drops the column — record_embeddings is the new source of truth.
+            _declare_record_embedding(
+                re_target,
+                owner_kind="content_chunk",
+                owner_id=chunk_id,
+                embedding=chunk_embedding,
             )
             # Inv-11 (ID-56.8): one content_chunks row declared for this item.
             # `_bump` is the local helper (no-op when no stage counter bound),
@@ -2756,6 +2855,7 @@ async def ingest_url(
     item: UrlItem,
     ri_target: Any,
     sd_target: Any,
+    re_target: Any = None,
     *,
     flow_op_id: "uuid.UUID | None" = None,
     flow_stage_counter: Any = None,
@@ -2826,6 +2926,7 @@ async def ingest_url(
             item,
             ri_target,
             sd_target,
+            re_target,
             op_id=op_id,
             stage_counter=stage_counter,
         )
@@ -2835,6 +2936,7 @@ async def _ingest_url_body(
     item: UrlItem,
     ri_target: Any,
     sd_target: Any,
+    re_target: Any = None,
     *,
     op_id: "uuid.UUID",
     stage_counter: Any,
@@ -3016,6 +3118,17 @@ async def _ingest_url_body(
         }
     )
     _bump("postgres_upsert")  # Inv-17: reference_items row upsert
+    # ID-131 {131.11}: dual-write the reference item's vector to the polymorphic
+    # record_embeddings store keyed on the reference item's OWN uuid5 PK
+    # (`ri:{url}`) so a re-land UPSERTs. No-op when re_target is None (the
+    # in-task unit callers). The inline reference_items.embedding write above
+    # stays until a sibling slice drops the column.
+    _declare_record_embedding(
+        re_target,
+        owner_kind="reference_item",
+        owner_id=reference_item_id,
+        embedding=embedding,
+    )
 
     # ── Step 7: D-7 backlink — all N ledger rows → the one reference ─────────
     # {75.17} FK-tolerant walk-1 write (S319 live discovery): this UPDATE runs
@@ -3521,6 +3634,18 @@ async def app_main() -> None:
             REFERENCE_ITEMS_SCHEMA,
             managed_by=ManagedBy.USER,
         )
+        # ID-131 {131.11} (S429 F3 fold-in). record_embeddings — the polymorphic
+        # embedding store both the content and URL branches dual-write into
+        # (owner_kind='content_chunk' / 'reference_item'). managed_by=USER: rows
+        # only, never DDL — the table + UNIQUE(owner_kind, owner_id, model)
+        # shipped in Migration M1b. The composite primary_key in
+        # RECORD_EMBEDDINGS_SCHEMA arbitrates that UNIQUE so re-ingest UPSERTs.
+        re_target = await mount_table_target(
+            DB_CTX,
+            "record_embeddings",
+            RECORD_EMBEDDINGS_SCHEMA,
+            managed_by=ManagedBy.USER,
+        )
 
         # ── Stage 1: source walk (live fs-watch, nested recursive) ─────────
         # recursive=True required — default is False (CLAUDE.md gotcha).
@@ -3622,6 +3747,7 @@ async def app_main() -> None:
             ftf_target,
             cc_target,
             er_target,
+            re_target,
         )
         # Wait until every per-item component has processed (cold run) so the
         # rollup webhook below reflects a settled state.
@@ -3680,13 +3806,15 @@ async def app_main() -> None:
         # — the named coroutine would otherwise auto-derive the subpath to
         # "bound_ingest_url" from its `__name__`. `ingest_url` declares ONLY
         # the sd+ri pair (no ci_target in its signature — BI-1 structural
-        # impossibility of a content_items write from a URL).
+        # impossibility of a content_items write from a URL), plus the
+        # record_embeddings dual-write for the reference item (ID-131 {131.11}).
         url_handle = await coco.mount_each(
             coco.component_subpath("ingest_url"),
             bound_ingest_url,
             url_source.items(),
             ri_target,
             sd_target,
+            re_target,
         )
         await url_handle.ready()
 

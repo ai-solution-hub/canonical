@@ -216,8 +216,15 @@ def _ingest(
     *,
     op_id: uuid.UUID | None = None,
     stage_counter: object | None = None,
+    re_target: object | None = None,
 ) -> tuple[_FakeTarget, _FakeTarget]:
-    """Drive ONE ``ingest_url`` invocation under bound flow meta."""
+    """Drive ONE ``ingest_url`` invocation under bound flow meta.
+
+    ID-131 {131.11}: ``re_target`` (the polymorphic ``record_embeddings`` write
+    target) is a DEFAULTED 4th positional after ``sd_target``; when None the
+    reference-item embedding dual-write is skipped (guard), so the existing
+    sd+ri callers stay untouched.
+    """
     from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
 
     ri = _FakeTarget("reference_items")
@@ -226,7 +233,7 @@ def _ingest(
     async def _exercise() -> None:
         async with bind_flow_meta(op_id=op_id or uuid.uuid4()):
             await flow.ingest_url(  # type: ignore[attr-defined]
-                item, ri, sd, flow_stage_counter=stage_counter
+                item, ri, sd, re_target, flow_stage_counter=stage_counter
             )
 
     asyncio.run(_exercise())
@@ -349,8 +356,60 @@ class TestUrlLandingDeclaresEvidencePair:
             "postgres_upsert": 2,
         }
 
+    def test_reference_item_embedding_is_dual_written_to_record_embeddings(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """ID-131 {131.11}: the reference_items embedding is ALSO declared on
+        the polymorphic `record_embeddings` store (owner_kind='reference_item'),
+        keyed on the reference item's OWN uuid5 PK so a re-land UPSERTs."""
+        from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
+
+        flow = _flow_module()
+        _wire(flow, monkeypatch)
+        item = _make_item()
+        run_op_id = uuid.uuid4()
+
+        ri = _FakeTarget("reference_items")
+        sd = _FakeTarget("source_documents")
+        re = _FakeTarget("record_embeddings")
+
+        async def _exercise() -> None:
+            async with bind_flow_meta(op_id=run_op_id):
+                await flow.ingest_url(item, ri, sd, re)
+
+        asyncio.run(_exercise())
+
+        # Exactly one reference_items row → exactly one record_embeddings row.
+        assert len(ri.rows) == 1
+        assert len(re.rows) == 1
+        ri_row = ri.rows[0]
+        re_row = re.rows[0]
+        assert re_row["owner_kind"] == "reference_item"
+        # owner_id is the reference item's OWN PK (the ri:{url} uuid5) — the
+        # same id the inline reference_items row carries (re-land idempotency).
+        assert re_row["owner_id"] == ri_row["id"]
+        assert re_row["model"] == flow.EMBEDDING_MODEL
+        assert re_row["embedding"] == ri_row["embedding"]
+        assert len(re_row["embedding"]) == 1024
+        # No synthetic id / no per-run op_id in the record_embeddings payload.
+        assert set(re_row) == {"owner_kind", "owner_id", "model", "embedding"}
+
+    def test_no_re_target_skips_reference_item_record_embeddings(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """re_target defaults to None — the ri row still lands, no re row."""
+        flow = _flow_module()
+        _wire(flow, monkeypatch)
+        # _ingest omits re_target (defaults None) → guard skips the re write.
+        ri, _sd = _ingest(flow, _make_item())
+        assert len(ri.rows) == 1
+
     def test_ingest_url_signature_has_no_content_targets(self) -> None:
-        """BI-1 structural impossibility: no ci/qa/em/cc target params."""
+        """BI-1 structural impossibility: no ci/qa/em/cc target params.
+
+        ID-131 {131.11}: `re_target` is a permitted (non-content) write target —
+        it is the polymorphic record_embeddings store, not a typed content grain.
+        """
         flow = _flow_module()
         for fn in (flow.ingest_url, flow._ingest_url_body):
             params = set(inspect.signature(fn).parameters)
@@ -358,7 +417,7 @@ class TestUrlLandingDeclaresEvidencePair:
             assert "qa_target" not in params
             assert "em_target" not in params
             assert "cc_target" not in params
-            assert {"ri_target", "sd_target"} <= params
+            assert {"ri_target", "sd_target", "re_target"} <= params
 
     def test_title_falls_back_to_classifier_suggested_title_when_empty(
         self, monkeypatch: pytest.MonkeyPatch

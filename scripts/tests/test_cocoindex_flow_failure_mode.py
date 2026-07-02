@@ -1595,6 +1595,8 @@ class TestPerItemFailureIsolation:
                 "form_template_fields",
                 "content_chunks",
                 "reference_items",
+                # ID-131 {131.11}: the polymorphic embedding store app_main mounts.
+                "record_embeddings",
             )
         }
 
@@ -1906,6 +1908,8 @@ class TestUrlPerItemFailureIsolation:
                 "form_template_fields",
                 "content_chunks",
                 "reference_items",
+                # ID-131 {131.11}: the polymorphic embedding store app_main mounts.
+                "record_embeddings",
             )
         }
         harness["targets"] = targets
