@@ -52,9 +52,18 @@ bert-score>=0.3.13
 # scripts/tests/test_file_branch_memo_fingerprint.py stays the executable guard). Bump must
 # precede the ID-45 full-corpus re-ingest so the run lands on 1.0.7.
 cocoindex[postgres]==1.0.7
-# Docling: MIT-licensed document converter + layout-heron model (1.8 GB weights).
+# Docling: MIT-licensed document converter + layout model (1.8 GB weights).
 # Pre-warmed into the image at build time so the model weights ship in-image.
-docling>=2.0.0,<3.0.0
+# Pinned to docling-slim with NO-OCR extras (S437): the full `docling` meta-package
+# pulls docling-slim[standard], which force-installs rapidocr → opencv-python (FULL,
+# X11-linked). In the buildpacks image (no X11/apt layer) the always-on layout model
+# (docling-ibm-models) imports cv2 → `libxcb.so.1: cannot open shared object file` on
+# EVERY PDF convert (not just OCR; do_ocr=False already set in adapters.py). The extras
+# below give PDF/DOCX/XLSX + chunking WITHOUT rapidocr; opencv-python-headless (X11-free)
+# supplies cv2 for the layout model. Pinned to stop unpinned-rebuild drift re-pulling
+# the full opencv variant.
+docling-slim[format-pdf-docling,models-local,format-docx,format-xlsx,feat-chunking]==2.108.0
+opencv-python-headless==4.13.0.92
 # faiss-cpu: similarity index backing Stage-5 entity-resolution canonicalisation
 # (TECH §P-12 / Inv-18). Exact-pinned to 1.14.2 for deterministic IndexFlatIP behaviour.
 faiss-cpu==1.14.2
