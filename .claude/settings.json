@@ -93,7 +93,8 @@
         "*.supabase.com",
         "*.supabase.co"
       ],
-      "allowLocalBinding": true
+      "allowLocalBinding": true,
+      "sandbox.enableWeakerNetworkIsolation": true
     },
     "filesystem": {
       "allowWrite": [
