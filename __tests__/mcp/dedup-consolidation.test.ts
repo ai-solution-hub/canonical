@@ -22,11 +22,20 @@ import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 // ---------------------------------------------------------------------------
 
 const mocks = vi.hoisted(() => {
-  const singleMock = vi.fn();
+  // ID-131.11 G-SEARCH (§9): findSimilarItemsImpl — shared by the scope=item
+  // dedup branch — now reads the source embedding from the polymorphic
+  // record_embeddings store —
+  // `.from('record_embeddings').select('embedding').eq('owner_id', id)
+  //   .eq('model', …).limit(1).maybeSingle()` — replacing the retired
+  // content_items.embedding inline column. The chain methods below back that
+  // read; tests override `maybeSingleMock` per case to swap in a source
+  // embedding row with or without an `embedding`.
+  const maybeSingleMock = vi.fn();
   const chainMethods = {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
-    single: singleMock,
+    limit: vi.fn().mockReturnThis(),
+    maybeSingle: maybeSingleMock,
   };
   const rpcMock = vi.fn().mockResolvedValue({ data: [], error: null });
   const generateEmbeddingMock = vi.fn().mockResolvedValue([0.1, 0.2, 0.3]);
@@ -41,7 +50,7 @@ const mocks = vi.hoisted(() => {
     mockSupabaseClient,
     chainMethods,
     rpcMock,
-    singleMock,
+    maybeSingleMock,
     generateEmbeddingMock,
     createMcpClient: vi.fn().mockReturnValue(mockSupabaseClient),
     checkMcpRole: vi.fn().mockResolvedValue('admin'),
@@ -74,13 +83,12 @@ interface ToolResult {
 // v4-compliant UUID (Zod's `.uuid()` enforces RFC 4122 — see CLAUDE.md gotcha).
 const SOURCE_ID = '11111111-2222-4333-8444-555555555555';
 
-function makeSourceItem(
+// The source read now returns a record_embeddings row (SELECT embedding …),
+// not a content_items row — so the fixture carries only the embedding column.
+function makeSourceEmbeddingRow(
   overrides: Record<string, unknown> = {},
 ): Record<string, unknown> {
   return {
-    id: SOURCE_ID,
-    title: 'Source Item',
-    suggested_title: 'Source Item (suggested)',
     embedding: [0.1, 0.2, 0.3],
     ...overrides,
   };
@@ -126,7 +134,10 @@ describe('find_duplicates registration (ID-71.10 dedup consolidation)', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    mocks.singleMock.mockResolvedValue({ data: makeSourceItem(), error: null });
+    mocks.maybeSingleMock.mockResolvedValue({
+      data: makeSourceEmbeddingRow(),
+      error: null,
+    });
     mocks.rpcMock.mockResolvedValue({ data: [], error: null });
     mockServer = createMockMcpServer();
     const { registerSearchTools } = await import('@/lib/mcp/tools/search');
@@ -178,7 +189,10 @@ describe('find_duplicates handler — scope: item (single-item dedup)', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    mocks.singleMock.mockResolvedValue({ data: makeSourceItem(), error: null });
+    mocks.maybeSingleMock.mockResolvedValue({
+      data: makeSourceEmbeddingRow(),
+      error: null,
+    });
     mocks.rpcMock.mockResolvedValue({ data: [], error: null });
     mockServer = createMockMcpServer();
     const { registerSearchTools } = await import('@/lib/mcp/tools/search');
@@ -218,8 +232,10 @@ describe('find_duplicates handler — scope: item (single-item dedup)', () => {
 
   it('returns isError with guidance text when source item has no embedding', async () => {
     const handler = mockServer.getHandler('find_duplicates')!;
-    mocks.singleMock.mockResolvedValueOnce({
-      data: makeSourceItem({ embedding: null }),
+    // record_embeddings miss path: the source id has no embedding row
+    // (embedding column null) — findSimilarItemsImpl surfaces the guidance.
+    mocks.maybeSingleMock.mockResolvedValueOnce({
+      data: makeSourceEmbeddingRow({ embedding: null }),
       error: null,
     });
 
@@ -245,6 +261,10 @@ describe('find_duplicates handler — scope: item (single-item dedup)', () => {
     )) as ToolResult;
 
     expect(result.isError).toBeUndefined();
+    // Source embedding is read from the polymorphic record_embeddings store.
+    expect(mocks.mockSupabaseClient.from).toHaveBeenCalledWith(
+      'record_embeddings',
+    );
     const sc = result.structuredContent as Record<string, unknown>;
     const items = sc.similar_items as Array<Record<string, unknown>>;
     expect(items).toHaveLength(1);
