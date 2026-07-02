@@ -312,8 +312,11 @@ jobs:
           (extraction is in-process Trafilatura, ID-112)
         run: |
           set -euo pipefail
-          # The cocoindex image is built by buildpacks from EXACTLY requirements.txt
-          # (the pip surface) + scripts/ (the Python source) — there is no Dockerfile.
+          # The cocoindex image is built by buildpacks from requirements.lock (copied
+          # into the build context AS requirements.txt — {127.22}) + scripts/ (the
+          # Python source) — there is no Dockerfile. This grep intentionally checks the
+          # human-edited direct-dependency SOURCE (requirements.txt): uv pip compile can
+          # only add playwright/chromium to the lock if reachable from a declared dep.
           # HTML extraction is fully in-process (Trafilatura, ID-112); a Playwright /
           # Chromium browser binary must NEVER be baked into this image, and it can only
           # enter via a pip dependency or a pipeline-source import. We assert on those
