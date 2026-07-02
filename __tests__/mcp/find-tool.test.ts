@@ -21,13 +21,17 @@ import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 // ---------------------------------------------------------------------------
 
 const mocks = vi.hoisted(() => {
-  // `.from('content_items').select(...).eq(...).single()` backs the
-  // similar-to source-item lookup (mirrors find-similar-items.test.ts).
-  const singleMock = vi.fn();
+  // ID-131.11 G-SEARCH (§9): the similar-to source-embedding read is now
+  // `.from('record_embeddings').select('embedding').eq('owner_id', id)
+  //   .eq('model', …).limit(1).maybeSingle()` (mirrors
+  // find-similar-items.test.ts) — the retired content_items.embedding column
+  // is gone.
+  const maybeSingleMock = vi.fn();
   const chainMethods = {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
-    single: singleMock,
+    limit: vi.fn().mockReturnThis(),
+    maybeSingle: maybeSingleMock,
   };
 
   const rpcMock = vi.fn().mockResolvedValue({ data: [], error: null });
@@ -43,7 +47,7 @@ const mocks = vi.hoisted(() => {
     mockSupabaseClient,
     chainMethods,
     rpcMock,
-    singleMock,
+    maybeSingleMock,
     generateEmbeddingMock,
     createMcpClient: vi.fn().mockReturnValue(mockSupabaseClient),
     checkMcpRole: vi.fn().mockResolvedValue('editor'),
@@ -76,13 +80,11 @@ interface ToolResult {
 // v4-compliant UUID (Zod `.uuid()` enforces RFC 4122 — CLAUDE.md gotcha).
 const SOURCE_ID = '11111111-2222-4333-8444-555555555555';
 
-function makeSourceItem(
+// Source read now returns a record_embeddings row (SELECT embedding …).
+function makeSourceEmbeddingRow(
   overrides: Record<string, unknown> = {},
 ): Record<string, unknown> {
   return {
-    id: SOURCE_ID,
-    title: 'Source Item',
-    suggested_title: 'Source Item (suggested)',
     embedding: [0.1, 0.2, 0.3],
     ...overrides,
   };
@@ -145,7 +147,10 @@ describe('find tool — consolidation (B-INV-27)', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    mocks.singleMock.mockResolvedValue({ data: makeSourceItem(), error: null });
+    mocks.maybeSingleMock.mockResolvedValue({
+      data: makeSourceEmbeddingRow(),
+      error: null,
+    });
     mocks.rpcMock.mockResolvedValue({ data: [], error: null });
     mockServer = await buildServer();
   });
@@ -348,7 +353,10 @@ describe('find tool — granularity=chunk (section-level retrieval)', () => {
     );
 
     const rpcParams = mocks.rpcMock.mock.calls[0][1] as Record<string, unknown>;
-    expect(rpcParams.filter_content_item_id).toBe(SOURCE_ID);
+    // ID-131.11 G-SEARCH: RPC param renamed content_item_id →
+    // source_document_id (chunks re-parented in M2). The tool-facing arg stays
+    // `content_item_id`; the value semantics are unchanged.
+    expect(rpcParams.filter_source_document_id).toBe(SOURCE_ID);
     expect(rpcParams.filter_overdue_review).toBe(true);
     expect(rpcParams.filter_review_due_within_days).toBe(30);
   });
@@ -364,7 +372,10 @@ describe('find tool — similar_to (vector discovery)', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    mocks.singleMock.mockResolvedValue({ data: makeSourceItem(), error: null });
+    mocks.maybeSingleMock.mockResolvedValue({
+      data: makeSourceEmbeddingRow(),
+      error: null,
+    });
     mocks.rpcMock.mockResolvedValue({ data: [], error: null });
     mockServer = await buildServer();
   });
@@ -391,6 +402,10 @@ describe('find tool — similar_to (vector discovery)', () => {
     )) as ToolResult;
 
     expect(result.isError).toBeUndefined();
+    // Source embedding is read from the polymorphic record_embeddings store.
+    expect(mocks.mockSupabaseClient.from).toHaveBeenCalledWith(
+      'record_embeddings',
+    );
     const sc = result.structuredContent as Record<string, unknown>;
     const similar = sc.similar_items as Array<Record<string, unknown>>;
     expect(similar).toHaveLength(2);
@@ -400,8 +415,8 @@ describe('find tool — similar_to (vector discovery)', () => {
 
   it('returns isError with guidance when the source item has no embedding', async () => {
     const handler = mockServer.getHandler('find')!;
-    mocks.singleMock.mockResolvedValueOnce({
-      data: makeSourceItem({ embedding: null }),
+    mocks.maybeSingleMock.mockResolvedValueOnce({
+      data: makeSourceEmbeddingRow({ embedding: null }),
       error: null,
     });
 

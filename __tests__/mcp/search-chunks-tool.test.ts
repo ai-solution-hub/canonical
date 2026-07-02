@@ -179,7 +179,7 @@ describe('find (granularity=chunk) handler', () => {
     );
   });
 
-  it('passes content_item_id through to the RPC filter_content_item_id param', async () => {
+  it('passes content_item_id through to the renamed RPC filter_source_document_id param', async () => {
     const handler = getChunkHandler();
     mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
 
@@ -189,15 +189,18 @@ describe('find (granularity=chunk) handler', () => {
       extra,
     );
 
+    // ID-131.11 G-SEARCH: RPC param renamed content_item_id →
+    // source_document_id (chunks re-parented in M2). The tool-facing arg
+    // stays `content_item_id`; the value is passed through unchanged.
     expect(mocks.rpcMock).toHaveBeenCalledWith(
       'search_content_chunks',
       expect.objectContaining({
-        filter_content_item_id: contentItemId,
+        filter_source_document_id: contentItemId,
       }),
     );
   });
 
-  it('reaches the RPC with filter_content_item_id undefined (NOT null) when omitted', async () => {
+  it('reaches the RPC with filter_source_document_id undefined (NOT null) when omitted', async () => {
     const handler = getChunkHandler();
     mocks.rpcMock.mockResolvedValueOnce({ data: [], error: null });
 
@@ -206,9 +209,9 @@ describe('find (granularity=chunk) handler', () => {
     const callArgs = mocks.rpcMock.mock.calls[0];
     expect(callArgs[0]).toBe('search_content_chunks');
     const rpcParams = callArgs[1] as Record<string, unknown>;
-    expect(rpcParams).toHaveProperty('filter_content_item_id');
-    expect(rpcParams.filter_content_item_id).toBeUndefined();
-    expect(rpcParams.filter_content_item_id).not.toBeNull();
+    expect(rpcParams).toHaveProperty('filter_source_document_id');
+    expect(rpcParams.filter_source_document_id).toBeUndefined();
+    expect(rpcParams.filter_source_document_id).not.toBeNull();
   });
 
   it('clamps limit to 30 when a larger value is provided', async () => {
@@ -377,7 +380,7 @@ describe('find (granularity=chunk) handler', () => {
       expect(mocks.rpcMock).toHaveBeenCalledWith(
         'search_content_chunks',
         expect.objectContaining({
-          filter_content_item_id: contentItemId,
+          filter_source_document_id: contentItemId,
           filter_overdue_review: true,
           filter_review_due_within_days: 14,
         }),
