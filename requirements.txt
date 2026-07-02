@@ -64,6 +64,19 @@ cocoindex[postgres]==1.0.7
 # the full opencv variant.
 docling-slim[format-pdf-docling,models-local,format-docx,format-xlsx,feat-chunking]==2.108.0
 opencv-python-headless==4.13.0.92
+# docling 2.108 eager-backend + TableFormer deps the no-OCR extra set omits (S437):
+# document_converter.py EAGERLY imports ALL format backends at module load
+# (pptx → latex → markdown → html), and the PDF TableFormer model needs scipy — so a
+# PDF/DOCX/XLSX convert ImportErrors without these even though the extras above don't
+# pull them. Verified in-container (both synthetic PDFs convert, layout+TableFormer on
+# headless cv2, no libxcb). None depend on opencv → headless guarantee preserved.
+# (beautifulsoup4 = docling's HTML backend; also declared above for content extraction —
+# the ==4.15.0 pin is a strict subset of the >=4.12.0 floor, so they intersect cleanly.)
+python-pptx==1.0.2
+pylatexenc==2.10
+marko==2.2.3
+beautifulsoup4==4.15.0
+scipy==1.18.0
 # faiss-cpu: similarity index backing Stage-5 entity-resolution canonicalisation
 # (TECH §P-12 / Inv-18). Exact-pinned to 1.14.2 for deterministic IndexFlatIP behaviour.
 faiss-cpu==1.14.2
