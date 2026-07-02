@@ -39,7 +39,7 @@ pypandoc_binary>=1.13
 python-dotenv>=1.1.0
 
 # Supabase client (bid worker)
-supabase>=2.0.0
+supabase>=2.31.0
 
 # Evaluation metrics
 bert-score>=0.3.13
