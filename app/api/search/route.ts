@@ -8,6 +8,7 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import { logger, updateRequestContext, withRequestContext } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { tryQuery } from '@/lib/supabase/safe';
 import { parseBody } from '@/lib/validation';
 import { SearchBodySchema } from '@/lib/validation/schemas';
 import { NextRequest, NextResponse } from 'next/server';
@@ -40,7 +41,7 @@ export const POST = withRequestContext(
       const raw = await request.json();
       const parsed = parseBody(SearchBodySchema, raw);
       if (!parsed.success) return parsed.response;
-      const { query, threshold, limit } = parsed.data;
+      const { query, threshold, limit, workspace_id } = parsed.data;
 
       // 1. Generate embedding via shared helper (singleton OpenAI client)
       let embedding: number[];
@@ -57,6 +58,33 @@ export const POST = withRequestContext(
         );
       }
 
+      // 1b. Derive the ranking profile (application_type) from the workspace
+      // when supplied — join workspaces → application_types.key (§9 AC4).
+      // Best-effort: any failure / unresolved workspace falls through to the
+      // hybrid_search RPC default ('procurement'), so a degraded lookup never
+      // fails the search.
+      let applicationType: string | undefined;
+      if (workspace_id) {
+        const wsResult = await tryQuery(
+          supabase
+            .from('workspaces')
+            .select('application_types!inner(key)')
+            .eq('id', workspace_id)
+            .maybeSingle(),
+          'search.workspace_application_type',
+        );
+        if (wsResult.ok && wsResult.data) {
+          const appTypes = wsResult.data.application_types as
+            | { key: string }
+            | { key: string }[]
+            | null;
+          const resolved = Array.isArray(appTypes)
+            ? (appTypes[0] ?? null)
+            : appTypes;
+          applicationType = resolved?.key ?? undefined;
+        }
+      }
+
       // 2. Hybrid search: combines embedding similarity + keyword matching
 
       const { data: results, error: rpcError } = await supabase.rpc(
@@ -66,6 +94,8 @@ export const POST = withRequestContext(
           query_text: query.trim(),
           similarity_threshold: threshold,
           limit_count: limit,
+          // Omitted (undefined) opts into the RPC default profile.
+          application_type: applicationType,
         },
       );
 

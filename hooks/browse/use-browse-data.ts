@@ -175,20 +175,11 @@ function applyPostFilters(
 
 type SupabaseClient = ReturnType<typeof createClient>;
 
-async function resolveKeywordIds(
-  supabase: SupabaseClient,
-  filters: BrowseFilters,
-): Promise<string[] | null> {
-  if (!filters.keywords?.length) return null;
-  const { data, error } = await supabase.rpc('filter_by_keywords', {
-    search_terms: filters.keywords,
-  });
-  if (error) {
-    console.error('Keyword filter RPC failed:', error);
-    return null;
-  }
-  return (data as string[]) ?? [];
-}
+// ID-131.11 G-SEARCH (§9 §7.5 / AC6): the browse-mode keyword pre-filter
+// resolver (`resolveKeywordIds`) is removed — the `filter_by_keywords` RPC it
+// called is DROPPED by the M5 migration (redundant with the hybrid_search
+// keyword leg). A keyword pre-filter becomes a backlog facet-param on
+// hybrid_search; no surviving caller of the dropped RPC remains.
 
 async function resolveWorkspaceIds(
   supabase: SupabaseClient,
@@ -270,7 +261,6 @@ function buildBrowseQuery(
   filters: BrowseFilters,
   cursorValue: string | null,
   isInitial: boolean,
-  keywordMatchIds: string[] | null,
   projectMatchIds: string[] | null,
   qualityIssueIds: string[] | null,
   entityMatchIds: string[] | null,
@@ -317,7 +307,6 @@ function buildBrowseQuery(
 
   // Apply ID-based filters (keywords, project membership, quality issues)
   const idSets: string[][] = [];
-  if (keywordMatchIds) idSets.push(keywordMatchIds);
   if (projectMatchIds) idSets.push(projectMatchIds);
   if (qualityIssueIds) idSets.push(qualityIssueIds);
   if (entityMatchIds) idSets.push(entityMatchIds);
@@ -485,7 +474,6 @@ export function useBrowseData(): UseBrowseDataReturn {
   const resolverCacheRef = useRef<{
     key: string;
     result: {
-      keywordIds: string[] | null;
       workspaceIds: string[] | null;
       qualityIds: string[] | null;
       entityIds: string[] | null;
@@ -494,7 +482,6 @@ export function useBrowseData(): UseBrowseDataReturn {
   } | null>(null);
 
   const resolverCacheKey = JSON.stringify({
-    keywords: filters.keywords,
     workspace: filters.workspace,
     quality_issues: filters.quality_issues,
     entity: filters.entity,
@@ -506,7 +493,7 @@ export function useBrowseData(): UseBrowseDataReturn {
   // Browse mode: useInfiniteQuery for filter-mode with cursor/offset pagination
   // -------------------------------------------------------------------------
 
-  // `filtersKey` already encodes every filter value (keywords, workspace,
+  // `filtersKey` already encodes every filter value (workspace,
   // quality_issues, entity, entity_type, owner) that `resolverCacheKey`
   // hashes; the resolver cache ref is an intra-query optimisation that
   // avoids duplicate resolver calls across paged fetches, not a cache-key
@@ -527,7 +514,6 @@ export function useBrowseData(): UseBrowseDataReturn {
 
       // Use cached resolver results if filter values haven't changed
       type ResolverResult = {
-        keywordIds: string[] | null;
         workspaceIds: string[] | null;
         qualityIds: string[] | null;
         entityIds: string[] | null;
@@ -537,16 +523,14 @@ export function useBrowseData(): UseBrowseDataReturn {
       if (resolverCacheRef.current?.key === resolverCacheKey) {
         resolved = resolverCacheRef.current.result;
       } else {
-        const [keywordIds, workspaceIds, qualityIds, entityIds, resolvedOwner] =
+        const [workspaceIds, qualityIds, entityIds, resolvedOwner] =
           await Promise.all([
-            resolveKeywordIds(supabase, filters),
             resolveWorkspaceIds(supabase, filters),
             resolveQualityIssueIds(supabase, filters),
             resolveEntityIds(supabase, filters),
             resolveOwnerFilter(supabase, filters),
           ]);
         resolved = {
-          keywordIds,
           workspaceIds,
           qualityIds,
           entityIds,
@@ -555,12 +539,10 @@ export function useBrowseData(): UseBrowseDataReturn {
         resolverCacheRef.current = { key: resolverCacheKey, result: resolved };
       }
 
-      const { keywordIds, workspaceIds, qualityIds, entityIds, resolvedOwner } =
-        resolved;
+      const { workspaceIds, qualityIds, entityIds, resolvedOwner } = resolved;
 
       // Short-circuit if any required filter resolved to empty
       if (
-        (keywordIds !== null && keywordIds.length === 0) ||
         (workspaceIds !== null && workspaceIds.length === 0) ||
         (qualityIds !== null && qualityIds.length === 0) ||
         (entityIds !== null && entityIds.length === 0)
@@ -577,7 +559,6 @@ export function useBrowseData(): UseBrowseDataReturn {
         filters,
         cursorValue,
         isInitial,
-        keywordIds,
         workspaceIds,
         qualityIds,
         entityIds,

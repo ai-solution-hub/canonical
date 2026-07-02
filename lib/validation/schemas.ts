@@ -132,6 +132,11 @@ export const SearchBodySchema = z.object({
     .int()
     .default(20)
     .transform((v) => Math.max(1, Math.min(100, v))),
+  // ID-131.11 G-SEARCH (§9 AC4): optional workspace scope. When supplied, the
+  // route derives the `hybrid_search` `application_type` ranking profile from
+  // the workspace's `application_types.key`; omitted falls through to the RPC
+  // default ('procurement').
+  workspace_id: z.string().uuid().optional(),
 });
 
 /**

@@ -68,21 +68,77 @@ export const GET = defineRoute(
       // Escape ilike wildcards
       const escaped = escapeIlike(q);
 
-      // Query content_items with ilike on title + content.
-      // `layer` is selected for potential Phase 3 use but stripped from the response.
-      // `sb()` throws on any Postgres error, so `items` is always the array on success.
-      const items = await sb(
-        supabase
-          .from('content_items')
-          .select('id, title, content_type, primary_domain, layer')
-          .or(`title.ilike.%${escaped}%,content.ilike.%${escaped}%`)
-          .limit(limit),
-        'content_items.preview',
-      );
+      // ID-131.11 G-SEARCH (AC12 / §9): typeahead preview over the typed
+      // L-records substrate (content_items retired). ilike across
+      // source_documents (filename/summary), q_a_pairs
+      // (question_text/answer_standard), and reference_items (title/summary),
+      // then merged. `sb()` throws on any Postgres error, so each result set is
+      // the array on success.
+      const [sourceDocs, qaPairs, refItems] = await Promise.all([
+        sb(
+          supabase
+            .from('source_documents')
+            .select('id, filename, suggested_title, primary_domain')
+            .or(`filename.ilike.%${escaped}%,summary.ilike.%${escaped}%`)
+            .limit(limit),
+          'source_documents.preview',
+        ),
+        sb(
+          supabase
+            .from('q_a_pairs')
+            .select('id, question_text')
+            .or(
+              `question_text.ilike.%${escaped}%,answer_standard.ilike.%${escaped}%`,
+            )
+            .limit(limit),
+          'q_a_pairs.preview',
+        ),
+        sb(
+          supabase
+            .from('reference_items')
+            .select('id, title, primary_domain')
+            .or(`title.ilike.%${escaped}%,summary.ilike.%${escaped}%`)
+            .limit(limit),
+          'reference_items.preview',
+        ),
+      ]);
 
-      // Sort: title matches first, then content-only matches
+      // Merge into the unified 4-field preview shape. `content_type` carries
+      // the owner_kind so consumers can distinguish record classes. q_a_pairs
+      // carry no primary_domain column (it lives on the record_lifecycle
+      // facet), so it is null here — the preview is a lightweight typeahead,
+      // not a governance surface.
+      type PreviewRow = {
+        id: string;
+        title: string | null;
+        content_type: string;
+        primary_domain: string | null;
+      };
+      const merged: PreviewRow[] = [
+        ...sourceDocs.map((d) => ({
+          id: d.id,
+          title: d.suggested_title ?? d.filename,
+          content_type: 'source_document',
+          primary_domain: d.primary_domain,
+        })),
+        ...qaPairs.map((qa) => ({
+          id: qa.id,
+          title: qa.question_text,
+          content_type: 'q_a_pair',
+          primary_domain: null,
+        })),
+        ...refItems.map((ri) => ({
+          id: ri.id,
+          title: ri.title,
+          content_type: 'reference_item',
+          primary_domain: ri.primary_domain,
+        })),
+      ];
+
+      // Sort: title matches first, then content-only matches (preserved from
+      // the pre-refactor content_items preview).
       const lowerQ = q.toLowerCase();
-      const sorted = [...items].sort((a, b) => {
+      const sorted = merged.sort((a, b) => {
         const aTitle = (a.title ?? '').toLowerCase().includes(lowerQ);
         const bTitle = (b.title ?? '').toLowerCase().includes(lowerQ);
         if (aTitle && !bTitle) return -1;
@@ -90,17 +146,13 @@ export const GET = defineRoute(
         return 0;
       });
 
-      // Map to response shape — exclude `layer` per spec §4.1
-      const mapped = sorted.map((item) => ({
-        id: item.id,
-        title: item.title,
-        content_type: item.content_type,
-        primary_domain: item.primary_domain,
-      }));
+      // Clamp the merged set to the requested limit (each per-table query is
+      // already limit-capped; the merge can exceed it).
+      const clamped = sorted.slice(0, limit);
 
       return NextResponse.json({
-        results: mapped,
-        count: mapped.length,
+        results: clamped,
+        count: clamped.length,
       });
     } catch (err) {
       return NextResponse.json(

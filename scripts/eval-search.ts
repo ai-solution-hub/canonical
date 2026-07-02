@@ -152,6 +152,9 @@ async function executeSearch(
     query_text: query,
     limit_count: 20,
     similarity_threshold: 0.35,
+    // ID-131.11 G-SEARCH (§9 AC4): the eval corpus is procurement — opt into
+    // that ranking profile explicitly (omitting would default to it anyway).
+    application_type: 'procurement',
   });
 
   if (error) {

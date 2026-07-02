@@ -113,6 +113,32 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
       const generateEmbedding = await getGenerateEmbedding();
       const embedding = await generateEmbedding(args.query.trim());
 
+      // ID-131.11 G-SEARCH (§9 AC4): derive the ranking profile from the
+      // caller's workspace when supplied — join workspaces →
+      // application_types.key. Best-effort: unresolved / failed lookup falls
+      // through to the hybrid_search RPC default ('procurement').
+      let applicationType: string | undefined;
+      if (args.workspace_id) {
+        const appTypeResult = await tryQuery(
+          supabase
+            .from('workspaces')
+            .select('application_types!inner(key)')
+            .eq('id', args.workspace_id)
+            .maybeSingle(),
+          'mcp.find.workspace_application_type',
+        );
+        if (appTypeResult.ok && appTypeResult.data) {
+          const appTypes = appTypeResult.data.application_types as
+            | { key: string }
+            | { key: string }[]
+            | null;
+          const resolved = Array.isArray(appTypes)
+            ? (appTypes[0] ?? null)
+            : appTypes;
+          applicationType = resolved?.key ?? undefined;
+        }
+      }
+
       const { data: results, error } = await supabase.rpc('hybrid_search', {
         query_embedding: JSON.stringify(embedding),
         query_text: args.query.trim(),
@@ -121,6 +147,9 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
         // §5.2 Phase 3 — pass-through. Omitted = 'default' (published-only)
         // by RPC default. `?? undefined` keeps payload clean.
         visibility_filter: args.visibility_filter ?? undefined,
+        // ID-131.11 §9 AC4 — ranking profile. Omitted (undefined) opts into
+        // the RPC default profile.
+        application_type: applicationType,
       });
 
       if (error) {
@@ -156,6 +185,10 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
       }
 
       // Post-filter by workspace if specified (AND logic with scope/type)
+      // TODO(131.18): content_item_workspaces is dropped by G-MANUAL-REMOVE
+      // (ID-131.18); workspace membership re-homes onto the typed L-records
+      // substrate then. Left intact here (cross-slice — NOT rebuilt in this
+      // subtask); the lookup degrades gracefully if the table is already gone.
       if (args.workspace_id) {
         const junctionResult = await tryQuery(
           supabase
@@ -275,31 +308,37 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
       const threshold = Math.max(0.5, Math.min(1.0, args.threshold ?? 0.8));
       const resultLimit = Math.min(args.limit ?? 10, 25);
 
-      // Fetch source item's embedding and title
-      const { data: sourceItem, error: sourceError } = await supabase
-        .from('content_items')
-        .select('id, title, suggested_title, embedding')
-        .eq('id', args.id)
-        .single();
+      // ID-131.11 G-SEARCH (§9): the source id is now polymorphic (q_a_pair /
+      // content_chunk / reference_item), so the source embedding is read from
+      // the shared record_embeddings store by owner_id — the retired
+      // content_items.embedding inline column no longer exists. SELECT embedding
+      // … LIMIT 1 (owner_id is unique across the typed tables).
+      const { data: sourceEmbeddingRow, error: sourceError } = await supabase
+        .from('record_embeddings')
+        .select('embedding')
+        .eq('owner_id', args.id)
+        .eq('model', 'text-embedding-3-large')
+        .limit(1)
+        .maybeSingle();
 
-      if (sourceError || !sourceItem) {
+      if (sourceError) {
         return {
           content: [
             {
               type: 'text' as const,
-              text: `Content item not found: ${args.id}`,
+              text: `Similarity lookup failed for ${args.id}: ${sourceError.message}.`,
             },
           ],
           isError: true,
         };
       }
 
-      if (!sourceItem.embedding) {
+      if (!sourceEmbeddingRow?.embedding) {
         return {
           content: [
             {
               type: 'text' as const,
-              text: `No embedding found for item ${args.id}. The item may not have been embedded yet.`,
+              text: `No embedding found for item ${args.id}. The item may not have been embedded yet, or its id does not refer to an embeddable record.`,
             },
           ],
           isError: true,
@@ -321,13 +360,16 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
         'hybrid_search',
         {
           query_embedding:
-            typeof sourceItem.embedding === 'string'
-              ? sourceItem.embedding
-              : JSON.stringify(sourceItem.embedding),
+            typeof sourceEmbeddingRow.embedding === 'string'
+              ? sourceEmbeddingRow.embedding
+              : JSON.stringify(sourceEmbeddingRow.embedding),
           query_text: '',
           similarity_threshold: threshold,
           limit_count: resultLimit + 1, // +1 to exclude self
           visibility_filter: visibilityForRpc,
+          // ID-131.11 §9 AC4 — application_type is omitted on the similar-items
+          // branch (no workspace scope on this contract), so the RPC default
+          // ranking profile applies.
         },
       );
 
@@ -357,8 +399,12 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
           likely_duplicate: r.similarity > 0.95,
         }));
 
-      const sourceTitle =
-        sourceItem.suggested_title || sourceItem.title || 'Untitled';
+      // ID-131.11 G-SEARCH: the polymorphic record_embeddings read carries no
+      // title, and resolving it would require a kind-specific lookup against
+      // the typed tables — out of scope here (these surfaces are reworked in
+      // ID-131.17/131.21). Degrade the source label to a stable placeholder;
+      // the similar items themselves still carry titles from the RPC.
+      const sourceTitle = 'Untitled';
       const result: SimilarItemsResult = {
         source_item: { id: args.id, title: sourceTitle },
         similar_items: similar,
@@ -583,12 +629,15 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
           query_embedding: JSON.stringify(embedding),
           similarity_threshold: 0.3,
           limit_count: searchLimit,
-          filter_content_item_id: args.content_item_id ?? undefined,
+          // ID-131.11 G-SEARCH: RPC param renamed content_item_id →
+          // source_document_id (chunks re-parented to source_document_id in M2;
+          // see migration 20260702120000_id131_search_rpcs.sql). The MCP-facing
+          // tool arg stays `content_item_id`.
+          filter_source_document_id: args.content_item_id ?? undefined,
           // §5.5 Phase 4 — pass-through to the RPC params. `?? undefined`
           // keeps the JSON-RPC payload free of `null` values (matches the
-          // existing `filter_content_item_id` convention and the
-          // search-chunks-tool.test.ts assertion that null-omits send
-          // `undefined`, not `null`).
+          // existing `filter_source_document_id` convention that null-omits
+          // send `undefined`, not `null`).
           filter_overdue_review: args.overdue_review ?? undefined,
           filter_review_due_within_days:
             args.review_due_within_days ?? undefined,
