@@ -131,28 +131,37 @@ describe('GET /api/search/preview', () => {
   // Results
   // -----------------------------------------------------------------------
 
-  it('returns title + content matches with correct shape', async () => {
-    const mockResults = [
+  it('merges typed-record matches into the 4-field shape with owner_kind content_type', async () => {
+    // ID-131.11 G-SEARCH (§9): the preview runs THREE ilike queries — over
+    // source_documents, q_a_pairs, and reference_items — and merges them into
+    // a unified { id, title, content_type, primary_domain } shape where
+    // content_type carries the owner_kind. `sb()` awaits each chain in array
+    // order, so the shared `_chain.then` resolves in that Promise.all order.
+    const sourceDocRows = [
       {
-        id: 'item-1',
-        title: 'Risk Assessment Guide',
-        content_type: 'article',
+        id: 'sd-1',
+        filename: 'risk-report.pdf',
+        suggested_title: 'Risk Assessment Guide',
         primary_domain: 'governance',
-        layer: 'operational',
-      },
-      {
-        id: 'item-2',
-        title: 'Safety Policy',
-        content_type: 'policy',
-        primary_domain: null,
-        layer: 'strategic',
       },
     ];
+    const qaPairRows = [
+      { id: 'qa-1', question_text: 'What is the risk escalation policy?' },
+    ];
+    const refItemRows = [
+      { id: 'ri-1', title: 'Safety Policy', primary_domain: null },
+    ];
 
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: mockResults, error: null, count: 2 }),
-    );
+    mockSupabase._chain.then
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({ data: sourceDocRows, error: null, count: 1 }),
+      )
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({ data: qaPairRows, error: null, count: 1 }),
+      )
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({ data: refItemRows, error: null, count: 1 }),
+      );
 
     const req = createTestRequest('/api/search/preview', {
       searchParams: { q: 'risk' },
@@ -162,10 +171,10 @@ describe('GET /api/search/preview', () => {
     expect(res.status).toBe(200);
 
     const json = await res.json();
-    expect(json.results).toHaveLength(2);
-    expect(json.count).toBe(2);
+    expect(json.results).toHaveLength(3);
+    expect(json.count).toBe(3);
 
-    // Verify response shape — layer must NOT be included
+    // Merged 4-field shape — `layer` is retired with content_items.
     for (const result of json.results) {
       expect(result).toHaveProperty('id');
       expect(result).toHaveProperty('title');
@@ -173,30 +182,45 @@ describe('GET /api/search/preview', () => {
       expect(result).toHaveProperty('primary_domain');
       expect(result).not.toHaveProperty('layer');
     }
+
+    const byId = Object.fromEntries(
+      (json.results as Array<Record<string, unknown>>).map((r) => [r.id, r]),
+    );
+    // content_type carries the owner_kind of each typed-record class.
+    expect(byId['sd-1'].content_type).toBe('source_document');
+    expect(byId['qa-1'].content_type).toBe('q_a_pair');
+    expect(byId['ri-1'].content_type).toBe('reference_item');
+    // Title resolves per class: suggested_title ?? filename / question_text / title.
+    expect(byId['sd-1'].title).toBe('Risk Assessment Guide');
+    expect(byId['qa-1'].title).toBe('What is the risk escalation policy?');
+    expect(byId['ri-1'].title).toBe('Safety Policy');
+    // q_a_pairs carry no primary_domain column — null in the merged preview shape.
+    expect(byId['qa-1'].primary_domain).toBeNull();
   });
 
   it('sorts title matches before content-only matches', async () => {
-    const mockResults = [
-      {
-        id: 'content-only',
-        title: 'General Policy',
-        content_type: 'policy',
-        primary_domain: null,
-        layer: 'operational',
-      },
+    // Two reference_items — one whose title contains the query, one that does
+    // not. source_documents + q_a_pairs resolve empty so the sort is the only
+    // variable under test.
+    const refItemRows = [
+      { id: 'content-only', title: 'General Policy', primary_domain: null },
       {
         id: 'title-match',
         title: 'Risk Assessment Guide',
-        content_type: 'article',
         primary_domain: 'governance',
-        layer: 'operational',
       },
     ];
 
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: mockResults, error: null, count: 2 }),
-    );
+    mockSupabase._chain.then
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 0 }),
+      )
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 0 }),
+      )
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({ data: refItemRows, error: null, count: 2 }),
+      );
 
     const req = createTestRequest('/api/search/preview', {
       searchParams: { q: 'risk' },

@@ -260,14 +260,13 @@ describe('useBrowseData', () => {
   // Filter application — empty results from resolvers
   // -----------------------------------------------------------------------
 
-  it('returns empty items when keyword filter resolves to zero matches', async () => {
+  it('does not invoke the dropped filter_by_keywords RPC when keyword filters are set (§9 AC6 — keyword pre-filter removed)', async () => {
+    // ID-131.11 G-SEARCH (§9 §7.5 / AC6): the browse-mode keyword pre-filter
+    // resolver was removed and the `filter_by_keywords` RPC dropped by the M5
+    // migration. Browse no longer short-circuits on a keyword ID resolution —
+    // setting `keywords` must not gate the result set, and the dropped RPC
+    // must have no surviving caller.
     mockFilters.keywords = ['nonexistent'];
-    mockRpc.mockImplementation(async (name: string) => {
-      if (name === 'filter_by_keywords') return { data: [], error: null };
-      if (name === 'get_items_with_quality_flags')
-        return { data: [], error: null };
-      return { data: null, error: null };
-    });
 
     const { Wrapper } = createQueryWrapper();
     const { result } = renderHook(() => useBrowseData(), { wrapper: Wrapper });
@@ -276,9 +275,14 @@ describe('useBrowseData', () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    expect(result.current.items).toEqual([]);
-    expect(result.current.totalCount).toBe(0);
-    expect(result.current.hasMore).toBe(false);
+    // The dropped RPC is never called.
+    const rpcNames = mockRpc.mock.calls.map((c) => c[0]);
+    expect(rpcNames).not.toContain('filter_by_keywords');
+
+    // Browse still fetches items normally regardless of the keyword filter —
+    // no keyword pre-filter gates the result set.
+    expect(result.current.items).toHaveLength(2);
+    expect(result.current.totalCount).toBe(2);
   });
 
   // -----------------------------------------------------------------------

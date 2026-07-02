@@ -25,15 +25,19 @@ import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 // ---------------------------------------------------------------------------
 
 const mocks = vi.hoisted(() => {
-  // The find-similar-items handler does `.from('content_items').select(...).eq(...).single()`
-  // to fetch the source item before calling the RPC. The chain methods below
-  // back that lookup; tests override `singleMock` per case to swap in a
-  // source item with or without an embedding.
-  const singleMock = vi.fn();
+  // ID-131.11 G-SEARCH (§9): findSimilarItemsImpl now reads the source
+  // embedding from the polymorphic record_embeddings store —
+  // `.from('record_embeddings').select('embedding').eq('owner_id', id)
+  //   .eq('model', …).limit(1).maybeSingle()` — replacing the retired
+  // content_items.embedding inline column. The chain methods below back that
+  // read; tests override `maybeSingleMock` per case to swap in a source
+  // embedding row with or without an `embedding`.
+  const maybeSingleMock = vi.fn();
   const chainMethods = {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
-    single: singleMock,
+    limit: vi.fn().mockReturnThis(),
+    maybeSingle: maybeSingleMock,
   };
 
   const rpcMock = vi.fn().mockResolvedValue({ data: [], error: null });
@@ -49,7 +53,7 @@ const mocks = vi.hoisted(() => {
     mockSupabaseClient,
     chainMethods,
     rpcMock,
-    singleMock,
+    maybeSingleMock,
     generateEmbeddingMock,
     createMcpClient: vi.fn().mockReturnValue(mockSupabaseClient),
     checkMcpRole: vi.fn().mockResolvedValue('editor'),
@@ -90,13 +94,12 @@ interface ToolResult {
 // v4-compliant UUID (Zod's `.uuid()` enforces RFC 4122 — see CLAUDE.md gotcha).
 const SOURCE_ID = '11111111-2222-4333-8444-555555555555';
 
-function makeSourceItem(
+// The source read now returns a record_embeddings row (SELECT embedding …),
+// not a content_items row — so the fixture carries only the embedding column.
+function makeSourceEmbeddingRow(
   overrides: Record<string, unknown> = {},
 ): Record<string, unknown> {
   return {
-    id: SOURCE_ID,
-    title: 'Source Item',
-    suggested_title: 'Source Item (suggested)',
     embedding: [0.1, 0.2, 0.3],
     ...overrides,
   };
@@ -125,7 +128,10 @@ describe('find / find_duplicates registration (ID-71.7 + ID-71.10)', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    mocks.singleMock.mockResolvedValue({ data: makeSourceItem(), error: null });
+    mocks.maybeSingleMock.mockResolvedValue({
+      data: makeSourceEmbeddingRow(),
+      error: null,
+    });
     mocks.rpcMock.mockResolvedValue({ data: [], error: null });
     mockServer = createMockMcpServer();
     const { registerSearchTools } = await import('@/lib/mcp/tools/search');
@@ -163,7 +169,10 @@ describe('find (similar_to) handler — LLM semantic discovery', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    mocks.singleMock.mockResolvedValue({ data: makeSourceItem(), error: null });
+    mocks.maybeSingleMock.mockResolvedValue({
+      data: makeSourceEmbeddingRow(),
+      error: null,
+    });
     mocks.rpcMock.mockResolvedValue({ data: [], error: null });
     mockServer = createMockMcpServer();
     const { registerSearchTools } = await import('@/lib/mcp/tools/search');
@@ -200,8 +209,8 @@ describe('find (similar_to) handler — LLM semantic discovery', () => {
 
   it('returns isError with guidance text when source item has no embedding', async () => {
     const handler = getSimilarHandler();
-    mocks.singleMock.mockResolvedValueOnce({
-      data: makeSourceItem({ embedding: null }),
+    mocks.maybeSingleMock.mockResolvedValueOnce({
+      data: makeSourceEmbeddingRow({ embedding: null }),
       error: null,
     });
 
@@ -233,6 +242,10 @@ describe('find (similar_to) handler — LLM semantic discovery', () => {
     expect(result.isError).toBeUndefined();
     expect(result.content[0].type).toBe('text');
     expect(result.structuredContent).toBeDefined();
+    // Source embedding is read from the polymorphic record_embeddings store.
+    expect(mocks.mockSupabaseClient.from).toHaveBeenCalledWith(
+      'record_embeddings',
+    );
     const sc = result.structuredContent as Record<string, unknown>;
     expect((sc.source_item as Record<string, unknown>).id).toBe(SOURCE_ID);
     const similarItems = sc.similar_items as Array<Record<string, unknown>>;
