@@ -272,7 +272,14 @@ jobs:
           # pulled image (expect: scripts requirements.txt only).
           CTX="$(mktemp -d)"
           cp -R scripts "${CTX}/scripts"
-          cp requirements.txt "${CTX}/requirements.txt"
+          # Build installs from the LOCKED transitive closure, not the human-edited
+          # requirements.txt directly ({127.22}, S438): the buildpacks Python pip
+          # installer reads exactly one filename (requirements.txt) from the build
+          # context root, so requirements.lock is copied in UNDER that name. This
+          # makes rebuilds reproducible (full closure pinned, not just direct deps)
+          # while requirements.txt itself stays the source developers edit — see the
+          # header comment in requirements.lock for the regenerate command.
+          cp requirements.lock "${CTX}/requirements.txt"
           echo "Pruned build context:"; ls -A "${CTX}"
           # Same builder/env as the original Cloud Build config. `-m` invocation
           # is load-bearing (FX-8): the buildpack runtime does not add /workspace

@@ -11,7 +11,9 @@ inflect==7.5.0
 trafilatura==2.0.0
 requests==2.33.0
 extruct==0.18.0
-beautifulsoup4>=4.12.0
+# beautifulsoup4 pin consolidated to the single ==4.15.0 declaration below (docling's
+# HTML backend section) — previously duplicated here as a floating >=4.12.0 floor,
+# which is a strict subset of ==4.15.0 anyway ({127.22}, S438 lockfile follow-up).
 lxml>=5.0.0
 
 # PDF extraction (used by Python scripts only; JS routes use unpdf)
@@ -70,8 +72,8 @@ opencv-python-headless==4.13.0.92
 # PDF/DOCX/XLSX convert ImportErrors without these even though the extras above don't
 # pull them. Verified in-container (both synthetic PDFs convert, layout+TableFormer on
 # headless cv2, no libxcb). None depend on opencv → headless guarantee preserved.
-# (beautifulsoup4 = docling's HTML backend; also declared above for content extraction —
-# the ==4.15.0 pin is a strict subset of the >=4.12.0 floor, so they intersect cleanly.)
+# (beautifulsoup4 = docling's HTML backend; also the sole pin for the general content
+# extraction use above — consolidated from a duplicate >=4.12.0 declaration, S438.)
 python-pptx==1.0.2
 pylatexenc==2.10
 marko==2.2.3

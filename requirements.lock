@@ -1,0 +1,599 @@
+# Cocoindex pipeline image — fully-resolved transitive closure ({127.22}, S438).
+#
+# GENERATED FILE — do not hand-edit. Regenerate with:
+#   uv pip compile requirements.txt --python 3.13 -o requirements.lock
+# (--python 3.13 matches the image's GOOGLE_PYTHON_VERSION=3.13.13 pin in
+# .github/workflows/onprem-deploy.yml; requires network access to PyPI.)
+#
+# requirements.txt remains the human-edited source of direct dependencies +
+# their rationale comments. This lock pins the FULL transitive closure (165
+# packages) so image rebuilds are reproducible — no more float-drift like the
+# docling 2.107->2.108 libxcb regression (S437) that motivated this lockfile.
+#
+# BUILD WIRING: .github/workflows/onprem-deploy.yml's pruned build-context step
+# copies this file into the buildpacks context AS `requirements.txt` (the
+# buildpacks Python pip installer only reads that filename) — i.e.
+#   cp requirements.lock "${CTX}/requirements.txt"
+# instead of copying the repo's requirements.txt directly. The repo's
+# requirements.txt is still consulted here, at compile time, as the compile
+# input — it is never itself shipped into the build context.
+#
+# S438-verified-good closure (live in image sha-260e06ee) confirmed present
+# below: numpy==2.5.0, scipy==1.18.0, faiss-cpu==1.14.2. faiss's
+# swigfaiss_avx2 ModuleNotFoundError is a benign AVX2-probe fallback — do not
+# chase it if seen in build/runtime logs.
+#
+# Determinism: two consecutive `uv pip compile` runs from an unchanged
+# requirements.txt produce a byte-identical package list (verified {127.22}).
+accelerate==1.14.0
+    # via
+    #   docling-ibm-models
+    #   docling-slim
+aiohappyeyeballs==2.7.1
+    # via aiohttp
+aiohttp==3.14.1
+    # via
+    #   -r requirements.txt
+    #   litellm
+aiosignal==1.4.0
+    # via aiohttp
+annotated-doc==0.0.4
+    # via typer
+annotated-types==0.7.0
+    # via pydantic
+anthropic==0.79.0
+    # via -r requirements.txt
+anyio==4.14.1
+    # via
+    #   anthropic
+    #   httpx
+    #   openai
+asyncpg==0.31.0
+    # via
+    #   -r requirements.txt
+    #   cocoindex
+attrs==26.1.0
+    # via
+    #   aiohttp
+    #   jsonlines
+    #   jsonschema
+    #   referencing
+babel==2.18.0
+    # via courlan
+beautifulsoup4==4.15.0
+    # via
+    #   -r requirements.txt
+    #   mf2py
+bert-score==0.3.13
+    # via -r requirements.txt
+certifi==2026.6.17
+    # via
+    #   docling-slim
+    #   httpcore
+    #   httpx
+    #   requests
+    #   trafilatura
+cffi==2.0.0
+    # via cryptography
+charset-normalizer==3.4.7
+    # via
+    #   htmldate
+    #   pdfminer-six
+    #   requests
+    #   trafilatura
+click==8.4.2
+    # via
+    #   cocoindex
+    #   huggingface-hub
+    #   litellm
+    #   typer
+cocoindex==1.0.7
+    # via -r requirements.txt
+contourpy==1.3.3
+    # via matplotlib
+courlan==1.4.0
+    # via trafilatura
+cryptography==49.0.0
+    # via
+    #   pdfminer-six
+    #   pyjwt
+cycler==0.12.1
+    # via matplotlib
+dateparser==1.4.1
+    # via htmldate
+defusedxml==0.7.1
+    # via
+    #   docling-core
+    #   docling-slim
+deprecation==2.1.0
+    # via
+    #   postgrest
+    #   storage3
+dill==0.4.1
+    # via multiprocess
+distro==1.9.0
+    # via
+    #   anthropic
+    #   openai
+doclang==0.7.1
+    # via docling-core
+docling-core==2.85.0
+    # via
+    #   docling-ibm-models
+    #   docling-parse
+    #   docling-slim
+docling-ibm-models==3.13.3
+    # via docling-slim
+docling-parse==7.4.0
+    # via docling-slim
+docling-slim==2.108.0
+    # via -r requirements.txt
+docstring-parser==0.18.0
+    # via anthropic
+docxtpl==0.20.2
+    # via -r requirements.txt
+et-xmlfile==2.0.0
+    # via openpyxl
+extruct==0.18.0
+    # via -r requirements.txt
+faiss-cpu==1.14.2
+    # via -r requirements.txt
+fastuuid==0.14.0
+    # via litellm
+filelock==3.29.4
+    # via
+    #   huggingface-hub
+    #   torch
+filetype==1.2.0
+    # via docling-slim
+fonttools==4.63.0
+    # via matplotlib
+frozenlist==1.8.0
+    # via
+    #   aiohttp
+    #   aiosignal
+fsspec==2026.6.0
+    # via
+    #   huggingface-hub
+    #   torch
+h11==0.16.0
+    # via httpcore
+h2==4.3.0
+    # via httpx
+hf-xet==1.5.1
+    # via huggingface-hub
+hpack==4.2.0
+    # via h2
+html-text==0.7.1
+    # via extruct
+html5lib==1.1
+    # via
+    #   mf2py
+    #   pyrdfa3
+htmldate==1.10.0
+    # via trafilatura
+httpcore==1.0.9
+    # via httpx
+httpx==0.28.1
+    # via
+    #   -r requirements.txt
+    #   anthropic
+    #   huggingface-hub
+    #   litellm
+    #   openai
+    #   postgrest
+    #   storage3
+    #   supabase
+    #   supabase-auth
+    #   supabase-functions
+huggingface-hub==1.21.0
+    # via
+    #   accelerate
+    #   docling-ibm-models
+    #   docling-slim
+    #   tokenizers
+    #   transformers
+hyperframe==6.1.0
+    # via h2
+idna==3.18
+    # via
+    #   anyio
+    #   httpx
+    #   requests
+    #   yarl
+importlib-metadata==8.9.0
+    # via litellm
+inflect==7.5.0
+    # via -r requirements.txt
+iniconfig==2.3.0
+    # via pytest
+jinja2==3.1.6
+    # via
+    #   docxtpl
+    #   litellm
+    #   torch
+jiter==0.16.0
+    # via
+    #   anthropic
+    #   openai
+jsonlines==4.0.0
+    # via docling-ibm-models
+jsonref==1.1.0
+    # via docling-core
+jsonschema==4.26.0
+    # via
+    #   docling-core
+    #   litellm
+jsonschema-specifications==2025.9.1
+    # via jsonschema
+jstyleson==0.0.2
+    # via extruct
+justext==3.0.2
+    # via trafilatura
+kiwisolver==1.5.0
+    # via matplotlib
+latex2mathml==3.81.0
+    # via docling-core
+litellm==1.90.2
+    # via -r requirements.txt
+lxml==6.1.1
+    # via
+    #   -r requirements.txt
+    #   doclang
+    #   docxtpl
+    #   extruct
+    #   html-text
+    #   htmldate
+    #   justext
+    #   lxml-html-clean
+    #   python-docx
+    #   python-pptx
+    #   trafilatura
+lxml-html-clean==0.4.5
+    # via
+    #   extruct
+    #   html-text
+    #   lxml
+markdown-it-py==4.2.0
+    # via rich
+marko==2.2.3
+    # via -r requirements.txt
+markupsafe==3.0.3
+    # via jinja2
+matplotlib==3.11.0
+    # via bert-score
+mdurl==0.1.2
+    # via markdown-it-py
+mf2py==2.0.1
+    # via extruct
+more-itertools==11.1.0
+    # via inflect
+mpire==2.10.2
+    # via semchunk
+mpmath==1.3.0
+    # via sympy
+msgspec==0.21.1
+    # via cocoindex
+multidict==6.7.1
+    # via
+    #   aiohttp
+    #   yarl
+multiprocess==0.70.19
+    # via mpire
+networkx==3.6.1
+    # via torch
+numpy==2.5.0
+    # via
+    #   accelerate
+    #   bert-score
+    #   cocoindex
+    #   contourpy
+    #   docling-ibm-models
+    #   faiss-cpu
+    #   matplotlib
+    #   opencv-python-headless
+    #   pandas
+    #   safetensors
+    #   scipy
+    #   torchvision
+    #   transformers
+openai==2.21.0
+    # via
+    #   -r requirements.txt
+    #   litellm
+opencv-python-headless==4.13.0.92
+    # via -r requirements.txt
+openpyxl==3.1.5
+    # via
+    #   -r requirements.txt
+    #   docling-slim
+packaging==26.2
+    # via
+    #   accelerate
+    #   bert-score
+    #   deprecation
+    #   faiss-cpu
+    #   huggingface-hub
+    #   matplotlib
+    #   pytest
+    #   transformers
+pandas==3.0.3
+    # via
+    #   bert-score
+    #   docling-core
+pdfminer-six==20251230
+    # via pdfplumber
+pdfplumber==0.11.9
+    # via -r requirements.txt
+pillow==12.3.0
+    # via
+    #   docling-core
+    #   docling-ibm-models
+    #   docling-parse
+    #   matplotlib
+    #   pdfplumber
+    #   python-pptx
+    #   torchvision
+pluggy==1.6.0
+    # via
+    #   docling-slim
+    #   pytest
+postgrest==2.31.0
+    # via supabase
+propcache==0.5.2
+    # via
+    #   aiohttp
+    #   yarl
+psutil==7.2.2
+    # via
+    #   accelerate
+    #   cocoindex
+pycparser==3.0
+    # via cffi
+pydantic==2.12.5
+    # via
+    #   -r requirements.txt
+    #   anthropic
+    #   docling-core
+    #   docling-ibm-models
+    #   docling-parse
+    #   docling-slim
+    #   litellm
+    #   openai
+    #   postgrest
+    #   pydantic-settings
+    #   realtime
+    #   storage3
+    #   supabase-auth
+pydantic-core==2.41.5
+    # via pydantic
+pydantic-settings==2.14.2
+    # via
+    #   docling-core
+    #   docling-slim
+pygments==2.20.0
+    # via
+    #   mpire
+    #   pytest
+    #   rich
+pyjwt==2.13.0
+    # via supabase-auth
+pylatexenc==2.10
+    # via -r requirements.txt
+pypandoc-binary==1.17
+    # via -r requirements.txt
+pyparsing==3.3.2
+    # via
+    #   matplotlib
+    #   rdflib
+pypdfium2==5.11.0
+    # via
+    #   docling-slim
+    #   pdfplumber
+pyrdfa3==3.6.5
+    # via extruct
+pytest==9.1.1
+    # via -r requirements.txt
+python-dateutil==2.9.0.post0
+    # via
+    #   dateparser
+    #   htmldate
+    #   matplotlib
+    #   pandas
+python-docx==1.2.0
+    # via
+    #   -r requirements.txt
+    #   docling-slim
+    #   docxtpl
+python-dotenv==1.2.2
+    # via
+    #   -r requirements.txt
+    #   cocoindex
+    #   litellm
+    #   pydantic-settings
+python-pptx==1.0.2
+    # via -r requirements.txt
+pytz==2026.2
+    # via dateparser
+pyyaml==6.0.3
+    # via
+    #   accelerate
+    #   docling-core
+    #   huggingface-hub
+    #   transformers
+rdflib==7.6.0
+    # via
+    #   extruct
+    #   pyrdfa3
+realtime==2.31.0
+    # via supabase
+referencing==0.37.0
+    # via
+    #   jsonschema
+    #   jsonschema-specifications
+regex==2026.6.28
+    # via
+    #   dateparser
+    #   tiktoken
+    #   transformers
+requests==2.33.0
+    # via
+    #   -r requirements.txt
+    #   bert-score
+    #   docling-slim
+    #   mf2py
+    #   pyrdfa3
+    #   tiktoken
+rich==15.0.0
+    # via
+    #   cocoindex
+    #   typer
+rpds-py==2026.6.3
+    # via
+    #   jsonschema
+    #   referencing
+rtree==1.4.1
+    # via docling-ibm-models
+safetensors==0.8.0
+    # via
+    #   accelerate
+    #   docling-ibm-models
+    #   transformers
+scipy==1.18.0
+    # via -r requirements.txt
+semchunk==3.2.5
+    # via docling-core
+setuptools==81.0.0
+    # via torch
+shellingham==1.5.4
+    # via typer
+six==1.17.0
+    # via
+    #   html5lib
+    #   python-dateutil
+sniffio==1.3.1
+    # via
+    #   anthropic
+    #   openai
+soupsieve==2.8.4
+    # via beautifulsoup4
+storage3==2.31.0
+    # via supabase
+strenum==0.4.15
+    # via supabase-functions
+supabase==2.31.0
+    # via -r requirements.txt
+supabase-auth==2.31.0
+    # via supabase
+supabase-functions==2.31.0
+    # via supabase
+sympy==1.14.0
+    # via torch
+tabulate==0.10.0
+    # via docling-core
+tenacity==9.1.4
+    # via -r requirements.txt
+tiktoken==0.13.0
+    # via
+    #   -r requirements.txt
+    #   litellm
+tld==0.13.2
+    # via courlan
+tokenizers==0.22.2
+    # via
+    #   litellm
+    #   transformers
+torch==2.12.1
+    # via
+    #   accelerate
+    #   bert-score
+    #   docling-ibm-models
+    #   docling-slim
+    #   safetensors
+    #   torchvision
+torchvision==0.27.1
+    # via
+    #   docling-ibm-models
+    #   docling-slim
+tqdm==4.68.3
+    # via
+    #   bert-score
+    #   docling-ibm-models
+    #   docling-slim
+    #   huggingface-hub
+    #   mpire
+    #   openai
+    #   semchunk
+    #   transformers
+trafilatura==2.0.0
+    # via -r requirements.txt
+transformers==5.8.1
+    # via
+    #   bert-score
+    #   docling-core
+    #   docling-ibm-models
+tree-sitter==0.26.0
+    # via docling-core
+tree-sitter-c==0.24.2
+    # via docling-core
+tree-sitter-javascript==0.25.0
+    # via docling-core
+tree-sitter-python==0.25.0
+    # via docling-core
+tree-sitter-typescript==0.23.2
+    # via docling-core
+typeguard==4.5.2
+    # via inflect
+typer==0.24.2
+    # via
+    #   doclang
+    #   docling-core
+    #   huggingface-hub
+    #   transformers
+typing-extensions==4.16.0
+    # via
+    #   anthropic
+    #   beautifulsoup4
+    #   cocoindex
+    #   docling-core
+    #   huggingface-hub
+    #   openai
+    #   pydantic
+    #   pydantic-core
+    #   python-docx
+    #   python-pptx
+    #   realtime
+    #   torch
+    #   typeguard
+    #   typing-inspection
+typing-inspection==0.4.2
+    # via
+    #   pydantic
+    #   pydantic-settings
+tzlocal==5.4.4
+    # via dateparser
+urllib3==2.7.0
+    # via
+    #   courlan
+    #   htmldate
+    #   requests
+    #   trafilatura
+w3lib==2.4.1
+    # via extruct
+watchdog==6.0.0
+    # via cocoindex
+webencodings==0.5.1
+    # via html5lib
+websockets==15.0.1
+    # via realtime
+xlsxwriter==3.2.9
+    # via python-pptx
+yarl==1.24.2
+    # via
+    #   aiohttp
+    #   postgrest
+    #   storage3
+    #   supabase
+    #   supabase-functions
+zipp==4.1.0
+    # via importlib-metadata
