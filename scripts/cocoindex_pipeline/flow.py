@@ -2751,6 +2751,86 @@ async def _backlink_feed_articles(
         )
 
 
+async def _upsert_source_document(
+    *,
+    source_document_id: "uuid.UUID",
+    storage_path: str,
+    source_url: str,
+    filename: str,
+    mime_type: str,
+    file_size: int,
+    content_hash: str,
+    op_id: "uuid.UUID",
+    extraction_method: str | None,
+) -> None:
+    """Raw-pool autocommit UPSERT of the URL path's source_documents parent.
+
+    S437 (id-131) FK-ordering fix. `reference_items.source_document_id`
+    REFERENCES `source_documents(id)` **ON DELETE RESTRICT** (migration
+    `20260606121451_id75_reference_items_layer.sql`) — a CROSS-TARGET FK the
+    cocoindex write-model (`cocoindex-write-model.md` §2 R1) says the engine's
+    uncoordinated per-target autocommit flush CANNOT order. Two live hazards
+    followed once id-131 made full-replace the ingest posture:
+
+      * INSERT — the engine flushes `ri_target` before `sd_target`, so
+        `insert on reference_items violates ... source_document_id not present`;
+      * FULL-REPLACE — `update_blocking(full_reprocess=True)` delete-then-
+        re-exports every engine-declared `source_documents` row, and the sd
+        DELETE is BLOCKED by the surviving `reference_items` child (RESTRICT):
+        `update or delete on source_documents violates
+        reference_items_source_document_id_fkey`.
+
+    The fix (no schema change per S437) takes the URL sd row OFF the
+    engine-managed `sd_target` and writes it here on the SAME env-scope DB_CTX
+    pool `_backlink_feed_articles` uses, but SYNCHRONOUSLY in-component
+    (autocommit) BEFORE the `ri_target.declare_row` that follows. Two intended
+    consequences:
+
+      1. the sd parent is COMMITTED before the engine flushes the ri child, so
+         the INSERT race cannot recur — parent-before-child by construction;
+      2. the URL sd row is no longer engine-tracked, so full_reprocess never
+         issues the RESTRICT-blocked DELETE for it (the engine re-exports only
+         what it declares). `ri` stays engine-managed — its own delete is safe
+         (`feed_articles.reference_item_id → reference_items` is ON DELETE SET
+         NULL, and no grandchildren reference `reference_items`).
+
+    Identity remains the deterministic `sd:{url}` uuid5 (write-model §2 R1: the
+    FK never established the relationship — the uuid5 derivation does), so
+    `ON CONFLICT (id)` mirrors declare_row's PK-only idempotent UPSERT. The raw
+    write raises IN-COMPONENT on any fault, so `bound_ingest_url`'s {80.9}
+    per-item containment tallies it and the batch survives (converge-by-walk-2,
+    {75.16}/{75.17}) rather than a whole-TaskGroup abort. Columns + on-conflict
+    set mirror the prior `sd_target.declare_row` payload exactly (all scalar —
+    no jsonb/vector, so no connection codec is needed; write-model §2 R2).
+    """
+    pool = coco.use_context(DB_CTX)
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO public.source_documents "
+            "(id, storage_path, content_hash, filename, mime_type, file_size, "
+            "op_id, extraction_method, source_url) "
+            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) "
+            "ON CONFLICT (id) DO UPDATE SET "
+            "storage_path = EXCLUDED.storage_path, "
+            "content_hash = EXCLUDED.content_hash, "
+            "filename = EXCLUDED.filename, "
+            "mime_type = EXCLUDED.mime_type, "
+            "file_size = EXCLUDED.file_size, "
+            "op_id = EXCLUDED.op_id, "
+            "extraction_method = EXCLUDED.extraction_method, "
+            "source_url = EXCLUDED.source_url",
+            source_document_id,
+            storage_path,
+            content_hash,
+            filename,
+            mime_type,
+            file_size,
+            op_id,
+            extraction_method,
+            source_url,
+        )
+
+
 @coco.fn(memo=True)
 async def ingest_url(
     item: UrlItem,
@@ -2971,19 +3051,24 @@ async def _ingest_url_body(
     reference_item_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"ri:{item.url}")
 
     # ── Step 5: source_documents row (BI-4) ──────────────────────────────────
-    sd_target.declare_row(
-        row={
-            "id": source_document_id,
-            # storage_path = source_url = normalised URL (RESEARCH constraint 2)
-            "storage_path": item.url,
-            "source_url": item.url,
-            "filename": _url_filename(item.url),
-            "mime_type": mime_type,
-            "file_size": file_size,
-            "content_hash": content_hash,
-            "op_id": op_id,
-            "extraction_method": extraction_method,
-        }
+    # S437 (id-131): written via a raw-pool autocommit UPSERT — NOT
+    # `sd_target.declare_row` — so the sd PARENT is committed in-component
+    # BEFORE the engine flushes the `ri_target` child declared at step 6, and so
+    # full_reprocess never issues the RESTRICT-blocked DELETE for it. See
+    # `_upsert_source_document` for the full FK-ordering rationale (write-model
+    # §2 R1). `sd_target` is retained on the signature (mount_each positional
+    # contract) but the URL sd row no longer flushes through it.
+    await _upsert_source_document(
+        source_document_id=source_document_id,
+        # storage_path = source_url = normalised URL (RESEARCH constraint 2)
+        storage_path=item.url,
+        source_url=item.url,
+        filename=_url_filename(item.url),
+        mime_type=mime_type,
+        file_size=file_size,
+        content_hash=content_hash,
+        op_id=op_id,
+        extraction_method=extraction_method,
     )
     _bump("postgres_upsert")  # Inv-17: source_documents row upsert
 
