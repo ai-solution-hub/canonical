@@ -151,7 +151,7 @@ describe('Source Document Detail API', () => {
     expect(response.status).toBe(404);
   });
 
-  it('returns document with linked content items', async () => {
+  it('returns document with derived q_a_pairs (DR-012 re-point)', async () => {
     const { GET } = await import('@/app/api/source-documents/[id]/route');
 
     const mockDoc = {
@@ -162,9 +162,21 @@ describe('Source Document Detail API', () => {
       created_at: '2026-01-01T00:00:00Z',
     };
 
-    const mockItems = [
-      { id: 'item-1', title: 'Q&A: Access Control', content_type: 'qa_pair' },
-      { id: 'item-2', title: 'Q&A: Encryption', content_type: 'qa_pair' },
+    const mockPairs = [
+      {
+        id: 'pair-1',
+        question_text: 'What is the access control policy?',
+        answer_standard: 'Role-based access control is enforced.',
+        publication_status: 'published',
+        created_at: '2026-01-02T00:00:00Z',
+      },
+      {
+        id: 'pair-2',
+        question_text: 'How is data encrypted?',
+        answer_standard: 'AES-256 at rest, TLS 1.3 in transit.',
+        publication_status: 'published',
+        created_at: '2026-01-01T00:00:00Z',
+      },
     ];
 
     // First call: fetch doc (uses .single())
@@ -173,10 +185,10 @@ describe('Source Document Detail API', () => {
       error: null,
     });
 
-    // Second call: fetch linked items (uses .then via chain)
+    // Second call: fetch derived q_a_pairs (uses .then via chain)
     mockServiceClient._chain.then.mockImplementationOnce(
       (resolve: (val: unknown) => void) =>
-        resolve({ data: mockItems, error: null }),
+        resolve({ data: mockPairs, error: null }),
     );
 
     const docId = '00000000-0000-0000-0000-000000000001';
@@ -190,7 +202,43 @@ describe('Source Document Detail API', () => {
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body.filename).toBe('security-policy.docx');
-    expect(body.content_items).toBeDefined();
+    expect(body.content_items).toBeUndefined();
+    expect(body.derived_pairs).toEqual(mockPairs);
+    expect(mockServiceClient.from).toHaveBeenCalledWith('q_a_pairs');
+  });
+
+  it('falls back to an empty derived_pairs list when the q_a_pairs read fails', async () => {
+    const { GET } = await import('@/app/api/source-documents/[id]/route');
+
+    const mockDoc = {
+      id: '00000000-0000-0000-0000-000000000001',
+      filename: 'security-policy.docx',
+      version: 1,
+      status: 'processed',
+      created_at: '2026-01-01T00:00:00Z',
+    };
+
+    mockServiceClient._chain.single.mockResolvedValueOnce({
+      data: mockDoc,
+      error: null,
+    });
+
+    mockServiceClient._chain.then.mockImplementationOnce(
+      (resolve: (val: unknown) => void) =>
+        resolve({ data: null, error: { message: 'connection reset' } }),
+    );
+
+    const docId = '00000000-0000-0000-0000-000000000001';
+    const request = new Request(
+      `http://localhost/api/source-documents/${docId}`,
+    );
+    const response = await GET(request as unknown as NextRequest, {
+      params: Promise.resolve({ id: docId }),
+    });
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.derived_pairs).toEqual([]);
   });
 });
 
