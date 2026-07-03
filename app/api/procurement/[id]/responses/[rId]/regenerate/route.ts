@@ -3,6 +3,7 @@ import type {
   DraftableQuestion,
 } from '@/lib/domains/procurement/ai/draft';
 import { runDraftingPipeline } from '@/lib/domains/procurement/ai/draft';
+import { fetchMatchedContentForDrafting } from '@/lib/domains/procurement/draft-response';
 import { defineRoute } from '@/lib/api/define-route';
 import {
   authFailureResponse,
@@ -82,17 +83,17 @@ export const POST = defineRoute(
         );
       }
 
-      // Fetch matched content items
+      // Fetch matched content (post-{131.16} BI-29: q_a_pairs + reference_items).
       const matchedIds = existing.source_content_ids ?? [];
       let matchedContent: DraftableContent[] = [];
 
       if (matchedIds.length > 0) {
-        const { data: contentItems, error: contentError } = await supabase
-          .from('content_items')
-          .select('id, suggested_title, content, content_type, summary')
-          .in('id', matchedIds);
-
-        if (contentError) {
+        try {
+          matchedContent = await fetchMatchedContentForDrafting(
+            supabase,
+            matchedIds,
+          );
+        } catch (contentError) {
           logger.error(
             { err: contentError },
             'Failed to fetch matched content for regenerate',
@@ -107,14 +108,6 @@ export const POST = defineRoute(
             { status: 500 },
           );
         }
-
-        matchedContent = (contentItems ?? []).map((item) => ({
-          id: item.id,
-          title: item.suggested_title,
-          content: item.content,
-          content_type: item.content_type,
-          summary: item.summary,
-        }));
       }
 
       const draftableQuestion: DraftableQuestion = {

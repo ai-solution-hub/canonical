@@ -353,23 +353,32 @@ describe('GET /api/bids/:id/responses/:rId', () => {
       },
       error: null,
     });
-    // Then-awaited query for content_items — returns source content
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
+    // Post-{131.16} BI-29: the source resolves as a q_a_pair (the primary
+    // match source) — q_a_pairs `.in()`, then reference_items `.in()` (no
+    // match here), then the record_lifecycle facet `.in()` for its domain
+    // (q_a_pairs carry no primary_domain column of their own).
+    mockSupabase._chain.then
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
         resolve({
           data: [
             {
               id: sourceId,
-              suggested_title: 'ISO 27001 Policy',
-              content_type: 'policy',
-              primary_domain: 'Information Security',
-              primary_subtopic: 'Certifications',
-              summary: 'Our ISO 27001 certification details',
+              question_text: 'Are you ISO 27001 certified?',
+              answer_standard: 'Our ISO 27001 certification details',
             },
           ],
           error: null,
         }),
-    );
+      )
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null }),
+      )
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({
+          data: [{ owner_id: sourceId, domain: 'Information Security' }],
+          error: null,
+        }),
+      );
 
     const req = createTestRequest(
       `/api/procurement/${BID_ID}/responses/${RESPONSE_ID}`,
@@ -382,8 +391,9 @@ describe('GET /api/bids/:id/responses/:rId', () => {
 
     expect(json.source_content).toHaveLength(1);
     expect(json.source_content[0].id).toBe(sourceId);
-    expect(json.source_content[0].title).toBe('ISO 27001 Policy');
-    expect(json.source_content[0].content_type).toBe('policy');
+    expect(json.source_content[0].title).toBe('Are you ISO 27001 certified?');
+    expect(json.source_content[0].content_type).toBe('q_a_pair');
+    expect(json.source_content[0].primary_domain).toBe('Information Security');
   });
 });
 

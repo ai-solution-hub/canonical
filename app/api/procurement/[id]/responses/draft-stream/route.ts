@@ -6,6 +6,7 @@ import {
   analyseQuestion,
   draftResponseStreaming,
 } from '@/lib/domains/procurement/ai/draft';
+import { fetchMatchedContentForDrafting } from '@/lib/domains/procurement/draft-response';
 import type { QualityCheckQuestion } from '@/lib/ai/quality-check';
 import { checkResponseQuality } from '@/lib/ai/quality-check';
 import { getModelForTier } from '@/lib/anthropic';
@@ -113,60 +114,66 @@ export const POST = defineRoute(
         );
       }
 
-      // Fetch matched content items
+      // Fetch matched content (post-{131.16} BI-29: q_a_pairs + reference_items;
+      // `content_type` on each item doubles as the cited_kind discriminator
+      // for the citations writer below).
       const matchedIds = question.matched_content_ids ?? [];
       let matchedContent: DraftableContent[] = [];
-      // ID-58 R1: `content_items` carries no `version` column, so the cited
-      // version is the highest `version` recorded in `content_history` for each
-      // matched item (0 if the item has no history rows yet). Captured here so
-      // the citations writer can stamp `cited_version` at draft time.
+      // ID-58 R1 (re-pointed {131.16}): neither q_a_pairs nor reference_items
+      // carries an inline `version` column, so the cited version is the
+      // highest `version` recorded in `q_a_pair_history` for each matched
+      // q_a_pair (0 if the pair has no history rows yet, or if the matched
+      // item is a reference_item — reference_items has no history table).
+      // Captured here so the citations writer can stamp `cited_version` at
+      // draft time.
       const citedVersionById = new Map<string, number>();
       if (matchedIds.length > 0) {
-        const { data: contentItems, error: contentError } = await supabase
-          .from('content_items')
-          .select('id, suggested_title, content, content_type, summary')
-          .in('id', matchedIds);
-
-        if (contentError) {
+        try {
+          matchedContent = await fetchMatchedContentForDrafting(
+            supabase,
+            matchedIds,
+          );
+        } catch (contentError) {
           // S151 WP4 (C3): never stream a draft built on empty source content
           // when a DB error masked the matched content. Surface as a 500
           // before the SSE stream opens so the client can retry.
           return new Response(
             JSON.stringify({
               error: 'Failed to fetch matched content',
-              details: contentError.message,
+              details:
+                contentError instanceof Error
+                  ? contentError.message
+                  : String(contentError),
             }),
             { status: 500, headers: { 'Content-Type': 'application/json' } },
           );
         }
 
-        matchedContent = (contentItems ?? []).map((item) => ({
-          id: item.id,
-          title: item.suggested_title,
-          content: item.content,
-          content_type: item.content_type,
-          summary: item.summary,
-        }));
+        const matchedQAPairIds = matchedContent
+          .filter((item) => item.content_type === 'q_a_pair')
+          .map((item) => item.id);
 
-        // ID-58 R1/R4: read the per-item MAX(content_history.version). A failure
-        // here must not throw — the version stamp degrades to 0 rather than
-        // blocking the draft (the citations write stays non-fatal, see below).
-        const { data: historyRows, error: historyError } = await supabase
-          .from('content_history')
-          .select('content_item_id, version')
-          .in('content_item_id', matchedIds);
+        // ID-58 R1/R4: read the per-pair MAX(q_a_pair_history.version). A
+        // failure here must not throw — the version stamp degrades to 0
+        // rather than blocking the draft (the citations write stays
+        // non-fatal, see below).
+        if (matchedQAPairIds.length > 0) {
+          const { data: historyRows, error: historyError } = await supabase
+            .from('q_a_pair_history')
+            .select('q_a_pair_id, version')
+            .in('q_a_pair_id', matchedQAPairIds);
 
-        if (historyError) {
-          logger.warn(
-            { err: historyError },
-            'Failed to read content_history versions; cited_version defaults to 0',
-          );
-        } else {
-          for (const row of historyRows ?? []) {
-            if (!row.content_item_id) continue;
-            const current = citedVersionById.get(row.content_item_id) ?? 0;
-            if (row.version > current) {
-              citedVersionById.set(row.content_item_id, row.version);
+          if (historyError) {
+            logger.warn(
+              { err: historyError },
+              'Failed to read q_a_pair_history versions; cited_version defaults to 0',
+            );
+          } else {
+            for (const row of historyRows ?? []) {
+              const current = citedVersionById.get(row.q_a_pair_id) ?? 0;
+              if (row.version > current) {
+                citedVersionById.set(row.q_a_pair_id, row.version);
+              }
             }
           }
         }
@@ -309,11 +316,20 @@ export const POST = defineRoute(
 
             // Record citations for win-rate tracking (ID-58 polymorphic
             // `public.citations` table). One row per DISTINCT matched content
-            // item so the win-rate RPC's COUNT(DISTINCT cited_content_item_id)
+            // item so the win-rate RPC's COUNT(DISTINCT cited_q_a_pair_id)
             // stays regression-free (Inv-14). Items that yielded an Anthropic
             // CitationEntry carry the captured span; items that were matched but
             // never cited still get a citation_type='reference' row with NULL
             // span columns, preserving coverage cardinality (Inv-10).
+            //
+            // {131.16} BI-29 re-anchor: matched items are now q_a_pairs
+            // (primary) or reference_items (optional) — never content_items —
+            // so cited_kind/the per-kind target column are derived from each
+            // item's `content_type` discriminator (set by
+            // fetchMatchedContentForDrafting) rather than hardcoded to
+            // 'content_item'. cited_content_item_id is NEVER written for new
+            // citations going forward (the column + enum label survive to
+            // M6/G-API per {131.10}'s deferral, but nothing new targets them).
             if (response?.id && matchedContent.length > 0) {
               try {
                 const responseId = response.id;
@@ -322,13 +338,23 @@ export const POST = defineRoute(
 
                 // Seed one base row per distinct matched item (no span).
                 const rowByItemId = new Map<string, CitationInsert>();
+                type CitedTarget = Pick<
+                  CitationInsert,
+                  'cited_kind' | 'cited_q_a_pair_id' | 'cited_reference_item_id'
+                >;
                 for (const item of matchedContent) {
                   if (rowByItemId.has(item.id)) continue;
+                  const citedTarget: CitedTarget =
+                    item.content_type === 'reference_item'
+                      ? {
+                          cited_kind: 'reference_item',
+                          cited_reference_item_id: item.id,
+                        }
+                      : { cited_kind: 'q_a_pair', cited_q_a_pair_id: item.id };
                   rowByItemId.set(item.id, {
                     citing_kind: 'form_response',
                     citing_form_response_id: responseId,
-                    cited_kind: 'content_item',
-                    cited_content_item_id: item.id,
+                    ...citedTarget,
                     cited_version: citedVersionById.get(item.id) ?? 0,
                     citation_type: 'reference',
                     cited_text: null,
@@ -341,7 +367,8 @@ export const POST = defineRoute(
 
                 // Overlay the FIRST Anthropic CitationEntry span per content
                 // item. Cardinality stays one-row-per-item (partial-unique index
-                // on (citing_form_response_id, cited_content_item_id)); full
+                // on (citing_form_response_id, cited_q_a_pair_id) — cited_kind
+                // determines which per-kind target column is populated); full
                 // multi-span fidelity remains in form_responses.metadata JSONB.
                 const spannedItemIds = new Set<string>();
                 for (const entry of pass2Result.citations) {
@@ -362,8 +389,8 @@ export const POST = defineRoute(
 
                 // Re-draft idempotency: clear this response's citations, then
                 // insert the freshly resolved one-row-per-item set. Equivalent
-                // to an upsert on (citing_form_response_id, cited_content_item_id)
-                // for the form_response citing kind.
+                // to an upsert on (citing_form_response_id, cited_q_a_pair_id /
+                // cited_reference_item_id) for the form_response citing kind.
                 const { error: deleteError } = await supabase
                   .from('citations')
                   .delete()

@@ -67,6 +67,93 @@ export type DraftOutcome =
     };
 
 /**
+ * Resolve `form_questions.matched_content_ids` / `form_responses.source_content_ids`
+ * (uuid[]) into full drafting content.
+ *
+ * Post-{131.16} (BI-29/30/31): those arrays now carry q_a_pair (primary) and
+ * reference_item (optional) ids — never the retired content_items ids, and
+ * never source_document ids (SD is provenance-only, not a match source —
+ * TECH.md D2/E5). Shared by every caller that dereferences these arrays
+ * (`draftSingleQuestion` below; the draft-stream route and the regenerate
+ * route each had their own duplicate content_items fetch pre-{131.16} — all
+ * three now call this one function). `content_type` on the returned
+ * {@link DraftableContent} doubles as the kind discriminator
+ * (`'q_a_pair' | 'reference_item'`) for callers that need to branch on it
+ * (e.g. the `citations` table writer, which needs `cited_q_a_pair_id` vs
+ * `cited_reference_item_id`).
+ *
+ * q_a_pairs compose `content` as `Q: {question}\n\n{answer_standard}\n\n
+ * {answer_advanced}` — the same canonical shape already used to rebuild
+ * `content_items.content` for q_a_pair-typed rows elsewhere in the codebase
+ * (app/api/items/[id]/route.ts:517). reference_items use `body` verbatim.
+ *
+ * Ids that resolve to neither table are silently dropped (matches the
+ * pre-{131.16} content_items `.in()` behaviour: a stale/deleted id was never
+ * surfaced as an error, just absent from the returned array). Result order
+ * follows the input `ids` order for determinism.
+ */
+export async function fetchMatchedContentForDrafting(
+  supabase: SupabaseClient<Database>,
+  ids: string[],
+): Promise<DraftableContent[]> {
+  if (ids.length === 0) return [];
+
+  const [qaResult, riResult] = await Promise.all([
+    supabase
+      .from('q_a_pairs')
+      .select('id, question_text, answer_standard, answer_advanced')
+      .in('id', ids),
+    supabase
+      .from('reference_items')
+      .select('id, title, body, summary')
+      .in('id', ids),
+  ]);
+
+  if (qaResult.error) {
+    throw new Error(
+      `Failed to fetch matched q_a_pairs: ${qaResult.error.message}`,
+    );
+  }
+  if (riResult.error) {
+    throw new Error(
+      `Failed to fetch matched reference_items: ${riResult.error.message}`,
+    );
+  }
+
+  const byId = new Map<string, DraftableContent>();
+
+  for (const row of qaResult.data ?? []) {
+    byId.set(row.id, {
+      id: row.id,
+      title: row.question_text,
+      content: [
+        `Q: ${row.question_text}`,
+        row.answer_standard,
+        row.answer_advanced,
+      ]
+        .filter((part): part is string => Boolean(part))
+        .join('\n\n'),
+      content_type: 'q_a_pair',
+      summary: row.answer_standard,
+    });
+  }
+
+  for (const row of riResult.data ?? []) {
+    byId.set(row.id, {
+      id: row.id,
+      title: row.title,
+      content: row.body,
+      content_type: 'reference_item',
+      summary: row.summary,
+    });
+  }
+
+  return ids
+    .map((id) => byId.get(id))
+    .filter((item): item is DraftableContent => item !== undefined);
+}
+
+/**
  * Draft a single procurement question: fetch its matched content, run the
  * drafting pipeline, upsert the response, and mark the question `ai_drafted`.
  *
@@ -87,31 +174,23 @@ export async function draftSingleQuestion(
   workspaceId: string,
   modelTier: 'analysis' | 'drafting',
 ): Promise<DraftOutcome> {
-  // Fetch matched content items for this question.
+  // Fetch matched content for this question.
   const matchedIds = question.matched_content_ids ?? [];
   let matchedContent: DraftableContent[] = [];
   if (matchedIds.length > 0) {
-    const { data: contentItems, error: contentError } = await supabase
-      .from('content_items')
-      .select('id, suggested_title, content, content_type, summary')
-      .in('id', matchedIds);
-
-    if (contentError) {
+    try {
+      matchedContent = await fetchMatchedContentForDrafting(
+        supabase,
+        matchedIds,
+      );
+    } catch (err) {
       // S151 WP4: never draft with empty source content on a DB error — that
       // produces a hallucinated response that looks grounded. Fail the
       // per-question draft loudly; the caller's try/catch records 'failed'.
       throw new Error(
-        `Failed to fetch matched content for question ${question.id}: ${contentError.message}`,
+        `Failed to fetch matched content for question ${question.id}: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
-
-    matchedContent = (contentItems ?? []).map((item) => ({
-      id: item.id,
-      title: item.suggested_title,
-      content: item.content,
-      content_type: item.content_type,
-      summary: item.summary,
-    }));
   }
 
   const draftableQuestion: DraftableQuestion = {
