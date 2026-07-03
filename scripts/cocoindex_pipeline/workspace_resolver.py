@@ -1,17 +1,19 @@
 """Folder→workspace manifest schema + resolver (PRODUCT Inv-4 / Inv-5).
 
-The cocoindex form-extraction flow (TECH §2.1) reads a single JSON manifest
-at the root of the ingest source folder
+The cocoindex corpus-ingest flow (TECH §2.1) reads a single JSON manifest at
+the root of the ingest source folder
 (`<COCOINDEX_SOURCE_PATH>/.kh-workspace-map.json`) once at flow start. This
 module owns the manifest's Pydantic schema and the deterministic
-folder→workspace resolution function used by Path B / Path C.
+folder→workspace resolution function that drives the content/qa_sidecar fork
+(ID-136 retires the historical forms route this module also used to serve).
 
 Public API:
 
-- `RouteKind` — `Literal["content", "forms", "qa_sidecar"]` route
-  discriminator (ID-80.6, 80.2 §B.2: the manifest per-prefix route tag IS the
-  Path-A/Path-B fork point — RATIFIED OQ-80.2-B; ID-59 {59.26} adds the
-  `"qa_sidecar"` route for the frozen `__qa__/` reserved prefix).
+- `RouteKind` — `Literal["content", "qa_sidecar"]` route discriminator
+  (ID-80.6, 80.2 §B.2: the manifest per-prefix route tag IS the fork point —
+  RATIFIED OQ-80.2-B; ID-59 {59.26} adds the `"qa_sidecar"` route for the
+  frozen `__qa__/` reserved prefix). ID-136 retires the `"forms"` route —
+  forms enter the system via manual upload (app-side), not the corpus walk.
 - `WorkspaceMapping` — one `{path_prefix, workspace_id, route}` entry
   (`route` defaults to `"content"` — existing manifests parse unchanged).
 - `WorkspaceManifest` — versioned container of mappings.
@@ -50,19 +52,25 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 # Route discriminator (ID-80.6, 80.2 §B.2 — RATIFIED OQ-80.2-B): the manifest
-# per-prefix `route` tag is the Path-A (content) / Path-B (forms) / Q&A-sidecar
-# fork point. `Literal` + `extra="forbid"` make any typo a load-time
-# `ValidationError` → `ManifestLoadError` at the manifest-load gate (loud abort
-# at flow start).
+# per-prefix `route` tag is the content / Q&A-sidecar fork point. `Literal` +
+# `extra="forbid"` make any typo a load-time `ValidationError` →
+# `ManifestLoadError` at the manifest-load gate (loud abort at flow start).
 #
-# ID-59 {59.26} (TECH-qa-sidecar P1): `"qa_sidecar"` is the third route — a
+# ID-59 {59.26} (TECH-qa-sidecar P1): `"qa_sidecar"` is the second route — a
 # manifest mapping `{path_prefix: "__qa__/", route: "qa_sidecar"}` routes a
 # reserved-prefix Q&A sidecar to the sidecar branch (source_documents + the
 # q_a_extractions tier ONLY; ZERO content rows — PRODUCT INV-5). The `__qa__/`
 # prefix string is FROZEN against this route (ID-45 {45.3} freezes it).
 # `resolve_route` needs NO change: it returns `winner.route` verbatim, so a
-# `"qa_sidecar"` mapping forks by longest-prefix exactly like `"forms"`.
-RouteKind = Literal["content", "forms", "qa_sidecar"]
+# `"qa_sidecar"` mapping forks by longest-prefix exactly like any other route.
+#
+# ID-136 (DR-014): the historical third route, `"forms"` (Path-B blank-form
+# corpus ingestion), is RETIRED — forms enter the system via app-side manual
+# upload (`app/api/procurement/[id]/forms/route.ts`), never the corpus walk.
+# The Literal narrows accordingly; any manifest still tagging a prefix
+# `route:"forms"` now fails LOUDLY at load time (`ManifestLoadError`), which is
+# the intended behaviour — there is no silent fallback.
+RouteKind = Literal["content", "qa_sidecar"]
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -125,9 +133,10 @@ class AmbiguousResolution(ResolutionFailure):
 class WorkspaceMapping(BaseModel):
     """One `{path_prefix, workspace_id, route}` entry in the manifest.
 
-    `route` defaults to `"content"` (80.2 §B.2): existing manifests — and the
-    id-52 fixtures — parse unchanged and every current prefix stays on Path-A.
-    Zero behaviour change until an operator opts a prefix into `"forms"`.
+    `route` defaults to `"content"` (80.2 §B.2): existing manifests parse
+    unchanged and every unmapped/default prefix stays on the content route.
+    ID-136 retires the `"forms"` route — `route` now admits only `"content"`
+    and `"qa_sidecar"`.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -136,7 +145,7 @@ class WorkspaceMapping(BaseModel):
     workspace_id: UUID = Field(..., description="Workspace UUID this prefix resolves to.")
     route: RouteKind = Field(
         default="content",
-        description="Fork discriminator: 'content' (Path-A, default), 'forms' (Path-B blank form instruments), or 'qa_sidecar' (ID-59 {59.26} reserved __qa__/ Q&A sidecars).",
+        description="Fork discriminator: 'content' (default) or 'qa_sidecar' (ID-59 {59.26} reserved __qa__/ Q&A sidecars). The historical 'forms' route is retired (ID-136, DR-014).",
     )
 
 
@@ -180,8 +189,8 @@ class WorkspaceManifest(BaseModel):
 class Resolution:
     """Result of `resolve_route`: the owning workspace AND its route.
 
-    The `route` carries the Path-A/Path-B fork decision (80.2 §B.2) so the
-    flow computes the fork ONCE, BEFORE either write path runs.
+    The `route` carries the content/qa_sidecar fork decision (80.2 §B.2) so
+    the flow computes the fork ONCE, BEFORE either write path runs.
     """
 
     workspace_id: UUID
@@ -229,7 +238,7 @@ def resolve_route(manifest: WorkspaceManifest, rel_path: str) -> Resolution:
 
     The single fork entry point (ID-80.6, 80.2 §B.2): returns the winning
     mapping's `workspace_id` and its `route` tag so the flow computes the
-    Path-A/Path-B fork once, before either write path runs.
+    content/qa_sidecar fork once, before either write path runs.
 
     Inputs:
       - `manifest`: a loaded `WorkspaceManifest`.

@@ -147,18 +147,6 @@ from scripts.cocoindex_pipeline.flow_context import (
     current_flow_meta,  # noqa: F401 — re-export; ingest_file resolves it lazily
 )
 
-# ID-52 Path B (form extraction). The orchestrator + per-format readers run as
-# plain awaits inside `ingest_file`'s form-write block; the workspace resolver
-# maps each ingested file's rel_path to a workspace via the flow-start manifest.
-# `current_workspace_manifest` is resolved inside `ingest_file` via the
-# function-local `from scripts.cocoindex_pipeline import flow_context` import
-# (same pattern as `current_flow_meta`), so it is NOT imported by name here.
-from scripts.cocoindex_pipeline.form_extractors import extract_form_structure
-from scripts.cocoindex_pipeline.form_extractors.orchestrator import (
-    coerce_extracted_form,
-)
-from scripts.cocoindex_pipeline.form_extractors.shared import FormExtractionError
-
 # ID-75 WP-C — URL-source substrate ({75.7}/{75.8} leaf modules). `UrlItem` is
 # the frozen memo-keyed component argument (EXECUTOR-VERIFY-1); `validate_url`
 # is the verbatim SSRF port gating every fetch (BI-21). `FeedUrlSource` is the
@@ -677,19 +665,19 @@ class _FlowItemFailureCounter:
     """Per-flow per-branch item-failure tally for 80.2 §B.4 observability.
 
     `.increment(branch)` is called from the per-item containment handlers in
-    `app_main` — `bound_ingest_file` (`branch` is `'forms'` or `'content'`,
-    derived via `_item_failure_branch` from the same pure `resolve_route`
-    computation the {80.8} fork uses) and `bound_ingest_url` (`branch` is
-    always `'url'`, {75.11} / BI-19) — each time an UNEXPECTED exception
-    escapes one item's ingest. `.tally()` is read at flow end and emitted via
-    the pipeline-run webhook as `itemFailures`
-    (`{'forms': n, 'content': m, 'url': k}`).
+    `app_main` — `bound_ingest_file` (`branch` is always `'content'` post-ID-136
+    forms-route retirement, derived via `_item_failure_branch` from the same
+    pure `resolve_route` computation the {80.8} fork uses) and
+    `bound_ingest_url` (`branch` is always `'url'`, {75.11} / BI-19) — each
+    time an UNEXPECTED exception escapes one item's ingest. `.tally()` is read
+    at flow end and emitted via the pipeline-run webhook as `itemFailures`
+    (`{'content': m, 'url': k}`).
 
     OQ-80.2-C (Liam, S314, 05/06/2026): per-item faults leave
     `flow_status='completed'` and ride this tally; `'failed'` is reserved for
     walk-wide faults (manifest load, Stage-5, mount errors). This is the
-    bl-224 cascade inversion — one form file's fault must never zero a
-    content file's reported writes.
+    bl-224 cascade inversion — one file's fault must never zero another
+    file's reported writes.
 
     Instances are per-flow — one per `app_main()` invocation, no shared
     state. Thread-safety is not required: cocoindex @coco.fn execution is
@@ -701,7 +689,10 @@ class _FlowItemFailureCounter:
         # 'url' joined the branch vocabulary at {75.11} (the URL-source mount)
         # — initialised to 0 so an all-zero tally reports every branch ("walk
         # ran, zero per-item faults" is meaningful per branch, 80.2 §B.4).
-        self._counts: dict[str, int] = {"forms": 0, "content": 0, "url": 0}
+        # ID-136: the 'forms' branch is retired — 'content' covers the
+        # qa_sidecar route too (`_item_failure_branch` always attributes to
+        # 'content').
+        self._counts: dict[str, int] = {"content": 0, "url": 0}
 
     def increment(self, branch: str) -> None:
         self._counts[branch] = self._counts.get(branch, 0) + 1
@@ -711,26 +702,21 @@ class _FlowItemFailureCounter:
 
 
 def _item_failure_branch(manifest: Any, file: Any, source_path: Any) -> str:
-    """Attribute a contained per-item fault to its `'forms'`/`'content'` branch.
+    """Attribute a contained per-item fault to the `'content'` branch.
 
-    Uses the SAME pure `resolve_route(manifest, rel_path)` computation the
-    {80.8} route fork uses (80.2 §B.2: input-only, no I/O, no clock), with the
-    same `_to_source_relative` normalisation the dispatcher applies
-    ({66.22}/BUG-A — production File paths are absolute).
+    ID-136 (forms-route retirement): the `'forms'` route no longer exists, so
+    every per-item fault attributes to `'content'` — both the content route
+    and the qa_sidecar route already attributed to `'content'` before this
+    retirement (there was never a distinct `'qa_sidecar'` failure bucket).
+    Retained as a named function (rather than inlined at the call site) so
+    the containment-handler call shape and its "never raises" contract stay
+    documented and unit-testable in isolation.
 
     NEVER raises: this helper runs inside the per-item containment handler
     (80.2 §B.4), where an escape would abort the batch — the exact
-    all-or-nothing failure mode the containment exists to kill. Any
-    derivation failure (unmapped path, ambiguous manifest, malformed item)
-    defaults the attribution to `'content'` (the manifest's own `route`
-    default per 80.2 §B.2).
+    all-or-nothing failure mode the containment exists to kill.
     """
-    try:
-        rel_path = _to_source_relative(file.file_path.path, source_path)
-        route = resolve_route(manifest, rel_path).route
-    except Exception:  # noqa: BLE001 — containment handler must never raise
-        return "content"
-    return "forms" if route == "forms" else "content"
+    return "content"
 
 
 # ── Inv-16 / Inv-17 / Inv-18 rollup substrate (P-7 — ID-28.11) ───────────────
@@ -914,7 +900,7 @@ async def _emit_pipeline_run_webhook(
     if taxonomy_misses is not None:
         payload["taxonomyMisses"] = taxonomy_misses
     # ID-80.9 (80.2 §B.4, OQ-80.2-C): per-branch tally of CONTAINED per-item
-    # faults — `{'forms': n, 'content': m}`. `None` omits the field entirely
+    # faults — `{'content': m, 'url': k}`. `None` omits the field entirely
     # (flow-start emission); the terminal emission always threads the tally,
     # so an all-zero map at flow end means "walk ran, zero per-item faults".
     # Rides ALONGSIDE errorDetail/taxonomyMisses (ID-61.4) — never clobbers.
@@ -1499,31 +1485,21 @@ def _declare_record_embedding(
     )
 
 
-# ── ID-52 Path B form-extraction substrate (TECH §2.5) ───────────────────────
+# ── Source MIME resolution (ID-64.11, S296) ───────────────────────────────────
+# ID-136 (forms-route retirement): the form-write substrate that used to share
+# this block (the pipeline's form-templates service-account id, its non-form
+# suffix guard, its graceful-empty reason token, and its two `TableSchema`s)
+# was removed along with the now-deleted forms-write branch — their only
+# consumer. `MIME_BY_SUFFIX` / `_SOURCE_MIME_FALLBACK` / `_resolve_source_mime`
+# survive: the content branch still needs a non-NULL `source_documents.mime_type`.
 
-# Pipeline service-account user id (CLAUDE.md gotcha: NEVER a literal string in
-# any write path). Stamped as `form_templates.created_by` for pipeline-owned
-# instance rows (Inv-6 — the pipeline owns the write, not an interactive user).
-SERVICE_ACCOUNT_UUID = uuid.UUID("a0000000-0000-4000-8000-000000000001")
-
-# The three CHECK-permitted MIME types on `form_templates.mime_type` (widened
-# from DOCX-only by Migration M1, TECH §2.6). Keyed by the lowercased file
-# suffix the orchestrator dispatches on. `.xls` is intentionally absent — it is
-# out of automated scope (Inv-3) and the orchestrator returns None for it before
-# any `form_templates` write is attempted.
+# Binary-suffix → MIME map for `source_documents.mime_type` resolution. Keyed
+# by the lowercased file suffix.
 MIME_BY_SUFFIX: dict[str, str] = {
     ".pdf": "application/pdf",
     ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
-
-# ID-80.8 (80.2 §B.3, candidate 5 — secondary suffix guard): a non-form suffix
-# under a `route:"forms"` manifest prefix is a manifest mis-wire (an operator
-# put content under a forms folder, or mis-tagged the prefix) and is surfaced
-# LOUDLY with zero rows. NB: HTML is not a form format — the form orchestrator
-# dispatches .pdf/.xlsx/.docx only, and the form_templates.mime_type CHECK
-# permits DOCX/PDF/XLSX.
-_NON_FORM_SUFFIXES: frozenset[str] = frozenset({".md", ".txt", ".html"})
 
 # ID-64.11 (S296): source_documents.mime_type is NOT NULL and the pipeline
 # ingests every type the Stage-2 adapters route (md/markdown/txt/html/htm in
@@ -1547,73 +1523,6 @@ def _resolve_source_mime(path: Path) -> str:
         return MIME_BY_SUFFIX[suffix]
     guessed, _ = mimetypes.guess_type(path.name)
     return guessed or _SOURCE_MIME_FALLBACK.get(suffix, "application/octet-stream")
-
-# `form_templates` row-level UPSERT target schema (TECH §2.5 step 3). Column
-# types mirror the live staging schema (verified against
-# supabase/types/database.types.ts): file_size = integer NOT NULL; status,
-# ingest_source NOT NULL (DB defaults exist but the pipeline writes explicit
-# values); deadline = timestamptz; created_by nullable; the M1b dedicated
-# metadata columns (form_type / deadline / issuing_organisation /
-# evaluation_methodology) are written from day one (no JSONB packing). The
-# GENERATED / auto columns `created_at` / `updated_at` are OMITTED per the
-# `content_text_hash GENERATED ALWAYS` convention used by the schemas above.
-# PRODUCT Inv-17 (graceful-empty-with-recorded-reason, ratified S278). The
-# machine-readable token stamped onto a `form_templates` row when a
-# structurally readable form yields ZERO extractable fields. The row STAYS
-# `status='analysed'` (graceful — distinct from the `analysis_failed`
-# strict-raise path) but carries this reason so an `analysed`/0-field row is
-# never left with no recorded reason — the shape Inv-17 forbids.
-FORM_WRITE_GRACEFUL_EMPTY_REASON = "graceful_empty_no_fields"
-
-FORM_TEMPLATES_SCHEMA = TableSchema(
-    columns={
-        "id": ColumnDef(type="uuid", nullable=False),
-        "workspace_id": ColumnDef(type="uuid", nullable=False),
-        "created_by": ColumnDef(type="uuid", nullable=True),
-        "name": ColumnDef(type="text", nullable=False),
-        "filename": ColumnDef(type="text", nullable=False),
-        "file_size": ColumnDef(type="integer", nullable=False),
-        "mime_type": ColumnDef(type="text", nullable=False),
-        "storage_path": ColumnDef(type="text", nullable=False),
-        "structure_path": ColumnDef(type="text", nullable=True),
-        "description": ColumnDef(type="text", nullable=True),
-        "field_count": ColumnDef(type="integer", nullable=True),
-        "mapped_count": ColumnDef(type="integer", nullable=True),
-        "status": ColumnDef(type="text", nullable=False),
-        "ingest_source": ColumnDef(type="text", nullable=False),
-        "form_type": ColumnDef(type="text", nullable=True),
-        "deadline": ColumnDef(type="timestamptz", nullable=True),
-        "issuing_organisation": ColumnDef(type="text", nullable=True),
-        "evaluation_methodology": ColumnDef(type="text", nullable=True),
-    },
-    primary_key=("id",),
-)
-
-# `form_template_fields` row-level UPSERT target schema (TECH §2.5 step 4).
-# `field_type` / `fill_status` / `sequence` are NOT NULL (the pipeline always
-# supplies them). `is_mandatory` + `reference_urls` are the M1-added substrate
-# (TECH §2.5a / §2.6). DB-default / Path-C-owned columns
-# (`mapping_status` default, `fill_error`, `question_id`, `mapping_confidence`)
-# and the GENERATED / auto columns `created_at` / `updated_at` are OMITTED.
-FORM_TEMPLATE_FIELDS_SCHEMA = TableSchema(
-    columns={
-        "id": ColumnDef(type="uuid", nullable=False),
-        "template_id": ColumnDef(type="uuid", nullable=False),
-        "question_text": ColumnDef(type="text", nullable=True),
-        "placeholder_text": ColumnDef(type="text", nullable=True),
-        "field_type": ColumnDef(type="text", nullable=False),
-        "fill_status": ColumnDef(type="text", nullable=False),
-        "row_index": ColumnDef(type="integer", nullable=True),
-        "col_index": ColumnDef(type="integer", nullable=True),
-        "table_index": ColumnDef(type="integer", nullable=True),
-        "section_name": ColumnDef(type="text", nullable=True),
-        "sequence": ColumnDef(type="integer", nullable=False),
-        "word_limit": ColumnDef(type="integer", nullable=True),
-        "is_mandatory": ColumnDef(type="boolean", nullable=True),
-        "reference_urls": ColumnDef(type="text[]", nullable=True),
-    },
-    primary_key=("id",),
-)
 
 
 # ── DSN helper ───────────────────────────────────────────────────────────────
@@ -1767,8 +1676,6 @@ async def ingest_file(
     qa_target: Any,
     sd_target: Any,
     em_target: Any,
-    ft_target: Any,
-    ftf_target: Any,
     cc_target: Any = None,
     er_target: Any = None,
     re_target: Any = None,
@@ -1783,9 +1690,9 @@ async def ingest_file(
     """Ingest ONE source file: convert → extract → declare rows on each target.
 
     Mounted once per source item by `coco.mount_each`. cocoindex 1.0.3 calls
-    this component as `ingest_file(File, ci, qa, sd, em, ft, ftf)` — the item
-    VALUE (the `File`) is the first positional arg, followed by the extra args
-    (`ci/qa/sd/em/ft/ftf` targets) passed positionally to `mount_each`. The
+    this component as `ingest_file(File, ci, qa, sd, em)` — the item VALUE
+    (the `File`) is the first positional arg, followed by the extra args
+    (`ci/qa/sd/em` targets) passed positionally to `mount_each`. The
     (key,value) pair from `walk_dir().items()` is `(relative_path_str, File)`;
     the KEY is consumed by `mount_each` for per-item subpath routing only and is
     NOT passed to `fn` (verified against installed cocoindex 1.0.3
@@ -1793,32 +1700,34 @@ async def ingest_file(
     per-document identity is therefore derived INSIDE the body from
     `file.file_path.path` — there is no `rel_path` parameter.
 
-    `ft_target` / `ftf_target` (ID-52.12) are the `form_templates` /
-    `form_template_fields` row-level UPSERT targets. The Path-B form-write block
-    at the end of the body declares onto them ONLY for form-bearing files that
-    resolve to a workspace and extract successfully (TECH §2.5); markdown /
-    content files leave both untouched.
+    ID-136 (forms-route retirement): the `ft_target` / `ftf_target`
+    (`form_templates` / `form_template_fields`) row-level UPSERT targets — and
+    the Path-B form-write block that declared onto them — are REMOVED. The
+    corpus walk no longer writes `form_templates`; the surviving writer is the
+    app-side manual-upload path (`app/api/procurement/[id]/forms/route.ts`,
+    `ingest_source='app_upload'`).
 
     `cc_target` (ID-56.8) is the `content_chunks` chunk-row UPSERT target. It is
-    a DEFAULTED 8th positional (defaults to None) so the 7-arg legacy callers
+    a DEFAULTED 6th positional (defaults to None; ID-136 shifted this down from
+    8th once `ft_target`/`ftf_target` were removed) so the 5-arg legacy callers
     stay valid: when None, the budget-driven chunking block is skipped entirely.
     When supplied, the chunking block runs AFTER the parent `content_items`
     declare (FK safety + memo cascade) and declares one `content_chunks` row per
     RecursiveSplitter chunk (PRODUCT C-10..C-13).
 
     `er_target` (ID-101 §{101.7}) is the `entity_relationships` row-level UPSERT
-    target. It is a DEFAULTED 9th positional (defaults to None) appended AFTER
+    target. It is a DEFAULTED 7th positional (defaults to None) appended AFTER
     `cc_target` (RULING 1 — defaulted trailing positional, before the keyword-only
-    `*`) so the existing 7-/8-arg callers stay valid: when None, the relationship
+    `*`) so the existing 5-/6-arg callers stay valid: when None, the relationship
     declare loop is skipped entirely. When supplied, the loop runs in the content
     branch AFTER the entity_mentions declares and declares one entity_relationships
     row per distinct canonicalised triple (Inv-4 / Inv-16 parity with the legacy TS
     writer at lib/ai/classify.ts:1785-1819).
 
     `re_target` (ID-131 {131.11}) is the `record_embeddings` polymorphic write
-    target. It is a DEFAULTED 10th positional (defaults to None) appended AFTER
+    target. It is a DEFAULTED 8th positional (defaults to None) appended AFTER
     `er_target` (RULING 1 — trailing defaulted positional, before the keyword-only
-    `*`) so the existing 7-/8-/9-arg callers stay valid: when None, the
+    `*`) so the existing 5-/6-/7-arg callers stay valid: when None, the
     record-embeddings dual-write is skipped. When supplied, the content branch
     declares one `record_embeddings` row per content_chunk (owner_kind
     'content_chunk') alongside the inline `content_chunks.embedding` write.
@@ -1946,8 +1855,6 @@ async def ingest_file(
             qa_target,
             sd_target,
             em_target,
-            ft_target,
-            ftf_target,
             cc_target,
             er_target,
             re_target,
@@ -1965,8 +1872,6 @@ async def _ingest_file_body(
     qa_target: Any,
     sd_target: Any,
     em_target: Any,
-    ft_target: Any,
-    ftf_target: Any,
     cc_target: Any,
     er_target: Any = None,
     re_target: Any = None,
@@ -1983,8 +1888,8 @@ async def _ingest_file_body(
     resolution + local ContextVar re-bind (which must happen on the daemon
     thread) and this body owns the actual convert → extract → declare-rows work.
     `op_id` + `stage_counter` are already resolved; `flow_workspace_manifest` is
-    the explicit Path-B manifest arg (preferred over the ContextVar read at the
-    fork below).
+    the explicit manifest arg (preferred over the ContextVar read at the fork
+    below).
 
     ID-80.8 (80.2 §B.1/§B.3): this body is the DISPATCHER and owns THE FORK.
     It derives `rel_path`, bumps `source_walk`, resolves the manifest route
@@ -1992,17 +1897,22 @@ async def _ingest_file_body(
     same file deterministically takes the same branch every run, 80.2 §B.6),
     then runs EXACTLY ONE branch:
 
-      - `route == "forms"` → `_ingest_form_branch` (ft/ftf targets ONLY);
-      - otherwise          → `_ingest_content_branch` (ci/qa/sd/em/cc/er ONLY).
+      - `route == "qa_sidecar"` → `_ingest_qa_sidecar_branch` (sd/qa targets ONLY);
+      - otherwise               → `_ingest_content_branch` (ci/qa/sd/em/cc/er ONLY).
+
+    ID-136 (DR-014): the historical third branch — the corpus forms-write
+    fork and its dedicated form-template branch function — is RETIRED. Forms
+    enter the system via app-side manual upload, never the corpus walk.
+    `RouteKind` no longer admits a forms value, so this dispatcher can never
+    see one.
 
     Mutual exclusion is structural — one file, one branch, one write-target
-    set. Route defaults to "content" when no manifest is active (Path-A-only
+    set. Route defaults to "content" when no manifest is active (no-manifest
     runs) or when no prefix owns the file (`UnmappedPath` — the bl-219 benign
     soft-warn semantics, preserved at the fork). `AmbiguousResolution` (and
     any future `ResolutionFailure` subtype) fails the file LOUDLY at the fork:
     one `cocoindex.stage_error` and ZERO rows on every target — neither branch
-    runs. RATIFIED OQ-80.2-A (Liam, S314, 05/06/2026): forms land ZERO content
-    rows; OQ-80.2-B: the manifest per-prefix `route` tag IS the fork point.
+    runs. OQ-80.2-B: the manifest per-prefix `route` tag IS the fork point.
     """
 
     def _bump(stage: str, times: int = 1) -> None:
@@ -2078,29 +1988,13 @@ async def _ingest_file_body(
             )
             return
 
-    if route == "forms":
-        # `resolution` is always non-None here: "forms" is only reachable via
-        # a successful `resolve_route` (the defaults above are "content").
-        assert resolution is not None
-        await _ingest_form_branch(
-            file,
-            rel_path,
-            ft_target,
-            ftf_target,
-            op_id=op_id,
-            _bump=_bump,
-            resolution=resolution,
-        )
-        return
-
     if route == "qa_sidecar":
         # ID-59 {59.26} (TECH-qa-sidecar P1): the frozen `__qa__/` reserved
         # prefix forks here. `resolution` is always non-None — "qa_sidecar" is
         # only reachable via a successful `resolve_route` (the defaults above are
         # "content"). The branch receives ONLY `sd_target` + `qa_target` (NOT
         # ci/cc/em/er): the type system makes the INV-5 "no content rows"
-        # guarantee STRUCTURAL, mirroring how `_ingest_form_branch` receives only
-        # ft/ftf.
+        # guarantee STRUCTURAL.
         assert resolution is not None
         await _ingest_qa_sidecar_branch(
             file,
@@ -2170,9 +2064,9 @@ async def _ingest_content_branch(
     """Path-A content branch — Stage 2→6 (ID-80.7 extraction, 80.2 §B.3).
 
     Extracted verbatim from `_ingest_file_body`. Touches ONLY the
-    ci/qa/sd/em/cc/er targets — it NEVER touches `ft_target` / `ftf_target`.
-    `_bump` is the dispatcher's stage-counter closure, threaded through unchanged
-    so the Inv-17 stage-count semantics do not shift.
+    ci/qa/sd/em/cc/er targets. `_bump` is the dispatcher's stage-counter
+    closure, threaded through unchanged so the Inv-17 stage-count semantics do
+    not shift.
 
     `er_target` (ID-101 §{101.7}) is the `entity_relationships` UPSERT target. A
     DEFAULTED trailing positional (None for the legacy callers that omit it); when
@@ -2628,7 +2522,7 @@ async def _ingest_qa_sidecar_branch(
 ) -> None:
     """Q&A-sidecar branch — ID-59 {59.26} (TECH-qa-sidecar-canonical P1).
 
-    The third walk branch, reached EXCLUSIVELY via the `_ingest_file_body` fork
+    The second walk branch, reached EXCLUSIVELY via the `_ingest_file_body` fork
     when the manifest tags a path's prefix `route:"qa_sidecar"` (the frozen
     `__qa__/` reserved prefix — ID-45 {45.3} freezes it). Extracted from the
     content branch's Q&A-relevant statements ONLY: it mints the INV-8 linkage
@@ -2637,9 +2531,9 @@ async def _ingest_qa_sidecar_branch(
     Touches ONLY `sd_target` + `qa_target` — it has NO ci/cc/em/er target in its
     signature, making the PRODUCT INV-5 "no content rows" guarantee STRUCTURAL
     (a `content_items` / `content_chunks` / `entity_mentions` / content-embedding
-    write is impossible here, mirroring how `_ingest_form_branch` cannot touch
-    the content targets). A re-ingest over a folder with N `__qa__/` sidecars
-    adds ZERO content_items for those N files (INV-5's load-bearing skip).
+    write is impossible here). A re-ingest over a folder with N `__qa__/`
+    sidecars adds ZERO content_items for those N files (INV-5's load-bearing
+    skip).
 
     INV-5 nuance (TECH P1, resolved against PRODUCT INV-5's imprecise literal):
     the branch DOES mint exactly ONE `source_documents` row — the INV-8 linkage
@@ -2655,9 +2549,9 @@ async def _ingest_qa_sidecar_branch(
     `_bump` is the dispatcher's stage-counter closure, threaded through unchanged
     so the Inv-17 stage-count semantics do not shift.
 
-    `resolution` carries the resolved workspace; it is accepted to mirror the
-    `_ingest_form_branch` call shape (the fork passes it on every routed branch)
-    even though the workspace-AGNOSTIC sd/qa canonical layer does not consume it.
+    `resolution` carries the resolved workspace; it is accepted so the fork's
+    call shape is uniform across every routed branch, even though the
+    workspace-AGNOSTIC sd/qa canonical layer does not consume it.
     """
     # ── Stage 2: binary → markdown (per-MIME adapter) ───────────────────────
     # The sidecar IS markdown, so the conversion is the identity-ish text read.
@@ -2808,8 +2702,8 @@ async def _log_ssrf_rejection(
     `details={source_url, reason, op_id, feed_article_ids}`. The feed-article
     ids are resolved from the raw ledger URLs at rejection time — `UrlItem`
     deliberately does not carry them. Uses the same env-scope `DB_CTX` pool as
-    the Stage-5 / `_trim_stale_form_fields` precedents; module-level seam so
-    unit tests can observe the contract without a live pool.
+    the Stage-5 precedent; module-level seam so unit tests can observe the
+    contract without a live pool.
     """
     pool = coco.use_context(DB_CTX)
     async with pool.acquire() as conn:
@@ -2851,7 +2745,7 @@ async def _backlink_feed_articles(
     Raw-pool UPDATE keyed on the RAW stored `external_url` values captured at
     enumeration (precise even if normalisation rules ever drift from stored
     values). All N workspace rows for the URL backlink the ONE reference row
-    (BI-8/BI-10). Module-level seam, mirroring `_trim_stale_form_fields`.
+    (BI-8/BI-10). Module-level seam, mirroring `_log_ssrf_rejection` above.
 
     {75.17}: raises like any raw pool write — the walk-1 FK-deferral
     tolerance (an exception whose `constraint_name` string-compares equal to
@@ -3305,273 +3199,6 @@ async def _ingest_url_body(
         )
 
 
-async def _ingest_form_branch(
-    file: "coco.resources.file.FileLike",  # type: ignore[name-defined]
-    rel_path: str,
-    ft_target: Any,
-    ftf_target: Any,
-    *,
-    op_id: "uuid.UUID",
-    _bump: Any,
-    resolution: Resolution,
-) -> None:
-    """Path-B form branch — pipeline-owned form-template write (ID-80.8, 80.2 §B.3).
-
-    Touches ONLY `ft_target` / `ftf_target` — it NEVER touches the ci/qa/sd/
-    em/cc targets. Reached EXCLUSIVELY via the `_ingest_file_body` fork when
-    the manifest tags the file's prefix `route:"forms"`, so workspace
-    resolution has already happened ONCE at the fork — `resolution` carries
-    the winning workspace; the manifest-presence gate and the duplicated
-    resolve call this branch used to own are gone (ID-80.8). Keeps,
-    unchanged: the `extract_form_structure` raw-bytes call, the
-    `FormExtractionError` → `analysis_failed` row, the Inv-17 graceful-empty
-    path, and the `_trim_stale_form_fields` trim. `_bump` is the dispatcher's
-    stage-counter closure, threaded through unchanged.
-
-    The forms route performs NO Stage-2 Markdown conversion and NO Anthropic
-    extraction passes — `extract_form_structure` reads the raw native bytes
-    (the Markdown run for forms was Path-A waste the fork eliminated).
-    RATIFIED OQ-80.2-A (Liam, S314, 05/06/2026): forms land ZERO content rows
-    (no content_items / source_documents / content_chunks / q_a_extractions /
-    entity_mentions); the minimal-provenance-row fallback is DROPPED. CAVEAT:
-    only BLANK form instruments route here (ID-52 Mode-3) — ANSWERED/completed
-    forms are knowledge containers and stay on the content branch via
-    `route:"content"` folder placement (the folder contract carries the
-    distinction; the suffix guard below is the loud backstop for mis-wires).
-    """
-    # ── ID-52 Path B: pipeline-owned form-template write (TECH §2.5) ─────────
-    # ID-69 / {66.22} (S297) — architectural boundary: the content branch's
-    # targets (content_items / source_documents / content_chunks /
-    # q_a_extractions / entity_mentions) are the CANONICAL, workspace-AGNOSTIC
-    # record layer. `content_items` has no workspace_id (ID-69 BI-1), and the
-    # `content_item_workspaces` M2M junction is DELIBERATELY not populated
-    # here: association is ID-69's job (operator-side in v1 via
-    # `app/api/items/[id]/workspaces`; ingest-side extended manifest in v1.1).
-    # Only this Path-B form-write consumes a workspace_id (forms ARE
-    # workspace-scoped) — it arrives via `resolution` from the fork.
-    workspace_id = resolution.workspace_id
-
-    suffix = file.file_path.path.suffix.lower()
-
-    # The SAME deterministic per-document uuid5 the content branch seeds (a
-    # pure function of rel_path — no clock, no I/O), recomputed here ONLY for
-    # error-log attribution (the suffix-guard and FormExtractionError
-    # stage_error events below). No form-branch row write uses it, so the two
-    # branches stay decoupled. ID-131 {131.8} Part C: attribute to the
-    # source_documents id (sd: uuid5) — the canonical record identity.
-    source_document_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"sd:{rel_path}")
-
-    # ── Secondary suffix guard (ID-80.8, 80.2 §B.3 candidate 5) ─────────────
-    # A non-form suffix (.md/.txt/.html) under a `route:"forms"` prefix is a
-    # manifest mis-wire (content placed in a forms folder, or a mis-tagged
-    # prefix) → surface LOUDLY, mirroring the AmbiguousResolution treatment at
-    # the fork: one `cocoindex.stage_error` + ZERO rows. This catches operator
-    # error early rather than silently producing an `analysis_failed` row.
-    if suffix in _NON_FORM_SUFFIXES:
-        _emit_stage_error_log(
-            op_id=op_id,
-            stage="workspace_resolution",
-            error_class="extraction_validation_failed",
-            source_document_id=source_document_id,
-            error_message=(
-                f"manifest mis-wire: non-form suffix {suffix!r} under a "
-                f"route:'forms' prefix (rel_path={rel_path!r}) — content files "
-                "belong under a route:'content' prefix (80.2 §B.3)"
-            ),
-        )
-        return
-
-    # TECH §2.5 step 2: deterministic structural extraction (Path B, NO LLM).
-    # `extract_form_structure` returns None for non-form / out-of-scope `.xls`
-    # (the latter already emits its own `form_extractor.skip` log — Inv-3); it
-    # raises FormExtractionError on an unreadable form (Inv-17). The whole call
-    # is wrapped per-file so one form's failure never halts the batch.
-    # ID-80.13 (D2): a memo HIT arrives as a plain dict (cocoindex resolves the
-    # memoised return hint to `Any` — see the orchestrator module docstring),
-    # so EVERY return is normalised through `coerce_extracted_form` before the
-    # typed attribute accesses below. Without this, walk-2's memo HIT raised
-    # AttributeError at `extracted.form_metadata` and reconciliation
-    # garbage-collected walk-1's ft/ftf rows (S316 B1 staging smoke).
-    form_template_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"ft:{rel_path}")
-    try:
-        extracted = coerce_extracted_form(await extract_form_structure(file))
-    except FormExtractionError as exc:
-        # Inv-17: workspace resolved, but the reader failed. Record ONE
-        # form_templates row with status='analysis_failed' and ZERO fields so
-        # the failure is visible; `form_metadata` is unavailable on this path,
-        # so the NOT-NULL columns are populated from the File. Same `ft:` UUID5
-        # so a later successful re-ingest UPSERTs this same row. Continue the
-        # batch (the per-file try/except above scopes the failure).
-        _emit_stage_error_log(
-            op_id=op_id,
-            stage="form_extraction",
-            error_class="extraction_validation_failed",
-            source_document_id=source_document_id,
-            error_message=str(exc),
-        )
-        ft_target.declare_row(
-            row={
-                "id": form_template_id,
-                "workspace_id": workspace_id,
-                "created_by": SERVICE_ACCOUNT_UUID,
-                "name": file.file_path.path.stem,
-                "filename": file.file_path.path.name,
-                "file_size": await file.size(),
-                "mime_type": MIME_BY_SUFFIX[suffix],
-                "storage_path": rel_path,
-                "structure_path": None,
-                "description": None,
-                "field_count": 0,
-                "mapped_count": 0,
-                "status": "analysis_failed",
-                "ingest_source": "pipeline",
-                "form_type": None,
-                "deadline": None,
-                "issuing_organisation": None,
-                "evaluation_methodology": None,
-            }
-        )
-        _bump("postgres_upsert")  # Inv-17: form_templates row upsert (analysis_failed)
-        return
-
-    if extracted is None:
-        # Not a form-bearing file (or out-of-scope .xls already logged) —
-        # graceful fall-through: leave the form targets untouched and continue
-        # the batch (no content rows either — OQ-80.2-A zero-content-rows).
-        return
-
-    # TECH §2.5 step 3: declare the form_templates instance row (status
-    # 'analysed'). The M1b dedicated metadata columns are written from day one.
-    form_metadata = extracted.form_metadata
-
-    # PRODUCT Inv-17 (graceful-empty-with-recorded-reason, ratified S278). A
-    # structurally readable form that yields ZERO fields (e.g. an XLSX whose
-    # sheets matched no archetype — see xlsx.py NO_ARCHETYPE_REASON) is
-    # GRACEFUL: it STAYS `status='analysed'` (distinct from the
-    # `analysis_failed` strict-raise path above). But it MUST NOT be left as an
-    # `analysed`/0-field row with no recorded reason — the exact shape Inv-17
-    # forbids. So when the reader returned zero fields we (a) thread a recorded
-    # reason onto the row provenance (`description`) and (b) emit a structured
-    # log so the empty extraction is surfaced, not silent.
-    field_count = len(extracted.fields)
-    description = form_metadata.evaluation_methodology
-    if field_count == 0:
-        graceful_empty_reason = (
-            f"{FORM_WRITE_GRACEFUL_EMPTY_REASON}: a structurally readable "
-            f"{form_metadata.form_format} form yielded zero extractable fields "
-            "(no archetype matched). Inv-17 graceful-empty (S278): the form is "
-            "recorded as analysed with a surfaced reason rather than left "
-            "silently empty."
-        )
-        # Preserve any authored description; otherwise the recorded reason is
-        # the row's description so the WHY is never lost.
-        description = description or graceful_empty_reason
-        _logger.info(
-            json.dumps(
-                {
-                    "event": "form_write.graceful_empty",
-                    "reason": FORM_WRITE_GRACEFUL_EMPTY_REASON,
-                    "rel_path": rel_path,
-                    "form_format": form_metadata.form_format,
-                    "form_template_id": str(form_template_id),
-                    "field_count": 0,
-                    "status": "analysed",
-                }
-            )
-        )
-    ft_target.declare_row(
-        row={
-            "id": form_template_id,
-            "workspace_id": workspace_id,
-            "created_by": SERVICE_ACCOUNT_UUID,
-            "name": form_metadata.form_title or file.file_path.path.stem,
-            "filename": file.file_path.path.name,
-            "file_size": await file.size(),
-            "mime_type": MIME_BY_SUFFIX[suffix],
-            "storage_path": rel_path,
-            "structure_path": None,  # populated by Path C later
-            "description": description,
-            "field_count": field_count,
-            "mapped_count": 0,
-            "status": "analysed",
-            "ingest_source": "pipeline",
-            "form_type": form_metadata.form_type,
-            "deadline": form_metadata.deadline,
-            "issuing_organisation": form_metadata.issuing_organisation,
-            "evaluation_methodology": form_metadata.evaluation_methodology,
-        }
-    )
-    _bump("postgres_upsert")  # Inv-17: form_templates row upsert (analysed)
-
-    # TECH §2.8 (Inv-16 shrink): trim stale field rows from a previous LARGER
-    # ingest BEFORE declaring the new field rows. A second ingest that produces
-    # fewer fields would otherwise leave the trailing rows stranded with stale
-    # data. Gated on the per-document template_id; the DELETE is a no-op on a
-    # first ingest. The trim is factored into a helper so it is observable in
-    # unit tests without a live asyncpg pool.
-    new_max_sequence = (
-        max(field.sequence for field in extracted.fields)
-        if extracted.fields
-        else -1
-    )
-    await _trim_stale_form_fields(form_template_id, new_max_sequence)
-
-    # TECH §2.5 step 4: declare each extracted field as a form_template_fields
-    # row. The PK is deterministic per (form, reading-order sequence) so a
-    # re-ingest UPSERTs the same row (Inv-16). `question_id` (Path-C link-back)
-    # and `mapping_status` (DB default) are intentionally NOT set here.
-    for field in extracted.fields:
-        ftf_target.declare_row(
-            row={
-                "id": uuid.uuid5(
-                    _KH_PIPELINE_DOC_NS, f"ftf:{rel_path}:{field.sequence}"
-                ),
-                "template_id": form_template_id,
-                "question_text": field.question_text,
-                "placeholder_text": field.placeholder_text,
-                "field_type": field.field_type,
-                "fill_status": field.fill_status,
-                "row_index": field.row_index,
-                "col_index": field.col_index,
-                "table_index": field.table_index,
-                "section_name": field.section_name,
-                "sequence": field.sequence,
-                "word_limit": field.word_limit,
-                "is_mandatory": field.is_mandatory,
-                "reference_urls": field.reference_urls,
-            }
-        )
-        _bump("postgres_upsert")  # Inv-17: one form_template_fields row upsert
-
-
-async def _trim_stale_form_fields(
-    form_template_id: uuid.UUID, new_max_sequence: int
-) -> None:
-    """Delete `form_template_fields` rows beyond `new_max_sequence` (Inv-16).
-
-    Inv-16 shrink case (TECH §2.8): a form revised to drop trailing questions
-    would otherwise leave the higher-`sequence` rows stranded. Before the new
-    field rows are declared, remove any rows for this template whose `sequence`
-    exceeds the current maximum. Implemented as a single asyncpg statement
-    against the env-scope `DB_CTX` pool (the same pool the row-level targets use
-    under `managed_by=ManagedBy.USER`); declare_row UPSERTs cover the
-    add/change cases, so only the shrink case needs an explicit DELETE.
-
-    Factored into a module-level coroutine (rather than inlined) so unit tests
-    can observe the trim contract by patching this seam — the live DELETE needs
-    a real pool, but the "trim runs before field declares, keyed on
-    `(template_id, sequence)`" contract is provable without one.
-    """
-    pool = coco.use_context(DB_CTX)
-    async with pool.acquire() as conn:
-        await conn.execute(
-            "DELETE FROM public.form_template_fields "
-            "WHERE template_id = $1 AND sequence > $2",
-            form_template_id,
-            new_max_sequence,
-        )
-
-
 # ── Main pipeline function ───────────────────────────────────────────────────
 
 
@@ -3636,17 +3263,17 @@ async def app_main() -> None:
     # 80.2 §B.4 per-item-failure substrate (ID-80.9): bumped by the
     # containment handler in `bound_ingest_file` below each time an
     # unexpected exception escapes ONE file's ingest; its per-branch tally
-    # (`{'forms': n, 'content': m}`) is threaded into the terminal webhook
+    # (`{'content': m, 'url': k}`) is threaded into the terminal webhook
     # emit. Per-item faults never flip `flow_status` (OQ-80.2-C).
     flow_item_failure_counter = _FlowItemFailureCounter()
 
-    # ── ID-52 Path B: load the folder→workspace manifest ONCE at flow start ──
-    # (TECH §2.1). The manifest lives at the root of the ingest source folder.
-    # A missing / unparseable / schema-invalid manifest ABORTS the flow with a
-    # structured `manifest_missing` / `manifest_invalid` stage error (the form
-    # path must not run without a workspace map). The loaded manifest is bound
-    # at flow scope (around `mount_each` below) so the per-item `ingest_file`
-    # reaches it via `current_workspace_manifest()`.
+    # ── Load the folder→workspace manifest ONCE at flow start (TECH §2.1) ──
+    # The manifest lives at the root of the ingest source folder. A missing /
+    # unparseable / schema-invalid manifest ABORTS the flow with a structured
+    # `manifest_missing` / `manifest_invalid` stage error (content/qa_sidecar
+    # routing must not run without a workspace map). The loaded manifest is
+    # bound at flow scope (around `mount_each` below) so the per-item
+    # `ingest_file` reaches it via `current_workspace_manifest()`.
     manifest_path = source_path / _WORKSPACE_MANIFEST_FILENAME
     try:
         workspace_manifest = load_workspace_manifest(manifest_path)
@@ -3734,21 +3361,12 @@ async def app_main() -> None:
             ENTITY_RELATIONSHIPS_SCHEMA,
             managed_by=ManagedBy.USER,
         )
-        # ID-52.12 (Inv-6). Path-B pipeline-owned form-template write targets.
-        # managed_by=ManagedBy.USER: cocoindex UPSERTs rows only — the tables +
-        # all columns already exist on staging (Migrations M1/M1b); NO DDL here.
-        ft_target = await mount_table_target(
-            DB_CTX,
-            "form_templates",
-            FORM_TEMPLATES_SCHEMA,
-            managed_by=ManagedBy.USER,
-        )
-        ftf_target = await mount_table_target(
-            DB_CTX,
-            "form_template_fields",
-            FORM_TEMPLATE_FIELDS_SCHEMA,
-            managed_by=ManagedBy.USER,
-        )
+        # ID-136: the Path-B form-template write targets (`ft_target` /
+        # `ftf_target`, mounted here through ID-52.12) are REMOVED — the
+        # corpus walk no longer writes `form_templates` / `form_template_fields`.
+        # The surviving writer is the app-side manual-upload path
+        # (`app/api/procurement/[id]/forms/route.ts`); the tables themselves
+        # are untouched (§5 — no migration, no DDL).
         # ID-56.8 (PRODUCT C-10..C-13). content_chunks chunk-row UPSERT target.
         # managed_by=ManagedBy.USER: cocoindex UPSERTs rows only — the table +
         # the {56.6} op_id column already exist on staging; NO DDL here.
@@ -3876,8 +3494,6 @@ async def app_main() -> None:
             qa_target,
             sd_target,
             em_target,
-            ft_target,
-            ftf_target,
             cc_target,
             er_target,
             re_target,
