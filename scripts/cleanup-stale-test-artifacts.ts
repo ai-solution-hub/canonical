@@ -199,12 +199,12 @@ const workspaceIds = await selectIdsByPrefix(
 let relatedRowsDeleted = 0;
 for (const [table, column] of [
   ['citations', 'cited_content_item_id'],
-  ['content_chunks', 'content_item_id'],
+  ['content_chunks', 'source_document_id'],
   ['content_history', 'content_item_id'],
   ['content_item_workspaces', 'content_item_id'],
-  ['entity_mentions', 'content_item_id'],
+  ['entity_mentions', 'source_document_id'],
   ['entity_relationships', 'source_document_id'],
-  ['classification_disputes', 'content_item_id'],
+  ['classification_disputes', 'source_document_id'],
   ['ingestion_quality_log', 'content_item_id'],
   ['read_marks', 'content_item_id'],
   ['verification_history', 'content_item_id'],

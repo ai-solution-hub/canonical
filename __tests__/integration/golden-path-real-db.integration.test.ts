@@ -184,7 +184,7 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
 
     // Audited S186 — `entity_mentions` rows follow a successful Step 2
     // classify. Unique constraint
-    // `entity_mentions_canonical_name_entity_type_content_item_id_key` is in
+    // `entity_mentions_canonical_name_entity_type_source_document_id_key` is in
     // place; the earlier `[REAL BUG FOUND]` warning (removed) was a red
     // herring caused by a cascade from a stale hardcoded UUID in Step 2.
     // See `docs/audits/entity-mentions-step3-investigation-2026-04-22.md`.

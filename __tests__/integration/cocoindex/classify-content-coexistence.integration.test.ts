@@ -95,7 +95,7 @@ beforeAll(async () => {
   nullOpMentionId = mentionId;
   const { error: emErr } = await client.from('entity_mentions').insert({
     id: mentionId,
-    content_item_id: contentItemId,
+    source_document_id: contentItemId,
     entity_name: 'ISO 27001',
     entity_type: 'certification',
     canonical_name: NULL_OP_CANONICAL,

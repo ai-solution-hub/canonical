@@ -256,7 +256,7 @@ export interface PollContentChunksOpts {
  */
 export interface PolledContentChunkRow {
   id: string;
-  content_item_id: string;
+  source_document_id: string;
   content: string;
   position: number;
   char_count: number;
@@ -270,10 +270,10 @@ export interface PolledContentChunkRow {
 }
 
 const CONTENT_CHUNK_COLUMNS =
-  'id, content_item_id, content, position, char_count, word_count, embedding, op_id, heading_text, heading_level, heading_path, parent_chunk_id';
+  'id, source_document_id, content, position, char_count, word_count, embedding, op_id, heading_text, heading_level, heading_path, parent_chunk_id';
 
 /**
- * Poll `content_chunks` for a given `content_item_id` via the live service-role
+ * Poll `content_chunks` for a given `source_document_id` via the live service-role
  * client until at least `minRows` rows land, or the deadline is reached. Rows
  * are returned ordered by `position` ascending so callers can assert the
  * monotonic 0,1,2... run (C-11). Mirrors `pollContentItemsFor`'s shape: a
@@ -303,7 +303,7 @@ export async function pollContentChunksFor(
     const { data, error } = await client
       .from('content_chunks')
       .select(CONTENT_CHUNK_COLUMNS)
-      .eq('content_item_id', contentItemId)
+      .eq('source_document_id', contentItemId)
       .order('position', { ascending: true });
 
     if (error) {
@@ -320,7 +320,7 @@ export async function pollContentChunksFor(
   }
 
   throw new Error(
-    `pollContentChunksFor: timed out after ${timeoutMs}ms waiting for >= ${minRows} content_chunks row(s) for content_item_id ${contentItemId}`,
+    `pollContentChunksFor: timed out after ${timeoutMs}ms waiting for >= ${minRows} content_chunks row(s) for source_document_id ${contentItemId}`,
   );
 }
 
@@ -329,7 +329,7 @@ function toPolledContentChunkRow(
 ): PolledContentChunkRow {
   return {
     id: r.id as string,
-    content_item_id: r.content_item_id as string,
+    source_document_id: r.source_document_id as string,
     content: r.content as string,
     position: r.position as number,
     char_count: r.char_count as number,
@@ -366,7 +366,7 @@ export interface DropFixtureArgs {
  * Purge derivation rows + content_items rows for a single test fixture.
  * Operates in two passes:
  *
- *   1. Delete from derivation tables keyed by `content_item_id` IN
+ *   1. Delete from derivation tables keyed by `source_document_id` IN
  *      (...contentIds): `q_a_extractions` and `source_documents`. Also
  *      attempts `entity_mentions` on a best-effort basis (ID-49.5 is
  *      currently deferred per S273 OQ-1 — the table or the FK may be
@@ -408,12 +408,12 @@ export async function dropFixture(args: DropFixtureArgs): Promise<void> {
 
   const client = await createLiveServiceClient();
 
-  // 1a. q_a_extractions — hard FK on content_item_id; delete first.
+  // 1a. q_a_extractions — hard FK on source_document_id; delete first.
   {
     const { error } = await client
       .from('q_a_extractions')
       .delete()
-      .in('content_item_id', args.contentIds);
+      .in('source_document_id', args.contentIds);
     if (error) {
       console.warn(
         `dropFixture: q_a_extractions cleanup warning — ${error.message ?? String(error)}`,
@@ -422,12 +422,12 @@ export async function dropFixture(args: DropFixtureArgs): Promise<void> {
   }
 
   // 1b. entity_mentions — best-effort; ID-49.5 deferred per S273 OQ-1, so the
-  // table or its content_item_id FK may not be in shape. Swallow errors.
+  // table or its source_document_id FK may not be in shape. Swallow errors.
   try {
     const { error } = await client
       .from('entity_mentions')
       .delete()
-      .in('content_item_id', args.contentIds);
+      .in('source_document_id', args.contentIds);
     if (error) {
       console.warn(
         `dropFixture: entity_mentions cleanup skipped — ${error.message ?? String(error)}`,

@@ -566,7 +566,7 @@ export async function cleanupAdminDedupFixtures(
   const { data: chunkRows, error: chunkErr } = await supabase
     .from('content_chunks')
     .delete()
-    .in('content_item_id', ids)
+    .in('source_document_id', ids)
     .select('id');
   if (chunkErr) {
     throw new Error(
@@ -644,7 +644,7 @@ export async function cleanupAllAdminDedupFixtures(
   const { data: chunkRows, error: chunkErr } = await supabase
     .from('content_chunks')
     .delete()
-    .in('content_item_id', ids)
+    .in('source_document_id', ids)
     .select('id');
   if (chunkErr) {
     throw new Error(
@@ -723,7 +723,7 @@ export async function sweepOrphanFixtures(
     .from('content_items')
     .update({ superseded_by: null })
     .in('id', ids);
-  await supabase.from('content_chunks').delete().in('content_item_id', ids);
+  await supabase.from('content_chunks').delete().in('source_document_id', ids);
   await supabase.from('content_history').delete().in('content_item_id', ids);
   const { data: itemRows, error: itemErr } = await supabase
     .from('content_items')

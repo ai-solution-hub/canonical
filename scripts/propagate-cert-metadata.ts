@@ -115,7 +115,7 @@ interface EntityMention {
   canonical_name: string;
   entity_type: string;
   metadata: Record<string, unknown> | null;
-  content_item_id: string;
+  source_document_id: string;
 }
 
 interface ContentItem {
@@ -173,7 +173,7 @@ async function main() {
   // 1. Fetch all certification entity mentions
   const { data: allMentions, error: mentionsError } = await supabase
     .from('entity_mentions')
-    .select('id, canonical_name, entity_type, metadata, content_item_id')
+    .select('id, canonical_name, entity_type, metadata, source_document_id')
     .eq('entity_type', 'certification')
     .order('canonical_name');
 
@@ -191,7 +191,7 @@ async function main() {
 
   // 2. Fetch content item titles for holder context
   const contentItemIds = [
-    ...new Set(allMentions.map((m) => m.content_item_id)),
+    ...new Set(allMentions.map((m) => m.source_document_id)),
   ];
 
   const { data: contentItems, error: contentError } = await supabase
@@ -247,10 +247,10 @@ async function main() {
     // Separate mentions by holder context (supplier-entity title = supplier,
     // other = self)
     const selfHeldMentions = mentions.filter(
-      (m) => !isSupplierContent(titleMap.get(m.content_item_id) ?? null),
+      (m) => !isSupplierContent(titleMap.get(m.source_document_id) ?? null),
     );
     const supplierMentions = mentions.filter((m) =>
-      isSupplierContent(titleMap.get(m.content_item_id) ?? null),
+      isSupplierContent(titleMap.get(m.source_document_id) ?? null),
     );
 
     // Find richest source for each holder type
@@ -292,7 +292,7 @@ async function main() {
     for (const mention of emptySelfHeld) {
       if (LIMIT > 0 && propagated >= LIMIT) break;
 
-      const title = titleMap.get(mention.content_item_id) || '(unknown)';
+      const title = titleMap.get(mention.source_document_id) || '(unknown)';
 
       if (!richestSelfHeld) {
         console.log(`        SKIP (no self-held source): ${title}`);
@@ -305,7 +305,7 @@ async function main() {
         SELF_HELD_FIELDS,
       );
       const sourceTitle =
-        titleMap.get(richestSelfHeld.content_item_id) || '(unknown)';
+        titleMap.get(richestSelfHeld.source_document_id) || '(unknown)';
 
       console.log(
         `        ${DRY_RUN ? 'WOULD PROPAGATE' : 'PROPAGATING'} → ${title}`,
@@ -338,7 +338,7 @@ async function main() {
     for (const mention of emptySupplier) {
       if (LIMIT > 0 && propagated >= LIMIT) break;
 
-      const title = titleMap.get(mention.content_item_id) || '(unknown)';
+      const title = titleMap.get(mention.source_document_id) || '(unknown)';
 
       if (!richestSupplier) {
         // No supplier source — infer minimal supplier metadata
@@ -381,7 +381,7 @@ async function main() {
         SUPPLIER_FIELDS,
       );
       const sourceTitle =
-        titleMap.get(richestSupplier.content_item_id) || '(unknown)';
+        titleMap.get(richestSupplier.source_document_id) || '(unknown)';
 
       console.log(
         `        ${DRY_RUN ? 'WOULD PROPAGATE' : 'PROPAGATING'} → ${title}`,

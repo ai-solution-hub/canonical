@@ -202,20 +202,20 @@ async function countBy(
   const counts = new Map<string, number>();
   if (ids.length === 0) return counts;
 
-  // `select('content_item_id')` returns every row, then we aggregate in JS.
+  // `select('source_document_id')` returns every row, then we aggregate in JS.
   // Supabase-js doesn't expose PostgREST group-by cleanly; this is the
   // idiomatic approach for scripts like this one.
   const { data, error } = await supabase
     .from(table)
-    .select('content_item_id')
-    .in('content_item_id', ids);
+    .select('source_document_id')
+    .in('source_document_id', ids);
 
   if (error) {
     console.error(`Failed to count ${table}: ${error.message}`);
     return counts;
   }
   for (const row of data ?? []) {
-    const key = (row as { content_item_id: string }).content_item_id;
+    const key = (row as { source_document_id: string }).source_document_id;
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return counts;
@@ -230,19 +230,22 @@ async function namesBy(
 
   const { data, error } = await supabase
     .from('entity_mentions')
-    .select('content_item_id, canonical_name')
-    .in('content_item_id', ids);
+    .select('source_document_id, canonical_name')
+    .in('source_document_id', ids);
 
   if (error) {
     console.error(`Failed to fetch entity_mentions: ${error.message}`);
     return out;
   }
   for (const row of data ?? []) {
-    const r = row as { content_item_id: string; canonical_name: string | null };
+    const r = row as {
+      source_document_id: string;
+      canonical_name: string | null;
+    };
     if (!r.canonical_name) continue;
-    const bucket = out.get(r.content_item_id) ?? new Set<string>();
+    const bucket = out.get(r.source_document_id) ?? new Set<string>();
     bucket.add(r.canonical_name);
-    out.set(r.content_item_id, bucket);
+    out.set(r.source_document_id, bucket);
   }
   return out;
 }

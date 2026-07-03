@@ -667,15 +667,15 @@ export async function chunk_coverage(ctx: GateContext): Promise<CheckResult> {
       };
     }
     const ids = items.map((r) => r.id as string);
-    const chunkRows = await fetchAllInBatches<{ content_item_id: string }>(
+    const chunkRows = await fetchAllInBatches<{ source_document_id: string }>(
       ctx.sb,
       'content_chunks',
       ids,
-      'content_item_id',
-      (q) => q.select('content_item_id'),
+      'source_document_id',
+      (q) => q.select('source_document_id'),
     );
     const chunkSet = new Set<string>();
-    for (const row of chunkRows) chunkSet.add(row.content_item_id);
+    for (const row of chunkRows) chunkSet.add(row.source_document_id);
     const missing = items.filter((r) => !chunkSet.has(r.id as string));
     const sample = missing
       .slice(0, 10)
@@ -728,15 +728,15 @@ export async function entity_mention_coverage(
     );
 
     const ids = items.map((r) => r.id as string);
-    const mentionRows = await fetchAllInBatches<{ content_item_id: string }>(
+    const mentionRows = await fetchAllInBatches<{ source_document_id: string }>(
       ctx.sb,
       'entity_mentions',
       ids,
-      'content_item_id',
-      (q) => q.select('content_item_id'),
+      'source_document_id',
+      (q) => q.select('source_document_id'),
     );
     const withMentions = new Set<string>();
-    for (const row of mentionRows) withMentions.add(row.content_item_id);
+    for (const row of mentionRows) withMentions.add(row.source_document_id);
 
     const byType: Record<string, { total: number; withM: number }> = {};
     for (const r of items) {
@@ -1402,7 +1402,7 @@ export async function audit_required_entities(
     const mentionRows = await fetchAllInBatches<{
       canonical_name: string;
       entity_type: string;
-    }>(ctx.sb, 'entity_mentions', itemIds, 'content_item_id', (q) =>
+    }>(ctx.sb, 'entity_mentions', itemIds, 'source_document_id', (q) =>
       q.select('canonical_name, entity_type'),
     );
     const foundByType = new Set<string>();
@@ -1579,7 +1579,7 @@ export async function audit_chunk_count_per_doc(
         const { count, error } = await ctx.sb
           .from('content_chunks')
           .select('id', { count: 'exact', head: true })
-          .in('content_item_id', slice);
+          .in('source_document_id', slice);
         if (error) throw error;
         chunkTotal += count ?? 0;
       }

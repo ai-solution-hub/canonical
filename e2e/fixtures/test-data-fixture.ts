@@ -169,7 +169,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       const entityMentionInserts = entityMentionShapes
         .filter((m) => itemIds[m.itemIndex])
         .map((m) => ({
-          content_item_id: itemIds[m.itemIndex],
+          source_document_id: itemIds[m.itemIndex],
           canonical_name: m.canonical_name,
           entity_name: m.entity_name,
           entity_type: m.entity_type,
@@ -590,7 +590,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         await supabase
           .from('entity_mentions')
           .delete()
-          .in('content_item_id', itemIds);
+          .in('source_document_id', itemIds);
         await supabase
           .from('entity_relationships')
           .delete()

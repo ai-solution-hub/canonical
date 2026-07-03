@@ -231,7 +231,7 @@ async function cleanupSeededIds(
     .update({ superseded_by: null })
     .in('id', ids);
 
-  await supabase.from('content_chunks').delete().in('content_item_id', ids);
+  await supabase.from('content_chunks').delete().in('source_document_id', ids);
   await supabase.from('content_history').delete().in('content_item_id', ids);
   await supabase.from('content_items').delete().in('id', ids);
 }

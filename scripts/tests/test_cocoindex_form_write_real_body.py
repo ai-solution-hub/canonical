@@ -69,7 +69,7 @@ Disposition table (symbol → class → covering / new test):
                                     Maintenance-hazard guard added below (deliverable C).
   _run_stage_5_resolution     (2)  REAL body run by test_cocoindex_stage_5_resolution.py
                                     (bl-225; models UNIQUE(canonical_name,entity_type,
-                                    content_item_id) UniqueViolation, RED-before).
+                                    source_document_id) UniqueViolation, RED-before).
   _extract_pdf / _extract_xlsx /
    _extract_docx (orchestrator)(2) REAL reader bodies run by test_form_extractors.py
                                     (corpus-fixture walks) + test_docx_cell_to_markdown.py +
