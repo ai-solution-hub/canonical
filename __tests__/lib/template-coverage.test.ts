@@ -1,9 +1,11 @@
 /**
  * Tests for the template-driven KB completeness matching engine.
  *
- * Covers: constants, cosineSimilarity, matchRequirement, computeTemplateCoverage.
- * Data fetching functions (fetchTemplateRequirements, etc.) are not tested here
- * because they require a real Supabase client.
+ * Covers: constants, cosineSimilarity, matchRequirement, computeTemplateCoverage,
+ * and (post-{131.16} re-point) fetchContentForMatching's Supabase call shape
+ * via the shared `createMockSupabaseTableDispatch` mock. `fetchTemplateRequirements`
+ * / `listAvailableTemplates` remain untested here — narrower fixed-shape reads
+ * against `form_template_requirements` with no re-pointing behaviour to verify.
  */
 import { describe, it, expect } from 'vitest';
 import {
@@ -14,11 +16,13 @@ import {
   cosineSimilarity,
   matchRequirement,
   computeTemplateCoverage,
+  fetchContentForMatching,
 } from '@/lib/domains/procurement/form-templating/template-coverage';
 import type {
   TemplateRequirement,
   ContentItemForMatching,
 } from '@/lib/domains/procurement/form-templating/template-coverage';
+import { createMockSupabaseTableDispatch } from '@/__tests__/helpers/mock-supabase';
 
 // ---------------------------------------------------------------------------
 // Test helpers — factories for mock data
@@ -470,5 +474,149 @@ describe('computeTemplateCoverage', () => {
     expect(result.template_name).toBe('Standard Selection Questionnaire');
     expect(result.template_version).toBe('PPN 03/24');
     expect(result.template_type).toBe('sq');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fetchContentForMatching — re-pointed data-fetching behaviour ({131.16}
+// BI-29/30/31). Verifies the function reads q_a_pairs + reference_items
+// (+ record_embeddings / record_lifecycle satellites) and never touches the
+// retired content_items table, and that the returned rows are shaped exactly
+// as ContentItemForMatching — the shape every caller (get_template_coverage /
+// get_template_gaps in lib/mcp/tools/templates.ts, the coverage/gaps and
+// coverage/templates routes) feeds straight into computeTemplateCoverage.
+// ---------------------------------------------------------------------------
+
+describe('fetchContentForMatching', () => {
+  it('sources content from q_a_pairs + reference_items and never queries content_items', async () => {
+    const dispatch = createMockSupabaseTableDispatch({
+      q_a_pairs: {
+        data: [
+          {
+            id: 'qa-1',
+            question_text: 'What is your safety policy?',
+            answer_standard: 'We maintain ISO 45001 certification.',
+            answer_advanced: null,
+          },
+        ],
+        error: null,
+      },
+      reference_items: {
+        data: [
+          {
+            id: 'ri-1',
+            title: 'Safety Policy Document',
+            body: 'Full text of the safety policy.',
+            summary: 'Summary of the safety policy.',
+            primary_domain: 'compliance',
+            primary_subtopic: 'health-and-safety',
+          },
+        ],
+        error: null,
+      },
+      record_embeddings: {
+        data: [
+          // Stored as a JSON string on some rows, a parsed array on others —
+          // fetchContentForMatching must handle both (mirrors the pgvector
+          // string-or-array duality already handled for requirement_embedding).
+          { owner_id: 'qa-1', embedding: '[0.1,0.2,0.3]' },
+          { owner_id: 'ri-1', embedding: [0.4, 0.5, 0.6] },
+        ],
+        error: null,
+      },
+      record_lifecycle: {
+        data: [{ owner_id: 'qa-1', domain: 'compliance' }],
+        error: null,
+      },
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mock dispatch client requires flexible typing
+    const result = await fetchContentForMatching(dispatch as any);
+
+    expect(result).toHaveLength(2);
+
+    const qaItem = result.find((r) => r.id === 'qa-1');
+    expect(qaItem).toEqual<ContentItemForMatching>({
+      id: 'qa-1',
+      content:
+        'Q: What is your safety policy?\n\nWe maintain ISO 45001 certification.',
+      brief: null,
+      detail: null,
+      title: 'What is your safety policy?',
+      suggested_title: null,
+      primary_domain: 'compliance',
+      primary_subtopic: null,
+      content_type: 'q_a_pair',
+      ai_keywords: null,
+      embedding: [0.1, 0.2, 0.3],
+    });
+
+    const riItem = result.find((r) => r.id === 'ri-1');
+    expect(riItem).toEqual<ContentItemForMatching>({
+      id: 'ri-1',
+      content: 'Full text of the safety policy.',
+      brief: null,
+      detail: null,
+      title: 'Safety Policy Document',
+      suggested_title: null,
+      primary_domain: 'compliance',
+      primary_subtopic: 'health-and-safety',
+      content_type: 'reference_item',
+      ai_keywords: null,
+      embedding: [0.4, 0.5, 0.6],
+    });
+
+    // The retired content_items table must never be queried.
+    expect(dispatch.from).not.toHaveBeenCalledWith('content_items');
+
+    // The re-pointed sources + satellites ARE queried.
+    expect(dispatch.from).toHaveBeenCalledWith('q_a_pairs');
+    expect(dispatch.from).toHaveBeenCalledWith('reference_items');
+    expect(dispatch.from).toHaveBeenCalledWith('record_embeddings');
+    expect(dispatch.from).toHaveBeenCalledWith('record_lifecycle');
+
+    // Archived q_a_pairs are excluded (closest surviving analogue of the
+    // dropped content_items.archived_at IMS flag — BI-29/30 note).
+    expect(dispatch._chains.q_a_pairs.neq).toHaveBeenCalledWith(
+      'publication_status',
+      'archived',
+    );
+
+    // record_embeddings is scoped to the polymorphic owner_kind pair + model.
+    expect(dispatch._chains.record_embeddings.in).toHaveBeenCalledWith(
+      'owner_kind',
+      ['q_a_pair', 'reference_item'],
+    );
+    expect(dispatch._chains.record_embeddings.eq).toHaveBeenCalledWith(
+      'model',
+      'text-embedding-3-large',
+    );
+  });
+
+  it('returns an empty array and skips the embeddings fetch when no q_a_pairs/reference_items exist (BI-30 blank-form fork)', async () => {
+    const dispatch = createMockSupabaseTableDispatch({
+      q_a_pairs: { data: [], error: null },
+      reference_items: { data: [], error: null },
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mock dispatch client requires flexible typing
+    const result = await fetchContentForMatching(dispatch as any);
+
+    expect(result).toEqual([]);
+    // Short-circuits before the embeddings satellite fetch — a blank form
+    // instrument correctly reports zero matchable content, not an error.
+    expect(dispatch.from).not.toHaveBeenCalledWith('record_embeddings');
+  });
+
+  it('throws a descriptive error when the q_a_pairs query fails', async () => {
+    const dispatch = createMockSupabaseTableDispatch({
+      q_a_pairs: { data: null, error: { message: 'connection reset' } },
+      reference_items: { data: [], error: null },
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mock dispatch client requires flexible typing
+    await expect(fetchContentForMatching(dispatch as any)).rejects.toThrow(
+      /Failed to fetch q_a_pairs for matching/,
+    );
   });
 });
