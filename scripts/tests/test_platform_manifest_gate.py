@@ -31,10 +31,14 @@ THE BI-7 CONTRACT CODIFIED HERE (TECH.md §BI-7 + Testing table)
   (b) A content file under a NON-forms prefix routes to ``'content'`` and lands
       WORKSPACE-AGNOSTIC: ``content_items`` carries NO ``workspace_id`` (BI-7 —
       "workspace_ids NEVER written"; ID-69 BI-1).
-  (c) A forms file under ``forms/procurement/`` routes to ``'forms'`` and
-      CONSUMES the resolved ``workspace_id`` → it lands on
-      ``form_templates.workspace_id`` ("Only this Path-B form-write consumes a
-      workspace_id").
+  (c) ID-136 (forms-route retirement, DR-014): the corpus-walk forms route is
+      RETIRED — ``RouteKind`` no longer admits ``"forms"``, so a manifest
+      tagging a prefix ``route:"forms"`` now fails LOUDLY at load
+      (``ManifestLoadError``) rather than routing a file to a form-write
+      branch. ``form_templates`` / ``form_template_fields`` persist as
+      tables, but the corpus walk no longer mounts or writes them — the
+      surviving writer is the app-side manual-upload path
+      (``ingest_source='app_upload'``).
   (d) Re-running the SAME corpus mints IDENTICAL ``uuid5(rel_path)`` row
       identities (no duplication — deterministic PKs UPSERT).
   (e) CRITICAL REGRESSION GUARD: a corpus with NO root manifest ABORTS
@@ -67,13 +71,6 @@ import pytest
 from cocoindex import ComponentSubpath, component_subpath
 
 from conftest import fresh_flow_module  # noqa: E402
-
-# The committed, deterministic real form fixture: a genuine blank-instrument
-# DOCX the REAL docx reader extracts fields from (the same corpus fixture the
-# {80.8} fork-routing suite and the form-extractor real-body suite walk). Used
-# UNPATCHED so assertion (c) proves the real forms route consumes a workspace_id.
-_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "form-extraction"
-_CHARNWOOD_DOCX = _FIXTURE_DIR / "itt-services-charnwood.docx"
 
 
 def _flow_module():
@@ -237,7 +234,12 @@ def _sd_rows_from_pool(pool: object) -> list[dict]:
 
 
 def _target_set() -> dict[str, _FakeTarget]:
-    """The full mount-target set ``app_main`` requests (all ten tables)."""
+    """The full mount-target set ``app_main`` requests (all eight tables).
+
+    ID-136 (forms-route retirement, T8): ``form_templates`` /
+    ``form_template_fields`` are no longer mounted by the corpus walk — the
+    ``ft_target``/``ftf_target`` mounts were removed along with the forms
+    branch."""
     return {
         name: _FakeTarget(name)
         for name in (
@@ -246,8 +248,6 @@ def _target_set() -> dict[str, _FakeTarget]:
             "source_documents",
             "entity_mentions",
             "entity_relationships",
-            "form_templates",
-            "form_template_fields",
             "content_chunks",
             "reference_items",
             # ID-131 {131.11}: the polymorphic embedding store app_main now mounts.
@@ -307,19 +307,10 @@ def _run_app_main_over_dir(
     monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
     monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
     monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
-    # NB: extract_form_structure is deliberately LEFT UNPATCHED — the REAL docx
-    # reader runs against the committed Charnwood fixture so the forms route
-    # genuinely mints an analysed form_templates row consuming the workspace_id.
-
-    # Fake the asyncpg-pool form-trim seam (the shrink DELETE reached after the
-    # form-template field write — its REAL body is covered real-body by bl-224 in
-    # test_cocoindex_flow_write_path.py). Without this, the form branch hits the
-    # stubbed DB pool's missing `acquire` (the trim is an outside-world DB seam,
-    # not the BI-7 routing behaviour under test).
-    async def _fake_trim(template_id, new_max_sequence) -> None:
-        return None
-
-    monkeypatch.setattr(flow, "_trim_stale_form_fields", _fake_trim)
+    # ID-136 (forms-route retirement): the forms branch, its
+    # extract_form_structure seam, and the asyncpg-pool form-trim seam
+    # (_trim_stale_form_fields) are all REMOVED from flow.py — there is no
+    # longer anything to patch here.
 
     # Spy resolve_route so a test can prove the deployed entrypoint resolved
     # each rel_path against the loaded manifest on the worker thread.
@@ -522,81 +513,6 @@ class TestManifestPresentContentCorpusIngests:
         assert "workspace_id" not in ci.rows[0], (
             "an unmapped content file lands workspace-agnostic (BI-7 (b))"
         )
-        assert targets["form_templates"].rows == [], "no form row for a content .md"
-
-
-class TestFormsPrefixConsumesWorkspaceId:
-    """BI-7 (c): a forms file under ``forms/procurement/`` routes to 'forms' and
-    consumes the resolved workspace_id → it lands on form_templates.workspace_id
-    (the ONLY Path-B write that consumes a workspace_id)."""
-
-    def test_forms_procurement_docx_routes_forms_and_writes_workspace_id(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        assert _CHARNWOOD_DOCX.exists(), (
-            f"corpus fixture missing — {_CHARNWOOD_DOCX} should symlink to the "
-            "committed Charnwood blank instrument DOCX"
-        )
-
-        flow = _flow_module()
-
-        source_dir = tmp_path
-        forms_dir = source_dir / "forms" / "procurement"
-        forms_dir.mkdir(parents=True)
-        # A real on-disk copy is not needed — the _FakeFile reads the committed
-        # fixture bytes via disk_path; only the rel_path drives the manifest match.
-        workspace_id = uuid.uuid4()
-        _write_manifest(source_dir, [
-            {
-                "path_prefix": "forms/procurement/",
-                "workspace_id": str(workspace_id),
-                "route": "forms",
-            },
-        ])
-
-        targets = _target_set()
-        rel_path = "forms/procurement/itt-services.docx"
-        _run_op_id, webhooks = _run_app_main_over_dir(
-            flow,
-            source_dir,
-            targets,
-            monkeypatch,
-            walked_files=[(rel_path, _CHARNWOOD_DOCX)],
-        )
-
-        ft = targets["form_templates"]
-        ftf = targets["form_template_fields"]
-        resolve_calls = targets["_resolve_calls"]  # type: ignore[index]
-
-        # The run completed and the fork resolved the forms rel_path.
-        assert webhooks[-1]["status"] == "completed"
-        assert rel_path in resolve_calls
-
-        # (c) The forms route minted exactly one analysed form_templates row that
-        # CONSUMED the resolved workspace_id — the only Path-B write keyed on a
-        # workspace.
-        assert len(ft.rows) == 1, "the forms .docx must land exactly one form_templates row"
-        ft_row = ft.rows[0]
-        assert ft_row["status"] == "analysed"
-        assert ft_row["workspace_id"] == workspace_id, (
-            "form_templates.workspace_id must carry the manifest-resolved "
-            "workspace — the ONLY Path-B write that consumes a workspace_id (BI-7)"
-        )
-        assert ft_row["storage_path"] == rel_path
-        # The real docx reader extracted at least one field from the blank
-        # instrument (proves the REAL extractor ran, not a stub).
-        assert len(ftf.rows) >= 1, (
-            "the real docx reader must extract at least one field from the "
-            "Charnwood blank instrument"
-        )
-
-        # The forms route lands ZERO content rows (OQ-80.2-A ratified) — the
-        # content layer stays untouched for a forms-routed file.
-        for name in ("content_items", "source_documents", "content_chunks",
-                     "q_a_extractions", "entity_mentions"):
-            assert targets[name].rows == [], (
-                f"a forms-routed file must land ZERO {name} rows (OQ-80.2-A)"
-            )
 
 
 class TestReingestMintsIdenticalIdentities:
@@ -661,8 +577,9 @@ class TestReingestMintsIdenticalIdentities:
 class TestAbsentManifestAbortsManifestMissing:
     """BI-7 (e) — CRITICAL REGRESSION GUARD: a corpus with NO root manifest
     ABORTS app_main with a manifest_missing stage error + a status='failed'
-    terminal webhook. Regression-guards the {127.4} mandatory-manifest operator
-    obligation (the form path must not run without a workspace map)."""
+    terminal webhook. Regression-guards the {127.4} mandatory-manifest
+    operator obligation (content/qa_sidecar routing and workspace resolution
+    must not run without a workspace map)."""
 
     def test_corpus_without_manifest_raises_manifest_missing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -690,8 +607,8 @@ class TestAbsentManifestAbortsManifestMissing:
         monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(source_dir))
 
         # app_main ABORTS by re-raising ManifestLoadError after emitting the
-        # structured manifest_missing error + the failed terminal webhook — the
-        # form path must never run without a workspace map.
+        # structured manifest_missing error + the failed terminal webhook —
+        # content/qa_sidecar routing must never run without a workspace map.
         with pytest.raises(ManifestLoadError):
             asyncio.run(flow.app_main())
 

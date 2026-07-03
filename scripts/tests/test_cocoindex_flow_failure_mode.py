@@ -1232,7 +1232,18 @@ class _PathOnlyFile:
 
 
 def _two_route_manifest():
-    """Real WorkspaceManifest with a forms/ + content/ route pair (80.2 §B.2)."""
+    """Real WorkspaceManifest with a __qa__/ (qa_sidecar) + content/ route
+    pair (80.2 §B.2).
+
+    ID-136 (forms-route retirement): this fixture's non-content route was
+    `'forms'` pre-retirement; `RouteKind` narrowed to
+    `Literal["content", "qa_sidecar"]`, so it now exercises the qa_sidecar
+    route instead — still a genuine two-distinct-routes manifest. NOTE
+    (TECH.md §1.3, owner S437 caveat): `qa_sidecar` is itself EARMARKED
+    SUPERSEDED under the id-131 OKF record-model (superseded-pending, not
+    yet retired) — this fixture may need to move again when id-131 retires
+    the sidecar route; that is a downstream id-131 concern, out of scope
+    here."""
     from scripts.cocoindex_pipeline.workspace_resolver import WorkspaceManifest
 
     return WorkspaceManifest.model_validate(
@@ -1240,9 +1251,9 @@ def _two_route_manifest():
             "schema_version": 1,
             "mappings": [
                 {
-                    "path_prefix": "forms/",
+                    "path_prefix": "__qa__/",
                     "workspace_id": "33333333-3333-4333-8333-333333333333",
-                    "route": "forms",
+                    "route": "qa_sidecar",
                 },
                 {
                     "path_prefix": "content/",
@@ -1258,88 +1269,80 @@ class TestFlowItemFailureCounter:
     """`_FlowItemFailureCounter` — per-flow per-branch item-failure tally.
 
     80.2 §B.4 (OQ-80.2-C RATIFIED): per-item faults are contained at the
-    `mount_each` boundary and tallied per branch
-    (`{'forms': n, 'content': m, 'url': k}` — the `'url'` branch joined at
-    {75.11} when `bound_ingest_url` mounted the URL source) instead of
-    flipping `flow_status` to 'failed'. Mirrors the `_FlowRetryCounter`
-    per-flow instance pattern (no shared state).
+    `mount_each` boundary and tallied per branch (`{'content': m, 'url': k}`
+    — the `'url'` branch joined at {75.11} when `bound_ingest_url` mounted
+    the URL source) instead of flipping `flow_status` to 'failed'. ID-136
+    (forms-route retirement, T4): the `'forms'` key is DROPPED from the
+    tally shape — every per-item fault now attributes to `'content'`
+    (`_item_failure_branch` collapsed to an unconditional return). Mirrors
+    the `_FlowRetryCounter` per-flow instance pattern (no shared state).
     """
 
     def test_helper_class_is_exposed(self):
         assert hasattr(flow, "_FlowItemFailureCounter")
 
-    def test_new_counter_tallies_zero_for_all_three_branches(self):
-        # {75.11}: an all-zero tally must report 'url' alongside
-        # forms/content — "walk ran, zero per-item faults" is meaningful per
-        # branch (the 80.2 §B.4 omitted-vs-zero distinction).
+    def test_new_counter_tallies_zero_for_both_branches(self):
+        # {75.11}: an all-zero tally must report 'url' alongside 'content' —
+        # "walk ran, zero per-item faults" is meaningful per branch (the
+        # 80.2 §B.4 omitted-vs-zero distinction).
         counter = flow._FlowItemFailureCounter()
-        assert counter.tally() == {"forms": 0, "content": 0, "url": 0}
-
-    def test_increment_forms_bumps_forms_only(self):
-        counter = flow._FlowItemFailureCounter()
-        counter.increment("forms")
-        assert counter.tally() == {"forms": 1, "content": 0, "url": 0}
+        assert counter.tally() == {"content": 0, "url": 0}
 
     def test_increment_content_bumps_content_only(self):
         counter = flow._FlowItemFailureCounter()
         counter.increment("content")
-        assert counter.tally() == {"forms": 0, "content": 1, "url": 0}
+        assert counter.tally() == {"content": 1, "url": 0}
 
     def test_increment_url_bumps_url_only(self):
         counter = flow._FlowItemFailureCounter()
         counter.increment("url")
-        assert counter.tally() == {"forms": 0, "content": 0, "url": 1}
+        assert counter.tally() == {"content": 0, "url": 1}
 
     def test_increment_is_repeatable(self):
         counter = flow._FlowItemFailureCounter()
-        counter.increment("forms")
-        counter.increment("forms")
         counter.increment("content")
-        assert counter.tally() == {"forms": 2, "content": 1, "url": 0}
+        counter.increment("content")
+        counter.increment("url")
+        assert counter.tally() == {"content": 2, "url": 1}
 
     def test_tally_returns_a_copy_not_internal_state(self):
         counter = flow._FlowItemFailureCounter()
         snapshot = counter.tally()
-        snapshot["forms"] = 99
-        assert counter.tally() == {"forms": 0, "content": 0, "url": 0}
+        snapshot["content"] = 99
+        assert counter.tally() == {"content": 0, "url": 0}
 
     def test_counter_instances_are_independent(self):
         first = flow._FlowItemFailureCounter()
         second = flow._FlowItemFailureCounter()
-        first.increment("forms")
-        assert second.tally() == {"forms": 0, "content": 0, "url": 0}
+        first.increment("content")
+        assert second.tally() == {"content": 0, "url": 0}
 
 
 class TestItemFailureBranchDerivation:
-    """`_item_failure_branch` — forms|content attribution for a contained fault.
+    """`_item_failure_branch` — per-item fault attribution.
 
-    Derived from the SAME pure `resolve_route(manifest, rel_path)` computation
-    the {80.8} fork uses (80.2 §B.2/§B.4) — no I/O, no clock. The helper MUST
-    NEVER raise: it runs inside the per-item containment handler, where an
-    escape would abort the batch (the exact all-or-nothing failure mode B.4
-    kills).
+    ID-136 (forms-route retirement, T3): pre-retirement this derived a
+    forms|content split from `resolve_route(manifest, rel_path)`; the
+    helper now collapses to an UNCONDITIONAL `'content'` return regardless
+    of manifest, file, or source_path — both the content route and the
+    (retained) qa_sidecar route already attributed to `'content'` before
+    this retirement (there was never a distinct `'qa_sidecar'` failure
+    bucket). Retained as a named function so the "never raises" contract
+    stays unit-testable in isolation.
+
+    The helper MUST NEVER raise: it runs inside the per-item containment
+    handler, where an escape would abort the batch (the exact
+    all-or-nothing failure mode 80.2 §B.4 kills).
     """
 
     def test_helper_function_is_exposed(self):
         assert hasattr(flow, "_item_failure_branch")
 
-    def test_forms_route_yields_forms(self):
+    def test_always_yields_content_regardless_of_manifest_or_path(self):
         manifest = _two_route_manifest()
-        file = _PathOnlyFile("forms/blank-form.md")
-        assert flow._item_failure_branch(manifest, file, None) == "forms"
-
-    def test_content_route_yields_content(self):
-        manifest = _two_route_manifest()
-        file = _PathOnlyFile("content/doc.md")
-        assert flow._item_failure_branch(manifest, file, None) == "content"
-
-    def test_unmapped_path_defaults_to_content(self):
-        # UnmappedPath from resolve_route must NOT escape the containment
-        # handler — default the attribution to 'content' (the manifest's own
-        # route default per 80.2 §B.2).
-        manifest = _two_route_manifest()
-        file = _PathOnlyFile("elsewhere/mystery.md")
-        assert flow._item_failure_branch(manifest, file, None) == "content"
+        for rel_path in ("content/doc.md", "__qa__/blank.md", "elsewhere/mystery.md"):
+            file = _PathOnlyFile(rel_path)
+            assert flow._item_failure_branch(manifest, file, None) == "content"
 
     def test_broken_file_object_defaults_to_content_without_raising(self):
         # A malformed item (no file_path) must not raise from inside the
@@ -1347,14 +1350,15 @@ class TestItemFailureBranchDerivation:
         manifest = _two_route_manifest()
         assert flow._item_failure_branch(manifest, object(), None) == "content"
 
-    def test_absolute_path_is_normalised_via_source_path(self):
-        # Production File paths are ABSOLUTE ({66.22}/BUG-A); the helper must
-        # apply the same _to_source_relative normalisation the dispatcher uses
-        # so the manifest prefixes still match.
+    def test_absolute_path_does_not_raise_and_still_yields_content(self):
+        # Production File paths are ABSOLUTE ({66.22}/BUG-A). ID-136: the
+        # helper no longer inspects the path at all, so the pre-retirement
+        # _to_source_relative normalisation is moot — this pins that an
+        # absolute path + a source_path arg still does not raise.
         manifest = _two_route_manifest()
-        file = _PathOnlyFile("/cocoindex-state/corpus/forms/blank-form.md")
+        file = _PathOnlyFile("/cocoindex-state/corpus/content/doc.md")
         source = Path("/cocoindex-state/corpus")
-        assert flow._item_failure_branch(manifest, file, source) == "forms"
+        assert flow._item_failure_branch(manifest, file, source) == "content"
 
 
 class TestItemFailuresWebhookEmission:
@@ -1440,17 +1444,27 @@ class TestItemFailuresWebhookEmission:
 
 
 class TestPerItemFailureIsolation:
-    """The 80.2 §B.4 headline: a raising form item must NOT zero a good
-    content item's writes (the bl-224 cascade inversion, OQ-80.2-C RATIFIED).
+    """The 80.2 §B.4 headline: a raising item must NOT zero a good sibling
+    item's writes (the bl-224 cascade inversion, OQ-80.2-C RATIFIED).
 
-    Drives the REAL `flow.app_main` over a 2-file batch [raising form,
-    good content] through a faithful inline `mount_each` stand-in:
+    Drives the REAL `flow.app_main` over a 2-file batch [raising content
+    file, good content file] through a faithful inline `mount_each`
+    stand-in:
 
-      - content rows still land (ci target receives the content doc's row),
+      - content rows still land (ci target receives the good doc's row),
       - flow_status == 'completed' (per-item faults never flip it),
       - the terminal webhook threads
-        item_failures == {'forms': 1, 'content': 0, 'url': 0},
+        item_failures == {'content': 1, 'url': 0},
       - ONE `cocoindex.stage_error` with stage='ingest_item' is emitted.
+
+    ID-136 (forms-route retirement): pre-retirement the raising item was a
+    `route:"forms"` file, contrasted against a sibling `route:"content"`
+    file, to also prove the per-BRANCH tally attribution. `RouteKind` no
+    longer admits `"forms"`, and `_item_failure_branch` now attributes every
+    per-item fault to `'content'` unconditionally (T3) — so the two-branch
+    contrast is gone, but the headline cross-item isolation invariant this
+    class exists to prove is unchanged: it is exercised here with two
+    content-route files instead.
     """
 
     @staticmethod
@@ -1498,35 +1512,33 @@ class TestPerItemFailureIsolation:
             for pair in self._pairs:
                 yield pair
 
-    def test_raising_form_item_is_contained_and_content_still_lands(
+    def test_raising_content_item_is_contained_and_sibling_content_still_lands(
         self, tmp_path, monkeypatch
     ):
-        # ── Stage a 2-file source: forms/ (will raise) + content/ (good) ──
-        forms_dir = tmp_path / "forms"
-        forms_dir.mkdir()
-        content_dir = tmp_path / "content"
-        content_dir.mkdir()
-        # Genuine form suffix (.xlsx): the {80.8} fork's secondary suffix guard
-        # rejects .md/.txt/.html under a route:'forms' prefix as a manifest
-        # mis-wire (stage_error + early return) BEFORE extract_form_structure
-        # runs — a non-form suffix would never reach the per-item containment
-        # under test. Bytes are irrelevant: extract_form_structure is stubbed.
-        form_path = forms_dir / "blank-form.xlsx"
-        form_path.write_text("not a real xlsx; reader is stubbed")
-        content_path = content_dir / "doc.md"
+        # ── Stage a 2-file source, both route:'content': bad/ (will raise) +
+        # good/ (succeeds). ID-136: pre-retirement the raiser was a
+        # route:'forms' file under a separate prefix; both files are now
+        # content-route (the only route left that can raise mid-conversion).
+        bad_dir = tmp_path / "bad"
+        bad_dir.mkdir()
+        good_dir = tmp_path / "good"
+        good_dir.mkdir()
+        bad_path = bad_dir / "bad-doc.md"
+        bad_path.write_text("bytes are irrelevant; convert is stubbed to raise")
+        good_path = good_dir / "good-doc.md"
         good_markdown = "# Doc\n\nGood content body."
-        content_path.write_text(good_markdown)
+        good_path.write_text(good_markdown)
 
         manifest = {
             "schema_version": 1,
             "mappings": [
                 {
-                    "path_prefix": "forms/",
+                    "path_prefix": "bad/",
                     "workspace_id": "33333333-3333-4333-8333-333333333333",
-                    "route": "forms",
+                    "route": "content",
                 },
                 {
-                    "path_prefix": "content/",
+                    "path_prefix": "good/",
                     "workspace_id": "44444444-4444-4444-8444-444444444444",
                     "route": "content",
                 },
@@ -1534,27 +1546,14 @@ class TestPerItemFailureIsolation:
         }
         (tmp_path / ".kh-workspace-map.json").write_text(json.dumps(manifest))
 
-        # ── Stub Stage 2/3/4: the FORM file faults in the form branch — the
-        # manifest tags forms/ route:'forms', so the {80.8} fork sends it into
-        # _ingest_form_branch where the raising extract_form_structure stub's
-        # RuntimeError (NOT a FormExtractionError) PROPAGATES to
-        # bound_ingest_file's per-item catch. The CONTENT file completes
-        # normally. The raising arm in _convert is a deliberate TRIPWIRE: the
-        # forms route performs NO Markdown conversion, so if a regression ever
-        # mis-routes the form file down the content branch, _convert raises and
-        # Path-A's stage-level containment lands ZERO ci rows + a forms:0 tally
-        # — assertions 3 and 4 then fail loudly instead of silently passing.
+        # ── Stub Stage 2: the BAD file's conversion raises, PROPAGATING to
+        # bound_ingest_file's per-item catch. The GOOD file completes
+        # normally.
         async def _convert(file: object) -> str:
             rel = file.file_path.path.as_posix()  # type: ignore[attr-defined]
-            if rel.startswith("forms/") or "/forms/" in rel:
-                raise RuntimeError("synthetic per-item fault on the form file")
+            if rel.startswith("bad/") or "/bad/" in rel:
+                raise RuntimeError("synthetic per-item fault on the bad file")
             return good_markdown
-
-        async def _form_structure(file: object):
-            rel = file.file_path.path.as_posix()  # type: ignore[attr-defined]
-            if rel.startswith("forms/") or "/forms/" in rel:
-                raise RuntimeError("synthetic per-item fault on the form file")
-            return None
 
         async def _classification(content_text: str):
             return {
@@ -1573,7 +1572,6 @@ class TestPerItemFailureIsolation:
             return [0.0] * 1024
 
         monkeypatch.setattr(flow, "convert_binary_to_markdown", _convert)
-        monkeypatch.setattr(flow, "extract_form_structure", _form_structure)
         monkeypatch.setattr(flow, "extract_classification", _classification)
         monkeypatch.setattr(flow, "extract_qa_form", _qa)
         monkeypatch.setattr(flow, "extract_entity_mentions", _entities)
@@ -1591,8 +1589,6 @@ class TestPerItemFailureIsolation:
                 "source_documents",
                 "entity_mentions",
                 "entity_relationships",
-                "form_templates",
-                "form_template_fields",
                 "content_chunks",
                 "reference_items",
                 # ID-131 {131.11}: the polymorphic embedding store app_main mounts.
@@ -1607,14 +1603,14 @@ class TestPerItemFailureIsolation:
 
         monkeypatch.setattr(flow, "mount_table_target", _fake_mount_table_target)
 
-        # ── Source walk: keyed (rel_path, File) feed, form FIRST so the
-        # fault precedes the good content item (the bl-224 cascade shape).
+        # ── Source walk: keyed (rel_path, File) feed, bad FIRST so the fault
+        # precedes the good content item (the bl-224 cascade shape).
         feed_pairs = [
             (
-                "forms/blank-form.xlsx",
-                self._fake_file("forms/blank-form.xlsx", form_path),
+                "bad/bad-doc.md",
+                self._fake_file("bad/bad-doc.md", bad_path),
             ),
-            ("content/doc.md", self._fake_file("content/doc.md", content_path)),
+            ("good/good-doc.md", self._fake_file("good/good-doc.md", good_path)),
         ]
 
         items_feed_cls = self._ItemsFeed
@@ -1704,11 +1700,11 @@ class TestPerItemFailureIsolation:
         # ── Drive the REAL app_main — it must NOT raise (containment). ──
         asyncio.run(flow.app_main())
 
-        # 1. Content rows land: the good content file's writes are NOT zeroed
-        # by the sibling form fault (the bl-224 inversion).
+        # 1. Content rows land: the good file's writes are NOT zeroed by the
+        # sibling bad file's fault (the bl-224 inversion).
         ci_rows = targets["content_items"].rows
         assert len(ci_rows) == 1, (
-            f"expected exactly the content doc's content_items row; "
+            f"expected exactly the good doc's content_items row; "
             f"got {len(ci_rows)}"
         )
         assert ci_rows[0]["content"] == good_markdown
@@ -1723,9 +1719,10 @@ class TestPerItemFailureIsolation:
 
         # 3. The terminal webhook threads the per-branch tally ('url' joined
         # the branch vocabulary at {75.11}; zero here — no URL items walked).
+        # ID-136: the tally shape dropped 'forms' (T4) and every per-item
+        # fault now attributes to 'content' (T3).
         assert terminal.get("item_failures") == {
-            "forms": 1,
-            "content": 0,
+            "content": 1,
             "url": 0,
         }
 
@@ -1775,7 +1772,8 @@ class TestUrlPerItemFailureIsolation:
         pair lands — one URL's fault never aborts the batch (BI-19),
       - flow_status == 'completed' (per-item faults never flip it),
       - the terminal webhook threads
-        item_failures == {'forms': 0, 'content': 0, 'url': 1},
+        item_failures == {'content': 0, 'url': 1} (ID-136: the tally shape
+        dropped 'forms' — T4),
       - ONE `cocoindex.stage_error` with stage='ingest_item' is emitted,
       - a SECOND walk (the fetch recovered) re-runs URL A and lands its rows —
         a failed item declared nothing, so the next enumeration retries it,
@@ -1968,8 +1966,6 @@ class TestUrlPerItemFailureIsolation:
                 "source_documents",
                 "entity_mentions",
                 "entity_relationships",
-                "form_templates",
-                "form_template_fields",
                 "content_chunks",
                 "reference_items",
                 # ID-131 {131.11}: the polymorphic embedding store app_main mounts.
@@ -2058,7 +2054,6 @@ class TestUrlPerItemFailureIsolation:
 
         # 3. The fault rides the 'url' branch of the per-branch tally.
         assert terminal.get("item_failures") == {
-            "forms": 0,
             "content": 0,
             "url": 1,
         }
@@ -2090,7 +2085,6 @@ class TestUrlPerItemFailureIsolation:
         terminal_walk_2 = harness["webhook_calls"][-1]
         assert terminal_walk_2["status"] == "completed"
         assert terminal_walk_2.get("item_failures") == {
-            "forms": 0,
             "content": 0,
             "url": 0,
         }
@@ -2150,7 +2144,6 @@ class TestUrlPerItemFailureIsolation:
         terminal = harness["webhook_calls"][-1]
         assert terminal["status"] == "completed"
         assert terminal.get("item_failures") == {
-            "forms": 0,
             "content": 0,
             "url": 0,
         }
@@ -2194,7 +2187,6 @@ class TestUrlPerItemFailureIsolation:
         terminal_walk_2 = harness["webhook_calls"][-1]
         assert terminal_walk_2["status"] == "completed"
         assert terminal_walk_2.get("item_failures") == {
-            "forms": 0,
             "content": 0,
             "url": 0,
         }
@@ -2227,7 +2219,6 @@ class TestUrlPerItemFailureIsolation:
         terminal = harness["webhook_calls"][-1]
         assert terminal["status"] == "completed"
         assert terminal.get("item_failures") == {
-            "forms": 0,
             "content": 0,
             "url": 2,
         }
@@ -2260,7 +2251,6 @@ class TestUrlPerItemFailureIsolation:
         terminal = harness["webhook_calls"][-1]
         assert terminal["status"] == "completed"
         assert terminal.get("item_failures") == {
-            "forms": 0,
             "content": 0,
             "url": 2,
         }
