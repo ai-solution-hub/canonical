@@ -1,13 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
-import {
-  ArrowUpFromLine,
-  Database,
-  Loader2,
-  Plus,
-  SkipForward,
-} from 'lucide-react';
+import { Database, Loader2, Plus, SkipForward } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -33,14 +27,25 @@ import { stripMarkdown } from '@/lib/content/strip-markdown';
 // Types
 // ──────────────────────────────────────────
 
-type IntegrationAction = 'new_entry' | 'update_existing' | 'skip';
+// ID-131 {131.28} Part 2 (HYBRID RETIRE): `update_existing` is retired — the
+// only submittable action is 'new_entry' (drafts a q_a_pair) or 'skip'. The
+// upstream recommendation (computed by POST /outcome, out of this Subtask's
+// file-ownership boundary) may still surface 'update_existing' as a legacy
+// recommendation value; it is normalised to 'new_entry' below rather than
+// offered as a selectable action.
+type IntegrationAction = 'new_entry' | 'skip';
+type Recommendation = IntegrationAction | 'update_existing';
 
 interface KBCandidate {
   question_id: string;
   question_text: string;
   response_text: string | null;
-  source_content_ids: string[] | null;
-  recommendation: IntegrationAction;
+  recommendation: Recommendation;
+}
+
+/** Normalise an upstream recommendation onto the surviving action set. */
+function normaliseAction(recommendation: Recommendation): IntegrationAction {
+  return recommendation === 'skip' ? 'skip' : 'new_entry';
 }
 
 interface KBIntegrationReviewProps {
@@ -62,13 +67,11 @@ interface KBIntegrationReviewProps {
 
 const ACTION_LABELS: Record<IntegrationAction, string> = {
   new_entry: 'Create new',
-  update_existing: 'Update existing',
   skip: 'Skip',
 };
 
 const ACTION_ICONS: Record<IntegrationAction, typeof Plus> = {
   new_entry: Plus,
-  update_existing: ArrowUpFromLine,
   skip: SkipForward,
 };
 
@@ -93,14 +96,10 @@ export function KBIntegrationReview({
   const [actions, setActions] = useState<Map<string, IntegrationAction>>(() => {
     const initial = new Map<string, IntegrationAction>();
     for (const candidate of candidates) {
-      // Only allow update_existing when source_content_ids are available
-      const canUpdate =
-        candidate.source_content_ids && candidate.source_content_ids.length > 0;
-      const action =
-        candidate.recommendation === 'update_existing' && !canUpdate
-          ? 'new_entry'
-          : candidate.recommendation;
-      initial.set(candidate.question_id, action);
+      initial.set(
+        candidate.question_id,
+        normaliseAction(candidate.recommendation),
+      );
     }
     return initial;
   });
@@ -114,13 +113,10 @@ export function KBIntegrationReview({
     setLastCandidateKey(candidateKey);
     const initial = new Map<string, IntegrationAction>();
     for (const candidate of candidates) {
-      const canUpdate =
-        candidate.source_content_ids && candidate.source_content_ids.length > 0;
-      const action =
-        candidate.recommendation === 'update_existing' && !canUpdate
-          ? 'new_entry'
-          : candidate.recommendation;
-      initial.set(candidate.question_id, action);
+      initial.set(
+        candidate.question_id,
+        normaliseAction(candidate.recommendation),
+      );
     }
     setActions(initial);
   }
@@ -148,14 +144,7 @@ export function KBIntegrationReview({
     setActions((prev) => {
       const next = new Map(prev);
       for (const candidate of candidates) {
-        const canUpdate =
-          candidate.source_content_ids &&
-          candidate.source_content_ids.length > 0;
-        // Default to new_entry for integrate all
-        next.set(
-          candidate.question_id,
-          canUpdate ? 'update_existing' : 'new_entry',
-        );
+        next.set(candidate.question_id, 'new_entry');
       }
       return next;
     });
@@ -183,10 +172,6 @@ export function KBIntegrationReview({
         return {
           question_id: candidate.question_id,
           action,
-          target_content_id:
-            action === 'update_existing' && candidate.source_content_ids?.length
-              ? candidate.source_content_ids[0]
-              : undefined,
         };
       });
 
@@ -284,9 +269,6 @@ export function KBIntegrationReview({
         >
           {candidates.map((candidate) => {
             const action = actions.get(candidate.question_id) ?? 'skip';
-            const canUpdate =
-              candidate.source_content_ids &&
-              candidate.source_content_ids.length > 0;
             const ActionIcon = ACTION_ICONS[action];
             const previewText = candidate.response_text
               ? truncateText(stripMarkdown(candidate.response_text), 150)
@@ -308,8 +290,6 @@ export function KBIntegrationReview({
                     className={cn(
                       'mt-0.5 size-4 shrink-0',
                       action === 'new_entry' && 'text-status-success',
-                      action === 'update_existing' &&
-                        'text-confidence-needs-sme',
                       action === 'skip' && 'text-muted-foreground',
                     )}
                     aria-hidden="true"
@@ -330,14 +310,6 @@ export function KBIntegrationReview({
 
                     {/* Metadata badges */}
                     <div className="flex flex-wrap items-center gap-1.5">
-                      {canUpdate && (
-                        <Badge
-                          variant="outline"
-                          className="text-xs text-confidence-needs-sme border-confidence-needs-sme-border"
-                        >
-                          Has KB source
-                        </Badge>
-                      )}
                       {!candidate.response_text && (
                         <Badge
                           variant="outline"
@@ -371,12 +343,6 @@ export function KBIntegrationReview({
                       <SelectContent position="popper">
                         <SelectItem value="new_entry">
                           {ACTION_LABELS.new_entry}
-                        </SelectItem>
-                        <SelectItem
-                          value="update_existing"
-                          disabled={!canUpdate}
-                        >
-                          {ACTION_LABELS.update_existing}
                         </SelectItem>
                         <SelectItem value="skip">
                           {ACTION_LABELS.skip}

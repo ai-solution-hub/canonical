@@ -1,4 +1,3 @@
-import { generateEmbedding } from '@/lib/ai/embed';
 import { defineRoute } from '@/lib/api/define-route';
 import {
   authFailureResponse,
@@ -11,7 +10,6 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { KBIntegrationBodySchema } from '@/lib/validation/schemas';
-import type { Json } from '@/supabase/types/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -76,11 +74,6 @@ export const POST = defineRoute(
         );
       }
 
-      const procurementMetadata = (bid.domain_metadata ?? {}) as Record<
-        string,
-        unknown
-      >;
-
       // Won-state gate (ID-130 {130.11}/{130.17}): the engagement is single-form
       // v1 — the terminal outcome lives on form_templates.outcome. Read the
       // workspace's form and gate KB integration on a 'won' outcome.
@@ -136,9 +129,11 @@ export const POST = defineRoute(
         (questions ?? []).map((q) => [q.id, q.question_text]),
       );
 
+      // `id` is carried through for UC5-style lineage (source_form_response_id)
+      // on the draft q_a_pair insert below.
       const { data: responses, error: responsesError } = await supabase
         .from('form_responses')
-        .select('question_id, response_text')
+        .select('id, question_id, response_text')
         .in('question_id', questionIds);
 
       if (responsesError) {
@@ -154,18 +149,27 @@ export const POST = defineRoute(
       }
 
       const responseMap = new Map(
-        (responses ?? []).map((r) => [r.question_id, r.response_text]),
+        (responses ?? []).map((r) => [
+          r.question_id,
+          { id: r.id, response_text: r.response_text },
+        ]),
       );
 
-      // Process each integration
+      // Process each integration. ID-131 {131.28} Part 2 (HYBRID RETIRE): the
+      // only surviving non-skip action is `new_entry` for `q_a_pair` — it
+      // writes a DRAFT `q_a_pairs` row (UC5 promote-path write shape), never
+      // `content_items`. `update_existing` is retired (no rebuild path).
       const items: Array<{
         question_id: string;
-        content_item_id: string;
-        action: 'created' | 'updated' | 'skipped';
+        q_a_pair_id: string;
+        action: 'created' | 'skipped';
       }> = [];
 
       let created = 0;
-      let updated = 0;
+      // update_existing is retired (no rebuild path) — updated stays 0 but is
+      // kept in the response shape for API-contract stability with the
+      // existing frontend (kb-integration-review.tsx reads result.updated).
+      const updated = 0;
       let skipped = 0;
       const warnings: string[] = [];
 
@@ -174,187 +178,100 @@ export const POST = defineRoute(
           skipped++;
           items.push({
             question_id: integration.question_id,
-            content_item_id: '',
+            q_a_pair_id: '',
             action: 'skipped',
           });
           continue;
         }
 
         const questionText = questionMap.get(integration.question_id) ?? '';
-        const responseText = responseMap.get(integration.question_id) ?? '';
+        const response = responseMap.get(integration.question_id);
+        const responseText = response?.response_text ?? '';
         const plainText = htmlToPlainText(responseText ?? '');
 
         if (!plainText) {
           skipped++;
           items.push({
             question_id: integration.question_id,
-            content_item_id: '',
+            q_a_pair_id: '',
             action: 'skipped',
           });
           continue;
         }
 
-        if (integration.action === 'new_entry') {
-          // Dedup — spec §6 D1 variant for bid-outcome: exact-hash match
-          // is skip-and-log (not stamp). Procurement-outcome is a post-won admin
-          // workflow where duplicate content is almost certainly the
-          // response already present in the KB. Skipping prevents double
-          // entry; admin can review the log. Admins may `skip_dedup=true`
-          // to force-insert anyway.
-          if (!skipDedup) {
-            try {
-              const dedupCheck = await checkExactDuplicate(supabase, plainText);
-              if (dedupCheck.isDuplicate) {
-                skipped++;
-                warnings.push(
-                  `Skipped bid integration for question ${integration.question_id} — response matches existing KB item ${dedupCheck.existingId}${dedupCheck.existingTitle ? ` ("${dedupCheck.existingTitle}")` : ''}`,
-                );
-                items.push({
-                  question_id: integration.question_id,
-                  content_item_id: dedupCheck.existingId ?? '',
-                  action: 'skipped',
-                });
-                continue;
-              }
-            } catch (dedupErr) {
-              logger.error(
-                { err: dedupErr },
-                `Procurement-outcome dedup check failed for question ${integration.question_id}`,
-              );
-              // Non-fatal — proceed with insert as clean
-            }
-          }
-
-          // Generate embedding for the new entry
-          const embeddingText = `${questionText}\n\n${plainText}`;
-          const embedding = await generateEmbedding(embeddingText);
-
-          const title = integration.title ?? questionText.slice(0, 200);
-          const contentType = integration.content_type ?? 'q_a_pair';
-
-          const insertContent = responseText ?? '';
-          const { data: newItem, error: insertError } = await supabase
-            .from('content_items')
-            .insert({
-              title,
-              suggested_title: title,
-              content: insertContent,
-              content_type: contentType,
-              platform: 'extraction',
-              source_url: null,
-              embedding: JSON.stringify(embedding),
-              primary_domain: (procurementMetadata.domain as string) ?? null,
-              summary: `Response to bid question: ${questionText.slice(0, 200)}`,
-              captured_date: new Date().toISOString(),
-              created_by: user.id,
-              // S206 WP-A Phase 2 (AC3.7) — content owner peer to created_by.
-              // EP10 has NO admin-override semantics (per OQ-EP10-OWNER-OVERRIDE
-              // default): the caller is always the owner of integrated KB items.
-              content_owner_id: user.id,
-              // Typed provenance column. Read by
-              // ensure_v1_history_at_commit() to set
-              // content_history.change_reason='initial_ingest'.
-              ingestion_source: 'bid_outcome_integration',
-              // P0-BM Phase 3 spec ss4.6 Path 3: populate answer_standard for
-              // q_a_pair so first PATCH edit does not destroy creation content
-              // (bug B2 fix).
-              ...(contentType === 'q_a_pair' && insertContent
-                ? { answer_standard: insertContent }
-                : {}),
-              metadata: {
-                // source_bid_* JSONB keys intentionally not renamed — zero readers (TS/Python/SQL); historical key-drift harmless until a reader is added (ID-61 strategy §2 Item 4)
-                source_bid_id: id,
-                source_bid_name: bid.name,
-                source_question_id: integration.question_id,
-                source_question_text: questionText,
-                integrated_at: new Date().toISOString(),
-              } as unknown as Json,
-            })
-            .select('id')
-            .single();
-
-          if (insertError) {
-            logger.error(
-              { err: insertError },
-              `Failed to create KB entry for question ${integration.question_id}`,
-            );
-            skipped++;
-            items.push({
-              question_id: integration.question_id,
-              content_item_id: '',
-              action: 'skipped',
-            });
-            continue;
-          }
-
-          created++;
-          items.push({
-            question_id: integration.question_id,
-            content_item_id: newItem?.id ?? '',
-            action: 'created',
-          });
-        } else if (
-          integration.action === 'update_existing' &&
-          integration.target_content_id
-        ) {
-          // Update existing content item with winning response
-          const { error: updateError } = await supabase
-            .from('content_items')
-            .update({
-              content: responseText,
-              summary: `Updated from winning bid response: ${questionText.slice(0, 150)}`,
-              updated_by: user.id,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', integration.target_content_id);
-
-          if (updateError) {
-            logger.error(
-              { err: updateError },
-              `Failed to update KB entry ${integration.target_content_id}`,
-            );
-            skipped++;
-            items.push({
-              question_id: integration.question_id,
-              content_item_id: integration.target_content_id,
-              action: 'skipped',
-            });
-            continue;
-          }
-
-          // Re-generate embedding for the updated content
+        // Only remaining non-skip action is 'new_entry' (schema enforces
+        // this — 'update_existing' is retired).
+        // Dedup — spec §6 D1 variant for bid-outcome: exact-hash match
+        // is skip-and-log (not stamp). Procurement-outcome is a post-won admin
+        // workflow where duplicate content is almost certainly the
+        // response already present in the KB. Skipping prevents double
+        // entry; admin can review the log. Admins may `skip_dedup=true`
+        // to force-insert anyway.
+        if (!skipDedup) {
           try {
-            const embeddingText = `${questionText}\n\n${plainText}`;
-            const embedding = await generateEmbedding(embeddingText);
-            await supabase
-              .from('content_items')
-              .update({ embedding: JSON.stringify(embedding) })
-              .eq('id', integration.target_content_id);
-          } catch (embedErr) {
+            const dedupCheck = await checkExactDuplicate(supabase, plainText);
+            if (dedupCheck.isDuplicate) {
+              skipped++;
+              warnings.push(
+                `Skipped bid integration for question ${integration.question_id} — response matches existing KB item ${dedupCheck.existingId}${dedupCheck.existingTitle ? ` ("${dedupCheck.existingTitle}")` : ''}`,
+              );
+              items.push({
+                question_id: integration.question_id,
+                q_a_pair_id: dedupCheck.existingId ?? '',
+                action: 'skipped',
+              });
+              continue;
+            }
+          } catch (dedupErr) {
             logger.error(
-              { err: embedErr },
-              `Re-embedding failed for ${integration.target_content_id}`,
+              { err: dedupErr },
+              `Procurement-outcome dedup check failed for question ${integration.question_id}`,
             );
-            warnings.push(
-              `Re-embedding failed for ${integration.target_content_id}: ${safeErrorMessage(embedErr, 'Unknown error')}`,
-            );
-            // Item is still updated — embedding will be stale but content is correct
+            // Non-fatal — proceed with insert as clean
           }
+        }
 
-          updated++;
-          items.push({
-            question_id: integration.question_id,
-            content_item_id: integration.target_content_id,
-            action: 'updated',
-          });
-        } else {
+        // ID-131 {131.28} Part 2 (HYBRID RETIRE, OQ oq-66a0c5410864622b):
+        // re-pointed onto the UC5 promote-path write shape
+        // (app/api/q-a-pairs/promote/route.ts) — a review-before-publish
+        // DRAFT with lineage, never a `content_items` row. Per DR-025/DR-026
+        // (sources are evidence; authority earned at promotion) there is NO
+        // embedding generated at insert — `question_embedding` populates
+        // later via the standard question-match recompute path.
+        const { data: newPair, error: insertError } = await supabase
+          .from('q_a_pairs')
+          .insert({
+            question_text: questionText,
+            answer_standard: responseText,
+            origin_kind: 'derived_from_form_response',
+            publication_status: 'draft',
+            source_form_response_id: response?.id ?? null,
+            source_question_id: integration.question_id,
+            source_workspace_id: id,
+          })
+          .select('id')
+          .single();
+
+        if (insertError) {
+          logger.error(
+            { err: insertError },
+            `Failed to create KB entry for question ${integration.question_id}`,
+          );
           skipped++;
           items.push({
             question_id: integration.question_id,
-            content_item_id: '',
+            q_a_pair_id: '',
             action: 'skipped',
           });
+          continue;
         }
+
+        created++;
+        items.push({
+          question_id: integration.question_id,
+          q_a_pair_id: newPair?.id ?? '',
+          action: 'created',
+        });
       }
 
       return NextResponse.json({

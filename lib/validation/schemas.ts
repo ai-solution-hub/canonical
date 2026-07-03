@@ -1023,17 +1023,22 @@ export const ProcurementOutcomeBodySchema = z.object({
   integrate_to_kb: z.boolean().default(false),
 });
 
-/** POST /api/procurement/[id]/outcome/integrate */
+/**
+ * POST /api/procurement/[id]/outcome/integrate
+ *
+ * ID-131 {131.28} Part 2 (HYBRID RETIRE, OQ oq-66a0c5410864622b): this route
+ * no longer writes `content_items`. The only surviving integration shape is
+ * `new_entry` for `q_a_pair` — it re-points onto the UC5 promote-path write
+ * shape (`app/api/q-a-pairs/promote/route.ts`), creating a DRAFT `q_a_pairs`
+ * row. `update_existing` and the 4 non-QA content types (case_study, policy,
+ * methodology, capability) are RETIRED — those knowledge types re-enter later
+ * as id-132 CONCEPT-proposals (re-entry intent, not this Subtask).
+ */
 export const KBIntegrationBodySchema = z.object({
   integrations: z.array(
     z.object({
       question_id: z.string().uuid(),
-      action: z.enum(['new_entry', 'update_existing', 'skip']),
-      target_content_id: z.string().uuid().nullable().optional(),
-      title: z.string().max(500).optional(),
-      content_type: z
-        .enum(['q_a_pair', 'case_study', 'policy', 'methodology', 'capability'])
-        .optional(),
+      action: z.enum(['new_entry', 'skip']),
     }),
   ),
   /**

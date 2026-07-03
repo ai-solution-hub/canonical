@@ -690,10 +690,10 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
     expect(json.items[1].action).toBe('skipped');
   });
 
-  it('creates new KB entry for new_entry action', async () => {
+  it('creates a draft q_a_pair for new_entry action (ID-131 {131.28} Part 2 — HYBRID RETIRE)', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const newItemId = '00000000-0000-4000-8000-000000000050';
+    const newPairId = '00000000-0000-4000-8000-000000000050';
 
     // Procurement in won state
     mockSupabase._chain.single.mockResolvedValueOnce({
@@ -728,6 +728,7 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
           return resolve({
             data: [
               {
+                id: 'form-response-1',
                 question_id: QUESTION_ID,
                 response_text: '<p>We implement ISO 27001</p>',
               },
@@ -739,9 +740,9 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
       },
     );
 
-    // Insert returns new item ID
+    // Insert returns new q_a_pair ID
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: newItemId },
+      data: { id: newPairId },
       error: null,
     });
 
@@ -750,14 +751,7 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
       {
         method: 'POST',
         body: {
-          integrations: [
-            {
-              question_id: QUESTION_ID,
-              action: 'new_entry',
-              title: 'Security Approach',
-              content_type: 'capability',
-            },
-          ],
+          integrations: [{ question_id: QUESTION_ID, action: 'new_entry' }],
         },
       },
     );
@@ -770,66 +764,29 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
     expect(json.updated).toBe(0);
     expect(json.skipped).toBe(0);
     expect(json.items[0].action).toBe('created');
-    expect(json.items[0].content_item_id).toBe(newItemId);
+    expect(json.items[0].q_a_pair_id).toBe(newPairId);
 
-    // Verify embedding was generated
-    expect(mockGenerateEmbedding).toHaveBeenCalled();
+    // DR-025/DR-026 (proposal-shaped admission): no embedding at insert.
+    expect(mockGenerateEmbedding).not.toHaveBeenCalled();
 
-    // Verify insert was called with correct data
+    // Verify insert was called with the UC5 promote-path draft shape onto
+    // q_a_pairs — never content_items.
+    expect(mockSupabase.from).toHaveBeenCalledWith('q_a_pairs');
     expect(mockSupabase._chain.insert).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: 'Security Approach',
-        content_type: 'capability',
-        platform: 'extraction',
-        created_by: 'test-user-id',
-        primary_domain: 'Technology',
-        // S206 WP-A Phase 2 (AC3.7): content_owner_id peer to created_by.
-        // EP10 has NO admin-override semantics — owner is always caller.
-        content_owner_id: 'test-user-id',
+        question_text: 'Describe your approach to security',
+        answer_standard: '<p>We implement ISO 27001</p>',
+        origin_kind: 'derived_from_form_response',
+        publication_status: 'draft',
+        source_form_response_id: 'form-response-1',
+        source_question_id: QUESTION_ID,
+        source_workspace_id: BID_ID,
       }),
     );
   });
 
-  it('updates existing KB entry for update_existing action', async () => {
+  it('rejects update_existing as an invalid action (retired per HYBRID RETIRE)', async () => {
     configureRole(mockSupabase, 'editor');
-
-    // Procurement in won state
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: {
-        id: BID_ID,
-        name: 'Won Procurement',
-        status: 'won',
-        domain_metadata: {},
-      },
-      error: null,
-    });
-
-    // Questions query
-    let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => {
-        thenCallCount++;
-        if (thenCallCount === 1) {
-          return resolve({
-            data: [{ id: QUESTION_ID, question_text: 'ISO compliance?' }],
-            error: null,
-          });
-        }
-        if (thenCallCount === 2) {
-          return resolve({
-            data: [
-              {
-                question_id: QUESTION_ID,
-                response_text: '<p>Fully compliant</p>',
-              },
-            ],
-            error: null,
-          });
-        }
-        // content_items update and embedding update (both are .then-awaited)
-        return resolve({ data: null, error: null });
-      },
-    );
 
     const req = createTestRequest(
       `/api/procurement/${BID_ID}/outcome/integrate`,
@@ -849,14 +806,9 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
     const params = createTestParams({ id: BID_ID });
     const res = await postIntegrate(req, { params });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(400);
     const json = await res.json();
-    expect(json.updated).toBe(1);
-    expect(json.items[0].action).toBe('updated');
-    expect(json.items[0].content_item_id).toBe(CONTENT_ID);
-
-    // Verify embedding regenerated for the updated content
-    expect(mockGenerateEmbedding).toHaveBeenCalled();
+    expect(json.error).toBe('Validation failed');
   });
 
   it('skips entries with empty response text', async () => {
@@ -992,7 +944,7 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
     expect(json.created).toBe(0);
     expect(json.skipped).toBe(1);
     expect(json.items[0].action).toBe('skipped');
-    expect(json.items[0].content_item_id).toBe(EXISTING_ITEM_ID);
+    expect(json.items[0].q_a_pair_id).toBe(EXISTING_ITEM_ID);
     expect(json.warnings.length).toBeGreaterThan(0);
     expect(json.warnings[0]).toContain(EXISTING_ITEM_ID);
 
@@ -1004,7 +956,7 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
     configureRole(mockSupabase, 'admin');
     primeBidAndQuestions();
 
-    // Insert returns new item id
+    // Insert returns new q_a_pair id
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { id: '00000000-0000-4000-8000-000000000051' },
       error: null,
@@ -1032,7 +984,9 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
     expect(json.created).toBe(1);
     expect(json.skipped).toBe(0);
     expect(json.items[0].action).toBe('created');
-    expect(mockGenerateEmbedding).toHaveBeenCalled();
+    // DR-025/DR-026 (proposal-shaped admission): no embedding at insert,
+    // even on the skip_dedup=true force-insert path.
+    expect(mockGenerateEmbedding).not.toHaveBeenCalled();
   });
 
   it('non-admin skip_dedup=true is silently ignored — dedup still skips', async () => {

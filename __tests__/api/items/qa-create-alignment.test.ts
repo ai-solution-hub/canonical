@@ -395,11 +395,15 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Path 3: POST /api/bids/[id]/outcome/integrate
+  // Path 3: POST /api/procurement/[id]/outcome/integrate
+  //
+  // ID-131 {131.28} Part 2 (HYBRID RETIRE, OQ oq-66a0c5410864622b): this
+  // route no longer writes content_items at all — the q_a_pair branch is
+  // re-pointed onto the UC5 promote-path draft shape (q_a_pairs INSERT).
   // -------------------------------------------------------------------------
 
-  describe('Path 3 — POST /api/bids/[id]/outcome/integrate', () => {
-    it('mirrors content into answer_standard for q_a_pair items integrated from a won bid outcome', async () => {
+  describe('Path 3 — POST /api/procurement/[id]/outcome/integrate', () => {
+    it('creates a draft q_a_pair with answer_standard = response text for a won bid outcome', async () => {
       configureRole(mockSupabase, 'editor');
 
       const params = createTestParams({ id: BID_UUID });
@@ -438,12 +442,18 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
       mockSupabase._chain.then.mockImplementationOnce(
         (resolve: (v: unknown) => void) =>
           resolve({
-            data: [{ question_id: questionId, response_text: responseText }],
+            data: [
+              {
+                id: 'form-response-9',
+                question_id: questionId,
+                response_text: responseText,
+              },
+            ],
             error: null,
           }),
       );
 
-      // Content item insert
+      // q_a_pairs draft insert
       mockSupabase._chain.single.mockResolvedValueOnce({
         data: { id: VALID_UUID },
         error: null,
@@ -454,13 +464,7 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
         {
           method: 'POST',
           body: {
-            integrations: [
-              {
-                question_id: questionId,
-                action: 'new_entry',
-                content_type: 'q_a_pair',
-              },
-            ],
+            integrations: [{ question_id: questionId, action: 'new_entry' }],
           },
         },
       );
@@ -468,16 +472,21 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
       const res = await bidIntegrate(req, { params });
       expect(res.status).toBe(200);
 
-      // Find the content_items insert call
+      // Find the q_a_pairs draft insert call (discriminated by origin_kind —
+      // there is no content_type on q_a_pairs).
       const insertCalls = mockSupabase._chain.insert.mock.calls;
-      const contentInsert = insertCalls.find(
+      const pairInsert = insertCalls.find(
         (call: unknown[]) =>
-          (call[0] as Record<string, unknown>).content_type === 'q_a_pair',
+          (call[0] as Record<string, unknown>).origin_kind ===
+          'derived_from_form_response',
       );
-      expect(contentInsert).toBeDefined();
+      expect(pairInsert).toBeDefined();
+      expect((pairInsert![0] as Record<string, unknown>).answer_standard).toBe(
+        responseText,
+      );
       expect(
-        (contentInsert![0] as Record<string, unknown>).answer_standard,
-      ).toBe(responseText);
+        (pairInsert![0] as Record<string, unknown>).publication_status,
+      ).toBe('draft');
     });
   });
 

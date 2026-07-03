@@ -49,7 +49,6 @@ interface Candidate {
   question_id: string;
   question_text: string;
   response_text: string | null;
-  source_content_ids: string[] | null;
   recommendation: 'new_entry' | 'update_existing' | 'skip';
 }
 
@@ -58,7 +57,6 @@ function makeCandidate(overrides: Partial<Candidate> = {}): Candidate {
     question_id: 'q-1',
     question_text: 'What is your experience?',
     response_text: '<p>We have 10 years of experience.</p>',
-    source_content_ids: null,
     recommendation: 'new_entry',
     ...overrides,
   };
@@ -168,18 +166,11 @@ describe('KBIntegrationReview', () => {
     ).toBeInTheDocument();
   });
 
-  // ---- "Has KB source" badge ----
+  // ---- "Has KB source" badge (retired, ID-131 {131.28} Part 2) ----
 
-  it('shows "Has KB source" badge when candidate has source_content_ids', () => {
+  it('never shows a "Has KB source" badge (update_existing affordance retired)', () => {
     renderReview({
-      candidates: [makeCandidate({ source_content_ids: ['ci-1'] })],
-    });
-    expect(screen.getByText('Has KB source')).toBeInTheDocument();
-  });
-
-  it('does not show "Has KB source" badge when no source_content_ids', () => {
-    renderReview({
-      candidates: [makeCandidate({ source_content_ids: null })],
+      candidates: [makeCandidate({ recommendation: 'update_existing' })],
     });
     expect(screen.queryByText('Has KB source')).not.toBeInTheDocument();
   });
@@ -262,20 +253,18 @@ describe('KBIntegrationReview', () => {
 
   // ---- Recommendation defaults ----
 
-  it('falls back to new_entry when update_existing is recommended but no source_content_ids', () => {
-    // This is an internal behaviour — the select value should default to new_entry
+  it('normalises a legacy update_existing recommendation to new_entry (retired action)', () => {
+    // update_existing is retired as a submittable action (ID-131 {131.28}
+    // Part 2, HYBRID RETIRE) — an upstream 'update_existing' recommendation
+    // must default the select to new_entry, never offer update_existing.
     renderReview({
-      candidates: [
-        makeCandidate({
-          recommendation: 'update_existing',
-          source_content_ids: null,
-        }),
-      ],
+      candidates: [makeCandidate({ recommendation: 'update_existing' })],
     });
     // The submit button should say "Integrate" not "Skip"
     expect(
       screen.getByRole('button', { name: 'Integrate 1 Response' }),
     ).toBeInTheDocument();
+    expect(screen.queryByText('Update existing')).not.toBeInTheDocument();
   });
 
   // ---- Successful submission ----
@@ -327,12 +316,15 @@ describe('KBIntegrationReview', () => {
     });
   });
 
-  it('includes target_content_id for update_existing actions', async () => {
+  it('submits new_entry (not update_existing) for a candidate recommended update_existing', async () => {
+    // ID-131 {131.28} Part 2 (HYBRID RETIRE): update_existing is retired —
+    // a candidate the upstream API still recommends as update_existing must
+    // submit as new_entry, with no target_content_id in the body at all.
     const user = userEvent.setup();
 
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ created: 0, updated: 1, skipped: 0 }),
+      json: () => Promise.resolve({ created: 1, updated: 0, skipped: 0 }),
     });
 
     renderReview({
@@ -340,7 +332,6 @@ describe('KBIntegrationReview', () => {
         makeCandidate({
           question_id: 'q-1',
           recommendation: 'update_existing',
-          source_content_ids: ['ci-100'],
         }),
       ],
     });
@@ -354,13 +345,7 @@ describe('KBIntegrationReview', () => {
         '/api/procurement/bid-789/outcome/integrate',
         expect.objectContaining({
           body: JSON.stringify({
-            integrations: [
-              {
-                question_id: 'q-1',
-                action: 'update_existing',
-                target_content_id: 'ci-100',
-              },
-            ],
+            integrations: [{ question_id: 'q-1', action: 'new_entry' }],
           }),
         }),
       );
