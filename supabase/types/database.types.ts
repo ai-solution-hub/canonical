@@ -8753,86 +8753,6 @@ export type Database = {
           match_type: string
         }[]
       }
-      filter_by_keywords:
-        | {
-            Args: { keyword_list: string[]; match_mode?: string }
-            Returns: {
-              ai_keywords: string[] | null
-              answer_advanced: string | null
-              answer_standard: string | null
-              archive_reason: string | null
-              archived_at: string | null
-              archived_by: string | null
-              author_name: string | null
-              brief: string | null
-              captured_date: string | null
-              citation_count: number
-              classification_confidence: number | null
-              classification_model: string | null
-              classification_reasoning: string | null
-              classified_at: string | null
-              content: string
-              content_owner_id: string | null
-              content_text_hash: string | null
-              content_type: string
-              created_at: string
-              created_by: string | null
-              dedup_status: string
-              detail: string | null
-              embedding: string | null
-              embedding_model: string | null
-              expiry_date: string | null
-              file_path: string | null
-              freshness: string | null
-              freshness_checked_at: string | null
-              governance_review_due: string | null
-              governance_review_status: string | null
-              governance_reviewer_id: string | null
-              id: string
-              ingestion_source: string | null
-              layer: string | null
-              lifecycle_type: string | null
-              metadata: Json | null
-              next_review_date: string | null
-              op_id: string | null
-              platform: string | null
-              previous_freshness: string | null
-              previous_quality_score: number | null
-              primary_domain: string
-              primary_subtopic: string
-              priority: string | null
-              publication_status: string
-              quality_score: number | null
-              quality_score_updated_at: string | null
-              reference: string | null
-              review_cadence_days: number | null
-              secondary_domain: string | null
-              secondary_subtopic: string | null
-              source_document_id: string | null
-              source_domain: string | null
-              source_file: string | null
-              source_url: string | null
-              starred: boolean
-              suggested_title: string | null
-              summary: string | null
-              summary_data: Json | null
-              superseded_by: string | null
-              thumbnail_url: string | null
-              title: string
-              updated_at: string | null
-              updated_by: string | null
-              user_tags: string[] | null
-              verified_at: string | null
-              verified_by: string | null
-            }[]
-            SetofOptions: {
-              from: "*"
-              to: "content_items"
-              isOneToOne: false
-              isSetofReturn: true
-            }
-          }
-        | { Args: { search_terms: string[] }; Returns: string[] }
       find_duplicate_pairs: {
         Args: {
           limit_count?: number
@@ -8865,32 +8785,6 @@ export type Database = {
         Returns: {
           id: string
           title: string
-        }[]
-      }
-      find_related_items: {
-        Args: {
-          p_item_id: string
-          p_limit_count?: number
-          p_similarity_threshold?: number
-        }
-        Returns: {
-          ai_keywords: string[]
-          author_name: string
-          captured_date: string
-          classification_confidence: number
-          content_type: string
-          id: string
-          platform: string
-          primary_domain: string
-          primary_subtopic: string
-          priority: string
-          similarity: number
-          source_domain: string
-          suggested_title: string
-          summary: string
-          thumbnail_url: string
-          title: string
-          user_tags: string[]
         }[]
       }
       find_similar_content:
@@ -9391,6 +9285,7 @@ export type Database = {
       }
       hybrid_search: {
         Args: {
+          application_type?: string
           include_superseded?: boolean
           limit_count?: number
           query_embedding: string
@@ -9716,9 +9611,9 @@ export type Database = {
           }
       search_content_chunks: {
         Args: {
-          filter_content_item_id?: string
           filter_overdue_review?: boolean
           filter_review_due_within_days?: number
+          filter_source_document_id?: string
           limit_count?: number
           query_embedding: string
           similarity_threshold?: number
@@ -9728,7 +9623,6 @@ export type Database = {
           char_count: number
           chunk_id: string
           content: string
-          content_item_id: string
           heading_level: number
           heading_path: string[]
           heading_text: string
@@ -9739,6 +9633,7 @@ export type Database = {
           item_title: string
           position: number
           similarity: number
+          source_document_id: string
           word_count: number
         }[]
       }
@@ -9751,15 +9646,11 @@ export type Database = {
           visibility_filter?: string
         }
         Returns: {
-          ai_keywords: string[]
-          brief: string
           content: string
           content_type: string
-          detail: string
           id: string
-          primary_domain: string
-          primary_subtopic: string
           similarity: number
+          summary: string
           title: string
         }[]
       }
