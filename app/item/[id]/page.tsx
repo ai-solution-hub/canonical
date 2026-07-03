@@ -3,7 +3,6 @@ import { notFound } from 'next/navigation';
 import { ItemDetailClient } from './item-detail-client';
 import { CONTENT_DETAIL_COLUMNS } from '@/types/content';
 import { parseJsonb, SummaryDataSchema } from '@/lib/validation/jsonb';
-import type { ContentListItem } from '@/types/content';
 import type { ItemData } from './item-detail-client';
 import { logger } from '@/lib/logger';
 import { tryQuery } from '@/lib/supabase/safe';
@@ -44,50 +43,31 @@ export default async function ItemDetailPage({
     notFound();
   }
 
-  // Fetch related items (RPC) + RSS feed-article linkage in parallel so the
-  // item-detail page load does not serialise on two independent reads.
-  // S197 §1.19 Phase 5: feed_articles → feed_sources lookup becomes the
+  // TODO({131.17}): legacy IMS page — deleted by G-IMS-DELETE. The
+  // find_related_items RPC was dropped by migration
+  // 20260702120000_id131_search_rpcs.sql (owner-ratified, no surviving
+  // caller), so the related-items rail renders empty until this page is
+  // removed.
+  //
+  // S197 §1.19 Phase 5: feed_articles → feed_sources lookup is the
   // canonical source for RSS-ingested article metadata in the Source
   // Information accordion. `maybeSingle()` returns `null` cleanly for items
   // that did not come from a feed.
-  // OPS-31: wrap each leg with `tryQuery` so failures route via
-  // `logBestEffortWarn` instead of silently dropping the error and
-  // degrading to empty arrays / null without observability.
-  const [relatedResult, feedArticleResult] = await Promise.all([
-    tryQuery(
-      supabase.rpc('find_related_items', {
-        p_item_id: id,
-        p_similarity_threshold: 0.6,
-        p_limit_count: 6,
-      }),
-      'item.detail.related_items',
-    ),
-    tryQuery(
-      supabase
-        .from('feed_articles')
-        // Embed by relation name, not FK column: the client runs in the `api`
-        // schema (lib/supabase/schema.ts), whose views carry no FK constraints,
-        // so `feed_sources:feed_source_id` 400s with PGRST200. The single FK
-        // makes `feed_sources` unambiguous.
-        .select('published_at, feed_sources (name, url, source_type)')
-        .eq('content_item_id', id)
-        .maybeSingle(),
-      'item.detail.feed_article',
-    ),
-  ]);
-
-  const relatedItems = relatedResult.ok ? relatedResult.data : null;
-  if (!relatedResult.ok) {
-    logBestEffortWarn(
-      'item.detail.related_items',
-      'find_related_items RPC failed',
-      {
-        itemId: id,
-        err: relatedResult.error.message,
-        code: relatedResult.error.code,
-      },
-    );
-  }
+  // OPS-31: wrap with `tryQuery` so failures route via `logBestEffortWarn`
+  // instead of silently dropping the error and degrading to null without
+  // observability.
+  const feedArticleResult = await tryQuery(
+    supabase
+      .from('feed_articles')
+      // Embed by relation name, not FK column: the client runs in the `api`
+      // schema (lib/supabase/schema.ts), whose views carry no FK constraints,
+      // so `feed_sources:feed_source_id` 400s with PGRST200. The single FK
+      // makes `feed_sources` unambiguous.
+      .select('published_at, feed_sources (name, url, source_type)')
+      .eq('content_item_id', id)
+      .maybeSingle(),
+    'item.detail.feed_article',
+  );
 
   const feedArticleRaw = feedArticleResult.ok ? feedArticleResult.data : null;
   if (!feedArticleResult.ok) {
@@ -128,11 +108,8 @@ export default async function ItemDetailPage({
   };
 
   return (
-    <ItemDetailClient
-      item={itemData}
-      relatedItems={
-        (relatedItems as Array<ContentListItem & { similarity: number }>) ?? []
-      }
-    />
+    // TODO({131.17}): legacy IMS page — deleted by G-IMS-DELETE. Related
+    // items always empty (RPC dropped, see above).
+    <ItemDetailClient item={itemData} relatedItems={[]} />
   );
 }

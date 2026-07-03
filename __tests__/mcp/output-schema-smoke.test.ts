@@ -69,7 +69,7 @@ function makeChunkSearchResponse(
     results: [
       {
         chunk_id: 'c1c2c3c4-1111-2222-3333-444455556666',
-        content_item_id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+        source_document_id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
         item_title: 'Health and Safety Policy',
         item_suggested_title: null,
         item_content_type: 'policy',

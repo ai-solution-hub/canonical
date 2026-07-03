@@ -80,7 +80,7 @@ interface ToolResult {
 function makeRpcChunk(overrides: Record<string, unknown> = {}) {
   return {
     chunk_id: 'chunk-001',
-    content_item_id: 'item-001',
+    source_document_id: 'item-001',
     item_title: 'Fire Safety Policy',
     item_suggested_title: null,
     item_content_type: 'policy',

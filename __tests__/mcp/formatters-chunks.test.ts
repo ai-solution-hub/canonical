@@ -15,7 +15,7 @@ function makeChunkResult(
 ): ChunkSearchResult {
   return {
     chunk_id: 'chunk-001',
-    content_item_id: 'item-001',
+    source_document_id: 'item-001',
     item_title: 'Health & Safety Policy',
     item_suggested_title: null,
     item_content_type: 'policy',
@@ -69,7 +69,7 @@ describe('formatChunkSearchResults', () => {
       similarity: 0.825,
       word_count: 15,
       chunk_id: 'chunk-001',
-      content_item_id: 'item-001',
+      source_document_id: 'item-001',
     });
     const result = formatChunkSearchResults('risk', [chunk]);
 
@@ -78,7 +78,7 @@ describe('formatChunkSearchResults', () => {
     expect(result).toContain('**Relevance:** 83%');
     expect(result).toContain('**Size:** 15 words');
     expect(result).toContain('**Chunk ID:** chunk-001');
-    expect(result).toContain('**Item ID:** item-001');
+    expect(result).toContain('**Source Document ID:** item-001');
   });
 
   it('prefers item_suggested_title over item_title when present', () => {

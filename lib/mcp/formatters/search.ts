@@ -143,7 +143,9 @@ export function formatQASearchResults(
 
 export interface ChunkSearchResult {
   chunk_id: string;
-  content_item_id: string;
+  // ID-131.11 G-SEARCH (M2): chunks re-parented content_item_id →
+  // source_document_id; mirrors the search_content_chunks RPC return column.
+  source_document_id: string;
   item_title: string | null;
   item_suggested_title: string | null;
   item_content_type: string | null;
@@ -165,7 +167,7 @@ export interface ChunkSearchResult {
  */
 export const ChunkSearchResultSchema = z.object({
   chunk_id: z.string(),
-  content_item_id: z.string(),
+  source_document_id: z.string(),
   item_title: z.string().nullable(),
   item_suggested_title: z.string().nullable(),
   item_content_type: z.string().nullable(),
@@ -187,6 +189,9 @@ export const ChunkSearchResultSchema = z.object({
 export const ChunkSearchResponseSchema = z.object({
   query: z.string(),
   count: z.number(),
+  // Echo of the MCP-facing tool arg, which deliberately stays
+  // `content_item_id` (see lib/mcp/tools/search.ts runChunkSearch) — only the
+  // per-result rows carry the renamed `source_document_id`.
   content_item_id: z.string().nullable(),
   overdue_review_filter: z.boolean().nullable(),
   review_due_within_days_filter: z.number().nullable(),
@@ -234,7 +239,7 @@ export function formatChunkSearchResults(
     lines.push(truncate(r.content, 500));
     lines.push('');
     lines.push(
-      `**Chunk ID:** ${r.chunk_id} | **Item ID:** ${r.content_item_id}`,
+      `**Chunk ID:** ${r.chunk_id} | **Source Document ID:** ${r.source_document_id}`,
     );
     lines.push('');
   }
