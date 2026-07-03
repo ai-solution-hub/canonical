@@ -7,34 +7,30 @@ OQ-80.2-B: the manifest per-prefix ``route`` tag is THE fork point, computed
 once in ``_ingest_file_body`` immediately after ``rel_path``, BEFORE either
 write path runs.
 
-REAL-BODY discipline (test-philosophy §5.3, mirrors ID-80.4): the fork body and
-``extract_form_structure`` (with its real per-format readers) run UNPATCHED.
-Only the outside-world seams are touched — and on the forms route they are
-touched as RECORDING OBSERVERS asserting ZERO calls (Docling conversion +
-the three Anthropic extraction passes never run for a form), which is the
-testStrategy's "zero content-target calls, zero Anthropic extraction calls".
-``_trim_stale_form_fields`` is the asyncpg-pool seam (bl-224 covers its real
-body) and is faked here.
+ID-136 (forms-route retirement, DR-014): ``RouteKind`` narrowed to
+``Literal["content", "qa_sidecar"]`` — a manifest tagging a prefix
+``route:"forms"`` now fails LOUDLY at load (``ManifestLoadError``), so the
+forms branch and its ``extract_form_structure`` seam are gone from this
+module entirely. The forms-specific branch coverage this file used to carry
+(``route:"forms"`` .docx → ft/ftf-only; the suffix-guard mis-wire) retired
+alongside it — see git history / ID-136 TECH.md §4.3 for the
+pre-retirement contract. What survives here is the content / qa_sidecar /
+unmapped / ambiguous coverage below.
 
 Branch contract under test:
-  - ``route:"forms"`` .docx → ft/ftf declares ONLY; ci/qa/sd/em/cc all empty;
-    zero ``convert_binary_to_markdown`` and zero Anthropic extraction calls.
   - unmapped .md (manifest active, no prefix match) → bl-219 soft-warn + the
-    CONTENT branch (content rows only, zero ft/ftf).
-  - mapped ``route:"content"`` .md → content rows only; the form branch (and
-    ``extract_form_structure``) never runs.
-  - .md under a ``route:"forms"`` prefix → manifest mis-wire: loud
-    ``cocoindex.stage_error`` (``extraction_validation_failed``) + ZERO rows
-    on EVERY target (spec B.3 secondary suffix guard).
+    CONTENT branch (content rows only).
+  - mapped ``route:"content"`` .md → content rows only.
+  - mapped ``route:"qa_sidecar"`` file → sidecar rows only (zero content
+    rows).
   - AmbiguousResolution at the fork → loud stage error + ZERO rows on EVERY
-    target (the content rows that previously landed before the form-block
-    error no longer land — the fork fails the file before either branch).
+    target (the fork fails the file before any branch runs).
 
 Async tests follow the repo convention (no pytest-asyncio plugin): drive
 coroutines via ``asyncio.run`` inside sync test functions.
 
 Reference: docs/specs/ID-80-forms-path-b/80.2-forms-content-separation.md
-§B.1/§B.3/§B.6; docs/reference/test-philosophy.md §1/§5.3.
+§B.1/§B.3/§B.6; docs/reference/test-philosophy.md §1/§5.3; ID-136 TECH.md §4.3.
 """
 
 from __future__ import annotations
@@ -54,13 +50,6 @@ from conftest import fresh_flow_module  # noqa: E402
 # extract_entity_mentions stubs alongside).
 async def _fake_relationships_empty(content_text: str) -> list:
     return []
-
-
-# Real committed corpus fixture (symlinked into the fixture dir) — a genuine
-# blank-instrument DOCX the real docx reader extracts fields from. The same
-# fixture test_form_extractors.py's real-body suite walks.
-_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "form-extraction"
-_CHARNWOOD_DOCX = _FIXTURE_DIR / "itt-services-charnwood.docx"
 
 
 def _flow_module():
@@ -132,9 +121,9 @@ def _make_manifest(prefix: str, workspace_id: uuid.UUID, *, route: str = "conten
 
 def _observe_path_a_seams(flow: object, monkeypatch: pytest.MonkeyPatch) -> dict:
     """Replace the outside-world Path-A seams (Docling / Anthropic / OpenAI)
-    with RECORDING observers. On the content route they return benign values;
-    on the forms route the test asserts their counts stay ZERO — the
-    structural mutual-exclusion proof the testStrategy demands."""
+    with RECORDING observers returning benign values, so a test can assert
+    exactly which passes ran (e.g. zero calls on the qa_sidecar route, which
+    never runs classification/embedding)."""
     calls = {
         "convert": 0,
         "classification": 0,
@@ -170,17 +159,6 @@ def _observe_path_a_seams(flow: object, monkeypatch: pytest.MonkeyPatch) -> dict
     monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
     monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
     return calls
-
-
-def _spy_trim(flow: object, monkeypatch: pytest.MonkeyPatch) -> list[tuple]:
-    """Fake the asyncpg-pool trim seam (real body covered by bl-224)."""
-    trims: list[tuple] = []
-
-    async def _fake_trim(template_id, new_max_sequence) -> None:
-        trims.append((template_id, new_max_sequence))
-
-    monkeypatch.setattr(flow, "_trim_stale_form_fields", _fake_trim)
-    return trims
 
 
 class _SdPool:
@@ -253,8 +231,13 @@ class _SdTarget:
 
 def _drive_ingest(flow: object, fake_file: object, *, manifest: object) -> dict:
     """Drive one real ``ingest_file`` under bind_flow_meta +
-    bind_workspace_manifest, with ALL SEVEN targets recording (including
-    content_chunks — the forks's zero-content proof covers cc too)."""
+    bind_workspace_manifest, with the five targets recording (including
+    content_chunks — the fork's zero-content proof covers cc too).
+
+    ID-136 (forms-route retirement, T8): ``ft_target``/``ftf_target`` were
+    dropped from ``ingest_file``'s positional signature — ``cc_target`` is
+    now the 6th positional (``er_target``/``re_target`` stay defaulted None,
+    the documented "5-/6-arg legacy caller" shape)."""
     from scripts.cocoindex_pipeline.flow_context import (
         bind_flow_meta,
         bind_workspace_manifest,
@@ -271,8 +254,6 @@ def _drive_ingest(flow: object, fake_file: object, *, manifest: object) -> dict:
         "qa": _FakeTarget("q_a_extractions"),
         "sd": _SdTarget(pool),
         "em": _FakeTarget("entity_mentions"),
-        "ft": _FakeTarget("form_templates"),
-        "ftf": _FakeTarget("form_template_fields"),
         "cc": _FakeTarget("content_chunks"),
     }
     run_op_id = uuid.uuid4()
@@ -286,82 +267,12 @@ def _drive_ingest(flow: object, fake_file: object, *, manifest: object) -> dict:
                     targets["qa"],
                     targets["sd"],
                     targets["em"],
-                    targets["ft"],
-                    targets["ftf"],
                     targets["cc"],
                 )
 
     asyncio.run(_exercise())
     targets["op_id"] = run_op_id  # type: ignore[assignment]
     return targets
-
-
-def _content_targets(targets: dict) -> dict:
-    return {k: targets[k] for k in ("ci", "qa", "sd", "em", "cc")}
-
-
-class TestFormsRouteWritesFormTargetsOnly:
-    """route:'forms' .docx → ft/ftf declares ONLY — zero content-target calls,
-    zero Anthropic extraction calls, zero conversion (testStrategy line 1)."""
-
-    def test_real_docx_on_forms_route_lands_ft_ftf_and_nothing_else(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        assert _CHARNWOOD_DOCX.exists(), (
-            f"corpus fixture missing — {_CHARNWOOD_DOCX} should symlink to "
-            "docs/testing/test-data/templates/itt-services-charnwood/"
-            "ITT Services.docx"
-        )
-
-        flow = _flow_module()
-        calls = _observe_path_a_seams(flow, monkeypatch)
-        _spy_trim(flow, monkeypatch)
-        # NB: extract_form_structure is NOT patched — the real orchestrator and
-        # the real docx reader run against the committed corpus fixture.
-
-        ws = uuid.uuid4()
-        manifest = _make_manifest("_held_forms/", ws, route="forms")
-        rel_path = "_held_forms/charnwood/itt-services.docx"
-        fake_file = _FakeFile(rel_path, disk_path=_CHARNWOOD_DOCX)
-
-        out = _drive_ingest(flow, fake_file, manifest=manifest)
-
-        # Form targets: one analysed template + its real extracted fields.
-        assert len(out["ft"].rows) == 1, "exactly one form_templates row"
-        ft_row = out["ft"].rows[0]
-        assert ft_row["status"] == "analysed"
-        assert ft_row["workspace_id"] == ws
-        assert ft_row["storage_path"] == rel_path
-        # Hard-coded ft: uuid5 oracle over _KH_PIPELINE_DOC_NS
-        # ("fbfaf1ff-1ee4-583c-9757-1674465b2ec1") for the pinned rel_path — a
-        # frozen literal (not re-derived from flow) so a namespace/seed drift
-        # fails loudly instead of being masked by the same-formula recompute.
-        assert ft_row["id"] == uuid.UUID("fe4c6365-2118-5129-94b8-bc5d06a18f5f")
-        assert len(out["ftf"].rows) >= 1, (
-            "the real docx reader must extract at least one field from the "
-            "Charnwood blank instrument"
-        )
-        assert ft_row["field_count"] == len(out["ftf"].rows)
-
-        # RATIFIED OQ-80.2-A: ZERO content rows for a forms-routed file — no
-        # content_items / source_documents / content_chunks / q_a_extractions /
-        # entity_mentions (the minimal-provenance-row fallback is dropped).
-        for name, target in _content_targets(out).items():
-            assert target.rows == [], (
-                f"forms route must declare ZERO {target.table_name} rows "
-                f"(OQ-80.2-A ratified zero-content-rows) — got {len(target.rows)}"
-            )
-
-        # Structural mutual exclusion: the forms route performs NO Stage-2
-        # conversion and NO Anthropic extraction passes (Path-A waste the fork
-        # eliminates — 80.2 §B.3).
-        assert calls["convert"] == 0, (
-            "convert_binary_to_markdown must NOT run for a forms-routed file"
-        )
-        assert calls["classification"] == 0
-        assert calls["qa"] == 0
-        assert calls["entities"] == 0
-        assert calls["embed"] == 0
 
 
 class TestContentRouteWritesContentTargetsOnly:
@@ -376,14 +287,6 @@ class TestContentRouteWritesContentTargetsOnly:
         flow = _flow_module()
         _observe_path_a_seams(flow, monkeypatch)
 
-        form_extract_called = {"value": False}
-
-        async def _form_extract_guard(file: object):
-            form_extract_called["value"] = True
-            return None
-
-        monkeypatch.setattr(flow, "extract_form_structure", _form_extract_guard)
-
         emitted: list[dict] = []
         monkeypatch.setattr(
             flow, "_emit_stage_error_log", lambda **kw: emitted.append(kw)
@@ -394,8 +297,11 @@ class TestContentRouteWritesContentTargetsOnly:
         )
 
         ws = uuid.uuid4()
-        # The manifest maps a DIFFERENT prefix — the staged file is unmapped.
-        manifest = _make_manifest("other-client/", ws, route="forms")
+        # The manifest maps a DIFFERENT prefix (tagged qa_sidecar — an
+        # arbitrary non-content route to prove the staged file's unmapped
+        # status, not that OTHER prefix's route, drives the outcome) — the
+        # staged file is unmapped.
+        manifest = _make_manifest("other-client/", ws, route="qa_sidecar")
         fake_file = _FakeFile("unmapped/doc.md", data=b"# H\n\nbody")
 
         out = _drive_ingest(flow, fake_file, manifest=manifest)
@@ -403,30 +309,18 @@ class TestContentRouteWritesContentTargetsOnly:
         # Content rows landed (bl-219: unmapped is benign for file content).
         assert len(out["ci"].rows) == 1
         assert len(out["sd"].rows) == 1
-        # Zero form rows; the form branch (and its extractor) never ran.
-        assert out["ft"].rows == []
-        assert out["ftf"].rows == []
-        assert form_extract_called["value"] is False
         # Exactly one benign soft-warn; NO workspace_resolution stage error.
         assert len(warns) == 1
         assert [e for e in emitted if e.get("stage") == "workspace_resolution"] == []
 
-    def test_mapped_content_md_lands_content_rows_and_never_runs_form_branch(
+    def test_mapped_content_md_lands_content_rows_only(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """A mapped ``route:"content"`` prefix (the backward-compatible default)
-        routes the content branch ONLY — ``extract_form_structure`` is never
-        invoked (pre-fork it ran for every manifest-active file)."""
+        routes the content branch ONLY, landing content rows (ID-136: the
+        forms branch this test used to also guard against no longer exists)."""
         flow = _flow_module()
         calls = _observe_path_a_seams(flow, monkeypatch)
-
-        async def _must_not_run(file: object):
-            raise AssertionError(
-                "extract_form_structure must NEVER run on the content route "
-                "(structural mutual exclusion — 80.2 §B.3)"
-            )
-
-        monkeypatch.setattr(flow, "extract_form_structure", _must_not_run)
 
         ws = uuid.uuid4()
         manifest = _make_manifest("acme/", ws)  # route defaults to "content"
@@ -436,66 +330,9 @@ class TestContentRouteWritesContentTargetsOnly:
 
         assert len(out["ci"].rows) == 1
         assert len(out["sd"].rows) == 1
-        assert out["ft"].rows == []
-        assert out["ftf"].rows == []
         # The content branch performed its Stage-2 conversion + LLM passes.
         assert calls["convert"] == 1
         assert calls["classification"] == 1
-
-
-class TestFormsRouteSuffixGuard:
-    """.md under route:'forms' → loud stage_error, zero rows (testStrategy
-    line 3; spec B.3 secondary suffix guard — candidate 5)."""
-
-    @pytest.mark.parametrize("filename", ["notes.md", "notes.txt", "notes.html"])
-    def test_non_form_suffix_under_forms_route_is_loud_zero_rows(
-        self, monkeypatch: pytest.MonkeyPatch, filename: str
-    ) -> None:
-        flow = _flow_module()
-        calls = _observe_path_a_seams(flow, monkeypatch)
-
-        async def _must_not_run(file: object):
-            raise AssertionError(
-                "extract_form_structure must not run on a suffix-guard mis-wire"
-            )
-
-        monkeypatch.setattr(flow, "extract_form_structure", _must_not_run)
-
-        emitted: list[dict] = []
-        monkeypatch.setattr(
-            flow, "_emit_stage_error_log", lambda **kw: emitted.append(kw)
-        )
-        warns: list[dict] = []
-        monkeypatch.setattr(
-            flow, "_emit_workspace_unmapped_warn", lambda **kw: warns.append(kw)
-        )
-
-        ws = uuid.uuid4()
-        manifest = _make_manifest("_held_forms/", ws, route="forms")
-        fake_file = _FakeFile(f"_held_forms/{filename}", data=b"not a form")
-
-        out = _drive_ingest(flow, fake_file, manifest=manifest)
-
-        # ZERO rows on EVERY target — the mis-wire is surfaced, not absorbed.
-        for key in ("ci", "qa", "sd", "em", "cc", "ft", "ftf"):
-            assert out[key].rows == [], (
-                f"a {filename} under a route:'forms' prefix is a manifest "
-                f"mis-wire — zero {out[key].table_name} rows (spec B.3)"
-            )
-        # The mis-wire is LOUD: one extraction_validation_failed stage error.
-        guard_errors = [
-            e
-            for e in emitted
-            if e.get("error_class") == "extraction_validation_failed"
-        ]
-        assert guard_errors, (
-            "the suffix guard must emit a loud cocoindex.stage_error with "
-            "error_class extraction_validation_failed (spec B.3)"
-        )
-        assert warns == [], "a suffix-guard mis-wire is not a benign soft-warn"
-        # And no Path-A work was wasted on the failed file.
-        assert calls["convert"] == 0
-        assert calls["classification"] == 0
 
 
 class TestAmbiguousResolutionAtForkIsLoudZeroRows:
@@ -538,7 +375,7 @@ class TestAmbiguousResolutionAtForkIsLoudZeroRows:
 
         out = _drive_ingest(flow, fake_file, manifest=manifest)
 
-        for key in ("ci", "qa", "sd", "em", "cc", "ft", "ftf"):
+        for key in ("ci", "qa", "sd", "em", "cc"):
             assert out[key].rows == [], (
                 f"an ambiguous resolution must produce ZERO "
                 f"{out[key].table_name} rows — the fork fails the file before "
@@ -553,17 +390,20 @@ class TestAmbiguousResolutionAtForkIsLoudZeroRows:
 
 class TestIdempotencyAcrossBothBranches:
     """80.2 §Testing row 7 (ID-80.10): re-ingesting the SAME bytes twice down
-    EACH branch of the {80.8} fork mints IDENTICAL deterministic uuid5 PKs —
-    so ``declare_row`` UPSERTs the same rows on the second run instead of
-    inserting duplicates. The op_id ROW FIELD differs per run (it identifies
-    the RUN; ratified OQ-A re-stamps the same row's op_id).
+    the content branch of the {80.8} fork mints IDENTICAL deterministic
+    uuid5 PKs — so ``declare_row`` UPSERTs the same rows on the second run
+    instead of inserting duplicates. The op_id ROW FIELD differs per run (it
+    identifies the RUN; ratified OQ-A re-stamps the same row's op_id).
 
-    The pre-fork idempotency guards
-    (``TestStablePrimaryKeysAcrossRuns`` — content, no manifest;
-    ``TestFormWriteIdempotency`` — forms, faked extractor) predate the fork:
-    neither re-ingests through an ACTIVE manifest ``route`` resolution on the
-    content side, and the forms side never ran the REAL extractor twice. These
-    two tests close that gap through the real fork body."""
+    The pre-fork idempotency guard (``TestStablePrimaryKeysAcrossRuns`` —
+    content, no manifest) predates the fork: it does not re-ingest through
+    an ACTIVE manifest ``route`` resolution. This test closes that gap
+    through the real fork body. ID-136 (forms-route retirement): this
+    class's sibling forms-branch idempotency case
+    (``test_form_branch_reingest_same_bytes_mints_identical_pks``) is
+    retired — the forms branch no longer exists, so there is no second
+    branch left to exercise here; ``TestQaSidecarRouteWritesSidecarTargetsOnly``
+    covers the qa_sidecar route's own PK stability."""
 
     def test_content_branch_reingest_same_bytes_mints_identical_pks(
         self, monkeypatch: pytest.MonkeyPatch
@@ -633,69 +473,6 @@ class TestIdempotencyAcrossBothBranches:
         # semantics — ratified OQ-A), never part of the PK seed.
         assert out_a["sd"].rows[0]["op_id"] == out_a["op_id"]
         assert out_b["sd"].rows[0]["op_id"] == out_b["op_id"]
-        # Zero form rows on the content branch, both runs.
-        assert out_a["ft"].rows == [] and out_b["ft"].rows == []
-        assert out_a["ftf"].rows == [] and out_b["ftf"].rows == []
-
-    def test_form_branch_reingest_same_bytes_mints_identical_pks(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """route:'forms' real .docx ingested twice through the REAL extractor
-        → identical ft:/ftf: uuid5 PKs + identical field payloads (UPSERT,
-        not duplicates)."""
-        assert _CHARNWOOD_DOCX.exists(), (
-            f"corpus fixture missing — {_CHARNWOOD_DOCX}"
-        )
-
-        flow = _flow_module()
-        _observe_path_a_seams(flow, monkeypatch)
-        _spy_trim(flow, monkeypatch)
-        # extract_form_structure NOT patched — the real docx reader runs on
-        # the same committed bytes both times (deterministic extraction).
-
-        ws = uuid.uuid4()
-        manifest = _make_manifest("_held_forms/", ws, route="forms")
-        rel_path = "_held_forms/charnwood/itt-services.docx"
-
-        out_a = _drive_ingest(
-            flow, _FakeFile(rel_path, disk_path=_CHARNWOOD_DOCX), manifest=manifest
-        )
-        out_b = _drive_ingest(
-            flow, _FakeFile(rel_path, disk_path=_CHARNWOOD_DOCX), manifest=manifest
-        )
-        assert out_a["op_id"] != out_b["op_id"]
-
-        ns = flow._KH_PIPELINE_DOC_NS
-        # form_templates: ONE row per run, the SAME deterministic ft: PK. The ft:
-        # PK is pinned to a frozen uuid5 literal over _KH_PIPELINE_DOC_NS
-        # ("fbfaf1ff-1ee4-583c-9757-1674465b2ec1") for the fixed rel_path — a
-        # namespace/seed drift fails loudly (not masked by a same-formula recompute).
-        assert len(out_a["ft"].rows) == 1 and len(out_b["ft"].rows) == 1
-        assert (
-            out_a["ft"].rows[0]["id"]
-            == out_b["ft"].rows[0]["id"]
-            == uuid.UUID("fe4c6365-2118-5129-94b8-bc5d06a18f5f")  # ft:{rel}
-        ), "form_templates PK must be stable across re-ingest (row 7)"
-
-        # form_template_fields: identical ordered uuid5 PK lists — the second
-        # run UPSERTs every field row rather than duplicating it. The seq values
-        # are real-extractor output (not a fixed seed), so the per-field uuid5 is
-        # left keyed on the produced sequence; the load-bearing claims are the
-        # cross-run equality + full-payload determinism asserted below.
-        ftf_ids_a = [r["id"] for r in out_a["ftf"].rows]
-        ftf_ids_b = [r["id"] for r in out_b["ftf"].rows]
-        assert ftf_ids_a, "the real docx reader must extract at least one field"
-        assert ftf_ids_a == ftf_ids_b
-        assert ftf_ids_a == [
-            uuid.uuid5(ns, f"ftf:{rel_path}:{r['sequence']}")
-            for r in out_a["ftf"].rows
-        ]
-        assert len(set(ftf_ids_a)) == len(ftf_ids_a), (
-            "no duplicate field PKs within a run"
-        )
-        # The real extractor is deterministic on identical bytes: the full
-        # field payloads (not just the PKs) match run-for-run.
-        assert out_a["ftf"].rows == out_b["ftf"].rows
 
 
 class TestRouteLessManifestBackwardCompat:
@@ -750,23 +527,13 @@ class TestRouteLessManifestBackwardCompat:
         flow = _flow_module()
         calls = _observe_path_a_seams(flow, monkeypatch)
 
-        async def _must_not_run(file: object):
-            raise AssertionError(
-                "extract_form_structure must NEVER run under a route-less "
-                "manifest — every prefix defaults route='content' (row 8)"
-            )
-
-        monkeypatch.setattr(flow, "extract_form_structure", _must_not_run)
-
         fake_file = _FakeFile("acme-bids/notes.md", data=b"# H\n\nbody")
         out = _drive_ingest(flow, fake_file, manifest=manifest)
 
-        # The content branch ran end-to-end: content rows landed, zero form
-        # rows, and the Stage-2 conversion + LLM passes executed.
+        # The content branch ran end-to-end: content rows landed, and the
+        # Stage-2 conversion + LLM passes executed (row 8).
         assert len(out["ci"].rows) == 1
         assert len(out["sd"].rows) == 1
-        assert out["ft"].rows == []
-        assert out["ftf"].rows == []
         assert calls["convert"] == 1
         assert calls["classification"] == 1
 
@@ -797,15 +564,6 @@ class TestQaSidecarRouteWritesSidecarTargetsOnly:
 
         monkeypatch.setattr(flow, "extract_qa_form", _two_pair_qa)
 
-        # The content branch must NEVER run for a qa_sidecar file — guard the
-        # form extractor too (structural mutual exclusion).
-        async def _must_not_run(file: object):
-            raise AssertionError(
-                "extract_form_structure must NEVER run on the qa_sidecar route"
-            )
-
-        monkeypatch.setattr(flow, "extract_form_structure", _must_not_run)
-
         ws = uuid.uuid4()
         manifest = _make_manifest("__qa__/", ws, route="qa_sidecar")
         rel_path = "__qa__/foo.md"
@@ -830,9 +588,6 @@ class TestQaSidecarRouteWritesSidecarTargetsOnly:
         assert out["ci"].rows == [], "qa_sidecar mints ZERO content_items (INV-5)"
         assert out["cc"].rows == [], "qa_sidecar mints ZERO content_chunks (INV-5)"
         assert out["em"].rows == [], "qa_sidecar mints ZERO entity_mentions (INV-5)"
-        # Zero form rows either — the qa_sidecar branch is not the form branch.
-        assert out["ft"].rows == []
-        assert out["ftf"].rows == []
 
         # ── N q_a_extractions, each with source_document_id IS NULL. ──────
         assert len(out["qa"].rows) == 2, "one q_a_extractions row per Q&A pair"

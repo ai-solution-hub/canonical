@@ -7,8 +7,10 @@ write-path harness in `test_cocoindex_flow_write_path.py` (stubbed `coco`,
 `passthrough_coco_fn`, a `FakeTableTarget` recording `declare_row(*, row)`).
 
 WHAT THIS PROVES (56.8 — chunking stage):
-  - A `cc_target` `FakeTableTarget` passed as the 8th positional arg receives
-    N `declare_row` calls for a ~5000-byte sample (2 <= N <= 6 — RecursiveSplitter
+  - A `cc_target` `FakeTableTarget` passed as the 6th positional arg (ID-136
+    removed `ft_target`/`ftf_target`, so `cc_target` moved from the 8th to the
+    6th positional slot) receives N `declare_row` calls for a ~5000-byte
+    sample (2 <= N <= 6 — RecursiveSplitter
     respects min_chunk_size + recursive boundaries, so the bound is loose).
   - Every recorded chunk row stamps the bound flow op_id, the parent
     `source_document_id` (the `sd:` uuid5), a monotonic 0-indexed `position`, and a
@@ -246,14 +248,18 @@ def _ingest_with_cc(
     re_target: object = None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> uuid.UUID:
-    """Drive one ingest_file with the chunk target as the 8th positional arg.
+    """Drive one ingest_file with the chunk target as the 6th positional arg.
 
     Returns the bound run op_id so callers can assert it is stamped on rows.
 
     ID-131 {131.11}: `re_target` (the polymorphic `record_embeddings` write
-    target) is the 10th positional (after cc_target, er_target); defaulting it
+    target) is the 8th positional (after cc_target, er_target); defaulting it
     to None keeps the existing chunk-shape callers untouched while the
     record-embeddings dual-write tests pass a `_FakeTarget`.
+
+    ID-136 {136.5} removed the `ft_target`/`ftf_target` positionals, so
+    `cc_target`/`er_target`/`re_target` shifted from the 8th/9th/10th to the
+    6th/7th/8th positional slots.
     """
     from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
 
@@ -267,7 +273,7 @@ def _ingest_with_cc(
     async def _exercise() -> None:
         async with bind_flow_meta(op_id=run_op_id):
             await flow.ingest_file(
-                fake_file, ci, qa, sd, em, None, None, cc_target, None, re_target
+                fake_file, ci, qa, sd, em, cc_target, None, re_target
             )
 
     asyncio.run(_exercise())
@@ -384,9 +390,10 @@ class TestChunkingStageWritePath:
     def test_no_chunk_target_skips_chunking(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """The 8th arg defaults to None — when omitted/None the chunking block is
-        skipped entirely (the 7-arg legacy callers stay untouched). Proves the
-        guard `if cc_target is not None:`."""
+        """The 6th arg (`cc_target`) defaults to None — when omitted/None the
+        chunking block is skipped entirely. Proves the guard
+        `if cc_target is not None:`. (ID-136 removed `ft_target`/`ftf_target`,
+        so `cc_target` is now the 6th positional, not the 8th.)"""
         flow = _flow_module()
         _stub_path_a(flow, monkeypatch)
         from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
@@ -402,7 +409,7 @@ class TestChunkingStageWritePath:
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=uuid.uuid4()):
-                # 7-arg legacy form — no cc_target supplied.
+                # cc_target/er_target explicitly None — no chunk target supplied.
                 await flow.ingest_file(fake_file, ci, qa, sd, em, None, None)
 
         asyncio.run(_exercise())

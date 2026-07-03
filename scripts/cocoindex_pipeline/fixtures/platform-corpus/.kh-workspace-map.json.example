@@ -1,10 +1,4 @@
 {
   "schema_version": 1,
-  "mappings": [
-    {
-      "path_prefix": "forms/procurement/",
-      "workspace_id": "<PLATFORM_PROCUREMENT_WORKSPACE_UUID>",
-      "route": "forms"
-    }
-  ]
+  "mappings": []
 }

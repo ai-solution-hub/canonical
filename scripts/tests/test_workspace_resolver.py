@@ -334,34 +334,16 @@ def test_manifest_without_route_resolves_route_content(tmp_path: Path) -> None:
     assert acme == Resolution(workspace_id=ACME_UUID, route="content")
 
 
-def test_route_forms_prefix_resolves_forms(tmp_path: Path) -> None:
-    """(b) A prefix tagged `route: "forms"` resolves `route == "forms"`."""
-    manifest_path = _write_manifest(
-        tmp_path,
-        {
-            "schema_version": 1,
-            "mappings": [
-                {"path_prefix": "example-procurement/", "workspace_id": str(EXAMPLE_UUID)},
-                {
-                    "path_prefix": "acme-forms/",
-                    "workspace_id": str(ACME_UUID),
-                    "route": "forms",
-                },
-            ],
-        },
-    )
-    manifest = load_workspace_manifest(manifest_path)
-    result = resolve_route(manifest, "acme-forms/SQ-blank.pdf")
-    assert result == Resolution(workspace_id=ACME_UUID, route="forms")
-    # The untagged sibling prefix stays on the content route.
-    assert resolve_route(manifest, "example-procurement/SQ.pdf").route == "content"
-
-
 def test_invalid_route_value_rejected_at_load_time(tmp_path: Path) -> None:
-    """(c) An invalid `route` value (typo) is a load-time error — Literal +
+    """(c) An invalid `route` value is a load-time error — Literal +
     extra="forbid" make it a ValidationError → ManifestLoadError at the
-    manifest-load gate (loud abort at flow start, never a silent default)."""
-    manifest_path = _write_manifest(
+    manifest-load gate (loud abort at flow start, never a silent default).
+
+    Covers a typo (`"froms"`) AND — ID-136 (forms-route retirement) — the
+    exact once-valid `"forms"` literal, now equally rejected: `RouteKind`
+    narrowed to `Literal["content", "qa_sidecar"]`, so a manifest tagging a
+    prefix `route:"forms"` fails at load just like a typo does."""
+    typo_manifest_path = _write_manifest(
         tmp_path,
         {
             "schema_version": 1,
@@ -375,13 +357,38 @@ def test_invalid_route_value_rejected_at_load_time(tmp_path: Path) -> None:
         },
     )
     with pytest.raises(ManifestLoadError):
-        load_workspace_manifest(manifest_path)
+        load_workspace_manifest(typo_manifest_path)
+
+    forms_manifest_path = _write_manifest(
+        tmp_path,
+        {
+            "schema_version": 1,
+            "mappings": [
+                {
+                    "path_prefix": "acme-forms/",
+                    "workspace_id": str(ACME_UUID),
+                    "route": "forms",  # retired literal — no longer valid
+                },
+            ],
+        },
+    )
+    with pytest.raises(ManifestLoadError):
+        load_workspace_manifest(forms_manifest_path)
 
 
 def test_longest_prefix_winner_route_is_returned(tmp_path: Path) -> None:
     """(d) The longest-prefix WINNER's route is the one returned — a
-    `route:"forms"` child prefix forks away from its `route:"content"`
-    parent, and vice versa for paths only the parent matches."""
+    `route:"qa_sidecar"` child prefix forks away from its `route:"content"`
+    parent, and vice versa for paths only the parent matches.
+
+    ID-136 (forms-route retirement): this case's non-content child route was
+    `"forms"` pre-retirement; `RouteKind` narrowed to
+    `Literal["content", "qa_sidecar"]`, so it now exercises `qa_sidecar`
+    instead — still a genuine route-differentiation-at-the-fork proof. NOTE
+    (TECH.md §1.3, owner S437 caveat): `qa_sidecar` is itself EARMARKED
+    SUPERSEDED under the id-131 OKF record-model (superseded-pending, not
+    yet retired) — this case may need to move again when id-131 retires the
+    sidecar route; that is a downstream id-131 concern, out of scope here."""
     manifest_path = _write_manifest(
         tmp_path,
         {
@@ -391,14 +398,14 @@ def test_longest_prefix_winner_route_is_returned(tmp_path: Path) -> None:
                 {
                     "path_prefix": "acme-bids/blank-forms/",
                     "workspace_id": str(ACME_2026_UUID),
-                    "route": "forms",
+                    "route": "qa_sidecar",
                 },
             ],
         },
     )
     manifest = load_workspace_manifest(manifest_path)
     winner = resolve_route(manifest, "acme-bids/blank-forms/SQ.pdf")
-    assert winner == Resolution(workspace_id=ACME_2026_UUID, route="forms")
+    assert winner == Resolution(workspace_id=ACME_2026_UUID, route="qa_sidecar")
     # A path matched only by the shorter parent prefix keeps the parent's route.
     parent = resolve_route(manifest, "acme-bids/2025/foo.pdf")
     assert parent == Resolution(workspace_id=ACME_UUID, route="content")

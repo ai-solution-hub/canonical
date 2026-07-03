@@ -9,8 +9,8 @@
  * mint branch so the data migration can be validated on the data-sparse staging
  * DB (where the 12 live workspaces all carry NULL outcome/status — a degenerate
  * snapshot per the {130.8} TECH "Risks" note). It ALSO emits the mandatory root
- * `.kh-workspace-map.json` manifest (ID-127.4 BI-7) binding the `forms/procurement/`
- * walk prefix to the BI-8 `Platform — Procurement` workspace.
+ * `.kh-workspace-map.json` manifest (ID-127.4 BI-7) — an empty-mappings manifest
+ * now that the `forms/procurement/` walk route has been retired (ID-136 {136.6}).
  *
  * **What it seeds (and what it deliberately does NOT).** workspaces +
  * domain_metadata + form_questions ONLY. It does NOT seed `form_responses` /
@@ -91,17 +91,6 @@ export const SYNTHETIC_NOTES_MARKER =
 export const SYNTHETIC_WORKSPACE_DESCRIPTION =
   'Synthetic — First-Client procurement corpus row (ID-127.4 / ID-130 {130.8} ' +
   'validation). Safe to delete via seed-synthetic-corpus.ts --clean.';
-
-/**
- * The workspace the `forms/procurement/` manifest prefix binds to. Resolved
- * Q-1: this is the BI-8 `Platform — Procurement` workspace (looked up by exact
- * name), NOT a synthetic workspace — keeping walk-minted forms disjoint from the
- * {130.8} synthetic mint subjects.
- */
-export const FORMS_MANIFEST_WORKSPACE_NAME = 'Platform — Procurement';
-
-/** The single mapped walk prefix in the root manifest (PROPOSAL §B). */
-export const FORMS_PATH_PREFIX = 'forms/procurement/';
 
 // ── Metadata fixtures (the six {130.8} mint subjects) ────────────────────────
 
@@ -327,17 +316,18 @@ export interface WorkspaceMapManifest {
   }>;
 }
 
-/** Build the root `.kh-workspace-map.json` manifest for a resolved workspace id. */
-export function buildManifest(workspaceId: string): WorkspaceMapManifest {
+/**
+ * Build the root `.kh-workspace-map.json` manifest. The `forms/procurement/`
+ * walk route has been retired (ID-136 {136.6}) — an empty-mappings manifest is
+ * explicitly legal (resolver docstring `workspace_resolver.py:147-149`); any
+ * non-matching path raises `UnmappedPath`, which the walk treats as a benign
+ * soft-warn → content fallback. The manifest FILE is still mandatory (the walk
+ * guard aborts on absent/invalid manifest) — this function keeps emitting it.
+ */
+export function buildManifest(): WorkspaceMapManifest {
   return {
     schema_version: 1,
-    mappings: [
-      {
-        path_prefix: FORMS_PATH_PREFIX,
-        workspace_id: workspaceId,
-        route: 'forms',
-      },
-    ],
+    mappings: [],
   };
 }
 
@@ -496,32 +486,6 @@ async function findQuestionId(
     'seed-synthetic-corpus.form_questions.byKey',
   );
   return row?.id ?? null;
-}
-
-/**
- * Resolve the `Platform — Procurement` workspace id (the forms-route manifest
- * binding, resolved Q-1). FAILS LOUD if absent — the BI-8 workspace seed
- * (`seed-platform-workspaces.ts`) must run first.
- */
-export async function resolveFormsWorkspaceId(
-  client: CorpusDbClient,
-): Promise<string> {
-  const row = await sb<{ id: string } | null>(
-    client
-      .from('workspaces')
-      .select('id')
-      .eq('name', FORMS_MANIFEST_WORKSPACE_NAME)
-      .maybeSingle() as PostgrestLike<{ id: string } | null>,
-    'seed-synthetic-corpus.workspaces.formsManifest',
-  );
-  if (!row) {
-    throw new Error(
-      `Seed aborted: the manifest binding workspace "${FORMS_MANIFEST_WORKSPACE_NAME}" ` +
-        'is absent on the target DB. Run seed-platform-workspaces.ts (same target) ' +
-        'FIRST — this seed never creates the BI-8 workspaces.',
-    );
-  }
-  return row.id;
 }
 
 // ── Core seed logic (client-injected, testable) ──────────────────────────────
@@ -726,17 +690,13 @@ async function main(): Promise<void> {
     auth: { persistSession: false, autoRefreshToken: false },
   }) as unknown as CorpusDbClient;
 
-  // ── --emit-manifest: read-only; resolve the forms workspace + emit manifest. ──
+  // ── --emit-manifest: read-only; emit the (empty-mappings) root manifest. ──
   if (args.emitManifest) {
-    const formsWorkspaceId = await resolveFormsWorkspaceId(client);
-    const manifest = buildManifest(formsWorkspaceId);
+    const manifest = buildManifest();
     const json = JSON.stringify(manifest, null, 2);
     if (args.manifestOut) {
       writeFileSync(args.manifestOut, `${json}\n`);
-      console.log(
-        `📝 Wrote .kh-workspace-map.json → ${args.manifestOut} ` +
-          `(forms/procurement/ → ${formsWorkspaceId})`,
-      );
+      console.log(`📝 Wrote .kh-workspace-map.json → ${args.manifestOut}`);
     } else {
       console.log(json);
     }
