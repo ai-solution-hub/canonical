@@ -42,11 +42,10 @@ const CORPUS_ROOT = resolve(
 
 const MANIFEST_TEMPLATE = '.kh-workspace-map.json.example';
 
-// The authoritative tree per TECH §2.1 — exactly these 8 entries, no more.
+// The authoritative tree per TECH §2.1 — exactly these 6 entries, no more.
+// (forms/procurement/ retired under DR-014 — ID-136 forms-route retirement.)
 const EXPECTED_ENTRIES = [
   MANIFEST_TEMPLATE,
-  'forms/procurement/synthetic-sq-officesupplies.pdf',
-  'forms/procurement/synthetic-itt-groundsmaint.docx',
   'content/synthetic-methodology.md',
   'content/synthetic-capability-statement.pdf',
   'content/synthetic-sector-intel.docx',
@@ -54,19 +53,9 @@ const EXPECTED_ENTRIES = [
   'edge/synthetic-sparse-edge.md',
 ] as const;
 
-const PDF_FILES = [
-  'forms/procurement/synthetic-sq-officesupplies.pdf',
-  'content/synthetic-capability-statement.pdf',
-] as const;
+const PDF_FILES = ['content/synthetic-capability-statement.pdf'] as const;
 
-const DOCX_FILES = [
-  'forms/procurement/synthetic-itt-groundsmaint.docx',
-  'content/synthetic-sector-intel.docx',
-] as const;
-
-// RFC-4122 canonical form (version nibble 1-5, variant nibble 8-b).
-const RFC4122_UUID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const DOCX_FILES = ['content/synthetic-sector-intel.docx'] as const;
 
 /** Recursively list every file under `dir`, returning POSIX relative paths. */
 function walk(dir: string): string[] {
@@ -84,9 +73,20 @@ function walk(dir: string): string[] {
 
 const actualEntries = walk(CORPUS_ROOT).sort();
 
+const manifest = JSON.parse(
+  readFileSync(join(CORPUS_ROOT, MANIFEST_TEMPLATE), 'utf8'),
+) as {
+  schema_version?: unknown;
+  mappings?: Array<{
+    path_prefix?: unknown;
+    workspace_id?: unknown;
+    route?: unknown;
+  }>;
+};
+
 describe('Platform seam-coverage corpus — vendored tree shape (TECH §2.1/§2.2/§7)', () => {
   describe('tree completeness (§2.1)', () => {
-    it('contains exactly the 8 expected entries — no more, no less', () => {
+    it('contains exactly the 6 expected entries — no more, no less', () => {
       expect(actualEntries).toEqual([...EXPECTED_ENTRIES].sort());
     });
 
@@ -128,57 +128,15 @@ describe('Platform seam-coverage corpus — vendored tree shape (TECH §2.1/§2.
   });
 
   describe('manifest template shape (§2.1; cross-checked vs buildManifest)', () => {
-    const manifest = JSON.parse(
-      readFileSync(join(CORPUS_ROOT, MANIFEST_TEMPLATE), 'utf8'),
-    ) as {
-      schema_version?: unknown;
-      mappings?: Array<{
-        path_prefix?: unknown;
-        workspace_id?: unknown;
-        route?: unknown;
-      }>;
-    };
-
-    it('parses as JSON with a schema_version and a mappings array', () => {
+    it('parses as JSON with a schema_version and an empty mappings array (DR-014)', () => {
       expect(manifest.schema_version).toBe(1);
       expect(Array.isArray(manifest.mappings)).toBe(true);
-    });
-
-    it('maps forms/procurement/ → route "forms"', () => {
-      const formsMapping = manifest.mappings?.find(
-        (m) => m.path_prefix === 'forms/procurement/',
-      );
-      expect(
-        formsMapping,
-        'a forms/procurement/ mapping must exist',
-      ).toBeDefined();
-      expect(formsMapping?.route).toBe('forms');
-    });
-
-    it('carries a NON-uuid placeholder workspace_id (RATIFY-1b: no hardcoded uuid)', () => {
-      const formsMapping = manifest.mappings?.find(
-        (m) => m.path_prefix === 'forms/procurement/',
-      );
-      const workspaceId = String(formsMapping?.workspace_id);
-      expect(workspaceId.length).toBeGreaterThan(0);
-      expect(
-        RFC4122_UUID.test(workspaceId),
-        `workspace_id should be a placeholder, not a real uuid (got "${workspaceId}")`,
-      ).toBe(false);
+      expect(manifest.mappings).toEqual([]);
     });
   });
 
   describe('seam coverage (§2.2)', () => {
     const has = (rel: string) => actualEntries.includes(rel);
-
-    it('forms branch carries both a PDF and a DOCX binary', () => {
-      expect(has('forms/procurement/synthetic-sq-officesupplies.pdf')).toBe(
-        true,
-      );
-      expect(has('forms/procurement/synthetic-itt-groundsmaint.docx')).toBe(
-        true,
-      );
-    });
 
     it('content branch carries md + PDF + DOCX', () => {
       expect(has('content/synthetic-methodology.md')).toBe(true);
@@ -195,6 +153,17 @@ describe('Platform seam-coverage corpus — vendored tree shape (TECH §2.1/§2.
       const offenders = actualEntries.filter((p) => p.includes('__qa__/'));
       expect(offenders).toEqual([]);
     });
+
+    it('has no forms/ tree and no forms route mapping (DR-014)', () => {
+      const formsPaths = actualEntries.filter((p) => p.startsWith('forms/'));
+      expect(formsPaths, 'no forms/ path should remain in the corpus').toEqual(
+        [],
+      );
+      expect(
+        manifest.mappings,
+        'manifest.mappings must be empty (no forms route)',
+      ).toEqual([]);
+    });
   });
 
   describe('no client IP (§2.2 / BI-3)', () => {
@@ -207,7 +176,7 @@ describe('Platform seam-coverage corpus — vendored tree shape (TECH §2.1/§2.
         });
       expect(
         offenders,
-        'all content/forms/qa/edge files must use synthetic- tokens (no client IP)',
+        'all content/qa/edge files must use synthetic- tokens (no client IP)',
       ).toEqual([]);
     });
   });
