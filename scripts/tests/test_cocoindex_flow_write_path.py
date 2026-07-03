@@ -706,13 +706,13 @@ class TestMountEachArityContract:
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=run_op_id):
-                # ID-101 §{101.7} (RULING 1): er_target is the LAST extra arg in
-                # the mount_each content call — thread it through the faithful
-                # harness so the full positional arity (ci/qa/sd/em/ft/ftf/cc/er)
-                # is exercised end-to-end through the real fn(value, *extra_args)
-                # contract.
+                # ID-101 §{101.7} (RULING 1): er_target is the LAST extra arg
+                # supplied here — thread it through the faithful harness so the
+                # full positional arity (ci/qa/sd/em/cc/er) is exercised
+                # end-to-end through the real fn(value, *extra_args) contract.
+                # ID-136 (forms-route retirement) removed ft_target/ftf_target.
                 await _faithful_mount_each(
-                    flow.ingest_file, feed, ci, qa, sd, em, None, None, None, er
+                    flow.ingest_file, feed, ci, qa, sd, em, None, er
                 )
 
         asyncio.run(_exercise())
@@ -749,28 +749,39 @@ class TestMountEachArityContract:
         assert len({r["id"] for r in ci.rows}) == 2
 
     def test_ingest_file_signature_matches_mount_each_extra_args(self) -> None:
-        """``ingest_file`` accepts (file, ci, qa, sd, em, ft, ftf, cc=None, er=None).
+        """``ingest_file`` accepts (file, ci, qa, sd, em, cc=None, er=None, re=None).
 
         Inspecting the signature directly pins the arity contract: the leading
-        parameter is the File item value, followed by the eight target extra
+        parameter is the File item value, followed by the seven target extra
         args — and there is NO leading ``rel_path`` parameter (the original
-        blocker).
+        blocker). This is a real contract guard against the CURRENT
+        ``app_main`` ``mount_each`` extra-arg order — not a historical record.
 
-        ID-52.12 extended the arity from five to seven: ``ft_target`` /
-        ``ftf_target`` (the ``form_templates`` / ``form_template_fields``
-        Path-B write targets) follow ``em_target`` positionally, matching the
-        ``coco.mount_each`` extra-arg order in ``app_main``.
+        ID-52.12 originally extended the arity from five to seven by appending
+        ``ft_target`` / ``ftf_target`` (the ``form_templates`` /
+        ``form_template_fields`` Path-B write targets) after ``em_target``,
+        positionally matching the ``coco.mount_each`` extra-arg order in
+        ``app_main``. ID-136 (forms-route retirement) REMOVED both — the
+        corpus walk no longer writes ``form_templates``; the surviving writer
+        is the app-side manual-upload path
+        (``app/api/procurement/[id]/forms/route.ts``).
 
-        ID-56.8 extended it to eight: ``cc_target`` (the ``content_chunks``
-        chunk-row UPSERT target) is appended as a DEFAULTED 8th positional
-        (``cc_target=None``) so the existing 7-arg callers stay valid while
-        ``app_main`` always supplies it via ``mount_each``.
+        ID-56.8 appended ``cc_target`` (the ``content_chunks`` chunk-row
+        UPSERT target) as a DEFAULTED positional (``cc_target=None``) so
+        legacy 5-arg callers stay valid while ``app_main`` always supplies it
+        via ``mount_each``.
 
-        ID-101 §{101.7} (RULING 1) extended it to nine: ``er_target`` (the
-        ``entity_relationships`` UPSERT target) is appended as a DEFAULTED 9th
-        positional (``er_target=None``) AFTER ``cc_target`` (before the
-        keyword-only ``*``) so the existing 7-/8-arg callers stay valid while
-        ``app_main`` always supplies it as the LAST extra arg in ``mount_each``.
+        ID-101 §{101.7} (RULING 1) appended ``er_target`` (the
+        ``entity_relationships`` UPSERT target) as a DEFAULTED positional
+        (``er_target=None``) AFTER ``cc_target`` (before the keyword-only
+        ``*``) so legacy callers stay valid while ``app_main`` always
+        supplies it as the LAST-but-one extra arg in ``mount_each``.
+
+        ID-131 {131.11} appended ``re_target`` (the polymorphic
+        ``record_embeddings`` write target) as a DEFAULTED positional
+        (``re_target=None``) AFTER ``er_target``, per the RULING 1
+        trailing-positional idiom, so ``app_main`` supplies it as the last
+        extra arg in ``mount_each`` while legacy callers stay valid.
 
         ID-66.19 appended KEYWORD-ONLY run-context params (``flow_op_id`` + the
         four counters + ``flow_workspace_manifest``) after a bare ``*`` so
@@ -797,38 +808,33 @@ class TestMountEachArityContract:
             "ingest_file must NOT lead with rel_path — mount_each passes "
             "fn(File, *extra_args); the key is never forwarded to fn"
         )
-        # First positional is the File item value; remaining nine are the targets.
-        # ID-131 {131.11} appended a DEFAULTED 10th positional `re_target=None`
-        # (the polymorphic record_embeddings write target) AFTER er_target, per
-        # the RULING 1 trailing-positional idiom — so app_main supplies it as the
-        # last extra arg in mount_each while the 7-/8-/9-arg callers stay valid.
-        assert len(positional) == 10, (
+        # First positional is the File item value; remaining seven are the
+        # targets (ID-136 forms-route retirement removed ft_target/ftf_target).
+        assert len(positional) == 8, (
             f"ingest_file positional params must be exactly "
-            f"(file, ci, qa, sd, em, ft, ftf, cc, er, re); got {positional}"
+            f"(file, ci, qa, sd, em, cc, er, re); got {positional}"
         )
-        assert positional[-5:] == [
-            "ft_target",
-            "ftf_target",
+        assert positional[-3:] == [
             "cc_target",
             "er_target",
             "re_target",
         ], (
-            "the last five positional extra args must be ft_target, ftf_target, "
-            f"cc_target, er_target, re_target (positional order); got {positional}"
+            "the last three positional extra args must be cc_target, "
+            f"er_target, re_target (positional order); got {positional}"
         )
-        # cc_target is DEFAULTED to None so 7-arg legacy callers stay valid.
+        # cc_target is DEFAULTED to None so 5-arg legacy callers stay valid.
         assert sig.parameters["cc_target"].default is None, (
-            "cc_target must default to None (the 7-arg callers omit it)"
+            "cc_target must default to None (the 5-arg callers omit it)"
         )
-        # er_target is DEFAULTED to None so 7-/8-arg legacy callers stay valid
+        # er_target is DEFAULTED to None so 5-/6-arg legacy callers stay valid
         # (ID-101 §{101.7} RULING 1 — defaulted trailing positional).
         assert sig.parameters["er_target"].default is None, (
-            "er_target must default to None (the 7-/8-arg callers omit it)"
+            "er_target must default to None (the 5-/6-arg callers omit it)"
         )
-        # re_target is DEFAULTED to None so 7-/8-/9-arg legacy callers stay valid
-        # (ID-131 {131.11} RULING 1 — defaulted trailing positional).
+        # re_target is DEFAULTED to None so 5-/6-/7-arg legacy callers stay
+        # valid (ID-131 {131.11} RULING 1 — defaulted trailing positional).
         assert sig.parameters["re_target"].default is None, (
-            "re_target must default to None (the 7-/8-/9-arg callers omit it)"
+            "re_target must default to None (the 5-/6-/7-arg callers omit it)"
         )
 
 
@@ -1012,9 +1018,11 @@ class TestIngestFileRelationshipWritePath:
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=run_op_id):
-                # er_target is the LAST positional extra arg (RULING 1).
+                # er_target is the last positional extra arg supplied here
+                # (ID-136 removed ft_target/ftf_target; re_target stays
+                # defaulted — RULING 1).
                 await flow.ingest_file(  # type: ignore[attr-defined]
-                    fake_file, ci, qa, sd, em, None, None, None, er
+                    fake_file, ci, qa, sd, em, None, er
                 )
 
         asyncio.run(_exercise())
@@ -1351,7 +1359,7 @@ class TestSourceDocumentRawPoolFkOrdering:
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=uuid.uuid4()):
                 await flow.ingest_file(
-                    fake_file, ci, qa, sd, em, None, None, None, er
+                    fake_file, ci, qa, sd, em, None, er
                 )
 
         asyncio.run(_exercise())
@@ -1587,9 +1595,12 @@ class TestInv19QaDeclareSnapshot:
             "declare payload byte-identical to the no-manifest golden "
             "(Inv-19 — Path-A writes never touched by form routing)"
         )
-        # And the fork's mutual exclusion held: zero form rows either way.
-        assert out["ft"].rows == []
-        assert out["ftf"].rows == []
+        # ID-136 (forms-route retirement) removed the form_templates /
+        # form_template_fields write targets — the "zero form rows either
+        # way" assertion this class used to make is now structurally
+        # impossible/vacuous and has been removed. The qa/content golden-row
+        # assertion above still proves the Inv-19 intent: the content-routed
+        # manifest yields the identical qa/content declare payload.
 
 
 # ── 28.21 — content_fingerprint is awaited (async method, not attribute) ──────
@@ -2609,18 +2620,15 @@ class TestWorkspacePathFixes:
         async def _emb(content_text: str):
             return [0.0] * 1024
 
-        # Plain .md is non-form → extract_form_structure returns None; the
-        # Path-B block resolves the workspace then exits cleanly (flow.py:1776).
-        async def _form_none(file: object):
-            return None
-
         monkeypatch.setattr(flow, "convert_binary_to_markdown", _conv)
         monkeypatch.setattr(flow, "extract_classification", _cls)
         monkeypatch.setattr(flow, "extract_qa_form", _qa)
         monkeypatch.setattr(flow, "extract_entity_mentions", _ent)
         monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
         monkeypatch.setattr(flow, "embed_content_text", _emb)
-        monkeypatch.setattr(flow, "extract_form_structure", _form_none)
+        # ID-136 (forms-route retirement) removed extract_form_structure and
+        # the Path-B form block entirely — the content path below no longer
+        # calls it, so there is nothing left to monkeypatch here.
 
         stage_errors: list[dict] = []
 
