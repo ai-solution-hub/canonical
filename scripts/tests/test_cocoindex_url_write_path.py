@@ -318,6 +318,17 @@ class TestUrlLandingDeclaresEvidencePair:
         assert sd_row["extraction_method"] == "trafilatura"
         assert sd_row["op_id"] == run_op_id
         # ID-129.2: the declared key set carries no retired share-id column.
+        # ID-131 {131.22} (G-PRODUCER-CLASS): `_upsert_source_document` is
+        # SHARED between the localfs content branch and this URL route — the
+        # producer's classification family columns now ride EVERY caller's
+        # INSERT, even though `ingest_url` does not classify onto
+        # source_documents itself (its own `reference_items` row already
+        # carries primary_domain/primary_subtopic on a DIFFERENT table —
+        # unaffected, out of 131.22's scope). All new columns default to None
+        # here; primary_domain/primary_subtopic fall back to the DB's own
+        # 'unclassified' DEFAULT via the `_upsert_source_document` guard,
+        # since that column is NOT NULL with no per-caller-omission path on a
+        # raw parameterised INSERT.
         assert set(sd_row) == {
             "id",
             "storage_path",
@@ -328,7 +339,27 @@ class TestUrlLandingDeclaresEvidencePair:
             "content_hash",
             "op_id",
             "extraction_method",
+            "content_type",
+            "primary_domain",
+            "primary_subtopic",
+            "secondary_domain",
+            "secondary_subtopic",
+            "ai_keywords",
+            "summary",
+            "suggested_title",
+            "classified_at",
+            "classification_confidence",
+            "classification_reasoning",
+            "captured_date",
+            "summary_data",
         }
+        assert sd_row["primary_domain"] == "unclassified", (
+            "ingest_url does not classify onto source_documents — the NOT "
+            "NULL DEFAULT floor applies (131.22)"
+        )
+        assert sd_row["primary_subtopic"] == "unclassified"
+        assert sd_row["content_type"] is None
+        assert sd_row["classification_confidence"] is None
 
         # BI-3: the full reference_items contract.
         ri_row = ri.rows[0]

@@ -380,14 +380,29 @@ class TestIngestFileWritePath:
         )
         # content_items row references the source_documents row it came from.
         assert ci_row["source_document_id"] == sd_rows[0]["id"]
-        # ID-63.7 (OQ-63-9): the classification's domain AND subtopic are
-        # persisted to content_items on the cocoindex re-ingest path (today
-        # neither was written). Both keys ride the declare_row payload.
-        assert ci_row["primary_domain"] == "procurement", (
-            "primary_domain must be persisted to content_items (OQ-63-9)"
+        # ID-131 {131.22} (G-PRODUCER-CLASS): the classification family
+        # (superseding the {63.7}/OQ-63-9 content_items write) now lands on
+        # source_documents instead — primary_domain/primary_subtopic no
+        # longer ride the content_items declare_row payload at all.
+        assert "primary_domain" not in ci_row, (
+            "primary_domain must NOT ride content_items post-131.22 — "
+            "it moved to source_documents"
         )
-        assert ci_row["primary_subtopic"] == "tender_evaluation", (
-            "primary_subtopic must be persisted to content_items (OQ-63-9)"
+        assert "primary_subtopic" not in ci_row, (
+            "primary_subtopic must NOT ride content_items post-131.22 — "
+            "it moved to source_documents"
+        )
+        assert sd_rows[0]["primary_domain"] == "procurement", (
+            "primary_domain must be persisted to source_documents (131.22)"
+        )
+        assert sd_rows[0]["primary_subtopic"] == "tender_evaluation", (
+            "primary_subtopic must be persisted to source_documents (131.22)"
+        )
+        assert sd_rows[0]["content_type"] == "case_study", (
+            "content_type must be persisted to source_documents (131.22)"
+        )
+        assert sd_rows[0]["suggested_title"] == "Doc One Title", (
+            "suggested_title must be persisted to source_documents (131.22)"
         )
 
         # q_a_extractions: one row per qa_pair, op_id stamped, FK to source_documents.
@@ -2257,23 +2272,28 @@ class TestCanonicalRecordHasNoIntrinsicWorkspace:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """BI-8: the LLM classification (primary_domain / primary_subtopic) is
-        persisted to content_items but is NEVER interpreted as a workspace.
-        Association is explicit, never inferred from classification."""
+        persisted to source_documents (ID-131 {131.22} G-PRODUCER-CLASS
+        re-homed the write off content_items) but is NEVER interpreted as a
+        workspace. Association is explicit, never inferred from
+        classification."""
         flow = _flow_module()
         src = tmp_path / "doc.md"
         src.write_text("# Doc\n\nbody")
         _stub_canonical_extractors(flow, monkeypatch, markdown="# Doc\n\nbody")
 
-        ci, _ = _run_ingest(flow, _FakeFile(src), monkeypatch)
+        ci, sd = _run_ingest(flow, _FakeFile(src), monkeypatch)
         ci_row = ci.rows[0]
+        sd_row = sd[0]
 
-        # The classifier output landed on its own columns…
-        assert ci_row["primary_domain"] == "procurement"
-        assert ci_row["primary_subtopic"] == "tender_evaluation"
-        # …and did NOT leak into any workspace field (no classification->workspace
-        # mapping exists on the canonical path — BI-8).
+        # The classifier output landed on source_documents' own columns…
+        assert sd_row["primary_domain"] == "procurement"
+        assert sd_row["primary_subtopic"] == "tender_evaluation"
+        # …and neither content_items nor source_documents ever carries the
+        # value in a workspace field (no classification->workspace mapping
+        # exists on the canonical path — BI-8).
         assert "workspace_id" not in ci_row
-        assert ci_row.get("primary_domain") != ci_row.get("workspace_id")
+        assert "workspace_id" not in sd_row
+        assert sd_row.get("primary_domain") != ci_row.get("workspace_id")
 
 
 # ── 66.16 — stamp_extraction_base is WIRED into the per-item path (Inv-5) ──────

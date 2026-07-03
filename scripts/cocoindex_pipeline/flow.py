@@ -1249,6 +1249,38 @@ SOURCE_DOCUMENTS_SCHEMA = TableSchema(
         # (= storage_path, RESEARCH constraint 2); the localfs branch writes an
         # explicit None.
         "source_url": ColumnDef(type="text", nullable=True),
+        # ID-131 {131.22} (G-PRODUCER-CLASS): classification family, re-homed
+        # off content_items onto source_documents. {131.9} M3 migration
+        # `20260628191700_id131_sd_classification_cols.sql` added these DB
+        # columns (types mirror content_items 1:1 per that migration's own
+        # comment); the companion fix migration
+        # `20260628191704_id131_sd_content_type_nullable.sql` relaxed
+        # content_type to nullable (a classification OUTPUT, unknown at
+        # ingest). Nullability here cross-checked against the applied
+        # `database.types.ts` source_documents Row (the in-worktree truth) —
+        # NOT re-derived from the content_items 1:1-mirror comment alone.
+        # `classification_model` is DELIBERATELY OMITTED — dropped per
+        # ratified D1/BI-11 (0 stored consumers; see the migration's own
+        # comment). The producer (`_upsert_source_document` below) only
+        # POPULATES the subset of these the Path-A `ClassificationExtraction`
+        # model (extraction.py) actually returns; the rest
+        # (secondary_domain/secondary_subtopic/ai_keywords/summary/
+        # captured_date/summary_data) are declared here for schema
+        # completeness but have no Path-A source today (cf. the richer TS
+        # `lib/ai/classify.ts` shape) and are left NULL by this producer.
+        "primary_domain": ColumnDef(type="text", nullable=True),
+        "primary_subtopic": ColumnDef(type="text", nullable=True),
+        "secondary_domain": ColumnDef(type="text", nullable=True),
+        "secondary_subtopic": ColumnDef(type="text", nullable=True),
+        "ai_keywords": ColumnDef(type="text[]", nullable=True),
+        "summary": ColumnDef(type="text", nullable=True),
+        "suggested_title": ColumnDef(type="text", nullable=True),
+        "classified_at": ColumnDef(type="timestamptz", nullable=True),
+        "classification_confidence": ColumnDef(type="numeric", nullable=True),
+        "classification_reasoning": ColumnDef(type="text", nullable=True),
+        "content_type": ColumnDef(type="text", nullable=True),
+        "captured_date": ColumnDef(type="timestamptz", nullable=True),
+        "summary_data": ColumnDef(type="jsonb", nullable=True),
     },
     primary_key=("id",),
 )
@@ -2155,6 +2187,18 @@ async def _ingest_content_branch(
     # is retained on this function's signature (mount_each positional
     # contract, threaded from `_ingest_file_body`) but the localfs
     # content-branch sd row no longer flushes through it.
+    # ID-64.10 (S296): content_type is the taxonomy-validated classifier value
+    # (HARD-rejected at extraction if out-of-taxonomy → present in production);
+    # `or "other"` is a defensive floor for the plain-dict write-path test stubs.
+    # ID-131 {131.22} (G-PRODUCER-CLASS): hoisted a second time — now ABOVE the
+    # `_upsert_source_document` call (was previously hoisted to just above the
+    # ci_target declare, {64.10}/S296) because content_type is now PRIMARILY a
+    # source_documents write; content_items keeps the SAME value (see the
+    # ci_target declare below) only because content_items.content_type is
+    # NOT NULL with NO DEFAULT (squash_baseline.sql — no migration in this
+    # subtask relaxes it), so ci_target still needs a value even though the
+    # classification family write moved off it.
+    content_type = _field(classification, "content_type") or "other"
     await _upsert_source_document(
         source_document_id=source_document_id,
         storage_path=rel_path,
@@ -2174,6 +2218,28 @@ async def _ingest_content_branch(
         # Extraction provenance (ID-42.9 §WP-E) — nullable; only the Docling
         # path populates it (passthrough leaves it None).
         extraction_method=provenance.extraction_method,
+        # ID-131 {131.22} (G-PRODUCER-CLASS): classification family, re-homed
+        # off content_items (ci_target.declare_row below no longer carries
+        # primary_domain/primary_subtopic). Only the fields the Path-A
+        # `ClassificationExtraction` model (extraction.py) actually returns
+        # are threaded through — secondary_domain/secondary_subtopic/
+        # ai_keywords/summary/captured_date/summary_data have no Path-A
+        # source today and are left at their `_upsert_source_document`
+        # defaults (None → NULL).
+        content_type=content_type,
+        primary_domain=_field(classification, "primary_domain"),
+        primary_subtopic=_field(classification, "primary_subtopic"),
+        suggested_title=_field(classification, "suggested_title"),
+        classification_confidence=_field(
+            classification, "classification_confidence"
+        ),
+        # `rationale` is the Path-A model's free-text field — maps onto the
+        # DB's `classification_reasoning` column name.
+        classification_reasoning=_field(classification, "rationale"),
+        # `extracted_at` is the flow-stamped timestamp (`_stamp_if_model`
+        # above) — the natural "when was this classified" value; the LLM does
+        # not emit its own classified_at (bl-220 stamp-free core contract).
+        classified_at=_field(classification, "extracted_at"),
     )
     _bump("postgres_upsert")  # Inv-17: source_documents row upsert
 
@@ -2182,12 +2248,6 @@ async def _ingest_content_branch(
     # docstring). content_text_hash OMITTED (GENERATED ALWAYS); the pgvector
     # text-literal encoding is applied by the `embedding` ColumnDef encoder.
     embedding = await embed_content_text(content_text)
-    # ID-64.10 (S296): content_type is the taxonomy-validated classifier value
-    # (HARD-rejected at extraction if out-of-taxonomy → present in production);
-    # `or "other"` is a defensive floor for the plain-dict write-path test stubs.
-    # Hoisted from its former site below the qa loop, where it was computed but
-    # never written ("value available but never written" — schema-gap audit).
-    content_type = _field(classification, "content_type") or "other"
     ci_target.declare_row(
         row={
             "id": content_item_id,
@@ -2195,20 +2255,21 @@ async def _ingest_content_branch(
             # non-existent `content_text`).
             "content": content_text,
             # ID-64.10 (S296): title (NOT NULL) — classifier suggested_title with
-            # a filename-stem fallback (decided S296); content_type (NOT NULL).
+            # a filename-stem fallback (decided S296); content_type (NOT NULL,
+            # NO DEFAULT — see the {131.22} comment above the sd upsert call).
             "title": _field(classification, "suggested_title")
             or file.file_path.path.stem,
             "content_type": content_type,
             "embedding": embedding,
             "source_document_id": source_document_id,
             "op_id": op_id,
-            # ID-63.7 (OQ-63-9): persist the classifier's domain AND subtopic
-            # to content_items — today neither was written on this path. Read
-            # via _field so the write path stays agnostic to whether the
-            # extractor returned a Pydantic model (production) or a plain dict
-            # (write-path test stubs) — mirrors the content_type access above.
-            "primary_domain": _field(classification, "primary_domain"),
-            "primary_subtopic": _field(classification, "primary_subtopic"),
+            # ID-131 {131.22} (G-PRODUCER-CLASS): primary_domain / primary_subtopic
+            # REMOVED from this declare_row — the classification family now lands
+            # on source_documents (via `_upsert_source_document` above), not here
+            # (supersedes the {63.7}/OQ-63-9 content_items write). Omitting the
+            # keys (rather than writing None) lets content_items' own
+            # DEFAULT 'unclassified' apply (squash_baseline.sql), matching the
+            # cc_target heading_* omission precedent elsewhere in this file.
         }
     )
     _bump("postgres_upsert")  # Inv-17: content_items row upsert
@@ -2773,6 +2834,30 @@ async def _upsert_source_document(
     content_hash: str,
     op_id: "uuid.UUID",
     extraction_method: str | None,
+    # ID-131 {131.22} (G-PRODUCER-CLASS): classification family, re-homed off
+    # content_items ({131.9} M3 added these DB columns; the companion fix
+    # migration relaxed content_type to nullable). ALL default to None so the
+    # pre-existing `ingest_url` call site (which does not classify onto
+    # source_documents — its `reference_items` row already carries its own
+    # primary_domain/primary_subtopic on a different table; out of THIS
+    # subtask's scope) keeps working unchanged. secondary_domain/
+    # secondary_subtopic/ai_keywords/summary/captured_date/summary_data have
+    # NO source in the Path-A `ClassificationExtraction` model (extraction.py)
+    # today (cf. the richer TS `lib/ai/classify.ts` shape) — accepted but not
+    # invented; callers that never classify leave them None → NULL.
+    content_type: str | None = None,
+    primary_domain: str | None = None,
+    primary_subtopic: str | None = None,
+    secondary_domain: str | None = None,
+    secondary_subtopic: str | None = None,
+    ai_keywords: list[str] | None = None,
+    summary: str | None = None,
+    suggested_title: str | None = None,
+    classified_at: datetime | None = None,
+    classification_confidence: float | None = None,
+    classification_reasoning: str | None = None,
+    captured_date: datetime | None = None,
+    summary_data: dict[str, Any] | None = None,
 ) -> None:
     """Raw-pool autocommit UPSERT of the source_documents parent row.
 
@@ -2839,14 +2924,40 @@ async def _upsert_source_document(
     the URL route) rather than a whole-TaskGroup abort. Columns + on-conflict
     set mirror the prior `sd_target.declare_row` payload exactly (all scalar —
     no jsonb/vector, so no connection codec is needed; write-model §2 R2).
+
+    ID-131 {131.22} (G-PRODUCER-CLASS): the classification family (primary_
+    domain/primary_subtopic/content_type/suggested_title/classification_
+    confidence/classification_reasoning/classified_at, + the not-yet-sourced
+    secondary_domain/secondary_subtopic/ai_keywords/summary/captured_date/
+    summary_data) is now written HERE instead of onto `ci_target` — the
+    producer that used to declare it onto content_items. `primary_domain` /
+    `primary_subtopic` guard with `or "unclassified"` below: both columns are
+    NOT NULL WITH DEFAULT 'unclassified' on source_documents, and an explicit
+    SQL NULL (an unguarded None) would violate NOT NULL where cocoindex's
+    `declare_row` would have simply OMITTED the column from its generated
+    INSERT (letting the DEFAULT apply) — this raw parameterised INSERT has no
+    such omission path, since every caller (content branch + `ingest_url`)
+    shares the SAME column list, so the guard is required here specifically.
+    `content_type` needs no such guard — the companion fix migration
+    (`20260628191704_id131_sd_content_type_nullable.sql`) made it nullable.
+    `summary_data` is the one jsonb param — encoded via `json.dumps` + an
+    explicit `::jsonb` cast, mirroring `_log_ssrf_rejection`'s existing
+    raw-pool jsonb precedent on this SAME `DB_CTX` pool (this call does NOT
+    go through the pool-`init` jsonb codec registered for the
+    engine-declared `entity_mentions`/`q_a_extractions` targets).
     """
     pool = coco.use_context(DB_CTX)
     async with pool.acquire() as conn:
         await conn.execute(
             "INSERT INTO public.source_documents "
             "(id, storage_path, content_hash, filename, mime_type, file_size, "
-            "op_id, extraction_method, source_url) "
-            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) "
+            "op_id, extraction_method, source_url, content_type, "
+            "primary_domain, primary_subtopic, secondary_domain, "
+            "secondary_subtopic, ai_keywords, summary, suggested_title, "
+            "classified_at, classification_confidence, "
+            "classification_reasoning, captured_date, summary_data) "
+            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, "
+            "$14, $15, $16, $17, $18, $19, $20, $21, $22::jsonb) "
             "ON CONFLICT (id) DO UPDATE SET "
             "storage_path = EXCLUDED.storage_path, "
             "content_hash = EXCLUDED.content_hash, "
@@ -2855,7 +2966,20 @@ async def _upsert_source_document(
             "file_size = EXCLUDED.file_size, "
             "op_id = EXCLUDED.op_id, "
             "extraction_method = EXCLUDED.extraction_method, "
-            "source_url = EXCLUDED.source_url",
+            "source_url = EXCLUDED.source_url, "
+            "content_type = EXCLUDED.content_type, "
+            "primary_domain = EXCLUDED.primary_domain, "
+            "primary_subtopic = EXCLUDED.primary_subtopic, "
+            "secondary_domain = EXCLUDED.secondary_domain, "
+            "secondary_subtopic = EXCLUDED.secondary_subtopic, "
+            "ai_keywords = EXCLUDED.ai_keywords, "
+            "summary = EXCLUDED.summary, "
+            "suggested_title = EXCLUDED.suggested_title, "
+            "classified_at = EXCLUDED.classified_at, "
+            "classification_confidence = EXCLUDED.classification_confidence, "
+            "classification_reasoning = EXCLUDED.classification_reasoning, "
+            "captured_date = EXCLUDED.captured_date, "
+            "summary_data = EXCLUDED.summary_data",
             source_document_id,
             storage_path,
             content_hash,
@@ -2865,6 +2989,19 @@ async def _upsert_source_document(
             op_id,
             extraction_method,
             source_url,
+            content_type,
+            primary_domain or "unclassified",
+            primary_subtopic or "unclassified",
+            secondary_domain,
+            secondary_subtopic,
+            ai_keywords,
+            summary,
+            suggested_title,
+            classified_at,
+            classification_confidence,
+            classification_reasoning,
+            captured_date,
+            json.dumps(summary_data) if summary_data is not None else None,
         )
 
 
