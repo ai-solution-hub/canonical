@@ -2,6 +2,8 @@
 import { defineRoute } from '@/lib/api/define-route';
 import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
+import { COMPANY_PROFILE_EMBEDDING_MODEL } from '@/lib/intelligence/pipeline';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { parseBody } from '@/lib/validation';
 import {
   CompanyProfileSchema,
@@ -58,16 +60,9 @@ export const PATCH = defineRoute(
       const parsed = parseBody(CompanyProfileUpdateSchema, raw);
       if (!parsed.success) return parsed.response;
 
-      // Invalidate cached company embedding when profile data changes
-      // The pipeline will regenerate it on the next run
-      const updateData = {
-        ...parsed.data,
-        company_embedding: null,
-      };
-
       const { data, error } = await supabase
         .from('company_profiles')
-        .update(updateData)
+        .update(parsed.data)
         .eq('id', id)
         .eq('is_active', true)
         .select()
@@ -83,6 +78,41 @@ export const PATCH = defineRoute(
         return NextResponse.json(
           { error: 'Profile not found' },
           { status: 404 },
+        );
+      }
+
+      // ID-131 {131.11} G-SEARCH residual (Checker finding 1): invalidate the
+      // cached company embedding so the pipeline regenerates it on the next
+      // run. The cache moved to record_embeddings (owner_kind='company_profile')
+      // — company_profiles.company_embedding is retired from the cache
+      // contract (drops at M6/{131.19}). embedding is NULLABLE on
+      // record_embeddings (M1b) and loadOrGenerateCompanyEmbedding treats a
+      // null/missing embedding as a cache MISS, so an upsert with
+      // embedding: null is the correct invalidation shape — it also stays
+      // within the editor+admin INSERT/UPDATE RLS policies this route
+      // already requires (a DELETE would need admin-only, which editors
+      // calling this route do not have).
+      const { error: invalidateError } = await supabase
+        .from('record_embeddings')
+        .upsert(
+          {
+            owner_kind: 'company_profile',
+            owner_id: id,
+            model: COMPANY_PROFILE_EMBEDDING_MODEL,
+            embedding: null,
+          },
+          { onConflict: 'owner_kind,owner_id,model' },
+        );
+
+      if (invalidateError) {
+        // Best-effort: the profile update above already succeeded, so a
+        // failed cache invalidation must not fail the request — worst case
+        // is a stale pre-filter embedding until the next successful edit or
+        // cache-miss cycle.
+        logBestEffortWarn(
+          'intelligence.profiles.embedding-cache.invalidate',
+          'Failed to invalidate cached company embedding',
+          { profileId: id, error: invalidateError.message },
         );
       }
 

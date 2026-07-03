@@ -116,8 +116,11 @@ async function loadWorkspaceContext(
 // matches the M5 search consumers' convention (lib/mcp/tools/search.ts,
 // 20260702120000_id131_search_rpcs.sql) rather than lib/ai/embed.ts's
 // getEmbeddingModel() — every record_embeddings row this pipeline reads or
-// writes uses this fixed model string.
-const COMPANY_PROFILE_EMBEDDING_MODEL = 'text-embedding-3-large';
+// writes uses this fixed model string. Exported so the profile PATCH route
+// (app/api/intelligence/profiles/[id]/route.ts) can invalidate the SAME
+// (owner_kind, owner_id, model) row this cache reads/writes — a duplicated
+// literal would silently drift if either side changed model.
+export const COMPANY_PROFILE_EMBEDDING_MODEL = 'text-embedding-3-large';
 
 /** Load cached company embedding, or generate and cache it */
 async function loadOrGenerateCompanyEmbedding(
@@ -161,14 +164,22 @@ async function loadOrGenerateCompanyEmbedding(
 
   // Cache the embedding — upsert on the M1b UNIQUE (owner_kind, owner_id,
   // model) so a re-generation replaces the prior row for this profile.
-  await supabase.from('record_embeddings').upsert(
-    {
-      owner_kind: 'company_profile',
-      owner_id: profileId,
-      model: COMPANY_PROFILE_EMBEDDING_MODEL,
-      embedding: JSON.stringify(embedding),
-    },
-    { onConflict: 'owner_kind,owner_id,model' },
+  // sb() fail-fasts on a Postgrest error (checked, not a bare unchecked
+  // await) — the caller (runPipeline's per-workspace loop) already wraps
+  // this whole call in a try/catch that degrades to companyEmbedding = null
+  // + a best-effort warn for this workspace only, so a thrown cache-write
+  // error is handled exactly like a failed generation.
+  await sb(
+    supabase.from('record_embeddings').upsert(
+      {
+        owner_kind: 'company_profile',
+        owner_id: profileId,
+        model: COMPANY_PROFILE_EMBEDDING_MODEL,
+        embedding: JSON.stringify(embedding),
+      },
+      { onConflict: 'owner_kind,owner_id,model' },
+    ),
+    'intelligence.pipeline.company-embedding.cache',
   );
 
   return embedding;
