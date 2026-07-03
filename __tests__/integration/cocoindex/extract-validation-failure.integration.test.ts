@@ -211,14 +211,26 @@ afterAll(async () => {
   if (!ENABLED) return;
   if (seededContentIds.length === 0) return;
   const client = await createLiveServiceClient();
-  await client
-    .from('q_a_extractions')
-    .delete()
-    .in('content_item_id', seededContentIds);
-  await client
-    .from('entity_mentions')
-    .delete()
-    .in('content_item_id', seededContentIds);
+  // q_a_extractions/entity_mentions.source_document_id is an FK to
+  // source_documents, NOT content_items (ID-131 M2 / ID-131.26) — resolve
+  // the linked source_document_id(s) before cleaning up child rows.
+  const { data: sourceDocLinks } = await client
+    .from('content_items')
+    .select('source_document_id')
+    .in('id', seededContentIds);
+  const sourceDocumentIds = (sourceDocLinks ?? [])
+    .map((r) => r.source_document_id)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0);
+  if (sourceDocumentIds.length > 0) {
+    await client
+      .from('q_a_extractions')
+      .delete()
+      .in('source_document_id', sourceDocumentIds);
+    await client
+      .from('entity_mentions')
+      .delete()
+      .in('source_document_id', sourceDocumentIds);
+  }
   await client.from('content_items').delete().in('id', seededContentIds);
   // pipeline_runs cleanup is keyed on op_id (the per-flow-invocation UUID).
   if (observedOpIdRef.current) {
@@ -309,10 +321,26 @@ describe.skipIf(!ENABLED)(
       expect(seededContentIds.length).toBeGreaterThan(0);
 
       const client = await createLiveServiceClient();
+
+      // q_a_extractions/entity_mentions.source_document_id is an FK to
+      // source_documents, NOT content_items (ID-131 M2 / ID-131.26) —
+      // resolve the seeded content items' linked source_document_id(s) so
+      // the "zero rows" assertion below is scoped to THIS fixture rather
+      // than trivially vacuous against ids that could never match anyway.
+      const { data: sourceDocLinks, error: sourceDocLinkErr } = await client
+        .from('content_items')
+        .select('source_document_id')
+        .in('id', seededContentIds);
+      expect(sourceDocLinkErr).toBeNull();
+      const sourceDocumentIds = (sourceDocLinks ?? [])
+        .map((r) => r.source_document_id)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0);
+      expect(sourceDocumentIds.length).toBeGreaterThan(0);
+
       const { data: qaRows, error: qaError } = await client
         .from('q_a_extractions')
         .select('id')
-        .in('content_item_id', seededContentIds);
+        .in('source_document_id', sourceDocumentIds);
       expect(qaError).toBeNull();
       // Zero rows — partial write would have populated this table.
       expect(qaRows).toBeTruthy();
@@ -321,7 +349,7 @@ describe.skipIf(!ENABLED)(
       const { data: entityRows, error: entityError } = await client
         .from('entity_mentions')
         .select('id')
-        .in('content_item_id', seededContentIds);
+        .in('source_document_id', sourceDocumentIds);
       expect(entityError).toBeNull();
       expect(entityRows).toBeTruthy();
       expect(entityRows!.length).toBe(0);

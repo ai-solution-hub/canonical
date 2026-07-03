@@ -1374,11 +1374,14 @@ export async function classifyContent(
 ): Promise<ClassificationResult> {
   const { supabase, itemId, force, userId } = params;
 
-  // Fetch the content item
+  // Fetch the content item. `source_document_id` is read here (rather than
+  // via a second query) so the entity_mentions/entity_relationships write
+  // block below can resolve the correct FK value without an extra round
+  // trip (ID-131.26 value-provenance fix — see that block for detail).
   const { data: item, error: fetchError } = await supabase
     .from('content_items')
     .select(
-      'id, title, content, content_type, classified_at, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, ai_keywords, summary, suggested_title, classification_confidence, classification_reasoning, metadata',
+      'id, title, content, content_type, classified_at, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, ai_keywords, summary, suggested_title, classification_confidence, classification_reasoning, metadata, source_document_id',
     )
     .eq('id', itemId)
     .single();
@@ -1782,6 +1785,27 @@ ${contentForClassification}`,
   // Load entity aliases from DB before entity/relationship storage
   await loadAliases(supabase);
 
+  // Resolve the source_documents id backing this content item. Post-M2
+  // (ID-131 {131.8} G-PIPELINE), entity_mentions.source_document_id and
+  // entity_relationships.source_document_id are enforced FKs to
+  // source_documents — NOT content_items. itemId is a content_items id and
+  // is NEVER a valid value for that FK (independent PK spaces), so writing
+  // it raw silently FK-violated for every item once M2 landed (ID-131.26
+  // value-provenance fix; S438 golden-path Step-3/9 + entity-metadata-bridge
+  // evidence). content_items.source_document_id is the correct link
+  // (populated for file/upload-derived items — app/api/upload/route.ts).
+  // App-created items with no backing document have no valid FK parent, so
+  // entity storage is skipped for them rather than FK-violating.
+  const sourceDocumentId = item.source_document_id ?? null;
+
+  if (!sourceDocumentId) {
+    logBestEffortWarn(
+      'classify.entity.no_source_document_id',
+      'Content item has no source_document_id — skipping entity_mentions/entity_relationships storage (no valid FK parent)',
+      { itemId },
+    );
+  }
+
   // Step 13a: Delete any existing entity_mentions for this item before
   // re-inserting. Classification has already succeeded at this point
   // (content_items has been updated above), so re-entity storage must
@@ -1801,23 +1825,28 @@ ${contentForClassification}`,
   // and re-inserting is the only correct semantic. No FKs point at
   // entity_mentions (verified S157 WP2).
   //
-  // Non-blocking: a delete failure should NOT break classification.
-  const { error: deleteExistingError } = await supabase
-    .from('entity_mentions')
-    .delete()
-    .eq('source_document_id', itemId);
-  if (deleteExistingError) {
-    logBestEffortWarn(
-      'classify.entity.delete_existing_failed',
-      'Failed to delete existing entity_mentions before re-insert',
-      {
-        itemId,
-        error: deleteExistingError.message,
-      },
-    );
+  // Non-blocking: a delete failure should NOT break classification. Only
+  // runs when we have a valid FK parent — an unscoped delete keyed on a
+  // null/undefined source_document_id would be unsafe (matches nothing
+  // deliberately, so this guard is purely a documented no-op skip).
+  if (sourceDocumentId) {
+    const { error: deleteExistingError } = await supabase
+      .from('entity_mentions')
+      .delete()
+      .eq('source_document_id', sourceDocumentId);
+    if (deleteExistingError) {
+      logBestEffortWarn(
+        'classify.entity.delete_existing_failed',
+        'Failed to delete existing entity_mentions before re-insert',
+        {
+          itemId,
+          error: deleteExistingError.message,
+        },
+      );
+    }
   }
 
-  if (result.entities?.length) {
+  if (sourceDocumentId && result.entities?.length) {
     try {
       // Step 14a: Apply deterministic filters FIRST (free, instant, high precision)
       const deterministicallyFiltered = result.entities.filter(
@@ -1863,7 +1892,7 @@ ${contentForClassification}`,
             ? stripPersonDescriptors(e.canonical_name)
             : e.canonical_name;
         return {
-          source_document_id: itemId,
+          source_document_id: sourceDocumentId,
           entity_type: e.type,
           entity_name: name,
           canonical_name: resolveAlias(
@@ -2031,14 +2060,16 @@ ${contentForClassification}`,
     }
   }
 
-  // Store extracted relationships (non-blocking)
-  if (result.relationships?.length) {
+  // Store extracted relationships (non-blocking). Guarded on sourceDocumentId
+  // for the same reason as the entity_mentions block above (ID-131.26):
+  // itemId is a content_items id, never a valid entity_relationships FK value.
+  if (sourceDocumentId && result.relationships?.length) {
     try {
       const relRows = result.relationships.map((r) => ({
         source_entity: resolveAlias(canonicalise(r.source)).toLowerCase(),
         relationship_type: r.relationship,
         target_entity: resolveAlias(canonicalise(r.target)).toLowerCase(),
-        source_document_id: itemId,
+        source_document_id: sourceDocumentId,
         confidence: 1.0,
       }));
 

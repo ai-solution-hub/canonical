@@ -133,7 +133,7 @@ afterAll(async () => {
   await client
     .from('q_a_extractions')
     .delete()
-    .in('content_item_id', seededContentIds);
+    .in('source_document_id', seededContentIds);
   await client
     .from('entity_mentions')
     .delete()
@@ -155,9 +155,9 @@ describe.skipIf(!ENABLED)(
       const { data: pass1Rows, error: pass1Error } = await client
         .from('q_a_extractions')
         .select(
-          'id, content_item_id, question_text, answer_text, expected_response_kind, evidence_requirements, scope_tags',
+          'id, source_document_id, extracted_question_text, extracted_answer_text, expected_response_kind, evidence_requirements, scope_tags',
         )
-        .in('content_item_id', seededContentIds);
+        .in('source_document_id', seededContentIds);
 
       expect(pass1Error).toBeNull();
       expect(pass1Rows).toBeTruthy();
@@ -192,9 +192,9 @@ describe.skipIf(!ENABLED)(
       const { data: pass2Rows, error: pass2Error } = await client
         .from('q_a_extractions')
         .select(
-          'id, content_item_id, question_text, answer_text, expected_response_kind, evidence_requirements, scope_tags',
+          'id, source_document_id, extracted_question_text, extracted_answer_text, expected_response_kind, evidence_requirements, scope_tags',
         )
-        .in('content_item_id', seededContentIds);
+        .in('source_document_id', seededContentIds);
 
       expect(pass2Error).toBeNull();
       expect(pass2Rows).toBeTruthy();

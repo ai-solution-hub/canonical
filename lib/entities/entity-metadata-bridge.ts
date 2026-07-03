@@ -107,6 +107,10 @@ function sortRefsEffectiveFirst<T extends { context_type: string }>(
  * against entity canonical names. Also computes calendar dates from ISO 8601
  * duration values when a start date (date_obtained) is available.
  *
+ * Resolves `contentItemId` to the item's linked `source_document_id`
+ * internally (ID-131.26) — a no-op when the item has none (app-created
+ * items without a backing source document have no entity_mentions rows).
+ *
  * @param supabase      Authenticated Supabase client
  * @param contentItemId The content item to process
  */
@@ -117,11 +121,18 @@ export async function bridgeTemporalReferencesToEntities(
   // 1. Read content item metadata for temporal references
   const { data: item, error: itemError } = await supabase
     .from('content_items')
-    .select('metadata')
+    .select('metadata, source_document_id')
     .eq('id', contentItemId)
     .single();
 
   if (itemError || !item?.metadata) return;
+
+  // entity_mentions.source_document_id is an FK to source_documents, NOT
+  // content_items (ID-131 M2 / ID-131.26 value-provenance fix) — an
+  // app-created content item with no linked source_documents row has no
+  // entity_mentions rows to bridge (classifyContent skips writing them).
+  const sourceDocumentId = item.source_document_id;
+  if (!sourceDocumentId) return;
 
   const metadata = item.metadata as Record<string, unknown>;
   const aiRefs = metadata.ai_temporal_references as
@@ -145,7 +156,7 @@ export async function bridgeTemporalReferencesToEntities(
   const { data: mentions, error: mentionError } = await supabase
     .from('entity_mentions')
     .select('id, canonical_name, entity_type, metadata')
-    .eq('source_document_id', contentItemId)
+    .eq('source_document_id', sourceDocumentId)
     .in('entity_type', Array.from(TEMPORAL_ENTITY_TYPES));
 
   if (mentionError || !mentions?.length) return;

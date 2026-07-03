@@ -116,12 +116,25 @@ describe.skipIf(!ENABLED)(
           /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
         );
 
+        // q_a_extractions.source_document_id is an FK to source_documents,
+        // NOT content_items (ID-131 M2 / ID-131.26) — resolve the content
+        // item's linked source_document_id once and use it for both
+        // extraction-count reads below.
+        const { data: sourceDocLink, error: sourceDocLinkErr } = await client
+          .from('content_items')
+          .select('source_document_id')
+          .eq('id', initialRow.id)
+          .maybeSingle();
+        expect(sourceDocLinkErr).toBeNull();
+        const sourceDocumentId = sourceDocLink?.source_document_id;
+        expect(sourceDocumentId).toBeTruthy();
+
         // Capture pre-second-pass q_a_extractions row count for the
         // legacy Inv-4 secondary assertion.
         const { count: extractionsBefore } = await client
           .from('q_a_extractions')
           .select('id', { count: 'exact', head: true })
-          .eq('content_item_id', initialRow.id);
+          .eq('source_document_id', sourceDocumentId!);
 
         // ---------------------------------------------------------------
         // Pass 2 — INCREMENTAL re-ingest on UNCHANGED source. FUTURE:
@@ -159,7 +172,7 @@ describe.skipIf(!ENABLED)(
         const { count: extractionsAfter } = await client
           .from('q_a_extractions')
           .select('id', { count: 'exact', head: true })
-          .eq('content_item_id', initialRow.id);
+          .eq('source_document_id', sourceDocumentId!);
 
         expect(extractionsAfter).toBe(extractionsBefore);
 

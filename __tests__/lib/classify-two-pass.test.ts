@@ -187,7 +187,11 @@ function createPass2Response(validatedEntities: ValidatedEntity[]) {
 }
 
 function setupMockSupabase(supabase: MockSupabaseClient) {
-  // Content item fetch (single() terminator)
+  // Content item fetch (single() terminator). source_document_id is a
+  // linked source_documents id (ID-131.26) — entity_mentions/
+  // entity_relationships storage is keyed off this, not the content item's
+  // own id; test fixtures need a truthy value to exercise the Pass 2 +
+  // entity-storage path.
   supabase._chain.single.mockResolvedValue({
     data: {
       id: ITEM_ID,
@@ -206,6 +210,7 @@ function setupMockSupabase(supabase: MockSupabaseClient) {
       classification_confidence: null,
       classification_reasoning: null,
       metadata: null,
+      source_document_id: 'test-source-doc-id',
     },
     error: null,
   });

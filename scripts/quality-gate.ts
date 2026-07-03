@@ -469,7 +469,7 @@ async function fetchAll<T = Record<string, unknown>>(
 }
 
 /** Paginated variant of the "chunk IDs then query" pattern. Child-table
- *  queries like `SELECT * FROM entity_mentions WHERE content_item_id IN (...)`
+ *  queries like `SELECT * FROM entity_mentions WHERE source_document_id IN (...)`
  *  can return many rows per parent ID. Default 1000-row cap would silently
  *  truncate. This helper chunks input IDs and paginates each chunk's result
  *  set until exhausted. */

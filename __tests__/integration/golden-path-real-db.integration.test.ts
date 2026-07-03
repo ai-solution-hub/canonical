@@ -51,6 +51,14 @@ let TEST_USER_ID: string = '';
 // ---------------------------------------------------------------------------
 
 let itemId: string | null = null;
+/**
+ * The content item's linked source_documents.id (ID-131.26). entity_mentions
+ * / entity_relationships storage is keyed off source_document_id, NOT
+ * content_items.id (M2 rename) — classifyContent skips writing them for
+ * items with no linked source document, so this golden-path item needs a
+ * real one for Steps 3/5/8/9 to observe any rows at all.
+ */
+let sourceDocumentId: string | null = null;
 let classifiedDomain: string | null = null;
 let testGuideId: string | null = null;
 let testGuideSectionId: string | null = null;
@@ -68,17 +76,19 @@ afterAll(async () => {
 
   // Delete in FK order to avoid constraint violations
   try {
-    // 1. Entity relationships
-    await serviceClient
-      .from('entity_relationships')
-      .delete()
-      .eq('source_document_id', itemId);
+    if (sourceDocumentId) {
+      // 1. Entity relationships
+      await serviceClient
+        .from('entity_relationships')
+        .delete()
+        .eq('source_document_id', sourceDocumentId);
 
-    // 2. Entity mentions
-    await serviceClient
-      .from('entity_mentions')
-      .delete()
-      .eq('source_document_id', itemId);
+      // 2. Entity mentions
+      await serviceClient
+        .from('entity_mentions')
+        .delete()
+        .eq('source_document_id', sourceDocumentId);
+    }
 
     // 3. Content history
     await serviceClient
@@ -88,6 +98,14 @@ afterAll(async () => {
 
     // 4. Content item
     await serviceClient.from('content_items').delete().eq('id', itemId);
+
+    // 4b. Source document
+    if (sourceDocumentId) {
+      await serviceClient
+        .from('source_documents')
+        .delete()
+        .eq('id', sourceDocumentId);
+    }
 
     // 5. Test guide and sections (if created)
     if (testGuideSectionId) {
@@ -111,6 +129,27 @@ afterAll(async () => {
 describe('Golden Path Real DB Integration (Phase 3b)', () => {
   // Step 1
   it('Step 1: Create content item', async () => {
+    // Create a linked source_documents row first (ID-131.26) — entity
+    // storage in Step 2 is keyed off source_document_id, not content_items.id
+    // (M2 rename), and classifyContent skips writing entity rows entirely
+    // for items with no linked source document.
+    const { data: sourceDoc, error: sourceDocErr } = await serviceClient
+      .from('source_documents')
+      .insert({
+        filename: `${TEST_TITLE}.txt`,
+        mime_type: 'text/plain',
+        file_size: TEST_CONTENT.length,
+        content_hash: TEST_PREFIX,
+        storage_path: `test-fixtures/${TEST_PREFIX}/golden-path.txt`,
+        status: 'processed',
+      })
+      .select('id')
+      .single();
+
+    expect(sourceDocErr).toBeNull();
+    expect(sourceDoc).toBeTruthy();
+    sourceDocumentId = sourceDoc!.id;
+
     const { data, error } = await serviceClient
       .from('content_items')
       .insert({
@@ -118,6 +157,7 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
         content: TEST_CONTENT,
         content_type: 'policy',
         platform: 'manual',
+        source_document_id: sourceDocumentId,
       })
       .select('id')
       .single();
@@ -177,7 +217,7 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
     const { data: entities, error } = await serviceClient
       .from('entity_mentions')
       .select('*')
-      .eq('source_document_id', itemId!);
+      .eq('source_document_id', sourceDocumentId!);
 
     expect(error).toBeNull();
     expect(entities).toBeTruthy();
@@ -244,7 +284,7 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
     const { data: certEntities, error } = await serviceClient
       .from('entity_mentions')
       .select('canonical_name, entity_type, metadata')
-      .eq('source_document_id', itemId!)
+      .eq('source_document_id', sourceDocumentId!)
       .eq('entity_type', 'certification');
 
     expect(error).toBeNull();
@@ -396,7 +436,7 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
     const { data: relationships, error } = await serviceClient
       .from('entity_relationships')
       .select('*')
-      .eq('source_document_id', itemId!);
+      .eq('source_document_id', sourceDocumentId!);
 
     expect(error).toBeNull();
 
@@ -454,7 +494,7 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
     const { data: entities } = await serviceClient
       .from('entity_mentions')
       .select('id')
-      .eq('source_document_id', itemId!);
+      .eq('source_document_id', sourceDocumentId!);
 
     expect(entities).toBeTruthy();
     if (entities!.length === 0) {

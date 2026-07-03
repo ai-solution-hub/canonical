@@ -277,7 +277,7 @@ function makeContentRow(id: string, overrides: Record<string, unknown> = {}) {
 //   4. Per item with successful classification:
 //        a. content_items.update(updateData).eq('id', item.id)
 //           → resolves via .then() / chain default { error: null }
-//        b. entity_mentions.delete().eq('content_item_id', ...)
+//        b. entity_mentions.delete().eq('source_document_id', ...)
 //           → resolves via chain default
 //        c. entity_mentions.insert(rows) — only if entities.length > 0
 //           → resolves via chain default { error: null }

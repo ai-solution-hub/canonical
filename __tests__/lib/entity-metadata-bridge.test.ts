@@ -60,13 +60,17 @@ describe('bridgeTemporalReferencesToEntities', () => {
   });
 
   function setupContentItem(metadata: Record<string, unknown>) {
-    // First .from('content_items') call returns item metadata
+    // First .from('content_items') call returns item metadata. Includes a
+    // linked source_document_id (ID-131.26) — the bridge resolves
+    // entity_mentions off this, not contentItemId; a real content_items row
+    // reaching bridgeTemporalReferencesToEntities with temporal refs to
+    // process must have a backing source document.
     mockClient.from.mockImplementationOnce(() => {
       const chain = {
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
         single: vi.fn().mockResolvedValue({
-          data: { metadata },
+          data: { metadata, source_document_id: contentItemId },
           error: null,
         }),
       };

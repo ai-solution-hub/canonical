@@ -38,12 +38,15 @@ describe('bridgeTemporalReferencesToEntities', () => {
   });
 
   function setupContentItem(temporalRefs: unknown[]) {
-    // First call: content_items query
+    // First call: content_items query. Includes a linked source_document_id
+    // (ID-131.26) — the bridge resolves entity_mentions off this field, not
+    // contentItemId directly.
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {
         metadata: {
           ai_temporal_references: temporalRefs,
         },
+        source_document_id: contentItemId,
       },
       error: null,
     });

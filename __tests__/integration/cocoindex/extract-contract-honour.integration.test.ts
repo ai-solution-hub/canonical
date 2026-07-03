@@ -211,7 +211,7 @@ beforeAll(async () => {
 
   // Wait for at least one fixture to land — full extraction may take
   // longer (extraction-contract assertions in the `it` bodies re-query
-  // by content_item_id), but a single landed row is sufficient evidence
+  // by source_document_id), but a single landed row is sufficient evidence
   // that the staging pipeline is alive.
   const polled = await pollContentItemsFor(TEST_PREFIX, {
     timeoutMs: 180_000,
@@ -286,8 +286,8 @@ describe.skipIf(!ENABLED)(
 
     it('q_a_form rows match QAFormExtraction shape (qa_pairs[] discriminator-keyed)', async () => {
       // Verifiable per Inv-20: q_a_form extraction produces rows on
-      // `q_a_extractions` keyed by content_items_id, each row matching the
-      // `QAPair` Pydantic shape (question_text, answer_text?,
+      // `q_a_extractions` keyed by source_document_id, each row matching the
+      // `QAPair` Pydantic shape (extracted_question_text, extracted_answer_text?,
       // expected_response_kind ∈ ['mandatory', 'optional'],
       // evaluation_criteria?, evidence_requirements[], scope_tags[]).
       //
@@ -301,9 +301,9 @@ describe.skipIf(!ENABLED)(
       const { data, error } = await client
         .from('q_a_extractions')
         .select(
-          'id, content_item_id, question_text, answer_text, expected_response_kind, evidence_requirements, scope_tags',
+          'id, source_document_id, extracted_question_text, extracted_answer_text, expected_response_kind, evidence_requirements, scope_tags',
         )
-        .in('content_item_id', seededContentIds);
+        .in('source_document_id', seededContentIds);
 
       expect(error).toBeNull();
       expect(data).toBeTruthy();
@@ -314,8 +314,10 @@ describe.skipIf(!ENABLED)(
       expect(data!.length).toBeGreaterThan(0);
 
       for (const row of data!) {
-        expect(typeof row.question_text).toBe('string');
-        expect((row.question_text as string).length).toBeGreaterThan(0);
+        expect(typeof row.extracted_question_text).toBe('string');
+        expect((row.extracted_question_text as string).length).toBeGreaterThan(
+          0,
+        );
 
         // expected_response_kind ∈ {mandatory, optional} per Q-EX2 QAPair.
         // The Literal lives in `extraction.py` QAPair.expected_response_kind.

@@ -33,12 +33,12 @@
  *
  * Test strategy:
  *   1. For each recent content_items row from a 'succeeded' pipeline_run,
- *      assert that all q_a_extractions rows for that content_item_id
- *      share the SAME op_id as the content_items row. ("Both side-effects
- *      land".)
+ *      assert that all q_a_extractions rows for that item's linked
+ *      source_document_id share the SAME op_id as the content_items row.
+ *      ("Both side-effects land".)
  *   2. For each recent content_items row from a 'failed' pipeline_run,
- *      assert that NO q_a_extractions rows exist linked to that
- *      content_item_id with the failed run's op_id. ("Neither does".)
+ *      assert that NO q_a_extractions rows exist linked to that item's
+ *      source_document_id with the failed run's op_id. ("Neither does".)
  *
  * Env-gate: live Supabase only.
  *
@@ -66,7 +66,7 @@ const ENABLED = HAS_LIVE_DB;
 describe.skipIf(!ENABLED)(
   'Inv-27 — no silent partial writes (per-row atomicity across content_items + derivation tables)',
   () => {
-    it('succeeded runs: all derivation rows for a content_item_id share the SAME op_id as the content_items row', async () => {
+    it('succeeded runs: all derivation rows for a content_items row share the SAME op_id as that row', async () => {
       const client = await createLiveServiceClient();
 
       // Find recent successful cocoindex runs.
@@ -98,17 +98,23 @@ describe.skipIf(!ENABLED)(
 
         const { data: items } = await client
           .from('content_items')
-          .select('id, op_id')
+          .select('id, op_id, source_document_id')
           .eq('op_id', opId);
 
         if (!items || items.length === 0) continue;
 
         for (const item of items) {
-          // q_a_extractions linked to this content_item
+          // q_a_extractions.source_document_id is an FK to source_documents,
+          // NOT content_items (ID-131 M2 / ID-131.26) — skip items with no
+          // linked source document (no valid derivation-row parent to check).
+          const sourceDocumentId = item.source_document_id as string | null;
+          if (!sourceDocumentId) continue;
+
+          // q_a_extractions linked to this content_item's source document
           const { data: extractions } = await client
             .from('q_a_extractions')
-            .select('id, op_id, content_item_id')
-            .eq('content_item_id', item.id as string);
+            .select('id, op_id, source_document_id')
+            .eq('source_document_id', sourceDocumentId);
 
           if (extractions && extractions.length > 0) {
             for (const ext of extractions) {

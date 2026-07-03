@@ -122,12 +122,24 @@ describe.skipIf(!ENABLED)(
         // not a placeholder string).
         expect(contentRow.op_id).toMatch(UUID_V4_REGEX);
 
+        // q_a_extractions.source_document_id is an FK to source_documents,
+        // NOT content_items (ID-131 M2 / ID-131.26) — resolve the content
+        // item's linked source_document_id before querying its extractions.
+        const { data: sourceDocLink } = await client
+          .from('content_items')
+          .select('source_document_id')
+          .eq('id', contentRow.id)
+          .maybeSingle();
+        const sourceDocumentId = sourceDocLink?.source_document_id;
+
         // Inv-11 verifiability part 2: q_a_extractions rows for the same
-        // content_item_id carry the SAME op_id value.
-        const { data: extractions } = await client
-          .from('q_a_extractions')
-          .select('id, op_id')
-          .eq('content_item_id', contentRow.id);
+        // source document carry the SAME op_id value.
+        const { data: extractions } = sourceDocumentId
+          ? await client
+              .from('q_a_extractions')
+              .select('id, op_id')
+              .eq('source_document_id', sourceDocumentId)
+          : { data: [] };
 
         // If the fixture is a form-type (q_a_form extraction kind), there
         // MUST be ≥1 q_a_extractions row. If it's classification-only or

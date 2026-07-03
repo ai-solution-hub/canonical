@@ -84,7 +84,7 @@ const DEFAULT_POLL_INTERVAL_MS = 2_000;
  */
 export interface PolledEntityMentionRow {
   id: string;
-  content_item_id: string;
+  source_document_id: string;
   op_id: string | null;
   canonical_name: string;
   entity_name: string;
@@ -97,12 +97,21 @@ export interface PolledEntityMentionRow {
 export interface PollEntityMentionsOpts {
   /** Match rows whose `op_id` equals this value (Inv-5 scope). */
   opId?: string;
-  /** Match rows whose `content_item_id` is in this set. */
+  /**
+   * Match rows whose owning content_item is in this set. Values are
+   * `content_items.id` (matching `pollContentItemsFor`'s return shape) —
+   * resolved internally to the linked `source_document_id`(s), since
+   * `entity_mentions.source_document_id` is an FK to `source_documents`, NOT
+   * `content_items` (ID-131 M2 rename; entity_mentions/entity_relationships/
+   * content_chunks/classification_disputes/q_a_extractions all re-parented
+   * off content_item_id onto source_document_id — ID-131.26).
+   */
   contentItemIds?: string[];
   /**
    * Match rows whose owning content_item's `title ILIKE '${titlePrefix}%'`.
-   * Resolved via a two-step query (content_items → entity_mentions) because
-   * `entity_mentions` carries no title column.
+   * Resolved via a two-step query (content_items → source_document_id →
+   * entity_mentions) because `entity_mentions` carries no title column and
+   * is no longer directly keyed by content_items.id.
    */
   titlePrefix?: string;
   /** Maximum wait for at least one row, ms. Default 120_000. */
@@ -119,7 +128,7 @@ export interface PollEntityMentionsOpts {
 }
 
 const ENTITY_MENTION_COLUMNS =
-  'id, content_item_id, op_id, canonical_name, entity_name, entity_type, confidence, context_snippet, metadata';
+  'id, source_document_id, op_id, canonical_name, entity_name, entity_type, confidence, context_snippet, metadata';
 
 /**
  * Poll `entity_mentions` via the live service-role client until at least
@@ -175,11 +184,36 @@ export async function pollEntityMentionsFor(
       }
     }
 
+    // Resolve content_items.id -> the linked source_document_id(s).
+    // entity_mentions is keyed off source_document_id, not content_items.id
+    // (ID-131 M2 / ID-131.26) — content_items without a linked source
+    // document have no entity_mentions rows to find.
+    let sourceDocumentIds: string[] | undefined;
+    if (!opts.opId && contentItemIds && contentItemIds.length > 0) {
+      const { data: linkRows, error: linkErr } = await client
+        .from('content_items')
+        .select('source_document_id')
+        .in('id', contentItemIds);
+      if (linkErr) {
+        throw new Error(
+          `pollEntityMentionsFor: content_items source_document_id lookup failed — ${linkErr.message ?? String(linkErr)}`,
+        );
+      }
+      sourceDocumentIds = (linkRows ?? [])
+        .map((r) => r.source_document_id)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0);
+      // No linked source_documents yet → nothing to poll this cycle.
+      if (sourceDocumentIds.length === 0) {
+        await sleep(pollIntervalMs);
+        continue;
+      }
+    }
+
     let query = client.from('entity_mentions').select(ENTITY_MENTION_COLUMNS);
     if (opts.opId) {
       query = query.eq('op_id', opts.opId);
-    } else if (contentItemIds && contentItemIds.length > 0) {
-      query = query.in('content_item_id', contentItemIds);
+    } else if (sourceDocumentIds && sourceDocumentIds.length > 0) {
+      query = query.in('source_document_id', sourceDocumentIds);
     }
 
     const { data, error } = await query;
@@ -212,7 +246,7 @@ function toPolledEntityMentionRow(
 ): PolledEntityMentionRow {
   return {
     id: r.id as string,
-    content_item_id: r.content_item_id as string,
+    source_document_id: r.source_document_id as string,
     op_id: (r.op_id as string | null) ?? null,
     canonical_name: r.canonical_name as string,
     entity_name: r.entity_name as string,

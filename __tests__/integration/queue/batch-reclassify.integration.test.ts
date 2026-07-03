@@ -204,18 +204,29 @@ afterAll(async () => {
   if (!HAS_REQUIRED_ENV) return;
 
   // Scrub in dependency-order — entity_mentions / entity_relationships are
-  // FK to content_items. Both have ON DELETE CASCADE so deleting the items
-  // takes them too, but we explicitly clean to avoid orphan-row buildup
-  // on the persistent staging branch.
+  // FK to source_documents, NOT content_items (ID-131 M2 / ID-131.26), so
+  // deleting content_items no longer cascades to them. Resolve each seeded
+  // item's linked source_document_id (best-effort; items with none simply
+  // never got entity rows written) before cleaning up, to avoid orphan-row
+  // buildup on the persistent staging branch.
   if (seededContentItemIds.size > 0) {
-    await serviceClient
-      .from('entity_mentions')
-      .delete()
-      .in('content_item_id', Array.from(seededContentItemIds));
-    await serviceClient
-      .from('entity_relationships')
-      .delete()
-      .in('source_document_id', Array.from(seededContentItemIds));
+    const { data: sourceDocLinks } = await serviceClient
+      .from('content_items')
+      .select('source_document_id')
+      .in('id', Array.from(seededContentItemIds));
+    const sourceDocumentIds = (sourceDocLinks ?? [])
+      .map((r) => r.source_document_id)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0);
+    if (sourceDocumentIds.length > 0) {
+      await serviceClient
+        .from('entity_mentions')
+        .delete()
+        .in('source_document_id', sourceDocumentIds);
+      await serviceClient
+        .from('entity_relationships')
+        .delete()
+        .in('source_document_id', sourceDocumentIds);
+    }
     await serviceClient
       .from('content_items')
       .delete()

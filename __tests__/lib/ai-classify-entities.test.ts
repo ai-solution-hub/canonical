@@ -218,7 +218,10 @@ describe('classifyContent — entity extraction', () => {
       },
     );
 
-    // Default: item exists and has content
+    // Default: item exists and has content. source_document_id is a linked
+    // source_documents id (ID-131.26) — entity_mentions/entity_relationships
+    // storage is keyed off this, not the content item's own id; test
+    // fixtures need a truthy value to exercise the entity-storage path.
     mockSupabase._chain.single.mockResolvedValue({
       data: {
         id: ITEM_ID,
@@ -235,6 +238,7 @@ describe('classifyContent — entity extraction', () => {
         suggested_title: null,
         classification_confidence: null,
         classification_reasoning: null,
+        source_document_id: 'test-source-doc-id',
       },
       error: null,
     });
@@ -519,9 +523,11 @@ describe('classifyContent — entity extraction', () => {
       expect(mockSupabase._chain.delete).toHaveBeenCalled();
       // Read the persisted entity_mentions rows back and assert the ISO 27001
       // mention landed canonicalised + lowercased with full confidence.
+      // source_document_id is the content item's LINKED source_documents id
+      // (ID-131.26 value-provenance fix) — never the content item's own id.
       expect(whereUpserted('entity_mentions')).toContainEqual(
         expect.objectContaining({
-          source_document_id: ITEM_ID,
+          source_document_id: 'test-source-doc-id',
           entity_type: 'certification',
           entity_name: 'ISO27001',
           canonical_name: 'iso 27001', // canonicalised + lowercased for case-insensitive index
@@ -556,12 +562,14 @@ describe('classifyContent — entity extraction', () => {
       expect(mockSupabase.from).toHaveBeenCalledWith('entity_relationships');
       // Read the persisted entity_relationships rows back: the holds edge
       // landed canonicalised + lowercased with full confidence.
+      // source_document_id is the content item's LINKED source_documents id
+      // (ID-131.26 value-provenance fix) — never the content item's own id.
       expect(whereUpserted('entity_relationships')).toContainEqual(
         expect.objectContaining({
           source_entity: 'acme limited', // canonicalised + lowercased
           relationship_type: 'holds',
           target_entity: 'iso 27001', // canonicalised + lowercased
-          source_document_id: ITEM_ID,
+          source_document_id: 'test-source-doc-id',
           confidence: 1.0,
         }),
       );

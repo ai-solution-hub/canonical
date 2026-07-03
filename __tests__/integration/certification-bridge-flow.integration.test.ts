@@ -39,7 +39,17 @@ const PAST_EXPIRY_DATE = '2023-01-01';
 // ---------------------------------------------------------------------------
 
 const createdItemIds: string[] = [];
+const createdSourceDocumentIds: string[] = [];
 const createdEntityMentionIds: string[] = [];
+
+/**
+ * content_items.id -> its linked source_documents.id (ID-131.26). The
+ * bridge — and entity_mentions/entity_relationships in general — are keyed
+ * off source_document_id, NOT content_items.id (M2 rename), so every
+ * fixture content item in this suite needs a real linked source_documents
+ * row for `bridgeTemporalReferencesToEntities` to find any rows to bridge.
+ */
+const sourceDocumentIdByItemId = new Map<string, string>();
 
 // ---------------------------------------------------------------------------
 // Cleanup
@@ -47,7 +57,7 @@ const createdEntityMentionIds: string[] = [];
 
 afterAll(async () => {
   try {
-    // Delete entity mentions first (FK to content_items)
+    // Delete entity mentions first (FK to source_documents)
     if (createdEntityMentionIds.length > 0) {
       await serviceClient
         .from('entity_mentions')
@@ -55,15 +65,24 @@ afterAll(async () => {
         .in('id', createdEntityMentionIds);
     }
 
-    // Delete content items
-    for (const itemId of createdItemIds) {
-      // Also clean any entity mentions that were not tracked (e.g. created by bridge)
+    // Also clean any entity mentions not individually tracked (e.g. created
+    // by the bridge itself), scoped by the linked source_document_id.
+    if (createdSourceDocumentIds.length > 0) {
       await serviceClient
         .from('entity_mentions')
         .delete()
-        .eq('source_document_id', itemId);
+        .in('source_document_id', createdSourceDocumentIds);
+    }
 
+    for (const itemId of createdItemIds) {
       await serviceClient.from('content_items').delete().eq('id', itemId);
+    }
+
+    if (createdSourceDocumentIds.length > 0) {
+      await serviceClient
+        .from('source_documents')
+        .delete()
+        .in('id', createdSourceDocumentIds);
     }
   } catch (err) {
     console.error('Cleanup failed:', err);
@@ -71,7 +90,9 @@ afterAll(async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Helper: create a content item with temporal references in metadata
+// Helper: create a content item with temporal references in metadata,
+// linked to a real source_documents row (ID-131.26 — entity_mentions is
+// keyed off source_document_id, not content_items.id).
 // ---------------------------------------------------------------------------
 
 async function createContentItemWithTemporalRefs(
@@ -91,6 +112,25 @@ async function createContentItemWithTemporalRefs(
     related_entity?: string;
   }>,
 ): Promise<string> {
+  const { data: sourceDoc, error: sourceDocError } = await serviceClient
+    .from('source_documents')
+    .insert({
+      filename: `${TEST_PREFIX} ${title}.txt`,
+      mime_type: 'text/plain',
+      file_size: 1,
+      content_hash: `${TEST_PREFIX}-${title}`,
+      storage_path: `test-fixtures/${TEST_PREFIX}/${title}.txt`,
+      status: 'processed',
+    })
+    .select('id')
+    .single();
+
+  if (sourceDocError)
+    throw new Error(
+      `Failed to create source document: ${sourceDocError.message}`,
+    );
+  createdSourceDocumentIds.push(sourceDoc!.id);
+
   const { data, error } = await serviceClient
     .from('content_items')
     .insert({
@@ -98,6 +138,7 @@ async function createContentItemWithTemporalRefs(
       content: `${TEST_PREFIX} Test content for ${title}`,
       content_type: 'policy',
       platform: 'manual',
+      source_document_id: sourceDoc!.id,
       metadata: {
         ai_temporal_references: temporalRefs,
       },
@@ -107,6 +148,7 @@ async function createContentItemWithTemporalRefs(
 
   if (error) throw new Error(`Failed to create content item: ${error.message}`);
   createdItemIds.push(data!.id);
+  sourceDocumentIdByItemId.set(data!.id, sourceDoc!.id);
   return data!.id;
 }
 
@@ -120,10 +162,20 @@ async function createEntityMention(
   entityType: string,
   contextSnippet?: string,
 ): Promise<string> {
+  // entity_mentions.source_document_id is an FK to source_documents, NOT
+  // content_items (ID-131 M2 / ID-131.26) — resolve via the map populated
+  // by createContentItemWithTemporalRefs.
+  const sourceDocumentId = sourceDocumentIdByItemId.get(contentItemId);
+  if (!sourceDocumentId) {
+    throw new Error(
+      `createEntityMention: no linked source_document_id for content item ${contentItemId} — call createContentItemWithTemporalRefs first`,
+    );
+  }
+
   const { data, error } = await serviceClient
     .from('entity_mentions')
     .insert({
-      source_document_id: contentItemId,
+      source_document_id: sourceDocumentId,
       entity_name: canonicalName,
       canonical_name: canonicalName.toLowerCase(),
       entity_type: entityType,
@@ -222,7 +274,7 @@ describe('Certification Bridge Flow — Real DB Integration', () => {
     const { data: dbMentions, error: dbError } = await serviceClient
       .from('entity_mentions')
       .select('entity_name, entity_type, metadata')
-      .eq('source_document_id', itemId)
+      .eq('source_document_id', sourceDocumentIdByItemId.get(itemId)!)
       .eq('entity_type', 'certification');
 
     expect(dbError).toBeNull();

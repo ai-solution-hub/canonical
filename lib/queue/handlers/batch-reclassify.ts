@@ -630,7 +630,7 @@ export async function runBatchReclassifyJob(
     if (!items || items.length === 0) {
       candidates = [];
     } else {
-      // Paginate to fetch ALL entity_mentions content_item_ids.
+      // Paginate to fetch ALL entity_mentions source_document_ids.
       const mentionedSet = new Set<string>();
       let mentionOffset = 0;
       const mentionPageSize = 5000;
