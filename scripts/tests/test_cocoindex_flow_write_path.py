@@ -125,8 +125,8 @@ class _FakeFile:
         self._path = path
 
     async def size(self) -> int:
-        # cocoindex File.size — the byte length. Used by the ID-52 form-write
-        # block for `form_templates.file_size` (NOT NULL). Derived from the
+        # cocoindex File.size — the byte length. Used by the content write
+        # path for `source_documents.file_size` (NOT NULL). Derived from the
         # staged file so it is honest without the cocoindex engine.
         return self._path.stat().st_size
 
@@ -1532,8 +1532,6 @@ class TestInv19QaDeclareSnapshot:
             "qa": _FakeTarget("q_a_extractions"),
             "sd": _FakeTarget("source_documents"),
             "em": _FakeTarget("entity_mentions"),
-            "ft": _FakeTarget("form_templates"),
-            "ftf": _FakeTarget("form_template_fields"),
         }
 
         async def _exercise() -> None:
@@ -1545,8 +1543,8 @@ class TestInv19QaDeclareSnapshot:
                         targets["qa"],
                         targets["sd"],
                         targets["em"],
-                        targets["ft"],
-                        targets["ftf"],
+                        None,
+                        None,
                     )
                 else:
                     async with bind_workspace_manifest(manifest):
@@ -1556,8 +1554,8 @@ class TestInv19QaDeclareSnapshot:
                             targets["qa"],
                             targets["sd"],
                             targets["em"],
-                            targets["ft"],
-                            targets["ftf"],
+                            None,
+                            None,
                         )
 
         asyncio.run(_exercise())
@@ -2655,8 +2653,6 @@ class TestWorkspacePathFixes:
         qa = _FakeTarget("q_a_extractions")
         sd = _FakeTarget("source_documents")
         em = _FakeTarget("entity_mentions")
-        ft = _FakeTarget("form_templates")
-        ftf = _FakeTarget("form_template_fields")
 
         pool = _wire_pool(flow, monkeypatch)
 
@@ -2667,8 +2663,8 @@ class TestWorkspacePathFixes:
                 qa,
                 sd,
                 em,
-                ft,
-                ftf,
+                None,
+                None,
                 None,
                 flow_op_id=uuid.uuid4(),
                 flow_workspace_manifest=manifest,
@@ -2714,8 +2710,8 @@ class TestWorkspacePathFixes:
         qa = _FakeTarget("q_a_extractions")
         sd = _FakeTarget("source_documents")
         em = _FakeTarget("entity_mentions")
-        ft = _FakeTarget("form_templates")
-        ftf = _FakeTarget("form_template_fields")
+        cc = _FakeTarget("content_chunks")
+        er = _FakeTarget("entity_relationships")
 
         async def _exercise() -> None:
             await flow.ingest_file(
@@ -2724,8 +2720,8 @@ class TestWorkspacePathFixes:
                 qa,
                 sd,
                 em,
-                ft,
-                ftf,
+                cc,
+                er,
                 None,
                 flow_op_id=uuid.uuid4(),
             )
@@ -2735,7 +2731,7 @@ class TestWorkspacePathFixes:
 
         # The manifest is not content → no rows declared on any target.
         assert sd.rows == [] and ci.rows == [] and qa.rows == [] and em.rows == []
-        assert ft.rows == [] and ftf.rows == []
+        assert cc.rows == [] and er.rows == []
 
     def test_register_pg_codecs_serialises_jsonb_dict(self) -> None:
         """{66.16}/BUG-D (S297): the pool init hook registers a jsonb codec whose
