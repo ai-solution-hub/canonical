@@ -386,12 +386,10 @@ def _run_app_main_over_dir(
     monkeypatch.setattr(flow, "resolve_route", _spy_resolve)
     targets.setdefault("_resolve_calls", resolve_calls)  # type: ignore[arg-type]
 
-    async def _fake_form_structure(file: object):
-        # Defensive: a route:"content" file must never reach the form branch
-        # (ID-80.8 structural mutual exclusion); returns None if it ever does.
-        return None
-
-    monkeypatch.setattr(flow, "extract_form_structure", _fake_form_structure)
+    # ID-136 {136.5} removed the Path-B form branch (and `extract_form_structure`
+    # with it) entirely — the defensive `_fake_form_structure` stub guarding
+    # against a route:"content" file reaching the form branch is now
+    # structurally impossible, so the branch (and its monkeypatch) is retired.
 
     # ── Capture the run op_id minted at flow start.
     real_uuid4 = uuid.uuid4

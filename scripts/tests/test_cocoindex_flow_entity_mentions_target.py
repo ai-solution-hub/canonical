@@ -174,27 +174,33 @@ class TestIngestFileAcceptsEmTarget:
             "fn(File, *extra_args); the key is never forwarded to fn "
             "(ID-28.21 regression guard)"
         )
-        # ID-52.12 extended the arity from five to seven: ft_target / ftf_target
-        # (the form_templates / form_template_fields Path-B write targets) follow
-        # em_target positionally. ID-56.8 extended it to eight: cc_target (the
-        # content_chunks chunk-row UPSERT target) is appended as a DEFAULTED 8th
-        # positional. ID-101 §{101.7} extended it to nine: er_target (the
-        # entity_relationships UPSERT target) is appended as a DEFAULTED 9th
-        # positional. ID-131 {131.11} extended it to ten: re_target (the
-        # record_embeddings polymorphic UPSERT target) is appended as a DEFAULTED
-        # 10th positional so the prior 7-/8-/9-arg callers stay valid (RULING 1).
-        assert len(params) == 10, (
+        # ID-52.12 had extended the arity from five to seven: ft_target /
+        # ftf_target (the form_templates / form_template_fields Path-B write
+        # targets) followed em_target positionally. ID-56.8 extended it to
+        # eight: cc_target (the content_chunks chunk-row UPSERT target) was
+        # appended as a DEFAULTED 8th positional. ID-101 §{101.7} extended it
+        # to nine: er_target (the entity_relationships UPSERT target) was
+        # appended as a DEFAULTED 9th positional. ID-131 {131.11} extended it
+        # to ten: re_target (the record_embeddings polymorphic UPSERT target)
+        # was appended as a DEFAULTED 10th positional so the prior
+        # 7-/8-/9-arg callers stayed valid (RULING 1).
+        #
+        # ID-136 {136.5} retired the Path-B forms write surface entirely and
+        # removed the `ft_target`/`ftf_target` positionals, dropping the
+        # arity from ten back to eight: (file, ci, qa, sd, em, cc, er, re).
+        assert len(params) == 8, (
             "ingest_file positional params must be exactly "
-            "(file, ci, qa, sd, em, ft, ftf, cc, er, re); "
+            "(file, ci, qa, sd, em, cc, er, re); "
             f"got {params}"
         )
 
     def test_em_target_is_the_fourth_extra_arg(self) -> None:
         """``em_target`` is the FOURTH extra arg (index 4) — pinned by position so
-        the {53.11} declare_row body can refer to it without ambiguity. The
-        ID-52.12 form targets (ft_target / ftf_target) follow it as the fifth +
-        sixth extra args, and the ID-56.8 ``cc_target`` follows as the seventh
-        (defaulted None)."""
+        the {53.11} declare_row body can refer to it without ambiguity. ID-52.12
+        had chained the form targets (ft_target / ftf_target) after it as the
+        fifth + sixth extra args, but ID-136 {136.5} retired the Path-B forms
+        write surface and removed both, so ``cc_target`` now directly follows
+        ``em_target`` as the fifth extra arg (defaulted None)."""
         flow = _flow_module()
         # ID-66.19: inspect the POSITIONAL slice (keyword-only run-context params
         # follow a bare `*`).
@@ -213,14 +219,13 @@ class TestIngestFileAcceptsEmTarget:
             f"got params={params}"
         )
         assert params[5:] == [
-            "ft_target",
-            "ftf_target",
             "cc_target",
             "er_target",
             "re_target",
         ], (
-            f"the fifth..ninth extra args must be ft_target, ftf_target, "
-            f"cc_target, er_target, re_target (positional order); got params={params}"
+            f"the fifth..seventh extra args must be cc_target, er_target, "
+            f"re_target (positional order; ID-136 removed ft_target/ftf_target); "
+            f"got params={params}"
         )
 
 
