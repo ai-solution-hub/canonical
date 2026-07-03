@@ -84,7 +84,7 @@
   },
   "sandbox": {
     "network": {
-      "allowUnixSockets": ["/tmp/cmux.sock", "/private/tmp/cmux.sock", "~/.local/state/cmux/cmux.sock"],
+      "allowUnixSockets": ["/tmp/cmux.sock", "/private/tmp/cmux.sock", "~/.local/state/cmux/cmux-501.sock"],
       "allowedDomains": [
         "github.com",
         "*.github.com",
