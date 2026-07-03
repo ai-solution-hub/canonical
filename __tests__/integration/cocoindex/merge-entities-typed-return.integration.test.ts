@@ -10,7 +10,7 @@
  * (entity_mentions canonical/override repoint, entity_relationships source +
  * target repoint) and a dedup DELETE keeping the highest-confidence row per
  * (canonical_name, COALESCE(entity_type_override, entity_type),
- * content_item_id). PostgREST surfaces a SETOF/TABLE return as an array, so
+ * source_document_id). PostgREST surfaces a SETOF/TABLE return as an array, so
  * callers read the single summary row as `data[0]`.
  *
  * This test proves, against a real DB, that:
@@ -28,7 +28,7 @@
  *   - mention SRC_A #1: canonical SRC_A, raw type 'organisation',  CI #1
  *   - mention SRC_A #2: canonical SRC_A, raw type 'certification', CI #1
  *       (different RAW type avoids the (canonical_name, entity_type,
- *        content_item_id) UNIQUE seed clash; post-merge BOTH collapse to
+ *        source_document_id) UNIQUE seed clash; post-merge BOTH collapse to
  *        (target, override, CI #1) → one is deduped away)
  *   - mention SRC_B:    canonical SRC_B, raw type 'organisation',  CI #2
  *       (distinct content_item → survives dedup)
@@ -78,7 +78,7 @@ const MERGED_TYPE = 'framework';
 const ALL_NAMES = [SRC_A, SRC_B, TARGET];
 
 // Two synthetic content_item ids. No FK to content_items exists on
-// entity_mentions.content_item_id, so these need no parent rows.
+// entity_mentions.source_document_id, so these need no parent rows.
 const CI_1 = crypto.randomUUID();
 const CI_2 = crypto.randomUUID();
 
@@ -115,21 +115,21 @@ describe.skipIf(!ENABLED)(
       // ---- Seed the fixture --------------------------------------------
       const { error: mErr } = await client.from('entity_mentions').insert([
         {
-          content_item_id: CI_1,
+          source_document_id: CI_1,
           canonical_name: SRC_A,
           entity_name: SRC_A,
           entity_type: 'organisation',
           confidence: 0.9,
         },
         {
-          content_item_id: CI_1,
+          source_document_id: CI_1,
           canonical_name: SRC_A,
           entity_name: SRC_A,
           entity_type: 'certification',
           confidence: 0.7,
         },
         {
-          content_item_id: CI_2,
+          source_document_id: CI_2,
           canonical_name: SRC_B,
           entity_name: SRC_B,
           entity_type: 'organisation',
@@ -182,7 +182,7 @@ describe.skipIf(!ENABLED)(
       // surviving (deduped) mentions: one per content_item → 2 rows.
       const { data: remaining, error: remErr } = await client
         .from('entity_mentions')
-        .select('canonical_name, entity_type_override, content_item_id')
+        .select('canonical_name, entity_type_override, source_document_id')
         .in('canonical_name', ALL_NAMES);
       expect(remErr).toBeNull();
       expect(remaining).not.toBeNull();
@@ -194,7 +194,7 @@ describe.skipIf(!ENABLED)(
         remaining!.every((m) => m.entity_type_override === MERGED_TYPE),
       ).toBe(true);
       // Survivors span both content_items (the CI #1 collapse kept exactly one).
-      const survivingCis = new Set(remaining!.map((m) => m.content_item_id));
+      const survivingCis = new Set(remaining!.map((m) => m.source_document_id));
       expect(survivingCis).toEqual(new Set([CI_1, CI_2]));
 
       // Relationships are repointed onto the target on both sides.

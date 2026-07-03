@@ -143,7 +143,7 @@ class _FakeConn:
     Holds rows keyed by id. ``execute`` applies the Stage-6 DELETE / UPDATE to
     the store and RAISES ``UniqueViolationError`` if an UPDATE would create a
     duplicate ``(canonical_name, entity_type, source_document_id)`` — modelling
-    ``entity_mentions_canonical_name_entity_type_content_item_id_key``. This is
+    ``entity_mentions_canonical_name_entity_type_source_document_id_key``. This is
     what makes the test a TRUE bl-225 regression: the OLD row-by-row body trips
     this raise; the FIXED collapse body never does.
     """
@@ -197,7 +197,7 @@ class _FakeConn:
                     raise _UNIQUE_VIOLATION(
                         "duplicate key value violates unique constraint "
                         '"entity_mentions_canonical_name_entity_type_'
-                        'content_item_id_key"'
+                        'source_document_id_key"'
                     )
             self.rows[row_id] = prospective  # type: ignore[index]
             self.updated.append((target.id, str(new_canonical)))
@@ -427,7 +427,7 @@ class _OpScopedFakeConn:
                     raise _UNIQUE_VIOLATION(
                         "duplicate key value violates unique constraint "
                         '"entity_mentions_canonical_name_entity_type_'
-                        'content_item_id_key"'
+                        'source_document_id_key"'
                     )
             self.rows[row_id] = prospective  # type: ignore[index]
             self.updated.append((target.id, str(new_canonical)))

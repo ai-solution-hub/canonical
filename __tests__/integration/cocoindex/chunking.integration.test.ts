@@ -279,9 +279,9 @@ describe.skipIf(!ENABLED)('cocoindex chunking stage', () => {
       const runId = await assertOpIdRoundTrip(parent.op_id!);
       expect(runId).toMatch(UUID_V4_REGEX);
 
-      // Cross-check: the chunk's content_item_id FK points at the parent row.
+      // Cross-check: the chunk's source_document_id FK points at the parent row.
       for (const c of chunks) {
-        expect(c.content_item_id).toBe(parent.id);
+        expect(c.source_document_id).toBe(parent.id);
       }
     },
     POLL_TIMEOUT_MS + 60_000,

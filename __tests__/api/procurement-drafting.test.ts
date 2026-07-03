@@ -782,25 +782,26 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
       error: null,
     });
 
-    // (3) content_items `.in()` then (4) content_history `.in()` are awaited
-    // via the chain `then`. Queue both result sets in order.
+    // Post-{131.16} BI-29: matched content is resolved via
+    // fetchMatchedContentForDrafting (q_a_pairs `.in()` then reference_items
+    // `.in()`, both awaited via the chain `then`), then the cited_version
+    // lookup queries q_a_pair_history `.in()`. Queue all three result sets in
+    // order; both matched items resolve as q_a_pairs here.
     mockSupabase._chain.then
       .mockImplementationOnce((resolve: (v: unknown) => void) =>
         resolve({
           data: [
             {
               id: ITEM_CITED,
-              suggested_title: 'Cited item',
-              content: 'cited body',
-              content_type: 'case_study',
-              summary: 'sum',
+              question_text: 'Cited item',
+              answer_standard: 'cited body',
+              answer_advanced: null,
             },
             {
               id: ITEM_UNCITED,
-              suggested_title: 'Uncited item',
-              content: 'uncited body',
-              content_type: 'case_study',
-              summary: 'sum',
+              question_text: 'Uncited item',
+              answer_standard: 'uncited body',
+              answer_advanced: null,
             },
           ],
           error: null,
@@ -808,11 +809,14 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
         }),
       )
       .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 0 }),
+      )
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
         resolve({
           data: [
-            { content_item_id: ITEM_CITED, version: 1 },
-            { content_item_id: ITEM_CITED, version: 4 },
-            { content_item_id: ITEM_UNCITED, version: 2 },
+            { q_a_pair_id: ITEM_CITED, version: 1 },
+            { q_a_pair_id: ITEM_CITED, version: 4 },
+            { q_a_pair_id: ITEM_UNCITED, version: 2 },
           ],
           error: null,
           count: 3,
@@ -906,14 +910,14 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
     // One row per DISTINCT matched item (not per CitationEntry).
     expect(rows).toHaveLength(2);
 
-    const cited = rows.find((r) => r.cited_content_item_id === ITEM_CITED);
-    const uncited = rows.find((r) => r.cited_content_item_id === ITEM_UNCITED);
+    const cited = rows.find((r) => r.cited_q_a_pair_id === ITEM_CITED);
+    const uncited = rows.find((r) => r.cited_q_a_pair_id === ITEM_UNCITED);
 
     // Cited row: span overlaid from the FIRST CitationEntry; version = MAX(4).
     expect(cited).toMatchObject({
       citing_kind: 'form_response',
       citing_form_response_id: RESPONSE_ID,
-      cited_kind: 'content_item',
+      cited_kind: 'q_a_pair',
       citation_type: 'reference',
       cited_location_kind: 'block',
       cited_text: 'first span',
@@ -963,18 +967,19 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
       error: null,
     });
 
-    // (3) content_items `.in()` then (4) content_history `.in()` — awaited via
-    // the chain `then`. Both succeed so the writer reaches the delete/insert.
+    // Post-{131.16} BI-29: matched content via fetchMatchedContentForDrafting
+    // (q_a_pairs `.in()` then reference_items `.in()`), then the cited_version
+    // lookup queries q_a_pair_history `.in()`. All succeed so the writer
+    // reaches the delete/insert.
     mockSupabase._chain.then
       .mockImplementationOnce((resolve: (v: unknown) => void) =>
         resolve({
           data: [
             {
               id: ITEM_CITED,
-              suggested_title: 'Cited item',
-              content: 'cited body',
-              content_type: 'case_study',
-              summary: 'sum',
+              question_text: 'Cited item',
+              answer_standard: 'cited body',
+              answer_advanced: null,
             },
           ],
           error: null,
@@ -982,13 +987,16 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
         }),
       )
       .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 0 }),
+      )
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
         resolve({
-          data: [{ content_item_id: ITEM_CITED, version: 2 }],
+          data: [{ q_a_pair_id: ITEM_CITED, version: 2 }],
           error: null,
           count: 1,
         }),
       )
-      // (6) citations `.delete().eq()` — awaited via the chain `then`. Return a
+      // citations `.delete().eq()` — awaited via the chain `then`. Return a
       // non-null Supabase error so `deleteError` is truthy and the writer
       // throws into its non-fatal catch (logger.error + citation_warning).
       .mockImplementationOnce((resolve: (v: unknown) => void) =>

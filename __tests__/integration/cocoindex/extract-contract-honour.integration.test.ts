@@ -341,9 +341,9 @@ describe.skipIf(!ENABLED)(
       const { data, error } = await client
         .from('entity_mentions')
         .select(
-          'id, content_item_id, entity_type, entity_name, canonical_name, source_span_start, source_span_end, mention_confidence',
+          'id, source_document_id, entity_type, entity_name, canonical_name, source_span_start, source_span_end, mention_confidence',
         )
-        .in('content_item_id', seededContentIds);
+        .in('source_document_id', seededContentIds);
 
       expect(error).toBeNull();
       expect(data).toBeTruthy();

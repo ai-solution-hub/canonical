@@ -110,6 +110,18 @@ async function loadWorkspaceContext(
   };
 }
 
+// ID-131 {131.11} G-SEARCH residual (T4-OQ-1 MIGRATE): the cache lives in the
+// polymorphic record_embeddings store (owner_kind='company_profile'), not the
+// retired company_profiles.company_embedding TEXT column. Model literal
+// matches the M5 search consumers' convention (lib/mcp/tools/search.ts,
+// 20260702120000_id131_search_rpcs.sql) rather than lib/ai/embed.ts's
+// getEmbeddingModel() — every record_embeddings row this pipeline reads or
+// writes uses this fixed model string. Exported so the profile PATCH route
+// (app/api/intelligence/profiles/[id]/route.ts) can invalidate the SAME
+// (owner_kind, owner_id, model) row this cache reads/writes — a duplicated
+// literal would silently drift if either side changed model.
+export const COMPANY_PROFILE_EMBEDDING_MODEL = 'text-embedding-3-large';
+
 /** Load cached company embedding, or generate and cache it */
 async function loadOrGenerateCompanyEmbedding(
   supabase: Supabase,
@@ -117,18 +129,24 @@ async function loadOrGenerateCompanyEmbedding(
   companyContext: CompanyContext,
 ): Promise<number[] | null> {
   // Check for cached embedding
-  const profile = await sb(
+  const cached = await sb(
     supabase
-      .from('company_profiles')
-      .select('company_embedding')
-      .eq('id', profileId)
+      .from('record_embeddings')
+      .select('embedding')
+      .eq('owner_kind', 'company_profile')
+      .eq('owner_id', profileId)
+      .eq('model', COMPANY_PROFILE_EMBEDDING_MODEL)
       .maybeSingle(),
     'intelligence.pipeline.company-embedding.load',
   );
 
-  if (profile?.company_embedding) {
+  if (cached?.embedding) {
     try {
-      return JSON.parse(profile.company_embedding) as number[];
+      const parsed =
+        typeof cached.embedding === 'string'
+          ? (JSON.parse(cached.embedding) as number[])
+          : (cached.embedding as unknown as number[]);
+      return parsed;
     } catch {
       // Invalid cached value — regenerate
     }
@@ -144,11 +162,25 @@ async function loadOrGenerateCompanyEmbedding(
 
   const embedding = await generateEmbedding(profileText);
 
-  // Cache the embedding
-  await supabase
-    .from('company_profiles')
-    .update({ company_embedding: JSON.stringify(embedding) })
-    .eq('id', profileId);
+  // Cache the embedding — upsert on the M1b UNIQUE (owner_kind, owner_id,
+  // model) so a re-generation replaces the prior row for this profile.
+  // sb() fail-fasts on a Postgrest error (checked, not a bare unchecked
+  // await) — the caller (runPipeline's per-workspace loop) already wraps
+  // this whole call in a try/catch that degrades to companyEmbedding = null
+  // + a best-effort warn for this workspace only, so a thrown cache-write
+  // error is handled exactly like a failed generation.
+  await sb(
+    supabase.from('record_embeddings').upsert(
+      {
+        owner_kind: 'company_profile',
+        owner_id: profileId,
+        model: COMPANY_PROFILE_EMBEDDING_MODEL,
+        embedding: JSON.stringify(embedding),
+      },
+      { onConflict: 'owner_kind,owner_id,model' },
+    ),
+    'intelligence.pipeline.company-embedding.cache',
+  );
 
   return embedding;
 }

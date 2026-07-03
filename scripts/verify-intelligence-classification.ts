@@ -422,8 +422,8 @@ async function main(): Promise<void> {
   // 3. Fetch entity mention counts per item
   const { data: entityCounts, error: entityError } = await supabase
     .from('entity_mentions')
-    .select('content_item_id, entity_type')
-    .in('content_item_id', contentItemIds);
+    .select('source_document_id, entity_type')
+    .in('source_document_id', contentItemIds);
 
   if (entityError) {
     console.error(`Failed to query entity_mentions: ${entityError.message}`);
@@ -434,7 +434,7 @@ async function main(): Promise<void> {
   const entityCountMap = new Map<string, number>();
   const entityTypeDist: Record<string, number> = {};
   for (const em of entityCounts ?? []) {
-    const itemId = (em as { content_item_id: string }).content_item_id;
+    const itemId = (em as { source_document_id: string }).source_document_id;
     const entityType = (em as { entity_type: string }).entity_type;
     entityCountMap.set(itemId, (entityCountMap.get(itemId) ?? 0) + 1);
     entityTypeDist[entityType] = (entityTypeDist[entityType] ?? 0) + 1;

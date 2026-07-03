@@ -36,6 +36,13 @@ export const CONTENT_LENGTH_THRESHOLDS: Record<string, number> = {
  * original 0.70 threshold, zero requirements achieved "strong" across all
  * three templates. The best real-world match (Charnwood company registration)
  * scored 0.694. Lowering to 0.55 produces a realistic distribution.
+ *
+ * {131.16} BI-31 NOTE: `fetchContentForMatching` below was re-pointed off
+ * content_items onto q_a_pairs/reference_items (EMB-STORE / record_embeddings
+ * vector space), but this threshold was DELIBERATELY left unchanged. The
+ * current corpus (~10 rows) is not a valid recalibration sample — the same
+ * class of gap as the deferred BI-17 benchmark. Recalibrate against the first
+ * real-corpus walk, not before.
  */
 export const SIMILARITY_STRONG_THRESHOLD = 0.55;
 
@@ -45,6 +52,10 @@ export const SIMILARITY_STRONG_THRESHOLD = 0.55;
  * Calibrated alongside strong threshold. At 0.35, near-miss questions
  * (equalities 0.482, safeguarding 0.466, carbon 0.453) correctly classify
  * as partial rather than gap.
+ *
+ * {131.16} BI-31 NOTE: see SIMILARITY_STRONG_THRESHOLD — recalibration
+ * against the EMB-STORE vector space is DEFERRED to the first real-corpus
+ * walk, not guessed against the current ~10-row corpus.
  */
 export const SIMILARITY_PARTIAL_THRESHOLD = 0.35;
 
@@ -91,7 +102,18 @@ export interface TemplateRequirement {
   display_order: number;
 }
 
-/** Lightweight projection of a content_items row for matching. */
+/**
+ * Lightweight projection of a matchable content row.
+ *
+ * Post-{131.16} (BI-29/30/31): sourced from q_a_pairs (primary) and
+ * reference_items (optional) instead of the retired content_items table.
+ * `brief`/`detail`/`suggested_title` have no typed-record home (BI-11 —
+ * IMS-vestige, never re-homed) and are always null; `ai_keywords` likewise
+ * has no typed home on either table (neither ever carried a keyword array)
+ * and stays null — matchRequirement's Tier 2 keyword-overlap check simply
+ * never fires for these rows (explicit drift, not fabricated — mirrors the
+ * BI-28 "no typed home" idiom used elsewhere in this refactor).
+ */
 export interface ContentItemForMatching {
   id: string;
   content: string;
@@ -512,41 +534,149 @@ export async function fetchTemplateRequirements(
   }));
 }
 
+/** The record_embeddings model column value written by the pipeline (BI-17). */
+const EMBEDDING_MODEL = 'text-embedding-3-large';
+
 /**
- * Fetch content items with the fields needed for coverage matching.
- * Excludes archived items (archived_at IS NULL).
+ * Fetch content for template-requirement matching.
+ *
+ * Post-{131.16} (BI-29/30/31): re-pointed off content_items onto q_a_pairs
+ * (primary match source) + reference_items (optional match source).
+ * `source_documents` is deliberately EXCLUDED — it is provenance-only, has no
+ * embedding/answer-grain, and is never a match source (D2/E5; TECH.md
+ * §Proposed changes BI-29/30/31). Excludes archived q_a_pairs
+ * (`publication_status = 'archived'`, the closest surviving analogue of the
+ * dropped `content_items.archived_at` IMS flag); reference_items carry no
+ * `publication_status` at all (global, always-visible evidence layer — BI-19)
+ * so no archived-style filter applies there. Vector reads come from
+ * `record_embeddings` (BI-17 EMB-STORE), never an inline column. A q_a_pair's
+ * `primary_domain` comes from the `record_lifecycle` facet (q_a_pairs carry no
+ * `primary_domain` column of their own — BI-18/BI-19); `primary_subtopic` has
+ * no facet equivalent and stays null (mirrors the `hybrid_search` q_a_pair-arm
+ * precedent — explicit drift, not fabricated).
+ *
+ * BLANK-VS-ANSWERED FORK (BI-30, id-80): PRESERVE. A blank form instrument
+ * promotes zero q_a_pairs/reference_items rows, so this naturally returns an
+ * empty array for that instrument's content — coverage-matching correctly
+ * reports full gaps rather than conflating "no KB content" with "unanswered
+ * form".
  */
 export async function fetchContentForMatching(
   supabase: SupabaseClientTyped,
 ): Promise<ContentItemForMatching[]> {
-  const { data, error } = await supabase
-    .from('content_items')
-    .select(
-      'id, content, brief, detail, title, suggested_title, primary_domain, primary_subtopic, content_type, ai_keywords, embedding',
-    )
-    .is('archived_at', null);
+  const [qaResult, riResult] = await Promise.all([
+    supabase
+      .from('q_a_pairs')
+      .select('id, question_text, answer_standard, answer_advanced')
+      .neq('publication_status', 'archived'),
+    supabase
+      .from('reference_items')
+      .select('id, title, body, summary, primary_domain, primary_subtopic'),
+  ]);
 
-  if (error) {
-    throw new Error(`Failed to fetch content items: ${error.message}`);
+  if (qaResult.error) {
+    throw new Error(
+      `Failed to fetch q_a_pairs for matching: ${qaResult.error.message}`,
+    );
+  }
+  if (riResult.error) {
+    throw new Error(
+      `Failed to fetch reference_items for matching: ${riResult.error.message}`,
+    );
   }
 
-  return (data ?? []).map((row) => ({
-    id: row.id,
-    content: row.content,
-    brief: row.brief,
-    detail: row.detail,
-    title: row.title,
-    suggested_title: row.suggested_title,
-    primary_domain: row.primary_domain,
-    primary_subtopic: row.primary_subtopic,
-    content_type: row.content_type,
-    ai_keywords: row.ai_keywords,
-    embedding: row.embedding
+  const qaRows = qaResult.data ?? [];
+  const riRows = riResult.data ?? [];
+  const qaIds = qaRows.map((row) => row.id);
+  const riIds = riRows.map((row) => row.id);
+  const allIds = [...qaIds, ...riIds];
+
+  if (allIds.length === 0) return [];
+
+  const embeddingsResult = await supabase
+    .from('record_embeddings')
+    .select('owner_id, embedding')
+    .in('owner_kind', ['q_a_pair', 'reference_item'])
+    .in('owner_id', allIds)
+    .eq('model', EMBEDDING_MODEL);
+
+  if (embeddingsResult.error) {
+    throw new Error(
+      `Failed to fetch record_embeddings for matching: ${embeddingsResult.error.message}`,
+    );
+  }
+
+  const embeddingById = new Map<string, number[] | null>();
+  for (const row of embeddingsResult.data ?? []) {
+    const embedding = row.embedding
       ? typeof row.embedding === 'string'
         ? JSON.parse(row.embedding)
         : row.embedding
-      : null,
+      : null;
+    embeddingById.set(row.owner_id, embedding);
+  }
+
+  // q_a_pairs' domain lives on the record_lifecycle facet (q_a_pairs carry no
+  // primary_domain column — BI-18/BI-19); reference_items has a native
+  // primary_domain column so needs no facet lookup.
+  const domainById = new Map<string, string | null>();
+  if (qaIds.length > 0) {
+    const facetResult = await supabase
+      .from('record_lifecycle')
+      .select('owner_id, domain')
+      .eq('owner_kind', 'q_a_pair')
+      .in('owner_id', qaIds);
+
+    if (facetResult.error) {
+      throw new Error(
+        `Failed to fetch record_lifecycle for matching: ${facetResult.error.message}`,
+      );
+    }
+
+    for (const row of facetResult.data ?? []) {
+      // owner_id is a STORED GENERATED column (COALESCE over the per-kind
+      // FKs) — never actually null for a row satisfying owner_kind='q_a_pair',
+      // but typed loosely by the generator. Guard defensively.
+      if (!row.owner_id) continue;
+      domainById.set(row.owner_id, row.domain);
+    }
+  }
+
+  const qaItems: ContentItemForMatching[] = qaRows.map((row) => ({
+    id: row.id,
+    content: [
+      `Q: ${row.question_text}`,
+      row.answer_standard,
+      row.answer_advanced,
+    ]
+      .filter((part): part is string => Boolean(part))
+      .join('\n\n'),
+    brief: null,
+    detail: null,
+    title: row.question_text,
+    suggested_title: null,
+    primary_domain: domainById.get(row.id) ?? null,
+    primary_subtopic: null,
+    content_type: 'q_a_pair',
+    ai_keywords: null,
+    embedding: embeddingById.get(row.id) ?? null,
   }));
+
+  const riItems: ContentItemForMatching[] = riRows.map((row) => ({
+    id: row.id,
+    content: row.body,
+    brief: null,
+    detail: null,
+    title: row.title,
+    suggested_title: null,
+    primary_domain: row.primary_domain,
+    primary_subtopic: row.primary_subtopic,
+    content_type: 'reference_item',
+    ai_keywords: null,
+    embedding: embeddingById.get(row.id) ?? null,
+  }));
+
+  return [...qaItems, ...riItems];
 }
 
 // ---------------------------------------------------------------------------

@@ -8,6 +8,7 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
 import type { ProcurementWorkflowState } from '@/lib/domains/procurement/procurement-workflow';
+import { fetchMatchedContentForDrafting } from '@/lib/domains/procurement/draft-response';
 import { parseBody } from '@/lib/validation';
 import { CostEstimateBodySchema } from '@/lib/validation/schemas';
 import { NextRequest, NextResponse } from 'next/server';
@@ -166,15 +167,18 @@ export const POST = defineRoute(
         }
       }
 
-      // Fetch content lengths in a single query (only need id + content for token estimation)
+      // Fetch content lengths (only need id + content for token estimation).
+      // Post-{131.16} BI-29: re-pointed off content_items onto q_a_pairs/
+      // reference_items via the shared drafting-content fetch.
       const contentLengths = new Map<string, number>();
       if (allContentIds.size > 0) {
-        const { data: contentItems, error: contentError } = await supabase
-          .from('content_items')
-          .select('id, content')
-          .in('id', Array.from(allContentIds));
-
-        if (contentError) {
+        let matchedContent;
+        try {
+          matchedContent = await fetchMatchedContentForDrafting(
+            supabase,
+            Array.from(allContentIds),
+          );
+        } catch (contentError) {
           logger.error(
             { err: contentError },
             'Failed to fetch matched content for cost estimate',
@@ -190,10 +194,8 @@ export const POST = defineRoute(
           );
         }
 
-        if (contentItems) {
-          for (const item of contentItems) {
-            contentLengths.set(item.id, estimateTokens(item.content ?? ''));
-          }
+        for (const item of matchedContent) {
+          contentLengths.set(item.id, estimateTokens(item.content ?? ''));
         }
       }
 

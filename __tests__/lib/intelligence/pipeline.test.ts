@@ -1019,9 +1019,11 @@ function buildRunPipelineMock(options: MockBuildOptions): {
   const workspaceProfiles = options.workspaceProfiles ?? {};
   const cachedEmbeddings = options.cachedEmbeddings ?? {};
 
-  // Tracks the most recently selected column list per from() chain so the
-  // company_profiles select can distinguish "context load" from "embedding
-  // load" (both query the same table with different columns).
+  // ID-131 {131.11} G-SEARCH residual: the embedding cache read/write moved
+  // off company_profiles.company_embedding onto the polymorphic
+  // record_embeddings store (owner_kind='company_profile'), so the
+  // context-load vs embedding-load distinction is now a distinct TABLE
+  // (company_profiles vs record_embeddings), not a column-selection branch.
   const supabase: any = {
     rpc: vi.fn((name: string) => {
       if (name === 'get_due_feed_sources') {
@@ -1033,7 +1035,6 @@ function buildRunPipelineMock(options: MockBuildOptions): {
       tracking.fromCalls.push({ table, op: 'from' });
 
       // Builder state captured per chain
-      let selectedColumns: string | null = null;
       const eqFilters: Record<string, unknown> = {};
 
       // Resolves to an array result for thenable chains (e.g. select+eq+await
@@ -1043,10 +1044,7 @@ function buildRunPipelineMock(options: MockBuildOptions): {
         Promise.resolve({ data: [], error: null });
 
       const builder: any = {
-        select: vi.fn((cols: string) => {
-          selectedColumns = cols;
-          return builder;
-        }),
+        select: vi.fn(() => builder),
         eq: vi.fn((col: string, val: unknown) => {
           eqFilters[col] = val;
           return builder;
@@ -1083,20 +1081,6 @@ function buildRunPipelineMock(options: MockBuildOptions): {
             });
           }
           if (table === 'company_profiles') {
-            // Distinguish context load from embedding load by columns selected
-            if (
-              selectedColumns &&
-              selectedColumns.includes('company_embedding')
-            ) {
-              tracking.companyEmbeddingLoads++;
-              const profileId = eqFilters.id as string;
-              return Promise.resolve({
-                data: {
-                  company_embedding: cachedEmbeddings[profileId] ?? null,
-                },
-                error: null,
-              });
-            }
             tracking.companyProfileLoads++;
             return Promise.resolve({
               data: {
@@ -1107,6 +1091,16 @@ function buildRunPipelineMock(options: MockBuildOptions): {
                 target_customers: 'SMBs',
                 value_proposition: 'Quality services',
               },
+              error: null,
+            });
+          }
+          if (table === 'record_embeddings') {
+            // loadOrGenerateCompanyEmbedding's cache read: .eq('owner_kind',
+            // 'company_profile').eq('owner_id', profileId).eq('model', ...).
+            tracking.companyEmbeddingLoads++;
+            const profileId = eqFilters.owner_id as string;
+            return Promise.resolve({
+              data: { embedding: cachedEmbeddings[profileId] ?? null },
               error: null,
             });
           }
@@ -1124,6 +1118,9 @@ function buildRunPipelineMock(options: MockBuildOptions): {
         update: vi.fn(() => ({
           eq: vi.fn(() => Promise.resolve({ data: null, error: null })),
         })),
+        // record_embeddings cache write (loadOrGenerateCompanyEmbedding):
+        // .upsert(row, { onConflict }) awaited directly, no further chain.
+        upsert: vi.fn(() => Promise.resolve({ data: null, error: null })),
         insert: vi.fn(() => ({
           select: vi.fn(() => ({
             single: vi.fn(() =>

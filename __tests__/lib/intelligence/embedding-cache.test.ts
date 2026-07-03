@@ -37,10 +37,7 @@ vi.mock('@/lib/ai/embed', async (importOriginal) => {
 // We test the embedding caching through runPipeline which calls loadOrGenerateCompanyEmbedding
 import { runPipeline } from '@/lib/intelligence/pipeline';
 import { pollFeed } from '@/lib/intelligence/feed-poller';
-import {
-  createMockSupabaseTableDispatch,
-  type MockQueryChain,
-} from '@/__tests__/helpers/mock-supabase';
+import { createMockSupabaseTableDispatch } from '@/__tests__/helpers/mock-supabase';
 
 describe('Company embedding caching', () => {
   const fakeEmbedding = [0.1, 0.2, 0.3, 0.4, 0.5];
@@ -51,18 +48,15 @@ describe('Company embedding caching', () => {
   });
 
   // Migrated onto the canonical createMockSupabaseTableDispatch (W-RG).
-  // Most tables resolve to one fixed shape (per-table dispatch). Two
-  // behaviours need per-table customisation that the helper exposes via
-  // `_chains`:
-  //   1. company_profiles.select is COLUMN-ARG-AWARE — the pipeline reads
-  //      'company_embedding' and the profile-field set on the SAME table via
-  //      two distinct .select(...).eq('id').maybeSingle() chains that must
-  //      resolve to different read-back data. A single per-table resolution
-  //      cannot express this, so we make .select arg-aware (and keep .eq
-  //      returning the chain so .maybeSingle resolves the chosen shape).
-  //   2. the embedding cache WRITE is a VOID .update(...).eq() — nothing is
-  //      read back. We capture the update payload as the documented
-  //      persistence contract (see "generates and caches" test).
+  // ID-131 {131.11} G-SEARCH residual: the embedding cache read/write moved
+  // off company_profiles.company_embedding onto the polymorphic
+  // record_embeddings store (owner_kind='company_profile') — see
+  // lib/intelligence/pipeline.ts's loadOrGenerateCompanyEmbedding. The
+  // cache read is a single fixed-shape .select('embedding').eq(...).eq(...)
+  // .eq(...).maybeSingle() on record_embeddings (one resolution per test,
+  // no column-arg branching needed); the cache write is a VOID .upsert(...)
+  // — we capture the payload via the chain's own vi.fn() call record as the
+  // documented persistence contract (see "generates and caches" test).
   function createMockSupabase(opts: {
     cachedEmbedding?: string | null;
     hasProfile?: boolean;
@@ -73,8 +67,6 @@ describe('Company embedding caching', () => {
       hasProfile = true,
       hasSources = true,
     } = opts;
-
-    const updateCalls: any[] = [];
 
     const profileFields = hasProfile
       ? {
@@ -101,8 +93,15 @@ describe('Company embedding caching', () => {
             : null,
           error: null,
         },
-        // Pre-seed so its chain exists in `_chains` for arg-aware override.
-        company_profiles: { data: null, error: null },
+        // company_profiles now serves ONLY the profile-field context load
+        // (name/sectors/…) — the embedding cache lives on record_embeddings.
+        company_profiles: { data: profileFields, error: null },
+        // Cache read: .select('embedding').eq('owner_kind', 'company_profile')
+        // .eq('owner_id', profileId).eq('model', ...).maybeSingle().
+        record_embeddings: {
+          data: cachedEmbedding ? { embedding: cachedEmbedding } : null,
+          error: null,
+        },
         si_processing_queue: { data: [], error: null },
         feed_prompts: { data: [], error: null },
         feed_articles: { data: [], error: null },
@@ -129,30 +128,7 @@ describe('Company embedding caching', () => {
       },
     );
 
-    // --- company_profiles: column-arg-aware select read-back ---------------
-    const profileChain: MockQueryChain = supabase._chains.company_profiles;
-    const embeddingResult = {
-      data: { company_embedding: cachedEmbedding },
-      error: null,
-    };
-    const profileResult = { data: profileFields, error: null };
-    profileChain.select.mockImplementation((cols: string) => {
-      const result = cols.includes('company_embedding')
-        ? embeddingResult
-        : profileResult;
-      // The chain's terminals resolve the chosen read-back; .eq stays
-      // chainable so .maybeSingle() (the pipeline's terminator) wins.
-      profileChain.maybeSingle.mockResolvedValue(result);
-      profileChain.single.mockResolvedValue(result);
-      return profileChain;
-    });
-    // VOID cache write — capture payload (persistence contract, no read-back).
-    profileChain.update.mockImplementation((data: any) => {
-      updateCalls.push({ table: 'company_profiles', data });
-      return profileChain;
-    });
-
-    return Object.assign(supabase, { _updateCalls: updateCalls });
+    return supabase;
   }
 
   it('uses cached embedding when available (no API call)', async () => {
@@ -192,14 +168,17 @@ describe('Company embedding caching', () => {
     // Should have called generateEmbedding
     expect(mockGenerateEmbedding).toHaveBeenCalledTimes(1);
 
-    // Should have cached the embedding via update
-    const profileUpdate = supabase._updateCalls.find(
-      (c: any) => c.table === 'company_profiles' && c.data.company_embedding,
-    );
-    expect(profileUpdate).toBeDefined();
-    expect(JSON.parse(profileUpdate.data.company_embedding)).toEqual(
-      fakeEmbedding,
-    );
+    // Should have cached the embedding via an upsert onto record_embeddings
+    // (owner_kind='company_profile'), not company_profiles.company_embedding.
+    const upsertCall = supabase._chains.record_embeddings.upsert.mock.calls[0];
+    expect(upsertCall).toBeDefined();
+    const [row] = upsertCall;
+    expect(row).toMatchObject({
+      owner_kind: 'company_profile',
+      owner_id: 'profile-1',
+      model: 'text-embedding-3-large',
+    });
+    expect(JSON.parse(row.embedding)).toEqual(fakeEmbedding);
   });
 
   it('skips embedding when no company profile exists', async () => {

@@ -137,7 +137,7 @@ afterAll(async () => {
   await client
     .from('entity_mentions')
     .delete()
-    .in('content_item_id', seededContentIds);
+    .in('source_document_id', seededContentIds);
   await client.from('content_items').delete().in('id', seededContentIds);
 }, 30_000);
 
@@ -233,9 +233,9 @@ describe.skipIf(!ENABLED)(
       const { data: pass1Rows, error: pass1Error } = await client
         .from('entity_mentions')
         .select(
-          'id, content_item_id, entity_type, entity_name, source_span_start, source_span_end, mention_confidence',
+          'id, source_document_id, entity_type, entity_name, source_span_start, source_span_end, mention_confidence',
         )
-        .in('content_item_id', seededContentIds);
+        .in('source_document_id', seededContentIds);
 
       expect(pass1Error).toBeNull();
       expect(pass1Rows).toBeTruthy();
@@ -255,9 +255,9 @@ describe.skipIf(!ENABLED)(
       const { data: pass2Rows, error: pass2Error } = await client
         .from('entity_mentions')
         .select(
-          'id, content_item_id, entity_type, entity_name, source_span_start, source_span_end, mention_confidence',
+          'id, source_document_id, entity_type, entity_name, source_span_start, source_span_end, mention_confidence',
         )
-        .in('content_item_id', seededContentIds);
+        .in('source_document_id', seededContentIds);
 
       expect(pass2Error).toBeNull();
       expect(pass2Rows).toBeTruthy();
