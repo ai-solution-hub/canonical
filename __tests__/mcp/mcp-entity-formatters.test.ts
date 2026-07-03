@@ -345,6 +345,10 @@ describe('formatCitation', () => {
     id: 'cit-001',
     cited_kind: 'content_item',
     cited_content_item_id: 'item-abc-123',
+    cited_q_a_pair_id: null,
+    cited_reference_item_id: null,
+    cited_source_document_id: null,
+    cited_concept_path: null,
     citing_kind: 'form_response',
     citing_form_response_id: 'resp-xyz-456',
     citation_type: 'reference',
@@ -370,6 +374,10 @@ describe('formatCitation', () => {
       id: 'cit-999',
       cited_kind: 'content_item',
       cited_content_item_id: 'content-id-abc',
+      cited_q_a_pair_id: null,
+      cited_reference_item_id: null,
+      cited_source_document_id: null,
+      cited_concept_path: null,
       citing_kind: 'form_response',
       citing_form_response_id: 'response-id-def',
       citation_type: 'adapted',
@@ -382,6 +390,61 @@ describe('formatCitation', () => {
     expect(result).toContain('response-id-def');
     expect(result).toContain('**Type:** adapted');
   });
+
+  // ID-131.28 (G-CITE-READERS) — the extended cited_target_kind contract
+  // ({131.10} M4b) added q_a_pair/reference_item/source_document/concept
+  // kinds. Citations of these kinds were previously INVISIBLE to this
+  // formatter (it only ever displayed cited_content_item_id). Each kind
+  // must now render its own populated column, not a blank/undefined field.
+  it.each([
+    {
+      cited_kind: 'q_a_pair',
+      field: 'cited_q_a_pair_id' as const,
+      value: 'qap-111',
+      label: 'Q&A pair',
+    },
+    {
+      cited_kind: 'reference_item',
+      field: 'cited_reference_item_id' as const,
+      value: 'ref-222',
+      label: 'Reference item',
+    },
+    {
+      cited_kind: 'source_document',
+      field: 'cited_source_document_id' as const,
+      value: 'sd-333',
+      label: 'Source document',
+    },
+    {
+      cited_kind: 'concept',
+      field: 'cited_concept_path' as const,
+      value: 'concept/path/foo',
+      label: 'Concept',
+    },
+  ])(
+    'displays the $cited_kind target from $field',
+    ({ cited_kind, field, value, label }) => {
+      const citation: CitationResult = {
+        id: 'cit-ext-1',
+        cited_kind,
+        cited_content_item_id: null,
+        cited_q_a_pair_id: null,
+        cited_reference_item_id: null,
+        cited_source_document_id: null,
+        cited_concept_path: null,
+        [field]: value,
+        citing_kind: 'form_response',
+        citing_form_response_id: 'resp-ext-1',
+        citation_type: 'reference',
+        cited_version: null,
+      };
+
+      const result = formatCitation(citation);
+
+      expect(result).toContain(`**Cited kind:** ${cited_kind}`);
+      expect(result).toContain(`**${label}:** ${value}`);
+    },
+  );
 });
 
 // ──────────────────────────────────────────

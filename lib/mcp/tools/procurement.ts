@@ -472,7 +472,14 @@ export async function registerProcurementTools(
             onConflict: 'citing_form_response_id,cited_content_item_id',
           })
           .select(
-            'id, cited_kind, cited_content_item_id, citing_kind, citing_form_response_id, citation_type, cited_version',
+            // ID-131.28 (G-CITE-READERS): select all four per-kind target
+            // columns from the extended cited_target_kind contract ({131.10}
+            // M4b), not just cited_content_item_id — this tool still only
+            // ever writes cited_kind='content_item' rows itself, but
+            // CitationResult/formatCitation are the shared read/display shape
+            // for ANY citations row, so the reader must not assume
+            // content_item is the only populated kind.
+            'id, cited_kind, cited_content_item_id, cited_q_a_pair_id, cited_reference_item_id, cited_source_document_id, cited_concept_path, citing_kind, citing_form_response_id, citation_type, cited_version',
           )
           .single();
 
@@ -492,6 +499,10 @@ export async function registerProcurementTools(
           id: citation.id,
           cited_kind: citation.cited_kind,
           cited_content_item_id: citation.cited_content_item_id,
+          cited_q_a_pair_id: citation.cited_q_a_pair_id,
+          cited_reference_item_id: citation.cited_reference_item_id,
+          cited_source_document_id: citation.cited_source_document_id,
+          cited_concept_path: citation.cited_concept_path,
           citing_kind: citation.citing_kind,
           citing_form_response_id: citation.citing_form_response_id,
           citation_type: citation.citation_type,

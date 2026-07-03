@@ -171,18 +171,57 @@ export interface CitationResult {
   id: string;
   cited_kind: string;
   cited_content_item_id: string | null;
+  // ID-131.28 (G-CITE-READERS) — the extended cited_target_kind contract
+  // ({131.10} M4b) added three more per-kind target columns alongside
+  // cited_content_item_id. Exactly one of the four is populated per row per
+  // the DB's cited_one_of CHECK constraint; cited_kind says which.
+  cited_q_a_pair_id: string | null;
+  cited_reference_item_id: string | null;
+  cited_source_document_id: string | null;
+  cited_concept_path: string | null;
   citing_kind: string;
   citing_form_response_id: string | null;
   citation_type: string;
   cited_version: number | null;
 }
 
+/**
+ * Human-readable label + target-id pair for whichever cited_* column is
+ * populated on this citation row (ID-131.28 — re-anchored off the single
+ * content_item assumption to the extended 5-kind contract).
+ */
+function resolveCitedTarget(citation: CitationResult): {
+  label: string;
+  value: string | null;
+} {
+  switch (citation.cited_kind) {
+    case 'q_a_pair':
+      return { label: 'Q&A pair', value: citation.cited_q_a_pair_id };
+    case 'reference_item':
+      return {
+        label: 'Reference item',
+        value: citation.cited_reference_item_id,
+      };
+    case 'source_document':
+      return {
+        label: 'Source document',
+        value: citation.cited_source_document_id,
+      };
+    case 'concept':
+      return { label: 'Concept', value: citation.cited_concept_path };
+    case 'content_item':
+    default:
+      return { label: 'Content item', value: citation.cited_content_item_id };
+  }
+}
+
 export function formatCitation(citation: CitationResult): string {
+  const target = resolveCitedTarget(citation);
   return [
     '# Citation Recorded',
     '',
     `**Cited kind:** ${citation.cited_kind}`,
-    `**Content item:** ${citation.cited_content_item_id ?? '—'}`,
+    `**${target.label}:** ${target.value ?? '—'}`,
     `**Citing kind:** ${citation.citing_kind}`,
     `**Procurement response:** ${citation.citing_form_response_id ?? '—'}`,
     `**Type:** ${citation.citation_type}`,
