@@ -3134,6 +3134,515 @@ async def _upsert_source_document(
         )
 
 
+# ── ID-138 {138.11} P4 — one-shot ingest-once extraction path ───────────────
+# TECH.md §2.5 R(e) (LOAD-BEARING) / §3.2 P4. The problem: derived rows of an
+# `ingest_once` source (chunks / embeddings / entities / extractions) must
+# OUTLIVE engine orphan-cleanup — there is no re-walk to rebuild them once
+# gone. RULING — hybrid (i) one-shot-outside-the-walk + (iii) registry-keyed
+# (candidate (ii) export-at-promotion is REJECTED for these classes: it would
+# double the `record_embeddings` EMB-STORE and fight its single-home
+# invariant, §2.5).
+#
+# STRUCTURAL non-negotiable (mechanism (i)): this function is a PLAIN async
+# function — never `@coco.fn`, never mounted via `coco.mount_each`, never
+# handed a `TableTarget`. Its caller (id-45 onboarding ingest — PLAN §6 cross-
+# Task seam, execution + sign-off NOT in this Subtask) invokes it directly,
+# OUTSIDE `localfs.walk_dir()` / `FeedUrlSource.items()` entirely, so the
+# source key NEVER enters cocoindex's per-item declared-row bookkeeping (the
+# "memoised walk manifest" §2.5 refers to — the engine's own incremental
+# tracking, distinct from this module's `workspace_manifest` routing object).
+# `update_blocking(full_reprocess=True)` delete-then-re-exports and orphan-
+# cleanup act ONLY on rows declared via `TableTarget.declare_row` under a
+# mounted per-item component subpath — a row this function writes was never
+# declared that way, so there is structurally nothing for either mechanism to
+# reach, regardless of whether the source is later absent from an incremental
+# walk. Every write below is a raw `DB_CTX` pool autocommit statement —
+# generalising the off-engine PATTERN `_upsert_source_document` established
+# (S437/S438) to the remaining four classes the §2.5 per-class table requires
+# survives-the-engine treatment for: `content_chunks`, `record_embeddings`,
+# `entity_mentions`, `entity_relationships`, `q_a_extractions`. NOT ONE call
+# below touches `mount_table_target` or `.declare_row` — the {138.16} closed
+# 8-table `mount_table_target(DB_CTX, ...)` set (`content_items`, `q_a_
+# extractions`, `source_documents`, `entity_mentions`, `entity_relationships`,
+# `content_chunks`, `reference_items`, `record_embeddings`) is UNCHANGED by
+# this Subtask — no 9th engine target is added. `content_items` is
+# DELIBERATELY not written by this path: it is absent from the §2.5 per-class
+# table entirely (a staging-only class this Task does not extend a durability
+# guarantee to) and the dispatch brief's write-list (chunks/embeddings/
+# entities/relationships/extractions) omits it too.
+#
+# `retention_class="ingest_once"` is HARD-CODED at both write sites below
+# (the `_resolve_source_identity` mint call AND the `_upsert_source_document`
+# INSERT branch) — this function IS the R(b) `ingest_once` default-stamp site
+# (TECH §2.6 R(b): retention_class "assigned at the binding gate"; this
+# one-shot path is that gate for the ingest-once class). `_upsert_source_
+# document`'s `ON CONFLICT (id) DO UPDATE` already deliberately omits
+# `retention_class` from its SET list (R(d)/DR-026 preserve-on-conflict), so a
+# re-run over the SAME identity never clobbers a class a human later curated.
+#
+# Registry-keyed (mechanism (iii), {138.10} P3 convention): every derived-row
+# PK below is seeded on the STORED `source_document_id`
+# (`chunk:{sd}:{position}`, `em:{sd}:{canonical}:{type}`,
+# `er:{sd}:{source}:{predicate}:{target}`, `qa:{sd}:{idx}`) — NEVER `rel_path`.
+# This deliberately starts the em:/er: seeds registry-keyed from day one on
+# THIS path, closing the F4 rel_path-keyed gap the {138.16} audit noted as an
+# accepted, out-of-scope gap for the ENGINE content branch only (this one-shot
+# path is not one of those engine paths).
+#
+# Caller contract: `coco.use_context(DB_CTX)` and the `@coco.fn(memo=True)`
+# extractors this function awaits (`extract_classification` et al.) all
+# resolve against the process-global `coco.App` — the caller MUST invoke this
+# function from within that SAME running App's environment (i.e. after
+# `kh_pipeline_lifespan` has provided `DB_CTX`), exactly as `_ingest_content_
+# branch` / `_ingest_qa_sidecar_branch` do today, just without a `mount_each`
+# dispatch. Wiring that caller (id-45) is out of this Subtask's scope.
+
+
+async def _insert_content_chunk_row(
+    conn: Any,
+    *,
+    chunk_id: "uuid.UUID",
+    source_document_id: "uuid.UUID",
+    content: str,
+    position: int,
+    char_count: int,
+    word_count: int,
+    embedding: list[float],
+    op_id: "uuid.UUID",
+) -> None:
+    """Raw-pool UPSERT of ONE `content_chunks` row ({138.11} P4, off-engine).
+
+    Column set mirrors `cc_target.declare_row` (`CONTENT_CHUNKS_SCHEMA`)
+    exactly, but via the autocommit `DB_CTX` pool `_upsert_source_document`
+    uses — never `declare_row` — so the row never enters cocoindex's per-item
+    bookkeeping (R(e) mechanism (i)). `embedding` is the pgvector text literal
+    (`_encode_pgvector`) with an explicit `::vector` cast — asyncpg has no
+    native pgvector codec (mirrors the `summary_data::jsonb` cast precedent on
+    this same pool, `_upsert_source_document`).
+    """
+    await conn.execute(
+        "INSERT INTO public.content_chunks "
+        "(id, source_document_id, content, position, char_count, word_count, "
+        "embedding, op_id) "
+        "VALUES ($1, $2, $3, $4, $5, $6, $7::vector, $8) "
+        "ON CONFLICT (id) DO UPDATE SET "
+        "content = EXCLUDED.content, "
+        "char_count = EXCLUDED.char_count, "
+        "word_count = EXCLUDED.word_count, "
+        "embedding = EXCLUDED.embedding, "
+        "op_id = EXCLUDED.op_id",
+        chunk_id,
+        source_document_id,
+        content,
+        position,
+        char_count,
+        word_count,
+        _encode_pgvector(embedding),
+        op_id,
+    )
+
+
+async def _insert_record_embedding_row(
+    conn: Any,
+    *,
+    owner_kind: str,
+    owner_id: "uuid.UUID",
+    embedding: list[float],
+) -> None:
+    """Raw-pool UPSERT of ONE polymorphic `record_embeddings` row (off-engine).
+
+    Mirrors `_declare_record_embedding`'s dual-write contract (ID-131
+    {131.11}): `(owner_kind, owner_id, model)` is the natural idempotency key
+    (the M1b `UNIQUE` this ON CONFLICT target arbitrates); `id` keeps its OWN
+    `gen_random_uuid()` DB default and is never supplied here (mirrors
+    `RECORD_EMBEDDINGS_SCHEMA`'s own omission of a synthetic-id column).
+    """
+    await conn.execute(
+        "INSERT INTO public.record_embeddings "
+        "(owner_kind, owner_id, model, embedding) "
+        "VALUES ($1, $2, $3, $4::vector) "
+        "ON CONFLICT (owner_kind, owner_id, model) DO UPDATE SET "
+        "embedding = EXCLUDED.embedding",
+        owner_kind,
+        owner_id,
+        EMBEDDING_MODEL,
+        _encode_pgvector(embedding),
+    )
+
+
+async def _insert_entity_mention_row(
+    conn: Any,
+    *,
+    mention_id: "uuid.UUID",
+    source_document_id: "uuid.UUID",
+    entity_type: str,
+    entity_name: str,
+    canonical_name: str,
+    confidence: float | None,
+    context_snippet: str | None,
+    metadata: dict[str, Any],
+    op_id: "uuid.UUID",
+) -> None:
+    """Raw-pool UPSERT of ONE `entity_mentions` row ({138.11} P4, off-engine).
+
+    Column set mirrors `em_target.declare_row` (`ENTITY_MENTIONS_SCHEMA`).
+    `id` is the registry-keyed uuid5 PK (`em:{source_document_id}:{canonical}:
+    {type}`) — `ON CONFLICT (id)` naturally satisfies the table's
+    `(canonical_name, entity_type, source_document_id)` UNIQUE constraint
+    because the SAME natural key always seeds the SAME id.
+    """
+    await conn.execute(
+        "INSERT INTO public.entity_mentions "
+        "(id, source_document_id, entity_type, entity_name, canonical_name, "
+        "confidence, context_snippet, metadata, op_id) "
+        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9) "
+        "ON CONFLICT (id) DO UPDATE SET "
+        "entity_name = EXCLUDED.entity_name, "
+        "confidence = EXCLUDED.confidence, "
+        "context_snippet = EXCLUDED.context_snippet, "
+        "metadata = EXCLUDED.metadata, "
+        "op_id = EXCLUDED.op_id",
+        mention_id,
+        source_document_id,
+        entity_type,
+        entity_name,
+        canonical_name,
+        confidence,
+        context_snippet,
+        json.dumps(metadata),
+        op_id,
+    )
+
+
+async def _insert_entity_relationship_row(
+    conn: Any,
+    *,
+    relationship_id: "uuid.UUID",
+    source_entity: str,
+    relationship_type: str,
+    target_entity: str,
+    source_document_id: "uuid.UUID",
+    confidence: float,
+) -> None:
+    """Raw-pool UPSERT of ONE `entity_relationships` row (off-engine).
+
+    Column set mirrors `er_target.declare_row` (`ENTITY_RELATIONSHIPS_
+    SCHEMA`) — no `op_id` column exists on this table (RULING 2, same as the
+    engine-path declare loop above `_ingest_content_branch`'s er section).
+    """
+    await conn.execute(
+        "INSERT INTO public.entity_relationships "
+        "(id, source_entity, relationship_type, target_entity, "
+        "source_document_id, confidence) "
+        "VALUES ($1, $2, $3, $4, $5, $6) "
+        "ON CONFLICT (id) DO UPDATE SET "
+        "confidence = EXCLUDED.confidence",
+        relationship_id,
+        source_entity,
+        relationship_type,
+        target_entity,
+        source_document_id,
+        confidence,
+    )
+
+
+async def _insert_qa_extraction_row(
+    conn: Any,
+    *,
+    extraction_id: "uuid.UUID",
+    source_document_id: "uuid.UUID",
+    extractor_kind: str,
+    extracted_question_text: str,
+    extracted_answer_text: str | None,
+    expected_response_kind: str | None,
+    evaluation_criteria: str | None,
+    evidence_requirements: list[str],
+    scope_tags: list[str],
+    alternate_question_phrasings: list[str],
+    extraction_metadata: dict[str, Any],
+    op_id: "uuid.UUID",
+) -> None:
+    """Raw-pool UPSERT of ONE `q_a_extractions` row ({138.11} P4, off-engine).
+
+    Column set mirrors `qa_target.declare_row` (`Q_A_EXTRACTIONS_SCHEMA`).
+    `source_document_id` is populated normally (unlike the `qa_sidecar`
+    branch's deliberate NULL — INV-5's "no content_items row exists" marker):
+    this one-shot path mints no `content_items` row either (§2.5's per-class
+    table omits `content_items` from the R(e) concern entirely), but there is
+    no sidecar-style linkage ambiguity to mark here, so the column is set.
+    """
+    await conn.execute(
+        "INSERT INTO public.q_a_extractions "
+        "(id, source_document_id, extractor_kind, extracted_question_text, "
+        "extracted_answer_text, expected_response_kind, evaluation_criteria, "
+        "evidence_requirements, scope_tags, alternate_question_phrasings, "
+        "extraction_metadata, op_id) "
+        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12) "
+        "ON CONFLICT (id) DO UPDATE SET "
+        "extracted_question_text = EXCLUDED.extracted_question_text, "
+        "extracted_answer_text = EXCLUDED.extracted_answer_text, "
+        "expected_response_kind = EXCLUDED.expected_response_kind, "
+        "evaluation_criteria = EXCLUDED.evaluation_criteria, "
+        "evidence_requirements = EXCLUDED.evidence_requirements, "
+        "scope_tags = EXCLUDED.scope_tags, "
+        "alternate_question_phrasings = EXCLUDED.alternate_question_phrasings, "
+        "extraction_metadata = EXCLUDED.extraction_metadata, "
+        "op_id = EXCLUDED.op_id",
+        extraction_id,
+        source_document_id,
+        extractor_kind,
+        extracted_question_text,
+        extracted_answer_text,
+        expected_response_kind,
+        evaluation_criteria,
+        evidence_requirements,
+        scope_tags,
+        alternate_question_phrasings,
+        json.dumps(extraction_metadata),
+        op_id,
+    )
+
+
+async def ingest_once(
+    file: "coco.resources.file.FileLike",  # type: ignore[name-defined]
+    rel_path: str,
+    *,
+    op_id: "uuid.UUID",
+    origin_type: str | None = None,
+) -> "uuid.UUID":
+    """The P4 one-shot ingest-once extraction path (TECH §2.5 R(e), §3.2 P4).
+
+    Extracts ONE `ingest_once` source exactly once, off the engine's declared
+    targets — see the section header above this function for the full R(e)
+    mechanism rationale (structural survival + registry-keying). Mirrors the
+    Stage 2→6 extraction shape of `_ingest_content_branch` (same extractors,
+    same chunking budgets, same dedup rules for entities/relationships) but
+    writes every derived row via a raw `DB_CTX` pool autocommit statement
+    instead of `TableTarget.declare_row`. Returns the resolved/minted
+    `source_document_id`.
+
+    Deliberately NOT reproduced here: the id-101 §{101.8} holder-rule
+    attribution merge `_ingest_content_branch` applies to entity_mentions
+    metadata (best-effort enrichment, not load-bearing to the R(e) survival
+    guarantee) — deferred as an out-of-scope parity gap for a future slice,
+    same spirit as the {138.16}-noted F4 em:/er: engine-path gap.
+    """
+    content_text = await convert_binary_to_markdown(file)
+    provenance = await extract_source_provenance(file)
+    classification = await extract_classification(content_text)
+    qa_form = await extract_qa_form(content_text)
+    entity_mentions = await extract_entity_mentions(content_text)
+    relationships = await extract_relationships(content_text)
+
+    content_fingerprint = (await file.content_fingerprint()).hex()
+    _filename = file.file_path.path.name
+    _source_mime = _resolve_source_mime(file.file_path.path)
+    _file_size = await file.size()
+
+    # ── R(b): THIS call is the ingest_once default-stamp site (TECH §2.6) ────
+    source_document_id = await _resolve_source_identity(
+        content_hash=content_fingerprint,
+        rel_path=rel_path,
+        filename=_filename,
+        mime_type=_source_mime,
+        file_size=_file_size,
+        origin_type=origin_type,
+        retention_class="ingest_once",
+        op_id=op_id,
+    )
+
+    classification = _stamp_if_model(
+        classification, op_id=op_id, source_document_id=source_document_id
+    )
+    qa_form = _stamp_if_model(
+        qa_form, op_id=op_id, source_document_id=source_document_id
+    )
+
+    content_type = _field(classification, "content_type") or "other"
+    await _upsert_source_document(
+        source_document_id=source_document_id,
+        storage_path=rel_path,
+        logical_path=rel_path,
+        source_url=None,
+        content_hash=content_fingerprint,
+        filename=_filename,
+        mime_type=_source_mime,
+        file_size=_file_size,
+        op_id=op_id,
+        extraction_method=provenance.extraction_method,
+        retention_class="ingest_once",
+        origin_type=origin_type,
+        content_type=content_type,
+        primary_domain=_field(classification, "primary_domain"),
+        primary_subtopic=_field(classification, "primary_subtopic"),
+        suggested_title=_field(classification, "suggested_title"),
+        classification_confidence=_field(classification, "classification_confidence"),
+        classification_reasoning=_field(classification, "rationale"),
+        classified_at=_field(classification, "extracted_at"),
+    )
+
+    pool = coco.use_context(DB_CTX)
+    async with pool.acquire() as conn:
+        # ── content_chunks + record_embeddings dual-write (mirrors the
+        # content branch's {56.8}/{131.11} chunking block verbatim except the
+        # WRITE mechanism: raw pool here, never cc_target/re_target). ────────
+        from scripts.cocoindex_pipeline._coco_api import (  # noqa: PLC0415
+            RecursiveSplitter,
+        )
+
+        splitter = RecursiveSplitter()
+        chunks = splitter.split(
+            content_text,
+            CHUNK_SIZE_BYTES,
+            chunk_overlap=CHUNK_OVERLAP_BYTES,
+            min_chunk_size=CHUNK_MIN_SIZE_BYTES,
+        )
+        for position, chunk in enumerate(chunks):
+            chunk_embedding = await embed_content_text(chunk.text)
+            chunk_id = uuid.uuid5(
+                _KH_PIPELINE_DOC_NS, f"chunk:{source_document_id}:{position}"
+            )
+            await _insert_content_chunk_row(
+                conn,
+                chunk_id=chunk_id,
+                source_document_id=source_document_id,
+                content=chunk.text,
+                position=position,
+                char_count=len(chunk.text),
+                word_count=len(chunk.text.split()),
+                embedding=chunk_embedding,
+                op_id=op_id,
+            )
+            await _insert_record_embedding_row(
+                conn,
+                owner_kind="content_chunk",
+                owner_id=chunk_id,
+                embedding=chunk_embedding,
+            )
+
+        # ── q_a_extractions (mirrors the content branch's declare loop) ──────
+        qa_pairs = _field(qa_form, "qa_pairs", []) or []
+        for idx, pair in enumerate(qa_pairs):
+            await _insert_qa_extraction_row(
+                conn,
+                extraction_id=uuid.uuid5(
+                    _KH_PIPELINE_DOC_NS, f"qa:{source_document_id}:{idx}"
+                ),
+                source_document_id=source_document_id,
+                extractor_kind="llm_extraction",
+                extracted_question_text=_field(pair, "question_text", ""),
+                extracted_answer_text=_field(pair, "answer_text"),
+                expected_response_kind=_field(pair, "expected_response_kind"),
+                evaluation_criteria=_field(pair, "evaluation_criteria"),
+                evidence_requirements=_field(pair, "evidence_requirements", []),
+                scope_tags=_field(pair, "scope_tags", []),
+                alternate_question_phrasings=_field(pair, "question_phrasings", []),
+                extraction_metadata={
+                    "extraction_kind": _field(qa_form, "extraction_kind", "q_a_form"),
+                    "qa_index": idx,
+                    "rel_path": rel_path,
+                },
+                op_id=op_id,
+            )
+
+        # ── entity_mentions (per-doc dedup mirrors the content branch's
+        # {66.16}/BUG-F highest-confidence-wins rule; holder-rule enrichment
+        # deliberately deferred — see docstring). ────────────────────────────
+        _em_dedup: dict[tuple[str, str], Any] = {}
+        for mention in entity_mentions:
+            per_doc_canonical = canonicalise_entity_name(
+                mention.entity_name, mention.entity_type
+            )
+            key = (per_doc_canonical, mention.entity_type)
+            kept = _em_dedup.get(key)
+            if kept is None or (mention.mention_confidence or 0.0) > (
+                kept.mention_confidence or 0.0
+            ):
+                _em_dedup[key] = mention
+
+        for (per_doc_canonical, entity_type), mention in _em_dedup.items():
+            mention = _stamp_if_model(
+                mention, op_id=op_id, source_document_id=source_document_id
+            )
+            context_snippet = extract_entity_context(
+                content_text, mention.entity_name
+            )
+            await _insert_entity_mention_row(
+                conn,
+                mention_id=uuid.uuid5(
+                    _KH_PIPELINE_DOC_NS,
+                    f"em:{source_document_id}:{per_doc_canonical}:{entity_type}",
+                ),
+                source_document_id=source_document_id,
+                entity_type=mention.entity_type,
+                entity_name=mention.entity_name,
+                canonical_name=per_doc_canonical,
+                confidence=mention.mention_confidence,
+                context_snippet=context_snippet,
+                metadata={
+                    "source_span_start": mention.source_span_start,
+                    "source_span_end": mention.source_span_end,
+                },
+                op_id=op_id,
+            )
+
+        # ── entity_relationships (mirrors the content branch's dedup loop;
+        # Inv-4/Inv-7/Inv-15 best-effort parity: a bad triple is logged, never
+        # aborts the whole one-shot extraction). ─────────────────────────────
+        if relationships:
+            try:
+                _er_dedup: dict[tuple[str, str, str], dict[str, Any]] = {}
+                for rel in relationships:
+                    predicate = rel.relationship
+                    if predicate not in _RELATIONSHIP_PREDICATES:
+                        _logger.warning(
+                            json.dumps(
+                                {
+                                    "event": "cocoindex.ingest_once.relationship_predicate_skipped",
+                                    "rel_path": rel_path,
+                                    "predicate": predicate,
+                                }
+                            )
+                        )
+                        continue
+                    source_c = canonicalise_for_relationship(rel.source)
+                    target_c = canonicalise_for_relationship(rel.target)
+                    dedup_key = (source_c, predicate, target_c)
+                    if dedup_key in _er_dedup:
+                        continue
+                    _er_dedup[dedup_key] = {
+                        "id": uuid.uuid5(
+                            _KH_PIPELINE_DOC_NS,
+                            f"er:{source_document_id}:{source_c}:{predicate}:{target_c}",
+                        ),
+                        "source_entity": source_c,
+                        "relationship_type": predicate,
+                        "target_entity": target_c,
+                    }
+                for row in _er_dedup.values():
+                    await _insert_entity_relationship_row(
+                        conn,
+                        relationship_id=row["id"],
+                        source_entity=row["source_entity"],
+                        relationship_type=row["relationship_type"],
+                        target_entity=row["target_entity"],
+                        source_document_id=source_document_id,
+                        confidence=1.0,
+                    )
+            except Exception as exc:  # noqa: BLE001 — Inv-7/Inv-15 best-effort parity
+                _logger.warning(
+                    json.dumps(
+                        {
+                            "event": "cocoindex.ingest_once.relationship_declare_failed",
+                            "rel_path": rel_path,
+                            "error": _redact_error_message(str(exc)),
+                        }
+                    )
+                )
+
+    return source_document_id
+
+
 @coco.fn(memo=True)
 async def ingest_url(
     item: UrlItem,
