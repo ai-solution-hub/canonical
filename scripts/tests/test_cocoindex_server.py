@@ -35,6 +35,7 @@ to intercept `coco.start_blocking` + `threading.Thread` where needed.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import signal
@@ -1243,6 +1244,82 @@ def _patched_walk_app() -> object:
     return _flow
 
 
+# ──────────────────────────────────────────────────────────────────────────
+# P5 pull-sync test doubles ({138.14}) — a minimal fake asyncpg pool/conn that
+# ALWAYS grants + releases the writer-fence lease (mirrors
+# test_cocoindex_writer_fence.py's `_FakeConn`/`_FakePool`, duplicated locally
+# rather than imported: that file is {138.9}'s own test file, out of THIS
+# Subtask's file-ownership boundary).
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class _FakeFenceConn:
+    """Backs the writer-fence SQL calls. `acquire_result` gates whether the
+    lease is granted (True = granted, mirroring an available fence)."""
+
+    def __init__(self, acquire_result: bool = True) -> None:
+        self.acquire_result = acquire_result
+        self.calls: list[tuple[str, tuple[object, ...]]] = []
+
+    async def fetchval(self, query: str, *args: object) -> bool:
+        self.calls.append((query, args))
+        if "corpus_writer_fence_lease_acquire" in query:
+            return self.acquire_result
+        if "corpus_writer_fence_lease_release" in query:
+            return True
+        raise AssertionError(f"unexpected fence query: {query}")
+
+
+class _FakeFenceAcquireCtx:
+    def __init__(self, conn: _FakeFenceConn) -> None:
+        self._conn = conn
+
+    async def __aenter__(self) -> _FakeFenceConn:
+        return self._conn
+
+    async def __aexit__(self, *exc_info: object) -> bool:
+        return False
+
+
+class _FakeFencePool:
+    """Minimal fake asyncpg pool — `.acquire()` always hands back the SAME
+    `_FakeFenceConn` (the invariant `writer_fence()` relies on)."""
+
+    def __init__(self, conn: _FakeFenceConn | None = None) -> None:
+        self.conn = conn or _FakeFenceConn()
+        self.closed = False
+
+    def acquire(self) -> _FakeFenceAcquireCtx:
+        return _FakeFenceAcquireCtx(self.conn)
+
+    async def close(self) -> None:
+        self.closed = True
+
+
+@pytest.fixture(autouse=True)
+def _fake_pull_sync_stack(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every test in this file gets a NO-OP P5 pull-sync by default: the
+    writer-fence lease always grants (a fake asyncpg pool/conn — no real DB
+    reachable in a unit test) and zero pull-sync candidate rows (no real
+    Storage/Postgres either), so the pre-existing `/walk` tests reach
+    `update_blocking` exactly as the pre-P5 contract expected. The
+    `TestPullSync*` classes below override these seams directly to exercise
+    P5's OWN behaviour.
+    """
+    from scripts.cocoindex_pipeline import server as server_mod
+
+    async def _fake_build_pool() -> _FakeFencePool:
+        return _FakeFencePool()
+
+    async def _fake_fetch_candidates(_conn: object) -> list[dict]:
+        return []
+
+    monkeypatch.setattr(server_mod, "_build_pull_sync_pool", _fake_build_pool)
+    monkeypatch.setattr(
+        server_mod, "_fetch_pull_sync_candidates", _fake_fetch_candidates
+    )
+
+
 class TestWalkRouteTable:
     """`POST /walk` is registered on the same `build_app()` app and does not
     displace /health or /stage."""
@@ -1678,3 +1755,434 @@ def _wait_for_lock_release(server_mod: object, timeout: float = 2.0) -> None:
     deadline = time.monotonic() + timeout
     while server_mod.walk_in_progress() and time.monotonic() < deadline:
         time.sleep(0.01)
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# §7 — P5 content-hash-gated pull-sync ({138.14}; TECH.md §3.2 P5, §2.3 R(c),
+# §2.6 R(ops))
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class _FakeFetchConn:
+    """Fake asyncpg connection backing `.fetch(...)` (the candidate-scope
+    query) — distinct from `_FakeFenceConn`, which backs the fence's
+    `.fetchval(...)` calls only."""
+
+    def __init__(self, rows: list[dict]) -> None:
+        self.rows = rows
+        self.calls: list[tuple[str, tuple[object, ...]]] = []
+
+    async def fetch(self, query: str, *args: object) -> list[dict]:
+        self.calls.append((query, args))
+        return self.rows
+
+
+class TestPullSyncCandidateScope:
+    """{138.14} — the SQL predicate is the ONLY mechanism that excludes
+    `ingest_once` / `live_connected` / `external_referenced` / `tombstoned`
+    rows from pull-sync (a unit test cannot spin up a real Postgres WHERE
+    filter) — this proves the QUERY SHAPE encodes the R(c)/§10.5 scope,
+    mirroring test_cocoindex_writer_fence.py's exact-SQL-text convention."""
+
+    def test_query_filters_keep_and_watch_and_excludes_tombstoned(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        # The file-wide autouse fixture (`_fake_pull_sync_stack`) replaces
+        # `server_mod._fetch_pull_sync_candidates` with a no-op fake so the
+        # PRE-EXISTING /walk tests stay unaffected by P5 — undo it here so
+        # THIS test calls the REAL implementation it means to exercise.
+        monkeypatch.undo()
+
+        fake_rows = [
+            {
+                "id": "sd-1",
+                "storage_path": "a.md",
+                "logical_path": "a.md",
+                "content_hash": "abc123",
+            }
+        ]
+        conn = _FakeFetchConn(fake_rows)
+
+        rows = asyncio.run(server_mod._fetch_pull_sync_candidates(conn))
+
+        assert rows == fake_rows
+        assert len(conn.calls) == 1
+        query, args = conn.calls[0]
+        assert "retention_class = $1" in query
+        assert "admission_status <> 'tombstoned'" in query
+        assert args == ("keep_and_watch",)
+
+
+class TestPullSyncHashGate:
+    """{138.14} P5 — the content-hash gate: the deliverable is that an
+    unchanged bucket object is NEVER rewritten (byte- and mtime-identical);
+    a changed or absent local file IS materialised via the injected
+    downloader, keyed on the FROZEN `storage_path`, written to the MUTABLE
+    `logical_path` (R(id) rename tolerance)."""
+
+    def test_local_file_sha256_returns_none_for_a_missing_file(
+        self, tmp_path: Path
+    ) -> None:
+        from scripts.cocoindex_pipeline.server import _local_file_sha256
+
+        assert _local_file_sha256(tmp_path / "does-not-exist.md") is None
+
+    def test_local_file_sha256_matches_hashlib_reference(
+        self, tmp_path: Path
+    ) -> None:
+        from scripts.cocoindex_pipeline.server import _local_file_sha256
+
+        path = tmp_path / "f.md"
+        data = b"some corpus bytes"
+        path.write_bytes(data)
+
+        assert _local_file_sha256(path) == hashlib.sha256(data).hexdigest()
+
+    def test_hash_match_skips_download_and_leaves_file_byte_and_mtime_identical(
+        self, tmp_path: Path
+    ) -> None:
+        from scripts.cocoindex_pipeline.server import _materialise_one
+
+        data = b"identical bytes"
+        target = tmp_path / "doc.md"
+        target.write_bytes(data)
+        before_mtime_ns = target.stat().st_mtime_ns
+
+        def _download(_storage_path: str) -> bytes:
+            raise AssertionError(
+                "download must NEVER be called on a content-hash match"
+            )
+
+        row = {
+            "storage_path": "doc.md",
+            "logical_path": "doc.md",
+            "content_hash": hashlib.sha256(data).hexdigest(),
+        }
+
+        outcome = _materialise_one(str(tmp_path), row, _download)
+
+        assert outcome == "unchanged"
+        assert target.read_bytes() == data
+        assert target.stat().st_mtime_ns == before_mtime_ns
+
+    def test_hash_mismatch_downloads_and_rewrites_the_file(
+        self, tmp_path: Path
+    ) -> None:
+        from scripts.cocoindex_pipeline.server import _materialise_one
+
+        target = tmp_path / "doc.md"
+        target.write_bytes(b"stale bytes")
+        new_bytes = b"fresh bytes from the bucket"
+        calls: list[str] = []
+
+        def _download(storage_path: str) -> bytes:
+            calls.append(storage_path)
+            return new_bytes
+
+        row = {
+            "storage_path": "doc.md",
+            "logical_path": "doc.md",
+            "content_hash": hashlib.sha256(new_bytes).hexdigest(),
+        }
+
+        outcome = _materialise_one(str(tmp_path), row, _download)
+
+        assert outcome == "materialised"
+        assert target.read_bytes() == new_bytes
+        assert calls == ["doc.md"]
+
+    def test_missing_local_file_is_materialised_via_download(
+        self, tmp_path: Path
+    ) -> None:
+        from scripts.cocoindex_pipeline.server import _materialise_one
+
+        target = tmp_path / "new" / "doc.md"
+        new_bytes = b"brand new bytes"
+
+        def _download(_storage_path: str) -> bytes:
+            return new_bytes
+
+        row = {
+            "storage_path": "new/doc.md",
+            "logical_path": "new/doc.md",
+            "content_hash": hashlib.sha256(new_bytes).hexdigest(),
+        }
+
+        outcome = _materialise_one(str(tmp_path), row, _download)
+
+        assert outcome == "materialised"
+        assert target.read_bytes() == new_bytes
+
+    def test_download_keys_on_frozen_storage_path_write_targets_mutable_logical_path(
+        self, tmp_path: Path
+    ) -> None:
+        """R(id) rename tolerance: the bucket object key is the FROZEN
+        `storage_path`; the local write target is the MUTABLE `logical_path`
+        (a rename updates `logical_path`, never `storage_path`, per
+        `_upsert_source_document`)."""
+        from scripts.cocoindex_pipeline.server import _materialise_one
+
+        new_bytes = b"renamed doc bytes"
+        requested_keys: list[str] = []
+
+        def _download(storage_path: str) -> bytes:
+            requested_keys.append(storage_path)
+            return new_bytes
+
+        row = {
+            "storage_path": "original/name.md",  # frozen bucket key
+            "logical_path": "renamed/name.md",  # current client-facing path
+            "content_hash": hashlib.sha256(new_bytes).hexdigest(),
+        }
+
+        outcome = _materialise_one(str(tmp_path), row, _download)
+
+        assert outcome == "materialised"
+        assert requested_keys == ["original/name.md"]
+        assert (tmp_path / "renamed" / "name.md").read_bytes() == new_bytes
+        assert not (tmp_path / "original" / "name.md").exists()
+
+    def test_local_path_falls_back_to_storage_path_when_logical_path_absent(
+        self, tmp_path: Path
+    ) -> None:
+        from scripts.cocoindex_pipeline.server import _materialise_one
+
+        new_bytes = b"no logical_path yet"
+
+        def _download(_storage_path: str) -> bytes:
+            return new_bytes
+
+        row = {
+            "storage_path": "legacy/name.md",
+            "logical_path": None,
+            "content_hash": hashlib.sha256(new_bytes).hexdigest(),
+        }
+
+        outcome = _materialise_one(str(tmp_path), row, _download)
+
+        assert outcome == "materialised"
+        assert (tmp_path / "legacy" / "name.md").read_bytes() == new_bytes
+
+
+class TestPullSyncFenceHold:
+    """{138.14} P5 — the {138.9} writer fence is held across materialise ->
+    walk; a busy fence means the walk NEVER runs (the P5 guard: no walk may
+    ever run unfenced)."""
+
+    def test_walk_runs_under_the_fence_hold_in_acquire_materialise_walk_release_order(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        # `_pull_sync_materialise` no-ops (idle-mode guard) when
+        # COCOINDEX_SOURCE_PATH is unset — set it so the "materialise" event
+        # below is actually reached (mirrors the /walk route's own
+        # precondition, already validated upstream in `_walk_handler`).
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(tmp_path))
+
+        events: list[tuple[str]] = []
+
+        class _OrderedConn(_FakeFenceConn):
+            async def fetchval(self, query: str, *args: object) -> bool:
+                events.append(
+                    (
+                        "fence_acquire"
+                        if "acquire" in query
+                        else "fence_release",
+                    )
+                )
+                return await super().fetchval(query, *args)
+
+        conn = _OrderedConn(acquire_result=True)
+        pool = _FakeFencePool(conn)
+
+        async def _fake_build_pool() -> _FakeFencePool:
+            return pool
+
+        async def _fake_fetch_candidates(_conn: object) -> list[dict]:
+            events.append(("materialise",))
+            return []
+
+        class _FakeApp:
+            def update_blocking(self, **_kwargs: object) -> None:
+                events.append(("update_blocking",))
+
+        monkeypatch.setattr(server_mod, "_build_pull_sync_pool", _fake_build_pool)
+        monkeypatch.setattr(
+            server_mod, "_fetch_pull_sync_candidates", _fake_fetch_candidates
+        )
+
+        asyncio.run(
+            server_mod._pull_sync_then_walk(_FakeApp(), False, "req-order")
+        )
+
+        assert [event[0] for event in events] == [
+            "fence_acquire",
+            "materialise",
+            "update_blocking",
+            "fence_release",
+        ]
+        assert pool.closed
+
+    def test_busy_fence_raises_and_never_calls_update_blocking(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+        from scripts.cocoindex_pipeline.writer_fence import WriterFenceBusyError
+
+        conn = _FakeFenceConn(acquire_result=False)
+        pool = _FakeFencePool(conn)
+
+        async def _fake_build_pool() -> _FakeFencePool:
+            return pool
+
+        monkeypatch.setattr(server_mod, "_build_pull_sync_pool", _fake_build_pool)
+
+        update_mock = Mock()
+
+        class _FakeApp:
+            update_blocking = update_mock
+
+        with pytest.raises(WriterFenceBusyError):
+            asyncio.run(
+                server_mod._pull_sync_then_walk(_FakeApp(), False, "req-busy")
+            )
+
+        update_mock.assert_not_called()
+        assert pool.closed  # the pool is still closed via the `finally`
+        # Never attempted a release call — only the (failed) acquire.
+        assert len(conn.calls) == 1
+
+
+class TestWalkNeverRunsUnfenced:
+    """{138.14} P5 guard, end-to-end via the real production entry point:
+    `_run_walk` is the SOLE caller of `update_blocking` in this module, so a
+    busy writer fence must abort the pass WITHOUT ever invoking it — the
+    failure is swallowed (logged), never crashing the worker thread nor
+    wedging the single-flight lock."""
+
+    def test_busy_fence_aborts_the_pass_without_calling_update_blocking(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        busy_pool = _FakeFencePool(_FakeFenceConn(acquire_result=False))
+
+        async def _fake_build_pool() -> _FakeFencePool:
+            return busy_pool
+
+        monkeypatch.setattr(server_mod, "_build_pull_sync_pool", _fake_build_pool)
+
+        flow = _patched_walk_app()
+        with patch.object(
+            flow.KH_PIPELINE_APP, "update_blocking", return_value=None
+        ) as mock_update:
+            server_mod._run_walk(False, "req-busy-fence")
+
+        mock_update.assert_not_called()
+        # Only the (failed) acquire call was made — a busy fence never
+        # attempts a release.
+        assert len(busy_pool.conn.calls) == 1
+
+
+class TestPullSyncEndToEnd:
+    """{138.14} P5 — the full materialise-then-walk pass via the real
+    `_run_walk` entry point, proving the content-hash gate (memoisation
+    preservation) and the fence-hold ordering TOGETHER: an unchanged object
+    is untouched (mtime+bytes preserved, never downloaded) and a changed
+    object is materialised BEFORE the walk (`update_blocking`) runs."""
+
+    def test_unchanged_file_untouched_and_changed_file_materialised_before_walk(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+
+        # Row A: on-disk bytes already match the stored content_hash exactly
+        # — pull-sync must NOT touch it (mtime + bytes untouched, never
+        # downloaded).
+        unchanged_path = corpus / "unchanged.md"
+        unchanged_bytes = b"unchanged content"
+        unchanged_path.write_bytes(unchanged_bytes)
+        unchanged_hash = hashlib.sha256(unchanged_bytes).hexdigest()
+        before_mtime_ns = unchanged_path.stat().st_mtime_ns
+
+        # Row B: on-disk bytes are STALE — pull-sync must download + rewrite
+        # it before the walk runs.
+        changed_path = corpus / "changed.md"
+        changed_path.write_bytes(b"stale content")
+        new_bytes = b"fresh content from the bucket"
+        new_hash = hashlib.sha256(new_bytes).hexdigest()
+
+        rows = [
+            {
+                "id": "sd-unchanged",
+                "storage_path": "unchanged.md",
+                "logical_path": "unchanged.md",
+                "content_hash": unchanged_hash,
+            },
+            {
+                "id": "sd-changed",
+                "storage_path": "changed.md",
+                "logical_path": "changed.md",
+                "content_hash": new_hash,
+            },
+        ]
+
+        async def _fake_fetch_candidates(_conn: object) -> list[dict]:
+            return rows
+
+        downloaded: list[str] = []
+
+        def _fake_downloader():
+            def _download(storage_path: str) -> bytes:
+                downloaded.append(storage_path)
+                assert storage_path == "changed.md", (
+                    "the UNCHANGED row must never be downloaded"
+                )
+                return new_bytes
+
+            return _download
+
+        monkeypatch.setattr(
+            server_mod, "_fetch_pull_sync_candidates", _fake_fetch_candidates
+        )
+        monkeypatch.setattr(
+            server_mod, "_resolve_storage_downloader", _fake_downloader
+        )
+
+        observed_during_walk: dict[str, object] = {}
+
+        def _record_update(**_kwargs: object) -> None:
+            # By the time the walk runs, materialise must already be done.
+            observed_during_walk["changed_bytes"] = changed_path.read_bytes()
+            observed_during_walk["unchanged_mtime_ns"] = (
+                unchanged_path.stat().st_mtime_ns
+            )
+
+        flow = _patched_walk_app()
+        with patch.object(
+            flow.KH_PIPELINE_APP,
+            "update_blocking",
+            side_effect=_record_update,
+        ) as mock_update:
+            server_mod._run_walk(False, "req-e2e")
+
+        mock_update.assert_called_once_with(live=False, full_reprocess=False)
+        # The changed file was rewritten with the NEW bytes BEFORE the walk ran.
+        assert observed_during_walk["changed_bytes"] == new_bytes
+        assert changed_path.read_bytes() == new_bytes
+        # The unchanged file's mtime is BIT-IDENTICAL — never rewritten, so
+        # cocoindex's own content-hash memoisation short-circuits it on walk.
+        assert observed_during_walk["unchanged_mtime_ns"] == before_mtime_ns
+        assert unchanged_path.stat().st_mtime_ns == before_mtime_ns
+        assert unchanged_path.read_bytes() == unchanged_bytes
+        # Only the CHANGED row's object was ever downloaded.
+        assert downloaded == ["changed.md"]

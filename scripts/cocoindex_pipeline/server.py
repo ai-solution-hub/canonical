@@ -42,6 +42,8 @@ References:
 
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -51,7 +53,15 @@ import threading
 import time
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+
+# `asyncpg` + `writer_fence` are plain, side-effect-free imports (no cocoindex
+# ContextKey registration risk — `writer_fence.py` imports NO cocoindex symbol
+# at all, `TYPE_CHECKING`-only `asyncpg`) so, unlike `scripts.cocoindex_pipeline
+# .flow`, both are safe at module top rather than lazily inside a function
+# (ID-138 {138.14} P5 pull-sync — TECH.md §2.3 R(c) / §2.6 R(ops)).
+import asyncpg
+from scripts.cocoindex_pipeline.writer_fence import WriterFenceBusyError, writer_fence
 
 # `scripts.cocoindex_pipeline.extract` is the single in-house Trafilatura
 # cleaner ({112.5}). The `POST /extract` route ({112.6}) calls it over HTTP so
@@ -412,31 +422,254 @@ async def _read_full_reprocess_flag(request: web.Request) -> bool:
     return False
 
 
-def _run_walk(full_reprocess: bool, request_id: str) -> None:
-    """Worker-thread target — run ONE non-live corpus walk, release the lock.
+# ──────────────────────────────────────────────────────────────────────────
+# P5 — content-hash-gated pull-sync ({138.14}; TECH.md §3.2 P5, §2.3 R(c),
+# §2.6 R(ops); DR-015)
+# ──────────────────────────────────────────────────────────────────────────
+#
+# Bucket → VPS-volume materialise, run immediately before every corpus walk
+# (`_run_walk`, the sole caller of `update_blocking(...)` in this module — see
+# below) and under the SAME {138.9} writer-fence hold the walk itself runs
+# under, so no walk can ever fire unfenced (P5 guard).
+#
+# CONTENT-HASH GATE (the deliverable): a local file is written ONLY when its
+# on-disk sha256 differs from the row's stored `content_hash` (populated from
+# cocoindex's own `FileLike.content_fingerprint()`, a sha256 digest — see
+# `test_cocoindex_identity_core.py::_FakeFile.content_fingerprint`). An
+# unchanged file is left byte- and mtime-untouched, so cocoindex's OWN
+# content-hash memoisation (COCO.10 two-tier memo, flow.py :2650-2654) still
+# short-circuits it on the walk that follows — a naive re-download would churn
+# mtime and defeat that memoisation (full re-extraction bill, §8.4).
+#
+# SCOPE (§10.5 shrink): ONLY `retention_class = 'keep_and_watch'`, non-
+# tombstoned rows. `ingest_once` sources are extracted once via the {138.11}
+# one-shot path and never re-walked, so they are never pull-synced; the
+# "synthetic Platform corpus" the ruling also names is not a separate code
+# path — once id-134 seeds it into the SAME bucket + `source_documents` table
+# (that seeding is id-134's own work, NOT this Subtask's), its rows are
+# `keep_and_watch` like any client corpus and fall out of this SAME filter.
+#
+# BUCKET KEY vs LOCAL PATH: the bucket object key is the FROZEN `storage_path`
+# (R(a) SEED-CONTRACT — see `lib/edit-intent/write-back.ts` T1, the mirror
+# upload-direction leg); the LOCAL destination is the MUTABLE `logical_path`
+# (falling back to `storage_path` if unset) — the path cocoindex's walk
+# actually scans by, so a rename (which updates `logical_path`, never
+# `storage_path`, per `_upsert_source_document`) is picked up correctly.
 
-    Runs `KH_PIPELINE_APP.update_blocking(live=False, full_reprocess=…)`, which
-    reuses the cached lifespan-bearing default env entered at boot and runs
-    `app_main` exactly once (bl-221 G2), then returns to idle. The single-flight
-    lock is released in a `finally` so a FAILED walk (an exception in
-    `update_blocking`) does NOT wedge the lock — the next /walk signal can start
-    a fresh pass. A walk failure does NOT flag the worker crashed: /health
-    reflects the long-lived environment's liveness, not a one-shot walk's
-    outcome (the walk's result is observed via the pipeline_runs webhook +
-    {66.15} datapath monitor), so a transient walk error must not fail the
-    container's liveness probe.
+_PULL_SYNC_RETENTION_CLASS = "keep_and_watch"
+# Mirrors `lib/edit-intent/write-back.ts` / `scripts/provision-corpus-bucket.ts`
+# `CORPUS_BUCKET` — one private `corpus` bucket per client project (T3, {138.8}).
+_CORPUS_BUCKET = "corpus"
+
+
+async def _build_pull_sync_pool() -> "asyncpg.Pool":
+    """Build the short-lived asyncpg pool the pull-sync fence + query use.
+
+    Deliberately NOT the cocoindex-managed `DB_CTX` pool: `coco.use_context`
+    only resolves from inside an active cocoindex component context (a
+    mount/`App.update` call) — this walk-worker thread is a plain
+    `threading.Thread` target, not one, so `DB_CTX` is unreachable here (see
+    `cocoindex._internal.component_ctx.use_context`'s "must be called from
+    within an active component context" contract). Reuses flow.py's
+    `_build_dsn()` (the `COCOINDEX_DB_DSN` env var) rather than re-deriving
+    the DSN a second way — see that function's docstring for why it must be
+    an explicit, fully-formed pooler string (no host reconstruction, ID-49.8).
+    """
+    from scripts.cocoindex_pipeline.flow import _build_dsn
+
+    return await asyncpg.create_pool(_build_dsn(), min_size=1, max_size=2)
+
+
+def _resolve_storage_downloader() -> Callable[[str], bytes]:
+    """Return a `storage_path -> bytes` downloader over the `corpus` bucket.
+
+    Mirrors `scripts/bid_worker.py`'s `SUPABASE_URL` /
+    `SUPABASE_SERVICE_ROLE_KEY` env convention and its `supabase-py`
+    `.storage.from_(bucket).download(...)` precedent (same file,
+    `fill_template_job`) — outbound HTTPS only, zero new ingress (DR-015).
+    One client is built per pull-sync pass and reused across every candidate
+    row (not one client per row).
+    """
+    from supabase import create_client
+
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not url or not key:
+        raise RuntimeError(
+            "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set for "
+            "corpus pull-sync"
+        )
+    client = create_client(url, key)
+
+    def _download(storage_path: str) -> bytes:
+        return client.storage.from_(_CORPUS_BUCKET).download(storage_path)
+
+    return _download
+
+
+def _local_file_sha256(path: Path) -> str | None:
+    """Return the on-disk file's sha256 hex digest, or `None` if absent.
+
+    `None` (never a rewrite) is a distinct outcome from "hash mismatch" —
+    both fall through to a materialise below, but the distinction matters for
+    tests/observability (a genuinely missing local file vs. a stale one).
+    """
+    if not path.is_file():
+        return None
+    digest = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1_048_576), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+async def _fetch_pull_sync_candidates(
+    conn: "asyncpg.Connection",
+) -> list[dict[str, Any]]:
+    """Fetch the pull-sync scope: `keep_and_watch`, non-tombstoned rows only.
+
+    `ingest_once` / `live_connected` / `external_referenced` rows are excluded
+    by the `retention_class` filter; a `tombstoned` row is excluded by the
+    `admission_status` filter regardless of its `retention_class` (R(ops) —
+    a tombstoned source is never re-materialised).
+    """
+    rows = await conn.fetch(
+        "SELECT id, storage_path, logical_path, content_hash "
+        "FROM public.source_documents "
+        "WHERE retention_class = $1 AND admission_status <> 'tombstoned'",
+        _PULL_SYNC_RETENTION_CLASS,
+    )
+    return [dict(row) for row in rows]
+
+
+def _materialise_one(
+    source_root: str, row: dict[str, Any], download: Callable[[str], bytes]
+) -> str:
+    """Materialise ONE candidate row content-hash-gated. Returns "unchanged"
+    or "materialised" (never raises on a hash match — only a genuine
+    download/write fault propagates, aborting this pull-sync pass — see
+    `_pull_sync_then_walk`)."""
+    storage_path = row["storage_path"]
+    logical_path = row.get("logical_path") or storage_path
+    target = Path(source_root) / logical_path
+    local_hash = _local_file_sha256(target)
+    if local_hash is not None and local_hash == row["content_hash"]:
+        # Content-hash match — leave the file COMPLETELY untouched (no write,
+        # no mtime churn) so cocoindex's own memoisation short-circuits it.
+        return "unchanged"
+    data = download(storage_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(data)
+    return "materialised"
+
+
+async def _pull_sync_materialise(conn: "asyncpg.Connection") -> dict[str, int]:
+    """Run one content-hash-gated pull-sync pass over the keep_and_watch (+
+    Platform) scope. Returns per-outcome counts for observability/tests.
+
+    Idle-mode guard (belt-and-braces): `_walk_handler` already rejects an
+    unset/missing `COCOINDEX_SOURCE_PATH` with a 400 BEFORE `_run_walk` is
+    ever spawned, so this branch is not reachable via the HTTP route today —
+    it guards any future/direct caller of this function the same way
+    `_seed_workspace_manifest` guards idle mode.
+    """
+    source_root = os.environ.get("COCOINDEX_SOURCE_PATH")
+    if not source_root:
+        _logger.info(
+            "pull-sync: COCOINDEX_SOURCE_PATH unset — skipping (idle mode)"
+        )
+        return {"materialised": 0, "unchanged": 0}
+
+    rows = await _fetch_pull_sync_candidates(conn)
+    counts = {"materialised": 0, "unchanged": 0}
+    if not rows:
+        return counts
+
+    download = _resolve_storage_downloader()
+    for row in rows:
+        outcome = _materialise_one(source_root, row, download)
+        counts[outcome] = counts.get(outcome, 0) + 1
+    return counts
+
+
+async def _pull_sync_then_walk(
+    app: Any, full_reprocess: bool, request_id: str
+) -> None:
+    """Acquire the {138.9} writer fence, pull-sync materialise, THEN run the
+    walk — all under the SAME fence hold (TECH §2.6 R(ops) five-writer map:
+    "sync"'s acquisition IS this hold; the cocoindex incremental walk needs no
+    separate acquisition because it runs here, inside it).
+
+    `WriterFenceBusyError` (another writer holds the lease) propagates to
+    `_run_walk`'s top-level boundary uncaught — this walk PASS aborts (logged,
+    single-flight lock released in `_run_walk`'s `finally`), `update_blocking`
+    is never called. This is the P5 guard's enforcement point: the walk
+    cannot run without first passing through this fence acquisition, because
+    `_run_walk` is the ONLY caller of `update_blocking` in this module.
+    """
+    pool = await _build_pull_sync_pool()
+    try:
+        async with writer_fence(pool, holder="pull_sync") as conn:
+            counts = await _pull_sync_materialise(conn)
+            _logger.info(
+                "pull-sync materialise complete (requestId=%s): %s",
+                request_id,
+                counts,
+            )
+            await asyncio.to_thread(
+                app.update_blocking, live=False, full_reprocess=full_reprocess
+            )
+    finally:
+        await pool.close()
+
+
+def _run_walk(full_reprocess: bool, request_id: str) -> None:
+    """Worker-thread target — pull-sync THEN run ONE non-live corpus walk
+    under the SAME writer-fence hold, release the single-flight lock.
+
+    ID-138 {138.14} P5: this is the SOLE production caller of
+    `update_blocking(...)` in this module (`__main__.py`'s `live=True` call is
+    a separate local-dev entry point, not this HTTP route), so wrapping it in
+    `_pull_sync_then_walk` (fence acquire → pull-sync materialise →
+    `update_blocking` → fence release) is sufficient to guarantee no walk
+    ever runs unfenced via `POST /walk` — there is no second path to guard.
+
+    `_pull_sync_then_walk` reuses the cached lifespan-bearing default env
+    `update_blocking` enters (via `asyncio.to_thread`, since `update_blocking`
+    is itself a blocking call), runs `app_main` exactly once (bl-221 G2), then
+    returns to idle. The single-flight lock is released in a `finally` so a
+    FAILED pass (an exception in `update_blocking`, in pull-sync materialise,
+    or a `WriterFenceBusyError` when another writer holds the lease) does NOT
+    wedge the lock — the next /walk signal can start a fresh pass. A walk
+    failure does NOT flag the worker crashed: /health reflects the long-lived
+    environment's liveness, not a one-shot walk's outcome (the walk's result
+    is observed via the pipeline_runs webhook + {66.15} datapath monitor), so
+    a transient walk error must not fail the container's liveness probe.
     """
     try:
         from scripts.cocoindex_pipeline.flow import KH_PIPELINE_APP
 
         _logger.info(
-            "/walk starting one-shot update_blocking(live=False, "
+            "/walk starting pull-sync + one-shot update_blocking(live=False, "
             "full_reprocess=%s, requestId=%s)",
             full_reprocess,
             request_id,
         )
-        KH_PIPELINE_APP.update_blocking(live=False, full_reprocess=full_reprocess)
+        asyncio.run(
+            _pull_sync_then_walk(KH_PIPELINE_APP, full_reprocess, request_id)
+        )
         _logger.info("/walk completed (requestId=%s)", request_id)
+    except WriterFenceBusyError as exc:
+        # Busy is a NORMAL, expected outcome (writer_fence.py) — another
+        # writer holds the lease, so THIS pass aborts without ever calling
+        # `update_blocking` (the P5 guard). A later /walk signal can retry.
+        # Logged at WARNING (not `.exception`) — this is not a fault.
+        _logger.warning(
+            "/walk pull-sync fence busy — pass skipped, no walk ran "
+            "(requestId=%s): %s",
+            request_id,
+            exc,
+        )
     except Exception:  # noqa: BLE001 — top-level worker boundary, must log
         # A walk failure is logged but does NOT mark the worker crashed (see
         # docstring): the long-lived env is still healthy; only this pass failed.
@@ -476,11 +709,12 @@ async def _walk_handler(request: web.Request) -> web.Response:
     spending the single-flight slot on a guaranteed no-op walk.
 
     Behaviour: validate bearer + source → acquire the single-flight guard →
-    spawn a daemon worker thread running `_run_walk` (one-shot
-    `update_blocking(live=False, full_reprocess=…)`) → return 202 Accepted +
-    `requestId` immediately (the walk runs async; completion is observed via the
-    pipeline_runs webhook). Does NOT touch `worker_is_healthy()` — a /walk
-    request cannot flip /health to 503.
+    spawn a daemon worker thread running `_run_walk` (P5 pull-sync under the
+    {138.9} writer fence, THEN one-shot `update_blocking(live=False,
+    full_reprocess=…)` — see `_run_walk` / `_pull_sync_then_walk`) → return
+    202 Accepted + `requestId` immediately (the walk runs async; completion is
+    observed via the pipeline_runs webhook). Does NOT touch
+    `worker_is_healthy()` — a /walk request cannot flip /health to 503.
     """
     # (1) Auth — bearer must match CRON_SECRET. Fail closed if the secret is
     #     unset (never allow an unauthenticated walk).
