@@ -42,6 +42,7 @@ import signal
 import sys
 import threading
 from pathlib import Path
+from typing import Callable
 from unittest.mock import Mock, patch
 
 import pytest
@@ -1964,6 +1965,172 @@ class TestPullSyncHashGate:
 
         assert outcome == "materialised"
         assert (tmp_path / "legacy" / "name.md").read_bytes() == new_bytes
+
+
+class TestPullSyncPathContainment:
+    """SECURITY (HIGH) — `logical_path` is DB-sourced but NOT trustworthy: it
+    is exactly the client-mutable rename attribute (R(id)), so a hostile or
+    corrupted value must NEVER let pull-sync write outside
+    `COCOINDEX_SOURCE_PATH`. Mirrors `TestStagePathEscape`'s existing
+    `_stage_handler` containment-test convention: refused, nothing written
+    outside the root, downloader never invoked."""
+
+    def _refusing_download(self) -> Callable[[str], bytes]:
+        def _download(_storage_path: str) -> bytes:
+            raise AssertionError(
+                "download must NEVER be called for a refused (escaping) row"
+            )
+
+        return _download
+
+    def test_parent_traversal_logical_path_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        from scripts.cocoindex_pipeline.server import _materialise_one
+
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        row = {
+            "storage_path": "escape.md",
+            "logical_path": "../escape.md",
+            "content_hash": "irrelevant",
+        }
+
+        outcome = _materialise_one(str(corpus), row, self._refusing_download())
+
+        assert outcome == "refused"
+        assert not (tmp_path / "escape.md").exists()
+        assert list(corpus.iterdir()) == []
+
+    def test_absolute_logical_path_is_refused(self, tmp_path: Path) -> None:
+        from scripts.cocoindex_pipeline.server import _materialise_one
+
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        abs_target = tmp_path / "abs-escape.md"
+        row = {
+            "storage_path": "escape.md",
+            "logical_path": str(abs_target),
+            "content_hash": "irrelevant",
+        }
+
+        outcome = _materialise_one(str(corpus), row, self._refusing_download())
+
+        assert outcome == "refused"
+        assert not abs_target.exists()
+
+    def test_embedded_parent_traversal_is_refused(self, tmp_path: Path) -> None:
+        """`a/../../b` has NO leading `..` and is not absolute, but still
+        escapes the root two levels up once resolved — must be refused."""
+        from scripts.cocoindex_pipeline.server import _materialise_one
+
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        row = {
+            "storage_path": "escape.md",
+            "logical_path": "a/../../b/escape.md",
+            "content_hash": "irrelevant",
+        }
+
+        outcome = _materialise_one(str(corpus), row, self._refusing_download())
+
+        assert outcome == "refused"
+        assert not (tmp_path / "b" / "escape.md").exists()
+        assert not (tmp_path.parent / "b" / "escape.md").exists()
+
+    def test_empty_and_whitespace_target_path_resolves_to_none(
+        self, tmp_path: Path
+    ) -> None:
+        """Unit-level on `_resolve_pull_sync_target` directly (not via
+        `_materialise_one`'s `row.get("logical_path") or storage_path`
+        fallback, which would substitute a non-empty `storage_path` before
+        this guard ever runs — defence-in-depth for a directly-empty value)."""
+        from scripts.cocoindex_pipeline.server import _resolve_pull_sync_target
+
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        for bad_path in ("", "   "):
+            assert _resolve_pull_sync_target(str(corpus), bad_path) is None
+
+    def test_symlinked_subdir_inside_root_escaping_outward_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        """A symlink PLANTED INSIDE `source_root` that points OUTSIDE it must
+        not let a lexically-clean (no `..`, not absolute) `logical_path`
+        escape — only a `realpath`-based check (not a string-prefix check)
+        catches this."""
+        from scripts.cocoindex_pipeline.server import _materialise_one
+
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        outside = tmp_path / "outside"
+        outside.mkdir()
+
+        linked = corpus / "linked"
+        linked.symlink_to(outside, target_is_directory=True)
+
+        row = {
+            "storage_path": "escape.md",
+            "logical_path": "linked/escape.md",
+            "content_hash": "irrelevant",
+        }
+
+        outcome = _materialise_one(str(corpus), row, self._refusing_download())
+
+        assert outcome == "refused"
+        assert not (outside / "escape.md").exists()
+
+    def test_refused_row_does_not_abort_the_pass_other_rows_still_materialise(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A single poisoned/corrupted row must not block pull-sync for
+        every other legitimate keep_and_watch source — the pass continues."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+
+        good_bytes = b"legitimate content"
+        rows = [
+            {
+                "id": "sd-evil",
+                "storage_path": "evil.md",
+                "logical_path": "../evil.md",
+                "content_hash": "irrelevant",
+            },
+            {
+                "id": "sd-good",
+                "storage_path": "good.md",
+                "logical_path": "good.md",
+                "content_hash": hashlib.sha256(good_bytes).hexdigest(),
+            },
+        ]
+
+        async def _fake_fetch_candidates(_conn: object) -> list[dict]:
+            return rows
+
+        def _fake_downloader():
+            def _download(storage_path: str) -> bytes:
+                assert storage_path == "good.md"
+                return good_bytes
+
+            return _download
+
+        monkeypatch.setattr(
+            server_mod, "_fetch_pull_sync_candidates", _fake_fetch_candidates
+        )
+        monkeypatch.setattr(
+            server_mod, "_resolve_storage_downloader", _fake_downloader
+        )
+
+        conn = _FakeFenceConn(acquire_result=True)
+
+        counts = asyncio.run(server_mod._pull_sync_materialise(conn))
+
+        assert counts == {"materialised": 1, "unchanged": 0, "refused": 1}
+        assert (corpus / "good.md").read_bytes() == good_bytes
+        assert not (tmp_path / "evil.md").exists()
 
 
 class TestPullSyncFenceHold:

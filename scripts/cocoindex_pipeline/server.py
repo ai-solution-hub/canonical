@@ -455,6 +455,14 @@ async def _read_full_reprocess_flag(request: web.Request) -> bool:
 # (falling back to `storage_path` if unset) — the path cocoindex's walk
 # actually scans by, so a rename (which updates `logical_path`, never
 # `storage_path`, per `_upsert_source_document`) is picked up correctly.
+#
+# SECURITY — path containment: `logical_path` is DB-sourced but is exactly
+# the client-mutable rename attribute, so it is NOT trustworthy input. Every
+# local write target is resolved via `_resolve_pull_sync_target`, which
+# refuses (never writes) an absolute path, a `..` component, or a
+# realpath-resolved escape (including via a symlink planted inside
+# `source_root`) — mirroring `_stage_handler`'s existing `destPath`
+# containment discipline in this same file.
 
 _PULL_SYNC_RETENTION_CLASS = "keep_and_watch"
 # Mirrors `lib/edit-intent/write-back.ts` / `scripts/provision-corpus-bucket.ts`
@@ -542,16 +550,64 @@ async def _fetch_pull_sync_candidates(
     return [dict(row) for row in rows]
 
 
+def _resolve_pull_sync_target(source_root: str, logical_path: str) -> Path | None:
+    """Resolve `logical_path` to a path INSIDE `source_root`, or `None` on
+    ANY escape attempt — refuses, never raises, never touches the filesystem.
+
+    SECURITY (path-containment): `logical_path` is DB-sourced but NOT
+    trustworthy — it is precisely the client-mutable rename attribute (R(id):
+    a rename updates `logical_path` via the walk/upload legs), so a hostile
+    or corrupted value (`../../…`, an absolute path, or a symlink-assisted
+    escape) must never be allowed to write outside the VPS volume root.
+
+    Mirrors `_stage_handler`'s `destPath` containment discipline (Inv-3,
+    same file) rather than inventing a second convention: reject up-front
+    (empty/whitespace, absolute, any literal `..` component — cheap, no I/O),
+    THEN `os.path.realpath()`-resolve BOTH sides and require the resolved
+    target to sit under the resolved root. `os.path.realpath()` resolves
+    symlinks for the LONGEST EXISTING prefix and joins any remaining
+    (not-yet-created) components literally — it does not require the target
+    to exist — so this order is safe to call BEFORE `mkdir(parents=True)`
+    and still catches a symlink planted INSIDE `source_root` that would
+    otherwise redirect the write elsewhere.
+    """
+    if not logical_path or not logical_path.strip():
+        return None
+    if os.path.isabs(logical_path):
+        return None
+    if any(part == ".." for part in Path(logical_path).parts):
+        return None
+    source_real = os.path.realpath(source_root)
+    target_real = os.path.realpath(os.path.join(source_real, logical_path))
+    if target_real != source_real and not target_real.startswith(
+        source_real + os.sep
+    ):
+        return None
+    return Path(target_real)
+
+
 def _materialise_one(
     source_root: str, row: dict[str, Any], download: Callable[[str], bytes]
 ) -> str:
-    """Materialise ONE candidate row content-hash-gated. Returns "unchanged"
-    or "materialised" (never raises on a hash match — only a genuine
+    """Materialise ONE candidate row content-hash-gated. Returns "unchanged",
+    "materialised", or "refused" (a path-containment violation — logged,
+    never raises, never touches the filesystem for that row; only a genuine
     download/write fault propagates, aborting this pull-sync pass — see
-    `_pull_sync_then_walk`)."""
+    `_pull_sync_then_walk`). A refusal does NOT abort the pass: one
+    poisoned/corrupted row must not block pull-sync for every other
+    legitimate keep_and_watch source (see `_pull_sync_materialise`)."""
     storage_path = row["storage_path"]
     logical_path = row.get("logical_path") or storage_path
-    target = Path(source_root) / logical_path
+    target = _resolve_pull_sync_target(source_root, logical_path)
+    if target is None:
+        _logger.warning(
+            "pull-sync: REFUSING row id=%s — logical_path %r escapes "
+            "COCOINDEX_SOURCE_PATH (absolute / '..' component / symlink "
+            "escape); row skipped, no filesystem write attempted",
+            row.get("id"),
+            logical_path,
+        )
+        return "refused"
     local_hash = _local_file_sha256(target)
     if local_hash is not None and local_hash == row["content_hash"]:
         # Content-hash match — leave the file COMPLETELY untouched (no write,
@@ -565,7 +621,8 @@ def _materialise_one(
 
 async def _pull_sync_materialise(conn: "asyncpg.Connection") -> dict[str, int]:
     """Run one content-hash-gated pull-sync pass over the keep_and_watch (+
-    Platform) scope. Returns per-outcome counts for observability/tests.
+    Platform) scope. Returns per-outcome counts for observability/tests
+    ("materialised" / "unchanged" / "refused" — see `_materialise_one`).
 
     Idle-mode guard (belt-and-braces): `_walk_handler` already rejects an
     unset/missing `COCOINDEX_SOURCE_PATH` with a 400 BEFORE `_run_walk` is
@@ -578,10 +635,10 @@ async def _pull_sync_materialise(conn: "asyncpg.Connection") -> dict[str, int]:
         _logger.info(
             "pull-sync: COCOINDEX_SOURCE_PATH unset — skipping (idle mode)"
         )
-        return {"materialised": 0, "unchanged": 0}
+        return {"materialised": 0, "unchanged": 0, "refused": 0}
 
     rows = await _fetch_pull_sync_candidates(conn)
-    counts = {"materialised": 0, "unchanged": 0}
+    counts = {"materialised": 0, "unchanged": 0, "refused": 0}
     if not rows:
         return counts
 
