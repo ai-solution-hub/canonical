@@ -365,6 +365,43 @@ describe('POST /api/review/assignments', () => {
     expect(data.assignment.id).toBe(VALID_UUID);
     expect(data.assignment.filter_domains).toEqual(['H&S', 'Environmental']);
     expect(data.assignment.item_count).toBe(15);
+
+    // Content-of-query: ID-131 {131.19} G-GOV-FACET re-pointed the item_count
+    // count query from content_items onto record_lifecycle (owner_kind=
+    // 'source_document') joined to source_documents — verify the join/filter
+    // shape actually landed, not just that some count came back.
+    expect(mockSupabase.from).toHaveBeenCalledWith('record_lifecycle');
+    const eqCalls = mockSupabase._chain.eq.mock.calls;
+    expect(
+      eqCalls.some(
+        (c: unknown[]) => c[0] === 'owner_kind' && c[1] === 'source_document',
+      ),
+    ).toBe(true);
+    const inCalls = mockSupabase._chain.in.mock.calls;
+    expect(
+      inCalls.some(
+        (c: unknown[]) =>
+          c[0] === 'source_documents.primary_domain' &&
+          Array.isArray(c[1]) &&
+          (c[1] as string[]).includes('H&S'),
+      ),
+    ).toBe(true);
+    expect(
+      inCalls.some(
+        (c: unknown[]) =>
+          c[0] === 'source_documents.content_type' &&
+          Array.isArray(c[1]) &&
+          (c[1] as string[]).includes('article'),
+      ),
+    ).toBe(true);
+    expect(
+      inCalls.some(
+        (c: unknown[]) =>
+          c[0] === 'freshness' &&
+          Array.isArray(c[1]) &&
+          (c[1] as string[]).includes('stale'),
+      ),
+    ).toBe(true);
   });
 
   it('creates assignment with minimal body (only reviewer_id)', async () => {

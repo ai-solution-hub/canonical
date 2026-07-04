@@ -92,12 +92,13 @@ describe('GET /api/review/history', () => {
       role: 'editor',
     });
 
-    // Default: the requested item resolves to a backing source document.
-    // ingestion_quality_log is now keyed by source_document_id (ID-131
-    // {131.13} G-GOV-FACET-B rename), so the route looks this up via
-    // content_items before querying the log — tests override per-case below.
+    // Default: item_id resolves to an existing source_documents row. Post
+    // ID-131 {131.19}, item_id IS the source_documents id directly (no
+    // separate resolved id) — the route's existence check selects `id` and
+    // then uses item_id itself as the ingestion_quality_log.source_document_id
+    // filter value. Tests override per-case below.
     mockSupabase._chain.single.mockResolvedValue({
-      data: { source_document_id: 'a1a1a1a1-0000-4000-8000-000000000099' },
+      data: { id: 'a1a1a1a1-0000-4000-8000-000000000099' },
       error: null,
     });
   });

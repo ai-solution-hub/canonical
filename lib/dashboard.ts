@@ -318,10 +318,16 @@ export async function fetchUnifiedDashboardData(
         p_role: effectiveRole,
       }),
 
-      // 1: Recent activity (grouped RPC — unchanged)
-      supabase.rpc('get_grouped_activity_feed', {
-        p_limit: 10,
-        p_is_admin: isAdmin,
+      // 1: Recent activity. ID-131 {131.19}: get_grouped_activity_feed drops
+      // at M6 (IMS activity-feed feature, content_items-anchored) — the RPC
+      // call is removed and this leg is stubbed to an always-empty result so
+      // the module keeps compiling with the same `{data, error}` shape the
+      // extraction below expects. `recent_activity` is therefore always `[]`
+      // until a facet/typed-record-based activity feed replaces it (flagged
+      // for the Orchestrator/Curator — out of this Subtask's scope).
+      Promise.resolve({
+        data: [] as GroupedActivityRow[],
+        error: null as { message: string } | null,
       }),
 
       // 2: Team changes — content_history since last active (others' work)
@@ -382,13 +388,15 @@ export async function fetchUnifiedDashboardData(
         : Promise.resolve({ data: [], error: null }),
 
       // 7: Taxonomy-coverage gap (ID-63.12) — count of non-archived
-      // content_items that landed on the 'unclassified' sentinel established
-      // by {63.11} (primary_domain='unclassified' OR primary_subtopic=
-      // 'unclassified'). head:true + count:'exact' avoids transferring rows.
-      // Mirrors the Inv-7 taxonomy-miss concept that the {63.8} flow-end
-      // webhook emits as its taxonomy-miss counter.
+      // source_documents that landed on the 'unclassified' sentinel
+      // established by {63.11} (primary_domain='unclassified' OR
+      // primary_subtopic='unclassified'). ID-131 {131.19}: content_items is
+      // dying — primary_domain/primary_subtopic/archived_at live on
+      // source_documents (M3). head:true + count:'exact' avoids transferring
+      // rows. Mirrors the Inv-7 taxonomy-miss concept that the {63.8}
+      // flow-end webhook emits as its taxonomy-miss counter.
       supabase
-        .from('content_items')
+        .from('source_documents')
         .select('id', { count: 'exact', head: true })
         .is('archived_at', null)
         .or(UNCLASSIFIED_TAXONOMY_OR_PREDICATE),

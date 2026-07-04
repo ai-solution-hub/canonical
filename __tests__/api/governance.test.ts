@@ -492,23 +492,31 @@ describe('GET /api/governance/review', () => {
   });
 
   it('returns 200 with pending items list', async () => {
-    const mockItems = [
+    // ID-131 {131.19} G-GOV-FACET: the route now selects from
+    // record_lifecycle (owner_kind='source_document') with an embedded
+    // source_documents!inner(...) join. `title` in the response is derived
+    // from the embedded source_documents.filename (route.ts:108), not a
+    // flat column on the raw row.
+    const mockRows = [
       {
-        id: VALID_UUID,
-        title: 'Stale Policy',
-        suggested_title: null,
-        primary_domain: 'Compliance',
+        source_document_id: VALID_UUID,
         governance_review_status: 'pending',
         governance_review_due: '2026-03-01T00:00:00Z',
         governance_reviewer_id: null,
-        updated_by: 'test-user-id',
-        updated_at: '2026-02-15T00:00:00Z',
+        source_documents: {
+          id: VALID_UUID,
+          filename: 'Stale Policy',
+          suggested_title: null,
+          primary_domain: 'Compliance',
+          updated_by: 'test-user-id',
+          updated_at: '2026-02-15T00:00:00Z',
+        },
       },
     ];
 
     mockSupabase._chain.then.mockImplementation(
       (resolve: (v: unknown) => void) =>
-        resolve({ data: mockItems, error: null }),
+        resolve({ data: mockRows, error: null }),
     );
 
     const req = createTestRequest('/api/governance/review');
@@ -675,7 +683,7 @@ describe('POST /api/governance/review', () => {
 
     // Notification itemDetail lookup now uses .maybeSingle()
     mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-      data: { updated_by: 'other-user-id' },
+      data: { source_documents: { updated_by: 'other-user-id' } },
       error: null,
     });
 
@@ -733,7 +741,7 @@ describe('POST /api/governance/review', () => {
 
     // Notification itemDetail lookup (now .maybeSingle()): same user — no notification
     mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-      data: { updated_by: 'test-user-id' },
+      data: { source_documents: { updated_by: 'test-user-id' } },
       error: null,
     });
 
@@ -789,7 +797,7 @@ describe('POST /api/governance/review', () => {
 
     // Notification itemDetail lookup now uses .maybeSingle()
     mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-      data: { updated_by: 'other-user-id' },
+      data: { source_documents: { updated_by: 'other-user-id' } },
       error: null,
     });
 
@@ -885,7 +893,7 @@ describe('POST /api/governance/review', () => {
 
     // Notification itemDetail lookup
     mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-      data: { updated_by: 'other-user-id' },
+      data: { source_documents: { updated_by: 'other-user-id' } },
       error: null,
     });
 
@@ -990,7 +998,7 @@ describe('POST /api/governance/review', () => {
       );
 
       mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-        data: { updated_by: 'other-user-id' },
+        data: { source_documents: { updated_by: 'other-user-id' } },
         error: null,
       });
 
@@ -1038,7 +1046,7 @@ describe('POST /api/governance/review', () => {
       );
 
       mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-        data: { updated_by: 'other-user-id' },
+        data: { source_documents: { updated_by: 'other-user-id' } },
         error: null,
       });
 
@@ -1085,7 +1093,7 @@ describe('POST /api/governance/review', () => {
       );
 
       mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-        data: { updated_by: 'other-user-id' },
+        data: { source_documents: { updated_by: 'other-user-id' } },
         error: null,
       });
 
@@ -1127,7 +1135,7 @@ describe('POST /api/governance/review', () => {
       );
 
       mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-        data: { updated_by: 'other-user-id' },
+        data: { source_documents: { updated_by: 'other-user-id' } },
         error: null,
       });
 
@@ -1174,7 +1182,7 @@ describe('POST /api/governance/review', () => {
       );
 
       mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-        data: { updated_by: 'other-user-id' },
+        data: { source_documents: { updated_by: 'other-user-id' } },
         error: null,
       });
 
@@ -1217,7 +1225,7 @@ describe('POST /api/governance/review', () => {
       );
 
       mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-        data: { updated_by: 'other-user-id' },
+        data: { source_documents: { updated_by: 'other-user-id' } },
         error: null,
       });
 

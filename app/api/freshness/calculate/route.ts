@@ -49,11 +49,17 @@ export const POST = withRequestContext(
 
         const { item_ids } = parsed.data;
 
-        // Fetch items with their lifecycle data
-        const { data: items, error: fetchError } = await supabase
-          .from('content_items')
-          .select('id, lifecycle_type, updated_at, expiry_date')
-          .in('id', item_ids);
+        // Fetch items with their lifecycle data. ID-131 {131.19} G-GOV-FACET:
+        // content_items is dying — lifecycle_type/expiry_date live on the
+        // record_lifecycle facet (owner_kind='source_document', SD-only
+        // freshness axis per D7); updated_at lives on source_documents.
+        const { data: rawItems, error: fetchError } = await supabase
+          .from('record_lifecycle')
+          .select(
+            'source_document_id, lifecycle_type, expiry_date, source_documents!inner(id, updated_at)',
+          )
+          .eq('owner_kind', 'source_document')
+          .in('source_document_id', item_ids);
 
         if (fetchError) {
           logger.error(
@@ -66,7 +72,16 @@ export const POST = withRequestContext(
           );
         }
 
-        if (!items || items.length === 0) {
+        const items = (rawItems ?? [])
+          .filter((row) => row.source_documents !== null)
+          .map((row) => ({
+            id: row.source_document_id!,
+            lifecycle_type: row.lifecycle_type,
+            updated_at: row.source_documents!.updated_at,
+            expiry_date: row.expiry_date,
+          }));
+
+        if (items.length === 0) {
           return NextResponse.json(
             { error: 'No items found for the provided IDs' },
             { status: 404 },
@@ -83,12 +98,13 @@ export const POST = withRequestContext(
 
         for (const [itemId, freshness] of freshnessMap) {
           const { error: updateError } = await supabase
-            .from('content_items')
+            .from('record_lifecycle')
             .update({
               freshness,
               freshness_checked_at: now,
             })
-            .eq('id', itemId);
+            .eq('owner_kind', 'source_document')
+            .eq('source_document_id', itemId);
 
           if (updateError) {
             logger.error(

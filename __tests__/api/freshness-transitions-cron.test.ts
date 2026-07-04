@@ -65,6 +65,12 @@ const ADMIN_ID_2 = '00000000-0000-4000-8000-000000000002';
 const EDITOR_ID_1 = '00000000-0000-4000-8000-000000000003';
 const ALL_USER_IDS = [ADMIN_ID_1, ADMIN_ID_2, EDITOR_ID_1];
 
+/**
+ * Builds a record_lifecycle-facet-joined-to-source_documents row, matching
+ * the shape `app/api/cron/freshness-transitions/route.ts` now reads (ID-131
+ * {131.19} G-GOV-FACET: content_items is dying). Keeps top-level `id`/
+ * `title` convenience aliases for existing assertions.
+ */
 function makeTransition(
   overrides: Partial<{
     id: string;
@@ -75,17 +81,36 @@ function makeTransition(
     updated_at: string | null;
     lifecycle_type: string | null;
     content_owner_id: string | null;
+    governance_review_status: string | null;
   }> = {},
 ) {
+  const id = overrides.id ?? '00000000-0000-4000-8000-000000000010';
+  const title = overrides.title ?? 'Test Item';
   return {
-    id: overrides.id ?? '00000000-0000-4000-8000-000000000010',
-    title: overrides.title ?? 'Test Item',
+    id,
+    title,
+    source_document_id: id,
     previous_freshness: overrides.previous_freshness ?? 'fresh',
     freshness: overrides.freshness ?? 'stale',
-    primary_domain: overrides.primary_domain ?? 'Operations',
-    updated_at: overrides.updated_at ?? '2026-01-01T00:00:00Z',
     lifecycle_type: overrides.lifecycle_type ?? 'standard',
     content_owner_id: overrides.content_owner_id ?? null,
+    // Default to 'pending' (already in governance review, not eligible for
+    // auto-flagging) — this test file is about ownership-based notification
+    // ROUTING (owner_content_stale vs freshness_transition), not the
+    // governance bridge (covered separately in
+    // __tests__/api/cron/freshness-transitions.test.ts). A `null` default
+    // would make 'stale'/'expired' items auto-governance-eligible too
+    // (correct production behaviour — see D7/BI-22), introducing an
+    // uncontrolled extra governance_review_needed notification here.
+    governance_review_status: overrides.governance_review_status ?? 'pending',
+    verified_at: null,
+    source_documents: {
+      id,
+      filename: 'test-item.pdf',
+      suggested_title: title,
+      primary_domain: overrides.primary_domain ?? 'Operations',
+      updated_at: overrides.updated_at ?? '2026-01-01T00:00:00Z',
+    },
   };
 }
 

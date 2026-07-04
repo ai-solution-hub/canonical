@@ -67,6 +67,26 @@ interface ReviewCandidate {
   primary_domain: string | null;
 }
 
+// ID-131 {131.19} G-GOV-FACET: content_items is dying — next_review_date/
+// review_cadence_days/content_owner_id/governance_review_status live on the
+// record_lifecycle facet (owner_kind='source_document', SD-only cadence axis
+// per D7); title/domain/publication_status/archived_at on source_documents.
+interface ReviewCadenceFacetRow {
+  source_document_id: string | null;
+  next_review_date: string | null;
+  review_cadence_days: number | null;
+  content_owner_id: string | null;
+  governance_review_status: string | null;
+  source_documents: {
+    id: string;
+    filename: string;
+    suggested_title: string | null;
+    primary_domain: string;
+    publication_status: string;
+    archived_at: string | null;
+  } | null;
+}
+
 export async function GET(request: NextRequest) {
   if (!verifyCronAuth(request)) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
@@ -81,21 +101,30 @@ export async function GET(request: NextRequest) {
     // timestamp can silently return zero rows in some PostgREST versions).
     const todayDateString = new Date().toISOString().slice(0, 10);
 
-    const candidatesResult = await tryQuery<ReviewCandidate[]>(
+    // ID-131 {131.19}: content_items is dying — re-pointed onto the
+    // record_lifecycle facet joined to source_documents. NOTE (documented
+    // gap): the old `.is('superseded_by', null)` guard has no direct
+    // source_documents equivalent — supersession there is the existing
+    // `parent_id` version chain (TECH.md §"Supersession stays INLINE"), not
+    // a `superseded_by` column, and "is this the latest version" cannot be
+    // expressed as a single PostgREST column filter. Dropped rather than
+    // guessed; `archived_at IS NULL` + `publication_status != 'archived'`
+    // still exclude the common lifecycle-end states.
+    const candidatesResult = await tryQuery<ReviewCadenceFacetRow[]>(
       supabase
-        .from('content_items')
+        .from('record_lifecycle')
         .select(
-          'id, title, next_review_date, review_cadence_days, content_owner_id, governance_review_status, primary_domain',
+          'source_document_id, next_review_date, review_cadence_days, content_owner_id, governance_review_status, source_documents!inner(id, filename, suggested_title, primary_domain, publication_status, archived_at)',
         )
+        .eq('owner_kind', 'source_document')
         .lt('next_review_date', todayDateString)
-        .is('superseded_by', null)
-        .is('archived_at', null)
+        .is('source_documents.archived_at', null)
         // S216 §5.2 Phase 5 / §6.4 — exclude archived items from cadence
         // flagging. Belt-and-braces alongside `archived_at IS NULL`: the
         // §6.6 BIDIRECTIONAL trigger normally keeps the two columns in
         // lockstep, but pairing the filters defends against any future
         // direct `publication_status` write that bypasses the trigger.
-        .neq('publication_status', 'archived')
+        .neq('source_documents.publication_status', 'archived')
         .or(
           'governance_review_status.is.null,governance_review_status.eq.approved',
         ),
@@ -123,7 +152,22 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const candidates = candidatesResult.data;
+    const candidates: ReviewCandidate[] = candidatesResult.data
+      .filter(
+        (row) =>
+          row.source_document_id !== null && row.source_documents !== null,
+      )
+      .map((row) => ({
+        id: row.source_document_id!,
+        title:
+          row.source_documents!.suggested_title ??
+          row.source_documents!.filename,
+        next_review_date: row.next_review_date,
+        review_cadence_days: row.review_cadence_days,
+        content_owner_id: row.content_owner_id,
+        governance_review_status: row.governance_review_status,
+        primary_domain: row.source_documents!.primary_domain,
+      }));
 
     if (candidates.length === 0) {
       await recordPipelineRun({
@@ -161,12 +205,13 @@ export async function GET(request: NextRequest) {
       try {
         await sb(
           supabase
-            .from('content_items')
+            .from('record_lifecycle')
             .update({
               governance_review_status: 'review_overdue',
               governance_review_due: flaggedAt,
             })
-            .eq('id', item.id),
+            .eq('owner_kind', 'source_document')
+            .eq('source_document_id', item.id),
           'review_cadence.update',
         );
         flagged.push(item);

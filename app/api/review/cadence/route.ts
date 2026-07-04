@@ -85,12 +85,19 @@ export const GET = defineRoute(ReviewCadenceResponseSchema, async () => {
     const { allowed } = checkRateLimit(`review-cadence:${user.id}`, 10, 60_000);
     if (!allowed) return rateLimitResponse();
 
-    // Fetch all content items with minimal columns for cadence calculations
-    const { data: items, error: itemsError } = await supabase
-      .from('content_items')
+    // Fetch all content items with minimal columns for cadence calculations.
+    // ID-131 {131.19} G-GOV-FACET: content_items is dying — verified_at/
+    // governance_review_status live on the record_lifecycle facet (owner_kind
+    // ='source_document'; q_a_pair owners excluded — this report has no SD
+    // equivalent for a q_a_pair title/domain, and pre-refactor content_items
+    // never included q_a_pairs either, so this preserves existing behaviour);
+    // title/suggested_title/primary_domain live on source_documents.
+    const { data: rawItems, error: itemsError } = await supabase
+      .from('record_lifecycle')
       .select(
-        'id, title, suggested_title, primary_domain, verified_at, governance_review_status',
+        'source_document_id, verified_at, governance_review_status, source_documents!inner(id, filename, suggested_title, primary_domain)',
       )
+      .eq('owner_kind', 'source_document')
       .or(
         'governance_review_status.is.null,governance_review_status.neq.draft',
       );
@@ -102,6 +109,17 @@ export const GET = defineRoute(ReviewCadenceResponseSchema, async () => {
         { status: 500 },
       );
     }
+
+    const items = (rawItems ?? [])
+      .filter((row) => row.source_documents !== null)
+      .map((row) => ({
+        id: row.source_document_id!,
+        title: row.source_documents!.filename,
+        suggested_title: row.source_documents!.suggested_title,
+        primary_domain: row.source_documents!.primary_domain,
+        verified_at: row.verified_at,
+        governance_review_status: row.governance_review_status,
+      }));
 
     // Fetch governance config for per-domain timeout_days
     const { data: configRows, error: configError } = await supabase

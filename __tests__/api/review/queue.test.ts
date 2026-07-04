@@ -44,10 +44,38 @@ import { GET as getQueue } from '@/app/api/review/queue/route';
 
 const VALID_UUID = '00000000-0000-4000-8000-000000000001';
 
+// ID-131 {131.19} G-GOV-FACET: content_items is dying — the queue's base
+// table is now source_documents, with governance/freshness columns
+// (verified_at, verified_by, freshness, governance_review_status,
+// next_review_date, review_cadence_days) living on the embedded
+// record_lifecycle!inner facet (row.record_lifecycle[0]), not flat on the
+// row. makeMockItem builds the raw joined-row shape the route reads
+// (SourceDocumentReviewRow in route.ts) — facet-only keys passed via
+// `overrides` are routed into the nested record_lifecycle array so existing
+// call sites (`makeMockItem({ verified_at: ... })`) keep working unchanged.
+const FACET_FIELDS = [
+  'verified_at',
+  'verified_by',
+  'freshness',
+  'governance_review_status',
+  'next_review_date',
+  'review_cadence_days',
+] as const;
+
 function makeMockItem(overrides: Record<string, unknown> = {}) {
+  const facetOverrides: Record<string, unknown> = {};
+  const sourceDocOverrides: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(overrides)) {
+    if ((FACET_FIELDS as readonly string[]).includes(key)) {
+      facetOverrides[key] = value;
+    } else {
+      sourceDocOverrides[key] = value;
+    }
+  }
+
   return {
     id: VALID_UUID,
-    title: 'Test Item',
+    filename: 'test-item.pdf',
     suggested_title: 'Suggested Title',
     summary: 'A summary',
     primary_domain: 'Technology',
@@ -55,25 +83,26 @@ function makeMockItem(overrides: Record<string, unknown> = {}) {
     secondary_domain: null,
     secondary_subtopic: null,
     content_type: 'article',
-    platform: 'web',
-    author_name: 'Author',
-    source_domain: 'example.com',
-    thumbnail_url: null,
     captured_date: '2026-01-01',
     ai_keywords: ['test'],
     classification_confidence: 0.9,
-    quality_score: 72,
-    priority: 'medium',
-    user_tags: [],
-    metadata: null,
-    content: 'Some content',
     source_url: 'https://example.com',
-    verified_at: null,
-    verified_by: null,
-    freshness: 'fresh',
-    governance_review_status: null,
+    publication_status: 'published',
+    updated_at: '2026-01-01T00:00:00Z',
+    extracted_text: 'Some content',
     created_at: '2026-01-01T00:00:00Z',
-    ...overrides,
+    record_lifecycle: [
+      {
+        verified_at: null,
+        verified_by: null,
+        freshness: 'fresh',
+        governance_review_status: null,
+        next_review_date: null,
+        review_cadence_days: null,
+        ...facetOverrides,
+      },
+    ],
+    ...sourceDocOverrides,
   };
 }
 
@@ -155,7 +184,7 @@ describe('GET /api/review/queue — sort parameter', () => {
   ])('returns 200 when sort=%s', async (sort) => {
     configureRole(mockSupabase, 'editor');
 
-    const mockItems = [makeMockItem({ quality_score: 85 })];
+    const mockItems = [makeMockItem()];
     let thenCallCount = 0;
     mockSupabase._chain.then.mockImplementation(
       (resolve: (v: unknown) => void) => {
@@ -177,54 +206,19 @@ describe('GET /api/review/queue — sort parameter', () => {
 describe('GET /api/review/queue — quality_score in response', () => {
   beforeEach(resetMocks);
 
-  it('includes quality_score in mapped response items', async () => {
+  // ID-131 {131.19} G-GOV-FACET: quality_score has no typed-record home
+  // post-refactor (no source_documents or record_lifecycle column survived
+  // for it — see route.ts file header). mapToReviewQueueItem hardcodes it to
+  // `null` unconditionally, so the pre-refactor "present/null/undefined
+  // input" trio tested three distinct mapping paths that no longer exist —
+  // there is now exactly one path (always null), collapsing them into a
+  // single assertion. Extra/dead `quality_score` data on the raw row (as a
+  // real ingest pipeline row might still carry, pending a follow-up
+  // migration to drop the column) must NOT leak into the response.
+  it('always maps quality_score to null regardless of the underlying row', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const mockItems = [makeMockItem({ quality_score: 85 })];
-    let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => {
-        thenCallCount++;
-        if (thenCallCount === 1)
-          return resolve({ data: mockItems, error: null, count: 1 });
-        return resolve({ data: null, error: null, count: 0 });
-      },
-    );
-
-    const req = createTestRequest('/api/review/queue');
-    const res = await getQueue(req);
-
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.items[0].quality_score).toBe(85);
-  });
-
-  it('maps null quality_score when missing', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    const mockItems = [makeMockItem({ quality_score: null })];
-    let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => {
-        thenCallCount++;
-        if (thenCallCount === 1)
-          return resolve({ data: mockItems, error: null, count: 1 });
-        return resolve({ data: null, error: null, count: 0 });
-      },
-    );
-
-    const req = createTestRequest('/api/review/queue');
-    const res = await getQueue(req);
-
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.items[0].quality_score).toBeNull();
-  });
-
-  it('maps undefined quality_score to null', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    const mockItems = [makeMockItem({ quality_score: undefined })];
+    const mockItems = [makeMockItem({ quality_score: 85 } as never)];
     let thenCallCount = 0;
     mockSupabase._chain.then.mockImplementation(
       (resolve: (v: unknown) => void) => {

@@ -70,7 +70,10 @@ const TEST_USER_ID = 'user-abc-123';
  *   Phase 2 (main parallel batch):
  *     Promise.allSettled with 7 items:
  *       [0] attention counts — rpc('get_dashboard_attention_counts')
- *       [1] recent activity — rpc('get_grouped_activity_feed')
+ *       [1] recent activity — ID-131 {131.19}: get_grouped_activity_feed RPC
+ *           dropped at M6 (content_items-anchored) — this leg is now always
+ *           Promise.resolve({data: [], error: null}), never rpc(). Only ONE
+ *           rpc() call fires per invocation now (attention counts).
  *       [2] team changes (content_history) — from('content_history')
  *       [3] recent work (content_history) — from('content_history')
  *       [4] bid response team changes — from('form_response_history')
@@ -367,9 +370,10 @@ describe('fetchUnifiedDashboardData', () => {
     );
 
     expect(result.attention_sources.unclassified_count).toBe(6);
-    // The query must run against content_items so the sentinel rows are
-    // counted from the canonical table.
-    expect(mock.from).toHaveBeenCalledWith('content_items');
+    // ID-131 {131.19} G-GOV-FACET: content_items is dying — the sentinel
+    // columns (primary_domain/primary_subtopic/archived_at) now live on
+    // source_documents, so the query must run against that table.
+    expect(mock.from).toHaveBeenCalledWith('source_documents');
     expect(result.errors).not.toContain('unclassified_count query failed');
   });
 
@@ -712,26 +716,16 @@ describe('fetchUnifiedDashboardData', () => {
   it('error array tracks RPC failure', async () => {
     const mock = setupDefaultMock();
 
-    // Make the attention counts RPC fail and activity feed fail
-    let rpcIdx = 0;
-    mock.rpc.mockImplementation(() => {
-      const idx = rpcIdx++;
-      if (idx === 0) {
-        // attention counts RPC
-        return Promise.resolve({
-          data: null,
-          error: { message: 'attention counts fail' },
-        });
-      }
-      if (idx === 1) {
-        // activity feed RPC
-        return Promise.resolve({
-          data: null,
-          error: { message: 'activity fail' },
-        });
-      }
-      return Promise.resolve({ data: [], error: null });
-    });
+    // Make the attention counts RPC fail. ID-131 {131.19}: the
+    // get_grouped_activity_feed RPC was removed entirely — recent_activity
+    // is now Promise.resolve({data: [], error: null}), so it can never fail
+    // or push a 'recent_activity query failed' error.
+    mock.rpc.mockImplementation(() =>
+      Promise.resolve({
+        data: null,
+        error: { message: 'attention counts fail' },
+      }),
+    );
 
     const result = await fetchUnifiedDashboardData(
       mock as never,
@@ -741,7 +735,8 @@ describe('fetchUnifiedDashboardData', () => {
     );
 
     expect(result.errors).toContain('attention_counts RPC failed');
-    expect(result.errors).toContain('recent_activity query failed');
+    expect(result.errors).not.toContain('recent_activity query failed');
+    expect(result.recent_activity).toEqual([]);
   });
 
   it('defaults role to viewer when not provided', async () => {

@@ -45,6 +45,10 @@ export const CHANGE_REPORT_AUTO_GEN_MAX_ITEMS = 150;
 // Types
 // ──────────────────────────────────────────
 
+// ID-131 {131.19} G-GOV-FACET: content_items is dying — every selected
+// column here now lives on source_documents (M3 classification cols). title
+// has no direct SD column — derived from suggested_title/filename below
+// (matches the hybrid_search title-derivation convention, TECH.md).
 interface ContentItemRow {
   id: string;
   title: string;
@@ -200,11 +204,13 @@ export async function generateChangeReport(
   const periodStartISO = periodStart.toISOString();
   const periodEndISO = periodEnd.toISOString();
 
-  // Build the query with optional filters
+  // Build the query with optional filters. ID-131 {131.19}: content_items is
+  // dying — re-pointed onto source_documents (M3 classification cols);
+  // filename is fetched so `title` can be derived (no direct SD column).
   let query = supabase
-    .from('content_items')
+    .from('source_documents')
     .select(
-      'id, title, suggested_title, summary, primary_domain, primary_subtopic, content_type, ai_keywords, captured_date, summary_data',
+      'id, filename, suggested_title, summary, primary_domain, primary_subtopic, content_type, ai_keywords, captured_date, summary_data',
     )
     .gte('captured_date', periodStartISO)
     .lte('captured_date', periodEndISO)
@@ -230,7 +236,24 @@ export async function generateChangeReport(
     throw new AIServiceError('Failed to fetch content items for digest', 500);
   }
 
-  const typedItems = (items ?? []) as ContentItemRow[];
+  const typedItems = (
+    (items ?? []) as unknown as Array<
+      Omit<ContentItemRow, 'title'> & { filename: string }
+    >
+  ).map(
+    (row): ContentItemRow => ({
+      id: row.id,
+      title: row.suggested_title ?? row.filename,
+      suggested_title: row.suggested_title,
+      summary: row.summary,
+      primary_domain: row.primary_domain,
+      primary_subtopic: row.primary_subtopic,
+      content_type: row.content_type,
+      ai_keywords: row.ai_keywords,
+      captured_date: row.captured_date,
+      summary_data: row.summary_data,
+    }),
+  );
 
   if (typedItems.length === 0) {
     throw new AIServiceError(
@@ -536,9 +559,10 @@ export async function generateChangeReport(
       .gte('created_at', periodStartISO)
       .lte('created_at', periodEndISO);
 
-    // Count verified items in period
+    // Count verified items in period. ID-131 {131.19}: verified_at now lives
+    // on the record_lifecycle facet (governance axis, BI-20).
     const { count: verifiedCount } = await supabase
-      .from('content_items')
+      .from('record_lifecycle')
       .select('*', { count: 'exact', head: true })
       .gte('verified_at', periodStartISO)
       .lte('verified_at', periodEndISO);

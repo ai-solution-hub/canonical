@@ -47,6 +47,27 @@ interface TransitionItem {
   verified_at: string | null;
 }
 
+// ID-131 {131.19} G-GOV-FACET: content_items is dying — freshness/lifecycle
+// live on the record_lifecycle facet (owner_kind='source_document', freshness
+// axis is SD-only per D7); title/domain/updated_at live on the owning
+// source_documents row.
+interface FreshnessFacetRow {
+  source_document_id: string | null;
+  previous_freshness: FreshnessState | null;
+  freshness: FreshnessState | null;
+  lifecycle_type: string | null;
+  content_owner_id: string | null;
+  governance_review_status: string | null;
+  verified_at: string | null;
+  source_documents: {
+    id: string;
+    filename: string;
+    suggested_title: string | null;
+    primary_domain: string;
+    updated_at: string | null;
+  } | null;
+}
+
 interface GovConfig {
   domain: string;
   id: string;
@@ -86,7 +107,9 @@ function transitionMessage(
     ? new Date(updatedAt).toLocaleDateString('en-GB')
     : 'unknown';
   const lcStr = lifecycleType ?? 'unspecified';
-  return `Content item "${title}" in ${domainStr} transitioned from ${from} to ${to}. Last updated: ${dateStr}. Lifecycle type: ${lcStr}.`;
+  // ID-131 {131.19}: generalised from "Content item" to "Source document" —
+  // the freshness sweep is now source_document-owner-only (D7 per-axis).
+  return `Source document "${title}" in ${domainStr} transitioned from ${from} to ${to}. Last updated: ${dateStr}. Lifecycle type: ${lcStr}.`;
 }
 
 export async function GET(request: NextRequest) {
@@ -128,12 +151,17 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Find items where freshness changed (skip positive transitions to fresh)
+    // Find items where freshness changed (skip positive transitions to fresh).
+    // ID-131 {131.19}: content_items is dying — freshness/previous_freshness/
+    // lifecycle_type/content_owner_id/governance_review_status/verified_at
+    // now live on record_lifecycle (owner_kind='source_document', SD-only
+    // freshness axis per D7); title/domain/updated_at on source_documents.
     const { data: transitions, error: queryError } = await supabase
-      .from('content_items')
+      .from('record_lifecycle')
       .select(
-        'id, title, previous_freshness, freshness, primary_domain, updated_at, lifecycle_type, content_owner_id, governance_review_status, verified_at',
+        'source_document_id, previous_freshness, freshness, lifecycle_type, content_owner_id, governance_review_status, verified_at, source_documents!inner(id, filename, suggested_title, primary_domain, updated_at)',
       )
+      .eq('owner_kind', 'source_document')
       .not('previous_freshness', 'is', null)
       .neq('freshness', 'fresh'); // Skip transitions TO fresh (positive = silent)
     // Note: PostgREST cannot compare two columns directly, so we filter
@@ -150,10 +178,31 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Filter in-app: Supabase REST can't compare two columns directly
-    const changed = (transitions ?? []).filter(
-      (item) => item.freshness !== item.previous_freshness,
-    ) as TransitionItem[];
+    // Filter in-app: Supabase REST can't compare two columns directly.
+    // Also drops any facet row missing its owning source_documents join
+    // (should not happen for owner_kind='source_document', defensive only).
+    const changed = ((transitions ?? []) as unknown as FreshnessFacetRow[])
+      .filter(
+        (row) =>
+          row.source_document_id !== null && row.source_documents !== null,
+      )
+      .filter((row) => row.freshness !== row.previous_freshness)
+      .map(
+        (row): TransitionItem => ({
+          id: row.source_document_id!,
+          title:
+            row.source_documents!.suggested_title ??
+            row.source_documents!.filename,
+          previous_freshness: row.previous_freshness!,
+          freshness: row.freshness!,
+          primary_domain: row.source_documents!.primary_domain,
+          updated_at: row.source_documents!.updated_at,
+          lifecycle_type: row.lifecycle_type,
+          content_owner_id: row.content_owner_id,
+          governance_review_status: row.governance_review_status,
+          verified_at: row.verified_at,
+        }),
+      );
 
     // Count by transition type
     const counts = {
@@ -500,13 +549,14 @@ export async function GET(request: NextRequest) {
             Date.now() + item.timeoutDays * 24 * 60 * 60 * 1000,
           ).toISOString();
           await supabase
-            .from('content_items')
+            .from('record_lifecycle')
             .update({
               governance_review_status: 'pending',
               governance_review_due: reviewDue,
               governance_reviewer_id: item.reviewerId,
             })
-            .eq('id', item.itemId);
+            .eq('owner_kind', 'source_document')
+            .eq('source_document_id', item.itemId);
         }
 
         // Determine notification recipients per item
@@ -647,13 +697,19 @@ async function checkDateExpiryReminders(
     const todayStart = new Date();
     todayStart.setUTCHours(0, 0, 0, 0);
 
-    // ── 1. Content items with expiry_date within 30 days ──────────────────
-    const { data: expiringItems, error: expiringError } = await supabase
-      .from('content_items')
-      .select('id, title, expiry_date, content_owner_id, primary_domain')
+    // ── 1. Source documents with expiry_date within 30 days ───────────────
+    // ID-131 {131.19}: expiry_date/content_owner_id live on record_lifecycle
+    // (owner_kind='source_document', SD-only expiry axis per D7); title/
+    // domain/archived_at live on source_documents.
+    const { data: expiringRows, error: expiringError } = await supabase
+      .from('record_lifecycle')
+      .select(
+        'source_document_id, expiry_date, content_owner_id, source_documents!inner(id, filename, suggested_title, primary_domain, archived_at)',
+      )
+      .eq('owner_kind', 'source_document')
       .not('expiry_date', 'is', null)
       .lte('expiry_date', thirtyDaysFromNow.toISOString())
-      .is('archived_at', null);
+      .is('source_documents.archived_at', null);
 
     if (expiringError) {
       logger.error(
@@ -666,12 +722,37 @@ async function checkDateExpiryReminders(
       };
     }
 
+    interface ExpiringFacetRow {
+      source_document_id: string | null;
+      expiry_date: string | null;
+      content_owner_id: string | null;
+      source_documents: {
+        id: string;
+        filename: string;
+        suggested_title: string | null;
+        primary_domain: string;
+      } | null;
+    }
+
     // Filter to items whose expiry_date is in the future or today
-    // (items already past their date should still get a notification)
-    const qualifying = (expiringItems ?? []).filter((item) => {
-      if (!item.expiry_date) return false;
-      return true;
-    });
+    // (items already past their date should still get a notification), and
+    // project into the shape the rest of this function expects.
+    const qualifying = ((expiringRows ?? []) as unknown as ExpiringFacetRow[])
+      .filter(
+        (row) =>
+          row.source_document_id !== null &&
+          row.source_documents !== null &&
+          row.expiry_date,
+      )
+      .map((row) => ({
+        id: row.source_document_id!,
+        title:
+          row.source_documents!.suggested_title ??
+          row.source_documents!.filename,
+        expiry_date: row.expiry_date,
+        content_owner_id: row.content_owner_id,
+        primary_domain: row.source_documents!.primary_domain,
+      }));
 
     if (qualifying.length > 0) {
       // Idempotency: check for existing date_expiry_approaching notifications today
@@ -711,7 +792,7 @@ async function checkDateExpiryReminders(
                 : `${daysRemaining} days remaining`;
 
           const notifTitle = `"${item.title}" expires on ${formattedDate}`;
-          const notifMessage = `Content item "${item.title}" has an expiry date of ${formattedDate} (${daysText}). Review and update if needed.`;
+          const notifMessage = `Source document "${item.title}" has an expiry date of ${formattedDate} (${daysText}). Review and update if needed.`;
 
           if (item.content_owner_id) {
             // Notify owner

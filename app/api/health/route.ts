@@ -36,8 +36,10 @@ export async function GET() {
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
     if (supabaseUrl && supabaseKey) {
       const supabase = createClient(supabaseUrl, supabaseKey);
+      // ID-131 {131.19}: content_items dies wholesale at M6 — smoke count
+      // re-pointed onto source_documents (a live, permanent typed record).
       const { count, error } = await supabase
-        .from('content_items')
+        .from('source_documents')
         .select('*', { count: 'exact', head: true });
       supabaseOk = !error && count !== null;
     }

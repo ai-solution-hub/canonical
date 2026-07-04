@@ -135,25 +135,48 @@ export const POST = defineRoute(
         notes,
       } = parsed.data;
 
-      // Compute item_count by running a count query with the filter criteria
+      // Compute item_count by running a count query with the filter criteria.
+      // ID-131 {131.19} G-GOV-FACET: content_items is dying — freshness lives
+      // on the record_lifecycle facet (owner_kind='source_document', SD-only
+      // per D7); primary_domain/content_type/captured_date live on the
+      // owning source_documents row, joined via the FK embed.
       let countQuery = supabase
-        .from('content_items')
-        .select('id', { count: 'exact', head: true });
+        .from('record_lifecycle')
+        .select(
+          'source_document_id, source_documents!inner(primary_domain, content_type, captured_date)',
+          {
+            count: 'exact',
+            head: true,
+          },
+        )
+        .eq('owner_kind', 'source_document');
 
       if (filter_domains.length > 0) {
-        countQuery = countQuery.in('primary_domain', filter_domains);
+        countQuery = countQuery.in(
+          'source_documents.primary_domain',
+          filter_domains,
+        );
       }
       if (filter_content_types.length > 0) {
-        countQuery = countQuery.in('content_type', filter_content_types);
+        countQuery = countQuery.in(
+          'source_documents.content_type',
+          filter_content_types,
+        );
       }
       if (filter_freshness.length > 0) {
         countQuery = countQuery.in('freshness', filter_freshness);
       }
       if (filter_date_from) {
-        countQuery = countQuery.gte('captured_date', filter_date_from);
+        countQuery = countQuery.gte(
+          'source_documents.captured_date',
+          filter_date_from,
+        );
       }
       if (filter_date_to) {
-        countQuery = countQuery.lte('captured_date', filter_date_to);
+        countQuery = countQuery.lte(
+          'source_documents.captured_date',
+          filter_date_to,
+        );
       }
 
       const { count: itemCount, error: countError } = await countQuery;

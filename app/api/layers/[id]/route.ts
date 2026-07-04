@@ -100,28 +100,9 @@ export const DELETE = defineRoute(
         return NextResponse.json({ error: 'Layer not found' }, { status: 404 });
       }
 
-      // Check if any content items use this layer key
-      const { count, error: countError } = await supabase
-        .from('content_items')
-        .select('id', { count: 'exact', head: true })
-        .eq('layer', layer.key);
-
-      if (countError) {
-        return NextResponse.json(
-          { error: 'Failed to check layer usage' },
-          { status: 500 },
-        );
-      }
-
-      if (count && count > 0) {
-        return NextResponse.json(
-          {
-            error: `Cannot delete layer '${layer.key}' -- ${count} content item${count === 1 ? ' is' : 's are'} assigned to it. Deactivate instead.`,
-            count,
-          },
-          { status: 409 },
-        );
-      }
+      // ID-131 {131.19}: the content_items.layer usage-check is REMOVED here
+      // — the `layer` column dies with the content_items table (M6); the IMS
+      // layers surface itself is out of ID-131 scope (orchestrator-ruled).
 
       // Safe to delete
       const { error: deleteError } = await supabase

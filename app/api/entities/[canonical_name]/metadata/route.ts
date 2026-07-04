@@ -8,8 +8,11 @@ import type { Database, Json } from '@/supabase/types/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-type ContentItemUpdate =
-  Database['public']['Tables']['content_items']['Update'];
+// ID-131 {131.19} G-GOV-FACET: expiry_date/lifecycle_type (source_document-
+// only freshness axis, D7) now live on the record_lifecycle facet, not
+// content_items.
+type RecordLifecycleUpdate =
+  Database['public']['Tables']['record_lifecycle']['Update'];
 
 export const maxDuration = 30;
 
@@ -117,16 +120,21 @@ export const PATCH = defineRoute(
               ];
 
               if (contentIds.length > 0) {
-                const updatePayload: ContentItemUpdate = {
+                const updatePayload: RecordLifecycleUpdate = {
                   expiry_date: entityExpiry || null,
                 };
                 if (entityExpiry) {
                   updatePayload.lifecycle_type = 'date_bound';
                 }
+                // ID-131 {131.19}: contentIds here are entity_mentions.
+                // source_document_id values (already M2-renamed) — the
+                // facet row is keyed on the same column, scoped to
+                // owner_kind='source_document' (D7 SD-only freshness axis).
                 const { error: propagateError } = await supabase
-                  .from('content_items')
+                  .from('record_lifecycle')
                   .update(updatePayload)
-                  .in('id', contentIds);
+                  .eq('owner_kind', 'source_document')
+                  .in('source_document_id', contentIds);
 
                 if (propagateError) {
                   logger.error(

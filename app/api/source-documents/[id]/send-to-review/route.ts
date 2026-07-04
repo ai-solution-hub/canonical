@@ -32,11 +32,18 @@ export const POST = defineRoute(
       if (!parsed.success) return parsed.response;
       const itemIds = parsed.data.item_ids;
 
-      // Fetch items to check current governance_review_status
-      const { data: items, error: fetchErr } = await supabase
-        .from('content_items')
-        .select('id, governance_review_status, content_owner_id, title')
-        .in('id', itemIds);
+      // Fetch items to check current governance_review_status. ID-131
+      // {131.19} G-GOV-FACET: content_items is dying — governance_review_status
+      // /content_owner_id live on the record_lifecycle facet (owner_kind=
+      // 'source_document'); title has no direct SD column — derived from
+      // suggested_title/filename below.
+      const { data: rawItems, error: fetchErr } = await supabase
+        .from('record_lifecycle')
+        .select(
+          'source_document_id, governance_review_status, content_owner_id, source_documents!inner(id, filename, suggested_title)',
+        )
+        .eq('owner_kind', 'source_document')
+        .in('source_document_id', itemIds);
 
       if (fetchErr) {
         return NextResponse.json(
@@ -46,6 +53,17 @@ export const POST = defineRoute(
           { status: 500 },
         );
       }
+
+      const items = (rawItems ?? [])
+        .filter((row) => row.source_documents !== null)
+        .map((row) => ({
+          id: row.source_document_id!,
+          governance_review_status: row.governance_review_status,
+          content_owner_id: row.content_owner_id,
+          title:
+            row.source_documents!.suggested_title ??
+            row.source_documents!.filename,
+        }));
 
       // Partition items into three groups
       const eligible: string[] = [];
@@ -75,13 +93,13 @@ export const POST = defineRoute(
         ).toISOString();
 
         const { error: updateErr } = await supabase
-          .from('content_items')
+          .from('record_lifecycle')
           .update({
             governance_review_status: 'pending',
             governance_review_due: reviewDue,
-            updated_at: new Date().toISOString(),
           })
-          .in('id', eligible);
+          .eq('owner_kind', 'source_document')
+          .in('source_document_id', eligible);
 
         if (updateErr) {
           return NextResponse.json(
@@ -92,6 +110,19 @@ export const POST = defineRoute(
               ),
             },
             { status: 500 },
+          );
+        }
+
+        // updated_at lives on the owning source_documents row — best-effort
+        // secondary write (matches the review/action verify-branch pattern).
+        const { error: sdUpdateErr } = await supabase
+          .from('source_documents')
+          .update({ updated_at: new Date().toISOString() })
+          .in('id', eligible);
+        if (sdUpdateErr) {
+          logger.error(
+            { err: sdUpdateErr },
+            'Failed to stamp updated_at on source_documents (send-to-review)',
           );
         }
 

@@ -76,11 +76,30 @@ export async function GET(request: NextRequest) {
     const taxonomyDate = latestTaxonomy?.created_at ?? null;
 
     // Query candidates: confidence < 0.7 OR classified_at > 90 days OR null
-    // Also include items classified before the latest taxonomy change
+    // Also include items classified before the latest taxonomy change.
+    // ID-131 {131.19} G-GOV-FACET: content_items is dying — classification
+    // cols (primary_domain, primary_subtopic, classification_confidence,
+    // classified_at, archived_at) live on source_documents (M3). title has
+    // no direct SD column — derived from suggested_title/filename below
+    // (matches the hybrid_search title-derivation convention, TECH.md).
+    //
+    // KNOWN INTERIM GAP (out-of-scope for this Subtask, flagged for the
+    // Orchestrator): `classifyContent()` (lib/ai/classify.ts, NOT owned by
+    // this bundle) still reads/writes `content_items` internally and expects
+    // a content_items.id — relocating its producer onto source_documents is
+    // tracked separately as {131.22} G-PRODUCER-CLASS. Until that lands,
+    // calling `classifyContent({ itemId: item.id, ... })` below with a
+    // source_documents id will not find a matching content_items row, and
+    // every candidate will surface as `action: 'error'` (caught by the
+    // per-item try/catch — visible in pipeline_runs, not a silent
+    // corruption). This is the same "GO-apply consequence bridge" pattern
+    // already used elsewhere in ID-131 (e.g. {131.13}/{131.14} authored-not-
+    // applied pending {131.19}) and is expected to resolve once {131.22}
+    // lands in the same coordinated GO-apply window.
     const { data: candidates, error: queryError } = await supabase
-      .from('content_items')
+      .from('source_documents')
       .select(
-        'id, title, primary_domain, primary_subtopic, classification_confidence, classified_at',
+        'id, suggested_title, filename, primary_domain, primary_subtopic, classification_confidence, classified_at',
       )
       .is('archived_at', null)
       .or(
@@ -100,7 +119,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const items = candidates ?? [];
+    const items = (candidates ?? []).map((row) => ({
+      id: row.id,
+      title: row.suggested_title ?? row.filename,
+      primary_domain: row.primary_domain,
+      primary_subtopic: row.primary_subtopic,
+      classification_confidence: row.classification_confidence,
+      classified_at: row.classified_at,
+    }));
 
     if (items.length === 0) {
       return NextResponse.json({
@@ -189,7 +215,7 @@ export async function GET(request: NextRequest) {
         } else if (sameTaxonomy) {
           // Same taxonomy, same or lower confidence — revert to old values
           await supabase
-            .from('content_items')
+            .from('source_documents')
             .update({
               primary_domain: oldDomain,
               primary_subtopic: oldSubtopic,
@@ -211,7 +237,7 @@ export async function GET(request: NextRequest) {
         } else {
           // Different taxonomy — revert and flag for human review
           await supabase
-            .from('content_items')
+            .from('source_documents')
             .update({
               primary_domain: oldDomain,
               primary_subtopic: oldSubtopic,

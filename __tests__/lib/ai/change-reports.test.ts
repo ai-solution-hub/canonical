@@ -82,11 +82,15 @@ import type { Database } from '@/supabase/types/database.types';
 // Test data
 // ---------------------------------------------------------------------------
 
+// ID-131 {131.19} G-GOV-FACET: content_items is dying — generateChangeReport
+// now selects from source_documents, which has no direct `title` column;
+// `filename` is fetched instead and `title` is derived in-code as
+// `suggested_title ?? filename`. Fixture shape follows the real select list.
 const MOCK_CONTENT_ITEMS = [
   {
     id: '00000000-0000-4000-8000-000000000001',
-    title: 'AI Strategy Guide',
-    suggested_title: null,
+    filename: 'ai-strategy-guide.pdf',
+    suggested_title: 'AI Strategy Guide',
     summary: 'Overview of AI strategy',
     primary_domain: 'Technology',
     primary_subtopic: 'AI',
@@ -97,8 +101,8 @@ const MOCK_CONTENT_ITEMS = [
   },
   {
     id: '00000000-0000-4000-8000-000000000002',
-    title: 'Cloud Migration Plan',
-    suggested_title: null,
+    filename: 'cloud-migration-plan.pdf',
+    suggested_title: 'Cloud Migration Plan',
     summary: 'Cloud migration best practices',
     primary_domain: 'Technology',
     primary_subtopic: 'Cloud',

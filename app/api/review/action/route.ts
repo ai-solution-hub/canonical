@@ -39,14 +39,17 @@ export const POST = defineRoute(
 
       const { item_id, action, flag_details, note } = parsed.data;
 
-      // Validate that the content item exists. source_document_id is also
-      // fetched here — ingestion_quality_log is now keyed by source_document_id
-      // (ID-131 {131.13} G-GOV-FACET-B rename; content_items.id no longer
-      // applies), so every ingestion_quality_log operation below resolves
-      // through this column instead of item_id directly.
+      // Validate that the content item exists. ID-131 {131.19}: content_items
+      // is dying — each content_item was already 1:1 with its backing
+      // source_document (via the old content_items.source_document_id FK),
+      // so `item_id` is now the source_documents id directly, and
+      // `sourceDocumentId` collapses to the same value. ingestion_quality_log
+      // is keyed by source_document_id (ID-131 {131.13} G-GOV-FACET-B
+      // rename), so every ingestion_quality_log operation below continues to
+      // resolve through this column.
       const { data: item, error: fetchError } = await supabase
-        .from('content_items')
-        .select('id, source_document_id')
+        .from('source_documents')
+        .select('id')
         .eq('id', item_id)
         .single();
 
@@ -57,23 +60,41 @@ export const POST = defineRoute(
         );
       }
 
-      const sourceDocumentId = item.source_document_id;
+      const sourceDocumentId = item.id;
 
       if (action === 'verify') {
+        // verified_at/verified_by live on the record_lifecycle facet
+        // (governance axis, BI-20); updated_by stays on the owning
+        // source_documents row — two tables, two writes. The facet write is
+        // the primary governance signal (error 500s the request); the SD
+        // updated_by stamp is best-effort (logged, non-blocking) — mirrors
+        // the notification-dispatch best-effort pattern used elsewhere in
+        // this route.
         const { error } = await supabase
-          .from('content_items')
+          .from('record_lifecycle')
           .update({
             verified_at: new Date().toISOString(),
             verified_by: user.id,
-            updated_by: user.id,
           })
-          .eq('id', item_id);
+          .eq('owner_kind', 'source_document')
+          .eq('source_document_id', item_id);
 
         if (error) {
           logger.error({ err: error }, 'Failed to verify content item');
           return NextResponse.json(
             { error: 'Failed to verify item' },
             { status: 500 },
+          );
+        }
+
+        const { error: sdUpdateError } = await supabase
+          .from('source_documents')
+          .update({ updated_by: user.id })
+          .eq('id', item_id);
+        if (sdUpdateError) {
+          logger.warn(
+            { err: sdUpdateError },
+            'Failed to stamp updated_by on source_documents (verify)',
           );
         }
 
@@ -140,28 +161,43 @@ export const POST = defineRoute(
 
         // Clear verified status — flagging returns item to needs-attention state
         await supabase
-          .from('content_items')
+          .from('record_lifecycle')
           .update({
             verified_at: null,
             verified_by: null,
-            updated_by: user.id,
           })
+          .eq('owner_kind', 'source_document')
+          .eq('source_document_id', item_id);
+        await supabase
+          .from('source_documents')
+          .update({ updated_by: user.id })
           .eq('id', item_id);
       } else if (action === 'unverify') {
         const { error } = await supabase
-          .from('content_items')
+          .from('record_lifecycle')
           .update({
             verified_at: null,
             verified_by: null,
-            updated_by: user.id,
           })
-          .eq('id', item_id);
+          .eq('owner_kind', 'source_document')
+          .eq('source_document_id', item_id);
 
         if (error) {
           logger.error({ err: error }, 'Failed to unverify content item');
           return NextResponse.json(
             { error: 'Failed to unverify item' },
             { status: 500 },
+          );
+        }
+
+        const { error: sdUpdateError } = await supabase
+          .from('source_documents')
+          .update({ updated_by: user.id })
+          .eq('id', item_id);
+        if (sdUpdateError) {
+          logger.warn(
+            { err: sdUpdateError },
+            'Failed to stamp updated_by on source_documents (unverify)',
           );
         }
 

@@ -42,16 +42,19 @@ export const GET = defineRoute(ReviewStatsResponseSchema, async () => {
     // (primary_domain='unclassified' OR primary_subtopic='unclassified').
     // head:true + count:'exact' avoids transferring rows. Drives the count
     // badge on the "Unclassified" tab of /review.
+    // ID-131 {131.19} G-GOV-FACET: content_items is dying — publication_status/
+    // archived_at/primary_domain/primary_subtopic now live on source_documents
+    // (M3 classification cols + BI-20 inline hot publication_status).
     const [statsResult, awaitingResult, unclassifiedResult] = await Promise.all(
       [
         supabase.rpc('get_review_breakdown_stats'),
         supabase
-          .from('content_items')
+          .from('source_documents')
           .select('id', { count: 'exact', head: true })
           .eq('publication_status', 'in_review')
           .is('archived_at', null),
         supabase
-          .from('content_items')
+          .from('source_documents')
           .select('id', { count: 'exact', head: true })
           .is('archived_at', null)
           .or(UNCLASSIFIED_TAXONOMY_OR_PREDICATE),

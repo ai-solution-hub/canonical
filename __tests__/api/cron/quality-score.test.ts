@@ -1,12 +1,26 @@
 /**
  * Tests for the quality-score cron route.
  *
+ * ID-131 {131.19} G-GOV-FACET: content_items is dying — the cron now reads
+ * the record_lifecycle facet (owner_kind='source_document') joined to
+ * source_documents, instead of content_items. quality_score/
+ * previous_quality_score/quality_score_updated_at have NO typed-record home
+ * post-refactor (brief/detail/reference/citation_count/quality_score are all
+ * dead columns — see the route's own header comment) — the score is now
+ * computed fresh on every run for notification purposes only and is NEVER
+ * persisted, so per-item persistence tests (previous_quality_score,
+ * unchanged-score skip-write) no longer apply and have been removed/replaced
+ * below. Because there is no persisted prior score, the "drops below
+ * threshold" transition detection became a level-triggered "currently below
+ * threshold" check, deduplicated per-day via `getExistingNotificationIds`
+ * (same idempotency helper the sibling crons already use) rather than via a
+ * stored previous value.
+ *
  * Verifies:
  *   - Cron auth verification
- *   - Batch processing of content items
- *   - Score calculation and storage
- *   - previous_quality_score preservation
- *   - Threshold-based notification creation (transition only)
+ *   - Batch processing of source_documents (via the record_lifecycle facet join)
+ *   - Score calculation (in-memory only, never persisted) + threshold notification
+ *   - Same-day notification idempotency (replaces the old transition-only check)
  *   - Per-domain threshold from governance_config
  *   - Pipeline run logging
  *   - Governance bridge: auto-flag items, draft exclusion, cooldown, batch summary
@@ -35,12 +49,15 @@ vi.mock('@/lib/cron-auth', () => ({
   getUsersByRole: mockGetUsersByRole,
 }));
 
-const { mockCreateBulkNotifications } = vi.hoisted(() => ({
-  mockCreateBulkNotifications: vi.fn(),
-}));
+const { mockCreateBulkNotifications, mockGetExistingNotificationIds } =
+  vi.hoisted(() => ({
+    mockCreateBulkNotifications: vi.fn(),
+    mockGetExistingNotificationIds: vi.fn(),
+  }));
 
 vi.mock('@/lib/notifications', () => ({
   createBulkNotifications: mockCreateBulkNotifications,
+  getExistingNotificationIds: mockGetExistingNotificationIds,
 }));
 
 vi.mock('@/lib/error', () => ({
@@ -65,6 +82,15 @@ const ADMIN_ID_2 = '00000000-0000-4000-8000-000000000002';
 const REVIEWER_ID = '00000000-0000-4000-8000-000000000099';
 const GOV_CONFIG_ID = '00000000-0000-4000-8000-000000000050';
 
+/**
+ * Builds a record_lifecycle-facet-joined-to-source_documents row, matching
+ * the shape `app/api/cron/quality-score/route.ts` now reads (ID-131
+ * {131.19}). Keeps the same override-parameter surface as the old
+ * content_items-shaped factory so existing call sites don't need touching —
+ * `brief`/`detail`/`reference`/`metadata`/`quality_score` are accepted but
+ * IGNORED (dead columns, no typed-record home post-refactor; the route no
+ * longer reads or persists any of them).
+ */
 function makeContentItem(
   overrides: Partial<{
     id: string;
@@ -82,20 +108,26 @@ function makeContentItem(
     verified_at: string | null;
   }> = {},
 ) {
+  const id = overrides.id ?? '00000000-0000-4000-8000-000000000010';
   return {
-    id: overrides.id ?? '00000000-0000-4000-8000-000000000010',
-    title: overrides.title ?? 'Test Item',
-    primary_domain: overrides.primary_domain ?? 'Operations',
+    // Convenience alias for test assertions (the route reads
+    // source_document_id, never a bare `id` on this joined row).
+    id,
+    source_document_id: id,
     freshness: overrides.freshness ?? 'fresh',
-    classification_confidence: overrides.classification_confidence ?? 0.9,
-    brief: overrides.brief ?? 'A brief summary',
-    detail: overrides.detail ?? null,
-    reference: overrides.reference ?? null,
-    summary: overrides.summary ?? 'An AI summary',
-    metadata: overrides.metadata ?? null,
-    quality_score: overrides.quality_score ?? null,
     governance_review_status: overrides.governance_review_status ?? null,
     verified_at: overrides.verified_at ?? null,
+    next_review_date: null,
+    review_cadence_days: null,
+    source_documents: {
+      id,
+      suggested_title: overrides.title ?? 'Test Item',
+      filename: 'test-item.pdf',
+      primary_domain: overrides.primary_domain ?? 'Operations',
+      classification_confidence: overrides.classification_confidence ?? 0.9,
+      summary: overrides.summary ?? 'An AI summary',
+      archived_at: null,
+    },
   };
 }
 
@@ -107,6 +139,8 @@ function resetMocks() {
   mockVerifyCronAuth.mockReturnValue(true);
   mockGetUsersByRole.mockResolvedValue([ADMIN_ID_1, ADMIN_ID_2]);
   mockCreateBulkNotifications.mockResolvedValue({ count: 0, error: null });
+  // Default: nothing already notified today (no same-day dedup exclusions).
+  mockGetExistingNotificationIds.mockResolvedValue(new Set());
 
   // Configure chain defaults
   const chainableMethods = [
@@ -143,11 +177,14 @@ function resetMocks() {
 
 /**
  * Configure sequential .from() calls to return different data.
- * The cron calls:
- *   1. from('governance_config').select(...)    -> govConfigs
- *   2. from('content_items').select(...)        -> batch of items
- *   3. from('content_items').update(...)        -> per-item updates (multiple)
- *   4. from('pipeline_runs').insert(...)        -> logging
+ * ID-131 {131.19}: content_items is dying — the cron calls:
+ *   1. from('governance_config').select(...)              -> govConfigs
+ *   2. from('record_lifecycle').select(...).eq('owner_kind',...)
+ *      .is('source_documents.archived_at', null).order(...).range(...)
+ *                                                           -> batch of facet+SD rows
+ *   3. from('record_lifecycle').update(...).eq('owner_kind',...)
+ *      .eq('source_document_id',...)                       -> per-item governance updates
+ *   4. from('pipeline_runs').insert(...)                   -> logging
  */
 function configureFromSequence(options: {
   govConfigs?: Array<{
@@ -181,12 +218,13 @@ function configureFromSequence(options: {
       return govChain;
     }
 
-    // content_items SELECT (paginated fetch)
-    if (table === 'content_items') {
-      // For the first content_items SELECT, return items
+    // record_lifecycle SELECT (paginated facet+source_documents fetch)
+    if (table === 'record_lifecycle') {
+      // For the first record_lifecycle SELECT, return items
       // For subsequent SELECTs (empty page), return empty
       const selectChain = {
         select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
         is: vi.fn().mockReturnThis(),
         order: vi.fn().mockReturnThis(),
         range: vi.fn().mockImplementation((_start: number, _end: number) => {
@@ -205,9 +243,11 @@ function configureFromSequence(options: {
         }),
         update: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
-            then: vi.fn((resolve: (v: unknown) => void) =>
-              resolve({ data: null, error: null }),
-            ),
+            eq: vi.fn().mockReturnValue({
+              then: vi.fn((resolve: (v: unknown) => void) =>
+                resolve({ data: null, error: null }),
+              ),
+            }),
           }),
         }),
         _returnedItems: false,
@@ -255,7 +295,7 @@ function configureDetailedMock(options: {
   }> = [];
   const insertCalls: Array<{ table: string; data: Record<string, unknown> }> =
     [];
-  let contentItemsCallCount = 0;
+  let recordLifecycleCallCount = 0;
 
   mockSupabase.from.mockImplementation((table: string) => {
     if (table === 'governance_config') {
@@ -268,30 +308,35 @@ function configureDetailedMock(options: {
       };
     }
 
-    if (table === 'content_items') {
-      contentItemsCallCount++;
+    // ID-131 {131.19}: content_items is dying — record_lifecycle facet
+    // joined to source_documents (owner_kind='source_document').
+    if (table === 'record_lifecycle') {
+      recordLifecycleCallCount++;
       return {
         select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
         is: vi.fn().mockReturnThis(),
         order: vi.fn().mockReturnThis(),
         range: vi.fn().mockImplementation(() => ({
           then: vi.fn((resolve: (v: unknown) => void) =>
             resolve({
-              data: contentItemsCallCount === 1 ? items : [],
+              data: recordLifecycleCallCount === 1 ? items : [],
               error: null,
             }),
           ),
         })),
         update: vi.fn().mockImplementation((data: Record<string, unknown>) => {
           return {
-            eq: vi.fn().mockImplementation((_col: string, id: string) => {
-              updateCalls.push({ table, data, id });
-              return {
-                then: vi.fn((resolve: (v: unknown) => void) =>
-                  resolve({ data: null, error: null }),
-                ),
-              };
-            }),
+            eq: vi.fn().mockImplementation((_col1: string, _val1: string) => ({
+              eq: vi.fn().mockImplementation((_col2: string, id: string) => {
+                updateCalls.push({ table, data, id });
+                return {
+                  then: vi.fn((resolve: (v: unknown) => void) =>
+                    resolve({ data: null, error: null }),
+                  ),
+                };
+              }),
+            })),
           };
         }),
       };
@@ -335,14 +380,12 @@ describe('GET /api/cron/quality-score', () => {
     expect(body.error).toBe('Unauthorised');
   });
 
-  it('processes items and calculates quality scores', async () => {
+  it('processes items and calculates quality scores in-memory (never persisted)', async () => {
     const item = makeContentItem({
       id: '00000000-0000-4000-8000-000000000010',
       freshness: 'fresh',
       classification_confidence: 0.9,
-      brief: 'Brief content',
       summary: 'Summary content',
-      quality_score: null,
     });
 
     configureFromSequence({ items: [item] });
@@ -354,41 +397,18 @@ describe('GET /api/cron/quality-score', () => {
 
     const body = await res.json();
     expect(body.total_processed).toBe(1);
-    expect(body.total_updated).toBe(1);
-  });
-
-  it('does not update items whose score has not changed', async () => {
-    const item = makeContentItem({
-      id: '00000000-0000-4000-8000-000000000010',
-      freshness: 'fresh',
-      classification_confidence: 0.9,
-      brief: 'Brief content',
-      detail: null,
-      reference: null,
-      summary: 'Summary content',
-      quality_score: 70,
-    });
-
-    configureFromSequence({ items: [item] });
-
-    const res = await GET(
-      createMockCronRequest({ path: '/api/cron/quality-score' }) as never,
-    );
-    expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body.total_processed).toBe(1);
+    // ID-131 {131.19}: quality_score has no typed-record home post-refactor
+    // — the score is computed for notification purposes only and is NEVER
+    // written back anywhere, so total_updated is always 0.
     expect(body.total_updated).toBe(0);
   });
 
-  it('preserves previous_quality_score when updating', async () => {
+  it('never issues a quality_score/previous_quality_score DB write (no typed-record home post-refactor)', async () => {
     const item = makeContentItem({
       id: '00000000-0000-4000-8000-000000000010',
       freshness: 'expired',
       classification_confidence: 0.5,
-      brief: null,
       summary: null,
-      quality_score: 75,
     });
 
     const { updateCalls } = configureDetailedMock({ items: [item] });
@@ -398,14 +418,16 @@ describe('GET /api/cron/quality-score', () => {
     );
     expect(res.status).toBe(200);
 
-    // Find the quality score update (not the governance update)
+    // ID-131 {131.19}: content_items.quality_score/previous_quality_score/
+    // quality_score_updated_at are dead columns — the cron must never write
+    // any of them (the only permitted per-item update is the governance
+    // bridge's governance_review_status/due/reviewer_id).
     const scoreUpdates = updateCalls.filter(
-      (u) => u.data.quality_score !== undefined,
+      (u) =>
+        u.data.quality_score !== undefined ||
+        u.data.previous_quality_score !== undefined,
     );
-    expect(scoreUpdates.length).toBeGreaterThan(0);
-    expect(scoreUpdates[0].data.previous_quality_score).toBe(75);
-    expect(typeof scoreUpdates[0].data.quality_score).toBe('number');
-    expect(scoreUpdates[0].data.quality_score).not.toBe(75);
+    expect(scoreUpdates.length).toBe(0);
   });
 
   it('creates quality_flag notifications when score drops below threshold', async () => {
@@ -452,15 +474,65 @@ describe('GET /api/cron/quality-score', () => {
     }
   });
 
-  it('does NOT notify for items already below threshold (no transition)', async () => {
+  it('skips the quality_flag notification for an item already notified today (same-day idempotency)', async () => {
+    // ID-131 {131.19}: without a persisted prior score, the cron cannot
+    // detect a "just crossed the threshold" transition — it is
+    // level-triggered (every below-threshold item is a candidate on every
+    // run) and instead relies on `getExistingNotificationIds` (today's
+    // already-notified entity ids) to avoid duplicating a same-day
+    // notification. This replaces the old edge-triggered "no transition"
+    // test, which asserted behaviour that no longer exists.
     const item = makeContentItem({
       id: '00000000-0000-4000-8000-000000000010',
       primary_domain: 'Operations',
       freshness: 'expired',
       classification_confidence: 0.2,
-      brief: null,
       summary: null,
-      quality_score: 10,
+    });
+
+    mockGetExistingNotificationIds.mockResolvedValue(
+      new Set([item.source_document_id]),
+    );
+
+    configureDetailedMock({
+      // auto_flag_on_quality_drop: false isolates this test to the
+      // quality_flag notification path — the governance bridge is a
+      // separate mechanism with its own (verified_at cooldown-based, not
+      // same-day-notification-based) eligibility check, exercised by the
+      // "governance bridge" describe block below.
+      govConfigs: [
+        {
+          domain: 'Operations',
+          quality_score_threshold: 40,
+          auto_flag_on_quality_drop: false,
+        },
+      ],
+      items: [item],
+    });
+
+    const res = await GET(
+      createMockCronRequest({ path: '/api/cron/quality-score' }) as never,
+    );
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.dropped_below_threshold).toBe(0);
+    expect(mockCreateBulkNotifications).not.toHaveBeenCalled();
+  });
+
+  it('DOES notify again for a still-below-threshold item on a fresh day (level-triggered, not edge-triggered)', async () => {
+    // ID-131 {131.19}: this is the documented behaviour change — the old
+    // cron only notified on the run where the score first crossed the
+    // threshold (using the persisted previous_quality_score); the new cron
+    // has no persisted prior value, so it notifies on every run the item is
+    // still below threshold (bounded only by same-day dedup, not tested
+    // here since getExistingNotificationIds defaults to an empty set).
+    const item = makeContentItem({
+      id: '00000000-0000-4000-8000-000000000010',
+      primary_domain: 'Operations',
+      freshness: 'expired',
+      classification_confidence: 0.2,
+      summary: null,
     });
 
     configureDetailedMock({
@@ -474,8 +546,8 @@ describe('GET /api/cron/quality-score', () => {
     expect(res.status).toBe(200);
 
     const body = await res.json();
-    expect(body.dropped_below_threshold).toBe(0);
-    expect(mockCreateBulkNotifications).not.toHaveBeenCalled();
+    expect(body.dropped_below_threshold).toBe(1);
+    expect(mockCreateBulkNotifications).toHaveBeenCalled();
   });
 
   it('flags items only when their quality drops below their domain-specific threshold', async () => {
@@ -588,15 +660,13 @@ describe('GET /api/cron/quality-score', () => {
     expect(body.total_updated).toBe(0);
   });
 
-  it('handles null quality_score as first-time calculation (flags if below threshold)', async () => {
+  it('flags a below-threshold item (every run is effectively first-time — no persisted score exists)', async () => {
     const item = makeContentItem({
       id: '00000000-0000-4000-8000-000000000010',
       title: 'New Item',
       freshness: 'expired',
       classification_confidence: 0.2,
-      brief: null,
       summary: null,
-      quality_score: null,
     });
 
     configureDetailedMock({ items: [item] });
@@ -607,7 +677,9 @@ describe('GET /api/cron/quality-score', () => {
     expect(res.status).toBe(200);
 
     const body = await res.json();
-    expect(body.total_updated).toBe(1);
+    // ID-131 {131.19}: quality_score is never persisted, so total_updated
+    // (a persisted-write counter) is always 0.
+    expect(body.total_updated).toBe(0);
     expect(body.dropped_below_threshold).toBe(1);
 
     expect(mockCreateBulkNotifications).toHaveBeenCalled();

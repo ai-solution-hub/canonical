@@ -42,11 +42,12 @@ import { POST as postAction } from '@/app/api/review/action/route';
 // Helpers
 // ---------------------------------------------------------------------------
 
+// ID-131 {131.19}: content_items is dying — item_id IS the source_documents
+// id directly now (every content_item was already 1:1 with its backing
+// source_document), so the existence-check fetch resolves `item.id` back to
+// the same value posted as `item_id`, and that's what verification_history
+// records as source_document_id. No separate resolved id exists anymore.
 const VALID_UUID = '00000000-0000-4000-8000-000000000001';
-// A distinct id from VALID_UUID (the content_items.id) — verification_history is
-// source_document_id-keyed post ID-131 {131.29} re-parent, so the content-item
-// fetch's resolved source_document_id is the value actually written.
-const SOURCE_DOC_UUID = '00000000-0000-4000-8000-000000000002';
 
 function resetMocks() {
   vi.clearAllMocks();
@@ -127,7 +128,7 @@ describe('POST /api/review/action — verification_history recording', () => {
 
     // Content item exists
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, source_document_id: SOURCE_DOC_UUID },
+      data: { id: VALID_UUID },
       error: null,
     });
 
@@ -147,7 +148,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     // Content-of-write is the observable here: a verify action must
     // produce a history row carrying the action, target item, and actor.
     expect(recordedHistoryInsert()).toEqual({
-      source_document_id: SOURCE_DOC_UUID,
+      source_document_id: VALID_UUID,
       action_type: 'verify',
       note: null,
       performed_by: 'test-user-id',
@@ -158,7 +159,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, source_document_id: SOURCE_DOC_UUID },
+      data: { id: VALID_UUID },
       error: null,
     });
 
@@ -179,7 +180,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     expect(res.status).toBe(200);
 
     expect(recordedHistoryInsert()).toEqual({
-      source_document_id: SOURCE_DOC_UUID,
+      source_document_id: VALID_UUID,
       action_type: 'verify',
       note: 'Looks good, verified content accuracy',
       performed_by: 'test-user-id',
@@ -190,7 +191,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, source_document_id: SOURCE_DOC_UUID },
+      data: { id: VALID_UUID },
       error: null,
     });
 
@@ -207,7 +208,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     expect(res.status).toBe(200);
 
     expect(recordedHistoryInsert()).toEqual({
-      source_document_id: SOURCE_DOC_UUID,
+      source_document_id: VALID_UUID,
       action_type: 'unverify',
       note: null,
       performed_by: 'test-user-id',
@@ -218,7 +219,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, source_document_id: SOURCE_DOC_UUID },
+      data: { id: VALID_UUID },
       error: null,
     });
 
@@ -239,7 +240,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     expect(res.status).toBe(200);
 
     expect(recordedHistoryInsert()).toEqual({
-      source_document_id: SOURCE_DOC_UUID,
+      source_document_id: VALID_UUID,
       action_type: 'unverify',
       note: 'Content is out of date',
       performed_by: 'test-user-id',
@@ -250,7 +251,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, source_document_id: SOURCE_DOC_UUID },
+      data: { id: VALID_UUID },
       error: null,
     });
 
@@ -271,7 +272,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     expect(res.status).toBe(200);
 
     expect(recordedHistoryInsert()).toEqual({
-      source_document_id: SOURCE_DOC_UUID,
+      source_document_id: VALID_UUID,
       action_type: 'flag',
       note: 'Outdated statistics',
       performed_by: 'test-user-id',
@@ -282,7 +283,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, source_document_id: SOURCE_DOC_UUID },
+      data: { id: VALID_UUID },
       error: null,
     });
 
@@ -299,7 +300,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     expect(res.status).toBe(200);
 
     expect(recordedHistoryInsert()).toEqual({
-      source_document_id: SOURCE_DOC_UUID,
+      source_document_id: VALID_UUID,
       action_type: 'flag',
       note: null,
       performed_by: 'test-user-id',
@@ -327,7 +328,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, source_document_id: SOURCE_DOC_UUID },
+      data: { id: VALID_UUID },
       error: null,
     });
 
@@ -350,7 +351,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, source_document_id: SOURCE_DOC_UUID },
+      data: { id: VALID_UUID },
       error: null,
     });
 
@@ -365,5 +366,137 @@ describe('POST /api/review/action — verification_history recording', () => {
     // No history row is written for the no-op skip action — content-of-write
     // is observable here as the absence of any action_type/performed_by row.
     expect(recordedHistoryInsert()).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ID-131 {131.19}: the old single content_items UPDATE (verified_at +
+// verified_by + updated_by together) is now split across two tables — the
+// record_lifecycle facet write (governance signal) and a separate
+// source_documents updated_by stamp. Verify both writes actually happen,
+// with the correct payload on each.
+// ---------------------------------------------------------------------------
+
+describe('POST /api/review/action — record_lifecycle / source_documents write split', () => {
+  beforeEach(resetMocks);
+
+  /** Pick out the record_lifecycle-shaped update payload (verified_at key present). */
+  function facetUpdatePayload(): Record<string, unknown> | undefined {
+    return mockSupabase._chain.update.mock.calls
+      .map((c: unknown[]) => c[0] as Record<string, unknown>)
+      .find((payload) => payload && 'verified_at' in payload);
+  }
+
+  /** Pick out the source_documents-shaped update payload (updated_by only). */
+  function sourceDocumentUpdatePayload(): Record<string, unknown> | undefined {
+    return mockSupabase._chain.update.mock.calls
+      .map((c: unknown[]) => c[0] as Record<string, unknown>)
+      .find(
+        (payload) =>
+          payload && 'updated_by' in payload && !('verified_at' in payload),
+      );
+  }
+
+  it('verify writes verified_at/verified_by to record_lifecycle AND updated_by to source_documents', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+    );
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'verify' },
+    });
+    const res = await postAction(req);
+    expect(res.status).toBe(200);
+
+    const facetPayload = facetUpdatePayload();
+    expect(facetPayload).toMatchObject({ verified_by: 'test-user-id' });
+    expect(facetPayload?.verified_at).toEqual(expect.any(String));
+    expect(sourceDocumentUpdatePayload()).toEqual({
+      updated_by: 'test-user-id',
+    });
+  });
+
+  it('unverify writes null verified_at/verified_by to record_lifecycle AND updated_by to source_documents', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+    );
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'unverify' },
+    });
+    const res = await postAction(req);
+    expect(res.status).toBe(200);
+
+    expect(facetUpdatePayload()).toEqual({
+      verified_at: null,
+      verified_by: null,
+    });
+    expect(sourceDocumentUpdatePayload()).toEqual({
+      updated_by: 'test-user-id',
+    });
+  });
+
+  it('flag clears verified_at/verified_by on record_lifecycle AND stamps updated_by on source_documents', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+    );
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'flag', flag_details: 'Outdated' },
+    });
+    const res = await postAction(req);
+    expect(res.status).toBe(200);
+
+    expect(facetUpdatePayload()).toEqual({
+      verified_at: null,
+      verified_by: null,
+    });
+    expect(sourceDocumentUpdatePayload()).toEqual({
+      updated_by: 'test-user-id',
+    });
+  });
+
+  it('verify 500s the request when the record_lifecycle write fails, without ever attempting the source_documents write', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+    // The record_lifecycle write is the primary, error-checked write — make
+    // the first awaited chain (the facet update) fail.
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: { message: 'facet write failed' } }),
+    );
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'verify' },
+    });
+    const res = await postAction(req);
+
+    expect(res.status).toBe(500);
+    // Only one .update() call was attempted — the record_lifecycle write.
+    // The route returns before reaching the source_documents best-effort
+    // write on this path.
+    expect(mockSupabase._chain.update).toHaveBeenCalledTimes(1);
   });
 });

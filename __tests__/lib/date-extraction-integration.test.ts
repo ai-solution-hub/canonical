@@ -230,10 +230,14 @@ describe('Freshness cron — date expiry reminders', () => {
         return chain;
       };
 
-      if (table === 'content_items') {
-        // First call: freshness transitions query
-        // Second call: expiring items query
-        // The mock needs to distinguish between these calls
+      // ID-131 {131.19} G-GOV-FACET: content_items is dying — both the
+      // freshness-transitions query and the expiring-items query now read
+      // record_lifecycle (owner_kind='source_document') joined to
+      // source_documents. The two queries are still distinguished by their
+      // select column list (the expiry query selects both 'expiry_date' and
+      // 'content_owner_id'; the transitions query does not select
+      // 'expiry_date').
+      if (table === 'record_lifecycle') {
         const chain = makeChain([], null);
 
         // Override select to track what we're querying
@@ -288,11 +292,15 @@ describe('Freshness cron — date expiry reminders', () => {
       transitions: [], // No freshness transitions
       expiringItems: [
         {
-          id: 'item-1',
-          title: 'ISO 27001 Certificate',
+          source_document_id: 'item-1',
           expiry_date: tenDaysFromNow,
           content_owner_id: 'owner-1',
-          primary_domain: 'compliance',
+          source_documents: {
+            id: 'item-1',
+            filename: 'iso-27001.pdf',
+            suggested_title: 'ISO 27001 Certificate',
+            primary_domain: 'compliance',
+          },
         },
       ],
       entityMentions: [],
@@ -344,11 +352,15 @@ describe('Freshness cron — date expiry reminders', () => {
       transitions: [],
       expiringItems: [
         {
-          id: 'item-2',
-          title: 'Unowned Certificate',
+          source_document_id: 'item-2',
           expiry_date: fiveDaysFromNow,
           content_owner_id: null,
-          primary_domain: 'compliance',
+          source_documents: {
+            id: 'item-2',
+            filename: 'unowned-cert.pdf',
+            suggested_title: 'Unowned Certificate',
+            primary_domain: 'compliance',
+          },
         },
       ],
       entityMentions: [],
@@ -381,11 +393,15 @@ describe('Freshness cron — date expiry reminders', () => {
       transitions: [],
       expiringItems: [
         {
-          id: 'item-1',
-          title: 'Already Notified Item',
+          source_document_id: 'item-1',
           expiry_date: tenDaysFromNow,
           content_owner_id: 'owner-1',
-          primary_domain: 'compliance',
+          source_documents: {
+            id: 'item-1',
+            filename: 'already-notified.pdf',
+            suggested_title: 'Already Notified Item',
+            primary_domain: 'compliance',
+          },
         },
       ],
       entityMentions: [],

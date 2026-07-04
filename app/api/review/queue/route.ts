@@ -14,17 +14,83 @@ import {
   ReviewQueueResponseSchema,
   UNCLASSIFIED_TAXONOMY_OR_PREDICATE,
 } from '@/lib/validation/schemas';
-import type { Database } from '@/supabase/types/database.types';
 import type { ReviewQueueItem, ReviewQueueResponse } from '@/types/review';
 import { NextRequest, NextResponse } from 'next/server';
 
 export const maxDuration = 30;
 
-type ContentItemRow = Database['public']['Tables']['content_items']['Row'];
+// ID-131 {131.19} G-GOV-FACET: content_items is dying. Each content_items
+// row was already 1:1 with its backing source_document (via the old
+// content_items.source_document_id FK), so `id` here is now the
+// source_documents id directly. Classification/content columns
+// (suggested_title, summary, primary_domain, primary_subtopic,
+// secondary_domain, secondary_subtopic, content_type, captured_date,
+// ai_keywords, classification_confidence, publication_status) live on
+// source_documents (M3). Governance/freshness columns (verified_at,
+// verified_by, freshness, governance_review_status, next_review_date,
+// review_cadence_days) live on the record_lifecycle facet (owner_kind=
+// 'source_document', joined via the FK — record_lifecycle has NO
+// source_document_id-alone UNIQUE constraint, so the embed types as an
+// array; there is at most one owner_kind='source_document' row per source
+// document by the facet's exactly-one-of + composite-unique design).
+//
+// KNOWN OUT-OF-SCOPE DEGRADATIONS (documented, not fixed here — the fields
+// below have NO typed-record home post-refactor; TECH.md BI-11 drops
+// platform/author_name/source_domain/priority/user_tags/brief/detail/
+// reference with no replacement; quality_score/citation_count/metadata never
+// gained one either; thumbnail_url moved to reference_items only, D4):
+//   - `title` has no direct source_documents column — derived from
+//     suggested_title ?? filename (matches the hybrid_search convention).
+//   - `platform`, `author_name`, `source_domain`, `thumbnail_url`, `priority`
+//     always null; `user_tags` always []; `metadata` always null.
+//   - `quality_score` always null (no facet/SD column — see the {131.19}
+//     quality-score cron journal for the fuller finding).
+//   - `content` now reads `source_documents.extracted_text` (a real,
+//     semantically-matching SD column) rather than the dead content_items
+//     literal `content` column.
+//   - the `quality_score_asc` sort option is a no-op (falls back to the
+//     default `created_at` order) — there is no column left to sort by.
+//   - `source_file` filtering is a documented no-op — content_items.source_file
+//     was dropped at M3 (BI-11) with no source_documents replacement.
+//
+// KNOWN BUNDLE-WIDE CAVEAT: the record_lifecycle facet (M1a) shipped with
+// NO backfill (additive, zero-row migration) — every `!inner` join in this
+// bundle (this file included) will return zero rows for any source_document
+// created before a facet-row backfill lands. This matches the pattern
+// already used by the shipped {131.12}/{131.13}/{131.14} SQL functions
+// (recalculate_all_freshness, get_review_breakdown_stats,
+// get_dashboard_attention_counts, …), which JOIN record_lifecycle the same
+// way — the backfill is out of this Subtask's scope (no migrations here).
+interface SourceDocumentReviewRow {
+  id: string;
+  filename: string;
+  suggested_title: string | null;
+  summary: string | null;
+  primary_domain: string;
+  primary_subtopic: string;
+  secondary_domain: string | null;
+  secondary_subtopic: string | null;
+  content_type: string | null;
+  captured_date: string | null;
+  ai_keywords: string[] | null;
+  classification_confidence: number | null;
+  source_url: string | null;
+  publication_status: string;
+  updated_at: string | null;
+  extracted_text: string | null;
+  record_lifecycle: Array<{
+    verified_at: string | null;
+    verified_by: string | null;
+    freshness: string | null;
+    governance_review_status: string | null;
+    next_review_date: string | null;
+    review_cadence_days: number | null;
+  }>;
+}
 
-/** Columns needed by mapToReviewQueueItem — excludes embedding, summary_data, reader_html and other large/unused fields */
+/** Columns needed by mapToReviewQueueItem — excludes large/unused fields */
 const REVIEW_COLUMNS =
-  'id, title, suggested_title, summary, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, platform, author_name, source_domain, thumbnail_url, captured_date, ai_keywords, classification_confidence, quality_score, priority, user_tags, metadata, content, source_url, verified_at, verified_by, freshness, governance_review_status, next_review_date, review_cadence_days, publication_status, created_at, source_document_id';
+  'id, filename, suggested_title, summary, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, captured_date, ai_keywords, classification_confidence, source_url, publication_status, updated_at, extracted_text, record_lifecycle!inner(verified_at, verified_by, freshness, governance_review_status, next_review_date, review_cadence_days)';
 
 export const GET = defineRoute(
   ReviewQueueResponseSchema,
@@ -76,7 +142,9 @@ export const GET = defineRoute(
         .getAll('content_type')
         .flatMap((v) => v.split(','))
         .filter(Boolean);
-      const sourceFileParam = searchParams.get('source_file');
+      // source_file has no source_documents equivalent (BI-11 drop) — the
+      // request param is intentionally not read; documented no-op (see file
+      // header).
       const sourceDocumentIdParam = searchParams.get('source_document_id');
       const assignedToMe = searchParams.get('assigned_to_me') === 'true';
       // S205 WP-E T2 plan §T2 (H-1): mirror the assigned_to_me string-compare
@@ -194,7 +262,6 @@ export const GET = defineRoute(
           offset,
           effectiveDomainParams,
           effectiveContentTypeParams,
-          sourceFileParam,
           sourceDocumentIdParam,
           sort,
         );
@@ -202,7 +269,7 @@ export const GET = defineRoute(
 
       // Standard query for unverified/verified/draft/all statuses
       let query = supabase
-        .from('content_items')
+        .from('source_documents')
         .select(REVIEW_COLUMNS, { count: 'exact' });
 
       // Draft filter: show only drafts. All other filters exclude drafts.
@@ -227,16 +294,21 @@ export const GET = defineRoute(
       // exactly the rows it advertises. For status='verified' or 'all',
       // include_overdue is a no-op super-set (verified-overdue rows already
       // pass the verified filter; 'all' has no verification filter).
+      //
+      // ID-131 {131.19}: verified_at/governance_review_status live on the
+      // record_lifecycle facet — filtered via the embedded-resource dot
+      // notation (mirrors the `application_types.key` pattern already used
+      // across this codebase, e.g. app/api/procurement/route.ts).
       if (status === 'unverified') {
         if (includeOverdue) {
           query = query.or(
-            'verified_at.is.null,governance_review_status.eq.review_overdue',
+            'record_lifecycle.verified_at.is.null,record_lifecycle.governance_review_status.eq.review_overdue',
           );
         } else {
-          query = query.is('verified_at', null);
+          query = query.is('record_lifecycle.verified_at', null);
         }
       } else if (status === 'verified') {
-        query = query.not('verified_at', 'is', null);
+        query = query.not('record_lifecycle.verified_at', 'is', null);
       }
       // status === 'all' or 'draft' — no verification filter
 
@@ -250,12 +322,11 @@ export const GET = defineRoute(
         query = query.in('content_type', effectiveContentTypeParams);
       }
 
-      if (sourceFileParam) {
-        query = query.eq('source_file', sourceFileParam);
-      }
+      // source_file: documented no-op (see file header) — content_items.
+      // source_file was dropped at M3 with no source_documents replacement.
 
       if (sourceDocumentIdParam) {
-        query = query.eq('source_document_id', sourceDocumentIdParam);
+        query = query.eq('id', sourceDocumentIdParam);
       }
 
       // ID-63.12: when the "Unclassified" tab is active, narrow to the
@@ -265,14 +336,11 @@ export const GET = defineRoute(
         query = query.or(UNCLASSIFIED_TAXONOMY_OR_PREDICATE);
       }
 
-      // Apply sort order
+      // Apply sort order. `quality_score_asc` has no column left to sort by
+      // (ID-131 {131.19} — quality_score has no typed-record home) and falls
+      // back to the default order.
       if (sort === 'confidence_asc') {
         query = query.order('classification_confidence', {
-          ascending: true,
-          nullsFirst: true,
-        });
-      } else if (sort === 'quality_score_asc') {
-        query = query.order('quality_score', {
           ascending: true,
           nullsFirst: true,
         });
@@ -294,16 +362,13 @@ export const GET = defineRoute(
         );
       }
 
-      const items = (data ?? []) as ContentItemRow[];
+      const items = (data ?? []) as unknown as SourceDocumentReviewRow[];
 
       // Fetch verified and flagged counts in parallel for the progress bar.
       // ingestion_quality_log is now keyed by source_document_id (ID-131
       // {131.13} G-GOV-FACET-B rename; content_items is dying).
       const [verifiedResult, flaggedResult] = await Promise.all([
-        supabase
-          .from('content_items')
-          .select('id', { count: 'exact', head: true })
-          .not('verified_at', 'is', null),
+        countVerified(supabase),
         supabase
           .from('ingestion_quality_log')
           .select('source_document_id', { count: 'exact', head: true })
@@ -351,6 +416,23 @@ export const GET = defineRoute(
 );
 
 /**
+ * Count verified source_documents (owner_kind='source_document', facet
+ * verified_at IS NOT NULL) for the review-queue progress bar. Factored out
+ * because both the standard GET path and handleFlaggedQuery need the same
+ * unfiltered total.
+ */
+async function countVerified(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+) {
+  return supabase
+    .from('record_lifecycle')
+    .select('source_document_id', { count: 'exact', head: true })
+    .eq('owner_kind', 'source_document')
+    .not('verified_at', 'is', null);
+}
+
+/**
  * Handle the flagged status query separately because it requires joining
  * with ingestion_quality_log to find items with open review_needed flags.
  */
@@ -361,15 +443,13 @@ async function handleFlaggedQuery(
   offset: number,
   effectiveDomainParams: string[],
   effectiveContentTypeParams: string[],
-  sourceFileParam: string | null,
   sourceDocumentIdParam: string | null,
   sort?: string,
 ) {
   // First, get the source_document_ids that have open review_needed flags.
   // ingestion_quality_log is now keyed by source_document_id (ID-131 {131.13}
-  // G-GOV-FACET-B rename; content_items.id no longer applies), so the
-  // content_items lookup below joins through its own source_document_id FK
-  // rather than id.
+  // G-GOV-FACET-B rename; content_items.id no longer applies), and — ID-131
+  // {131.19} — that id now resolves directly against source_documents.id.
   const { data: flaggedIds, error: flagError } = await supabase
     .from('ingestion_quality_log')
     .select('source_document_id')
@@ -404,11 +484,11 @@ async function handleFlaggedQuery(
     return NextResponse.json(response);
   }
 
-  // Now query content_items filtered to those source documents
+  // Now query source_documents filtered to those ids.
   let query = supabase
-    .from('content_items')
+    .from('source_documents')
     .select(REVIEW_COLUMNS, { count: 'exact' })
-    .in('source_document_id', sourceDocumentIds);
+    .in('id', sourceDocumentIds);
 
   if (effectiveDomainParams.length > 0) {
     query = query.in('primary_domain', effectiveDomainParams);
@@ -418,22 +498,16 @@ async function handleFlaggedQuery(
     query = query.in('content_type', effectiveContentTypeParams);
   }
 
-  if (sourceFileParam) {
-    query = query.eq('source_file', sourceFileParam);
-  }
-
   if (sourceDocumentIdParam) {
-    query = query.eq('source_document_id', sourceDocumentIdParam);
+    query = query.eq('id', sourceDocumentIdParam);
   }
 
-  // Apply sort order
+  // Apply sort order (quality_score_asc is a documented no-op — see file header)
   if (sort === 'confidence_asc') {
     query = query.order('classification_confidence', {
       ascending: true,
       nullsFirst: true,
     });
-  } else if (sort === 'quality_score_asc') {
-    query = query.order('quality_score', { ascending: true, nullsFirst: true });
   } else {
     query = query.order('created_at', { ascending: false });
   }
@@ -452,14 +526,11 @@ async function handleFlaggedQuery(
     );
   }
 
-  const items = (data ?? []) as ContentItemRow[];
+  const items = (data ?? []) as unknown as SourceDocumentReviewRow[];
 
   // Fetch verified and flagged counts for the progress bar
   const [verifiedResult, flaggedResult] = await Promise.all([
-    supabase
-      .from('content_items')
-      .select('id', { count: 'exact', head: true })
-      .not('verified_at', 'is', null),
+    countVerified(supabase),
     supabase
       .from('ingestion_quality_log')
       .select('source_document_id', { count: 'exact', head: true })
@@ -504,9 +575,9 @@ async function handleFlaggedQuery(
  * Bypasses the verified_at + governance filters that gate the standard
  * verified-content-review queue. Filters on
  * `publication_status='in_review'` only, with optional domain/content_type/
- * source_file/source_document_id orthogonal slicers and offset pagination
- * (default 20, max 100). Returns the shared `ReviewQueueResponse` shape so
- * the new `PublicationReviewQueue` component can render rows with the same
+ * source_document_id orthogonal slicers and offset pagination (default 20,
+ * max 100). Returns the shared `ReviewQueueResponse` shape so the new
+ * `PublicationReviewQueue` component can render rows with the same
  * `mapToReviewQueueItem` mapper as the rest of the queue.
  *
  * Spec: docs/specs/review-page-tabs-refactor-spec.md §8 (f), §6.7 line 1196.
@@ -521,9 +592,9 @@ async function handlePublicationReviewQuery(
   // doesn't apply (its `status` field defaults to 'unverified' and the
   // publication-review branch is orthogonal to that axis per spec §6.7
   // line 1196). Zod's default strip mode drops the orthogonal filter keys
-  // (domain, content_type, source_file, source_document_id) which are
-  // handled separately below to preserve the standard branch's
-  // repeated-key + comma-list parsing.
+  // (domain, content_type, source_document_id) which are handled separately
+  // below to preserve the standard branch's repeated-key + comma-list
+  // parsing.
   const validated = parseSearchParams(
     PublicationReviewQueueParamsSchema,
     searchParams,
@@ -539,12 +610,22 @@ async function handlePublicationReviewQuery(
     .getAll('content_type')
     .flatMap((v) => v.split(','))
     .filter(Boolean);
-  const sourceFileParam = searchParams.get('source_file');
   const sourceDocumentIdParam = searchParams.get('source_document_id');
 
+  // ID-131 {131.19}: publication_status/updated_at live on source_documents
+  // directly (M3 + BI-20 inline hot) — this branch needs no facet join
+  // (matches the original route's use of updated_at for "most recent
+  // first" ordering, which is why record_lifecycle!inner is dropped here in
+  // favour of a plain source_documents select — the facet columns
+  // (verified_at/governance_review_status) this tab intentionally bypasses
+  // are still populated via mapToReviewQueueItem's optional-chaining
+  // fallback to null when no embed is present).
   let query = supabase
-    .from('content_items')
-    .select(REVIEW_COLUMNS, { count: 'exact' })
+    .from('source_documents')
+    .select(
+      'id, filename, suggested_title, summary, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, captured_date, ai_keywords, classification_confidence, source_url, publication_status, updated_at, extracted_text',
+      { count: 'exact' },
+    )
     .eq('publication_status', 'in_review');
 
   if (domainParams.length > 0) {
@@ -553,11 +634,8 @@ async function handlePublicationReviewQuery(
   if (contentTypeParams.length > 0) {
     query = query.in('content_type', contentTypeParams);
   }
-  if (sourceFileParam) {
-    query = query.eq('source_file', sourceFileParam);
-  }
   if (sourceDocumentIdParam) {
-    query = query.eq('source_document_id', sourceDocumentIdParam);
+    query = query.eq('id', sourceDocumentIdParam);
   }
 
   // Most recent first — newest in_review items surface first so admins
@@ -575,13 +653,17 @@ async function handlePublicationReviewQuery(
     );
   }
 
-  const items = (data ?? []) as ContentItemRow[];
+  const items = (data ?? []) as unknown as Array<
+    Omit<SourceDocumentReviewRow, 'record_lifecycle'>
+  >;
 
   // Match the shape of the standard queue response so the same UI layer
   // can render. verified_count + flagged_count are not load-bearing for
   // tab 6 (the tab is orthogonal to verification state) but we surface
   // them as 0 to keep the response shape stable.
-  const mappedItems = items.map(mapToReviewQueueItem);
+  const mappedItems = items.map((row) =>
+    mapToReviewQueueItem({ ...row, record_lifecycle: [] }),
+  );
   // verification_history is source_document_id-keyed (ID-131 {131.29}) — items
   // with no backing source document are excluded and simply show no
   // last-reviewed date.
@@ -660,40 +742,48 @@ async function fetchLastReviewedDates(
 }
 
 /**
- * Map a raw database row to a ReviewQueueItem, ensuring consistent shape.
- * Strips large fields (embedding, summary_data) not needed for review display.
+ * Map a raw source_documents(+record_lifecycle) row to a ReviewQueueItem,
+ * ensuring consistent shape. ID-131 {131.19}: content_items is dying — see
+ * the file header for the full column-provenance + degradation notes.
  */
-function mapToReviewQueueItem(row: ContentItemRow): ReviewQueueItem {
+function mapToReviewQueueItem(row: SourceDocumentReviewRow): ReviewQueueItem {
+  const facet = row.record_lifecycle[0];
   return {
     id: row.id,
-    source_document_id: row.source_document_id ?? null,
-    title: row.title,
+    source_document_id: row.id,
+    title: row.suggested_title ?? row.filename,
     suggested_title: row.suggested_title,
     summary: row.summary,
     primary_domain: row.primary_domain,
     primary_subtopic: row.primary_subtopic,
-    content_type: row.content_type,
-    platform: row.platform,
-    author_name: row.author_name,
-    source_domain: row.source_domain,
-    thumbnail_url: row.thumbnail_url,
+    // source_documents.content_type is nullable (post-{131.9} DROP NOT
+    // NULL — a classification output unknown at ingest); ContentListItem's
+    // content_type is non-null (inherited from the dying content_items
+    // schema) — 'other' mirrors the COALESCE(sd.content_type, 'other')
+    // convention already used by get_review_breakdown_stats' by_content_type.
+    content_type: row.content_type ?? 'other',
+    // Dead columns — no typed-record home post-refactor (see file header).
+    platform: null,
+    author_name: null,
+    source_domain: null,
+    thumbnail_url: null,
     captured_date: row.captured_date,
     ai_keywords: Array.isArray(row.ai_keywords) ? row.ai_keywords : [],
     classification_confidence: row.classification_confidence,
-    priority: row.priority,
-    user_tags: Array.isArray(row.user_tags) ? row.user_tags : [],
-    metadata: row.metadata as Record<string, unknown> | null,
-    content: row.content ?? null,
+    priority: null,
+    user_tags: [],
+    metadata: null,
+    content: row.extracted_text ?? null,
     source_url: row.source_url ?? null,
-    verified_at: row.verified_at ?? null,
-    verified_by: row.verified_by ?? null,
+    verified_at: facet?.verified_at ?? null,
+    verified_by: facet?.verified_by ?? null,
     secondary_domain: row.secondary_domain ?? null,
     secondary_subtopic: row.secondary_subtopic ?? null,
-    freshness: row.freshness ?? null,
-    governance_review_status: row.governance_review_status ?? null,
-    next_review_date: row.next_review_date ?? null,
-    review_cadence_days: row.review_cadence_days ?? null,
-    quality_score: row.quality_score ?? null,
+    freshness: facet?.freshness ?? null,
+    governance_review_status: facet?.governance_review_status ?? null,
+    next_review_date: facet?.next_review_date ?? null,
+    review_cadence_days: facet?.review_cadence_days ?? null,
+    quality_score: null,
     publication_status:
       (row.publication_status as ReviewQueueItem['publication_status']) ?? null,
     last_reviewed_at: null, // Populated post-query from verification_history

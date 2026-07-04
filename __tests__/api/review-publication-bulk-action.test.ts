@@ -66,14 +66,13 @@ const ID_D = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const ID_E = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const USER_ID = 'a0000000-0000-4000-8000-000000000001';
 
+// ID-131 {131.19}: content_items is dying — the step-1 fetch now selects
+// only `id, publication_status` from source_documents. title/content/brief/
+// detail/reference are no longer fetched (no typed-record home post-
+// refactor), so the row fixture no longer carries them.
 interface CurrentRowOverrides {
   id?: string;
   publication_status?: string;
-  title?: string | null;
-  content?: string | null;
-  brief?: string | null;
-  detail?: string | null;
-  reference?: string | null;
 }
 
 function makeCurrentRow(
@@ -83,11 +82,6 @@ function makeCurrentRow(
   return {
     id,
     publication_status: 'in_review',
-    title: 'Sample item',
-    content: '<p>Sample body</p>',
-    brief: null,
-    detail: null,
-    reference: null,
     ...overrides,
   };
 }
@@ -305,11 +299,11 @@ describe('AC-bulk-1.x — happy paths + role gates', () => {
     expect(idsDetail.message).toBe('At most 50 items per request');
     // No per-item iteration occurred → no .from() call after auth role lookup.
     // (auth role lookup itself uses .from('user_roles') so a single call is
-    // expected; the route MUST NOT issue a content_items SELECT.)
-    const contentItemsCalls = mockSupabase.from.mock.calls.filter(
-      (call: unknown[]) => call[0] === 'content_items',
+    // expected; the route MUST NOT issue a source_documents SELECT.)
+    const sourceDocumentsCalls = mockSupabase.from.mock.calls.filter(
+      (call: unknown[]) => call[0] === 'source_documents',
     );
-    expect(contentItemsCalls).toHaveLength(0);
+    expect(sourceDocumentsCalls).toHaveLength(0);
   });
 
   it('AC-bulk-1.4 (boundary): exactly 50 ids → request accepted past Zod (no .max() rejection)', async () => {
@@ -807,6 +801,15 @@ describe('content_history insert contract — bulk literals (§6)', () => {
     expect(payload.created_by).toBe(USER_ID);
     // version is OMITTED — auto_version_content_history trigger sets it.
     expect('version' in payload).toBe(false);
+    // ID-131 {131.19}: title/content/brief/detail/reference have no typed-
+    // record home post-refactor (BI-11 drop list) — the route no longer
+    // fetches them in step 1, so the content_history insert hardcodes empty/
+    // null placeholders rather than reading from the (now-absent) fetch data.
+    expect(payload.title).toBe('');
+    expect(payload.content).toBe('');
+    expect(payload.brief).toBeNull();
+    expect(payload.detail).toBeNull();
+    expect(payload.reference).toBeNull();
   });
 
   it("return_to_draft → content_history insert carries change_reason='bulk_return_to_draft'", async () => {

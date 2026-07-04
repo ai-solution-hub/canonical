@@ -353,12 +353,14 @@ describe('GET /api/entities/[canonical_name]', () => {
           data: [
             {
               id: VALID_UUID,
-              title: 'Health & Safety Policy',
+              filename: 'health-safety-policy.docx',
+              suggested_title: 'Health & Safety Policy',
               content_type: 'article',
             },
             {
               id: VALID_UUID_2,
-              title: 'Company Overview',
+              filename: 'company-overview.docx',
+              suggested_title: 'Company Overview',
               content_type: 'pdf',
             },
           ],
@@ -422,7 +424,14 @@ describe('GET /api/entities/[canonical_name]', () => {
       )
       .mockImplementationOnce((resolve: (v: unknown) => void) =>
         resolve({
-          data: [{ id: VALID_UUID, title: 'Test Item', content_type: 'note' }],
+          data: [
+            {
+              id: VALID_UUID,
+              filename: 'test-item.docx',
+              suggested_title: 'Test Item',
+              content_type: 'note',
+            },
+          ],
           error: null,
         }),
       )
@@ -465,7 +474,14 @@ describe('GET /api/entities/[canonical_name]', () => {
       )
       .mockImplementationOnce((resolve: (v: unknown) => void) =>
         resolve({
-          data: [{ id: VALID_UUID, title: 'Test', content_type: 'note' }],
+          data: [
+            {
+              id: VALID_UUID,
+              filename: 'test.docx',
+              suggested_title: 'Test',
+              content_type: 'note',
+            },
+          ],
           error: null,
         }),
       )

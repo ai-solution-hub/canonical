@@ -390,18 +390,13 @@ describe('DELETE /api/layers/:id', () => {
     expect(res.status).toBe(403);
   });
 
-  it('deletes a layer with no content assigned', async () => {
+  it('deletes a layer successfully', async () => {
     configureRole(mockSupabase, 'admin');
     // Look up the layer key
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { key: 'test_layer' },
       error: null,
     });
-    // Count content items using this layer
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null, count: 0 }),
-    );
     // Delete succeeds
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
@@ -414,27 +409,28 @@ describe('DELETE /api/layers/:id', () => {
     expect(res.status).toBe(204);
   });
 
-  it('returns 409 when content items reference the layer', async () => {
+  // Replaces the pre-ID-131 "409 when content items reference the layer"
+  // test. ID-131 {131.19} removed the content_items usage-check (and its 409
+  // response) entirely — the `layer` column dies with the content_items
+  // table at M6, and the IMS layers surface itself is out of ID-131 scope.
+  // DELETE now succeeds unconditionally once the layer row is found.
+  it('deletes a layer even when its key is nominally in use', async () => {
     configureRole(mockSupabase, 'admin');
     // Look up the layer key
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { key: 'sales_brief' },
       error: null,
     });
-    // Count content items: 5 items use this layer
+    // Delete succeeds — no usage-check query is made anymore
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null, count: 5 }),
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest('/api/layers/layer-1', { method: 'DELETE' });
     const res = await deleteLayer(req, {
       params: createTestParams({ id: 'layer-1' }),
     });
-    expect(res.status).toBe(409);
-    const body = await res.json();
-    expect(body.error).toContain('5 content items');
-    expect(body.count).toBe(5);
+    expect(res.status).toBe(204);
   });
 
   it('returns 404 when layer not found', async () => {

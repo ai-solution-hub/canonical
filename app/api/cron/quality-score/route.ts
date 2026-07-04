@@ -15,7 +15,10 @@ import { verifyCronAuth, getUsersByRole } from '@/lib/cron-auth';
 import { createServiceClient } from '@/lib/supabase/server';
 import { recordPipelineRun } from '@/lib/pipeline/record-run';
 import { calculateAndRoundQualityScore } from '@/lib/quality/quality-score';
-import { createBulkNotifications } from '@/lib/notifications';
+import {
+  createBulkNotifications,
+  getExistingNotificationIds,
+} from '@/lib/notifications';
 import { safeErrorMessage } from '@/lib/error';
 import type { Json } from '@/supabase/types/database.types';
 import { logger } from '@/lib/logger';
@@ -34,24 +37,42 @@ const DEFAULT_THRESHOLD = 40;
 /** When more than this many items are flagged, use summary notifications */
 const BATCH_SUMMARY_THRESHOLD = 20;
 
+// ID-131 {131.19} G-GOV-FACET: content_items is dying — this row is now a
+// record_lifecycle facet row (owner_kind='source_document') joined to its
+// owning source_documents row. `brief`/`detail`/`reference`/`citation_count`/
+// `metadata`/`quality_score` have NO typed-record home post-refactor (TECH.md
+// BI-11 drops brief/detail/reference; citation_count is "derived not stored"
+// per the Function-disposition table) — see the cron body below for how the
+// score is now computed and NOT persisted.
 interface ContentItemRow {
   id: string;
   title: string;
   primary_domain: string | null;
   freshness: string | null;
   classification_confidence: number | null;
-  brief: string | null;
-  detail: string | null;
-  reference: string | null;
   summary: string | null;
-  metadata: Record<string, unknown> | null;
-  quality_score: number | null;
   governance_review_status: string | null;
   verified_at: string | null;
-  citation_count: number | null;
   // §5.5 Phase 5: cadence-compliance modifier inputs
   next_review_date: string | null;
   review_cadence_days: number | null;
+}
+
+interface FacetJoinRow {
+  source_document_id: string | null;
+  freshness: string | null;
+  governance_review_status: string | null;
+  verified_at: string | null;
+  next_review_date: string | null;
+  review_cadence_days: number | null;
+  source_documents: {
+    id: string;
+    suggested_title: string | null;
+    filename: string;
+    primary_domain: string;
+    classification_confidence: number | null;
+    summary: string | null;
+  } | null;
 }
 
 interface GovConfig {
@@ -112,7 +133,11 @@ export async function GET(request: NextRequest) {
     // 2. Fetch all non-archived items in batches
     let offset = 0;
     let totalProcessed = 0;
-    let totalUpdated = 0;
+    // ID-131 {131.19}: quality_score has no typed-record home post-refactor
+    // (see the score-computation note below) — no writes are ever persisted,
+    // so this counter stays 0. Kept in the response/pipeline_runs shape for
+    // contract stability.
+    const totalUpdated = 0;
     let totalDroppedBelowThreshold = 0;
     let autoGovernanceTriggered = 0;
     const flaggedItems: Array<{
@@ -146,15 +171,19 @@ export async function GET(request: NextRequest) {
         break;
       }
 
+      // ID-131 {131.19} G-GOV-FACET: content_items is dying — read the
+      // record_lifecycle facet (owner_kind='source_document', freshness axis
+      // is SD-only per D7) joined to its owning source_documents row.
       const { data: items, error: fetchError } = await supabase
-        .from('content_items')
+        .from('record_lifecycle')
         .select(
           // §5.5 Phase 5: include next_review_date + review_cadence_days for
           // cadence-compliance modifier in calculateAndRoundQualityScore.
-          'id, title, primary_domain, freshness, classification_confidence, brief, detail, reference, summary, metadata, quality_score, governance_review_status, verified_at, citation_count, next_review_date, review_cadence_days',
+          'source_document_id, freshness, governance_review_status, verified_at, next_review_date, review_cadence_days, source_documents!inner(id, suggested_title, filename, primary_domain, classification_confidence, summary, archived_at)',
         )
-        .is('archived_at', null)
-        .order('id', { ascending: true })
+        .eq('owner_kind', 'source_document')
+        .is('source_documents.archived_at', null)
+        .order('source_document_id', { ascending: true })
         .range(offset, offset + BATCH_SIZE - 1);
 
       if (fetchError) {
@@ -166,94 +195,108 @@ export async function GET(request: NextRequest) {
         break;
       }
 
-      const batch = (items ?? []) as ContentItemRow[];
+      type FacetJoinRowWithOwner = FacetJoinRow & {
+        source_document_id: string;
+        source_documents: NonNullable<FacetJoinRow['source_documents']>;
+      };
+      const rawBatch = (items ?? []) as unknown as FacetJoinRow[];
+      const batch: ContentItemRow[] = rawBatch
+        .filter(
+          (row): row is FacetJoinRowWithOwner =>
+            row.source_document_id !== null && row.source_documents !== null,
+        )
+        .map((row) => ({
+          id: row.source_document_id,
+          title:
+            row.source_documents.suggested_title ??
+            row.source_documents.filename,
+          primary_domain: row.source_documents.primary_domain,
+          freshness: row.freshness,
+          classification_confidence:
+            row.source_documents.classification_confidence,
+          summary: row.source_documents.summary,
+          governance_review_status: row.governance_review_status,
+          verified_at: row.verified_at,
+          next_review_date: row.next_review_date,
+          review_cadence_days: row.review_cadence_days,
+        }));
       if (batch.length === 0) break;
 
-      // 3. Calculate scores for batch
-      const updates: Array<{
-        id: string;
-        quality_score: number;
-        previous_quality_score: number | null;
-        quality_score_updated_at: string;
-      }> = [];
-
+      // 3. Calculate scores for batch.
+      //
+      // ID-131 {131.19} — quality_score/previous_quality_score/
+      // quality_score_updated_at have NO typed-record home post-refactor
+      // (content_items dies wholesale at M6; TECH.md BI-11 drops brief/
+      // detail/reference with no replacement; citation_count is "derived not
+      // stored" per the Function-disposition table). The score is therefore
+      // computed HERE for notification purposes only and is NOT persisted —
+      // completeness (brief/detail/reference) and citations always score 0
+      // (documented degradation, out-of-scope finding for the Orchestrator/
+      // Curator). Because there is no persisted prior score, this can no
+      // longer detect a "just crossed the threshold" transition — it is a
+      // level-triggered "currently below threshold" check instead, guarded
+      // by the same per-day notification idempotency the sibling crons use
+      // (see `existingFlagIds` below) so a re-run does not re-notify the
+      // same item twice in one day.
       for (const item of batch) {
         const newScore = calculateAndRoundQualityScore({
           freshness: item.freshness,
           classification_confidence: item.classification_confidence,
-          brief: item.brief,
-          detail: item.detail,
-          reference: item.reference,
           summary: item.summary,
-          citation_count: item.citation_count ?? 0,
+          citation_count: 0,
           // §5.5 Phase 5: cadence-compliance modifier
           next_review_date: item.next_review_date,
           review_cadence_days: item.review_cadence_days,
         });
 
-        const oldScore = item.quality_score;
+        const threshold =
+          thresholdMap.get(item.primary_domain ?? '') ?? DEFAULT_THRESHOLD;
 
-        // Only update if score changed
-        if (newScore !== oldScore) {
-          updates.push({
-            id: item.id,
-            quality_score: newScore,
-            previous_quality_score: oldScore,
-            quality_score_updated_at: new Date().toISOString(),
+        if (newScore < threshold) {
+          flaggedItems.push({
+            itemId: item.id,
+            title: item.title,
+            domain: item.primary_domain,
+            oldScore: 0,
+            newScore,
           });
 
-          // Check for threshold crossing (transition from above to below)
-          const threshold =
-            thresholdMap.get(item.primary_domain ?? '') ?? DEFAULT_THRESHOLD;
-          const wasAboveThreshold = oldScore === null || oldScore >= threshold;
-          const isNowBelowThreshold = newScore < threshold;
+          // Check if eligible for governance auto-flagging
+          const domainConfig = govConfigMap.get(item.primary_domain ?? '');
+          const autoFlagEnabled =
+            domainConfig?.auto_flag_on_quality_drop ?? true;
 
-          if (wasAboveThreshold && isNowBelowThreshold) {
-            flaggedItems.push({
-              itemId: item.id,
-              title: item.title,
-              domain: item.primary_domain,
-              oldScore: oldScore ?? 0,
-              newScore,
-            });
+          if (autoFlagEnabled) {
+            // Guard: only flag items with null or 'approved' governance_review_status
+            // Skip items in 'pending', 'changes_requested', or 'draft' state
+            const status = item.governance_review_status;
+            const eligibleForGovernance =
+              status === null || status === 'approved';
 
-            // Check if eligible for governance auto-flagging
-            const domainConfig = govConfigMap.get(item.primary_domain ?? '');
-            const autoFlagEnabled =
-              domainConfig?.auto_flag_on_quality_drop ?? true;
+            if (eligibleForGovernance) {
+              // Cooldown check: skip if verified_at is within cooldown period
+              // (don't re-flag items recently reviewed by a human)
+              const cooldownDays = domainConfig?.auto_flag_cooldown_days ?? 7;
+              const cooldownCutoff = new Date(
+                Date.now() - cooldownDays * 24 * 60 * 60 * 1000,
+              );
+              const lastVerified = item.verified_at
+                ? new Date(item.verified_at)
+                : null;
+              const withinCooldown =
+                lastVerified && lastVerified > cooldownCutoff;
 
-            if (autoFlagEnabled) {
-              // Guard: only flag items with null or 'approved' governance_review_status
-              // Skip items in 'pending', 'changes_requested', or 'draft' state
-              const status = item.governance_review_status;
-              const eligibleForGovernance =
-                status === null || status === 'approved';
-
-              if (eligibleForGovernance) {
-                // Cooldown check: skip if verified_at is within cooldown period
-                // (don't re-flag items recently reviewed by a human)
-                const cooldownDays = domainConfig?.auto_flag_cooldown_days ?? 7;
-                const cooldownCutoff = new Date(
-                  Date.now() - cooldownDays * 24 * 60 * 60 * 1000,
-                );
-                const lastVerified = item.verified_at
-                  ? new Date(item.verified_at)
-                  : null;
-                const withinCooldown =
-                  lastVerified && lastVerified > cooldownCutoff;
-
-                if (!withinCooldown) {
-                  governanceFlagItems.push({
-                    itemId: item.id,
-                    title: item.title,
-                    domain: item.primary_domain,
-                    oldScore: oldScore ?? 0,
-                    newScore,
-                    reviewerId: domainConfig?.reviewer_id ?? null,
-                    timeoutDays: domainConfig?.timeout_days ?? 7,
-                    govConfigId: domainConfig?.id ?? null,
-                  });
-                }
+              if (!withinCooldown) {
+                governanceFlagItems.push({
+                  itemId: item.id,
+                  title: item.title,
+                  domain: item.primary_domain,
+                  oldScore: 0,
+                  newScore,
+                  reviewerId: domainConfig?.reviewer_id ?? null,
+                  timeoutDays: domainConfig?.timeout_days ?? 7,
+                  govConfigId: domainConfig?.id ?? null,
+                });
               }
             }
           }
@@ -262,59 +305,57 @@ export async function GET(request: NextRequest) {
         totalProcessed++;
       }
 
-      // 4. Write updates in batch (individual updates to preserve previous_quality_score)
-      let batchUpdated = 0;
-      for (const update of updates) {
-        const { error: updateError } = await supabase
-          .from('content_items')
-          .update({
-            quality_score: update.quality_score,
-            previous_quality_score: update.previous_quality_score,
-            quality_score_updated_at: update.quality_score_updated_at,
-          })
-          .eq('id', update.id);
-        if (updateError) {
-          logger.error(
-            { err: updateError, itemId: update.id },
-            'Quality score update failed for item',
-          );
-          failedUpdates.push({ id: update.id, error: updateError.message });
-        } else {
-          batchUpdated++;
-        }
-      }
-
-      totalUpdated += batchUpdated;
       offset += BATCH_SIZE;
 
       // If we got fewer items than BATCH_SIZE, we've reached the end
       if (batch.length < BATCH_SIZE) break;
     }
 
-    // 5. Create quality_flag notifications for items that dropped below threshold
+    // 5. Create quality_flag notifications for items below threshold.
+    //
+    // ID-131 {131.19}: without a persisted prior score (see note above), this
+    // is level-triggered rather than edge-triggered — every item currently
+    // below threshold is a candidate on every run. `existingFlagIds` (today's
+    // already-notified entity ids) keeps a same-day re-run from duplicating
+    // notifications; it does NOT prevent one notification per below-threshold
+    // item on each subsequent weekly run (a documented behaviour change from
+    // the old "just crossed the threshold" transition detection).
     let notificationsCreated = 0;
     if (flaggedItems.length > 0) {
       const adminIds = await getUsersByRole(supabase, ['admin']);
 
       if (adminIds.length > 0) {
-        totalDroppedBelowThreshold = flaggedItems.length;
+        const todayStart = new Date();
+        todayStart.setUTCHours(0, 0, 0, 0);
+        const existingFlagIds = await getExistingNotificationIds(
+          supabase,
+          'quality_flag',
+          flaggedItems.map((item) => item.itemId),
+          todayStart.toISOString(),
+        );
+        const newlyFlagged = flaggedItems.filter(
+          (item) => !existingFlagIds.has(item.itemId),
+        );
+        totalDroppedBelowThreshold = newlyFlagged.length;
 
-        const notifications = flaggedItems.flatMap((item) =>
+        const notifications = newlyFlagged.flatMap((item) =>
           adminIds.map((userId) => ({
             userId,
             type: 'quality_flag' as const,
             entityType: 'content_item',
             entityId: item.itemId,
-            title: `Quality score dropped below threshold: "${item.title}"`,
-            message: `"${item.title}" quality score dropped from ${item.oldScore} to ${item.newScore} (threshold: ${thresholdMap.get(item.domain ?? '') ?? DEFAULT_THRESHOLD}). Domain: ${item.domain ?? 'unclassified'}.`,
+            title: `Quality score below threshold: "${item.title}"`,
+            message: `"${item.title}" quality score is ${item.newScore} (threshold: ${thresholdMap.get(item.domain ?? '') ?? DEFAULT_THRESHOLD}). Domain: ${item.domain ?? 'unclassified'}.`,
           })),
         );
 
-        const { error: notifError } = await createBulkNotifications(
-          supabase,
-          notifications,
-        );
-        if (!notifError) notificationsCreated = notifications.length;
+        if (notifications.length > 0) {
+          const { error: notifError } = await createBulkNotifications(
+            supabase,
+            notifications,
+          );
+          if (!notifError) notificationsCreated = notifications.length;
+        }
       }
     }
 
@@ -329,13 +370,14 @@ export async function GET(request: NextRequest) {
           Date.now() + item.timeoutDays * 24 * 60 * 60 * 1000,
         ).toISOString();
         await supabase
-          .from('content_items')
+          .from('record_lifecycle')
           .update({
             governance_review_status: 'pending',
             governance_review_due: reviewDue,
             governance_reviewer_id: item.reviewerId,
           })
-          .eq('id', item.itemId);
+          .eq('owner_kind', 'source_document')
+          .eq('source_document_id', item.itemId);
       }
 
       // Determine notification recipients per item

@@ -95,7 +95,8 @@ function resetMocks() {
 
 /**
  * Configure the three sequential Supabase queries the certifications route
- * makes: (1) entity_relationships, (2) entity_mentions, (3) content_items.
+ * makes: (1) entity_relationships, (2) entity_mentions, (3) source_documents
+ * (evidence-link titles — ID-131 {131.19} re-pointed off content_items).
  *
  * The mock chain is shared across all .from() calls — the route awaits each
  * query sequentially, so we use the `.then` mock queue to return different
@@ -104,7 +105,11 @@ function resetMocks() {
 function configureQueries(
   relationships: Record<string, unknown>[],
   mentions: Record<string, unknown>[],
-  contentItems: { id: string; title: string }[] = [],
+  contentItems: {
+    id: string;
+    filename: string;
+    suggested_title?: string | null;
+  }[] = [],
 ) {
   const chain = mockSupabase._chain;
 
@@ -155,7 +160,13 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
           metadata: {},
         },
       ],
-      [{ id: UUID_2, title: 'Some Document' }],
+      [
+        {
+          id: UUID_2,
+          filename: 'some-document.docx',
+          suggested_title: 'Some Document',
+        },
+      ],
     );
 
     const response = await GET();
@@ -191,7 +202,13 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
           metadata: { holder: 'self' },
         },
       ],
-      [{ id: UUID_2, title: 'Example Datacentre Cert Doc' }],
+      [
+        {
+          id: UUID_2,
+          filename: 'example-datacentre-cert-doc.docx',
+          suggested_title: 'Example Datacentre Cert Doc',
+        },
+      ],
     );
 
     const response = await GET();
@@ -222,7 +239,13 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
           metadata: { holder: 'self' },
         },
       ],
-      [{ id: UUID_3, title: 'Our ISO 9001 Cert' }],
+      [
+        {
+          id: UUID_3,
+          filename: 'our-iso-9001-cert.docx',
+          suggested_title: 'Our ISO 9001 Cert',
+        },
+      ],
     );
 
     const response = await GET();
@@ -235,6 +258,9 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
     expect(selfCerts).toHaveLength(1);
     expect(selfCerts[0].canonical_name).toBe('iso 9001');
     expect(selfCerts[0].holder).toBe('self');
+    // Evidence-link title resolves from source_documents.suggested_title
+    // (ID-131 {131.19} — falls back to filename when unset).
+    expect(selfCerts[0].content_items[0].title).toBe('Our ISO 9001 Cert');
   });
 
   it('(d) includes mentions where metadata.holder === "supplier" in supplierCertifications', async () => {
@@ -273,8 +299,16 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
         },
       ],
       [
-        { id: UUID_2, title: 'Supplier Cert Doc' },
-        { id: UUID_4, title: 'Our ISO 9001' },
+        {
+          id: UUID_2,
+          filename: 'supplier-cert-doc.docx',
+          suggested_title: 'Supplier Cert Doc',
+        },
+        {
+          id: UUID_4,
+          filename: 'our-iso-9001.docx',
+          suggested_title: 'Our ISO 9001',
+        },
       ],
     );
 

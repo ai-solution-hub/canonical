@@ -21,16 +21,22 @@ import type { Database } from '@/supabase/types/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-type ContentItemUpdate =
-  Database['public']['Tables']['content_items']['Update'];
+// ID-131 {131.19} G-GOV-FACET: content_items is dying — governance status/
+// due/reviewer/verified_at live on the record_lifecycle facet (owner_kind=
+// 'source_document', governance axis, BI-20); title/suggested_title/
+// primary_domain/updated_by/updated_at live on the owning source_documents
+// row.
+type RecordLifecycleUpdate =
+  Database['public']['Tables']['record_lifecycle']['Update'];
 
 export const maxDuration = 30;
 
 // GET has two distinct 2xx shapes:
 //  - count_only=true → `{ count: number }` (also the Supabase-error fallback)
-//  - otherwise       → `data ?? []`, an array of content_items rows with the 9
-//    selected columns. `id`/`title`/`primary_domain` are NOT NULL; the rest are
-//    nullable. `governance_review_status` is a plain text column → z.string().
+//  - otherwise       → `data ?? []`, an array of facet+source_documents rows
+//    with the 9 selected columns. `id`/`title`/`primary_domain` are NOT NULL;
+//    the rest are nullable. `governance_review_status` is a plain text
+//    column → z.string().
 const GovernanceReviewItemSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -64,8 +70,9 @@ export const GET = defineRoute(
 
       if (countOnly) {
         const { count, error } = await supabase
-          .from('content_items')
+          .from('record_lifecycle')
           .select('*', { count: 'exact', head: true })
+          .eq('owner_kind', 'source_document')
           .eq('governance_review_status', 'pending');
 
         if (error) {
@@ -77,10 +84,11 @@ export const GET = defineRoute(
       }
 
       const { data, error } = await supabase
-        .from('content_items')
+        .from('record_lifecycle')
         .select(
-          'id, title, suggested_title, primary_domain, governance_review_status, governance_review_due, governance_reviewer_id, updated_by, updated_at',
+          'source_document_id, governance_review_status, governance_review_due, governance_reviewer_id, source_documents!inner(id, filename, suggested_title, primary_domain, updated_by, updated_at)',
         )
+        .eq('owner_kind', 'source_document')
         .eq('governance_review_status', 'pending')
         .order('governance_review_due', { ascending: true, nullsFirst: false })
         .range(offset, offset + limit - 1);
@@ -93,7 +101,21 @@ export const GET = defineRoute(
         );
       }
 
-      return NextResponse.json(data ?? []);
+      const items = (data ?? [])
+        .filter((row) => row.source_documents !== null)
+        .map((row) => ({
+          id: row.source_document_id!,
+          title: row.source_documents!.filename,
+          suggested_title: row.source_documents!.suggested_title,
+          primary_domain: row.source_documents!.primary_domain,
+          governance_review_status: row.governance_review_status,
+          governance_review_due: row.governance_review_due,
+          governance_reviewer_id: row.governance_reviewer_id,
+          updated_by: row.source_documents!.updated_by,
+          updated_at: row.source_documents!.updated_at,
+        }));
+
+      return NextResponse.json(items);
     } catch (err) {
       return NextResponse.json(
         { error: safeErrorMessage(err, 'Failed to fetch governance reviews') },
@@ -126,16 +148,20 @@ export const POST = defineRoute(
       const { item_id, action, notes } = parsed.data;
 
       // Verify the item exists and is pending review.
-      // §5.5 Phase 2 T2: also fetch `next_review_date` + `review_cadence_days`
-      // (read by the `approve` branch below to compute auto-renewal). The
-      // `verified_at` column is selected only to keep the SELECT shape stable
-      // for future extension.
+      // ID-131 {131.19}: content_items is dying — governance_review_status/
+      // next_review_date/review_cadence_days/verified_at now live on the
+      // record_lifecycle facet (owner_kind='source_document', SD-only
+      // cadence axis per D7). §5.5 Phase 2 T2: `next_review_date` +
+      // `review_cadence_days` are read by the `approve` branch below to
+      // compute auto-renewal. `verified_at` is selected only to keep the
+      // SELECT shape stable for future extension.
       const { data: item, error: fetchError } = await supabase
-        .from('content_items')
+        .from('record_lifecycle')
         .select(
-          'id, governance_review_status, next_review_date, review_cadence_days, verified_at',
+          'source_document_id, governance_review_status, next_review_date, review_cadence_days, verified_at',
         )
-        .eq('id', item_id)
+        .eq('owner_kind', 'source_document')
+        .eq('source_document_id', item_id)
         .single();
 
       if (fetchError || !item) {
@@ -153,7 +179,7 @@ export const POST = defineRoute(
         );
       }
 
-      let updateData: ContentItemUpdate;
+      let updateData: RecordLifecycleUpdate;
 
       switch (action) {
         case 'approve': {
@@ -163,9 +189,8 @@ export const POST = defineRoute(
           // (review_cadence_days IS NULL) leave `next_review_date` untouched.
           // Spec §6.5 + §6.9 AC8.
           const nextReviewDate = computeNextReviewDate(
-            (item as { next_review_date: string | null }).next_review_date,
-            (item as { review_cadence_days: number | null })
-              .review_cadence_days,
+            item.next_review_date,
+            item.review_cadence_days,
           );
           updateData = {
             governance_review_status: 'approved',
@@ -201,10 +226,11 @@ export const POST = defineRoute(
       }
 
       const { data: updated, error: updateError } = await supabase
-        .from('content_items')
+        .from('record_lifecycle')
         .update(updateData)
-        .eq('id', item_id)
-        .select('id')
+        .eq('owner_kind', 'source_document')
+        .eq('source_document_id', item_id)
+        .select('source_document_id')
         .single();
 
       if (updateError || !updated) {
@@ -221,12 +247,15 @@ export const POST = defineRoute(
       // Create notifications for the content owner and/or last editor.
       // Notification dispatch is best-effort: a failure here must not roll
       // back the governance review action that already succeeded above.
+      // ID-131 {131.19}: content_owner_id lives on the facet; updated_by
+      // lives on the owning source_documents row.
       try {
         const itemDetailResult = await tryQuery(
           supabase
-            .from('content_items')
-            .select('updated_by, content_owner_id')
-            .eq('id', item_id)
+            .from('record_lifecycle')
+            .select('content_owner_id, source_documents!inner(updated_by)')
+            .eq('owner_kind', 'source_document')
+            .eq('source_document_id', item_id)
             .maybeSingle(),
           'governance.review.item_detail',
         );
@@ -244,8 +273,9 @@ export const POST = defineRoute(
           notifyTargets.add(detail.content_owner_id);
         }
         // Also notify last editor if different from owner and reviewer
-        if (detail?.updated_by && detail.updated_by !== user.id) {
-          notifyTargets.add(detail.updated_by);
+        const updatedBy = detail?.source_documents?.updated_by;
+        if (updatedBy && updatedBy !== user.id) {
+          notifyTargets.add(updatedBy);
         }
 
         for (const targetUserId of notifyTargets) {

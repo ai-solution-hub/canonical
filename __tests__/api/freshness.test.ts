@@ -225,16 +225,22 @@ describe('POST /api/freshness/calculate', () => {
 
     const mockItems = [
       {
-        id: VALID_UUID,
+        source_document_id: VALID_UUID,
         lifecycle_type: 'evergreen',
-        updated_at: '2026-01-01T00:00:00Z',
         expiry_date: null,
+        source_documents: {
+          id: VALID_UUID,
+          updated_at: '2026-01-01T00:00:00Z',
+        },
       },
       {
-        id: VALID_UUID_2,
+        source_document_id: VALID_UUID_2,
         lifecycle_type: 'date_bound',
-        updated_at: '2025-06-01T00:00:00Z',
         expiry_date: '2026-06-01',
+        source_documents: {
+          id: VALID_UUID_2,
+          updated_at: '2025-06-01T00:00:00Z',
+        },
       },
     ];
 
@@ -274,16 +280,22 @@ describe('POST /api/freshness/calculate', () => {
 
     const mockItems = [
       {
-        id: VALID_UUID,
+        source_document_id: VALID_UUID,
         lifecycle_type: 'evergreen',
-        updated_at: '2026-01-01T00:00:00Z',
         expiry_date: null,
+        source_documents: {
+          id: VALID_UUID,
+          updated_at: '2026-01-01T00:00:00Z',
+        },
       },
       {
-        id: VALID_UUID_2,
+        source_document_id: VALID_UUID_2,
         lifecycle_type: 'evergreen',
-        updated_at: '2025-01-01T00:00:00Z',
         expiry_date: null,
+        source_documents: {
+          id: VALID_UUID_2,
+          updated_at: '2025-01-01T00:00:00Z',
+        },
       },
     ];
 

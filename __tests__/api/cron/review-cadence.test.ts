@@ -3,7 +3,11 @@
  *
  * Spec rows §13.2:
  *   (a) overdue + null status                    -> flagged
- *   (b) overdue + superseded_by IS NOT NULL       -> not flagged
+ *   (b) [REMOVED — ID-131 {131.19}] overdue + superseded_by IS NOT NULL -> was
+ *       not flagged; the guard has no source_documents equivalent and was
+ *       dropped rather than guessed (documented gap, see the route). Kept as
+ *       a general empty-candidate-set regression check, not an assertion of
+ *       the (now-absent) exclusion.
  *   (c) overdue + archived_at IS NOT NULL         -> not flagged
  *   (d) overdue + governance_review_status='pending' -> excluded by SQL filter
  *   (e) re-running on already-'review_overdue' items -> no-op
@@ -13,11 +17,14 @@
  *   docs/specs/p0-document-control-lifecycle-spec.md §6
  *   docs/plans/§5.5-phase-2-cron-plan.md T1
  *
- * The SQL filter chain `lt('next_review_date',...).is(...).is(...).or(...)`
- * runs server-side (PostgREST), so spec rows (b)/(c)/(d)/(e) are
- * exclusion-by-filter — the test asserts they appear as "0 candidates"
- * when the mock returns the post-filter result. The flagging branch (a)
- * + the failure branch (f) are the active code paths.
+ * ID-131 {131.19} G-GOV-FACET: content_items is dying — the route now reads
+ * record_lifecycle (owner_kind='source_document') joined to source_documents.
+ * The SQL filter chain `eq('owner_kind',...).lt('next_review_date',...)
+ * .is('source_documents.archived_at',...).neq('source_documents.
+ * publication_status',...).or(...)` runs server-side (PostgREST), so spec
+ * rows (c)/(d)/(e) are exclusion-by-filter — the test asserts they appear as
+ * "0 candidates" when the mock returns the post-filter result. The flagging
+ * branch (a) + the failure branch (f) are the active code paths.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMockSupabaseClient } from '../../helpers/mock-supabase';
@@ -93,31 +100,53 @@ interface ReviewCandidate {
   primary_domain: string | null;
 }
 
-function makeCandidate(
-  overrides: Partial<ReviewCandidate> = {},
-): ReviewCandidate {
+/**
+ * Builds a record_lifecycle-facet-joined-to-source_documents row, matching
+ * the shape `app/api/cron/review-cadence/route.ts` now reads (ID-131
+ * {131.19} G-GOV-FACET: content_items is dying). Keeps top-level `id`/
+ * `title` convenience aliases so existing assertions built off
+ * `item.id`/`item.title` keep working — the route itself derives its
+ * internal flat candidate shape from `source_document_id`/
+ * `source_documents.suggested_title ?? filename`.
+ */
+function makeCandidate(overrides: Partial<ReviewCandidate> = {}) {
+  const id = overrides.id ?? '00000000-0000-4000-8000-000000000010';
+  const title = overrides.title ?? 'Overdue Test Item';
   return {
-    id: overrides.id ?? '00000000-0000-4000-8000-000000000010',
-    title: overrides.title ?? 'Overdue Test Item',
+    id,
+    title,
     next_review_date: overrides.next_review_date ?? '2025-01-01',
     review_cadence_days: overrides.review_cadence_days ?? 180,
     content_owner_id: overrides.content_owner_id ?? null,
     governance_review_status: overrides.governance_review_status ?? null,
     primary_domain: overrides.primary_domain ?? 'Operations',
+    // The actual DB-row shape the route reads:
+    source_document_id: id,
+    source_documents: {
+      id,
+      filename: 'test-item.pdf',
+      suggested_title: title,
+      primary_domain: overrides.primary_domain ?? 'Operations',
+      publication_status: 'published',
+      archived_at: null,
+    },
   };
 }
 
 /**
  * Wire up the chainable mock so that:
- *   1. content_items SELECT (lt -> is -> is -> or) returns `candidates` post-filter.
- *      i.e. caller has already supplied items the SQL would have surfaced.
- *   2. content_items UPDATE (.update().eq()) records the call into updateCalls
- *      and resolves null/error per `updateError` map keyed on item id.
+ *   1. record_lifecycle SELECT (eq -> lt -> is -> neq -> or) returns
+ *      `candidates` post-filter (ID-131 {131.19}: content_items is dying —
+ *      the facet+source_documents join replaces it). Caller has already
+ *      supplied items the SQL would have surfaced.
+ *   2. record_lifecycle UPDATE (.update().eq().eq()) records the call into
+ *      updateCalls and resolves null/error per `updateError` map keyed on
+ *      item id (source_document_id).
  *
  * Returns updateCalls so tests can assert per-item update payloads.
  */
 function configureDetailedMock(options: {
-  candidates: ReviewCandidate[];
+  candidates: ReturnType<typeof makeCandidate>[];
   updateError?: Map<string, { message: string; code?: string }>;
 }) {
   const { candidates, updateError } = options;
@@ -130,9 +159,13 @@ function configureDetailedMock(options: {
   // Hoisted so tests can assert filter-chain shape (per spec §6.3 exclusion table).
   // Without these spies the (b)/(c)/(d)/(e) exclusion tests would tautologically pass
   // even if the route's PostgREST filter chain were deleted.
-  // S216 §5.2 Phase 5 — `neq` added for the new `publication_status != 'archived'`
-  // belt-and-braces filter (per spec §6.4 lines 1003-1006).
+  // ID-131 {131.19}: `eq('owner_kind',...)` added (facet base table); the old
+  // `.is('superseded_by', null)` guard is DROPPED (documented gap — no
+  // source_documents equivalent, see the route's own comment) — `is`/`neq`
+  // now target the embedded `source_documents.archived_at` /
+  // `source_documents.publication_status` columns via dot notation.
   const selectChain = {
+    eq: vi.fn().mockReturnThis() as unknown,
     lt: vi.fn().mockReturnThis() as unknown,
     is: vi.fn().mockReturnThis() as unknown,
     neq: vi.fn().mockReturnThis() as unknown,
@@ -140,24 +173,27 @@ function configureDetailedMock(options: {
     then: (resolve: (v: unknown) => unknown) =>
       resolve({ data: candidates, error: null }),
   };
+  (selectChain.eq as ReturnType<typeof vi.fn>).mockReturnValue(selectChain);
   (selectChain.lt as ReturnType<typeof vi.fn>).mockReturnValue(selectChain);
   (selectChain.is as ReturnType<typeof vi.fn>).mockReturnValue(selectChain);
   (selectChain.neq as ReturnType<typeof vi.fn>).mockReturnValue(selectChain);
   (selectChain.or as ReturnType<typeof vi.fn>).mockReturnValue(selectChain);
 
   mockSupabase.from.mockImplementation((table: string) => {
-    if (table === 'content_items') {
+    if (table === 'record_lifecycle') {
       return {
         select: vi.fn().mockReturnValue(selectChain),
         update: vi.fn().mockImplementation((data: Record<string, unknown>) => ({
-          eq: vi.fn().mockImplementation((_col: string, id: string) => {
-            updateCalls.push({ table, data, id });
-            const err = updateError?.get(id);
-            return {
-              then: (resolve: (v: unknown) => unknown) =>
-                resolve({ data: null, error: err ?? null }),
-            };
-          }),
+          eq: vi.fn().mockImplementation((_col1: string, _val1: string) => ({
+            eq: vi.fn().mockImplementation((_col2: string, id: string) => {
+              updateCalls.push({ table, data, id });
+              const err = updateError?.get(id);
+              return {
+                then: (resolve: (v: unknown) => unknown) =>
+                  resolve({ data: null, error: err ?? null }),
+              };
+            }),
+          })),
         })),
       };
     }
@@ -285,16 +321,30 @@ describe('GET /api/cron/review-cadence — spec §13.2 cron rows', () => {
     // SQL filter-chain shape (spec §6.3 exclusion table) — without these
     // assertions, tests (b)/(c)/(d)/(e) would tautologically pass even if
     // the production route's PostgREST filter chain were deleted.
+    expect(selectChain.eq).toHaveBeenCalledWith(
+      'owner_kind',
+      'source_document',
+    );
     expect(selectChain.lt).toHaveBeenCalledWith(
       'next_review_date',
       expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
     );
-    expect(selectChain.is).toHaveBeenNthCalledWith(1, 'superseded_by', null);
-    expect(selectChain.is).toHaveBeenNthCalledWith(2, 'archived_at', null);
+    // ID-131 {131.19}: the old `.is('superseded_by', null)` guard is DROPPED
+    // (documented gap — source_documents has no `superseded_by` column,
+    // supersession there is the `parent_id` version chain instead; see the
+    // route's own comment). Only one `.is()` call remains, targeting the
+    // embedded source_documents.archived_at column.
+    expect(selectChain.is).toHaveBeenCalledTimes(1);
+    expect(selectChain.is).toHaveBeenNthCalledWith(
+      1,
+      'source_documents.archived_at',
+      null,
+    );
     // S216 §5.2 Phase 5 / §6.4 — `publication_status != 'archived'` filter
-    // pairs with `archived_at IS NULL` for defence-in-depth.
+    // pairs with `archived_at IS NULL` for defence-in-depth. ID-131
+    // {131.19}: targets the embedded source_documents column.
     expect(selectChain.neq).toHaveBeenCalledWith(
-      'publication_status',
+      'source_documents.publication_status',
       'archived',
     );
     expect(selectChain.or).toHaveBeenCalledWith(
@@ -335,9 +385,18 @@ describe('GET /api/cron/review-cadence — spec §13.2 cron rows', () => {
     expect(runCall.itemsProcessed).toBe(1);
   });
 
-  it('(b) does NOT flag items with superseded_by (excluded by SQL filter)', async () => {
-    // The route's SQL applies .is('superseded_by', null) — superseded items
-    // never reach the candidates list. Mock returns [] to simulate filter.
+  it('(b) [SUPERSEDED_BY GUARD REMOVED] handles an empty candidate set gracefully', async () => {
+    // ID-131 {131.19}: the route's old `.is('superseded_by', null)` guard is
+    // DROPPED — source_documents has no `superseded_by` column (supersession
+    // there is the `parent_id` version chain instead); "is this the latest
+    // version" cannot be expressed as a single PostgREST column filter, so
+    // it was removed rather than guessed (documented gap, see the route's
+    // own comment). This spec row's original behaviour (superseded items
+    // excluded from cadence flagging) is NOT currently enforced by this
+    // cron — tracked as a known gap for the Orchestrator/Curator, not
+    // fixed here. This test is kept as a general "empty candidate set"
+    // regression guard (mirrors (c)/(d)/(e) below) rather than asserting
+    // the now-removed exclusion.
     configureDetailedMock({ candidates: [] });
 
     const res = await GET(

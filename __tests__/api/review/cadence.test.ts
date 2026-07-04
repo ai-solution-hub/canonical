@@ -58,15 +58,43 @@ function daysAgo(days: number): string {
   ).toISOString();
 }
 
-function makeMockItem(overrides: Record<string, unknown> = {}) {
+// ID-131 {131.19} G-GOV-FACET: the route now fetches from record_lifecycle
+// (owner_kind='source_document') joined to source_documents via
+// `source_documents!inner(id, filename, suggested_title, primary_domain)` —
+// a nested embed, not a flat row. This helper keeps the flat override API
+// tests already use (`id`, `title`, `suggested_title`, `primary_domain`,
+// `verified_at`, `governance_review_status`) and builds the nested row shape
+// the route actually reads (`row.source_document_id`,
+// `row.source_documents.filename`, etc.) under the hood.
+function makeMockItem(
+  overrides: {
+    id?: string;
+    title?: string | null;
+    suggested_title?: string | null;
+    primary_domain?: string | null;
+    verified_at?: string | null;
+    governance_review_status?: string | null;
+  } = {},
+) {
+  const {
+    id = UUID_1,
+    title = 'Test Item',
+    suggested_title = 'Test Title',
+    primary_domain = 'Technology',
+    verified_at = null,
+    governance_review_status = null,
+  } = overrides;
+
   return {
-    id: UUID_1,
-    title: 'Test Item',
-    suggested_title: 'Test Title',
-    primary_domain: 'Technology',
-    verified_at: null,
-    governance_review_status: null,
-    ...overrides,
+    source_document_id: id,
+    verified_at,
+    governance_review_status,
+    source_documents: {
+      id,
+      filename: title,
+      suggested_title,
+      primary_domain,
+    },
   };
 }
 
@@ -461,7 +489,7 @@ describe('GET /api/review/cadence', () => {
 
   // -- Error handling --
 
-  it('returns 500 when content_items query fails', async () => {
+  it('returns 500 when the record_lifecycle items query fails', async () => {
     configureRole(mockSupabase, 'editor');
 
     let thenCallCount = 0;

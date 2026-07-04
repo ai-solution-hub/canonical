@@ -38,10 +38,6 @@ const { GET: statsGet } = await import('@/app/api/content-owners/stats/route');
 const VALID_UUID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 const VALID_UUID_2 = 'b2c3d4e5-f6a7-8901-bcde-f12345678901';
 const OWNER_UUID = 'c3d4e5f6-a7b8-4012-8def-123456789012';
-// Distinct from VALID_UUID/VALID_UUID_2 (content_items.id) — proves bulk-assign
-// resolves through content_items.source_document_id before calling the RPC.
-const SOURCE_DOC_UUID = 'd4e5f6a7-b8c9-4123-9012-234567890123';
-const SOURCE_DOC_UUID_2 = 'e5f6a7b8-c9d0-4234-a123-345678901234';
 
 // ---------------------------------------------------------------------------
 // Reset mocks before each test
@@ -183,14 +179,15 @@ describe('POST /api/content-owners/bulk-assign', () => {
   it('bulk assigns by item_ids successfully', async () => {
     configureRole(mockSupabase, 'admin');
 
-    // Resolution query: content_items.id -> source_document_id (awaited chain)
+    // Resolution query: source_documents.id existence check (awaited chain).
+    // ID-131 {131.19}: item_ids ARE source_documents ids directly now
+    // (content_items was already 1:1 with its backing source_document) — the
+    // resolution query just confirms which of them still exist and echoes
+    // the same ids back, rather than remapping to a different id space.
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
-          data: [
-            { source_document_id: SOURCE_DOC_UUID },
-            { source_document_id: SOURCE_DOC_UUID_2 },
-          ],
+          data: [{ id: VALID_UUID }, { id: VALID_UUID_2 }],
           error: null,
         }),
     );
@@ -221,11 +218,11 @@ describe('POST /api/content-owners/bulk-assign', () => {
     expect(body.success).toBe(true);
     expect(body.items_updated).toBe(2);
 
-    // Verify RPC was called with the resolved source_document_ids (ID-131
+    // Verify RPC was called with the resolved source_documents ids (ID-131
     // {131.13} G-GOV-FACET-B — bulk_assign_content_owner now matches
-    // record_lifecycle.owner_id, not content_items.id).
+    // record_lifecycle.owner_id, keyed on source_documents.id).
     expect(mockSupabase.rpc).toHaveBeenCalledWith('bulk_assign_content_owner', {
-      p_item_ids: [SOURCE_DOC_UUID, SOURCE_DOC_UUID_2],
+      p_item_ids: [VALID_UUID, VALID_UUID_2],
       p_owner_id: OWNER_UUID,
       p_assigned_by: 'test-user-id',
     });
@@ -234,14 +231,14 @@ describe('POST /api/content-owners/bulk-assign', () => {
   it('bulk assigns by filter successfully', async () => {
     configureRole(mockSupabase, 'admin');
 
-    // Filter query returns items (awaited chain via .then)
+    // Filter query returns source_documents rows directly (awaited chain via
+    // .then). ID-131 {131.19}: the unowned_only branch joins
+    // record_lifecycle!inner(content_owner_id) to filter, but the selected
+    // shape is just `id` — itemIds and ownerIds collapse onto the same set.
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
-          data: [
-            { id: VALID_UUID, source_document_id: SOURCE_DOC_UUID },
-            { id: VALID_UUID_2, source_document_id: SOURCE_DOC_UUID_2 },
-          ],
+          data: [{ id: VALID_UUID }, { id: VALID_UUID_2 }],
           error: null,
         }),
     );
@@ -273,29 +270,28 @@ describe('POST /api/content-owners/bulk-assign', () => {
     expect(body.items_updated).toBe(2);
 
     expect(mockSupabase.rpc).toHaveBeenCalledWith('bulk_assign_content_owner', {
-      p_item_ids: [SOURCE_DOC_UUID, SOURCE_DOC_UUID_2],
+      p_item_ids: [VALID_UUID, VALID_UUID_2],
       p_owner_id: OWNER_UUID,
       p_assigned_by: 'test-user-id',
     });
   });
 
-  it('returns success with 0 items when the filter matches items with no backing source document', async () => {
+  // Replaces the pre-ID-131 "filter matches items with no backing source
+  // document" test — content_items.source_document_id nullability is gone
+  // now that filter queries hit source_documents directly. The equivalent
+  // "resolves to nothing" gap is item_ids that don't resolve to an existing
+  // source_documents row (e.g. stale/removed ids) — covered below.
+  it('returns success with 0 items when none of the requested item_ids resolve to an existing source document', async () => {
     configureRole(mockSupabase, 'admin');
 
-    // Filter matches content_items, but none have a source_document_id to
-    // resolve — nothing to assign under the new schema.
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({
-          data: [{ id: VALID_UUID, source_document_id: null }],
-          error: null,
-        }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const req = createTestRequest('/api/content-owners/bulk-assign', {
       method: 'POST',
       body: {
-        filter: { domain: 'Engineering', unowned_only: true },
+        item_ids: [VALID_UUID],
         owner_id: OWNER_UUID,
       },
     });
@@ -339,11 +335,11 @@ describe('POST /api/content-owners/bulk-assign', () => {
   it('returns 500 when RPC fails', async () => {
     configureRole(mockSupabase, 'admin');
 
-    // Resolution query: content_items.id -> source_document_id (awaited chain)
+    // Resolution query: source_documents.id existence check (awaited chain)
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
-          data: [{ source_document_id: SOURCE_DOC_UUID }],
+          data: [{ id: VALID_UUID }],
           error: null,
         }),
     );
@@ -366,7 +362,7 @@ describe('POST /api/content-owners/bulk-assign', () => {
     expect(res.status).toBe(500);
   });
 
-  it('returns 500 when the content_items resolution query fails', async () => {
+  it('returns 500 when the source_documents resolution query fails', async () => {
     configureRole(mockSupabase, 'admin');
 
     mockSupabase._chain.then.mockImplementationOnce(

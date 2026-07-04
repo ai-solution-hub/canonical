@@ -207,9 +207,12 @@ export const GET = defineRoute(CertificationReportResponseSchema, async () => {
     let contentItems: { id: string; title: string }[] = [];
     const warnings: string[] = [];
     if (contentItemIds.length > 0) {
+      // ID-131 {131.19} G-GOV-FACET: content_items is dying — evidence-link
+      // titles re-pointed onto source_documents id/filename/suggested_title,
+      // keyed on entity_mentions.source_document_id (already M2-renamed).
       const { data: items, error: itemsError } = await supabase
-        .from('content_items')
-        .select('id, title')
+        .from('source_documents')
+        .select('id, filename, suggested_title')
         .in('id', contentItemIds);
       if (itemsError) {
         logger.error(
@@ -221,7 +224,10 @@ export const GET = defineRoute(CertificationReportResponseSchema, async () => {
             safeErrorMessage(itemsError, 'content item title fetch failed'),
         );
       }
-      contentItems = items ?? [];
+      contentItems = (items ?? []).map((item) => ({
+        id: item.id,
+        title: item.suggested_title ?? item.filename,
+      }));
     }
 
     const contentItemMap = new Map(contentItems.map((ci) => [ci.id, ci.title]));

@@ -103,8 +103,13 @@ const TEST_USER_ID = 'user-abc-123';
  *         [0] from('content_history') — team changes
  *         [1] from('content_history') — recent work
  *         [2] rpc('get_freshness_breakdown')
- *         [3] from('content_items') or Promise.resolve — governance reviews
- *         [4] rpc('get_items_with_quality_flags') or Promise.resolve — quality flags
+ *         [3] from('record_lifecycle') or Promise.resolve — governance reviews
+ *            (ID-131 {131.19} G-GOV-FACET: content_items retired)
+ *         [4] from('ingestion_quality_log') or Promise.resolve — quality flags.
+ *            ID-131 {131.19}: get_items_with_quality_flags RPC dropped at M6
+ *            — this is now a REAL from() call (only issued when isAdmin),
+ *            which shifts every subsequent from() call's positional index by
+ *            one for admin-role tests. See `isAdmin` override below.
  *         [5] from('notifications') — unread notifications
  *         [6] from('form_response_history') — bid response team changes
  *         [7] from('form_response_history') — bid response recent work
@@ -126,6 +131,15 @@ function setupDefaultMock(
     notificationsCount?: number;
     bidResponseTeamChangesData?: unknown[];
     bidResponseRecentWorkData?: unknown[];
+    /**
+     * Whether the test invokes fetchReorientData with isAdmin=true. ID-131
+     * {131.19}: the quality-flags branch is a real `.from('ingestion_quality_log')`
+     * call only when isAdmin — must be set to true here whenever the test
+     * passes isAdmin=true to fetchReorientData, so the positional fromCalls
+     * array below inserts the matching slot instead of desyncing every
+     * subsequent from() call.
+     */
+    isAdmin?: boolean;
   } = {},
 ) {
   const mock = createMockSupabaseClient();
@@ -168,15 +182,32 @@ function setupDefaultMock(
     count: null,
   });
 
-  // [3] governance reviews — from('content_items')
+  // [3] governance reviews — from('record_lifecycle') (ID-131 {131.19}:
+  // content_items retired, governance_review_status now on the facet)
   fromCalls.push({
     data: null,
     error: null,
     count: overrides.governanceCount ?? 0,
   });
 
-  // [4] quality flags — now uses rpc('get_items_with_quality_flags'), NOT from()
-  // Handled in the rpc mock below, not in fromCalls
+  // [4] quality flags — ID-131 {131.19}: get_items_with_quality_flags RPC
+  // dropped at M6, replaced with a real from('ingestion_quality_log') call
+  // that ONLY fires when isAdmin (mirrors production's `isAdmin ? supabase
+  // .from(...) : Promise.resolve(...)`). Only insert this slot when the
+  // test will invoke fetchReorientData with isAdmin=true, or every
+  // subsequent from() call below desyncs by one position.
+  if (overrides.isAdmin) {
+    fromCalls.push({
+      data: Array.from(
+        { length: overrides.qualityFlagsCount ?? 0 },
+        (_, i) => ({
+          source_document_id: `quality-flag-doc-${i}`,
+        }),
+      ),
+      error: null,
+      count: null,
+    });
+  }
 
   // [5] notifications — from('notifications')
   fromCalls.push({
@@ -281,22 +312,16 @@ function setupDefaultMock(
     return c;
   });
 
-  // Configure RPC — freshness breakdown and quality flags (for admin)
+  // Configure RPC — freshness breakdown only. ID-131 {131.19}:
+  // get_items_with_quality_flags dropped at M6 — quality flags now flow
+  // through the from('ingestion_quality_log') slot above, not rpc().
   // (batch stats is handled by the mocked fetchActiveProcurementWithStats)
-  const qualityFlagUuids = Array.from(
-    { length: overrides.qualityFlagsCount ?? 0 },
-    (_, i) => `quality-flag-uuid-${i}`,
-  );
-  mock.rpc.mockImplementation((name: string) => {
-    if (name === 'get_items_with_quality_flags') {
-      return Promise.resolve({ data: qualityFlagUuids, error: null });
-    }
-    // get_freshness_breakdown
-    return Promise.resolve({
+  mock.rpc.mockImplementation(() =>
+    Promise.resolve({
       data: overrides.freshnessData ?? [],
       error: null,
-    });
-  });
+    }),
+  );
 
   // Configure the mocked fetchActiveProcurementWithStats result
   const workspacesData = (overrides.workspacesData ?? []) as Array<
@@ -715,6 +740,7 @@ describe('fetchReorientData', () => {
     it('generates quality_flag urgent items for admins', async () => {
       const mock = setupDefaultMock({
         qualityFlagsCount: 4,
+        isAdmin: true,
       });
 
       const result = await fetchReorientData(
@@ -792,6 +818,7 @@ describe('fetchReorientData', () => {
     it('generates notification urgent item when 5+ unread notifications', async () => {
       const mock = setupDefaultMock({
         notificationsCount: 8,
+        isAdmin: true,
       });
 
       // Use isAdmin=true so that all from() calls in the mock are consumed
@@ -814,6 +841,7 @@ describe('fetchReorientData', () => {
     it('does not generate notification urgent item when fewer than 5 notifications', async () => {
       const mock = setupDefaultMock({
         notificationsCount: 3,
+        isAdmin: true,
       });
 
       const result = await fetchReorientData(
@@ -1127,6 +1155,7 @@ describe('fetchReorientData', () => {
         governanceCount: 5,
         qualityFlagsCount: 1,
         notificationsCount: 8,
+        isAdmin: true,
       });
 
       const result = await fetchReorientData(
@@ -1288,6 +1317,7 @@ describe('fetchReorientData', () => {
             },
           },
         ],
+        isAdmin: true,
       });
 
       // Use admin role to ensure all from() calls fire in sequential mock order
@@ -1338,6 +1368,7 @@ describe('fetchReorientData', () => {
             },
           },
         ],
+        isAdmin: true,
       });
 
       const result = await fetchReorientData(
@@ -1377,6 +1408,7 @@ describe('fetchReorientData', () => {
             },
           },
         ],
+        isAdmin: true,
       });
 
       const result = await fetchReorientData(
@@ -1418,6 +1450,7 @@ describe('fetchReorientData', () => {
             },
           },
         ],
+        isAdmin: true,
       });
 
       const result = await fetchReorientData(
@@ -1499,6 +1532,7 @@ describe('fetchReorientData', () => {
             },
           },
         ],
+        isAdmin: true,
       });
 
       const result = await fetchReorientData(
@@ -1562,6 +1596,7 @@ describe('fetchReorientData', () => {
             },
           },
         ],
+        isAdmin: true,
       });
 
       const result = await fetchReorientData(

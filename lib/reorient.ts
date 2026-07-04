@@ -120,19 +120,35 @@ export async function fetchReorientData(
       // 2: Expired content count
       supabase.rpc('get_freshness_breakdown'),
 
-      // 3: Governance reviews pending (editor/admin only)
+      // 3: Governance reviews pending (editor/admin only). ID-131 {131.19}
+      // G-GOV-FACET: content_items is dying — governance_review_status now
+      // lives on the record_lifecycle facet.
       role === 'viewer'
         ? Promise.resolve({ count: 0, error: null })
         : supabase
-            .from('content_items')
+            .from('record_lifecycle')
             .select('*', { count: 'exact', head: true })
             .eq('governance_review_status', 'pending'),
 
-      // 4: Quality flags count (admin only)
-      // Uses the same RPC as fetchUnifiedDashboardData() so counts are consistent —
-      // returns distinct content_item_ids with unresolved flags, not raw log entries
+      // 4: Quality flags count (admin only). ID-131 {131.19}: the
+      // get_items_with_quality_flags RPC drops at M6 (content_items dies
+      // wholesale) — replaced with a facet-based distinct-source-document
+      // count over ingestion_quality_log (source_document_id-keyed since
+      // {131.13} G-GOV-FACET-B), mirroring get_review_breakdown_stats'
+      // 'flagged' branch. Module contract (results[4].data as an array whose
+      // .length is the flag count) preserved below.
       isAdmin
-        ? supabase.rpc('get_items_with_quality_flags')
+        ? supabase
+            .from('ingestion_quality_log')
+            .select('source_document_id')
+            .eq('resolved', false)
+            .not('source_document_id', 'is', null)
+            .then((res) => ({
+              data: res.data
+                ? Array.from(new Set(res.data.map((r) => r.source_document_id)))
+                : null,
+              error: res.error,
+            }))
         : Promise.resolve({ data: [], error: null }),
 
       // 5: Unread notifications (aligned with /api/notifications filters)

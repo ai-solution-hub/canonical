@@ -209,10 +209,10 @@ describe('GET /api/review/stats', () => {
       const body = await res.json();
       expect(body.awaiting_publication).toBe(11);
 
-      // The route MUST run this against content_items with both
-      // publication_status='in_review' AND archived_at IS NULL predicates
-      // (route.ts:47-50). The from() call goes through content_items.
-      expect(mockSupabase.from).toHaveBeenCalledWith('content_items');
+      // The route MUST run this against source_documents (ID-131 {131.19} —
+      // content_items is dying) with both publication_status='in_review' AND
+      // archived_at IS NULL predicates (route.ts:52-55).
+      expect(mockSupabase.from).toHaveBeenCalledWith('source_documents');
 
       const eqCalls = mockSupabase._chain.eq.mock.calls as Array<
         [string, unknown]
@@ -263,9 +263,10 @@ describe('GET /api/review/stats', () => {
       expect(body.unclassified_coverage).toBe(12);
       expect(body.awaiting_publication).toBe(7);
 
-      // The sentinel count must run against content_items, exclude archived
-      // rows (archived_at IS NULL), and OR the two 'unclassified' predicates.
-      expect(mockSupabase.from).toHaveBeenCalledWith('content_items');
+      // The sentinel count must run against source_documents (ID-131
+      // {131.19} — content_items is dying), exclude archived rows
+      // (archived_at IS NULL), and OR the two 'unclassified' predicates.
+      expect(mockSupabase.from).toHaveBeenCalledWith('source_documents');
 
       const isCalls = mockSupabase._chain.is.mock.calls as Array<
         [string, unknown]

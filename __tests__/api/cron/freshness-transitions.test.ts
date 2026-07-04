@@ -71,6 +71,12 @@ const GOV_CONFIG_ID = '00000000-0000-4000-8000-000000000050';
 
 type FreshnessState = 'fresh' | 'aging' | 'stale' | 'expired';
 
+/**
+ * Builds a record_lifecycle-facet-joined-to-source_documents row, matching
+ * the shape `app/api/cron/freshness-transitions/route.ts` now reads (ID-131
+ * {131.19}). Keeps the same override-parameter surface as the old
+ * content_items-shaped factory so existing call sites don't need touching.
+ */
 function makeTransitionItem(
   overrides: Partial<{
     id: string;
@@ -85,17 +91,25 @@ function makeTransitionItem(
     verified_at: string | null;
   }> = {},
 ) {
+  const id = overrides.id ?? '00000000-0000-4000-8000-000000000010';
   return {
-    id: overrides.id ?? '00000000-0000-4000-8000-000000000010',
-    title: overrides.title ?? 'Test Item',
+    // Convenience alias for test assertions (the route reads
+    // source_document_id, never a bare `id` on this joined row).
+    id,
+    source_document_id: id,
     previous_freshness: overrides.previous_freshness ?? 'aging',
     freshness: overrides.freshness ?? 'stale',
-    primary_domain: overrides.primary_domain ?? 'Operations',
-    updated_at: overrides.updated_at ?? '2026-01-01T00:00:00Z',
     lifecycle_type: overrides.lifecycle_type ?? 'standard',
     content_owner_id: overrides.content_owner_id ?? null,
     governance_review_status: overrides.governance_review_status ?? null,
     verified_at: overrides.verified_at ?? null,
+    source_documents: {
+      id,
+      filename: 'test-item.pdf',
+      suggested_title: overrides.title ?? 'Test Item',
+      primary_domain: overrides.primary_domain ?? 'Operations',
+      updated_at: overrides.updated_at ?? '2026-01-01T00:00:00Z',
+    },
   };
 }
 
@@ -150,12 +164,20 @@ function resetMocks() {
 
 /**
  * Configure sequential .from() calls.
- * The freshness-transitions cron calls:
- *   1. from('governance_config').select(...)    -> govConfigs
- *   2. from('content_items').select(...)        -> transition items
- *   3. from('content_items').update(...)        -> governance status updates
- *   4. from('pipeline_runs').insert(...)        -> logging
- *   5. Various notification-related calls
+ * ID-131 {131.19} G-GOV-FACET: content_items is dying — the
+ * freshness-transitions cron now calls:
+ *   1. from('governance_config').select(...)               -> govConfigs
+ *   2. from('record_lifecycle').select(...).eq('owner_kind',...)
+ *      .not('previous_freshness',...).neq('freshness','fresh')
+ *                                                           -> transition items (facet+SD join)
+ *   3. from('record_lifecycle').update(...).eq('owner_kind',...)
+ *      .eq('source_document_id',...)                       -> governance status updates
+ *   4. from('record_lifecycle').select(...).eq('owner_kind',...)
+ *      .not('expiry_date',...).lte('expiry_date',...).is('source_documents.archived_at',...)
+ *                                                           -> expiry reminders (unused by these
+ *                                                              tests — defaults to empty)
+ *   5. from('pipeline_runs').insert(...)                    -> logging
+ *   6. Various notification-related calls
  */
 function configureDetailedMock(options: {
   govConfigs?: Array<{
@@ -188,25 +210,42 @@ function configureDetailedMock(options: {
       };
     }
 
-    if (table === 'content_items') {
+    // ID-131 {131.19}: content_items is dying — record_lifecycle facet
+    // joined to source_documents (owner_kind='source_document'). This same
+    // table is queried TWICE per run: the main transitions query (terminal
+    // `.neq('freshness','fresh')`, returns `items`) and the expiry-reminders
+    // query (terminal `.lte(...).is(...)`, defaults to empty — unused by
+    // these tests).
+    if (table === 'record_lifecycle') {
       return {
         select: vi.fn().mockReturnThis(),
-        not: vi.fn().mockReturnThis(),
-        neq: vi.fn().mockReturnValue({
-          then: vi.fn((resolve: (v: unknown) => void) =>
-            resolve({ data: items, error: null }),
-          ),
+        eq: vi.fn().mockReturnThis(),
+        not: vi.fn().mockReturnValue({
+          neq: vi.fn().mockReturnValue({
+            then: vi.fn((resolve: (v: unknown) => void) =>
+              resolve({ data: items, error: null }),
+            ),
+          }),
+          lte: vi.fn().mockReturnValue({
+            is: vi.fn().mockReturnValue({
+              then: vi.fn((resolve: (v: unknown) => void) =>
+                resolve({ data: [], error: null }),
+              ),
+            }),
+          }),
         }),
         update: vi.fn().mockImplementation((data: Record<string, unknown>) => {
           return {
-            eq: vi.fn().mockImplementation((_col: string, id: string) => {
-              updateCalls.push({ table, data, id });
-              return {
-                then: vi.fn((resolve: (v: unknown) => void) =>
-                  resolve({ data: null, error: null }),
-                ),
-              };
-            }),
+            eq: vi.fn().mockImplementation((_col1: string, _val1: string) => ({
+              eq: vi.fn().mockImplementation((_col2: string, id: string) => {
+                updateCalls.push({ table, data, id });
+                return {
+                  then: vi.fn((resolve: (v: unknown) => void) =>
+                    resolve({ data: null, error: null }),
+                  ),
+                };
+              }),
+            })),
           };
         }),
       };

@@ -158,15 +158,17 @@ export const POST = defineRoute(
       let failureCount = 0;
 
       for (const id of ids) {
-        // Step 1: Fetch current state. SELECTs the columns the
-        // content_history insert will need (title/content/brief/detail/
-        // reference) so we don't need a second round-trip later. Mirrors
-        // PATCH route line 224-237 exactly.
+        // Step 1: Fetch current state. ID-131 {131.19}: content_items is
+        // dying — publication_status now lives on the owning source_documents
+        // row (BI-20 inline hot). title/content/brief/detail/reference are
+        // content_history-insert-only fields with NO typed-record home post-
+        // refactor (TECH.md BI-11 drops brief/detail/reference; content_history
+        // itself is dropped at M6 — the insert below becomes fully vestigial
+        // once that lands, out of this Subtask's scope) — the content_history
+        // insert at step 5 now uses fallback empty values instead of a fetch.
         const { data: current, error: fetchErr } = await supabase
-          .from('content_items')
-          .select(
-            'id, publication_status, title, content, brief, detail, reference',
-          )
+          .from('source_documents')
+          .select('id, publication_status')
           .eq('id', id)
           .maybeSingle();
 
@@ -236,7 +238,7 @@ export const POST = defineRoute(
         // transitions the bulk endpoint covers, no archive metadata is
         // touched — same path as the per-row PATCH for these targets.
         const { data: updated, error: updateErr } = await supabase
-          .from('content_items')
+          .from('source_documents')
           .update(
             applyTransitionSideEffects(
               {
@@ -246,7 +248,7 @@ export const POST = defineRoute(
               fromStatus,
               newStatus,
               user.id,
-            ) as Database['public']['Tables']['content_items']['Update'],
+            ) as Database['public']['Tables']['source_documents']['Update'],
           )
           .eq('id', id)
           .eq('publication_status', fromStatus)
@@ -291,14 +293,19 @@ export const POST = defineRoute(
         const changeReasonLiteral =
           action === 'approve' ? 'bulk_approve' : 'bulk_return_to_draft';
 
+        // ID-131 {131.19}: title/content/brief/detail/reference have no
+        // typed-record home post-refactor (BI-11 drop list) — content_history
+        // itself is dropped wholesale at M6, so this insert is a documented,
+        // bounded degradation (empty/null placeholders) rather than a fetch
+        // from a column that no longer has a source.
         await sb(
           supabase.from('content_history').insert({
             content_item_id: id,
-            title: current.title ?? '',
-            content: current.content ?? '',
-            brief: current.brief ?? null,
-            detail: current.detail ?? null,
-            reference: current.reference ?? null,
+            title: '',
+            content: '',
+            brief: null,
+            detail: null,
+            reference: null,
             change_summary: `Publication status: ${fromStatus} -> ${newStatus}`,
             change_reason: changeReasonLiteral,
             change_type: 'publication_state',

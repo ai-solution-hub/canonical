@@ -136,23 +136,32 @@ describe('POST /api/source-documents/[id]/send-to-review', () => {
   it('returns 200 for editor role with eligible items', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Fetch content items — eligible (NULL status)
+    // Fetch record_lifecycle rows — eligible (NULL status)
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
             {
-              id: ITEM_ID_1,
+              source_document_id: ITEM_ID_1,
               governance_review_status: null,
               content_owner_id: 'owner-1',
-              title: 'Item One',
+              source_documents: {
+                id: ITEM_ID_1,
+                filename: 'item-one.docx',
+                suggested_title: 'Item One',
+              },
             },
           ],
           error: null,
         }),
     );
 
-    // Update succeeds
+    // record_lifecycle update succeeds
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    // source_documents updated_at stamp succeeds (best-effort secondary write)
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
@@ -212,29 +221,42 @@ describe('POST /api/source-documents/[id]/send-to-review', () => {
   it('updates eligible items with governance_review_status pending', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Fetch content items — eligible (NULL and approved)
+    // Fetch record_lifecycle rows — eligible (NULL and approved)
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
             {
-              id: ITEM_ID_1,
+              source_document_id: ITEM_ID_1,
               governance_review_status: null,
               content_owner_id: 'owner-1',
-              title: 'Item One',
+              source_documents: {
+                id: ITEM_ID_1,
+                filename: 'item-one.docx',
+                suggested_title: 'Item One',
+              },
             },
             {
-              id: ITEM_ID_2,
+              source_document_id: ITEM_ID_2,
               governance_review_status: 'approved',
               content_owner_id: 'owner-2',
-              title: 'Item Two',
+              source_documents: {
+                id: ITEM_ID_2,
+                filename: 'item-two.docx',
+                suggested_title: 'Item Two',
+              },
             },
           ],
           error: null,
         }),
     );
 
-    // Update succeeds
+    // record_lifecycle update succeeds
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    // source_documents updated_at stamp succeeds (best-effort secondary write)
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
@@ -252,28 +274,37 @@ describe('POST /api/source-documents/[id]/send-to-review', () => {
     const params = createTestParams({ id: DOC_ID });
     await POST(req, { params });
 
-    // Verify update was called with 'pending'
-    expect(mockSupabase._chain.update).toHaveBeenCalled();
-    const updateCall = mockSupabase._chain.update.mock.calls[0][0];
-    expect(updateCall.governance_review_status).toBe('pending');
-    expect(updateCall.governance_review_due).toBeDefined();
-    expect(updateCall.updated_at).toBeDefined();
+    // Verify both updates were called: record_lifecycle carries the
+    // governance fields, source_documents carries the updated_at stamp
+    // (split into two writes — ID-131 {131.19} moved governance fields onto
+    // the record_lifecycle facet, separate from the owning source document).
+    expect(mockSupabase._chain.update).toHaveBeenCalledTimes(2);
+    const lifecycleUpdateCall = mockSupabase._chain.update.mock.calls[0][0];
+    expect(lifecycleUpdateCall.governance_review_status).toBe('pending');
+    expect(lifecycleUpdateCall.governance_review_due).toBeDefined();
+
+    const sourceDocUpdateCall = mockSupabase._chain.update.mock.calls[1][0];
+    expect(sourceDocUpdateCall.updated_at).toBeDefined();
   });
 
   // 7. Already-pending items are skipped (idempotent)
   it('skips already-pending items without error', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Fetch content items — all already pending
+    // Fetch record_lifecycle rows — all already pending
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
             {
-              id: ITEM_ID_1,
+              source_document_id: ITEM_ID_1,
               governance_review_status: 'pending',
               content_owner_id: 'owner-1',
-              title: 'Item One',
+              source_documents: {
+                id: ITEM_ID_1,
+                filename: 'item-one.docx',
+                suggested_title: 'Item One',
+              },
             },
           ],
           error: null,
@@ -300,16 +331,20 @@ describe('POST /api/source-documents/[id]/send-to-review', () => {
   it('skips draft items without error', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Fetch content items — draft
+    // Fetch record_lifecycle rows — draft
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
             {
-              id: ITEM_ID_1,
+              source_document_id: ITEM_ID_1,
               governance_review_status: 'draft',
               content_owner_id: null,
-              title: 'Draft Item',
+              source_documents: {
+                id: ITEM_ID_1,
+                filename: 'draft-item.docx',
+                suggested_title: 'Draft Item',
+              },
             },
           ],
           error: null,
@@ -336,41 +371,62 @@ describe('POST /api/source-documents/[id]/send-to-review', () => {
   it('returns correct sent, already_pending, skipped_draft counts', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Fetch content items — mixed statuses
+    // Fetch record_lifecycle rows — mixed statuses
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
             {
-              id: ITEM_ID_1,
+              source_document_id: ITEM_ID_1,
               governance_review_status: null,
               content_owner_id: 'owner-1',
-              title: 'Eligible',
+              source_documents: {
+                id: ITEM_ID_1,
+                filename: 'eligible.docx',
+                suggested_title: 'Eligible',
+              },
             },
             {
-              id: ITEM_ID_2,
+              source_document_id: ITEM_ID_2,
               governance_review_status: 'pending',
               content_owner_id: 'owner-2',
-              title: 'Already Pending',
+              source_documents: {
+                id: ITEM_ID_2,
+                filename: 'already-pending.docx',
+                suggested_title: 'Already Pending',
+              },
             },
             {
-              id: ITEM_ID_3,
+              source_document_id: ITEM_ID_3,
               governance_review_status: 'draft',
               content_owner_id: null,
-              title: 'Draft',
+              source_documents: {
+                id: ITEM_ID_3,
+                filename: 'draft.docx',
+                suggested_title: 'Draft',
+              },
             },
             {
-              id: ITEM_ID_4,
+              source_document_id: ITEM_ID_4,
               governance_review_status: 'changes_requested',
               content_owner_id: 'owner-3',
-              title: 'Changes Req',
+              source_documents: {
+                id: ITEM_ID_4,
+                filename: 'changes-req.docx',
+                suggested_title: 'Changes Req',
+              },
             },
           ],
           error: null,
         }),
     );
 
-    // Update succeeds
+    // record_lifecycle update succeeds
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    // source_documents updated_at stamp succeeds (best-effort secondary write)
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
@@ -406,23 +462,32 @@ describe('POST /api/source-documents/[id]/send-to-review', () => {
   it('returns review_url containing the source document ID', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Fetch content items — eligible
+    // Fetch record_lifecycle rows — eligible
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
             {
-              id: ITEM_ID_1,
+              source_document_id: ITEM_ID_1,
               governance_review_status: null,
               content_owner_id: 'owner-1',
-              title: 'Item',
+              source_documents: {
+                id: ITEM_ID_1,
+                filename: 'item.docx',
+                suggested_title: 'Item',
+              },
             },
           ],
           error: null,
         }),
     );
 
-    // Update succeeds
+    // record_lifecycle update succeeds
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    // source_documents updated_at stamp succeeds (best-effort secondary write)
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
@@ -451,29 +516,42 @@ describe('POST /api/source-documents/[id]/send-to-review', () => {
   it('creates governance_review_needed notifications for content owners', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Fetch content items — eligible with owners
+    // Fetch record_lifecycle rows — eligible with owners
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
             {
-              id: ITEM_ID_1,
+              source_document_id: ITEM_ID_1,
               governance_review_status: null,
               content_owner_id: 'owner-1',
-              title: 'Item One',
+              source_documents: {
+                id: ITEM_ID_1,
+                filename: 'item-one.docx',
+                suggested_title: 'Item One',
+              },
             },
             {
-              id: ITEM_ID_2,
+              source_document_id: ITEM_ID_2,
               governance_review_status: 'approved',
               content_owner_id: 'owner-2',
-              title: 'Item Two',
+              source_documents: {
+                id: ITEM_ID_2,
+                filename: 'item-two.docx',
+                suggested_title: 'Item Two',
+              },
             },
           ],
           error: null,
         }),
     );
 
-    // Update succeeds
+    // record_lifecycle update succeeds
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    // source_documents updated_at stamp succeeds (best-effort secondary write)
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );

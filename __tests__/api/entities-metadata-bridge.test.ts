@@ -164,7 +164,7 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('PATCH /api/entities/[canonical_name]/metadata — reverse bridge', () => {
-  it('propagates expiry_date to content_items for certification entities', async () => {
+  it('propagates expiry_date to record_lifecycle for certification entities', async () => {
     setupEntityUpdate('certification', ['item-1', 'item-2']);
 
     const req = createTestRequest('/api/entities/ISO%2027001/metadata', {
@@ -176,8 +176,10 @@ describe('PATCH /api/entities/[canonical_name]/metadata — reverse bridge', () 
 
     expect(res.status).toBe(200);
 
-    // Verify content_items was called (bridge propagation)
-    expect(fromCalls).toContain('content_items');
+    // Verify record_lifecycle was called (bridge propagation — ID-131
+    // {131.19} moved expiry_date/lifecycle_type off content_items onto the
+    // record_lifecycle facet)
+    expect(fromCalls).toContain('record_lifecycle');
 
     // Verify the update payload includes expiry_date and lifecycle_type
     const contentUpdate = updatePayloads.find(

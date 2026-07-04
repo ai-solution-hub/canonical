@@ -101,10 +101,15 @@ export function GovernanceSection() {
 
   const fetchLastFreshnessCheck = useCallback(async () => {
     try {
+      // ID-131 {131.19} G-GOV-FACET: content_items is dying —
+      // freshness_checked_at now lives on the record_lifecycle facet
+      // (owner_kind='source_document', SD-only freshness axis per D7).
+      // Ratified TECH.md E3 — this client-side consumer is kept + repointed.
       const supabase = createClient();
       const { data } = await supabase
-        .from('content_items')
+        .from('record_lifecycle')
         .select('freshness_checked_at')
+        .eq('owner_kind', 'source_document')
         .not('freshness_checked_at', 'is', null)
         .order('freshness_checked_at', { ascending: false })
         .limit(1)

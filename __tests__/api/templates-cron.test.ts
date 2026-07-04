@@ -1113,15 +1113,25 @@ describe('GET /api/cron/freshness-transitions', () => {
   });
 
   it('creates individual notifications when transitions are within batch threshold', async () => {
+    // ID-131 {131.19}: content_items is dying — the route now reads
+    // record_lifecycle (owner_kind='source_document') joined to
+    // source_documents.
     const transitions = [
       {
-        id: 'item-1',
-        title: 'Test Item',
+        source_document_id: 'item-1',
         previous_freshness: 'fresh',
         freshness: 'aging',
-        primary_domain: 'Engineering',
-        updated_at: '2026-01-01T00:00:00Z',
         lifecycle_type: 'standard',
+        content_owner_id: null,
+        governance_review_status: null,
+        verified_at: null,
+        source_documents: {
+          id: 'item-1',
+          filename: 'test-item.pdf',
+          suggested_title: 'Test Item',
+          primary_domain: 'Engineering',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
       },
     ];
 
@@ -1154,14 +1164,23 @@ describe('GET /api/cron/freshness-transitions', () => {
   });
 
   it('creates summary notification when transitions exceed batch threshold (>10)', async () => {
+    // ID-131 {131.19}: content_items is dying — record_lifecycle facet
+    // joined to source_documents.
     const transitions = Array.from({ length: 12 }, (_, i) => ({
-      id: `item-${i}`,
-      title: `Test Item ${i}`,
+      source_document_id: `item-${i}`,
       previous_freshness: 'fresh',
       freshness: 'aging',
-      primary_domain: 'Engineering',
-      updated_at: '2026-01-01T00:00:00Z',
       lifecycle_type: 'standard',
+      content_owner_id: null,
+      governance_review_status: null,
+      verified_at: null,
+      source_documents: {
+        id: `item-${i}`,
+        filename: `test-item-${i}.pdf`,
+        suggested_title: `Test Item ${i}`,
+        primary_domain: 'Engineering',
+        updated_at: '2026-01-01T00:00:00Z',
+      },
     }));
 
     // Governance config query
@@ -1192,15 +1211,24 @@ describe('GET /api/cron/freshness-transitions', () => {
   });
 
   it('skips already-notified items for idempotency', async () => {
+    // ID-131 {131.19}: content_items is dying — record_lifecycle facet
+    // joined to source_documents.
     const transitions = [
       {
-        id: 'item-1',
-        title: 'Already Notified',
+        source_document_id: 'item-1',
         previous_freshness: 'fresh',
         freshness: 'stale',
-        primary_domain: null,
-        updated_at: null,
         lifecycle_type: null,
+        content_owner_id: null,
+        governance_review_status: null,
+        verified_at: null,
+        source_documents: {
+          id: 'item-1',
+          filename: 'already-notified.pdf',
+          suggested_title: 'Already Notified',
+          primary_domain: null,
+          updated_at: null,
+        },
       },
     ];
 
@@ -1292,8 +1320,12 @@ describe('GET /api/cron/classification-quality', () => {
         resolve({
           data: [
             {
+              // ID-131 {131.19}: content_items is dying — the route now
+              // reads source_documents (suggested_title/filename, no bare
+              // `title` column).
               id: 'item-1',
-              title: 'Test Item',
+              suggested_title: 'Test Item',
+              filename: 'test-item.pdf',
               primary_domain: 'Engineering',
               primary_subtopic: 'Standards',
               classification_confidence: 0.5,
@@ -1336,7 +1368,8 @@ describe('GET /api/cron/classification-quality', () => {
           data: [
             {
               id: 'item-1',
-              title: 'Test Item',
+              suggested_title: 'Test Item',
+              filename: 'test-item.pdf',
               primary_domain: 'Engineering',
               primary_subtopic: 'Standards',
               classification_confidence: 0.5,
@@ -1381,7 +1414,8 @@ describe('GET /api/cron/classification-quality', () => {
           data: [
             {
               id: 'item-1',
-              title: 'Test Item',
+              suggested_title: 'Test Item',
+              filename: 'test-item.pdf',
               primary_domain: 'Engineering',
               primary_subtopic: 'Standards',
               classification_confidence: 0.65,
@@ -1423,7 +1457,8 @@ describe('GET /api/cron/classification-quality', () => {
           data: [
             {
               id: 'item-1',
-              title: 'Item 1',
+              suggested_title: 'Item 1',
+              filename: 'item-1.pdf',
               primary_domain: 'Eng',
               primary_subtopic: 'S',
               classification_confidence: 0.4,
@@ -1431,7 +1466,8 @@ describe('GET /api/cron/classification-quality', () => {
             },
             {
               id: 'item-2',
-              title: 'Item 2',
+              suggested_title: 'Item 2',
+              filename: 'item-2.pdf',
               primary_domain: 'Eng',
               primary_subtopic: 'S',
               classification_confidence: 0.3,
@@ -1470,7 +1506,8 @@ describe('GET /api/cron/classification-quality', () => {
           data: [
             {
               id: 'item-1',
-              title: 'Test',
+              suggested_title: 'Test',
+              filename: 'test.pdf',
               primary_domain: null,
               primary_subtopic: null,
               classification_confidence: null,

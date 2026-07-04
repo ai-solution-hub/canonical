@@ -40,9 +40,6 @@ import { GET as getStats } from '@/app/api/review/stats/route';
 // ---------------------------------------------------------------------------
 
 const VALID_UUID = '00000000-0000-4000-8000-000000000001';
-// A distinct id from VALID_UUID (the content_items.id) — proves ingestion_quality_log
-// writes/reads resolve through content_items.source_document_id, not item_id directly.
-const SOURCE_DOC_UUID = '00000000-0000-4000-8000-000000000002';
 
 /** Reset mock state and restore default authenticated user. */
 function resetMocks() {
@@ -127,10 +124,16 @@ describe('GET /api/review/queue', () => {
   it('returns 200 with queue items on success', async () => {
     configureRole(mockSupabase, 'editor');
 
+    // ID-131 {131.19} G-GOV-FACET: content_items is dying — the queue's base
+    // table is now source_documents, with governance columns (verified_at,
+    // verified_by, freshness, governance_review_status) living on the
+    // embedded record_lifecycle!inner facet (row.record_lifecycle[0]), not
+    // flat on the row. `title` in the response is derived from
+    // suggested_title ?? filename, not a flat `title` column.
     const mockItems = [
       {
         id: VALID_UUID,
-        title: 'Test Item',
+        filename: 'test-item.pdf',
         suggested_title: 'Test Item',
         summary: 'A summary',
         primary_domain: 'Technology',
@@ -138,24 +141,24 @@ describe('GET /api/review/queue', () => {
         secondary_domain: null,
         secondary_subtopic: null,
         content_type: 'article',
-        platform: 'web',
-        author_name: 'Author',
-        source_domain: 'example.com',
-        thumbnail_url: null,
         captured_date: '2026-01-01',
         ai_keywords: ['test'],
         classification_confidence: 0.9,
-        quality_score: 75,
-        priority: 'medium',
-        user_tags: [],
-        metadata: null,
-        content: 'Some content',
         source_url: 'https://example.com',
-        verified_at: null,
-        verified_by: null,
-        freshness: 'fresh',
-        governance_review_status: null,
+        publication_status: 'published',
+        updated_at: '2026-01-01T00:00:00Z',
+        extracted_text: 'Some content',
         created_at: '2026-01-01T00:00:00Z',
+        record_lifecycle: [
+          {
+            verified_at: null,
+            verified_by: null,
+            freshness: 'fresh',
+            governance_review_status: null,
+            next_review_date: null,
+            review_cadence_days: null,
+          },
+        ],
       },
     ];
 
@@ -206,7 +209,7 @@ describe('GET /api/review/queue', () => {
     const mockItems = [
       {
         id: VALID_UUID,
-        title: 'Flagged Item',
+        filename: 'flagged-item.pdf',
         suggested_title: 'Flagged Item',
         summary: 'A summary',
         primary_domain: 'Technology',
@@ -214,24 +217,24 @@ describe('GET /api/review/queue', () => {
         secondary_domain: null,
         secondary_subtopic: null,
         content_type: 'article',
-        platform: 'web',
-        author_name: 'Author',
-        source_domain: 'example.com',
-        thumbnail_url: null,
         captured_date: '2026-01-01',
         ai_keywords: ['test'],
         classification_confidence: 0.9,
-        quality_score: 75,
-        priority: 'medium',
-        user_tags: [],
-        metadata: null,
-        content: 'Some content',
         source_url: 'https://example.com',
-        verified_at: null,
-        verified_by: null,
-        freshness: 'fresh',
-        governance_review_status: null,
+        publication_status: 'published',
+        updated_at: '2026-01-01T00:00:00Z',
+        extracted_text: 'Some content',
         created_at: '2026-01-01T00:00:00Z',
+        record_lifecycle: [
+          {
+            verified_at: null,
+            verified_by: null,
+            freshness: 'fresh',
+            governance_review_status: null,
+            next_review_date: null,
+            review_cadence_days: null,
+          },
+        ],
       },
     ];
 
@@ -270,10 +273,12 @@ describe('GET /api/review/queue', () => {
     expect(json.items[0].id).toBe(VALID_UUID);
     expect(json.total).toBe(1);
 
-    // The join key fix under test: content_items is filtered by the
-    // resolved source_document_ids, not the (no-longer-matching) content
-    // item ids that used to live in ingestion_quality_log.content_item_id.
-    expect(mockSupabase._chain.in).toHaveBeenCalledWith('source_document_id', [
+    // ID-131 {131.19}: content_items is dying — every content_item was
+    // already 1:1 with its backing source_document, so the route now
+    // filters source_documents directly by `id` (its own primary key), not
+    // by a separate `source_document_id` column (handleFlaggedQuery,
+    // route.ts:491).
+    expect(mockSupabase._chain.in).toHaveBeenCalledWith('id', [
       'doc-1',
       'doc-2',
     ]);
@@ -411,15 +416,34 @@ describe('POST /api/review/action', () => {
     // Persistence contract: POST /api/review/action is a VOID update — the
     // response carries only { success: true } and reads NOTHING back. The
     // verified_at timestamp and server-set verified_by/updated_by are never
-    // surfaced, so this update-payload assert is the only proof verifying an
-    // item stamps it as verified by the acting user.
-    expect(mockSupabase.from).toHaveBeenCalledWith('content_items');
-    expect(mockSupabase._chain.update).toHaveBeenCalledWith(
+    // surfaced, so these update-payload asserts are the only proof verifying
+    // an item stamps it as verified by the acting user.
+    //
+    // ID-131 {131.19} G-GOV-FACET: content_items is dying — verify is now
+    // TWO separate writes to TWO tables (route.ts:73-99): verified_at/
+    // verified_by land on the record_lifecycle facet, while updated_by lands
+    // on the owning source_documents row. The old single combined-payload
+    // assert no longer matches a real call.
+    expect(mockSupabase.from).toHaveBeenCalledWith('source_documents');
+    expect(mockSupabase.from).toHaveBeenCalledWith('record_lifecycle');
+
+    const updateCalls = mockSupabase._chain.update.mock.calls as Array<
+      [Record<string, unknown>]
+    >;
+    const facetUpdate = updateCalls.find(
+      ([payload]) => 'verified_at' in payload,
+    );
+    expect(facetUpdate?.[0]).toEqual(
       expect.objectContaining({
         verified_at: expect.any(String),
         verified_by: 'test-user-id',
-        updated_by: 'test-user-id',
       }),
+    );
+    const sourceDocUpdate = updateCalls.find(
+      ([payload]) => 'updated_by' in payload && !('verified_at' in payload),
+    );
+    expect(sourceDocUpdate?.[0]).toEqual(
+      expect.objectContaining({ updated_by: 'test-user-id' }),
     );
   });
 
@@ -449,8 +473,13 @@ describe('POST /api/review/action', () => {
   it('returns 200 on successful flag action', async () => {
     configureRole(mockSupabase, 'editor');
 
+    // ID-131 {131.19} G-GOV-FACET: content_items is dying — the item fetch
+    // is now `.from('source_documents').select('id').eq('id', item_id)`
+    // (route.ts:50-54), so `sourceDocumentId = item.id` collapses to the
+    // same value as the request's item_id. There is no more indirection
+    // through a separate content_items.source_document_id column.
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, source_document_id: SOURCE_DOC_UUID },
+      data: { id: VALID_UUID },
       error: null,
     });
 
@@ -478,12 +507,12 @@ describe('POST /api/review/action', () => {
     // read back, so this insert-payload assert is the only proof flagging
     // records a review_needed/warning entry with the operator's note attached.
     // ingestion_quality_log is keyed by source_document_id (ID-131 {131.13}
-    // G-GOV-FACET-B rename), resolved from the item's content_items row —
-    // never the raw item_id (content_items.id).
+    // G-GOV-FACET-B rename), which now resolves directly to the fetched
+    // source_documents id (item_id).
     expect(mockSupabase.from).toHaveBeenCalledWith('ingestion_quality_log');
     expect(mockSupabase._chain.insert).toHaveBeenCalledWith(
       expect.objectContaining({
-        source_document_id: SOURCE_DOC_UUID,
+        source_document_id: VALID_UUID,
         flag_type: 'review_needed',
         severity: 'warning',
         details: { notes: 'Needs review — content seems outdated' },
@@ -492,42 +521,16 @@ describe('POST /api/review/action', () => {
     );
   });
 
-  it('skips the ingestion_quality_log insert when flagging an item with no backing source document', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, source_document_id: null },
-      error: null,
-    });
-
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
-    );
-
-    const req = createTestRequest('/api/review/action', {
-      method: 'POST',
-      body: {
-        item_id: VALID_UUID,
-        action: 'flag',
-        flag_details: 'Needs review',
-      },
-    });
-
-    const res = await postAction(req);
-    expect(res.status).toBe(200);
-
-    const json = await res.json();
-    expect(json.success).toBe(true);
-
-    // No source document to resolve — nothing to insert into
-    // ingestion_quality_log. verification_history.source_document_id is NOT
-    // NULL post ID-131 {131.29} re-parent, so its audit-trail insert is
-    // ALSO skipped (a source-doc-less content item records no audit row);
-    // only the content_items status clear (item_id-scoped, unaffected by
-    // this migration) still proceeds.
-    expect(mockSupabase.from).not.toHaveBeenCalledWith('ingestion_quality_log');
-    expect(mockSupabase.from).not.toHaveBeenCalledWith('verification_history');
-  });
+  // NOTE — "flag an item with no backing source document" (pre-ID-131 test)
+  // is dropped, not just weakened. Pre-refactor, content_items.source_
+  // document_id could be NULL, decoupling a content item from any source
+  // document; ingestion_quality_log/verification_history writes were then
+  // skipped (nothing to key them by). Post-ID-131 {131.19}, source_documents
+  // IS the top-level identity — the fetch at route.ts:50-54 selects the row's
+  // own `id`, which is never null for a row that exists — so
+  // `sourceDocumentId` can no longer be null/absent once the initial fetch
+  // succeeds. The scenario this test asserted is now structurally
+  // unreachable, not just untested.
 
   it('returns 200 on successful unverify action', async () => {
     configureRole(mockSupabase, 'admin');
@@ -553,14 +556,27 @@ describe('POST /api/review/action', () => {
     expect(json.success).toBe(true);
 
     // Persistence contract: VOID update, response is only { success: true }.
-    // This assert is the only proof unverify clears verified_at/verified_by
-    // back to null while stamping updated_by as the acting user.
-    expect(mockSupabase._chain.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        verified_at: null,
-        verified_by: null,
-        updated_by: 'test-user-id',
-      }),
+    // These asserts are the only proof unverify clears verified_at/
+    // verified_by back to null while stamping updated_by as the acting
+    // user.
+    //
+    // ID-131 {131.19} G-GOV-FACET: content_items is dying — unverify is now
+    // TWO separate writes to TWO tables (route.ts:176-202), same split as
+    // verify above.
+    const updateCalls = mockSupabase._chain.update.mock.calls as Array<
+      [Record<string, unknown>]
+    >;
+    const facetUpdate = updateCalls.find(
+      ([payload]) => 'verified_at' in payload,
+    );
+    expect(facetUpdate?.[0]).toEqual(
+      expect.objectContaining({ verified_at: null, verified_by: null }),
+    );
+    const sourceDocUpdate = updateCalls.find(
+      ([payload]) => 'updated_by' in payload && !('verified_at' in payload),
+    );
+    expect(sourceDocUpdate?.[0]).toEqual(
+      expect.objectContaining({ updated_by: 'test-user-id' }),
     );
   });
 });
