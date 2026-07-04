@@ -74,6 +74,15 @@ describe('generateTopicId', () => {
 
 // ---------------------------------------------------------------------------
 // suggestTopic — Pass 1: Existing topic groups
+//
+// ID-131 {131.17} G-IMS-DELETE KEEP-list: re-pointed off content_items onto
+// source_documents. `layer` has NO source_documents column (D5 — dies with
+// content_items, not re-homed) — findExistingTopicGroup can therefore never
+// form a non-empty layer group any more, so `suggestTopic` now ALWAYS
+// returns null regardless of matching topic_id rows. These tests assert
+// that new, permanent behaviour (a graceful, contract-preserving
+// degradation) rather than the pre-repoint layer-coverage matching this
+// suite used to exercise.
 // ---------------------------------------------------------------------------
 
 describe('suggestTopic — Pass 1: Existing topic groups', () => {
@@ -83,24 +92,23 @@ describe('suggestTopic — Pass 1: Existing topic groups', () => {
     mockClient = createMockSupabaseClient();
   });
 
-  it('finds existing topic group with matching domain/subtopic where suggested layer is missing', async () => {
-    // Configure chain to return items with topic_id set
+  it('returns null even when matching topic_id rows exist (layer has no source_documents column, D5)', async () => {
     mockClient._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
       resolve({
         data: [
           {
             id: 'item-1',
-            title: 'ISO Certification Guide',
-            layer: 'sales_brief',
-            metadata: {
+            original_filename: 'ISO Certification Guide',
+            filename: 'iso-cert-guide.md',
+            extraction_metadata: {
               topic_id: 'compliance-certification',
             },
           },
           {
             id: 'item-2',
-            title: 'Certification Policy',
-            layer: 'company_reference',
-            metadata: {
+            original_filename: 'Certification Policy',
+            filename: 'cert-policy.md',
+            extraction_metadata: {
               topic_id: 'compliance-certification',
             },
           },
@@ -111,124 +119,50 @@ describe('suggestTopic — Pass 1: Existing topic groups', () => {
 
     const result = await suggestTopic(asSupabase(mockClient), baseParams());
 
-    expect(result).not.toBeNull();
-    expect(result!.topicId).toBe('compliance-certification');
-    expect(result!.existingLayers).toHaveLength(2);
-    expect(result!.existingLayers[0].layer).toBe('sales_brief');
-    expect(result!.existingLayers[1].layer).toBe('company_reference');
-    // bid_detail is the suggested layer and is missing — should be in missingLayers
-    expect(result!.missingLayers).toContain('bid_detail');
-    expect(result!.missingLayers).toContain('research');
-    expect(result!.reason).toContain('missing bid_detail');
-  });
-
-  it('finds group but suggested layer already exists — still suggests if gaps remain', async () => {
-    // The group has sales_brief and bid_detail, suggested is bid_detail (already present)
-    mockClient._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({
-        data: [
-          {
-            id: 'item-1',
-            title: 'Brief Version',
-            layer: 'sales_brief',
-            metadata: {
-              topic_id: 'compliance-certification',
-            },
-          },
-          {
-            id: 'item-2',
-            title: 'Detail Version',
-            layer: 'bid_detail',
-            metadata: {
-              topic_id: 'compliance-certification',
-            },
-          },
-        ],
-        error: null,
-      }),
-    );
-
-    const result = await suggestTopic(asSupabase(mockClient), baseParams());
-
-    // Should still suggest since there are missing layers (company_reference, research)
-    expect(result).not.toBeNull();
-    expect(result!.topicId).toBe('compliance-certification');
-    expect(result!.missingLayers).toContain('company_reference');
-    expect(result!.missingLayers).toContain('research');
-    // Reason should indicate it covers domain/subtopic (not specifically missing)
-    expect(result!.reason).toContain('compliance-certification');
-  });
-
-  it('returns null when all layers are already present in the group', async () => {
-    // All four layers present — no gap to fill
-    mockClient._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({
-        data: [
-          {
-            id: 'item-1',
-            title: 'Brief',
-            layer: 'sales_brief',
-            metadata: {
-              topic_id: 'compliance-certification',
-            },
-          },
-          {
-            id: 'item-2',
-            title: 'Detail',
-            layer: 'bid_detail',
-            metadata: {
-              topic_id: 'compliance-certification',
-            },
-          },
-          {
-            id: 'item-3',
-            title: 'Reference',
-            layer: 'company_reference',
-            metadata: {
-              topic_id: 'compliance-certification',
-            },
-          },
-          {
-            id: 'item-4',
-            title: 'Research',
-            layer: 'research',
-            metadata: {
-              topic_id: 'compliance-certification',
-            },
-          },
-        ],
-        error: null,
-      }),
-    );
-
-    const result = await suggestTopic(asSupabase(mockClient), baseParams());
-
-    // All layers present — no suggestion needed
     expect(result).toBeNull();
   });
 
-  it('selects the group where suggested layer is missing over group where it exists', async () => {
-    // Two groups: group-a has bid_detail, group-b does not
+  it('returns null when all four layers would have been present in the pre-repoint group', async () => {
+    mockClient._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({
+        data: [
+          {
+            id: 'item-1',
+            original_filename: 'Brief',
+            filename: 'brief.md',
+            extraction_metadata: { topic_id: 'compliance-certification' },
+          },
+          {
+            id: 'item-2',
+            original_filename: 'Detail',
+            filename: 'detail.md',
+            extraction_metadata: { topic_id: 'compliance-certification' },
+          },
+        ],
+        error: null,
+      }),
+    );
+
+    const result = await suggestTopic(asSupabase(mockClient), baseParams());
+
+    expect(result).toBeNull();
+  });
+
+  it('returns null across multiple candidate topic groups', async () => {
     mockClient._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
       resolve({
         data: [
           {
             id: 'item-a1',
-            title: 'Group A Brief',
-            layer: 'sales_brief',
-            metadata: { topic_id: 'group-a', layer: 'sales_brief' },
-          },
-          {
-            id: 'item-a2',
-            title: 'Group A Detail',
-            layer: 'bid_detail',
-            metadata: { topic_id: 'group-a', layer: 'bid_detail' },
+            original_filename: 'Group A Brief',
+            filename: 'group-a-brief.md',
+            extraction_metadata: { topic_id: 'group-a' },
           },
           {
             id: 'item-b1',
-            title: 'Group B Brief',
-            layer: 'sales_brief',
-            metadata: { topic_id: 'group-b', layer: 'sales_brief' },
+            original_filename: 'Group B Brief',
+            filename: 'group-b-brief.md',
+            extraction_metadata: { topic_id: 'group-b' },
           },
         ],
         error: null,
@@ -237,9 +171,7 @@ describe('suggestTopic — Pass 1: Existing topic groups', () => {
 
     const result = await suggestTopic(asSupabase(mockClient), baseParams());
 
-    // group-b is preferred because it's missing bid_detail (the suggested layer)
-    expect(result).not.toBeNull();
-    expect(result!.topicId).toBe('group-b');
+    expect(result).toBeNull();
   });
 
   it('no topic groups exist — returns null (Pass 2 similarity search was removed under ID-131.15)', async () => {
@@ -262,9 +194,9 @@ describe('suggestTopic — Pass 1: Existing topic groups', () => {
         data: [
           {
             id: 'item-1',
-            title: 'No Layer Item',
-            metadata: { topic_id: 'compliance-certification' },
-            // No layer key in metadata
+            original_filename: 'No Layer Item',
+            filename: 'no-layer-item.md',
+            extraction_metadata: { topic_id: 'compliance-certification' },
           },
         ],
         error: null,
@@ -327,28 +259,30 @@ describe('suggestTopic — Edge cases', () => {
     expect(result).toBeNull();
   });
 
-  it('prefers group with more existing layers when both are missing the suggested layer', async () => {
-    // Two groups both missing bid_detail, but group-a has 2 items vs group-b has 1
+  it('returns null even with multiple candidate groups of differing size (layer has no source_documents column, D5)', async () => {
+    // ID-131 {131.17}: this used to test group-size preference scoring —
+    // that scoring path is now unreachable (no group is ever non-empty),
+    // so this asserts the new permanent-null degradation instead.
     mockClient._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
       resolve({
         data: [
           {
             id: 'a1',
-            title: 'Group A - Brief',
-            layer: 'sales_brief',
-            metadata: { topic_id: 'group-a', layer: 'sales_brief' },
+            original_filename: 'Group A - Brief',
+            filename: 'group-a-brief.md',
+            extraction_metadata: { topic_id: 'group-a' },
           },
           {
             id: 'a2',
-            title: 'Group A - Reference',
-            layer: 'company_reference',
-            metadata: { topic_id: 'group-a', layer: 'company_reference' },
+            original_filename: 'Group A - Reference',
+            filename: 'group-a-reference.md',
+            extraction_metadata: { topic_id: 'group-a' },
           },
           {
             id: 'b1',
-            title: 'Group B - Brief',
-            layer: 'sales_brief',
-            metadata: { topic_id: 'group-b', layer: 'sales_brief' },
+            original_filename: 'Group B - Brief',
+            filename: 'group-b-brief.md',
+            extraction_metadata: { topic_id: 'group-b' },
           },
         ],
         error: null,
@@ -357,9 +291,6 @@ describe('suggestTopic — Edge cases', () => {
 
     const result = await suggestTopic(asSupabase(mockClient), baseParams());
 
-    // group-a should be preferred (2 items > 1 item, both missing bid_detail)
-    expect(result).not.toBeNull();
-    expect(result!.topicId).toBe('group-a');
-    expect(result!.existingLayers).toHaveLength(2);
+    expect(result).toBeNull();
   });
 });

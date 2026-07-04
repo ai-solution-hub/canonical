@@ -187,16 +187,17 @@ function createPass2Response(validatedEntities: ValidatedEntity[]) {
 }
 
 function setupMockSupabase(supabase: MockSupabaseClient) {
-  // Content item fetch (single() terminator). source_document_id is a
-  // linked source_documents id (ID-131.26) — entity_mentions/
-  // entity_relationships storage is keyed off this, not the content item's
-  // own id; test fixtures need a truthy value to exercise the Pass 2 +
-  // entity-storage path.
+  // Source document fetch (single() terminator). ID-131 {131.17}
+  // G-IMS-DELETE KEEP-list: classifyContent re-pointed off content_items
+  // onto source_documents — `ITEM_ID` (the fetch key) IS the source_documents
+  // id directly (no separate source_document_id FK column — the entity_mentions/
+  // entity_relationships storage keys off this same id post-repoint).
   supabase._chain.single.mockResolvedValue({
     data: {
       id: ITEM_ID,
-      title: 'Test Content',
-      content:
+      original_filename: 'Test Content',
+      filename: 'test-content.md',
+      extracted_text:
         'ISO 27001 certification for Acme Corp. Encryption is important.',
       content_type: 'q_a_pair',
       classified_at: null,
@@ -209,8 +210,7 @@ function setupMockSupabase(supabase: MockSupabaseClient) {
       suggested_title: null,
       classification_confidence: null,
       classification_reasoning: null,
-      metadata: null,
-      source_document_id: 'test-source-doc-id',
+      extraction_metadata: null,
     },
     error: null,
   });
@@ -514,10 +514,15 @@ describe('classifyContent with two-pass validation', () => {
       validate: true,
     });
 
-    // Verify upsert was called — check the args passed to the chain
+    // Verify upsert was called — check the args passed to the chain. ID-131
+    // {131.17}: classifyContent now ALSO upserts the regenerated embedding
+    // into record_embeddings (a single-object payload), so `_chain.upsert`
+    // (table-agnostic in this shared mock) records 2 calls — find the
+    // entity_mentions call by its array-shaped payload.
     const upsertCalls = supabase._chain.upsert.mock.calls;
-    expect(upsertCalls.length).toBe(1);
-    const upsertedRows = upsertCalls[0][0];
+    const entityUpsertCall = upsertCalls.find((call) => Array.isArray(call[0]));
+    expect(entityUpsertCall).toBeDefined();
+    const upsertedRows = entityUpsertCall![0];
     expect(upsertedRows).toHaveLength(1);
     expect(upsertedRows[0].entity_name).toBe('ISO 27001');
   });
@@ -549,10 +554,13 @@ describe('classifyContent with two-pass validation', () => {
       validate: true,
     });
 
-    // The entity should be stored with the corrected type
+    // The entity should be stored with the corrected type. ID-131 {131.17}:
+    // find the entity_mentions call among the (now 2) upsert calls by its
+    // array-shaped payload — see the comment on the preceding test.
     const upsertCalls = supabase._chain.upsert.mock.calls;
-    expect(upsertCalls.length).toBe(1);
-    const upsertedRows = upsertCalls[0][0];
+    const entityUpsertCall = upsertCalls.find((call) => Array.isArray(call[0]));
+    expect(entityUpsertCall).toBeDefined();
+    const upsertedRows = entityUpsertCall![0];
     expect(upsertedRows[0].entity_type).toBe('methodology');
   });
 
@@ -575,10 +583,14 @@ describe('classifyContent with two-pass validation', () => {
       validate: true,
     });
 
-    // Entities should still be stored (graceful degradation)
+    // Entities should still be stored (graceful degradation). ID-131
+    // {131.17}: find the entity_mentions call among the (now 2) upsert
+    // calls by its array-shaped payload — see comment on the first test in
+    // this describe block.
     const upsertCalls = supabase._chain.upsert.mock.calls;
-    expect(upsertCalls.length).toBe(1);
-    const upsertedRows = upsertCalls[0][0];
+    const entityUpsertCall = upsertCalls.find((call) => Array.isArray(call[0]));
+    expect(entityUpsertCall).toBeDefined();
+    const upsertedRows = entityUpsertCall![0];
     // Both entities stored since Pass 2 failed and we fell back
     expect(upsertedRows).toHaveLength(2);
 

@@ -376,7 +376,12 @@ export async function writeNewCorpusObject(
 
 export interface WriteBackParams {
   supabase: SupabaseClient<Database>;
-  /** content_item PK — used only to resolve the linked source_document. */
+  /**
+   * source_documents PK, used to resolve storage_path (ID-131 {131.17}
+   * re-point — field name kept as `contentItemId` for caller-contract
+   * stability; see the module header + `writeBackFileFirst` resolution
+   * comment for the id-space collapse this Subtask performed).
+   */
   contentItemId: string;
   /** The new canonical bytes to write to the file (and that the DB leg stores). */
   newContent: string;
@@ -400,42 +405,6 @@ export interface WriteBackResult {
 }
 
 /**
- * The flat storage_path resolution shape the resolver consumes. Populated by
- * TWO plain per-table reads (content_items.source_document_id, then
- * source_documents.storage_path by PK) — NOT a PostgREST FK embed: the
- * content_items -> source_documents FK was deliberately DROPPED in migration
- * 20260602073942 (ID-64.3 BUG-E — the cocoindex autocommit write model cannot
- * satisfy cross-target FKs), so an embedded `source_documents(...)` select
- * fails with PGRST200 against the live schema (bl-286 C1 regression).
- */
-interface StoragePathRow {
-  source_document_id: string | null;
-  storage_path: string | null;
-}
-
-/**
- * Resolve the `corpus` bucket object key for a file-backed content_item.
- *
- * {138.12} T1 RE-POINT: the object key ≡ `storage_path` verbatim — NO
- * env-rooted join. Prior to this Subtask this function joined
- * `COCOINDEX_SOURCE_PATH` (the VPS source-binding folder) with `storage_path`
- * to compute an OS filesystem path; the Storage bucket target has no
- * deploy-time root to join against (R(a): the object key freeze IS the whole
- * address). See `isBucketNotFoundError` / `CorpusBucketUnavailableError` for
- * where the old "is the target configured here" question now lives — it is
- * answered at Storage-call time (a runtime fact), not here (a structural
- * fact about the DB row).
- *
- * Returns `null` when the item is not file-backed (no source_document_id or
- * no storage_path) — the ONLY remaining reason this returns null. (Renamed
- * from `resolveAbsolutePath`; private to this module, no external callers.)
- */
-function resolveObjectKey(row: StoragePathRow): string | null {
-  if (!row.source_document_id || !row.storage_path) return null;
-  return row.storage_path;
-}
-
-/**
  * File-first write-back with compensating restore.
  *
  * See the module header for the full atomicity model. Throws if the
@@ -451,68 +420,20 @@ export async function writeBackFileFirst(
   const { supabase, contentItemId, newContent, applyDbLeg, context } = params;
 
   // ── Resolve the file leg target ────────────────────────────────────────────
-  // Step 1: read source_document_id off content_items via tryQuery
-  // (lib/supabase/safe.ts) — never a raw client. A failed read aborts the
-  // whole save BEFORE either leg touches anything.
-  //
-  // bl-286 C1: this MUST be a plain column read, NOT an embedded
-  // `source_documents(storage_path)` select — the content_items ->
-  // source_documents FK was dropped in migration 20260602073942 (BUG-E), so
-  // PostgREST has no relationship to embed through and the embed fails with
-  // PGRST200, which 500'd every content-bytes PATCH.
-  const itemResolution = await tryQuery<{
-    source_document_id: string | null;
-  }>(
-    supabase
-      .from('content_items')
-      .select('source_document_id')
-      .eq('id', contentItemId)
-      .maybeSingle() as unknown as PostgrestLike<{
-      source_document_id: string | null;
-    }>,
-    context ?? 'edit-intent.write-back.resolve-storage-path',
-  );
-  if (!isOk(itemResolution)) {
-    throw itemResolution.error;
-  }
-
-  const sourceDocumentId = itemResolution.data?.source_document_id ?? null;
-
-  // ── {59.10} / PC-3 (INV-3) — source-less content_item GUARD (bl-266) ─────────
-  // S330 RATIFICATION 2 + Liam steer: a content_item with NO linked
-  // source_document is an ANOMALY TO GUARD, not a first-class write path. We do
-  // NOT write a file, do NOT auto-create a source_document, and do NOT mint a
-  // connector='mcp' storage path (the "opt-in materialise-to-file" affordance is
-  // explicitly NOT built — v1.1 at most, and only if bl-266 enforcement doesn't
-  // first eliminate the population). The KH-DB-only leg (the {59.8} content_items
-  // + content_history write WITH edit_intent) STILL runs so the user's save
-  // applies, but we emit a structured anomaly log so the source-less population
-  // is observable + traceable to bl-266 (a CONSUMED cross_doc_link —
-  // docs/reference/backlog/266.md; bl-266 enforces later, this slice only
-  // surfaces the anomaly NOW). OQ-59-3 prod sweep sizes the population so the
-  // anomaly-log volume is understood (TECH Open-item-2).
-  if (!sourceDocumentId) {
-    logger.warn(
-      {
-        event: 'source_less_content_item_edit_back',
-        contentItemId,
-        caller: context ?? 'edit-intent.write-back.resolve-storage-path',
-      },
-      'Edit-back on a source-less content_item — no source_document linked; ' +
-        'wrote KH-DB-only (no file, no auto-created source_document, no mcp ' +
-        'storage-path mint). Tracked to bl-266.',
-    );
-    await applyDbLeg();
-    return { applied: true, fileBacked: false, warnings: [] };
-  }
-
-  // Step 2: resolve storage_path directly off source_documents by PK — the
-  // FK-less counterpart of the former embed (see Step 1 note).
+  // ID-131 {131.17} G-IMS-DELETE KEEP-list: `contentItemId` is now a
+  // source_documents.id directly — the former two-hop lookup (content_items
+  // -> source_document_id FK -> source_documents.storage_path, needed
+  // because content_items and source_documents were independent PK spaces,
+  // bl-286 C1 / migration 20260602073942 BUG-E) collapses to ONE direct
+  // read. The only 2 production callers of this function are
+  // `lib/edit-intent/sweep.ts` (this Subtask, re-pointed in lockstep) and
+  // `app/api/items/[id]/route.ts` (an IMS route slated for deletion under
+  // the parallel G-IMS-DELETE lane) — both consistent with this collapse.
   const docResolution = await tryQuery<{ storage_path: string | null }>(
     supabase
       .from('source_documents')
       .select('storage_path')
-      .eq('id', sourceDocumentId)
+      .eq('id', contentItemId)
       .maybeSingle() as unknown as PostgrestLike<{
       storage_path: string | null;
     }>,
@@ -522,30 +443,24 @@ export async function writeBackFileFirst(
     throw docResolution.error;
   }
 
-  // With the FK dropped, ON DELETE SET NULL no longer auto-fires — a deleted
-  // source_documents row can leave content_items.source_document_id dangling.
-  // Surface the dangling reference (observable, distinct from the source-less
-  // anomaly) and fall through to the DB-only path so the save still lands.
+  // No source_documents row exists for this id — DB-only fallback so the
+  // save still lands (mirrors the former dangling-FK guard; distinct from a
+  // Storage-leg failure).
   if (docResolution.data === null) {
     logger.warn(
       {
-        event: 'dangling_source_document_reference',
+        event: 'source_document_not_found',
         contentItemId,
-        sourceDocumentId,
         caller: context ?? 'edit-intent.write-back.resolve-storage-path',
       },
-      'Edit-back found content_items.source_document_id pointing at a ' +
-        'missing source_documents row (dangling post-FK-drop, migration ' +
-        '20260602073942); wrote KH-DB-only — no file leg.',
+      'Edit-back could not find a source_documents row for this id — wrote ' +
+        'KH-DB-only, no file leg.',
     );
     await applyDbLeg();
     return { applied: true, fileBacked: false, warnings: [] };
   }
 
-  const objectKey = resolveObjectKey({
-    source_document_id: sourceDocumentId,
-    storage_path: docResolution.data.storage_path ?? null,
-  });
+  const objectKey = docResolution.data.storage_path ?? null;
 
   // ── Source-backed but no storage_path to key an object on ──────────────────
   // The item HAS a linked source_document but its storage_path is absent, so
@@ -575,8 +490,8 @@ export async function writeBackFileFirst(
   } catch (err) {
     if (err instanceof CorpusBucketUnavailableError) {
       // Storage-leg gating equivalent of the old COCOINDEX_SOURCE_PATH-unset
-      // idle mode (see resolveObjectKey / isBucketNotFoundError docs above):
-      // the corpus bucket is not provisioned in this project. Graceful
+      // idle mode (see isBucketNotFoundError docs above): the corpus bucket
+      // is not provisioned in this project. Graceful
       // DB-only fallback — the save still lands.
       logger.warn(
         {

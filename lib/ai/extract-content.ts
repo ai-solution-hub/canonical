@@ -52,10 +52,18 @@ export async function extractStructuredContent(
 ): Promise<ExtractContentResult> {
   const { supabase, itemId, schema, prompt: userPrompt } = params;
 
-  // Fetch the content item
+  // Fetch the source document. ID-131 {131.17} G-IMS-DELETE KEEP-list:
+  // re-pointed off content_items onto source_documents (M3 gave SD the
+  // classification family; `content`/`title` have no SD column of the same
+  // name — extracted_text / original_filename+filename are the nearest
+  // analogs, matching the established idiom in
+  // app/reference/[id]/reference-detail-client.tsx:83 and
+  // lib/diff/adapters/source-document-revision.ts). `metadata` was selected
+  // but never read in this function — dropped rather than mapped to
+  // extraction_metadata.
   const { data: item, error: fetchError } = await supabase
-    .from('content_items')
-    .select('id, title, content, content_type, metadata')
+    .from('source_documents')
+    .select('id, original_filename, filename, extracted_text, content_type')
     .eq('id', itemId)
     .single();
 
@@ -63,12 +71,14 @@ export async function extractStructuredContent(
     throw new AIServiceError('Item not found', 404);
   }
 
-  if (!item.content || item.content.length < 50) {
+  if (!item.extracted_text || item.extracted_text.length < 50) {
     throw new AIServiceError(
       'Item has insufficient content for extraction',
       400,
     );
   }
+
+  const title = item.original_filename ?? item.filename;
 
   // Build the extraction prompt
   const defaultPrompt =
@@ -77,12 +87,12 @@ export async function extractStructuredContent(
   const systemPrompt =
     'You are a document extraction assistant. You extract structured data from documents according to a provided JSON schema. Always return valid JSON that conforms exactly to the schema.';
 
-  const contentSlice = item.content.slice(0, MAX_CONTENT_LENGTH);
+  const contentSlice = item.extracted_text.slice(0, MAX_CONTENT_LENGTH);
 
   const fullPrompt = `${userPrompt || defaultPrompt}
 
 ## Document Title
-${item.title || 'Untitled'}
+${title || 'Untitled'}
 
 ## Document Content
 ${contentSlice}`;

@@ -11,6 +11,18 @@
  * ID-117.11 REHOME decouple: accepts in-memory DiffEntry[] directly instead of
  * re-fetching from source_document_diffs. The back-write of affected_content_item_id
  * into that table is also removed — the table is being dropped in {117.13}.
+ *
+ * ID-131 {131.17} G-IMS-DELETE KEEP-list: the "linked items affected by a
+ * document change" concept is re-pointed off content_items onto q_a_pairs —
+ * NOT source_documents (source_documents has no self-referential
+ * `source_document_id` FK column to filter by, so it cannot serve as the
+ * `.eq('source_document_id', previousVersionId)` query target). q_a_pairs is
+ * the ratified living successor for KB-entry-shaped content derived from a
+ * document (TECH.md D3/D7 — q_a_pairs carries `source_document_id`; content
+ * matching for diff-impact purposes is naturally a question/answer-grain
+ * concern, matching the established `search_for_form_response` /
+ * `template-coverage.ts` precedent of treating q_a_pairs as the living typed
+ * record). `title`/`content` map to `question_text`/`answer_standard`.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -19,6 +31,11 @@ import type { DiffEntry } from '@/lib/source-documents/document-diff';
 import { sb } from '@/lib/supabase/safe';
 
 export interface ImpactItem {
+  /**
+   * ID-131 {131.17}: a q_a_pairs.id (field name kept as `content_item_id` for
+   * caller-contract stability — see `source-document-notifications.ts`,
+   * this Subtask's other consumer of this shape).
+   */
   content_item_id: string;
   content_item_title: string;
   impact_type: 'needs_update' | 'may_be_outdated' | 'source_removed';
@@ -86,13 +103,14 @@ export async function analyseDocumentImpact(
     };
   }
 
-  // 3. Get content items linked to the OLD document
+  // 3. Get q_a_pairs linked to the OLD document (ID-131 {131.17} re-point —
+  // see module header for why q_a_pairs, not source_documents).
   const linkedItems = await sb(
     supabase
-      .from('content_items')
-      .select('id, title, content')
+      .from('q_a_pairs')
+      .select('id, question_text, answer_standard')
       .eq('source_document_id', previousVersionId),
-    'content_items.bySourceDocument',
+    'q_a_pairs.bySourceDocument',
   );
 
   if (!linkedItems || linkedItems.length === 0) {
@@ -105,7 +123,7 @@ export async function analyseDocumentImpact(
     };
   }
 
-  // 4. Match diff entries to content items
+  // 4. Match diff entries to q_a_pairs
   const impactItems: ImpactItem[] = [];
   const matchedItemIds = new Set<string>();
 
@@ -113,11 +131,11 @@ export async function analyseDocumentImpact(
     const questionText = entry.old_question?.toLowerCase().trim() ?? '';
     if (!questionText) continue;
 
-    // Find the best matching content item
+    // Find the best matching q_a_pair
     const match = findMatchingContentItem(linkedItems, questionText);
     if (!match) continue;
 
-    // Avoid duplicate entries for the same content item
+    // Avoid duplicate entries for the same q_a_pair
     if (matchedItemIds.has(match.id)) continue;
     matchedItemIds.add(match.id);
 
@@ -147,37 +165,46 @@ export async function analyseDocumentImpact(
 }
 
 /**
- * Find a content item whose title or content contains the question text.
- * Uses deterministic substring matching (case-insensitive).
+ * Find a q_a_pair whose question_text or answer_standard contains the
+ * question text. Uses deterministic substring matching (case-insensitive).
+ *
+ * ID-131 {131.17}: re-pointed off content_items (title/content) onto
+ * q_a_pairs (question_text/answer_standard) — see module header. The
+ * returned shape's `title` key is kept for caller-contract stability
+ * (mapped from `question_text`).
  */
 function findMatchingContentItem(
-  items: Array<{ id: string; title: string | null; content: string | null }>,
+  items: Array<{
+    id: string;
+    question_text: string | null;
+    answer_standard: string | null;
+  }>,
   questionText: string,
 ): { id: string; title: string | null } | null {
-  // First pass: exact title match (case-insensitive)
+  // First pass: exact question_text match (case-insensitive)
   for (const item of items) {
-    const title = item.title?.toLowerCase().trim() ?? '';
+    const title = item.question_text?.toLowerCase().trim() ?? '';
     if (title && title === questionText) {
-      return { id: item.id, title: item.title };
+      return { id: item.id, title: item.question_text };
     }
   }
 
-  // Second pass: title contains question or question contains title
+  // Second pass: question_text contains question or question contains it
   for (const item of items) {
-    const title = item.title?.toLowerCase().trim() ?? '';
+    const title = item.question_text?.toLowerCase().trim() ?? '';
     if (
       title &&
       (title.includes(questionText) || questionText.includes(title))
     ) {
-      return { id: item.id, title: item.title };
+      return { id: item.id, title: item.question_text };
     }
   }
 
-  // Third pass: content contains question text
+  // Third pass: answer_standard contains question text
   for (const item of items) {
-    const content = item.content?.toLowerCase() ?? '';
+    const content = item.answer_standard?.toLowerCase() ?? '';
     if (content && content.includes(questionText)) {
-      return { id: item.id, title: item.title };
+      return { id: item.id, title: item.question_text };
     }
   }
 

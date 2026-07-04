@@ -123,6 +123,21 @@ export async function suggestTopic(
  * Query items in the same domain/subtopic that already have a topic_id.
  * Group by topic_id and return the best match (most existing layers,
  * preferring groups where the suggested layer is missing).
+ *
+ * ID-131 {131.17} G-IMS-DELETE KEEP-list: re-pointed off content_items onto
+ * source_documents (M3 gave SD the classification family). `title` has no SD
+ * column of the same name — original_filename/filename is the nearest
+ * analog; `metadata` -> `extraction_metadata`. `layer` has NO source_documents
+ * analog — D5 (TECH.md §"Trigger functions") ratified that `layer` DIES with
+ * content_items and is deliberately NOT re-homed (the sibling Guides Task
+ * owns the separate `layer_vocabulary` audience-axis system). Every group is
+ * therefore built with an empty layer set, so this function now always
+ * returns `null` (no topic-group match) — a graceful, contract-preserving
+ * degradation callers already handle as the normal "no suggestion" case.
+ * Flagged for the orchestrator/Curator: this feature's premise (layer-
+ * coverage grouping) no longer has a data source; a follow-up may want to
+ * retire `suggestTopic` outright rather than carry the now-permanently-null
+ * path.
  */
 async function findExistingTopicGroup(
   supabase: SupabaseClient<Database>,
@@ -131,11 +146,11 @@ async function findExistingTopicGroup(
   suggestedLayer: string,
 ): Promise<TopicSuggestion | null> {
   const { data: items, error } = await supabase
-    .from('content_items')
-    .select('id, title, metadata, layer')
+    .from('source_documents')
+    .select('id, original_filename, filename, extraction_metadata')
     .eq('primary_domain', domain)
     .eq('primary_subtopic', subtopic)
-    .not('metadata->topic_id', 'is', null)
+    .not('extraction_metadata->topic_id', 'is', null)
     .is('archived_at', null);
 
   if (error || !items || items.length === 0) {
@@ -149,9 +164,11 @@ async function findExistingTopicGroup(
   >();
 
   for (const item of items) {
-    const metadata = item.metadata as Record<string, unknown> | null;
+    const metadata = item.extraction_metadata as Record<string, unknown> | null;
     const topicId = metadata?.topic_id as string | undefined;
-    const layer = item.layer;
+    // `layer` has no source_documents column (D5) — always absent, so no
+    // item is ever added to a group below (see the function doc comment).
+    const layer: string | null = null;
 
     if (!topicId || !layer) continue;
 
@@ -160,7 +177,7 @@ async function findExistingTopicGroup(
     }
     groups.get(topicId)!.push({
       id: item.id,
-      title: item.title ?? 'Untitled',
+      title: item.original_filename ?? item.filename ?? 'Untitled',
       layer,
     });
   }

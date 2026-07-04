@@ -1,3 +1,11 @@
+/**
+ * ID-131 {131.17} G-IMS-DELETE KEEP-list: `sendSourceDocumentUpdateNotifications`
+ * is re-pointed off content_items onto the `record_lifecycle` governance
+ * facet (owner_kind='q_a_pair') — `impact.items[].content_item_id` values
+ * are now q_a_pairs ids (see source-document-impact.ts's module header), and
+ * the owner lookup mock below returns `{owner_id, content_owner_id}` rows
+ * instead of `{id, content_owner_id}`.
+ */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   createMockSupabaseClient,
@@ -52,8 +60,8 @@ describe('sendSourceDocumentUpdateNotifications', () => {
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
-            { id: 'item-1', content_owner_id: 'owner-1' },
-            { id: 'item-2', content_owner_id: 'owner-1' },
+            { owner_id: 'item-1', content_owner_id: 'owner-1' },
+            { owner_id: 'item-2', content_owner_id: 'owner-1' },
           ],
           error: null,
         }),
@@ -84,8 +92,8 @@ describe('sendSourceDocumentUpdateNotifications', () => {
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
-            { id: 'item-1', content_owner_id: 'owner-1' },
-            { id: 'item-2', content_owner_id: 'owner-2' },
+            { owner_id: 'item-1', content_owner_id: 'owner-1' },
+            { owner_id: 'item-2', content_owner_id: 'owner-2' },
           ],
           error: null,
         }),
@@ -126,8 +134,8 @@ describe('sendSourceDocumentUpdateNotifications', () => {
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
-            { id: 'item-1', content_owner_id: null },
-            { id: 'item-2', content_owner_id: null },
+            { owner_id: 'item-1', content_owner_id: null },
+            { owner_id: 'item-2', content_owner_id: null },
           ],
           error: null,
         }),
@@ -191,7 +199,7 @@ describe('sendSourceDocumentUpdateNotifications', () => {
     mockClient._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
-          data: [{ id: 'item-1', content_owner_id: 'owner-1' }],
+          data: [{ owner_id: 'item-1', content_owner_id: 'owner-1' }],
           error: null,
         }),
     );
@@ -222,7 +230,7 @@ describe('sendSourceDocumentUpdateNotifications', () => {
     mockClient._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
-          data: [{ id: 'item-1', content_owner_id: 'owner-1' }],
+          data: [{ owner_id: 'item-1', content_owner_id: 'owner-1' }],
           error: null,
         }),
     );
@@ -246,7 +254,7 @@ describe('sendSourceDocumentUpdateNotifications', () => {
     mockClient._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
-          data: [{ id: 'item-1', content_owner_id: 'owner-1' }],
+          data: [{ owner_id: 'item-1', content_owner_id: 'owner-1' }],
           error: null,
         }),
     );
@@ -270,8 +278,8 @@ describe('sendSourceDocumentUpdateNotifications', () => {
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
-            { id: 'item-1', content_owner_id: 'owner-1' },
-            { id: 'item-2', content_owner_id: 'owner-1' },
+            { owner_id: 'item-1', content_owner_id: 'owner-1' },
+            { owner_id: 'item-2', content_owner_id: 'owner-1' },
           ],
           error: null,
         }),

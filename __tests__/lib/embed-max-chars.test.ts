@@ -181,8 +181,9 @@ describe('S159 WP4b — embedding truncation call-site integration', () => {
     mockSupabase._chain.single.mockResolvedValue({
       data: {
         id: ITEM_ID,
-        title: 'Long Content Item',
-        content: '<p>' + 'x'.repeat(200_000) + '</p>',
+        original_filename: 'Long Content Item',
+        filename: 'long-content-item.md',
+        extracted_text: '<p>' + 'x'.repeat(200_000) + '</p>',
         content_type: 'article',
         classified_at: null,
         primary_domain: null,
@@ -287,8 +288,9 @@ describe('S159 WP4b — embedding truncation call-site integration', () => {
     mockSupabase._chain.single.mockResolvedValue({
       data: {
         id: ITEM_ID,
-        title: 'Short Item',
-        content: '<p>Brief content.</p>',
+        original_filename: 'Short Item',
+        filename: 'short-item.md',
+        extracted_text: '<p>Brief content.</p>',
         content_type: 'article',
         classified_at: null,
         primary_domain: null,

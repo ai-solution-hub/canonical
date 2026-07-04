@@ -3,18 +3,22 @@
  * write-back) + whole-sweep / per-match rollback. PRODUCT PC-6 / INV-6 (TECH
  * §PC-6→INV-6).
  *
- * {138.12} T1 RE-POINT (necessary collateral, TECH §3.3 T1/§2.1 R(a)):
- * `runSweep`/`rollbackSweep` are UNCHANGED in contract (this Subtask's file-
- * ownership boundary is `lib/edit-intent/write-back.ts` +
- * `app/api/q-a-pairs/[id]/route.ts`, NOT `sweep.ts`) — but both call the
- * SHARED `writeBackFileFirst` primitive, whose file leg now PUTs into the
- * `corpus` Storage bucket instead of rewriting a real on-disk file. This test
- * double therefore now models the bucket as an in-memory object store
- * (`db.objects`, keyed by `storage_path`) plus a stubbed writer-fence RPC,
- * rather than writing to a real temp directory — the OLD docstring here
- * described "file-backed integration tests... proven against actual bytes on
- * disk"; that premise is stale post-re-point, so the assertions below check
- * the in-memory object store instead.
+ * {138.12} T1 RE-POINT (necessary collateral, TECH §3.3 T1/§2.1 R(a)): both
+ * `runSweep`/`rollbackSweep` call the SHARED `writeBackFileFirst` primitive,
+ * whose file leg PUTs into the `corpus` Storage bucket instead of rewriting a
+ * real on-disk file. This test double models the bucket as an in-memory
+ * object store (`db.objects`, keyed by `storage_path`) plus a stubbed
+ * writer-fence RPC, rather than writing to a real temp directory.
+ *
+ * ID-131 {131.17} G-IMS-DELETE KEEP-list RE-POINT: `sweep.ts` +
+ * `write-back.ts` now read/write `source_documents` directly (`content` ->
+ * `extracted_text`) keyed by the SAME id the caller passes as
+ * `contentItemId` — the FORMER two-hop `content_items` -> `source_document_id`
+ * FK -> `source_documents.storage_path` indirection collapses to ONE direct
+ * read/write, since content_items and source_documents were independent PK
+ * spaces pre-repoint. The mock below models a single `source_documents`
+ * table (extracted_text + storage_path per id) rather than the former
+ * two-table split.
  *
  * The testStrategy proofs (unchanged in intent, re-targeted to Storage):
  *   1. one sweep PUTs N objects at their storage_path (object key);
@@ -32,13 +36,13 @@ import { CORPUS_BUCKET } from '@/lib/edit-intent/write-back';
 // Spy targets — proves the sweep NEVER calls arbitration (batched single-actor).
 import * as arbitrateModule from '@/lib/edit-intent/arbitrate';
 
-// uuid5(ci:{rel_path}) is the deterministic content_item PK seed; opaque here
-// but must be a valid v4-shaped UUID for the route boundary.
+// ID-131 {131.17}: these are source_documents ids (the `contentItemId` field
+// name is kept for caller-contract stability — see sweep.ts/write-back.ts).
+// Must be valid v4-shaped UUIDs for the route boundary.
 const ITEM_A = '11111111-1111-4111-8111-111111111111';
 const ITEM_B = '22222222-2222-4222-8222-222222222222';
 const ITEM_C = '33333333-3333-4333-8333-333333333333';
 const ACTOR = 'a0000000-0000-4000-8000-000000000099';
-const SRC_DOC = '44444444-4444-4444-8444-444444444444';
 
 interface HistoryRow {
   content_item_id: string;
@@ -53,13 +57,13 @@ interface HistoryRow {
 
 /**
  * In-memory supabase stub modelling the tables + Storage surface the sweep +
- * rollback touch: content_items (live bytes + source_document_id),
- * source_documents (storage_path, read directly by PK — the content_items ->
- * source_documents FK was dropped in migration 20260602073942, so the
- * adapter resolves it with a second plain read, never an FK embed),
+ * rollback touch: source_documents (extracted_text + storage_path, ID-131
+ * {131.17} — a single row per id, read/written directly by PK; `contentItemId`
+ * IS the source_documents id post-repoint, no second-table indirection),
  * content_history (the per-match snapshot rows carrying the sweep-id
- * provenance), the `corpus` Storage bucket (an in-memory object store keyed
- * by storage_path, {138.12} re-point), and the writer-fence RPC (always
+ * provenance — unchanged, out of this Subtask's file-ownership boundary),
+ * the `corpus` Storage bucket (an in-memory object store keyed by
+ * storage_path, {138.12} re-point), and the writer-fence RPC (always
  * succeeds — single-actor, no real concurrency to model here). The stub is
  * deliberately small — it only models the exact query shapes the code issues.
  */
@@ -69,23 +73,17 @@ function makeDb(files: Record<string, { rel: string; content: string }>): {
   liveContent: () => Record<string, string>;
   objects: Record<string, string>;
 } {
-  // Per-item live content + a per-item source_document carrying its
-  // storage_path (each item gets a distinct doc id derived from SRC_DOC).
-  const items: Record<string, { content: string; source_document_id: string }> =
+  // One source_documents row per item — extracted_text (live "content") +
+  // storage_path (the corpus bucket object key), keyed directly by the id
+  // the caller passes as `contentItemId`.
+  const docs: Record<string, { extracted_text: string; storage_path: string }> =
     {};
-  const docs: Record<string, { storage_path: string }> = {};
   // The `corpus` bucket's in-memory object store, keyed by storage_path
   // (the {138.12} object key) — seeded with each match's PRIOR bytes, the
   // same role the real temp-dir files played pre-re-point.
   const objects: Record<string, string> = {};
-  let docSeq = 0;
   for (const [id, f] of Object.entries(files)) {
-    const docId = `${SRC_DOC.slice(0, -2)}${String(docSeq++).padStart(2, '0')}`;
-    items[id] = {
-      content: f.content,
-      source_document_id: docId,
-    };
-    docs[docId] = { storage_path: f.rel };
+    docs[id] = { extracted_text: f.content, storage_path: f.rel };
     objects[f.rel] = f.content;
   }
   const history: HistoryRow[] = [];
@@ -94,44 +92,6 @@ function makeDb(files: Record<string, { rel: string; content: string }>): {
   // whose terminal awaitable resolves the query. We only model the verbs the
   // production code uses.
   function from(table: string) {
-    if (table === 'content_items') {
-      return {
-        select() {
-          return {
-            eq(_col: string, id: string) {
-              return {
-                async maybeSingle() {
-                  const it = items[id];
-                  if (!it) return { data: null, error: null };
-                  // Shape mirrors writeBackFileFirst's plain column read
-                  // (no FK embed — dropped in migration 20260602073942).
-                  return {
-                    data: { source_document_id: it.source_document_id },
-                    error: null,
-                  };
-                },
-                async single() {
-                  const it = items[id];
-                  if (!it)
-                    return { data: null, error: { message: 'not found' } };
-                  return { data: { content: it.content }, error: null };
-                },
-              };
-            },
-          };
-        },
-        update(patch: { content?: string }) {
-          return {
-            async eq(_col: string, id: string) {
-              if (items[id] && patch.content !== undefined) {
-                items[id].content = patch.content;
-              }
-              return { error: null };
-            },
-          };
-        },
-      };
-    }
     if (table === 'source_documents') {
       return {
         select() {
@@ -146,7 +106,26 @@ function makeDb(files: Record<string, { rel: string; content: string }>): {
                     error: null,
                   };
                 },
+                async single() {
+                  const doc = docs[id];
+                  if (!doc)
+                    return { data: null, error: { message: 'not found' } };
+                  return {
+                    data: { extracted_text: doc.extracted_text },
+                    error: null,
+                  };
+                },
               };
+            },
+          };
+        },
+        update(patch: { extracted_text?: string }) {
+          return {
+            async eq(_col: string, id: string) {
+              if (docs[id] && patch.extracted_text !== undefined) {
+                docs[id].extracted_text = patch.extracted_text;
+              }
+              return { error: null };
             },
           };
         },
@@ -247,7 +226,8 @@ function makeDb(files: Record<string, { rel: string; content: string }>): {
     objects,
     liveContent: () => {
       const out: Record<string, string> = {};
-      for (const [id, it] of Object.entries(items)) out[id] = it.content;
+      for (const [id, doc] of Object.entries(docs))
+        out[id] = doc.extracted_text;
       return out;
     },
   };

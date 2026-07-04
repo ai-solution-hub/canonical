@@ -190,11 +190,16 @@ export async function generateSummary(
 ): Promise<SummariseResult> {
   const { supabase, itemId, force, userId } = params;
 
-  // Fetch the content item
+  // Fetch the source document. ID-131 {131.17} G-IMS-DELETE KEEP-list:
+  // re-pointed off content_items onto source_documents (M3 gave SD the
+  // classification family, incl. summary/summary_data). `content`/`title`
+  // have no SD column of the same name — extracted_text /
+  // original_filename+filename are the nearest analogs (matches the
+  // established idiom elsewhere in this Subtask's file set).
   const { data: item, error: fetchError } = await supabase
-    .from('content_items')
+    .from('source_documents')
     .select(
-      'id, content, title, suggested_title, content_type, summary, primary_domain, summary_data',
+      'id, extracted_text, original_filename, filename, suggested_title, content_type, summary, primary_domain, summary_data',
     )
     .eq('id', itemId)
     .single();
@@ -211,24 +216,25 @@ export async function generateSummary(
     );
   }
 
-  if (!item.content?.trim()) {
+  if (!item.extracted_text?.trim()) {
     throw new AIServiceError('Content item has no content to summarise', 400);
   }
 
-  const displayTitle = item.suggested_title || item.title || 'Untitled';
+  const title = item.original_filename ?? item.filename;
+  const displayTitle = item.suggested_title || title || 'Untitled';
   const contentType = item.content_type || 'article';
   const domain = item.primary_domain || 'unknown';
 
   // Call the pure AI function
   const { summaryData } = await callSummaryAI({
-    content: item.content,
+    content: item.extracted_text,
     title: displayTitle,
     contentType,
     domain,
   });
 
   // Store in Supabase (also sync summary with the higher-quality executive)
-  const updatePayload: Database['public']['Tables']['content_items']['Update'] =
+  const updatePayload: Database['public']['Tables']['source_documents']['Update'] =
     {
       summary_data: toJson(summaryData),
       summary: summaryData.executive,
@@ -238,7 +244,7 @@ export async function generateSummary(
   }
 
   const { error: updateError } = await supabase
-    .from('content_items')
+    .from('source_documents')
     .update(updatePayload)
     .eq('id', itemId);
 

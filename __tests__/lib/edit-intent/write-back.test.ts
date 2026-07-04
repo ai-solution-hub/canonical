@@ -1,9 +1,17 @@
 /**
  * {59.9} — file-first write-back adapter with compensating restore.
- * {59.10} — source-less content_item GUARD (bl-266).
  * {138.12} T1 — RE-POINT: the file leg now PUTs bytes into the `corpus`
  * Supabase Storage bucket at `object_key = storage_path` (TECH §3.3 T1, §2.1
  * R(a)) instead of rewriting a `COCOINDEX_SOURCE_PATH`-joined file on disk.
+ *
+ * ID-131 {131.17} G-IMS-DELETE KEEP-list RE-POINT: `contentItemId` is now a
+ * source_documents.id directly (the field name is kept for caller-contract
+ * stability). The FORMER two-hop content_items -> source_document_id ->
+ * source_documents.storage_path lookup collapses to ONE direct read — the
+ * {59.10} "source-less content_item" guard (source_document_id IS NULL) no
+ * longer applies (every source_documents row IS its own valid id) and is
+ * REMOVED; the "row doesn't exist for this id" case is now a plain
+ * not-found, covered by the `docRowMissing` case below.
  *
  * Mock discipline: `createMockSupabaseClient()` from the shared helper
  * (`__tests__/helpers/mock-supabase.ts`) — the Storage leg + the writer-fence
@@ -22,12 +30,6 @@
  *   5. the writer-fence busy -> aborts before the DB leg (a second failure
  *      mode with the same one-failure-state guarantee);
  *   6. the re-walk nudge does NOT fire on the DB-failure/restore path.
- *
- * The {59.10} testStrategy proof (PC-3 / INV-3):
- *   source_document_id IS NULL -> NO Storage PUT, NO source_document created,
- *   NO connector='mcp' mint; `source_less_content_item_edit_back` anomaly log
- *   emitted; the DB leg (content_items + content_history WITH edit_intent)
- *   STILL runs. Source-backed item -> object written normally (guard passes).
  *
  * @vitest-environment node
  */
@@ -64,45 +66,30 @@ import {
 } from '@/lib/edit-intent/write-back';
 import { WriterFenceBusyError } from '@/lib/corpus/writer-fence';
 
-// uuid5(ci:{rel_path}) is the deterministic content_item PK seed. The id is
-// opaque to the adapter (it only uses it to resolve the source_document) but
-// must be a valid v4-shaped UUID for the route boundary.
+// ID-131 {131.17}: this is a source_documents id directly (the field name
+// `contentItemId` is kept for caller-contract stability). Must be a valid
+// v4-shaped UUID for the route boundary.
 const CONTENT_ITEM_ID = '11111111-1111-4111-8111-111111111111';
-const SOURCE_DOCUMENT_ID = '22222222-2222-4222-8222-222222222222';
 const REL_PATH = 'corpus/test/answer.md';
 const PRIOR_BYTES = '# Q\n\nprior answer body\n';
 const NEW_BYTES = '# Q\n\nedited answer body\n';
 
 /**
- * Configure the two plain-column reads `writeBackFileFirst` issues, in
- * sequence: content_items.source_document_id, then
- * source_documents.storage_path (never a PostgREST FK embed — the FK was
- * dropped in migration 20260602073942, bl-286 C1).
+ * Configure the single plain-column read `writeBackFileFirst` issues:
+ * source_documents.storage_path by PK. ID-131 {131.17}: `contentItemId` IS
+ * the source_documents id directly — the FORMER two-hop content_items ->
+ * source_document_id -> source_documents.storage_path lookup (never a
+ * PostgREST FK embed — the FK was dropped in migration 20260602073942,
+ * bl-286 C1) collapses to this ONE read.
  */
 function configureResolution(
   client: MockSupabaseClient,
   opts: {
-    sourceDocumentId?: string | null;
-    itemsError?: unknown;
     storagePath?: string | null;
     docsError?: unknown;
     docRowMissing?: boolean;
   },
 ) {
-  if (opts.itemsError) {
-    client._chain.maybeSingle.mockResolvedValueOnce({
-      data: null,
-      error: opts.itemsError,
-    });
-    return;
-  }
-  client._chain.maybeSingle.mockResolvedValueOnce({
-    data: { source_document_id: opts.sourceDocumentId ?? null },
-    error: null,
-  });
-  if (opts.sourceDocumentId === null || opts.sourceDocumentId === undefined) {
-    return; // source-less guard — no second read issued.
-  }
   if (opts.docsError) {
     client._chain.maybeSingle.mockResolvedValueOnce({
       data: null,
@@ -185,7 +172,6 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
 
   it('PROOF 1 — file-backed edit PUTs the SAME object key (NOT the VPS volume) AND applies the DB leg', async () => {
     configureResolution(mockSupabase, {
-      sourceDocumentId: SOURCE_DOCUMENT_ID,
       storagePath: REL_PATH,
     });
     const applyDbLeg = vi.fn().mockResolvedValue(undefined);
@@ -210,45 +196,10 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
     expect(result.applied).toBe(true);
     expect(result.fileBacked).toBe(true);
     expect(result.warnings).toEqual([]);
-    // GUARD: a source-BACKED item is NOT the anomaly — the source-less log
-    // never fires for it ({59.10}).
-    expect(loggerMocks.warn).not.toHaveBeenCalledWith(
-      expect.objectContaining({ event: 'source_less_content_item_edit_back' }),
-      expect.anything(),
-    );
-  });
-
-  it('{59.10} GUARD — source-less item (source_document_id IS NULL) writes KH-DB-only, NO Storage PUT, emits the anomaly log', async () => {
-    configureResolution(mockSupabase, { sourceDocumentId: null });
-    const applyDbLeg = vi.fn().mockResolvedValue(undefined);
-
-    const result = await writeBackFileFirst({
-      supabase: client(),
-      contentItemId: CONTENT_ITEM_ID,
-      newContent: NEW_BYTES,
-      applyDbLeg,
-      context: 'items.patch.write-back.resolve-storage-path',
-    });
-
-    expect(result.applied).toBe(true);
-    expect(result.fileBacked).toBe(false);
-    expect(applyDbLeg).toHaveBeenCalledTimes(1);
-    expect(bucket(mockSupabase).upload).not.toHaveBeenCalled();
-    expect(bucket(mockSupabase).download).not.toHaveBeenCalled();
-
-    expect(loggerMocks.warn).toHaveBeenCalledWith(
-      expect.objectContaining({
-        event: 'source_less_content_item_edit_back',
-        contentItemId: CONTENT_ITEM_ID,
-        caller: 'items.patch.write-back.resolve-storage-path',
-      }),
-      expect.any(String),
-    );
   });
 
   it('{138.12} Storage-leg idle-mode equivalent — corpus bucket not provisioned in this project -> DB-only, NO PUT attempted', async () => {
     configureResolution(mockSupabase, {
-      sourceDocumentId: SOURCE_DOCUMENT_ID,
       storagePath: REL_PATH,
     });
     bucket(mockSupabase).download.mockResolvedValueOnce({
@@ -276,16 +227,10 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
       }),
       expect.any(String),
     );
-    // Source-BACKED (not the source-less anomaly) — that log must not fire.
-    expect(loggerMocks.warn).not.toHaveBeenCalledWith(
-      expect.objectContaining({ event: 'source_less_content_item_edit_back' }),
-      expect.anything(),
-    );
   });
 
   it('PROOF 2 — Storage PUT failure aborts BEFORE the DB write (DB untouched, one failure state)', async () => {
     configureResolution(mockSupabase, {
-      sourceDocumentId: SOURCE_DOCUMENT_ID,
       storagePath: REL_PATH,
     });
     bucket(mockSupabase).upload.mockResolvedValueOnce({
@@ -309,7 +254,6 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
 
   it('a busy writer-fence aborts BEFORE the DB write (second failure mode, same one-failure-state guarantee)', async () => {
     configureResolution(mockSupabase, {
-      sourceDocumentId: SOURCE_DOCUMENT_ID,
       storagePath: REL_PATH,
     });
     // Acquire fails (another writer holds the lease) — try-semantics, false
@@ -332,7 +276,6 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
 
   it('PROOF 3 — DB-write failure AFTER a successful PUT RESTORES the prior bytes (fenced)', async () => {
     configureResolution(mockSupabase, {
-      sourceDocumentId: SOURCE_DOCUMENT_ID,
       storagePath: REL_PATH,
     });
     const dbError = new Error('content_history insert failed (forced)');
@@ -361,7 +304,6 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
 
   it('a degraded restore still raises the original failure (user sees ONE outcome)', async () => {
     configureResolution(mockSupabase, {
-      sourceDocumentId: SOURCE_DOCUMENT_ID,
       storagePath: REL_PATH,
     });
     // The restore PUT itself fails.
@@ -384,28 +326,8 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
     ).rejects.toThrow('db leg failed (forced)');
   });
 
-  it('raises when the source_document_id read itself fails (no Storage or DB write attempted)', async () => {
-    configureResolution(mockSupabase, {
-      itemsError: { message: 'lookup boom', code: 'NETWORK_ERROR' },
-    });
-    const applyDbLeg = vi.fn().mockResolvedValue(undefined);
-
-    await expect(
-      writeBackFileFirst({
-        supabase: client(),
-        contentItemId: CONTENT_ITEM_ID,
-        newContent: NEW_BYTES,
-        applyDbLeg,
-      }),
-    ).rejects.toThrow();
-
-    expect(applyDbLeg).not.toHaveBeenCalled();
-    expect(bucket(mockSupabase).upload).not.toHaveBeenCalled();
-  });
-
   it('raises when the storage_path read fails (no Storage or DB write attempted)', async () => {
     configureResolution(mockSupabase, {
-      sourceDocumentId: SOURCE_DOCUMENT_ID,
       docsError: { message: 'doc lookup boom', code: 'NETWORK_ERROR' },
     });
     const applyDbLeg = vi.fn().mockResolvedValue(undefined);
@@ -423,9 +345,8 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
     expect(bucket(mockSupabase).upload).not.toHaveBeenCalled();
   });
 
-  it('dangling source_document_id (doc row deleted post-FK-drop) writes KH-DB-only and logs the dangling-reference anomaly', async () => {
+  it('no source_documents row exists for this id — writes KH-DB-only and logs the not-found anomaly', async () => {
     configureResolution(mockSupabase, {
-      sourceDocumentId: SOURCE_DOCUMENT_ID,
       docRowMissing: true,
     });
     const applyDbLeg = vi.fn().mockResolvedValue(undefined);
@@ -443,9 +364,8 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
     expect(bucket(mockSupabase).upload).not.toHaveBeenCalled();
     expect(loggerMocks.warn).toHaveBeenCalledWith(
       expect.objectContaining({
-        event: 'dangling_source_document_reference',
+        event: 'source_document_not_found',
         contentItemId: CONTENT_ITEM_ID,
-        sourceDocumentId: SOURCE_DOCUMENT_ID,
       }),
       expect.any(String),
     );
@@ -467,7 +387,6 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
       global.fetch = fetchMock as unknown as typeof fetch;
 
       configureResolution(mockSupabase, {
-        sourceDocumentId: SOURCE_DOCUMENT_ID,
         storagePath: REL_PATH,
       });
       const applyDbLeg = vi.fn().mockResolvedValue(undefined);
@@ -499,7 +418,6 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
       global.fetch = fetchMock as unknown as typeof fetch;
 
       configureResolution(mockSupabase, {
-        sourceDocumentId: SOURCE_DOCUMENT_ID,
         storagePath: REL_PATH,
       });
 
@@ -522,7 +440,6 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
 
     it('skips gracefully (no throw) when COCOINDEX_WORKER_URL is unset', async () => {
       configureResolution(mockSupabase, {
-        sourceDocumentId: SOURCE_DOCUMENT_ID,
         storagePath: REL_PATH,
       });
       const applyDbLeg = vi.fn().mockResolvedValue(undefined);

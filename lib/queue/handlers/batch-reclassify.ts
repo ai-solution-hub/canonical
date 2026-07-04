@@ -46,7 +46,6 @@ import { canonicalise } from '@/lib/entities/entity-dedup';
 import { resolveAlias, loadAliases } from '@/lib/entities/entity-aliases';
 import { extractEntityContext } from '@/lib/entities/entity-context';
 import { bridgeTemporalReferencesToEntities } from '@/lib/entities/entity-metadata-bridge';
-import { inferLayer } from '@/lib/layer-inference';
 import { logger } from '@/lib/logger';
 import { PermanentJobError } from '@/lib/queue/dispatch';
 import { createServiceClient } from '@/lib/supabase/server';
@@ -228,10 +227,23 @@ from the content when present.
 Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other
 numeric identifiers as entities.`;
 
+/**
+ * ID-131 {131.17} G-IMS-DELETE KEEP-list: re-pointed off content_items onto
+ * source_documents (M3 gave SD the classification family). `id` is now
+ * directly a source_documents id — the FORMER separate `source_document_id`
+ * FK column (ID-131.30/ID-131.36's id-space fix, needed because content_items
+ * and source_documents were independent PK spaces) collapses to an identity,
+ * so it is no longer selected. `content`/`title` have no SD column of the
+ * same name — `extracted_text`/`original_filename`+`filename` are the
+ * nearest analogs; `metadata` -> `extraction_metadata`. `platform` has no SD
+ * analog and is dropped along with the layer-suggestion logic it fed (D5:
+ * `layer` dies with content_items, not re-homed onto source_documents).
+ */
 interface ContentRow {
   id: string;
-  content: string | null;
-  title: string | null;
+  extracted_text: string | null;
+  original_filename: string | null;
+  filename: string;
   suggested_title: string | null;
   content_type: string | null;
   primary_domain: string | null;
@@ -239,14 +251,7 @@ interface ContentRow {
   ai_keywords: string[] | null;
   classification_confidence: number | null;
   classified_at: string | null;
-  metadata: Record<string, unknown> | null;
-  platform: string | null;
-  /** FK to `source_documents.id` — NOT the same id-space as `id` above
-   *  (ID-131 {131.8} M2 rename). Needed by the entities_only candidate
-   *  filter to compare against `entity_mentions.source_document_id`
-   *  (ID-131.30). Null for app-created items with no backing source
-   *  document. */
-  source_document_id: string | null;
+  extraction_metadata: Record<string, unknown> | null;
 }
 
 interface ClassificationTemporalRef {
@@ -612,13 +617,15 @@ export async function runBatchReclassifyJob(
 
   if (entities_only) {
     // Entities-only mode: items that ARE classified but lack entity mentions.
+    // ID-131 {131.17} G-IMS-DELETE KEEP-list: re-pointed off content_items
+    // onto source_documents (M3 gave SD the classification family).
     let entitiesQuery = supabase
-      .from('content_items')
+      .from('source_documents')
       .select(
-        'id, content, title, suggested_title, content_type, primary_domain, primary_subtopic, ai_keywords, classification_confidence, classified_at, metadata, platform, source_document_id',
+        'id, extracted_text, original_filename, filename, suggested_title, content_type, primary_domain, primary_subtopic, ai_keywords, classification_confidence, classified_at, extraction_metadata',
       )
       .not('classified_at', 'is', null)
-      .not('content', 'is', null)
+      .not('extracted_text', 'is', null)
       .is('archived_at', null)
       .order('captured_date', { ascending: false })
       .limit(500);
@@ -630,7 +637,7 @@ export async function runBatchReclassifyJob(
     const { data: items, error: fetchError } = await entitiesQuery;
     if (fetchError) {
       throw new PermanentJobError(
-        `content_items_fetch_failed: ${fetchError.message}`,
+        `source_documents_fetch_failed: ${fetchError.message}`,
       );
     }
     if (!items || items.length === 0) {
@@ -668,19 +675,15 @@ export async function runBatchReclassifyJob(
 
       const entitiesFiltered = (items as ContentRow[])
         .filter((item) => {
-          if (!item.content || item.content.trim().length === 0) return false;
-          // entity_mentions.source_document_id is an FK to source_documents,
-          // NOT content_items (ID-131 {131.8} M2 rename; ID-131.30
-          // G-EXTRACT-CONSUMER-SWEEP-3) — comparing item.id against
-          // mentionedSet (which holds source_documents ids) would never
-          // match, silently treating every already-entity-tagged item as
-          // entity-less. An item with no source_document_id has no valid
-          // entity_mentions FK parent, so it cannot be "already mentioned"
-          // — it falls through as a candidate (mirrors the
-          // classify.ts / entity-metadata-bridge.ts {131.26} skip-when-null
-          // idiom).
-          if (!item.source_document_id) return true;
-          return !mentionedSet.has(item.source_document_id);
+          if (!item.extracted_text || item.extracted_text.trim().length === 0)
+            return false;
+          // ID-131 {131.17}: candidates now come directly from
+          // source_documents, so item.id IS the id entity_mentions.
+          // source_document_id points at — no separate FK-column comparison
+          // needed (pre-repoint this compared a distinct
+          // content_items.source_document_id column; ID-131.30
+          // G-EXTRACT-CONSUMER-SWEEP-3).
+          return !mentionedSet.has(item.id);
         })
         .sort(
           (a, b) =>
@@ -693,12 +696,14 @@ export async function runBatchReclassifyJob(
     }
   } else {
     // Normal reclassification mode: active (non-archived) items.
+    // ID-131 {131.17} G-IMS-DELETE KEEP-list: re-pointed off content_items
+    // onto source_documents (M3 gave SD the classification family).
     let reclassQuery = supabase
-      .from('content_items')
+      .from('source_documents')
       .select(
-        'id, content, title, suggested_title, content_type, primary_domain, primary_subtopic, ai_keywords, classification_confidence, classified_at, metadata, platform, source_document_id',
+        'id, extracted_text, original_filename, filename, suggested_title, content_type, primary_domain, primary_subtopic, ai_keywords, classification_confidence, classified_at, extraction_metadata',
       )
-      .not('content', 'is', null)
+      .not('extracted_text', 'is', null)
       .is('archived_at', null)
       .order('captured_date', { ascending: false })
       .limit(5000);
@@ -710,7 +715,7 @@ export async function runBatchReclassifyJob(
     const { data: items, error: fetchError } = await reclassQuery;
     if (fetchError) {
       throw new PermanentJobError(
-        `content_items_fetch_failed: ${fetchError.message}`,
+        `source_documents_fetch_failed: ${fetchError.message}`,
       );
     }
     if (!items || items.length === 0) {
@@ -718,7 +723,8 @@ export async function runBatchReclassifyJob(
     } else {
       const filtered = (items as ContentRow[])
         .filter((item) => {
-          if (!item.content || item.content.trim().length === 0) return false;
+          if (!item.extracted_text || item.extracted_text.trim().length === 0)
+            return false;
           if (force) return true;
           if (!item.classified_at) return true;
           if (
@@ -796,8 +802,9 @@ export async function runBatchReclassifyJob(
 
     try {
       // Prepare content for classification (truncate at 5000 chars).
-      const plainText = stripMarkdown(item.content!);
+      const plainText = stripMarkdown(item.extracted_text!);
       const contentForClassification = plainText.slice(0, 5000);
+      const itemTitle = item.original_filename ?? item.filename;
 
       // Build user message — verbatim from CLI L966-984 to preserve
       // eval-driven prompt rules surgically per
@@ -813,7 +820,7 @@ IMPORTANT disambiguation rules:
 - Financial questions (pricing, costs, audited accounts, hidden costs) belong in corporate/financial.
 
 Content type: ${item.content_type}
-Title: ${item.title || item.suggested_title || 'Untitled'}
+Title: ${itemTitle || item.suggested_title || 'Untitled'}
 
 Content:
 ${contentForClassification}
@@ -899,29 +906,16 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
         target: resolveAlias(canonicalise(r.target)).toLowerCase(),
       }));
 
-      // Update content_items with classification results (skip if entities_only).
+      // Update source_documents with classification results (skip if
+      // entities_only). ID-131 {131.17} G-IMS-DELETE KEEP-list: re-pointed
+      // off content_items onto source_documents (M3 gave SD the
+      // classification family). The layer-suggestion inference (platform ->
+      // ingestionSource -> inferLayer) is DROPPED here — `layer` dies with
+      // content_items and is NOT re-homed onto source_documents (D5,
+      // TECH.md §"Trigger functions" / §FK disposition), and source_documents
+      // carries no `platform` column to derive an ingestionSource from.
       if (!entities_only) {
-        const platformToSource = (
-          p: string | null,
-        ): 'bid_library' | 'url_import' | 'upload' | 'manual' => {
-          if (p === 'extraction') return 'bid_library';
-          if (p === 'web') return 'url_import';
-          if (p === 'upload') return 'upload';
-          return 'manual';
-        };
-
-        const layerSuggestion = inferLayer({
-          contentType: item.content_type ?? 'other',
-          contentLength: plainText.length,
-          ingestionSource: platformToSource(item.platform),
-          hasBrief: false,
-          hasDetail: false,
-          hasReference: false,
-          isProcurementDiscovered: false,
-          title: item.title || item.suggested_title || '',
-        });
-
-        const updateData: Database['public']['Tables']['content_items']['Update'] =
+        const updateData: Database['public']['Tables']['source_documents']['Update'] =
           {
             primary_domain: result.primary_domain,
             primary_subtopic: result.primary_subtopic,
@@ -933,24 +927,32 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
             classification_confidence: result.classification_confidence,
             classification_reasoning: result.classification_reasoning,
             classified_at: new Date(Date.now()).toISOString(),
-            layer: layerSuggestion.suggestedLayer,
           };
 
-        // Store temporal references in metadata.
+        // Store temporal references in extraction_metadata (source_documents
+        // has no generic `metadata` column — extraction_metadata is the
+        // nearest analog).
         if (result.temporal_references?.length) {
           const existingMetadata =
-            (item.metadata as Record<string, unknown>) ?? {};
-          updateData.metadata = {
+            (item.extraction_metadata as Record<string, unknown>) ?? {};
+          updateData.extraction_metadata = {
             ...existingMetadata,
             ai_temporal_references: result.temporal_references,
           } as unknown as Json;
         }
 
-        // Regenerate embedding with updated title + content.
+        // Regenerate embedding with updated title + content. source_documents
+        // carries no inline embedding column — the vector is upserted into
+        // the polymorphic record_embeddings store (owner_kind=
+        // 'source_document') AFTER the main update succeeds, matching the
+        // established record_embeddings-write convention (model literal
+        // mirrors lib/intelligence/pipeline.ts
+        // COMPANY_PROFILE_EMBEDDING_MODEL / lib/mcp/tools/search.ts:318).
+        let regeneratedEmbedding: string | null = null;
         try {
           const embeddingText = `${result.suggested_title}\n\n${plainText}`;
           const embedding = await generateEmbedding(embeddingText);
-          updateData.embedding = JSON.stringify(embedding);
+          regeneratedEmbedding = JSON.stringify(embedding);
         } catch (embedErr) {
           embeddingErrors++;
           logger.warn(
@@ -960,38 +962,48 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
         }
 
         const { error: updateError } = await supabase
-          .from('content_items')
+          .from('source_documents')
           .update(updateData)
           .eq('id', item.id);
 
         if (updateError) {
           throw new Error(`Supabase update failed: ${updateError.message}`);
         }
+
+        if (regeneratedEmbedding) {
+          const { error: embeddingUpsertError } = await supabase
+            .from('record_embeddings')
+            .upsert(
+              {
+                owner_kind: 'source_document',
+                owner_id: item.id,
+                model: 'text-embedding-3-large',
+                embedding: regeneratedEmbedding,
+              },
+              { onConflict: 'owner_kind,owner_id,model' },
+            );
+          if (embeddingUpsertError) {
+            embeddingErrors++;
+            logger.warn(
+              { err: embeddingUpsertError, item_id: item.id },
+              'batch_reclassify handler: failed to store regenerated embedding in record_embeddings',
+            );
+          }
+        }
       }
 
       // entity_mentions.source_document_id / entity_relationships
-      // .source_document_id are enforced FKs to `source_documents`, NOT
-      // `content_items` (ID-131 {131.8} M2 rename; migration
-      // 20260628200000_id131_extract_reparent.sql:38-41,51-54). `item.id`
-      // is a content_items id and is NEVER a valid value for that FK
-      // (independent PK spaces) — writing it raw silently no-oped the
-      // DELETE (content_items ids never match source_documents ids) and
-      // FK-violated the INSERT, which was only ever `logger.warn`'d, never
-      // thrown, since the M2 megacommit landed on 2026-07-01 (ID-131.36
-      // G-EXTRACT-CONSUMER-SWEEP-4; mirrors the {131.26} /
-      // entity-metadata-bridge.ts / classify.ts skip-when-null idiom). An
-      // item with no source_document_id (an app-created content_item with
-      // no backing source document) has no valid FK parent, so
-      // entity/relationship writes are skipped for it entirely rather than
-      // attempting an FK-violating insert.
-      const sourceDocumentId = item.source_document_id;
+      // .source_document_id are enforced FKs to `source_documents`. ID-131
+      // {131.17} G-IMS-DELETE KEEP-list: candidates now come directly from
+      // source_documents (pre-repoint this resolved a SEPARATE
+      // content_items.source_document_id FK column — ID-131.36
+      // G-EXTRACT-CONSUMER-SWEEP-4 — since content_items and
+      // source_documents were independent PK spaces). `item.id` IS the
+      // source_documents id, so the indirection collapses to an identity;
+      // it is always defined for a fetched row.
+      const sourceDocumentId = item.id;
 
-      if (!sourceDocumentId) {
-        logger.warn(
-          { item_id: item.id },
-          'batch_reclassify handler: item has no source_document_id — skipping entity_mentions/entity_relationships storage (no valid FK parent)',
-        );
-      } else {
+      {
         // Insert entity mentions (delete-then-insert; clean slate on reclassify).
         if (entities.length > 0) {
           const entityRows = entities.map((e) => ({

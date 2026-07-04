@@ -91,13 +91,31 @@ function configureMock(options: {
   mockSupabase._chain.order.mockReset();
   mockSupabase._chain.then.mockReset();
 
+  // ID-131 {131.17} G-IMS-DELETE KEEP-list: content-suggestions.ts is
+  // re-pointed off content_items onto source_documents; `freshness` moved to
+  // the separate `record_lifecycle` governance facet (owner_kind=
+  // 'source_document', owner_id). Assign a stable synthetic id to each
+  // content item (the source_documents.id analog) so the freshness join can
+  // key off it, mirroring the production client-side join.
+  const sourceDocuments = contentItems.map((item, idx) => ({
+    id: `sd-${idx}`,
+    primary_domain: item.primary_domain,
+    primary_subtopic: item.primary_subtopic,
+    content_type: item.content_type,
+  }));
+  const lifecycleRows = contentItems.map((item, idx) => ({
+    owner_id: `sd-${idx}`,
+    freshness: item.freshness,
+  }));
+
   // Build a table-based response system
   // Post-T2 (S246): table renamed from 'template_requirements' to
   // 'form_template_requirements' per the 3-tier form_type schema split.
   const tableResponses: Record<string, { data: unknown[]; error: null }> = {
     taxonomy_domains: { data: DOMAINS, error: null },
     taxonomy_subtopics: { data: SUBTOPICS, error: null },
-    content_items: { data: contentItems, error: null },
+    source_documents: { data: sourceDocuments, error: null },
+    record_lifecycle: { data: lifecycleRows, error: null },
     workspaces: { data: activeProcurements, error: null },
     form_template_requirements: { data: templateGaps, error: null },
   };
@@ -109,6 +127,7 @@ function configureMock(options: {
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       is: vi.fn().mockReturnThis(),
+      in: vi.fn().mockReturnThis(),
       order: vi.fn().mockReturnThis(),
       limit: vi.fn().mockReturnThis(),
       then: vi.fn((resolve: (v: unknown) => void) => resolve(response)),

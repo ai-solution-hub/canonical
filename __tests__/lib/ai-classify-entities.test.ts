@@ -218,15 +218,18 @@ describe('classifyContent — entity extraction', () => {
       },
     );
 
-    // Default: item exists and has content. source_document_id is a linked
-    // source_documents id (ID-131.26) — entity_mentions/entity_relationships
-    // storage is keyed off this, not the content item's own id; test
-    // fixtures need a truthy value to exercise the entity-storage path.
+    // Default: item exists and has content. ID-131 {131.17} G-IMS-DELETE
+    // KEEP-list: classifyContent re-pointed off content_items onto
+    // source_documents — `ITEM_ID` (the fetch key) IS the source_documents
+    // id directly (no separate source_document_id FK column — entity_mentions/
+    // entity_relationships storage keys off this same id post-repoint).
     mockSupabase._chain.single.mockResolvedValue({
       data: {
         id: ITEM_ID,
-        title: 'Security Certs',
-        content: '<p>Acme Ltd holds ISO27001 and Cyber Essentials Plus.</p>',
+        original_filename: 'Security Certs',
+        filename: 'security-certs.md',
+        extracted_text:
+          '<p>Acme Ltd holds ISO27001 and Cyber Essentials Plus.</p>',
         content_type: 'article',
         classified_at: null,
         primary_domain: null,
@@ -238,7 +241,6 @@ describe('classifyContent — entity extraction', () => {
         suggested_title: null,
         classification_confidence: null,
         classification_reasoning: null,
-        source_document_id: 'test-source-doc-id',
       },
       error: null,
     });
@@ -523,11 +525,11 @@ describe('classifyContent — entity extraction', () => {
       expect(mockSupabase._chain.delete).toHaveBeenCalled();
       // Read the persisted entity_mentions rows back and assert the ISO 27001
       // mention landed canonicalised + lowercased with full confidence.
-      // source_document_id is the content item's LINKED source_documents id
-      // (ID-131.26 value-provenance fix) — never the content item's own id.
+      // ID-131 {131.17}: source_document_id IS ITEM_ID directly post-repoint
+      // (itemId is a source_documents id, no separate FK column).
       expect(whereUpserted('entity_mentions')).toContainEqual(
         expect.objectContaining({
-          source_document_id: 'test-source-doc-id',
+          source_document_id: ITEM_ID,
           entity_type: 'certification',
           entity_name: 'ISO27001',
           canonical_name: 'iso 27001', // canonicalised + lowercased for case-insensitive index
@@ -562,14 +564,14 @@ describe('classifyContent — entity extraction', () => {
       expect(mockSupabase.from).toHaveBeenCalledWith('entity_relationships');
       // Read the persisted entity_relationships rows back: the holds edge
       // landed canonicalised + lowercased with full confidence.
-      // source_document_id is the content item's LINKED source_documents id
-      // (ID-131.26 value-provenance fix) — never the content item's own id.
+      // ID-131 {131.17}: source_document_id IS ITEM_ID directly post-repoint
+      // (itemId is a source_documents id, no separate FK column).
       expect(whereUpserted('entity_relationships')).toContainEqual(
         expect.objectContaining({
           source_entity: 'acme limited', // canonicalised + lowercased
           relationship_type: 'holds',
           target_entity: 'iso 27001', // canonicalised + lowercased
-          source_document_id: 'test-source-doc-id',
+          source_document_id: ITEM_ID,
           confidence: 1.0,
         }),
       );
@@ -585,14 +587,25 @@ describe('classifyContent — entity extraction', () => {
 
     it('does not break classification when entity storage fails', async () => {
       // Configure the upsert chain to return an error
-      mockSupabase._chain.upsert.mockReturnValueOnce({
-        ...mockSupabase._chain,
-        then: vi.fn((resolve: (v: unknown) => void) =>
-          resolve({
-            data: null,
-            error: { message: 'entity_mentions table not found' },
-          }),
-        ),
+      // ID-131 {131.17}: classifyContent now ALSO upserts the regenerated
+      // embedding into record_embeddings BEFORE the entity_mentions upsert
+      // (both share this chain mock) — so the entity_mentions failure must
+      // be injected on the SECOND upsert call, not the first.
+      let upsertCallCount = 0;
+      mockSupabase._chain.upsert.mockImplementation(() => {
+        upsertCallCount += 1;
+        if (upsertCallCount === 2) {
+          return {
+            ...mockSupabase._chain,
+            then: vi.fn((resolve: (v: unknown) => void) =>
+              resolve({
+                data: null,
+                error: { message: 'entity_mentions table not found' },
+              }),
+            ),
+          };
+        }
+        return mockSupabase._chain;
       });
 
       mockCreate.mockResolvedValueOnce(
@@ -629,16 +642,17 @@ describe('classifyContent — entity extraction', () => {
     });
 
     it('does not break classification when relationship storage throws', async () => {
-      // Configure upsert to throw an exception — entity_mentions and
-      // entity_relationships share the same chain mock, so we restore
-      // the entity_mentions-friendly behaviour (no-throw) after the
-      // first call. The upsert call order in classifyContent is
-      // entity_mentions first, entity_relationships second, so we need
-      // to throw on the SECOND upsert invocation, not the first.
+      // Configure upsert to throw an exception — record_embeddings,
+      // entity_mentions, and entity_relationships share the same chain mock,
+      // so we restore the no-throw behaviour on the other calls. The upsert
+      // call order in classifyContent is: record_embeddings (ID-131
+      // {131.17} regenerated-embedding store), entity_mentions, then
+      // entity_relationships — so we need to throw on the THIRD upsert
+      // invocation, not the first or second.
       let upsertCallCount = 0;
       mockSupabase._chain.upsert.mockImplementation(() => {
         upsertCallCount += 1;
-        if (upsertCallCount === 2) {
+        if (upsertCallCount === 3) {
           throw new Error('Database connection lost');
         }
         return {
@@ -710,8 +724,16 @@ describe('classifyContent — entity extraction', () => {
       // entity_mentions IS called for the delete path.
       expect(fromCalls).toContain('entity_mentions');
       expect(mockSupabase._chain.delete).toHaveBeenCalled();
-      // But upsert is NOT called (no rows to insert).
-      expect(mockSupabase._chain.upsert).not.toHaveBeenCalled();
+      // No entity_mentions upsert (no rows to insert) — entity rows are
+      // ARRAY-shaped. ID-131 {131.17}: the record_embeddings upsert (a
+      // single-object payload) still fires unconditionally per
+      // classification run, so `_chain.upsert` itself IS called once; only
+      // the array-shaped (entity) call is asserted absent here.
+      const arrayShapedUpsertCalls =
+        mockSupabase._chain.upsert.mock.calls.filter((call: unknown[]) =>
+          Array.isArray(call[0]),
+        );
+      expect(arrayShapedUpsertCalls).toHaveLength(0);
       // entity_relationships is skipped entirely when the relationships
       // array is empty.
       expect(fromCalls).not.toContain('entity_relationships');
@@ -931,8 +953,9 @@ describe('classifyContent — entity extraction', () => {
       mockSupabase._chain.single.mockResolvedValueOnce({
         data: {
           id: ITEM_ID,
-          title: 'Security Certs',
-          content: '<p>Some content</p>',
+          original_filename: 'Security Certs',
+          filename: 'security-certs.md',
+          extracted_text: '<p>Some content</p>',
           content_type: 'article',
           classified_at: '2026-03-01T00:00:00Z',
           primary_domain: 'SECURITY & COMPLIANCE',
@@ -984,8 +1007,9 @@ describe('classifyContent — coerceSubtopic call-site wiring', () => {
     mockSupabase._chain.single.mockResolvedValue({
       data: {
         id: ITEM_ID,
-        title: 'Test Item',
-        content: '<p>Some content about security.</p>',
+        original_filename: 'Test Item',
+        filename: 'test-item.md',
+        extracted_text: '<p>Some content about security.</p>',
         content_type: 'article',
         classified_at: null,
         primary_domain: null,

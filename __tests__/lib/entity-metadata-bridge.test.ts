@@ -60,17 +60,17 @@ describe('bridgeTemporalReferencesToEntities', () => {
   });
 
   function setupContentItem(metadata: Record<string, unknown>) {
-    // First .from('content_items') call returns item metadata. Includes a
-    // linked source_document_id (ID-131.26) — the bridge resolves
-    // entity_mentions off this, not contentItemId; a real content_items row
-    // reaching bridgeTemporalReferencesToEntities with temporal refs to
-    // process must have a backing source document.
+    // First .from() call returns the source document's extraction_metadata.
+    // ID-131 {131.17} G-IMS-DELETE KEEP-list: re-pointed off content_items
+    // onto source_documents — `contentItemId` IS the source_documents id
+    // directly (no separate source_document_id FK column to resolve); the
+    // former `metadata` column maps to `extraction_metadata`.
     mockClient.from.mockImplementationOnce(() => {
       const chain = {
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
         single: vi.fn().mockResolvedValue({
-          data: { metadata, source_document_id: contentItemId },
+          data: { extraction_metadata: metadata },
           error: null,
         }),
       };

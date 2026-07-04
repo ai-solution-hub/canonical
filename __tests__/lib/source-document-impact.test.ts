@@ -109,8 +109,8 @@ describe('analyseDocumentImpact', () => {
           data: [
             {
               id: 'item-1',
-              title: 'What is our ISO certification?',
-              content: 'We hold ISO 9001',
+              question_text: 'What is our ISO certification?',
+              answer_standard: 'We hold ISO 9001',
             },
           ],
           error: null,
@@ -153,8 +153,8 @@ describe('analyseDocumentImpact', () => {
           data: [
             {
               id: 'item-2',
-              title: 'What is our health and safety policy?',
-              content: 'We follow HSE guidelines',
+              question_text: 'What is our health and safety policy?',
+              answer_standard: 'We follow HSE guidelines',
             },
           ],
           error: null,
@@ -191,13 +191,13 @@ describe('analyseDocumentImpact', () => {
           data: [
             {
               id: 'item-1',
-              title: 'What is our ISO certification?',
-              content: 'We hold ISO 9001',
+              question_text: 'What is our ISO certification?',
+              answer_standard: 'We hold ISO 9001',
             },
             {
               id: 'item-3',
-              title: 'New policy',
-              content: 'New policy content',
+              question_text: 'New policy',
+              answer_standard: 'New policy content',
             },
           ],
           error: null,
@@ -251,8 +251,8 @@ describe('analyseDocumentImpact', () => {
           data: [
             {
               id: 'item-3',
-              title: 'What is our turnover?',
-              content: 'Our turnover is 5 million',
+              question_text: 'What is our turnover?',
+              answer_standard: 'Our turnover is 5 million',
             },
           ],
           error: null,
@@ -290,8 +290,8 @@ describe('analyseDocumentImpact', () => {
           data: [
             {
               id: 'item-4',
-              title: 'Quality Management',
-              content:
+              question_text: 'Quality Management',
+              answer_standard:
                 'Q: Describe your quality management system\nA: We use ISO 9001',
             },
           ],
@@ -330,8 +330,8 @@ describe('analyseDocumentImpact', () => {
           data: [
             {
               id: 'item-5',
-              title: 'What is our turnover?',
-              content: 'Our annual turnover is 5 million',
+              question_text: 'What is our turnover?',
+              answer_standard: 'Our annual turnover is 5 million',
             },
           ],
           error: null,

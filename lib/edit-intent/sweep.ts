@@ -7,8 +7,9 @@
  * ── What a sweep is ──────────────────────────────────────────────────────────
  * A cross-corpus find-and-replace (or smart-agent per-match-approve) rename
  * rewrites the affected walked source files at their `storage_path`. This module
- * is the KH-server orchestrator: it iterates the affected content_items and
- * rewrites EACH at its `storage_path` via the PC-1 adapter `writeBackFileFirst`
+ * is the KH-server orchestrator: it iterates the affected records (ID-131
+ * {131.17}: source_documents, re-pointed off content_items) and rewrites EACH
+ * at its `storage_path` via the PC-1 adapter `writeBackFileFirst`
  * ({59.9}, `@/lib/edit-intent/write-back` — direct import, never edited here).
  *
  * ── Single sweep identifier (audit + whole-sweep rollback) ───────────────────
@@ -44,11 +45,15 @@ import { sb, type PostgrestLike } from '@/lib/supabase/safe';
 import type { Database } from '@/supabase/types/database.types';
 
 /**
- * One match in a sweep: the content_item to rewrite and its NEW canonical
- * bytes (the post-rename file body that the DB leg also stores).
+ * One match in a sweep: the record to rewrite and its NEW canonical bytes
+ * (the post-rename file body that the DB leg also stores).
  */
 export interface SweepMatchInput {
-  /** content_item PK — used to resolve the linked source_document + storage_path. */
+  /**
+   * source_documents PK — used to resolve storage_path (ID-131 {131.17}
+   * re-point; field name kept as `contentItemId` for caller-contract
+   * stability — mirrors `write-back.ts`'s `WriteBackParams.contentItemId`).
+   */
   contentItemId: string;
   /** The post-rename canonical bytes for this match's file + DB row. */
   newContent: string;
@@ -56,7 +61,7 @@ export interface SweepMatchInput {
 
 export interface RunSweepParams {
   supabase: SupabaseClient<Database>;
-  /** The affected content_items + their post-rename bytes. */
+  /** The affected source_documents + their post-rename bytes. */
   matches: SweepMatchInput[];
   /**
    * The sweep's SINGLE intent, stamped verbatim on every match WITHOUT
@@ -102,6 +107,12 @@ export function sweepReason(sweepId: string): string {
 /**
  * Resolve the current live bytes of a content_item (the prior bytes captured
  * per-match before the sweep overwrites them — needed for revert).
+ *
+ * ID-131 {131.17} G-IMS-DELETE KEEP-list: re-pointed off content_items onto
+ * source_documents (M3 gave SD the classification family; `content` has no
+ * SD column of the same name — `extracted_text` is the nearest analog, the
+ * same mapping `write-back.ts`'s storage_path resolution now uses for this
+ * id post-repoint).
  */
 async function readPriorContent(
   supabase: SupabaseClient<Database>,
@@ -109,13 +120,13 @@ async function readPriorContent(
 ): Promise<string> {
   const row = await sb(
     supabase
-      .from('content_items')
-      .select('content')
+      .from('source_documents')
+      .select('extracted_text')
       .eq('id', contentItemId)
       .single(),
     'edit-intent.sweep.read-prior-content',
   );
-  return row?.content ?? '';
+  return row?.extracted_text ?? '';
 }
 
 /**
@@ -145,7 +156,8 @@ async function nextHistoryVersion(
  *   1. snapshot the prior live bytes (for revert);
  *   2. rewrite the file leg at `storage_path` + apply the DB leg via the PC-1
  *      adapter `writeBackFileFirst`. The DB leg:
- *        a. UPDATEs `content_items.content` to the new bytes;
+ *        a. UPDATEs `source_documents.extracted_text` to the new bytes
+ *           (ID-131 {131.17} re-point off `content_items.content`);
  *        b. INSERTs a `content_history` snapshot stamping the sweep's single
  *           intent, the sweep-id (`metadata.sweep_id` + `change_reason`), and
  *           the prior bytes (`metadata.prior_content`) so the match is
@@ -175,11 +187,29 @@ export async function runSweep(
 
     // (2) The DB leg: live UPDATE + the sweep-stamped history snapshot. Injected
     // into the PC-1 adapter so file-first ordering + compensating restore are
-    // reused unchanged.
+    // reused unchanged. ID-131 {131.17}: the live UPDATE is re-pointed off
+    // content_items onto source_documents (`content` -> `extracted_text`).
+    //
+    // NOTE (flagged, not fixed — out of this Subtask's file-ownership
+    // boundary): `content_history.content_item_id` is FK-enforced to
+    // `content_items` (ON DELETE SET NULL) and content_history itself is
+    // scheduled for DROP TABLE at M6 (TECH.md §"Migration set" M6) with no
+    // re-homed successor — it dies WITH content_items, not onto
+    // source_documents. Post-repoint, `contentItemId` is a source_documents
+    // id, so this INSERT's `content_item_id: contentItemId` value is no
+    // longer guaranteed to resolve against content_items (it will FK-violate
+    // unless a content_items row of the same id happens to exist). This is
+    // unchanged from this Subtask's perspective: `content_history` is not
+    // one of the 13 owned files/columns re-pointed here, and both callers of
+    // this write path (`runSweep`: 0 production callers today; the
+    // `app/api/items/[id]/rollback/route.ts` route via `rollbackSweep`: an
+    // IMS route slated for deletion under the parallel G-IMS-DELETE lane)
+    // are non-live in the surviving system. Journaled for the Checker/
+    // orchestrator — see this Subtask's dispatch report.
     const applyDbLeg = async (): Promise<void> => {
       const { error: updateError } = await supabase
-        .from('content_items')
-        .update({ content: newContent, updated_by: actorId })
+        .from('source_documents')
+        .update({ extracted_text: newContent, updated_by: actorId })
         .eq('id', contentItemId);
       if (updateError) throw updateError;
 
@@ -315,10 +345,13 @@ export async function rollbackSweep(
 
     const version = await nextHistoryVersion(supabase, itemId);
 
+    // ID-131 {131.17}: re-pointed off content_items onto source_documents
+    // (`content` -> `extracted_text`) — see the parallel `runSweep` NOTE
+    // above re: the content_history FK caveat (unchanged, out of scope).
     const applyDbLeg = async (): Promise<void> => {
       const { error: updateError } = await supabase
-        .from('content_items')
-        .update({ content: priorContent, updated_by: actorId })
+        .from('source_documents')
+        .update({ extracted_text: priorContent, updated_by: actorId })
         .eq('id', itemId);
       if (updateError) throw updateError;
 

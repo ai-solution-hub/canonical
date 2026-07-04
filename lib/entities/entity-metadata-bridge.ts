@@ -107,34 +107,37 @@ function sortRefsEffectiveFirst<T extends { context_type: string }>(
  * against entity canonical names. Also computes calendar dates from ISO 8601
  * duration values when a start date (date_obtained) is available.
  *
- * Resolves `contentItemId` to the item's linked `source_document_id`
- * internally (ID-131.26) — a no-op when the item has none (app-created
- * items without a backing source document have no entity_mentions rows).
+ * ID-131 {131.17} G-IMS-DELETE KEEP-list: re-pointed off content_items onto
+ * source_documents (M3 gave SD the classification family). `contentItemId`
+ * IS the source_documents id directly (both surviving callers —
+ * `classifyContent`/`runBatchReclassifyJob`, both re-pointed in this same
+ * Subtask — now pass a source_documents id here) — the FORMER separate
+ * `content_items.source_document_id` FK-column resolution (ID-131.26
+ * value-provenance fix, needed because content_items and source_documents
+ * were independent PK spaces) collapses to an identity. `metadata` has no SD
+ * column of the same name — `extraction_metadata` is the nearest analog.
  *
  * @param supabase      Authenticated Supabase client
- * @param contentItemId The content item to process
+ * @param contentItemId The source document to process
  */
 export async function bridgeTemporalReferencesToEntities(
   supabase: SupabaseClient<Database>,
   contentItemId: string,
 ): Promise<void> {
-  // 1. Read content item metadata for temporal references
+  // 1. Read source document extraction_metadata for temporal references
   const { data: item, error: itemError } = await supabase
-    .from('content_items')
-    .select('metadata, source_document_id')
+    .from('source_documents')
+    .select('extraction_metadata')
     .eq('id', contentItemId)
     .single();
 
-  if (itemError || !item?.metadata) return;
+  if (itemError || !item?.extraction_metadata) return;
 
-  // entity_mentions.source_document_id is an FK to source_documents, NOT
-  // content_items (ID-131 M2 / ID-131.26 value-provenance fix) — an
-  // app-created content item with no linked source_documents row has no
-  // entity_mentions rows to bridge (classifyContent skips writing them).
-  const sourceDocumentId = item.source_document_id;
-  if (!sourceDocumentId) return;
+  // ID-131 {131.17}: contentItemId IS the source_documents id post-repoint —
+  // no separate FK-column resolution needed.
+  const sourceDocumentId = contentItemId;
 
-  const metadata = item.metadata as Record<string, unknown>;
+  const metadata = item.extraction_metadata as Record<string, unknown>;
   const aiRefs = metadata.ai_temporal_references as
     | ClassificationTemporalReference[]
     | undefined;

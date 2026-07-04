@@ -244,12 +244,21 @@ function makeAnthropicResponse(
   };
 }
 
-/** Build a realistic content_items row. */
+/**
+ * Build a realistic source_documents row. ID-131 {131.17} G-IMS-DELETE
+ * KEEP-list: batch-reclassify.ts's candidate query is re-pointed off
+ * content_items onto source_documents (M3 gave SD the classification
+ * family). `content`/`title`/`metadata` -> `extracted_text`/
+ * `original_filename`+`filename`/`extraction_metadata`; `platform` has no
+ * SD analog and is dropped (it fed the now-removed layer-suggestion logic —
+ * D5, `layer` dies with content_items, not re-homed).
+ */
 function makeContentRow(id: string, overrides: Record<string, unknown> = {}) {
   return {
     id,
-    content: 'Sample content text about security and encryption.',
-    title: 'Sample Item',
+    extracted_text: 'Sample content text about security and encryption.',
+    original_filename: 'Sample Item',
+    filename: 'sample-item.md',
     suggested_title: 'Sample suggested title',
     content_type: 'q_a_pair',
     primary_domain: null,
@@ -257,8 +266,7 @@ function makeContentRow(id: string, overrides: Record<string, unknown> = {}) {
     ai_keywords: null,
     classification_confidence: null,
     classified_at: null,
-    metadata: null,
-    platform: 'extraction',
+    extraction_metadata: null,
     ...overrides,
   };
 }
@@ -662,22 +670,22 @@ describe('runBatchReclassifyJob — batch_reclassify handler (§5.4.2)', () => {
   });
 
   // -------------------------------------------------------------------------
-  // entities_only mode — id-space filter fix (ID-131.30
-  // G-EXTRACT-CONSUMER-SWEEP-3).
+  // entities_only mode — candidate filter (ID-131 {131.17} G-IMS-DELETE
+  // KEEP-list re-point).
   //
-  // entity_mentions.source_document_id is an FK to source_documents, NOT
-  // content_items (ID-131 {131.8} M2 rename). The entities_only candidate
-  // filter must compare item.source_document_id (not item.id) against the
-  // mentioned-set, else every already-entity-tagged item is silently
-  // re-treated as entity-less. Items with no source_document_id have no
-  // valid entity_mentions FK parent, so they fall through as candidates.
+  // Candidates now come DIRECTLY from source_documents, so item.id IS the
+  // id entity_mentions.source_document_id points at — no separate FK-column
+  // comparison is needed any more (pre-repoint this compared a distinct
+  // content_items.source_document_id column against the mentioned-set;
+  // ID-131.30 G-EXTRACT-CONSUMER-SWEEP-3). An item is a candidate whenever
+  // its own id has no matching entity_mentions row.
   // -------------------------------------------------------------------------
 
-  describe('entities_only mode — id-space filter (ID-131.30)', () => {
+  describe('entities_only mode — candidate filter (ID-131.17)', () => {
     /** Configure the extra entities_only query sequence: taxonomy domains,
-     *  taxonomy subtopics, the content_items candidate query, then a single
-     *  entity_mentions page (page size 5000 so one page always terminates
-     *  the pagination loop). */
+     *  taxonomy subtopics, the source_documents candidate query, then a
+     *  single entity_mentions page (page size 5000 so one page always
+     *  terminates the pagination loop). */
     function configureEntitiesOnlyScenario(
       client: MockSupabaseClient,
       scenario: {
@@ -709,21 +717,15 @@ describe('runBatchReclassifyJob — batch_reclassify handler (§5.4.2)', () => {
       );
     }
 
-    it('excludes an item whose source_document_id has a matching entity_mentions row, and includes items with null/unmatched source_document_id as candidates', async () => {
-      const matchedSourceDocId = 'c1111111-1111-4111-8111-111111111111';
-      const unmatchedSourceDocId = 'c3333333-3333-4333-8333-333333333333';
-
-      const matchedItem = makeContentRow(ITEM_IDS[0], {
+    it('excludes an item whose own id has a matching entity_mentions row, and includes unmatched items as candidates', async () => {
+      const mentionedItem = makeContentRow(ITEM_IDS[0], {
         classified_at: '2026-01-01T00:00:00.000Z',
-        source_document_id: matchedSourceDocId,
       });
-      const nullSourceItem = makeContentRow(ITEM_IDS[1], {
+      const unmatchedItem1 = makeContentRow(ITEM_IDS[1], {
         classified_at: '2026-01-01T00:00:00.000Z',
-        source_document_id: null,
       });
-      const unmatchedItem = makeContentRow(ITEM_IDS[2], {
+      const unmatchedItem2 = makeContentRow(ITEM_IDS[2], {
         classified_at: '2026-01-01T00:00:00.000Z',
-        source_document_id: unmatchedSourceDocId,
       });
 
       configureEntitiesOnlyScenario(mockSupabase, {
@@ -731,8 +733,8 @@ describe('runBatchReclassifyJob — batch_reclassify handler (§5.4.2)', () => {
         subtopics: [
           { name: 'cyber-security', domain_id: 'd1', description: null },
         ],
-        contentItems: [matchedItem, nullSourceItem, unmatchedItem],
-        entityMentionRows: [{ source_document_id: matchedSourceDocId }],
+        contentItems: [mentionedItem, unmatchedItem1, unmatchedItem2],
+        entityMentionRows: [{ source_document_id: mentionedItem.id }],
       });
 
       const result = await runBatchReclassifyJob(
@@ -742,34 +744,31 @@ describe('runBatchReclassifyJob — batch_reclassify handler (§5.4.2)', () => {
         JOB_ID,
       );
 
-      // Only the null-source-document and unmatched-source-document items
-      // are candidates — the matched item is excluded (already mentioned).
+      // Only the unmatched items are candidates — the mentioned item is
+      // excluded (already has an entity_mentions row).
       expect(result.total_items).toBe(2);
       const resultIds = result.results.map((r) => r.item_id);
-      expect(resultIds).not.toContain(matchedItem.id);
-      expect(resultIds).toContain(nullSourceItem.id);
-      expect(resultIds).toContain(unmatchedItem.id);
+      expect(resultIds).not.toContain(mentionedItem.id);
+      expect(resultIds).toContain(unmatchedItem1.id);
+      expect(resultIds).toContain(unmatchedItem2.id);
       expect(mockAnthropicCreate).toHaveBeenCalledTimes(2);
     });
   });
 
   // -------------------------------------------------------------------------
-  // Entity/relationship WRITE path — id-space fix (ID-131.36
-  // G-EXTRACT-CONSUMER-SWEEP-4).
+  // Entity/relationship WRITE path (ID-131 {131.17} G-IMS-DELETE KEEP-list
+  // re-point).
   //
   // entity_mentions.source_document_id / entity_relationships
-  // .source_document_id are enforced FKs to source_documents, NOT
-  // content_items (ID-131 {131.8} M2 rename). Before this fix the write
-  // path keyed both the delete-filter and the insert row on `item.id` (a
-  // content_items id) — the DELETE silently no-oped (content_items ids
-  // never match source_documents ids) and the INSERT FK-violated (only
-  // ever `logger.warn`'d, never thrown) since the M2 megacommit landed on
-  // 2026-07-01.
+  // .source_document_id are enforced FKs to source_documents. Candidates now
+  // come DIRECTLY from source_documents, so item.id IS the correct FK value
+  // — no separate source_document_id column resolution is needed any more
+  // (pre-repoint this compared a distinct content_items.source_document_id
+  // column; ID-131.36 G-EXTRACT-CONSUMER-SWEEP-4). The "no valid FK parent"
+  // skip path is no longer reachable (every fetched row has a non-null id).
   // -------------------------------------------------------------------------
 
-  describe('entity/relationship WRITE path — id-space fix (ID-131.36)', () => {
-    const SOURCE_DOC_ID = 'd1111111-1111-4111-8111-111111111111';
-
+  describe('entity/relationship WRITE path (ID-131.17)', () => {
     /** Anthropic response with one entity + one relationship, so both the
      *  entity_mentions and entity_relationships write branches execute. */
     function makeExtractionResponse() {
@@ -787,10 +786,8 @@ describe('runBatchReclassifyJob — batch_reclassify handler (§5.4.2)', () => {
       });
     }
 
-    it('item WITH a source_document_id writes entity_mentions/entity_relationships keyed on source_document_id, not item.id', async () => {
-      const item = makeContentRow(ITEM_IDS[0], {
-        source_document_id: SOURCE_DOC_ID,
-      });
+    it('writes entity_mentions/entity_relationships keyed on the item id (its own source_documents id)', async () => {
+      const item = makeContentRow(ITEM_IDS[0]);
       configureSupabase(mockSupabase, {
         domains: [{ id: 'd1', name: 'security' }],
         subtopics: [
@@ -815,79 +812,29 @@ describe('runBatchReclassifyJob — batch_reclassify handler (§5.4.2)', () => {
         [Array<Record<string, unknown>>]
       >;
 
-      // entity_mentions insert row keyed on source_document_id, NOT item.id.
+      // entity_mentions insert row keyed on the item's own id.
       const entityMentionRow = insertCalls
         .map((c) => c[0][0])
         .find((row) => row && 'entity_type' in row);
       expect(entityMentionRow).toBeDefined();
-      expect(entityMentionRow!.source_document_id).toBe(SOURCE_DOC_ID);
-      expect(entityMentionRow!.source_document_id).not.toBe(item.id);
+      expect(entityMentionRow!.source_document_id).toBe(item.id);
 
-      // entity_relationships insert row keyed on source_document_id, NOT
-      // item.id.
+      // entity_relationships insert row keyed on the item's own id.
       const relationshipRow = insertCalls
         .map((c) => c[0][0])
         .find((row) => row && 'relationship_type' in row);
       expect(relationshipRow).toBeDefined();
-      expect(relationshipRow!.source_document_id).toBe(SOURCE_DOC_ID);
-      expect(relationshipRow!.source_document_id).not.toBe(item.id);
+      expect(relationshipRow!.source_document_id).toBe(item.id);
 
-      // Both delete().eq('source_document_id', ...) calls filter on
-      // SOURCE_DOC_ID, not item.id.
+      // Both delete().eq('source_document_id', ...) calls filter on the
+      // item's own id.
       const sourceDocEqCalls = mockSupabase._chain.eq.mock.calls.filter(
         (c) => c[0] === 'source_document_id',
       );
       expect(sourceDocEqCalls.length).toBeGreaterThanOrEqual(2);
       for (const call of sourceDocEqCalls) {
-        expect(call[1]).toBe(SOURCE_DOC_ID);
+        expect(call[1]).toBe(item.id);
       }
-    });
-
-    it('item with NULL source_document_id skips entity_mentions/entity_relationships write entirely (no FK-violating insert attempted)', async () => {
-      const item = makeContentRow(ITEM_IDS[1], {
-        source_document_id: null,
-      });
-      configureSupabase(mockSupabase, {
-        domains: [{ id: 'd1', name: 'security' }],
-        subtopics: [
-          { name: 'cyber-security', domain_id: 'd1', description: null },
-        ],
-        contentItems: [item],
-      });
-      // Anthropic DOES return entities/relationships — proving the guard
-      // skips storage despite successful extraction (no valid FK parent).
-      mockAnthropicCreate.mockResolvedValue(makeExtractionResponse());
-
-      const result = await runBatchReclassifyJob(
-        makeBody(),
-        mockSupabase as unknown as SupabaseClient<Database>,
-        AUTH_CONTEXT,
-        JOB_ID,
-      );
-
-      // Classification itself still succeeds — only entity/relationship
-      // storage is skipped.
-      expect(result.reclassified).toBe(1);
-      expect(result.total_entities).toBe(0);
-      expect(result.total_relationships).toBe(0);
-
-      // No entity_mentions/entity_relationships insert was attempted.
-      const insertCalls = mockSupabase._chain.insert.mock.calls as Array<
-        [Array<Record<string, unknown>>]
-      >;
-      const entityOrRelRow = insertCalls
-        .map((c) => c[0][0])
-        .find(
-          (row) => row && ('entity_type' in row || 'relationship_type' in row),
-        );
-      expect(entityOrRelRow).toBeUndefined();
-
-      // No source_document_id-keyed delete was attempted either (an
-      // unscoped delete keyed on a null id would be unsafe).
-      const sourceDocEqCalls = mockSupabase._chain.eq.mock.calls.filter(
-        (c) => c[0] === 'source_document_id',
-      );
-      expect(sourceDocEqCalls.length).toBe(0);
     });
   });
 

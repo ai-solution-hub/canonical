@@ -29,15 +29,23 @@ export async function sendSourceDocumentUpdateNotifications(
 ): Promise<void> {
   const { createNotification } = await import('@/lib/notifications');
 
-  // Get content owners for affected items
+  // Get content owners for affected items. ID-131 {131.17} G-IMS-DELETE
+  // KEEP-list: `impact.items[].content_item_id` is now a q_a_pairs id (see
+  // source-document-impact.ts's module header — q_a_pairs is the re-point
+  // target, not source_documents, since this concern needs a
+  // `source_document_id`-filterable typed record). `content_owner_id` has no
+  // q_a_pairs column — it lives on the `record_lifecycle` governance facet
+  // (owner_kind='q_a_pair', owner_id), matching the established
+  // bulk_assign_content_owner re-point precedent (ID-131.13 G-GOV-FACET-B).
   const itemIds = impact.items.map((i) => i.content_item_id);
   if (itemIds.length === 0) return;
 
   const itemsResult = await tryQuery(
     supabase
-      .from('content_items')
-      .select('id, content_owner_id')
-      .in('id', itemIds),
+      .from('record_lifecycle')
+      .select('owner_id, content_owner_id')
+      .eq('owner_kind', 'q_a_pair')
+      .in('owner_id', itemIds),
     'source-docs.notifications.fetchItems',
   );
   if (!itemsResult.ok) {
@@ -53,9 +61,9 @@ export async function sendSourceDocumentUpdateNotifications(
   const ownerItems = new Map<string, string[]>();
   for (const item of items ?? []) {
     const ownerId = item.content_owner_id;
-    if (!ownerId) continue;
+    if (!ownerId || !item.owner_id) continue;
     if (!ownerItems.has(ownerId)) ownerItems.set(ownerId, []);
-    ownerItems.get(ownerId)!.push(item.id);
+    ownerItems.get(ownerId)!.push(item.owner_id);
   }
 
   // Send one notification per owner

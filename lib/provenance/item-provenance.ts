@@ -105,10 +105,18 @@ export async function getItemProvenance(
   supabase: SupabaseClient<Database>,
   itemId: string,
 ): Promise<ItemProvenanceResponse | null> {
-  // 1. Fetch classification + model columns from content_items
+  // 1. Fetch classification columns from source_documents. ID-131 {131.17}
+  // G-IMS-DELETE KEEP-list: re-pointed off content_items (M3 gave SD the
+  // classification family). `classification_model`/`embedding_model` are
+  // NOT ported to source_documents (M3 D1: classification_model dropped as
+  // dead — 0 stored consumers; embedding_model has no SD analog either) —
+  // both now always resolve to their env-default. `next_review_date` /
+  // `review_cadence_days` / `verified_at` moved to the `record_lifecycle`
+  // governance facet (G-GOV-FACET, already landed under ID-131.12/.13) —
+  // fetched separately below by (owner_kind='source_document', owner_id).
   const item = await sb(
     supabase
-      .from('content_items')
+      .from('source_documents')
       .select(
         `id,
         classification_confidence,
@@ -117,12 +125,7 @@ export async function getItemProvenance(
         secondary_domain,
         secondary_subtopic,
         classification_reasoning,
-        classified_at,
-        classification_model,
-        embedding_model,
-        next_review_date,
-        review_cadence_days,
-        verified_at`,
+        classified_at`,
       )
       .eq('id', itemId)
       .maybeSingle(),
@@ -131,22 +134,28 @@ export async function getItemProvenance(
 
   if (!item) return null;
 
-  // 2. Resolve classification model (recorded or env default)
+  // 2. classification_model is deliberately not re-homed onto
+  // source_documents (0 stored consumers) — always env-default going forward.
   const classificationModel =
-    item.classification_model ??
-    process.env.AI_CLASSIFICATION_MODEL ??
-    'claude-opus-4-6';
-  const classificationModelSource: 'recorded' | 'env_default' =
-    item.classification_model ? 'recorded' : 'env_default';
+    process.env.AI_CLASSIFICATION_MODEL ?? 'claude-opus-4-6';
+  const classificationModelSource: 'recorded' | 'env_default' = 'env_default';
 
-  // 3. Resolve embedding model (recorded or env default)
+  // 3. embedding_model has no source_documents analog — always env-default.
   const embeddingModel =
-    item.embedding_model ??
-    process.env.AI_EMBEDDING_MODEL ??
-    'text-embedding-3-large';
-  const embeddingModelSource: 'recorded' | 'env_default' = item.embedding_model
-    ? 'recorded'
-    : 'env_default';
+    process.env.AI_EMBEDDING_MODEL ?? 'text-embedding-3-large';
+  const embeddingModelSource: 'recorded' | 'env_default' = 'env_default';
+
+  // 3a. Governance/review-schedule fields live on the record_lifecycle facet
+  // (owner_kind='source_document', owner_id=itemId) since G-GOV-FACET.
+  const lifecycle = await sb(
+    supabase
+      .from('record_lifecycle')
+      .select('next_review_date, review_cadence_days, verified_at')
+      .eq('owner_kind', 'source_document')
+      .eq('owner_id', itemId)
+      .maybeSingle(),
+    'provenance.item.recordLifecycle',
+  );
 
   // 4. Fetch bid responses that reference this content item (newest 3 + total count)
   // source_content_ids is a text[] column — use @> (contains) operator
@@ -258,9 +267,9 @@ export async function getItemProvenance(
       embeddingModelSource,
     },
     reviewSchedule: {
-      nextReviewDate: item.next_review_date,
-      reviewCadenceDays: item.review_cadence_days,
-      lastReviewedAt: item.verified_at,
+      nextReviewDate: lifecycle?.next_review_date ?? null,
+      reviewCadenceDays: lifecycle?.review_cadence_days ?? null,
+      lastReviewedAt: lifecycle?.verified_at ?? null,
     },
     drafting: {
       recentDrafts,

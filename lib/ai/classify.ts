@@ -1374,14 +1374,20 @@ export async function classifyContent(
 ): Promise<ClassificationResult> {
   const { supabase, itemId, force, userId } = params;
 
-  // Fetch the content item. `source_document_id` is read here (rather than
-  // via a second query) so the entity_mentions/entity_relationships write
-  // block below can resolve the correct FK value without an extra round
-  // trip (ID-131.26 value-provenance fix — see that block for detail).
+  // Fetch the source document. ID-131 {131.17} G-IMS-DELETE KEEP-list:
+  // re-pointed off content_items onto source_documents (M3 gave SD the
+  // classification family). `itemId` is now a source_documents.id directly —
+  // the entity_mentions/entity_relationships write block below used to
+  // resolve a SEPARATE `source_document_id` FK column off content_items
+  // (ID-131.26 value-provenance fix); post-repoint that indirection
+  // collapses to an identity (itemId IS the source_documents id), so no
+  // second FK column is selected. `content`/`title` have no SD column of the
+  // same name — extracted_text / original_filename+filename are the nearest
+  // analogs; `metadata` -> `extraction_metadata` (nearest generic JSONB col).
   const { data: item, error: fetchError } = await supabase
-    .from('content_items')
+    .from('source_documents')
     .select(
-      'id, title, content, content_type, classified_at, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, ai_keywords, summary, suggested_title, classification_confidence, classification_reasoning, metadata, source_document_id',
+      'id, original_filename, filename, extracted_text, content_type, classified_at, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, ai_keywords, summary, suggested_title, classification_confidence, classification_reasoning, extraction_metadata',
     )
     .eq('id', itemId)
     .single();
@@ -1389,6 +1395,8 @@ export async function classifyContent(
   if (fetchError || !item) {
     throw new AIServiceError('Content item not found', 404);
   }
+
+  const title = item.original_filename ?? item.filename;
 
   // If already classified and force is false, return existing classification
   if (item.classified_at && !force) {
@@ -1406,7 +1414,7 @@ export async function classifyContent(
     };
   }
 
-  if (!item.content?.trim()) {
+  if (!item.extracted_text?.trim()) {
     throw new AIServiceError('Content item has no content to classify', 400);
   }
 
@@ -1435,7 +1443,7 @@ export async function classifyContent(
   const prompt = await buildClassificationPrompt(taxonomyStr);
 
   // Prepare content for classification (truncate at 5000 chars)
-  const plainText = stripMarkdown(item.content);
+  const plainText = stripMarkdown(item.extracted_text);
   const contentForClassification = plainText.slice(0, 5000);
 
   // Call Claude API
@@ -1612,7 +1620,7 @@ export async function classifyContent(
         content: `${prompt}
 
 Content type: ${item.content_type}
-Title: ${item.title}
+Title: ${title}
 
 Content:
 ${contentForClassification}`,
@@ -1630,12 +1638,12 @@ ${contentForClassification}`,
     {
       op: 'classify.pass1.classify',
       itemId,
-      title: item.title?.slice(0, 60),
+      title: title?.slice(0, 60),
       inputTokens: pass1Usage.input_tokens,
       outputTokens: pass1Usage.output_tokens,
       cost: pass1Cost,
     },
-    `[Pass 1 Classification] ${item.title?.slice(0, 60)} — ` +
+    `[Pass 1 Classification] ${title?.slice(0, 60)} — ` +
       `${pass1Usage.input_tokens} in / ${pass1Usage.output_tokens} out — ` +
       `$${pass1Cost.toFixed(4)}`,
   );
@@ -1684,23 +1692,27 @@ ${contentForClassification}`,
   // Deduplicate after normalisation (different forms may collapse)
   const uniqueKeywords = [...new Set(normalisedKeywords)];
 
-  // Update the content item with classification results
-  const updateData: Database['public']['Tables']['content_items']['Update'] = {
-    // content_items.primary_domain/subtopic are NOT NULL since ID-63.11;
-    // coerce the sentinel at the DB write — coerceSubtopic keeps null for
-    // the in-memory result.
-    primary_domain: result.primary_domain ?? 'unclassified',
-    primary_subtopic: result.primary_subtopic ?? 'unclassified',
-    secondary_domain: result.secondary_domain ?? null,
-    secondary_subtopic: result.secondary_subtopic ?? null,
-    ai_keywords: uniqueKeywords,
-    summary: result.summary,
-    suggested_title: result.suggested_title,
-    classification_confidence: result.classification_confidence,
-    classification_reasoning: result.classification_reasoning,
-    classified_at: new Date().toISOString(),
-    updated_by: userId,
-  };
+  // Update the source document with classification results. ID-131 {131.17}
+  // G-IMS-DELETE KEEP-list: re-pointed off content_items onto
+  // source_documents (M3 gave SD the classification family with identical
+  // column types, incl. the NOT NULL primary_domain/primary_subtopic
+  // sentinel-floor behaviour carried over from content_items since ID-63.11).
+  const updateData: Database['public']['Tables']['source_documents']['Update'] =
+    {
+      // primary_domain/subtopic are NOT NULL; coerce the sentinel at the DB
+      // write — coerceSubtopic keeps null for the in-memory result.
+      primary_domain: result.primary_domain ?? 'unclassified',
+      primary_subtopic: result.primary_subtopic ?? 'unclassified',
+      secondary_domain: result.secondary_domain ?? null,
+      secondary_subtopic: result.secondary_subtopic ?? null,
+      ai_keywords: uniqueKeywords,
+      summary: result.summary,
+      suggested_title: result.suggested_title,
+      classification_confidence: result.classification_confidence,
+      classification_reasoning: result.classification_reasoning,
+      classified_at: new Date().toISOString(),
+      updated_by: userId,
+    };
 
   // Regenerate embedding with updated keywords.
   //
@@ -1713,6 +1725,11 @@ ${contentForClassification}`,
   // the alternative (no embedding at all) is strictly worse for
   // downstream semantic search. Closes §2.1.12 (audit at
   // docs/audits/si-classification-verification-s156.md § Run 2).
+  // ID-131 {131.17}: source_documents carries no inline embedding column
+  // (embeddings live in the polymorphic record_embeddings store, M1b) — the
+  // regenerated vector is computed here but upserted into record_embeddings
+  // AFTER the main update succeeds, not attached to updateData.
+  let regeneratedEmbedding: string | null = null;
   try {
     const rawEmbeddingText = `${result.suggested_title}\n\n${plainText}`;
     const wasTruncated = rawEmbeddingText.length > MAX_EMBEDDING_CHARS;
@@ -1732,7 +1749,7 @@ ${contentForClassification}`,
       );
     }
     const embedding = await generateEmbedding(embeddingText);
-    updateData.embedding = JSON.stringify(embedding);
+    regeneratedEmbedding = JSON.stringify(embedding);
   } catch (embedErr) {
     logBestEffortWarn(
       'classify.embedding.generation_failed',
@@ -1746,11 +1763,14 @@ ${contentForClassification}`,
     );
   }
 
-  // Store AI-extracted temporal references in item metadata (non-blocking)
+  // Store AI-extracted temporal references in extraction_metadata
+  // (non-blocking). ID-131 {131.17}: source_documents has no generic
+  // `metadata` column — extraction_metadata is the nearest analog.
   if (result.temporal_references?.length) {
     try {
-      const existingMetadata = (item.metadata as Record<string, unknown>) ?? {};
-      updateData.metadata = {
+      const existingMetadata =
+        (item.extraction_metadata as Record<string, unknown>) ?? {};
+      updateData.extraction_metadata = {
         ...existingMetadata,
         ai_temporal_references: result.temporal_references as unknown as Json,
       };
@@ -1763,7 +1783,7 @@ ${contentForClassification}`,
   }
 
   const { error: updateError } = await supabase
-    .from('content_items')
+    .from('source_documents')
     .update(updateData)
     .eq('id', itemId);
 
@@ -1778,6 +1798,33 @@ ${contentForClassification}`,
     );
   }
 
+  // Store the regenerated embedding in the polymorphic record_embeddings
+  // store (owner_kind='source_document') — best-effort, mirrors the
+  // pre-repoint content_items.embedding write's non-fatal failure handling.
+  // Model literal matches the established record_embeddings-write
+  // convention (lib/intelligence/pipeline.ts COMPANY_PROFILE_EMBEDDING_MODEL;
+  // read-side precedent lib/mcp/tools/search.ts:318).
+  if (regeneratedEmbedding) {
+    const { error: embeddingUpsertError } = await supabase
+      .from('record_embeddings')
+      .upsert(
+        {
+          owner_kind: 'source_document',
+          owner_id: itemId,
+          model: 'text-embedding-3-large',
+          embedding: regeneratedEmbedding,
+        },
+        { onConflict: 'owner_kind,owner_id,model' },
+      );
+    if (embeddingUpsertError) {
+      logBestEffortWarn(
+        'classify.embedding.store_failed',
+        'Failed to store regenerated embedding in record_embeddings',
+        { itemId, err: embeddingUpsertError },
+      );
+    }
+  }
+
   // Store extracted entities (non-blocking — failures must not break classification)
   // Note: the entity_mentions table has a `context_snippet` column populated
   // via extractEntityContext() — a short excerpt showing where the entity was
@@ -1785,30 +1832,21 @@ ${contentForClassification}`,
   // Load entity aliases from DB before entity/relationship storage
   await loadAliases(supabase);
 
-  // Resolve the source_documents id backing this content item. Post-M2
-  // (ID-131 {131.8} G-PIPELINE), entity_mentions.source_document_id and
-  // entity_relationships.source_document_id are enforced FKs to
-  // source_documents — NOT content_items. itemId is a content_items id and
-  // is NEVER a valid value for that FK (independent PK spaces), so writing
-  // it raw silently FK-violated for every item once M2 landed (ID-131.26
-  // value-provenance fix; S438 golden-path Step-3/9 + entity-metadata-bridge
-  // evidence). content_items.source_document_id is the correct link
-  // (populated for file/upload-derived items — app/api/upload/route.ts).
-  // App-created items with no backing document have no valid FK parent, so
-  // entity storage is skipped for them rather than FK-violating.
-  const sourceDocumentId = item.source_document_id ?? null;
-
-  if (!sourceDocumentId) {
-    logBestEffortWarn(
-      'classify.entity.no_source_document_id',
-      'Content item has no source_document_id — skipping entity_mentions/entity_relationships storage (no valid FK parent)',
-      { itemId },
-    );
-  }
+  // Resolve the source_documents id backing this content item.
+  // entity_mentions.source_document_id / entity_relationships
+  // .source_document_id are enforced FKs to source_documents. Pre-ID-131.17
+  // this was a SEPARATE `content_items.source_document_id` FK column
+  // (content_items.id and source_documents.id were independent PK spaces —
+  // ID-131.26 value-provenance fix). ID-131.17 re-points `classifyContent`
+  // itself onto source_documents, so `itemId` now directly IS the
+  // source_documents id — the indirection collapses to an identity and the
+  // "no source_document_id" skip path is no longer reachable (every fetched
+  // row has a non-null id).
+  const sourceDocumentId = itemId;
 
   // Step 13a: Delete any existing entity_mentions for this item before
   // re-inserting. Classification has already succeeded at this point
-  // (content_items has been updated above), so re-entity storage must
+  // (source_documents has been updated above), so re-entity storage must
   // reflect the CURRENT classifier state — not a merge of current output
   // with rows left over from prior runs. The previous upsert was gated on
   // `ignoreDuplicates: true` with `onConflict:
@@ -1861,8 +1899,12 @@ ${contentForClassification}`,
           const validation = await validateEntities(
             deterministicallyFiltered,
             contentExcerpt,
-            item.title,
-            item.content_type,
+            title,
+            // source_documents.content_type is nullable (a classification
+            // OUTPUT, unknown at ingest — migration
+            // 20260628191704_id131_sd_content_type_nullable.sql), unlike
+            // content_items.content_type which was NOT NULL.
+            item.content_type ?? 'unknown',
           );
           // Keep only confirmed and retyped entities; apply retyped types
           finalEntities = validation.validated_entities
@@ -2061,8 +2103,9 @@ ${contentForClassification}`,
   }
 
   // Store extracted relationships (non-blocking). Guarded on sourceDocumentId
-  // for the same reason as the entity_mentions block above (ID-131.26):
-  // itemId is a content_items id, never a valid entity_relationships FK value.
+  // for parity with the entity_mentions block above — ID-131.17: itemId IS
+  // the source_documents id post-repoint, so this guard is now always true;
+  // kept for structural parity/minimal diff rather than stripped.
   if (sourceDocumentId && result.relationships?.length) {
     try {
       const relRows = result.relationships.map((r) => ({

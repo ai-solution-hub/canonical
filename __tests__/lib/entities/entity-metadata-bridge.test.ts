@@ -38,15 +38,15 @@ describe('bridgeTemporalReferencesToEntities', () => {
   });
 
   function setupContentItem(temporalRefs: unknown[]) {
-    // First call: content_items query. Includes a linked source_document_id
-    // (ID-131.26) — the bridge resolves entity_mentions off this field, not
-    // contentItemId directly.
+    // First call: source_documents query (ID-131 {131.17} G-IMS-DELETE
+    // KEEP-list — re-pointed off content_items; `contentItemId` IS the
+    // source_documents id directly, no separate source_document_id FK column
+    // to resolve; `metadata` -> `extraction_metadata`).
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {
-        metadata: {
+        extraction_metadata: {
           ai_temporal_references: temporalRefs,
         },
-        source_document_id: contentItemId,
       },
       error: null,
     });
@@ -181,7 +181,7 @@ describe('bridgeTemporalReferencesToEntities', () => {
 
   it('should return early when content item has no metadata', async () => {
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { metadata: null },
+      data: { extraction_metadata: null },
       error: null,
     });
 
@@ -196,7 +196,7 @@ describe('bridgeTemporalReferencesToEntities', () => {
 
   it('should return early when content item has no temporal references', async () => {
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { metadata: {} },
+      data: { extraction_metadata: {} },
       error: null,
     });
 

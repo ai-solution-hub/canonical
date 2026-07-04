@@ -1,9 +1,17 @@
 /**
  * Lib-level test for `getItemProvenance()` review-schedule projection.
  *
- * P0 Document Control §5.5 Phase 3 T4 — confirms the SELECT widens to include
- * `next_review_date`, `review_cadence_days`, and `verified_at`, and that those
- * surface in `ItemProvenanceResponse.reviewSchedule`.
+ * P0 Document Control §5.5 Phase 3 T4 — confirms `next_review_date`,
+ * `review_cadence_days`, and `verified_at` surface in
+ * `ItemProvenanceResponse.reviewSchedule`.
+ *
+ * ID-131 {131.17} G-IMS-DELETE KEEP-list: `getItemProvenance` re-pointed off
+ * content_items onto source_documents (M3 gave SD the classification
+ * family). The review-schedule fields moved to the `record_lifecycle`
+ * governance facet (G-GOV-FACET) — the function now issues a SECOND
+ * `maybeSingle()`-terminated read for those columns, so each test queues TWO
+ * `mockResolvedValueOnce` results in call order: (1) source_documents
+ * classification row, (2) record_lifecycle governance row.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMockSupabaseClient } from '../../helpers/mock-supabase';
@@ -60,6 +68,7 @@ describe('getItemProvenance — Review Schedule projection (T4)', () => {
   });
 
   it('surfaces next_review_date, review_cadence_days, and verified_at on reviewSchedule', async () => {
+    // (1) source_documents classification row.
     mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: {
         id: VALID_UUID,
@@ -70,8 +79,12 @@ describe('getItemProvenance — Review Schedule projection (T4)', () => {
         secondary_subtopic: null,
         classification_reasoning: null,
         classified_at: '2026-04-10T12:00:00Z',
-        classification_model: 'claude-opus-4-6',
-        embedding_model: 'text-embedding-3-large',
+      },
+      error: null,
+    });
+    // (2) record_lifecycle governance row (owner_kind='source_document').
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: {
         next_review_date: '2026-10-23',
         review_cadence_days: 182,
         verified_at: '2026-04-23T09:00:00Z',
@@ -95,6 +108,7 @@ describe('getItemProvenance — Review Schedule projection (T4)', () => {
   });
 
   it('returns null reviewSchedule fields when all three columns are null', async () => {
+    // (1) source_documents classification row.
     mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: {
         id: VALID_UUID,
@@ -105,12 +119,12 @@ describe('getItemProvenance — Review Schedule projection (T4)', () => {
         secondary_subtopic: null,
         classification_reasoning: null,
         classified_at: null,
-        classification_model: null,
-        embedding_model: null,
-        next_review_date: null,
-        review_cadence_days: null,
-        verified_at: null,
       },
+      error: null,
+    });
+    // (2) record_lifecycle governance row — no facet row for this id.
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: null,
       error: null,
     });
 

@@ -65,10 +65,15 @@ export interface SuggestionParams {
 // Internal types
 // ---------------------------------------------------------------------------
 
+/**
+ * ID-131 {131.17}: re-pointed off content_items onto source_documents.
+ * `freshness` no longer lives on the row directly — it is resolved
+ * separately via `freshnessById` (record_lifecycle facet join).
+ */
 interface ContentItemRow {
+  id: string;
   primary_domain: string | null;
   primary_subtopic: string | null;
-  freshness: string | null;
   content_type: string | null;
 }
 
@@ -176,16 +181,45 @@ export async function generateContentSuggestions(
   }
 
   // -------------------------------------------------------------------------
-  // 2. Fetch content items (domain, subtopic, freshness, content_type)
+  // 2. Fetch content items (domain, subtopic, freshness, content_type).
+  //    ID-131 {131.17} G-IMS-DELETE KEEP-list: re-pointed off content_items
+  //    onto source_documents (M3 gave SD the classification family incl.
+  //    content_type + archived_at). `freshness` has NO source_documents
+  //    column — it moved to the `record_lifecycle` governance facet
+  //    (G-GOV-FACET, already landed under ID-131.12/.13) — fetched
+  //    separately below by (owner_kind='source_document', owner_id) and
+  //    joined client-side, matching the established idiom (see
+  //    lib/domains/procurement/form-templating/template-coverage.ts's
+  //    q_a_pair-arm record_lifecycle join).
   // -------------------------------------------------------------------------
 
   const contentItems = await sb(
     supabase
-      .from('content_items')
-      .select('primary_domain, primary_subtopic, freshness, content_type')
+      .from('source_documents')
+      .select('id, primary_domain, primary_subtopic, content_type')
       .is('archived_at', null),
     'content_items.forSuggestions',
   );
+
+  const sdIds = (contentItems ?? []).map((r) => r.id);
+  const freshnessById = new Map<string, string | null>();
+  if (sdIds.length > 0) {
+    const facetRows = await sb(
+      supabase
+        .from('record_lifecycle')
+        .select('owner_id, freshness')
+        .eq('owner_kind', 'source_document')
+        .in('owner_id', sdIds),
+      'record_lifecycle.forSuggestions',
+    );
+    for (const row of facetRows ?? []) {
+      // owner_id is a STORED GENERATED column (COALESCE over the per-kind
+      // FKs) — never actually null for a row satisfying
+      // owner_kind='source_document', but typed loosely by the generator.
+      if (!row.owner_id) continue;
+      freshnessById.set(row.owner_id, row.freshness);
+    }
+  }
 
   // Build counts per domain+subtopic
   const statsMap = new Map<string, SubtopicStats>();
@@ -201,10 +235,11 @@ export async function generateContentSuggestions(
       contentTypes: new Set<string>(),
     };
     existing.total++;
-    if (item.freshness === 'fresh') existing.fresh++;
-    else if (item.freshness === 'aging') existing.aging++;
-    else if (item.freshness === 'stale') existing.stale++;
-    else if (item.freshness === 'expired') existing.expired++;
+    const freshness = freshnessById.get(item.id);
+    if (freshness === 'fresh') existing.fresh++;
+    else if (freshness === 'aging') existing.aging++;
+    else if (freshness === 'stale') existing.stale++;
+    else if (freshness === 'expired') existing.expired++;
     if (item.content_type) existing.contentTypes.add(item.content_type);
     statsMap.set(key, existing);
   }
