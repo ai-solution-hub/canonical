@@ -2,11 +2,21 @@
  * ID-138 {138.7} M3/M4 — tombstone_source_document + reap_orphaned_source_
  * documents + citations_cascade_preflight integration test.
  *
- * RED UNTIL GO: migrations 20260703160200_id138_erasure_cascade_fn.sql and
- * 20260703160300_id138_orphan_reaper_fn.sql are AUTHORED but NOT YET APPLIED
- * (owner-gated coordinated GO; id138 serial {138.5}->{138.6}->{138.7}->
- * {138.9}). Until the GO, none of the three functions exist and every RPC
- * call below fails — that IS the expected pre-GO state, not a test bug.
+ * GO HAS HAPPENED (S445 GO#2, post-apply): migrations
+ * 20260703160200_id138_erasure_cascade_fn.sql,
+ * 20260703160300_id138_orphan_reaper_fn.sql, and the api.* RPC wrappers
+ * (20260703210000_id138_api_rpc_wrappers.sql) are APPLIED to staging+prod —
+ * the id138 serial {138.5}->{138.6}->{138.7}->{138.9} coordinated GO has
+ * happened and all three functions are live. The old "RED UNTIL GO" framing
+ * for these three fns is now stale.
+ *
+ * Residual red is narrow and tracked, NOT a regression here: the tombstone
+ * happy-path test below seeds `record_embeddings` via the service client,
+ * which routes to the `api` schema (helpers/service-client.ts DB_OPTION) —
+ * `api.record_embeddings` has no view until id-131 {131.19} G-API lands (see
+ * the RED-until-{131.19} comment at that seed site in `seedDerivedRows()`).
+ * Do NOT work around this locally (no schema switch, no public-schema
+ * bypass) — masking it would hide the {131.19} gap it is meant to surface.
  *
  * Verifies TECH.md §2.6 R(ops) + §2.5 R(e) (LOAD-BEARING per-record-class
  * contract) + S443 OQ-138-C (gdpr-data-export.md coherence):
@@ -25,6 +35,8 @@
  *
  * @vitest-environment node
  */
+
+import { createHash } from 'node:crypto';
 
 import {
   describe,
@@ -46,7 +58,7 @@ import {
   type CachedSessions,
 } from './helpers/auth-session';
 
-// TYPE ESCAPE (deliberate, temporary — see file header "RED UNTIL GO"): the
+// TYPE ESCAPE (deliberate, temporary — see file header note above): the
 // M1/{138.6}/{138.7} surface this file exercises (source_documents.
 // retention_class/admission_status, tombstone_source_document,
 // reap_orphaned_source_documents, citations_cascade_preflight) is authored
@@ -91,6 +103,39 @@ vi.mock('next/headers', () => ({
 
 // Import the auth helper AFTER the mock is registered.
 const { getAuthorisedClient } = await import('@/lib/auth/client');
+
+// ---------------------------------------------------------------------------
+// Deterministic id derivation (mirror of flow.py's uuid5 mint — SEED-CONTRACT).
+// `reference_items.id` has NO column default BY DESIGN (DR-024 i,
+// admission-minted identity) — see scripts/cocoindex_pipeline/flow.py:3361
+// (`uuid.uuid5(_KH_PIPELINE_DOC_NS, f"ri:{item.url}")`), NS pinned at
+// flow.py:1665. Same self-contained RFC-4122 v5 (SHA-1) helper already used
+// in __tests__/integration/cocoindex/url-landing-set.integration.test.ts and
+// __tests__/api/ingest/url-reference.test.ts — copied here rather than
+// extracted to a shared helper (that would touch files outside this
+// Subtask's file-ownership boundary; no existing shared helper for it).
+// ---------------------------------------------------------------------------
+
+const KH_PIPELINE_DOC_NS = 'fbfaf1ff-1ee4-583c-9757-1674465b2ec1';
+
+function uuid5(namespace: string, name: string): string {
+  const nsBytes = Buffer.from(namespace.replace(/-/g, ''), 'hex');
+  const digest = createHash('sha1')
+    .update(nsBytes)
+    .update(Buffer.from(name, 'utf8'))
+    .digest();
+  const bytes = Buffer.from(digest.subarray(0, 16));
+  bytes[6] = (bytes[6]! & 0x0f) | 0x50; // version 5
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80; // RFC 4122 variant
+  const hex = bytes.toString('hex');
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20),
+  ].join('-');
+}
 
 // ---------------------------------------------------------------------------
 // Constants + seeded-row registry (delete order respects FKs; children first).
@@ -162,6 +207,13 @@ async function seedDerivedRows(sourceDocumentId: string): Promise<void> {
     throw new Error(`seed content_chunks: ${chunkErr?.message ?? 'no data'}`);
   seeded.contentChunkIds.push(chunk.id);
 
+  // RED-until-{131.19}: `db` routes to the `api` schema (service-client.ts
+  // DB_OPTION) and `api.record_embeddings` has NO view yet — only the base
+  // `public.record_embeddings` table exists (20260628190001_id131_record_
+  // embeddings_store.sql:65 flags the view as {131.19}'s job). This insert
+  // fails PGRST205 until {131.19} G-API lands; that is the expected residual
+  // red, not a bug in this test. Do NOT work around it here (no schema
+  // switch, no public-schema bypass) — masking it would hide the {131.19} gap.
   const { data: embedding, error: embErr } = await db
     .from('record_embeddings')
     .insert({
@@ -446,12 +498,18 @@ describeIfEnv(
         label: 'preflight-sd',
         retentionClass: 'keep_and_watch',
       });
+      // reference_items.id has NO column default (DR-024 i) — mint the
+      // registry-keyed id per the frozen SEED-CONTRACT (uuid5(NS, "ri:"+url),
+      // the SAME formula scripts/cocoindex_pipeline/flow.py:3361 uses), keyed
+      // on the SAME source_url this row carries.
+      const preflightSourceUrl = `https://example.invalid/${TEST_TAG}-preflight`;
       const { data: ri, error: riErr } = await db
         .from('reference_items')
         .insert({
+          id: uuid5(KH_PIPELINE_DOC_NS, `ri:${preflightSourceUrl}`),
           title: `[${TEST_TAG}] preflight reference item`,
           body: 'disposable preflight-check body',
-          source_url: `https://example.invalid/${TEST_TAG}-preflight`,
+          source_url: preflightSourceUrl,
           source_document_id: sdId,
           ingestion_source: 'url_import',
         })
