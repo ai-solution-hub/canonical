@@ -2809,7 +2809,8 @@ async def _log_ssrf_rejection(
     """Write the BI-21/D-9 operator surface: one `ingestion_quality_log` row.
 
     Contract (D-9): `flag_type='ssrf_rejected'` (CHECK extended by M1),
-    `severity='error'`, `content_item_id=NULL`,
+    `severity='error'`, `source_document_id=NULL` (ID-131 {131.13}: column
+    renamed from `content_item_id`; this write was always NULL either way),
     `details={source_url, reason, op_id, feed_article_ids}`. The feed-article
     ids are resolved from the raw ledger URLs at rejection time — `UrlItem`
     deliberately does not carry them. Uses the same env-scope `DB_CTX` pool as
@@ -2826,7 +2827,7 @@ async def _log_ssrf_rejection(
         feed_article_ids = [str(row["id"]) for row in rows]
         await conn.execute(
             "INSERT INTO public.ingestion_quality_log "
-            "(flag_type, severity, content_item_id, details) "
+            "(flag_type, severity, source_document_id, details) "
             "VALUES ($1, $2, NULL, $3::jsonb)",
             "ssrf_rejected",
             "error",

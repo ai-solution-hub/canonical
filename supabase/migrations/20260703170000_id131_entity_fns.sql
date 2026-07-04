@@ -332,14 +332,17 @@ BEGIN
       AND sd.archived_at IS NULL
       AND rl.governance_review_status = 'pending';
 
-    -- Quality flag count (editors + admins only). UNCHANGED — ingestion_quality_log
-    -- is not part of the record_lifecycle facet; its content_items dependency is
-    -- {131.19}'s to retire alongside the content_items table drop.
-    SELECT COUNT(DISTINCT content_item_id) INTO v_quality_flag_count
+    -- Quality flag count (editors + admins only). ingestion_quality_log is
+    -- not part of the record_lifecycle facet; its content_items dependency
+    -- is {131.19}'s to retire alongside the content_items table drop — kept
+    -- here, join re-pointed only to survive {131.13}'s content_item_id ->
+    -- source_document_id rename (ID-131 {131.32} G-PRE-APPLY-131.13,
+    -- surgical fix; not the {131.19} facet rework).
+    SELECT COUNT(DISTINCT iql.source_document_id) INTO v_quality_flag_count
     FROM ingestion_quality_log iql
-    JOIN content_items ci ON iql.content_item_id = ci.id
+    JOIN content_items ci ON iql.source_document_id = ci.source_document_id
     WHERE iql.resolved = FALSE
-      AND iql.content_item_id IS NOT NULL
+      AND iql.source_document_id IS NOT NULL
       AND ci.archived_at IS NULL;
   END IF;
 
@@ -414,4 +417,4 @@ $$;
 
 ALTER FUNCTION "public"."get_dashboard_attention_counts"("p_user_id" "uuid", "p_role" "text") OWNER TO "postgres";
 
-COMMENT ON FUNCTION "public"."get_dashboard_attention_counts"("p_user_id" "uuid", "p_role" "text") IS 'ID-131 {131.14}: governance/verification/freshness/expiry counts re-pointed onto record_lifecycle (owner_kind=''source_document'', BI-20/BI-22), joined to source_documents for the archived_at filter. quality_flag_count and coverage_gap_count remain on content_items/ingestion_quality_log/taxonomy_subtopics — out of this Subtask''s scope (bundled into {131.19} alongside the content_items table drop). RETURNS TABLE shape unchanged (ID-70); caller lib/dashboard.ts:316 reads data[0].<column> by name.';
+COMMENT ON FUNCTION "public"."get_dashboard_attention_counts"("p_user_id" "uuid", "p_role" "text") IS 'ID-131 {131.14}: governance/verification/freshness/expiry counts re-pointed onto record_lifecycle (owner_kind=''source_document'', BI-20/BI-22), joined to source_documents for the archived_at filter. quality_flag_count and coverage_gap_count remain on content_items/ingestion_quality_log/taxonomy_subtopics — the content_items/taxonomy_subtopics facet dependency is still out of this Subtask''s scope (bundled into {131.19} alongside the content_items table drop). {131.32} G-PRE-APPLY-131.13 surgically re-pointed ONLY the quality_flag_count subquery''s ingestion_quality_log join column (content_item_id -> source_document_id, per {131.13}''s rename) so this function survives GO-apply; the facet rework itself is untouched. RETURNS TABLE shape unchanged (ID-70); caller lib/dashboard.ts:316 reads data[0].<column> by name.';
