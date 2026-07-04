@@ -50,20 +50,6 @@ vi.mock('@/lib/content/strip-markdown', () => ({
   stripMarkdown: vi.fn((text: string) => text),
 }));
 
-vi.mock('@/lib/dedup/content-dedup', () => ({
-  checkForDuplicates: vi.fn().mockResolvedValue({
-    has_duplicates: false,
-    matches: [],
-  }),
-  checkExactDuplicate: vi.fn().mockResolvedValue({
-    isDuplicate: false,
-    existingId: null,
-    existingTitle: null,
-  }),
-  formatDedupWarning: vi.fn().mockReturnValue(null),
-  resolveDedupStamp: vi.fn().mockReturnValue({ dedup_status: 'clean' }),
-}));
-
 vi.mock('@/lib/ai/classify', () => ({
   classifyContent: vi.fn().mockResolvedValue(undefined),
 }));

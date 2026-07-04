@@ -198,10 +198,6 @@ export async function POST(request: NextRequest) {
     const workspaceId = formData.get('workspace_id') as string | null;
     const draftMode = formData.get('draft') as string | null;
     const createAsDraft = draftMode === 'true';
-    // Admin-only dedup override (spec §6 D2). Form-data string "true"
-    // from the client; silent-ignore when role !== 'admin'.
-    const skipDedupField = formData.get('skip_dedup') as string | null;
-    const skipDedup = skipDedupField === 'true' && role === 'admin';
 
     // S206 WP-A Phase 2 (AC3.1) — content owner override. Admin-only;
     // non-admins are silent-forced to their own userId via the helper.
@@ -506,52 +502,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 3c. Dedup — soft-block per spec §6 D1. Runs before the row UPDATE
-    // so the stamp is written in a single pass. Exact-hash match stamps
-    // `dedup_status='suspected_duplicate'` + records the existing id in
-    // `metadata.suspected_duplicate_of`. `excludeId` avoids self-match
-    // (the row exists from the initial insert at step 1 but still has
-    // empty content at this point). Admin override via `skip_dedup=true`
-    // form field — silent-ignore for non-admin.
+    // ID-131.15 (G-DEDUP legacy dedup-family retirement, S446): the 3c
+    // on-ingest dedup pre-check (checkForDuplicates/formatDedupWarning/
+    // resolveDedupStamp, backed by the now-DROPped find_exact_duplicates +
+    // find_similar_content RPCs) was removed — owner-ratified retirement;
+    // the synchronous "possible duplicate" warning is retired in favour of
+    // the id-120 q_a_pairs batch dedup-proposer. Uploads are always
+    // stamped 'clean' with no duplicate matches. `skip_dedup` form field is
+    // now a no-op accepted for caller backwards-compatibility only.
     const dedupWarnings: string[] = [];
-    let duplicateMatches: Array<{
+    const duplicateMatches: Array<{
       id: string;
       title: string;
       similarity: number;
       match_type: string;
     }> = [];
-    let dedupStamp: {
+    const dedupStamp: {
       dedup_status: 'clean' | 'suspected_duplicate';
       suspected_duplicate_of?: string;
     } = { dedup_status: 'clean' };
-    if (extractedText) {
-      try {
-        const { checkForDuplicates, formatDedupWarning, resolveDedupStamp } =
-          await import('@/lib/dedup/content-dedup');
-        const dedupResult = await checkForDuplicates(
-          serviceClient,
-          extractedText,
-          undefined,
-          { excludeId: itemId },
-        );
-        if (dedupResult.has_duplicates) {
-          const warning = formatDedupWarning(dedupResult);
-          if (warning) dedupWarnings.push(warning);
-          duplicateMatches = dedupResult.matches.map((m) => ({
-            id: m.id,
-            title: m.title,
-            similarity: m.similarity,
-            match_type: m.match_type,
-          }));
-        }
-        const exactMatch = dedupResult.matches.find(
-          (m) => m.match_type === 'exact',
-        );
-        dedupStamp = resolveDedupStamp(exactMatch?.id, { skipDedup });
-      } catch (dedupErr) {
-        logger.error({ err: dedupErr }, 'Dedup check failed');
-      }
-    }
 
     // 4. Update the content_item with extracted content, file_path, and metadata
     const updateData: ContentItemUpdate = {

@@ -55,9 +55,6 @@ export {
   type AuditItem,
   type AuditResult,
   formatAuditResult,
-  type DuplicatePairsResult,
-  DuplicatePairsResponseSchema,
-  formatDuplicatePairs,
 } from './quality';
 export {
   type EntitySummaryResult,

@@ -52,10 +52,12 @@ import { sb } from '@/lib/supabase/safe';
 // classic four columns (id/title/superseded_by/dedup_status). Callers
 // that need the new fields read them via a follow-up SELECT (production
 // callers don't today). Keeping the return shape minimal preserves
-// backwards-compat for `app/api/items/[id]/route.ts:138` and
-// `app/api/admin/content-dedup/[id]/supersede/route.ts:130` and
-// `app/api/admin/content-dedup/near-duplicates/[pairId]/merge/route.ts:110`
-// — none of which read fields beyond the four returned today.
+// backwards-compat for `app/api/items/[id]/route.ts:138` — none of which
+// read fields beyond the four returned today. (The admin content-dedup
+// `[id]/supersede` and `near-duplicates/[pairId]/merge` routes were also
+// callers here, but both were retired under ID-131.15 — G-DEDUP legacy
+// dedup-family retirement, S446 — so this survives file's own writes are
+// unaffected, only the caller count dropped.)
 type ContentItemSupersessionRow = Pick<
   Database['public']['Tables']['content_items']['Row'],
   'id' | 'title' | 'superseded_by' | 'dedup_status'
@@ -102,8 +104,10 @@ export interface SetSupersessionParams {
    * `content_items.archive_reason` on the OLD row (S216 Phase 5 §6.5).
    *
    * Optional — defaults to `Superseded by item ${newId}` when omitted, so
-   * existing callers (PATCH /api/items/:id, MCP supersede_content_item,
-   * admin dedup supersede + near-dup merge) require no source changes.
+   * existing callers (PATCH /api/items/:id, MCP supersede_content_item)
+   * require no source changes. (The admin dedup supersede + near-dup
+   * merge routes were also callers here before both were retired under
+   * ID-131.15.)
    */
   archiveReason?: string;
 }

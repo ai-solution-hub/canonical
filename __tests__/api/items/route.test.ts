@@ -40,15 +40,6 @@ vi.mock('@/lib/content/strip-markdown', () => ({
   stripMarkdown: vi.fn((text: string) => text),
 }));
 
-vi.mock('@/lib/dedup/content-dedup', () => ({
-  checkForDuplicates: vi.fn().mockResolvedValue({
-    has_duplicates: false,
-    matches: [],
-  }),
-  formatDedupWarning: vi.fn(),
-  resolveDedupStamp: vi.fn().mockReturnValue({ dedup_status: 'clean' }),
-}));
-
 vi.mock('@/lib/layer-inference', () => ({
   inferLayer: vi.fn().mockReturnValue({
     suggestedLayer: 'reference',

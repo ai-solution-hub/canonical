@@ -48,36 +48,6 @@
     }
   },
   {
-    "interface": "DedupQueueResponse",
-    "declaredAt": {
-      "file": "lib/query/fetchers.ts"
-    }
-  },
-  {
-    "interface": "DedupItemResponse",
-    "declaredAt": {
-      "file": "lib/query/fetchers.ts"
-    }
-  },
-  {
-    "interface": "NearDupPairsResponse",
-    "declaredAt": {
-      "file": "lib/query/fetchers.ts"
-    }
-  },
-  {
-    "interface": "NearDupMergeResult",
-    "declaredAt": {
-      "file": "lib/query/fetchers.ts"
-    }
-  },
-  {
-    "interface": "NearDupConfirmUniqueResult",
-    "declaredAt": {
-      "file": "lib/query/fetchers.ts"
-    }
-  },
-  {
     "interface": "QaDedupResolveResult",
     "declaredAt": {
       "file": "lib/query/fetchers.ts"
@@ -235,12 +205,6 @@
   },
   {
     "interface": "PipelineRunRow",
-    "declaredAt": {
-      "file": "lib/query/fetchers.ts"
-    }
-  },
-  {
-    "interface": "NearDupPairDetail",
     "declaredAt": {
       "file": "lib/query/fetchers.ts"
     }

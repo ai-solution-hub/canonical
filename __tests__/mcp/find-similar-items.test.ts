@@ -7,11 +7,12 @@ import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 // standalone `find_similar_items` entry is retired.
 //
 // ID-71.10 PART 2 (M32 / B-INV-32 dedup portion) — the admin-dedup surface
-// `find_duplicate_candidates` is now the `scope: 'item'` branch of the
-// consolidated `find_duplicates` entry (it continues to share
-// `findSimilarItemsImpl` with `find`'s similar_to branch). Its standalone
-// registration is retired; the item-branch behaviour is asserted in
-// `dedup-consolidation.test.ts`.
+// `find_duplicate_candidates` is now the consolidated `find_duplicates` entry
+// (it continues to share `findSimilarItemsImpl` with `find`'s similar_to
+// branch). Its standalone registration is retired; the find_duplicates
+// behaviour is asserted in `dedup-consolidation.test.ts`. (ID-131.15,
+// G-DEDUP legacy dedup-family retirement, S446, later removed the sibling
+// `scope: 'all'` batch-scan branch — find_duplicates is single-item-only now.)
 //
 // The tests below assert: (a) `find_similar_items` and the standalone
 // `find_duplicate_candidates` are retired, the consolidated `find` /
@@ -145,7 +146,7 @@ describe('find / find_duplicates registration (ID-71.7 + ID-71.10)', () => {
     expect(mockServer.getTool('find')).toBeDefined();
   });
 
-  it('retires the standalone find_duplicate_candidates entry (now find_duplicates.scope=item)', () => {
+  it('retires the standalone find_duplicate_candidates entry (now find_duplicates, single-item-only since ID-131.15)', () => {
     expect(mockServer.getTool('find_duplicate_candidates')).toBeUndefined();
     expect(mockServer.getTool('find_duplicates')).toBeDefined();
   });

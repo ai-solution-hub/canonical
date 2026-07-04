@@ -1,14 +1,20 @@
 /**
- * MCP `create_content_item` dedup soft-block + admin override
- * (WP1 / spec §6 D1, D2).
+ * MCP `create_content_item` dedup retirement (ID-131.15, G-DEDUP legacy
+ * dedup-family retirement, S446).
  *
- * ID-71.16: the create-leg no longer writes a direct `content_items.insert`
- * (the canonical store materialises the row via the pipeline). The dedup
- * soft-block BEHAVIOUR is unchanged — exact-hash match stamps
- * `dedup_status='suspected_duplicate'` + the existing id — but it is now
- * observed on the tool's structured response + markdown (the behaviour-visible
- * surface) rather than on the removed insert payload. Source-less creates
- * route through stageAndWalk, so these assertions key off the response.
+ * The on-ingest exact-hash dedup soft-block (checkExactDuplicate /
+ * resolveDedupStamp, backed by the now-DROPped find_exact_duplicates RPC)
+ * was removed under owner-ratified opt-i. New items are always stamped
+ * `dedup_status='clean'` with no `suspected_duplicate_of`, regardless of
+ * any prior matching content in the KB. `skip_dedup` is accepted on the
+ * input schema (caller backwards-compatibility) but is now a no-op for
+ * both admin and non-admin callers.
+ *
+ * ID-71.16: the create-leg does not write a direct `content_items.insert`
+ * (the canonical store materialises the row via the pipeline) — the
+ * dedup_status stamp is observed on the tool's structured response +
+ * markdown, not on an insert payload. Source-less creates route through
+ * stageAndWalk, so these assertions key off the response.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
@@ -119,10 +125,10 @@ const LONG_CONTENT =
   'This is sufficiently long markdown content that exceeds the 50-character minimum for dedup hash checks. It describes our organisation capability.';
 
 // ---------------------------------------------------------------------------
-// Tests — dedup soft-block observed on the tool's response surface.
+// Tests — dedup retirement: always-clean stamping, skip_dedup no-op.
 // ---------------------------------------------------------------------------
 
-describe('MCP create_content_item — dedup soft-block', () => {
+describe('MCP create_content_item — dedup retirement (ID-131.15)', () => {
   let createTool: MockToolHandler;
 
   beforeEach(async () => {
@@ -150,9 +156,10 @@ describe('MCP create_content_item — dedup soft-block', () => {
     });
   });
 
-  it('stamps dedup_status=suspected_duplicate on exact hash match', async () => {
-    // checkExactDuplicate's find_exact_duplicates RPC returns a match (the
-    // first — and for a source-less create, only — rpc call).
+  it('always stamps dedup_status=clean — no on-ingest exact-hash check runs', async () => {
+    // Even though the RPC mock is primed with a would-be "exact match" row,
+    // nothing in the create-leg queries for duplicates any more (the
+    // find_exact_duplicates RPC this test used to exercise was DROPped).
     mocks.mockSupabaseClient.rpc.mockResolvedValueOnce({
       data: [{ id: EXISTING_ID, title: 'Existing Item' }],
       error: null,
@@ -168,33 +175,14 @@ describe('MCP create_content_item — dedup soft-block', () => {
     );
 
     expect(result.isError).toBeFalsy();
-
-    // Markdown response mentions the flag.
-    expect(result.content[0].text).toContain('Dedup');
-    expect(result.content[0].text).toContain('suspected_duplicate');
-
-    // Structured content surfaces the stamp.
-    expect(result.structuredContent.dedup_status).toBe('suspected_duplicate');
-    expect(result.structuredContent.suspected_duplicate_of).toBe(EXISTING_ID);
-  });
-
-  it('stamps dedup_status=clean when no match', async () => {
-    // Default rpc already returns empty data
-    const result = await createTool(
-      {
-        title: 'Unique Item',
-        content: LONG_CONTENT,
-        content_type: 'capability',
-      },
-      { authInfo: MOCK_AUTH_INFO },
-    );
-
-    expect(result.isError).toBeFalsy();
     expect(result.structuredContent.dedup_status).toBe('clean');
     expect(result.structuredContent.suspected_duplicate_of).toBeNull();
+    // No dedup warning note in the markdown response.
+    expect(result.content[0].text).not.toContain('Dedup');
+    expect(result.content[0].text).not.toContain('suspected_duplicate');
   });
 
-  it('admin skip_dedup=true bypasses the stamp even on exact match', async () => {
+  it('skip_dedup=true (admin) is a no-op — item still stamps clean', async () => {
     mocks.checkMcpRole.mockResolvedValue('admin');
     mocks.mockSupabaseClient.rpc.mockResolvedValueOnce({
       data: [{ id: EXISTING_ID, title: 'Existing Item' }],
@@ -203,7 +191,7 @@ describe('MCP create_content_item — dedup soft-block', () => {
 
     const result = await createTool(
       {
-        title: 'Admin Override',
+        title: 'Admin Legacy Field',
         content: LONG_CONTENT,
         content_type: 'capability',
         skip_dedup: true,
@@ -215,7 +203,7 @@ describe('MCP create_content_item — dedup soft-block', () => {
     expect(result.structuredContent.dedup_status).toBe('clean');
   });
 
-  it('non-admin skip_dedup=true is silently ignored — stamp applied', async () => {
+  it('skip_dedup=true (non-admin) is a no-op — item still stamps clean', async () => {
     // Role remains 'editor' per beforeEach default
     mocks.mockSupabaseClient.rpc.mockResolvedValueOnce({
       data: [{ id: EXISTING_ID, title: 'Existing Item' }],
@@ -224,7 +212,7 @@ describe('MCP create_content_item — dedup soft-block', () => {
 
     const result = await createTool(
       {
-        title: 'Editor Cannot Override',
+        title: 'Editor Legacy Field',
         content: LONG_CONTENT,
         content_type: 'capability',
         skip_dedup: true,
@@ -232,9 +220,8 @@ describe('MCP create_content_item — dedup soft-block', () => {
       { authInfo: MOCK_AUTH_INFO },
     );
 
-    // No 403 — silent-ignore per spec §6 D2; the stamp is still applied.
     expect(result.isError).toBeFalsy();
-    expect(result.structuredContent.dedup_status).toBe('suspected_duplicate');
-    expect(result.structuredContent.suspected_duplicate_of).toBe(EXISTING_ID);
+    expect(result.structuredContent.dedup_status).toBe('clean');
+    expect(result.structuredContent.suspected_duplicate_of).toBeNull();
   });
 });

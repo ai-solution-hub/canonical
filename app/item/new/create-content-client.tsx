@@ -19,10 +19,6 @@ import {
 } from '@/components/ui/select';
 import { BreadcrumbNav } from '@/components/shell/breadcrumb-nav';
 import {
-  DedupWarning,
-  type DedupMatch,
-} from '@/components/shared/dedup-warning';
-import {
   LayerSuggestionBanner,
   type LayerSuggestionData,
 } from '@/components/content/layer-suggestion-banner';
@@ -207,9 +203,6 @@ export function CreateContentClient() {
   const [guideSections, setGuideSections] = useState<GuideSectionMatch[]>([]);
   const [guideSectionsDismissed, setGuideSectionsDismissed] = useState(false);
 
-  // Dedup matches state (shown after item creation if duplicates found)
-  const [dedupMatches, setDedupMatches] = useState<DedupMatch[]>([]);
-
   // Derived
   const isQAPair = contentType === 'q_a_pair';
   const domainNames = getDomainNames();
@@ -310,13 +303,6 @@ export function CreateContentClient() {
           });
         }
 
-        // Show dedup warning if the API found potential duplicates
-        if (responseData.duplicate_matches?.length > 0) {
-          setDedupMatches(responseData.duplicate_matches as DedupMatch[]);
-        } else {
-          setDedupMatches([]);
-        }
-
         // Show guide section suggestions if the API returned any
         if (responseData.guide_section_suggestions?.length > 0) {
           setGuideSections(
@@ -412,17 +398,6 @@ export function CreateContentClient() {
             <GuideSectionBanner
               guideSections={guideSections}
               onDismiss={() => setGuideSectionsDismissed(true)}
-            />
-          </div>
-        )}
-
-        {/* Dedup warning (shown after item creation if duplicates found) */}
-        {dedupMatches.length > 0 && (
-          <div className="mb-6">
-            <DedupWarning
-              matches={dedupMatches}
-              onViewMatch={(id) => window.open(`/item/${id}`, '_blank')}
-              onDismiss={() => setDedupMatches([])}
             />
           </div>
         )}

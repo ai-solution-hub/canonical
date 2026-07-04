@@ -27,7 +27,6 @@ import {
 } from '@/components/create-content/ingestion-progress';
 import { IngestionSuccessCard } from '@/components/create-content/ingestion-success-card';
 import { useContentIngestPolling } from '@/hooks/use-content-ingest-polling';
-import { DedupWarning } from '@/components/shared/dedup-warning';
 import { ReuploadBanner } from '@/components/source-document/reupload-banner';
 import { UploadReviewStep } from '@/components/create-content/upload-review-step';
 import { QAPreviewList } from '@/components/qa/qa-preview-list';
@@ -36,7 +35,6 @@ import { generateIngestDocumentPrompt } from '@/lib/claude-prompts';
 import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 import { useFileUploadPipeline } from '@/hooks/use-file-upload-pipeline';
 import type { QACreateInput } from '@/lib/quality/qa-detection';
-import type { DedupCheckResult } from '@/components/qa/qa-preview-list';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -78,7 +76,6 @@ export function UploadTabContent({
     setReviewItems,
     handleSetLayerMode,
     handleSetSelectedLayer,
-    handleDismissDedupWarning,
     pendingCount,
     hasResults,
     hasActiveUploads,
@@ -245,31 +242,12 @@ export function UploadTabContent({
     setQaBatchProgress(null);
   }, []);
 
-  /** Handle dedup check for a single Q&A pair. */
-  const handleQADedupCheck = useCallback(
-    async (text: string): Promise<DedupCheckResult> => {
-      try {
-        const res = await fetch('/api/dedup/check', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text }),
-        });
-
-        if (!res.ok) {
-          return { isDuplicate: false, matches: [], error: true };
-        }
-
-        const data = await res.json();
-        return {
-          isDuplicate: data.isDuplicate ?? false,
-          matches: data.matches ?? [],
-        };
-      } catch {
-        return { isDuplicate: false, matches: [], error: true };
-      }
-    },
-    [],
-  );
+  // ID-131.15 (G-DEDUP legacy dedup-family retirement, S446): handleQADedupCheck
+  // (POST /api/dedup/check) was removed — that endpoint was retired along with
+  // the on-ingest dedup surface. `QAPreviewList`'s `onDedupCheck` prop is
+  // optional and gracefully no-ops when omitted (see `runDedupChecks` guard
+  // in components/qa/qa-preview-list.tsx), so the per-pair dedup UI in that
+  // component simply stays inactive here rather than being ripped out.
 
   /** Reset Q&A batch state and return to initial upload view. */
   const handleQABatchDismiss = useCallback(() => {
@@ -514,7 +492,6 @@ export function UploadTabContent({
           pairs={qaPairs}
           onConfirm={handleQAConfirm}
           onSkip={handleQASkip}
-          onDedupCheck={handleQADedupCheck}
         />
       </div>
     );
@@ -679,14 +656,6 @@ export function UploadTabContent({
                       matchType={state.reuploadInfo.matchType}
                       previousVersion={state.reuploadInfo.previousVersion}
                       previousDocumentId={state.reuploadInfo.previousDocumentId}
-                    />
-                  )}
-                  {/* Dedup warning per file */}
-                  {state.showDedupWarning && state.dedupMatches.length > 0 && (
-                    <DedupWarning
-                      matches={state.dedupMatches}
-                      onViewMatch={(id) => window.open(`/item/${id}`, '_blank')}
-                      onDismiss={() => handleDismissDedupWarning(f.id)}
                     />
                   )}
                   {/* Layer suggestion per file */}

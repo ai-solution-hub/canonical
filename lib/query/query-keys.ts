@@ -449,27 +449,13 @@ export const queryKeys = {
     },
   },
 
-  // Admin Cross-System Dedup Review (§1.7)
-  adminDedup: {
-    all: ['admin', 'content-dedup'] as const,
-    queue: (filters?: Record<string, unknown>) =>
-      ['admin', 'content-dedup', 'queue', filters ?? {}] as const,
-    item: (id: string) => ['admin', 'content-dedup', 'item', id] as const,
-  },
-
-  // Admin Near-Duplicate Merge Dashboard (§1.9)
-  adminNearDup: {
-    all: ['admin', 'near-dup-pairs'] as const,
-    pairs: (threshold: number, domain?: string) =>
-      ['admin', 'near-dup-pairs', threshold, domain ?? null] as const,
-    pair: (pairId: string) => ['admin', 'near-dup-pair', pairId] as const,
-  },
-
   // Admin Cross-Workspace Q&A Dedup Proposals (ID-120 {120.8} — TECH P-4)
-  // Mirrors `adminNearDup`: a list/queue key (optional status filter) + a
-  // per-proposal detail key. The queue key carries the curator's status
-  // filter (pending / approved / rejected / all) so switching the filter
-  // bar busts the cache cleanly.
+  // (The sibling admin content-dedup queue + near-duplicates keys this
+  // comment used to mirror were retired under ID-131.15 — G-DEDUP legacy
+  // dedup-family retirement, S446.) A list/queue key (optional status
+  // filter) + a per-proposal detail key. The queue key carries the
+  // curator's status filter (pending / approved / rejected / all) so
+  // switching the filter bar busts the cache cleanly.
   adminQaDedup: {
     all: ['admin', 'qa-dedup-proposals'] as const,
     queue: (filters?: Record<string, unknown>) =>

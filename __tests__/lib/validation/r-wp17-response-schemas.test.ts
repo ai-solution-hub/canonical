@@ -195,81 +195,6 @@ const CASES_BY_GROUP: Record<string, SchemaCase[]> = {
   ],
   'lib/query/fetchers.ts': [
     {
-      schema: 'DedupQueueResponseSchema',
-      valid: { items: [], hasMore: false, nextCursor: null },
-      invalid: { items: {}, hasMore: false, nextCursor: null },
-    },
-    {
-      schema: 'DedupItemResponseSchema',
-      valid: {
-        subject: {
-          id: 'i1',
-          title: null,
-          content: null,
-          dedup_status: 'pending',
-          created_at: '2026-05-01',
-          primary_domain: null,
-          content_owner_id: null,
-          ingestion_source: null,
-          superseded_by: null,
-          publication_status: 'draft',
-          metadata: null,
-        },
-        canonical: null,
-        similarity: 0.9,
-      },
-      invalid: {
-        subject: {
-          id: 'i1',
-          title: null,
-          content: null,
-          dedup_status: 'pending',
-          created_at: '2026-05-01',
-          primary_domain: null,
-          content_owner_id: null,
-          ingestion_source: null,
-          superseded_by: null,
-          publication_status: 'draft',
-          metadata: null,
-        },
-        canonical: null,
-        similarity: 'high',
-      },
-    },
-    {
-      schema: 'NearDupPairsResponseSchema',
-      valid: { pairs: [], threshold: 0.8, total: 0 },
-      invalid: { pairs: [], threshold: 'high', total: 0 },
-    },
-    {
-      schema: 'NearDupMergeResultSchema',
-      valid: {
-        pairId: 'p1',
-        oldId: 'o1',
-        newId: 'n1',
-        dedup_status: 'superseded',
-      },
-      invalid: {
-        pairId: 'p1',
-        oldId: 'o1',
-        newId: 'n1',
-        dedup_status: 'something-else',
-      },
-    },
-    {
-      schema: 'NearDupConfirmUniqueResultSchema',
-      valid: {
-        pairId: 'p1',
-        leftDedupStatus: 'confirmed_unique',
-        rightDedupStatus: 'confirmed_unique',
-      },
-      invalid: {
-        pairId: 'p1',
-        leftDedupStatus: 'maybe',
-        rightDedupStatus: 'confirmed_unique',
-      },
-    },
-    {
       schema: 'TaxonomySyncStatusSchema',
       valid: {
         in_sync: true,
@@ -318,41 +243,6 @@ const CASES_BY_GROUP: Record<string, SchemaCase[]> = {
         created_by: null,
         result: null,
       },
-    },
-    {
-      schema: 'NearDupPairDetailSchema',
-      valid: {
-        left: {
-          id: 'l',
-          title: null,
-          content: null,
-          dedup_status: 'pending',
-          created_at: '2026-05-01',
-          primary_domain: null,
-          content_type: null,
-          content_owner_id: null,
-          ingestion_source: null,
-          superseded_by: null,
-          archived_at: null,
-          publication_status: 'draft',
-        },
-        right: {
-          id: 'r',
-          title: null,
-          content: null,
-          dedup_status: 'pending',
-          created_at: '2026-05-01',
-          primary_domain: null,
-          content_type: null,
-          content_owner_id: null,
-          ingestion_source: null,
-          superseded_by: null,
-          archived_at: null,
-          publication_status: 'draft',
-        },
-        similarity: 0.95,
-      },
-      invalid: { left: 'nope', right: 'nope', similarity: 0.95 },
     },
   ],
   'app/api/admin/pipeline-runs/recent/route.ts': [
@@ -931,8 +821,11 @@ describe('Source-A findSchemaConstant resolves R-WP17 schemas (AC-5)', () => {
     'QaDedupResolveResult',
   ]);
 
-  it('baseline has 42 entries', () => {
-    expect(baseline.length).toBe(42);
+  it('baseline has 36 entries', () => {
+    // Was 42; 6 Dedup/NearDup entries retired under ID-131.15 (G-DEDUP
+    // legacy dedup-family retirement, S446) alongside the admin
+    // content-dedup routes/schemas they baselined.
+    expect(baseline.length).toBe(36);
   });
 
   it('resolves a real ${interface}Schema for every baseline interface — never null', () => {

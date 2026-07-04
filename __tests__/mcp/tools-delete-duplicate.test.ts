@@ -76,7 +76,7 @@ interface ToolResult {
   isError?: boolean;
 }
 
-describe('delete_content_item and find_duplicates (scope: all)', () => {
+describe('delete_content_item', () => {
   let mockServer: ReturnType<typeof createMockMcpServer>;
   const extra = { authInfo: { token: 'test' } };
 
@@ -85,152 +85,113 @@ describe('delete_content_item and find_duplicates (scope: all)', () => {
     mockServer = createMockMcpServer();
     const { registerGovernanceTools } =
       await import('@/lib/mcp/tools/governance');
-    // ID-71.10 part 2 — the batch dedup read moved from quality.ts
-    // (find_all_duplicates) to the consolidated `find_duplicates` entry
-    // (scope: 'all') in search.ts.
-    const { registerSearchTools } = await import('@/lib/mcp/tools/search');
     await registerGovernanceTools(
       mockServer.server as unknown as Parameters<
         typeof registerGovernanceTools
       >[0],
     );
-    await registerSearchTools(
-      mockServer.server as unknown as Parameters<typeof registerSearchTools>[0],
+  });
+
+  it('archives item and records history when mode: archive', async () => {
+    const handler = mockServer.getHandler('delete_content_item')!;
+
+    // 1. Mock fetch item
+    mocks.chainMethods.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: { id: '1', title: 'T', content: 'C', archived_at: null },
+          error: null,
+        }),
+    );
+    // 2. Mock fetch history for version tracking
+    mocks.chainMethods.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ version: 2 }], error: null }),
+    );
+    // 3 & 4. update and insert use default then (data: null)
+
+    const result = (await handler(
+      { id: '1', mode: 'archive', reason: 'R' },
+      extra as Record<string, unknown>,
+    )) as ToolResult;
+
+    expect(result.content[0].text).toContain('# Content Item Archived');
+    expect(result.content[0].text).toContain('**Mode:** archive');
+    expect(mocks.chainMethods.update).toHaveBeenCalled();
+    expect(mocks.chainMethods.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        version: 3,
+        change_type: 'archive',
+        change_summary: 'Item archived: R',
+      }),
     );
   });
 
-  describe('delete_content_item', () => {
-    it('archives item and records history when mode: archive', async () => {
-      const handler = mockServer.getHandler('delete_content_item')!;
+  it('returns informational message if already archived', async () => {
+    const handler = mockServer.getHandler('delete_content_item')!;
 
-      // 1. Mock fetch item
-      mocks.chainMethods.then.mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({
-            data: { id: '1', title: 'T', content: 'C', archived_at: null },
-            error: null,
-          }),
-      );
-      // 2. Mock fetch history for version tracking
-      mocks.chainMethods.then.mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: [{ version: 2 }], error: null }),
-      );
-      // 3 & 4. update and insert use default then (data: null)
-
-      const result = (await handler(
-        { id: '1', mode: 'archive', reason: 'R' },
-        extra as Record<string, unknown>,
-      )) as ToolResult;
-
-      expect(result.content[0].text).toContain('# Content Item Archived');
-      expect(result.content[0].text).toContain('**Mode:** archive');
-      expect(mocks.chainMethods.update).toHaveBeenCalled();
-      expect(mocks.chainMethods.insert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          version: 3,
-          change_type: 'archive',
-          change_summary: 'Item archived: R',
+    // 1. Mock fetch item (already archived)
+    mocks.chainMethods.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: { id: '1', title: 'T', archived_at: '2026-01-01' },
+          error: null,
         }),
-      );
-    });
+    );
 
-    it('returns informational message if already archived', async () => {
-      const handler = mockServer.getHandler('delete_content_item')!;
-
-      // 1. Mock fetch item (already archived)
-      mocks.chainMethods.then.mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({
-            data: { id: '1', title: 'T', archived_at: '2026-01-01' },
-            error: null,
-          }),
-      );
-
-      const result = (await handler(
-        { id: '1', mode: 'archive', reason: 'R' },
-        extra as Record<string, unknown>,
-      )) as ToolResult;
-      expect(result.content[0].text).toContain('already archived');
-      expect(mocks.chainMethods.update).not.toHaveBeenCalled();
-    });
-
-    it('denies delete for non-admin', async () => {
-      const handler = mockServer.getHandler('delete_content_item')!;
-      mocks.getMcpUserRole.mockResolvedValueOnce('editor');
-
-      const result = (await handler(
-        { id: '1', mode: 'delete', reason: 'R' },
-        extra as Record<string, unknown>,
-      )) as ToolResult;
-      expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('requires admin');
-    });
-
-    it('allows delete for admin and records history', async () => {
-      const handler = mockServer.getHandler('delete_content_item')!;
-      mocks.getMcpUserRole.mockResolvedValueOnce('admin');
-
-      // 1. Mock fetch item
-      mocks.chainMethods.then.mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: { id: '1', title: 'T' }, error: null }),
-      );
-      // 2. Mock fetch history for version tracking
-      mocks.chainMethods.then.mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: [{ version: 2 }], error: null }),
-      );
-      // 3 & 4. insert and delete use default then
-
-      const result = (await handler(
-        { id: '1', mode: 'delete', reason: 'R' },
-        extra as Record<string, unknown>,
-      )) as ToolResult;
-      expect(result.content[0].text).toContain('# Content Item Deleted');
-      expect(mocks.chainMethods.insert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          change_type: 'delete',
-        }),
-      );
-      expect(mocks.chainMethods.delete).toHaveBeenCalled();
-    });
+    const result = (await handler(
+      { id: '1', mode: 'archive', reason: 'R' },
+      extra as Record<string, unknown>,
+    )) as ToolResult;
+    expect(result.content[0].text).toContain('already archived');
+    expect(mocks.chainMethods.update).not.toHaveBeenCalled();
   });
 
-  describe('find_duplicates (scope: all)', () => {
-    it('calls find_duplicate_pairs RPC and formats enhanced results', async () => {
-      const handler = mockServer.getHandler('find_duplicates')!;
-      mocks.mockSupabaseClient.rpc.mockResolvedValueOnce({
-        data: [
-          {
-            id1: '1',
-            title1: 'A',
-            type1: 'article',
-            domain1: 'D1',
-            id2: '2',
-            title2: 'B',
-            type2: 'article',
-            domain2: 'D1',
-            similarity: 0.96,
-          },
-        ],
-        error: null,
-      });
+  it('denies delete for non-admin', async () => {
+    const handler = mockServer.getHandler('delete_content_item')!;
+    mocks.getMcpUserRole.mockResolvedValueOnce('editor');
 
-      const result = (await handler(
-        { scope: 'all', threshold: 0.9, domain: 'D1' },
-        extra as Record<string, unknown>,
-      )) as ToolResult;
-      expect(result.structuredContent!.count).toBe(1);
-      expect(result.content[0].text).toContain('Potential Duplicates Scan');
-      expect(result.content[0].text).toContain('**Domain Filter:** D1');
-      expect(mocks.mockSupabaseClient.rpc).toHaveBeenCalledWith(
-        'find_duplicate_pairs',
-        expect.objectContaining({
-          similarity_threshold: 0.9,
-          p_domain: 'D1',
-        }),
-      );
-    });
+    const result = (await handler(
+      { id: '1', mode: 'delete', reason: 'R' },
+      extra as Record<string, unknown>,
+    )) as ToolResult;
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('requires admin');
   });
+
+  it('allows delete for admin and records history', async () => {
+    const handler = mockServer.getHandler('delete_content_item')!;
+    mocks.getMcpUserRole.mockResolvedValueOnce('admin');
+
+    // 1. Mock fetch item
+    mocks.chainMethods.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: { id: '1', title: 'T' }, error: null }),
+    );
+    // 2. Mock fetch history for version tracking
+    mocks.chainMethods.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ version: 2 }], error: null }),
+    );
+    // 3 & 4. insert and delete use default then
+
+    const result = (await handler(
+      { id: '1', mode: 'delete', reason: 'R' },
+      extra as Record<string, unknown>,
+    )) as ToolResult;
+    expect(result.content[0].text).toContain('# Content Item Deleted');
+    expect(mocks.chainMethods.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        change_type: 'delete',
+      }),
+    );
+    expect(mocks.chainMethods.delete).toHaveBeenCalled();
+  });
+
+  // (The `find_duplicates (scope: all)` whole-KB batch-scan test block —
+  // asserting the find_duplicate_pairs RPC call + "Potential Duplicates
+  // Scan" markdown — was retired under ID-131.15, G-DEDUP legacy
+  // dedup-family retirement, S446, alongside the production branch it
+  // exercised. See __tests__/mcp/dedup-consolidation.test.ts for the
+  // surviving single-item find_duplicates coverage.)
 });

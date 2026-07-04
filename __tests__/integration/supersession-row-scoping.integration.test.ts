@@ -24,8 +24,9 @@
  *   this test ADDS the real-DB proof rather than replacing it.
  *
  * Prod symbol under test: `lib/supersession/set.ts` → `setSupersession`
- *   (gitnexus impact upstream: LOW risk, 3 direct callers — PATCH /api/items/:id,
- *    MCP supersede_content_item, admin content-dedup supersede route).
+ *   (gitnexus impact upstream: LOW risk, direct callers — PATCH /api/items/:id,
+ *    MCP supersede_content_item. The admin content-dedup supersede route was
+ *    also a caller before it was retired under ID-131.15.)
  *
  * Spec: docs/specs/supersession-model-spec.md §5.4 (UPDATE writes the OLD row only).
  *

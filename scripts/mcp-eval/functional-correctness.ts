@@ -1234,7 +1234,10 @@ async function runBidToolChecks(
 // 5. Coverage/Quality Tools (FC-40 to FC-43)
 // ---------------------------------------------------------------------------
 
-async function runCoverageQualityChecks(accessToken: string): Promise<void> {
+async function runCoverageQualityChecks(
+  accessToken: string,
+  knownUUIDs: KnownUUIDs,
+): Promise<void> {
   console.log('\nCoverage/Quality Tools');
 
   // FC-40: where_are_we_exposed — keyword check, store charCount for FC-41 comparison
@@ -1447,11 +1450,13 @@ async function runCoverageQualityChecks(accessToken: string): Promise<void> {
     }
   }
 
-  // FC-44: find_duplicates (scope:'all') — check for duplicate-related keywords
+  // FC-44: find_duplicates — single-item admin dedup (requires `id`; the
+  // whole-KB `scope: 'all'` batch scan was retired under ID-131.15, G-DEDUP
+  // legacy dedup-family retirement, S446). Check for duplicate-related keywords.
   {
     const result = await callTool(
       'find_duplicates',
-      { scope: 'all' },
+      { id: knownUUIDs.contentItemId },
       accessToken,
     );
     if (result.errorMessage) {
@@ -3775,7 +3780,7 @@ async function main(): Promise<void> {
     await runBidToolChecks(accessToken, knownUUIDs);
 
     // Step 9: Coverage/Quality Tools
-    await runCoverageQualityChecks(accessToken);
+    await runCoverageQualityChecks(accessToken, knownUUIDs);
 
     // Step 10: Entity Tools
     await runEntityToolChecks(accessToken, knownUUIDs);
@@ -3865,7 +3870,7 @@ export async function runAsEvalSuite(): Promise<SuiteRunOutcome> {
       await runDashboardChecks(accessToken);
       await runContentRetrievalChecks(accessToken, knownUUIDs, evalItem);
       await runBidToolChecks(accessToken, knownUUIDs);
-      await runCoverageQualityChecks(accessToken);
+      await runCoverageQualityChecks(accessToken, knownUUIDs);
       await runEntityToolChecks(accessToken, knownUUIDs);
       await runWriteToolChecks(accessToken, evalItem, knownUUIDs);
       await runAppTemplateChecks(accessToken);

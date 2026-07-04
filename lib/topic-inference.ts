@@ -5,9 +5,12 @@
  * matches. Runs after classification (domain/subtopic known) and layer
  * inference (suggested layer known).
  *
- * Two-pass strategy:
- *   Pass 1: Exact domain + subtopic match with existing topic groups
- *   Pass 2: Similarity search for ungrouped items (requires embedding)
+ * Strategy: exact domain + subtopic match with existing topic groups
+ * (formerly "Pass 1" of a two-pass strategy). The former "Pass 2"
+ * (similarity search for ungrouped items via the find_similar_content RPC)
+ * was removed under ID-131.15 (G-DEDUP retirement) — that RPC was part of
+ * the legacy content_items dedup family DROPped in that Subtask. See
+ * `findSimilarUngroupedItem` removal note in git history for detail.
  *
  * Spec: docs/specs/layer-suggestion-spec.md (Section 4)
  */
@@ -35,16 +38,6 @@ export interface TopicSuggestion {
   /** Layers that are missing from this topic group */
   missingLayers: string[];
 }
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-/** Minimum cosine similarity for Pass 2 to consider items related */
-const SIMILARITY_THRESHOLD = 0.75;
-
-/** Maximum similar items to fetch in Pass 2 */
-const SIMILARITY_LIMIT = 5;
 
 // ---------------------------------------------------------------------------
 // Topic ID generation
@@ -93,11 +86,16 @@ export async function suggestTopic(
     primarySubtopic: string;
     title: string;
     suggestedLayer: string;
+    /**
+     * Retained for caller compatibility (4 call sites still pass this from
+     * their embedding-generation step). Unused since ID-131.15 removed the
+     * similarity-search pass that consumed it (it called the since-dropped
+     * find_similar_content RPC).
+     */
     embeddingArray?: number[];
   },
 ): Promise<TopicSuggestion | null> {
-  const { primaryDomain, primarySubtopic, suggestedLayer, embeddingArray } =
-    params;
+  const { primaryDomain, primarySubtopic, suggestedLayer } = params;
 
   // Guard: domain and subtopic are required
   if (!primaryDomain || !primarySubtopic) {
@@ -105,37 +103,16 @@ export async function suggestTopic(
   }
 
   // ---------------------------
-  // Pass 1: Exact domain + subtopic match with existing topic groups
+  // Exact domain + subtopic match with existing topic groups
   // ---------------------------
-  const pass1Result = await findExistingTopicGroup(
+  const result = await findExistingTopicGroup(
     supabase,
     primaryDomain,
     primarySubtopic,
     suggestedLayer,
   );
 
-  if (pass1Result) {
-    return pass1Result;
-  }
-
-  // ---------------------------
-  // Pass 2: Similarity search for ungrouped items
-  // ---------------------------
-  if (embeddingArray && embeddingArray.length > 0) {
-    const pass2Result = await findSimilarUngroupedItem(
-      supabase,
-      primaryDomain,
-      primarySubtopic,
-      suggestedLayer,
-      embeddingArray,
-    );
-
-    if (pass2Result) {
-      return pass2Result;
-    }
-  }
-
-  return null;
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -246,106 +223,5 @@ async function findExistingTopicGroup(
     reason,
     existingLayers: bestGroup.items,
     missingLayers: bestGroup.missingLayers,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Pass 2: Similarity search for ungrouped items
-// ---------------------------------------------------------------------------
-
-/**
- * If no existing topic groups were found, look for similar items in the
- * same domain/subtopic that lack a topic_id. If found, suggest creating
- * a new topic group linking them.
- */
-async function findSimilarUngroupedItem(
-  supabase: SupabaseClient<Database>,
-  domain: string,
-  subtopic: string,
-  suggestedLayer: string,
-  embedding: number[],
-): Promise<TopicSuggestion | null> {
-  // Use the find_similar_content RPC to find semantically similar items
-  const { data: similarItems, error } = await supabase.rpc(
-    'find_similar_content',
-    {
-      query_embedding: JSON.stringify(embedding),
-      similarity_threshold: SIMILARITY_THRESHOLD,
-      limit_count: SIMILARITY_LIMIT,
-    },
-  );
-
-  if (error || !similarItems || similarItems.length === 0) {
-    return null;
-  }
-
-  // Filter to items in the same domain/subtopic
-  // The RPC returns id, title, content, similarity, content_type, platform,
-  // author_name, source_domain — but not primary_domain/primary_subtopic.
-  // We need to fetch those for the matched items.
-  const matchedIds = similarItems.map((item: { id: string }) => item.id);
-
-  const { data: detailItems, error: detailError } = await supabase
-    .from('content_items')
-    .select('id, title, primary_domain, primary_subtopic, metadata, layer')
-    .in('id', matchedIds)
-    .is('archived_at', null);
-
-  if (detailError || !detailItems || detailItems.length === 0) {
-    return null;
-  }
-
-  // Find items in the same domain/subtopic without a topic_id
-  // and at a different layer (or no layer)
-  const candidates = detailItems.filter((item) => {
-    if (item.primary_domain !== domain || item.primary_subtopic !== subtopic) {
-      return false;
-    }
-    const metadata = item.metadata as Record<string, unknown> | null;
-    // Skip items that already have a topic_id (Pass 1 would have found them)
-    if (metadata?.topic_id) return false;
-
-    // Prefer items at a different layer (or without a layer)
-    const itemLayer = item.layer;
-    return !itemLayer || itemLayer !== suggestedLayer;
-  });
-
-  if (candidates.length === 0) {
-    return null;
-  }
-
-  // Pick the first candidate (highest similarity, since RPC returns ordered)
-  const bestMatch = candidates[0];
-  const matchLayer = bestMatch.layer || 'unassigned';
-
-  const topicId = generateTopicId(domain, subtopic);
-  const allLayers = getAllLayerKeys();
-
-  // Existing layers: the matched item's layer (if any)
-  const existingLayers: Array<{ id: string; title: string; layer: string }> =
-    [];
-  if (matchLayer !== 'unassigned') {
-    existingLayers.push({
-      id: bestMatch.id,
-      title: bestMatch.title ?? 'Untitled',
-      layer: matchLayer,
-    });
-  }
-
-  const presentLayers = new Set(
-    existingLayers.map((l) => l.layer).concat(suggestedLayer),
-  );
-  const missingLayers = allLayers.filter((l) => !presentLayers.has(l));
-
-  const reason =
-    matchLayer !== 'unassigned'
-      ? `Similar item "${bestMatch.title}" exists at ${matchLayer} layer — suggest creating new topic group`
-      : `Similar item "${bestMatch.title}" found in same domain/subtopic — suggest creating new topic group`;
-
-  return {
-    topicId,
-    reason,
-    existingLayers,
-    missingLayers,
   };
 }

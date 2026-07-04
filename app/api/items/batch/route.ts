@@ -59,9 +59,10 @@ const BatchCreateBodySchema = z.object({
   /** Single-use batch token to prevent duplicate submissions. */
   batch_token: z.string().min(1).max(500).optional(),
   /**
-   * Admin-only dedup override (spec §6 D2). Non-admins passing this
-   * flag are silently ignored — the dedup stamp proceeds as normal.
-   * Applied to every item in the batch.
+   * No-op. The per-item dedup pre-check this flag used to bypass was
+   * retired under ID-131.15 (G-DEDUP legacy dedup-family retirement,
+   * S446) — every item is always stamped 'clean'. Accepted for caller
+   * backwards-compatibility only.
    */
   skip_dedup: z.boolean().optional(),
   /**
@@ -92,17 +93,8 @@ export const POST = defineRoute(
       const parsed = parseBody(BatchCreateBodySchema, raw);
       if (!parsed.success) return parsed.response;
 
-      const {
-        items,
-        source_document_id,
-        batch_token,
-        skip_dedup,
-        content_owner_id,
-      } = parsed.data;
-
-      // Admin-only dedup override (spec §6 D2). Silent-ignore for
-      // non-admin — do not 403 a legitimate batch write.
-      const skipDedup = skip_dedup === true && role === 'admin';
+      const { items, source_document_id, batch_token, content_owner_id } =
+        parsed.data;
 
       // S206 WP-A Phase 2 (AC3.1) — resolve content owner once for the
       // batch. Admin caller may supply an explicit owner UUID; non-admins
@@ -112,8 +104,6 @@ export const POST = defineRoute(
         role,
         userId: user.id,
       });
-      const { checkExactDuplicate, resolveDedupStamp } =
-        await import('@/lib/dedup/content-dedup');
 
       // Service client for pipeline_runs and item creation (bypasses RLS)
       const { createServiceClient } = await import('@/lib/supabase/server');
@@ -193,28 +183,15 @@ export const POST = defineRoute(
         const item = items[i];
 
         try {
-          // Dedup — soft-block per spec §6 D1. Per-item exact-hash check
-          // before the insert; failures are non-fatal (insert proceeds as
-          // `clean` if the helper throws).
-          let dedupStamp: {
+          // ID-131.15 (G-DEDUP legacy dedup-family retirement, S446): the
+          // per-item exact-hash dedup pre-check (checkExactDuplicate /
+          // resolveDedupStamp, backed by the now-DROPped
+          // find_exact_duplicates RPC) was removed — owner-ratified
+          // retirement; every item is always stamped 'clean'.
+          const dedupStamp: {
             dedup_status: 'clean' | 'suspected_duplicate';
             suspected_duplicate_of?: string;
           } = { dedup_status: 'clean' };
-          try {
-            const dedupCheck = await checkExactDuplicate(
-              serviceClient,
-              item.content,
-            );
-            dedupStamp = resolveDedupStamp(
-              dedupCheck.isDuplicate ? dedupCheck.existingId : undefined,
-              { skipDedup },
-            );
-          } catch (dedupErr) {
-            logger.error(
-              { err: dedupErr },
-              `Dedup check failed for batch item ${i}`,
-            );
-          }
           if (dedupStamp.dedup_status === 'suspected_duplicate') {
             suspectedDuplicateCount++;
           }

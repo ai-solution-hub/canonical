@@ -870,11 +870,15 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
   });
 
   // ─────────────────────────────────────────────────────────────────────
-  // Dedup soft-block: new_entry path = skip-and-log on exact match
-  // (WP1 / spec §6 D1, D2 — bid-outcome variant)
+  // Dedup retirement (ID-131.15, G-DEDUP legacy dedup-family retirement,
+  // S446): the new_entry skip-and-log exact-hash pre-check (backed by the
+  // now-DROPped find_exact_duplicates RPC) was removed — it was already
+  // checking the wrong table by this point ({131.28} re-pointed the write
+  // onto `q_a_pairs`, but the check still queried the legacy `content_items`
+  // exact-hash RPC). new_entry now always proceeds to the q_a_pairs insert;
+  // `skip_dedup` is a no-op for admin and non-admin callers alike.
   // ─────────────────────────────────────────────────────────────────────
 
-  const EXISTING_ITEM_ID = '00000000-0000-4000-8000-000000000099';
   const LONG_RESPONSE =
     '<p>We implement a comprehensive information-security management system aligned with ISO 27001:2022 across all operational areas.</p>';
 
@@ -917,13 +921,13 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
     );
   }
 
-  it('skips new_entry when exact hash matches existing KB item', async () => {
+  it('creates new_entry unconditionally — no on-ingest exact-hash check runs', async () => {
     configureRole(mockSupabase, 'editor');
     primeBidAndQuestions();
 
-    // find_exact_duplicates returns an existing match
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: [{ id: EXISTING_ITEM_ID, title: 'Existing ISO Entry' }],
+    // Insert returns new q_a_pair id
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: '00000000-0000-4000-8000-000000000051' },
       error: null,
     });
 
@@ -941,30 +945,21 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
 
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json.created).toBe(0);
-    expect(json.skipped).toBe(1);
-    expect(json.items[0].action).toBe('skipped');
-    expect(json.items[0].q_a_pair_id).toBe(EXISTING_ITEM_ID);
-    expect(json.warnings.length).toBeGreaterThan(0);
-    expect(json.warnings[0]).toContain(EXISTING_ITEM_ID);
-
-    // Insert should NOT have been called for the skipped item
+    expect(json.created).toBe(1);
+    expect(json.skipped).toBe(0);
+    expect(json.items[0].action).toBe('created');
+    // DR-025/DR-026 (proposal-shaped admission): no embedding at insert.
     expect(mockGenerateEmbedding).not.toHaveBeenCalled();
   });
 
-  it('admin skip_dedup=true forces insert even on exact match', async () => {
+  it('skip_dedup=true is a no-op — new_entry still creates (admin or non-admin)', async () => {
     configureRole(mockSupabase, 'admin');
     primeBidAndQuestions();
 
-    // Insert returns new q_a_pair id
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { id: '00000000-0000-4000-8000-000000000051' },
       error: null,
     });
-
-    // find_exact_duplicates should NOT be queried when skip_dedup=true
-    // and role=admin. We don't queue a dedup response; any RPC call
-    // would consume the unqueued default ({ data: null, error: null }).
 
     const req = createTestRequest(
       `/api/procurement/${BID_ID}/outcome/integrate`,
@@ -984,37 +979,6 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
     expect(json.created).toBe(1);
     expect(json.skipped).toBe(0);
     expect(json.items[0].action).toBe('created');
-    // DR-025/DR-026 (proposal-shaped admission): no embedding at insert,
-    // even on the skip_dedup=true force-insert path.
     expect(mockGenerateEmbedding).not.toHaveBeenCalled();
-  });
-
-  it('non-admin skip_dedup=true is silently ignored — dedup still skips', async () => {
-    configureRole(mockSupabase, 'editor');
-    primeBidAndQuestions();
-
-    // Editor cannot bypass — dedup check runs, match causes skip
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: [{ id: EXISTING_ITEM_ID, title: 'Existing' }],
-      error: null,
-    });
-
-    const req = createTestRequest(
-      `/api/procurement/${BID_ID}/outcome/integrate`,
-      {
-        method: 'POST',
-        body: {
-          integrations: [{ question_id: QUESTION_ID, action: 'new_entry' }],
-          skip_dedup: true,
-        },
-      },
-    );
-    const params = createTestParams({ id: BID_ID });
-    const res = await postIntegrate(req, { params });
-
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.skipped).toBe(1);
-    expect(json.created).toBe(0);
   });
 });

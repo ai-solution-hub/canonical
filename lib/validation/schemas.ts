@@ -374,8 +374,10 @@ export const ItemCreateBodySchema = z.object({
     .uuid('source_document_id must be a valid UUID')
     .optional(),
 
-  // Admin-only dedup override (spec §6 D2). Non-admins passing this
-  // flag are silently ignored — the dedup stamp proceeds as normal.
+  // No-op. The on-ingest dedup pre-check this flag used to bypass was
+  // retired under ID-131.15 (G-DEDUP legacy dedup-family retirement,
+  // S446) — new items are always stamped 'clean'. Accepted for caller
+  // backwards-compatibility only.
   skip_dedup: z.boolean().optional(),
 
   // S206 WP-A Phase 2 (AC3.3) — content owner override. Admin-only;
@@ -1042,9 +1044,10 @@ export const KBIntegrationBodySchema = z.object({
     }),
   ),
   /**
-   * Admin-only dedup override (spec §6 D2). When true and caller is
-   * admin, skip the exact-hash pre-insert check and allow duplicates
-   * through. Non-admins are silently ignored.
+   * No-op. The exact-hash skip-and-log pre-insert dedup check this flag
+   * used to bypass was retired under ID-131.15 (G-DEDUP legacy
+   * dedup-family retirement, S446). Accepted for caller
+   * backwards-compatibility only.
    */
   skip_dedup: z.boolean().optional(),
 });
@@ -2340,79 +2343,13 @@ export const ArchiveBodySchema = z.object({
   reason: z.string().trim().min(1, 'Reason is required').max(1000),
 });
 
-// ──────────────────────────────────────────
-// §1.7 Admin Cross-System Dedup Review (S211B)
-// ──────────────────────────────────────────
-
-/** GET /api/admin/content-dedup/queue — list filters + cursor pagination */
-export const DedupQueueQuerySchema = z.object({
-  domain: z.string().optional(),
-  cursor: z.string().datetime().optional(),
-  limit: z.coerce.number().int().min(1).max(100).optional().default(50),
-  sort: z
-    .enum(['created_at_desc', 'similarity_desc'])
-    .optional()
-    .default('created_at_desc'),
-});
-
-/** POST /api/admin/content-dedup/[id]/{confirm-duplicate,confirm-unique} */
-export const DedupActionBodySchema = z.object({
-  note: z.string().max(500).optional(),
-});
-
-/** POST /api/admin/content-dedup/[id]/supersede */
-export const DedupSupersedeBodySchema = z.object({
-  canonicalId: z.string().uuid(),
-  direction: z
-    .enum(['canonical-supersedes-subject', 'subject-supersedes-canonical'])
-    .default('canonical-supersedes-subject'),
-  note: z.string().max(500).optional(),
-});
-
-// ──────────────────────────────────────────
-// §1.9 Near-Duplicate Merge Dashboard (S212B)
-// Spec: docs/specs/§1.9-near-dup-merge-dashboard-spec.md §5.2
-// ──────────────────────────────────────────
-
-/** GET /api/admin/content-dedup/near-duplicates — list filters */
-export const NearDupPairsQuerySchema = z.object({
-  threshold: z.coerce.number().min(0.85).max(0.99).optional().default(0.95),
-  domain: z.string().optional(),
-  limit: z.coerce.number().int().min(1).max(200).optional().default(50),
-});
-
-/**
- * POST /api/admin/content-dedup/near-duplicates/[pairId]/confirm-unique
- *
- * `similarity_at_resolution` + `threshold_at_resolution` carry OQ2 audit
- * context (similarity score the admin saw + filter threshold that
- * surfaced the pair). Optional — the route forwards `null` when omitted.
- */
-export const NearDupConfirmUniqueBodySchema = z.object({
-  note: z.string().max(500).optional(),
-  similarity_at_resolution: z.number().min(0).max(1).optional(),
-  threshold_at_resolution: z.number().min(0.85).max(0.99).optional(),
-});
-
-/**
- * POST /api/admin/content-dedup/near-duplicates/[pairId]/merge
- *
- * `similarity_at_resolution` + `threshold_at_resolution` carry OQ2 audit
- * context, mirroring the confirm-unique payload so the merge audit row
- * records the same context. Optional.
- */
-export const NearDupMergeBodySchema = z
-  .object({
-    oldId: z.string().uuid(),
-    newId: z.string().uuid(),
-    note: z.string().max(500).optional(),
-    similarity_at_resolution: z.number().min(0).max(1).optional(),
-    threshold_at_resolution: z.number().min(0.85).max(0.99).optional(),
-  })
-  .refine((b) => b.oldId !== b.newId, {
-    message: 'oldId and newId must differ',
-    path: ['newId'],
-  });
+// (The §1.7 Admin Cross-System Dedup Review (S211B) and §1.9 Near-Duplicate
+// Merge Dashboard (S212B) request-body/query schemas that used to live here
+// — DedupQueueQuerySchema, DedupActionBodySchema, DedupSupersedeBodySchema,
+// NearDupPairsQuerySchema, NearDupConfirmUniqueBodySchema,
+// NearDupMergeBodySchema — were retired under ID-131.15 (G-DEDUP legacy
+// dedup-family retirement, S446) alongside the admin content-dedup routes
+// they validated.)
 
 /** POST /api/items/[id]/vision */
 export const VisionBodySchema = z.object({
@@ -2549,7 +2486,8 @@ export type PublicationBulkActionBody = z.infer<
 // Re-run: bun scripts/codemods/generate-response-schemas.ts --write
 // ──────────────────────────────────────────
 //
-// 37 R-WP17 response-schema constants. Each validates the
+// 31 R-WP17 response-schema constants (37 minus the 6 Dedup/NearDup
+// constants retired under ID-131.15). Each validates the
 // matching route handler's return payload (AC-8) and is resolved by
 // Source-A inference via the `${interface}Schema` name convention.
 //
@@ -2562,11 +2500,8 @@ export type PublicationBulkActionBody = z.infer<
 // Every .loose() and z.unknown() below is justified by a real source
 // property: a genuine [k: string]: T index signature, an opaque Json/DB
 // member, a bare `unknown`, or an un-narrowable external/generic type.
-// The INV-S static guard asserts one entry per permissive token (8).
+// The INV-S static guard asserts one entry per permissive token (5).
 // ALLOW: z.unknown @ ReviewQueueResponse.items[].metadata{} — unknown (unknown)
-// ALLOW: z.unknown @ DedupQueueResponse.items[].metadata{} — unknown (unknown)
-// ALLOW: z.unknown @ DedupItemResponse.subject.metadata{} — unknown (unknown)
-// ALLOW: z.unknown @ DedupItemResponse.canonical.metadata{} — unknown (unknown)
 // ALLOW: z.unknown @ EntityDetail.metadata{} — unknown (unknown)
 // ALLOW: z.unknown @ IntelligenceWorkspace.domain_metadata — Json (supabase-Json)
 // ALLOW: .loose @ PipelineRunRow.progress — index-signature ([k: string]: unknown)
@@ -2787,98 +2722,10 @@ export const ReviewStatsResponseSchema = z.object({
   ),
 });
 
-/** R-WP17 ResponseSchema for `DedupQueueResponse` (lib/query/fetchers.ts). Generated; strict per INV-S (TECH §3.1a). */
-export const DedupQueueResponseSchema = z.object({
-  items: z.array(
-    z.object({
-      id: z.string(),
-      title: z.string().nullable(),
-      content: z.string().nullable(),
-      dedup_status: z.string(),
-      created_at: z.string(),
-      primary_domain: z.string().nullable(),
-      content_owner_id: z.string().nullable(),
-      ingestion_source: z.string().nullable(),
-      superseded_by: z.string().nullable(),
-      publication_status: z.string(),
-      metadata: z.record(z.string(), z.unknown()).nullable(),
-    }),
-  ),
-  hasMore: z.boolean(),
-  nextCursor: z.string().nullable(),
-});
-
-/** R-WP17 ResponseSchema for `DedupItemResponse` (lib/query/fetchers.ts). Generated; strict per INV-S (TECH §3.1a). */
-export const DedupItemResponseSchema = z.object({
-  subject: z.object({
-    id: z.string(),
-    title: z.string().nullable(),
-    content: z.string().nullable(),
-    dedup_status: z.string(),
-    created_at: z.string(),
-    primary_domain: z.string().nullable(),
-    content_owner_id: z.string().nullable(),
-    ingestion_source: z.string().nullable(),
-    superseded_by: z.string().nullable(),
-    publication_status: z.string(),
-    metadata: z.record(z.string(), z.unknown()).nullable(),
-  }),
-  canonical: z
-    .object({
-      id: z.string(),
-      title: z.string().nullable(),
-      content: z.string().nullable(),
-      dedup_status: z.string(),
-      created_at: z.string(),
-      primary_domain: z.string().nullable(),
-      content_owner_id: z.string().nullable(),
-      ingestion_source: z.string().nullable(),
-      superseded_by: z.string().nullable(),
-      publication_status: z.string(),
-      metadata: z.record(z.string(), z.unknown()).nullable(),
-    })
-    .nullable(),
-  similarity: z.number(),
-});
-
-/** R-WP17 ResponseSchema for `NearDupPairsResponse` (lib/query/fetchers.ts). Generated; strict per INV-S (TECH §3.1a). */
-export const NearDupPairsResponseSchema = z.object({
-  pairs: z.array(
-    z.object({
-      pairId: z.string(),
-      similarity: z.number(),
-      left: z.object({
-        id: z.string(),
-        title: z.string().nullable(),
-        contentType: z.string().nullable(),
-        primaryDomain: z.string().nullable(),
-      }),
-      right: z.object({
-        id: z.string(),
-        title: z.string().nullable(),
-        contentType: z.string().nullable(),
-        primaryDomain: z.string().nullable(),
-      }),
-    }),
-  ),
-  threshold: z.number(),
-  total: z.number(),
-});
-
-/** R-WP17 ResponseSchema for `NearDupMergeResult` (lib/query/fetchers.ts). Generated; strict per INV-S (TECH §3.1a). */
-export const NearDupMergeResultSchema = z.object({
-  pairId: z.string(),
-  oldId: z.string(),
-  newId: z.string(),
-  dedup_status: z.literal('superseded'),
-});
-
-/** R-WP17 ResponseSchema for `NearDupConfirmUniqueResult` (lib/query/fetchers.ts). Generated; strict per INV-S (TECH §3.1a). */
-export const NearDupConfirmUniqueResultSchema = z.object({
-  pairId: z.string(),
-  leftDedupStatus: z.literal('confirmed_unique'),
-  rightDedupStatus: z.literal('confirmed_unique'),
-});
+// (R-WP17 ResponseSchemas for DedupQueueResponse, DedupItemResponse,
+// NearDupPairsResponse, NearDupMergeResult, NearDupConfirmUniqueResult —
+// generated from lib/query/fetchers.ts types that were retired under
+// ID-131.15, alongside the admin content-dedup routes they validated.)
 
 /** R-WP17 ResponseSchema for `PipelineRunsRecentResponse` (app/api/admin/pipeline-runs/recent/route.ts). Generated; strict per INV-S (TECH §3.1a). */
 export const PipelineRunsRecentResponseSchema = z.object({
@@ -3389,38 +3236,8 @@ export const PipelineRunRowSchema = z.object({
   result: z.unknown(),
 });
 
-/** R-WP17 ResponseSchema for `NearDupPairDetail` (lib/query/fetchers.ts). Generated; strict per INV-S (TECH §3.1a). */
-export const NearDupPairDetailSchema = z.object({
-  left: z.object({
-    id: z.string(),
-    title: z.string().nullable(),
-    content: z.string().nullable(),
-    dedup_status: z.string(),
-    created_at: z.string(),
-    primary_domain: z.string().nullable(),
-    content_type: z.string().nullable(),
-    content_owner_id: z.string().nullable(),
-    ingestion_source: z.string().nullable(),
-    superseded_by: z.string().nullable(),
-    archived_at: z.string().nullable(),
-    publication_status: z.string(),
-  }),
-  right: z.object({
-    id: z.string(),
-    title: z.string().nullable(),
-    content: z.string().nullable(),
-    dedup_status: z.string(),
-    created_at: z.string(),
-    primary_domain: z.string().nullable(),
-    content_type: z.string().nullable(),
-    content_owner_id: z.string().nullable(),
-    ingestion_source: z.string().nullable(),
-    superseded_by: z.string().nullable(),
-    archived_at: z.string().nullable(),
-    publication_status: z.string(),
-  }),
-  similarity: z.number(),
-});
+// (R-WP17 ResponseSchema for `NearDupPairDetail` retired under ID-131.15
+// alongside the admin near-duplicates detail route it validated.)
 
 // ──────────────────────────────────────────
 // END generated: R-WP17 ResponseSchema constants (ID-32.20)

@@ -428,7 +428,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           .boolean()
           .optional()
           .describe(
-            'Admin-only dedup override (spec §6 D2). When true and the caller is admin, exact-hash match is not stamped. Non-admin requests silently ignore the flag.',
+            'No-op. The on-ingest exact-hash dedup pre-check this flag used to bypass was retired under ID-131.15 (G-DEDUP legacy dedup-family retirement, S446) — new items are always stamped `clean`. Accepted for caller backwards-compatibility only.',
           ),
         content_owner_id: z
           .string()
@@ -476,35 +476,20 @@ export async function registerContentTools(server: McpServer): Promise<void> {
 
         const supabase = createMcpClient(extra.authInfo);
         const userId = getMcpUserId(extra.authInfo);
-        // Admin-only dedup override (spec §6 D2). Silent-ignore for
-        // editors even though the flag is exposed on the input schema.
-        const skipDedup = args.skip_dedup === true && role === 'admin';
 
-        // Dedup — soft-block per spec §6 D1. Exact-hash match stamps
-        // `dedup_status='suspected_duplicate'` + records the existing
-        // id in `metadata.suspected_duplicate_of`.
-        const { checkExactDuplicate, resolveDedupStamp } =
-          await import('@/lib/dedup/content-dedup');
-        let dedupStamp: {
+        // ID-131.15 (G-DEDUP legacy dedup-family retirement, S446): the
+        // on-ingest exact-hash dedup pre-check (checkExactDuplicate /
+        // resolveDedupStamp, backed by the now-DROPped find_exact_duplicates
+        // RPC) was removed — owner-ratified retirement; the synchronous
+        // "possible duplicate" warning is retired in favour of the id-120
+        // q_a_pairs batch dedup-proposer. New items are always stamped
+        // 'clean'; `skip_dedup` is now a no-op accepted on the input schema
+        // for caller backwards-compatibility only.
+        const dedupStamp: {
           dedup_status: 'clean' | 'suspected_duplicate';
           suspected_duplicate_of?: string;
         } = { dedup_status: 'clean' };
-        let dedupExistingTitle: string | undefined;
-        try {
-          const dedupCheck = await checkExactDuplicate(supabase, args.content);
-          dedupStamp = resolveDedupStamp(
-            dedupCheck.isDuplicate ? dedupCheck.existingId : undefined,
-            { skipDedup },
-          );
-          if (dedupCheck.isDuplicate) {
-            dedupExistingTitle = dedupCheck.existingTitle;
-          }
-        } catch (dedupErr) {
-          logger.error(
-            { err: dedupErr },
-            'MCP create_content_item dedup check failed',
-          );
-        }
+        const dedupExistingTitle: string | undefined = undefined;
 
         // S206 WP-A Phase 2 (AC3.1) — resolve content owner. Admin caller
         // may supply an explicit owner UUID; non-admins are silent-forced

@@ -41,7 +41,6 @@ const singleItem: UploadReviewItem = {
     confidence: 'high',
   },
   warnings: [],
-  dedupMatches: [],
 };
 
 const itemWithWarnings: UploadReviewItem = {
@@ -49,14 +48,6 @@ const itemWithWarnings: UploadReviewItem = {
   id: 'item-2',
   title: 'Procurement Response Template',
   warnings: ['Embedding generation failed', 'Classification confidence low'],
-  dedupMatches: [
-    {
-      id: 'dup-1',
-      title: 'Existing Procurement Template',
-      similarity: 0.89,
-      match_type: 'near_duplicate',
-    },
-  ],
 };
 
 const itemNoClassification: UploadReviewItem = {
@@ -64,7 +55,6 @@ const itemNoClassification: UploadReviewItem = {
   title: 'Meeting Notes Q4',
   contentType: 'note',
   warnings: [],
-  dedupMatches: [],
 };
 
 const longSummaryItem: UploadReviewItem = {
@@ -209,7 +199,7 @@ describe('UploadReviewStep', () => {
     });
   });
 
-  describe('Warnings and dedup', () => {
+  describe('Warnings', () => {
     it('displays pipeline warnings', () => {
       render(
         <UploadReviewStep {...defaultProps({ items: [itemWithWarnings] })} />,
@@ -220,16 +210,6 @@ describe('UploadReviewStep', () => {
       ).toBeInTheDocument();
       expect(
         screen.getByText('Classification confidence low'),
-      ).toBeInTheDocument();
-    });
-
-    it('displays DedupWarning when dedupMatches exist', () => {
-      render(
-        <UploadReviewStep {...defaultProps({ items: [itemWithWarnings] })} />,
-      );
-
-      expect(
-        screen.getByText('Existing Procurement Template'),
       ).toBeInTheDocument();
     });
 

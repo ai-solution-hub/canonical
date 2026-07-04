@@ -75,14 +75,6 @@ vi.mock('@/lib/ai/summarise', () => ({
   generateSummary: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('@/lib/dedup/content-dedup', () => ({
-  checkForDuplicates: vi
-    .fn()
-    .mockResolvedValue({ has_duplicates: false, matches: [] }),
-  formatDedupWarning: vi.fn().mockReturnValue(null),
-  resolveDedupStamp: vi.fn().mockReturnValue({ dedup_status: 'clean' }),
-}));
-
 vi.mock('@/lib/date-extraction', () => ({
   extractTemporalReferences: vi.fn().mockReturnValue([]),
   findExpiryDate: vi.fn().mockReturnValue(null),

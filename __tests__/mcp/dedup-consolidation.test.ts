@@ -2,23 +2,23 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 
 // ---------------------------------------------------------------------------
-// ID-71.10 PART 2 (M32 / B-INV-32 dedup portion + B-INV-37) — the two dedup
-// tools collapse to ONE parameterised `find_duplicates` entry with a `scope`
-// param:
-//   - scope: 'item' (requires `id`) → single-item dedup, admin visibility
-//     default. Replaces `find_duplicate_candidates` (was lib/mcp/tools/search.ts).
-//     Shares `findSimilarItemsImpl` with the consolidated `find` tool's
-//     `similar_to` branch — the shared engine MUST stay intact.
-//   - scope: 'all' (default) → batch KB scan via the `find_duplicate_pairs`
-//     RPC. Replaces `find_all_duplicates` (was lib/mcp/tools/quality.ts).
+// ID-71.10 PART 2 (M32 / B-INV-32 dedup portion) — `find_duplicates` is a
+// single-item admin-dedup entry (requires `id`, admin visibility default).
+// Replaces `find_duplicate_candidates` (was lib/mcp/tools/search.ts). Shares
+// `findSimilarItemsImpl` with the consolidated `find` tool's `similar_to`
+// branch — the shared engine MUST stay intact.
 //
-// The new entry declares an `outputSchema` (B-INV-37 — new entries only). The
-// retired single+batch pair MUST NOT persist as two entries (B-INV-32 Fail
-// condition).
+// ID-131.15 (G-DEDUP legacy dedup-family retirement, S446): the sibling
+// whole-KB batch-scan branch (`scope: 'all'`, backed by the find_duplicate_pairs
+// RPC and replacing the former `find_all_duplicates` from
+// lib/mcp/tools/quality.ts) was removed along with the RPC it depended on —
+// owner-ratified retirement; the id-120 q_a_pairs batch dedup-proposer is its
+// replacement. `find_duplicates` is now single-item-only; the `scope` param
+// is gone.
 //
 // The tests assert behaviour-first per test-philosophy.md: registration shape,
-// scope-branch RPC selection (hybrid_search vs find_duplicate_pairs), the
-// admin visibility default on the item branch, and the preserved error guards.
+// RPC selection (hybrid_search), the admin visibility default, and the
+// preserved error guards.
 // ---------------------------------------------------------------------------
 
 const mocks = vi.hoisted(() => {
@@ -108,23 +108,6 @@ function makeRpcSimilarRow(
   };
 }
 
-function makeRpcPairRow(
-  overrides: Record<string, unknown> = {},
-): Record<string, unknown> {
-  return {
-    id1: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
-    title1: 'Item A',
-    type1: 'note',
-    domain1: 'compliance',
-    id2: 'bbbbbbbb-cccc-4ddd-8eee-ffffffffffff',
-    title2: 'Item B',
-    type2: 'note',
-    domain2: 'compliance',
-    similarity: 0.97,
-    ...overrides,
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Registration — B-INV-32 consolidation + B-INV-37 outputSchema
 // ---------------------------------------------------------------------------
@@ -146,23 +129,22 @@ describe('find_duplicates registration (ID-71.10 dedup consolidation)', () => {
     );
   });
 
-  it('collapses the two dedup tools into ONE parameterised find_duplicates entry (B-INV-32)', () => {
-    // Pass: one consolidated entry. Fail: a single+batch pair persists.
+  it('registers find_duplicates as a single entry (B-INV-32) — the retired find_duplicate_candidates/find_all_duplicates pair does not persist', () => {
     expect(mockServer.getTool('find_duplicates')).toBeDefined();
     expect(mockServer.getTool('find_duplicate_candidates')).toBeUndefined();
     expect(mockServer.getTool('find_all_duplicates')).toBeUndefined();
   });
 
-  it('omits outputSchema because FindDuplicatesResponseSchema is a z.union — the MCP SDK normalizeObjectSchema returns undefined for unions causing undefined._zod crash in validateToolOutput (SDK union gap, B-INV-37 deferred)', () => {
+  it('omits outputSchema (no retrofit onto this entry; kept minimal since ID-131.15 removed the scope: all union branch)', () => {
     const tool = mockServer.getTool('find_duplicates');
-    // outputSchema intentionally absent until SDK gains union support.
     expect(tool!.config.outputSchema).toBeUndefined();
   });
 
-  it('exposes a scope parameter covering item and all dedup branches', () => {
+  it('no longer exposes a scope parameter — find_duplicates is single-item-only since ID-131.15', () => {
     const tool = mockServer.getTool('find_duplicates');
     const input = tool!.config.inputSchema as Record<string, unknown>;
-    expect(input).toHaveProperty('scope');
+    expect(input).not.toHaveProperty('scope');
+    expect(input).toHaveProperty('id');
   });
 
   it('keeps read-only annotations on the consolidated entry', () => {
@@ -183,7 +165,7 @@ describe('find_duplicates registration (ID-71.10 dedup consolidation)', () => {
 // scope: 'item' branch — single-item admin dedup (was find_duplicate_candidates)
 // ---------------------------------------------------------------------------
 
-describe('find_duplicates handler — scope: item (single-item dedup)', () => {
+describe('find_duplicates handler — single-item dedup', () => {
   let mockServer: ReturnType<typeof createMockMcpServer>;
   const extra = { authInfo: { token: 'test' } };
 
@@ -201,9 +183,9 @@ describe('find_duplicates handler — scope: item (single-item dedup)', () => {
     );
   });
 
-  it('routes scope=item to hybrid_search with admin visibility default', async () => {
+  it('routes to hybrid_search with admin visibility default', async () => {
     const handler = mockServer.getHandler('find_duplicates')!;
-    await handler({ scope: 'item', id: SOURCE_ID }, extra);
+    await handler({ id: SOURCE_ID }, extra);
 
     expect(mocks.rpcMock).toHaveBeenCalledWith(
       'hybrid_search',
@@ -213,10 +195,7 @@ describe('find_duplicates handler — scope: item (single-item dedup)', () => {
 
   it('passes an explicit visibility_filter override through to the RPC', async () => {
     const handler = mockServer.getHandler('find_duplicates')!;
-    await handler(
-      { scope: 'item', id: SOURCE_ID, visibility_filter: 'default' },
-      extra,
-    );
+    await handler({ id: SOURCE_ID, visibility_filter: 'default' }, extra);
 
     expect(mocks.rpcMock).toHaveBeenCalledWith(
       'hybrid_search',
@@ -224,9 +203,9 @@ describe('find_duplicates handler — scope: item (single-item dedup)', () => {
     );
   });
 
-  it('returns isError when scope=item is missing the id', async () => {
+  it('returns isError when the id is missing', async () => {
     const handler = mockServer.getHandler('find_duplicates')!;
-    const result = (await handler({ scope: 'item' }, extra)) as ToolResult;
+    const result = (await handler({}, extra)) as ToolResult;
     expect(result.isError).toBe(true);
   });
 
@@ -239,10 +218,7 @@ describe('find_duplicates handler — scope: item (single-item dedup)', () => {
       error: null,
     });
 
-    const result = (await handler(
-      { scope: 'item', id: SOURCE_ID },
-      extra,
-    )) as ToolResult;
+    const result = (await handler({ id: SOURCE_ID }, extra)) as ToolResult;
 
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain('No embedding found');
@@ -255,10 +231,7 @@ describe('find_duplicates handler — scope: item (single-item dedup)', () => {
       error: null,
     });
 
-    const result = (await handler(
-      { scope: 'item', id: SOURCE_ID },
-      extra,
-    )) as ToolResult;
+    const result = (await handler({ id: SOURCE_ID }, extra)) as ToolResult;
 
     expect(result.isError).toBeUndefined();
     // Source embedding is read from the polymorphic record_embeddings store.
@@ -272,78 +245,8 @@ describe('find_duplicates handler — scope: item (single-item dedup)', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// scope: 'all' branch — batch KB scan (was find_all_duplicates)
-// ---------------------------------------------------------------------------
-
-describe('find_duplicates handler — scope: all (batch KB scan)', () => {
-  let mockServer: ReturnType<typeof createMockMcpServer>;
-  const extra = { authInfo: { token: 'test' } };
-
-  beforeEach(async () => {
-    vi.clearAllMocks();
-    mocks.rpcMock.mockResolvedValue({ data: [], error: null });
-    mockServer = createMockMcpServer();
-    const { registerSearchTools } = await import('@/lib/mcp/tools/search');
-    await registerSearchTools(
-      mockServer.server as unknown as Parameters<typeof registerSearchTools>[0],
-    );
-  });
-
-  it('defaults to the all-scope batch scan via find_duplicate_pairs', async () => {
-    const handler = mockServer.getHandler('find_duplicates')!;
-    await handler({}, extra);
-
-    expect(mocks.rpcMock).toHaveBeenCalledWith(
-      'find_duplicate_pairs',
-      expect.objectContaining({ similarity_threshold: 0.95, limit_count: 50 }),
-    );
-  });
-
-  it('passes domain filter and threshold through to find_duplicate_pairs', async () => {
-    const handler = mockServer.getHandler('find_duplicates')!;
-    await handler(
-      { scope: 'all', domain: 'compliance', threshold: 0.9, limit: 25 },
-      extra,
-    );
-
-    expect(mocks.rpcMock).toHaveBeenCalledWith(
-      'find_duplicate_pairs',
-      expect.objectContaining({
-        similarity_threshold: 0.9,
-        p_domain: 'compliance',
-        limit_count: 25,
-      }),
-    );
-  });
-
-  it('returns markdown + structuredContent of duplicate pairs', async () => {
-    const handler = mockServer.getHandler('find_duplicates')!;
-    mocks.rpcMock.mockResolvedValueOnce({
-      data: [makeRpcPairRow({ similarity: 0.98 })],
-      error: null,
-    });
-
-    const result = (await handler({ scope: 'all' }, extra)) as ToolResult;
-
-    expect(result.isError).toBeUndefined();
-    const sc = result.structuredContent as Record<string, unknown>;
-    expect(sc.count).toBe(1);
-    const pairs = sc.pairs as Array<Record<string, unknown>>;
-    expect(pairs).toHaveLength(1);
-    expect((pairs[0].item_a as Record<string, unknown>).id).toBe(
-      'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
-    );
-  });
-
-  it('surfaces a batch-scan RPC error as isError', async () => {
-    const handler = mockServer.getHandler('find_duplicates')!;
-    mocks.rpcMock.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'scan boom' },
-    });
-
-    const result = (await handler({ scope: 'all' }, extra)) as ToolResult;
-    expect(result.isError).toBe(true);
-  });
-});
+// (The `scope: 'all'` whole-KB batch-scan handler describe block — routing
+// to the find_duplicate_pairs RPC, replacing the former find_all_duplicates
+// — was retired under ID-131.15, G-DEDUP legacy dedup-family retirement,
+// S446. The RPC itself is DROPped by the coordinated migration; the
+// id-120 q_a_pairs batch dedup-proposer is its replacement.)

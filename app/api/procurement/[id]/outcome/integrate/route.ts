@@ -27,7 +27,7 @@ export const POST = defineRoute(
     try {
       const auth = await getAuthorisedClient(['admin', 'editor']);
       if (!auth.success) return authFailureResponse(auth);
-      const { user, supabase, role } = auth;
+      const { user, supabase } = auth;
 
       const { allowed } = checkRateLimit(
         `bid-integrate:${user.id}`,
@@ -48,11 +48,7 @@ export const POST = defineRoute(
       const parsed = parseBody(KBIntegrationBodySchema, raw);
       if (!parsed.success) return parsed.response;
 
-      const { integrations, skip_dedup } = parsed.data;
-
-      // Admin-only dedup override (spec §6 D2). Silent-ignore for non-admin.
-      const skipDedup = skip_dedup === true && role === 'admin';
-      const { checkExactDuplicate } = await import('@/lib/dedup/content-dedup');
+      const { integrations } = parsed.data;
 
       // Verify the procurement exists. Identity (name, domain hint) lives on the
       // workspace; the won-state GATE now reads the FORM, not workspaces.status.
@@ -201,36 +197,17 @@ export const POST = defineRoute(
 
         // Only remaining non-skip action is 'new_entry' (schema enforces
         // this — 'update_existing' is retired).
-        // Dedup — spec §6 D1 variant for bid-outcome: exact-hash match
-        // is skip-and-log (not stamp). Procurement-outcome is a post-won admin
-        // workflow where duplicate content is almost certainly the
-        // response already present in the KB. Skipping prevents double
-        // entry; admin can review the log. Admins may `skip_dedup=true`
-        // to force-insert anyway.
-        if (!skipDedup) {
-          try {
-            const dedupCheck = await checkExactDuplicate(supabase, plainText);
-            if (dedupCheck.isDuplicate) {
-              skipped++;
-              warnings.push(
-                `Skipped bid integration for question ${integration.question_id} — response matches existing KB item ${dedupCheck.existingId}${dedupCheck.existingTitle ? ` ("${dedupCheck.existingTitle}")` : ''}`,
-              );
-              items.push({
-                question_id: integration.question_id,
-                q_a_pair_id: dedupCheck.existingId ?? '',
-                action: 'skipped',
-              });
-              continue;
-            }
-          } catch (dedupErr) {
-            logger.error(
-              { err: dedupErr },
-              `Procurement-outcome dedup check failed for question ${integration.question_id}`,
-            );
-            // Non-fatal — proceed with insert as clean
-          }
-        }
-
+        //
+        // ID-131.15 (G-DEDUP legacy dedup-family retirement, S446): the
+        // exact-hash skip-and-log dedup pre-check (checkExactDuplicate,
+        // backed by the now-DROPped find_exact_duplicates RPC) was removed.
+        // It was already checking the wrong table by this point ({131.28}
+        // re-pointed the write below onto `q_a_pairs`, but the dedup check
+        // still queried the legacy `content_items` exact-hash RPC) — the
+        // retirement resolves that latent mismatch as a side effect, not
+        // just removing a dead call. `skip_dedup` on KBIntegrationBodySchema
+        // is now a no-op accepted for caller backwards-compatibility.
+        //
         // ID-131 {131.28} Part 2 (HYBRID RETIRE, OQ oq-66a0c5410864622b):
         // re-pointed onto the UC5 promote-path write shape
         // (app/api/q-a-pairs/promote/route.ts) — a review-before-publish

@@ -13,10 +13,6 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { QualityBadge } from '@/components/shared/quality-badge';
 import {
-  DedupWarning,
-  type DedupMatch,
-} from '@/components/shared/dedup-warning';
-import {
   calculateQualityScore,
   type QualityScoreInput,
 } from '@/lib/quality/quality-score';
@@ -49,7 +45,6 @@ export interface UploadReviewItem {
     confidence: string;
   };
   warnings: string[];
-  dedupMatches: DedupMatch[];
 }
 
 export interface UploadReviewStepProps {
@@ -243,15 +238,6 @@ function ReviewCard({
             </div>
           ))}
         </div>
-      )}
-
-      {/* Dedup matches */}
-      {item.dedupMatches.length > 0 && (
-        <DedupWarning
-          matches={item.dedupMatches}
-          onViewMatch={(id) => window.open(`/item/${id}`, '_blank')}
-          onDismiss={() => {}}
-        />
       )}
 
       {/* Error message */}

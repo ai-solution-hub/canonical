@@ -41,10 +41,13 @@ export function loadEnv(): void {
 // (get_governance_queue, get_review_queue, get_assignments_for_user,
 // get_dashboard_summary) into ONE faceted `whats_in_my_queue` entry over the
 // lib/attention.ts producer substrate. 46 → 43 (−4 +1).
-// ID-71.10 PART 2 (M32, B-INV-32 dedup portion + B-INV-37) collapsed the dedup
-// pair (find_duplicate_candidates single-item + find_all_duplicates whole-KB
-// batch) into ONE parameterised `find_duplicates` entry (scope: 'item' | 'all')
-// in lib/mcp/tools/search.ts. 43 → 42 (−2 +1).
+// ID-71.10 PART 2 (M32, B-INV-32 dedup portion) collapsed the dedup pair
+// (find_duplicate_candidates single-item + find_all_duplicates whole-KB
+// batch) into ONE `find_duplicates` entry in lib/mcp/tools/search.ts.
+// 43 → 42 (−2 +1). ID-131.15 (G-DEDUP legacy dedup-family retirement, S446)
+// later removed the whole-KB batch-scan branch (the find_duplicate_pairs RPC
+// it depended on was dropped) — find_duplicates is now single-item-only, no
+// `scope` param.
 // ---------------------------------------------------------------------------
 
 /** Canonical set of all 41 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
@@ -68,8 +71,9 @@ export const CANONICAL_TOOL_NAMES = [
   'assign', // 17 (ID-71.10 — one-or-many; was assign_content_owner + bulk_assign_owner)
   'get_document_versions', // 18
   // get_document_diff RETIRED (ID-117.12) — legacy diff-display surface removed.
-  // ID-71.10 PART 2 — ONE parameterised dedup entry (scope: 'item' | 'all');
-  // was find_duplicate_candidates (single-item) + find_all_duplicates (batch).
+  // ID-71.10 PART 2 — dedup entry; was find_duplicate_candidates
+  // (single-item) + find_all_duplicates (batch). Single-item-only since
+  // ID-131.15 retired the whole-KB batch-scan branch.
   'find_duplicates',
   'suggest_content_creation', // 26 (KEPT — ID-71.8 resolution affordance, B-INV-4)
   'classify_content', // 29
@@ -499,8 +503,11 @@ export function getMinimalArgs(
     case 'get_content_effectiveness':
       return { content_item_id: knownUUIDs.contentItemId };
     case 'find_duplicates':
-      // ID-71.10 part 2 — default scope 'all' (whole-KB batch scan, no args).
-      return { scope: 'all' };
+      // ID-71.10 part 2 — single-item admin dedup, requires `id`. The
+      // `scope: 'all'` whole-KB batch scan branch was retired under
+      // ID-131.15 (G-DEDUP legacy dedup-family retirement, S446) — the
+      // find_duplicate_pairs RPC it depended on was dropped.
+      return { id: knownUUIDs.contentItemId };
     case 'get_workspace_items':
       return {
         workspace_id:

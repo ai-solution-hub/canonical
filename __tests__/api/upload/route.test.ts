@@ -8,23 +8,24 @@
  *
  * Closes the unit-test gap on `app/api/upload/route.ts` (POST handler) called
  * out in product-backlog OPS-12. The route is the EP3 single-file upload
- * pipeline: validate → upload → extract → dedup → embed → classify →
- * summarise. (ID-56.11 retired the app-side chunk step — cocoindex re-ingests
- * the corpus natively.) We mirror the canonical pattern from
+ * pipeline: validate → upload → extract → embed → classify → summarise.
+ * (ID-56.11 retired the app-side chunk step — cocoindex re-ingests the corpus
+ * natively. ID-131.15 retired the on-ingest dedup step — G-DEDUP legacy
+ * dedup-family retirement, S446.) We mirror the canonical pattern from
  * `upload-route-owner.test.ts`
  * — invoke the real `POST` handler with a mocked multipart body and shared
  * mock supabase client; AI/extraction collaborators are stubbed so we land on
  * the inline `content_items` insert/update and exit cleanly.
  *
- * Coverage (8 tests):
+ * Coverage (7 tests):
  *   1. Happy path — admin posts a .pdf → row created + pipeline_runs completed.
  *   2. Magic-byte rejection — .pdf extension + PK header → 415.
  *   3. Oversized file — >50 MB → 413.
- *   4. Dedup soft-block — .md with matching hash → dedup_status stamped.
- *   5. Admin skip_dedup=true → bypass (dedup_status=clean).
- *   6. Editor skip_dedup=true → silently ignored (still stamps).
- *   7. 403 — viewer (not admin/editor) is rejected at auth gate.
- *   8. 401 — unauthenticated session → 401.
+ *   4. Dedup retirement (ID-131.15) — always stamps dedup_status=clean, no
+ *      duplicate_matches.
+ *   5. skip_dedup is a no-op for admin and non-admin callers alike.
+ *   6. 403 — viewer (not admin/editor) is rejected at auth gate.
+ *   7. 401 — unauthenticated session → 401.
  *
  * Mocking notes:
  * - Override `request.formData()` directly (canonical pattern from
@@ -55,12 +56,6 @@ const mockSupabase = createMockSupabaseClient();
 
 const { mockCookies } = vi.hoisted(() => ({
   mockCookies: vi.fn(),
-}));
-
-const dedupMocks = vi.hoisted(() => ({
-  checkForDuplicates: vi.fn(),
-  formatDedupWarning: vi.fn(),
-  resolveDedupStamp: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -104,12 +99,6 @@ vi.mock('@/lib/ai/classify', () => ({
 
 vi.mock('@/lib/ai/summarise', () => ({
   generateSummary: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock('@/lib/dedup/content-dedup', () => ({
-  checkForDuplicates: dedupMocks.checkForDuplicates,
-  formatDedupWarning: dedupMocks.formatDedupWarning,
-  resolveDedupStamp: dedupMocks.resolveDedupStamp,
 }));
 
 vi.mock('@/lib/date-extraction', () => ({
@@ -161,7 +150,6 @@ const VALID_PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]); //
 const PK_ZIP_BYTES = new Uint8Array([0x50, 0x4b, 0x03, 0x04]); // PK\x03\x04
 const NEW_ITEM_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 const CALLER_USER_ID = 'a0000000-0000-4000-8000-000000000aaa';
-const EXISTING_DUP_ID = 'b0000000-0000-4000-8000-000000000bbb';
 
 /**
  * Adapter to match the (bytes, name, mimeType) signature used by callers
@@ -272,14 +260,6 @@ beforeEach(() => {
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
-
-  // Default dedup behaviour — no duplicates, clean stamp.
-  dedupMocks.checkForDuplicates.mockResolvedValue({
-    has_duplicates: false,
-    matches: [],
-  });
-  dedupMocks.formatDedupWarning.mockReturnValue(null);
-  dedupMocks.resolveDedupStamp.mockReturnValue({ dedup_status: 'clean' });
 });
 
 // ---------------------------------------------------------------------------
@@ -421,45 +401,18 @@ describe('POST /api/upload — OPS-12 closure', () => {
   });
 
   // ─────────────────────────────────────────────────────────────────────
-  // Dedup behaviour
+  // Dedup retirement (ID-131.15, G-DEDUP legacy dedup-family retirement,
+  // S446): the on-ingest exact-hash/near-duplicate soft-block stamping
+  // (checkForDuplicates/formatDedupWarning/resolveDedupStamp, backed by
+  // the now-DROPped find_exact_duplicates + find_similar_content RPCs) was
+  // removed. Uploads are always stamped 'clean' with no duplicate matches,
+  // and `skip_dedup` is a no-op for admin and non-admin callers alike.
   // ─────────────────────────────────────────────────────────────────────
 
-  describe('dedup behaviour', () => {
-    it('soft-blocks .md with matching content_text_hash by stamping dedup_status=suspected_duplicate', async () => {
+  describe('dedup retirement (ID-131.15) — always-clean stamping', () => {
+    it('stamps dedup_status=clean and omits duplicate_matches — no on-ingest check runs', async () => {
       configureRole(mockSupabase, 'editor');
       configureSuccessFlow();
-
-      // Duplicate detected in the pipeline.
-      dedupMocks.checkForDuplicates.mockResolvedValue({
-        has_duplicates: true,
-        matches: [
-          {
-            id: EXISTING_DUP_ID,
-            title: 'Existing Markdown',
-            similarity: 1.0,
-            match_type: 'exact',
-          },
-        ],
-      });
-      dedupMocks.formatDedupWarning.mockReturnValue(
-        'Potential duplicates: 1 exact duplicate found',
-      );
-      // Real-impl parity: editor → skipDedup is silent-forced false → stamp
-      // suspected_duplicate.
-      dedupMocks.resolveDedupStamp.mockImplementation(
-        (
-          existingId: string | undefined,
-          opts: { skipDedup?: boolean } = {},
-        ) => {
-          if (opts.skipDedup) return { dedup_status: 'clean' };
-          return existingId
-            ? {
-                dedup_status: 'suspected_duplicate',
-                suspected_duplicate_of: existingId,
-              }
-            : { dedup_status: 'clean' };
-        },
-      );
 
       const md = '# Sample\n\nbody text long enough to clear hash threshold';
       const file = makeMockFile(
@@ -473,90 +426,11 @@ describe('POST /api/upload — OPS-12 closure', () => {
       expect(res.status).toBe(200);
 
       const body = await res.json();
-      expect(body.dedup_status).toBe('suspected_duplicate');
-      expect(body.suspected_duplicate_of).toBe(EXISTING_DUP_ID);
-      expect(body.duplicate_matches).toHaveLength(1);
-      expect(body.duplicate_matches[0]).toEqual({
-        id: EXISTING_DUP_ID,
-        title: 'Existing Markdown',
-        similarity: 1.0,
-        match_type: 'exact',
-      });
-
-      // resolveDedupStamp was called with skipDedup=false (no override
-      // submitted; editor cannot use it anyway).
-      const stampCalls = dedupMocks.resolveDedupStamp.mock.calls;
-      expect(stampCalls.length).toBeGreaterThan(0);
-      const lastStamp = stampCalls[stampCalls.length - 1];
-      expect(lastStamp[1]).toEqual({ skipDedup: false });
-
-      // content_items UPDATE writes dedup_status + metadata.suspected_duplicate_of.
-      const updates = mockSupabase._chain.update.mock.calls;
-      const dedupStampUpdate = updates.find(
-        (call: unknown[]) =>
-          typeof call[0] === 'object' &&
-          call[0] !== null &&
-          'dedup_status' in (call[0] as Record<string, unknown>),
-      );
-      expect(dedupStampUpdate).toBeDefined();
-      const updatePayload = dedupStampUpdate![0] as Record<string, unknown>;
-      expect(updatePayload.dedup_status).toBe('suspected_duplicate');
-      const meta = updatePayload.metadata as Record<string, unknown>;
-      expect(meta.suspected_duplicate_of).toBe(EXISTING_DUP_ID);
-    });
-
-    it('admin + skip_dedup=true bypasses the soft-block (dedup_status=clean)', async () => {
-      configureRole(mockSupabase, 'admin');
-      configureSuccessFlow();
-
-      // Duplicate detected — but admin skip_dedup overrides.
-      dedupMocks.checkForDuplicates.mockResolvedValue({
-        has_duplicates: true,
-        matches: [
-          {
-            id: EXISTING_DUP_ID,
-            title: 'Existing Markdown',
-            similarity: 1.0,
-            match_type: 'exact',
-          },
-        ],
-      });
-      dedupMocks.resolveDedupStamp.mockImplementation(
-        (
-          existingId: string | undefined,
-          opts: { skipDedup?: boolean } = {},
-        ) => {
-          if (opts.skipDedup) return { dedup_status: 'clean' };
-          return existingId
-            ? {
-                dedup_status: 'suspected_duplicate',
-                suspected_duplicate_of: existingId,
-              }
-            : { dedup_status: 'clean' };
-        },
-      );
-
-      const md = '# Sample\n\nbody text long enough to clear hash threshold';
-      const file = makeMockFile(
-        new TextEncoder().encode(md),
-        'sample.md',
-        'text/markdown',
-      );
-      const req = buildUploadRequest({ file, skipDedup: 'true' });
-
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-
-      const body = await res.json();
       expect(body.dedup_status).toBe('clean');
       expect(body.suspected_duplicate_of).toBeUndefined();
+      expect(body.duplicate_matches).toEqual([]);
 
-      // resolveDedupStamp was called with skipDedup=true (admin path).
-      const stampCalls = dedupMocks.resolveDedupStamp.mock.calls;
-      const lastStamp = stampCalls[stampCalls.length - 1];
-      expect(lastStamp[1]).toEqual({ skipDedup: true });
-
-      // content_items UPDATE: dedup_status=clean and NO
+      // content_items UPDATE writes dedup_status='clean', no
       // metadata.suspected_duplicate_of.
       const updates = mockSupabase._chain.update.mock.calls;
       const dedupStampUpdate = updates.find(
@@ -572,36 +446,9 @@ describe('POST /api/upload — OPS-12 closure', () => {
       expect(meta).not.toHaveProperty('suspected_duplicate_of');
     });
 
-    it('editor + skip_dedup=true is silently ignored (still stamps suspected_duplicate)', async () => {
-      configureRole(mockSupabase, 'editor');
+    it('skip_dedup=true is a no-op — upload still stamps clean (admin or non-admin)', async () => {
+      configureRole(mockSupabase, 'admin');
       configureSuccessFlow();
-
-      // Duplicate detected — editor's skip_dedup must be silently dropped.
-      dedupMocks.checkForDuplicates.mockResolvedValue({
-        has_duplicates: true,
-        matches: [
-          {
-            id: EXISTING_DUP_ID,
-            title: 'Existing Markdown',
-            similarity: 1.0,
-            match_type: 'exact',
-          },
-        ],
-      });
-      dedupMocks.resolveDedupStamp.mockImplementation(
-        (
-          existingId: string | undefined,
-          opts: { skipDedup?: boolean } = {},
-        ) => {
-          if (opts.skipDedup) return { dedup_status: 'clean' };
-          return existingId
-            ? {
-                dedup_status: 'suspected_duplicate',
-                suspected_duplicate_of: existingId,
-              }
-            : { dedup_status: 'clean' };
-        },
-      );
 
       const md = '# Sample\n\nbody text long enough to clear hash threshold';
       const file = makeMockFile(
@@ -615,15 +462,8 @@ describe('POST /api/upload — OPS-12 closure', () => {
       expect(res.status).toBe(200);
 
       const body = await res.json();
-      // The editor's skip_dedup must be silently ignored — dedup still stamps.
-      expect(body.dedup_status).toBe('suspected_duplicate');
-      expect(body.suspected_duplicate_of).toBe(EXISTING_DUP_ID);
-
-      // resolveDedupStamp must have been called with skipDedup=false because
-      // the route silently downgrades the editor's request (route line 200).
-      const stampCalls = dedupMocks.resolveDedupStamp.mock.calls;
-      const lastStamp = stampCalls[stampCalls.length - 1];
-      expect(lastStamp[1]).toEqual({ skipDedup: false });
+      expect(body.dedup_status).toBe('clean');
+      expect(body.suspected_duplicate_of).toBeUndefined();
     });
   });
 

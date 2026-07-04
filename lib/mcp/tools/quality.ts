@@ -8,10 +8,12 @@
  * `get_quality_briefing`, `get_quality_actions` — into the consolidated
  * `where_are_we_exposed` five-layer entry (lib/mcp/tools/dashboard.ts).
  * ID-71.10 (M32, B-INV-32 dedup portion) consolidated the former
- * `find_all_duplicates` batch dedup read into the parameterised
- * `find_duplicates` entry (scope: 'all') co-located with `findSimilarItemsImpl`
- * in lib/mcp/tools/search.ts. `suggest_content_creation` is the kept
- * resolution affordance.
+ * `find_all_duplicates` batch dedup read into the `find_duplicates` entry
+ * co-located with `findSimilarItemsImpl` in lib/mcp/tools/search.ts.
+ * ID-131.15 (G-DEDUP legacy dedup-family retirement, S446) later removed
+ * that batch-scan branch entirely (the find_duplicate_pairs RPC it depended
+ * on was dropped) — the id-120 q_a_pairs batch dedup-proposer is its
+ * replacement. `suggest_content_creation` is the kept resolution affordance.
  */
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';

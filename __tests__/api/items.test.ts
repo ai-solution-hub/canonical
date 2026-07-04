@@ -21,7 +21,6 @@ const {
   mockClassifyContent,
   mockGenerateSummary,
   mockSuggestTopic,
-  mockCheckForDuplicates,
 } = vi.hoisted(() => ({
   mockCookies: vi.fn(),
   mockGenerateEmbedding: vi.fn(),
@@ -30,7 +29,6 @@ const {
   mockClassifyContent: vi.fn(),
   mockGenerateSummary: vi.fn(),
   mockSuggestTopic: vi.fn(),
-  mockCheckForDuplicates: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -69,16 +67,6 @@ vi.mock('@/lib/change-summary', () => ({
 vi.mock('@/lib/topic-inference', () => ({
   suggestTopic: mockSuggestTopic,
 }));
-
-vi.mock('@/lib/dedup/content-dedup', async () => {
-  const actual = await vi.importActual<
-    typeof import('@/lib/dedup/content-dedup')
-  >('@/lib/dedup/content-dedup');
-  return {
-    ...actual,
-    checkForDuplicates: mockCheckForDuplicates,
-  };
-});
 
 // Import routes AFTER mocks are registered
 import { POST } from '@/app/api/items/route';
@@ -202,10 +190,6 @@ beforeEach(() => {
   mockClassifyContent.mockResolvedValue({ domains: [] });
   mockGenerateSummary.mockResolvedValue({ summary_data: {} });
   mockSuggestTopic.mockResolvedValue(null);
-  mockCheckForDuplicates.mockResolvedValue({
-    has_duplicates: false,
-    matches: [],
-  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -812,26 +796,18 @@ describe('POST /api/items', () => {
   });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Dedup soft-block + admin override (WP1 / spec §6 D1, D2)
+  // Dedup retirement (ID-131.15, G-DEDUP legacy dedup-family retirement,
+  // S446): the on-ingest exact-hash/near-duplicate soft-block stamping
+  // (checkForDuplicates/formatDedupWarning/resolveDedupStamp, backed by the
+  // now-DROPped find_exact_duplicates + find_similar_content RPCs) was
+  // removed. New items are always stamped 'clean' with no duplicate
+  // matches, and `skip_dedup` is a no-op accepted for caller
+  // backwards-compatibility.
   // ─────────────────────────────────────────────────────────────────────────
 
-  describe('dedup soft-block stamping', () => {
-    const EXISTING_ID = 'b2c3d4e5-f6a7-4890-8bcd-ef1234567891';
-
-    it('stamps dedup_status=suspected_duplicate + metadata when exact hash matches', async () => {
+  describe('dedup retirement (ID-131.15) — always-clean stamping', () => {
+    it('stamps dedup_status=clean and omits duplicate_matches on create', async () => {
       configureRole(mockSupabase, 'editor');
-
-      mockCheckForDuplicates.mockResolvedValueOnce({
-        has_duplicates: true,
-        matches: [
-          {
-            id: EXISTING_ID,
-            title: 'Existing Article',
-            similarity: 1.0,
-            match_type: 'exact',
-          },
-        ],
-      });
 
       const createdItem = {
         id: VALID_UUID,
@@ -853,111 +829,21 @@ describe('POST /api/items', () => {
       expect(res.status).toBe(201);
 
       const body = await res.json();
-      expect(body.dedup_status).toBe('suspected_duplicate');
-      expect(body.suspected_duplicate_of).toBe(EXISTING_ID);
-
-      const insertCall = mockSupabase._chain.insert.mock.calls[0][0];
-      expect(insertCall.dedup_status).toBe('suspected_duplicate');
-      expect(insertCall.metadata).toEqual(
-        expect.objectContaining({ suspected_duplicate_of: EXISTING_ID }),
-      );
-    });
-
-    it('stamps dedup_status=clean when no exact match', async () => {
-      configureRole(mockSupabase, 'editor');
-
-      // Default beforeEach already returns has_duplicates: false
-
-      const createdItem = {
-        id: VALID_UUID,
-        title: 'Clean Article',
-        content_type: 'article',
-        created_at: '2026-04-21T12:00:00Z',
-      };
-      mockSupabase._chain.single.mockResolvedValueOnce({
-        data: createdItem,
-        error: null,
-      });
-
-      const req = createTestRequest('/api/items', {
-        method: 'POST',
-        body: validCreateBody(),
-      });
-
-      const res = await POST(req);
-      expect(res.status).toBe(201);
-
-      const body = await res.json();
       expect(body.dedup_status).toBe('clean');
       expect(body.suspected_duplicate_of).toBeUndefined();
+      expect(body.duplicate_matches).toBeUndefined();
 
       const insertCall = mockSupabase._chain.insert.mock.calls[0][0];
       expect(insertCall.dedup_status).toBe('clean');
       expect(insertCall.metadata.suspected_duplicate_of).toBeUndefined();
     });
 
-    it('near-duplicate match leaves dedup_status=clean (exact-only soft-block)', async () => {
-      configureRole(mockSupabase, 'editor');
-
-      mockCheckForDuplicates.mockResolvedValueOnce({
-        has_duplicates: true,
-        matches: [
-          {
-            id: EXISTING_ID,
-            title: 'Nearly Same Article',
-            similarity: 0.95,
-            match_type: 'near_duplicate',
-          },
-        ],
-      });
-
-      const createdItem = {
-        id: VALID_UUID,
-        title: 'Similar Article',
-        content_type: 'article',
-        created_at: '2026-04-21T12:00:00Z',
-      };
-      mockSupabase._chain.single.mockResolvedValueOnce({
-        data: createdItem,
-        error: null,
-      });
-
-      const req = createTestRequest('/api/items', {
-        method: 'POST',
-        body: validCreateBody(),
-      });
-
-      const res = await POST(req);
-      expect(res.status).toBe(201);
-
-      const body = await res.json();
-      // Only exact matches trigger the stamp; near-dup stays informational
-      expect(body.dedup_status).toBe('clean');
-      expect(body.duplicate_matches).toHaveLength(1);
-      expect(body.duplicate_matches[0].match_type).toBe('near_duplicate');
-
-      const insertCall = mockSupabase._chain.insert.mock.calls[0][0];
-      expect(insertCall.dedup_status).toBe('clean');
-    });
-
-    it('admin skip_dedup=true bypasses stamp even with exact match', async () => {
+    it('skip_dedup=true is a no-op — item still creates cleanly (admin or non-admin)', async () => {
       configureRole(mockSupabase, 'admin');
 
-      mockCheckForDuplicates.mockResolvedValueOnce({
-        has_duplicates: true,
-        matches: [
-          {
-            id: EXISTING_ID,
-            title: 'Existing Article',
-            similarity: 1.0,
-            match_type: 'exact',
-          },
-        ],
-      });
-
       const createdItem = {
         id: VALID_UUID,
-        title: 'Admin Override',
+        title: 'Admin Body With Legacy Field',
         content_type: 'article',
         created_at: '2026-04-21T12:00:00Z',
       };
@@ -977,50 +863,6 @@ describe('POST /api/items', () => {
       const body = await res.json();
       expect(body.dedup_status).toBe('clean');
       expect(body.suspected_duplicate_of).toBeUndefined();
-
-      const insertCall = mockSupabase._chain.insert.mock.calls[0][0];
-      expect(insertCall.dedup_status).toBe('clean');
-      expect(insertCall.metadata.suspected_duplicate_of).toBeUndefined();
-    });
-
-    it('non-admin skip_dedup=true is silently ignored — stamp proceeds', async () => {
-      configureRole(mockSupabase, 'editor');
-
-      mockCheckForDuplicates.mockResolvedValueOnce({
-        has_duplicates: true,
-        matches: [
-          {
-            id: EXISTING_ID,
-            title: 'Existing Article',
-            similarity: 1.0,
-            match_type: 'exact',
-          },
-        ],
-      });
-
-      const createdItem = {
-        id: VALID_UUID,
-        title: 'Editor Cannot Override',
-        content_type: 'article',
-        created_at: '2026-04-21T12:00:00Z',
-      };
-      mockSupabase._chain.single.mockResolvedValueOnce({
-        data: createdItem,
-        error: null,
-      });
-
-      const req = createTestRequest('/api/items', {
-        method: 'POST',
-        body: validCreateBody({ skip_dedup: true }),
-      });
-
-      // Should NOT 403 — silent-ignore per spec §6 D2
-      const res = await POST(req);
-      expect(res.status).toBe(201);
-
-      const body = await res.json();
-      expect(body.dedup_status).toBe('suspected_duplicate');
-      expect(body.suspected_duplicate_of).toBe(EXISTING_ID);
     });
   });
 });

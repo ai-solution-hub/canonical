@@ -261,9 +261,13 @@ describe('B-INV-37 — outputSchema forward-standard (new consolidated entries o
     'whats_in_my_queue', // {71.9}  — faceted queue
   ] as const;
 
-  // The two NEW consolidated entries whose response is a z.union — outputSchema
-  // is intentionally DEFERRED (the MCP SDK's normalizeObjectSchema() returns
-  // undefined for unions, crashing validateToolOutput on undefined._zod). This
+  // `find`'s response is a z.union — outputSchema is intentionally DEFERRED
+  // (the MCP SDK's normalizeObjectSchema() returns undefined for unions,
+  // crashing validateToolOutput on undefined._zod). `find_duplicates` is no
+  // longer a union itself (ID-131.15, G-DEDUP legacy dedup-family
+  // retirement, S446, removed the sibling `scope: 'all'` branch that made
+  // it one) but still omits outputSchema — kept minimal-footprint rather
+  // than retrofitted, consistent with the other entries in this group. This
   // is the documented "where it fits" exclusion, not a B-INV-37 miss.
   const NEW_UNION_SCHEMA_ENTRIES = ['find', 'find_duplicates'] as const;
 
@@ -297,7 +301,7 @@ describe('B-INV-37 — outputSchema forward-standard (new consolidated entries o
     }
   });
 
-  it('the two z.union consolidated entries intentionally defer outputSchema (SDK union gap)', () => {
+  it('find and find_duplicates intentionally omit outputSchema', () => {
     for (const name of NEW_UNION_SCHEMA_ENTRIES) {
       expect(
         registeredNames.has(name),
@@ -305,8 +309,7 @@ describe('B-INV-37 — outputSchema forward-standard (new consolidated entries o
       ).toBe(true);
       expect(
         toolsWithOutputSchema.has(name),
-        `${name} returns a z.union — outputSchema is deferred until the MCP SDK ` +
-          `supports union output schemas; it must NOT be declared`,
+        `${name} must NOT declare an outputSchema — see NEW_UNION_SCHEMA_ENTRIES comment above`,
       ).toBe(false);
     }
   });

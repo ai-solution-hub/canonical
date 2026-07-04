@@ -115,13 +115,8 @@ export const POST = withRequestContext(
         publication_status,
         ingestion_source,
         source_document_id,
-        skip_dedup,
         content_owner_id,
       } = parsed.data;
-
-      // Admin-only dedup override (spec §6 D2). Silent-ignore for
-      // non-admin — do not 403 a legitimate write.
-      const skipDedup = skip_dedup === true && role === 'admin';
 
       // S206 WP-A Phase 2 (AC3.1) — resolve content owner. Admin caller may
       // supply an explicit owner UUID; non-admins are silent-forced to
@@ -150,47 +145,24 @@ export const POST = withRequestContext(
         }
       }
 
-      // Deduplication — soft-block per spec §6 D1. Exact-hash match
-      // stamps `dedup_status='suspected_duplicate'` and records the
-      // existing id in `metadata.suspected_duplicate_of`. Near-duplicate
-      // matches remain informational warnings. Admin override via
-      // `skip_dedup=true` bypasses the stamp (silent-ignore for non-admin).
+      // ID-131.15 (G-DEDUP legacy dedup-family retirement, S446): the
+      // on-ingest dedup pre-check (checkForDuplicates/formatDedupWarning/
+      // resolveDedupStamp, backed by the now-DROPped find_exact_duplicates
+      // + find_similar_content RPCs) was removed — owner-ratified
+      // retirement; the synchronous "possible duplicate" warning is retired
+      // in favour of the id-120 q_a_pairs batch dedup-proposer. New items
+      // are always stamped 'clean' with no duplicate matches.
       const warnings: string[] = [];
-      let dedupMatches: Array<{
+      const dedupMatches: Array<{
         id: string;
         title: string;
         similarity: number;
         match_type: string;
       }> = [];
-      let dedupStamp: {
+      const dedupStamp: {
         dedup_status: 'clean' | 'suspected_duplicate';
         suspected_duplicate_of?: string;
       } = { dedup_status: 'clean' };
-      try {
-        const { checkForDuplicates, formatDedupWarning, resolveDedupStamp } =
-          await import('@/lib/dedup/content-dedup');
-        const plainText = stripMarkdown(content);
-        const dedupResult = await checkForDuplicates(
-          supabase,
-          plainText,
-          embeddingArray,
-        );
-        if (dedupResult.has_duplicates) {
-          dedupMatches = dedupResult.matches;
-          const warning = formatDedupWarning(dedupResult);
-          if (warning) warnings.push(warning);
-        }
-        const exactMatch = dedupResult.matches.find(
-          (m) => m.match_type === 'exact',
-        );
-        dedupStamp = resolveDedupStamp(exactMatch?.id, { skipDedup });
-      } catch (dedupErr) {
-        logger.warn(
-          { err: dedupErr, op: 'items.create.dedup' },
-          'Dedup check failed',
-        );
-        // Non-fatal — continue with creation
-      }
 
       // Normalise ai_keywords at the write boundary (spec ss6.6 EP3).
       // Ensures web-form-submitted keywords match classify-time canonicalisation.

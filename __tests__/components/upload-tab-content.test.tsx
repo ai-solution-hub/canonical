@@ -33,10 +33,6 @@ vi.mock('@/components/create-content/ingestion-progress', () => ({
   ),
 }));
 
-vi.mock('@/components/shared/dedup-warning', () => ({
-  DedupWarning: () => <div data-testid="dedup-warning">DedupWarning</div>,
-}));
-
 vi.mock('@/components/source-document/reupload-banner', () => ({
   ReuploadBanner: () => <div data-testid="reupload-banner">ReuploadBanner</div>,
 }));
@@ -107,7 +103,6 @@ const mockHandleFilesAdded = vi.fn();
 const mockHandleFileRemoved = vi.fn();
 const mockHandleSetLayerMode = vi.fn();
 const mockHandleSetSelectedLayer = vi.fn();
-const mockHandleDismissDedupWarning = vi.fn();
 const mockGetSkipReview = vi.fn().mockReturnValue(false);
 
 // Mutable hook return value that tests can modify
@@ -127,7 +122,6 @@ const hookReturn = {
     title: string;
     contentType: string;
     warnings: string[];
-    dedupMatches: unknown[];
   }>,
   handleFilesAdded: mockHandleFilesAdded,
   handleFileRemoved: mockHandleFileRemoved,
@@ -137,7 +131,6 @@ const hookReturn = {
   setReviewItems: mockSetReviewItems,
   handleSetLayerMode: mockHandleSetLayerMode,
   handleSetSelectedLayer: mockHandleSetSelectedLayer,
-  handleDismissDedupWarning: mockHandleDismissDedupWarning,
   pendingCount: 0,
   hasResults: false,
   hasActiveUploads: false,
@@ -296,7 +289,6 @@ describe('UploadTabContent', () => {
         title: 'Test Document',
         contentType: 'pdf',
         warnings: [] as string[],
-        dedupMatches: [],
       };
 
       mockHandleUpload.mockResolvedValue({
@@ -392,7 +384,6 @@ describe('UploadTabContent', () => {
           title: 'Test Document',
           contentType: 'pdf',
           warnings: [],
-          dedupMatches: [],
         },
       ];
 
@@ -412,7 +403,6 @@ describe('UploadTabContent', () => {
           title: 'Test Document',
           contentType: 'pdf',
           warnings: [],
-          dedupMatches: [],
         },
       ];
 
@@ -429,7 +419,6 @@ describe('UploadTabContent', () => {
           title: 'Test Document',
           contentType: 'pdf',
           warnings: [],
-          dedupMatches: [],
         },
       ];
 

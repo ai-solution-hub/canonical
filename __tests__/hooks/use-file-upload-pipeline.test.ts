@@ -802,33 +802,6 @@ describe('useFileUploadPipeline', () => {
       );
     });
 
-    it('stores dedup matches and shows warning', async () => {
-      mockFetch.mockResolvedValue(
-        successResponse({
-          duplicate_matches: [
-            { id: 'dup-1', title: 'Existing Doc', similarity: 0.91 },
-          ],
-        }),
-      );
-      const { result } = renderUploadHook();
-
-      act(() => {
-        result.current.handleFilesAdded([createTestFile()]);
-      });
-
-      const fileId = result.current.files[0].id;
-
-      await act(async () => {
-        await result.current.handleUpload();
-      });
-
-      expect(result.current.fileStates[fileId].dedupMatches).toHaveLength(1);
-      expect(result.current.fileStates[fileId].dedupMatches[0].id).toBe(
-        'dup-1',
-      );
-      expect(result.current.fileStates[fileId].showDedupWarning).toBe(true);
-    });
-
     it('stores suggested layer from the API response', async () => {
       mockFetch.mockResolvedValue(
         successResponse({
@@ -1054,35 +1027,6 @@ describe('useFileUploadPipeline', () => {
 
       expect(result.current.fileStates[fileId].selectedLayer).toBe('brief');
     });
-
-    it('handleDismissDedupWarning hides the dedup warning', async () => {
-      mockFetch.mockResolvedValue(
-        successResponse({
-          duplicate_matches: [
-            { id: 'dup-1', title: 'Existing', similarity: 0.9 },
-          ],
-        }),
-      );
-      const { result } = renderUploadHook();
-
-      act(() => {
-        result.current.handleFilesAdded([createTestFile()]);
-      });
-
-      const fileId = result.current.files[0].id;
-
-      await act(async () => {
-        await result.current.handleUpload();
-      });
-
-      expect(result.current.fileStates[fileId].showDedupWarning).toBe(true);
-
-      act(() => {
-        result.current.handleDismissDedupWarning(fileId);
-      });
-
-      expect(result.current.fileStates[fileId].showDedupWarning).toBe(false);
-    });
   });
 
   // =========================================================================
@@ -1111,7 +1055,6 @@ describe('useFileUploadPipeline', () => {
           title: 'Test',
           contentType: 'pdf',
           warnings: [] as string[],
-          dedupMatches: [],
         },
       ];
 

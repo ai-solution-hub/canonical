@@ -16,8 +16,10 @@
  *     No direct content_items.insert; the response carries the source_file
  *     correlation key + a "materialising via pipeline" (eventually-consistent)
  *     status, NOT a synchronous row id.
- *   - Auth (editor+), dedup (checkExactDuplicate), and recordPipelineRun audit
- *     semantics are preserved.
+ *   - Auth (editor+) and recordPipelineRun audit semantics are preserved.
+ *     The on-ingest dedup pre-check (checkExactDuplicate) was retired under
+ *     ID-131.15 (G-DEDUP legacy dedup-family retirement, S446) — see
+ *     content-create-dedup.test.ts for the dedup-retirement coverage.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
@@ -80,10 +82,6 @@ const mocks = vi.hoisted(() => {
       primary_subtopic: 'process',
     }),
     recordPipelineRun: vi.fn().mockResolvedValue(undefined),
-    checkExactDuplicate: vi
-      .fn()
-      .mockResolvedValue({ isDuplicate: false, existingId: undefined }),
-    resolveDedupStamp: vi.fn().mockReturnValue({ dedup_status: 'clean' }),
     stageAndWalk: vi.fn().mockResolvedValue({
       destPath: 'agent-create/some-title.md',
       stageRequestId: 'req-123',
@@ -105,11 +103,6 @@ vi.mock('@/lib/supabase/server', () => ({
 
 vi.mock('@/lib/pipeline/record-run', () => ({
   recordPipelineRun: mocks.recordPipelineRun,
-}));
-
-vi.mock('@/lib/dedup/content-dedup', () => ({
-  checkExactDuplicate: mocks.checkExactDuplicate,
-  resolveDedupStamp: mocks.resolveDedupStamp,
 }));
 
 // The create-leg's source-less branch stages the markdown content as a file.
@@ -228,11 +221,6 @@ describe('MCP create_content_item — URL branch routes via reference_ingest', (
     mocks.chain.update.mockReturnValue(mocks.chain);
     mocks.chain.eq.mockReturnValue(mocks.chain);
     mocks.checkMcpRole.mockResolvedValue('editor');
-    mocks.checkExactDuplicate.mockResolvedValue({
-      isDuplicate: false,
-      existingId: undefined,
-    });
-    mocks.resolveDedupStamp.mockReturnValue({ dedup_status: 'clean' });
     mocks.recordPipelineRun.mockResolvedValue(undefined);
     createTool = await buildCreateTool();
   });
@@ -330,11 +318,6 @@ describe('MCP create_content_item — source-less branch stages a file via stage
     mocks.chain.update.mockReturnValue(mocks.chain);
     mocks.chain.eq.mockReturnValue(mocks.chain);
     mocks.checkMcpRole.mockResolvedValue('editor');
-    mocks.checkExactDuplicate.mockResolvedValue({
-      isDuplicate: false,
-      existingId: undefined,
-    });
-    mocks.resolveDedupStamp.mockReturnValue({ dedup_status: 'clean' });
     mocks.recordPipelineRun.mockResolvedValue(undefined);
     mocks.stageAndWalk.mockResolvedValue({
       destPath: 'agent-create/source-less-create.md',
@@ -437,11 +420,6 @@ describe('MCP create_content_item — preserved cross-cutting semantics', () => 
     mocks.chain.update.mockReturnValue(mocks.chain);
     mocks.chain.eq.mockReturnValue(mocks.chain);
     mocks.checkMcpRole.mockResolvedValue('editor');
-    mocks.checkExactDuplicate.mockResolvedValue({
-      isDuplicate: false,
-      existingId: undefined,
-    });
-    mocks.resolveDedupStamp.mockReturnValue({ dedup_status: 'clean' });
     mocks.recordPipelineRun.mockResolvedValue(undefined);
     mocks.stageAndWalk.mockResolvedValue({
       destPath: 'agent-create/preserved.md',
@@ -472,22 +450,6 @@ describe('MCP create_content_item — preserved cross-cutting semantics', () => 
     const call = mocks.recordPipelineRun.mock.calls[0][0];
     expect(call.status).toBe('failed');
     expect(call.errorMessage).toBe('permission_denied');
-  });
-
-  it('runs the exact-duplicate dedup check before staging', async () => {
-    await createTool(
-      {
-        title: 'Dedup Check',
-        content: LONG_CONTENT,
-        content_type: 'capability',
-      },
-      { authInfo: MOCK_AUTH_INFO },
-    );
-
-    expect(mocks.checkExactDuplicate).toHaveBeenCalledWith(
-      mocks.mockSupabaseClient,
-      LONG_CONTENT,
-    );
   });
 
   it('records a completed pipeline_run for the source-less success path', async () => {

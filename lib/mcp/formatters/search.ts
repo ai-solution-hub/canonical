@@ -4,7 +4,6 @@
 import { z } from 'zod';
 import { formatContentType } from '@/lib/format';
 import { truncate } from './shared';
-import { DuplicatePairsResponseSchema } from './quality';
 
 // ---------------------------------------------------------------------------
 // Search results
@@ -311,21 +310,14 @@ export const FindResponseSchema = z.union([
   SimilarItemsResponseSchema,
 ]);
 
-// ---------------------------------------------------------------------------
-// `find_duplicates` consolidated output schema (ID-71.10 / M32, B-INV-32/37)
-//
-// ONE parameterised `find_duplicates` entry collapses the prior dedup pair
-// (find_duplicate_candidates + find_all_duplicates). Its `outputSchema` is the
-// union of the two branch envelopes the `scope` param selects:
-//   - scope: 'item' → SimilarItemsResponseSchema (single-item admin dedup,
-//     shares findSimilarItemsImpl with `find`'s similar_to branch).
-//   - scope: 'all'  → DuplicatePairsResponseSchema (batch KB scan).
-// Declared on the new entry only (B-INV-37 — no retrofit onto retiring tools).
-// ---------------------------------------------------------------------------
-export const FindDuplicatesResponseSchema = z.union([
-  SimilarItemsResponseSchema,
-  DuplicatePairsResponseSchema,
-]);
+// (The `find_duplicates` output schema — FindDuplicatesResponseSchema, ID-71.10
+// / M32, B-INV-32 — was a z.union([SimilarItemsResponseSchema,
+// DuplicatePairsResponseSchema]) covering the two `scope` branches. The
+// `scope: 'all'` branch was retired under ID-131.15 (G-DEDUP legacy
+// dedup-family retirement, S446), leaving find_duplicates single-item-only —
+// the same envelope as SimilarItemsResponseSchema, which callers now use
+// directly. The separate export was removed rather than kept as a duplicate
+// alias (knip flags exact-reference duplicate exports).)
 
 export function formatSimilarItems(data: SimilarItemsResult): string {
   const lines: string[] = [

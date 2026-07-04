@@ -220,24 +220,20 @@ describe('inferSchema binds hook/component-fetched baseline interfaces (32.21 AC
     });
   });
 
-  it('prefers the literal-segment route on a wildcard collision (content-dedup/[id] → DedupItemResponseSchema)', () => {
-    // The /api/admin/content-dedup/[id] route is matched by three baseline
-    // fetcher URLs once the walk broadens: `/queue`, `/near-duplicates`
-    // (literal fetcher segments absorbed by the route's [id] wildcard) and
-    // `/${id}` (the genuine wildcard-aligned DedupItemResponse fetch). The
-    // resolver must prefer the wildcard-ALIGNED candidate over the absorbed
-    // literals — binding DedupItemResponseSchema, not DedupQueueResponseSchema.
-    const project = createCodemodProject();
-    const routes = enumerateRouteFiles(project);
-    const sf = routeBySuffix(
-      routes,
-      'app/api/admin/content-dedup/[id]/route.ts',
-    );
-
-    expect(inferSchemaSourceA(sf, 'GET', project)).toEqual({
-      schema: 'DedupItemResponseSchema',
-    });
-  });
+  // The wildcard-collision fixture this test used to exercise
+  // (`/api/admin/content-dedup/[id]` absorbing the `/queue` and
+  // `/near-duplicates` literal-segment fetcher URLs, then needing the
+  // resolver to prefer the wildcard-ALIGNED `DedupItemResponseSchema`
+  // candidate over the absorbed literals) no longer exists on disk: the
+  // admin content-dedup route family was retired under ID-131.15
+  // (G-DEDUP legacy dedup-family retirement, S446). No other real route
+  // in the corpus currently exhibits an equivalent three-way wildcard
+  // collision, so this test case is removed rather than left pointing at
+  // a nonexistent fixture. If the "prefer wildcard-aligned over absorbed
+  // literal" resolver behaviour needs dedicated real-corpus coverage
+  // again, a fresh fixture route should be identified or authored — flagged
+  // as a coverage gap for the codemod test suite, not a dedup-retirement
+  // concern.
 
   it('does NOT bind a non-baseline fetchJson<T> site (ProcurementSummary on /api/procurement/[id])', () => {
     // hooks/procurement/use-procurement-session.ts fetches a NON-baseline type:
@@ -258,9 +254,12 @@ describe('inferSchema binds hook/component-fetched baseline interfaces (32.21 AC
   it('raises the corpus-wide real-bind count materially above the post-B2 floor of 6', () => {
     // Post-B2 the floor was 6 (fetchers.ts-only walk). Broadening to hooks /
     // components / lib/query binds the hook-fetched baseline interfaces; the
-    // achieved count is 34. Assert a concrete lower bound (>= 30) rather than a
-    // magic exact — a future fetcher addition should not break this gate, but a
-    // regression that re-narrows the walk to the floor must.
+    // achieved count was 34, until ID-131.15 (G-DEDUP legacy dedup-family
+    // retirement, S446) deleted the admin content-dedup route family — 8 of
+    // the previously-bound GET routes went with it, dropping the achieved
+    // count to 26. Assert a concrete lower bound (>= 22) rather than a magic
+    // exact — a future fetcher addition should not break this gate, but a
+    // regression that re-narrows the walk toward the post-B2 floor must.
     const project = createCodemodProject();
     const routes = enumerateRouteFiles(project);
 
@@ -269,7 +268,7 @@ describe('inferSchema binds hook/component-fetched baseline interfaces (32.21 AC
       if (inferSchema(sf, 'GET', project).schema !== 'z.unknown()') real += 1;
     }
 
-    expect(real).toBeGreaterThanOrEqual(30);
+    expect(real).toBeGreaterThanOrEqual(22);
   });
 });
 
@@ -460,12 +459,15 @@ describe('inferSchema binds mutationFetchJson write-response baseline interfaces
   });
 
   it('raises the corpus-wide bindable-baseline coverage across read + write methods (>= 34)', () => {
-    // 32.21 achieved 34 GET binds. Adding the 15 write-response interfaces via
-    // method-aware mutation binding raises the combined read+write bind count.
-    // We count routes that bind a real schema for ANY of their exported-style
-    // methods (GET for reads, POST/PATCH/etc for writes). Assert a concrete
-    // lower bound that exceeds the GET-only floor so a regression that drops
-    // the mutation walk fails this gate.
+    // 32.21 achieved 34 GET binds; ID-131.15 (G-DEDUP legacy dedup-family
+    // retirement, S446) later deleted the admin content-dedup route family,
+    // dropping the GET-only floor to 26 (see the real-bind-count test above).
+    // Adding the 15 write-response interfaces via method-aware mutation
+    // binding still raises the combined read+write bind count well above
+    // the historical 34 mark. We count routes that bind a real schema for
+    // ANY of their exported-style methods (GET for reads, POST/PATCH/etc for
+    // writes). Assert a concrete lower bound that exceeds the GET-only floor
+    // so a regression that drops the mutation walk fails this gate.
     const project = createCodemodProject();
     const routes = enumerateRouteFiles(project);
 
@@ -480,9 +482,8 @@ describe('inferSchema binds mutationFetchJson write-response baseline interfaces
       }
     }
 
-    // The 32.21 GET floor holds and the new POST binds add the 15 write
-    // interfaces (some sharing routes). Combined coverage must clear 34.
-    expect(readBinds).toBeGreaterThanOrEqual(30);
+    // Combined coverage must clear 34 even with the post-ID-131.15 GET floor.
+    expect(readBinds).toBeGreaterThanOrEqual(22);
     expect(writeBinds).toBeGreaterThanOrEqual(10);
     expect(readBinds + writeBinds).toBeGreaterThanOrEqual(34);
   });

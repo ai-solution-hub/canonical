@@ -36,8 +36,6 @@ const {
   mockSuggestGuideSections,
   mockInferLayer,
   mockCalculateAndRoundQualityScore,
-  mockCheckForDuplicates,
-  mockFormatDedupWarning,
 } = vi.hoisted(() => ({
   mockCookies: vi.fn(),
   mockGenerateEmbedding: vi.fn(),
@@ -48,8 +46,6 @@ const {
   mockSuggestGuideSections: vi.fn(),
   mockInferLayer: vi.fn(),
   mockCalculateAndRoundQualityScore: vi.fn(),
-  mockCheckForDuplicates: vi.fn(),
-  mockFormatDedupWarning: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -96,17 +92,6 @@ vi.mock('@/lib/layer-inference', () => ({
 vi.mock('@/lib/quality/quality-score', () => ({
   calculateAndRoundQualityScore: mockCalculateAndRoundQualityScore,
 }));
-
-vi.mock('@/lib/dedup/content-dedup', async () => {
-  const actual = await vi.importActual<
-    typeof import('@/lib/dedup/content-dedup')
-  >('@/lib/dedup/content-dedup');
-  return {
-    ...actual,
-    checkForDuplicates: mockCheckForDuplicates,
-    formatDedupWarning: mockFormatDedupWarning,
-  };
-});
 
 vi.mock('@/lib/change-summary', () => ({
   generateSingleFieldChangeSummary: vi.fn().mockReturnValue('Field updated'),
@@ -245,11 +230,6 @@ beforeEach(() => {
     confidence: 'high',
   });
   mockCalculateAndRoundQualityScore.mockReturnValue(0.5);
-  mockCheckForDuplicates.mockResolvedValue({
-    has_duplicates: false,
-    matches: [],
-  });
-  mockFormatDedupWarning.mockReturnValue(null);
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

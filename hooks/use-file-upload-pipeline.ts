@@ -4,7 +4,6 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
 import type { UploadFile } from '@/components/create-content/file-upload';
-import type { DedupMatch } from '@/components/shared/dedup-warning';
 import type { IngestionStep } from '@/components/create-content/ingestion-progress';
 import type { UploadReviewItem } from '@/components/create-content/upload-review-step';
 
@@ -62,12 +61,10 @@ export interface FileReuploadInfo {
   newDocumentId?: string;
 }
 
-/** Per-file state for progress and dedup tracking */
+/** Per-file state for progress tracking */
 /** @public */
 export interface FileUploadState {
   steps: IngestionStep[];
-  dedupMatches: DedupMatch[];
-  showDedupWarning: boolean;
   warnings: string[];
   suggestedLayer?: FileSuggestedLayer;
   layerMode: 'suggest' | 'change' | 'applied';
@@ -135,7 +132,6 @@ export interface UseFileUploadPipelineReturn {
     mode: 'suggest' | 'change' | 'applied',
   ) => void;
   handleSetSelectedLayer: (fileId: string, layerKey: string) => void;
-  handleDismissDedupWarning: (fileId: string) => void;
 
   // Computed values
   pendingCount: number;
@@ -302,8 +298,6 @@ export function useFileUploadPipeline(
           steps: UPLOAD_STEPS.map((s, i) =>
             i === 0 ? { ...s, status: 'active' as const } : s,
           ),
-          dedupMatches: [],
-          showDedupWarning: false,
           warnings: [],
           layerMode: 'suggest',
           selectedLayer: '',
@@ -354,20 +348,6 @@ export function useFileUploadPipeline(
               }
             : undefined;
 
-        const dedupMatches: DedupMatch[] = (data.duplicate_matches ?? []).map(
-          (m: {
-            id: string;
-            title: string;
-            similarity: number;
-            match_type?: string;
-          }) => ({
-            id: m.id,
-            title: m.title,
-            similarity: m.similarity,
-            match_type: m.match_type ?? 'near_duplicate',
-          }),
-        );
-
         setFileStates((prev) => {
           const state = prev[fileId];
           if (!state) return prev;
@@ -381,8 +361,6 @@ export function useFileUploadPipeline(
                 status: 'done' as const,
               })),
               warnings: data.warnings ?? [],
-              dedupMatches,
-              showDedupWarning: dedupMatches.length > 0,
               suggestedLayer: layerData,
               selectedLayer: layerData?.suggestedLayer ?? '',
               reuploadInfo: reuploadData,
@@ -420,7 +398,6 @@ export function useFileUploadPipeline(
           qualityScore: data.quality_score as number | undefined,
           suggestedLayer: layerData,
           warnings: (data.warnings ?? []) as string[],
-          dedupMatches,
         };
       } catch (err) {
         // Stop cosmetic timer
@@ -536,14 +513,6 @@ export function useFileUploadPipeline(
     [],
   );
 
-  const handleDismissDedupWarning = useCallback((fileId: string) => {
-    setFileStates((prev) => {
-      const state = prev[fileId];
-      if (!state) return prev;
-      return { ...prev, [fileId]: { ...state, showDedupWarning: false } };
-    });
-  }, []);
-
   // Computed values
   const pendingCount = files.filter((f) => f.status === 'pending').length;
   const hasResults = files.some(
@@ -567,7 +536,6 @@ export function useFileUploadPipeline(
     setReviewItems,
     handleSetLayerMode,
     handleSetSelectedLayer,
-    handleDismissDedupWarning,
     pendingCount,
     hasResults,
     hasActiveUploads,

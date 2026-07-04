@@ -1,7 +1,6 @@
 /**
  * Quality, coverage, audit, and quality actions formatters for MCP tool responses.
  */
-import { z } from 'zod';
 import { formatContentType } from '@/lib/format';
 
 // ---------------------------------------------------------------------------
@@ -142,90 +141,9 @@ export function formatAuditResult(data: AuditResult): string {
   return lines.join('\n');
 }
 
-// ---------------------------------------------------------------------------
-// Duplicate pairs
-// ---------------------------------------------------------------------------
-
-export interface DuplicatePair {
-  item_a: {
-    id: string;
-    title: string;
-    content_type: string | null;
-    domain: string | null;
-  };
-  item_b: {
-    id: string;
-    title: string;
-    content_type: string | null;
-    domain: string | null;
-  };
-  similarity: number;
-}
-
-export interface DuplicatePairsResult {
-  count: number;
-  threshold: number;
-  domain_filter?: string;
-  pairs: DuplicatePair[];
-}
-
-/**
- * Zod schema for the `find_duplicates` (scope: all) batch-scan response
- * envelope — mirrors `DuplicatePairsResult` for the consolidated entry's
- * `outputSchema` runtime validation (ID-71.10 / B-INV-37).
- */
-const DuplicatePairItemSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  content_type: z.string().nullable(),
-  domain: z.string().nullable(),
-});
-
-export const DuplicatePairsResponseSchema = z.object({
-  count: z.number(),
-  threshold: z.number(),
-  domain_filter: z.string().optional(),
-  pairs: z.array(
-    z.object({
-      item_a: DuplicatePairItemSchema,
-      item_b: DuplicatePairItemSchema,
-      similarity: z.number(),
-    }),
-  ),
-});
-
-export function formatDuplicatePairs(data: DuplicatePairsResult): string {
-  const lines: string[] = [
-    '# Potential Duplicates Scan',
-    '',
-    `**Threshold:** ${Math.round(data.threshold * 100)}%`,
-    `**Pairs found:** ${data.count}`,
-  ];
-
-  if (data.domain_filter) {
-    lines.push(`**Domain Filter:** ${data.domain_filter}`);
-  }
-
-  lines.push('');
-
-  if (data.count === 0) {
-    lines.push('No potential duplicate pairs found at this threshold.');
-    return lines.join('\n');
-  }
-
-  for (let i = 0; i < data.pairs.length; i++) {
-    const p = data.pairs[i];
-    const sim = Math.round(p.similarity * 100);
-    const flag = p.similarity >= 0.95 ? ' **LIKELY DUPLICATE**' : '';
-    lines.push(`### ${i + 1}. Similarity: ${sim}%${flag}`);
-    lines.push(
-      `- **Item A:** ${p.item_a.title} (${p.item_a.content_type ?? 'unknown'}, ${p.item_a.domain ?? 'no domain'}) \`${p.item_a.id}\``,
-    );
-    lines.push(
-      `- **Item B:** ${p.item_b.title} (${p.item_b.content_type ?? 'unknown'}, ${p.item_b.domain ?? 'no domain'}) \`${p.item_b.id}\``,
-    );
-    lines.push('');
-  }
-
-  return lines.join('\n');
-}
+// (The "Duplicate pairs" formatter section — DuplicatePair, DuplicatePairsResult,
+// DuplicatePairsResponseSchema, formatDuplicatePairs — was retired under
+// ID-131.15, G-DEDUP legacy dedup-family retirement, S446. It backed the
+// find_duplicates `scope: 'all'` whole-KB batch scan via the now-DROPped
+// find_duplicate_pairs RPC; the id-120 q_a_pairs batch dedup-proposer is its
+// replacement.)
