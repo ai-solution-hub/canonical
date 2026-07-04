@@ -72,13 +72,13 @@ Read these documents in parallel to load context. **Load anchor first** — `${K
 
 ### 2a: Memory recall
 
-Call `mempalace_diary_read` (`agent_name: claude`, `last_n: 3`) — skip `CHECKPOINT:` auto-noise rows, read the narrative entries. Then run **branch + active-task-seeded** recall via `mempalace_search` / `mempalace_kg_query` per the `mempalace-recall` skill. Search **without** a `wing` filter (upstream #1665) and filter client-side; if vector search errors, the lock-free `mode=ro` sqlite FTS read is the fallback (**DR-009** — recall is read-only).
+Call `mempalace_diary_read` (`agent_name: claude`, `last_n: 2`) — skip `CHECKPOINT:` auto-noise rows, read the narrative entries. Then run **branch + active-task-seeded** recall via `mempalace_search` / `mempalace_kg_query` per the `mempalace-recall` skill. Search **without** a `wing` filter (upstream #1665) and filter client-side; if vector search errors, the lock-free `mode=ro` sqlite FTS read is the fallback.
 
 ### 2b: Task-list state inspection (slice reads ONLY)
 
 Inspect recently-active task records via the ledger CLI — **never Read the
 ledger JSON files wholesale** (task-list.json is multi-MB; full reads burn
-context for nothing — WS-B4):
+context for nothing):
 
 ```bash
 bun scripts/ledger-cli.ts show task <id>          # one task record
