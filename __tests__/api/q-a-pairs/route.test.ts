@@ -2,6 +2,8 @@
  * API route tests for the UC6 user-direct Q&A write route
  * (`app/api/q-a-pairs/[id]/route.ts`, PATCH) — ID-59 {59.11} (PC-A4 / PC-4)
  * + {59.30} sidecar emit + first-edit materialisation (TECH R2; INV-12/13/7).
+ * {138.12} T4 — the sidecar file leg re-points onto the `corpus` Storage
+ * bucket (TECH §3.3 T4, folded into T1).
  *
  * Covers:
  *   - Auth gating: unauthenticated (401), viewer (403), editor/admin allowed.
@@ -11,38 +13,23 @@
  *     q_a_pair_history).
  *   - edit_intent stamp (single-actor + CRDT arbitrateMany merge path).
  *   - Validation: empty body → 400; unknown edit_intent coerced to 'cosmetic'.
- *   - {59.30} sidecar emit (INV-12 write-back, INV-13 materialise, INV-7 gate):
- *     · existing-sidecar `curated_explicit` pair → carried bytes written to the
- *       file AND the DB UPDATEd; force the DB leg to throw AFTER the file write
- *       → the file is RESTORED and one failure surfaces.
- *     · source-less `curated_explicit` pair → a sidecar is MINTED (file written
+ *   - {59.30}/{138.12} sidecar emit (INV-12 write-back, INV-13 materialise,
+ *     INV-7 gate):
+ *     · existing-sidecar `curated_explicit` pair → carried bytes PUT to the
+ *       `corpus` bucket object AND the DB UPDATEd; force the DB leg to throw
+ *       AFTER the PUT → the object is RESTORED and one failure surfaces.
+ *     · source-less `curated_explicit` pair → a sidecar is MINTED (object PUT
  *       + source_document_id set = sdUuid5(qaSidecarRelPath(id))).
- *     · `derived_from_form_response` pair → NO file write (INV-7 — not in set).
- *     · COCOINDEX_SOURCE_PATH unset → DB-only (save lands, no file write).
+ *     · `derived_from_form_response` pair → NO Storage PUT (INV-7 — not in set).
+ *     · the `corpus` bucket not provisioned in this project (Storage-leg
+ *       idle-mode equivalent) → DB-only (save lands, no Storage PUT, no
+ *       linkage set on the materialise path).
  *     · affected-row = 1 assertion on the UPDATE (0-row PATCH is a failure).
  *     · the DEFERRED-v1.1 comment is gone from the route source.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-
-// The file leg is mocked so the carried bytes / restore can be asserted and
-// failures forced deterministically (no temp dir needed for the route tests).
-const fsMocks = vi.hoisted(() => ({
-  writeFile: vi.fn(
-    async (_path: string, _data: string): Promise<void> => undefined,
-  ),
-  readFile: vi.fn(async (_path: string): Promise<string> => ''),
-}));
-vi.mock('node:fs/promises', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:fs/promises')>();
-  return {
-    ...actual,
-    default: { ...actual, ...fsMocks },
-    writeFile: fsMocks.writeFile,
-    readFile: fsMocks.readFile,
-  };
-});
 
 import {
   createMockSupabaseClient,
@@ -55,6 +42,7 @@ import {
   qaSidecarRelPath,
   parseCarriedSet,
 } from '@/lib/q-a-pairs/sidecar-path';
+import { CORPUS_BUCKET } from '@/lib/edit-intent/write-back';
 
 // ---------------------------------------------------------------------------
 // Shared mock client
@@ -88,7 +76,27 @@ const QA_UUID = 'b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e';
 const ACTOR_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const ACTOR_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const SOURCE_DOC_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
-const SOURCE_ROOT = '/tmp/cocoindex-source-root-test';
+
+/**
+ * The shape of the storage bucket double `createMockSupabaseClient()` wires
+ * `storage.from()` to resolve to. Declared locally (not imported from the
+ * shared helper) because `MockSupabaseClient['storage']['from']`'s
+ * `ReturnType<typeof vi.fn>` type is a bare, un-parameterised Mock — calling
+ * it directly does not typecheck (TS2348); the cast below is the minimal
+ * local fix, confined to this test file.
+ */
+interface MockStorageBucket {
+  upload: ReturnType<typeof vi.fn>;
+  download: ReturnType<typeof vi.fn>;
+}
+
+/** The `corpus` Storage bucket double (`mockSupabase.storage.from(CORPUS_BUCKET)`). */
+function bucket(): MockStorageBucket {
+  const from = mockSupabase.storage.from as unknown as (
+    bucketName: string,
+  ) => MockStorageBucket;
+  return from(CORPUS_BUCKET);
+}
 
 /** A stored pair the pre-read resolves to. Defaults to the DB-only baseline. */
 function storedPair(over: Record<string, unknown> = {}) {
@@ -147,6 +155,16 @@ function resetMocks() {
     data: null,
     error: null,
   });
+  // The writer-fence RPC (acquire + release) succeeds by default — tests
+  // exercising fence-busy override with a scoped mockResolvedValueOnce.
+  mockSupabase.rpc.mockResolvedValue({ data: true, error: null });
+  // Storage defaults: an existing object with empty prior bytes (harmless
+  // for tests that don't assert on the restore snapshot) + a successful PUT.
+  bucket().download.mockResolvedValue({ data: new Blob(['']), error: null });
+  bucket().upload.mockResolvedValue({
+    data: { path: 'test-path' },
+    error: null,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -156,9 +174,8 @@ function resetMocks() {
 describe('PATCH /api/q-a-pairs/:id', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    fsMocks.writeFile.mockReset().mockResolvedValue(undefined);
-    fsMocks.readFile.mockReset().mockResolvedValue('');
-    delete process.env.COCOINDEX_SOURCE_PATH;
+    delete process.env.COCOINDEX_WORKER_URL;
+    delete process.env.CRON_SECRET;
     resetMocks();
   });
 
@@ -229,9 +246,9 @@ describe('PATCH /api/q-a-pairs/:id', () => {
       const updatePayload = mockSupabase._chain.update.mock.calls[0][0];
       expect(updatePayload.edit_intent).toBe('data');
       expect(updatePayload.question_text).toBe('New question?');
-      // DB-only: no source_document_id mutation, no file write.
+      // DB-only: no source_document_id mutation, no Storage PUT.
       expect(updatePayload.source_document_id).toBeUndefined();
-      expect(fsMocks.writeFile).not.toHaveBeenCalled();
+      expect(bucket().upload).not.toHaveBeenCalled();
     });
 
     it('updates q_a_pairs via the admin role and stamps a single intent', async () => {
@@ -351,10 +368,9 @@ describe('PATCH /api/q-a-pairs/:id', () => {
     });
   });
 
-  // ── {59.30} sidecar emit ─────────────────────────────────────────────────
-  describe('{59.30} sidecar emit (INV-12 / INV-13 / INV-7)', () => {
-    it('write-back (INV-12): an existing-sidecar curated_explicit pair writes the carried bytes AND UPDATEs the DB', async () => {
-      process.env.COCOINDEX_SOURCE_PATH = SOURCE_ROOT;
+  // ── {59.30}/{138.12} sidecar emit ─────────────────────────────────────────
+  describe('{59.30}/{138.12} sidecar emit (INV-12 / INV-13 / INV-7)', () => {
+    it('write-back (INV-12): an existing-sidecar curated_explicit pair PUTs the carried bytes AND UPDATEs the DB', async () => {
       configureRole(mockSupabase, 'editor');
       configurePreRead(
         storedPair({
@@ -374,15 +390,15 @@ describe('PATCH /api/q-a-pairs/:id', () => {
 
       expect(res.status).toBe(200);
 
-      // File leg: carried bytes written to the resolved sidecar path.
-      expect(fsMocks.writeFile).toHaveBeenCalledTimes(1);
-      const [absPath, bytes] = fsMocks.writeFile.mock.calls[0];
-      expect(absPath).toBe(`${SOURCE_ROOT}/__qa__/existing-sidecar.md`);
+      // Storage leg: carried bytes PUT to the resolved sidecar object key.
+      expect(bucket().upload).toHaveBeenCalledTimes(1);
+      const [objectKey, bytes] = bucket().upload.mock.calls[0];
+      expect(objectKey).toBe('__qa__/existing-sidecar.md');
       // The full post-edit carried set (partial PATCH merged onto stored).
       const carried = parseCarriedSet(bytes);
       expect(carried.question_text).toBe('Original question?');
       expect(carried.answer_standard).toBe('Edited answer.');
-      // Lifecycle never leaks into the file (INV-9).
+      // Lifecycle never leaks into the object (INV-9).
       expect(bytes).not.toContain('edit_intent');
       expect(bytes).not.toContain('source_document_id');
 
@@ -393,8 +409,7 @@ describe('PATCH /api/q-a-pairs/:id', () => {
       expect(updatePayload.source_document_id).toBeUndefined();
     });
 
-    it('write-back atomicity: a DB-leg failure AFTER the file write RESTORES the file and surfaces one failure', async () => {
-      process.env.COCOINDEX_SOURCE_PATH = SOURCE_ROOT;
+    it('write-back atomicity: a DB-leg failure AFTER the PUT RESTORES the object and surfaces one failure', async () => {
       configureRole(mockSupabase, 'editor');
       configurePreRead(
         storedPair({
@@ -403,10 +418,13 @@ describe('PATCH /api/q-a-pairs/:id', () => {
         }),
       );
       configureStoragePath('__qa__/existing-sidecar.md');
-      // The prior on-disk bytes the compensating restore must put back.
+      // The prior bytes the compensating restore must PUT back.
       const PRIOR = '--- prior bytes ---';
-      fsMocks.readFile.mockResolvedValue(PRIOR);
-      // The DB UPDATE fails after the file write.
+      bucket().download.mockResolvedValueOnce({
+        data: new Blob([PRIOR]),
+        error: null,
+      });
+      // The DB UPDATE fails after the PUT.
       mockSupabase._chain.single.mockResolvedValueOnce({
         data: null,
         error: { message: 'db boom', code: 'XXXXX' },
@@ -419,14 +437,13 @@ describe('PATCH /api/q-a-pairs/:id', () => {
 
       // One failure surfaced.
       expect(res.status).toBe(500);
-      // writeFile called twice: the edit, then the compensating restore.
-      expect(fsMocks.writeFile).toHaveBeenCalledTimes(2);
-      const restoreCall = fsMocks.writeFile.mock.calls[1];
+      // upload called twice: the edit, then the compensating restore.
+      expect(bucket().upload).toHaveBeenCalledTimes(2);
+      const restoreCall = bucket().upload.mock.calls[1];
       expect(restoreCall[1]).toBe(PRIOR);
     });
 
-    it('materialise-on-first-edit (INV-13): a source-less curated_explicit pair MINTS a sidecar (file + source_document_id)', async () => {
-      process.env.COCOINDEX_SOURCE_PATH = SOURCE_ROOT;
+    it('materialise-on-first-edit (INV-13): a source-less curated_explicit pair MINTS a sidecar (Storage PUT + source_document_id)', async () => {
       configureRole(mockSupabase, 'editor');
       configurePreRead(
         storedPair({
@@ -447,12 +464,14 @@ describe('PATCH /api/q-a-pairs/:id', () => {
 
       // Path + linkage are keyed on the PAIR PK (consistency with {59.29}).
       const expectedRelPath = qaSidecarRelPath(QA_UUID);
-      const expectedAbsPath = `${SOURCE_ROOT}/${expectedRelPath}`;
       const expectedSdId = sdUuid5(expectedRelPath);
 
-      expect(fsMocks.writeFile).toHaveBeenCalledTimes(1);
-      const [absPath, bytes] = fsMocks.writeFile.mock.calls[0];
-      expect(absPath).toBe(expectedAbsPath);
+      // MATERIALISE mints via writeNewCorpusObject — no download/snapshot,
+      // a plain fenced PUT (no prior object to restore).
+      expect(bucket().download).not.toHaveBeenCalled();
+      expect(bucket().upload).toHaveBeenCalledTimes(1);
+      const [objectKey, bytes] = bucket().upload.mock.calls[0];
+      expect(objectKey).toBe(expectedRelPath);
       const carried = parseCarriedSet(bytes);
       expect(carried.question_text).toBe('Authored question?');
       expect(carried.answer_standard).toBe('Now edited.');
@@ -463,7 +482,6 @@ describe('PATCH /api/q-a-pairs/:id', () => {
     });
 
     it('INV-7 gate: a derived_from_form_response pair does NOT mint a sidecar', async () => {
-      process.env.COCOINDEX_SOURCE_PATH = SOURCE_ROOT;
       configureRole(mockSupabase, 'editor');
       configurePreRead(
         storedPair({
@@ -479,14 +497,13 @@ describe('PATCH /api/q-a-pairs/:id', () => {
       );
 
       expect(res.status).toBe(200);
-      // Not in the INV-7 user-direct set → KH-DB-only, no file.
-      expect(fsMocks.writeFile).not.toHaveBeenCalled();
+      // Not in the INV-7 user-direct set → KH-DB-only, no Storage PUT.
+      expect(bucket().upload).not.toHaveBeenCalled();
       const updatePayload = mockSupabase._chain.update.mock.calls[0][0];
       expect(updatePayload.source_document_id).toBeUndefined();
     });
 
-    it('idle mode: COCOINDEX_SOURCE_PATH unset → DB-only even for a curated_explicit pair', async () => {
-      // env intentionally unset (deleted in beforeEach).
+    it('{138.12} Storage-leg idle-mode equivalent (materialise branch): corpus bucket not provisioned → DB-only, no linkage set', async () => {
       configureRole(mockSupabase, 'editor');
       configurePreRead(
         storedPair({
@@ -494,6 +511,11 @@ describe('PATCH /api/q-a-pairs/:id', () => {
           source_document_id: null,
         }),
       );
+      // The MATERIALISE mint's PUT fails with the bucket-not-found signature.
+      bucket().upload.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'Bucket not found' },
+      });
       configureUpdateReturns({ id: QA_UUID, edit_intent: 'data' });
 
       const res = await PATCH(
@@ -502,10 +524,37 @@ describe('PATCH /api/q-a-pairs/:id', () => {
       );
 
       expect(res.status).toBe(200);
-      // Idle → the save lands DB-only; no file mint, no linkage set.
-      expect(fsMocks.writeFile).not.toHaveBeenCalled();
+      // Bucket unconfigured → the save lands DB-only; the linkage is NEVER
+      // set to a sidecar that was never actually written (no dangling ref).
       const updatePayload = mockSupabase._chain.update.mock.calls[0][0];
       expect(updatePayload.source_document_id).toBeUndefined();
+    });
+
+    it('{138.12} Storage-leg idle-mode equivalent (write-back branch): corpus bucket not provisioned → DB-only, existing linkage untouched', async () => {
+      configureRole(mockSupabase, 'editor');
+      configurePreRead(
+        storedPair({
+          origin_kind: 'curated_explicit',
+          source_document_id: SOURCE_DOC_ID,
+        }),
+      );
+      configureStoragePath('__qa__/existing-sidecar.md');
+      // The write-back snapshot download fails with bucket-not-found.
+      bucket().download.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'Bucket not found' },
+      });
+      configureUpdateReturns({ id: QA_UUID, edit_intent: 'data' });
+
+      const res = await PATCH(
+        makeRequest({ answer_standard: 'Edited answer.', edit_intent: 'data' }),
+        makeContext(),
+      );
+
+      expect(res.status).toBe(200);
+      expect(bucket().upload).not.toHaveBeenCalled();
+      const updatePayload = mockSupabase._chain.update.mock.calls[0][0];
+      expect(updatePayload.answer_standard).toBe('Edited answer.');
     });
   });
 });

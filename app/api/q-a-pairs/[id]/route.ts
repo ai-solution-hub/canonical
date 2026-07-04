@@ -13,20 +13,34 @@
 //
 // SIDECAR EMIT (INV-12 / INV-13): for an INV-7-scope pair (`curated_explicit`)
 // this revision is a DUAL-WRITE — the carried-set bytes go to the pair's
-// `__qa__/` sidecar `.md` file AND the q_a_pairs row is UPDATEd, presented as
-// ONE atomic save via the shared file-first + compensating-restore primitive
-// (`writeFileFirstWithRestore`, the same ordering the content-item route uses).
+// `__qa__/` sidecar `.md` object AND the q_a_pairs row is UPDATEd, presented
+// as ONE atomic save via the shared file-first + compensating-restore
+// primitive (`writeFileFirstWithRestore`, the same ordering the content-item
+// route uses).
 //   - `source_document_id IS NOT NULL` → write-back to the existing sidecar.
 //   - `source_document_id IS NULL` → MATERIALISE a sidecar on this first edit
-//     (mint the file + set `source_document_id = sdUuid5(relPath)`); the
+//     (mint the object + set `source_document_id = sdUuid5(relPath)`); the
 //     cocoindex re-walk mints the matching `source_documents` row next ingest,
 //     re-keying the SAME uuid5, so the linkage round-trips (FK-LESS — no FK to
 //     violate by writing the id before that row exists).
-//   - `COCOINDEX_SOURCE_PATH` unset (idle), or write-back storage_path resolves
-//     null → DB-only fall-through; the save still lands and self-heals next walk.
+//   - the `corpus` bucket not provisioned in this project, or write-back
+//     storage_path resolves null → DB-only fall-through; the save still lands
+//     and self-heals next walk/pull-sync.
 // Pairs OUTSIDE the INV-7 set (`derived_from_form_response`, `imported_legacy`,
 // and — for this user-direct route — anything not `curated_explicit`) keep the
-// KH-DB-only behaviour: no file is minted.
+// KH-DB-only behaviour: no sidecar is minted.
+//
+// {138.12} T4 RE-POINT (TECH §3.3 T4, folded into T1): the sidecar's file leg
+// now targets the `corpus` Storage bucket (object key = the resolved
+// storage_path / minted relPath, consumed verbatim) instead of a
+// `COCOINDEX_SOURCE_PATH`-joined on-disk write — both branches below re-point
+// onto `lib/edit-intent/write-back.ts`'s Storage-backed primitives
+// (`writeFileFirstWithRestore` for the existing-sidecar write-back,
+// `writeNewCorpusObject` for the MATERIALISE mint) so the whole sidecar
+// surface lands in the SAME bucket at the SAME key scheme; a
+// `CorpusBucketUnavailableError` is the Storage-leg idle-mode equivalent of
+// the old `COCOINDEX_SOURCE_PATH`-unset check (see write-back.ts's module
+// header) and is caught here to fall through to the pre-existing DB-only path.
 //
 // History snapshots: the existing `q_a_pairs_history_trigger()` (AFTER UPDATE
 // on q_a_pairs, updated in {59.5} to also copy OLD.edit_intent) writes the
@@ -38,7 +52,11 @@ import {
   coerceIntent,
   type EditIntent,
 } from '@/lib/edit-intent/arbitrate';
-import { writeFileFirstWithRestore } from '@/lib/edit-intent/write-back';
+import {
+  CorpusBucketUnavailableError,
+  writeFileFirstWithRestore,
+  writeNewCorpusObject,
+} from '@/lib/edit-intent/write-back';
 import { safeErrorMessage } from '@/lib/error';
 import {
   qaSidecarRelPath,
@@ -50,8 +68,6 @@ import { isOk, tryQuery, type PostgrestLike } from '@/lib/supabase/safe';
 import { parseBody } from '@/lib/validation';
 import type { Database } from '@/supabase/types/database.types';
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { z } from 'zod';
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -306,21 +322,23 @@ export const PATCH = defineRoute(
       };
 
       // ── Branch on the INV-7 gate + sidecar state ─────────────────────────────
+      // {138.12} T4 RE-POINT: the old `!sourceRoot` (COCOINDEX_SOURCE_PATH
+      // unset) idle-mode gate is GONE — the Storage-leg equivalent
+      // (`CorpusBucketUnavailableError`) is now discovered per-branch, at
+      // Storage-call time, not via a static env-var check up front (see
+      // write-back.ts's module header for the full rationale).
       const inSidecarScope = USER_DIRECT_SIDECAR_ORIGIN_KINDS.has(
         storedPair.origin_kind,
       );
-      const sourceRoot = process.env.COCOINDEX_SOURCE_PATH;
 
-      if (!inSidecarScope || !sourceRoot) {
-        // Outside the INV-7 set, OR idle mode (no source-binding folder): the
-        // save is KH-DB-only. The DB write is the single source of the outcome;
-        // it self-heals into a file on the next bound walk for in-scope pairs.
+      if (!inSidecarScope) {
+        // Outside the INV-7 set: the save is KH-DB-only.
         await applyDbLeg();
       } else if (storedPair.source_document_id !== null) {
         // WRITE-BACK (INV-12): the pair already has a sidecar. Resolve its
         // storage_path FK-LESSLY (two plain reads, NEVER a PostgREST embed —
-        // the embed PGRST200s post-FK-drop, BUG-E) and rewrite the file as one
-        // atomic save with the DB UPDATE.
+        // the embed PGRST200s post-FK-drop, BUG-E) and rewrite the sidecar
+        // object as one atomic save with the DB UPDATE.
         const docResult = await tryQuery<{
           storage_path: string | null;
         } | null>(
@@ -342,16 +360,26 @@ export const PATCH = defineRoute(
         const storagePath = docResult.data?.storage_path ?? null;
         if (storagePath === null) {
           // No source_documents row yet (or no storage_path) — the sidecar has
-          // not materialised on disk. Fall through to DB-only for this one edit,
+          // not materialised. Fall through to DB-only for this one edit,
           // exactly like writeBackFileFirst's idle/dangling fall-through; the
           // next walk reconciles. (Covers the FK-less write-before-row window.)
           await applyDbLeg();
         } else {
-          await writeFileFirstWithRestore({
-            absPath: join(sourceRoot, storagePath),
-            newContent: serialiseCarriedSet(carried),
-            applyDbLeg,
-          });
+          try {
+            await writeFileFirstWithRestore({
+              supabase,
+              objectKey: storagePath,
+              newContent: serialiseCarriedSet(carried),
+              applyDbLeg,
+            });
+          } catch (err) {
+            if (err instanceof CorpusBucketUnavailableError) {
+              // Storage-leg idle-mode equivalent — DB-only fall-through.
+              await applyDbLeg();
+            } else {
+              throw err;
+            }
+          }
         }
       } else {
         // MATERIALISE-ON-FIRST-EDIT (INV-13, OQ-25-4 RATIFIED): a source-less
@@ -362,13 +390,23 @@ export const PATCH = defineRoute(
         // matching source_documents row next ingest, re-keying the SAME uuid5.
         // FK-LESS: writing the id before that row exists violates no FK (INV-8).
         const relPath = qaSidecarRelPath(id);
-        mintedSourceDocumentId = sdUuid5(relPath);
-        const absPath = join(sourceRoot, relPath);
-        // Mint the new file first, then the DB leg (with the linkage). There is
-        // no prior file to snapshot/restore, so this is a plain file-first mint
-        // rather than the read-then-restore primitive (which assumes a prior
-        // file); a DB-leg failure leaves an orphan .md the next walk reconciles.
-        await writeFile(absPath, serialiseCarriedSet(carried), 'utf8');
+        try {
+          await writeNewCorpusObject({
+            supabase,
+            objectKey: relPath,
+            newContent: serialiseCarriedSet(carried),
+          });
+          // Only stamp the linkage once the sidecar object actually landed —
+          // a dangling source_document_id pointing at an object that was
+          // NEVER written would never be reconciled by any future walk
+          // (mirrors the old !sourceRoot idle-mode contract: no file ⇒ no
+          // linkage to a file that was never written).
+          mintedSourceDocumentId = sdUuid5(relPath);
+        } catch (err) {
+          if (!(err instanceof CorpusBucketUnavailableError)) throw err;
+          // Storage-leg unconfigured here — DB-only; mintedSourceDocumentId
+          // stays null (see above).
+        }
         await applyDbLeg();
       }
 

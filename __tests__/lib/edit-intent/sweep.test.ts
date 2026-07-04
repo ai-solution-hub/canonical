@@ -1,28 +1,33 @@
 /**
  * {59.13} — UC3 sweeping-rename orchestrator (batched single-actor file
- * write-back) + whole-sweep rollback. PRODUCT PC-6 / INV-6 (TECH §PC-6→INV-6).
+ * write-back) + whole-sweep / per-match rollback. PRODUCT PC-6 / INV-6 (TECH
+ * §PC-6→INV-6).
  *
- * These are file-backed integration tests: each per-match file leg writes to a
- * real temp directory (a stand-in for the COCOINDEX_SOURCE_PATH source-binding
- * folder) so the per-match rewrite at `storage_path` is proven against actual
- * bytes on disk, not a mock. The DB leg (the {59.8} content_items +
- * content_history write per match) is recorded against an in-memory stub so the
- * per-match sweep-id provenance + whole-sweep rollback are observable.
+ * {138.12} T1 RE-POINT (necessary collateral, TECH §3.3 T1/§2.1 R(a)):
+ * `runSweep`/`rollbackSweep` are UNCHANGED in contract (this Subtask's file-
+ * ownership boundary is `lib/edit-intent/write-back.ts` +
+ * `app/api/q-a-pairs/[id]/route.ts`, NOT `sweep.ts`) — but both call the
+ * SHARED `writeBackFileFirst` primitive, whose file leg now PUTs into the
+ * `corpus` Storage bucket instead of rewriting a real on-disk file. This test
+ * double therefore now models the bucket as an in-memory object store
+ * (`db.objects`, keyed by `storage_path`) plus a stubbed writer-fence RPC,
+ * rather than writing to a real temp directory — the OLD docstring here
+ * described "file-backed integration tests... proven against actual bytes on
+ * disk"; that premise is stale post-re-point, so the assertions below check
+ * the in-memory object store instead.
  *
- * The testStrategy proofs:
- *   1. one sweep rewrites N files at their storage_path;
+ * The testStrategy proofs (unchanged in intent, re-targeted to Storage):
+ *   1. one sweep PUTs N objects at their storage_path (object key);
  *   2. all N matches share a single sweep-id, recorded per-match (audit);
- *   3. whole-sweep rollback restores ALL N files to their prior bytes;
+ *   3. whole-sweep rollback restores ALL N objects to their prior bytes;
  *   4. arbitrate()/arbitrateMany() are NEVER called (batched single-actor);
  *   5. per-match provenance is auditable AND per-match revert works.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mkdtemp, readFile, writeFile, rm, mkdir } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join, dirname } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { runSweep, rollbackSweep } from '@/lib/edit-intent/sweep';
 import type { SweepMatchInput } from '@/lib/edit-intent/sweep';
+import { CORPUS_BUCKET } from '@/lib/edit-intent/write-back';
 
 // Spy targets — proves the sweep NEVER calls arbitration (batched single-actor).
 import * as arbitrateModule from '@/lib/edit-intent/arbitrate';
@@ -47,25 +52,32 @@ interface HistoryRow {
 }
 
 /**
- * In-memory supabase stub modelling the three tables the sweep + rollback
- * touch: content_items (live bytes + source_document_id), source_documents
- * (storage_path, read directly by PK — the content_items ->
+ * In-memory supabase stub modelling the tables + Storage surface the sweep +
+ * rollback touch: content_items (live bytes + source_document_id),
+ * source_documents (storage_path, read directly by PK — the content_items ->
  * source_documents FK was dropped in migration 20260602073942, so the
- * adapter resolves it with a second plain read, never an FK embed), and
+ * adapter resolves it with a second plain read, never an FK embed),
  * content_history (the per-match snapshot rows carrying the sweep-id
- * provenance). The stub is deliberately small — it only models the exact
- * query shapes the code issues.
+ * provenance), the `corpus` Storage bucket (an in-memory object store keyed
+ * by storage_path, {138.12} re-point), and the writer-fence RPC (always
+ * succeeds — single-actor, no real concurrency to model here). The stub is
+ * deliberately small — it only models the exact query shapes the code issues.
  */
 function makeDb(files: Record<string, { rel: string; content: string }>): {
   client: unknown;
   history: HistoryRow[];
   liveContent: () => Record<string, string>;
+  objects: Record<string, string>;
 } {
   // Per-item live content + a per-item source_document carrying its
   // storage_path (each item gets a distinct doc id derived from SRC_DOC).
   const items: Record<string, { content: string; source_document_id: string }> =
     {};
   const docs: Record<string, { storage_path: string }> = {};
+  // The `corpus` bucket's in-memory object store, keyed by storage_path
+  // (the {138.12} object key) — seeded with each match's PRIOR bytes, the
+  // same role the real temp-dir files played pre-re-point.
+  const objects: Record<string, string> = {};
   let docSeq = 0;
   for (const [id, f] of Object.entries(files)) {
     const docId = `${SRC_DOC.slice(0, -2)}${String(docSeq++).padStart(2, '0')}`;
@@ -74,6 +86,7 @@ function makeDb(files: Record<string, { rel: string; content: string }>): {
       source_document_id: docId,
     };
     docs[docId] = { storage_path: f.rel };
+    objects[f.rel] = f.content;
   }
   const history: HistoryRow[] = [];
 
@@ -198,9 +211,40 @@ function makeDb(files: Record<string, { rel: string; content: string }>): {
     throw new Error(`unexpected table ${table}`);
   }
 
+  // The `corpus` Storage bucket double — an in-memory object store keyed by
+  // storage_path (the {138.12} object key), backing `writeBackFileFirst`'s
+  // Storage leg (download = snapshot, upload = PUT/restore).
+  const storageBucket = {
+    async download(objectKey: string) {
+      if (!(objectKey in objects)) {
+        return { data: null, error: { message: 'Object not found' } };
+      }
+      return { data: new Blob([objects[objectKey]]), error: null };
+    },
+    async upload(objectKey: string, content: string) {
+      objects[objectKey] = content;
+      return { data: { path: objectKey }, error: null };
+    },
+  };
+  const storage = {
+    from(bucket: string) {
+      if (bucket !== CORPUS_BUCKET) {
+        throw new Error(`unexpected bucket ${bucket}`);
+      }
+      return storageBucket;
+    },
+  };
+
+  // The writer-fence RPC — always succeeds (single-actor sweep, no real
+  // concurrency to model here); mirrors createMockSupabaseClient()'s default.
+  async function rpc() {
+    return { data: true, error: null };
+  }
+
   return {
-    client: { from } as unknown,
+    client: { from, storage, rpc } as unknown,
     history,
+    objects,
     liveContent: () => {
       const out: Record<string, string> = {};
       for (const [id, it] of Object.entries(items)) out[id] = it.content;
@@ -210,7 +254,6 @@ function makeDb(files: Record<string, { rel: string; content: string }>): {
 }
 
 describe('runSweep — UC3 batched single-actor sweep + whole-sweep rollback', () => {
-  let sourceRoot: string;
   const REL = {
     a: 'corpus/team/alpha.md',
     b: 'corpus/team/bravo.md',
@@ -227,19 +270,7 @@ describe('runSweep — UC3 batched single-actor sweep + whole-sweep rollback', (
     c: '# Charlie\n\nnew-name at the end\n',
   };
 
-  beforeEach(async () => {
-    sourceRoot = await mkdtemp(join(tmpdir(), 'kh-sweep-'));
-    process.env.COCOINDEX_SOURCE_PATH = sourceRoot;
-    for (const k of ['a', 'b', 'c'] as const) {
-      const abs = join(sourceRoot, REL[k]);
-      await mkdir(dirname(abs), { recursive: true });
-      await writeFile(abs, PRIOR[k], 'utf8');
-    }
-  });
-
-  afterEach(async () => {
-    delete process.env.COCOINDEX_SOURCE_PATH;
-    await rm(sourceRoot, { recursive: true, force: true });
+  afterEach(() => {
     vi.restoreAllMocks();
   });
 
@@ -251,7 +282,7 @@ describe('runSweep — UC3 batched single-actor sweep + whole-sweep rollback', (
     ];
   }
 
-  it('PROOF 1+2 — rewrites N files at storage_path; ALL share one sweep-id recorded per-match', async () => {
+  it('PROOF 1+2 — PUTs N objects at storage_path; ALL share one sweep-id recorded per-match', async () => {
     const db = makeDb({
       [ITEM_A]: { rel: REL.a, content: PRIOR.a },
       [ITEM_B]: { rel: REL.b, content: PRIOR.b },
@@ -265,10 +296,10 @@ describe('runSweep — UC3 batched single-actor sweep + whole-sweep rollback', (
       actorId: ACTOR,
     });
 
-    // Every affected file was rewritten at its EXACT storage_path.
-    expect(await readFile(join(sourceRoot, REL.a), 'utf8')).toBe(NEW.a);
-    expect(await readFile(join(sourceRoot, REL.b), 'utf8')).toBe(NEW.b);
-    expect(await readFile(join(sourceRoot, REL.c), 'utf8')).toBe(NEW.c);
+    // Every affected object was rewritten at its EXACT storage_path (object key).
+    expect(db.objects[REL.a]).toBe(NEW.a);
+    expect(db.objects[REL.b]).toBe(NEW.b);
+    expect(db.objects[REL.c]).toBe(NEW.c);
 
     // ONE sweep-id, shared by all three matches.
     expect(result.sweepId).toMatch(
@@ -311,7 +342,7 @@ describe('runSweep — UC3 batched single-actor sweep + whole-sweep rollback', (
     expect(arbitrateManySpy).not.toHaveBeenCalled();
   });
 
-  it('PROOF 3 — whole-sweep rollback restores ALL N files to their prior bytes', async () => {
+  it('PROOF 3 — whole-sweep rollback restores ALL N objects to their prior bytes', async () => {
     const db = makeDb({
       [ITEM_A]: { rel: REL.a, content: PRIOR.a },
       [ITEM_B]: { rel: REL.b, content: PRIOR.b },
@@ -325,8 +356,8 @@ describe('runSweep — UC3 batched single-actor sweep + whole-sweep rollback', (
       actorId: ACTOR,
     });
 
-    // Files now hold the new bytes.
-    expect(await readFile(join(sourceRoot, REL.a), 'utf8')).toBe(NEW.a);
+    // Objects now hold the new bytes.
+    expect(db.objects[REL.a]).toBe(NEW.a);
 
     const rolled = await rollbackSweep({
       supabase: db.client as never,
@@ -335,10 +366,10 @@ describe('runSweep — UC3 batched single-actor sweep + whole-sweep rollback', (
     });
 
     expect(rolled.restoredCount).toBe(3);
-    // Every file restored to its PRIOR bytes (whole-sweep, as a unit).
-    expect(await readFile(join(sourceRoot, REL.a), 'utf8')).toBe(PRIOR.a);
-    expect(await readFile(join(sourceRoot, REL.b), 'utf8')).toBe(PRIOR.b);
-    expect(await readFile(join(sourceRoot, REL.c), 'utf8')).toBe(PRIOR.c);
+    // Every object restored to its PRIOR bytes (whole-sweep, as a unit).
+    expect(db.objects[REL.a]).toBe(PRIOR.a);
+    expect(db.objects[REL.b]).toBe(PRIOR.b);
+    expect(db.objects[REL.c]).toBe(PRIOR.c);
     // Live DB content restored too.
     const live = db.liveContent();
     expect(live[ITEM_A]).toBe(PRIOR.a);
@@ -369,9 +400,9 @@ describe('runSweep — UC3 batched single-actor sweep + whole-sweep rollback', (
 
     expect(rolled.restoredCount).toBe(1);
     // Only B restored; A and C still hold the new bytes.
-    expect(await readFile(join(sourceRoot, REL.b), 'utf8')).toBe(PRIOR.b);
-    expect(await readFile(join(sourceRoot, REL.a), 'utf8')).toBe(NEW.a);
-    expect(await readFile(join(sourceRoot, REL.c), 'utf8')).toBe(NEW.c);
+    expect(db.objects[REL.b]).toBe(PRIOR.b);
+    expect(db.objects[REL.a]).toBe(NEW.a);
+    expect(db.objects[REL.c]).toBe(NEW.c);
   });
 
   it('stamps the sweep intent verbatim WITHOUT arbitration even for a single match', async () => {
