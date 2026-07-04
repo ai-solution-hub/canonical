@@ -176,6 +176,19 @@ class _SdPool:
         pool = self
 
         class _Conn:
+            async def fetchrow(self, sql: str, *args: object) -> dict:
+                # ID-138 {138.10}: the M2 identity resolver — both the content and
+                # qa_sidecar branches now resolve the source_document_id off the
+                # raw pool BEFORE writing. Mirror the resolver's MINT formula so a
+                # re-walk of the SAME path returns the SAME id.
+                return {
+                    "source_document_id": uuid.uuid5(
+                        uuid.UUID("fbfaf1ff-1ee4-583c-9757-1674465b2ec1"),
+                        f"sd:{args[1]}",
+                    ),
+                    "was_minted": True,
+                }
+
             async def execute(self, sql: str, *args: object) -> str:
                 pool.executed.append((sql, args))
                 return "INSERT 0 1"
@@ -439,9 +452,12 @@ class TestIdempotencyAcrossBothBranches:
         # pinned rel_path "acme/stable-doc.md" — frozen literals (not re-derived
         # from flow) so a namespace/seed drift fails loudly while the cross-run
         # idempotency (id_a == id_b) is still proven.
+        # ID-138 {138.10} P3: sd keeps the sd:{rel} mint formula; ci/qa/chunk
+        # re-key onto the STORED source_document_id (`ci:{sd_id}` etc.), NOT
+        # rel_path — recomputed literals below (sd_id = f63d0349…).
         expected_pk = {
             "sd": uuid.UUID("f63d0349-1b7a-5d56-869d-e1c403155c2e"),  # sd:{rel}
-            "ci": uuid.UUID("e4fb1f4d-6d65-55ac-b6f8-01788e38b2c6"),  # ci:{rel}
+            "ci": uuid.UUID("1ff6a413-dede-5f4b-a00e-9889745b7e88"),  # ci:{sd_id}
         }
         for key in ("sd", "ci"):
             assert len(out_a[key].rows) == 1 and len(out_b[key].rows) == 1
@@ -455,16 +471,17 @@ class TestIdempotencyAcrossBothBranches:
         assert (
             out_a["qa"].rows[0]["id"]
             == out_b["qa"].rows[0]["id"]
-            == uuid.UUID("55c5b4e6-de5b-5722-a512-2b334f3c5be2")  # qa:{rel}:0
+            == uuid.UUID("0503b1c3-8ea0-57b5-a949-09b13a821208")  # qa:{sd_id}:0
         )
         # Chunk rows: same count, identical per-position uuid5 PKs. The short
         # `same_bytes` body chunks to exactly one row; its PK is pinned to a
-        # frozen chunk:{rel}:0 literal (oracle, not a recompute).
+        # frozen chunk:{sd_id}:0 literal ({138.10} P3 re-key; oracle, not a
+        # recompute).
         chunk_ids_a = [r["id"] for r in out_a["cc"].rows]
         chunk_ids_b = [r["id"] for r in out_b["cc"].rows]
         assert chunk_ids_a and chunk_ids_a == chunk_ids_b
         assert chunk_ids_a == [
-            uuid.UUID("0c381fe5-b1de-5ae2-b512-87cfdb295c40")  # chunk:{rel}:0
+            uuid.UUID("f120636a-d0ff-57d4-9411-a1de1166a707")  # chunk:{sd_id}:0
         ]
         # No duplicate PKs WITHIN a run either (one declare per logical row).
         assert len(set(chunk_ids_a)) == len(chunk_ids_a)
@@ -591,11 +608,13 @@ class TestQaSidecarRouteWritesSidecarTargetsOnly:
 
         # ── N q_a_extractions, each with source_document_id IS NULL. ──────
         assert len(out["qa"].rows) == 2, "one q_a_extractions row per Q&A pair"
-        # Frozen per-index qa: uuid5 oracles for "__qa__/foo.md" (same namespace
-        # as the sd: literal above) — pinned, not recomputed from flow.
+        # ID-138 {138.10} P3: the sidecar qa PK re-keys onto the STORED
+        # source_document_id (`qa:{sd_id}:{idx}`), NOT `qa:{rel}:{idx}` — a rename
+        # no longer re-mints the derived row. Frozen literals recomputed on the
+        # new formula (sd_id = 42c08615… above).
         expected_qa_ids = [
-            uuid.UUID("33ed46da-cc47-54e7-858e-f75a72e90fbb"),  # qa:{rel}:0
-            uuid.UUID("01d73f65-2385-565f-a5b5-2f9b88cfa878"),  # qa:{rel}:1
+            uuid.UUID("2cfcd692-a092-5dad-8091-510677d47974"),  # qa:{sd_id}:0
+            uuid.UUID("26542bf7-e00b-5c41-8648-266dc8775c39"),  # qa:{sd_id}:1
         ]
         for idx, qa_row in enumerate(out["qa"].rows):
             assert qa_row["source_document_id"] is None, (

@@ -1656,6 +1656,17 @@ class TestPerItemFailureIsolation:
 
             def acquire(self):
                 class _Conn:
+                    async def fetchrow(self, sql: str, *args: object) -> dict:
+                        # ID-138 {138.10}: the M2 identity resolver (content
+                        # branch resolves source_document_id off the raw pool).
+                        return {
+                            "source_document_id": uuid.uuid5(
+                                uuid.UUID("fbfaf1ff-1ee4-583c-9757-1674465b2ec1"),
+                                f"sd:{args[1]}",
+                            ),
+                            "was_minted": True,
+                        }
+
                     async def execute(self, sql: str, *args: object) -> str:
                         return "INSERT 0 1"
 

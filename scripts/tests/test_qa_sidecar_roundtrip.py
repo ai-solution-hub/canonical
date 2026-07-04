@@ -116,6 +116,77 @@ async def _fake_relationships_empty(content_text: str) -> list:
     return []
 
 
+# ── SEED-CONTRACT namespace (pinned to flow._KH_PIPELINE_DOC_NS). ────────────
+_NS = uuid.UUID("fbfaf1ff-1ee4-583c-9757-1674465b2ec1")
+
+
+# ── content_hash-first resolver pool double (ID-138 {138.10}) ───────────────
+# The sidecar sd row now lands OFF the engine, via the raw-pool
+# `_upsert_source_document`, and its identity is resolved by the M2
+# `resolve_or_mint_source_identity` fn (content_hash-first). This double stands
+# in for both: `fetchrow` answers the resolver (mirroring its MINT formula
+# `uuid5(NS, "sd:"+rel_path)` on first admission, and RESOLVING to the stored id
+# on a content_hash it has already seen — so a rename of the same bytes keeps the
+# id); `execute` captures the sd INSERT so `out["sd"].rows` still works.
+
+
+class _ResolverConn:
+    def __init__(self, registry: dict) -> None:
+        self._registry = registry
+        self.executed: list[tuple[str, tuple]] = []
+
+    async def fetchrow(self, sql: str, *args: object) -> dict:
+        content_hash, rel_path = args[0], args[1]
+        existing = self._registry.get(content_hash)
+        if existing is not None:
+            return {"source_document_id": existing, "was_minted": False}
+        sd_id = uuid.uuid5(_NS, f"sd:{rel_path}")
+        self._registry[content_hash] = sd_id
+        return {"source_document_id": sd_id, "was_minted": True}
+
+    async def execute(self, sql: str, *args: object) -> str:
+        self.executed.append((sql, args))
+        return "INSERT 0 1"
+
+
+class _ResolverPool:
+    def __init__(self, registry: dict) -> None:
+        self.conn = _ResolverConn(registry)
+
+    def acquire(self) -> object:
+        conn = self.conn
+
+        class _Acquire:
+            async def __aenter__(self) -> _ResolverConn:
+                return conn
+
+            async def __aexit__(self, *exc: object) -> None:
+                return None
+
+        return _Acquire()
+
+
+class _SdView:
+    """Duck-types ``_FakeTarget`` (`.table_name` / `.rows`) but sources `.rows`
+    from the raw-pool sd UPSERT capture — the sidecar sd row lands via
+    `_upsert_source_document` ({138.10}), not `sd_target.declare_row`."""
+
+    table_name = "source_documents"
+
+    def __init__(self, conn: _ResolverConn) -> None:
+        self._conn = conn
+
+    @property
+    def rows(self) -> list[dict]:
+        rows: list[dict] = []
+        for sql, args in self._conn.executed:
+            if "INSERT INTO public.source_documents" not in sql:
+                continue
+            cols = [c.strip() for c in sql.split("(", 1)[1].split(")", 1)[0].split(",")]
+            rows.append(dict(zip(cols, args)))
+        return rows
+
+
 def _observe_seams(flow: object, monkeypatch: pytest.MonkeyPatch) -> dict:
     """Replace the outside-world seams with recording observers. The inner
     ``extract_qa_form`` returns a FIXED deterministic payload so the walk mints
@@ -169,14 +240,39 @@ def _observe_seams(flow: object, monkeypatch: pytest.MonkeyPatch) -> dict:
     return calls
 
 
-def _drive_ingest(flow: object, fake_file: object, *, manifest: object) -> dict:
+def _drive_ingest(
+    flow: object,
+    fake_file: object,
+    *,
+    manifest: object,
+    registry: dict | None = None,
+    monkeypatch: pytest.MonkeyPatch | None = None,
+) -> dict:
     """Drive one real ``ingest_file`` with all seven targets recording. The
     qa_sidecar branch only writes sd + qa; the other five targets are asserted
-    empty (the INV-5 structural guarantee carries through the round-trip)."""
+    empty (the INV-5 structural guarantee carries through the round-trip).
+
+    ID-138 {138.10}: the sd anchor now lands via the off-engine raw-pool
+    `_upsert_source_document` and its identity is resolved content_hash-first.
+    Pass a shared ``registry`` across drives to exercise rename-tolerance (same
+    bytes at a new path resolve to the STORED id); omit it for an independent
+    walk (the mint formula is deterministic on rel_path, so a re-walk of the same
+    path is stable regardless). ``out["sd"]`` reads back from the raw-pool
+    capture via ``_SdView``.
+    """
     from scripts.cocoindex_pipeline.flow_context import (
         bind_flow_meta,
         bind_workspace_manifest,
     )
+
+    pool = _ResolverPool(registry if registry is not None else {})
+    # `flow.coco.use_context` is monkeypatched to the resolver pool. When a
+    # `monkeypatch` fixture is supplied it is used (auto-reverts); otherwise fall
+    # back to a direct attribute set (the observer seams reset per drive anyway).
+    if monkeypatch is not None:
+        monkeypatch.setattr(flow.coco, "use_context", lambda key: pool)
+    else:
+        flow.coco.use_context = lambda key: pool  # type: ignore[attr-defined]
 
     targets = {
         "ci": _FakeTarget("content_items"),
@@ -204,6 +300,9 @@ def _drive_ingest(flow: object, fake_file: object, *, manifest: object) -> dict:
                 )
 
     asyncio.run(_exercise())
+    # The sd row lands off-engine now — expose it via the raw-pool view so the
+    # existing `out["sd"].rows` assertions keep working.
+    targets["sd"] = _SdView(pool.conn)  # type: ignore[assignment]
     targets["op_id"] = run_op_id  # type: ignore[assignment]
     return targets
 
@@ -248,10 +347,13 @@ class TestQaSidecarNTimeFixpoint:
         # ("fbfaf1ff-1ee4-583c-9757-1674465b2ec1") for the pinned rel_path
         # "__qa__/11111111-1111-4111-8111-111111111111.md" — frozen literals so a
         # namespace or seed-string drift fails loudly (not re-derived from flow).
+        # ID-138 {138.10}: sd keeps the sd:{rel} MINT formula (content_hash-first
+        # resolver mints it on first admission); the qa PKs re-key onto the STORED
+        # source_document_id (`qa:{sd_id}:{idx}`, P3) — recomputed literals below.
         sd_pk = uuid.UUID("bcb1e7b4-38e9-5ff9-9a6b-f0b16b391105")  # sd:{rel}
         expected_qa_pks = [
-            uuid.UUID("bcbf2fcf-8404-5f30-9c80-e562234ededb"),  # qa:{rel}:0
-            uuid.UUID("c41065e6-379c-5e17-b2f0-3814d5b1de32"),  # qa:{rel}:1
+            uuid.UUID("f06d8591-5594-533f-a264-9244e7a01a65"),  # qa:{sd_id}:0
+            uuid.UUID("62e974a8-bede-595f-9307-080fa4385573"),  # qa:{sd_id}:1
         ]
 
         # ── source_documents: ONE row per run, the SAME sd: uuid5 PK. ──────────
@@ -332,14 +434,15 @@ class TestQaSidecarNTimeFixpoint:
 
 
 class TestQaSidecarPathStability:
-    """INV-20 (05-qa-flow.md §5.5): the linkage anchor is path-derived, so a
-    rename WITHIN the reserved prefix re-keys on the new uuid5 deterministically;
-    the rel_path travels into source_documents.storage_path so the on-disk file
-    stays traceable. The pair-non-duplication on a rename is the promotion
-    layer's promoted_to_pair_id anchor (promote-corpus suite); here we prove the
-    walk re-keys deterministically and the storage_path follows the rename."""
+    """ID-138 {138.10} R(id) / DR-024 clause i — SUPERSEDES the old INV-20
+    path-derived keying. The linkage anchor is now resolved content_hash-FIRST,
+    NOT re-derived from the mutable `rel_path`: a rename of the SAME bytes within
+    the reserved prefix resolves to the SAME stored identity (the anchor and its
+    derived qa rows are NOT re-minted), and the mutable `logical_path` tracks the
+    current path while the frozen `storage_path` records the admission key. Its
+    complement — the SAME path is stable across re-walks — still holds."""
 
-    def test_rename_within_prefix_rekeys_on_new_uuid5(
+    def test_rename_of_same_bytes_resolves_same_identity(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         flow = _flow_module()
@@ -350,48 +453,46 @@ class TestQaSidecarPathStability:
         old_path = "__qa__/foo.md"
         new_path = "__qa__/sub/foo.md"
 
+        # A SHARED registry across the two drives simulates the DB persisting the
+        # first admission — so the rename walk RESOLVES the stored id by
+        # content_hash rather than re-minting on the new path.
+        registry: dict = {}
         _observe_seams(flow, monkeypatch)
         out_old = _drive_ingest(
-            flow, _FakeFile(old_path, data=same_bytes), manifest=manifest
+            flow, _FakeFile(old_path, data=same_bytes), manifest=manifest,
+            registry=registry,
         )
         _observe_seams(flow, monkeypatch)
         out_new = _drive_ingest(
-            flow, _FakeFile(new_path, data=same_bytes), manifest=manifest
+            flow, _FakeFile(new_path, data=same_bytes), manifest=manifest,
+            registry=registry,
         )
 
-        # Hard-coded uuid5 oracles over _KH_PIPELINE_DOC_NS for the two pinned
-        # paths ("__qa__/foo.md" / "__qa__/sub/foo.md") — frozen literals so a
-        # namespace/seed drift fails loudly while the load-bearing INEQUALITY
-        # (rename re-keys) is still proven below.
-
-        # The two paths mint DIFFERENT deterministic sd: PKs — the keying is
-        # genuinely path-derived (NOT content-derived), so a rename re-keys.
+        # ── R(id): the rename resolves to the SAME admission-minted identity —
+        # the anchor is content_hash-first, NOT re-derived from the path. ───────
         sd_old = out_old["sd"].rows[0]["id"]
         sd_new = out_new["sd"].rows[0]["id"]
         assert sd_old == uuid.UUID("42c08615-f8d1-5acd-9da7-a046e414837e")  # sd:{old}
-        assert sd_new == uuid.UUID("ff8ccb4f-3c96-5893-8bab-a40d2233b019")  # sd:{new}
-        assert sd_old != sd_new, (
-            "a rename within the reserved prefix re-keys the sd: uuid5 (INV-20: "
-            "the path is the seed) — the old and new paths are distinct anchors"
+        assert sd_new == sd_old, (
+            "a rename of the same bytes must RESOLVE the STORED identity, not "
+            "re-mint on the new path (R(id)/DR-024 i — supersedes INV-20)"
         )
 
-        # q_a_extractions PKs likewise re-key on the new path.
+        # q_a_extractions PKs are keyed on the stored id, so they too are NOT
+        # re-minted by the rename (the derived graph is stable, {138.10} P3).
         qa_old = [r["id"] for r in out_old["qa"].rows]
         qa_new = [r["id"] for r in out_new["qa"].rows]
         assert qa_old == [
-            uuid.UUID("33ed46da-cc47-54e7-858e-f75a72e90fbb"),  # qa:{old}:0
-            uuid.UUID("01d73f65-2385-565f-a5b5-2f9b88cfa878"),  # qa:{old}:1
+            uuid.UUID("2cfcd692-a092-5dad-8091-510677d47974"),  # qa:{sd_id}:0
+            uuid.UUID("26542bf7-e00b-5c41-8648-266dc8775c39"),  # qa:{sd_id}:1
         ]
-        assert qa_new == [
-            uuid.UUID("1368e595-2ad8-5706-b71f-b0adb58211e2"),  # qa:{new}:0
-            uuid.UUID("e9a04219-153e-5e98-8bf8-be394a79eff9"),  # qa:{new}:1
-        ]
-        assert qa_old != qa_new
+        assert qa_new == qa_old, "a rename must not re-mint the derived qa rows"
 
-        # storage_path follows the rename so the on-disk file is traceable from
-        # the re-keyed anchor (the write-back path-resolution target, R2.1).
-        assert out_old["sd"].rows[0]["storage_path"] == old_path
-        assert out_new["sd"].rows[0]["storage_path"] == new_path
+        # logical_path is the MUTABLE path attribute — it tracks the current path
+        # on each walk (storage_path is the FROZEN admission key, verified by the
+        # ON CONFLICT contract in test_cocoindex_identity_core.py).
+        assert out_old["sd"].rows[0]["logical_path"] == old_path
+        assert out_new["sd"].rows[0]["logical_path"] == new_path
 
     def test_same_path_is_stable_across_rewalk(
         self, monkeypatch: pytest.MonkeyPatch

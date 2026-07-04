@@ -329,6 +329,11 @@ class TestUrlLandingDeclaresEvidencePair:
         # 'unclassified' DEFAULT via the `_upsert_source_document` guard,
         # since that column is NOT NULL with no per-caller-omission path on a
         # raw parameterised INSERT.
+        # ID-138 {138.10}: `_upsert_source_document` also carries the mutable
+        # path attribute (logical_path) + the admission lifecycle columns
+        # ({138.5} M1) on EVERY caller's INSERT. `ingest_url` leaves them at
+        # their defaults (logical_path/retention_class/origin_type → NULL;
+        # admission_status floored to 'admitted').
         assert set(sd_row) == {
             "id",
             "storage_path",
@@ -352,6 +357,10 @@ class TestUrlLandingDeclaresEvidencePair:
             "classification_reasoning",
             "captured_date",
             "summary_data",
+            "logical_path",
+            "admission_status",
+            "retention_class",
+            "origin_type",
         }
         assert sd_row["primary_domain"] == "unclassified", (
             "ingest_url does not classify onto source_documents — the NOT "
@@ -901,7 +910,11 @@ class TestHtmlQualityGate:
 class TestCiSeedNeverUrlDerived:
     def test_flow_source_never_concatenates_ci_with_url_seed(self) -> None:
         """BI-1/BI-2 acceptance: every ``"ci:"`` uuid5 seed in flow.py is
-        rel_path-derived (the file corpus); none is URL-derived."""
+        registry-keyed (the file corpus); none is URL-derived.
+
+        ID-138 {138.10} P3: the ci seed re-keys from ``ci:{rel_path}`` onto the
+        stored ``ci:{source_document_id}`` (rename tolerance) — still a file-corpus
+        seed, still never URL-derived (the load-bearing BI-2 guarantee)."""
         flow_path = (
             Path(__file__).resolve().parents[1] / "cocoindex_pipeline" / "flow.py"
         )
@@ -913,8 +926,9 @@ class TestCiSeedNeverUrlDerived:
         ]
         assert ci_seed_lines, "census expects the file-corpus 'ci:' seeds"
         for line in ci_seed_lines:
-            assert 'f"ci:{rel_path}"' in line, (
-                f"'ci:' seed must be rel_path-derived, found: {line!r}"
+            assert 'f"ci:{source_document_id}"' in line, (
+                f"'ci:' seed must be source_document_id-derived (registry-keyed, "
+                f"{{138.10}} P3), found: {line!r}"
             )
             assert "url" not in line.lower(), (
                 f"'ci:' must NEVER be seeded from a URL (BI-2): {line!r}"

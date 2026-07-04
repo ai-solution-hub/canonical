@@ -388,6 +388,19 @@ def _run_app_main_over_dir(
             pool = self
 
             class _Conn:
+                async def fetchrow(self, sql: str, *args: object) -> dict:
+                    # ID-138 {138.10}: the M2 identity resolver — the content
+                    # branch resolves source_document_id off the raw pool before
+                    # writing. Mirror the resolver's MINT formula (rel_path arg),
+                    # so a re-walk of the same corpus mints identical ids.
+                    return {
+                        "source_document_id": uuid.uuid5(
+                            uuid.UUID("fbfaf1ff-1ee4-583c-9757-1674465b2ec1"),
+                            f"sd:{args[1]}",
+                        ),
+                        "was_minted": True,
+                    }
+
                 async def execute(self, sql: str, *args: object) -> str:
                     pool.executed.append((sql, args))
                     return "INSERT 0 1"
@@ -558,7 +571,11 @@ class TestReingestMintsIdenticalIdentities:
                 _sd_rows_from_pool(targets_b["_sd_pool"]),  # type: ignore[arg-type]
             ),
         }
-        for table, seed in (("content_items", "ci:stable.md"),
+        # ID-138 {138.10} P3: source_documents keeps the sd:{rel_path} mint
+        # formula; content_items re-keys onto the STORED source_document_id
+        # (`ci:{sd_id}`), NOT `ci:{rel_path}` — a rename no longer re-mints it.
+        _sd_id = uuid.uuid5(ns, "sd:stable.md")
+        for table, seed in (("content_items", f"ci:{_sd_id}"),
                             ("source_documents", "sd:stable.md")):
             rows_a, rows_b = rows_by_table[table]
             assert len(rows_a) == 1 and len(rows_b) == 1

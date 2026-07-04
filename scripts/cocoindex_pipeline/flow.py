@@ -1982,10 +1982,15 @@ async def _ingest_file_body(
     if manifest is None:
         manifest = flow_context_module.current_workspace_manifest()
 
-    # Deterministic per-document uuid5 (a pure function of rel_path) used ONLY
-    # for error-log attribution on the fork failure paths below. ID-131 {131.8}
-    # Part C: attribute to the source_documents id (sd: uuid5) — the canonical
-    # record identity post-re-parent.
+    # Provisional per-document uuid5 (a pure function of rel_path) used ONLY for
+    # error-log CORRELATION on the fork failure paths below — this is BEFORE any
+    # content is read, so no content_hash exists yet and the {138.6} resolver
+    # (content_hash-first) cannot run here. ID-138 {138.10}: this is NOT the
+    # stored identity — the fork-failure paths write ZERO rows, and each branch
+    # resolves its OWN admission-minted identity post-fork (content-hash-first,
+    # rename-tolerant). Keeping the rel_path-seeded id here gives a stable,
+    # deterministic log-correlation handle without minting a source_documents row
+    # for a mere warning.
     source_document_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"sd:{rel_path}")
 
     route = "content"  # default: no manifest active (Path-A-only runs)
@@ -2140,19 +2145,39 @@ async def _ingest_content_branch(
     _bump("llm_extraction", times=4)
 
     # ── Stage 6: declare rows (managed_by=USER row-level upserts) ───────────
-    # Deterministic per-DOCUMENT UUIDs seeded on the FIXED namespace + rel_path
-    # (NOT op_id), so re-ingesting the same document on any LATER run declares
-    # the SAME primary keys → declare_row UPSERTs the existing row and re-stamps
-    # its op_id field (PRODUCT Inv-4 idempotency + ratified OQ-A). op_id stays a
-    # plain ROW FIELD that identifies the run; it is NOT part of the PK.
-    source_document_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"sd:{rel_path}")
-    content_item_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"ci:{rel_path}")
+    # ID-138 {138.10} (R(id) / DR-024 clause i): identity is no longer DERIVED
+    # from the live `rel_path` at walk time (`rel_path` is exactly the attribute
+    # clients mutate). It is resolved by `content_hash` FIRST via the {138.6} M2
+    # SQL resolver: same bytes at a NEW path return the STORED id (rename does
+    # NOT re-mint); a genuinely new content_hash mints once. `content_fingerprint`
+    # is an ASYNC METHOD on FileLike returning bytes (cocoindex resources/file.py
+    # L172 → connectorkits.fingerprint); await + hex so it is the content_hash
+    # the resolver keys on AND the value landed in the `content_hash` column.
+    content_fingerprint = (await file.content_fingerprint()).hex()
+    # File metadata computed ONCE — threaded to BOTH the resolver (mint payload)
+    # and `_upsert_source_document` (full enrich) so they agree on the same row.
+    _filename = file.file_path.path.name
+    _source_mime = _resolve_source_mime(file.file_path.path)
+    _file_size = await file.size()
+    source_document_id = await _resolve_source_identity(
+        content_hash=content_fingerprint,
+        rel_path=rel_path,
+        filename=_filename,
+        mime_type=_source_mime,
+        file_size=_file_size,
+        op_id=op_id,
+    )
+    # Derived-row PKs re-key onto the STORED `source_document_id` (registry-keyed),
+    # NOT `rel_path` — a rename must not re-mint the derived graph (R(id)/R(e),
+    # {138.10} P3). `ci:`/`chunk:`/`qa:` keep their type prefix (namespace
+    # separation) but the natural key is now the stable identity, not the path.
+    content_item_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"ci:{source_document_id}")
 
     # ── Inv-5 [RATIFIED-S241]: stamp the outer-tier flow metadata onto each
     # extraction object ({66.16} stamp-wiring). PRODUCT Inv-5 mandates that every
     # variant carries op_id / source_document_id / extracted_at populated by THIS
     # flow wrapper (not the LLM, which omits them by design → they arrive at the
-    # `_UNSTAMPED_*` sentinels). We stamp here, once content_item_id exists, with
+    # `_UNSTAMPED_*` sentinels). We stamp here, once the identity is resolved, with
     # EXPLICIT kwargs — NOT a FLOW_META_CTX read: cocoindex runs this body on its
     # own `_LoopRunner` daemon thread, which does NOT inherit the binder task's
     # ContextVar snapshot ({66.19}/S294), so explicit kwargs are the only safe
@@ -2166,11 +2191,6 @@ async def _ingest_content_branch(
         classification, op_id=op_id, source_document_id=source_document_id
     )
     qa_form = _stamp_if_model(qa_form, op_id=op_id, source_document_id=source_document_id)
-
-    # content_fingerprint is an ASYNC METHOD on FileLike returning bytes
-    # (cocoindex resources/file.py L172 → connectorkits.fingerprint); await it
-    # and encode to hex so it lands in the `text` content_fingerprint column.
-    content_fingerprint = (await file.content_fingerprint()).hex()
 
     # S438 (id-131 follow-on): written via the SAME raw-pool autocommit UPSERT
     # the URL route uses (`_upsert_source_document`, S437/id-131) — NOT
@@ -2201,7 +2221,12 @@ async def _ingest_content_branch(
     content_type = _field(classification, "content_type") or "other"
     await _upsert_source_document(
         source_document_id=source_document_id,
+        # ID-138 {138.10} R(a)/R(id): storage_path is the FROZEN SEED-CONTRACT
+        # admission key (the resolver already pinned it at mint); logical_path is
+        # the MUTABLE current path — on a rename the upsert freezes storage_path
+        # and updates logical_path (see `_upsert_source_document`'s ON CONFLICT).
         storage_path=rel_path,
+        logical_path=rel_path,
         # ID-75 BI-4: a localfs file has NO source URL — explicit None so
         # the localfs/URL provenance split is visible at the write site.
         source_url=None,
@@ -2211,9 +2236,10 @@ async def _ingest_content_branch(
         # ID-64.11 (S296): the NOT-NULL file-metadata cols, derived from the
         # File (Q1.9 Option α slim-and-keep). original_filename is relaxed to
         # NULLABLE by the companion migration (α retires it), so it is omitted.
-        filename=file.file_path.path.name,
-        mime_type=_resolve_source_mime(file.file_path.path),
-        file_size=await file.size(),
+        # {138.10}: reuse the metadata computed once above (also fed the resolver).
+        filename=_filename,
+        mime_type=_source_mime,
+        file_size=_file_size,
         op_id=op_id,
         # Extraction provenance (ID-42.9 §WP-E) — nullable; only the Docling
         # path populates it (passthrough leaves it None).
@@ -2319,7 +2345,9 @@ async def _ingest_content_branch(
             # so the SAME id is the content_chunks PK AND the record_embeddings
             # `owner_id` (ID-131 {131.11}) — the two writes MUST agree or the
             # polymorphic embedding would orphan from its chunk on re-ingest.
-            chunk_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"chunk:{rel_path}:{position}")
+            chunk_id = uuid.uuid5(
+                _KH_PIPELINE_DOC_NS, f"chunk:{source_document_id}:{position}"
+            )
             cc_target.declare_row(
                 row={
                     "id": chunk_id,
@@ -2361,7 +2389,11 @@ async def _ingest_content_branch(
     for idx, pair in enumerate(qa_pairs):
         qa_target.declare_row(
             row={
-                "id": uuid.uuid5(_KH_PIPELINE_DOC_NS, f"qa:{rel_path}:{idx}"),
+                # ID-138 {138.10} P3: re-keyed onto the STORED source_document_id
+                # (registry-keyed), not rel_path — a rename does not re-mint.
+                "id": uuid.uuid5(
+                    _KH_PIPELINE_DOC_NS, f"qa:{source_document_id}:{idx}"
+                ),
                 # ID-131 {131.8} M2 (BI-15): q&a extractions parent the
                 # source_documents record directly (re-parented off content_items).
                 "source_document_id": source_document_id,
@@ -2622,30 +2654,43 @@ async def _ingest_qa_sidecar_branch(
     content_text = await convert_binary_to_markdown(file)
     _bump("binary_conversion")  # Inv-17: one binary→markdown conversion
 
-    # ── Deterministic per-DOCUMENT uuid5 linkage anchor (INV-8 / INV-20) ─────
-    # The SAME `sd:`-seeded derivation the content branch uses (`:2039`
-    # analogue), so the linkage anchor is stable across re-walks and folder
-    # reorgs — `q_a_pairs.source_document_id` (M1 / {59.27}) points here.
-    source_document_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"sd:{rel_path}")
-
+    # ── INV-8 linkage anchor identity (ID-138 {138.10}, R(id) / DR-024 i) ────
     # `content_fingerprint` is an ASYNC METHOD on FileLike returning bytes;
-    # await + hex so it lands in the `content_hash` text column (same as the
-    # content branch's source_documents declare).
+    # await + hex so it is the content_hash the resolver keys on AND the value
+    # landed in the `content_hash` text column.
     content_fingerprint = (await file.content_fingerprint()).hex()
+    # Identity is resolved by content_hash FIRST (M2 resolver, {138.6}), NOT
+    # re-derived from `rel_path`: same sidecar bytes at a NEW path resolve to the
+    # STORED id — a rename does not re-mint the anchor (supersedes the old
+    # INV-20 path-derived keying). `q_a_pairs.source_document_id` (M1 / {59.27})
+    # still points here.
+    source_document_id = await _resolve_source_identity(
+        content_hash=content_fingerprint,
+        rel_path=rel_path,
+        filename=file.file_path.path.name,
+        mime_type="text/markdown",  # the sidecar is always markdown (P1)
+        file_size=await file.size(),
+        op_id=op_id,
+    )
 
-    # ── Mint the INV-8 linkage anchor: ONE source_documents row. This is NOT a
-    # content_items row (the content branch's `:2066-2088` analogue, minus the
-    # extraction-provenance fan-out the sidecar path never resolves). ──────────
-    sd_target.declare_row(
-        row={
-            "id": source_document_id,
-            "storage_path": rel_path,
-            "content_hash": content_fingerprint,
-            "filename": file.file_path.path.name,
-            "mime_type": "text/markdown",  # the sidecar is always markdown (P1)
-            "file_size": await file.size(),
-            "op_id": op_id,
-        }
+    # ── Mint the INV-8 linkage anchor: ONE source_documents row, written via the
+    # off-engine raw-pool `_upsert_source_document` (R(e): the register is
+    # permanent + off the engine's declared targets, so orphan-cleanup cannot
+    # reach it) — mirrors the content branch (S438). storage_path is FROZEN and
+    # logical_path tracks the current path on a rename. `sd_target` is retained
+    # on the signature (mount_each positional contract) but the sidecar sd row no
+    # longer flushes through it. This is NOT a content_items row (INV-5). ───────
+    await _upsert_source_document(
+        source_document_id=source_document_id,
+        storage_path=rel_path,
+        logical_path=rel_path,
+        source_url=None,  # a sidecar file has no source URL (BI-4 analogue)
+        content_hash=content_fingerprint,
+        filename=file.file_path.path.name,
+        mime_type="text/markdown",
+        file_size=await file.size(),
+        op_id=op_id,
+        extraction_method=None,  # the sidecar path resolves no Docling provenance
     )
     _bump("postgres_upsert")  # Inv-17: source_documents row upsert
 
@@ -2665,10 +2710,15 @@ async def _ingest_qa_sidecar_branch(
     for idx, pair in enumerate(qa_pairs):
         qa_target.declare_row(
             row={
-                "id": uuid.uuid5(_KH_PIPELINE_DOC_NS, f"qa:{rel_path}:{idx}"),
-                # INV-5: no source_documents row minted for a sidecar — the
-                # column is nullable; this is the structural "no content rows"
-                # marker. ID-131 {131.8} M2: renamed source_content_item_id ->
+                # ID-138 {138.10} P3: re-keyed onto the STORED source_document_id
+                # (registry-keyed), not rel_path — a rename does not re-mint.
+                "id": uuid.uuid5(
+                    _KH_PIPELINE_DOC_NS, f"qa:{source_document_id}:{idx}"
+                ),
+                # INV-5: the q_a_extractions.source_document_id LINKAGE column
+                # stays NULL for a sidecar (the structural "no content rows"
+                # marker); the anchor row exists but the extraction row does not
+                # FK it. ID-131 {131.8} M2: renamed source_content_item_id ->
                 # source_document_id (BI-15).
                 "source_document_id": None,
                 "extractor_kind": "llm_extraction",
@@ -2823,6 +2873,51 @@ async def _backlink_feed_articles(
         )
 
 
+async def _resolve_source_identity(
+    *,
+    content_hash: str,
+    rel_path: str,
+    filename: str,
+    mime_type: str,
+    file_size: int,
+    origin_type: str | None = None,
+    retention_class: str | None = None,
+    op_id: "uuid.UUID | None" = None,
+) -> "uuid.UUID":
+    """Resolve (or mint) the source_documents identity — ID-138 {138.10}, R(id).
+
+    Calls the {138.6} M2 SQL resolver `public.resolve_or_mint_source_identity`
+    (TECH.md §2.2 / §3.1 M2) over the SAME env-scope `DB_CTX` raw asyncpg pool
+    `_upsert_source_document` uses, synchronously in-component. The resolver is
+    **content_hash-first**: same bytes at a NEW `rel_path` return the STORED id
+    (and update the mutable `logical_path` only — identity is NEVER re-derived
+    from the path clients mutate, DR-024 clause i); a genuinely new content_hash
+    mints `id = uuid5(SEED-CONTRACT NS, "sd:"+rel_path)` ONCE. The walk therefore
+    stops deriving identity from `rel_path` at walk time — the hard mechanical
+    core first bundle publication blocks on (id-132 BI-20/21).
+
+    The migration is authored-not-applied, so at runtime the fn exists only
+    post-GO; a mocked unit test stubs the pool `fetchrow` to return the id.
+    Returns the stored/minted `source_document_id`.
+    """
+    pool = coco.use_context(DB_CTX)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT source_document_id, was_minted "
+            "FROM public.resolve_or_mint_source_identity("
+            "$1, $2, $3, $4, $5, $6, $7, $8)",
+            content_hash,
+            rel_path,
+            filename,
+            mime_type,
+            file_size,
+            origin_type,
+            retention_class,
+            op_id,
+        )
+    return row["source_document_id"]
+
+
 async def _upsert_source_document(
     *,
     source_document_id: "uuid.UUID",
@@ -2834,6 +2929,19 @@ async def _upsert_source_document(
     content_hash: str,
     op_id: "uuid.UUID",
     extraction_method: str | None,
+    # ID-138 {138.10} (R(id)/R(a)/R(b)): the mutable path attribute + admission
+    # lifecycle columns ({138.5} M1). `logical_path` tracks the CURRENT path and
+    # is updated on a content_hash-match conflict; `storage_path` is the FROZEN
+    # SEED-CONTRACT admission key and is NEVER updated on conflict. The lifecycle
+    # columns are written on admission but PRESERVED on a re-walk conflict (not
+    # clobbered — a tombstoned/curated row must not be resurrected, R(d)/DR-026).
+    # All default to None so the `ingest_url` call site keeps working unchanged;
+    # `admission_status` is NOT NULL in the DB so it is floored to 'admitted' on
+    # a fresh INSERT (mirrors the `primary_domain or "unclassified"` guard).
+    logical_path: str | None = None,
+    admission_status: str | None = None,
+    retention_class: str | None = None,
+    origin_type: str | None = None,
     # ID-131 {131.22} (G-PRODUCER-CLASS): classification family, re-homed off
     # content_items ({131.9} M3 added these DB columns; the companion fix
     # migration relaxed content_type to nullable). ALL default to None so the
@@ -2955,11 +3063,21 @@ async def _upsert_source_document(
             "primary_domain, primary_subtopic, secondary_domain, "
             "secondary_subtopic, ai_keywords, summary, suggested_title, "
             "classified_at, classification_confidence, "
-            "classification_reasoning, captured_date, summary_data) "
+            "classification_reasoning, captured_date, summary_data, "
+            # ID-138 {138.10}: the mutable path attribute + admission lifecycle
+            # columns ({138.5} M1).
+            "logical_path, admission_status, retention_class, origin_type) "
             "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, "
-            "$14, $15, $16, $17, $18, $19, $20, $21, $22::jsonb) "
+            "$14, $15, $16, $17, $18, $19, $20, $21, $22::jsonb, "
+            "$23, $24, $25, $26) "
             "ON CONFLICT (id) DO UPDATE SET "
-            "storage_path = EXCLUDED.storage_path, "
+            # ID-138 {138.10} R(a): storage_path is the FROZEN SEED-CONTRACT
+            # admission key — DELIBERATELY omitted from the update set so a
+            # rename never moves it. logical_path is the MUTABLE current path;
+            # COALESCE preserves an existing value when a caller (e.g. the URL
+            # route) passes NULL, so a set path is never clobbered to NULL.
+            "logical_path = COALESCE(EXCLUDED.logical_path, "
+            "public.source_documents.logical_path), "
             "content_hash = EXCLUDED.content_hash, "
             "filename = EXCLUDED.filename, "
             "mime_type = EXCLUDED.mime_type, "
@@ -2980,6 +3098,10 @@ async def _upsert_source_document(
             "classification_reasoning = EXCLUDED.classification_reasoning, "
             "captured_date = EXCLUDED.captured_date, "
             "summary_data = EXCLUDED.summary_data",
+            # ID-138 {138.10} R(d)/DR-026: admission_status / retention_class /
+            # origin_type are DELIBERATELY absent from the update set — written
+            # on admission, PRESERVED on a re-walk conflict so a walk never
+            # resurrects a tombstoned row or overrides a curated retention class.
             source_document_id,
             storage_path,
             content_hash,
@@ -3002,6 +3124,12 @@ async def _upsert_source_document(
             classification_reasoning,
             captured_date,
             json.dumps(summary_data) if summary_data is not None else None,
+            logical_path,
+            # admission_status is NOT NULL in the DB — floor to 'admitted' on a
+            # fresh INSERT (the URL route + any caller that omits it).
+            admission_status or "admitted",
+            retention_class,
+            origin_type,
         )
 
 

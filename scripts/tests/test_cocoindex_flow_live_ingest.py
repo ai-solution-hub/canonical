@@ -131,6 +131,19 @@ class _SdPool:
         pool = self
 
         class _Conn:
+            async def fetchrow(self, sql: str, *args: object) -> dict:
+                # ID-138 {138.10}: the M2 identity resolver — the content branch
+                # resolves the source_document_id off the raw pool before the
+                # `_upsert_source_document` write. Mirror the resolver's MINT
+                # formula (keyed on the rel_path arg).
+                return {
+                    "source_document_id": uuid.uuid5(
+                        uuid.UUID("fbfaf1ff-1ee4-583c-9757-1674465b2ec1"),
+                        f"sd:{args[1]}",
+                    ),
+                    "was_minted": True,
+                }
+
             async def execute(self, sql: str, *args: object) -> str:
                 pool.executed.append((sql, args))
                 return "INSERT 0 1"

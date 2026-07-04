@@ -166,10 +166,29 @@ async def _fake_relationships_empty(content_text: str) -> list:
 
 
 class _FakePoolConn:
-    """asyncpg connection double recording ``execute`` calls."""
+    """asyncpg connection double recording ``execute`` calls.
+
+    ID-138 {138.10}: also answers the M2 identity resolver
+    (``resolve_or_mint_source_identity``) via ``fetchrow`` — the walk now resolves
+    the source_document_id off the raw pool BEFORE the ``_upsert_source_document``
+    write. The double mirrors the resolver's MINT formula
+    (``uuid5(NS, "sd:"+rel_path)``, keyed on the rel_path arg) so a re-walk of the
+    SAME path returns the SAME id (the idempotency these suites assert), exactly
+    as the real content_hash-first resolver does on first admission.
+    """
 
     def __init__(self) -> None:
         self.executed: list[tuple[str, tuple]] = []
+
+    async def fetchrow(self, sql: str, *args: object) -> dict:
+        # resolver args = (content_hash, rel_path, filename, mime, size, ...)
+        rel_path = args[1]
+        return {
+            "source_document_id": uuid.uuid5(
+                uuid.UUID("fbfaf1ff-1ee4-583c-9757-1674465b2ec1"), f"sd:{rel_path}"
+            ),
+            "was_minted": True,
+        }
 
     async def execute(self, sql: str, *args: object) -> str:
         self.executed.append((sql, args))
@@ -1341,6 +1360,18 @@ class TestSourceDocumentRawPoolFkOrdering:
         order: list[str] = []
 
         class _OrderedConn:
+            async def fetchrow(self, sql: str, *args: object) -> dict:
+                # ID-138 {138.10}: the M2 identity resolver — a READ, not a write,
+                # so it is NOT recorded in `order` (the FK-ordering guarantee is
+                # about the sd write preceding the entity-child declares).
+                return {
+                    "source_document_id": uuid.uuid5(
+                        uuid.UUID("fbfaf1ff-1ee4-583c-9757-1674465b2ec1"),
+                        f"sd:{args[1]}",
+                    ),
+                    "was_minted": True,
+                }
+
             async def execute(self, sql: str, *args: object) -> str:
                 if "INSERT INTO public.source_documents" in sql:
                     order.append("sd_upsert")
@@ -1427,10 +1458,13 @@ class TestInv19QaDeclareSnapshot:
     # ("fbfaf1ff-1ee4-583c-9757-1674465b2ec1") over the pinned rel_path —
     # computed once and FROZEN so namespace or seed-string drift is caught.
     # ID-131 {131.8} M2 (BI-15): q_a_extractions re-parented onto source_documents,
-    # so the golden parent FK is now the sd: uuid5 (was the ci: uuid5).
+    # so the golden parent FK is the sd: uuid5 (was the ci: uuid5).
+    # ID-138 {138.10} P3: the qa PK re-keys onto the STORED source_document_id
+    # (`qa:{sd_id}:{idx}`), NOT `qa:{rel_path}:{idx}` — a rename no longer re-mints
+    # the derived row. The frozen literals are recomputed on the new formula.
     _SD_ID = uuid.UUID("f1623a97-eeb2-5462-8589-8d42633b6cb2")  # sd:{rel}
-    _QA0_ID = uuid.UUID("1552220b-1f2b-5901-adc9-b84b94a5a099")  # qa:{rel}:0
-    _QA1_ID = uuid.UUID("05be7ffd-305c-55f9-9068-805d1fa1fae9")  # qa:{rel}:1
+    _QA0_ID = uuid.UUID("b9b73c59-f296-51af-89b5-2b671e11b1c8")  # qa:{sd_id}:0
+    _QA1_ID = uuid.UUID("bccdbac5-4559-58b3-af13-7ce57edc6abe")  # qa:{sd_id}:1
 
     _GOLDEN_QA_ROWS = [
         {
@@ -1548,6 +1582,13 @@ class TestInv19QaDeclareSnapshot:
             "sd": _FakeTarget("source_documents"),
             "em": _FakeTarget("entity_mentions"),
         }
+
+        # ID-138 {138.10}: the walk now resolves the identity off the raw pool
+        # (M2 resolver) before writing — wire a capturing pool so the resolved
+        # source_document_id (and the re-keyed qa PKs) are DETERMINISTIC, not a
+        # MagicMock. The double mints on the SEED-CONTRACT formula, matching the
+        # frozen golden literals.
+        _wire_pool(flow, monkeypatch)
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=cls._OP_ID):
@@ -2447,10 +2488,12 @@ class TestStampExtractionBaseWiredIntoIngest:
         expected_source_document_id = uuid.uuid5(
             flow._KH_PIPELINE_DOC_NS, f"sd:{rel_path}"
         )
-        # The retained content_items row (ci_target write) still keys on the
-        # ci: uuid5 — asserted below against ci.rows[0]["id"].
+        # ID-138 {138.10} P3: the content_items PK re-keys onto the STORED
+        # source_document_id (`ci:{sd_id}`), NOT `ci:{rel_path}` — a rename no
+        # longer re-mints the row. The fake resolver mints sd on the SEED-CONTRACT
+        # formula, so the resolved id equals uuid5("sd:"+rel_path) here.
         expected_content_item_id = uuid.uuid5(
-            flow._KH_PIPELINE_DOC_NS, f"ci:{rel_path}"
+            flow._KH_PIPELINE_DOC_NS, f"ci:{expected_source_document_id}"
         )
 
         # stamp_extraction_base ran for classification + qa_form + each of the

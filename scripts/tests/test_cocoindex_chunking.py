@@ -157,6 +157,38 @@ class _FakeTarget:
         self.rows.append(row)
 
 
+class _ResolverPool:
+    """ID-138 {138.10}: the content branch resolves the source_document_id off
+    the raw pool (M2 resolver) before writing, then re-keys chunk PKs onto it.
+    This double answers ``fetchrow`` with the resolver's MINT formula
+    (``uuid5(NS, "sd:"+rel_path)``, keyed on the rel_path arg) so the chunk uuid5
+    oracle stays a deterministic frozen-literal target; ``execute`` (the sd
+    upsert) is accepted and ignored."""
+
+    def acquire(self) -> object:
+        class _Conn:
+            async def fetchrow(self, sql: str, *args: object) -> dict:
+                return {
+                    "source_document_id": uuid.uuid5(
+                        uuid.UUID("fbfaf1ff-1ee4-583c-9757-1674465b2ec1"),
+                        f"sd:{args[1]}",
+                    ),
+                    "was_minted": True,
+                }
+
+            async def execute(self, sql: str, *args: object) -> str:
+                return "INSERT 0 1"
+
+        class _Acquire:
+            async def __aenter__(self) -> "_Conn":
+                return _Conn()
+
+            async def __aexit__(self, *exc: object) -> None:
+                return None
+
+        return _Acquire()
+
+
 class _FakeFile:
     """Minimal localfs.File stand-in: async read / read_text + file_path.
 
@@ -263,6 +295,11 @@ def _ingest_with_cc(
     """
     from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
 
+    # ID-138 {138.10}: wire the resolver pool so the content branch resolves a
+    # DETERMINISTIC source_document_id (not a MagicMock) — the chunk PK re-keys
+    # onto it, so the uuid5 oracle stays a frozen-literal target.
+    monkeypatch.setattr(flow.coco, "use_context", lambda key: _ResolverPool())
+
     ci = _FakeTarget("content_items")
     qa = _FakeTarget("q_a_extractions")
     sd = _FakeTarget("source_documents")
@@ -339,19 +376,20 @@ class TestChunkingStageWritePath:
             assert row["word_count"] == len(row["content"].split())
             # C-30: embedding is a length-1024 vector.
             assert len(row["embedding"]) == 1024
-            # Stable deterministic PK (chunk: uuid5) so re-ingest UPSERTs. Now a
-            # function of the FIXED rel_path → the per-position uuid5 is itself
-            # deterministic across runs. The first two positions are pinned to
-            # FROZEN literals (over _KH_PIPELINE_DOC_NS for "test/long-doc.md") to
-            # catch namespace/seed drift; the variable tail (positions 2..5,
-            # within the loose 2..6 chunk-count bound) cross-checks the live
-            # derivation over the same fixed seed.
+            # Stable deterministic PK (chunk: uuid5) so re-ingest UPSERTs.
+            # ID-138 {138.10} P3: the chunk PK re-keys onto the STORED
+            # source_document_id (`chunk:{sd_id}:{position}`), NOT `chunk:{rel_path}`
+            # — a rename no longer re-mints the chunk. The seed is now the stable
+            # identity, so the uuid5 stays deterministic across runs; the first two
+            # positions are pinned to FROZEN literals (recomputed on the new
+            # formula) to catch namespace/seed drift, the tail cross-checks the
+            # live derivation.
             assert row["id"] == uuid.uuid5(
-                flow._KH_PIPELINE_DOC_NS, f"chunk:{rel_path}:{position}"
+                flow._KH_PIPELINE_DOC_NS, f"chunk:{source_document_id}:{position}"
             )
             _FROZEN_CHUNK_IDS = {
-                0: uuid.UUID("7ee845ac-ece8-5fcb-97e4-917d954a346a"),
-                1: uuid.UUID("415e8595-76a6-5cd3-8f49-9fb41aa548ac"),
+                0: uuid.UUID("8ca83be9-590d-5fbd-8e91-295c3a6ab75e"),  # chunk:{sd_id}:0
+                1: uuid.UUID("18cb5bda-c1c0-55ed-af74-09f4d5347fee"),  # chunk:{sd_id}:1
             }
             if position in _FROZEN_CHUNK_IDS:
                 assert row["id"] == _FROZEN_CHUNK_IDS[position], (
@@ -490,6 +528,11 @@ class TestChunkRecordEmbeddingsWrite:
         )
 
         rel_path = _REL_PATH
+        # ID-138 {138.10} P3: chunk PKs re-key onto the STORED source_document_id
+        # (the resolver mints sd on the SEED-CONTRACT formula), NOT rel_path.
+        source_document_id = uuid.uuid5(
+            flow._KH_PIPELINE_DOC_NS, f"sd:{rel_path}"
+        )
         for position, (cc_row, re_row) in enumerate(zip(cc.rows, re.rows)):
             # owner_kind is the chunk grain's polymorphic tag.
             assert re_row["owner_kind"] == "content_chunk"
@@ -497,7 +540,7 @@ class TestChunkRecordEmbeddingsWrite:
             # content_chunks row carries) so re-ingest UPSERTs, not duplicates.
             assert re_row["owner_id"] == cc_row["id"]
             assert re_row["owner_id"] == uuid.uuid5(
-                flow._KH_PIPELINE_DOC_NS, f"chunk:{rel_path}:{position}"
+                flow._KH_PIPELINE_DOC_NS, f"chunk:{source_document_id}:{position}"
             )
             # model is the shared embedding-model constant (not a literal).
             assert re_row["model"] == flow.EMBEDDING_MODEL
