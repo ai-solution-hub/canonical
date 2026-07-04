@@ -105,6 +105,7 @@ import type { ItemData } from '@/app/item/[id]/item-detail-client';
 function createItem(overrides: Partial<ItemData> = {}): ItemData {
   return {
     id: 'item-123',
+    source_document_id: 'source-doc-123',
     title: 'Test',
     suggested_title: null,
     content: null,

@@ -115,6 +115,7 @@ function configureFetchResult(data: unknown[] | null, error: unknown = null) {
 function createItem(overrides: Partial<ItemData> = {}): ItemData {
   return {
     id: 'item-1',
+    source_document_id: 'source-doc-1',
     title: 'Test Item',
     suggested_title: 'Suggested Title',
     content: 'Test content body',
@@ -445,7 +446,10 @@ describe('MetadataSidebar', () => {
   });
 
   it('fetches quality flags from the correct table with correct filters', async () => {
-    const item = createItem({ id: 'item-xyz' });
+    const item = createItem({
+      id: 'item-xyz',
+      source_document_id: 'source-doc-xyz',
+    });
 
     render(<MetadataSidebar item={item} {...defaultProps} />);
 
@@ -456,8 +460,28 @@ describe('MetadataSidebar', () => {
     expect(mockChain.select).toHaveBeenCalledWith(
       'id, flag_type, severity, details, created_at',
     );
-    expect(mockChain.eq).toHaveBeenCalledWith('content_item_id', 'item-xyz');
+    // ingestion_quality_log is keyed by source_document_id (ID-131 {131.13}
+    // G-GOV-FACET-B rename) — filtered by the item's source document, not
+    // the content item id.
+    expect(mockChain.eq).toHaveBeenCalledWith(
+      'source_document_id',
+      'source-doc-xyz',
+    );
     expect(mockChain.eq).toHaveBeenCalledWith('resolved', false);
+  });
+
+  it('skips the quality-flags fetch when the item has no backing source document', async () => {
+    const item = createItem({ id: 'item-no-doc', source_document_id: null });
+
+    render(<MetadataSidebar item={item} {...defaultProps} />);
+
+    // Give any effect a tick to (not) run before asserting.
+    await waitFor(() => {
+      expect(screen.getByText('Domain')).toBeInTheDocument();
+    });
+
+    expect(mockFrom).not.toHaveBeenCalledWith('ingestion_quality_log');
+    expect(screen.queryByText(/Quality Flags/)).not.toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------

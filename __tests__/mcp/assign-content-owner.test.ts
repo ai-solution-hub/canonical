@@ -88,13 +88,29 @@ function getAssignOwnerTool(): MockToolRegistration | undefined {
 
 describe('assign_content_owner MCP tool', () => {
   let mockRpc: ReturnType<typeof vi.fn>;
+  let mockResolveIn: ReturnType<typeof vi.fn>;
   let mockSupabase: Record<string, unknown>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
 
     mockRpc = vi.fn();
-    mockSupabase = { rpc: mockRpc };
+    // content_items.id -> source_document_id resolution (ID-131 {131.13}
+    // G-GOV-FACET-B — bulk_assign_content_owner now matches
+    // record_lifecycle.owner_id, not content_items.id). Default: identity
+    // mapping so existing p_item_ids assertions below need no changes;
+    // individual tests override via mockResolveIn.mockImplementationOnce(...)
+    // to exercise unresolvable items.
+    mockResolveIn = vi.fn((_column: string, ids: string[]) =>
+      Promise.resolve({
+        data: ids.map((id) => ({ source_document_id: id })),
+        error: null,
+      }),
+    );
+    mockSupabase = {
+      rpc: mockRpc,
+      from: vi.fn(() => ({ select: () => ({ in: mockResolveIn }) })),
+    };
 
     mockCreateMcpClient.mockReturnValue(mockSupabase);
     mockGetMcpUserId.mockReturnValue(ADMIN_USER_ID);
@@ -188,6 +204,52 @@ describe('assign_content_owner MCP tool', () => {
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain('Failed to assign content owner');
     expect(result.content[0].text).toContain('RPC failed');
+  });
+
+  it('handles content_items resolution errors', async () => {
+    mockResolveIn.mockImplementationOnce(() =>
+      Promise.resolve({ data: null, error: { message: 'resolve failed' } }),
+    );
+
+    const tool = getAssignOwnerTool()!;
+    const result = await tool.handler(
+      { item_ids: [ITEM_ID_1], owner_id: OWNER_ID },
+      createMockExtra(),
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('Failed to assign content owner');
+    expect(mockRpc).not.toHaveBeenCalled();
+  });
+
+  it('excludes items with no backing source document from the RPC call', async () => {
+    // ITEM_ID_1 resolves, ITEM_ID_2 has no source_document_id (e.g. manually
+    // created content) — it cannot be resolved to an owner id under the
+    // current schema and is dropped before the RPC call.
+    mockResolveIn.mockImplementationOnce(() =>
+      Promise.resolve({
+        data: [{ source_document_id: ITEM_ID_1 }],
+        error: null,
+      }),
+    );
+    mockRpc.mockResolvedValue({ data: 1, error: null });
+
+    const tool = getAssignOwnerTool()!;
+    const result = await tool.handler(
+      { item_ids: [ITEM_ID_1, ITEM_ID_2], owner_id: OWNER_ID },
+      createMockExtra(),
+    );
+
+    expect(result.isError).toBeUndefined();
+    expect(mockRpc).toHaveBeenCalledWith('bulk_assign_content_owner', {
+      p_item_ids: [ITEM_ID_1],
+      p_owner_id: OWNER_ID,
+      p_assigned_by: ADMIN_USER_ID,
+    });
+    // requested/not_found bookkeeping still reflects the original 2 items
+    expect(result.structuredContent!.requested).toBe(2);
+    expect(result.structuredContent!.updated).toBe(1);
+    expect(result.structuredContent!.not_found).toBe(1);
   });
 
   it('handles single item assignment', async () => {

@@ -1315,11 +1315,44 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           const userId = getMcpUserId(extra.authInfo);
           const itemIds = args.item_ids!;
 
+          // bulk_assign_content_owner now matches record_lifecycle.owner_id
+          // (ID-131 {131.13} G-GOV-FACET-B), not content_items.id — resolve
+          // the requested item ids to their source_document_id before
+          // calling the RPC. Items with no backing source document (e.g.
+          // manually created content) cannot be resolved; they fall out of
+          // ownerIds and are reported via the existing not_found bookkeeping
+          // below, same as any other row the RPC doesn't match.
+          const resolveResult = await tryQuery(
+            supabase
+              .from('content_items')
+              .select('source_document_id')
+              .in('id', itemIds),
+            'mcp.content.assign.resolve_owner_ids',
+          );
+
+          if (!resolveResult.ok) {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: `Failed to assign content owner: ${resolveResult.error.message}`,
+                },
+              ],
+              isError: true,
+            };
+          }
+
+          const ownerIds = (
+            resolveResult.data as Array<{ source_document_id: string | null }>
+          )
+            .map((row) => row.source_document_id)
+            .filter((id): id is string => !!id);
+
           // Call the bulk_assign_content_owner RPC
           const { data: updatedCount, error } = await supabase.rpc(
             'bulk_assign_content_owner',
             {
-              p_item_ids: itemIds,
+              p_item_ids: ownerIds,
               p_owner_id: args.owner_id,
               p_assigned_by: userId,
             },
@@ -1480,7 +1513,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         // 4. Build scope query
         let query = supabase
           .from('content_items')
-          .select('id, title, content_owner_id')
+          .select('id, title, content_owner_id, source_document_id')
           .order('id', { ascending: true })
           .limit(501); // fetch 501 to detect if pagination needed
 
@@ -1517,11 +1550,19 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         const hasMore = allMatched.length > 500;
         const capped = hasMore ? allMatched.slice(0, 500) : allMatched;
 
-        // 5. Partition into affected / skipped
+        // 5. Partition into affected / skipped.
+        // bulk_assign_content_owner now matches record_lifecycle.owner_id
+        // (ID-131 {131.13} G-GOV-FACET-B), not content_items.id — items with
+        // no backing source document (e.g. manually created content) cannot
+        // be resolved to an owner id, so they're excluded up front rather
+        // than affected/skipped. ownerIdByItemId carries the resolved id
+        // through to the RPC call without changing the public
+        // items_affected/items_skipped response shape.
         type MatchedItem = {
           id: string;
           title: string;
           content_owner_id: string | null;
+          source_document_id: string | null;
         };
         const itemsAffected: Array<{
           id: string;
@@ -1533,8 +1574,14 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           title: string;
           current_owner_id: string;
         }> = [];
+        const ownerIdByItemId = new Map<string, string>();
+        let unresolvedCount = 0;
 
         for (const item of capped as MatchedItem[]) {
+          if (!item.source_document_id) {
+            unresolvedCount++;
+            continue;
+          }
           if (item.content_owner_id && !scope.unowned_only) {
             if (forceOverride) {
               itemsAffected.push({
@@ -1542,6 +1589,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
                 title: item.title,
                 previous_owner_id: item.content_owner_id,
               });
+              ownerIdByItemId.set(item.id, item.source_document_id);
             } else {
               itemsSkipped.push({
                 id: item.id,
@@ -1555,6 +1603,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
               title: item.title,
               previous_owner_id: null,
             });
+            ownerIdByItemId.set(item.id, item.source_document_id);
           }
         }
 
@@ -1573,6 +1622,11 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         if (itemsSkipped.length > 0) {
           warnings.push(
             `${itemsSkipped.length} item${itemsSkipped.length === 1 ? '' : 's'} skipped because they already have an owner; set force_override: true to reassign.`,
+          );
+        }
+        if (unresolvedCount > 0) {
+          warnings.push(
+            `${unresolvedCount} item${unresolvedCount === 1 ? '' : 's'} skipped — no backing source document, so ownership cannot be resolved under the current schema.`,
           );
         }
 
@@ -1639,8 +1693,10 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           };
         }
 
-        // 8. Call RPC
-        const targetIds = itemsAffected.map((i) => i.id);
+        // 8. Call RPC — resolved source_document_ids, not content_items.id
+        // (every itemsAffected entry has a corresponding ownerIdByItemId
+        // entry by construction in the partition loop above).
+        const targetIds = itemsAffected.map((i) => ownerIdByItemId.get(i.id)!);
         const { data: updatedCount, error: rpcError } = await supabase.rpc(
           'bulk_assign_content_owner',
           {
@@ -1732,7 +1788,9 @@ export async function registerContentTools(server: McpServer): Promise<void> {
                 user_id: ownerId,
                 type: 'owner_assignment',
                 entity_type: 'content_item',
-                entity_id: targetIds[0],
+                // content_items.id, not targetIds[0] (a source_document_id) —
+                // entity_type: 'content_item' expects the content item's own id.
+                entity_id: itemsAffected[0].id,
                 title,
                 message: null,
               });

@@ -99,12 +99,19 @@ function isPersistentMcpEvalSeed(metadata: unknown): boolean {
 
 async function selectContentItemIdsByPrefix(
   prefixes: readonly string[],
-): Promise<string[]> {
+): Promise<{
+  ids: string[];
+  sourceDocumentIds: string[];
+}> {
   const ids = new Set<string>();
+  // ingestion_quality_log is keyed by source_document_id, not content_items.id
+  // (ID-131 {131.13} G-GOV-FACET-B rename) — collected separately so its
+  // cleanup below joins on the right column.
+  const sourceDocumentIds = new Set<string>();
   for (const prefix of prefixes) {
     const { data, error } = await supabase
       .from('content_items')
-      .select('id, metadata')
+      .select('id, metadata, source_document_id')
       .like('title', `${prefix}%`)
       .lt('created_at', cutoffIso)
       .limit(1000);
@@ -121,10 +128,16 @@ async function selectContentItemIdsByPrefix(
         !isPersistentMcpEvalSeed(row.metadata)
       ) {
         ids.add(row.id);
+        if (typeof row.source_document_id === 'string') {
+          sourceDocumentIds.add(row.source_document_id);
+        }
       }
     }
   }
-  return Array.from(ids);
+  return {
+    ids: Array.from(ids),
+    sourceDocumentIds: Array.from(sourceDocumentIds),
+  };
 }
 
 async function selectIdsByPrefix(
@@ -187,9 +200,8 @@ async function deleteByIds(
   return deleted;
 }
 
-const contentItemIds = await selectContentItemIdsByPrefix(
-  CONTENT_TITLE_PREFIXES,
-);
+const { ids: contentItemIds, sourceDocumentIds: contentItemSourceDocumentIds } =
+  await selectContentItemIdsByPrefix(CONTENT_TITLE_PREFIXES);
 const workspaceIds = await selectIdsByPrefix(
   'workspaces',
   'name',
@@ -197,6 +209,14 @@ const workspaceIds = await selectIdsByPrefix(
 );
 
 let relatedRowsDeleted = 0;
+// ingestion_quality_log is keyed by source_document_id, not content_items.id
+// (ID-131 {131.13} G-GOV-FACET-B rename) — cleaned up via the resolved
+// source_document_ids, separately from the content_items.id-keyed tuples below.
+relatedRowsDeleted += await deleteByIds(
+  'ingestion_quality_log',
+  'source_document_id',
+  contentItemSourceDocumentIds,
+);
 for (const [table, column] of [
   ['citations', 'cited_content_item_id'],
   ['content_chunks', 'source_document_id'],
@@ -205,7 +225,6 @@ for (const [table, column] of [
   ['entity_mentions', 'source_document_id'],
   ['entity_relationships', 'source_document_id'],
   ['classification_disputes', 'source_document_id'],
-  ['ingestion_quality_log', 'content_item_id'],
   ['read_marks', 'content_item_id'],
   ['verification_history', 'content_item_id'],
 ] as const) {

@@ -70,12 +70,34 @@ export const GET = defineRoute(
       if (!parsed.success) return parsed.response;
       const { item_id: itemId } = parsed.data;
 
+      // ingestion_quality_log is now keyed by source_document_id (ID-131
+      // {131.13} G-GOV-FACET-B rename; content_items is dying), so resolve
+      // the requested item's source document before querying the log.
+      const { data: item, error: itemError } = await supabase
+        .from('content_items')
+        .select('source_document_id')
+        .eq('id', itemId)
+        .single();
+
+      if (itemError) {
+        logger.error(
+          { err: itemError },
+          'Failed to resolve source document for review history',
+        );
+      }
+      if (itemError || !item?.source_document_id) {
+        return NextResponse.json({ history: [] });
+      }
+
+      // Cast: source_document_id exists in the DB post-migration (ID-131
+      // {131.13} G-GOV-FACET-B rename) but generated types are pending
+      // regen until GO-apply.
       const { data, error } = await supabase
         .from('ingestion_quality_log')
         .select(
           'id, flag_type, severity, details, resolution_notes, created_at, created_by, resolved, resolved_at, resolved_by',
         )
-        .eq('content_item_id', itemId)
+        .eq('source_document_id' as 'content_item_id', item.source_document_id)
         .order('created_at', { ascending: false })
         .limit(10);
 

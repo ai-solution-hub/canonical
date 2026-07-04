@@ -28,14 +28,46 @@ export const POST = defineRoute(
 
       const { item_ids, filter, owner_id } = parsed.data;
 
+      // itemIds is always content_items.id (used for the notification's
+      // entity_id and the response's cap/count semantics). ownerIds is the
+      // resolved source_document_id set — bulk_assign_content_owner now
+      // matches record_lifecycle.owner_id (ID-131 {131.13} G-GOV-FACET-B),
+      // not content_items.id. Items with no backing source document (e.g.
+      // manually created content) cannot be resolved to an owner id and are
+      // dropped from ownerIds — content_items has no other FK to a
+      // record_lifecycle owner.
       let itemIds: string[];
+      let ownerIds: string[];
 
       if (item_ids) {
-        // Use explicit list
+        // Use explicit list — resolve to source_document_id via content_items.
         itemIds = item_ids;
+
+        const { data: resolved, error: resolveError } = await supabase
+          .from('content_items')
+          .select('source_document_id')
+          .in('id', itemIds);
+
+        if (resolveError) {
+          return NextResponse.json(
+            {
+              error: safeErrorMessage(
+                resolveError,
+                'Failed to resolve content items',
+              ),
+            },
+            { status: 500 },
+          );
+        }
+
+        ownerIds = (resolved ?? [])
+          .map((row) => row.source_document_id)
+          .filter((id): id is string => !!id);
       } else if (filter) {
         // Query content_items with filters to resolve IDs
-        let query = supabase.from('content_items').select('id');
+        let query = supabase
+          .from('content_items')
+          .select('id, source_document_id');
 
         if (filter.domain) {
           query = query.eq('primary_domain', filter.domain);
@@ -68,6 +100,9 @@ export const POST = defineRoute(
         }
 
         itemIds = (items ?? []).map((item) => item.id);
+        ownerIds = (items ?? [])
+          .map((item) => item.source_document_id)
+          .filter((id): id is string => !!id);
       } else {
         // Should not reach here due to Zod refinement, but handle gracefully
         return NextResponse.json(
@@ -85,11 +120,15 @@ export const POST = defineRoute(
         itemIds = itemIds.slice(0, 500);
       }
 
+      if (ownerIds.length === 0) {
+        return NextResponse.json({ success: true, items_updated: 0 });
+      }
+
       // Call bulk_assign_content_owner RPC
       const { data: rpcResult, error: rpcError } = (await supabase.rpc(
         'bulk_assign_content_owner',
         {
-          p_item_ids: itemIds,
+          p_item_ids: ownerIds,
           p_owner_id: owner_id,
           p_assigned_by: user.id,
         },
@@ -107,7 +146,7 @@ export const POST = defineRoute(
         );
       }
 
-      const count = typeof rpcResult === 'number' ? rpcResult : itemIds.length;
+      const count = typeof rpcResult === 'number' ? rpcResult : ownerIds.length;
 
       // Create a single notification for the new owner summarising the bulk action
       if (owner_id !== user.id) {

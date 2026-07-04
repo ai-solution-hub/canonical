@@ -189,12 +189,35 @@ function getBulkAssignTool(): MockToolRegistration {
   return tool;
 }
 
-/** Helper: set content_items query to return specific items */
+/**
+ * Helper: set content_items query to return specific items.
+ *
+ * source_document_id defaults to the item's own id when not given — the
+ * RPC now matches record_lifecycle.owner_id (ID-131 {131.13}
+ * G-GOV-FACET-B), so existing p_item_ids assertions against ITEM_1/ITEM_2
+ * keep working unchanged. Pass source_document_id: null explicitly to
+ * exercise the "no backing source document" exclusion path.
+ */
 function setContentItems(
-  items: Array<{ id: string; title: string; content_owner_id: string | null }>,
+  items: Array<{
+    id: string;
+    title: string;
+    content_owner_id: string | null;
+    source_document_id?: string | null;
+  }>,
 ) {
   mocks.contentItemsChain.then.mockImplementation(
-    (resolve: (v: unknown) => void) => resolve({ data: items, error: null }),
+    (resolve: (v: unknown) => void) =>
+      resolve({
+        data: items.map((item) => ({
+          ...item,
+          source_document_id:
+            item.source_document_id === undefined
+              ? item.id
+              : item.source_document_id,
+        })),
+        error: null,
+      }),
   );
 }
 
@@ -613,6 +636,60 @@ describe('bulk_assign_owner MCP tool', () => {
       'bulk_assign_content_owner',
       expect.objectContaining({
         p_item_ids: [ITEM_1, ITEM_2],
+      }),
+    );
+  });
+
+  // ID-131 {131.13} G-GOV-FACET-B: items with no backing source document
+  // (e.g. manually created content) cannot be resolved to a
+  // record_lifecycle owner id and are excluded, with a warning — distinct
+  // from the "already owned" skip path (T10).
+  it('excludes items with no backing source document from assignment', async () => {
+    setContentItems([
+      { id: ITEM_1, title: 'Has document', content_owner_id: null },
+      {
+        id: ITEM_2,
+        title: 'No document',
+        content_owner_id: null,
+        source_document_id: null,
+      },
+    ]);
+    mocks.mockSupabaseClient.rpc.mockResolvedValue({ data: 1, error: null });
+
+    const result = await tool.handler(
+      {
+        scope: { domain: 'Healthcare', unowned_only: true },
+        owner_id: OWNER_ID,
+        force_override: false,
+        notify: true,
+        batch_mode: false,
+        dry_run: false,
+      },
+      createMockExtra(),
+    );
+
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent!.assigned_count).toBe(1);
+
+    const affected = result.structuredContent!.items_affected as Array<{
+      id: string;
+    }>;
+    expect(affected).toHaveLength(1);
+    expect(affected[0].id).toBe(ITEM_1);
+
+    const warnings = result.structuredContent!.warnings as string[];
+    expect(warnings).toBeDefined();
+    expect(
+      warnings.some(
+        (w) => w.includes('no backing source document') && w.includes('1'),
+      ),
+    ).toBe(true);
+
+    // RPC called only with the resolvable item's source_document_id
+    expect(mocks.mockSupabaseClient.rpc).toHaveBeenCalledWith(
+      'bulk_assign_content_owner',
+      expect.objectContaining({
+        p_item_ids: [ITEM_1],
       }),
     );
   });

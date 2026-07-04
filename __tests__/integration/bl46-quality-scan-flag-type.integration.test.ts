@@ -14,8 +14,9 @@
  * publication-status-migration constraint-probe convention: write a row with
  * the previously-rejected flag_type through the service client and assert the
  * CHECK now ACCEPTS it (no 23514), with a negative control proving the CHECK
- * is still enforced for genuinely-unknown values. content_item_id is nullable,
- * so the probe rows need no content_items FK and are fully self-contained.
+ * is still enforced for genuinely-unknown values. source_document_id is
+ * nullable, so the probe rows need no source_documents FK and are fully
+ * self-contained.
  *
  * Prerequisites:
  *   - .env with NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
@@ -28,6 +29,10 @@
 
 import { afterAll, describe, expect, it } from 'vitest';
 import { serviceClient } from './helpers/service-client';
+import type { Database } from '@/supabase/types/database.types';
+
+type IngestionQualityLogInsert =
+  Database['public']['Tables']['ingestion_quality_log']['Insert'];
 
 // Unique marker so cleanup only ever touches rows this test created.
 const TEST_BATCH = `bl46-flag-type-test-${Date.now()}`;
@@ -48,15 +53,18 @@ describe('ingestion_quality_log flag_type CHECK — bl-46 (live DB)', () => {
   it.each(SCAN_FLAG_TYPES)(
     "accepts run_quality_scan's flag_type=%s (no 23514)",
     async (flagType) => {
+      // Cast: source_document_id exists in the DB post-migration (ID-131
+      // {131.13} G-GOV-FACET-B rename) but generated types are pending
+      // regen until GO-apply.
       const { data, error } = await serviceClient
         .from('ingestion_quality_log')
         .insert({
-          content_item_id: null,
+          source_document_id: null,
           flag_type: flagType,
           severity: 'info',
           ingestion_batch: TEST_BATCH,
           details: { scan_source: 'run_quality_scan', test: 'bl-46' },
-        })
+        } as unknown as IngestionQualityLogInsert)
         .select('id')
         .single();
 
@@ -70,13 +78,13 @@ describe('ingestion_quality_log flag_type CHECK — bl-46 (live DB)', () => {
     const { error } = await serviceClient
       .from('ingestion_quality_log')
       .insert({
-        content_item_id: null,
+        source_document_id: null,
         // Not a member of the allowed set — the widened CHECK must still gate.
         flag_type:
           'totally_unknown_flag_type' as unknown as 'classification_low',
         severity: 'info',
         ingestion_batch: TEST_BATCH,
-      })
+      } as unknown as IngestionQualityLogInsert)
       .select('id')
       .single();
 

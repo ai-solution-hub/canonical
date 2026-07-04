@@ -84,21 +84,32 @@ export function MetadataSidebar({
     item.content_owner_id as string | null,
   ]);
 
-  // Quality flags
+  // Quality flags — ingestion_quality_log is keyed by source_document_id
+  // (ID-131 {131.13} G-GOV-FACET-B rename; content_items is dying). Items with
+  // no backing source document (e.g. manually created content) have no
+  // flags to show under the new schema, so the fetch is skipped for them.
   const [qualityFlags, setQualityFlags] = useState<QualityFlag[]>([]);
   useEffect(() => {
+    const sourceDocumentId = item.source_document_id;
     const fetchFlags = async () => {
+      if (!sourceDocumentId) {
+        setQualityFlags([]);
+        return;
+      }
       const supabase = createClient();
+      // Cast: source_document_id exists in the DB post-migration (ID-131
+      // {131.13} G-GOV-FACET-B rename) but generated types are pending
+      // regen until GO-apply.
       const { data } = await supabase
         .from('ingestion_quality_log')
         .select('id, flag_type, severity, details, created_at')
-        .eq('content_item_id', item.id)
+        .eq('source_document_id' as 'content_item_id', sourceDocumentId)
         .eq('resolved', false)
         .order('created_at', { ascending: false });
       if (data) setQualityFlags(data as QualityFlag[]);
     };
     fetchFlags();
-  }, [item.id]);
+  }, [item.id, item.source_document_id]);
 
   const resolveFlag = useCallback(
     async (flagId: string) => {

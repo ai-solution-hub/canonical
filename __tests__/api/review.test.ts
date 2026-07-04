@@ -40,6 +40,9 @@ import { GET as getStats } from '@/app/api/review/stats/route';
 // ---------------------------------------------------------------------------
 
 const VALID_UUID = '00000000-0000-4000-8000-000000000001';
+// A distinct id from VALID_UUID (the content_items.id) — proves ingestion_quality_log
+// writes/reads resolve through content_items.source_document_id, not item_id directly.
+const SOURCE_DOC_UUID = '00000000-0000-4000-8000-000000000002';
 
 /** Reset mock state and restore default authenticated user. */
 function resetMocks() {
@@ -187,6 +190,93 @@ describe('GET /api/review/queue', () => {
     expect(json.verified_count).toBe(5);
     expect(json.flagged_count).toBe(2);
     expect(json.has_more).toBe(false);
+  });
+
+  // ingestion_quality_log is now keyed by source_document_id (ID-131 {131.13}
+  // G-GOV-FACET-B rename), so handleFlaggedQuery's content_items lookup must
+  // join on source_document_id instead of id — content_items.id and
+  // ingestion_quality_log's flagged ids are no longer the same identifier.
+  it('returns flagged items joined via source_document_id', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const mockFlaggedDocIds = [
+      { source_document_id: 'doc-1' },
+      { source_document_id: 'doc-2' },
+    ];
+    const mockItems = [
+      {
+        id: VALID_UUID,
+        title: 'Flagged Item',
+        suggested_title: 'Flagged Item',
+        summary: 'A summary',
+        primary_domain: 'Technology',
+        primary_subtopic: 'AI',
+        secondary_domain: null,
+        secondary_subtopic: null,
+        content_type: 'article',
+        platform: 'web',
+        author_name: 'Author',
+        source_domain: 'example.com',
+        thumbnail_url: null,
+        captured_date: '2026-01-01',
+        ai_keywords: ['test'],
+        classification_confidence: 0.9,
+        quality_score: 75,
+        priority: 'medium',
+        user_tags: [],
+        metadata: null,
+        content: 'Some content',
+        source_url: 'https://example.com',
+        verified_at: null,
+        verified_by: null,
+        freshness: 'fresh',
+        governance_review_status: null,
+        created_at: '2026-01-01T00:00:00Z',
+      },
+    ];
+
+    let thenCallCount = 0;
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        // 1: ingestion_quality_log flagged source_document_ids
+        if (thenCallCount === 1) {
+          return resolve({ data: mockFlaggedDocIds, error: null });
+        }
+        // 2: content_items filtered by source_document_id
+        if (thenCallCount === 2) {
+          return resolve({ data: mockItems, error: null, count: 1 });
+        }
+        // 3: verified count, 4: flagged count (progress bar)
+        if (thenCallCount === 3) {
+          return resolve({ data: null, error: null, count: 3 });
+        }
+        if (thenCallCount === 4) {
+          return resolve({ data: null, error: null, count: 2 });
+        }
+        // 5: fetchLastReviewedDates (verification_history)
+        return resolve({ data: [], error: null, count: 0 });
+      },
+    );
+
+    const req = createTestRequest('/api/review/queue', {
+      searchParams: { status: 'flagged' },
+    });
+    const res = await getQueue(req);
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.items).toHaveLength(1);
+    expect(json.items[0].id).toBe(VALID_UUID);
+    expect(json.total).toBe(1);
+
+    // The join key fix under test: content_items is filtered by the
+    // resolved source_document_ids, not the (no-longer-matching) content
+    // item ids that used to live in ingestion_quality_log.content_item_id.
+    expect(mockSupabase._chain.in).toHaveBeenCalledWith('source_document_id', [
+      'doc-1',
+      'doc-2',
+    ]);
   });
 });
 
@@ -360,7 +450,7 @@ describe('POST /api/review/action', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID },
+      data: { id: VALID_UUID, source_document_id: SOURCE_DOC_UUID },
       error: null,
     });
 
@@ -387,16 +477,54 @@ describe('POST /api/review/action', () => {
     // The new quality-log row (flag_type/severity/details/created_by) is never
     // read back, so this insert-payload assert is the only proof flagging
     // records a review_needed/warning entry with the operator's note attached.
+    // ingestion_quality_log is keyed by source_document_id (ID-131 {131.13}
+    // G-GOV-FACET-B rename), resolved from the item's content_items row —
+    // never the raw item_id (content_items.id).
     expect(mockSupabase.from).toHaveBeenCalledWith('ingestion_quality_log');
     expect(mockSupabase._chain.insert).toHaveBeenCalledWith(
       expect.objectContaining({
-        content_item_id: VALID_UUID,
+        source_document_id: SOURCE_DOC_UUID,
         flag_type: 'review_needed',
         severity: 'warning',
         details: { notes: 'Needs review — content seems outdated' },
         created_by: 'test-user-id',
       }),
     );
+  });
+
+  it('skips the ingestion_quality_log insert when flagging an item with no backing source document', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID, source_document_id: null },
+      error: null,
+    });
+
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+    );
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: {
+        item_id: VALID_UUID,
+        action: 'flag',
+        flag_details: 'Needs review',
+      },
+    });
+
+    const res = await postAction(req);
+    expect(res.status).toBe(200);
+
+    const json = await res.json();
+    expect(json.success).toBe(true);
+
+    // No source document to resolve — nothing to insert into
+    // ingestion_quality_log, but the verification_history audit trail and
+    // content_items status clear (both item_id-scoped, unaffected by this
+    // migration) still proceed.
+    expect(mockSupabase.from).not.toHaveBeenCalledWith('ingestion_quality_log');
+    expect(mockSupabase.from).toHaveBeenCalledWith('verification_history');
   });
 
   it('returns 200 on successful unverify action', async () => {

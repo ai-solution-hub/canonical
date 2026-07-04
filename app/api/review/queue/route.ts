@@ -296,7 +296,9 @@ export const GET = defineRoute(
 
       const items = (data ?? []) as ContentItemRow[];
 
-      // Fetch verified and flagged counts in parallel for the progress bar
+      // Fetch verified and flagged counts in parallel for the progress bar.
+      // ingestion_quality_log is now keyed by source_document_id (ID-131
+      // {131.13} G-GOV-FACET-B rename; content_items is dying).
       const [verifiedResult, flaggedResult] = await Promise.all([
         supabase
           .from('content_items')
@@ -304,7 +306,7 @@ export const GET = defineRoute(
           .not('verified_at', 'is', null),
         supabase
           .from('ingestion_quality_log')
-          .select('content_item_id', { count: 'exact', head: true })
+          .select('source_document_id', { count: 'exact', head: true })
           .eq('flag_type', 'review_needed')
           .eq('resolved', false),
       ]);
@@ -356,13 +358,17 @@ async function handleFlaggedQuery(
   sourceDocumentIdParam: string | null,
   sort?: string,
 ) {
-  // First, get the content_item_ids that have open review_needed flags
+  // First, get the source_document_ids that have open review_needed flags.
+  // ingestion_quality_log is now keyed by source_document_id (ID-131 {131.13}
+  // G-GOV-FACET-B rename; content_items.id no longer applies), so the
+  // content_items lookup below joins through its own source_document_id FK
+  // rather than id.
   const { data: flaggedIds, error: flagError } = await supabase
     .from('ingestion_quality_log')
-    .select('content_item_id')
+    .select('source_document_id')
     .eq('flag_type', 'review_needed')
     .eq('resolved', false)
-    .not('content_item_id', 'is', null);
+    .not('source_document_id', 'is', null);
 
   if (flagError) {
     logger.error({ err: flagError }, 'Failed to fetch flagged items');
@@ -372,15 +378,15 @@ async function handleFlaggedQuery(
     );
   }
 
-  const itemIds = [
+  const sourceDocumentIds = [
     ...new Set(
       (flaggedIds ?? []).map(
-        (r: { content_item_id: string }) => r.content_item_id,
+        (r: { source_document_id: string }) => r.source_document_id,
       ),
     ),
   ];
 
-  if (itemIds.length === 0) {
+  if (sourceDocumentIds.length === 0) {
     const response: ReviewQueueResponse = {
       items: [],
       total: 0,
@@ -391,11 +397,11 @@ async function handleFlaggedQuery(
     return NextResponse.json(response);
   }
 
-  // Now query content_items filtered to those IDs
+  // Now query content_items filtered to those source documents
   let query = supabase
     .from('content_items')
     .select(REVIEW_COLUMNS, { count: 'exact' })
-    .in('id', itemIds);
+    .in('source_document_id', sourceDocumentIds);
 
   if (effectiveDomainParams.length > 0) {
     query = query.in('primary_domain', effectiveDomainParams);
@@ -449,7 +455,7 @@ async function handleFlaggedQuery(
       .not('verified_at', 'is', null),
     supabase
       .from('ingestion_quality_log')
-      .select('content_item_id', { count: 'exact', head: true })
+      .select('source_document_id', { count: 'exact', head: true })
       .eq('flag_type', 'review_needed')
       .eq('resolved', false),
   ]);

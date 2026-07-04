@@ -9,6 +9,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { ReviewActionBodySchema } from '@/lib/validation/schemas';
+import type { Database } from '@/supabase/types/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -39,10 +40,14 @@ export const POST = defineRoute(
 
       const { item_id, action, flag_details, note } = parsed.data;
 
-      // Validate that the content item exists
+      // Validate that the content item exists. source_document_id is also
+      // fetched here — ingestion_quality_log is now keyed by source_document_id
+      // (ID-131 {131.13} G-GOV-FACET-B rename; content_items.id no longer
+      // applies), so every ingestion_quality_log operation below resolves
+      // through this column instead of item_id directly.
       const { data: item, error: fetchError } = await supabase
         .from('content_items')
-        .select('id')
+        .select('id, source_document_id')
         .eq('id', item_id)
         .single();
 
@@ -52,6 +57,8 @@ export const POST = defineRoute(
           { status: 404 },
         );
       }
+
+      const sourceDocumentId = item.source_document_id;
 
       if (action === 'verify') {
         const { error } = await supabase
@@ -79,32 +86,51 @@ export const POST = defineRoute(
           performed_by: user.id,
         });
 
-        // Resolve any open review_needed flags — verification overrides flags
-        await supabase
-          .from('ingestion_quality_log')
-          .update({
-            resolved: true,
-            resolved_at: new Date().toISOString(),
-            resolved_by: user.id,
-          })
-          .eq('content_item_id', item_id)
-          .eq('flag_type', 'review_needed')
-          .eq('resolved', false);
+        // Resolve any open review_needed flags — verification overrides flags.
+        // No-op when the item has no backing source document (nothing to
+        // resolve under the new source_document_id-keyed schema).
+        if (sourceDocumentId) {
+          await supabase
+            .from('ingestion_quality_log')
+            // Cast: source_document_id exists in the DB post-migration
+            // (ID-131 {131.13} G-GOV-FACET-B rename) but generated types
+            // are pending regen until GO-apply.
+            .update({
+              resolved: true,
+              resolved_at: new Date().toISOString(),
+              resolved_by: user.id,
+            })
+            .eq('source_document_id' as 'content_item_id', sourceDocumentId)
+            .eq('flag_type', 'review_needed')
+            .eq('resolved', false);
+        }
       } else if (action === 'flag') {
-        const { error } = await supabase.from('ingestion_quality_log').insert({
-          content_item_id: item_id,
-          flag_type: 'review_needed',
-          severity: 'warning',
-          details: flag_details ? { notes: flag_details } : {},
-          created_by: user.id,
-        });
+        if (sourceDocumentId) {
+          // Cast: source_document_id exists in the DB post-migration
+          // (ID-131 {131.13} G-GOV-FACET-B rename) but generated types are
+          // pending regen until GO-apply. Double-cast through `unknown` —
+          // supabase-js's RejectExcessProperties guard rejects the simpler
+          // `as typeof x & Record<string, unknown>` widening.
+          const insertPayload = {
+            source_document_id: sourceDocumentId,
+            flag_type: 'review_needed',
+            severity: 'warning',
+            details: flag_details ? { notes: flag_details } : {},
+            created_by: user.id,
+          };
+          const { error } = await supabase
+            .from('ingestion_quality_log')
+            .insert(
+              insertPayload as unknown as Database['public']['Tables']['ingestion_quality_log']['Insert'],
+            );
 
-        if (error) {
-          logger.error({ err: error }, 'Failed to flag content item');
-          return NextResponse.json(
-            { error: 'Failed to flag item' },
-            { status: 500 },
-          );
+          if (error) {
+            logger.error({ err: error }, 'Failed to flag content item');
+            return NextResponse.json(
+              { error: 'Failed to flag item' },
+              { status: 500 },
+            );
+          }
         }
 
         // Record in verification history for unified audit trail
@@ -151,23 +177,35 @@ export const POST = defineRoute(
         });
       } else if (action === 'unflag') {
         // Resolve the most recent unresolved review_needed flag for this item.
-        // Two-step query: Supabase does not support .update().limit(1).
-        const { data: flag, error: fetchFlagError } = await supabase
-          .from('ingestion_quality_log')
-          .select('id')
-          .eq('content_item_id', item_id)
-          .eq('flag_type', 'review_needed')
-          .eq('resolved', false)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        // Two-step query: Supabase does not support .update().limit(1). No-op
+        // when the item has no backing source document (nothing to look up
+        // under the new source_document_id-keyed schema).
+        let flag: { id: string } | null = null;
+        if (sourceDocumentId) {
+          // Cast: source_document_id exists in the DB post-migration
+          // (ID-131 {131.13} G-GOV-FACET-B rename) but generated types are
+          // pending regen until GO-apply.
+          const { data, error: fetchFlagError } = await supabase
+            .from('ingestion_quality_log')
+            .select('id')
+            .eq('source_document_id' as 'content_item_id', sourceDocumentId)
+            .eq('flag_type', 'review_needed')
+            .eq('resolved', false)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
 
-        if (fetchFlagError) {
-          logger.error({ err: fetchFlagError }, 'Failed to find quality flag');
-          return NextResponse.json(
-            { error: 'Failed to unflag item' },
-            { status: 500 },
-          );
+          if (fetchFlagError) {
+            logger.error(
+              { err: fetchFlagError },
+              'Failed to find quality flag',
+            );
+            return NextResponse.json(
+              { error: 'Failed to unflag item' },
+              { status: 500 },
+            );
+          }
+          flag = data;
         }
 
         if (flag) {

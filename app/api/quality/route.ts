@@ -17,7 +17,7 @@ import { z } from 'zod';
 export const maxDuration = 30;
 
 // GET returns a paged list of ingestion_quality_log rows. The SELECT projects
-// `id, content_item_id, flag_type, severity, details, resolved, resolved_at,
+// `id, source_document_id, flag_type, severity, details, resolved, resolved_at,
 // resolved_by, resolution_notes, created_at`. `id`/`flag_type`/`severity` are
 // NOT NULL; the remaining columns are nullable DB values and .optional()
 // because some 2xx projections return a subset.
@@ -25,7 +25,7 @@ const QualityFlagSchema = z.object({
   id: z.string(),
   flag_type: z.string(),
   severity: z.string(),
-  content_item_id: z.string().nullable().optional(),
+  source_document_id: z.string().nullable().optional(),
   // details is a free-form jsonb column projected verbatim.
   details: z.unknown().optional(),
   resolved: z.boolean().nullable().optional(),
@@ -64,12 +64,16 @@ export const GET = defineRoute(
       let query = supabase
         .from('ingestion_quality_log')
         .select(
-          'id, content_item_id, flag_type, severity, details, resolved, resolved_at, resolved_by, resolution_notes, created_at',
+          'id, source_document_id, flag_type, severity, details, resolved, resolved_at, resolved_by, resolution_notes, created_at',
           { count: 'exact' },
         );
 
       if (itemId) {
-        query = query.eq('content_item_id', itemId);
+        // Cast: source_document_id exists in the DB post-migration
+        // (ID-131 {131.13} G-GOV-FACET-B rename) but generated types are
+        // pending regen until GO-apply — same pattern as the existing
+        // 'content_owner_id' as 'id' cast in bulk-assign/route.ts.
+        query = query.eq('source_document_id' as 'content_item_id', itemId);
       }
 
       if (flagType) {

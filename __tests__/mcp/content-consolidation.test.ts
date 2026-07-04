@@ -197,7 +197,20 @@ describe('ID-71.10 content tool consolidation', () => {
 
     it('explicit item_ids path routes via the bulk_assign_content_owner RPC and reports action=assign_content_owner', async () => {
       const rpc = vi.fn().mockResolvedValue({ data: 1, error: null });
-      mockCreateMcpClient.mockReturnValue({ rpc });
+      // content_items.id -> source_document_id resolution (ID-131 {131.13}
+      // G-GOV-FACET-B — bulk_assign_content_owner now matches
+      // record_lifecycle.owner_id, not content_items.id). Identity mapping
+      // keeps this an "explicit item_ids" happy-path test.
+      const from = vi.fn(() => ({
+        select: () => ({
+          in: (_column: string, ids: string[]) =>
+            Promise.resolve({
+              data: ids.map((id) => ({ source_document_id: id })),
+              error: null,
+            }),
+        }),
+      }));
+      mockCreateMcpClient.mockReturnValue({ rpc, from });
 
       const result = await mockServer.getHandler('assign')!(
         { item_ids: [ID_1], owner_id: OWNER_ID },

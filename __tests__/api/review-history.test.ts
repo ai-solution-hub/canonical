@@ -91,6 +91,15 @@ describe('GET /api/review/history', () => {
       supabase: mockSupabase,
       role: 'editor',
     });
+
+    // Default: the requested item resolves to a backing source document.
+    // ingestion_quality_log is now keyed by source_document_id (ID-131
+    // {131.13} G-GOV-FACET-B rename), so the route looks this up via
+    // content_items before querying the log — tests override per-case below.
+    mockSupabase._chain.single.mockResolvedValue({
+      data: { source_document_id: 'a1a1a1a1-0000-4000-8000-000000000099' },
+      error: null,
+    });
   });
 
   // ── Authentication and authorisation ─────────────────────────────────────
