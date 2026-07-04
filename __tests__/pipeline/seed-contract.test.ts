@@ -12,11 +12,23 @@
  *
  * The contract (BI-7):
  *   - `_KH_PIPELINE_DOC_NS` is the frozen namespace for every per-document seed.
- *   - The CITEABLE seed set is EXACTLY {sd, ri, qa}. Their UUIDs are referenced
- *     externally; changing the prefix/format orphans existing citations.
+ *   - The CITEABLE seed set is EXACTLY {sd, ri, qa}. Their prefixes + namespace
+ *     are frozen; changing the prefix/namespace orphans existing citations.
  *   - `ci:` (dies with its content_items row) and `chunk:` are INTERNAL seeds —
  *     they still exist in flow.py but are explicitly NOT part of the citeable
  *     contract.
+ *
+ * ID-138 {138.10} (R(id) / DR-024 clause i): the DERIVED-row seeds
+ * (`ci:` / `chunk:` / `qa:`) re-key onto the STORED `source_document_id`
+ * (registry-keyed), NOT the mutable `rel_path`, so a client rename does not
+ * re-mint the derived graph. This changes the `qa:` seed's natural-key SHAPE
+ * (`qa:{source_document_id}:{idx}`) — SAFE for the citeable contract because the
+ * durable Q&A citation anchor is `q_a_pairs`, whose PK is minted independently at
+ * promotion and is NEVER derived from the `qa:` staging seed (TECH.md §2.2:
+ * "q_a_pairs is unaffected … no bundle has published yet"). The frozen invariants
+ * that DO protect citations — the namespace + the `sd:`/`ri:` natural keys — are
+ * unchanged (`sd:` is minted content_hash-first by the M2 resolver on the SAME
+ * `uuid5(NS, "sd:"+rel_path)` formula; the URL branch keeps `sd:{item.url}`).
  *   - `_KH_CONCEPT_NS` is frozen here for ID-132: the concept-embedding key
  *     namespace (`record_embeddings owner_kind='concept'`). It MUST be frozen
  *     before ID-132's first OKF-bundle publish, or the bundle vector index
@@ -87,12 +99,20 @@ describe('SEED-CONTRACT freeze (BI-7)', () => {
     expect(flowSource).toContain('f"sd:{item.url}"');
   });
 
-  it('keeps citeable seeds in their frozen natural-key formats', () => {
-    // The prefix AND the natural-key shape are frozen — a citation reproduces
-    // the exact seed string to recompute the UUID.
+  it('keeps the sd/ri citeable seeds in their frozen natural-key formats', () => {
+    // sd:/ri: are the citation-resolving anchors — their prefix AND natural-key
+    // shape are frozen so a citation reproduces the exact seed string.
     expect(flowSource).toContain('f"sd:{rel_path}"');
     expect(flowSource).toContain('f"ri:{item.url}"');
-    expect(flowSource).toContain('f"qa:{rel_path}:{idx}"');
+  });
+
+  it('re-keys the qa: staging seed onto the stored source_document_id (ID-138 {138.10})', () => {
+    // R(id) / DR-024 i: the qa: seed (q_a_extractions, rebuildable staging) keys
+    // on the STORED source_document_id, NOT rel_path, so a rename does not
+    // re-mint it. Citations resolve against q_a_pairs (promotion PK, independent
+    // of this seed), so re-keying the staging seed is contract-safe.
+    expect(flowSource).toContain('f"qa:{source_document_id}:{idx}"');
+    expect(flowSource).not.toContain('f"qa:{rel_path}:{idx}"');
   });
 
   it('excludes the internal ci: and chunk: seeds from the citeable contract', () => {
