@@ -8,7 +8,6 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Command } from 'cmdk';
 import {
   Home,
-  LayoutGrid,
   Search,
   Sun,
   Moon,
@@ -139,22 +138,6 @@ export function CommandPalette() {
                   >
                     <Home className="size-4 text-muted-foreground" />
                     Home
-                  </Command.Item>
-                  <Command.Item
-                    value="Browse all content"
-                    onSelect={() => runCommand(() => router.push('/browse'))}
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
-                  >
-                    <LayoutGrid className="size-4 text-muted-foreground" />
-                    Browse
-                  </Command.Item>
-                  <Command.Item
-                    value="Search knowledge base"
-                    onSelect={() => runCommand(() => router.push('/browse'))}
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
-                  >
-                    <Search className="size-4 text-muted-foreground" />
-                    Search
                   </Command.Item>
                   <Command.Item
                     value="Review content verification"

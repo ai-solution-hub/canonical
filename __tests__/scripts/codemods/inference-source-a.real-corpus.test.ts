@@ -298,20 +298,11 @@ describe('inferSchema binds hook/component-fetched baseline interfaces (32.21 AC
  *       Subtask 32.22 dispatch brief (Option B, ratified by Liam).
  */
 describe('inferSchema binds mutationFetchJson write-response baseline interfaces (32.22 AC-5)', () => {
-  it('binds MutationResultSchema for POST /api/tags/rename (mutationFetchJson<MutationResult>)', () => {
-    // hooks/use-tags-data.ts:
-    //   mutationFetchJson<MutationResult>('/api/tags/rename', params)
-    const project = createCodemodProject();
-    const routes = enumerateRouteFiles(project);
-    const sf = routeBySuffix(routes, 'app/api/tags/rename/route.ts');
-
-    expect(inferSchemaSourceA(sf, 'POST', project)).toEqual({
-      schema: 'MutationResultSchema',
-    });
-    expect(inferSchema(sf, 'POST', project)).toEqual({
-      schema: 'MutationResultSchema',
-    });
-  });
+  // ID-131.17: the POST /api/tags/rename binding case was removed here —
+  // app/api/tags/rename/route.ts (and hooks/use-tags-data.ts, its sole
+  // caller) were deleted with the legacy IMS tag-management surface
+  // (content_items.user_tags dropped, BI-11/BI-12; the Settings > Tags admin
+  // panel was ruled a scope-extension DELETE, not a rewrite target).
 
   it('binds ChangeReportGenerateResponseSchema for POST /api/change-reports/generate', () => {
     // hooks/use-change-reports-data.ts:
@@ -566,21 +557,10 @@ describe('inferSchema applies the defect-B5 binding-correction override (32.28)'
     });
   });
 
-  it('binds BatchReviewResponseSchema for POST /api/items/batch-review (was PatchResponseSchema)', () => {
-    const project = createCodemodProject();
-    const routes = enumerateRouteFiles(project);
-    const sf = routeBySuffix(routes, 'app/api/items/batch-review/route.ts');
-    expect(inferSchema(sf, 'POST', project)).toEqual({
-      schema: 'BatchReviewResponseSchema',
-    });
-  });
-
-  it('binds BatchWorkspacesResponseSchema for POST /api/items/batch-workspaces (was PatchResponseSchema)', () => {
-    const project = createCodemodProject();
-    const routes = enumerateRouteFiles(project);
-    const sf = routeBySuffix(routes, 'app/api/items/batch-workspaces/route.ts');
-    expect(inferSchema(sf, 'POST', project)).toEqual({
-      schema: 'BatchWorkspacesResponseSchema',
-    });
-  });
+  // ID-131.17: the batch-review and batch-workspaces real-corpus binding
+  // cases were removed here — app/api/items/batch-review/route.ts and
+  // app/api/items/batch-workspaces/route.ts were deleted with the
+  // deprecated IMS browse/item surface (both were confirmed-safe orphans:
+  // batch-review's only caller was the deleted app/browse/browse-content.tsx;
+  // batch-workspaces' only caller was the deleted hooks/use-quick-assign.ts).
 });

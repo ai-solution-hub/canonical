@@ -1,7 +1,5 @@
 'use client';
 
-import Link from 'next/link';
-
 interface BreadcrumbNavProps {
   domain?: string | null;
   title: string;
@@ -25,28 +23,12 @@ export function BreadcrumbNav({
   return (
     <nav aria-label="Breadcrumb" className={className}>
       <ol className="flex items-center gap-1 text-xs text-muted-foreground">
-        <li>
-          <Link
-            href="/browse"
-            className="hover:text-foreground transition-colours"
-          >
-            Browse
-          </Link>
-        </li>
         {domain && (
           <>
+            <li>{domain}</li>
             <li aria-hidden="true">&rsaquo;</li>
-            <li>
-              <Link
-                href={`/browse?domain=${encodeURIComponent(domain)}`}
-                className="hover:text-foreground transition-colours"
-              >
-                {domain}
-              </Link>
-            </li>
           </>
         )}
-        <li aria-hidden="true">&rsaquo;</li>
         <li className="truncate text-foreground" aria-current="page">
           {truncate(displayTitle, maxTitleLength)}
         </li>

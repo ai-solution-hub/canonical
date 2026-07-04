@@ -41,11 +41,7 @@ export default defineConfig({
         'components/**/*.tsx',
         'hooks/**/*.ts',
       ],
-      exclude: [
-        'lib/supabase/**',
-        'lib/anthropic.ts',
-        'lib/anthropic-files.ts',
-      ],
+      exclude: ['lib/supabase/**', 'lib/anthropic.ts'],
     },
   },
 });

@@ -4,9 +4,7 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useState } from 'react';
 import {
-  Search,
   Briefcase,
-  LayoutGrid,
   Library,
   Menu,
   Settings,
@@ -33,7 +31,6 @@ import { BrandLogo } from '@/components/shell/brand-logo';
 import { BRANDING } from '@/lib/client-config';
 
 const NAV_LINKS = [
-  { href: '/browse', label: 'Browse', icon: LayoutGrid, requiresEdit: false },
   {
     href: '/library',
     label: 'Q&A Library',
@@ -132,15 +129,6 @@ export function SiteHeader() {
         </div>
 
         <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="sm:hidden"
-            onClick={() => router.push('/browse')}
-            aria-label="Search"
-          >
-            <Search className="size-4" />
-          </Button>
           <Button
             variant="ghost"
             size="icon"

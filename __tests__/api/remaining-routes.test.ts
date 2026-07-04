@@ -52,7 +52,6 @@ const { GET: digestLatestGet } =
   await import('@/app/api/change-reports/latest/route');
 const { GET: digestListGet } =
   await import('@/app/api/change-reports/list/route');
-const { GET: tagsSuggestGet } = await import('@/app/api/tags/suggest/route');
 const { GET: coverageGuidesGet } =
   await import('@/app/api/coverage/guides/route');
 const { PATCH: guideSectionPatch, DELETE: guideSectionDelete } =
@@ -391,113 +390,6 @@ describe('GET /api/change-reports/list', () => {
 
     const body = await res.json();
     expect(body.error).toBe('Failed to fetch digests');
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// GET /api/tags/suggest
-// ═══════════════════════════════════════════════════════════════════════════
-
-describe('GET /api/tags/suggest', () => {
-  it('returns 401 when unauthenticated', async () => {
-    configureUnauthenticated(mockSupabase);
-
-    const req = createTestRequest('/api/tags/suggest', {
-      searchParams: { prefix: 'test', type: 'user' },
-    });
-    const res = await tagsSuggestGet(req);
-    expect(res.status).toBe(401);
-  });
-
-  it('returns 403 for viewer when role check fails', async () => {
-    // getAuthorisedClient with default roles includes viewer, so this should
-    // actually pass auth. The route uses getAuthorisedClient() with defaults
-    // (admin, editor, viewer) so all authenticated users are allowed.
-    // Let's just verify auth works for a viewer.
-    configureRole(mockSupabase, 'viewer');
-
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: [{ tag: 'testing', count: 3 }],
-      error: null,
-    });
-
-    const req = createTestRequest('/api/tags/suggest', {
-      searchParams: { prefix: 'test', type: 'user' },
-    });
-    const res = await tagsSuggestGet(req);
-    expect(res.status).toBe(200);
-  });
-
-  it('returns 400 for missing required params', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    const req = createTestRequest('/api/tags/suggest');
-    const res = await tagsSuggestGet(req);
-    expect(res.status).toBe(400);
-
-    const body = await res.json();
-    expect(body.error).toBe('Validation failed');
-  });
-
-  it('returns 400 for invalid type param', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    const req = createTestRequest('/api/tags/suggest', {
-      searchParams: { prefix: 'test', type: 'invalid' },
-    });
-    const res = await tagsSuggestGet(req);
-    expect(res.status).toBe(400);
-  });
-
-  it('returns 429 when rate limited', async () => {
-    configureRole(mockSupabase, 'editor');
-    mockCheckRateLimit.mockReturnValueOnce({ allowed: false, remaining: 0 });
-
-    const req = createTestRequest('/api/tags/suggest', {
-      searchParams: { prefix: 'test', type: 'user' },
-    });
-    const res = await tagsSuggestGet(req);
-    expect(res.status).toBe(429);
-  });
-
-  it('returns 200 with tag suggestions on success', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    const suggestions = [
-      { tag: 'testing', count: 5 },
-      { tag: 'terraform', count: 3 },
-    ];
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: suggestions,
-      error: null,
-    });
-
-    const req = createTestRequest('/api/tags/suggest', {
-      searchParams: { prefix: 'te', type: 'user' },
-    });
-    const res = await tagsSuggestGet(req);
-    expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body).toEqual(suggestions);
-  });
-
-  it('returns 500 when RPC call fails', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'RPC failed', code: '50000' },
-    });
-
-    const req = createTestRequest('/api/tags/suggest', {
-      searchParams: { prefix: 'test', type: 'ai' },
-    });
-    const res = await tagsSuggestGet(req);
-    expect(res.status).toBe(500);
-
-    const body = await res.json();
-    expect(body.error).toBeDefined();
   });
 });
 

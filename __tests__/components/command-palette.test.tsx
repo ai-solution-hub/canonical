@@ -103,8 +103,6 @@ describe('CommandPalette', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Home')).toBeInTheDocument();
-      expect(screen.getByText('Browse')).toBeInTheDocument();
-      expect(screen.getByText('Search')).toBeInTheDocument();
       expect(screen.getByText('Review')).toBeInTheDocument();
       expect(screen.getByText('Workspaces')).toBeInTheDocument();
       expect(screen.getByText('Bids')).toBeInTheDocument();
@@ -207,11 +205,11 @@ describe('CommandPalette', () => {
     // Short query (<=3 words) — pre-fix this would be swallowed because
     // the gate only fired handleSearchSubmit when word count > 3, while
     // cmdk's top-result selection was also disrupted by the custom handler.
-    await user.type(input, 'browse');
+    await user.type(input, 'home');
     await user.keyboard('{Enter}');
 
     await waitFor(() => {
-      expect(mockRouter.push).toHaveBeenCalledWith('/browse');
+      expect(mockRouter.push).toHaveBeenCalledWith('/');
     });
   });
 
@@ -223,10 +221,10 @@ describe('CommandPalette', () => {
 
     const input = await screen.findByPlaceholderText(/Search /);
     // Long query (>3 words) that still matches a Command.Item value
-    // ("Search knowledge base" from the Search entry). Post-fix: Enter
+    // ("Review content verification" from the Review entry). Post-fix: Enter
     // routes through the highlighted item (cmdk native), not the
     // removed /browse?q= search fallback.
-    await user.type(input, 'search knowledge base');
+    await user.type(input, 'review content verification');
     await user.keyboard('{Enter}');
 
     await waitFor(() => {

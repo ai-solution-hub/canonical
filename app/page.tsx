@@ -13,7 +13,6 @@ import { deriveIsKBEmpty, deriveIsFirstLogin } from '@/lib/dashboard-signals';
 import { buildAttentionItems } from '@/lib/attention';
 import { ReorientSection } from '@/components/dashboard/reorient-section';
 import { DashboardFirstRunCard } from '@/components/dashboard/dashboard-first-run-card';
-import { OwnedContentHealth } from '@/components/dashboard/owned-content-health';
 import { ContentPerformanceSection } from '@/components/dashboard/content-performance-section';
 import { WarningsBanner } from '@/components/dashboard/warnings-banner';
 import { McpSetupNudge } from '@/components/shell/mcp-setup-nudge';
@@ -251,11 +250,6 @@ async function DashboardContent() {
           userRole={unified.user_role}
         />
         <ActiveProcurementsSection bids={unified.active_bids} />
-      </div>
-
-      {/* Owned Content Health — personal content ownership card */}
-      <div className="mt-6">
-        <OwnedContentHealth />
       </div>
 
       {/* Content Performance — aggregate win-rate analytics (suppressed when KB empty) */}

@@ -283,20 +283,6 @@ export const ChangeReportListParamsSchema = z.object({
     .transform((v) => Math.max(0, v)),
 });
 
-/** GET /api/read-marks?item_ids=uuid1,uuid2,...
- *  item_ids is optional — when absent, the route returns counts-only.
- *  parseSearchParams returns a string for single comma-less values, so accept
- *  both single UUID and array shapes. */
-export const ReadMarkCheckParamsSchema = z.object({
-  item_ids: z
-    .union([z.string().uuid(), z.array(z.string().uuid()).max(200)])
-    .optional()
-    .transform((v) => {
-      if (v === undefined) return undefined;
-      return Array.isArray(v) ? v : [v];
-    }),
-});
-
 /** POST /api/read-marks */
 export const ReadMarkBodySchema = z.discriminatedUnion('action', [
   z.object({
@@ -681,18 +667,6 @@ export const UserRoleUpdateBodySchema = z.object({
 });
 
 // ──────────────────────────────────────────
-// Priority Schema
-// ──────────────────────────────────────────
-
-const VALID_PRIORITIES = ['high', 'medium', 'low'] as const;
-
-/** PATCH /api/items/[id]/priority */
-export const PriorityUpdateBodySchema = z.object({
-  priority: z.enum(VALID_PRIORITIES).nullable(),
-});
-
-// ──────────────────────────────────────────
-// ──────────────────────────────────────────
 // OAuth Decision Schema
 // ──────────────────────────────────────────
 
@@ -775,31 +749,6 @@ export function validateEditableField(field: string): field is EditableField {
 // ──────────────────────────────────────────
 // Structured Extraction
 // ──────────────────────────────────────────
-
-/**
- * POST /api/items/[id]/rollback
- *
- * Two mutually-exclusive rollback modes (ID-59 {59.13} PC-6 / INV-6):
- *  - `version_id` — the original single-item rollback to a specific history
- *    version (unchanged contract).
- *  - `sweep_id` — UC3 whole-sweep rollback: restore EVERY record touched by the
- *    sweep (or, with `content_item_id`, a single match) to its pre-sweep bytes.
- *    `content_item_id` scopes a per-match revert; omitted reverts the whole
- *    sweep as a unit.
- *
- * `.strict()` keeps the body shape closed; the route asserts exactly one mode
- * is present (a body with neither, or both, is rejected at the route boundary).
- */
-export const RollbackBodySchema = z
-  .object({
-    version_id: z.string().uuid('version_id must be a valid UUID').optional(),
-    sweep_id: z.string().uuid('sweep_id must be a valid UUID').optional(),
-    content_item_id: z
-      .string()
-      .uuid('content_item_id must be a valid UUID')
-      .optional(),
-  })
-  .strict();
 
 /** POST /api/governance (create/update governance config via preset).
  *  `.strict()` rejects old-format bodies that include posture or other fields. */
@@ -1964,11 +1913,6 @@ export const LayerReorderSchema = z.object({
 // Content Owner Assignment Schemas
 // ──────────────────────────────────────────
 
-/** PATCH /api/items/[id]/owner — assign or unassign a content owner */
-export const OwnerAssignSchema = z.object({
-  owner_id: z.string().uuid('owner_id must be a valid UUID').nullable(),
-});
-
 /** POST /api/content-owners/bulk-assign — bulk assign content owner */
 export const BulkOwnerAssignSchema = z
   .object({
@@ -2035,12 +1979,6 @@ export const booleanParam = z.preprocess(
 // ──────────────────────────────────────────
 // Moved from route files (centralisation)
 // ──────────────────────────────────────────
-
-/** PATCH /api/quality — resolve a quality flag */
-export const QualityResolveBodySchema = z.object({
-  flag_id: z.string().uuid('flag_id must be a valid UUID'),
-  resolution_notes: z.string().max(1000).optional(),
-});
 
 /** POST /api/oauth/revoke */
 export const RevokeSchema = z.object({
@@ -2132,28 +2070,6 @@ export const PipelineRunsParamsSchema = z.object({
     ])
     .optional(),
   all: booleanParam.optional(),
-});
-
-/** GET /api/insights
- * Note: keyword is conditionally required when type=topic,
- * author is conditionally required when type=author.
- * These cross-field constraints are enforced in the route handler's
- * switch-case, not in this schema. See B4 special case notes.
- */
-const VALID_INSIGHT_TYPES = [
-  'trends',
-  'topic',
-  'author',
-  'gaps',
-  'reading',
-] as const;
-
-export const InsightsParamsSchema = z.object({
-  type: z.enum(VALID_INSIGHT_TYPES).default('trends'),
-  days: z.number().int().min(1).max(365).default(30),
-  min_count: z.number().int().min(1).max(100).default(2),
-  keyword: z.string().max(200).optional(),
-  author: z.string().max(200).optional(),
 });
 
 /** GET /api/procurement */
@@ -2350,11 +2266,6 @@ export const ArchiveBodySchema = z.object({
 // NearDupMergeBodySchema — were retired under ID-131.15 (G-DEDUP legacy
 // dedup-family retirement, S446) alongside the admin content-dedup routes
 // they validated.)
-
-/** POST /api/items/[id]/vision */
-export const VisionBodySchema = z.object({
-  prompt: z.string().max(5000).optional(),
-});
 
 /** POST /api/source-documents/[id]/send-to-review */
 export const SendToReviewBodySchema = z.object({

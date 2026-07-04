@@ -27,45 +27,23 @@ vi.mock('sonner', () => ({ toast: mockToast }));
 import { QAAnswerDisplay } from '@/components/qa/qa-answer-display';
 import type {
   QAAnswerDisplayProps,
+  QAAnswerDisplayItem,
   QAAnswerInlineEdit,
 } from '@/components/qa/qa-answer-display';
-import type { ItemData } from '@/app/item/[id]/item-detail-client';
 
 // ---------------------------------------------------------------------------
 // Mock data factory
 // ---------------------------------------------------------------------------
 
-function makeItem(overrides: Partial<ItemData> = {}): ItemData {
+// ID-131.17: narrowed from the deleted `ItemData` (formerly
+// `@/app/item/[id]/item-detail-client`) to the four fields QAAnswerDisplay
+// actually reads — see QAAnswerDisplayItem.
+function makeItem(
+  overrides: Partial<QAAnswerDisplayItem> = {},
+): QAAnswerDisplayItem {
   return {
-    id: 'item-1',
-    title: 'Test Q&A Pair',
-    suggested_title: null,
     content: null,
-    summary: null,
-    ai_keywords: null,
-    primary_domain: 'Corporate',
-    primary_subtopic: null,
-    secondary_domain: null,
-    secondary_subtopic: null,
-    content_type: 'qa_pair',
-    platform: null,
-    author_name: null,
-    source_url: null,
-    file_path: null,
-    source_domain: null,
-    thumbnail_url: null,
-    captured_date: '2026-01-15T10:00:00Z',
-    classification_confidence: null,
-    classification_reasoning: null,
-    classified_at: null,
-    summary_data: null,
-    priority: null,
-    user_tags: null,
-    freshness: 'fresh',
-    governance_review_status: null,
-    metadata: null,
     verified_at: null,
-    verified_by: null,
     answer_standard: 'This is the standard answer.',
     answer_advanced: 'This is the advanced answer with more detail.',
     ...overrides,

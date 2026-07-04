@@ -4,7 +4,7 @@ import {
   configureRole,
   configureUnauthenticated,
 } from '../helpers/mock-supabase';
-import { createTestRequest, createTestParams } from '../helpers/mock-next';
+import { createTestRequest } from '../helpers/mock-next';
 
 // ---------------------------------------------------------------------------
 // Shared mock client — lazy references in vi.mock() avoid hoisting issues
@@ -27,7 +27,6 @@ vi.mock('next/headers', () => ({
 }));
 
 // Import routes AFTER mocks are registered
-const { PATCH: ownerPatch } = await import('@/app/api/items/[id]/owner/route');
 const { POST: bulkAssignPost } =
   await import('@/app/api/content-owners/bulk-assign/route');
 const { GET: statsGet } = await import('@/app/api/content-owners/stats/route');
@@ -110,170 +109,6 @@ beforeEach(() => {
         }),
       },
     },
-  });
-});
-
-// =====================================================================
-// PATCH /api/items/[id]/owner — Assign/Unassign Owner
-// =====================================================================
-
-describe('PATCH /api/items/[id]/owner', () => {
-  const params = createTestParams({ id: VALID_UUID });
-
-  it('returns 401 when unauthenticated', async () => {
-    configureUnauthenticated(mockSupabase);
-
-    const req = createTestRequest(`/api/items/${VALID_UUID}/owner`, {
-      method: 'PATCH',
-      body: { owner_id: OWNER_UUID },
-    });
-
-    const res = await ownerPatch(req, { params });
-    expect(res.status).toBe(401);
-  });
-
-  it('returns 403 for viewer role', async () => {
-    configureRole(mockSupabase, 'viewer');
-
-    const req = createTestRequest(`/api/items/${VALID_UUID}/owner`, {
-      method: 'PATCH',
-      body: { owner_id: OWNER_UUID },
-    });
-
-    const res = await ownerPatch(req, { params });
-    expect(res.status).toBe(403);
-  });
-
-  it('returns 400 for invalid owner_id', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    const req = createTestRequest(`/api/items/${VALID_UUID}/owner`, {
-      method: 'PATCH',
-      body: { owner_id: 'not-a-uuid' },
-    });
-
-    const res = await ownerPatch(req, { params });
-    expect(res.status).toBe(400);
-
-    const body = await res.json();
-    expect(body.error).toBe('Validation failed');
-    expect(body.details).toBeDefined();
-  });
-
-  it('returns 404 when item not found', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    // Fetch current owner returns not found
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'No rows found', code: 'PGRST116' },
-    });
-
-    const req = createTestRequest(`/api/items/${VALID_UUID}/owner`, {
-      method: 'PATCH',
-      body: { owner_id: OWNER_UUID },
-    });
-
-    const res = await ownerPatch(req, { params });
-    expect(res.status).toBe(404);
-
-    const body = await res.json();
-    expect(body.error).toBe('Item not found');
-  });
-
-  it('assigns owner successfully and returns 200', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    // Fetch current owner
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { content_owner_id: null },
-      error: null,
-    });
-
-    // Update content item
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID },
-      error: null,
-    });
-
-    // History insert (awaited chain)
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
-    );
-
-    // Notification insert (awaited chain)
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
-    );
-
-    const req = createTestRequest(`/api/items/${VALID_UUID}/owner`, {
-      method: 'PATCH',
-      body: { owner_id: OWNER_UUID },
-    });
-
-    const res = await ownerPatch(req, { params });
-    expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body.success).toBe(true);
-    expect(body.owner_id).toBe(OWNER_UUID);
-  });
-
-  it('unassigns owner with null owner_id', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    // Fetch current owner
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { content_owner_id: OWNER_UUID },
-      error: null,
-    });
-
-    // Update content item
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID },
-      error: null,
-    });
-
-    // History insert (awaited chain)
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
-    );
-
-    const req = createTestRequest(`/api/items/${VALID_UUID}/owner`, {
-      method: 'PATCH',
-      body: { owner_id: null },
-    });
-
-    const res = await ownerPatch(req, { params });
-    expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body.success).toBe(true);
-    expect(body.owner_id).toBeNull();
-  });
-
-  it('returns 500 when update fails', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    // Fetch current owner
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { content_owner_id: null },
-      error: null,
-    });
-
-    // Update fails
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'DB error', code: '50000' },
-    });
-
-    const req = createTestRequest(`/api/items/${VALID_UUID}/owner`, {
-      method: 'PATCH',
-      body: { owner_id: OWNER_UUID },
-    });
-
-    const res = await ownerPatch(req, { params });
-    expect(res.status).toBe(500);
   });
 });
 

@@ -4,13 +4,16 @@
  * Tests the UI components for the date extraction feature:
  * - CertificationSummaryCard: Renew button visibility and behaviour
  * - ExpiryDateDisplay: date formatting, urgency styling, lifecycle display
- * - TemporalReferencesSection: collapsible display of extracted dates
  * - Accessibility: aria attributes, colour not sole indicator
+ *
+ * ID-131.17: the TemporalReferencesSection suite was removed here — that
+ * component lived at the deleted `components/item-detail/` IMS surface with
+ * no other consumer (see __tests__/components/item-detail/ deletions in the
+ * same commit).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -46,7 +49,6 @@ import type {
   RegistrationEntry,
 } from '@/components/dashboard/certification-summary-card';
 import { ExpiryDateDisplay } from '@/components/shared/expiry-date-display';
-import { TemporalReferencesSection } from '@/components/item-detail/temporal-references-section';
 
 // ---------------------------------------------------------------------------
 // Factories
@@ -382,146 +384,4 @@ describe('ExpiryDateDisplay', () => {
     const badge = screen.getByRole('status');
     expect(badge).toHaveTextContent('1 day remaining');
   });
-});
-
-// ---------------------------------------------------------------------------
-// TemporalReferencesSection — extracted dates display
-// ---------------------------------------------------------------------------
-
-describe('TemporalReferencesSection', () => {
-  const sampleRefs = [
-    {
-      date: '2026-06-15',
-      type: 'expiry' as const,
-      confidence: 'high' as const,
-      context: '...ISO 27001 certificate expires 15/06/2026...',
-    },
-    {
-      date: '2024-01-10',
-      type: 'effective' as const,
-      confidence: 'medium' as const,
-      context: '...date of registration 10/01/2024...',
-    },
-    {
-      date: '2015-03-01',
-      type: 'historical' as const,
-      confidence: 'low' as const,
-      context: '...established in 2015...',
-    },
-  ];
-
-  it('renders nothing when temporalReferences is empty', () => {
-    const { container } = render(
-      <TemporalReferencesSection temporalReferences={[]} />,
-    );
-    expect(container.firstChild).toBeNull();
-  });
-
-  it('renders nothing when temporalReferences is null-like', () => {
-    const { container } = render(
-      // @ts-expect-error — testing null input gracefully
-      <TemporalReferencesSection temporalReferences={null} />,
-    );
-    expect(container.firstChild).toBeNull();
-  });
-
-  it('shows collapsed toggle with count', () => {
-    render(<TemporalReferencesSection temporalReferences={sampleRefs} />);
-
-    const toggle = screen.getByRole('button', {
-      name: /extracted dates/i,
-    });
-    expect(toggle).toBeInTheDocument();
-    expect(toggle).toHaveTextContent('3');
-    expect(toggle).toHaveAttribute('aria-expanded', 'false');
-  });
-
-  it('expands to show date entries when clicked', async () => {
-    const user = userEvent.setup();
-    render(<TemporalReferencesSection temporalReferences={sampleRefs} />);
-
-    const toggle = screen.getByRole('button', {
-      name: /extracted dates/i,
-    });
-    await user.click(toggle);
-
-    expect(toggle).toHaveAttribute('aria-expanded', 'true');
-
-    // Check the list appears
-    const list = screen.getByRole('list', {
-      name: /temporal references/i,
-    });
-    expect(list).toBeInTheDocument();
-
-    // Check dates are formatted as DD/MM/YYYY
-    expect(screen.getByText('15/06/2026')).toBeInTheDocument();
-    expect(screen.getByText('10/01/2024')).toBeInTheDocument();
-    expect(screen.getByText('01/03/2015')).toBeInTheDocument();
-  });
-
-  it('shows context type badges', async () => {
-    const user = userEvent.setup();
-    render(<TemporalReferencesSection temporalReferences={sampleRefs} />);
-
-    await user.click(screen.getByRole('button', { name: /extracted dates/i }));
-
-    expect(screen.getByText('Expiry')).toBeInTheDocument();
-    expect(screen.getByText('Effective')).toBeInTheDocument();
-    expect(screen.getByText('Historical')).toBeInTheDocument();
-  });
-
-  it('shows confidence levels', async () => {
-    const user = userEvent.setup();
-    render(<TemporalReferencesSection temporalReferences={sampleRefs} />);
-
-    await user.click(screen.getByRole('button', { name: /extracted dates/i }));
-
-    expect(screen.getByText('high')).toBeInTheDocument();
-    expect(screen.getByText('medium')).toBeInTheDocument();
-    expect(screen.getByText('low')).toBeInTheDocument();
-  });
-
-  it('shows context snippets', async () => {
-    const user = userEvent.setup();
-    render(<TemporalReferencesSection temporalReferences={sampleRefs} />);
-
-    await user.click(screen.getByRole('button', { name: /extracted dates/i }));
-
-    expect(
-      screen.getByText(/ISO 27001 certificate expires/),
-    ).toBeInTheDocument();
-  });
-
-  it('collapses when toggle is clicked again', async () => {
-    const user = userEvent.setup();
-    render(<TemporalReferencesSection temporalReferences={sampleRefs} />);
-
-    const toggle = screen.getByRole('button', { name: /extracted dates/i });
-    await user.click(toggle); // expand
-    await user.click(toggle); // collapse
-
-    expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    expect(
-      screen.queryByRole('list', { name: /temporal references/i }),
-    ).not.toBeInTheDocument();
-  });
-
-  it('has proper aria-controls linking toggle to list', async () => {
-    const user = userEvent.setup();
-    render(<TemporalReferencesSection temporalReferences={sampleRefs} />);
-
-    const toggle = screen.getByRole('button', { name: /extracted dates/i });
-    expect(toggle).toHaveAttribute('aria-controls', 'temporal-references-list');
-
-    await user.click(toggle);
-    expect(
-      document.getElementById('temporal-references-list'),
-    ).toBeInTheDocument();
-  });
-
-  // The expiry-type badge's freshness-token colour mapping (and its "never a
-  // raw Tailwind colour" discipline) is pinned in
-  // date-extraction-ui.contract.test.tsx. The "Expiry" / "Effective" /
-  // "Historical" labels — the user-observable signal — are asserted by the
-  // "shows context type badges" behaviour test above.
 });

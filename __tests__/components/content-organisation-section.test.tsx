@@ -1,8 +1,10 @@
 /**
  * ContentOrganisationSection Tests
  *
- * Tests the tabbed wrapper that merges Taxonomy, Tags, and Layers settings
- * sections into a single "Content Organisation" section with three tabs.
+ * Tests the tabbed wrapper that merges Taxonomy and Layers settings
+ * sections into a single "Content Organisation" section with two tabs.
+ * (The Tags tab was removed under ID-131.17 — the legacy IMS tag-management
+ * surface was deleted alongside `content_items.user_tags`, BI-11/BI-12.)
  * Also tests legacy section ID mapping in getValidSection.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -36,10 +38,6 @@ vi.mock('@/components/settings/taxonomy-section', () => ({
   TaxonomySection: () => (
     <div data-testid="taxonomy-section">TaxonomySection</div>
   ),
-}));
-
-vi.mock('@/components/settings/tags-section', () => ({
-  TagsSection: () => <div data-testid="tags-section">TagsSection</div>,
 }));
 
 vi.mock('@/components/settings/layers-section', () => ({
@@ -82,11 +80,10 @@ describe('ContentOrganisationSection', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders all three tabs', () => {
+  it('renders both tabs', () => {
     render(<ContentOrganisationSection />);
 
     expect(screen.getByRole('tab', { name: 'Categories' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Tags' })).toBeInTheDocument();
     expect(
       screen.getByRole('tab', { name: 'Depth Levels' }),
     ).toBeInTheDocument();
@@ -100,18 +97,6 @@ describe('ContentOrganisationSection', () => {
     expect(screen.getByTestId('taxonomy-section')).toBeInTheDocument();
   });
 
-  it('switches to Tags tab and shows TagsSection when clicked', async () => {
-    const user = userEvent.setup();
-    render(<ContentOrganisationSection />);
-
-    await user.click(screen.getByRole('tab', { name: 'Tags' }));
-
-    expect(mockRouter.replace).toHaveBeenCalledWith(
-      expect.stringContaining('tab=tags'),
-      { scroll: false },
-    );
-  });
-
   it('switches to Depth Levels tab and shows LayersSection when clicked', async () => {
     const user = userEvent.setup();
     render(<ContentOrganisationSection />);
@@ -122,17 +107,6 @@ describe('ContentOrganisationSection', () => {
       expect.stringContaining('tab=depth-levels'),
       { scroll: false },
     );
-  });
-
-  it('reads tab from URL and activates the correct tab', () => {
-    mockSearchParams.value = new URLSearchParams(
-      'section=content-organisation&tab=tags',
-    );
-    render(<ContentOrganisationSection />);
-
-    const tagsTab = screen.getByRole('tab', { name: 'Tags' });
-    expect(tagsTab).toHaveAttribute('data-state', 'active');
-    expect(screen.getByTestId('tags-section')).toBeInTheDocument();
   });
 
   it('reads depth-levels tab from URL', () => {
@@ -150,10 +124,10 @@ describe('ContentOrganisationSection', () => {
     mockSearchParams.value = new URLSearchParams(
       'section=content-organisation&tab=nonexistent',
     );
-    render(<ContentOrganisationSection defaultTab="tags" />);
+    render(<ContentOrganisationSection defaultTab="depth-levels" />);
 
-    const tagsTab = screen.getByRole('tab', { name: 'Tags' });
-    expect(tagsTab).toHaveAttribute('data-state', 'active');
+    const depthTab = screen.getByRole('tab', { name: 'Depth Levels' });
+    expect(depthTab).toHaveAttribute('data-state', 'active');
   });
 
   it('respects defaultTab prop when no tab param is in URL', () => {

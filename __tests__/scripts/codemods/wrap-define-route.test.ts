@@ -153,12 +153,17 @@ describe('wrap-define-route CLI scaffold', () => {
     const result = runCodemod([], { outputDir: tmpOutputDir });
     expect(result.status).toBe(0);
     // Per TECH §2.2, ts-morph enumeration over the working tree should
-    // discover the full app/api/**/route.ts corpus. Current count is 193
-    // (route-shape-inventory.md). Hard floor: 190 to allow minor churn.
+    // discover the full app/api/**/route.ts corpus. Current count is 173
+    // (was 193/floor 190 before ID-131.17 (G-IMS-DELETE) retired 24
+    // IMS-only routes — app/api/tags/**, app/api/insights, app/api/quality
+    // [/summary], app/api/read-marks, and the confirmed-orphaned
+    // app/api/items/[id]/{images,files,owner,priority,effectiveness,layers,
+    // vision,history[/[versionId]],rollback}, batch-review,
+    // batch-workspaces). Hard floor: 170 to allow minor churn.
     const match = result.stdout.match(/(\d+) route\(s\) discovered/);
     expect(match).not.toBeNull();
     const count = match ? parseInt(match[1]!, 10) : 0;
-    expect(count).toBeGreaterThanOrEqual(190);
+    expect(count).toBeGreaterThanOrEqual(170);
   });
 
   it('honours --scope filter to a subdirectory', () => {

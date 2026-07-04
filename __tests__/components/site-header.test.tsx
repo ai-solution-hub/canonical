@@ -97,7 +97,6 @@ describe('SiteHeader', () => {
   it('renders all main navigation links for an editor', () => {
     render(<SiteHeader />);
     // Desktop nav contains these links (one instance each in desktop nav)
-    expect(screen.getAllByText('Browse').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Q&A Library').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Coverage').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Workspaces').length).toBeGreaterThanOrEqual(1);
@@ -109,10 +108,6 @@ describe('SiteHeader', () => {
 
   it('links navigate to correct paths', () => {
     render(<SiteHeader />);
-    // Find all Browse links and check href
-    const browseLinks = screen.getAllByText('Browse');
-    expect(browseLinks[0].closest('a')).toHaveAttribute('href', '/browse');
-
     const libraryLinks = screen.getAllByText('Q&A Library');
     expect(libraryLinks[0].closest('a')).toHaveAttribute('href', '/library');
 
@@ -130,25 +125,25 @@ describe('SiteHeader', () => {
   });
 
   it('shows correct active state for the current path', () => {
-    mockPathname.value = '/browse';
+    mockPathname.value = '/library';
     render(<SiteHeader />);
-    // The desktop Browse link should have aria-current="page"
-    const browseLinks = screen.getAllByText('Browse');
-    const desktopBrowse = browseLinks[0].closest('a');
-    expect(desktopBrowse).toHaveAttribute('aria-current', 'page');
-
-    // Other links should NOT have aria-current
+    // The desktop Q&A Library link should have aria-current="page"
     const libraryLinks = screen.getAllByText('Q&A Library');
     const desktopLibrary = libraryLinks[0].closest('a');
-    expect(desktopLibrary).not.toHaveAttribute('aria-current');
+    expect(desktopLibrary).toHaveAttribute('aria-current', 'page');
+
+    // Other links should NOT have aria-current
+    const coverageLinks = screen.getAllByText('Coverage');
+    const desktopCoverage = coverageLinks[0].closest('a');
+    expect(desktopCoverage).not.toHaveAttribute('aria-current');
   });
 
   it('matches active state for sub-paths', () => {
-    mockPathname.value = '/browse/some-category';
+    mockPathname.value = '/library/some-category';
     render(<SiteHeader />);
-    const browseLinks = screen.getAllByText('Browse');
-    const desktopBrowse = browseLinks[0].closest('a');
-    expect(desktopBrowse).toHaveAttribute('aria-current', 'page');
+    const libraryLinks = screen.getAllByText('Q&A Library');
+    const desktopLibrary = libraryLinks[0].closest('a');
+    expect(desktopLibrary).toHaveAttribute('aria-current', 'page');
   });
 
   it('hides Review link for viewers (non-editors)', () => {

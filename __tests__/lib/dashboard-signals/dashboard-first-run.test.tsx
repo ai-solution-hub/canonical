@@ -25,13 +25,14 @@ const SUPPRESSED_SECTIONS = [
   'RecentActivity',
 ] as const;
 
+// ID-131.17: OwnedContentHealth (IMS-vestige, content_items-backed) removed
+// from app/page.tsx — no replacement decided yet for this dashboard card.
 const ALWAYS_VISIBLE = [
   'WarningsBanner',
   'McpSetupNudge',
   'ReorientSection',
   'UnifiedAttentionSection',
   'ActiveProcurementsSection',
-  'OwnedContentHealth',
 ] as const;
 
 describe('Dashboard first-run signals', () => {

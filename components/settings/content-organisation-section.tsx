@@ -3,7 +3,6 @@
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { TaxonomySection } from '@/components/settings/taxonomy-section';
-import { TagsSection } from '@/components/settings/tags-section';
 import { LayersSection } from '@/components/settings/layers-section';
 import { TaxonomyDriftBanner } from '@/components/settings/taxonomy-drift-banner';
 
@@ -11,13 +10,9 @@ import { TaxonomyDriftBanner } from '@/components/settings/taxonomy-drift-banner
 // Types
 // ---------------------------------------------------------------------------
 
-export type ContentOrganisationTab = 'categories' | 'tags' | 'depth-levels';
+export type ContentOrganisationTab = 'categories' | 'depth-levels';
 
-const VALID_TABS: ContentOrganisationTab[] = [
-  'categories',
-  'tags',
-  'depth-levels',
-];
+const VALID_TABS: ContentOrganisationTab[] = ['categories', 'depth-levels'];
 
 interface ContentOrganisationSectionProps {
   defaultTab?: ContentOrganisationTab;
@@ -64,16 +59,11 @@ export function ContentOrganisationSection({
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="categories">Categories</TabsTrigger>
-          <TabsTrigger value="tags">Tags</TabsTrigger>
           <TabsTrigger value="depth-levels">Depth Levels</TabsTrigger>
         </TabsList>
 
         <TabsContent value="categories" className="mt-4">
           <TaxonomySection />
-        </TabsContent>
-
-        <TabsContent value="tags" className="mt-4">
-          <TagsSection />
         </TabsContent>
 
         <TabsContent value="depth-levels" className="mt-4">

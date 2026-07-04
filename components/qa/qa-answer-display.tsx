@@ -14,7 +14,17 @@ import {
   shouldBlockSave,
 } from '@/lib/editor/save-safety';
 
-import type { ItemData } from '@/app/item/[id]/item-detail-client';
+// ID-131.17: `ItemData` (formerly `@/app/item/[id]/item-detail-client`) was
+// dropped with the deleted IMS item-detail surface. This component never
+// depended on the IMS-shaped fields — only these four — so the fix is a
+// narrow local type rather than resurrecting the deleted interface. The
+// {131.21} Q&A rebind lane owns wiring a real caller/type for this shape.
+export interface QAAnswerDisplayItem {
+  content: string | null;
+  answer_standard?: string | null;
+  answer_advanced?: string | null;
+  verified_at?: string | null;
+}
 
 // ---------------------------------------------------------------------------
 // Dynamic ContentEditor import — matches the canonical pattern at
@@ -74,7 +84,7 @@ export interface QAAnswerInlineEdit {
 }
 
 export interface QAAnswerDisplayProps {
-  item: ItemData;
+  item: QAAnswerDisplayItem;
   /** Inline edit state from useInlineFieldEdit */
   inlineEdit?: QAAnswerInlineEdit;
   /** Whether editing is permitted (canEdit) */
