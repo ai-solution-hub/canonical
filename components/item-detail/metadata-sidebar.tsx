@@ -97,13 +97,10 @@ export function MetadataSidebar({
         return;
       }
       const supabase = createClient();
-      // Cast: source_document_id exists in the DB post-migration (ID-131
-      // {131.13} G-GOV-FACET-B rename) but generated types are pending
-      // regen until GO-apply.
       const { data } = await supabase
         .from('ingestion_quality_log')
         .select('id, flag_type, severity, details, created_at')
-        .eq('source_document_id' as 'content_item_id', sourceDocumentId)
+        .eq('source_document_id', sourceDocumentId)
         .eq('resolved', false)
         .order('created_at', { ascending: false });
       if (data) setQualityFlags(data as QualityFlag[]);

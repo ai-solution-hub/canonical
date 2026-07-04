@@ -9,7 +9,6 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { ReviewActionBodySchema } from '@/lib/validation/schemas';
-import type { Database } from '@/supabase/types/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -92,25 +91,17 @@ export const POST = defineRoute(
         if (sourceDocumentId) {
           await supabase
             .from('ingestion_quality_log')
-            // Cast: source_document_id exists in the DB post-migration
-            // (ID-131 {131.13} G-GOV-FACET-B rename) but generated types
-            // are pending regen until GO-apply.
             .update({
               resolved: true,
               resolved_at: new Date().toISOString(),
               resolved_by: user.id,
             })
-            .eq('source_document_id' as 'content_item_id', sourceDocumentId)
+            .eq('source_document_id', sourceDocumentId)
             .eq('flag_type', 'review_needed')
             .eq('resolved', false);
         }
       } else if (action === 'flag') {
         if (sourceDocumentId) {
-          // Cast: source_document_id exists in the DB post-migration
-          // (ID-131 {131.13} G-GOV-FACET-B rename) but generated types are
-          // pending regen until GO-apply. Double-cast through `unknown` —
-          // supabase-js's RejectExcessProperties guard rejects the simpler
-          // `as typeof x & Record<string, unknown>` widening.
           const insertPayload = {
             source_document_id: sourceDocumentId,
             flag_type: 'review_needed',
@@ -120,9 +111,7 @@ export const POST = defineRoute(
           };
           const { error } = await supabase
             .from('ingestion_quality_log')
-            .insert(
-              insertPayload as unknown as Database['public']['Tables']['ingestion_quality_log']['Insert'],
-            );
+            .insert(insertPayload);
 
           if (error) {
             logger.error({ err: error }, 'Failed to flag content item');
@@ -182,13 +171,10 @@ export const POST = defineRoute(
         // under the new source_document_id-keyed schema).
         let flag: { id: string } | null = null;
         if (sourceDocumentId) {
-          // Cast: source_document_id exists in the DB post-migration
-          // (ID-131 {131.13} G-GOV-FACET-B rename) but generated types are
-          // pending regen until GO-apply.
           const { data, error: fetchFlagError } = await supabase
             .from('ingestion_quality_log')
             .select('id')
-            .eq('source_document_id' as 'content_item_id', sourceDocumentId)
+            .eq('source_document_id', sourceDocumentId)
             .eq('flag_type', 'review_needed')
             .eq('resolved', false)
             .order('created_at', { ascending: false })

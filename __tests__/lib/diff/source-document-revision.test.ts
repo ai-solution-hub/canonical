@@ -74,6 +74,14 @@ function makeSourceDocRow(
     publication_status: 'published',
     updated_by: null,
     updated_at: null,
+    // {138.5} source-binding + admission lifecycle cols (M1).
+    origin_type: null,
+    locator: null,
+    retention_class: null,
+    cadence: null,
+    auth: null,
+    admission_status: 'admitted',
+    logical_path: null,
     ...overrides,
   };
 }

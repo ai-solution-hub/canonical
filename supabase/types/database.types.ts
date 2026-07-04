@@ -163,12 +163,15 @@ export type Database = {
       citations: {
         Row: {
           citation_type: string | null
+          cited_concept_path: string | null
           cited_content_item_id: string | null
           cited_end: number | null
           cited_kind: Database["public"]["Enums"]["cited_target_kind"] | null
           cited_location_kind: string | null
           cited_q_a_pair_id: string | null
           cited_q_a_pair_version: number | null
+          cited_reference_item_id: string | null
+          cited_source_document_id: string | null
           cited_start: number | null
           cited_text: string | null
           cited_version: number | null
@@ -180,12 +183,15 @@ export type Database = {
         }
         Insert: {
           citation_type?: string | null
+          cited_concept_path?: string | null
           cited_content_item_id?: string | null
           cited_end?: number | null
           cited_kind?: Database["public"]["Enums"]["cited_target_kind"] | null
           cited_location_kind?: string | null
           cited_q_a_pair_id?: string | null
           cited_q_a_pair_version?: number | null
+          cited_reference_item_id?: string | null
+          cited_source_document_id?: string | null
           cited_start?: number | null
           cited_text?: string | null
           cited_version?: number | null
@@ -197,12 +203,15 @@ export type Database = {
         }
         Update: {
           citation_type?: string | null
+          cited_concept_path?: string | null
           cited_content_item_id?: string | null
           cited_end?: number | null
           cited_kind?: Database["public"]["Enums"]["cited_target_kind"] | null
           cited_location_kind?: string | null
           cited_q_a_pair_id?: string | null
           cited_q_a_pair_version?: number | null
+          cited_reference_item_id?: string | null
+          cited_source_document_id?: string | null
           cited_start?: number | null
           cited_text?: string | null
           cited_version?: number | null
@@ -225,6 +234,20 @@ export type Database = {
             columns: ["cited_q_a_pair_id"]
             isOneToOne: false
             referencedRelation: "q_a_pairs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "citations_cited_reference_item_id_fkey"
+            columns: ["cited_reference_item_id"]
+            isOneToOne: false
+            referencedRelation: "reference_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "citations_cited_source_document_id_fkey"
+            columns: ["cited_source_document_id"]
+            isOneToOne: false
+            referencedRelation: "source_documents"
             referencedColumns: ["id"]
           },
           {
@@ -2248,7 +2271,6 @@ export type Database = {
       }
       ingestion_quality_log: {
         Row: {
-          content_item_id: string | null
           created_at: string | null
           created_by: string | null
           details: Json | null
@@ -2260,10 +2282,10 @@ export type Database = {
           resolved_at: string | null
           resolved_by: string | null
           severity: string | null
+          source_document_id: string | null
           source_url: string | null
         }
         Insert: {
-          content_item_id?: string | null
           created_at?: string | null
           created_by?: string | null
           details?: Json | null
@@ -2275,10 +2297,10 @@ export type Database = {
           resolved_at?: string | null
           resolved_by?: string | null
           severity?: string | null
+          source_document_id?: string | null
           source_url?: string | null
         }
         Update: {
-          content_item_id?: string | null
           created_at?: string | null
           created_by?: string | null
           details?: Json | null
@@ -2290,14 +2312,15 @@ export type Database = {
           resolved_at?: string | null
           resolved_by?: string | null
           severity?: string | null
+          source_document_id?: string | null
           source_url?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "ingestion_quality_log_content_item_id_fkey"
-            columns: ["content_item_id"]
+            foreignKeyName: "ingestion_quality_log_source_document_id_fkey"
+            columns: ["source_document_id"]
             isOneToOne: false
-            referencedRelation: "content_items"
+            referencedRelation: "source_documents"
             referencedColumns: ["id"]
           },
         ]
@@ -2937,6 +2960,8 @@ export type Database = {
           source_document_id: string | null
           source_url: string | null
           summary: string | null
+          superseded_by: string | null
+          thumbnail_url: string | null
           title: string | null
           updated_at: string | null
         }
@@ -2954,6 +2979,8 @@ export type Database = {
           source_document_id?: string | null
           source_url?: string | null
           summary?: string | null
+          superseded_by?: string | null
+          thumbnail_url?: string | null
           title?: string | null
           updated_at?: string | null
         }
@@ -2971,6 +2998,8 @@ export type Database = {
           source_document_id?: string | null
           source_url?: string | null
           summary?: string | null
+          superseded_by?: string | null
+          thumbnail_url?: string | null
           title?: string | null
           updated_at?: string | null
         }
@@ -2980,6 +3009,13 @@ export type Database = {
             columns: ["source_document_id"]
             isOneToOne: false
             referencedRelation: "source_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reference_items_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "reference_items"
             referencedColumns: ["id"]
           },
         ]
@@ -3130,9 +3166,18 @@ export type Database = {
       }
       source_documents: {
         Row: {
+          admission_status: string | null
+          ai_keywords: string[] | null
           archived_at: string | null
           archived_by: string | null
+          auth: Json | null
+          cadence: string | null
+          captured_date: string | null
+          classification_confidence: number | null
+          classification_reasoning: string | null
+          classified_at: string | null
           content_hash: string | null
+          content_type: string | null
           created_at: string | null
           extracted_text: string | null
           extraction_metadata: Json | null
@@ -3140,22 +3185,45 @@ export type Database = {
           file_size: number | null
           filename: string | null
           id: string | null
+          locator: string | null
+          logical_path: string | null
           mime_type: string | null
           op_id: string | null
+          origin_type: string | null
           original_filename: string | null
           parent_id: string | null
           pipeline_run_id: string | null
+          primary_domain: string | null
+          primary_subtopic: string | null
+          publication_status: string | null
+          retention_class: string | null
+          secondary_domain: string | null
+          secondary_subtopic: string | null
           source_url: string | null
           status: string | null
           storage_path: string | null
+          suggested_title: string | null
+          summary: string | null
+          summary_data: Json | null
+          updated_at: string | null
+          updated_by: string | null
           uploaded_by: string | null
           version: number | null
           workspace_id: string | null
         }
         Insert: {
+          admission_status?: string | null
+          ai_keywords?: string[] | null
           archived_at?: string | null
           archived_by?: string | null
+          auth?: Json | null
+          cadence?: string | null
+          captured_date?: string | null
+          classification_confidence?: number | null
+          classification_reasoning?: string | null
+          classified_at?: string | null
           content_hash?: string | null
+          content_type?: string | null
           created_at?: string | null
           extracted_text?: string | null
           extraction_metadata?: Json | null
@@ -3163,22 +3231,45 @@ export type Database = {
           file_size?: number | null
           filename?: string | null
           id?: string | null
+          locator?: string | null
+          logical_path?: string | null
           mime_type?: string | null
           op_id?: string | null
+          origin_type?: string | null
           original_filename?: string | null
           parent_id?: string | null
           pipeline_run_id?: string | null
+          primary_domain?: string | null
+          primary_subtopic?: string | null
+          publication_status?: string | null
+          retention_class?: string | null
+          secondary_domain?: string | null
+          secondary_subtopic?: string | null
           source_url?: string | null
           status?: string | null
           storage_path?: string | null
+          suggested_title?: string | null
+          summary?: string | null
+          summary_data?: Json | null
+          updated_at?: string | null
+          updated_by?: string | null
           uploaded_by?: string | null
           version?: number | null
           workspace_id?: string | null
         }
         Update: {
+          admission_status?: string | null
+          ai_keywords?: string[] | null
           archived_at?: string | null
           archived_by?: string | null
+          auth?: Json | null
+          cadence?: string | null
+          captured_date?: string | null
+          classification_confidence?: number | null
+          classification_reasoning?: string | null
+          classified_at?: string | null
           content_hash?: string | null
+          content_type?: string | null
           created_at?: string | null
           extracted_text?: string | null
           extraction_metadata?: Json | null
@@ -3186,14 +3277,28 @@ export type Database = {
           file_size?: number | null
           filename?: string | null
           id?: string | null
+          locator?: string | null
+          logical_path?: string | null
           mime_type?: string | null
           op_id?: string | null
+          origin_type?: string | null
           original_filename?: string | null
           parent_id?: string | null
           pipeline_run_id?: string | null
+          primary_domain?: string | null
+          primary_subtopic?: string | null
+          publication_status?: string | null
+          retention_class?: string | null
+          secondary_domain?: string | null
+          secondary_subtopic?: string | null
           source_url?: string | null
           status?: string | null
           storage_path?: string | null
+          suggested_title?: string | null
+          summary?: string | null
+          summary_data?: Json | null
+          updated_at?: string | null
+          updated_by?: string | null
           uploaded_by?: string | null
           version?: number | null
           workspace_id?: string | null
@@ -6798,7 +6903,6 @@ export type Database = {
       }
       ingestion_quality_log: {
         Row: {
-          content_item_id: string | null
           created_at: string | null
           created_by: string | null
           details: Json | null
@@ -6810,10 +6914,10 @@ export type Database = {
           resolved_at: string | null
           resolved_by: string | null
           severity: string
+          source_document_id: string | null
           source_url: string | null
         }
         Insert: {
-          content_item_id?: string | null
           created_at?: string | null
           created_by?: string | null
           details?: Json | null
@@ -6825,10 +6929,10 @@ export type Database = {
           resolved_at?: string | null
           resolved_by?: string | null
           severity?: string
+          source_document_id?: string | null
           source_url?: string | null
         }
         Update: {
-          content_item_id?: string | null
           created_at?: string | null
           created_by?: string | null
           details?: Json | null
@@ -6840,14 +6944,15 @@ export type Database = {
           resolved_at?: string | null
           resolved_by?: string | null
           severity?: string
+          source_document_id?: string | null
           source_url?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "ingestion_quality_log_content_item_id_fkey"
-            columns: ["content_item_id"]
+            foreignKeyName: "ingestion_quality_log_source_document_id_fkey"
+            columns: ["source_document_id"]
             isOneToOne: false
-            referencedRelation: "content_items"
+            referencedRelation: "source_documents"
             referencedColumns: ["id"]
           },
         ]
@@ -8020,9 +8125,12 @@ export type Database = {
       }
       source_documents: {
         Row: {
+          admission_status: string
           ai_keywords: string[] | null
           archived_at: string | null
           archived_by: string | null
+          auth: Json | null
+          cadence: string | null
           captured_date: string | null
           classification_confidence: number | null
           classification_reasoning: string | null
@@ -8036,14 +8144,18 @@ export type Database = {
           file_size: number
           filename: string
           id: string
+          locator: string | null
+          logical_path: string | null
           mime_type: string
           op_id: string | null
+          origin_type: string | null
           original_filename: string | null
           parent_id: string | null
           pipeline_run_id: string | null
           primary_domain: string
           primary_subtopic: string
           publication_status: string
+          retention_class: string | null
           secondary_domain: string | null
           secondary_subtopic: string | null
           source_url: string | null
@@ -8059,9 +8171,12 @@ export type Database = {
           workspace_id: string | null
         }
         Insert: {
+          admission_status?: string
           ai_keywords?: string[] | null
           archived_at?: string | null
           archived_by?: string | null
+          auth?: Json | null
+          cadence?: string | null
           captured_date?: string | null
           classification_confidence?: number | null
           classification_reasoning?: string | null
@@ -8075,14 +8190,18 @@ export type Database = {
           file_size: number
           filename: string
           id?: string
+          locator?: string | null
+          logical_path?: string | null
           mime_type: string
           op_id?: string | null
+          origin_type?: string | null
           original_filename?: string | null
           parent_id?: string | null
           pipeline_run_id?: string | null
           primary_domain?: string
           primary_subtopic?: string
           publication_status?: string
+          retention_class?: string | null
           secondary_domain?: string | null
           secondary_subtopic?: string | null
           source_url?: string | null
@@ -8098,9 +8217,12 @@ export type Database = {
           workspace_id?: string | null
         }
         Update: {
+          admission_status?: string
           ai_keywords?: string[] | null
           archived_at?: string | null
           archived_by?: string | null
+          auth?: Json | null
+          cadence?: string | null
           captured_date?: string | null
           classification_confidence?: number | null
           classification_reasoning?: string | null
@@ -8114,14 +8236,18 @@ export type Database = {
           file_size?: number
           filename?: string
           id?: string
+          locator?: string | null
+          logical_path?: string | null
           mime_type?: string
           op_id?: string | null
+          origin_type?: string | null
           original_filename?: string | null
           parent_id?: string | null
           pipeline_run_id?: string | null
           primary_domain?: string
           primary_subtopic?: string
           publication_status?: string
+          retention_class?: string | null
           secondary_domain?: string | null
           secondary_subtopic?: string | null
           source_url?: string | null
@@ -8666,16 +8792,27 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "ingestion_quality_log_content_item_id_fkey"
+            foreignKeyName: "ingestion_quality_log_source_document_id_fkey"
             columns: ["content_item_id"]
             isOneToOne: false
-            referencedRelation: "content_items"
+            referencedRelation: "source_documents"
             referencedColumns: ["id"]
           },
         ]
       }
     }
     Functions: {
+      _corpus_writer_fence_key: { Args: never; Returns: number }
+      _source_document_cascade_erase: {
+        Args: { p_id: string; p_trigger?: string }
+        Returns: {
+          chunks_deleted: number
+          embeddings_deleted: number
+          entity_mentions_deleted: number
+          entity_relationships_deleted: number
+          extractions_deleted: number
+        }[]
+      }
       _test_delete_broken_auth_user: {
         Args: { probe_id: string }
         Returns: undefined
@@ -8707,6 +8844,13 @@ export type Database = {
           item_exists: boolean
         }[]
       }
+      citations_cascade_preflight: {
+        Args: never
+        Returns: {
+          at_risk_citation_count: number
+          safe_to_reprocess: boolean
+        }[]
+      }
       claim_next_job: {
         Args: never
         Returns: {
@@ -8734,6 +8878,14 @@ export type Database = {
         }
       }
       cleanup_filtered_articles: { Args: never; Returns: number }
+      corpus_writer_fence_release: {
+        Args: { p_holder?: string }
+        Returns: boolean
+      }
+      corpus_writer_fence_try_acquire: {
+        Args: { p_holder?: string }
+        Returns: boolean
+      }
       count_auth_users: { Args: never; Returns: number }
       delete_duplicate_entity_mentions: {
         Args: { p_canonical_name: string }
@@ -9274,7 +9426,6 @@ export type Database = {
           tag: string
         }[]
       }
-      get_verification_stats: { Args: never; Returns: Json }
       grant_standard_public_table_access: {
         Args: { target_table: unknown }
         Returns: undefined
@@ -9429,6 +9580,17 @@ export type Database = {
           scope_tag: string[]
         }[]
       }
+      reap_orphaned_source_documents: {
+        Args: never
+        Returns: {
+          chunks_deleted: number
+          embeddings_deleted: number
+          entity_mentions_deleted: number
+          entity_relationships_deleted: number
+          extractions_deleted: number
+          source_document_id: string
+        }[]
+      }
       reap_stuck_jobs: { Args: { p_timeout_seconds: number }; Returns: number }
       recalculate_all_freshness: {
         Args: never
@@ -9552,6 +9714,22 @@ export type Database = {
           id: string
         }[]
       }
+      resolve_or_mint_source_identity: {
+        Args: {
+          p_content_hash: string
+          p_file_size: number
+          p_filename: string
+          p_mime_type: string
+          p_op_id?: string
+          p_origin_type?: string
+          p_rel_path: string
+          p_retention_class?: string
+        }
+        Returns: {
+          source_document_id: string
+          was_minted: boolean
+        }[]
+      }
       run_quality_scan: {
         Args: { p_batch_name?: string }
         Returns: {
@@ -9671,6 +9849,17 @@ export type Database = {
             Args: { p_item_id: string; p_starred: boolean }
             Returns: undefined
           }
+      tombstone_source_document: {
+        Args: { p_id: string }
+        Returns: {
+          chunks_deleted: number
+          embeddings_deleted: number
+          entity_mentions_deleted: number
+          entity_relationships_deleted: number
+          extractions_deleted: number
+          source_document_id: string
+        }[]
+      }
     }
     Enums: {
       cited_target_kind:

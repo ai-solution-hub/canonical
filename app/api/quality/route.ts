@@ -69,11 +69,7 @@ export const GET = defineRoute(
         );
 
       if (itemId) {
-        // Cast: source_document_id exists in the DB post-migration
-        // (ID-131 {131.13} G-GOV-FACET-B rename) but generated types are
-        // pending regen until GO-apply — same pattern as the existing
-        // 'content_owner_id' as 'id' cast in bulk-assign/route.ts.
-        query = query.eq('source_document_id' as 'content_item_id', itemId);
+        query = query.eq('source_document_id', itemId);
       }
 
       if (flagType) {
