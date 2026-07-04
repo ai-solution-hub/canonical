@@ -241,6 +241,12 @@ interface ContentRow {
   classified_at: string | null;
   metadata: Record<string, unknown> | null;
   platform: string | null;
+  /** FK to `source_documents.id` — NOT the same id-space as `id` above
+   *  (ID-131 {131.8} M2 rename). Needed by the entities_only candidate
+   *  filter to compare against `entity_mentions.source_document_id`
+   *  (ID-131.30). Null for app-created items with no backing source
+   *  document. */
+  source_document_id: string | null;
 }
 
 interface ClassificationTemporalRef {
@@ -609,7 +615,7 @@ export async function runBatchReclassifyJob(
     let entitiesQuery = supabase
       .from('content_items')
       .select(
-        'id, content, title, suggested_title, content_type, primary_domain, primary_subtopic, ai_keywords, classification_confidence, classified_at, metadata, platform',
+        'id, content, title, suggested_title, content_type, primary_domain, primary_subtopic, ai_keywords, classification_confidence, classified_at, metadata, platform, source_document_id',
       )
       .not('classified_at', 'is', null)
       .not('content', 'is', null)
@@ -661,12 +667,21 @@ export async function runBatchReclassifyJob(
       }
 
       const entitiesFiltered = (items as ContentRow[])
-        .filter(
-          (item) =>
-            item.content &&
-            item.content.trim().length > 0 &&
-            !mentionedSet.has(item.id),
-        )
+        .filter((item) => {
+          if (!item.content || item.content.trim().length === 0) return false;
+          // entity_mentions.source_document_id is an FK to source_documents,
+          // NOT content_items (ID-131 {131.8} M2 rename; ID-131.30
+          // G-EXTRACT-CONSUMER-SWEEP-3) — comparing item.id against
+          // mentionedSet (which holds source_documents ids) would never
+          // match, silently treating every already-entity-tagged item as
+          // entity-less. An item with no source_document_id has no valid
+          // entity_mentions FK parent, so it cannot be "already mentioned"
+          // — it falls through as a candidate (mirrors the
+          // classify.ts / entity-metadata-bridge.ts {131.26} skip-when-null
+          // idiom).
+          if (!item.source_document_id) return true;
+          return !mentionedSet.has(item.source_document_id);
+        })
         .sort(
           (a, b) =>
             contentTypeSortKey(a.content_type) -

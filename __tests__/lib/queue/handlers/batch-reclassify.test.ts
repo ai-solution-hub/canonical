@@ -662,6 +662,98 @@ describe('runBatchReclassifyJob — batch_reclassify handler (§5.4.2)', () => {
   });
 
   // -------------------------------------------------------------------------
+  // entities_only mode — id-space filter fix (ID-131.30
+  // G-EXTRACT-CONSUMER-SWEEP-3).
+  //
+  // entity_mentions.source_document_id is an FK to source_documents, NOT
+  // content_items (ID-131 {131.8} M2 rename). The entities_only candidate
+  // filter must compare item.source_document_id (not item.id) against the
+  // mentioned-set, else every already-entity-tagged item is silently
+  // re-treated as entity-less. Items with no source_document_id have no
+  // valid entity_mentions FK parent, so they fall through as candidates.
+  // -------------------------------------------------------------------------
+
+  describe('entities_only mode — id-space filter (ID-131.30)', () => {
+    /** Configure the extra entities_only query sequence: taxonomy domains,
+     *  taxonomy subtopics, the content_items candidate query, then a single
+     *  entity_mentions page (page size 5000 so one page always terminates
+     *  the pagination loop). */
+    function configureEntitiesOnlyScenario(
+      client: MockSupabaseClient,
+      scenario: {
+        domains: Array<{ id: string; name: string }>;
+        subtopics: Array<{
+          name: string;
+          domain_id: string;
+          description: string | null;
+        }>;
+        contentItems: Array<Record<string, unknown>>;
+        entityMentionRows: Array<{ source_document_id: string }>;
+      },
+    ): void {
+      client._chain.then.mockImplementationOnce(
+        (resolve: (v: unknown) => void) =>
+          resolve({ data: scenario.domains, error: null }),
+      );
+      client._chain.then.mockImplementationOnce(
+        (resolve: (v: unknown) => void) =>
+          resolve({ data: scenario.subtopics, error: null }),
+      );
+      client._chain.then.mockImplementationOnce(
+        (resolve: (v: unknown) => void) =>
+          resolve({ data: scenario.contentItems, error: null }),
+      );
+      client._chain.then.mockImplementationOnce(
+        (resolve: (v: unknown) => void) =>
+          resolve({ data: scenario.entityMentionRows, error: null }),
+      );
+    }
+
+    it('excludes an item whose source_document_id has a matching entity_mentions row, and includes items with null/unmatched source_document_id as candidates', async () => {
+      const matchedSourceDocId = 'c1111111-1111-4111-8111-111111111111';
+      const unmatchedSourceDocId = 'c3333333-3333-4333-8333-333333333333';
+
+      const matchedItem = makeContentRow(ITEM_IDS[0], {
+        classified_at: '2026-01-01T00:00:00.000Z',
+        source_document_id: matchedSourceDocId,
+      });
+      const nullSourceItem = makeContentRow(ITEM_IDS[1], {
+        classified_at: '2026-01-01T00:00:00.000Z',
+        source_document_id: null,
+      });
+      const unmatchedItem = makeContentRow(ITEM_IDS[2], {
+        classified_at: '2026-01-01T00:00:00.000Z',
+        source_document_id: unmatchedSourceDocId,
+      });
+
+      configureEntitiesOnlyScenario(mockSupabase, {
+        domains: [{ id: 'd1', name: 'security' }],
+        subtopics: [
+          { name: 'cyber-security', domain_id: 'd1', description: null },
+        ],
+        contentItems: [matchedItem, nullSourceItem, unmatchedItem],
+        entityMentionRows: [{ source_document_id: matchedSourceDocId }],
+      });
+
+      const result = await runBatchReclassifyJob(
+        makeBody({ entities_only: true }),
+        mockSupabase as unknown as SupabaseClient<Database>,
+        AUTH_CONTEXT,
+        JOB_ID,
+      );
+
+      // Only the null-source-document and unmatched-source-document items
+      // are candidates — the matched item is excluded (already mentioned).
+      expect(result.total_items).toBe(2);
+      const resultIds = result.results.map((r) => r.item_id);
+      expect(resultIds).not.toContain(matchedItem.id);
+      expect(resultIds).toContain(nullSourceItem.id);
+      expect(resultIds).toContain(unmatchedItem.id);
+      expect(mockAnthropicCreate).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // AC-8 — 0 candidates with force=true → PermanentJobError.
   // Spec §8 AC-8 lines 1252-1257; §4.3.
   // -------------------------------------------------------------------------
