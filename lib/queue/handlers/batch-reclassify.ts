@@ -696,7 +696,7 @@ export async function runBatchReclassifyJob(
     let reclassQuery = supabase
       .from('content_items')
       .select(
-        'id, content, title, suggested_title, content_type, primary_domain, primary_subtopic, ai_keywords, classification_confidence, classified_at, metadata, platform',
+        'id, content, title, suggested_title, content_type, primary_domain, primary_subtopic, ai_keywords, classification_confidence, classified_at, metadata, platform, source_document_id',
       )
       .not('content', 'is', null)
       .is('archived_at', null)
@@ -969,63 +969,87 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
         }
       }
 
-      // Insert entity mentions (delete-then-insert; clean slate on reclassify).
-      if (entities.length > 0) {
-        const entityRows = entities.map((e) => ({
-          source_document_id: item.id,
-          entity_type: e.type,
-          entity_name: e.name,
-          canonical_name: e.canonical_name,
-          confidence: 1.0,
-          context_snippet: extractEntityContext(plainText, e.name),
-        }));
+      // entity_mentions.source_document_id / entity_relationships
+      // .source_document_id are enforced FKs to `source_documents`, NOT
+      // `content_items` (ID-131 {131.8} M2 rename; migration
+      // 20260628200000_id131_extract_reparent.sql:38-41,51-54). `item.id`
+      // is a content_items id and is NEVER a valid value for that FK
+      // (independent PK spaces) — writing it raw silently no-oped the
+      // DELETE (content_items ids never match source_documents ids) and
+      // FK-violated the INSERT, which was only ever `logger.warn`'d, never
+      // thrown, since the M2 megacommit landed on 2026-07-01 (ID-131.36
+      // G-EXTRACT-CONSUMER-SWEEP-4; mirrors the {131.26} /
+      // entity-metadata-bridge.ts / classify.ts skip-when-null idiom). An
+      // item with no source_document_id (an app-created content_item with
+      // no backing source document) has no valid FK parent, so
+      // entity/relationship writes are skipped for it entirely rather than
+      // attempting an FK-violating insert.
+      const sourceDocumentId = item.source_document_id;
 
-        await supabase
-          .from('entity_mentions')
-          .delete()
-          .eq('source_document_id', item.id);
+      if (!sourceDocumentId) {
+        logger.warn(
+          { item_id: item.id },
+          'batch_reclassify handler: item has no source_document_id — skipping entity_mentions/entity_relationships storage (no valid FK parent)',
+        );
+      } else {
+        // Insert entity mentions (delete-then-insert; clean slate on reclassify).
+        if (entities.length > 0) {
+          const entityRows = entities.map((e) => ({
+            source_document_id: sourceDocumentId,
+            entity_type: e.type,
+            entity_name: e.name,
+            canonical_name: e.canonical_name,
+            confidence: 1.0,
+            context_snippet: extractEntityContext(plainText, e.name),
+          }));
 
-        const { error: entityError } = await supabase
-          .from('entity_mentions')
-          .insert(entityRows);
+          await supabase
+            .from('entity_mentions')
+            .delete()
+            .eq('source_document_id', sourceDocumentId);
 
-        if (entityError) {
-          logger.warn(
-            { err: entityError, item_id: item.id },
-            'batch_reclassify handler: entity insert failed',
-          );
-        } else {
-          totalEntities += entities.length;
+          const { error: entityError } = await supabase
+            .from('entity_mentions')
+            .insert(entityRows);
+
+          if (entityError) {
+            logger.warn(
+              { err: entityError, item_id: item.id },
+              'batch_reclassify handler: entity insert failed',
+            );
+          } else {
+            totalEntities += entities.length;
+          }
         }
-      }
 
-      // Always delete existing relationships for this item first
-      // (clean slate on reclassify, even when zero new relationships found).
-      await supabase
-        .from('entity_relationships')
-        .delete()
-        .eq('source_document_id', item.id);
-
-      if (relationships.length > 0) {
-        const relRows = relationships.map((r) => ({
-          source_entity: r.source,
-          relationship_type: r.relationship,
-          target_entity: r.target,
-          source_document_id: item.id,
-          confidence: 1.0,
-        }));
-
-        const { error: relError } = await supabase
+        // Always delete existing relationships for this item first
+        // (clean slate on reclassify, even when zero new relationships found).
+        await supabase
           .from('entity_relationships')
-          .insert(relRows);
+          .delete()
+          .eq('source_document_id', sourceDocumentId);
 
-        if (relError) {
-          logger.warn(
-            { err: relError, item_id: item.id },
-            'batch_reclassify handler: relationship insert failed',
-          );
-        } else {
-          totalRelationships += relationships.length;
+        if (relationships.length > 0) {
+          const relRows = relationships.map((r) => ({
+            source_entity: r.source,
+            relationship_type: r.relationship,
+            target_entity: r.target,
+            source_document_id: sourceDocumentId,
+            confidence: 1.0,
+          }));
+
+          const { error: relError } = await supabase
+            .from('entity_relationships')
+            .insert(relRows);
+
+          if (relError) {
+            logger.warn(
+              { err: relError, item_id: item.id },
+              'batch_reclassify handler: relationship insert failed',
+            );
+          } else {
+            totalRelationships += relationships.length;
+          }
         }
       }
 

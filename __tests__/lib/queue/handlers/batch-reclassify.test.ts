@@ -754,6 +754,144 @@ describe('runBatchReclassifyJob — batch_reclassify handler (§5.4.2)', () => {
   });
 
   // -------------------------------------------------------------------------
+  // Entity/relationship WRITE path — id-space fix (ID-131.36
+  // G-EXTRACT-CONSUMER-SWEEP-4).
+  //
+  // entity_mentions.source_document_id / entity_relationships
+  // .source_document_id are enforced FKs to source_documents, NOT
+  // content_items (ID-131 {131.8} M2 rename). Before this fix the write
+  // path keyed both the delete-filter and the insert row on `item.id` (a
+  // content_items id) — the DELETE silently no-oped (content_items ids
+  // never match source_documents ids) and the INSERT FK-violated (only
+  // ever `logger.warn`'d, never thrown) since the M2 megacommit landed on
+  // 2026-07-01.
+  // -------------------------------------------------------------------------
+
+  describe('entity/relationship WRITE path — id-space fix (ID-131.36)', () => {
+    const SOURCE_DOC_ID = 'd1111111-1111-4111-8111-111111111111';
+
+    /** Anthropic response with one entity + one relationship, so both the
+     *  entity_mentions and entity_relationships write branches execute. */
+    function makeExtractionResponse() {
+      return makeAnthropicResponse({
+        entities: [
+          {
+            name: 'Acme Ltd',
+            type: 'organisation',
+            canonical_name: 'acme ltd',
+          },
+        ],
+        relationships: [
+          { source: 'acme ltd', relationship: 'holds', target: 'iso 27001' },
+        ],
+      });
+    }
+
+    it('item WITH a source_document_id writes entity_mentions/entity_relationships keyed on source_document_id, not item.id', async () => {
+      const item = makeContentRow(ITEM_IDS[0], {
+        source_document_id: SOURCE_DOC_ID,
+      });
+      configureSupabase(mockSupabase, {
+        domains: [{ id: 'd1', name: 'security' }],
+        subtopics: [
+          { name: 'cyber-security', domain_id: 'd1', description: null },
+        ],
+        contentItems: [item],
+      });
+      mockAnthropicCreate.mockResolvedValue(makeExtractionResponse());
+
+      const result = await runBatchReclassifyJob(
+        makeBody(),
+        mockSupabase as unknown as SupabaseClient<Database>,
+        AUTH_CONTEXT,
+        JOB_ID,
+      );
+
+      expect(result.reclassified).toBe(1);
+      expect(result.total_entities).toBe(1);
+      expect(result.total_relationships).toBe(1);
+
+      const insertCalls = mockSupabase._chain.insert.mock.calls as Array<
+        [Array<Record<string, unknown>>]
+      >;
+
+      // entity_mentions insert row keyed on source_document_id, NOT item.id.
+      const entityMentionRow = insertCalls
+        .map((c) => c[0][0])
+        .find((row) => row && 'entity_type' in row);
+      expect(entityMentionRow).toBeDefined();
+      expect(entityMentionRow!.source_document_id).toBe(SOURCE_DOC_ID);
+      expect(entityMentionRow!.source_document_id).not.toBe(item.id);
+
+      // entity_relationships insert row keyed on source_document_id, NOT
+      // item.id.
+      const relationshipRow = insertCalls
+        .map((c) => c[0][0])
+        .find((row) => row && 'relationship_type' in row);
+      expect(relationshipRow).toBeDefined();
+      expect(relationshipRow!.source_document_id).toBe(SOURCE_DOC_ID);
+      expect(relationshipRow!.source_document_id).not.toBe(item.id);
+
+      // Both delete().eq('source_document_id', ...) calls filter on
+      // SOURCE_DOC_ID, not item.id.
+      const sourceDocEqCalls = mockSupabase._chain.eq.mock.calls.filter(
+        (c) => c[0] === 'source_document_id',
+      );
+      expect(sourceDocEqCalls.length).toBeGreaterThanOrEqual(2);
+      for (const call of sourceDocEqCalls) {
+        expect(call[1]).toBe(SOURCE_DOC_ID);
+      }
+    });
+
+    it('item with NULL source_document_id skips entity_mentions/entity_relationships write entirely (no FK-violating insert attempted)', async () => {
+      const item = makeContentRow(ITEM_IDS[1], {
+        source_document_id: null,
+      });
+      configureSupabase(mockSupabase, {
+        domains: [{ id: 'd1', name: 'security' }],
+        subtopics: [
+          { name: 'cyber-security', domain_id: 'd1', description: null },
+        ],
+        contentItems: [item],
+      });
+      // Anthropic DOES return entities/relationships — proving the guard
+      // skips storage despite successful extraction (no valid FK parent).
+      mockAnthropicCreate.mockResolvedValue(makeExtractionResponse());
+
+      const result = await runBatchReclassifyJob(
+        makeBody(),
+        mockSupabase as unknown as SupabaseClient<Database>,
+        AUTH_CONTEXT,
+        JOB_ID,
+      );
+
+      // Classification itself still succeeds — only entity/relationship
+      // storage is skipped.
+      expect(result.reclassified).toBe(1);
+      expect(result.total_entities).toBe(0);
+      expect(result.total_relationships).toBe(0);
+
+      // No entity_mentions/entity_relationships insert was attempted.
+      const insertCalls = mockSupabase._chain.insert.mock.calls as Array<
+        [Array<Record<string, unknown>>]
+      >;
+      const entityOrRelRow = insertCalls
+        .map((c) => c[0][0])
+        .find(
+          (row) => row && ('entity_type' in row || 'relationship_type' in row),
+        );
+      expect(entityOrRelRow).toBeUndefined();
+
+      // No source_document_id-keyed delete was attempted either (an
+      // unscoped delete keyed on a null id would be unsafe).
+      const sourceDocEqCalls = mockSupabase._chain.eq.mock.calls.filter(
+        (c) => c[0] === 'source_document_id',
+      );
+      expect(sourceDocEqCalls.length).toBe(0);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // AC-8 — 0 candidates with force=true → PermanentJobError.
   // Spec §8 AC-8 lines 1252-1257; §4.3.
   // -------------------------------------------------------------------------
