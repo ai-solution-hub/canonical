@@ -146,6 +146,16 @@ let qaItemA = '';
 let qaItemB = '';
 let qaQueryEmbedding: number[] | null = null;
 
+// ID-131.35 Checker-FAIL remediation — ids captured here immediately after
+// each q_a_pairs insert succeeds inside seedQaPair (mirrors seedItem's
+// `seededIds.push(data.id)` above), so a downstream record_embeddings
+// insert failure (e.g. the {131.19}-deferred api.record_embeddings view,
+// PGRST205) can no longer orphan the parent row: the nested afterAll below
+// cleans up from this array, not from `[qaItemA, qaItemB]` (which are only
+// assigned once seedQaPair fully returns — i.e. never, on that failure
+// path).
+const qaSeededIds: string[] = [];
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -235,6 +245,11 @@ async function seedQaPair(label: string, embedding: number[]): Promise<string> {
       `Seed q_a_pair "${label}" failed: ${error?.message ?? 'no data'}`,
     );
   }
+
+  // Capture immediately — before attempting the record_embeddings insert,
+  // which can throw. Cleanup must not depend on this function's return
+  // value succeeding (Checker FAIL — see qaSeededIds docstring above).
+  qaSeededIds.push(data.id);
 
   const { error: embeddingError } = await serviceClient
     .from('record_embeddings')
@@ -377,16 +392,21 @@ describeIfEnv(
       }, 60_000);
 
       afterAll(async () => {
-        const qaIds = [qaItemA, qaItemB].filter(Boolean);
-        if (qaIds.length === 0) return;
+        // ID-131.35 Checker-FAIL remediation — clean up from qaSeededIds
+        // (populated inside seedQaPair immediately after each q_a_pairs
+        // insert succeeds), NOT from `[qaItemA, qaItemB]`: those module vars
+        // are only assigned once seedQaPair fully returns, so a
+        // record_embeddings insert failure mid-seed would previously leave
+        // this array-based guard empty and orphan the q_a_pairs row.
+        if (qaSeededIds.length === 0) return;
         // record_embeddings carries no FK to q_a_pairs (polymorphic owner) —
         // delete explicitly.
         await serviceClient
           .from('record_embeddings')
           .delete()
           .eq('owner_kind', 'q_a_pair')
-          .in('owner_id', qaIds);
-        await serviceClient.from('q_a_pairs').delete().in('id', qaIds);
+          .in('owner_id', qaSeededIds);
+        await serviceClient.from('q_a_pairs').delete().in('id', qaSeededIds);
       }, 30_000);
 
       it('baseline: both A and B appear in default hybrid_search before supersession', async () => {

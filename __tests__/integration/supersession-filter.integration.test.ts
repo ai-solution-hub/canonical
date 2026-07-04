@@ -45,6 +45,16 @@ let embedding: number[] | null = null;
 
 const UNIQUE_KEYWORD = 'SUPERSEDEMARKER'; // Very unlikely to collide with real data
 
+// ID-131.35 same-fix extension (Checker FAIL on the sibling
+// publication-state-supersession.integration.test.ts identified the
+// identical latent defect here) — ids captured here immediately after each
+// q_a_pairs insert succeeds inside seedPair, so a downstream
+// record_embeddings insert failure can no longer orphan the parent row:
+// afterAll below cleans up from this array, not from
+// `oldPair?.id`/`newPair?.id` (only assigned once seedPair fully returns —
+// i.e. never, on that failure path).
+const seededIds: string[] = [];
+
 async function seedPair(suffix: string): Promise<TestPair> {
   const insert = await serviceClient
     .from('q_a_pairs')
@@ -65,6 +75,11 @@ async function seedPair(suffix: string): Promise<TestPair> {
       `Seed q_a_pair (${suffix}) failed: ${insert.error?.message ?? 'no data'}`,
     );
   }
+
+  // Capture immediately — before attempting the record_embeddings insert,
+  // which can throw. Cleanup must not depend on this function's return
+  // value succeeding (see seededIds docstring above).
+  seededIds.push(insert.data.id);
 
   // Vector arm reads record_embeddings, not an inline column (BI-17 EMB-STORE).
   const embeddingInsert = await serviceClient.from('record_embeddings').insert({
@@ -94,16 +109,20 @@ beforeAll(async () => {
 }, 30_000);
 
 afterAll(async () => {
-  const ids = [oldPair?.id, newPair?.id].filter((v): v is string => Boolean(v));
-  if (ids.length > 0) {
+  // ID-131.35 same-fix extension — clean up from seededIds (populated inside
+  // seedPair immediately after each q_a_pairs insert succeeds), NOT from
+  // `[oldPair?.id, newPair?.id]`: those module vars are only assigned once
+  // seedPair fully returns, so a record_embeddings insert failure mid-seed
+  // would previously leave this guard empty and orphan the q_a_pairs row.
+  if (seededIds.length > 0) {
     // record_embeddings carries no FK to q_a_pairs (polymorphic owner) —
     // delete explicitly; q_a_pair_history cascades on the q_a_pairs delete.
     await serviceClient
       .from('record_embeddings')
       .delete()
       .eq('owner_kind', 'q_a_pair')
-      .in('owner_id', ids);
-    await serviceClient.from('q_a_pairs').delete().in('id', ids);
+      .in('owner_id', seededIds);
+    await serviceClient.from('q_a_pairs').delete().in('id', seededIds);
   }
 });
 
