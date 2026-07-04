@@ -41,7 +41,11 @@ function sanitiseFilename(raw: string): string {
 const FolderDropResponseSchema = z.object({
   sourceFile: z.string(),
   destPath: z.string(),
-  stageRequestId: z.string(),
+  // {138.13} T2 RE-POINT: the admission-minted `source_documents.id` (M2
+  // resolver), returned synchronously — replaces the old /stage worker's
+  // opaque `stageRequestId` correlation token (DR-020 retirement).
+  sourceDocumentId: z.string(),
+  wasMinted: z.boolean(),
 });
 
 export const POST = withRequestContext(
@@ -88,33 +92,47 @@ export const POST = withRequestContext(
 
       const bytes = await file.arrayBuffer();
 
+      // {138.13} T2 RE-POINT: gate-pass -> Storage PUT + admission-minted
+      // source_documents row, in one fenced flow (DR-020 /stage retirement).
+      // Pass the AUTHED route client (mirrors the write-back.ts {138.12} T1
+      // precedent) rather than relying on stageAndWalk's internal
+      // service-role default.
       const result = await stageAndWalk({
         bytes,
         filename: safeName,
         destPath,
         titlePrefix: '',
         contentType: file.type || undefined,
+        supabase: auth.supabase,
       });
 
       logger.info(
-        { sourceFile: result.sourceFile, destPath: result.destPath },
-        'folder-drop staged + walk triggered',
+        {
+          sourceFile: result.sourceFile,
+          destPath: result.destPath,
+          sourceDocumentId: result.sourceDocumentId,
+          wasMinted: result.wasMinted,
+        },
+        'folder-drop admitted — Storage PUT + source_documents row',
       );
 
       return NextResponse.json(
         {
           sourceFile: result.sourceFile,
           destPath: result.destPath,
-          stageRequestId: result.stageRequestId,
+          sourceDocumentId: result.sourceDocumentId,
+          wasMinted: result.wasMinted,
         },
         { status: 202 },
       );
     } catch (err) {
       if (err instanceof FolderDropError) {
-        // A destPath mis-wire is the caller's fault (400). Every other leg
-        // (config/stage/walk) is a worker-side failure → 502 Bad Gateway. The
+        // A destPath mis-wire is the caller's fault (400). A busy writer
+        // fence is a transient, retry-shortly condition (409). Every other
+        // leg (put/identity) is an infra failure -> 502 Bad Gateway. The
         // message is honest about whether the bytes landed.
-        const status = err.stage === 'destPath' ? 400 : 502;
+        const status =
+          err.stage === 'destPath' ? 400 : err.stage === 'fence' ? 409 : 502;
         logger.error(
           { stage: err.stage, status: err.status, detail: err.detail },
           `folder-drop failed at the ${err.stage} stage`,

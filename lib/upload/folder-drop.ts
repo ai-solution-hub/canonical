@@ -1,43 +1,87 @@
-// {56.12} folder-drop staging client — Path B async ingest (stage + walk)
+// {56.12} folder-drop upload client — ID-138 {138.13} T2 RE-POINT
 //
-// Server-side helper for the folder-drop upload flow (ID-56 Path B). It mirrors
-// the cocoindex worker's wire contracts:
+// ── RETIREMENT (DR-020) ──────────────────────────────────────────────────
+// This module used to stage bytes via POST {COCOINDEX_WORKER_URL}/stage
+// (multipart file + destPath) then trigger POST /walk. DR-020 (decision
+// register) confirms `/stage` is BROKEN FROM VERCEL — the Next.js app
+// cannot reach the cocoindex worker's loopback-only `/stage` endpoint in
+// production, so that leg never actually completed an admission for either
+// caller of `stageAndWalk` (the folder-drop UI route below AND the MCP
+// `create_content_item` source-less branch, `lib/mcp/tools/content.ts`).
+// TECH.md §3.3 T2 retires it entirely: the upload leg becomes ONE flow —
+// gate-pass (`assertCorpusRelativeDestPath`, unchanged) -> Storage PUT into
+// the `corpus` bucket at `object_key = storage_path` (R(a), verbatim, the
+// SAME uuid5 SEED-CONTRACT key the write-back re-point (`lib/edit-intent/
+// write-back.ts`, {138.12} T1) targets) -> an admission-minted
+// `source_documents` row via the M2 resolver
+// (`resolve_or_mint_source_identity`, content_hash-first, R(id)). No more
+// network hop to the cocoindex worker for the admission itself; ingestion
+// into `content_items`/chunks/etc. still needs a later walk, which now
+// depends on pull-sync ({138.14}, not yet built) to materialise the bucket
+// bytes onto the VPS volume the Python engine walks — this leg's job is
+// only to land the bytes + the durable identity, exactly as `write-back.ts`
+// documents for its own Storage re-point.
 //
-//   1. POST {COCOINDEX_WORKER_URL}/stage  — multipart { file, destPath,
-//      titlePrefix } drops the raw bytes into the watched corpus dir
-//      (`COCOINDEX_SOURCE_PATH`). `/stage` does NOT trigger ingestion
-//      (scripts/cocoindex_pipeline/server.py `_stage_handler`, ID-83/bl-221).
-//   2. POST {COCOINDEX_WORKER_URL}/walk   — bearer-gated one-shot incremental
-//      corpus walk (`_walk_handler`). cocoindex is incremental, so a walk after
-//      staging one file processes only the new file.
-//
-// The UI then polls `content_items` filtered by `source_file` = the dropped
-// filename (see `hooks/use-content-ingest-polling.ts`) until the row appears.
+// ── `stageAndWalk` name kept (deliberate) ────────────────────────────────
+// The exported function name is UNCHANGED even though it no longer stages
+// or walks. `lib/mcp/tools/content.ts` (`create_content_item`'s
+// source-less branch) also calls this primitive via a dynamic
+// `await import('@/lib/upload/folder-drop')` — invisible to static
+// call-graph analysis (gitnexus found only ONE incoming edge, the route
+// below; a `grep` sweep is what actually surfaces the second caller). That
+// file sits OUTSIDE this Subtask's file-ownership boundary
+// (`folder-drop.ts` + `app/api/ingest/folder-drop/route.ts` + their tests
+// ONLY), and since DR-020 already establishes `/stage` never worked from
+// Vercel for EITHER caller, keeping the exported name + a back-compatible
+// input/output shape means content.ts's call site keeps compiling AND
+// starts working (Storage PUT + RPC both function from Vercel — TECH §1.3
+// fact 4) with ZERO edits there. `supabase` is an OPTIONAL input field for
+// exactly this reason: the in-boundary route passes the authed caller's
+// client (DI, mirrors the `write-back.ts` precedent); the out-of-boundary
+// MCP caller omits it and gets an internally-created service-role client.
+// Flagged as an out-of-scope observation for a follow-up Subtask to migrate
+// content.ts onto a clearer name + explicit DI + updated response copy
+// (its "materialising via pipeline... poll content_items" text predates
+// the fact a real `sourceDocumentId` is now available synchronously).
 //
 // destPath contract (INV-1, mirrors `lib/edit-intent/write-back.ts`
-// `resolveAbsolutePath`): the corpus-relative POSIX path is consumed VERBATIM —
-// it is the uuid5 PK seed for the ingested row, so any re-normalisation here
-// would mint a different identity downstream. This helper only REJECTS an
-// absolute or `..`-escaping destPath (the worker rejects these too with a named
-// 400); it never rewrites a valid relative path.
+// `resolveObjectKey`, renamed there from `resolveAbsolutePath` at {138.12}):
+// the corpus-relative POSIX path is consumed VERBATIM — it is the uuid5 PK
+// seed for the admitted row, so any re-normalisation here would mint a
+// different identity downstream. This helper only REJECTS an absolute or
+// `..`-escaping destPath; it never rewrites a valid relative path.
 //
-// Failure model: no silent failure. Every leg that can fail surfaces a thrown
-// `FolderDropError` carrying the failing stage + the worker's status/body. A
-// missing `COCOINDEX_WORKER_URL` / `CRON_SECRET` is a loud configuration error,
-// not a skipped no-op (this is an interactive upload — the user is waiting on
-// the result, unlike the fire-and-forget walk nudge in
-// `lib/intelligence/pipeline.ts`).
+// Failure model: no silent failure. Every leg that can fail surfaces a
+// thrown `FolderDropError` carrying the failing stage + detail. A missing
+// corpus bucket is NOT treated as an idle-mode-equivalent degrade (contrast
+// `write-back.ts`'s `CorpusBucketUnavailableError`, which falls through to
+// a DB-only save for an EXISTING content_item edit): an upload has no prior
+// durable copy anywhere, so admitting a `source_documents` row whose
+// `storage_path` points at a bucket object that was never written would be
+// a dangling reference from birth. This leg FAILS LOUDLY instead — the
+// bytes+row apply together or not at all.
+import { createHash } from 'node:crypto';
 
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+import { CORPUS_BUCKET } from '@/lib/edit-intent/write-back';
 import { logger } from '@/lib/logger';
+import { sb } from '@/lib/supabase/safe';
+import { createServiceClient } from '@/lib/supabase/server';
+import {
+  withWriterFence,
+  WriterFenceBusyError,
+} from '@/lib/corpus/writer-fence';
+import type { Database } from '@/supabase/types/database.types';
 
-/** Which leg of the stage→walk flow failed — surfaced on the thrown error. */
+/** Which leg of the admission flow failed — surfaced on the thrown error. */
 /** @public */
-export type FolderDropStage = 'config' | 'destPath' | 'stage' | 'walk';
+export type FolderDropStage = 'destPath' | 'put' | 'identity' | 'fence';
 
 /**
- * Loud, typed failure for the folder-drop flow. Carries the failing leg plus
- * the worker's HTTP status/body when the failure originated worker-side so the
- * API route can map it to an honest response (never a silent accept).
+ * Loud, typed failure for the folder-drop upload flow. Carries the failing
+ * leg plus detail so the API route can map it to an honest response (never
+ * a silent accept).
  */
 /** @public */
 export class FolderDropError extends Error {
@@ -58,49 +102,71 @@ export class FolderDropError extends Error {
   }
 }
 
-/** Result of a successful stage + walk pass. */
+/** Result of a successful gate-pass + Storage PUT + admission-mint pass. */
 /** @public */
 export interface FolderDropResult {
-  /** The corpus-relative path the worker echoed back from /stage. */
+  /** The corpus-relative destPath, echoed verbatim (== the object key). */
   destPath: string;
-  /** Informational request id from /stage (worker correlation). */
-  stageRequestId: string;
   /**
-   * The filename the UI correlates against `content_items.source_file`. This is
-   * the basename of `destPath` — the value cocoindex stamps onto the ingested
-   * row's `source_file` column.
+   * The admission-minted (or content_hash-resolved) `source_documents.id`
+   * (R(id), M2 `resolve_or_mint_source_identity`) — the durable identity a
+   * caller can key follow-up reads/citations on immediately, synchronously.
+   */
+  sourceDocumentId: string;
+  /**
+   * The filename the UI correlates against `content_items.source_file` once
+   * a later walk ingests this source. Basename of `destPath`.
    */
   sourceFile: string;
+  /**
+   * True when this call minted a brand-new identity; false when it resolved
+   * to an EXISTING row by `content_hash` (idempotent re-upload of the same
+   * bytes — R(id) content_hash-first resolution).
+   */
+  wasMinted: boolean;
 }
 
-/** Input for a single folder-drop staging + walk pass. */
+/** Input for a single folder-drop upload admission pass. */
 /** @public */
 export interface StageAndWalkInput {
-  /** Raw file bytes to stage into the corpus. */
+  /** Raw file bytes to PUT into the corpus bucket. */
   bytes: Uint8Array | ArrayBuffer;
-  /** Original filename (used for the multipart `file` part filename). */
+  /** Original filename — forwarded to the M2 resolver as `p_filename`. */
   filename: string;
   /**
-   * Corpus-relative destination path (POSIX). Consumed VERBATIM by the worker
-   * (uuid5 PK seed, INV-1). Must be relative and must not escape the corpus.
+   * Corpus-relative destination path (POSIX). Consumed VERBATIM (uuid5 PK
+   * seed, INV-1). Must be relative and must not escape the corpus. This IS
+   * the Storage object key (R(a)) and the M2 resolver's `p_rel_path`.
    */
   destPath: string;
-  /** Informational title prefix forwarded to /stage (no in-byte injection). */
+  /**
+   * Unused since the /stage retirement (DR-020) — no transport forwards it
+   * anywhere. Kept so existing call sites (`app/api/ingest/folder-drop/
+   * route.ts`, `lib/mcp/tools/content.ts`) do not need to drop the field.
+   */
   titlePrefix?: string;
-  /** Optional MIME type for the multipart `file` part. */
+  /** MIME type — stamped on the Storage object and forwarded as `p_mime_type`. */
   contentType?: string;
+  /**
+   * Supabase client for the Storage PUT + identity RPC + writer fence.
+   * OPTIONAL — see the module header's "`stageAndWalk` name kept" note. The
+   * in-boundary caller (`app/api/ingest/folder-drop/route.ts`) SHOULD pass
+   * the authed route client (`auth.supabase`), mirroring the `write-back.ts`
+   * T1 precedent. When omitted, a service-role client is created internally
+   * (the `lib/mcp/tools/content.ts` MCP call site does not supply one).
+   */
+  supabase?: SupabaseClient<Database>;
 }
 
-/** Short, interactive-upload-appropriate timeouts (ms). */
-const STAGE_TIMEOUT_MS = 30_000;
-const WALK_TIMEOUT_MS = 10_000;
+/** Basename of a POSIX/Windows path — the `source_file` correlation key. */
+function basename(p: string): string {
+  const segments = p.split(/[\\/]/);
+  return segments[segments.length - 1] ?? p;
+}
 
 /**
- * Reject an absolute or corpus-escaping destPath BEFORE the network hop. The
- * worker performs the authoritative realpath containment check; this is the
- * fast client-side mirror so a mis-wire fails as a named `destPath` error
- * rather than a worker round-trip. A valid relative path is returned verbatim —
- * never re-normalised (INV-1).
+ * Reject an absolute or corpus-escaping destPath BEFORE any Storage/DB call.
+ * A valid relative path is returned verbatim — never re-normalised (INV-1).
  */
 export function assertCorpusRelativeDestPath(destPath: string): string {
   if (!destPath) {
@@ -109,8 +175,7 @@ export function assertCorpusRelativeDestPath(destPath: string): string {
       'destPath must be a non-empty string',
     );
   }
-  // Absolute (POSIX or Windows drive) — the worker discards the corpus root
-  // when joined with an absolute path, so reject up front.
+  // Absolute (POSIX or Windows drive) — reject up front.
   if (destPath.startsWith('/') || /^[A-Za-z]:[\\/]/.test(destPath)) {
     throw new FolderDropError(
       'destPath',
@@ -128,183 +193,207 @@ export function assertCorpusRelativeDestPath(destPath: string): string {
   return destPath;
 }
 
-/** Resolve the worker base URL + bearer secret, or throw a loud config error. */
-function resolveWorkerConfig(): { workerUrl: string; cronSecret: string } {
+/** True when a Storage error message indicates the bucket itself is absent. */
+function isBucketNotFoundMessage(message: string | undefined): boolean {
+  return !!message && /bucket not found/i.test(message);
+}
+
+/** Short timeout for the fire-and-forget re-walk nudge (mirrors write-back.ts). */
+const REWALK_NUDGE_TIMEOUT_MS = 5_000;
+
+/**
+ * Fire-and-forget nudge to the cocoindex worker's `/walk` endpoint after a
+ * successful admission (mirrors `write-back.ts`'s `nudgeCorpusRewalk`
+ * verbatim in shape — reimplemented locally rather than imported/exported,
+ * since that module sits outside this Subtask's file-ownership boundary,
+ * the same "reimplement across boundaries" precedent write-back.ts itself
+ * documents for `lib/intelligence/pipeline.ts`'s `nudgeCocoindexWalk`).
+ * Non-fatal: a skipped or failed nudge is a DELAY, never a loss — the
+ * standing scheduled walk (and, once {138.14} pull-sync exists) bounds the
+ * latency.
+ */
+function nudgeCorpusRewalk(objectKey: string): void {
   const workerUrl = process.env.COCOINDEX_WORKER_URL;
   if (!workerUrl) {
-    throw new FolderDropError(
-      'config',
-      'COCOINDEX_WORKER_URL is unset — folder-drop ingest is unavailable',
+    logger.warn(
+      { objectKey },
+      '[folder-drop] COCOINDEX_WORKER_URL unset — skipping re-walk nudge; the upload will be picked up by the next scheduled walk (once pull-sync exists).',
     );
-  }
-  // Validate the scheme so a malformed or non-http(s) URL fails loudly here
-  // rather than silently at fetch time.
-  let parsedWorkerUrl: URL;
-  try {
-    parsedWorkerUrl = new URL(workerUrl);
-  } catch {
-    throw new FolderDropError(
-      'config',
-      `COCOINDEX_WORKER_URL is not a valid URL (${workerUrl}) — folder-drop ingest is unavailable`,
-    );
-  }
-  if (
-    parsedWorkerUrl.protocol !== 'http:' &&
-    parsedWorkerUrl.protocol !== 'https:'
-  ) {
-    throw new FolderDropError(
-      'config',
-      `COCOINDEX_WORKER_URL must use http(s) (${parsedWorkerUrl.protocol}) — folder-drop ingest is unavailable`,
-    );
+    return;
   }
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) {
-    throw new FolderDropError(
-      'config',
-      'CRON_SECRET is unset — /walk auth unavailable',
+    logger.warn(
+      { objectKey },
+      '[folder-drop] CRON_SECRET unset — skipping re-walk nudge; the upload will be picked up by the next scheduled walk (once pull-sync exists).',
     );
+    return;
   }
-  // Trim a single trailing slash so `${workerUrl}/stage` never doubles up.
-  return { workerUrl: workerUrl.replace(/\/$/, ''), cronSecret };
+
+  void fetch(`${workerUrl.replace(/\/$/, '')}/walk`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${cronSecret}` },
+    signal: AbortSignal.timeout(REWALK_NUDGE_TIMEOUT_MS),
+  })
+    .then((res) => {
+      if (!res.ok) {
+        logger.warn(
+          { status: res.status, objectKey },
+          '[folder-drop] Re-walk nudge rejected by cocoindex worker — the upload will be picked up by the next scheduled walk.',
+        );
+      }
+    })
+    .catch((err: unknown) => {
+      logger.warn(
+        { err: err instanceof Error ? err.message : String(err), objectKey },
+        '[folder-drop] Re-walk nudge failed — the upload will be picked up by the next scheduled walk.',
+      );
+    });
 }
 
-/** Basename of a POSIX/Windows path — the `source_file` correlation key. */
-function basename(p: string): string {
-  const segments = p.split(/[\\/]/);
-  return segments[segments.length - 1] ?? p;
+/** Row shape returned by the M2 `resolve_or_mint_source_identity` resolver. */
+interface ResolveOrMintRow {
+  source_document_id: string;
+  was_minted: boolean;
 }
 
 /**
- * Stage one file into the cocoindex corpus, then trigger an incremental walk.
+ * Gate-pass an uploaded file, PUT its bytes into the `corpus` Storage bucket
+ * at `object_key = destPath` (R(a), verbatim), and admission-mint (or
+ * content_hash-resolve) its `source_documents` identity via the M2 resolver
+ * — all inside ONE writer-fence hold (TECH §2.6 R(ops), §3.3 T2).
  *
- * On success returns the echoed destPath, the stage requestId, and the
- * `sourceFile` correlation key (basename of destPath). On any failure throws a
- * `FolderDropError` carrying the failing leg — the caller (API route) is
- * responsible for mapping it to an honest HTTP response. Nothing is swallowed.
+ * On success returns the durable `sourceDocumentId`, the echoed `destPath`,
+ * and the `sourceFile` correlation key a later walk ingests under. Retention
+ * class is fixed to `keep_and_watch` (R(b) — the upload default);
+ * `admission_status` defaults to `admitted` (M1 column default);
+ * `logical_path := storage_path` on mint (M2, server-side).
+ *
+ * Idempotent: re-uploading the SAME bytes (any destPath) resolves to the
+ * SAME `sourceDocumentId` with `wasMinted: false` (content_hash-first, R(id)).
+ *
+ * Throws a `FolderDropError` on any failure — a missing/unprovisioned corpus
+ * bucket is NOT a graceful idle-mode fallback here (contrast `write-back.ts`
+ * `CorpusBucketUnavailableError`): a brand-new upload with no bucket to land
+ * bytes in has no legitimate "DB-only" outcome, since that would admit a
+ * `source_documents` row whose object was never written. See the module
+ * header for the full rationale.
  */
 export async function stageAndWalk(
   input: StageAndWalkInput,
 ): Promise<FolderDropResult> {
-  const { workerUrl, cronSecret } = resolveWorkerConfig();
   const destPath = assertCorpusRelativeDestPath(input.destPath);
+  const supabase = input.supabase ?? createServiceClient();
 
-  // --- Leg 1: POST /stage (multipart file + destPath + titlePrefix) ---
-  const form = new FormData();
-  // Normalise to a fresh ArrayBuffer-backed view so the BlobPart type is
-  // unambiguous (a Uint8Array may be SharedArrayBuffer-backed, which Blob's
-  // typings reject). Slicing a Uint8Array copies into a plain ArrayBuffer.
-  const bytePart: BlobPart =
+  const bytes =
     input.bytes instanceof ArrayBuffer
-      ? input.bytes
-      : input.bytes.slice().buffer;
-  const blob = new Blob(
-    [bytePart],
-    input.contentType ? { type: input.contentType } : undefined,
-  );
-  form.append('file', blob, input.filename);
-  form.append('destPath', destPath);
-  if (input.titlePrefix) {
-    form.append('titlePrefix', input.titlePrefix);
-  }
+      ? new Uint8Array(input.bytes)
+      : input.bytes;
+  // SEED-CONTRACT match with the Python pipeline's
+  // `hashlib.sha256(bytes).hexdigest()` (flow.py:3793/3855) — the M2
+  // resolver's content_hash-first resolution depends on both sides hashing
+  // the identical raw bytes the same way.
+  const contentHash = createHash('sha256').update(bytes).digest('hex');
+  const fileSize = bytes.byteLength;
+  const bucket = supabase.storage.from(CORPUS_BUCKET);
 
-  let stageRes: Response;
+  let resolved: ResolveOrMintRow;
   try {
-    stageRes = await fetch(`${workerUrl}/stage`, {
-      method: 'POST',
-      body: form,
-      signal: AbortSignal.timeout(STAGE_TIMEOUT_MS),
-    });
-  } catch (err) {
-    throw new FolderDropError(
-      'stage',
-      '/stage request failed to reach the worker',
-      {
-        detail: err instanceof Error ? err.message : String(err),
+    resolved = await withWriterFence(
+      supabase,
+      async () => {
+        // ── Storage PUT (object key ≡ storage_path verbatim, R(a)) ──────────
+        // upsert:true — a re-upload of the SAME bytes at the SAME destPath
+        // must succeed (idempotent), not 409.
+        const { error: uploadError } = await bucket.upload(
+          destPath,
+          Buffer.from(bytes),
+          { upsert: true, contentType: input.contentType },
+        );
+        if (uploadError) {
+          if (isBucketNotFoundMessage(uploadError.message)) {
+            throw new FolderDropError(
+              'put',
+              `corpus bucket "${CORPUS_BUCKET}" is not provisioned in this project — upload rejected (object key "${destPath}")`,
+              { detail: uploadError.message },
+            );
+          }
+          throw new FolderDropError(
+            'put',
+            `Storage PUT failed for "${destPath}"`,
+            { detail: uploadError.message },
+          );
+        }
+
+        // ── Admission-minted identity (M2 resolver, R(id)) ──────────────────
+        // The generated RPC Args type marks `p_mime_type` as required
+        // `string` even though the underlying column is NULLable — same
+        // generated-type quirk `lib/mcp/tools/content.ts`'s `reference_ingest`
+        // call casts around (B-25); the RPC body inserts straight into a
+        // nullable column, so this cast is safe (DB is source of truth).
+        const identityArgs = {
+          p_content_hash: contentHash,
+          p_rel_path: destPath,
+          p_filename: input.filename,
+          p_mime_type: input.contentType ?? null,
+          p_file_size: fileSize,
+          p_origin_type: 'upload',
+          p_retention_class: 'keep_and_watch',
+        };
+        const rows = await sb<ResolveOrMintRow[]>(
+          supabase.rpc(
+            'resolve_or_mint_source_identity',
+            identityArgs as unknown as Database['public']['Functions']['resolve_or_mint_source_identity']['Args'],
+          ),
+          'upload.admit.resolve-or-mint-source-identity',
+        );
+        const row = rows[0];
+        if (!row) {
+          throw new Error('resolve_or_mint_source_identity returned no rows');
+        }
+        return row;
       },
+      'upload',
     );
-  }
-
-  if (!stageRes.ok) {
-    // The body read is best-effort diagnostic context for the thrown error; a
-    // failure to read it must not mask the real /stage rejection below.
-    const body = await stageRes.text().catch((_err) => '');
-    throw new FolderDropError(
-      'stage',
-      `/stage rejected the upload (${stageRes.status})`,
-      {
-        status: stageRes.status,
-        detail: body.slice(0, 500),
-      },
-    );
-  }
-
-  // A non-JSON 2xx body is an unexpected worker contract break; map it to a
-  // missing-destPath error below rather than throwing an opaque parse error.
-  const staged = (await stageRes.json().catch((_err) => null)) as {
-    destPath?: string;
-    requestId?: string;
-  } | null;
-  if (!staged?.destPath) {
-    throw new FolderDropError(
-      'stage',
-      '/stage returned no destPath in its response body',
-    );
-  }
-
-  const echoedDestPath = staged.destPath;
-  const sourceFile = basename(echoedDestPath);
-
-  // --- Leg 2: POST /walk (bearer CRON_SECRET, incremental) ---
-  // Order is load-bearing: stage MUST land the bytes before the walk enumerates
-  // the corpus, otherwise the incremental walk sees nothing.
-  let walkRes: Response;
-  try {
-    walkRes = await fetch(`${workerUrl}/walk`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${cronSecret}` },
-      signal: AbortSignal.timeout(WALK_TIMEOUT_MS),
-    });
   } catch (err) {
+    if (err instanceof FolderDropError) {
+      throw err;
+    }
+    if (err instanceof WriterFenceBusyError) {
+      throw new FolderDropError(
+        'fence',
+        'corpus writer fence busy — retry shortly',
+        { detail: err.message },
+      );
+    }
     throw new FolderDropError(
-      'walk',
-      'file staged but /walk failed to reach the worker — ingestion not triggered',
+      'identity',
+      `admission identity resolution failed for "${destPath}"`,
       { detail: err instanceof Error ? err.message : String(err) },
     );
   }
 
-  // 409 = a walk is already in flight (single-flight guard). The freshly staged
-  // file WILL be picked up by the in-flight incremental walk, so 409 is a
-  // SUCCESS for our purposes — the bytes are landed and a walk is running.
-  if (walkRes.status === 409) {
-    logger.info(
-      { destPath: echoedDestPath, sourceFile },
-      '[folder-drop] /walk already in flight (409) — staged file joins the running walk',
-    );
-    return {
-      destPath: echoedDestPath,
-      stageRequestId: staged.requestId ?? '',
-      sourceFile,
-    };
-  }
-
-  if (!walkRes.ok) {
-    // Best-effort diagnostic body; read failure must not mask the /walk error.
-    const body = await walkRes.text().catch((_err) => '');
-    throw new FolderDropError(
-      'walk',
-      `file staged but /walk was rejected (${walkRes.status}) — ingestion not triggered`,
-      { status: walkRes.status, detail: body.slice(0, 500) },
-    );
-  }
+  const sourceFile = basename(destPath);
 
   logger.info(
-    { destPath: echoedDestPath, sourceFile, stageRequestId: staged.requestId },
-    '[folder-drop] staged + walk triggered',
+    {
+      destPath,
+      sourceFile,
+      sourceDocumentId: resolved.source_document_id,
+      wasMinted: resolved.was_minted,
+    },
+    `[folder-drop] admitted upload — Storage PUT + source_documents ${
+      resolved.was_minted ? 'minted' : 'resolved'
+    }`,
   );
 
+  // Happy path only — best-effort, non-fatal (see nudgeCorpusRewalk header).
+  nudgeCorpusRewalk(destPath);
+
   return {
-    destPath: echoedDestPath,
-    stageRequestId: staged.requestId ?? '',
+    destPath,
+    sourceDocumentId: resolved.source_document_id,
     sourceFile,
+    wasMinted: resolved.was_minted,
   };
 }
