@@ -42,6 +42,25 @@ Our ICO registration (reference ZA123456) expires on 30 September 2027.`;
 
 const TEST_TITLE = `${TEST_PREFIX} ISO 27001 Security Certification`;
 
+// ID-131.35 — Step 7's hybrid_search fixture. `hybrid_search` (ID-131.11 M5,
+// migration 20260702120000_id131_search_rpcs.sql) is a 4-arm polymorphic UNION
+// over record_embeddings (source_documents / content_chunks / q_a_pairs /
+// reference_items) with NO content_items scan, so Step 7 seeds its own q_a_pair
+// (+ record_embeddings vector row) rather than reusing the classification-pipeline
+// `itemId` (content_items) — mirrors supersession-filter.integration.test.ts's
+// seeding idiom. Steps 1-6/8-10 below are UNCHANGED and still seed/read
+// content_items: they exercise classifyContent() (lib/ai/classify.ts), which
+// remains live production code (8+ real callers — app/api/items/*,
+// app/api/upload, app/api/cron/classification-quality, MCP tools) hardcoded to
+// content_items. Re-pointing classifyContent onto source_documents is a
+// separate, not-yet-landed subtask, and lib/ai/classify.ts is outside this
+// Subtask's file-ownership boundary — see the 131.35 journal for the full
+// rationale (ground-truthed: content_items still exists on staging).
+const HYBRID_SEARCH_KEYWORD = `GOLDENHYBRID${Date.now().toString(36)}`;
+// Must match hybrid_search's `embedding_model` DECLARE constant — record_embeddings
+// rows under any other model string are invisible to the vector JOIN.
+const EMBEDDING_MODEL = 'text-embedding-3-large';
+
 // Test user 1 (admin) — resolved at beforeAll from email via auth admin API
 // (S186 WP-C — no more hardcoded OLD-project UUIDs).
 let TEST_USER_ID: string = '';
@@ -62,6 +81,8 @@ let sourceDocumentId: string | null = null;
 let classifiedDomain: string | null = null;
 let testGuideId: string | null = null;
 let testGuideSectionId: string | null = null;
+/** ID-131.35 Step 7 fixture — a fresh q_a_pair id, independent of `itemId`. */
+let hybridSearchQaPairId: string | null = null;
 
 beforeAll(async () => {
   TEST_USER_ID = await getTestUserId('admin');
@@ -72,6 +93,21 @@ beforeAll(async () => {
 // ---------------------------------------------------------------------------
 
 afterAll(async () => {
+  // ID-131.35 — Step 7's q_a_pair/record_embeddings fixture is independent of
+  // the classification-pipeline `itemId` lifecycle, so clean it up
+  // unconditionally (guarded on its own state var, not `itemId`).
+  if (hybridSearchQaPairId) {
+    await serviceClient
+      .from('record_embeddings')
+      .delete()
+      .eq('owner_kind', 'q_a_pair')
+      .eq('owner_id', hybridSearchQaPairId);
+    await serviceClient
+      .from('q_a_pairs')
+      .delete()
+      .eq('id', hybridSearchQaPairId);
+  }
+
   if (!itemId) return;
 
   // Delete in FK order to avoid constraint violations
@@ -402,16 +438,46 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
   });
 
   // Step 7
-  it('Step 7: Verify hybrid_search RPC', async () => {
-    expect(itemId).toBeTruthy();
+  it('Step 7: Verify hybrid_search RPC (q_a_pair arm)', async () => {
+    // hybrid_search (ID-131.11 M5) is a 4-arm polymorphic UNION over
+    // record_embeddings — it never scans content_items, so the content_items
+    // `itemId` seeded in Step 1 can never surface here. This step seeds its
+    // own q_a_pair (+ record_embeddings) fixture instead, mirroring
+    // supersession-filter.integration.test.ts's seeding idiom.
+    const searchText = `${HYBRID_SEARCH_KEYWORD} ISO 27001 certification audit report`;
+    const embedding = await generateEmbedding(searchText);
 
-    // Generate embedding for search query
-    const embedding = await generateEmbedding('ISO 27001 certification');
+    const { data: qaPair, error: qaError } = await serviceClient
+      .from('q_a_pairs')
+      .insert({
+        question_text: `${TEST_PREFIX} ${HYBRID_SEARCH_KEYWORD} ISO 27001 certification question`,
+        answer_standard:
+          `${HYBRID_SEARCH_KEYWORD} ${TEST_PREFIX} ISO 27001:2022 certification audit ` +
+          'report covering information security management for the golden-path integration test.',
+        publication_status: 'published',
+      })
+      .select('id')
+      .single();
+
+    expect(qaError).toBeNull();
+    expect(qaPair).toBeTruthy();
+    hybridSearchQaPairId = qaPair!.id;
+
+    // Vector arm reads record_embeddings, not an inline column (BI-17 EMB-STORE).
+    const { error: embeddingError } = await serviceClient
+      .from('record_embeddings')
+      .insert({
+        owner_kind: 'q_a_pair',
+        owner_id: hybridSearchQaPairId,
+        model: EMBEDDING_MODEL,
+        embedding: JSON.stringify(embedding),
+      });
+    expect(embeddingError).toBeNull();
 
     // Call hybrid_search RPC
     const { data: results, error } = await serviceClient.rpc('hybrid_search', {
       query_embedding: JSON.stringify(embedding),
-      query_text: 'ISO 27001 certification',
+      query_text: HYBRID_SEARCH_KEYWORD,
       similarity_threshold: 0.3,
       limit_count: 20,
     });
@@ -420,9 +486,9 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
     expect(results).toBeTruthy();
     expect(Array.isArray(results)).toBe(true);
 
-    // Find our test item in results
+    // Find our test q_a_pair in results
     const match = (results as Array<{ id: string; similarity: number }>)?.find(
-      (r) => r.id === itemId,
+      (r) => r.id === hybridSearchQaPairId,
     );
 
     expect(match).toBeTruthy();

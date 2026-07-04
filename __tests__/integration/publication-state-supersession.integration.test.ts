@@ -71,6 +71,28 @@
  *   (NOT picked up by `bun run test`; integration runner only — see
  *   feedback_test_runners_split + feedback_integration_test_location.)
  *
+ * ID-131.35 re-seed note: `hybrid_search` (ID-131.11 M5, migration
+ * 20260702120000_id131_search_rpcs.sql) is now a 4-arm polymorphic UNION over
+ * record_embeddings (source_documents / content_chunks / q_a_pairs /
+ * reference_items) with NO content_items scan, so a content_items-seeded row
+ * can never surface in its results. The FOUR tests below that call
+ * `hybrid_search` directly (baseline + the three AC5.3-labelled tests) are
+ * re-seeded onto a parallel q_a_pairs (+ record_embeddings) fixture
+ * (`qaItemA`/`qaItemB`), mirroring supersession-filter.integration.test.ts's
+ * idiom, with the archive transition applied via a direct `q_a_pairs` UPDATE
+ * (not `setSupersession()` — see below).
+ *
+ * The "setSupersession(A → B) sets archive metadata..." test is UNCHANGED and
+ * still seeds/reads content_items via `itemA`/`itemB`: it exercises
+ * `setSupersession()` (lib/supersession/set.ts) directly, which remains
+ * hardcoded to content_items (all three of its queries `.from('content_items')`
+ * unconditionally) — confirmed on staging that `q_a_pairs` does not even carry
+ * the `archived_at` / `archived_by` / `archive_reason` / `dedup_status` /
+ * `updated_by` columns this test asserts on. Migrating `setSupersession()` to a
+ * polymorphic helper is a separate, not-yet-landed subtask, and
+ * lib/supersession/set.ts is outside this Subtask's file-ownership boundary —
+ * see the 131.35 journal for the full rationale.
+ *
  * @vitest-environment node
  */
 
@@ -85,6 +107,14 @@ import { generateEmbedding } from '@/lib/ai/embed';
 
 const TEST_PREFIX = `[PUB-STATE-SUPSEDE-${Date.now()}-${Math.random().toString(36).slice(2, 8)}]`;
 const UNIQUE_KEYWORD = `PUBSTATESUPSEDE${Date.now().toString(36)}`;
+
+// ID-131.35 — the q_a_pairs (hybrid_search arm) fixture. Separate identifiers
+// from UNIQUE_KEYWORD/itemA/itemB (content_items) above — the two fixtures are
+// independent (see module docstring).
+const QA_UNIQUE_KEYWORD = `PUBSTATEQA${Date.now().toString(36)}`;
+// Must match hybrid_search's `embedding_model` DECLARE constant — record_embeddings
+// rows under any other model string are invisible to the vector JOIN.
+const EMBEDDING_MODEL = 'text-embedding-3-large';
 
 // ---------------------------------------------------------------------------
 // Env-gated skip — mirrors archive-trigger-coverage.integration.test.ts
@@ -110,6 +140,11 @@ let actorUserId = '';
 let itemA = '';
 let itemB = '';
 let queryEmbedding: number[] | null = null;
+
+// ID-131.35 — q_a_pairs (hybrid_search arm) fixture state.
+let qaItemA = '';
+let qaItemB = '';
+let qaQueryEmbedding: number[] | null = null;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -176,6 +211,45 @@ async function seedItem({ label, embedding }: SeedItemParams): Promise<string> {
     );
   }
   seededIds.push(data.id);
+  return data.id;
+}
+
+// ID-131.35 — seeds a q_a_pair (+ record_embeddings vector row) for the
+// hybrid_search-arm tests. Mirrors supersession-filter.integration.test.ts's
+// seeding idiom; independent of `seedItem`'s content_items rows above.
+async function seedQaPair(label: string, embedding: number[]): Promise<string> {
+  const { data, error } = await serviceClient
+    .from('q_a_pairs')
+    .insert({
+      question_text: `${QA_UNIQUE_KEYWORD} ${TEST_PREFIX} ${label} certification audit question`,
+      answer_standard:
+        `${QA_UNIQUE_KEYWORD} ${TEST_PREFIX} ${label}. ` +
+        'Certification audit report fixture for publication-state supersession integration testing.',
+      publication_status: 'published',
+    })
+    .select('id')
+    .single();
+
+  if (error || !data) {
+    throw new Error(
+      `Seed q_a_pair "${label}" failed: ${error?.message ?? 'no data'}`,
+    );
+  }
+
+  const { error: embeddingError } = await serviceClient
+    .from('record_embeddings')
+    .insert({
+      owner_kind: 'q_a_pair',
+      owner_id: data.id,
+      model: EMBEDDING_MODEL,
+      embedding: JSON.stringify(embedding),
+    });
+  if (embeddingError) {
+    throw new Error(
+      `Seed record_embeddings for "${label}" failed: ${embeddingError.message}`,
+    );
+  }
+
   return data.id;
 }
 
@@ -246,24 +320,6 @@ afterAll(async () => {
 describeIfEnv(
   'AC5.3 — supersession archives OLD row + search-visibility cascade',
   () => {
-    it('baseline: both A and B appear in default hybrid_search before supersession', async () => {
-      expect(itemA).toBeTruthy();
-      expect(itemB).toBeTruthy();
-      expect(queryEmbedding).toBeTruthy();
-
-      const { data, error } = await serviceClient.rpc('hybrid_search', {
-        query_embedding: JSON.stringify(queryEmbedding!),
-        query_text: UNIQUE_KEYWORD,
-        similarity_threshold: 0.0,
-        limit_count: 100,
-      });
-
-      expect(error).toBeNull();
-      const ids = (data as Array<{ id: string }>).map((r) => r.id);
-      expect(ids).toContain(itemA);
-      expect(ids).toContain(itemB);
-    }, 60_000);
-
     it('setSupersession(A → B) sets archive metadata on A in addition to legacy fields', async () => {
       // Pre-conditions: archived_at IS NULL, publication_status='published'.
       const pre = await readRow(itemA);
@@ -306,62 +362,119 @@ describeIfEnv(
       expect(newRowState.dedup_status).not.toBe('superseded');
     }, 60_000);
 
-    it('AC5.3 — A disappears from default hybrid_search post-supersession', async () => {
-      // Default = include_superseded=false + visibility_filter='default'.
-      // Both filters now exclude A: the supersession filter (legacy) AND
-      // the publication-status filter (Phase 3) — either alone is enough.
-      const { data, error } = await serviceClient.rpc('hybrid_search', {
-        query_embedding: JSON.stringify(queryEmbedding!),
-        query_text: UNIQUE_KEYWORD,
-        similarity_threshold: 0.0,
-        limit_count: 100,
-      });
+    // ID-131.35 — nested describe with its OWN beforeAll/afterAll so a
+    // q_a_pairs/record_embeddings seed failure (e.g. the {131.19}-deferred
+    // api.record_embeddings view) only skips THESE 4 tests, not the
+    // content_items-based setSupersession test above (independent fixture
+    // lifecycle — see module docstring).
+    describe('AC5.3 search-visibility cascade (q_a_pairs arm)', () => {
+      beforeAll(async () => {
+        qaQueryEmbedding = await generateEmbedding(
+          `${QA_UNIQUE_KEYWORD} certification audit report fixture for integration tests`,
+        );
+        qaItemA = await seedQaPair('A (will be superseded)', qaQueryEmbedding);
+        qaItemB = await seedQaPair('B (successor)', qaQueryEmbedding);
+      }, 60_000);
 
-      expect(error).toBeNull();
-      const ids = (data as Array<{ id: string }>).map((r) => r.id);
-      expect(ids).not.toContain(itemA);
-      expect(ids).toContain(itemB);
-    }, 60_000);
+      afterAll(async () => {
+        const qaIds = [qaItemA, qaItemB].filter(Boolean);
+        if (qaIds.length === 0) return;
+        // record_embeddings carries no FK to q_a_pairs (polymorphic owner) —
+        // delete explicitly.
+        await serviceClient
+          .from('record_embeddings')
+          .delete()
+          .eq('owner_kind', 'q_a_pair')
+          .in('owner_id', qaIds);
+        await serviceClient.from('q_a_pairs').delete().in('id', qaIds);
+      }, 30_000);
 
-    it('AC5.3 — A still excluded with include_superseded=true (admin visibility filter NOT passed)', async () => {
-      // The load-bearing assertion: opening the supersession filter
-      // alone is NOT sufficient post-§6.5 wiring. The Phase 3 default
-      // visibility_filter='default' (= published-only) keeps A invisible
-      // because A is now publication_status='archived'. This is the
-      // unification described in spec §6.5 lines 1019-1031.
-      const { data, error } = await serviceClient.rpc('hybrid_search', {
-        query_embedding: JSON.stringify(queryEmbedding!),
-        query_text: UNIQUE_KEYWORD,
-        similarity_threshold: 0.0,
-        limit_count: 100,
-        include_superseded: true,
-        // visibility_filter omitted → defaults to 'default' (published-only)
-      });
+      it('baseline: both A and B appear in default hybrid_search before supersession', async () => {
+        expect(qaItemA).toBeTruthy();
+        expect(qaItemB).toBeTruthy();
+        expect(qaQueryEmbedding).toBeTruthy();
 
-      expect(error).toBeNull();
-      const ids = (data as Array<{ id: string }>).map((r) => r.id);
-      expect(ids).not.toContain(itemA);
-      expect(ids).toContain(itemB);
-    }, 60_000);
+        const { data, error } = await serviceClient.rpc('hybrid_search', {
+          query_embedding: JSON.stringify(qaQueryEmbedding!),
+          query_text: QA_UNIQUE_KEYWORD,
+          similarity_threshold: 0.0,
+          limit_count: 100,
+        });
 
-    it('AC5.3 sanity — A reappears with include_superseded=true + visibility_filter=admin_all', async () => {
-      // Defends against a tautological pass: if A was simply deleted,
-      // the prior assertions would also pass. This case proves A is
-      // still in the DB and the admin filter widens visibility as
-      // expected (Phase 3 RPC widening shipped W3).
-      const { data, error } = await serviceClient.rpc('hybrid_search', {
-        query_embedding: JSON.stringify(queryEmbedding!),
-        query_text: UNIQUE_KEYWORD,
-        similarity_threshold: 0.0,
-        limit_count: 100,
-        include_superseded: true,
-        visibility_filter: 'admin',
-      });
+        expect(error).toBeNull();
+        const ids = (data as Array<{ id: string }>).map((r) => r.id);
+        expect(ids).toContain(qaItemA);
+        expect(ids).toContain(qaItemB);
+      }, 60_000);
 
-      expect(error).toBeNull();
-      const ids = (data as Array<{ id: string }>).map((r) => r.id);
-      expect(ids).toContain(itemA);
-      expect(ids).toContain(itemB);
-    }, 60_000);
+      it('AC5.3 — A disappears from default hybrid_search post-supersession', async () => {
+        // ID-131.35: direct q_a_pairs field update — NOT setSupersession(),
+        // which is hardcoded to content_items (see module docstring). Mirrors
+        // the production §6.5 semantics (superseded_by + publication_status
+        // archived) directly on the row under test, matching
+        // supersession-filter.integration.test.ts's idiom.
+        const { error: updateErr } = await serviceClient
+          .from('q_a_pairs')
+          .update({ superseded_by: qaItemB, publication_status: 'archived' })
+          .eq('id', qaItemA);
+        expect(updateErr).toBeNull();
+
+        // Default = include_superseded=false + visibility_filter='default'.
+        // Both filters now exclude A: the supersession filter (legacy) AND
+        // the publication-status filter (Phase 3) — either alone is enough.
+        const { data, error } = await serviceClient.rpc('hybrid_search', {
+          query_embedding: JSON.stringify(qaQueryEmbedding!),
+          query_text: QA_UNIQUE_KEYWORD,
+          similarity_threshold: 0.0,
+          limit_count: 100,
+        });
+
+        expect(error).toBeNull();
+        const ids = (data as Array<{ id: string }>).map((r) => r.id);
+        expect(ids).not.toContain(qaItemA);
+        expect(ids).toContain(qaItemB);
+      }, 60_000);
+
+      it('AC5.3 — A still excluded with include_superseded=true (admin visibility filter NOT passed)', async () => {
+        // The load-bearing assertion: opening the supersession filter
+        // alone is NOT sufficient post-§6.5 wiring. The Phase 3 default
+        // visibility_filter='default' (= published-only) keeps A invisible
+        // because A is now publication_status='archived'. This is the
+        // unification described in spec §6.5 lines 1019-1031.
+        const { data, error } = await serviceClient.rpc('hybrid_search', {
+          query_embedding: JSON.stringify(qaQueryEmbedding!),
+          query_text: QA_UNIQUE_KEYWORD,
+          similarity_threshold: 0.0,
+          limit_count: 100,
+          include_superseded: true,
+          // visibility_filter omitted → defaults to 'default' (published-only)
+        });
+
+        expect(error).toBeNull();
+        const ids = (data as Array<{ id: string }>).map((r) => r.id);
+        expect(ids).not.toContain(qaItemA);
+        expect(ids).toContain(qaItemB);
+      }, 60_000);
+
+      it('AC5.3 sanity — A reappears with include_superseded=true + visibility_filter=admin_all', async () => {
+        // Defends against a tautological pass: if A was simply deleted,
+        // the prior assertions would also pass. This case proves A is
+        // still in the DB and the admin filter widens visibility as
+        // expected (Phase 3 RPC widening shipped W3).
+        const { data, error } = await serviceClient.rpc('hybrid_search', {
+          query_embedding: JSON.stringify(qaQueryEmbedding!),
+          query_text: QA_UNIQUE_KEYWORD,
+          similarity_threshold: 0.0,
+          limit_count: 100,
+          include_superseded: true,
+          visibility_filter: 'admin',
+        });
+
+        expect(error).toBeNull();
+        const ids = (data as Array<{ id: string }>).map((r) => r.id);
+        expect(ids).toContain(qaItemA);
+        expect(ids).toContain(qaItemB);
+      }, 60_000);
+    });
   },
 );
