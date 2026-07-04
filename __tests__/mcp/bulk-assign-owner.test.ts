@@ -55,7 +55,11 @@ const mocks = vi.hoisted(() => {
     data: { user_id: '00000000-0000-4000-8000-000000000099' },
     error: null,
   });
-  const contentItemsChain = makeChain({ data: [], error: null });
+  // ID-131 (G-MCP-REPOINT): the scope-filter query is now source_documents
+  // (id/suggested_title only — content_owner_id moved off this table); a
+  // SEPARATE record_lifecycle query resolves current ownership.
+  const sourceDocumentsChain = makeChain({ data: [], error: null });
+  const recordLifecycleChain = makeChain({ data: [], error: null });
   const contentHistoryChain = makeChain({ data: null, error: null });
   const notificationsChain = makeChain({ data: null, error: null });
 
@@ -63,8 +67,10 @@ const mocks = vi.hoisted(() => {
     switch (table) {
       case 'user_roles':
         return userRolesChain;
-      case 'content_items':
-        return contentItemsChain;
+      case 'source_documents':
+        return sourceDocumentsChain;
+      case 'record_lifecycle':
+        return recordLifecycleChain;
       case 'content_history':
         return contentHistoryChain;
       case 'notifications':
@@ -84,7 +90,8 @@ const mocks = vi.hoisted(() => {
     mockSupabaseClient,
     fromMock,
     userRolesChain,
-    contentItemsChain,
+    sourceDocumentsChain,
+    recordLifecycleChain,
     contentHistoryChain,
     notificationsChain,
     makeChain,
@@ -150,7 +157,16 @@ vi.mock('@/lib/supabase/safe', () => ({
     }
     return result.data;
   },
-  tryQuery: vi.fn(),
+  // tryQuery needs to pass through too (used for the record_lifecycle
+  // ownership lookup, ID-131 G-MCP-REPOINT) — same await-and-wrap shape as
+  // the real implementation, not a bare unconfigured vi.fn().
+  tryQuery: async (query: PromiseLike<{ data: unknown; error: unknown }>) => {
+    const result = await query;
+    if (result.error) {
+      return { ok: false, error: result.error };
+    }
+    return { ok: true, data: result.data };
+  },
   isOk: (r: { ok: boolean }) => r.ok,
   SupabaseError: class extends Error {
     name = 'SupabaseError';
@@ -190,31 +206,40 @@ function getBulkAssignTool(): MockToolRegistration {
 }
 
 /**
- * Helper: set content_items query to return specific items.
+ * Helper: set the source_documents scope query + the record_lifecycle
+ * ownership lookup to return specific items.
  *
- * source_document_id defaults to the item's own id when not given — the
- * RPC now matches record_lifecycle.owner_id (ID-131 {131.13}
- * G-GOV-FACET-B), so existing p_item_ids assertions against ITEM_1/ITEM_2
- * keep working unchanged. Pass source_document_id: null explicitly to
- * exercise the "no backing source document" exclusion path.
+ * ID-131 (G-MCP-REPOINT): content_items no longer exists. The scope query
+ * now hits source_documents (id/suggested_title only — content_owner_id
+ * moved off this table entirely, BI-18/20); a SEPARATE record_lifecycle
+ * query resolves current ownership by source_document_id. Every matched
+ * source_documents row IS its own owner id under OKF — there is no more
+ * "unresolvable / no backing source document" case (the old content_items
+ * indirection this represented no longer exists).
  */
 function setContentItems(
   items: Array<{
     id: string;
     title: string;
     content_owner_id: string | null;
-    source_document_id?: string | null;
   }>,
 ) {
-  mocks.contentItemsChain.then.mockImplementation(
+  mocks.sourceDocumentsChain.then.mockImplementation(
     (resolve: (v: unknown) => void) =>
       resolve({
         data: items.map((item) => ({
-          ...item,
-          source_document_id:
-            item.source_document_id === undefined
-              ? item.id
-              : item.source_document_id,
+          id: item.id,
+          suggested_title: item.title,
+        })),
+        error: null,
+      }),
+  );
+  mocks.recordLifecycleChain.then.mockImplementation(
+    (resolve: (v: unknown) => void) =>
+      resolve({
+        data: items.map((item) => ({
+          source_document_id: item.id,
+          content_owner_id: item.content_owner_id,
         })),
         error: null,
       }),
@@ -256,8 +281,10 @@ describe('bulk_assign_owner MCP tool', () => {
       switch (table) {
         case 'user_roles':
           return mocks.userRolesChain;
-        case 'content_items':
-          return mocks.contentItemsChain;
+        case 'source_documents':
+          return mocks.sourceDocumentsChain;
+        case 'record_lifecycle':
+          return mocks.recordLifecycleChain;
         case 'content_history':
           return mocks.contentHistoryChain;
         case 'notifications':
@@ -283,12 +310,18 @@ describe('bulk_assign_owner MCP tool', () => {
     // Reset chain methods
     mocks.userRolesChain.select.mockReturnValue(mocks.userRolesChain);
     mocks.userRolesChain.eq.mockReturnValue(mocks.userRolesChain);
-    mocks.contentItemsChain.select.mockReturnValue(mocks.contentItemsChain);
-    mocks.contentItemsChain.eq.mockReturnValue(mocks.contentItemsChain);
-    mocks.contentItemsChain.is.mockReturnValue(mocks.contentItemsChain);
-    mocks.contentItemsChain.gt.mockReturnValue(mocks.contentItemsChain);
-    mocks.contentItemsChain.order.mockReturnValue(mocks.contentItemsChain);
-    mocks.contentItemsChain.limit.mockReturnValue(mocks.contentItemsChain);
+    mocks.sourceDocumentsChain.select.mockReturnValue(
+      mocks.sourceDocumentsChain,
+    );
+    mocks.sourceDocumentsChain.eq.mockReturnValue(mocks.sourceDocumentsChain);
+    mocks.sourceDocumentsChain.is.mockReturnValue(mocks.sourceDocumentsChain);
+    mocks.sourceDocumentsChain.gt.mockReturnValue(mocks.sourceDocumentsChain);
+    mocks.sourceDocumentsChain.order.mockReturnValue(
+      mocks.sourceDocumentsChain,
+    );
+    mocks.sourceDocumentsChain.limit.mockReturnValue(
+      mocks.sourceDocumentsChain,
+    );
 
     mockServer = createMockMcpServer();
     await registerContentTools(mockServer.server);
@@ -461,15 +494,15 @@ describe('bulk_assign_owner MCP tool', () => {
     expect(result.structuredContent!.assigned_count).toBe(1);
 
     // Verify all three scope filters applied
-    expect(mocks.contentItemsChain.eq).toHaveBeenCalledWith(
+    expect(mocks.sourceDocumentsChain.eq).toHaveBeenCalledWith(
       'primary_domain',
       'Healthcare',
     );
-    expect(mocks.contentItemsChain.eq).toHaveBeenCalledWith(
+    expect(mocks.sourceDocumentsChain.eq).toHaveBeenCalledWith(
       'primary_subtopic',
       'CQC',
     );
-    expect(mocks.contentItemsChain.eq).toHaveBeenCalledWith(
+    expect(mocks.sourceDocumentsChain.eq).toHaveBeenCalledWith(
       'content_type',
       'policy',
     );
@@ -527,14 +560,21 @@ describe('bulk_assign_owner MCP tool', () => {
     expect(mocks.notificationsChain.insert).not.toHaveBeenCalled();
   });
 
-  // T9: unowned_only: true (default) filters owned items at query time
-  it('T9: unowned_only filters with IS NULL on content_owner_id', async () => {
+  // T9: unowned_only: true (default) filters owned items
+  //
+  // ID-131 (G-MCP-REPOINT): content_owner_id moved off source_documents
+  // onto the record_lifecycle facet (BI-18/20), so the DB can no longer
+  // push an `.is('content_owner_id', null)` filter into the scope query —
+  // ownership is now resolved via a SEPARATE record_lifecycle lookup and
+  // the unowned_only filter is applied client-side against that lookup.
+  it('T9: unowned_only assigns unowned items and skips owned ones (client-side ownership check)', async () => {
     setContentItems([
       { id: ITEM_1, title: 'Unowned Item', content_owner_id: null },
+      { id: ITEM_2, title: 'Owned Item', content_owner_id: OTHER_USER_ID },
     ]);
     mocks.mockSupabaseClient.rpc.mockResolvedValue({ data: 1, error: null });
 
-    await tool.handler(
+    const result = await tool.handler(
       {
         scope: { domain: 'Healthcare', unowned_only: true },
         owner_id: OWNER_ID,
@@ -546,8 +586,12 @@ describe('bulk_assign_owner MCP tool', () => {
       createMockExtra(),
     );
 
-    // Verify IS NULL filter applied
-    expect(mocks.contentItemsChain.is).toHaveBeenCalled();
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent!.assigned_count).toBe(1);
+    expect(mocks.mockSupabaseClient.rpc).toHaveBeenCalledWith(
+      'bulk_assign_content_owner',
+      expect.objectContaining({ p_item_ids: [ITEM_1] }),
+    );
   });
 
   // T10: unowned_only: false, force_override: false -> owned items skipped
@@ -640,59 +684,13 @@ describe('bulk_assign_owner MCP tool', () => {
     );
   });
 
-  // ID-131 {131.13} G-GOV-FACET-B: items with no backing source document
-  // (e.g. manually created content) cannot be resolved to a
-  // record_lifecycle owner id and are excluded, with a warning — distinct
-  // from the "already owned" skip path (T10).
-  it('excludes items with no backing source document from assignment', async () => {
-    setContentItems([
-      { id: ITEM_1, title: 'Has document', content_owner_id: null },
-      {
-        id: ITEM_2,
-        title: 'No document',
-        content_owner_id: null,
-        source_document_id: null,
-      },
-    ]);
-    mocks.mockSupabaseClient.rpc.mockResolvedValue({ data: 1, error: null });
-
-    const result = await tool.handler(
-      {
-        scope: { domain: 'Healthcare', unowned_only: true },
-        owner_id: OWNER_ID,
-        force_override: false,
-        notify: true,
-        batch_mode: false,
-        dry_run: false,
-      },
-      createMockExtra(),
-    );
-
-    expect(result.isError).toBeUndefined();
-    expect(result.structuredContent!.assigned_count).toBe(1);
-
-    const affected = result.structuredContent!.items_affected as Array<{
-      id: string;
-    }>;
-    expect(affected).toHaveLength(1);
-    expect(affected[0].id).toBe(ITEM_1);
-
-    const warnings = result.structuredContent!.warnings as string[];
-    expect(warnings).toBeDefined();
-    expect(
-      warnings.some(
-        (w) => w.includes('no backing source document') && w.includes('1'),
-      ),
-    ).toBe(true);
-
-    // RPC called only with the resolvable item's source_document_id
-    expect(mocks.mockSupabaseClient.rpc).toHaveBeenCalledWith(
-      'bulk_assign_content_owner',
-      expect.objectContaining({
-        p_item_ids: [ITEM_1],
-      }),
-    );
-  });
+  // ID-131 (G-MCP-REPOINT): the former "no backing source document"
+  // exclusion path is GONE — content_items no longer sits between the
+  // caller's id and the owner id, so every matched source_documents row IS
+  // its own owner id. Superseded by
+  // 'passes item_ids straight through as owner ids' coverage elsewhere and
+  // T1/T5/T9/T10 above, which already exercise the full assignment path
+  // against the new two-table (source_documents + record_lifecycle) shape.
 
   // T11: Invalid owner_id (not a real user)
   it('T11: invalid owner_id rejects before any write', async () => {
@@ -816,7 +814,7 @@ describe('bulk_assign_owner MCP tool', () => {
     expect(result2.structuredContent!.next_cursor).toBeNull();
 
     // Verify gt filter was applied
-    expect(mocks.contentItemsChain.gt).toHaveBeenCalled();
+    expect(mocks.sourceDocumentsChain.gt).toHaveBeenCalled();
   });
 
   // T14: content_history insert fails post-RPC — best-effort

@@ -115,6 +115,7 @@ function chain(resolve: QueryResolver) {
     'select',
     'insert',
     'update',
+    'upsert',
     'delete',
     'eq',
     'neq',
@@ -168,31 +169,32 @@ async function callTool(
 /**
  * Build an action-test harness.
  *
- * The handler:
+ * ID-131 (G-MCP-REPOINT): the handler no longer reads/writes a single
+ * `content_items` table. It now:
  *   1. Calls `checkMcpRole` — viewer returns null → tool short-circuits.
- *   2. Awaits `supabase.from('content_items').select(...).in('id', ids)` to
- *      fetch the items as a single batch (resolves via `.then`).
- *   3. For each item, performs the action-specific logic (publish:
- *      embedding + update; draft: update). The `update` is a chain ending
- *      in an awaitable resolver.
- *   4. Performs a content_history version lookup via `sb()` then inserts a
- *      content_history row (also via the supabase chain — the .insert() is
- *      not awaited via sb here).
+ *   2. Fetches BOTH `source_documents` and `q_a_pairs` in parallel
+ *      (`.in('id', ids)`) plus `record_lifecycle` (governance_review_status,
+ *      keyed by `owner_id`) — whichever typed table has a matching row wins
+ *      (`ownerKind` param below selects which).
+ *   3. For each item: q_a_pair owners generate an embedding
+ *      (`question_embedding`) before the update; source_document owners
+ *      skip embedding entirely (no embedding column under OKF) but may run
+ *      the classify-on-first-publish leg.
+ *   4. On publish, clears `governance_review_status` via a SEPARATE
+ *      `record_lifecycle` upsert (facet clear) — no longer part of the main
+ *      table's `.update()` payload.
+ *   5. Performs a content_history version lookup via `sb()` then inserts a
+ *      content_history row.
  *
- * Captures:
- *   - The `update(...)` payload on `content_items` for assertion.
- *   - The `insert(...)` payload on `content_history` for assertion.
- *
- * Note: the handler chains a single `from('content_items')` with
- * `.select(...).in(...)` for the batch fetch and then for each item calls
- * `.from('content_items').update({...}).eq('id', itemId)`. Both terminate
- * via `then`. We make `from(table)` return a fresh chain per call so we can
- * inspect each invocation independently.
+ * Captures the `update(...)` payload on the resolved owner table, the
+ * `upsert(...)` payload on `record_lifecycle` (facet clear), and the
+ * `insert(...)` payload on `content_history`.
  */
 async function runUpdate({
   role,
   status,
   itemRow,
+  ownerKind = 'source_document',
   embedding = [0.1, 0.2, 0.3],
   embeddingError,
   updateError,
@@ -200,12 +202,14 @@ async function runUpdate({
   role: 'admin' | 'editor' | 'viewer';
   status: 'publish' | 'draft';
   itemRow: Record<string, unknown> | null;
+  ownerKind?: 'source_document' | 'q_a_pair';
   embedding?: number[];
   embeddingError?: string;
   updateError?: string;
 }): Promise<{
   res: Awaited<ReturnType<typeof callTool>>;
   updatePayload: Record<string, unknown> | undefined;
+  facetUpsertPayload: Record<string, unknown> | undefined;
   historyInsertPayload: Record<string, unknown> | undefined;
   fromCalls: string[];
 }> {
@@ -232,32 +236,56 @@ async function runUpdate({
     mocks.generateEmbedding.mockResolvedValue(embedding);
   }
 
-  // Single chain reused across all `.from()` calls; assertions are made via
-  // .update().mock.calls / .insert().mock.calls. This mirrors the existing
-  // governance-queue-tools.test.ts harness.
   const fromCalls: string[] = [];
-  const fetchChain = chain({
-    data: itemRow ? [itemRow] : [],
+  const sdFetchChain = chain({
+    data: itemRow && ownerKind === 'source_document' ? [itemRow] : [],
     error: null,
-    count: itemRow ? 1 : 0,
+  });
+  const qaFetchChain = chain({
+    data: itemRow && ownerKind === 'q_a_pair' ? [itemRow] : [],
+    error: null,
+  });
+  const lifecycleFetchChain = chain({
+    data: itemRow
+      ? [
+          {
+            owner_id: TEST_ITEM_ID,
+            governance_review_status: itemRow.governance_review_status ?? null,
+          },
+        ]
+      : [],
+    error: null,
   });
   const updateChain = chain({
     data: null,
     error: updateError ? { message: updateError } : null,
     count: null,
   });
+  const facetUpsertChain = chain({ data: null, error: null });
   const historyChain = chain({ data: null, error: null });
 
-  // First .from('content_items') = batch fetch (returns fetchChain).
-  // Subsequent .from('content_items') = update (returns updateChain).
-  // .from('content_history') = history insert (returns historyChain).
-  let contentItemsCall = 0;
+  // First `.from('source_documents')` / `.from('q_a_pairs')` call = the
+  // parallel batch fetch; a subsequent call (source_document/q_a_pair owner
+  // branch) = the per-item update. `.from('record_lifecycle')`: first call =
+  // governance_review_status batch lookup, second (publish only) = facet
+  // clear upsert.
+  let sourceDocumentsCall = 0;
+  let qaPairsCall = 0;
+  let recordLifecycleCall = 0;
   const fromMock = vi.fn((table: string) => {
     fromCalls.push(table);
     if (table === 'content_history') return historyChain;
-    if (table === 'content_items') {
-      contentItemsCall += 1;
-      return contentItemsCall === 1 ? fetchChain : updateChain;
+    if (table === 'source_documents') {
+      sourceDocumentsCall += 1;
+      return sourceDocumentsCall === 1 ? sdFetchChain : updateChain;
+    }
+    if (table === 'q_a_pairs') {
+      qaPairsCall += 1;
+      return qaPairsCall === 1 ? qaFetchChain : updateChain;
+    }
+    if (table === 'record_lifecycle') {
+      recordLifecycleCall += 1;
+      return recordLifecycleCall === 1 ? lifecycleFetchChain : facetUpsertChain;
     }
     return chain({ data: null, error: null });
   });
@@ -277,12 +305,23 @@ async function runUpdate({
     | Record<string, unknown>
     | undefined;
 
+  const facetUpsertMockFn = facetUpsertChain.upsert as ReturnType<typeof vi.fn>;
+  const facetUpsertPayload = facetUpsertMockFn.mock.calls[0]?.[0] as
+    | Record<string, unknown>
+    | undefined;
+
   const insertMockFn = historyChain.insert as ReturnType<typeof vi.fn>;
   const historyInsertPayload = insertMockFn.mock.calls[0]?.[0] as
     | Record<string, unknown>
     | undefined;
 
-  return { res, updatePayload, historyInsertPayload, fromCalls };
+  return {
+    res,
+    updatePayload,
+    facetUpsertPayload,
+    historyInsertPayload,
+    fromCalls,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -546,7 +585,9 @@ describe('update_governance_status — action="draft" branch (T8a)', () => {
 
 describe('update_governance_status — action="publish" branch (post-Wave-3A)', () => {
   it('clears governance_review_status to null when current publication_status="draft"', async () => {
-    const { updatePayload } = await runUpdate({
+    // ID-131 (G-MCP-REPOINT): governance_review_status now clears via a
+    // SEPARATE record_lifecycle facet upsert, not the main table update.
+    const { facetUpsertPayload } = await runUpdate({
       role: 'admin',
       status: 'publish',
       itemRow: {
@@ -559,8 +600,8 @@ describe('update_governance_status — action="publish" branch (post-Wave-3A)', 
         classified_at: '2026-01-01T00:00:00Z',
       },
     });
-    expect(updatePayload).toBeDefined();
-    expect(updatePayload!.governance_review_status).toBeNull();
+    expect(facetUpsertPayload).toBeDefined();
+    expect(facetUpsertPayload!.governance_review_status).toBeNull();
   });
 
   it('promotes publication_status="draft" → "published" (post-Wave-3A coherence fix)', async () => {
@@ -582,7 +623,7 @@ describe('update_governance_status — action="publish" branch (post-Wave-3A)', 
   });
 
   it('does NOT promote publication_status when current="in_review" (legacy column-clear only)', async () => {
-    const { updatePayload } = await runUpdate({
+    const { updatePayload, facetUpsertPayload } = await runUpdate({
       role: 'admin',
       status: 'publish',
       itemRow: {
@@ -595,15 +636,16 @@ describe('update_governance_status — action="publish" branch (post-Wave-3A)', 
         classified_at: '2026-01-01T00:00:00Z',
       },
     });
-    expect(updatePayload).toBeDefined();
-    expect(updatePayload!.governance_review_status).toBeNull();
+    expect(facetUpsertPayload).toBeDefined();
+    expect(facetUpsertPayload!.governance_review_status).toBeNull();
     // Per Wave-3A coherence fix: in_review is NOT touched by this tool;
     // update_publication_status owns the in_review → published transition.
+    expect(updatePayload).toBeDefined();
     expect('publication_status' in updatePayload!).toBe(false);
   });
 
   it('does NOT promote publication_status when current="published" (no-op on publication_status)', async () => {
-    const { updatePayload } = await runUpdate({
+    const { updatePayload, facetUpsertPayload } = await runUpdate({
       role: 'admin',
       status: 'publish',
       itemRow: {
@@ -616,8 +658,9 @@ describe('update_governance_status — action="publish" branch (post-Wave-3A)', 
         classified_at: '2026-01-01T00:00:00Z',
       },
     });
+    expect(facetUpsertPayload).toBeDefined();
+    expect(facetUpsertPayload!.governance_review_status).toBeNull();
     expect(updatePayload).toBeDefined();
-    expect(updatePayload!.governance_review_status).toBeNull();
     expect('publication_status' in updatePayload!).toBe(false);
   });
 
@@ -665,7 +708,11 @@ describe('update_governance_status — action="publish" branch (post-Wave-3A)', 
     );
   });
 
-  it('generates embedding via generateEmbedding before update', async () => {
+  it('does NOT generate an embedding for a source_document owner (no embedding column under OKF)', async () => {
+    // ID-131 (G-MCP-REPOINT) content-drift: source_documents carries no
+    // embedding column — a document's searchability comes from its
+    // cocoindex-populated content_chunks, not an item-level vector. Publish
+    // no longer generates one for a source_document owner.
     await runUpdate({
       role: 'admin',
       status: 'publish',
@@ -679,21 +726,40 @@ describe('update_governance_status — action="publish" branch (post-Wave-3A)', 
         classified_at: '2026-01-01T00:00:00Z',
       },
     });
-    expect(mocks.generateEmbedding).toHaveBeenCalled();
+    expect(mocks.generateEmbedding).not.toHaveBeenCalled();
   });
 
-  it('reports per-item failure when embedding generation fails', async () => {
+  it('generates a question_embedding via generateEmbedding for a q_a_pair owner before update', async () => {
+    // q_a_pairs still carries `question_embedding` (pre-M5) — the
+    // embed-then-commit step survives for this owner kind only.
+    const { updatePayload } = await runUpdate({
+      role: 'admin',
+      status: 'publish',
+      ownerKind: 'q_a_pair',
+      itemRow: {
+        id: TEST_ITEM_ID,
+        question_text: 'What is the refund policy?',
+        answer_standard: 'body content',
+        publication_status: 'draft',
+        governance_review_status: 'pending',
+      },
+    });
+    expect(mocks.generateEmbedding).toHaveBeenCalled();
+    expect(updatePayload).toBeDefined();
+    expect(updatePayload!.question_embedding).toBeDefined();
+  });
+
+  it('reports per-item failure when embedding generation fails for a q_a_pair owner', async () => {
     const { res } = await runUpdate({
       role: 'admin',
       status: 'publish',
+      ownerKind: 'q_a_pair',
       itemRow: {
         id: TEST_ITEM_ID,
-        title: 'Drafted',
-        suggested_title: null,
-        content: 'body content',
+        question_text: 'What is the refund policy?',
+        answer_standard: 'body content',
         publication_status: 'draft',
         governance_review_status: 'pending',
-        classified_at: '2026-01-01T00:00:00Z',
       },
       embeddingError: 'OpenAI rate limit exceeded',
     });

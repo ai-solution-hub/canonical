@@ -269,11 +269,27 @@ describe('fetchQualityBriefingData', () => {
     expect(result.generated_at).toBeDefined();
   });
 
-  it('restricts every section query to the requested domain', async () => {
+  it('restricts the freshness section query to the requested domain', async () => {
+    // ID-131 (G-MCP-REPOINT): only the freshness leg is domain-filterable
+    // now (below_threshold/score_drops are retired — see below). The
+    // domain `.eq()` lands on the source_documents query, which only runs
+    // when record_lifecycle has at least one matching facet row.
     const { fetchQualityBriefingData } = await import('@/lib/mcp/tools/shared');
 
     const eqCalls: Array<[string, string]> = [];
-    mocks.mockSupabaseClient.from.mockImplementation(() => {
+    mocks.mockSupabaseClient.from.mockImplementation((tableName: string) => {
+      if (tableName === 'record_lifecycle') {
+        return mocks.createChain({
+          data: [
+            {
+              source_document_id: 'sd-1',
+              freshness: 'stale',
+              previous_freshness: 'fresh',
+            },
+          ],
+          error: null,
+        });
+      }
       const chain = mocks.createChain({ data: [], error: null });
       const originalEq = chain.eq as (...a: unknown[]) => unknown;
       chain.eq = vi.fn((...args: unknown[]) => {
@@ -290,104 +306,31 @@ describe('fetchQualityBriefingData', () => {
     const domainFilters = eqCalls.filter(
       ([col, val]) => col === 'primary_domain' && val === 'Security',
     );
-    expect(domainFilters.length).toBeGreaterThanOrEqual(3);
+    expect(domainFilters.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('returns items below the overridden quality threshold', async () => {
+  it('below_threshold is always empty — quality_score has no typed home post-ID-131', async () => {
+    // content_items.quality_score had no successor on source_documents or
+    // the record_lifecycle facet (derived-not-stored, BI-11/20) — the leg
+    // is retired rather than re-pointed. `threshold` is accordingly a no-op.
     const { fetchQualityBriefingData } = await import('@/lib/mcp/tools/shared');
-
-    const fromCallIndex = { value: 0 };
-    mocks.mockSupabaseClient.from.mockImplementation((tableName: string) => {
-      if (tableName === 'content_items' && fromCallIndex.value === 0) {
-        fromCallIndex.value++;
-        return mocks.createChain({
-          data: [
-            {
-              id: 'item-1',
-              title: 'Score 55',
-              suggested_title: null,
-              primary_domain: 'Ops',
-              primary_subtopic: null,
-              quality_score: 55,
-              freshness: 'fresh',
-              summary: 'Yes',
-              classification_confidence: 0.8,
-            },
-            {
-              id: 'item-2',
-              title: 'Score 25',
-              suggested_title: null,
-              primary_domain: 'Ops',
-              primary_subtopic: null,
-              quality_score: 25,
-              freshness: 'stale',
-              summary: null,
-              classification_confidence: 0.3,
-            },
-          ],
-          error: null,
-        });
-      }
-      return mocks.createChain({ data: [], error: null });
-    });
 
     const result = await fetchQualityBriefingData(
       mocks.mockSupabaseClient as never,
       { threshold: 60 },
     );
 
-    expect(result.below_threshold.length).toBe(2);
-    expect(
-      result.below_threshold.some((item) => item.quality_score === 55),
-    ).toBe(true);
-    expect(
-      result.below_threshold.some((item) => item.quality_score === 25),
-    ).toBe(true);
+    expect(result.below_threshold).toEqual([]);
   });
 
-  it('orders score drops largest-magnitude first', async () => {
+  it('score_drops is always empty — quality_score has no typed home post-ID-131', async () => {
     const { fetchQualityBriefingData } = await import('@/lib/mcp/tools/shared');
-
-    const fromCallIndex = { value: 0 };
-    mocks.mockSupabaseClient.from.mockImplementation((tableName: string) => {
-      if (tableName === 'content_items') {
-        const callNum = fromCallIndex.value++;
-        if (callNum === 1) {
-          // score drops query (second content_items call)
-          return mocks.createChain({
-            data: [
-              {
-                id: 'item-a',
-                title: 'Small Drop',
-                suggested_title: null,
-                primary_domain: 'Ops',
-                quality_score: 60,
-                previous_quality_score: 70,
-              },
-              {
-                id: 'item-b',
-                title: 'Big Drop',
-                suggested_title: null,
-                primary_domain: 'Ops',
-                quality_score: 20,
-                previous_quality_score: 80,
-              },
-            ],
-            error: null,
-          });
-        }
-      }
-      return mocks.createChain({ data: [], error: null });
-    });
 
     const result = await fetchQualityBriefingData(
       mocks.mockSupabaseClient as never,
     );
 
-    expect(result.score_drops.length).toBe(2);
-    // Big drop (60 points) should come first
-    expect(result.score_drops[0].id).toBe('item-b');
-    expect(result.score_drops[1].id).toBe('item-a');
+    expect(result.score_drops).toEqual([]);
   });
 
   it('deduplicates certification warnings by canonical_name', async () => {
@@ -424,36 +367,47 @@ describe('fetchQualityBriefingData', () => {
   });
 
   it('filters out items where freshness has not changed', async () => {
+    // ID-131 (G-MCP-REPOINT): freshness/previous_freshness now come from
+    // the record_lifecycle facet; title/domain context is joined from
+    // source_documents by source_document_id.
     const { fetchQualityBriefingData } = await import('@/lib/mcp/tools/shared');
 
-    const fromCallIndex = { value: 0 };
     mocks.mockSupabaseClient.from.mockImplementation((tableName: string) => {
-      if (tableName === 'content_items') {
-        const callNum = fromCallIndex.value++;
-        if (callNum === 2) {
-          // freshness transitions query (third content_items call)
-          return mocks.createChain({
-            data: [
-              {
-                id: 'item-changed',
-                title: 'Changed',
-                suggested_title: null,
-                primary_domain: 'Security',
-                freshness: 'stale',
-                previous_freshness: 'fresh',
-              },
-              {
-                id: 'item-same',
-                title: 'Unchanged',
-                suggested_title: null,
-                primary_domain: 'Security',
-                freshness: 'stale',
-                previous_freshness: 'stale',
-              },
-            ],
-            error: null,
-          });
-        }
+      if (tableName === 'record_lifecycle') {
+        return mocks.createChain({
+          data: [
+            {
+              source_document_id: 'sd-changed',
+              freshness: 'stale',
+              previous_freshness: 'fresh',
+            },
+            {
+              source_document_id: 'sd-same',
+              freshness: 'stale',
+              previous_freshness: 'stale',
+            },
+          ],
+          error: null,
+        });
+      }
+      if (tableName === 'source_documents') {
+        return mocks.createChain({
+          data: [
+            {
+              id: 'sd-changed',
+              suggested_title: 'Changed',
+              primary_domain: 'Security',
+              archived_at: null,
+            },
+            {
+              id: 'sd-same',
+              suggested_title: 'Unchanged',
+              primary_domain: 'Security',
+              archived_at: null,
+            },
+          ],
+          error: null,
+        });
       }
       return mocks.createChain({ data: [], error: null });
     });
@@ -464,7 +418,7 @@ describe('fetchQualityBriefingData', () => {
 
     // Only the item where freshness actually changed should be included
     expect(result.freshness_transitions.length).toBe(1);
-    expect(result.freshness_transitions[0].id).toBe('item-changed');
+    expect(result.freshness_transitions[0].id).toBe('sd-changed');
   });
 });
 
@@ -519,26 +473,35 @@ describe('kb://quality-briefing resource', () => {
   });
 
   it('returns populated data with formatted markdown', async () => {
+    // ID-131 (G-MCP-REPOINT): below_threshold can no longer be populated
+    // (quality_score has no typed home, BI-11/20) — populate the
+    // freshness_transitions leg instead (record_lifecycle facet joined to
+    // source_documents) to exercise the same "populated data renders in
+    // markdown" behaviour.
     const handler = mockServer.getResourceHandler('quality_briefing');
     if (!handler) throw new Error('quality_briefing resource not registered');
 
-    // Mock populated data for below-threshold items
-    const fromCallIndex = { value: 0 };
     mocks.mockSupabaseClient.from.mockImplementation((tableName: string) => {
-      if (tableName === 'content_items' && fromCallIndex.value === 0) {
-        fromCallIndex.value++;
+      if (tableName === 'record_lifecycle') {
         return mocks.createChain({
           data: [
             {
-              id: 'item-low',
-              title: 'Low Quality Article',
-              suggested_title: null,
+              source_document_id: 'item-stale',
+              freshness: 'stale',
+              previous_freshness: 'fresh',
+            },
+          ],
+          error: null,
+        });
+      }
+      if (tableName === 'source_documents') {
+        return mocks.createChain({
+          data: [
+            {
+              id: 'item-stale',
+              suggested_title: 'Ageing Access Policy',
               primary_domain: 'Security',
-              primary_subtopic: 'access-control',
-              quality_score: 25,
-              freshness: 'expired',
-              summary: null,
-              classification_confidence: 0.4,
+              archived_at: null,
             },
           ],
           error: null,
@@ -552,9 +515,9 @@ describe('kb://quality-briefing resource', () => {
     };
 
     const parsed = JSON.parse(result.contents[0].text);
-    expect(parsed.below_threshold).toHaveLength(1);
-    expect(parsed.below_threshold[0].id).toBe('item-low');
-    expect(parsed.formatted).toContain('Low Quality Article');
+    expect(parsed.freshness_transitions).toHaveLength(1);
+    expect(parsed.freshness_transitions[0].id).toBe('item-stale');
+    expect(parsed.formatted).toContain('Ageing Access Policy');
   });
 
   it('handles errors gracefully', async () => {

@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => {
     limit: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     single: vi.fn().mockReturnThis(),
+    maybeSingle: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
     delete: vi.fn().mockReturnThis(),
     insert: vi.fn().mockReturnThis(),
@@ -95,11 +96,18 @@ describe('delete_content_item', () => {
   it('archives item and records history when mode: archive', async () => {
     const handler = mockServer.getHandler('delete_content_item')!;
 
-    // 1. Mock fetch item
+    // 1. Mock fetch item — ID-131 (G-MCP-REPOINT): resolves against
+    // source_documents first (suggested_title/extracted_text replace the
+    // old title/content columns).
     mocks.chainMethods.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
-          data: { id: '1', title: 'T', content: 'C', archived_at: null },
+          data: {
+            id: '1',
+            suggested_title: 'T',
+            extracted_text: 'C',
+            archived_at: null,
+          },
           error: null,
         }),
     );
@@ -134,7 +142,12 @@ describe('delete_content_item', () => {
     mocks.chainMethods.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
-          data: { id: '1', title: 'T', archived_at: '2026-01-01' },
+          data: {
+            id: '1',
+            suggested_title: 'T',
+            extracted_text: null,
+            archived_at: '2026-01-01',
+          },
           error: null,
         }),
     );
@@ -166,7 +179,10 @@ describe('delete_content_item', () => {
     // 1. Mock fetch item
     mocks.chainMethods.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
-        resolve({ data: { id: '1', title: 'T' }, error: null }),
+        resolve({
+          data: { id: '1', suggested_title: 'T', extracted_text: null },
+          error: null,
+        }),
     );
     // 2. Mock fetch history for version tracking
     mocks.chainMethods.then.mockImplementationOnce(

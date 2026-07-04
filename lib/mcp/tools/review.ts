@@ -20,6 +20,7 @@ import {
   getMcpUserId,
   getMcpUserRole,
 } from '@/lib/mcp/auth';
+import { tryQuery } from '@/lib/supabase/safe';
 import {
   formatCreateReviewAssignment,
   formatWhatsInMyQueue,
@@ -290,8 +291,42 @@ export async function registerReviewTools(server: McpServer): Promise<void> {
           };
         }
 
+        // ID-131 (G-MCP-REPOINT, BI-9/18): content_items no longer exists —
+        // domain/content_type/captured_date all live on source_documents;
+        // `freshness` moved to the record_lifecycle facet (source_document
+        // owner axis). When a freshness filter is supplied, pre-resolve the
+        // matching source_document ids from the facet and constrain the
+        // source_documents count query to them.
+        let matchingSourceDocIds: string[] | null = null;
+        if (args.filter_freshness.length > 0) {
+          const freshnessRows = await tryQuery(
+            supabase
+              .from('record_lifecycle')
+              .select('source_document_id')
+              .eq('owner_kind', 'source_document')
+              .in('freshness', args.filter_freshness),
+            'mcp.review.create_review_assignment.freshness_filter',
+          );
+          if (!freshnessRows.ok) {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: `Failed to compute item count for assignment: ${freshnessRows.error.message}`,
+                },
+              ],
+              isError: true,
+            };
+          }
+          matchingSourceDocIds = (
+            freshnessRows.data as Array<{ source_document_id: string | null }>
+          )
+            .map((row) => row.source_document_id)
+            .filter((id): id is string => !!id);
+        }
+
         let countQuery = supabase
-          .from('content_items')
+          .from('source_documents')
           .select('id', { count: 'exact', head: true });
 
         if (args.filter_domains.length > 0) {
@@ -300,8 +335,8 @@ export async function registerReviewTools(server: McpServer): Promise<void> {
         if (args.filter_content_types.length > 0) {
           countQuery = countQuery.in('content_type', args.filter_content_types);
         }
-        if (args.filter_freshness.length > 0) {
-          countQuery = countQuery.in('freshness', args.filter_freshness);
+        if (matchingSourceDocIds !== null) {
+          countQuery = countQuery.in('id', matchingSourceDocIds);
         }
         if (args.filter_date_from) {
           countQuery = countQuery.gte('captured_date', args.filter_date_from);

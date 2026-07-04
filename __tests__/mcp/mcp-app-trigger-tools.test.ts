@@ -305,10 +305,12 @@ describe('MCP App trigger tools #22-23', () => {
       });
     });
 
-    it('builds domain breakdown from content_items and taxonomy', async () => {
+    it('builds domain breakdown from source_documents + record_lifecycle and taxonomy', async () => {
       const handler = mockServer.getHandler('show_coverage_matrix')!;
-      // Configure from() to return different data based on table name:
-      // content_items, taxonomy_domains, taxonomy_subtopics, ingestion_quality_log
+      // ID-131 (G-MCP-REPOINT): content_items no longer exists —
+      // primary_domain/primary_subtopic now live on source_documents;
+      // freshness moved to the record_lifecycle facet, joined by id
+      // (source_documents.id == record_lifecycle.source_document_id).
       supabase.from.mockImplementation((table: string) => {
         const chain = {
           select: vi.fn().mockReturnThis(),
@@ -317,30 +319,42 @@ describe('MCP App trigger tools #22-23', () => {
           then: vi.fn(),
         };
 
-        if (table === 'content_items') {
+        if (table === 'source_documents') {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({
               data: [
                 {
+                  id: 'sd-1',
                   primary_domain: 'Security',
                   primary_subtopic: 'Pen Testing',
-                  freshness: 'fresh',
                 },
                 {
+                  id: 'sd-2',
                   primary_domain: 'Security',
                   primary_subtopic: 'Pen Testing',
-                  freshness: 'aging',
                 },
                 {
+                  id: 'sd-3',
                   primary_domain: 'Security',
                   primary_subtopic: 'Incident Response',
-                  freshness: 'stale',
                 },
                 {
+                  id: 'sd-4',
                   primary_domain: 'Compliance',
                   primary_subtopic: null,
-                  freshness: 'fresh',
                 },
+              ],
+              error: null,
+            }),
+          );
+        } else if (table === 'record_lifecycle') {
+          chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+            resolve({
+              data: [
+                { source_document_id: 'sd-1', freshness: 'fresh' },
+                { source_document_id: 'sd-2', freshness: 'aging' },
+                { source_document_id: 'sd-3', freshness: 'stale' },
+                { source_document_id: 'sd-4', freshness: 'fresh' },
               ],
               error: null,
             }),
@@ -434,7 +448,7 @@ describe('MCP App trigger tools #22-23', () => {
           then: vi.fn(),
         };
 
-        if (table === 'content_items') {
+        if (table === 'source_documents' || table === 'record_lifecycle') {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({ data: [], error: null }),
           );
@@ -498,20 +512,30 @@ describe('MCP App trigger tools #22-23', () => {
           then: vi.fn(),
         };
 
-        if (table === 'content_items') {
+        if (table === 'source_documents') {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({
               data: [
                 {
+                  id: 'sd-1',
                   primary_domain: 'Security',
                   primary_subtopic: 'Thin Area',
-                  freshness: 'fresh',
                 },
                 {
+                  id: 'sd-2',
                   primary_domain: 'Security',
                   primary_subtopic: 'Thin Area',
-                  freshness: 'fresh',
                 },
+              ],
+              error: null,
+            }),
+          );
+        } else if (table === 'record_lifecycle') {
+          chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+            resolve({
+              data: [
+                { source_document_id: 'sd-1', freshness: 'fresh' },
+                { source_document_id: 'sd-2', freshness: 'fresh' },
               ],
               error: null,
             }),
@@ -568,25 +592,36 @@ describe('MCP App trigger tools #22-23', () => {
           then: vi.fn(),
         };
 
-        if (table === 'content_items') {
+        if (table === 'source_documents') {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({
               data: [
                 {
+                  id: 'sd-1',
                   primary_domain: 'Security',
                   primary_subtopic: 'Old Area',
-                  freshness: 'stale',
                 },
                 {
+                  id: 'sd-2',
                   primary_domain: 'Security',
                   primary_subtopic: 'Old Area',
-                  freshness: 'stale',
                 },
                 {
+                  id: 'sd-3',
                   primary_domain: 'Security',
                   primary_subtopic: 'Old Area',
-                  freshness: 'expired',
                 },
+              ],
+              error: null,
+            }),
+          );
+        } else if (table === 'record_lifecycle') {
+          chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+            resolve({
+              data: [
+                { source_document_id: 'sd-1', freshness: 'stale' },
+                { source_document_id: 'sd-2', freshness: 'stale' },
+                { source_document_id: 'sd-3', freshness: 'expired' },
               ],
               error: null,
             }),

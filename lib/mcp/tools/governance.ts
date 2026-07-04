@@ -120,16 +120,52 @@ export async function registerGovernanceTools(
           }
         }
 
-        // Fetch item first for audit logging
-        const { data: item, error: fetchError } = await supabase
-          .from('content_items')
-          .select(
-            'id, title, suggested_title, content, brief, detail, reference, metadata, archived_at',
-          )
-          .eq('id', args.id)
-          .single();
+        // ID-131 (G-MCP-REPOINT, BI-9): content_items no longer exists — an
+        // `id` may now be either a source_document or a q_a_pair. Resolve
+        // which typed record owns it before doing anything else. `brief` /
+        // `detail` / `reference` / `metadata` were IMS-vestige content_items
+        // columns dropped outright (BI-11) — no successor on either table.
+        const sdRes = await tryQuery(
+          supabase
+            .from('source_documents')
+            .select('id, suggested_title, extracted_text, archived_at')
+            .eq('id', args.id)
+            .maybeSingle(),
+          'mcp.governance.delete.resolve.source_document',
+        );
+        let ownerKind: 'source_document' | 'q_a_pair' | null = null;
+        let item: {
+          title: string | null;
+          content: string | null;
+          archivedAt: string | null;
+        } | null = null;
+        if (isOk(sdRes) && sdRes.data) {
+          ownerKind = 'source_document';
+          item = {
+            title: sdRes.data.suggested_title,
+            content: sdRes.data.extracted_text,
+            archivedAt: sdRes.data.archived_at,
+          };
+        } else {
+          const qaRes = await tryQuery(
+            supabase
+              .from('q_a_pairs')
+              .select('id, question_text, answer_standard')
+              .eq('id', args.id)
+              .maybeSingle(),
+            'mcp.governance.delete.resolve.q_a_pair',
+          );
+          if (isOk(qaRes) && qaRes.data) {
+            ownerKind = 'q_a_pair';
+            item = {
+              title: qaRes.data.question_text,
+              content: qaRes.data.answer_standard,
+              archivedAt: null,
+            };
+          }
+        }
 
-        if (fetchError || !item) {
+        if (!ownerKind || !item) {
           return {
             content: [
               { type: 'text' as const, text: `Item not found: ${args.id}` },
@@ -138,10 +174,10 @@ export async function registerGovernanceTools(
           };
         }
 
-        const displayTitle = item.title || item.suggested_title || 'Untitled';
+        const displayTitle = item.title || 'Untitled';
 
-        // Check if already archived
-        if (args.mode === 'archive' && item.archived_at) {
+        // Check if already archived (source_document only — see below)
+        if (args.mode === 'archive' && item.archivedAt) {
           return {
             content: [
               {
@@ -153,6 +189,24 @@ export async function registerGovernanceTools(
         }
 
         if (args.mode === 'archive') {
+          // ID-131 content-drift: `archived_at`/`archived_by` only exist on
+          // source_documents — q_a_pairs have no archive columns at all
+          // (their "retired" concept is `superseded_by`/`valid_to`, BI-20).
+          // Archiving a q_a_pair via this tool is not structurally
+          // supported post-131; refuse explicitly rather than silently
+          // no-op or write to a non-existent column.
+          if (ownerKind === 'q_a_pair') {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: 'Archiving is not supported for Q&A pairs under the current schema (no archived_at column). Use update_publication_status to set draft/archived state, or mode: "delete" instead.',
+                },
+              ],
+              isError: true,
+            };
+          }
+
           // Get latest version
           const history = await sb(
             supabase
@@ -166,13 +220,14 @@ export async function registerGovernanceTools(
 
           const nextVersion = (history?.[0]?.version ?? 0) + 1;
 
-          // Archive logic
+          // Archive logic (source_documents only — see guard above).
+          // `archive_reason` had no successor column (BI-11) — the reason
+          // is still captured below in content_history.change_reason.
           const { error: updateError } = await supabase
-            .from('content_items')
+            .from('source_documents')
             .update({
               archived_at: new Date().toISOString(),
               archived_by: userId,
-              archive_reason: args.reason,
             })
             .eq('id', args.id);
 
@@ -192,12 +247,12 @@ export async function registerGovernanceTools(
           await supabase.from('content_history').insert({
             content_item_id: args.id,
             version: nextVersion,
-            title: item.title || item.suggested_title || 'Untitled',
+            title: displayTitle,
             content: item.content || '',
-            brief: item.brief,
-            detail: item.detail,
-            reference: item.reference,
-            metadata: item.metadata,
+            brief: null,
+            detail: null,
+            reference: null,
+            metadata: null,
             change_type: 'archive',
             change_summary: `Item archived: ${args.reason || 'No reason provided'}`,
             // S152B WP3 / S153: canonical archive reason.
@@ -235,24 +290,26 @@ export async function registerGovernanceTools(
           await supabase.from('content_history').insert({
             content_item_id: args.id,
             version: nextVersion,
-            title: item.title || item.suggested_title || 'Untitled',
+            title: displayTitle,
             content: item.content || '',
-            brief: item.brief,
-            detail: item.detail,
-            reference: item.reference,
-            metadata: item.metadata,
+            brief: null,
+            detail: null,
+            reference: null,
+            metadata: null,
             change_type: 'delete',
             change_summary: `Item hard-deleted: ${args.reason}`,
             // S152B WP3 / S153: canonical hard_delete reason (note: the row
-            // will be preserved via ON DELETE SET NULL after content_items
-            // delete, so the reason survives the deletion).
+            // will be preserved via ON DELETE SET NULL after the owner
+            // record delete, so the reason survives the deletion).
             change_reason: 'hard_delete',
             created_by: userId,
           });
 
-          // Delete logic (hard delete)
+          // Delete logic (hard delete) — works for either owner kind.
+          const table =
+            ownerKind === 'source_document' ? 'source_documents' : 'q_a_pairs';
           const { error: deleteError } = await supabase
-            .from('content_items')
+            .from(table)
             .delete()
             .eq('id', args.id);
 
@@ -345,47 +402,106 @@ export async function registerGovernanceTools(
         const userId = getMcpUserId(extra.authInfo);
         const items: GovernanceStatusItemResult[] = [];
 
-        // Fetch all items in one query. `publication_status` is selected so
-        // the `'publish'` branch can be row-state-aware (V2-H1 fix): promote
-        // `'draft' → 'published'` symmetrically with the T8a `'draft'` rewire,
-        // refuse on `'archived'`, no-op for already-published / `'in_review'`.
-        const { data: rows, error: fetchError } = await supabase
-          .from('content_items')
-          .select(
-            'id, title, suggested_title, content, governance_review_status, publication_status, classified_at',
-          )
-          .in('id', args.item_ids);
+        // ID-131 (G-MCP-REPOINT, BI-9): content_items no longer exists — an
+        // item_id may be either a source_document or a q_a_pair. Fetch both
+        // typed tables in parallel; each supplied id resolves to at most one
+        // owner kind. `governance_review_status` moved to the
+        // `record_lifecycle` facet (BI-18) — read/cleared there via
+        // `owner_id` (= source_document_id | q_a_pair_id), independent of
+        // owner kind.
+        const [sdRows, qaRows, lifecycleRows] = await Promise.all([
+          supabase
+            .from('source_documents')
+            .select(
+              'id, suggested_title, extracted_text, publication_status, classified_at',
+            )
+            .in('id', args.item_ids),
+          supabase
+            .from('q_a_pairs')
+            .select('id, question_text, answer_standard, publication_status')
+            .in('id', args.item_ids),
+          supabase
+            .from('record_lifecycle')
+            .select('owner_id, governance_review_status')
+            .in('owner_id', args.item_ids),
+        ]);
 
-        if (fetchError) {
+        if (sdRows.error || qaRows.error) {
+          const message =
+            sdRows.error?.message ?? qaRows.error?.message ?? 'Unknown error';
           return {
             content: [
               {
                 type: 'text' as const,
-                text: `Failed to fetch items: ${fetchError.message}`,
+                text: `Failed to fetch items: ${message}`,
               },
             ],
             isError: true,
           };
         }
 
-        const rowMap = new Map(
-          (
-            (rows ?? []) as Array<{
-              id: string;
-              title: string | null;
-              suggested_title: string | null;
-              content: string | null;
-              governance_review_status: string | null;
-              publication_status: string | null;
-              classified_at: string | null;
-            }>
-          ).map((r) => [r.id, r]),
-        );
+        interface GovernanceRow {
+          id: string;
+          title: string | null;
+          content: string | null;
+          publication_status: string | null;
+          classified_at: string | null;
+          governanceReviewStatus: string | null;
+          ownerKind: 'source_document' | 'q_a_pair';
+        }
+
+        const governanceStatusByOwnerId = new Map<string, string | null>();
+        for (const lr of (lifecycleRows.data ?? []) as Array<{
+          owner_id: string | null;
+          governance_review_status: string | null;
+        }>) {
+          if (lr.owner_id) {
+            governanceStatusByOwnerId.set(
+              lr.owner_id,
+              lr.governance_review_status,
+            );
+          }
+        }
+
+        const rowMap = new Map<string, GovernanceRow>();
+        for (const r of (sdRows.data ?? []) as Array<{
+          id: string;
+          suggested_title: string | null;
+          extracted_text: string | null;
+          publication_status: string | null;
+          classified_at: string | null;
+        }>) {
+          rowMap.set(r.id, {
+            id: r.id,
+            title: r.suggested_title,
+            content: r.extracted_text,
+            publication_status: r.publication_status,
+            classified_at: r.classified_at,
+            governanceReviewStatus: governanceStatusByOwnerId.get(r.id) ?? null,
+            ownerKind: 'source_document',
+          });
+        }
+        for (const r of (qaRows.data ?? []) as Array<{
+          id: string;
+          question_text: string | null;
+          answer_standard: string | null;
+          publication_status: string | null;
+        }>) {
+          rowMap.set(r.id, {
+            id: r.id,
+            title: r.question_text,
+            content: r.answer_standard,
+            publication_status: r.publication_status,
+            classified_at: null,
+            governanceReviewStatus: governanceStatusByOwnerId.get(r.id) ?? null,
+            ownerKind: 'q_a_pair',
+          });
+        }
 
         // Process each item
         for (const itemId of args.item_ids) {
           const row = rowMap.get(itemId);
-          const displayTitle = row?.title || row?.suggested_title || 'Untitled';
+          const displayTitle = row?.title || 'Untitled';
 
           if (!row) {
             items.push({
@@ -422,45 +538,65 @@ export async function registerGovernanceTools(
 
               // CRITICAL: embed-then-commit ordering
               // Generate embedding BEFORE clearing governance_review_status
-              // to prevent items appearing in search without embeddings
+              // to prevent items appearing in search without embeddings.
+              // ID-131 content-drift: source_documents carries NO embedding
+              // column under OKF (a document's searchability comes from its
+              // cocoindex-populated content_chunks, not an item-level
+              // vector) — the embed-then-commit step now only applies to
+              // q_a_pairs (question_embedding). Publishing a source_document
+              // skips embedding generation entirely rather than failing.
               let embedding: number[] | null = null;
-              try {
-                const generateEmbedding = await getGenerateEmbedding();
-                const textForEmbedding =
-                  (row.title || row.suggested_title || '') +
-                  ' ' +
-                  (row.content ?? '').slice(0, 5000);
-                embedding = await generateEmbedding(textForEmbedding);
-              } catch (embErr) {
-                const embMsg =
-                  embErr instanceof Error
-                    ? embErr.message
-                    : 'Unknown embedding error';
-                items.push({
-                  id: itemId,
-                  title: displayTitle,
-                  success: false,
-                  error: `Embedding failed: ${embMsg}`,
-                });
-                continue;
+              if (row.ownerKind === 'q_a_pair') {
+                try {
+                  const generateEmbedding = await getGenerateEmbedding();
+                  const textForEmbedding =
+                    (row.title || '') +
+                    ' ' +
+                    (row.content ?? '').slice(0, 5000);
+                  embedding = await generateEmbedding(textForEmbedding);
+                } catch (embErr) {
+                  const embMsg =
+                    embErr instanceof Error
+                      ? embErr.message
+                      : 'Unknown embedding error';
+                  items.push({
+                    id: itemId,
+                    title: displayTitle,
+                    success: false,
+                    error: `Embedding failed: ${embMsg}`,
+                  });
+                  continue;
+                }
               }
 
-              // Update: set embedding, clear governance_review_status, and
-              // (when row is currently `'draft'`) promote
-              // publication_status='published'. Conditional spread ensures
-              // already-published / in_review rows are NOT touched on
-              // publication_status (no-op for those branches).
-              const { error: updateError } = await supabase
-                .from('content_items')
-                .update({
-                  embedding: JSON.stringify(embedding),
-                  governance_review_status: null,
-                  ...(row.publication_status === 'draft' && {
-                    publication_status: 'published',
-                  }),
-                  updated_by: userId,
-                } satisfies Database['public']['Tables']['content_items']['Update'])
-                .eq('id', itemId);
+              // Update: set embedding (q_a_pair only) and, when row is
+              // currently `'draft'`, promote publication_status='published'.
+              // Conditional spread ensures already-published / in_review
+              // rows are NOT touched on publication_status (no-op for those
+              // branches). `governance_review_status` no longer lives on
+              // this table — cleared via the record_lifecycle facet below.
+              // Split by owner kind: `updated_by` exists on source_documents
+              // but NOT on q_a_pairs (ID-131 content-drift — no home there).
+              const publishPromotion =
+                row.publication_status === 'draft'
+                  ? { publication_status: 'published' as const }
+                  : {};
+              const { error: updateError } =
+                row.ownerKind === 'source_document'
+                  ? await supabase
+                      .from('source_documents')
+                      .update({
+                        ...publishPromotion,
+                        updated_by: userId,
+                      } satisfies Database['public']['Tables']['source_documents']['Update'])
+                      .eq('id', itemId)
+                  : await supabase
+                      .from('q_a_pairs')
+                      .update({
+                        question_embedding: JSON.stringify(embedding),
+                        ...publishPromotion,
+                      } satisfies Database['public']['Tables']['q_a_pairs']['Update'])
+                      .eq('id', itemId);
 
               if (updateError) {
                 items.push({
@@ -472,20 +608,44 @@ export async function registerGovernanceTools(
                 continue;
               }
 
+              // ID-131 BI-18: governance_review_status now lives on the
+              // record_lifecycle facet, keyed by owner_id. Clear it via
+              // upsert (a facet row may not exist yet for this owner).
+              await sb(
+                supabase.from('record_lifecycle').upsert(
+                  {
+                    owner_kind: row.ownerKind,
+                    ...(row.ownerKind === 'source_document'
+                      ? { source_document_id: itemId }
+                      : { q_a_pair_id: itemId }),
+                    governance_review_status: null,
+                  },
+                  { onConflict: 'owner_kind,owner_id' },
+                ),
+                'mcp.governance.update_governance_status.facet_clear',
+              );
+
               // S183 WP1 G2 — first-time publish for draft-created items
               // needs classification + chunks. Drafts bypass the AI pipeline
               // in create_content_item, so an item with classified_at = NULL
               // has no entity_mentions, entity_relationships, summary, or
               // content_chunks. Running now fixes that so the item is fully
               // searchable + richly linked the moment it becomes live.
-              // Non-fatal: failures log but do not un-publish.
+              // Non-fatal: failures log but do not un-publish. Classification
+              // is a document-level concept (source_documents.classified_at)
+              // — q_a_pairs have no classification axis, so this leg is
+              // source_document-only (ID-131 content-drift).
               //
               // Uses the service client (not the RLS-scoped MCP client) for
               // parity with the API publish path and because classifyContent
               // performs a delete-before-insert on entity_mentions which
               // requires admin RLS — editor-role callers would silently
               // no-op the delete otherwise.
-              if (!row.classified_at && row.content) {
+              if (
+                row.ownerKind === 'source_document' &&
+                !row.classified_at &&
+                row.content
+              ) {
                 const { createServiceClient } =
                   await import('@/lib/supabase/server');
                 const { recordPipelineRun } =
@@ -530,14 +690,24 @@ export async function registerGovernanceTools(
               // Draft: set publication_status to 'draft' (S202 §5.2 Phase 2.5
               // rewire — rewired from governance_review_status per spec §6.5).
               // The tool's external 'draft' action verb is unchanged so LLM
-              // callers transparently target the new column.
-              const { error: updateError } = await supabase
-                .from('content_items')
-                .update({
-                  publication_status: 'draft',
-                  updated_by: userId,
-                } satisfies Database['public']['Tables']['content_items']['Update'])
-                .eq('id', itemId);
+              // callers transparently target the new column. Split by owner
+              // kind: `updated_by` exists on source_documents but NOT on
+              // q_a_pairs (ID-131 content-drift — no home there).
+              const { error: updateError } =
+                row.ownerKind === 'source_document'
+                  ? await supabase
+                      .from('source_documents')
+                      .update({
+                        publication_status: 'draft',
+                        updated_by: userId,
+                      } satisfies Database['public']['Tables']['source_documents']['Update'])
+                      .eq('id', itemId)
+                  : await supabase
+                      .from('q_a_pairs')
+                      .update({
+                        publication_status: 'draft',
+                      } satisfies Database['public']['Tables']['q_a_pairs']['Update'])
+                      .eq('id', itemId);
 
               if (updateError) {
                 items.push({
@@ -694,33 +864,76 @@ export async function registerGovernanceTools(
         const userId = getMcpUserId(extra.authInfo);
         const newStatus = args.new_status as PublicationStatus;
 
-        // Fetch current state. Mirrors the PATCH route — selects all columns
-        // needed for transition validation + content_history insert. Use
-        // tryQuery + 404-style error message when the row is missing (per
-        // CLAUDE.md "REST PATCH on wrong UUID" — silent 0-row no-ops are
-        // unsafe).
-        const currentRes = await tryQuery(
+        // ID-131 (G-MCP-REPOINT, BI-9): content_items no longer exists — an
+        // item_id may be either a source_document or a q_a_pair. `brief` /
+        // `detail` / `reference` were IMS-vestige content_items columns
+        // dropped outright (BI-11) — no successor on either table.
+        const sdRes = await tryQuery(
           supabase
-            .from('content_items')
+            .from('source_documents')
             .select(
-              'id, publication_status, archived_at, archived_by, archive_reason, title, suggested_title, content, brief, detail, reference',
+              'id, publication_status, archived_at, archived_by, suggested_title, extracted_text',
             )
             .eq('id', args.item_id)
             .maybeSingle(),
-          'mcp.governance.update_publication_status.fetch',
+          'mcp.governance.update_publication_status.fetch.source_document',
         );
-        if (!isOk(currentRes)) {
+        if (!isOk(sdRes)) {
           return {
             content: [
               {
                 type: 'text' as const,
-                text: `Item lookup failed: ${currentRes.error.message}`,
+                text: `Item lookup failed: ${sdRes.error.message}`,
               },
             ],
             isError: true,
           };
         }
-        if (!currentRes.data) {
+
+        let ownerKind: 'source_document' | 'q_a_pair' | null = null;
+        let current: {
+          publication_status: string | null;
+          title: string | null;
+          content: string | null;
+        } | null = null;
+        if (sdRes.data) {
+          ownerKind = 'source_document';
+          current = {
+            publication_status: sdRes.data.publication_status,
+            title: sdRes.data.suggested_title,
+            content: sdRes.data.extracted_text,
+          };
+        } else {
+          const qaRes = await tryQuery(
+            supabase
+              .from('q_a_pairs')
+              .select('id, publication_status, question_text, answer_standard')
+              .eq('id', args.item_id)
+              .maybeSingle(),
+            'mcp.governance.update_publication_status.fetch.q_a_pair',
+          );
+          if (!isOk(qaRes)) {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: `Item lookup failed: ${qaRes.error.message}`,
+                },
+              ],
+              isError: true,
+            };
+          }
+          if (qaRes.data) {
+            ownerKind = 'q_a_pair';
+            current = {
+              publication_status: qaRes.data.publication_status,
+              title: qaRes.data.question_text,
+              content: qaRes.data.answer_standard,
+            };
+          }
+        }
+
+        if (!ownerKind || !current) {
           return {
             content: [
               {
@@ -731,7 +944,6 @@ export async function registerGovernanceTools(
             isError: true,
           };
         }
-        const current = currentRes.data;
         const fromStatus = current.publication_status as PublicationStatus;
 
         // Validate transition + role gate per §3.2 + §3.4 via the T5 helper.
@@ -793,7 +1005,7 @@ export async function registerGovernanceTools(
         // Assemble the side-effect payload via the T5 helper. Stamps
         // archived_at/by/reason on `published → archived`; clears archived_at
         // (preserving the audit trail) on un-archive transitions.
-        const updatePayload = applyTransitionSideEffects(
+        let updatePayload = applyTransitionSideEffects(
           {
             publication_status: newStatus,
             updated_by: userId,
@@ -804,16 +1016,44 @@ export async function registerGovernanceTools(
           args.archive_reason,
         );
 
+        // ID-131 content-drift: `archived_at`/`archived_by`/`archive_reason`
+        // only exist on source_documents — q_a_pairs have no archive-metadata
+        // columns at all (BI-20 — their "retired" concept is
+        // `superseded_by`/`valid_to`). Strip those side-effect keys before
+        // writing a q_a_pair; `publication_status` itself still transitions
+        // correctly either way. Also `updated_by` has no home on q_a_pairs.
+        if (ownerKind === 'q_a_pair') {
+          const {
+            archived_at,
+            archived_by,
+            archive_reason,
+            updated_by,
+            ...rest
+          } = updatePayload as typeof updatePayload & { updated_by?: string };
+          void archived_at;
+          void archived_by;
+          void archive_reason;
+          void updated_by;
+          updatePayload = rest;
+        }
+
         // Persist the state change. `sb()` is fail-fast — any DB error
         // surfaces as SupabaseError, caught by the outer try/catch. Per
         // CLAUDE.md `silent-failure-prevention`.
         await sb(
-          supabase
-            .from('content_items')
-            .update(
-              updatePayload as Database['public']['Tables']['content_items']['Update'],
-            )
-            .eq('id', args.item_id),
+          ownerKind === 'source_document'
+            ? supabase
+                .from('source_documents')
+                .update(
+                  updatePayload as Database['public']['Tables']['source_documents']['Update'],
+                )
+                .eq('id', args.item_id)
+            : supabase
+                .from('q_a_pairs')
+                .update(
+                  updatePayload as Database['public']['Tables']['q_a_pairs']['Update'],
+                )
+                .eq('id', args.item_id),
           'mcp.governance.update_publication_status.update',
         );
 
@@ -847,9 +1087,9 @@ export async function registerGovernanceTools(
             version: nextVersion,
             title: current.title ?? '',
             content: current.content ?? '',
-            brief: current.brief ?? null,
-            detail: current.detail ?? null,
-            reference: current.reference ?? null,
+            brief: null,
+            detail: null,
+            reference: null,
             change_summary: `Publication status: ${fromStatus} -> ${newStatus}`,
             change_reason: changeReasonText,
             change_type: 'publication_state',
@@ -858,8 +1098,7 @@ export async function registerGovernanceTools(
           'mcp.governance.update_publication_status.history_insert',
         );
 
-        const displayTitle =
-          current.title ?? current.suggested_title ?? '(untitled)';
+        const displayTitle = current.title ?? '(untitled)';
         const result: PublicationStatusUpdateResult = {
           item_id: args.item_id,
           title: displayTitle,
@@ -944,16 +1183,21 @@ export async function registerGovernanceTools(
         const supabase = createMcpClient(extra.authInfo);
         const userId = getMcpUserId(extra.authInfo);
 
-        // §5.5 Phase 2 T2: extend the fetch to include `next_review_date` +
-        // `review_cadence_days` so the `approve` branch can compute auto-
-        // renewal symmetrically with the API route. `verified_at` is
-        // selected to keep the SELECT shape stable for future extension.
+        // ID-131 (G-MCP-REPOINT, BI-9/18): content_items no longer exists —
+        // governance_review_status et al. now live on the record_lifecycle
+        // facet, keyed by `owner_id` (= source_document_id | q_a_pair_id,
+        // whichever the caller's item_id resolves to). Look up by owner_id
+        // directly — no owner-kind branching needed for this table. §5.5
+        // Phase 2 T2: `next_review_date` + `review_cadence_days` selected so
+        // the `approve` branch can compute auto-renewal symmetrically with
+        // the API route. `verified_at` is selected to keep the SELECT shape
+        // stable for future extension.
         const { data: item, error: fetchError } = await supabase
-          .from('content_items')
+          .from('record_lifecycle')
           .select(
-            'id, title, suggested_title, governance_review_status, content_owner_id, updated_by, next_review_date, review_cadence_days, verified_at',
+            'owner_id, owner_kind, source_document_id, q_a_pair_id, governance_review_status, content_owner_id, next_review_date, review_cadence_days, verified_at',
           )
-          .eq('id', args.item_id)
+          .eq('owner_id', args.item_id)
           .maybeSingle();
 
         if (fetchError) {
@@ -973,11 +1217,41 @@ export async function registerGovernanceTools(
             content: [
               {
                 type: 'text' as const,
-                text: `Item ${args.item_id} not found.`,
+                text: `Item ${args.item_id} not found or has no governance facet row (it has never entered review).`,
               },
             ],
             isError: true,
           };
+        }
+
+        // Display title + `updated_by` come from the typed owner record —
+        // `updated_by` only exists on source_documents (ID-131
+        // content-drift: q_a_pairs have no home for it).
+        let displayTitle = '(untitled)';
+        let ownerUpdatedBy: string | null = null;
+        if (item.owner_kind === 'source_document' && item.source_document_id) {
+          const sdRes = await tryQuery(
+            supabase
+              .from('source_documents')
+              .select('suggested_title, updated_by')
+              .eq('id', item.source_document_id)
+              .maybeSingle(),
+            'mcp.governance.review_governance_item.owner_source_document',
+          );
+          const sd = isOk(sdRes) ? sdRes.data : null;
+          displayTitle = sd?.suggested_title ?? '(untitled)';
+          ownerUpdatedBy = sd?.updated_by ?? null;
+        } else if (item.owner_kind === 'q_a_pair' && item.q_a_pair_id) {
+          const qaRes = await tryQuery(
+            supabase
+              .from('q_a_pairs')
+              .select('question_text')
+              .eq('id', item.q_a_pair_id)
+              .maybeSingle(),
+            'mcp.governance.review_governance_item.owner_q_a_pair',
+          );
+          const qa = isOk(qaRes) ? qaRes.data : null;
+          displayTitle = qa?.question_text ?? '(untitled)';
         }
 
         if (
@@ -998,7 +1272,7 @@ export async function registerGovernanceTools(
 
         const action = args.action as GovernanceReviewAction;
         let newStatus: string;
-        let updateData: Database['public']['Tables']['content_items']['Update'];
+        let updateData: Database['public']['Tables']['record_lifecycle']['Update'];
 
         switch (action) {
           case 'approve': {
@@ -1044,9 +1318,9 @@ export async function registerGovernanceTools(
         // update time. The only remaining race is a concurrent delete
         // between fetch and update, which the surrounding try/catch handles.
         const { error: updateError } = await supabase
-          .from('content_items')
+          .from('record_lifecycle')
           .update(updateData)
-          .eq('id', args.item_id);
+          .eq('owner_id', args.item_id);
 
         if (updateError) {
           return {
@@ -1062,22 +1336,18 @@ export async function registerGovernanceTools(
 
         // Best-effort notification dispatch — mirrors the API route's
         // behaviour. Failures here MUST NOT roll back the review action.
+        // ID-131 (G-MCP-REPOINT): the original code re-fetched
+        // content_owner_id/updated_by from content_items immediately before
+        // dispatch; both are already available from the initial facet fetch
+        // above (`item.content_owner_id`, `ownerUpdatedBy`) — the extra
+        // round-trip is dropped as an incidental simplification.
         try {
-          const detailResult = await tryQuery(
-            supabase
-              .from('content_items')
-              .select('updated_by, content_owner_id')
-              .eq('id', args.item_id)
-              .maybeSingle(),
-            'mcp.governance.review_governance_item.detail',
-          );
-          const detail = isOk(detailResult) ? detailResult.data : null;
           const targets = new Set<string>();
-          if (detail?.content_owner_id && detail.content_owner_id !== userId) {
-            targets.add(detail.content_owner_id);
+          if (item.content_owner_id && item.content_owner_id !== userId) {
+            targets.add(item.content_owner_id);
           }
-          if (detail?.updated_by && detail.updated_by !== userId) {
-            targets.add(detail.updated_by);
+          if (ownerUpdatedBy && ownerUpdatedBy !== userId) {
+            targets.add(ownerUpdatedBy);
           }
           for (const target of targets) {
             await supabase.from('notifications').insert({
@@ -1096,7 +1366,6 @@ export async function registerGovernanceTools(
           );
         }
 
-        const displayTitle = item.title ?? item.suggested_title ?? '(untitled)';
         const result: GovernanceReviewActionResult = {
           item_id: args.item_id,
           title: displayTitle,

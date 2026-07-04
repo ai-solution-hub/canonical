@@ -114,15 +114,22 @@ describe('ID-71.10 content tool consolidation', () => {
     it('single id returns mode=single with a verbatim item and its chunks (B-INV-33 accept step)', async () => {
       const itemRow = {
         id: ID_1,
-        title: 'Single Item',
-        content: 'verbatim body',
+        suggested_title: 'Single Item',
+        extracted_text: 'verbatim body',
       };
-      // Two thenable queries: content_items.single(), content_chunks.order().
+      // ID-131 (G-MCP-REPOINT): three thenable queries — source_documents
+      // .single(), record_lifecycle .maybeSingle() (freshness/governance
+      // join), content_chunks .order().
       const single = vi.fn().mockResolvedValue({ data: itemRow, error: null });
       const chainSingle = {
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
         single,
+      };
+      const chainLifecycle = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
       };
       const chainChunks = {
         select: vi.fn().mockReturnThis(),
@@ -132,6 +139,7 @@ describe('ID-71.10 content tool consolidation', () => {
       const from = vi
         .fn()
         .mockReturnValueOnce(chainSingle)
+        .mockReturnValueOnce(chainLifecycle)
         .mockReturnValueOnce(chainChunks);
       mockCreateMcpClient.mockReturnValue({ from });
 
@@ -152,8 +160,14 @@ describe('ID-71.10 content tool consolidation', () => {
         ],
         error: null,
       });
+      // ID-131 (G-MCP-REPOINT): the batch path also does a second
+      // record_lifecycle lookup (`.eq().eq().in()`) for freshness/governance
+      // enrichment — the same chain object serves both calls; its `.in()`
+      // resolving the batch rows again is harmless (no `source_document_id`
+      // key on them, so the enrichment loop is a no-op for this fixture).
       const chain = {
         select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
         in: inResult,
       };
       mockCreateMcpClient.mockReturnValue({ from: vi.fn(() => chain) });
@@ -197,19 +211,13 @@ describe('ID-71.10 content tool consolidation', () => {
 
     it('explicit item_ids path routes via the bulk_assign_content_owner RPC and reports action=assign_content_owner', async () => {
       const rpc = vi.fn().mockResolvedValue({ data: 1, error: null });
-      // content_items.id -> source_document_id resolution (ID-131 {131.13}
-      // G-GOV-FACET-B — bulk_assign_content_owner now matches
-      // record_lifecycle.owner_id, not content_items.id). Identity mapping
-      // keeps this an "explicit item_ids" happy-path test.
-      const from = vi.fn(() => ({
-        select: () => ({
-          in: (_column: string, ids: string[]) =>
-            Promise.resolve({
-              data: ids.map((id) => ({ source_document_id: id })),
-              error: null,
-            }),
-        }),
-      }));
+      // ID-131 (G-MCP-REPOINT): the former content_items.id ->
+      // source_document_id resolution query is GONE — bulk_assign_content_owner
+      // matches record_lifecycle.owner_id, which IS the caller-supplied id
+      // directly now (no content_items indirection left to resolve). This
+      // branch no longer calls `.from()` at all; `from` is present only so
+      // the mocked client shape stays consistent with other tests.
+      const from = vi.fn();
       mockCreateMcpClient.mockReturnValue({ rpc, from });
 
       const result = await mockServer.getHandler('assign')!(

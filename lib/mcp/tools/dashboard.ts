@@ -98,16 +98,49 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
           }
         }
 
-        // Query content ownership summary for the requesting user
+        // Query content ownership summary for the requesting user.
+        // ID-131 (G-MCP-REPOINT, BI-9/18/20): content_items no longer
+        // exists — `content_owner_id`/`freshness` now live on the
+        // record_lifecycle facet (source_document owner axis), while
+        // `archived_at` stays inline on source_documents. Two-step fetch:
+        // facet rows for this owner, then filter out any whose backing
+        // source_document is archived.
         let ownershipSummary: OwnershipSummary | null = null;
         try {
-          const ownedItems = await sb(
+          const ownedFacetRows = await sb(
             supabase
-              .from('content_items')
-              .select('id, freshness')
-              .eq('content_owner_id', userId)
-              .is('archived_at', null),
-            'mcp.dashboard.owned_items',
+              .from('record_lifecycle')
+              .select('source_document_id, freshness')
+              .eq('owner_kind', 'source_document')
+              .eq('content_owner_id', userId),
+            'mcp.dashboard.owned_items.facet',
+          );
+
+          const ownedSdIds = ownedFacetRows
+            .map(
+              (r: { source_document_id: string | null }) =>
+                r.source_document_id,
+            )
+            .filter((id): id is string => !!id);
+
+          const activeSdIds = new Set<string>();
+          if (ownedSdIds.length > 0) {
+            const activeSds = await sb(
+              supabase
+                .from('source_documents')
+                .select('id')
+                .in('id', ownedSdIds)
+                .is('archived_at', null),
+              'mcp.dashboard.owned_items.active_source_documents',
+            );
+            for (const sd of activeSds as Array<{ id: string | null }>) {
+              if (sd.id) activeSdIds.add(sd.id);
+            }
+          }
+
+          const ownedItems = ownedFacetRows.filter(
+            (r: { source_document_id: string | null }) =>
+              r.source_document_id && activeSdIds.has(r.source_document_id),
           );
 
           if (ownedItems && ownedItems.length > 0) {
@@ -288,11 +321,16 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
             .order('display_order'),
           'mcp.exposure.taxonomy_subtopics',
         );
+        // ID-131 (G-MCP-REPOINT, BI-9/11): content_items no longer exists —
+        // domain/subtopic classification now lives on source_documents.
+        // `freshness` is dropped from this select entirely: it was never
+        // actually read in the countMap loop below (a dead column-select in
+        // the pre-131 code), so no record_lifecycle join is needed here.
         const items = await sb(
           supabase
-            .from('content_items')
-            .select('primary_domain, primary_subtopic, freshness'),
-          'mcp.exposure.content_items_for_coverage',
+            .from('source_documents')
+            .select('primary_domain, primary_subtopic'),
+          'mcp.exposure.source_documents_for_coverage',
         );
 
         const domainMap = new Map<string, string>();

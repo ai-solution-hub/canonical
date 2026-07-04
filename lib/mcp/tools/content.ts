@@ -51,6 +51,17 @@ import { logger } from '@/lib/logger';
 // Used by the `get` batch branch and get_workspace_items.
 // ---------------------------------------------------------------------------
 
+// ID-131 (G-MCP-REPOINT, BI-9): content_items no longer exists — `get` /
+// `get_workspace_items` are document-shaped tools (chunks are keyed on
+// source_document_id per B-INV-33 below), so this helper is now scoped to
+// `source_documents`. Q&A pairs have their own `kb://qa/{id}` resource;
+// `get` no longer reaches them (content-drift — a caller that previously
+// fetched a content_items row typed 'q_a_pair' via `get` must switch to the
+// qa_pair resource or `find`). `freshness` / `governance_review_status`
+// moved to the `record_lifecycle` facet (source_document owner axis,
+// BI-18/20) — joined in a second query. `title` (BI-11) and `priority`
+// (BI-11, IMS-vestige) have no source_documents successor and are always
+// null; `content` now reads `extracted_text`.
 async function fetchAndFormatContentItems(
   supabase: ReturnType<typeof createMcpClient>,
   itemIds: string[],
@@ -60,9 +71,9 @@ async function fetchAndFormatContentItems(
   }
 
   const { data: rows, error } = await supabase
-    .from('content_items')
+    .from('source_documents')
     .select(
-      'id, title, suggested_title, content_type, primary_domain, primary_subtopic, summary, ai_keywords, freshness, classification_confidence, source_url, content, created_at, updated_at, governance_review_status, priority',
+      'id, suggested_title, content_type, primary_domain, primary_subtopic, summary, ai_keywords, classification_confidence, source_url, extracted_text, created_at, updated_at',
     )
     .in('id', itemIds);
 
@@ -73,30 +84,61 @@ async function fetchAndFormatContentItems(
   const foundIds = new Set((rows ?? []).map((r) => r.id));
   const notFound = itemIds.filter((id) => !foundIds.has(id));
 
+  const lifecycleMap = new Map<
+    string,
+    { freshness: string | null; governance_review_status: string | null }
+  >();
+  if (rows && rows.length > 0) {
+    const lifecycleRows = await sb(
+      supabase
+        .from('record_lifecycle')
+        .select('source_document_id, freshness, governance_review_status')
+        .eq('owner_kind', 'source_document')
+        .in(
+          'source_document_id',
+          rows.map((r) => r.id).filter((id): id is string => !!id),
+        ),
+      'mcp.content.fetch_and_format.lifecycle_join',
+    );
+    for (const lr of lifecycleRows as Array<{
+      source_document_id: string | null;
+      freshness: string | null;
+      governance_review_status: string | null;
+    }>) {
+      if (lr.source_document_id) {
+        lifecycleMap.set(lr.source_document_id, {
+          freshness: lr.freshness,
+          governance_review_status: lr.governance_review_status,
+        });
+      }
+    }
+  }
+
   const items: ContentItemDetail[] = (rows ?? []).map((item) => {
-    let content = item.content as string | null;
+    let content = item.extracted_text as string | null;
     if (typeof content === 'string' && content.length > CHARACTER_LIMIT) {
       content =
         content.slice(0, CHARACTER_LIMIT) + '\n\n... (content truncated)';
     }
+    const lifecycle = item.id ? lifecycleMap.get(item.id) : undefined;
 
     return {
-      id: item.id,
-      title: item.title,
+      id: item.id!,
+      title: null,
       suggested_title: item.suggested_title,
       content_type: item.content_type,
       primary_domain: item.primary_domain,
       primary_subtopic: item.primary_subtopic,
       summary: item.summary,
       ai_keywords: item.ai_keywords,
-      freshness: item.freshness,
+      freshness: lifecycle?.freshness ?? null,
       classification_confidence: item.classification_confidence,
       source_url: item.source_url,
       content,
       created_at: item.created_at,
       updated_at: item.updated_at,
-      governance_review_status: item.governance_review_status,
-      priority: item.priority,
+      governance_review_status: lifecycle?.governance_review_status ?? null,
+      priority: null,
     };
   });
 
@@ -211,10 +253,12 @@ export async function registerContentTools(server: McpServer): Promise<void> {
       try {
         const supabase = createMcpClient(extra.authInfo);
 
+        // ID-131 (G-MCP-REPOINT, BI-9): `get` (single) is document-shaped —
+        // see fetchAndFormatContentItems above for the full rationale.
         const { data: item, error } = await supabase
-          .from('content_items')
+          .from('source_documents')
           .select(
-            'id, title, suggested_title, content_type, primary_domain, primary_subtopic, summary, ai_keywords, freshness, classification_confidence, source_url, content, created_at, updated_at, governance_review_status, priority',
+            'id, suggested_title, content_type, primary_domain, primary_subtopic, summary, ai_keywords, classification_confidence, source_url, extracted_text, created_at, updated_at',
           )
           .eq('id', args.id!)
           .single();
@@ -231,23 +275,38 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           };
         }
 
+        // record_lifecycle facet join (freshness/governance_review_status —
+        // source_document owner axis, BI-18/20). Non-fatal: a facet-read
+        // failure degrades to "no governance state" rather than failing the
+        // whole `get` call.
+        const lifecycleRes = await tryQuery(
+          supabase
+            .from('record_lifecycle')
+            .select('freshness, governance_review_status')
+            .eq('owner_kind', 'source_document')
+            .eq('source_document_id', item.id!)
+            .maybeSingle(),
+          'mcp.content.get_item.lifecycle',
+        );
+        const lifecycle = lifecycleRes.ok ? lifecycleRes.data : null;
+
         const itemDetail: ContentItemDetail = {
-          id: item.id,
-          title: item.title,
+          id: item.id!,
+          title: null,
           suggested_title: item.suggested_title,
           content_type: item.content_type,
           primary_domain: item.primary_domain,
           primary_subtopic: item.primary_subtopic,
           summary: item.summary,
           ai_keywords: item.ai_keywords,
-          freshness: item.freshness,
+          freshness: lifecycle?.freshness ?? null,
           classification_confidence: item.classification_confidence,
           source_url: item.source_url,
-          content: item.content,
+          content: item.extracted_text,
           created_at: item.created_at,
           updated_at: item.updated_at,
-          governance_review_status: item.governance_review_status,
-          priority: item.priority,
+          governance_review_status: lifecycle?.governance_review_status ?? null,
+          priority: null,
         };
 
         // Fetch chunks for this item (lightweight: metadata only, no content).
@@ -289,8 +348,13 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         );
 
         // Truncate content in structuredContent to prevent oversized responses
-        // from large PDFs (which can exceed 500KB)
-        const structuredItem: Record<string, unknown> = { ...item, chunks };
+        // from large PDFs (which can exceed 500KB). Built from `itemDetail`
+        // (not the raw `item` row) since the DB row no longer carries
+        // `content`/`freshness`/`title` under the same names (BI-11/18/20).
+        const structuredItem: Record<string, unknown> = {
+          ...itemDetail,
+          chunks,
+        };
         if (
           typeof structuredItem.content === 'string' &&
           structuredItem.content.length > CHARACTER_LIMIT
@@ -908,129 +972,242 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         const supabase = createMcpClient(extra.authInfo);
         const userId = getMcpUserId(extra.authInfo);
 
-        // Validate that at least one field is being updated
-        const allowedFields = [
-          'title',
-          'suggested_title',
-          'content',
-          'answer_standard',
-          'answer_advanced',
-          'primary_domain',
-          'primary_subtopic',
-          'priority',
-          'expiry_date',
-          'lifecycle_type',
-        ] as const;
-
-        const updateData: Record<string, unknown> = {};
-        const updatedFields: string[] = [];
-
-        for (const field of allowedFields) {
-          if (args.fields[field] !== undefined) {
-            updateData[field] = args.fields[field];
-            updatedFields.push(field);
+        // ID-131 (G-MCP-REPOINT, BI-9): content_items no longer exists — an
+        // `id` may now be either a source_document or a q_a_pair, and the
+        // input `fields` object spans columns that split across THREE
+        // tables under OKF: source_documents (title/content/domain fields),
+        // q_a_pairs (answer_standard/answer_advanced), and the
+        // record_lifecycle facet (expiry_date/lifecycle_type,
+        // source_document-only axis, BI-20/22). Resolve owner kind first,
+        // then route each supplied field to its new home.
+        const sdCheck = await tryQuery(
+          supabase
+            .from('source_documents')
+            .select('id')
+            .eq('id', args.id)
+            .maybeSingle(),
+          'mcp.content.update.resolve_owner.source_document',
+        );
+        let ownerKind: 'source_document' | 'q_a_pair' | null = null;
+        if (sdCheck.ok && sdCheck.data) {
+          ownerKind = 'source_document';
+        } else {
+          const qaCheck = await tryQuery(
+            supabase
+              .from('q_a_pairs')
+              .select('id')
+              .eq('id', args.id)
+              .maybeSingle(),
+            'mcp.content.update.resolve_owner.q_a_pair',
+          );
+          if (qaCheck.ok && qaCheck.data) {
+            ownerKind = 'q_a_pair';
           }
+        }
+
+        if (!ownerKind) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Content item not found: ${args.id}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // `title` has no source_documents successor (BI-11, only
+        // `suggested_title` survives) — content-drift: it is folded into
+        // `suggested_title` for a source_document owner. `priority`
+        // (IMS-vestige, BI-11) has no home on either table and is always
+        // rejected as unsupported.
+        const SOURCE_DOC_FIELD_MAP: Partial<Record<string, string>> = {
+          title: 'suggested_title',
+          suggested_title: 'suggested_title',
+          content: 'extracted_text',
+          primary_domain: 'primary_domain',
+          primary_subtopic: 'primary_subtopic',
+        };
+        const QA_PAIR_FIELD_MAP: Partial<Record<string, string>> = {
+          answer_standard: 'answer_standard',
+          answer_advanced: 'answer_advanced',
+        };
+        // Facet fields (record_lifecycle) apply to source_document owners
+        // only — the freshness/expiry axis excludes q_a_pairs (BI-22).
+        const FACET_FIELDS = new Set(['expiry_date', 'lifecycle_type']);
+
+        const fieldMap =
+          ownerKind === 'source_document'
+            ? SOURCE_DOC_FIELD_MAP
+            : QA_PAIR_FIELD_MAP;
+
+        const updatedFields: string[] = [];
+        const unsupportedFields: string[] = [];
+        const mainTableUpdate: Record<string, unknown> = {};
+        const facetUpdate: Record<string, unknown> = {};
+
+        for (const [inputField, value] of Object.entries(args.fields)) {
+          if (value === undefined) continue;
+          if (inputField === 'priority') {
+            unsupportedFields.push(inputField);
+            continue;
+          }
+          const mappedColumn = fieldMap[inputField];
+          if (mappedColumn) {
+            mainTableUpdate[mappedColumn] = value;
+            updatedFields.push(inputField);
+            continue;
+          }
+          if (ownerKind === 'source_document' && FACET_FIELDS.has(inputField)) {
+            facetUpdate[inputField] = value;
+            updatedFields.push(inputField);
+            continue;
+          }
+          unsupportedFields.push(inputField);
         }
 
         // Normalise taxonomy strings to canonical lowercase kebab-case slugs.
         // Prevents case-inconsistent domains (e.g. 'CORPORATE' vs 'corporate')
         // from drifting into the DB via MCP sub-agents.
-        if (typeof updateData.primary_domain === 'string') {
-          updateData.primary_domain = slugifyDomain(updateData.primary_domain);
+        if (typeof mainTableUpdate.primary_domain === 'string') {
+          mainTableUpdate.primary_domain = slugifyDomain(
+            mainTableUpdate.primary_domain,
+          );
         }
-        if (typeof updateData.primary_subtopic === 'string') {
-          updateData.primary_subtopic = slugifyDomain(
-            updateData.primary_subtopic,
+        if (typeof mainTableUpdate.primary_subtopic === 'string') {
+          mainTableUpdate.primary_subtopic = slugifyDomain(
+            mainTableUpdate.primary_subtopic,
           );
         }
 
         if (updatedFields.length === 0) {
+          const unsupportedNote =
+            unsupportedFields.length > 0
+              ? ` Unsupported for this ${ownerKind === 'source_document' ? 'source document' : 'Q&A pair'}: ${unsupportedFields.join(', ')}.`
+              : '';
           return {
             content: [
               {
                 type: 'text' as const,
-                text: 'No fields to update. Provide at least one field in the fields object.',
+                text: `No fields to update. Provide at least one field in the fields object.${unsupportedNote}`,
               },
             ],
             isError: true,
           };
         }
 
-        // Fetch current values for the updated fields (for audit trail)
-        const { data: current, error: fetchError } = await supabase
-          .from('content_items')
-          .select(updatedFields.join(', '))
-          .eq('id', args.id)
-          .single();
+        const table =
+          ownerKind === 'source_document' ? 'source_documents' : 'q_a_pairs';
+        const mainTableColumns = Object.keys(mainTableUpdate);
 
-        if (fetchError) {
-          // Distinguish a bad/unknown field from a genuinely missing row. A
-          // dropped or non-existent column surfaces as Postgres undefined_column
-          // (42703) or PostgREST schema-cache miss (PGRST204) — that is a request
-          // error, not a not-found. Only a no-rows `.single()` (PGRST116) means
-          // the item itself does not exist.
-          const code = fetchError.code ?? '';
-          const message = fetchError.message ?? '';
-          const isColumnError =
-            code === '42703' ||
-            code === 'PGRST204' ||
-            /column/i.test(message) ||
-            /does not exist/i.test(message);
-          if (isColumnError) {
+        // Fetch current values for the updated main-table fields (for audit
+        // trail).
+        let current: Record<string, unknown> = {};
+        if (mainTableColumns.length > 0) {
+          const { data: currentRow, error: fetchError } = await supabase
+            .from(table)
+            .select(mainTableColumns.join(', '))
+            .eq('id', args.id)
+            .single();
+
+          if (fetchError) {
+            // Distinguish a bad/unknown field from a genuinely missing row. A
+            // dropped or non-existent column surfaces as Postgres undefined_column
+            // (42703) or PostgREST schema-cache miss (PGRST204) — that is a request
+            // error, not a not-found. Only a no-rows `.single()` (PGRST116) means
+            // the item itself does not exist.
+            const code = fetchError.code ?? '';
+            const message = fetchError.message ?? '';
+            const isColumnError =
+              code === '42703' ||
+              code === 'PGRST204' ||
+              /column/i.test(message) ||
+              /does not exist/i.test(message);
+            if (isColumnError) {
+              return {
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: `Invalid field in update: ${message}. Check the field names against the allowed update fields.`,
+                  },
+                ],
+                isError: true,
+              };
+            }
             return {
               content: [
                 {
                   type: 'text' as const,
-                  text: `Invalid field in update: ${message}. Check the field names against the allowed update fields.`,
+                  text: `Content item not found: ${args.id}`,
                 },
               ],
               isError: true,
             };
           }
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: `Content item not found: ${args.id}`,
-              },
-            ],
-            isError: true,
+
+          if (!currentRow) {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: `Content item not found: ${args.id}`,
+                },
+              ],
+              isError: true,
+            };
+          }
+          current = currentRow as unknown as Record<string, unknown>;
+
+          // Apply main-table update. `updated_by` only exists on
+          // source_documents — q_a_pairs has no home for it (BI-11).
+          const mainUpdatePayload: Record<string, unknown> = {
+            ...mainTableUpdate,
+            ...(ownerKind === 'source_document' && { updated_by: userId }),
           };
+          const { error: updateError } = await supabase
+            .from(table)
+            .update(mainUpdatePayload as never)
+            .eq('id', args.id);
+
+          if (updateError) {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: `Update failed: ${updateError.message}. Check the ID is valid and you have permissions.`,
+                },
+              ],
+              isError: true,
+            };
+          }
         }
 
-        if (!current) {
-          return {
-            content: [
+        // Facet update (expiry_date/lifecycle_type — source_document axis
+        // only). Upsert since a source_document may not have a
+        // record_lifecycle row yet.
+        if (Object.keys(facetUpdate).length > 0) {
+          const { error: facetError } = await supabase
+            .from('record_lifecycle')
+            .upsert(
               {
-                type: 'text' as const,
-                text: `Content item not found: ${args.id}`,
+                owner_kind: 'source_document' as const,
+                source_document_id: args.id,
+                ...facetUpdate,
               },
-            ],
-            isError: true,
-          };
-        }
-
-        // Add updated_by
-        updateData.updated_by = userId;
-
-        // Apply update
-        const { error: updateError } = await supabase
-          .from('content_items')
-          .update(
-            updateData as Database['public']['Tables']['content_items']['Update'],
-          )
-          .eq('id', args.id);
-
-        if (updateError) {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: `Update failed: ${updateError.message}. Check the ID is valid and you have permissions.`,
-              },
-            ],
-            isError: true,
-          };
+              { onConflict: 'owner_kind,owner_id' },
+            );
+          if (facetError) {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: `Update failed (governance facet): ${facetError.message}.`,
+                },
+              ],
+              isError: true,
+            };
+          }
         }
 
         const result: UpdatedItemResult = {
@@ -1300,38 +1477,16 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           const userId = getMcpUserId(extra.authInfo);
           const itemIds = args.item_ids!;
 
-          // bulk_assign_content_owner now matches record_lifecycle.owner_id
-          // (ID-131 {131.13} G-GOV-FACET-B), not content_items.id — resolve
-          // the requested item ids to their source_document_id before
-          // calling the RPC. Items with no backing source document (e.g.
-          // manually created content) cannot be resolved; they fall out of
-          // ownerIds and are reported via the existing not_found bookkeeping
-          // below, same as any other row the RPC doesn't match.
-          const resolveResult = await tryQuery(
-            supabase
-              .from('content_items')
-              .select('source_document_id')
-              .in('id', itemIds),
-            'mcp.content.assign.resolve_owner_ids',
-          );
-
-          if (!resolveResult.ok) {
-            return {
-              content: [
-                {
-                  type: 'text' as const,
-                  text: `Failed to assign content owner: ${resolveResult.error.message}`,
-                },
-              ],
-              isError: true,
-            };
-          }
-
-          const ownerIds = (
-            resolveResult.data as Array<{ source_document_id: string | null }>
-          )
-            .map((row) => row.source_document_id)
-            .filter((id): id is string => !!id);
+          // ID-131 (G-MCP-REPOINT): bulk_assign_content_owner matches
+          // record_lifecycle.owner_id, which IS the caller-supplied id
+          // directly (owner_id = COALESCE(source_document_id, q_a_pair_id))
+          // now that content_items no longer sits between the two. The
+          // former content_items → source_document_id resolution step is
+          // gone — there is no more indirection to resolve. Any id the RPC
+          // doesn't match (bogus id, or an id belonging to neither typed
+          // table) still falls out via the existing not_found bookkeeping
+          // below (requested - updatedCount).
+          const ownerIds = itemIds;
 
           // Call the bulk_assign_content_owner RPC
           const { data: updatedCount, error } = await supabase.rpc(
@@ -1495,10 +1650,15 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           }
         }
 
-        // 4. Build scope query
+        // 4. Build scope query. ID-131 (G-MCP-REPOINT, BI-9): content_items
+        // no longer exists — domain/subtopic/content_type classification
+        // now lives on source_documents (BI-11); this scope-filter path is
+        // therefore source_documents-only (q_a_pairs carry no
+        // domain/content_type of their own). `title` has no successor
+        // (BI-11) — `suggested_title` is the sole display name.
         let query = supabase
-          .from('content_items')
-          .select('id, title, content_owner_id, source_document_id')
+          .from('source_documents')
+          .select('id, suggested_title')
           .order('id', { ascending: true })
           .limit(501); // fetch 501 to detect if pagination needed
 
@@ -1511,11 +1671,8 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         if (scope.content_type) {
           query = query.eq('content_type', scope.content_type);
         }
-        if (scope.unowned_only) {
-          query = query.is('content_owner_id' as 'id', null);
-        }
         if (cursorLastId) {
-          query = query.gt('id' as 'content_owner_id', cursorLastId);
+          query = query.gt('id', cursorLastId);
         }
 
         const { data: matchedItems, error: queryError } = await query;
@@ -1535,20 +1692,39 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         const hasMore = allMatched.length > 500;
         const capped = hasMore ? allMatched.slice(0, 500) : allMatched;
 
-        // 5. Partition into affected / skipped.
-        // bulk_assign_content_owner now matches record_lifecycle.owner_id
-        // (ID-131 {131.13} G-GOV-FACET-B), not content_items.id — items with
-        // no backing source document (e.g. manually created content) cannot
-        // be resolved to an owner id, so they're excluded up front rather
-        // than affected/skipped. ownerIdByItemId carries the resolved id
-        // through to the RPC call without changing the public
-        // items_affected/items_skipped response shape.
-        type MatchedItem = {
-          id: string;
-          title: string;
-          content_owner_id: string | null;
-          source_document_id: string | null;
-        };
+        // `content_owner_id` now lives on the record_lifecycle facet
+        // (BI-18/20), not on source_documents — fetch it for the matched
+        // ids in a second query rather than as a select column above.
+        const ownerByItemId = new Map<string, string | null>();
+        if (capped.length > 0) {
+          const ownerRows = await tryQuery(
+            supabase
+              .from('record_lifecycle')
+              .select('source_document_id, content_owner_id')
+              .eq('owner_kind', 'source_document')
+              .in(
+                'source_document_id',
+                capped.map((i) => i.id).filter((id): id is string => !!id),
+              ),
+            'mcp.content.assign.scope_owner_lookup',
+          );
+          if (ownerRows.ok) {
+            for (const row of ownerRows.data as Array<{
+              source_document_id: string | null;
+              content_owner_id: string | null;
+            }>) {
+              if (row.source_document_id) {
+                ownerByItemId.set(row.source_document_id, row.content_owner_id);
+              }
+            }
+          }
+        }
+
+        // 5. Partition into affected / skipped. Every matched
+        // source_documents row IS its own owner id under OKF (no more
+        // content_items indirection to resolve, ID-131 {131.13}
+        // G-GOV-FACET-B).
+        type MatchedItem = { id: string; suggested_title: string | null };
         const itemsAffected: Array<{
           id: string;
           title: string;
@@ -1559,36 +1735,30 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           title: string;
           current_owner_id: string;
         }> = [];
-        const ownerIdByItemId = new Map<string, string>();
-        let unresolvedCount = 0;
 
         for (const item of capped as MatchedItem[]) {
-          if (!item.source_document_id) {
-            unresolvedCount++;
-            continue;
-          }
-          if (item.content_owner_id && !scope.unowned_only) {
+          const displayTitle = item.suggested_title || 'Untitled';
+          const currentOwnerId = ownerByItemId.get(item.id) ?? null;
+          if (currentOwnerId && !scope.unowned_only) {
             if (forceOverride) {
               itemsAffected.push({
                 id: item.id,
-                title: item.title,
-                previous_owner_id: item.content_owner_id,
+                title: displayTitle,
+                previous_owner_id: currentOwnerId,
               });
-              ownerIdByItemId.set(item.id, item.source_document_id);
             } else {
               itemsSkipped.push({
                 id: item.id,
-                title: item.title,
-                current_owner_id: item.content_owner_id,
+                title: displayTitle,
+                current_owner_id: currentOwnerId,
               });
             }
-          } else if (!item.content_owner_id) {
+          } else if (!currentOwnerId) {
             itemsAffected.push({
               id: item.id,
-              title: item.title,
+              title: displayTitle,
               previous_owner_id: null,
             });
-            ownerIdByItemId.set(item.id, item.source_document_id);
           }
         }
 
@@ -1607,11 +1777,6 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         if (itemsSkipped.length > 0) {
           warnings.push(
             `${itemsSkipped.length} item${itemsSkipped.length === 1 ? '' : 's'} skipped because they already have an owner; set force_override: true to reassign.`,
-          );
-        }
-        if (unresolvedCount > 0) {
-          warnings.push(
-            `${unresolvedCount} item${unresolvedCount === 1 ? '' : 's'} skipped — no backing source document, so ownership cannot be resolved under the current schema.`,
           );
         }
 
@@ -1678,10 +1843,9 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           };
         }
 
-        // 8. Call RPC — resolved source_document_ids, not content_items.id
-        // (every itemsAffected entry has a corresponding ownerIdByItemId
-        // entry by construction in the partition loop above).
-        const targetIds = itemsAffected.map((i) => ownerIdByItemId.get(i.id)!);
+        // 8. Call RPC — each itemsAffected.id IS its own source_document_id
+        // (no more content_items indirection to resolve, ID-131).
+        const targetIds = itemsAffected.map((i) => i.id);
         const { data: updatedCount, error: rpcError } = await supabase.rpc(
           'bulk_assign_content_owner',
           {
@@ -1773,8 +1937,8 @@ export async function registerContentTools(server: McpServer): Promise<void> {
                 user_id: ownerId,
                 type: 'owner_assignment',
                 entity_type: 'content_item',
-                // content_items.id, not targetIds[0] (a source_document_id) —
-                // entity_type: 'content_item' expects the content item's own id.
+                // itemsAffected[0].id IS the source_document_id (ID-131 —
+                // no more separate content_items.id to distinguish it from).
                 entity_id: itemsAffected[0].id,
                 title,
                 message: null,

@@ -153,12 +153,13 @@ describe('get_change_report MCP tool', () => {
     mocks.chain.then.mockImplementation((resolve: (v: unknown) => void) => {
       callCount++;
       if (callCount === 1) {
-        // Additions
+        // Additions — ID-131 (G-MCP-REPOINT): source_documents carries
+        // `suggested_title`, not `title` (BI-11 content-drift).
         return resolve({
           data: [
             {
               id: 'a1',
-              title: 'New Article',
+              suggested_title: 'New Article',
               primary_domain: 'Policy',
               content_type: 'article',
               created_at: '2026-04-20T10:00:00Z',
@@ -173,7 +174,7 @@ describe('get_change_report MCP tool', () => {
           data: [
             {
               id: 'u1',
-              title: 'Updated Guide',
+              suggested_title: 'Updated Guide',
               primary_domain: 'Cyber Security',
               content_type: 'guide',
               updated_at: '2026-04-19T14:00:00Z',
@@ -188,7 +189,7 @@ describe('get_change_report MCP tool', () => {
           data: [
             {
               id: 'r1',
-              title: 'Archived Doc',
+              suggested_title: 'Archived Doc',
               primary_domain: 'HR',
               content_type: 'document',
               archived_at: '2026-04-18T08:00:00Z',

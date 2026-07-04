@@ -360,188 +360,129 @@ export async function fetchQualityBriefingData(
   const { deriveExpiryStatus } = await import('@/lib/certification-status');
 
   const domainFilter = options?.domain;
-  const thresholdOverride = options?.threshold;
 
-  // Build content_items queries with optional domain filter
-  let belowThresholdQuery = supabase
-    .from('content_items')
-    .select(
-      'id, title, suggested_title, primary_domain, primary_subtopic, quality_score, freshness, summary, classification_confidence',
-    )
-    .is('archived_at', null)
-    .not('quality_score', 'is', null)
-    .order('quality_score', { ascending: true })
-    .limit(100);
-  if (domainFilter) {
-    belowThresholdQuery = belowThresholdQuery.eq(
-      'primary_domain',
-      domainFilter,
-    );
-  }
-
-  let scoreDropsQuery = supabase
-    .from('content_items')
-    .select(
-      'id, title, suggested_title, primary_domain, quality_score, previous_quality_score',
-    )
-    .is('archived_at', null)
-    .not('previous_quality_score', 'is', null)
-    .limit(100);
-  if (domainFilter) {
-    scoreDropsQuery = scoreDropsQuery.eq('primary_domain', domainFilter);
-  }
-
-  let freshnessQuery = supabase
-    .from('content_items')
-    .select(
-      'id, title, suggested_title, primary_domain, freshness, previous_freshness',
-    )
-    .is('archived_at', null)
-    .not('previous_freshness', 'is', null)
-    .limit(100);
-  if (domainFilter) {
-    freshnessQuery = freshnessQuery.eq('primary_domain', domainFilter);
-  }
-
-  // Run all queries in parallel (including governance_config)
-  const [
-    belowThresholdResult,
-    scoreDropsResult,
-    freshnessResult,
-    qualityFlagsResult,
-    coverageAlertsResult,
-    certResult,
-    govConfigResult,
-  ] = await Promise.all([
-    belowThresholdQuery,
-    scoreDropsQuery,
-    freshnessQuery,
-    supabase
-      .from('notifications')
-      .select('id, type, message, created_at, entity_id')
-      .eq('type', 'quality_flag')
-      .is('dismissed_at', null)
-      .order('created_at', { ascending: false })
-      .limit(20),
-    supabase
-      .from('notifications')
-      .select('id, type, message, created_at')
-      .eq('type', 'coverage_alert')
-      .is('dismissed_at', null)
-      .order('created_at', { ascending: false })
-      .limit(10),
-    supabase
-      .from('entity_mentions')
-      .select('canonical_name, entity_type, metadata')
-      .not('metadata', 'is', null)
-      .limit(500),
-    supabase
-      .from('governance_config')
-      .select('domain, quality_score_threshold'),
-  ]);
-
-  // Build threshold map from governance_config
-  const thresholdMap = new Map<string, number>();
-  for (const config of (govConfigResult.data ?? []) as unknown as Array<{
-    domain: string;
-    quality_score_threshold: number | null;
-  }>) {
-    if (config.quality_score_threshold != null) {
-      thresholdMap.set(config.domain, config.quality_score_threshold);
-    }
-  }
-  const defaultThreshold = 40;
-
-  // Process below-threshold items
+  // ID-131 (G-MCP-REPOINT): `quality_score` / `previous_quality_score` had
+  // no typed home after the content_items → OKF split (BI-11/20 — quality
+  // score is derived, never materialised on source_documents or the
+  // record_lifecycle facet). The below-threshold and score-drop briefing
+  // legs are RETIRED rather than re-pointed — there is no column left to
+  // read them from. Both legs return permanently empty arrays; they stay in
+  // the `QualityBriefingData` contract (below_threshold/score_drops keys)
+  // so existing callers keep compiling and the resource/tool envelope shape
+  // is unchanged, but they no longer carry data. `options.threshold` is
+  // consequently a no-op now (kept on the type for caller back-compat).
   type BelowThresholdItemType =
     import('@/lib/mcp/formatters/briefing').BelowThresholdItem;
-  const belowThreshold: BelowThresholdItemType[] = [];
-  for (const row of (belowThresholdResult.data ?? []) as unknown as Array<{
-    id: string;
-    title: string | null;
-    suggested_title: string | null;
-    primary_domain: string | null;
-    primary_subtopic: string | null;
-    quality_score: number | null;
-    freshness: string | null;
-    summary: string | null;
-    classification_confidence: number | null;
-  }>) {
-    if (row.quality_score == null) continue;
-    const threshold =
-      thresholdOverride ??
-      thresholdMap.get(row.primary_domain ?? '') ??
-      defaultThreshold;
-    if (row.quality_score < threshold) {
-      belowThreshold.push({
-        id: row.id,
-        title: row.title,
-        suggested_title: row.suggested_title,
-        primary_domain: row.primary_domain,
-        primary_subtopic: row.primary_subtopic,
-        quality_score: row.quality_score,
-        freshness: row.freshness,
-        summary: row.summary,
-        classification_confidence: row.classification_confidence,
-      });
-    }
-  }
-  const belowThresholdLimited = belowThreshold.slice(0, 20);
-
-  // Process score drops — filter to items where score actually dropped
   type ScoreDropItemType =
     import('@/lib/mcp/formatters/briefing').ScoreDropItem;
-  const scoreDrops: ScoreDropItemType[] = [];
-  for (const row of (scoreDropsResult.data ?? []) as unknown as Array<{
+  const belowThresholdLimited: BelowThresholdItemType[] = [];
+  const scoreDropsLimited: ScoreDropItemType[] = [];
+
+  // Freshness transitions — `freshness` / `previous_freshness` now live on
+  // the `record_lifecycle` facet (source_document-only axis, BI-20/22), not
+  // on the eliminated `content_items` row. Two-step fetch (facet rows, then
+  // the owning source_documents for title/domain/archived context) rather
+  // than a PostgREST embed, matching this file's other re-pointed helpers.
+  // `sb()` (fail-fast) rather than a bare destructure — a facet-read failure
+  // here should surface as an error, not silently degrade to "no
+  // transitions" (per CLAUDE.md `local/no-unchecked-supabase-error`).
+  const lifecycleRows = await sb(
+    supabase
+      .from('record_lifecycle')
+      .select('source_document_id, freshness, previous_freshness')
+      .eq('owner_kind', 'source_document')
+      .not('previous_freshness', 'is', null)
+      .limit(100),
+    'mcp.shared.quality_briefing.freshness_facet',
+  );
+
+  const freshnessSdIds = (
+    lifecycleRows as Array<{
+      source_document_id: string | null;
+      freshness: string | null;
+      previous_freshness: string | null;
+    }>
+  )
+    .map((row) => row.source_document_id)
+    .filter((id): id is string => !!id);
+
+  let freshnessSourceDocuments: Array<{
     id: string;
-    title: string | null;
     suggested_title: string | null;
     primary_domain: string | null;
-    quality_score: number | null;
-    previous_quality_score: number | null;
-  }>) {
-    if (
-      row.quality_score != null &&
-      row.previous_quality_score != null &&
-      row.quality_score < row.previous_quality_score
-    ) {
-      scoreDrops.push({
-        id: row.id,
-        title: row.title,
-        suggested_title: row.suggested_title,
-        primary_domain: row.primary_domain,
-        quality_score: row.quality_score,
-        previous_quality_score: row.previous_quality_score,
-      });
+    archived_at: string | null;
+  }> = [];
+  if (freshnessSdIds.length > 0) {
+    let freshnessSdQuery = supabase
+      .from('source_documents')
+      .select('id, suggested_title, primary_domain, archived_at')
+      .in('id', freshnessSdIds);
+    if (domainFilter) {
+      freshnessSdQuery = freshnessSdQuery.eq('primary_domain', domainFilter);
     }
+    freshnessSourceDocuments = (await sb(
+      freshnessSdQuery,
+      'mcp.shared.quality_briefing.freshness_source_documents',
+    )) as typeof freshnessSourceDocuments;
   }
-  // Sort by drop magnitude descending, limit to 20
-  scoreDrops.sort(
-    (a, b) =>
-      b.previous_quality_score -
-      b.quality_score -
-      (a.previous_quality_score - a.quality_score),
-  );
-  const scoreDropsLimited = scoreDrops.slice(0, 20);
 
-  // Process freshness transitions — filter to actual changes
+  // Run the remaining queries in parallel.
+  const [qualityFlagsResult, coverageAlertsResult, certResult] =
+    await Promise.all([
+      supabase
+        .from('notifications')
+        .select('id, type, message, created_at, entity_id')
+        .eq('type', 'quality_flag')
+        .is('dismissed_at', null)
+        .order('created_at', { ascending: false })
+        .limit(20),
+      supabase
+        .from('notifications')
+        .select('id, type, message, created_at')
+        .eq('type', 'coverage_alert')
+        .is('dismissed_at', null)
+        .order('created_at', { ascending: false })
+        .limit(10),
+      supabase
+        .from('entity_mentions')
+        .select('canonical_name, entity_type, metadata')
+        .not('metadata', 'is', null)
+        .limit(500),
+    ]);
+
+  // Process freshness transitions — filter to actual changes, joining the
+  // facet rows to their (possibly domain-filtered, non-archived) owner.
   type FreshnessTransitionItemType =
     import('@/lib/mcp/formatters/briefing').FreshnessTransitionItem;
+  const sourceDocumentById = new Map<
+    string,
+    { suggested_title: string | null; primary_domain: string | null }
+  >();
+  for (const sd of freshnessSourceDocuments) {
+    if (sd.archived_at) continue;
+    sourceDocumentById.set(sd.id, {
+      suggested_title: sd.suggested_title,
+      primary_domain: sd.primary_domain,
+    });
+  }
+
   const freshnessTransitions: FreshnessTransitionItemType[] = [];
-  for (const row of (freshnessResult.data ?? []) as unknown as Array<{
-    id: string;
-    title: string | null;
-    suggested_title: string | null;
-    primary_domain: string | null;
+  for (const row of lifecycleRows as Array<{
+    source_document_id: string | null;
     freshness: string | null;
     previous_freshness: string | null;
   }>) {
+    if (!row.source_document_id) continue;
+    const owner = sourceDocumentById.get(row.source_document_id);
+    if (!owner) continue; // archived or domain-filtered out
     if (row.freshness !== row.previous_freshness) {
       freshnessTransitions.push({
-        id: row.id,
-        title: row.title,
-        suggested_title: row.suggested_title,
-        primary_domain: row.primary_domain,
+        id: row.source_document_id,
+        // ID-131 content-drift: content_items.title had no source_documents
+        // successor (BI-11) — suggested_title is the sole display name now.
+        title: null,
+        suggested_title: owner.suggested_title,
+        primary_domain: owner.primary_domain,
         freshness: row.freshness,
         previous_freshness: row.previous_freshness,
       });

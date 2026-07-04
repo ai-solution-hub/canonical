@@ -84,6 +84,11 @@ export async function registerChangeReportTools(
         // comma + parenthesis + backslash from each keyword — they are
         // PostgREST metacharacters and would break the .or() filter string.
         // (Real-world keywords rarely contain these, but defend in depth.)
+        // ID-131 (G-MCP-REPOINT, BI-9/11): content_items.title had no
+        // source_documents successor — the ILIKE filter now targets
+        // `suggested_title` (content-drift: matches against the AI-suggested
+        // title rather than a distinct human-set title, since that column no
+        // longer exists).
         const sanitiseKeyword = (kw: string) =>
           kw.replace(/[,()\\]/g, '').trim();
         const keywordOrFilter =
@@ -91,14 +96,20 @@ export async function registerChangeReportTools(
             ? args.keywords
                 .map(sanitiseKeyword)
                 .filter((kw) => kw.length > 0)
-                .map((kw) => `title.ilike.%${kw}%`)
+                .map((kw) => `suggested_title.ilike.%${kw}%`)
                 .join(',') || null
             : null;
 
+        // ID-131 (G-MCP-REPOINT): change-report is source_documents-only
+        // per the dispatch brief (q_a_pairs' create/update/supersede
+        // lifecycle is out of scope for this tool's additions/updates/
+        // removals framing).
         // ----- Additions: created within window, not archived -----
         let additionsQuery = supabase
-          .from('content_items')
-          .select('id, title, primary_domain, content_type, created_at')
+          .from('source_documents')
+          .select(
+            'id, suggested_title, primary_domain, content_type, created_at',
+          )
           .gte('created_at', cutoffISO)
           .is('archived_at', null)
           .order('created_at', { ascending: false })
@@ -113,8 +124,10 @@ export async function registerChangeReportTools(
 
         // ----- Updates: updated within window but created before it, not archived -----
         let updatesQuery = supabase
-          .from('content_items')
-          .select('id, title, primary_domain, content_type, updated_at')
+          .from('source_documents')
+          .select(
+            'id, suggested_title, primary_domain, content_type, updated_at',
+          )
           .gte('updated_at', cutoffISO)
           .lt('created_at', cutoffISO)
           .is('archived_at', null)
@@ -130,8 +143,10 @@ export async function registerChangeReportTools(
 
         // ----- Removals: archived within window -----
         let removalsQuery = supabase
-          .from('content_items')
-          .select('id, title, primary_domain, content_type, archived_at')
+          .from('source_documents')
+          .select(
+            'id, suggested_title, primary_domain, content_type, archived_at',
+          )
           .gte('archived_at', cutoffISO)
           .order('archived_at', { ascending: false })
           .limit(100);
@@ -167,25 +182,24 @@ export async function registerChangeReportTools(
           };
         }
 
-        // Map results to ChangeReportItem arrays
-        const additions: ChangeReportItem[] = (additionsResult.data ?? [])
-          // Post-types-regen (S186 WP-B.7): explicit row annotations here
-          // drifted from the generated query types. Drop them and let TS
-          // infer from the Supabase query builder — the mapper body only
-          // reads id/title/primary_domain/content_type/<date> which all
-          // exist.
-          .map((row) => ({
+        // Map results to ChangeReportItem arrays. ID-131 content-drift:
+        // `title` in the ChangeReportItem contract is now sourced from
+        // `suggested_title` — content_items.title had no source_documents
+        // successor (BI-11).
+        const additions: ChangeReportItem[] = (additionsResult.data ?? []).map(
+          (row) => ({
             id: row.id,
-            title: row.title,
+            title: row.suggested_title,
             primary_domain: row.primary_domain,
             content_type: row.content_type,
             date: row.created_at,
-          }));
+          }),
+        );
 
         const updates: ChangeReportItem[] = (updatesResult.data ?? []).map(
           (row) => ({
             id: row.id,
-            title: row.title,
+            title: row.suggested_title,
             primary_domain: row.primary_domain,
             content_type: row.content_type,
             date: row.updated_at ?? '',
@@ -195,7 +209,7 @@ export async function registerChangeReportTools(
         const removals: ChangeReportItem[] = (removalsResult.data ?? []).map(
           (row) => ({
             id: row.id,
-            title: row.title,
+            title: row.suggested_title,
             primary_domain: row.primary_domain,
             content_type: row.content_type,
             date: row.archived_at ?? '',

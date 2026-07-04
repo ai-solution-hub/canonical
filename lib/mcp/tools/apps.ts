@@ -83,13 +83,45 @@ export async function registerAppTools(server: McpServer): Promise<void> {
           freshness.stale +
           freshness.expired;
 
-        // Domain-level freshness breakdown — query content_items
-        const items = await sb(
+        // Domain-level freshness breakdown. ID-131 (G-MCP-REPOINT, BI-9/18):
+        // content_items no longer exists — primary_domain/primary_subtopic
+        // now live on source_documents; freshness moved to the
+        // record_lifecycle facet (source_document owner axis). Two-step
+        // fetch + client-side join (this call aggregates the whole corpus,
+        // so a per-id join isn't practical).
+        const sourceDocs = await sb(
           supabase
-            .from('content_items')
-            .select('primary_domain, primary_subtopic, freshness'),
-          'mcp.tools.apps.coverage.items',
+            .from('source_documents')
+            .select('id, primary_domain, primary_subtopic'),
+          'mcp.tools.apps.coverage.source_documents',
         );
+        const freshnessRows = await sb(
+          supabase
+            .from('record_lifecycle')
+            .select('source_document_id, freshness')
+            .eq('owner_kind', 'source_document'),
+          'mcp.tools.apps.coverage.freshness',
+        );
+        const freshnessBySourceDocId = new Map<string, string | null>();
+        for (const fr of freshnessRows as Array<{
+          source_document_id: string | null;
+          freshness: string | null;
+        }>) {
+          if (fr.source_document_id) {
+            freshnessBySourceDocId.set(fr.source_document_id, fr.freshness);
+          }
+        }
+        const items = (
+          sourceDocs as Array<{
+            id: string | null;
+            primary_domain: string | null;
+            primary_subtopic: string | null;
+          }>
+        ).map((sd) => ({
+          primary_domain: sd.primary_domain,
+          primary_subtopic: sd.primary_subtopic,
+          freshness: sd.id ? (freshnessBySourceDocId.get(sd.id) ?? null) : null,
+        }));
 
         // Build domain map from taxonomy
         const taxonomyDomains = await sb(

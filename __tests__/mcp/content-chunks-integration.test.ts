@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => {
     eq: vi.fn().mockReturnThis(),
     is: vi.fn().mockReturnThis(),
     single: vi.fn().mockReturnThis(),
+    maybeSingle: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
     delete: vi.fn().mockReturnThis(),
     insert: vi.fn().mockReturnThis(),
@@ -116,6 +117,7 @@ function resetSupabaseMocks() {
     'eq',
     'is',
     'single',
+    'maybeSingle',
     'update',
     'delete',
     'insert',
@@ -146,23 +148,24 @@ describe('get (single) chunks fetch', () => {
   it('returns Document Sections markdown and chunks array when chunks are present', async () => {
     const handler = mockServer.getHandler('get')!;
 
+    // ID-131 (G-MCP-REPOINT): `get` (single) now reads source_documents —
+    // `suggested_title` is the sole display name (no more `title` column),
+    // `extracted_text` replaces `content`. `freshness` moved to the
+    // record_lifecycle facet (separate join, mocked below); `priority` has
+    // no home (always null in the response regardless of what's mocked).
     const itemRow = {
       id: 'item-123',
-      title: 'Fire Safety Policy',
       suggested_title: 'Fire Safety Policy',
       content_type: 'policy',
       primary_domain: 'Compliance & Governance',
       primary_subtopic: 'Workplace Safety',
       summary: 'Summary text.',
       ai_keywords: ['fire', 'safety'],
-      freshness: 'fresh',
       classification_confidence: 0.9,
       source_url: null,
-      content: 'Full markdown content.',
+      extracted_text: 'Full markdown content.',
       created_at: '2026-01-15T10:00:00Z',
       updated_at: '2026-02-01T10:00:00Z',
-      governance_review_status: null,
-      priority: 'high',
     };
 
     const chunkRows = [
@@ -195,12 +198,20 @@ describe('get (single) chunks fetch', () => {
       },
     ];
 
-    // 1. content_items.select...single() — the item
+    // 1. source_documents.select...single() — the item
     mocks.chainMethods.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: itemRow, error: null }),
     );
-    // 2. content_chunks.select...order() — the chunks
+    // 2. record_lifecycle.select...maybeSingle() — freshness/governance join
+    mocks.chainMethods.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: { freshness: 'fresh', governance_review_status: null },
+          error: null,
+        }),
+    );
+    // 3. content_chunks.select...order() — the chunks
     mocks.chainMethods.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: chunkRows, error: null }),
@@ -241,21 +252,17 @@ describe('get (single) chunks fetch', () => {
 
     const itemRow = {
       id: 'item-cc',
-      title: 'CocoIndex Ingested Doc',
       suggested_title: 'CocoIndex Ingested Doc',
       content_type: 'article',
       primary_domain: null,
       primary_subtopic: null,
       summary: null,
       ai_keywords: null,
-      freshness: null,
       classification_confidence: null,
       source_url: null,
-      content: 'Body emitted by the cocoindex pipeline.',
+      extracted_text: 'Body emitted by the cocoindex pipeline.',
       created_at: null,
       updated_at: null,
-      governance_review_status: null,
-      priority: null,
     };
 
     // cocoindex chunk: NULL heading_text + NULL heading_level, heading_path []
@@ -271,12 +278,16 @@ describe('get (single) chunks fetch', () => {
       },
     ];
 
-    // 1. content_items.select...single() — the item
+    // 1. source_documents.select...single() — the item
     mocks.chainMethods.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: itemRow, error: null }),
     );
-    // 2. content_chunks.select...order() — the cocoindex chunk
+    // 2. record_lifecycle.select...maybeSingle() — freshness/governance join
+    mocks.chainMethods.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+    );
+    // 3. content_chunks.select...order() — the cocoindex chunk
     mocks.chainMethods.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: chunkRows, error: null }),
@@ -309,29 +320,29 @@ describe('get (single) chunks fetch', () => {
 
     const itemRow = {
       id: 'item-456',
-      title: 'Standalone Item',
-      suggested_title: null,
+      suggested_title: 'Standalone Item',
       content_type: 'article',
       primary_domain: null,
       primary_subtopic: null,
       summary: null,
       ai_keywords: null,
-      freshness: null,
       classification_confidence: null,
       source_url: null,
-      content: 'Body text.',
+      extracted_text: 'Body text.',
       created_at: null,
       updated_at: null,
-      governance_review_status: null,
-      priority: null,
     };
 
-    // 1. content_items.select...single() — success
+    // 1. source_documents.select...single() — success
     mocks.chainMethods.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: itemRow, error: null }),
     );
-    // 2. content_chunks.select...order() — degraded
+    // 2. record_lifecycle.select...maybeSingle() — freshness/governance join
+    mocks.chainMethods.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+    );
+    // 3. content_chunks.select...order() — degraded
     mocks.chainMethods.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
