@@ -3693,41 +3693,41 @@ export type Database = {
       verification_history: {
         Row: {
           action_type: string | null
-          content_item_id: string | null
           id: string | null
           note: string | null
           performed_at: string | null
           performed_by: string | null
+          source_document_id: string | null
         }
         Insert: {
           action_type?: string | null
-          content_item_id?: string | null
           id?: string | null
           note?: string | null
           performed_at?: string | null
           performed_by?: string | null
+          source_document_id?: string | null
         }
         Update: {
           action_type?: string | null
-          content_item_id?: string | null
           id?: string | null
           note?: string | null
           performed_at?: string | null
           performed_by?: string | null
+          source_document_id?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "verification_history_content_item_id_fkey"
-            columns: ["content_item_id"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "verification_history_performed_by_fkey"
             columns: ["performed_by"]
             isOneToOne: false
             referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "verification_history_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "source_documents"
             referencedColumns: ["id"]
           },
         ]
@@ -3813,6 +3813,13 @@ export type Database = {
           item_exists: boolean
         }[]
       }
+      citations_cascade_preflight: {
+        Args: never
+        Returns: {
+          at_risk_citation_count: number
+          safe_to_reprocess: boolean
+        }[]
+      }
       claim_next_job: {
         Args: never
         Returns: Database["public"]["Tables"]["processing_queue"]["Row"][]
@@ -3824,6 +3831,14 @@ export type Database = {
         }
       }
       cleanup_filtered_articles: { Args: never; Returns: number }
+      corpus_writer_fence_release: {
+        Args: { p_holder?: string }
+        Returns: boolean
+      }
+      corpus_writer_fence_try_acquire: {
+        Args: { p_holder?: string }
+        Returns: boolean
+      }
       count_auth_users: { Args: never; Returns: number }
       delete_tag: { Args: { p_tag: string; p_type: string }; Returns: number }
       filter_by_keywords:
@@ -4376,6 +4391,17 @@ export type Database = {
           scope_tag: string[]
         }[]
       }
+      reap_orphaned_source_documents: {
+        Args: never
+        Returns: {
+          chunks_deleted: number
+          embeddings_deleted: number
+          entity_mentions_deleted: number
+          entity_relationships_deleted: number
+          extractions_deleted: number
+          source_document_id: string
+        }[]
+      }
       reap_stuck_jobs: { Args: { p_timeout_seconds: number }; Returns: number }
       recalculate_all_freshness: {
         Args: never
@@ -4480,6 +4506,22 @@ export type Database = {
         Args: { p_new: string; p_old: string; p_type: string }
         Returns: number
       }
+      resolve_or_mint_source_identity: {
+        Args: {
+          p_content_hash: string
+          p_file_size: number
+          p_filename: string
+          p_mime_type: string
+          p_op_id?: string
+          p_origin_type?: string
+          p_rel_path: string
+          p_retention_class?: string
+        }
+        Returns: {
+          source_document_id: string
+          was_minted: boolean
+        }[]
+      }
       search_for_form_response: {
         Args: {
           include_superseded?: boolean
@@ -4518,6 +4560,17 @@ export type Database = {
             Args: { p_item_id: string; p_starred: boolean }
             Returns: undefined
           }
+      tombstone_source_document: {
+        Args: { p_id: string }
+        Returns: {
+          chunks_deleted: number
+          embeddings_deleted: number
+          entity_mentions_deleted: number
+          entity_relationships_deleted: number
+          extractions_deleted: number
+          source_document_id: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
@@ -8681,41 +8734,41 @@ export type Database = {
       verification_history: {
         Row: {
           action_type: string
-          content_item_id: string
           id: string
           note: string | null
           performed_at: string
           performed_by: string
+          source_document_id: string
         }
         Insert: {
           action_type: string
-          content_item_id: string
           id?: string
           note?: string | null
           performed_at?: string
           performed_by: string
+          source_document_id: string
         }
         Update: {
           action_type?: string
-          content_item_id?: string
           id?: string
           note?: string | null
           performed_at?: string
           performed_by?: string
+          source_document_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "verification_history_content_item_id_fkey"
-            columns: ["content_item_id"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "verification_history_performed_by_fkey"
             columns: ["performed_by"]
             isOneToOne: false
             referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "verification_history_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "source_documents"
             referencedColumns: ["id"]
           },
         ]
