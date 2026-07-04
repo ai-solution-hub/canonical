@@ -64,18 +64,21 @@ import { SupabaseError } from '@/lib/supabase/safe';
 const OLD_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const NEW_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
+// ID-131.37 F1 (owner S446 ruling): setSupersession's mocked return shape
+// models q_a_pairs (id-120 archived model) — `question_text` +
+// `publication_status`, not the retired content_items shape.
 const HAPPY_PATH_RESULT = {
   oldItem: {
     id: OLD_ID,
-    title: 'Old revision',
+    question_text: 'Old revision',
     superseded_by: NEW_ID,
-    dedup_status: 'superseded',
+    publication_status: 'archived',
   },
   newItem: {
     id: NEW_ID,
-    title: 'New revision',
+    question_text: 'New revision',
     superseded_by: null,
-    dedup_status: 'clean',
+    publication_status: 'published',
   },
 };
 

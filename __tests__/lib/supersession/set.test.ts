@@ -83,23 +83,26 @@ const OLD_ID = '11111111-1111-4111-8111-111111111111';
 const NEW_ID = '22222222-2222-4222-8222-222222222222';
 const ACTOR_ID = '33333333-3333-4333-8333-333333333333';
 
+// ID-131.37 F1 (owner S446 ruling): fixtures model q_a_pairs rows (id-120
+// archived model — `question_text` + `publication_status`), not the
+// retired content_items shape (`title` + `dedup_status`).
 const oldRow = {
   id: OLD_ID,
-  title: 'Old item title',
+  question_text: 'Old item question',
   superseded_by: null,
-  dedup_status: 'suspected_duplicate',
+  publication_status: 'published',
 };
 const newRow = {
   id: NEW_ID,
-  title: 'New item title',
+  question_text: 'New item question',
   superseded_by: null,
-  dedup_status: 'clean',
+  publication_status: 'published',
 };
 const updatedOldRow = {
   id: OLD_ID,
-  title: 'Old item title',
+  question_text: 'Old item question',
   superseded_by: NEW_ID,
-  dedup_status: 'superseded',
+  publication_status: 'archived',
 };
 
 describe('setSupersession', () => {
@@ -122,33 +125,25 @@ describe('setSupersession', () => {
     // The returned snapshots are the rows read back after the UPDATE+select.
     expect(result.oldItem).toEqual(updatedOldRow);
     expect(result.newItem).toEqual(newRow);
-    // S216 §5.2 Phase 5 — assert the actual UPDATE payload written to the OLD
-    // row. The mocked read-back returns a static fixture regardless of what was
-    // written, so the persisted payload is the only proof the function wrote the
-    // supersession pointer + status AND the archive side-effects. The default
-    // archive_reason is `Superseded by item ${newId}` when archiveReason is
-    // omitted.
+    // ID-131.37 F1 — assert the actual UPDATE payload written to the OLD
+    // row. The mocked read-back returns a static fixture regardless of what
+    // was written, so the persisted payload is the only proof the function
+    // wrote the supersession pointer + archived status. q_a_pairs has no
+    // archive-metadata columns (archived_at/archived_by/archive_reason) or
+    // dedup_status — only these two columns are ever written.
     const archivePayload = updateChain.update.mock.calls[0]?.[0] as Record<
       string,
       unknown
     >;
-    expect(archivePayload).toMatchObject({
+    expect(archivePayload).toEqual({
       superseded_by: NEW_ID,
-      dedup_status: 'superseded',
       publication_status: 'archived',
-      archived_by: ACTOR_ID,
-      archive_reason: `Superseded by item ${NEW_ID}`,
-      updated_by: ACTOR_ID,
     });
-    // archived_at must be a parseable ISO 8601 timestamp.
-    expect(
-      Number.isFinite(Date.parse(archivePayload.archived_at as string)),
-    ).toBe(true);
     expect(updateChain.eq).toHaveBeenCalledWith('id', OLD_ID);
   });
 
-  it('uses the provided archiveReason when supplied', async () => {
-    const { client, updateChain } = makeMockClient(
+  it('uses the provided archiveReason on the Sentry breadcrumb only (no DB column)', async () => {
+    const { client } = makeMockClient(
       { data: oldRow, error: null },
       { data: newRow, error: null },
       { data: updatedOldRow, error: null },
@@ -165,16 +160,38 @@ describe('setSupersession', () => {
       client,
     );
 
-    // archive_reason is not surfaced in the projected return shape, so the
-    // persisted UPDATE payload is the only place the supplied reason is
-    // observable — read it back from the recorded write.
-    const persisted = updateChain.update.mock.calls[0]?.[0] as {
-      archive_reason: string;
-    };
-    expect(persisted.archive_reason).toBe(customReason);
+    // q_a_pairs has no archive_reason column, so archiveReason is not part
+    // of the persisted UPDATE payload — the Sentry breadcrumb is the only
+    // place it's observable.
+    expect(Sentry.addBreadcrumb).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ archiveReason: customReason }),
+      }),
+    );
   });
 
-  it('emits a Sentry breadcrumb with actor + both titles on success', async () => {
+  it('defaults archiveReason on the breadcrumb when omitted', async () => {
+    const { client } = makeMockClient(
+      { data: oldRow, error: null },
+      { data: newRow, error: null },
+      { data: updatedOldRow, error: null },
+    );
+
+    await setSupersession(
+      { oldId: OLD_ID, newId: NEW_ID, actorUserId: ACTOR_ID },
+      client,
+    );
+
+    expect(Sentry.addBreadcrumb).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          archiveReason: `Superseded by item ${NEW_ID}`,
+        }),
+      }),
+    );
+  });
+
+  it('emits a Sentry breadcrumb with actor + both question texts on success', async () => {
     const { client } = makeMockClient(
       { data: oldRow, error: null },
       { data: newRow, error: null },
@@ -196,8 +213,8 @@ describe('setSupersession', () => {
           oldId: OLD_ID,
           newId: NEW_ID,
           actorUserId: ACTOR_ID,
-          oldTitle: oldRow.title,
-          newTitle: newRow.title,
+          oldQuestionText: oldRow.question_text,
+          newQuestionText: newRow.question_text,
         }),
       }),
     );

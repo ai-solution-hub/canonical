@@ -348,10 +348,20 @@ describeIfEnv(
         serviceClient,
       );
 
-      // Helper return contract — minimal four-field projection.
+      // Helper return contract (ID-131.37 F1 compile-only fix): the
+      // projection is now id/question_text/superseded_by/publication_status
+      // — `dedup_status` no longer exists on the return type, since
+      // `setSupersession` is re-pointed onto q_a_pairs. NOTE: this whole
+      // content_items-seeded block is now a fixture/helper mismatch —
+      // `setSupersession` will actually throw OLD_NOT_FOUND at runtime
+      // because itemA/itemB are content_items rows, not q_a_pairs rows.
+      // This edit is compile-only (keeps `bun run typecheck` green); the
+      // real retirement/re-seed of this block is outside lib/supersession/
+      // set.ts's file-ownership boundary — flagged as an out-of-scope
+      // finding in the ID-131.37 journal for follow-up.
       expect(result.oldItem.id).toBe(itemA);
       expect(result.oldItem.superseded_by).toBe(itemB);
-      expect(result.oldItem.dedup_status).toBe('superseded');
+      expect(result.oldItem.publication_status).toBe('archived');
       expect(result.newItem.id).toBe(itemB);
       expect(result.newItem.superseded_by).toBeNull();
 

@@ -21,11 +21,15 @@ import {
   DESTRUCTIVE_WRITE_ANNOTATIONS,
 } from './shared';
 
+// ID-131.37 F1 (owner S446 ruling): setSupersession now operates on
+// q_a_pairs (id-120 archived model) rather than content_items, so this
+// tool's row view follows — `question_text` replaces the retired `title`,
+// `publication_status` replaces the retired `dedup_status`.
 interface SupersessionRowView {
   id: string;
-  title: string | null;
+  question_text: string;
   superseded_by: string | null;
-  dedup_status: string;
+  publication_status: string;
 }
 
 interface SupersedeToolResult {
@@ -34,19 +38,19 @@ interface SupersedeToolResult {
 }
 
 function formatSupersedeResult(result: SupersedeToolResult): string {
-  const oldTitle = result.old_item.title ?? '(untitled)';
-  const newTitle = result.new_item.title ?? '(untitled)';
+  const oldQuestion = result.old_item.question_text || '(no question text)';
+  const newQuestion = result.new_item.question_text || '(no question text)';
   return [
     '**Supersession recorded.**',
     '',
-    `* Old item (hidden from default search): ${oldTitle}`,
+    `* Old item (hidden from default search): ${oldQuestion}`,
     `  * \`${result.old_item.id}\``,
-    `  * dedup_status: ${result.old_item.dedup_status}`,
+    `  * publication_status: ${result.old_item.publication_status}`,
     `  * superseded_by: ${result.old_item.superseded_by ?? '(none)'}`,
     '',
-    `* New item (current): ${newTitle}`,
+    `* New item (current): ${newQuestion}`,
     `  * \`${result.new_item.id}\``,
-    `  * dedup_status: ${result.new_item.dedup_status}`,
+    `  * publication_status: ${result.new_item.publication_status}`,
   ].join('\n');
 }
 
@@ -72,7 +76,7 @@ export async function registerSupersessionTools(
           .describe(
             'UUID of the existing content item being retired. After this ' +
               'call its superseded_by will point at new_id and its ' +
-              'dedup_status will be "superseded".',
+              'publication_status will be "archived".',
           ),
         new_id: z
           .string()
