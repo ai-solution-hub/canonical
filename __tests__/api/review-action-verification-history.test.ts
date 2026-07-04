@@ -43,6 +43,10 @@ import { POST as postAction } from '@/app/api/review/action/route';
 // ---------------------------------------------------------------------------
 
 const VALID_UUID = '00000000-0000-4000-8000-000000000001';
+// A distinct id from VALID_UUID (the content_items.id) — verification_history is
+// source_document_id-keyed post ID-131 {131.29} re-parent, so the content-item
+// fetch's resolved source_document_id is the value actually written.
+const SOURCE_DOC_UUID = '00000000-0000-4000-8000-000000000002';
 
 function resetMocks() {
   vi.clearAllMocks();
@@ -123,7 +127,7 @@ describe('POST /api/review/action — verification_history recording', () => {
 
     // Content item exists
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID },
+      data: { id: VALID_UUID, source_document_id: SOURCE_DOC_UUID },
       error: null,
     });
 
@@ -143,7 +147,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     // Content-of-write is the observable here: a verify action must
     // produce a history row carrying the action, target item, and actor.
     expect(recordedHistoryInsert()).toEqual({
-      content_item_id: VALID_UUID,
+      source_document_id: SOURCE_DOC_UUID,
       action_type: 'verify',
       note: null,
       performed_by: 'test-user-id',
@@ -154,7 +158,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID },
+      data: { id: VALID_UUID, source_document_id: SOURCE_DOC_UUID },
       error: null,
     });
 
@@ -175,7 +179,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     expect(res.status).toBe(200);
 
     expect(recordedHistoryInsert()).toEqual({
-      content_item_id: VALID_UUID,
+      source_document_id: SOURCE_DOC_UUID,
       action_type: 'verify',
       note: 'Looks good, verified content accuracy',
       performed_by: 'test-user-id',
@@ -186,7 +190,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID },
+      data: { id: VALID_UUID, source_document_id: SOURCE_DOC_UUID },
       error: null,
     });
 
@@ -203,7 +207,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     expect(res.status).toBe(200);
 
     expect(recordedHistoryInsert()).toEqual({
-      content_item_id: VALID_UUID,
+      source_document_id: SOURCE_DOC_UUID,
       action_type: 'unverify',
       note: null,
       performed_by: 'test-user-id',
@@ -214,7 +218,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID },
+      data: { id: VALID_UUID, source_document_id: SOURCE_DOC_UUID },
       error: null,
     });
 
@@ -235,7 +239,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     expect(res.status).toBe(200);
 
     expect(recordedHistoryInsert()).toEqual({
-      content_item_id: VALID_UUID,
+      source_document_id: SOURCE_DOC_UUID,
       action_type: 'unverify',
       note: 'Content is out of date',
       performed_by: 'test-user-id',
@@ -246,7 +250,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID },
+      data: { id: VALID_UUID, source_document_id: SOURCE_DOC_UUID },
       error: null,
     });
 
@@ -267,7 +271,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     expect(res.status).toBe(200);
 
     expect(recordedHistoryInsert()).toEqual({
-      content_item_id: VALID_UUID,
+      source_document_id: SOURCE_DOC_UUID,
       action_type: 'flag',
       note: 'Outdated statistics',
       performed_by: 'test-user-id',
@@ -278,7 +282,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID },
+      data: { id: VALID_UUID, source_document_id: SOURCE_DOC_UUID },
       error: null,
     });
 
@@ -295,7 +299,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     expect(res.status).toBe(200);
 
     expect(recordedHistoryInsert()).toEqual({
-      content_item_id: VALID_UUID,
+      source_document_id: SOURCE_DOC_UUID,
       action_type: 'flag',
       note: null,
       performed_by: 'test-user-id',
@@ -323,7 +327,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID },
+      data: { id: VALID_UUID, source_document_id: SOURCE_DOC_UUID },
       error: null,
     });
 
@@ -346,7 +350,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID },
+      data: { id: VALID_UUID, source_document_id: SOURCE_DOC_UUID },
       error: null,
     });
 

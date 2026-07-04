@@ -55,7 +55,7 @@ describe('VerificationHistory — error handling', () => {
       error: new Error('db fail'),
     });
 
-    render(<VerificationHistory contentItemId="item-v1" />);
+    render(<VerificationHistory sourceDocumentId="item-v1" />);
 
     await waitFor(() => {
       expect(
@@ -67,7 +67,7 @@ describe('VerificationHistory — error handling', () => {
       expect.any(Error),
       expect.objectContaining({
         scope: 'item-detail.verification-history.loadError',
-        extras: expect.objectContaining({ contentItemId: 'item-v1' }),
+        extras: expect.objectContaining({ sourceDocumentId: 'item-v1' }),
       }),
     );
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
@@ -76,7 +76,7 @@ describe('VerificationHistory — error handling', () => {
   it('reports telemetry with loadCatch scope when the promise rejects', async () => {
     mockOrder.mockRejectedValueOnce(new Error('boom'));
 
-    render(<VerificationHistory contentItemId="item-v1" />);
+    render(<VerificationHistory sourceDocumentId="item-v1" />);
 
     await waitFor(() => {
       expect(mockCaptureClientException).toHaveBeenCalled();
@@ -86,7 +86,7 @@ describe('VerificationHistory — error handling', () => {
       expect.any(Error),
       expect.objectContaining({
         scope: 'item-detail.verification-history.loadCatch',
-        extras: expect.objectContaining({ contentItemId: 'item-v1' }),
+        extras: expect.objectContaining({ sourceDocumentId: 'item-v1' }),
       }),
     );
     expect(
@@ -102,7 +102,7 @@ describe('VerificationHistory — error handling', () => {
       })
       .mockResolvedValueOnce({ data: [], error: null });
 
-    render(<VerificationHistory contentItemId="item-v1" />);
+    render(<VerificationHistory sourceDocumentId="item-v1" />);
 
     await waitFor(() => {
       expect(

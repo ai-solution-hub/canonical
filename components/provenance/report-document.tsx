@@ -15,7 +15,7 @@ import { BRANDING } from '@/lib/client-config';
 
 export interface VerificationRow {
   id: string;
-  content_item_id: string;
+  source_document_id: string;
   action_type: string;
   performed_by: string;
   performed_at: string;

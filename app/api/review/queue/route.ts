@@ -24,7 +24,7 @@ type ContentItemRow = Database['public']['Tables']['content_items']['Row'];
 
 /** Columns needed by mapToReviewQueueItem — excludes embedding, summary_data, reader_html and other large/unused fields */
 const REVIEW_COLUMNS =
-  'id, title, suggested_title, summary, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, platform, author_name, source_domain, thumbnail_url, captured_date, ai_keywords, classification_confidence, quality_score, priority, user_tags, metadata, content, source_url, verified_at, verified_by, freshness, governance_review_status, next_review_date, review_cadence_days, publication_status, created_at';
+  'id, title, suggested_title, summary, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, platform, author_name, source_domain, thumbnail_url, captured_date, ai_keywords, classification_confidence, quality_score, priority, user_tags, metadata, content, source_url, verified_at, verified_by, freshness, governance_review_status, next_review_date, review_cadence_days, publication_status, created_at, source_document_id';
 
 export const GET = defineRoute(
   ReviewQueueResponseSchema,
@@ -311,13 +311,20 @@ export const GET = defineRoute(
           .eq('resolved', false),
       ]);
 
-      // Batch-fetch latest verification_history action per item for "last reviewed" display
+      // Batch-fetch latest verification_history action per source document for
+      // "last reviewed" display. verification_history is source_document_id-keyed
+      // (ID-131 {131.29}) — items with no backing source document are excluded
+      // and simply show no last-reviewed date.
       const mappedItems = items.map(mapToReviewQueueItem);
-      const itemIds = mappedItems.map((i) => i.id);
+      const sourceDocumentIds = mappedItems
+        .map((i) => i.source_document_id)
+        .filter((id): id is string => Boolean(id));
       const { dates: reviewDates, warning: reviewDatesWarning } =
-        await fetchLastReviewedDates(supabase, itemIds);
+        await fetchLastReviewedDates(supabase, sourceDocumentIds);
       for (const item of mappedItems) {
-        item.last_reviewed_at = reviewDates.get(item.id) ?? null;
+        item.last_reviewed_at = item.source_document_id
+          ? (reviewDates.get(item.source_document_id) ?? null)
+          : null;
       }
 
       const warnings: string[] = [];
@@ -460,13 +467,20 @@ async function handleFlaggedQuery(
       .eq('resolved', false),
   ]);
 
-  // Batch-fetch latest verification_history action per item for "last reviewed" display
+  // Batch-fetch latest verification_history action per source document for
+  // "last reviewed" display. verification_history is source_document_id-keyed
+  // (ID-131 {131.29}) — items with no backing source document are excluded
+  // and simply show no last-reviewed date.
   const mappedItems = items.map(mapToReviewQueueItem);
-  const flaggedItemIds = mappedItems.map((i) => i.id);
+  const flaggedSourceDocumentIds = mappedItems
+    .map((i) => i.source_document_id)
+    .filter((id): id is string => Boolean(id));
   const { dates: reviewDates, warning: reviewDatesWarning } =
-    await fetchLastReviewedDates(supabase, flaggedItemIds);
+    await fetchLastReviewedDates(supabase, flaggedSourceDocumentIds);
   for (const item of mappedItems) {
-    item.last_reviewed_at = reviewDates.get(item.id) ?? null;
+    item.last_reviewed_at = item.source_document_id
+      ? (reviewDates.get(item.source_document_id) ?? null)
+      : null;
   }
 
   const warnings: string[] = [];
@@ -568,11 +582,18 @@ async function handlePublicationReviewQuery(
   // tab 6 (the tab is orthogonal to verification state) but we surface
   // them as 0 to keep the response shape stable.
   const mappedItems = items.map(mapToReviewQueueItem);
-  const itemIds = mappedItems.map((i) => i.id);
+  // verification_history is source_document_id-keyed (ID-131 {131.29}) — items
+  // with no backing source document are excluded and simply show no
+  // last-reviewed date.
+  const sourceDocumentIds = mappedItems
+    .map((i) => i.source_document_id)
+    .filter((id): id is string => Boolean(id));
   const { dates: reviewDates, warning: reviewDatesWarning } =
-    await fetchLastReviewedDates(supabase, itemIds);
+    await fetchLastReviewedDates(supabase, sourceDocumentIds);
   for (const item of mappedItems) {
-    item.last_reviewed_at = reviewDates.get(item.id) ?? null;
+    item.last_reviewed_at = item.source_document_id
+      ? (reviewDates.get(item.source_document_id) ?? null)
+      : null;
   }
 
   const warnings: string[] = [];
@@ -591,21 +612,27 @@ async function handlePublicationReviewQuery(
 }
 
 /**
- * Batch-fetch the most recent verification_history performed_at per item.
- * Returns a Map of content_item_id → ISO timestamp string.
+ * Batch-fetch the most recent verification_history performed_at per source
+ * document. Returns a Map of source_document_id → ISO timestamp string.
+ *
+ * verification_history is keyed by source_document_id, not content_items.id,
+ * since ID-131 {131.29}'s re-parent (verification moves with governance,
+ * PRODUCT BI-10). Callers must pass resolved source_document_id values, not
+ * content_items.id — items with no backing source document are excluded
+ * upstream and simply show no last-reviewed date.
  */
 async function fetchLastReviewedDates(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
-  itemIds: string[],
+  sourceDocumentIds: string[],
 ): Promise<{ dates: Map<string, string>; warning?: string }> {
   const result = new Map<string, string>();
-  if (itemIds.length === 0) return { dates: result };
+  if (sourceDocumentIds.length === 0) return { dates: result };
 
   const { data, error } = await supabase
     .from('verification_history')
-    .select('content_item_id, performed_at')
-    .in('content_item_id', itemIds)
+    .select('source_document_id, performed_at')
+    .in('source_document_id', sourceDocumentIds)
     .order('performed_at', { ascending: false });
 
   if (error) {
@@ -618,13 +645,13 @@ async function fetchLastReviewedDates(
   }
 
   if (data) {
-    // Take the first (most recent) entry per item
+    // Take the first (most recent) entry per source document
     for (const row of data as Array<{
-      content_item_id: string;
+      source_document_id: string;
       performed_at: string;
     }>) {
-      if (!result.has(row.content_item_id)) {
-        result.set(row.content_item_id, row.performed_at);
+      if (!result.has(row.source_document_id)) {
+        result.set(row.source_document_id, row.performed_at);
       }
     }
   }
@@ -639,6 +666,7 @@ async function fetchLastReviewedDates(
 function mapToReviewQueueItem(row: ContentItemRow): ReviewQueueItem {
   return {
     id: row.id,
+    source_document_id: row.source_document_id ?? null,
     title: row.title,
     suggested_title: row.suggested_title,
     summary: row.summary,

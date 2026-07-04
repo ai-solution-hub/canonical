@@ -74,7 +74,7 @@ const USER_2 = '00000000-0000-4000-8000-000000000012';
 const SAMPLE_ENTRIES = [
   {
     id: 'entry-1',
-    content_item_id: ITEM_ID,
+    source_document_id: ITEM_ID,
     action_type: 'verify',
     note: 'Content looks accurate',
     performed_by: USER_1,
@@ -82,7 +82,7 @@ const SAMPLE_ENTRIES = [
   },
   {
     id: 'entry-2',
-    content_item_id: ITEM_ID,
+    source_document_id: ITEM_ID,
     action_type: 'flag',
     note: 'Statistics need updating',
     performed_by: USER_2,
@@ -90,7 +90,7 @@ const SAMPLE_ENTRIES = [
   },
   {
     id: 'entry-3',
-    content_item_id: ITEM_ID,
+    source_document_id: ITEM_ID,
     action_type: 'unverify',
     note: null,
     performed_by: USER_1,
@@ -144,7 +144,7 @@ describe('LatestVerificationNote', () => {
     mockChain.maybeSingle.mockResolvedValue({ data: null, error: null });
 
     const { container } = render(
-      <LatestVerificationNote contentItemId={ITEM_ID} />,
+      <LatestVerificationNote sourceDocumentId={ITEM_ID} />,
     );
 
     // Wait for the effect to run
@@ -163,7 +163,7 @@ describe('LatestVerificationNote', () => {
     });
 
     const { container } = render(
-      <LatestVerificationNote contentItemId={ITEM_ID} />,
+      <LatestVerificationNote sourceDocumentId={ITEM_ID} />,
     );
 
     await waitFor(() => {
@@ -179,7 +179,7 @@ describe('LatestVerificationNote', () => {
       error: null,
     });
 
-    render(<LatestVerificationNote contentItemId={ITEM_ID} />);
+    render(<LatestVerificationNote sourceDocumentId={ITEM_ID} />);
 
     await waitFor(() => {
       expect(screen.getByText(/Content looks accurate/)).toBeInTheDocument();
@@ -195,7 +195,7 @@ describe('VerificationHistory', () => {
   beforeEach(resetMocks);
 
   it('shows empty state when no history exists', async () => {
-    render(<VerificationHistory contentItemId={ITEM_ID} />);
+    render(<VerificationHistory sourceDocumentId={ITEM_ID} />);
 
     await waitFor(() => {
       expect(screen.getByText(/No verification history/)).toBeInTheDocument();
@@ -208,7 +208,7 @@ describe('VerificationHistory', () => {
       return { catch: vi.fn() };
     });
 
-    render(<VerificationHistory contentItemId={ITEM_ID} />);
+    render(<VerificationHistory sourceDocumentId={ITEM_ID} />);
 
     await waitFor(() => {
       expect(
@@ -223,7 +223,7 @@ describe('VerificationHistory', () => {
       return { catch: vi.fn() };
     });
 
-    render(<VerificationHistory contentItemId={ITEM_ID} />);
+    render(<VerificationHistory sourceDocumentId={ITEM_ID} />);
 
     await waitFor(() => {
       expect(
@@ -245,7 +245,7 @@ describe('VerificationHistory', () => {
       return { catch: vi.fn() };
     });
 
-    render(<VerificationHistory contentItemId={ITEM_ID} />);
+    render(<VerificationHistory sourceDocumentId={ITEM_ID} />);
 
     await waitFor(() => {
       expect(
@@ -270,7 +270,7 @@ describe('VerificationHistory', () => {
       return { catch: vi.fn() };
     });
 
-    render(<VerificationHistory contentItemId={ITEM_ID} />);
+    render(<VerificationHistory sourceDocumentId={ITEM_ID} />);
 
     await waitFor(() => {
       expect(
@@ -294,7 +294,7 @@ describe('VerificationHistory', () => {
       return { catch: vi.fn() };
     });
 
-    render(<VerificationHistory contentItemId={ITEM_ID} />);
+    render(<VerificationHistory sourceDocumentId={ITEM_ID} />);
 
     await waitFor(() => {
       expect(
@@ -323,7 +323,7 @@ describe('VerificationHistory', () => {
       return { catch: vi.fn() };
     });
 
-    render(<VerificationHistory contentItemId={ITEM_ID} />);
+    render(<VerificationHistory sourceDocumentId={ITEM_ID} />);
 
     await waitFor(() => {
       expect(
@@ -350,7 +350,7 @@ describe('VerificationHistory', () => {
       return { catch: vi.fn() };
     });
 
-    render(<VerificationHistory contentItemId={ITEM_ID} />);
+    render(<VerificationHistory sourceDocumentId={ITEM_ID} />);
 
     await waitFor(() => {
       expect(
@@ -371,7 +371,7 @@ describe('VerificationHistory', () => {
       return { catch: vi.fn() };
     });
 
-    render(<VerificationHistory contentItemId={ITEM_ID} />);
+    render(<VerificationHistory sourceDocumentId={ITEM_ID} />);
 
     await waitFor(() => {
       expect(

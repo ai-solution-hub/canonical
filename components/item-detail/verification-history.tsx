@@ -25,7 +25,7 @@ import { cn } from '@/lib/utils';
 /** @public */
 export interface VerificationHistoryEntry {
   id: string;
-  content_item_id: string;
+  source_document_id: string;
   action_type: 'verify' | 'unverify' | 'flag';
   note: string | null;
   performed_by: string;
@@ -33,7 +33,7 @@ export interface VerificationHistoryEntry {
 }
 
 interface VerificationHistoryProps {
-  contentItemId: string;
+  sourceDocumentId: string;
   className?: string;
 }
 
@@ -71,7 +71,7 @@ const ACTION_CONFIG: Record<
 // ---------------------------------------------------------------------------
 
 export function LatestVerificationNote({
-  contentItemId,
+  sourceDocumentId,
   className,
 }: VerificationHistoryProps) {
   const [latest, setLatest] = useState<VerificationHistoryEntry | null>(null);
@@ -83,9 +83,9 @@ export function LatestVerificationNote({
       supabase
         .from('verification_history')
         .select(
-          'id, content_item_id, action_type, note, performed_by, performed_at',
+          'id, source_document_id, action_type, note, performed_by, performed_at',
         )
-        .eq('content_item_id', contentItemId)
+        .eq('source_document_id', sourceDocumentId)
         .order('performed_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
@@ -110,7 +110,7 @@ export function LatestVerificationNote({
           { err },
         );
       });
-  }, [contentItemId]);
+  }, [sourceDocumentId]);
 
   if (!latest?.note) return null;
 
@@ -126,7 +126,7 @@ export function LatestVerificationNote({
 // ---------------------------------------------------------------------------
 
 export function VerificationHistory({
-  contentItemId,
+  sourceDocumentId,
   className,
 }: VerificationHistoryProps) {
   const [entries, setEntries] = useState<VerificationHistoryEntry[]>([]);
@@ -141,16 +141,16 @@ export function VerificationHistory({
       supabase
         .from('verification_history')
         .select(
-          'id, content_item_id, action_type, note, performed_by, performed_at',
+          'id, source_document_id, action_type, note, performed_by, performed_at',
         )
-        .eq('content_item_id', contentItemId)
+        .eq('source_document_id', sourceDocumentId)
         .order('performed_at', { ascending: false }),
     )
       .then(({ data, error: fetchError }) => {
         if (fetchError) {
           captureClientException(fetchError, {
             scope: 'item-detail.verification-history.loadError',
-            extras: { contentItemId },
+            extras: { sourceDocumentId },
           });
           setError(
             fetchError instanceof Error
@@ -166,12 +166,12 @@ export function VerificationHistory({
       .catch((err) => {
         captureClientException(err, {
           scope: 'item-detail.verification-history.loadCatch',
-          extras: { contentItemId },
+          extras: { sourceDocumentId },
         });
         setError(err instanceof Error ? err : new Error(String(err)));
         setIsLoading(false);
       });
-  }, [contentItemId]);
+  }, [sourceDocumentId]);
 
   useEffect(() => {
     fetchHistory();

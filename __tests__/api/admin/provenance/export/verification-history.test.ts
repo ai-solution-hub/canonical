@@ -95,14 +95,13 @@ function configureUnauthenticated() {
 function makeVerificationRow(overrides: Record<string, unknown> = {}) {
   return {
     id: 'vh-001',
-    content_item_id: 'ci-001',
+    source_document_id: 'sd-001',
     action_type: 'verify',
     performed_by: TEST_USER_ID,
     performed_at: '2026-04-10T14:30:00.000Z',
     note: 'Looks good',
-    content_items: {
+    source_documents: {
       suggested_title: 'Test Article',
-      governance_review_status: 'verified',
     },
     ...overrides,
   };

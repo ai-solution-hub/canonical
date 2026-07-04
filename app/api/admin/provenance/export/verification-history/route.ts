@@ -72,12 +72,19 @@ export const GET = defineRoute(
     const toIso = `${to}T23:59:59.999Z`;
 
     try {
-      // Query verification_history joined with content_items for titles
+      // Query verification_history joined with source_documents for titles.
+      // ID-131 {131.29} re-parent: content_item_id -> source_document_id.
+      // NOTE: governance_review_status moved to the record_lifecycle facet
+      // (PRODUCT BI-20), but api.record_lifecycle does not exist yet — it is
+      // authored by {131.19}'s whole-surface regen. Until then the exported
+      // governance_status is always null (see the mapping below); a follow-up
+      // should re-wire this via a facet lookup (owner_kind='source_document',
+      // owner_id=source_document_id) once that view lands.
       const rawRows = await sb(
         supabase
           .from('verification_history')
           .select(
-            'id, content_item_id, action_type, performed_by, performed_at, note, content_items!inner(suggested_title, governance_review_status)',
+            'id, source_document_id, action_type, performed_by, performed_at, note, source_documents!inner(suggested_title)',
           )
           .gte('performed_at', fromIso)
           .lte('performed_at', toIso)
@@ -114,21 +121,25 @@ export const GET = defineRoute(
       // Map to report rows
       const rows: VerificationRow[] = rawRows.map(
         (r: Record<string, unknown>) => {
-          const ci = r.content_items as Record<string, unknown> | null;
+          const sourceDocument = r.source_documents as Record<
+            string,
+            unknown
+          > | null;
           const performerId = r.performed_by as string;
           const nameInfo = displayNames.get(performerId);
 
           return {
             id: r.id as string,
-            content_item_id: r.content_item_id as string,
+            source_document_id: r.source_document_id as string,
             action_type: r.action_type as string,
             performed_by: performerId,
             performed_at: r.performed_at as string,
             note: r.note as string | null,
-            title: (ci?.suggested_title as string | null) ?? null,
+            title: (sourceDocument?.suggested_title as string | null) ?? null,
             reviewer_name: nameInfo?.display_name ?? 'A team member',
-            governance_status:
-              (ci?.governance_review_status as string | null) ?? null,
+            // governance_status is not sourced today — see the query comment
+            // above (api.record_lifecycle doesn't exist until {131.19}).
+            governance_status: null,
           };
         },
       );

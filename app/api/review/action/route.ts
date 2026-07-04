@@ -77,13 +77,17 @@ export const POST = defineRoute(
           );
         }
 
-        // Record in verification history
-        await supabase.from('verification_history').insert({
-          content_item_id: item_id,
-          action_type: 'verify',
-          note: note ?? null,
-          performed_by: user.id,
-        });
+        // Record in verification history. verification_history.source_document_id
+        // is NOT NULL post ID-131 {131.29} re-parent — a source-doc-less content
+        // item records no audit row (acceptable at 0 rows).
+        if (sourceDocumentId) {
+          await supabase.from('verification_history').insert({
+            source_document_id: sourceDocumentId,
+            action_type: 'verify',
+            note: note ?? null,
+            performed_by: user.id,
+          });
+        }
 
         // Resolve any open review_needed flags — verification overrides flags.
         // No-op when the item has no backing source document (nothing to
@@ -122,13 +126,17 @@ export const POST = defineRoute(
           }
         }
 
-        // Record in verification history for unified audit trail
-        await supabase.from('verification_history').insert({
-          content_item_id: item_id,
-          action_type: 'flag',
-          note: flag_details ?? null,
-          performed_by: user.id,
-        });
+        // Record in verification history for unified audit trail.
+        // source_document_id is NOT NULL post ID-131 {131.29} re-parent — a
+        // source-doc-less content item records no audit row (0 rows today).
+        if (sourceDocumentId) {
+          await supabase.from('verification_history').insert({
+            source_document_id: sourceDocumentId,
+            action_type: 'flag',
+            note: flag_details ?? null,
+            performed_by: user.id,
+          });
+        }
 
         // Clear verified status — flagging returns item to needs-attention state
         await supabase
@@ -157,13 +165,17 @@ export const POST = defineRoute(
           );
         }
 
-        // Record in verification history
-        await supabase.from('verification_history').insert({
-          content_item_id: item_id,
-          action_type: 'unverify',
-          note: note ?? null,
-          performed_by: user.id,
-        });
+        // Record in verification history. source_document_id is NOT NULL
+        // post ID-131 {131.29} re-parent — a source-doc-less content item
+        // records no audit row (0 rows today).
+        if (sourceDocumentId) {
+          await supabase.from('verification_history').insert({
+            source_document_id: sourceDocumentId,
+            action_type: 'unverify',
+            note: note ?? null,
+            performed_by: user.id,
+          });
+        }
       } else if (action === 'unflag') {
         // Resolve the most recent unresolved review_needed flag for this item.
         // Two-step query: Supabase does not support .update().limit(1). No-op

@@ -520,11 +520,13 @@ describe('POST /api/review/action', () => {
     expect(json.success).toBe(true);
 
     // No source document to resolve — nothing to insert into
-    // ingestion_quality_log, but the verification_history audit trail and
-    // content_items status clear (both item_id-scoped, unaffected by this
-    // migration) still proceed.
+    // ingestion_quality_log. verification_history.source_document_id is NOT
+    // NULL post ID-131 {131.29} re-parent, so its audit-trail insert is
+    // ALSO skipped (a source-doc-less content item records no audit row);
+    // only the content_items status clear (item_id-scoped, unaffected by
+    // this migration) still proceeds.
     expect(mockSupabase.from).not.toHaveBeenCalledWith('ingestion_quality_log');
-    expect(mockSupabase.from).toHaveBeenCalledWith('verification_history');
+    expect(mockSupabase.from).not.toHaveBeenCalledWith('verification_history');
   });
 
   it('returns 200 on successful unverify action', async () => {

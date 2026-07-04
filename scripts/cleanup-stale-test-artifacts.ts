@@ -210,23 +210,23 @@ const workspaceIds = await selectIdsByPrefix(
 
 let relatedRowsDeleted = 0;
 // ingestion_quality_log, content_chunks, entity_mentions,
-// entity_relationships, and classification_disputes are all keyed by
-// source_document_id, not content_items.id (ID-131 {131.13} G-GOV-FACET-B +
-// {131.8} M2 rename — entity_mentions/entity_relationships were repointed to
-// source_documents; content_chunks/classification_disputes were renamed +
-// repointed in the same M2 reparent migration). Matching those columns
-// against contentItemIds (content_items.id values) is a silent no-op —
-// independent PK spaces never intersect — so these five are cleaned up via
-// the resolved contentItemSourceDocumentIds instead (ID-131.30
-// G-EXTRACT-CONSUMER-SWEEP-3). verification_history.content_item_id is
-// intentionally left in the content_items.id-keyed loop below — that
-// column's ownership belongs to the SERIALISED sibling {131.29}.
+// entity_relationships, classification_disputes, and verification_history are
+// all keyed by source_document_id, not content_items.id (ID-131 {131.13}
+// G-GOV-FACET-B + {131.8} M2 rename — entity_mentions/entity_relationships
+// were repointed to source_documents; content_chunks/classification_disputes
+// were renamed + repointed in the same M2 reparent migration;
+// verification_history was renamed + repointed in {131.29}'s re-parent).
+// Matching those columns against contentItemIds (content_items.id values) is
+// a silent no-op — independent PK spaces never intersect — so these six are
+// cleaned up via the resolved contentItemSourceDocumentIds instead
+// (ID-131.30 G-EXTRACT-CONSUMER-SWEEP-3 + {131.29}).
 for (const [table, column] of [
   ['ingestion_quality_log', 'source_document_id'],
   ['content_chunks', 'source_document_id'],
   ['entity_mentions', 'source_document_id'],
   ['entity_relationships', 'source_document_id'],
   ['classification_disputes', 'source_document_id'],
+  ['verification_history', 'source_document_id'],
 ] as const) {
   relatedRowsDeleted += await deleteByIds(
     table,
@@ -239,7 +239,6 @@ for (const [table, column] of [
   ['content_history', 'content_item_id'],
   ['content_item_workspaces', 'content_item_id'],
   ['read_marks', 'content_item_id'],
-  ['verification_history', 'content_item_id'],
 ] as const) {
   relatedRowsDeleted += await deleteByIds(table, column, contentItemIds);
 }

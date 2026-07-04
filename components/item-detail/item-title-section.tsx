@@ -67,11 +67,15 @@ export function ItemTitleSection({ item, title }: ItemTitleSectionProps) {
           )}
         </div>
 
-        {/* Latest verification note + expandable history */}
-        {item.id && (
+        {/* Latest verification note + expandable history. verification_history
+            is source_document_id-keyed (ID-131 {131.29} re-parent) — items
+            with no backing source document show neither. */}
+        {item.source_document_id && (
           <div className="mt-1.5 space-y-1">
-            <LatestVerificationNote contentItemId={item.id} />
-            <VerificationHistory contentItemId={item.id} />
+            <LatestVerificationNote
+              sourceDocumentId={item.source_document_id}
+            />
+            <VerificationHistory sourceDocumentId={item.source_document_id} />
           </div>
         )}
       </div>
