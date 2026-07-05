@@ -19,27 +19,16 @@ import { z } from 'zod';
 
 export const maxDuration = 30;
 
-/** Row shape returned by the get_guide_coverage() RPC */
-interface GuideSectionRow {
-  guide_id: string;
-  guide_name: string;
-  guide_slug: string;
-  guide_type: string;
-  domain_filter: string;
-  section_id: string;
-  section_name: string;
-  section_order: number;
-  expected_layer: string | null;
-  is_required: boolean;
-  content_count: number;
-  fresh_count: number;
-  stale_count: number;
-}
+// ID-131.19 fix-Executor escalation 2b (DR-034 owner ruling): the
+// `?include=stats` leg (get_guide_coverage() RPC enrichment) has been
+// retired — content_items-era coverage is RETIRED, not re-pointed, and this
+// leg had no live UI consumer (grep-confirmed: only guides-stats.test.ts
+// exercised it). See supabase/migrations-blocked/20260706104000_id131_coverage_retire.sql
+// for the corresponding DROP FUNCTION statements (authored, not yet applied).
 
 // guides.select(...) projects all 13 columns; description/domain_filter/icon/
 // color/created_by are DB-nullable. Existing route tests assert 2xx with sparse
-// mock rows (id/slug/name/guide_type only — guides.test.ts) and stats-enriched
-// rows that still omit description (guides-stats.test.ts), so every projected
+// mock rows (id/slug/name/guide_type only — guides.test.ts), so every projected
 // column beyond the four always-present keys is .optional() to honour the
 // route's own LOUD contract, and .nullable() where the column is DB-nullable.
 const GuideRowSchema = z.object({
@@ -58,17 +47,7 @@ const GuideRowSchema = z.object({
   updated_at: z.string().optional(),
 });
 
-const GuideStatsSchema = z.object({
-  total_sections: z.number(),
-  populated_sections: z.number(),
-  required_sections: z.number(),
-  populated_required: z.number(),
-});
-
-// ?include=stats appends `stats` to each row; the plain-list path omits it.
-const GetGuidesResponseSchema = z.array(
-  GuideRowSchema.extend({ stats: GuideStatsSchema.optional() }),
-);
+const GetGuidesResponseSchema = z.array(GuideRowSchema);
 
 export const GET = defineRoute(
   GetGuidesResponseSchema,
@@ -83,11 +62,8 @@ export const GET = defineRoute(
         request.nextUrl.searchParams,
       );
       if (!parsed.success) return parsed.response;
-      const {
-        type: typeFilter,
-        include_unpublished: includeUnpublished,
-        include,
-      } = parsed.data;
+      const { type: typeFilter, include_unpublished: includeUnpublished } =
+        parsed.data;
 
       let query = supabase
         .from('guides')
@@ -115,57 +91,6 @@ export const GET = defineRoute(
           { error: 'Failed to fetch guides' },
           { status: 500 },
         );
-      }
-
-      // When ?include=stats, enrich each guide with section/content counts
-      // Uses the same get_guide_coverage() RPC as the coverage page to ensure
-      // consistent stats (the previous manual calculation always returned zeros
-      // because all seeded sections have subtopic_filter = NULL).
-      const includeStats = include === 'stats';
-      if (includeStats && data && data.length > 0) {
-        const { data: coverageRows, error: covErr } =
-          await supabase.rpc('get_guide_coverage');
-
-        if (!covErr && coverageRows) {
-          const statsMap = new Map<
-            string,
-            {
-              total_sections: number;
-              populated_sections: number;
-              required_sections: number;
-              populated_required: number;
-            }
-          >();
-
-          for (const row of coverageRows as unknown as GuideSectionRow[]) {
-            const existing = statsMap.get(row.guide_id) ?? {
-              total_sections: 0,
-              populated_sections: 0,
-              required_sections: 0,
-              populated_required: 0,
-            };
-
-            existing.total_sections += 1;
-            if (row.content_count > 0) existing.populated_sections += 1;
-            if (row.is_required) existing.required_sections += 1;
-            if (row.is_required && row.content_count > 0)
-              existing.populated_required += 1;
-
-            statsMap.set(row.guide_id, existing);
-          }
-
-          const enriched = data.map((guide) => ({
-            ...guide,
-            stats: statsMap.get(guide.id) ?? {
-              total_sections: 0,
-              populated_sections: 0,
-              required_sections: 0,
-              populated_required: 0,
-            },
-          }));
-
-          return NextResponse.json(enriched);
-        }
       }
 
       return NextResponse.json(data);

@@ -1,11 +1,11 @@
--- ID-131.19 fix-Executor escalation 2 (S450 Wave 1) — coverage_retire:
--- drop the 2 content_items-shaped coverage RPCs per DR-034 (owner ruling).
+-- ID-131.19 fix-Executor escalation 2 + 2b (S450 Wave 1) — coverage_retire:
+-- drop the 3 content_items-shaped coverage RPCs per DR-034 (owner ruling).
 --
 -- AUTHORED, NOT APPLIED — owner-gated apply in the {131.19} GO sequence,
 -- AFTER facet-mint (20260706100000) and BEFORE/ALONGSIDE M6
 -- (20260706110000_id131_drops.sql, which drops the `content_items` table
 -- itself). No `supabase db push`, no MCP apply, no types regen in this
--- Subtask. Sequencing note: dropping these two functions has no ordering
+-- Subtask. Sequencing note: dropping these three functions has no ordering
 -- dependency on the M6 content_items drop (a `LANGUAGE sql` function body is
 -- not catalog-bound to the tables it queries the way a view is — DROP
 -- FUNCTION never fails and DROP TABLE never fails because of this file
@@ -36,48 +36,50 @@
 -- re-pointed off content_items onto q_a_pairs/reference_items by an earlier
 -- {131} Subtask — no RPC dependency, unaffected by this drop).
 --
--- NEW ESCALATION surfaced during this Subtask's dependency audit (not in
--- M6's original 3-item list): `get_guide_coverage()` (public + api) is a
--- FOURTH content_items-shaped RPC (LEFT JOIN content_items on
--- primary_domain/primary_subtopic/layer/content_type/publication_status —
--- structurally identical to get_coverage_matrix) that will ALSO start
--- erroring post-M6. It is NOT dropped here. Its callers split across the
--- fix-Executor boundary: app/api/coverage/guides/route.ts and the
--- guide-gap source in app/api/coverage/gaps/route.ts (both IN this
--- Subtask's boundary, both deleted below, per the same DR-034
--- content_items-era classification) — but app/api/guides/route.ts (OUTSIDE
--- this Subtask's file-ownership boundary) ALSO calls
--- `supabase.rpc('get_guide_coverage')` and remains live. Deleting only the
--- in-boundary callers does not fix the underlying danger: the function
--- itself will error at its next call from app/api/guides/route.ts once
--- content_items is dropped. This needs the same product-level decision as
--- M6's own escalation item 1 (get_dashboard_attention_counts) — is guide
--- freshness a "governance signal" to re-point, or content_items-era to
--- retire alongside app/api/guides/route.ts's own consumer? Out of an
--- Executor's authority to decide or fix (touches a file outside this
--- Subtask's boundary). `get_guide_coverage` is therefore intentionally left
--- OUT of both this migration's DROP list and generate-api-views.ts's
--- SURFACE_RPCS pruning — see that file's updated header comment.
+-- ESCALATION 2 surfaced `get_guide_coverage()` (public + api) as a FOURTH
+-- content_items-shaped RPC (LEFT JOIN content_items on primary_domain/
+-- primary_subtopic/layer/content_type/publication_status — structurally
+-- identical to get_coverage_matrix) that would ALSO start erroring post-M6.
+-- Its escalation-2 in-boundary callers (app/api/coverage/guides/route.ts and
+-- the guide-gap source in app/api/coverage/gaps/route.ts) were deleted in
+-- escalation 2's commit, per the same DR-034 content_items-era
+-- classification — but app/api/guides/route.ts (OUTSIDE escalation 2's
+-- file-ownership boundary) also called `supabase.rpc('get_guide_coverage')`
+-- and remained live, so the function itself could not be dropped there.
+--
+-- ESCALATION 2b (this commit) resolves that open question: the owner ruled
+-- guide-coverage stats are content_items-era, not a governance signal to
+-- re-point — RETIRE, matching escalation 2's disposition. The
+-- `?include=stats` leg of app/api/guides/route.ts (its only caller of
+-- `get_guide_coverage`) has been removed in the same commit as this
+-- migration edit; the guide-listing/creation route itself survives
+-- unchanged. With no live caller left in either schema-surface,
+-- `get_guide_coverage()` is now safe to drop alongside the original two
+-- RPCs below.
 -- ============================================================================
 --
--- WHAT: drop `get_coverage_matrix(p_layer)` / `get_coverage_summary()` in
--- BOTH the `api` (Data API wrapper, INVOKER entrypoint) and `public`
--- (backing implementation) schemas, exact signatures pulled from the last
--- whole-surface regen (20260625160000_id130_api_views_regen.sql) /
--- baseline (20260617130000_squash_baseline.sql) — identical signatures
--- across both. Dependents (api wrappers) dropped before their base
--- (public) objects, mirroring M6's own ordering convention. Idempotent
--- (`IF EXISTS`) and safely re-runnable.
+-- WHAT: drop `get_coverage_matrix(p_layer)` / `get_coverage_summary()` /
+-- `get_guide_coverage()` in BOTH the `api` (Data API wrapper, INVOKER
+-- entrypoint) and `public` (backing implementation) schemas, exact
+-- signatures pulled from the last whole-surface regen
+-- (20260625160000_id130_api_views_regen.sql) / baseline
+-- (20260617130000_squash_baseline.sql) — identical signatures across both.
+-- Dependents (api wrappers) dropped before their base (public) objects,
+-- mirroring M6's own ordering convention. Idempotent (`IF EXISTS`) and
+-- safely re-runnable.
 --
--- Companion generator edit: `get_coverage_matrix` / `get_coverage_summary`
--- removed from SURFACE_RPCS in scripts/generate-api-views.ts (same commit)
--- so the next whole-surface regen does not resurrect the api.* wrappers
--- this migration drops.
+-- Companion generator edit: `get_coverage_matrix` / `get_coverage_summary` /
+-- `get_guide_coverage` removed from SURFACE_RPCS in
+-- scripts/generate-api-views.ts (escalation 2 + 2b commits) so the next
+-- whole-surface regen does not resurrect the api.* wrappers this migration
+-- drops.
 
--- STEP 1 — drop the api.* wrapper (INVOKER entrypoint) for both functions.
+-- STEP 1 — drop the api.* wrapper (INVOKER entrypoint) for all three functions.
 DROP FUNCTION IF EXISTS api.get_coverage_matrix(p_layer text);
 DROP FUNCTION IF EXISTS api.get_coverage_summary();
+DROP FUNCTION IF EXISTS api.get_guide_coverage();
 
--- STEP 2 — drop the public.* backing implementation for both functions.
+-- STEP 2 — drop the public.* backing implementation for all three functions.
 DROP FUNCTION IF EXISTS public.get_coverage_matrix(p_layer text);
 DROP FUNCTION IF EXISTS public.get_coverage_summary();
+DROP FUNCTION IF EXISTS public.get_guide_coverage();

@@ -394,11 +394,12 @@ describe('GET /api/change-reports/list', () => {
 // GET /api/coverage/guides was retired under ID-131.19 fix-Executor
 // escalation 2 (DR-034 owner ruling) — the content_items-era coverage
 // feature is retired, not re-pointed. Its describe block was removed in the
-// same commit. NOTE: the backing `get_guide_coverage` RPC itself was NOT
-// dropped — `app/api/guides/route.ts` below is a separate, still-live
-// caller outside this Subtask's boundary; see the migration header
+// same commit. The backing `get_guide_coverage` RPC's last live caller
+// (the `?include=stats` leg of `app/api/guides/route.ts`) was retired in
+// escalation 2b — see `__tests__/api/guides.test.ts` for that route's
+// current (coverage-free) coverage and the migration header
 // (supabase/migrations-blocked/20260706104000_id131_coverage_retire.sql)
-// for the unresolved escalation this leaves open.
+// for the DROP FUNCTION statements now covering `get_guide_coverage`.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PATCH /api/guides/[slug]/sections/[sectionId]

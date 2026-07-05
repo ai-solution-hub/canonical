@@ -1,8 +1,13 @@
 /**
- * Tests for GET /api/guides?include=stats
+ * Regression guard for the retired GET /api/guides `?include=stats` leg.
  *
- * Verifies that guide listing stats use the get_guide_coverage() RPC
- * (the same source as the coverage page) rather than a manual calculation.
+ * ID-131.19 fix-Executor escalation 2b (DR-034 owner ruling): the
+ * content_items-era coverage feature is retired, not re-pointed — this
+ * includes the guide-listing `?include=stats` enrichment, whose only data
+ * source was the now-dropped `get_guide_coverage()` RPC. This file used to
+ * assert the enrichment behaviour; it now pins the honest opposite —
+ * `include=stats` is inert (ignored, not erroring) and the RPC is never
+ * called, so a future edit can't silently resurrect the retired call.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMockSupabaseClient } from '../helpers/mock-supabase';
@@ -72,26 +77,6 @@ const guideB = {
   updated_at: '2025-01-01T00:00:00Z',
 };
 
-/** Coverage rows returned by get_guide_coverage() RPC */
-function makeCoverageRow(overrides: Record<string, unknown> = {}) {
-  return {
-    guide_id: GUIDE_A_ID,
-    guide_name: 'SCP Sector Guide',
-    guide_slug: 'scp-sector',
-    guide_type: 'sector',
-    domain_filter: 'Safeguarding & Child Protection',
-    section_id: 'sec-1',
-    section_name: 'Overview',
-    section_order: 1,
-    expected_layer: 'sales_brief',
-    is_required: true,
-    content_count: 3,
-    fresh_count: 2,
-    stale_count: 1,
-    ...overrides,
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Reset mocks before each test
 // ---------------------------------------------------------------------------
@@ -150,42 +135,15 @@ beforeEach(() => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// GET /api/guides?include=stats
+// GET /api/guides?include=stats (retired leg — ID-131.19 escalation 2b)
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('GET /api/guides?include=stats', () => {
-  it('returns RPC-based stats enriched on each guide', async () => {
-    // Guide list query returns two guides
+describe('GET /api/guides?include=stats (retired)', () => {
+  it('returns guides with no stats field, even when include=stats is requested', async () => {
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: [guideA, guideB], error: null }),
     );
-
-    // RPC returns coverage rows for guide A (2 sections) and guide B (1 section)
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: [
-        makeCoverageRow({
-          guide_id: GUIDE_A_ID,
-          section_id: 'sec-1',
-          is_required: true,
-          content_count: 3,
-        }),
-        makeCoverageRow({
-          guide_id: GUIDE_A_ID,
-          section_id: 'sec-2',
-          is_required: false,
-          content_count: 0,
-        }),
-        makeCoverageRow({
-          guide_id: GUIDE_B_ID,
-          section_id: 'sec-3',
-          is_required: true,
-          content_count: 5,
-          guide_name: 'LMS Product Guide',
-        }),
-      ],
-      error: null,
-    });
 
     const req = createTestRequest('/api/guides', {
       searchParams: { include: 'stats' },
@@ -195,54 +153,25 @@ describe('GET /api/guides?include=stats', () => {
 
     expect(res.status).toBe(200);
     expect(body).toHaveLength(2);
-
-    // Guide A: 2 total, 1 populated, 1 required, 1 populated_required
-    expect(body[0].stats).toEqual({
-      total_sections: 2,
-      populated_sections: 1,
-      required_sections: 1,
-      populated_required: 1,
-    });
-
-    // Guide B: 1 total, 1 populated, 1 required, 1 populated_required
-    expect(body[1].stats).toEqual({
-      total_sections: 1,
-      populated_sections: 1,
-      required_sections: 1,
-      populated_required: 1,
-    });
-
-    // Verify the RPC was called
-    expect(mockSupabase.rpc).toHaveBeenCalledWith('get_guide_coverage');
+    expect(body[0].stats).toBeUndefined();
+    expect(body[1].stats).toBeUndefined();
   });
 
-  it('handles RPC error gracefully by returning guides without stats', async () => {
+  it('never calls the retired get_guide_coverage RPC, even when include=stats is requested', async () => {
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
-        resolve({ data: [guideA], error: null }),
+        resolve({ data: [guideA, guideB], error: null }),
     );
-
-    // RPC returns an error
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'RPC function not found', code: '42883' },
-    });
 
     const req = createTestRequest('/api/guides', {
       searchParams: { include: 'stats' },
     });
-    const res = await listGuides(req);
-    const body = await res.json();
+    await listGuides(req);
 
-    // Should still return 200 with guides (without stats)
-    expect(res.status).toBe(200);
-    expect(body).toHaveLength(1);
-    expect(body[0].id).toBe(GUIDE_A_ID);
-    // No stats property when RPC fails — falls through to plain data return
-    expect(body[0].stats).toBeUndefined();
+    expect(mockSupabase.rpc).not.toHaveBeenCalledWith('get_guide_coverage');
   });
 
-  it('returns empty array when no guides exist', async () => {
+  it('returns an empty array when no guides exist, regardless of include=stats', async () => {
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
@@ -255,105 +184,6 @@ describe('GET /api/guides?include=stats', () => {
 
     expect(res.status).toBe(200);
     expect(body).toEqual([]);
-    // RPC should NOT be called when there are no guides
     expect(mockSupabase.rpc).not.toHaveBeenCalledWith('get_guide_coverage');
-  });
-
-  it('correctly aggregates stats from multiple section-level rows per guide', async () => {
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [guideA], error: null }),
-    );
-
-    // 4 sections for guide A with varying properties
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: [
-        makeCoverageRow({
-          section_id: 'sec-1',
-          is_required: true,
-          content_count: 5,
-        }),
-        makeCoverageRow({
-          section_id: 'sec-2',
-          is_required: true,
-          content_count: 0,
-        }),
-        makeCoverageRow({
-          section_id: 'sec-3',
-          is_required: false,
-          content_count: 2,
-        }),
-        makeCoverageRow({
-          section_id: 'sec-4',
-          is_required: false,
-          content_count: 0,
-        }),
-      ],
-      error: null,
-    });
-
-    const req = createTestRequest('/api/guides', {
-      searchParams: { include: 'stats' },
-    });
-    const res = await listGuides(req);
-    const body = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(body[0].stats).toEqual({
-      total_sections: 4,
-      populated_sections: 2, // sec-1 and sec-3 have content
-      required_sections: 2, // sec-1 and sec-2 are required
-      populated_required: 1, // only sec-1 is both required and populated
-    });
-  });
-
-  it('handles guides with zero content across all sections', async () => {
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [guideA, guideB], error: null }),
-    );
-
-    // All sections have content_count = 0
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: [
-        makeCoverageRow({
-          guide_id: GUIDE_A_ID,
-          section_id: 'sec-1',
-          is_required: true,
-          content_count: 0,
-        }),
-        makeCoverageRow({
-          guide_id: GUIDE_A_ID,
-          section_id: 'sec-2',
-          is_required: false,
-          content_count: 0,
-        }),
-      ],
-      error: null,
-    });
-
-    const req = createTestRequest('/api/guides', {
-      searchParams: { include: 'stats' },
-    });
-    const res = await listGuides(req);
-    const body = await res.json();
-
-    expect(res.status).toBe(200);
-
-    // Guide A has sections but all empty
-    expect(body[0].stats).toEqual({
-      total_sections: 2,
-      populated_sections: 0,
-      required_sections: 1,
-      populated_required: 0,
-    });
-
-    // Guide B has no coverage rows at all — gets default zeros
-    expect(body[1].stats).toEqual({
-      total_sections: 0,
-      populated_sections: 0,
-      required_sections: 0,
-      populated_required: 0,
-    });
   });
 });

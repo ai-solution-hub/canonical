@@ -2116,10 +2116,12 @@ const VALID_GUIDE_TYPES = [
   'custom',
 ] as const;
 
+// `include: 'stats'` (get_guide_coverage() RPC enrichment) was retired under
+// ID-131.19 fix-Executor escalation 2b (DR-034 owner ruling) — see
+// app/api/guides/route.ts's header comment.
 export const GuideListParamsSchema = z.object({
   type: z.enum(VALID_GUIDE_TYPES).optional(),
   include_unpublished: booleanParam.optional(),
-  include: z.enum(['stats']).optional(),
 });
 
 /** GET /api/workspaces/[id]/items */

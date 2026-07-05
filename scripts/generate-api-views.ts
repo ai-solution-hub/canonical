@@ -165,17 +165,15 @@ export const SURFACE_TABLES: readonly string[] = [
  * (2 of its 9 returned fields are still content_items-shaped and will error
  * post-M6 pending a product-level re-point).
  *
- * get_coverage_matrix / get_coverage_summary were REMOVED from this list
- * (ID-131.19 fix-Executor escalation 2, DR-034 owner ruling): the
- * content_items-era coverage feature (matrix/summary/routes/cron) is
- * RETIRED, not re-pointed. Their DROP FUNCTION statements live in the
- * companion migration `20260706104000_id131_coverage_retire.sql`. NOTE:
- * `get_guide_coverage` remains listed below despite ALSO being
- * content_items-shaped (LEFT JOIN content_items) — it still has a live,
- * unstubbed caller outside the ID-131.19 coverage-retirement boundary
- * (`app/api/guides/route.ts`), so it could not be retired here; it needs
- * the same product-level re-point/stub decision as
- * get_dashboard_attention_counts, tracked as a new escalation.
+ * get_coverage_matrix / get_coverage_summary / get_guide_coverage were
+ * REMOVED from this list (ID-131.19 fix-Executor escalation 2 + 2b, DR-034
+ * owner ruling): the content_items-era coverage feature (matrix/summary/
+ * routes/cron, PLUS the guide-coverage stats leg of app/api/guides/route.ts)
+ * is RETIRED, not re-pointed. `get_guide_coverage` was the escalation-2
+ * open item — its last live caller (app/api/guides/route.ts) was retired in
+ * escalation 2b, resolving the open question. All three functions' DROP
+ * FUNCTION statements live in the companion migration
+ * `20260706104000_id131_coverage_retire.sql`.
  *
  * get_content_win_rate ALSO stays (unrelated to the content_items drop): its
  * public function was already re-anchored to q_a_pair by CITE-EXT
@@ -203,7 +201,6 @@ const SURFACE_RPCS: readonly string[] = [
   'get_form_question_stats_batch',
   'get_freshness_breakdown',
   'get_guide_content',
-  'get_guide_coverage',
   'get_items_needing_layer',
   'get_popular_keywords',
   'get_review_breakdown_stats',
