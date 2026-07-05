@@ -1,10 +1,13 @@
 /**
  * Dashboard / orientation tool registrations (2 tools):
  *   get_reorientation
- *   where_are_we_exposed  (ID-71.8 — M29/M4, B-INV-4/29; five-layer
+ *   where_are_we_exposed  (ID-71.8 — M29/M4, B-INV-4/29; four-layer
  *                          exposure framing consolidating the former
  *                          freshness / coverage / quality / certification
- *                          reads with first-class resolution affordances)
+ *                          reads with first-class resolution affordances.
+ *                          ID-131.19 trimmed the former "its quality" layer —
+ *                          its sole RPC, get_quality_issue_counts, was
+ *                          dropped at M6 and deliberately not re-pointed.)
  *
  * ID-71.8 retired into `where_are_we_exposed`: `get_freshness_report`,
  * `get_expiring_content` (this file), `get_coverage_gaps`, `audit_content`,
@@ -54,7 +57,7 @@ const ExposureResolutionSchema = z.object({
 });
 
 const ExposureLayerSchema = z.object({
-  key: z.enum(['data', 'quality', 'use_today', 'gaps', 'opportunities']),
+  key: z.enum(['data', 'use_today', 'gaps', 'opportunities']),
   title: z.string(),
   summary: z.string(),
   facts: z.array(z.string()),
@@ -214,10 +217,15 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
   // ONE outcome-shaped read consolidating the former exposure reads
   // (get_freshness_report, get_expiring_content, get_coverage_gaps,
   // audit_content, get_quality_summary, get_quality_briefing,
-  // get_quality_actions, get_certification_status) into the five-layer
+  // get_quality_actions, get_certification_status) into a four-layer
   // consumption framing:
-  //   data you have → its quality → how you could use it today → the gaps →
+  //   data you have → how you could use it today → the gaps →
   //   the opportunities.
+  // ID-131.19 (S450 Wave 1, owner-ruled): the former "its quality" layer
+  // (fed solely by the get_quality_issue_counts RPC) is TRIMMED, not
+  // re-pointed — that RPC was dropped at M6 and quality-flag needs are
+  // already covered elsewhere via the get_items_with_quality_flags
+  // re-point in lib/reorient.ts.
   // Gaps and opportunities carry first-class suggested-resolution affordances
   // (B-INV-4) that reference the KEPT `suggest_content_creation` tool.
   // -------------------------------------------------------------------------
@@ -228,7 +236,7 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
       title: 'Where Are We Exposed?',
       outputSchema: WhereAreWeExposedOutputSchema,
       description:
-        'Assess the knowledge base across five consumption layers, in order: (1) the data you have, (2) its quality, (3) how you could use it today, (4) the gaps, and (5) the opportunities. Gaps and opportunities come with first-class suggested resolutions ("Draft content for X", "Discuss options for Y"). Use this to understand exposure — freshness, coverage, quality, and certification — in one read.',
+        'Assess the knowledge base across four consumption layers, in order: (1) the data you have, (2) how you could use it today, (3) the gaps, and (4) the opportunities. Gaps and opportunities come with first-class suggested resolutions ("Draft content for X", "Discuss options for Y"). Use this to understand exposure — freshness, coverage, and certification — in one read.',
       inputSchema: {
         domain: z
           .string()
@@ -275,38 +283,12 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
           freshness.stale +
           freshness.expired;
 
-        // --- Layer 2: its quality (open quality issues) --------------------
-        const { data: qualityRows, error: qualityError } = await supabase.rpc(
-          'get_quality_issue_counts',
-        );
-        if (qualityError) {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: `Exposure analysis failed (quality): ${qualityError.message}.`,
-              },
-            ],
-            isError: true,
-          };
-        }
-        const qualityByType: Record<string, number> = {};
-        let totalOpenQuality = 0;
-        for (const row of (qualityRows ?? []) as Array<{
-          flag_type: string;
-          open_count: number;
-        }>) {
-          qualityByType[row.flag_type] =
-            (qualityByType[row.flag_type] ?? 0) + Number(row.open_count);
-          totalOpenQuality += Number(row.open_count);
-        }
-
-        // --- Layer 3: how you could use it today (live certifications) -----
+        // --- Layer 2: how you could use it today (live certifications) -----
         // Items currently fresh/aging are usable today; expired certifications
         // are surfaced as a use-today caveat.
         const usableItems = freshness.fresh + freshness.aging;
 
-        // --- Layer 4: the gaps (coverage gaps over the taxonomy) -----------
+        // --- Layer 3: the gaps (coverage gaps over the taxonomy) -----------
         const domains = await sb(
           supabase
             .from('taxonomy_domains')
@@ -368,7 +350,7 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
         }
         const totalGaps = emptyCount + thinCount;
 
-        // --- Layer 5: the opportunities (content suggestions) --------------
+        // --- Layer 4: the opportunities (content suggestions) --------------
         const { generateContentSuggestions } =
           await import('@/lib/content/content-suggestions');
         const suggestions = await generateContentSuggestions({
@@ -401,14 +383,6 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
             facts: [
               `${freshness.fresh} fresh, ${freshness.aging} aging, ${freshness.stale} stale, ${freshness.expired} expired`,
             ],
-          },
-          {
-            key: 'quality',
-            title: 'Its quality',
-            summary: `${totalOpenQuality} open quality ${totalOpenQuality === 1 ? 'issue' : 'issues'} across the corpus.`,
-            facts: Object.entries(qualityByType).map(
-              ([type, count]) => `${count} × ${type.replace(/_/g, ' ')}`,
-            ),
           },
           {
             key: 'use_today',

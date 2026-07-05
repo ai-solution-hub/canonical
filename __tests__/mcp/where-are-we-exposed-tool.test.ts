@@ -4,10 +4,15 @@ import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 // ---------------------------------------------------------------------------
 // ID-71.8 (B-INV-4 / B-INV-29 / M29 / M4 / M37) — ONE `where_are_we_exposed`
 // outcome consolidates the prior exposure / freshness / coverage / quality /
-// certification reads into the five-layer consumption framing:
+// certification reads into a four-layer consumption framing:
 //
-//   data you have → its quality → how you could use it today → the gaps →
+//   data you have → how you could use it today → the gaps →
 //   the opportunities
+//
+// ID-131.19 (S450 Wave 1, owner-ruled): the former "its quality" layer (fed
+// solely by the `get_quality_issue_counts` RPC) is TRIMMED, not re-pointed —
+// that RPC was dropped at M6 and quality-flag needs are already covered
+// elsewhere via the get_items_with_quality_flags re-point in lib/reorient.ts.
 //
 // Gaps surface first-class suggested resolutions (B-INV-4: "Draft content for
 // X" / "Discuss options for Y"); `suggest_content_creation` is KEPT as the
@@ -21,7 +26,10 @@ import { createMockMcpServer } from '@/__tests__/helpers/mcp-server';
 // ---------------------------------------------------------------------------
 
 const mocks = vi.hoisted(() => {
-  // RPC dispatch by name — the five-layer aggregator calls several RPCs.
+  // RPC dispatch by name — the four-layer aggregator calls several RPCs.
+  // ID-131.19: `get_quality_issue_counts` was dropped at M6 — deliberately
+  // NOT stubbed here; a fall-through call would hit `default` and prove the
+  // handler no longer depends on it.
   const rpcMock = vi.fn((name: string) => {
     switch (name) {
       case 'get_freshness_breakdown':
@@ -31,14 +39,6 @@ const mocks = vi.hoisted(() => {
             { freshness: 'aging', count: 10 },
             { freshness: 'stale', count: 6 },
             { freshness: 'expired', count: 4 },
-          ],
-          error: null,
-        });
-      case 'get_quality_issue_counts':
-        return Promise.resolve({
-          data: [
-            { flag_type: 'missing_summary', severity: 'high', open_count: 3 },
-            { flag_type: 'low_confidence', severity: 'medium', open_count: 2 },
           ],
           error: null,
         });
@@ -216,10 +216,10 @@ describe('where_are_we_exposed — retires the 8 exposure reads (B-INV-29)', () 
 });
 
 // ---------------------------------------------------------------------------
-// Five-layer contract (B-INV-4)
+// Four-layer contract (B-INV-4) — trimmed to four post-ID-131.19
 // ---------------------------------------------------------------------------
 
-describe('where_are_we_exposed — five-layer structure (B-INV-4)', () => {
+describe('where_are_we_exposed — four-layer structure (B-INV-4)', () => {
   let mockServer: Awaited<ReturnType<typeof buildServer>>;
   const extra = { authInfo: { token: 'test' } };
 
@@ -228,7 +228,7 @@ describe('where_are_we_exposed — five-layer structure (B-INV-4)', () => {
     mockServer = await buildServer();
   });
 
-  it('returns the five layers in order: data → quality → use-today → gaps → opportunities', async () => {
+  it('returns the four layers in order: data → use-today → gaps → opportunities', async () => {
     const handler = mockServer.getHandler('where_are_we_exposed')!;
     const result = (await handler({}, extra)) as ToolResult;
 
@@ -237,11 +237,17 @@ describe('where_are_we_exposed — five-layer structure (B-INV-4)', () => {
     const layers = sc.layers as Array<{ key: string }>;
     expect(layers.map((l) => l.key)).toEqual([
       'data',
-      'quality',
       'use_today',
       'gaps',
       'opportunities',
     ]);
+  });
+
+  it('never calls the dropped get_quality_issue_counts RPC (ID-131.19 trim)', async () => {
+    const handler = mockServer.getHandler('where_are_we_exposed')!;
+    await handler({}, extra);
+
+    expect(mocks.rpcMock).not.toHaveBeenCalledWith('get_quality_issue_counts');
   });
 
   it('surfaces at least one suggested-resolution affordance on the gaps/opportunities layers (B-INV-4)', async () => {
@@ -264,16 +270,20 @@ describe('where_are_we_exposed — five-layer structure (B-INV-4)', () => {
     ).toBe(true);
   });
 
-  it('renders the five layers as ordered markdown sections', async () => {
+  it('renders the four layers as ordered markdown sections, with no quality-issue leg (ID-131.19)', async () => {
     const handler = mockServer.getHandler('where_are_we_exposed')!;
     const result = (await handler({}, extra)) as ToolResult;
 
     const md = result.content[0].text;
     const dataIdx = md.indexOf('Data you have');
-    const qualityIdx = md.indexOf('quality');
-    const gapsIdx = md.indexOf('gaps');
+    const useTodayIdx = md.indexOf('How you could use it today');
+    const gapsIdx = md.indexOf('The gaps');
     expect(dataIdx).toBeGreaterThanOrEqual(0);
-    expect(dataIdx).toBeLessThan(qualityIdx);
-    expect(qualityIdx).toBeLessThan(gapsIdx);
+    expect(dataIdx).toBeLessThan(useTodayIdx);
+    expect(useTodayIdx).toBeLessThan(gapsIdx);
+
+    // Honest trim — no residual "its quality" section or quality-issue facts.
+    expect(md).not.toContain('## Its quality');
+    expect(md).not.toContain('open quality issue');
   });
 });
