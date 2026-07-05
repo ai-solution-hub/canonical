@@ -1,135 +1,112 @@
 /**
  * WP2 Phase 1 spec — 8.0.4 file upload ingestion
  *
- * VERIFIED AGAINST PRODUCTION (Phase 2 adversarial review):
- *   - Upload endpoint is `/api/upload` (verified at
- *     `app/api/upload/route.ts`). The earlier draft referenced
- *     `/api/upload-urls`, which does NOT exist.
+ * ID-131 "17-final" REWRITE (G-IMS-DELETE tail): the original draft targeted
+ * `POST /api/upload`, deleted under {131.24} (G-UPLOAD-GATE) along with its
+ * `upload-review-step` testid and the synchronous extract/embed/classify/
+ * summarise pipeline that landed a `content_items` row. There is now ONE
+ * binding-admission gate (`lib/upload/folder-drop.ts` `stageAndWalk`,
+ * ID-138 {138.13}): gate-pass -> Storage PUT (`corpus` bucket) -> an
+ * admission-minted `source_documents` row via the `resolve_or_mint_
+ * source_identity` M2 resolver (content_hash-first). NO `content_items` row
+ * is created at admission time and no async worker is involved — DR-020
+ * confirms the old `/stage` cocoindex-worker hop never worked from Vercel,
+ * so this leg is now fully synchronous and safely exercisable end-to-end in
+ * CI (no worker dependency).
+ *
+ * VERIFIED AGAINST PRODUCTION:
+ *   - Admission endpoint is `POST /api/ingest/folder-drop`, multipart
+ *     (`file` + optional `retention_class`), gated
+ *     `getAuthorisedClient(['admin', 'editor'])`, returns 202 with
+ *     `{ sourceFile, destPath, sourceDocumentId, wasMinted, retentionClass }`
+ *     (`app/api/ingest/folder-drop/route.ts`).
  *   - New-item page tabs (verified at `app/item/new/new-item-tabs.tsx`):
- *       "Write content" | "Import from URL" | "Upload file"
- *   - `e2e/fixtures/files/` directory does NOT exist; Phase 3 MUST create
- *     `e2e/fixtures/files/sample.pdf` (small, < 50 KB, deterministic,
- *     containing a known sentinel string in extractable text).
+ *     "Import from URL" | "Upload file" | "Batch Q&A" — the "Write content"
+ *     tab died at {131.18}.
+ *   - Upload tab UI (`components/create-content/upload-tab-content.tsx`):
+ *     dropzone lives in `section[aria-label="Upload documents"]`, retention
+ *     picker is `#upload-retention-class`, per-file results render in
+ *     `[data-testid="admission-results"]`, the connect button reads
+ *     "Connect" / "Connect (n)" / "Connecting…".
+ *   - `e2e/fixtures/files/e2e-upload-sentinel-8-0-4.pdf` already exists
+ *     (~721 bytes, deterministic, committed) — reused unchanged from the
+ *     pre-{131.24} spec.
  *
  * USER FLOW:
- *   1. As admin (authenticatedPage), navigate to `/item/new`.
- *   2. Click the "Upload file" tab trigger.
- *   3. Use `page.setInputFiles()` against the file input inside the upload
- *      tab to attach `e2e/fixtures/files/sample.pdf`.
- *   4. Wait for the upload + ingest API responses via `page.waitForResponse`
- *      against `/api/upload` and any subsequent ingest/extract endpoint
- *      that the upload tab triggers (NOT a fixed timeout). Phase 3 must
- *      enumerate the actual chain by inspecting `upload-tab-content.tsx`.
- *   5. Submit / save the new item if the upload tab has a separate save
- *      step (verify against the component in Phase 3).
- *   6. Wait for navigation to `/item/<id>` or `/browse`.
- *   7. Capture the new content_item id (from URL or from API response body
- *      via `waitForResponse(...).json()`).
- *   8. Navigate to `/browse` and assert the new item title is visible.
+ *   1. As admin (authenticatedPage), navigate to `/item/new?tab=upload`.
+ *   2. Attach the fixture PDF to the dropzone's hidden file input.
+ *   3. Select the "Ingest once" retention class (exercises the picker
+ *      rather than relying on the `keep_and_watch` default).
+ *   4. Click "Connect" and wait for the `POST /api/ingest/folder-drop`
+ *      response (NOT a fixed timeout).
+ *   5. Assert the response envelope AND the admission-results row.
+ *   6. Assert DB state: a `source_documents` row exists at the returned
+ *      `sourceDocumentId` with the expected `storage_path`, `content_hash`
+ *      (locally-computed sha256, matched exactly), and `mime_type`.
+ *   7. Assert the Storage object at `storage_path` is downloadable and its
+ *      bytes match the fixture exactly.
+ *   8. Re-attach and re-connect the SAME file: the admission gate resolves
+ *      the SAME `sourceDocumentId` with `wasMinted: false` (idempotent
+ *      content_hash-first resolution — `folder-drop.ts` line ~298), and
+ *      the UI surfaces "already connected".
  *
  * ASSERTIONS (each must be verifiable from browser state OR DB state — no
- * trivial "element exists" checks; every assertion must map to a failure mode;
- * NO conditional skips):
- *   - A new `content_items` row exists with `created_by = admin.id` AND
- *     a non-empty `content` (or `extracted_text`) field. The content must
- *     contain the sentinel substring known to be in the seeded PDF — proves
- *     the extraction pipeline ran end-to-end, not just the upload step,
- *     AND that the row matches the file we uploaded (not some other row).
- *   - A corresponding `source_documents` row exists pointing at the
- *     uploaded file. Both `storage_path` (or equivalent) AND `sha256_hash`
- *     (or equivalent) must be non-null — Phase 3 verifies exact column
- *     names against `supabase/types/database.types.ts`.
- *   - The Supabase Storage bucket contains an object at the path stored
- *     in `source_documents.storage_path`. Verify by calling
- *     `supabase.storage.from(<bucket>).download(<path>)` via service key
- *     and asserting the returned blob size > 0. (NOT just "row exists";
- *     storage object must actually be present.)
- *   - On `/browse`, the new item's title is rendered in a list item
- *     visible to the admin user (asserts read-side query/index picks it up).
- *     Use `getByText(<sentinel title>)` for an exact match.
- *   - Re-uploading the same file produces a dedup signal. Phase 3
- *     verified `app/api/upload/route.ts` (lines 267-297, 392-426) and
- *     `detect_reupload()` SQL: production does NOT block the second insert.
- *     Instead it inserts a new `source_documents` row at
- *     `version = existing_version + 1` AND surfaces the match in the
- *     response payload as `reupload_detection.match_type = 'identical'`
- *     (because filename + uploaded_by + content_hash all match).
- *     Phase 3 implementer must call `/api/upload` a SECOND time with the
- *     same bytes and assert BOTH of:
- *       (a) The second response includes
- *           `reupload_detection.match_type === 'identical'` — proves the
- *           dedup signal reached the client unchanged. (If this regresses
- *           to undefined, users get silent duplicate ingestion with no
- *           warning UI.)
- *       (b) Exactly 2 `source_documents` rows are linked to the two
- *           `content_items` this test created (via source_document_id),
- *           and both rows' `content_hash` matches the fixture bytes'
- *           MD5. Scope by item-id rather than content_hash alone so
- *           parallel browser projects (chromium-desktop +
- *           chromium-mobile) cannot contaminate each other — the
- *           fixture is deterministic so a hash-only count sees the
- *           sibling project's rows too.
- *     The earlier Phase 1 draft asserted count === 1, but that does not
- *     match the production data model — versioning is intentional so the
- *     audit trail is preserved.
+ * trivial "element exists" checks; every assertion must map to a failure
+ * mode; NO conditional skips):
+ *   - The admission response is 202 with a truthy `sourceDocumentId` and
+ *     `retentionClass === 'ingest_once'` (proves the picker selection
+ *     round-trips to the route, not just the UI default).
+ *   - A `source_documents` row exists at that id with non-null
+ *     `storage_path` AND `content_hash` equal to the LOCALLY-computed
+ *     sha256 of the fixture bytes (proves the stored row matches the file
+ *     we uploaded, not some other row).
+ *   - The Storage object at `storage_path` downloads successfully and its
+ *     bytes are byte-for-byte identical to the fixture (NOT just "row
+ *     exists"; the object must actually be present and correct).
+ *   - The admission-results UI row shows the filename with the "connected"
+ *     (CheckCircle) state and the "Ingest once" retention label.
+ *   - Re-connecting the identical file returns `wasMinted: false` for the
+ *     SAME `sourceDocumentId` (regression here means duplicate identities
+ *     are silently minted for the same bytes) and the UI shows the
+ *     "already connected" hint.
  *
  * FIXTURE DATA (pre-seeded before test runs):
- *   - `e2e/fixtures/files/sample.pdf` — Phase 3 MUST create this:
- *       * Small (< 50 KB).
- *       * Deterministic content (same bytes every run).
- *       * Contains a unique extractable sentinel string (e.g.
- *         "E2E-UPLOAD-SENTINEL-8.0.4-<unique-token>").
- *       * Committed to the repo (binary).
- *     If Phase 3 cannot generate a PDF programmatically, use a tiny
- *     pre-built fixture or a `.txt`/`.md` file if the upload tab accepts
- *     non-PDF formats (verify accepted MIME types in
- *     `upload-tab-content.tsx` first).
+ *   - `e2e/fixtures/files/e2e-upload-sentinel-8-0-4.pdf` (existing fixture,
+ *     ~721 bytes, deterministic).
  *   - Admin user from `authenticatedPage` fixture.
  *   - No worker-data dependencies.
  *
  * EXPECTED FAILURE MODES (production-code breakages this test must catch —
  * each must map to >= 1 assertion above):
- *   - File upload silently swallowed (UI shows "saved", no DB row) →
- *     caught by `content_items` existence assertion.
- *   - `source_documents` row created but storage object missing (broken
- *     signed-URL upload) → caught by storage download assertion.
- *   - Extraction step skipped, leaving `content` empty → caught by
- *     non-empty content assertion AND sentinel substring assertion.
- *   - Item written but excluded from browse query (RLS or index drift) →
- *     caught by `/browse` visibility assertion.
- *   - Re-upload detection regressed and silently treats the second upload
- *     as a brand-new file (reupload_detection envelope missing) → caught
- *     by the `reupload_detection.match_type === 'identical'` assertion.
- *   - Re-upload route inserts >1 phantom source_documents row per request
- *     (or fails to insert the v2 row at all) → caught by the count === 2
- *     assertion on (content_hash, uploaded_by).
- *   - Upload route returns 200 but stores the wrong file (e.g. swapped
- *     buffers between concurrent requests) → caught by sha256_hash
- *     assertion (the stored hash must match the uploaded file's hash,
- *     which Phase 3 computes locally before upload).
+ *   - Admission silently swallowed (UI shows "connected", no DB row) →
+ *     caught by the `source_documents` existence assertion.
+ *   - `source_documents` row created but Storage object missing (broken
+ *     Storage PUT) → caught by the storage download assertion.
+ *   - Route stores the wrong bytes (e.g. swapped buffers between
+ *     concurrent requests) → caught by the byte-for-byte + content_hash
+ *     equality assertions.
+ *   - Retention-class selection is ignored (route always applies the
+ *     `keep_and_watch` default) → caught by the
+ *     `retentionClass === 'ingest_once'` assertion.
+ *   - Re-upload identity resolution regresses to "always mint a new row"
+ *     → caught by the second-call `wasMinted === false` +
+ *     same-`sourceDocumentId` assertions.
  *
  * ROLE SCOPING:
  *   Uses `authenticatedPage` (admin) fixture. Reason: admin can write
- *   content; viewer write attempts are 8.0.6 territory.
+ *   content; viewer write attempts are 8.0.6 territory
+ *   (`role-write-enforcement.spec.ts`).
  *
  * CLEANUP:
- *   afterEach: service-key delete of the captured content_items row +
- *   its source_documents row + storage object (if it exists). Idempotent
- *   so partial-failure runs still leave a clean slate.
+ *   afterEach: service-key delete of the captured `source_documents` row +
+ *   its Storage object. Idempotent so partial-failure runs still leave a
+ *   clean slate.
  *
- * EXPLICIT FORBIDDEN PATTERNS (Phase 3 implementer must NOT do these):
- *   - DO NOT mock `/api/upload` with `page.route()` — the test must
- *     exercise the real upload path, signed URL generation, storage
- *     write, and extraction pipeline.
- *   - DO NOT pre-seed a `content_items` row with the same title — that
- *     would make the `/browse` visibility assertion trivially true
- *     (Attack 2).
- *   - DO NOT wrap the storage-download assertion in
- *     `if (sourceDoc.storage_path) { ... }` — a missing storage_path
- *     IS the bug; the assertion must fail loudly.
- *   - DO NOT replace the sentinel substring check with a "content !== ''"
- *     check — empty-string-only is too weak; an extraction stub returning
- *     "extraction placeholder" would pass.
+ * EXPLICIT FORBIDDEN PATTERNS:
+ *   - DO NOT mock `/api/ingest/folder-drop` with `page.route()` — the test
+ *     must exercise the real admission gate: Storage PUT + identity RPC.
+ *   - DO NOT replace the content_hash equality check with a truthiness
+ *     check — a stub returning a fixed placeholder hash would pass.
  */
 
 import { test, expect } from '../fixtures';
@@ -138,161 +115,120 @@ import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 
-/**
- * Phase 3 implementation notes:
- * - Fixture: `e2e/fixtures/files/sample.pdf` is a hand-crafted minimal valid
- *   PDF (~721 bytes) containing the sentinel substring
- *   "E2E-UPLOAD-SENTINEL-8-0-4-knowledge-hub" in extractable text. The
- *   sentinel survives `unpdf` extraction (verified locally).
- * - Cleanup deletes content_items, source_documents, storage object, and
- *   pipeline_runs rows created by each test, in a try/finally so that
- *   partial failures still leave a clean slate.
- */
-
 const FIXTURE_PDF = path.resolve(
   process.cwd(),
   'e2e/fixtures/files/e2e-upload-sentinel-8-0-4.pdf',
 );
-const SENTINEL = 'E2E-UPLOAD-SENTINEL-8-0-4-knowledge-hub';
+const FIXTURE_NAME = 'e2e-upload-sentinel-8-0-4.pdf';
 
-interface CreatedItem {
-  itemId: string;
-  sourceDocumentId: string | null;
+interface AdmittedSource {
+  sourceDocumentId: string;
   storagePath: string | null;
 }
 
-async function deleteCreatedItem(item: CreatedItem): Promise<void> {
+async function deleteAdmittedSource(item: AdmittedSource): Promise<void> {
   const svc = createServiceClient();
   if (item.storagePath) {
-    await svc.storage.from('documents').remove([item.storagePath]);
+    await svc.storage.from('corpus').remove([item.storagePath]);
   }
-  if (item.sourceDocumentId) {
-    await svc.from('source_documents').delete().eq('id', item.sourceDocumentId);
-  }
-  await svc.from('content_history').delete().eq('content_item_id', item.itemId);
-  await svc
-    .from('pipeline_runs')
-    .delete()
-    .contains('items_created', [item.itemId]);
-  await svc.from('content_items').delete().eq('id', item.itemId);
+  await svc.from('source_documents').delete().eq('id', item.sourceDocumentId);
 }
 
-test.describe('Content ingestion -- 8.0.4 file upload', () => {
-  const created: CreatedItem[] = [];
+test.describe('Content ingestion -- 8.0.4 file upload (binding-admission gate)', () => {
+  const created: AdmittedSource[] = [];
 
   test.afterEach(async () => {
     while (created.length > 0) {
       const item = created.pop();
       if (!item) continue;
       try {
-        await deleteCreatedItem(item);
+        await deleteAdmittedSource(item);
       } catch (err) {
         // Surface cleanup failures so they cannot mask leaked rows.
-        console.error('cleanup failed for', item.itemId, err);
+        console.error('cleanup failed for', item.sourceDocumentId, err);
       }
     }
   });
 
-  test('uploads a PDF, extracts the sentinel, dedups on re-upload', async ({
+  test('connects a source, mints a source_documents row, and dedups on re-connect', async ({
     authenticatedPage: page,
   }) => {
-    test.setTimeout(180_000);
+    test.setTimeout(90_000);
 
-    // Sanity-check the fixture exists with non-zero size.
+    // Sanity-check the fixture exists with non-zero size and compute the
+    // expected sha256 the route's M2 resolver derives independently.
     const fixtureBytes = fs.readFileSync(FIXTURE_PDF);
     expect(fixtureBytes.length).toBeGreaterThan(0);
     expect(fixtureBytes.length).toBeLessThan(50_000);
     const expectedHash = crypto
-      .createHash('md5')
+      .createHash('sha256')
       .update(fixtureBytes)
       .digest('hex');
 
-    // 1. Navigate to /item/new and switch to the Upload file tab.
-    await page.goto('/item/new');
-    await expect(page.getByRole('tablist')).toBeVisible({ timeout: 10_000 });
-
-    await page.getByRole('tab', { name: /Upload file/i }).click();
+    // 1. Navigate straight to the Upload tab via deep link.
+    await page.goto('/item/new?tab=upload');
     await expect(
       page.locator('section[aria-label="Upload documents"]'),
     ).toBeVisible({ timeout: 10_000 });
 
-    // 2. Attach the fixture file to the dropzone's hidden input.
+    // 2. Attach the fixture to the dropzone's hidden input.
     const fileInput = page
       .locator('section[aria-label="Upload documents"] input[type="file"]')
       .first();
     await fileInput.setInputFiles(FIXTURE_PDF);
+    await expect(page.getByText(FIXTURE_NAME).first()).toBeVisible({
+      timeout: 10_000,
+    });
 
-    // The file appears in the pending list.
-    await expect(
-      page.getByText('e2e-upload-sentinel-8-0-4.pdf').first(),
-    ).toBeVisible({ timeout: 10_000 });
+    // 3. Select the "Ingest once" retention class (exercise the picker
+    //    rather than relying on the keep_and_watch default).
+    await page.locator('#upload-retention-class').click();
+    await page.getByRole('option', { name: 'Ingest once' }).click();
 
-    // 3. Click Upload and wait for the /api/upload response.
-    const uploadResponsePromise = page.waitForResponse(
+    // 4. Click Connect and wait for the admission response.
+    const admitResponsePromise = page.waitForResponse(
       (resp) =>
-        resp.url().includes('/api/upload') &&
+        resp.url().includes('/api/ingest/folder-drop') &&
+        !resp.url().includes('/status') &&
         resp.request().method() === 'POST',
-      { timeout: 120_000 },
+      { timeout: 60_000 },
     );
-    await page.getByRole('button', { name: /^Upload/ }).click();
+    await page.getByRole('button', { name: /^Connect/ }).click();
 
-    const uploadResponse = await uploadResponsePromise;
-    expect(uploadResponse.status()).toBe(200);
-    const uploadBody = await uploadResponse.json();
-    expect(uploadBody.id).toBeTruthy();
+    const admitResponse = await admitResponsePromise;
+    expect(admitResponse.status()).toBe(202);
+    const admitBody = await admitResponse.json();
+    expect(admitBody.sourceDocumentId).toBeTruthy();
+    expect(admitBody.wasMinted).toBe(true);
+    expect(admitBody.retentionClass).toBe('ingest_once');
 
-    const itemId: string = uploadBody.id;
-    const sourceDocumentId: string | null =
-      uploadBody.source_document_id ?? null;
-    created.push({
-      itemId,
-      sourceDocumentId,
-      storagePath: null,
-    });
+    const sourceDocumentId: string = admitBody.sourceDocumentId;
+    created.push({ sourceDocumentId, storagePath: null });
 
-    // 4. Wait for the review step to render so the upload pipeline truly
-    //    finished (not just returned).
-    await expect(page.getByTestId('upload-review-step')).toBeVisible({
-      timeout: 30_000,
-    });
+    // 5. The admission-results row shows the connected file + retention label.
+    const resultsList = page.getByTestId('admission-results');
+    await expect(resultsList).toBeVisible({ timeout: 10_000 });
+    await expect(resultsList.getByText(FIXTURE_NAME)).toBeVisible();
+    await expect(resultsList.getByText('Ingest once')).toBeVisible();
 
-    // 5. DB-side assertions via service key.
+    // 6. DB-side assertions via service key.
     const svc = createServiceClient();
-
-    const { data: itemRow, error: itemErr } = await svc
-      .from('content_items')
-      .select(
-        'id, content, created_by, source_document_id, metadata, file_path',
-      )
-      .eq('id', itemId)
-      .single();
-    expect(itemErr).toBeNull();
-    expect(itemRow).not.toBeNull();
-    expect(itemRow!.content).toBeTruthy();
-    expect((itemRow!.content as string).length).toBeGreaterThan(0);
-    expect(itemRow!.content as string).toContain(SENTINEL);
-    expect(itemRow!.created_by).toBeTruthy();
-    expect(itemRow!.source_document_id).toBeTruthy();
-
-    // source_documents row check.
     const { data: sourceDoc, error: srcErr } = await svc
       .from('source_documents')
-      .select('id, storage_path, content_hash, mime_type, file_size')
-      .eq('id', itemRow!.source_document_id as string)
+      .select('id, storage_path, content_hash, mime_type, filename')
+      .eq('id', sourceDocumentId)
       .single();
     expect(srcErr).toBeNull();
     expect(sourceDoc).not.toBeNull();
     expect(sourceDoc!.storage_path).toBeTruthy();
-    expect(sourceDoc!.content_hash).toBeTruthy();
     expect(sourceDoc!.content_hash).toBe(expectedHash);
     expect(sourceDoc!.mime_type).toBe('application/pdf');
 
-    // Now that we know the storage path, register it for cleanup.
     created[created.length - 1].storagePath = sourceDoc!.storage_path as string;
 
-    // 6. Storage object check — actually downloadable, non-empty.
+    // 7. Storage object check — actually downloadable, byte-for-byte match.
     const { data: blob, error: dlErr } = await svc.storage
-      .from('documents')
+      .from('corpus')
       .download(sourceDoc!.storage_path as string);
     expect(dlErr).toBeNull();
     expect(blob).not.toBeNull();
@@ -300,96 +236,30 @@ test.describe('Content ingestion -- 8.0.4 file upload', () => {
     expect(downloaded.length).toBe(fixtureBytes.length);
     expect(downloaded.equals(fixtureBytes)).toBe(true);
 
-    // 7. Read-side round-trip on the user-facing /item/<id> route. The
-    //    upload tab creates items as `governance_review_status='draft'`
-    //    (filtered from the default /browse view) AND does not set
-    //    captured_date, so reaching through paginated browse is fragile
-    //    and unrelated to what we're proving. The item detail page is
-    //    the standard read path: navigating there exercises the same
-    //    authenticated user session, the same RLS policies, and the
-    //    same `content_items` select that /browse uses. If any of those
-    //    regress, this navigation fails loudly (404, redirect, or empty
-    //    title) — and we additionally assert the rendered title matches
-    //    what we wrote.
-    await page.goto(`/item/${itemId}`);
-    await expect(
-      page.getByRole('heading', { name: new RegExp(uploadBody.title, 'i') }),
-    ).toBeVisible({ timeout: 15_000 });
-    // Sanity: the URL did not redirect elsewhere (e.g. /login or /browse
-    // if RLS silently rejected the read).
-    expect(page.url()).toContain(`/item/${itemId}`);
-
-    // 8. Re-upload dedup: POST the same bytes a second time via the API
-    //    directly so we exercise the dedup path without relying on the UI.
-    //    We do this through the page's session cookies so auth is preserved.
-    const reuploadResp = await page.request.post('/api/upload', {
-      multipart: {
-        file: {
-          name: 'e2e-upload-sentinel-8-0-4.pdf',
-          mimeType: 'application/pdf',
-          buffer: fixtureBytes,
-        },
-      },
+    // 8. Re-connect the SAME file: content_hash-first resolution must
+    //    return the SAME sourceDocumentId with wasMinted: false, and the
+    //    UI must surface the "already connected" hint.
+    await fileInput.setInputFiles(FIXTURE_PDF);
+    await expect(page.getByText(FIXTURE_NAME).first()).toBeVisible({
+      timeout: 10_000,
     });
-    // The route always 200s for valid uploads, but reuploads must NOT
-    // create duplicate source_documents rows for the same content_hash +
-    // uploader. The route either flags `reupload_detection.match_type =
-    // identical` or creates a new version. The non-negotiable check is on
-    // the DB count below.
-    expect(reuploadResp.ok()).toBe(true);
-    const reuploadBody = await reuploadResp.json();
-    expect(reuploadBody.id).toBeTruthy();
 
-    // Track the second upload's item for cleanup (it's a different item id
-    // even when re-upload detection fires — `detect_reupload` records a
-    // new version, it does not block the insert).
-    if (reuploadBody.id && reuploadBody.id !== itemId) {
-      created.push({
-        itemId: reuploadBody.id,
-        sourceDocumentId: reuploadBody.source_document_id ?? null,
-        storagePath: null,
-      });
-    }
+    const reconnectResponsePromise = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/ingest/folder-drop') &&
+        !resp.url().includes('/status') &&
+        resp.request().method() === 'POST',
+      { timeout: 60_000 },
+    );
+    await page.getByRole('button', { name: /^Connect/ }).click();
+    const reconnectResponse = await reconnectResponsePromise;
+    expect(reconnectResponse.status()).toBe(202);
+    const reconnectBody = await reconnectResponse.json();
+    expect(reconnectBody.sourceDocumentId).toBe(sourceDocumentId);
+    expect(reconnectBody.wasMinted).toBe(false);
 
-    // The reupload_detection envelope MUST fire, proving the dedup signal
-    // reached the client. Either match_type works ("identical" for exact
-    // bytes — which is our case — or "new_version" for a renamed file).
-    expect(reuploadBody.reupload_detection).toBeTruthy();
-    expect(reuploadBody.reupload_detection.match_type).toBe('identical');
-
-    // The hash-based count assertion: exactly two source_documents rows
-    // exist for the two content_items we just created. Production tracks
-    // reuploads as new versions intentionally, so >2 means the route
-    // inserted a phantom row and <2 means an insert was lost. We scope
-    // by content_item_id_linked (via content_items.source_document_id
-    // → source_documents.id) rather than content_hash alone, because
-    // parallel browser projects (chromium-desktop + chromium-mobile)
-    // share the same admin uploader and the fixture has deterministic
-    // bytes — scoping by hash+uploader would see contamination from
-    // the other project's concurrent run.
-    const createdItemIds = created.map((c) => c.itemId);
-    expect(createdItemIds.length).toBe(2);
-    const { data: linkedItems, error: linkedErr } = await svc
-      .from('content_items')
-      .select('id, source_document_id')
-      .in('id', createdItemIds);
-    expect(linkedErr).toBeNull();
-    expect(linkedItems).not.toBeNull();
-    expect(linkedItems!.length).toBe(2);
-    const linkedSourceDocIds = linkedItems!
-      .map((i) => i.source_document_id as string | null)
-      .filter((v): v is string => !!v);
-    expect(linkedSourceDocIds.length).toBe(2);
-    // And every linked source_documents row must have the expected hash.
-    const { data: srcRows, error: srcRowsErr } = await svc
-      .from('source_documents')
-      .select('id, content_hash')
-      .in('id', linkedSourceDocIds);
-    expect(srcRowsErr).toBeNull();
-    expect(srcRows).not.toBeNull();
-    expect(srcRows!.length).toBe(2);
-    for (const row of srcRows!) {
-      expect(row.content_hash).toBe(expectedHash);
-    }
+    await expect(
+      resultsList.getByText('already connected').first(),
+    ).toBeVisible({ timeout: 10_000 });
   });
 });

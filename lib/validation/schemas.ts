@@ -378,10 +378,10 @@ export const ItemCreateBodySchema = z.object({
   content_owner_id: z.string().uuid().optional(),
 });
 
-/** POST /api/items/:id/classify -- on-demand classification */
-export const ClassifyBodySchema = z.object({
-  force: z.boolean().default(false),
-});
+// (ClassifyBodySchema — POST /api/items/:id/classify — was retired under
+// ID-131.17 "17-final" [G-IMS-DELETE tail] alongside the deferred
+// app/api/items/[id]/classify/route.ts it validated: zero remaining
+// callers confirmed by rg.)
 
 /** PATCH /api/items/:id */
 export const ItemUpdateBodySchema = z
@@ -639,11 +639,12 @@ export const WorkspaceUpdateBodySchema = z.object({
   is_archived: z.boolean().optional(),
 });
 
-/** POST /api/items/[id]/workspaces */
-export const ItemWorkspaceBodySchema = z.object({
-  workspace_id: z.string().uuid('workspace_id must be a valid UUID'),
-  action: z.enum(['assign', 'unassign']),
-});
+// (ItemWorkspaceBodySchema — POST /api/items/[id]/workspaces — was retired
+// under ID-131.17 "17-final" [G-IMS-DELETE tail] alongside the deferred
+// app/api/items/[id]/workspaces/route.ts it validated: the DB-side
+// get_item_workspaces RPC drop in supabase/migrations/
+// 20260704221000_id131_drop_ims_fns.sql was explicitly sequenced after
+// this route's deletion.)
 
 // ──────────────────────────────────────────
 // Admin User Management Schemas
@@ -2259,10 +2260,10 @@ export const EntityMetadataUpdateSchema = z
     message: 'At least one metadata field required',
   });
 
-/** POST /api/items/[id]/archive */
-export const ArchiveBodySchema = z.object({
-  reason: z.string().trim().min(1, 'Reason is required').max(1000),
-});
+// (ArchiveBodySchema — POST /api/items/[id]/archive — was retired under
+// ID-131.17 "17-final" [G-IMS-DELETE tail] alongside the deferred
+// app/api/items/[id]/archive/route.ts it validated: zero remaining callers
+// confirmed by rg.)
 
 // (The §1.7 Admin Cross-System Dedup Review (S211B) and §1.9 Near-Duplicate
 // Merge Dashboard (S212B) request-body/query schemas that used to live here

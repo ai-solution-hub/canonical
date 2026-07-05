@@ -1,15 +1,25 @@
 /**
  * WP2 Phase 1 spec — 8.0.6 viewer write enforcement
  *
- * VERIFIED AGAINST PRODUCTION (Phase 2 adversarial review):
- *   - The upload endpoint is `/api/upload` (verified at
- *     `app/api/upload/route.ts`). The earlier draft referenced
- *     `/api/upload-urls`, which does NOT exist.
- *   - `app/api/bids/route.ts` POST uses
- *     `getAuthorisedClient(['admin', 'editor'])` and returns
- *     `authFailureResponse(auth)` on failure, which routes `forbidden`
- *     → 403 (per CLAUDE.md gotcha). Viewer POST therefore returns 403.
- *   - `viewerPage` fixture exists in `e2e/fixtures/auth.ts:52` (TEST_USER_3).
+ * ID-131 "17-final" REPOINT (G-IMS-DELETE tail): the original draft targeted
+ * `POST /api/items` and `POST /api/upload`, both deleted under {131.17}/
+ * {131.24} (content_items write surface retired). This spec now targets the
+ * two write routes that replaced them:
+ *   - `POST /api/q-a-pairs/batch` (ID-131 {131.21} G-MANUAL-QA) — the manual
+ *     Q&A batch-authoring route (`app/api/q-a-pairs/batch/route.ts`), gated
+ *     `getAuthorisedClient(['admin', 'editor'])` same as the old items route.
+ *   - `POST /api/ingest/folder-drop` (ID-138 {138.13}, ID-131.24 G-UPLOAD-GATE)
+ *     — the single binding-admission gate that now backs the Upload tab,
+ *     also gated `getAuthorisedClient(['admin', 'editor'])`.
+ * Neither `q_a_pairs` nor `source_documents` carries a `created_by`/
+ * `uploaded_by` column (ownership lives at the `record_lifecycle` governance
+ * facet, not the row itself — see
+ * `supabase/migrations/20260705100000_id131_facet_mint.sql`), so the
+ * "nothing was written" check below is scoped to a per-attempt UNIQUE
+ * sentinel value rather than a created_by row count. This is strictly
+ * tighter than the old count comparison and also survives parallel-project
+ * contamination (chromium-desktop + chromium-mobile share the same viewer
+ * user).
  *
  * USER FLOW:
  *   1. Use the `viewerPage` fixture (TEST_USER_3, viewer role) so the
@@ -17,17 +27,16 @@
  *   2. Without ever clicking a UI button, issue direct write requests via
  *      `page.request.post()` (bypasses any client-side gating; tests the
  *      server boundary directly):
- *        a. `POST /api/items` with a minimal valid body for creating a
- *           content item.
- *        b. `POST /api/bids` with a minimal valid body for creating a bid
- *           (e.g. `{ name: "viewer-attempt-<ts>", buyer: "x" }` — verify
- *           required fields against `ProcurementCreateBodySchema` in
- *           `lib/validation/schemas.ts` so the body passes validation
- *           and the test exercises the AUTH layer, not the validation
- *           layer).
- *        c. `POST /api/upload` with a minimal valid multipart body
- *           for requesting an upload (verify body shape against
- *           `app/api/upload/route.ts`).
+ *        a. `POST /api/q-a-pairs/batch` with a minimal valid body for
+ *           creating a manually-authored Q&A pair.
+ *        b. `POST /api/procurement` with a minimal valid body for creating a
+ *           bid (verify required fields against `ProcurementCreateBodySchema`
+ *           in `lib/validation/schemas.ts` so the body passes validation and
+ *           the test exercises the AUTH layer, not the validation layer).
+ *        c. `POST /api/ingest/folder-drop` with a minimal valid multipart
+ *           body (file + retention_class) for requesting a source-document
+ *           admission (verify body shape against
+ *           `app/api/ingest/folder-drop/route.ts`).
  *   3. For at least one of those endpoints (the bid one), also issue a
  *      `PATCH` against an existing row owned by ANOTHER user (use
  *      worker-seeded `procurementId`) to prove the role check holds even when
@@ -47,19 +56,16 @@
  *     catches the discriminated-union regression where a route returns
  *     401 instead of 403 for an authenticated-but-unauthorised request.
  *   - Each response body parses as JSON (NOT HTML) AND contains an
- *     explicit error key (e.g. `error: "forbidden"` or similar). Phase 3
- *     pins the exact key by inspecting `authFailureResponse` in
- *     `lib/auth.ts`.
+ *     explicit error key (`error: 'Forbidden'`, per `authFailureResponse`
+ *     in `lib/auth/client.ts`).
  *   - PATCH against the seeded `workspaces` row returns 403 AND the row
  *     in DB is unchanged: `updated_at`, `name`, and the buyer field of
  *     `domain_metadata` all equal their pre-test values (strict equality
  *     against the captured snapshot, NOT just "row still exists").
- *   - Service-key COUNT query confirms zero new `content_items` rows
- *     where `created_by = <viewer.id>` within the test window (capture
- *     a pre-test count; assert post-test count is identical).
- *   - Service-key COUNT query confirms zero new `workspaces` rows of
- *     `type='bid'` where `created_by = <viewer.id>` within the test
- *     window (same pre/post pattern).
+ *   - Service-key SELECT confirms zero `q_a_pairs` rows exist with the
+ *     attempt's unique `question_text` sentinel.
+ *   - Service-key SELECT confirms zero `source_documents` rows exist with
+ *     the attempt's unique `filename` sentinel.
  *
  * FIXTURE DATA (pre-seeded before test runs):
  *   - Worker-scoped `workerData.procurementId` from `test-data-fixture.ts` is
@@ -70,7 +76,7 @@
  * each must map to >= 1 assertion above):
  *   - Server-side role gating missing: route handler accepts viewer's
  *     auth cookie and inserts the row → caught by 403 assertion + DB
- *     row-count assertion (BOTH must hold; one alone is satisfiable by
+ *     sentinel-row assertion (BOTH must hold; one alone is satisfiable by
  *     a stub that returns 403 but still inserts).
  *   - Role check regressed to client-only (button hidden but POST still
  *     works) → caught by direct `page.request.post()` bypassing the UI.
@@ -93,11 +99,11 @@
  *   paths are covered by 8.0.3 (bid create) and 8.0.4/8.0.5 (ingestion).
  *
  * CLEANUP:
- *   afterAll: defensive service-key delete of any rows that somehow got
- *   created with `created_by = viewer.id` during the run (the test
- *   should leave nothing behind, but a failure that creates a leak must
- *   not pollute the next run). No afterEach — each test is read-only at
- *   the DB level when passing, so cleanup is a single sweep.
+ *   afterAll: defensive service-key delete of any `q_a_pairs` /
+ *   `source_documents` rows matching the `viewer-attempt-` sentinel prefix
+ *   (the test should leave nothing behind, but a failure that creates a
+ *   leak must not pollute the next run). No afterEach — each test is
+ *   read-only at the DB level when passing, so cleanup is a single sweep.
  *
  * EXPLICIT FORBIDDEN PATTERNS (Phase 3 implementer must NOT do these):
  *   - DO NOT mock any `/api/*` endpoint. The whole point is to exercise
@@ -218,6 +224,11 @@ test.describe('8.0.6 viewer write enforcement (server-side)', () => {
     const svc = createServiceClient();
     const viewerId = await getViewerUserId();
 
+    // Unique per-run sentinel — q_a_pairs / source_documents carry no
+    // created_by column, so "nothing was written" is proven by absence of
+    // this exact value rather than a row-count comparison.
+    const attemptId = `viewer-attempt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
     // S246 WP2b T2: resolve procurement application_type_id once for the
     // workspaces discriminator filter (replaces .eq('type', 'bid')).
     const procurementAppTypeId = await getApplicationTypeId(svc, 'procurement');
@@ -235,13 +246,7 @@ test.describe('8.0.6 viewer write enforcement (server-side)', () => {
     const preBidBuyer =
       (preBid!.domain_metadata as { buyer?: string } | null)?.buyer ?? null;
 
-    // ---- Pre-test counts: rows owned by the viewer ----
-    const { count: preItemCount, error: preItemErr } = await svc
-      .from('content_items')
-      .select('id', { count: 'exact', head: true })
-      .eq('created_by', viewerId);
-    expect(preItemErr).toBeNull();
-
+    // ---- Pre-test counts: bid rows owned by the viewer ----
     const { count: preBidsCount, error: preBidsErr } = await svc
       .from('workspaces')
       .select('id', { count: 'exact', head: true })
@@ -249,15 +254,16 @@ test.describe('8.0.6 viewer write enforcement (server-side)', () => {
       .eq('application_type_id', procurementAppTypeId);
     expect(preBidsErr).toBeNull();
 
-    // ---- Endpoint A: POST /api/items ----
-    const itemsRes = await viewerPage.request.post('/api/items', {
+    // ---- Endpoint A: POST /api/q-a-pairs/batch ----
+    const itemsRes = await viewerPage.request.post('/api/q-a-pairs/batch', {
       data: {
-        title: `viewer-attempt-${Date.now()}`,
-        content: 'Viewer should not be able to create this content item.',
-        content_type: 'note',
-        auto_classify: false,
-        auto_summarise: false,
-        auto_embed: false,
+        items: [
+          {
+            question_text: attemptId,
+            answer_standard:
+              'Viewer should not be able to create this Q&A pair.',
+          },
+        ],
       },
     });
     expect(itemsRes.status()).toBe(403);
@@ -267,7 +273,7 @@ test.describe('8.0.6 viewer write enforcement (server-side)', () => {
     const itemsBody = await itemsRes.json();
     expect(itemsBody).toEqual({ error: 'Forbidden' });
 
-    // ---- Endpoint B: POST /api/bids ----
+    // ---- Endpoint B: POST /api/procurement ----
     const bidsRes = await viewerPage.request.post('/api/procurement', {
       data: {
         name: `viewer-attempt-bid-${Date.now()}`,
@@ -281,18 +287,21 @@ test.describe('8.0.6 viewer write enforcement (server-side)', () => {
     const bidsBody = await bidsRes.json();
     expect(bidsBody).toEqual({ error: 'Forbidden' });
 
-    // ---- Endpoint C: POST /api/upload (multipart) ----
-    // Minimal valid PDF magic-bytes payload — the route checks magic bytes
-    // AFTER the auth check, so even a 4-byte buffer suffices to prove the
-    // 403 short-circuit fires before any file processing.
+    // ---- Endpoint C: POST /api/ingest/folder-drop (multipart) ----
+    // Minimal non-empty payload — the route checks auth BEFORE parsing the
+    // multipart body (app/api/ingest/folder-drop/route.ts), so even a
+    // 4-byte buffer suffices to prove the 403 short-circuit fires before
+    // any Storage PUT / source_documents mint.
+    const uploadFilename = `${attemptId}.pdf`;
     const pdfBytes = Buffer.from([0x25, 0x50, 0x44, 0x46]); // "%PDF"
-    const uploadRes = await viewerPage.request.post('/api/upload', {
+    const uploadRes = await viewerPage.request.post('/api/ingest/folder-drop', {
       multipart: {
         file: {
-          name: 'viewer-attempt.pdf',
+          name: uploadFilename,
           mimeType: 'application/pdf',
           buffer: pdfBytes,
         },
+        retention_class: 'ingest_once',
       },
     });
     expect(uploadRes.status()).toBe(403);
@@ -302,7 +311,7 @@ test.describe('8.0.6 viewer write enforcement (server-side)', () => {
     const uploadBody = await uploadRes.json();
     expect(uploadBody).toEqual({ error: 'Forbidden' });
 
-    // ---- Endpoint D (cross-user PATCH): PATCH /api/bids/:id ----
+    // ---- Endpoint D (cross-user PATCH): PATCH /api/procurement/:id ----
     const patchRes = await viewerPage.request.patch(
       `/api/procurement/${procurementId}`,
       {
@@ -333,46 +342,50 @@ test.describe('8.0.6 viewer write enforcement (server-side)', () => {
       (postBid!.domain_metadata as { buyer?: string } | null)?.buyer ?? null,
     ).toBe(preBidBuyer);
 
-    // ---- Post-test: row counts unchanged for viewer-owned rows ----
-    const { count: postItemCount } = await svc
-      .from('content_items')
-      .select('id', { count: 'exact', head: true })
-      .eq('created_by', viewerId);
-    expect(postItemCount).toBe(preItemCount);
-
+    // ---- Post-test: bid row count unchanged for the viewer ----
     const { count: postBidsCount } = await svc
       .from('workspaces')
       .select('id', { count: 'exact', head: true })
       .eq('created_by', viewerId)
       .eq('application_type_id', procurementAppTypeId);
     expect(postBidsCount).toBe(preBidsCount);
+
+    // ---- Post-test: no q_a_pairs row leaked from the forbidden POST ----
+    const { data: leakedQAPairs, error: qaPairsErr } = await svc
+      .from('q_a_pairs')
+      .select('id')
+      .eq('question_text', attemptId);
+    expect(qaPairsErr).toBeNull();
+    expect(leakedQAPairs).toEqual([]);
+
+    // ---- Post-test: no source_documents row leaked from the forbidden
+    //      folder-drop admission ----
+    const { data: leakedSourceDocs, error: srcDocErr } = await svc
+      .from('source_documents')
+      .select('id')
+      .eq('filename', uploadFilename);
+    expect(srcDocErr).toBeNull();
+    expect(leakedSourceDocs).toEqual([]);
   });
 
   test.afterAll(async () => {
-    // Defensive sweep: remove any rows that somehow got created with
-    // `created_by = viewer.id` during the run. The test should leave
-    // nothing behind (every assertion expects 403 + no write), but a
+    // Defensive sweep: remove any rows that somehow got created carrying the
+    // `viewer-attempt-` sentinel prefix during the run. The test should
+    // leave nothing behind (every assertion expects 403 + no write), but a
     // failure that leaks rows must not pollute the next run. Bounded to
-    // viewer-owned rows only — never touches admin/editor/worker data.
+    // sentinel-prefixed rows only — never touches admin/editor/worker data.
     // The worker-scoped `workerData` fixture handles teardown of its own
     // seeded graph, so we no longer need to delete a bid row here.
     try {
       const svc = createServiceClient();
-      if (VIEWER_EMAIL) {
-        const viewerId = await getViewerUserId();
-        // S246 WP2b T2: filter by application_type_id, not the dropped
-        // `workspaces.type` text column.
-        const procurementAppTypeId = await getApplicationTypeId(
-          svc,
-          'procurement',
-        );
-        await svc.from('content_items').delete().eq('created_by', viewerId);
-        await svc
-          .from('workspaces')
-          .delete()
-          .eq('created_by', viewerId)
-          .eq('application_type_id', procurementAppTypeId);
-      }
+      await svc
+        .from('q_a_pairs')
+        .delete()
+        .like('question_text', 'viewer-attempt-%');
+      await svc
+        .from('source_documents')
+        .delete()
+        .like('filename', 'viewer-attempt-%');
     } catch (err) {
       console.error('[8.0.6 cleanup] sweep failed:', err);
     }

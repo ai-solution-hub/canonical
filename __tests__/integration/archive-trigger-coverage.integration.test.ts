@@ -21,7 +21,8 @@
  *    known direct `archived_at` writer and asserts that the post-write
  *    row has `publication_status='archived'`:
  *      - app/api/items/[id]/archive/route.ts:53-62 (direct `archived_at`
- *        write via PATCH `/api/items/[id]/archive`).
+ *        write via PATCH `/api/items/[id]/archive`). RETIRED — see the
+ *        ID-131 "17-final" note below.
  *      - MCP `delete_content_item` tool handler (writes `archived_at`
  *        per audit §2.4).
  *      - Supersession path via `lib/supersession/set.ts` (sets
@@ -47,13 +48,23 @@
  *   legacy content_items dedup family, S446): the admin content-dedup
  *   surface (including this route) was deleted, so Writer 3 no longer
  *   exists in production and its dedicated pre-flight block below was
- *   removed with it. Only Writers 1 and 2 remain covered by this file.
+ *   removed with it.
  *
- * Spec drift NOTE (S216 W1 brief observation):
- *   Spec §10.3 line 1761 describes the route as "PATCH /api/items/[id]/
- *   archive" but the actual handler in `app/api/items/[id]/archive/
- *   route.ts:22` is `POST`. The test invokes the production POST handler
- *   directly. A spec edit is queued for the W1 handoff.
+ * ID-131 "17-final" NOTE (G-IMS-DELETE tail): Writer 1
+ * (`app/api/items/[id]/archive/route.ts`, the legacy IMS item-detail
+ * archive action) was deleted in this same sweep — the "17-final" slice
+ * retires the last deferred `/api/items/*` routes. Its dedicated
+ * `describeIfEnv('... (writer 1)', ...)` block, the `postArchive` helper,
+ * and the `archivePost` dynamic import have been removed accordingly.
+ * Direction 3 coverage is NOT lost: the "MCP delete_content_item" (writer 2)
+ * and "lib/supersession/set.ts" (writer 4) blocks below both still exercise
+ * it against a genuinely live writer. Only Writers 2 and 4 (plus the
+ * Direction 1 control case) remain covered by this file.
+ *
+ * Spec drift NOTE (S216 W1 brief observation, historical): spec §10.3 line
+ * 1761 described the now-deleted route as "PATCH /api/items/[id]/archive"
+ * but the actual handler was `POST`. Retained for provenance only — the
+ * route itself is gone.
  *
  * §6.6 trigger Direction 3 — the production-bridge predicate (verbatim
  * from `supabase/migrations/20260427141627_publication_status_indexes_and_trigger.sql`,
@@ -159,12 +170,8 @@ vi.mock('next/headers', () => ({
 }));
 
 // Imports AFTER the mock is registered.
-const { POST: archivePost } =
-  await import('@/app/api/items/[id]/archive/route');
 const { registerGovernanceTools } = await import('@/lib/mcp/tools/governance');
 const { setSupersession } = await import('@/lib/supersession/set');
-
-import { NextRequest } from 'next/server';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -263,23 +270,6 @@ async function readRow(itemId: string) {
     );
   }
   return data;
-}
-
-/**
- * Invoke the production POST archive route handler.
- * NOTE: spec §10.3 line 1761 says "PATCH" — actual route is POST. See
- * file-header drift note.
- */
-async function postArchive(
-  itemId: string,
-  body: { reason: string },
-): Promise<Response> {
-  const req = new NextRequest(`http://localhost/api/items/${itemId}/archive`, {
-    method: 'POST',
-    body: JSON.stringify(body),
-    headers: { 'content-type': 'application/json' },
-  });
-  return archivePost(req, { params: Promise.resolve({ id: itemId }) });
 }
 
 interface CapturedTool {
@@ -431,81 +421,6 @@ afterAll(async () => {
 // ===========================================================================
 // Tests
 // ===========================================================================
-
-describeIfEnv(
-  'Archive trigger coverage — POST /api/items/[id]/archive (writer 1)',
-  () => {
-    it('Case A — happy path: published row → POST archive → trigger Direction 3 fires', async () => {
-      // Spec §10.3 pre-flight requirement: round-trip the writer and
-      // assert post-write row has publication_status='archived'.
-      const itemId = await seedItem(
-        'published',
-        'route-A-happy-path',
-        TEST_USER_ADMIN_ID,
-      );
-
-      // Sanity baseline: archived_at IS NULL, publication_status='published'.
-      const pre = await readRow(itemId);
-      expect(pre.publication_status).toBe('published');
-      expect(pre.archived_at).toBeNull();
-
-      const reason = 'Pre-flight A1: route happy-path';
-      const beforeMs = Date.now();
-      const res = await postArchive(itemId, { reason });
-
-      expect(
-        res.status,
-        `archive POST failed: ${await res.clone().text()}`,
-      ).toBe(200);
-
-      const post = await readRow(itemId);
-      // CORE PRE-FLIGHT ASSERTION (spec §10.3 + AC1.11).
-      expect(post.publication_status).toBe('archived');
-      expect(post.archived_at).not.toBeNull();
-      const archivedTs = new Date(post.archived_at as string).getTime();
-      expect(archivedTs).toBeGreaterThanOrEqual(beforeMs - 5_000);
-      expect(archivedTs).toBeLessThanOrEqual(Date.now() + 5_000);
-      expect(post.archived_by).toBe(TEST_USER_ADMIN_ID);
-      expect(post.archive_reason).toBe(reason);
-    }, 60_000);
-
-    it('Case B — already-archived idempotency: route allows re-archive (overwrites archived_at)', async () => {
-      // Behaviour-check per W1 brief: route SHOULD allow re-archive
-      // and overwrite archived_at to a fresh timestamp; trigger
-      // Direction 3 still fires (predicate matches because
-      // OLD.archived_at IS DISTINCT FROM NEW.archived_at), keeping
-      // publication_status='archived'.
-      const itemId = await seedItem(
-        'archived',
-        'route-B-idempotent',
-        TEST_USER_ADMIN_ID,
-      );
-
-      const pre = await readRow(itemId);
-      const preTs = pre.archived_at as string;
-      expect(pre.publication_status).toBe('archived');
-      expect(preTs).not.toBeNull();
-
-      // Wait a small interval so the new timestamp is strictly later.
-      await new Promise((r) => setTimeout(r, 50));
-
-      const reason = 'Pre-flight A1: route idempotency check';
-      const res = await postArchive(itemId, { reason });
-      expect(res.status, await res.clone().text()).toBe(200);
-
-      const post = await readRow(itemId);
-      expect(post.publication_status).toBe('archived');
-      expect(post.archived_at).not.toBeNull();
-      // Route writes a fresh timestamp; assert it is strictly later
-      // than the seed-time stamp (no row state corruption).
-      expect(new Date(post.archived_at as string).getTime()).toBeGreaterThan(
-        new Date(preTs).getTime(),
-      );
-      expect(post.archived_by).toBe(TEST_USER_ADMIN_ID);
-      expect(post.archive_reason).toBe(reason);
-    }, 60_000);
-  },
-);
 
 describeIfEnv(
   'Archive trigger coverage — MCP delete_content_item archive mode (writer 2)',

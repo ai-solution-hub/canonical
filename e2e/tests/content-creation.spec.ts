@@ -1,23 +1,29 @@
 import { test, expect } from '../fixtures';
 import { isMobileViewport } from '../helpers/responsive';
-import { createServiceClient } from '../fixtures/supabase';
 
 /**
- * Flow: Content Creation
+ * Flow: Content Creation — page shell, tab structure, and routing
  *
- * Tests the content creation flow at `/item/new`. The page uses a tabbed
- * interface with four methods: "Write content" (manual form), "Import
- * from URL", "Upload file", and "Batch Q&A". The manual write form uses
- * react-hook-form with Zod validation, includes a rich text editor (TipTap,
- * dynamically imported), classification fields (domain, subtopic), and
- * progressive depth layers.
+ * ID-131 "17-final" REWRITE (G-IMS-DELETE tail): the original spec covered
+ * a FOUR-tab page ("Write content" | "Import from URL" | "Upload file" |
+ * "Batch Q&A") with a manual react-hook-form + TipTap editor + template
+ * gallery on the "Write content" tab. That whole manual-create surface
+ * (and its `content_items` write path) died at {131.18} ("BI-33 — S438
+ * owner-ratified narrowing" — see `app/item/new/new-item-tabs.tsx`'s
+ * module comment). The page is now a THREE-tab shell
+ * (`app/item/new/new-item-tabs.tsx`): "Import from URL" | "Upload file" |
+ * "Batch Q&A", server-validated against `?tab=` in `app/item/new/page.tsx`
+ * (`VALID_TABS = ['url', 'upload', 'batch']`, default `'url'`).
  *
- * P0-2 consolidation: four tabs, deep-linking via ?tab= query param,
- * template gallery zero-state on Write tab, batch redirect from
- * /item/new/batch, Browse Upload navigates to /item/new?tab=upload.
+ * Each tab's own content is covered by its dedicated spec —
+ * `content-ingestion-url.spec.ts` (URL tab), `content-ingestion-upload.spec.ts`
+ * + `content-ingestion-folder-drop.spec.ts` (Upload tab, gated
+ * binding-admission flow). THIS spec is scoped to the page shell: tab
+ * structure, role gating, and `?tab=` deep-linking/redirect routing —
+ * it does not re-test any individual tab's internals.
  *
  * Worker-scoped data provides standard test fixtures. No additional seeding
- * is needed; tests that create content items clean them up in finally blocks.
+ * or content-item cleanup is needed — this spec creates no rows.
  */
 
 // ---------------------------------------------------------------------------
@@ -25,7 +31,7 @@ import { createServiceClient } from '../fixtures/supabase';
 // ---------------------------------------------------------------------------
 
 test.describe('Content creation -- page access and tab structure', () => {
-  test('create page loads with Write content tab active', async ({
+  test('create page loads with Import from URL tab active by default', async ({
     authenticatedPage: page,
   }) => {
     await page.goto('/item/new');
@@ -34,21 +40,22 @@ test.describe('Content creation -- page access and tab structure', () => {
     const tablist = page.getByRole('tablist');
     await expect(tablist).toBeVisible({ timeout: 10000 });
 
-    // "Write content" tab is present and selected
-    const writeTab = page.getByRole('tab', { name: /Write content/i });
-    await expect(writeTab).toBeVisible();
-    await expect(writeTab).toHaveAttribute('aria-selected', 'true');
+    // "Import from URL" tab is present and selected (server default, no
+    // `?tab=` param)
+    const urlTab = page.getByRole('tab', { name: /Import from URL/i });
+    await expect(urlTab).toBeVisible();
+    await expect(urlTab).toHaveAttribute('aria-selected', 'true');
 
-    // All four tabs are visible
-    await expect(
-      page.getByRole('tab', { name: /Import from URL/i }),
-    ).toBeVisible();
+    // All three tabs are visible — the "Write content" tab is gone
     await expect(page.getByRole('tab', { name: /Upload file/i })).toBeVisible();
     await expect(page.getByRole('tab', { name: /Batch Q&A/i })).toBeVisible();
+    await expect(page.getByRole('tab', { name: /Write content/i })).toHaveCount(
+      0,
+    );
 
-    // The write content section is visible
+    // The URL import section is visible
     await expect(
-      page.locator('section[aria-label="Write new content"]'),
+      page.locator('section[aria-label="Import content from URL"]'),
     ).toBeVisible();
   });
 
@@ -68,306 +75,18 @@ test.describe('Content creation -- page access and tab structure', () => {
     const tablist = page.getByRole('tablist');
     await expect(tablist).toBeVisible({ timeout: 10000 });
 
-    // The write content section loads (with template zero-state)
+    // The URL import section loads for editor too
     await expect(
-      page.locator('section[aria-label="Write new content"]'),
+      page.locator('section[aria-label="Import content from URL"]'),
     ).toBeVisible();
-
-    // Template zero-state should be visible for editor too
-    await expect(page.getByText('Choose a starting point')).toBeVisible();
   });
 });
 
 // ---------------------------------------------------------------------------
-// 2. Form Fields and Validation
+// 2. Deep-linking and redirects
 // ---------------------------------------------------------------------------
 
-test.describe('Content creation -- form fields and validation', () => {
-  test('required fields are present in the write form', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.goto('/item/new');
-
-    // Wait for the write content section
-    await expect(
-      page.locator('section[aria-label="Write new content"]'),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Bypass the template zero-state by clicking "Start from scratch"
-    await page.getByText('Start from scratch').click();
-
-    // Title input (label is "Title *" or "Question *" for Q&A pairs)
-    await expect(page.getByLabel(/title/i)).toBeVisible();
-
-    // Content type selector (label is "Content Type *")
-    await expect(page.getByLabel(/content type/i)).toBeVisible();
-
-    // Content editor — shows loading skeleton first, then the editor loads
-    // The loading state has role="status" and aria-label="Loading editor"
-    // Wait for either the loading skeleton to appear or the editor to load
-    const editorLoading = page.locator('[aria-label="Loading editor"]');
-    const editorContainer = page.locator('.tiptap, .ProseMirror');
-    await expect(editorLoading.or(editorContainer)).toBeVisible({
-      timeout: 15000,
-    });
-  });
-
-  test('content type selector shows all valid types', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.goto('/item/new');
-
-    await expect(
-      page.locator('section[aria-label="Write new content"]'),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Bypass the template zero-state
-    await page.getByText('Start from scratch').click();
-
-    // Click the content type select trigger
-    const selectTrigger = page.getByLabel(/content type/i);
-    await selectTrigger.click();
-
-    // Common types group (displayed as "Q A Pair" not "Q&A Pair")
-    const listbox = page.getByRole('listbox');
-    await expect(listbox).toBeVisible({ timeout: 5000 });
-    await expect(listbox.getByText('Q A Pair')).toBeVisible();
-    await expect(listbox.getByText('Case Study')).toBeVisible();
-    await expect(listbox.getByText('Policy')).toBeVisible();
-    await expect(listbox.getByText('Methodology')).toBeVisible();
-    await expect(listbox.getByText('Capability')).toBeVisible();
-
-    // "More types" group includes Article, Certification, Note
-    await expect(listbox.getByText('Article')).toBeVisible();
-    await expect(listbox.getByText('Certification')).toBeVisible();
-    await expect(listbox.getByText('Note')).toBeVisible();
-
-    // Close the dropdown by pressing Escape
-    await page.keyboard.press('Escape');
-  });
-
-  test('title field shows validation error when empty on blur', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.goto('/item/new');
-
-    await expect(
-      page.locator('section[aria-label="Write new content"]'),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Bypass the template zero-state
-    await page.getByText('Start from scratch').click();
-
-    // Focus the title input and then blur (trigger onTouched validation)
-    const titleInput = page.getByLabel(/title/i);
-    await titleInput.focus();
-    await titleInput.blur();
-
-    // An error message should appear (role="alert" with error text)
-    await expect(
-      page.locator('[role="alert"]').filter({ hasText: /title|required/i }),
-    ).toBeVisible({ timeout: 5000 });
-  });
-
-  test('can fill title and select content type', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.goto('/item/new');
-
-    await expect(
-      page.locator('section[aria-label="Write new content"]'),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Bypass the template zero-state
-    await page.getByText('Start from scratch').click();
-
-    // Fill title
-    const titleInput = page.getByLabel(/title/i);
-    await titleInput.fill('E2E Test Article');
-    await expect(titleInput).toHaveValue('E2E Test Article');
-
-    // Select content type "Article"
-    const selectTrigger = page.getByLabel(/content type/i);
-    await selectTrigger.click();
-
-    const listbox = page.getByRole('listbox');
-    await expect(listbox).toBeVisible({ timeout: 5000 });
-    await listbox.getByText('Article').click();
-
-    // Content type should now show "Article" selected
-    await expect(selectTrigger).toHaveText(/Article/);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 3. Classification Fields
-// ---------------------------------------------------------------------------
-
-test.describe('Content creation -- classification fields', () => {
-  test('domain selector is present and shows taxonomy domains', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.goto('/item/new');
-
-    await expect(
-      page.locator('section[aria-label="Write new content"]'),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Bypass the template zero-state
-    await page.getByText('Start from scratch').click();
-
-    // The ClassificationFieldset includes a domain select
-    // For admins, the "More details" section is auto-expanded
-    // Look for the domain selector
-    const domainSelect = page.getByLabel(/domain/i).first();
-    await expect(domainSelect).toBeVisible({ timeout: 10000 });
-
-    // Open the domain selector
-    await domainSelect.click();
-
-    // Should show taxonomy domains loaded from the database
-    const listbox = page.getByRole('listbox');
-    await expect(listbox).toBeVisible({ timeout: 5000 });
-
-    // At least one domain option should be present
-    await expect(listbox.getByRole('option').first()).toBeVisible();
-
-    await page.keyboard.press('Escape');
-  });
-
-  test('subtopic selector updates when domain is selected', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.goto('/item/new');
-
-    await expect(
-      page.locator('section[aria-label="Write new content"]'),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Bypass the template zero-state
-    await page.getByText('Start from scratch').click();
-
-    // Select a domain first
-    const domainSelect = page.getByLabel(/domain/i).first();
-    await expect(domainSelect).toBeVisible({ timeout: 10000 });
-    await domainSelect.click();
-
-    const domainListbox = page.getByRole('listbox');
-    await expect(domainListbox).toBeVisible({ timeout: 5000 });
-
-    // Select the first available domain option
-    const firstDomain = domainListbox.getByRole('option').first();
-    await firstDomain.click();
-
-    // The subtopic selector is always rendered but disabled until a domain
-    // is selected. After domain selection it should be enabled and visible.
-    const subtopicSelect = page.getByLabel(/subtopic/i).first();
-    await expect(subtopicSelect).toBeVisible({ timeout: 10000 });
-
-    // Open the subtopic dropdown
-    await subtopicSelect.click();
-
-    const subtopicListbox = page.getByRole('listbox');
-    await expect(subtopicListbox).toBeVisible({ timeout: 5000 });
-
-    // Should have at least one subtopic option
-    await expect(subtopicListbox.getByRole('option').first()).toBeVisible();
-
-    await page.keyboard.press('Escape');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 4. Form Submission
-// ---------------------------------------------------------------------------
-
-test.describe('Content creation -- form submission', () => {
-  test('can create a new content item and redirect to detail page', async ({
-    authenticatedPage: page,
-    workerData,
-  }) => {
-    const itemTitle = `${workerData.prefix} Created Item ${Date.now()}`;
-
-    try {
-      await page.goto('/item/new');
-
-      await expect(
-        page.locator('section[aria-label="Write new content"]'),
-      ).toBeVisible({ timeout: 10000 });
-
-      // Bypass the template zero-state
-      await page.getByText('Start from scratch').click();
-
-      // Fill title
-      await page.getByLabel(/title/i).fill(itemTitle);
-
-      // Select content type "Note"
-      const selectTrigger = page.getByLabel(/content type/i);
-      await selectTrigger.click();
-      const listbox = page.getByRole('listbox');
-      await expect(listbox).toBeVisible({ timeout: 5000 });
-      await listbox.getByText('Note').click();
-
-      // Wait for the TipTap editor to load. The loading skeleton has
-      // aria-label="Loading editor" and is hard-expected to render briefly
-      // before being replaced by the editor; missing skeleton renders
-      // surface honestly instead of silently passing.
-      const editorLoading = page.locator('[aria-label="Loading editor"]');
-      await expect(editorLoading).toBeVisible({ timeout: 2000 });
-      await expect(editorLoading).not.toBeVisible({ timeout: 15000 });
-
-      // Type content into the TipTap editor (ProseMirror container)
-      // Note: ProseMirror is a contenteditable div, so we must use type() not fill()
-      const editor = page.locator('.ProseMirror').first();
-      await expect(editor).toBeVisible({ timeout: 10000 });
-      await editor.click();
-      await page.keyboard.type('This is test content created by E2E tests.');
-
-      // Wait for the form state to update: react-hook-form watches the editor
-      // content and updates `canSave` (requires title + content + contentType).
-      // The Save button becomes enabled once the editor content propagates, so
-      // we wait for that instead of using an arbitrary timeout.
-      const saveButton = page.getByRole('button', {
-        name: 'Save',
-        exact: true,
-      });
-      await expect(saveButton).toBeEnabled({ timeout: 5000 });
-
-      // Uncheck auto-summarise to avoid slow AI API calls during the E2E
-      // test — we're testing the save flow, not the AI pipeline. Server-side
-      // classification runs unconditionally per the AI-visibility policy
-      // (no user-facing toggle).
-      const autoSummarise = page.getByLabel('Generate summary');
-      if (await autoSummarise.isChecked()) {
-        await autoSummarise.uncheck();
-      }
-
-      // Click the save button — SaveActionsBar has type="submit" button with
-      // text "Save". It should still be enabled after unchecking the options.
-      await expect(saveButton).toBeEnabled({ timeout: 5000 });
-      await saveButton.click();
-
-      // The API creates the item and shows a success toast, then redirects.
-      // Verify the success toast appeared as proof the API call succeeded.
-      await expect(page.getByText(/Content created/)).toBeVisible({
-        timeout: 15000,
-      });
-
-      // After save, the redirect should go to /item/{uuid} (the new item's detail page)
-      await expect(page).toHaveURL(/\/item\/[a-f0-9-]+/, { timeout: 15000 });
-    } finally {
-      // Clean up: delete any items matching the title via service client
-      const supabase = createServiceClient();
-      await supabase.from('content_items').delete().eq('title', itemTitle);
-    }
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 5. P0-2 Consolidation: Deep-linking, redirects, template zero-state
-// ---------------------------------------------------------------------------
-
-test.describe('Content creation -- P0-2 deep-linking', () => {
+test.describe('Content creation -- tab deep-linking and routing', () => {
   test('deep link ?tab=upload opens Upload tab', async ({
     authenticatedPage: page,
   }) => {
@@ -398,6 +117,29 @@ test.describe('Content creation -- P0-2 deep-linking', () => {
     ).toBeVisible();
   });
 
+  test('deep link ?tab=url opens the URL tab explicitly', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/item/new?tab=url');
+
+    const urlTab = page.getByRole('tab', { name: /Import from URL/i });
+    await expect(urlTab).toBeVisible({ timeout: 10000 });
+    await expect(urlTab).toHaveAttribute('aria-selected', 'true');
+  });
+
+  test('an invalid ?tab= value falls back to the URL tab', async ({
+    authenticatedPage: page,
+  }) => {
+    // app/item/new/page.tsx validates `tab` against VALID_TABS and falls
+    // back to 'url' for anything else — proves the server-side guard, not
+    // just a client default.
+    await page.goto('/item/new?tab=write');
+
+    const urlTab = page.getByRole('tab', { name: /Import from URL/i });
+    await expect(urlTab).toBeVisible({ timeout: 10000 });
+    await expect(urlTab).toHaveAttribute('aria-selected', 'true');
+  });
+
   test('legacy /item/new/batch redirects to ?tab=batch', async ({
     authenticatedPage: page,
   }) => {
@@ -415,76 +157,7 @@ test.describe('Content creation -- P0-2 deep-linking', () => {
   });
 });
 
-test.describe('Content creation -- P0-2 template zero-state', () => {
-  test('Write tab shows template gallery zero-state on fresh load', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.goto('/item/new');
-
-    // Wait for the write tab section
-    await expect(
-      page.locator('section[aria-label="Write new content"]'),
-    ).toBeVisible({ timeout: 10000 });
-
-    // The fullwidth template gallery should show "Choose a starting point"
-    await expect(page.getByText('Choose a starting point')).toBeVisible({
-      timeout: 5000,
-    });
-
-    // "Start from scratch" button should be visible
-    await expect(page.getByText('Start from scratch')).toBeVisible();
-
-    // The form fields (Title, Content Type) should NOT be visible in zero-state
-    await expect(page.getByLabel(/^title$/i)).not.toBeVisible();
-  });
-
-  test('"Start from scratch" reveals the form and hides the gallery', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.goto('/item/new');
-
-    await expect(
-      page.locator('section[aria-label="Write new content"]'),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Click "Start from scratch"
-    const scratchButton = page.getByRole('radio', {
-      name: /start from scratch/i,
-    });
-    await scratchButton.click();
-
-    // The form should now be visible
-    await expect(page.getByLabel(/title/i)).toBeVisible({ timeout: 5000 });
-
-    // The zero-state heading should be gone, replaced by compact heading
-    await expect(page.getByText('Start from a template')).toBeVisible();
-    await expect(page.getByText('Choose a starting point')).not.toBeVisible();
-  });
-
-  test('selecting a template from zero-state reveals the form', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.goto('/item/new');
-
-    await expect(page.getByText('Choose a starting point')).toBeVisible({
-      timeout: 10000,
-    });
-
-    // Click a template (Policy Document)
-    const policyCard = page.getByRole('radio', {
-      name: /policy document/i,
-    });
-    await policyCard.click();
-
-    // The form should now be visible with template content prefilled
-    await expect(page.getByLabel(/title/i)).toBeVisible({ timeout: 5000 });
-
-    // The compact template selector should show (with "Start from a template")
-    await expect(page.getByText('Start from a template')).toBeVisible();
-  });
-});
-
-test.describe('Content creation -- P0-2 Browse Upload affordance', () => {
+test.describe('Content creation -- Browse Upload affordance', () => {
   test('Browse Upload button navigates to /item/new?tab=upload', async ({
     authenticatedPage: page,
   }) => {
@@ -514,11 +187,11 @@ test.describe('Content creation -- P0-2 Browse Upload affordance', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 6. Mobile
+// 3. Mobile
 // ---------------------------------------------------------------------------
 
 test.describe('Content creation -- mobile viewport', () => {
-  test('create form is usable on mobile viewport', async ({
+  test('tab list is usable on mobile viewport', async ({
     authenticatedPage: page,
   }) => {
     test.skip(!isMobileViewport(page), 'Mobile-only test');
@@ -529,18 +202,7 @@ test.describe('Content creation -- mobile viewport', () => {
     const tablist = page.getByRole('tablist');
     await expect(tablist).toBeVisible({ timeout: 10000 });
 
-    // Bypass the template zero-state
-    await page.getByText('Start from scratch').click();
-
-    // Title input is visible and within viewport
-    const titleInput = page.getByLabel(/title/i);
-    await expect(titleInput).toBeVisible();
-
-    // Content type selector is visible
-    await expect(page.getByLabel(/content type/i)).toBeVisible();
-
-    // Note: MobileStepIndicator may be visible on mobile viewports but is not
-    // explicitly checked here. The spec marks it as optional ("may be visible")
-    // and the component is a progressive enhancement, not a critical path.
+    // The default URL tab's import input is visible and within viewport
+    await expect(page.getByLabel(/web page url/i)).toBeVisible();
   });
 });

@@ -153,21 +153,31 @@ describe('wrap-define-route CLI scaffold', () => {
     const result = runCodemod([], { outputDir: tmpOutputDir });
     expect(result.status).toBe(0);
     // Per TECH §2.2, ts-morph enumeration over the working tree should
-    // discover the full app/api/**/route.ts corpus. Current count is 173
+    // discover the full app/api/**/route.ts corpus. Current count is 165
     // (was 193/floor 190 before ID-131.17 (G-IMS-DELETE) retired 24
     // IMS-only routes — app/api/tags/**, app/api/insights, app/api/quality
     // [/summary], app/api/read-marks, and the confirmed-orphaned
     // app/api/items/[id]/{images,files,owner,priority,effectiveness,layers,
     // vision,history[/[versionId]],rollback}, batch-review,
-    // batch-workspaces). Hard floor: 170 to allow minor churn.
+    // batch-workspaces; was 173/floor 170 before ID-131.17 "17-final"
+    // deleted the last 7 deferred legacy routes — app/api/items/route.ts,
+    // app/api/items/[id]/route.ts, app/api/items/[id]/{metadata,classify,
+    // archive,workspaces}/route.ts, app/api/items/batch/route.ts — retiring
+    // the app/api/items directory entirely). Hard floor: 160 to allow minor
+    // churn.
     const match = result.stdout.match(/(\d+) route\(s\) discovered/);
     expect(match).not.toBeNull();
     const count = match ? parseInt(match[1]!, 10) : 0;
-    expect(count).toBeGreaterThanOrEqual(170);
+    expect(count).toBeGreaterThanOrEqual(160);
   });
 
   it('honours --scope filter to a subdirectory', () => {
-    const result = runCodemod(['--scope', 'app/api/items'], {
+    // ID-131.17 "17-final": app/api/items/** was deleted in full (the
+    // scope-fragment example route), so this now scopes to
+    // app/api/q-a-pairs — another small, real subtree (7 routes:
+    // batch, [id], [id]/history, dedup-proposals/[proposalId]/{approve,
+    // reject}, promote, promote-corpus).
+    const result = runCodemod(['--scope', 'app/api/q-a-pairs'], {
       outputDir: tmpOutputDir,
     });
     expect(result.status).toBe(0);
@@ -175,7 +185,7 @@ describe('wrap-define-route CLI scaffold', () => {
     expect(match).not.toBeNull();
     const count = match ? parseInt(match[1]!, 10) : -1;
     // Scoped to a small subtree — must be strictly smaller than the
-    // full-corpus count and at least 1 (the /api/items route itself).
+    // full-corpus count and at least 1 (the q-a-pairs routes).
     expect(count).toBeGreaterThanOrEqual(1);
     expect(count).toBeLessThan(190);
   });

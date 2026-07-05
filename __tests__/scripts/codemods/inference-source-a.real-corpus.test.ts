@@ -539,28 +539,17 @@ describe('inferSchema applies the defect-B5 binding-correction override (32.28)'
     });
   });
 
-  it('binds ItemPatchResponseSchema for PATCH /api/items/[id] (was PatchResponseSchema)', () => {
-    const project = createCodemodProject();
-    const routes = enumerateRouteFiles(project);
-    const sf = routeBySuffix(routes, 'app/api/items/[id]/route.ts');
-    expect(inferSchema(sf, 'PATCH', project)).toEqual({
-      schema: 'ItemPatchResponseSchema',
-    });
-  });
-
-  it('binds ItemDeleteResponseSchema for DELETE /api/items/[id] (was PatchResponseSchema)', () => {
-    const project = createCodemodProject();
-    const routes = enumerateRouteFiles(project);
-    const sf = routeBySuffix(routes, 'app/api/items/[id]/route.ts');
-    expect(inferSchema(sf, 'DELETE', project)).toEqual({
-      schema: 'ItemDeleteResponseSchema',
-    });
-  });
-
   // ID-131.17: the batch-review and batch-workspaces real-corpus binding
   // cases were removed here — app/api/items/batch-review/route.ts and
   // app/api/items/batch-workspaces/route.ts were deleted with the
   // deprecated IMS browse/item surface (both were confirmed-safe orphans:
   // batch-review's only caller was the deleted app/browse/browse-content.tsx;
   // batch-workspaces' only caller was the deleted hooks/use-quick-assign.ts).
+  //
+  // ID-131.17 "17-final": the ItemPatchResponseSchema (PATCH) and
+  // ItemDeleteResponseSchema (DELETE) real-corpus binding cases that lived
+  // here were removed in the same sweep — app/api/items/[id]/route.ts
+  // itself was deleted (the last deferred legacy /api/items/* route; the
+  // 131.19 zero-`.from('content_items')` gate depends on it being gone).
+  // Zero remaining live callers confirmed by rg before deletion.
 });

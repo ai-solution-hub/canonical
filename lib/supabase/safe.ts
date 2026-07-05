@@ -57,18 +57,18 @@ export type PostgrestLike<T> = PromiseLike<PostgrestSingleResponse<T>>;
  * other failure modes.
  *
  * @example
- *   // Plain select — `items` is `ContentItem[]`, never null.
+ *   // Plain select — `items` is `SourceDocument[]`, never null.
  *   const items = await sb(
- *     supabase.from('content_items').select('id, title').in('id', ids),
- *     'content_items.byId',
+ *     supabase.from('source_documents').select('id, filename').in('id', ids),
+ *     'source_documents.byId',
  *   );
  *
  * @example
- *   // .single() — `item` is `ContentItem`, throws on PGRST116.
+ *   // .single() — `item` is `SourceDocument`, throws on PGRST116.
  *   // Use .maybeSingle() (see below) if "no rows" is expected.
  *   const item = await sb(
- *     supabase.from('content_items').select().eq('id', id).single(),
- *     'content_items.detail',
+ *     supabase.from('source_documents').select().eq('id', id).single(),
+ *     'source_documents.detail',
  *   );
  *
  * @example
@@ -231,11 +231,11 @@ export function isOk<T, E>(
  *   }
  *
  *   // In a route, this compiles:
- *   const items = await sb(supabase.from('content_items').select());
+ *   const items = await sb(supabase.from('source_documents').select());
  *   summariseItems(asChecked(items));
  *
  *   // This does NOT compile — raw unchecked data:
- *   const { data } = await supabase.from('content_items').select();
+ *   const { data } = await supabase.from('source_documents').select();
  *   summariseItems(data); // Type error: missing brand
  */
 export type Checked<T> = T & { readonly __errorChecked: unique symbol };
