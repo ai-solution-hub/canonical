@@ -73,7 +73,10 @@ const MIGRATIONS_DIR = join(import.meta.dir, '..', 'supabase', 'migrations');
 // script against a live local Postgres catalog (owner-gated, not run here).
 const OUTPUT_FILE = join(
   MIGRATIONS_DIR,
-  '20260706130000_id131_api_views_regen.sql',
+  // Bumped from 20260706130000 at the S450 GO: 20260706140000 dropped the
+  // legacy 6-param hybrid_search overload after 130000 had mirrored both
+  // overloads into api (PGRST203) — this regen is the post-drop surface.
+  '20260706150000_id131_api_views_regen2.sql',
 );
 
 const ROLES = ['anon', 'authenticated', 'service_role'] as const;
