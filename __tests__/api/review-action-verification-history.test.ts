@@ -374,6 +374,32 @@ describe('POST /api/review/action — verification_history recording', () => {
     // is observable here as the absence of any action_type/performed_by row.
     expect(recordedHistoryInsert()).toBeNull();
   });
+
+  it('does not record verification_history for publish action (action_type CHECK constraint gap — ID-131 B3-ext)', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: 'facet-row-id' }], error: null }),
+    );
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'publish' },
+    });
+
+    const res = await postAction(req);
+    expect(res.status).toBe(200);
+
+    // verification_history.action_type CHECK only allows
+    // 'verify' | 'unverify' | 'flag' — 'publish' skips the audit insert
+    // entirely, same as 'unflag'/'skip' above.
+    expect(recordedHistoryInsert()).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -605,6 +631,26 @@ describe('POST /api/review/action — 0-row facet update honesty (ID-131.19 Bloc
     // No ingestion_quality_log insert was attempted — the facet gate is
     // checked before the flag insert.
     expect(mockSupabase._chain.insert).not.toHaveBeenCalled();
+  });
+
+  it('publish returns an explicit error when the facet update matches 0 rows (ID-131 B3-ext)', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'publish' },
+    });
+    const res = await postAction(req);
+
+    expect(res.status).toBe(409);
+    expect(recordedHistoryInsert()).toBeNull();
   });
 
   it('verify succeeds and writes verification_history when the facet update matches >=1 row', async () => {

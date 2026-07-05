@@ -582,6 +582,55 @@ describe('POST /api/review/action', () => {
       expect.objectContaining({ updated_by: 'test-user-id' }),
     );
   });
+
+  // ID-131 endgame B3-ext (S447): 'publish' re-points the linear
+  // review-queue "Publish" quick-action off the doomed
+  // `PATCH /api/items/[id]` route onto this facet write.
+  it('returns 200 on successful publish action', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: 'facet-row-id' }], error: null }),
+    );
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'publish' },
+    });
+
+    const res = await postAction(req);
+    expect(res.status).toBe(200);
+
+    const json = await res.json();
+    expect(json.success).toBe(true);
+
+    // Persistence contract: publish clears governance_review_status on the
+    // record_lifecycle facet AND stamps updated_by on source_documents —
+    // same two-table split as verify/unverify above.
+    expect(mockSupabase.from).toHaveBeenCalledWith('source_documents');
+    expect(mockSupabase.from).toHaveBeenCalledWith('record_lifecycle');
+
+    const updateCalls = mockSupabase._chain.update.mock.calls as Array<
+      [Record<string, unknown>]
+    >;
+    const facetUpdate = updateCalls.find(
+      ([payload]) => 'governance_review_status' in payload,
+    );
+    expect(facetUpdate?.[0]).toEqual({ governance_review_status: null });
+    const sourceDocUpdate = updateCalls.find(
+      ([payload]) =>
+        'updated_by' in payload && !('governance_review_status' in payload),
+    );
+    expect(sourceDocUpdate?.[0]).toEqual(
+      expect.objectContaining({ updated_by: 'test-user-id' }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------

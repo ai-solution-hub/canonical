@@ -88,6 +88,11 @@ export const VALID_REVIEW_ACTIONS = [
   'skip',
   'unverify',
   'unflag',
+  // ID-131 endgame B3-ext (S447): minimal-extension action for the linear
+  // review-queue "Publish" quick-action (`hooks/review/use-review-actions.ts`
+  // `handlePublish`), re-pointed off the doomed `PATCH /api/items/[id]`
+  // route. See `app/api/review/action/route.ts` publish branch for scope.
+  'publish',
 ] as const;
 
 /** @public */

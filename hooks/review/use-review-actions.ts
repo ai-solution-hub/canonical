@@ -294,12 +294,17 @@ export function useReviewActions(
   // -----------------------------------------------------------------------
 
   const publishMutation = useMutation({
+    // ID-131 endgame B3-ext (S447): re-pointed off the doomed
+    // `PATCH /api/items/[id]` route onto `POST /api/review/action`'s new
+    // 'publish' action (minimal extension — clears the record_lifecycle
+    // governance facet only; see the route's `action === 'publish'` branch
+    // for the documented scope boundary re: embedding/auto-classify side
+    // effects NOT replicated from the old route).
     mutationFn: async ({ itemId }: { itemId: string }) =>
-      mutationFetchJson(
-        `/api/items/${itemId}`,
-        { field: 'governance_review_status', value: null },
-        { method: 'PATCH' },
-      ),
+      mutationFetchJson('/api/review/action', {
+        item_id: itemId,
+        action: 'publish',
+      }),
     onMutate: async ({ itemId }) => {
       await queryClient.cancelQueries({ queryKey: queueQueryKey });
       const snapshot =

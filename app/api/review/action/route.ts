@@ -266,6 +266,69 @@ export const POST = defineRoute(
             performed_by: user.id,
           });
         }
+      } else if (action === 'publish') {
+        // Linear review-queue "Publish" quick-action — draft-state items
+        // only, gated client-side by `governance_review_status === 'draft'`
+        // (`hooks/review/use-review-actions.ts` `handlePublish`). Re-pointed
+        // here off the doomed `PATCH /api/items/[id]` route (ID-131 endgame,
+        // S447 B3-ext — items route stays alive until 17-final).
+        //
+        // Scope: clears the record_lifecycle governance facet ONLY — same
+        // zero-row-honest facet-write pattern as verify/flag/unverify above
+        // (no record_lifecycle row is ever minted anywhere in the system yet;
+        // Phase 2 facet-mint migration proposed — a 0-row match returns an
+        // explicit 409, never a false {success:true}).
+        //
+        // Deliberately NOT replicated from the old items-route handler:
+        // embedding generation + auto-classify-on-first-publish
+        // (`app/api/items/[id]/route.ts` ~L550-820, `field ===
+        // 'governance_review_status' && value === null`). Those write to
+        // `content_items.embedding`, a column already slated for removal by
+        // the `record_embeddings` facet migration
+        // (`id131_record_embeddings_store.sql` M1b/M5) — replicating a new
+        // writer onto a column the target architecture is actively retiring
+        // would entrench dead-end behaviour rather than migrate off it. This
+        // is a known, flagged gap (search-visibility / auto-classify side
+        // effects are not yet re-homed under the facet model) — tracked
+        // out-of-scope of this governance-write re-point.
+        //
+        // No verification_history insert: `action_type` CHECK constraint
+        // only allows 'verify' | 'unverify' | 'flag' (same reason 'unflag'
+        // below skips it too).
+        const { data: facetRows, error } = await supabase
+          .from('record_lifecycle')
+          .update({
+            governance_review_status: null,
+          })
+          .eq('owner_kind', 'source_document')
+          .eq('source_document_id', item_id)
+          .select('id');
+
+        if (error) {
+          logger.error({ err: error }, 'Failed to publish content item');
+          return NextResponse.json(
+            { error: 'Failed to publish item' },
+            { status: 500 },
+          );
+        }
+
+        if (!facetRows || facetRows.length === 0) {
+          return NextResponse.json(
+            { error: 'No governance record exists for this item yet' },
+            { status: 409 },
+          );
+        }
+
+        const { error: sdUpdateError } = await supabase
+          .from('source_documents')
+          .update({ updated_by: user.id })
+          .eq('id', item_id);
+        if (sdUpdateError) {
+          logger.warn(
+            { err: sdUpdateError },
+            'Failed to stamp updated_by on source_documents (publish)',
+          );
+        }
       } else if (action === 'unflag') {
         // Resolve the most recent unresolved review_needed flag for this item.
         // Two-step query: Supabase does not support .update().limit(1). No-op

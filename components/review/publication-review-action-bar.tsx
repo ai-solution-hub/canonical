@@ -7,7 +7,11 @@ import { Send, Undo2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { mutationFetchJson, ApiError } from '@/lib/query/fetchers';
+import {
+  mutationBulkPublicationAction,
+  ApiError,
+  type PublicationBulkActionResponse,
+} from '@/lib/query/fetchers';
 import { queryKeys } from '@/lib/query/query-keys';
 
 /**
@@ -15,24 +19,37 @@ import { queryKeys } from '@/lib/query/query-keys';
  *
  * Renders the three actions defined in
  * `docs/specs/review-page-tabs-refactor-spec.md` §7:
- *   - Approve & publish → PATCH /api/items/[id] body
- *     `{ field: 'publication_status', value: 'published' }`
- *   - Return to draft     → PATCH /api/items/[id] body
- *     `{ field: 'publication_status', value: 'draft' }`
+ *   - Approve & publish → POST /api/review/publication-bulk-action body
+ *     `{ ids: [itemId], action: 'approve' }` (single-item call)
+ *   - Return to draft     → POST /api/review/publication-bulk-action body
+ *     `{ ids: [itemId], action: 'return_to_draft' }`
  *   - Open in editor      → <Link href="/item/[id]"> (NOT router.push, so
  *     middle-click / cmd-click open in a new tab as users expect, per
  *     spec §7 + AC (i)).
+ *
+ * ID-131 endgame B3-ext (S447): re-pointed off the doomed
+ * `PATCH /api/items/[id]` route onto the same
+ * `POST /api/review/publication-bulk-action` endpoint the bulk action bar
+ * uses (`components/review/PublicationReviewQueue.tsx`), via the shared
+ * `mutationBulkPublicationAction()` fetcher — single-item `ids` array. That
+ * route ALWAYS resolves HTTP 200 with a structured per-item `results[]`
+ * entry (`success` | `conflict` | `forbidden` | `not_found` | `error`); it
+ * throws `ApiError` only for route-level failures (auth / rate-limit /
+ * validation / crash). So the per-item outcome is read out of
+ * `response.results[0]` in `onSuccess`, NOT surfaced via `onError` — see
+ * the same pattern at `PublicationReviewQueue.tsx`'s `bulkMutation`.
  *
  * S215 OQ2 (ratified by Liam in S215 kickoff): NO Enter binding on
  * Approve & publish. The button responds to click only. Approve is a
  * high-stakes action and the spec rejects implicit keyboard activation
  * to prevent accidental publishes.
  *
- * AC (j): Editor role can see all three buttons. The PATCH route returns
- * 403 from the role-gate matrix in `lib/governance/publication-transitions.ts`
- * for non-admin transitions out of `'in_review'` — the UI surfaces 403 as
- * a `sonner` toast WITHOUT client-side button hide (graceful server-driven
- * gate per spec §7).
+ * AC (j): Editor role can see all three buttons. The role-gate matrix in
+ * `lib/governance/publication-transitions.ts` denies non-admin transitions
+ * out of `'in_review'` via a `results[0].status === 'forbidden'` entry (NOT
+ * an HTTP 403 — the bulk-action route folds per-item role-gate failures into
+ * the 200 envelope) — the UI surfaces it as a `sonner` toast WITHOUT
+ * client-side button hide (graceful server-driven gate per spec §7).
  *
  * Spec: docs/specs/review-page-tabs-refactor-spec.md §7, §8 (g)/(h)/(i)/(j).
  */
@@ -42,30 +59,47 @@ interface PublicationReviewActionBarProps {
   className?: string;
 }
 
-interface PatchResponse {
-  success: boolean;
-  previousStatus: string;
-  newStatus: string;
-  transition: string;
-}
-
 export function PublicationReviewActionBar({
   itemId,
   className,
 }: PublicationReviewActionBarProps) {
   const queryClient = useQueryClient();
 
-  const mutation = useMutation<PatchResponse, ApiError, 'published' | 'draft'>({
+  const mutation = useMutation<
+    PublicationBulkActionResponse,
+    ApiError,
+    'published' | 'draft'
+  >({
     mutationFn: async (target) =>
-      mutationFetchJson<PatchResponse>(
-        `/api/items/${itemId}`,
-        {
-          field: 'publication_status',
-          value: target,
-        },
-        { method: 'PATCH' },
-      ),
-    onSuccess: (_data, target) => {
+      mutationBulkPublicationAction({
+        ids: [itemId],
+        action: target === 'published' ? 'approve' : 'return_to_draft',
+      }),
+    onSuccess: (response, target) => {
+      const result = response.results[0];
+
+      if (!result || result.status !== 'success') {
+        // Per-item failure — the bulk-action route always resolves 200 with
+        // a structured per-item status (never thrown); see the doc comment
+        // above. Map the same copy the old PATCH-error-status handling used.
+        if (result?.status === 'forbidden') {
+          toast.error(
+            'Approval is admin-only. Ask an admin to publish this item.',
+          );
+        } else if (result?.status === 'conflict') {
+          toast.error(
+            'The item state has changed. Refresh the queue and try again.',
+          );
+        } else {
+          toast.error(
+            result?.reason ??
+              result?.error ??
+              'Action failed. Please try again.',
+          );
+        }
+        return;
+      }
+
       // Invalidate the publication-review queue + the broader review
       // namespace so progress badges + queue listings update everywhere.
       void queryClient.invalidateQueries({
@@ -82,16 +116,16 @@ export function PublicationReviewActionBar({
       );
     },
     onError: (err) => {
-      // Spec §7 / AC (j): no client-side button hide. Surface server gate
-      // as a toast so editors see why their click had no effect.
+      // Route-level failure only (auth, rate-limit, validation, crash) —
+      // per-item outcomes (forbidden/conflict/not_found) resolve via
+      // onSuccess per the bulk-action route's structured-results contract.
+      // Spec §7 / AC (j): no client-side button hide either way.
       if (err.status === 403) {
         toast.error(
           'Approval is admin-only. Ask an admin to publish this item.',
         );
-      } else if (err.status === 409) {
-        toast.error(
-          'The item state has changed. Refresh the queue and try again.',
-        );
+      } else if (err.status === 429) {
+        toast.error('Too many requests. Wait a moment and try again.');
       } else {
         toast.error(err.message || 'Action failed. Please try again.');
       }

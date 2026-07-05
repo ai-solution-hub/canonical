@@ -110,15 +110,19 @@ describe('constant arrays', () => {
     expect(VALID_PLATFORMS).toContain('other');
   });
 
-  it('VALID_REVIEW_ACTIONS should contain 5 actions', () => {
-    expect(VALID_REVIEW_ACTIONS).toHaveLength(5);
+  it('VALID_REVIEW_ACTIONS should contain 6 actions', () => {
+    // ID-131 endgame B3-ext (S447) added 'publish' — the linear review-queue
+    // quick-publish action, re-pointed off the doomed PATCH /api/items/[id]
+    // route onto POST /api/review/action.
+    expect(VALID_REVIEW_ACTIONS).toHaveLength(6);
   });
 
-  it('VALID_REVIEW_ACTIONS should include verify, flag, skip, unverify and unflag', () => {
+  it('VALID_REVIEW_ACTIONS should include verify, flag, skip, unverify, unflag and publish', () => {
     expect(VALID_REVIEW_ACTIONS).toContain('verify');
     expect(VALID_REVIEW_ACTIONS).toContain('flag');
     expect(VALID_REVIEW_ACTIONS).toContain('skip');
     expect(VALID_REVIEW_ACTIONS).toContain('unverify');
     expect(VALID_REVIEW_ACTIONS).toContain('unflag');
+    expect(VALID_REVIEW_ACTIONS).toContain('publish');
   });
 });

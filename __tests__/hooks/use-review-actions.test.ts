@@ -419,7 +419,7 @@ describe('useReviewActions', () => {
   // =========================================================================
 
   describe('handlePublish', () => {
-    it('calls PATCH on the item endpoint to clear governance status', async () => {
+    it('calls the review action endpoint with the publish action (ID-131 B3-ext re-point)', async () => {
       const items = [
         makeQueueItem({
           id: 'pub-1',
@@ -439,11 +439,10 @@ describe('useReviewActions', () => {
         await result.current.handlePublish();
       });
 
-      expect(mockMutationFetchJson).toHaveBeenCalledWith(
-        '/api/items/pub-1',
-        { field: 'governance_review_status', value: null },
-        { method: 'PATCH' },
-      );
+      expect(mockMutationFetchJson).toHaveBeenCalledWith('/api/review/action', {
+        item_id: 'pub-1',
+        action: 'publish',
+      });
     });
 
     it('removes item from cache optimistically', async () => {

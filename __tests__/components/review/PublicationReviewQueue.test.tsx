@@ -212,21 +212,31 @@ describe('PublicationReviewQueue', () => {
     ).toBeInTheDocument();
   });
 
-  it('Approve PATCH triggers row-level mutation with target=published (AC g)', async () => {
+  it('Approve triggers row-level mutation via publication-bulk-action with action=approve (AC g, ID-131 B3-ext re-point)', async () => {
     // Initial GET response.
     mockQueueResponse([ITEM_A]);
-    // PATCH response.
+    // Bulk-action POST response (single-item `ids` array — per-row re-point
+    // off the doomed PATCH /api/items/[id] route onto the same endpoint the
+    // bulk action bar uses).
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
-        success: true,
-        previousStatus: 'in_review',
-        newStatus: 'published',
-        transition: 'in_review -> published',
+        action: 'approve',
+        totalRequested: 1,
+        successCount: 1,
+        failureCount: 0,
+        results: [
+          {
+            id: ITEM_A.id,
+            status: 'success',
+            previousStatus: 'in_review',
+            newStatus: 'published',
+          },
+        ],
       }),
     });
-    // After PATCH success, the queue + stats keys are invalidated which
-    // triggers a refetch — we provide a third mock so the refetch
+    // After the mutation succeeds, the queue + stats keys are invalidated
+    // which triggers a refetch — we provide a third mock so the refetch
     // succeeds (the row drops out of the in_review queue once published).
     mockQueueResponse([]);
 
@@ -243,30 +253,38 @@ describe('PublicationReviewQueue', () => {
       );
     });
 
-    // Verify the PATCH body shape (call index 1 = the PATCH; call 0 was
-    // the initial GET; call 2 is the post-invalidation refetch).
-    const patchCall = mockFetch.mock.calls.find(
-      (c) => (c[1] as RequestInit | undefined)?.method === 'PATCH',
+    // Verify the POST body shape (call index 1 = the bulk-action POST; call
+    // 0 was the initial GET; call 2 is the post-invalidation refetch).
+    const postCall = mockFetch.mock.calls.find(
+      (c) => (c[1] as RequestInit | undefined)?.method === 'POST',
     );
-    expect(patchCall).toBeDefined();
-    if (!patchCall) return;
-    const [patchUrl, patchInit] = patchCall;
-    expect(patchUrl).toBe(`/api/items/${ITEM_A.id}`);
-    expect(JSON.parse(patchInit!.body as string)).toEqual({
-      field: 'publication_status',
-      value: 'published',
+    expect(postCall).toBeDefined();
+    if (!postCall) return;
+    const [postUrl, postInit] = postCall;
+    expect(postUrl).toBe('/api/review/publication-bulk-action');
+    expect(JSON.parse(postInit!.body as string)).toEqual({
+      ids: [ITEM_A.id],
+      action: 'approve',
     });
   });
 
-  it('Return to draft PATCH targets value="draft" (AC h)', async () => {
+  it('Return to draft triggers action=return_to_draft (AC h)', async () => {
     mockQueueResponse([ITEM_A]);
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
-        success: true,
-        previousStatus: 'in_review',
-        newStatus: 'draft',
-        transition: 'in_review -> draft',
+        action: 'return_to_draft',
+        totalRequested: 1,
+        successCount: 1,
+        failureCount: 0,
+        results: [
+          {
+            id: ITEM_A.id,
+            status: 'success',
+            previousStatus: 'in_review',
+            newStatus: 'draft',
+          },
+        ],
       }),
     });
     // Post-invalidation refetch — same shape as Approve.
@@ -285,15 +303,15 @@ describe('PublicationReviewQueue', () => {
       );
     });
 
-    const patchCall = mockFetch.mock.calls.find(
-      (c) => (c[1] as RequestInit | undefined)?.method === 'PATCH',
+    const postCall = mockFetch.mock.calls.find(
+      (c) => (c[1] as RequestInit | undefined)?.method === 'POST',
     );
-    expect(patchCall).toBeDefined();
-    if (!patchCall) return;
-    const [, patchInit] = patchCall;
-    expect(JSON.parse(patchInit!.body as string)).toEqual({
-      field: 'publication_status',
-      value: 'draft',
+    expect(postCall).toBeDefined();
+    if (!postCall) return;
+    const [, postInit] = postCall;
+    expect(JSON.parse(postInit!.body as string)).toEqual({
+      ids: [ITEM_A.id],
+      action: 'return_to_draft',
     });
   });
 
@@ -744,14 +762,22 @@ describe('PublicationReviewQueue', () => {
 
     it('AC-bulk-4.9 — per-row Approve button still works while selection is non-empty', async () => {
       mockQueueResponse([ITEM_A, ITEM_B]);
-      // Per-row PATCH response.
+      // Per-row bulk-action POST response (single-item `ids` array).
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          success: true,
-          previousStatus: 'in_review',
-          newStatus: 'published',
-          transition: 'in_review -> published',
+          action: 'approve',
+          totalRequested: 1,
+          successCount: 1,
+          failureCount: 0,
+          results: [
+            {
+              id: ITEM_B.id,
+              status: 'success',
+              previousStatus: 'in_review',
+              newStatus: 'published',
+            },
+          ],
         }),
       });
       mockQueueResponse([ITEM_B]);
@@ -771,8 +797,9 @@ describe('PublicationReviewQueue', () => {
         .getAttribute('data-selected-count');
       expect(beforeSelectedCount).toBe('1');
 
-      // Click row B's per-row Approve button — should fire PATCH against
-      // ITEM_B.id and NOT alter the selection set (still includes ITEM_A).
+      // Click row B's per-row Approve button — should fire the bulk-action
+      // POST against ITEM_B.id and NOT alter the selection set (still
+      // includes ITEM_A).
       const approveButtons = screen.getAllByRole('button', {
         name: /approve and publish this item/i,
       });
@@ -785,16 +812,20 @@ describe('PublicationReviewQueue', () => {
         );
       });
 
-      const patchCall = mockFetch.mock.calls.find(
-        (c) => (c[1] as RequestInit | undefined)?.method === 'PATCH',
+      const postCall = mockFetch.mock.calls.find(
+        (c) => (c[1] as RequestInit | undefined)?.method === 'POST',
       );
-      expect(patchCall).toBeDefined();
-      const [patchUrl] = patchCall!;
-      expect(patchUrl).toBe(`/api/items/${ITEM_B.id}`);
+      expect(postCall).toBeDefined();
+      const [postUrl, postInit] = postCall!;
+      expect(postUrl).toBe('/api/review/publication-bulk-action');
+      expect(JSON.parse(postInit!.body as string)).toEqual({
+        ids: [ITEM_B.id],
+        action: 'approve',
+      });
 
       // Selection state unchanged — bar still shows 1 selected (A still
-      // ticked). Note: queue refetches after PATCH success which may
-      // re-render the bar; assert against the latest props rather than
+      // ticked). Note: queue refetches after the mutation succeeds, which
+      // may re-render the bar; assert against the latest props rather than
       // querying DOM (which can race the refetch).
       await waitFor(() => {
         expect(lastBarProps?.selectedIds.has(ITEM_A.id)).toBe(true);

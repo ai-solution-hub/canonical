@@ -64,14 +64,22 @@ describe('PublicationReviewActionBar', () => {
     expect(editorLink).toHaveAttribute('href', `/item/${ITEM_ID}`);
   });
 
-  it('Approve & publish triggers PATCH /api/items/[id] with value="published" (AC g)', async () => {
+  it('Approve & publish triggers POST /api/review/publication-bulk-action with action="approve" (AC g, ID-131 B3-ext re-point)', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
-        success: true,
-        previousStatus: 'in_review',
-        newStatus: 'published',
-        transition: 'in_review -> published',
+        action: 'approve',
+        totalRequested: 1,
+        successCount: 1,
+        failureCount: 0,
+        results: [
+          {
+            id: ITEM_ID,
+            status: 'success',
+            previousStatus: 'in_review',
+            newStatus: 'published',
+          },
+        ],
       }),
     });
 
@@ -85,12 +93,12 @@ describe('PublicationReviewActionBar', () => {
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
     const [url, init] = mockFetch.mock.calls[0];
-    expect(url).toBe(`/api/items/${ITEM_ID}`);
-    expect(init.method).toBe('PATCH');
+    expect(url).toBe('/api/review/publication-bulk-action');
+    expect(init.method).toBe('POST');
     const body = JSON.parse(init.body as string);
     expect(body).toEqual({
-      field: 'publication_status',
-      value: 'published',
+      ids: [ITEM_ID],
+      action: 'approve',
     });
 
     await waitFor(() => {
@@ -100,14 +108,22 @@ describe('PublicationReviewActionBar', () => {
     });
   });
 
-  it('Return to draft triggers PATCH with value="draft" (AC h)', async () => {
+  it('Return to draft triggers POST with action="return_to_draft" (AC h)', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
-        success: true,
-        previousStatus: 'in_review',
-        newStatus: 'draft',
-        transition: 'in_review -> draft',
+        action: 'return_to_draft',
+        totalRequested: 1,
+        successCount: 1,
+        failureCount: 0,
+        results: [
+          {
+            id: ITEM_ID,
+            status: 'success',
+            previousStatus: 'in_review',
+            newStatus: 'draft',
+          },
+        ],
       }),
     });
 
@@ -123,8 +139,8 @@ describe('PublicationReviewActionBar', () => {
     const [, init] = mockFetch.mock.calls[0];
     const body = JSON.parse(init.body as string);
     expect(body).toEqual({
-      field: 'publication_status',
-      value: 'draft',
+      ids: [ITEM_ID],
+      action: 'return_to_draft',
     });
 
     await waitFor(() => {
@@ -134,12 +150,27 @@ describe('PublicationReviewActionBar', () => {
     });
   });
 
-  it('surfaces 403 PATCH response via toast WITHOUT hiding buttons (AC j)', async () => {
+  it('surfaces a per-item "forbidden" result via toast WITHOUT hiding buttons (AC j)', async () => {
+    // The bulk-action route ALWAYS resolves HTTP 200 — per-item role-gate
+    // failures are folded into `results[]`, not thrown as an HTTP 403
+    // (ID-131 B3-ext re-point; see route.ts `computeAllowedTransitions`
+    // gate + doc comment on the component's mutation).
     mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 403,
+      ok: true,
       json: async () => ({
-        error: "Role 'editor' cannot transition out of 'in_review'.",
+        action: 'approve',
+        totalRequested: 1,
+        successCount: 0,
+        failureCount: 1,
+        results: [
+          {
+            id: ITEM_ID,
+            status: 'forbidden',
+            previousStatus: 'in_review',
+            reason:
+              "Role 'editor' cannot transition 'in_review' -> 'published'",
+          },
+        ],
       }),
     });
 
@@ -154,7 +185,7 @@ describe('PublicationReviewActionBar', () => {
         expect.stringContaining('admin-only'),
       );
     });
-    // The buttons remain in the DOM — no client-side hide on 403.
+    // The buttons remain in the DOM — no client-side hide on a forbidden result.
     expect(approveBtn).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: /return this item to draft/i }),
