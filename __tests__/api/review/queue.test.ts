@@ -511,6 +511,81 @@ describe('GET /api/review/queue — include_overdue filter (S205 WP-E T2)', () =
   });
 });
 
+// ===========================================================================
+// BL-398 (S450) — tombstoned source_documents must be excluded from the
+// review queue. Tombstoning (ID-138 {138.5} DR-023) is a GDPR erasure UPDATE
+// (admission_status='tombstoned'), not a DELETE (DR-025) — the register row
+// survives so citations degrade to it, but an erased document must not still
+// surface as reviewable content.
+// ===========================================================================
+
+describe('GET /api/review/queue — tombstone exclusion (BL-398)', () => {
+  beforeEach(resetMocks);
+
+  it('excludes tombstoned rows from the standard query (status=all)', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 0 }),
+    );
+
+    const req = createTestRequest('/api/review/queue', {
+      searchParams: { status: 'all' },
+    });
+    const res = await getQueue(req);
+    expect(res.status).toBe(200);
+
+    const neqCalls = mockSupabase._chain.neq.mock.calls as Array<
+      [string, unknown]
+    >;
+    const tombstoneFilter = neqCalls.find(
+      ([col, val]) => col === 'admission_status' && val === 'tombstoned',
+    );
+    expect(tombstoneFilter).toBeDefined();
+  });
+
+  it('excludes tombstoned rows from the flagged-query branch', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // handleFlaggedQuery first queries ingestion_quality_log for flagged ids,
+    // then queries source_documents filtered to those ids.
+    mockSupabase.from.mockImplementation((table: string) => {
+      if (table === 'ingestion_quality_log') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          not: vi.fn().mockReturnThis(),
+          then: (resolve: (v: unknown) => void) =>
+            resolve({
+              data: [{ source_document_id: VALID_UUID }],
+              error: null,
+            }),
+        };
+      }
+      return mockSupabase._chain;
+    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 0 }),
+    );
+
+    const req = createTestRequest('/api/review/queue', {
+      searchParams: { status: 'flagged' },
+    });
+    const res = await getQueue(req);
+    expect(res.status).toBe(200);
+
+    const neqCalls = mockSupabase._chain.neq.mock.calls as Array<
+      [string, unknown]
+    >;
+    const tombstoneFilter = neqCalls.find(
+      ([col, val]) => col === 'admission_status' && val === 'tombstoned',
+    );
+    expect(tombstoneFilter).toBeDefined();
+  });
+});
+
 describe('GET /api/review/queue — orthogonality with governance_review_status (V2-M5)', () => {
   beforeEach(resetMocks);
 

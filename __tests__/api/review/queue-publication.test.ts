@@ -368,4 +368,31 @@ describe('GET /api/review/queue?publication_status=in_review (publication-review
     );
     expect(verifiedAtIsNull).toBeUndefined();
   });
+
+  // -------------------------------------------------------------------------
+  // BL-398 (S450) — tombstoned source_documents must be excluded even on the
+  // publication-review branch (GDPR erasure, ID-138 {138.5} DR-023).
+  // -------------------------------------------------------------------------
+  it('excludes tombstoned rows (BL-398)', async () => {
+    configureRole(mockSupabase, 'admin');
+
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 0 }),
+    );
+
+    const req = createMultiParamRequest('/api/review/queue', [
+      ['publication_status', 'in_review'],
+    ]);
+    const res = await getQueue(req);
+    expect(res.status).toBe(200);
+
+    const neqCalls = mockSupabase._chain.neq.mock.calls as Array<
+      [string, unknown]
+    >;
+    const tombstoneFilter = neqCalls.find(
+      ([col, val]) => col === 'admission_status' && val === 'tombstoned',
+    );
+    expect(tombstoneFilter).toBeDefined();
+  });
 });

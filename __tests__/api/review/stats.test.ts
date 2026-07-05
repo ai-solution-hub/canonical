@@ -296,4 +296,30 @@ describe('GET /api/review/stats', () => {
       expect(body.unclassified_coverage).toBe(0);
     });
   });
+
+  // ===========================================================================
+  // BL-398 (S450) — tombstoned source_documents must be excluded from both
+  // direct source_documents count queries (GDPR erasure, ID-138 {138.5}
+  // DR-023). The three governance/freshness RPC-backed fields are covered by
+  // the migration's own shape test
+  // (__tests__/supabase/migrations/bl398-governance-tombstone-filter.test.ts).
+  // ===========================================================================
+  describe('tombstone exclusion (BL-398)', () => {
+    it('excludes tombstoned rows from both the awaiting_publication and unclassified_coverage count queries', async () => {
+      configureRole(mockSupabase, 'admin');
+      configureRpcResponse({ overdue: 0 });
+      configureParallelCounts({ awaiting: 3, unclassified: 4 });
+
+      const res = await GET();
+      expect(res.status).toBe(200);
+
+      const neqCalls = mockSupabase._chain.neq.mock.calls as Array<
+        [string, unknown]
+      >;
+      const tombstoneFilters = neqCalls.filter(
+        ([col, val]) => col === 'admission_status' && val === 'tombstoned',
+      );
+      expect(tombstoneFilters.length).toBe(2);
+    });
+  });
 });

@@ -272,6 +272,13 @@ export const GET = defineRoute(
         .from('source_documents')
         .select(REVIEW_COLUMNS, { count: 'exact' });
 
+      // BL-398 (S450): exclude tombstoned source_documents (GDPR erasure,
+      // ID-138 {138.5} DR-023) from the review queue. Tombstoning is an
+      // UPDATE not a DELETE (DR-025) — the register row survives so
+      // citations degrade to it rather than orphaning — but an erased
+      // document must not still surface as reviewable content.
+      query = query.neq('admission_status', 'tombstoned');
+
       // Draft filter: show only drafts. All other filters exclude drafts.
       // S202 §5.2 Phase 2.5 (T8b) — read from publication_status (NOT NULL
       // post-S201) instead of legacy governance_review_status. The legacy
@@ -425,6 +432,13 @@ async function countVerified(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
 ) {
+  // BL-398 residual (orchestrator-ruled, S450): this counts record_lifecycle
+  // rows directly with no source_documents join, so verified counts may
+  // still include tombstoned-SD facets (admission_status='tombstoned'). An
+  // `source_documents!inner` embed-filter here would wrongly drop
+  // q_a_pair-owner rows (which have no source_document_id to join against).
+  // Whether tombstoning should also clear/flip the record_lifecycle facet is
+  // a model-level question deferred to id-138, not fixed here.
   return supabase
     .from('record_lifecycle')
     .select('source_document_id', { count: 'exact', head: true })
@@ -488,7 +502,10 @@ async function handleFlaggedQuery(
   let query = supabase
     .from('source_documents')
     .select(REVIEW_COLUMNS, { count: 'exact' })
-    .in('id', sourceDocumentIds);
+    .in('id', sourceDocumentIds)
+    // BL-398 (S450): exclude tombstoned source_documents (GDPR erasure,
+    // ID-138 {138.5} DR-023) — see the standard-query comment above.
+    .neq('admission_status', 'tombstoned');
 
   if (effectiveDomainParams.length > 0) {
     query = query.in('primary_domain', effectiveDomainParams);
@@ -626,7 +643,10 @@ async function handlePublicationReviewQuery(
       'id, filename, suggested_title, summary, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, captured_date, ai_keywords, classification_confidence, source_url, publication_status, updated_at, extracted_text',
       { count: 'exact' },
     )
-    .eq('publication_status', 'in_review');
+    .eq('publication_status', 'in_review')
+    // BL-398 (S450): exclude tombstoned source_documents (GDPR erasure,
+    // ID-138 {138.5} DR-023) — see the standard-query comment above.
+    .neq('admission_status', 'tombstoned');
 
   if (domainParams.length > 0) {
     query = query.in('primary_domain', domainParams);

@@ -52,11 +52,18 @@ export const GET = defineRoute(ReviewStatsResponseSchema, async () => {
           .from('source_documents')
           .select('id', { count: 'exact', head: true })
           .eq('publication_status', 'in_review')
-          .is('archived_at', null),
+          .is('archived_at', null)
+          // BL-398 (S450): exclude tombstoned source_documents (GDPR
+          // erasure, ID-138 {138.5} DR-023) from the awaiting_publication
+          // badge count.
+          .neq('admission_status', 'tombstoned'),
         supabase
           .from('source_documents')
           .select('id', { count: 'exact', head: true })
           .is('archived_at', null)
+          // BL-398 (S450): same tombstone exclusion for the
+          // unclassified_coverage badge count.
+          .neq('admission_status', 'tombstoned')
           .or(UNCLASSIFIED_TAXONOMY_OR_PREDICATE),
       ],
     );
