@@ -4,7 +4,7 @@ import { tryQuery } from '@/lib/supabase/safe';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { NewItemTabs } from './new-item-tabs';
 
-const VALID_TABS = ['write', 'url', 'upload', 'batch'] as const;
+const VALID_TABS = ['url', 'upload', 'batch'] as const;
 type ValidTab = (typeof VALID_TABS)[number];
 
 interface Props {
@@ -49,7 +49,7 @@ export default async function NewItemPage({ searchParams }: Props) {
   const { tab } = await searchParams;
   const defaultTab: ValidTab = VALID_TABS.includes(tab as ValidTab)
     ? (tab as ValidTab)
-    : 'write';
+    : 'url';
 
   return <NewItemTabs defaultTab={defaultTab} />;
 }

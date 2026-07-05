@@ -2,9 +2,12 @@
  * NewItemTabs — defaultTab + tab rendering tests
  *
  * Verifies that the NewItemTabs component:
- * - Renders all four tabs (Write, URL, Upload, Batch Q&A)
+ * - Renders all three surviving tabs (URL, Upload, Batch Q&A)
  * - Respects the defaultTab prop for initial tab selection
  * - Renders the correct content for the selected tab
+ *
+ * The generic "Write content" tab + content_templates chain were removed
+ * (ID-131.18 / BI-33 — S438 owner-ratified narrowing).
  */
 import { describe, it, expect, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -19,10 +22,6 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
   useSearchParams: () => ({ get: () => null }),
   usePathname: () => '/item/new',
-}));
-
-vi.mock('@/app/item/new/create-content-client', () => ({
-  CreateContentClient: () => <div data-testid="create-content-client" />,
 }));
 
 vi.mock('@/components/create-content/url-ingest-form', () => ({
@@ -45,20 +44,12 @@ vi.mock('@/components/create-content/upload-tab-content', () => ({
   }) => (
     <div data-testid="upload-tab-content">
       {onSwitchTab && (
-        <>
-          <button
-            data-testid="upload-switch-url"
-            onClick={() => onSwitchTab('url')}
-          >
-            Try URL instead
-          </button>
-          <button
-            data-testid="upload-switch-write"
-            onClick={() => onSwitchTab('write')}
-          >
-            Write manually
-          </button>
-        </>
+        <button
+          data-testid="upload-switch-url"
+          onClick={() => onSwitchTab('url')}
+        >
+          Try URL instead
+        </button>
       )}
     </div>
   ),
@@ -75,12 +66,9 @@ import { NewItemTabs } from '@/app/item/new/new-item-tabs';
 // ---------------------------------------------------------------------------
 
 describe('NewItemTabs', () => {
-  it('renders all four tab triggers', () => {
+  it('renders all three tab triggers', () => {
     render(<NewItemTabs />);
 
-    expect(
-      screen.getByRole('tab', { name: /write content/i }),
-    ).toBeInTheDocument();
     expect(
       screen.getByRole('tab', { name: /import from url/i }),
     ).toBeInTheDocument();
@@ -90,12 +78,20 @@ describe('NewItemTabs', () => {
     expect(screen.getByRole('tab', { name: /batch q&a/i })).toBeInTheDocument();
   });
 
-  it('defaults to write tab when no defaultTab prop', () => {
+  it('does not render a "Write content" tab', () => {
     render(<NewItemTabs />);
 
-    const writeTab = screen.getByRole('tab', { name: /write content/i });
-    expect(writeTab).toHaveAttribute('data-state', 'active');
-    expect(screen.getByTestId('create-content-client')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('tab', { name: /write content/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('defaults to url tab when no defaultTab prop', () => {
+    render(<NewItemTabs />);
+
+    const urlTab = screen.getByRole('tab', { name: /import from url/i });
+    expect(urlTab).toHaveAttribute('data-state', 'active');
+    expect(screen.getByTestId('url-ingest-form')).toBeInTheDocument();
   });
 
   it('activates batch tab when defaultTab="batch"', () => {
@@ -112,26 +108,19 @@ describe('NewItemTabs', () => {
     expect(uploadTab).toHaveAttribute('data-state', 'active');
   });
 
-  it('activates url tab when defaultTab="url"', () => {
-    render(<NewItemTabs defaultTab="url" />);
-
-    const urlTab = screen.getByRole('tab', { name: /import from url/i });
-    expect(urlTab).toHaveAttribute('data-state', 'active');
-  });
-
   it('renders BatchCreateContent when batch tab is active', () => {
     render(<NewItemTabs defaultTab="batch" />);
 
     expect(screen.getByTestId('batch-create-content')).toBeInTheDocument();
   });
 
-  it('falls back to write tab when defaultTab is an invalid value', () => {
+  it('falls back to url tab when defaultTab is an invalid value', () => {
     // @ts-expect-error — deliberately passing an invalid prop to test runtime guard
     render(<NewItemTabs defaultTab="garbage" />);
 
-    const writeTab = screen.getByRole('tab', { name: /write content/i });
-    expect(writeTab).toHaveAttribute('data-state', 'active');
-    expect(screen.getByTestId('create-content-client')).toBeInTheDocument();
+    const urlTab = screen.getByRole('tab', { name: /import from url/i });
+    expect(urlTab).toHaveAttribute('data-state', 'active');
+    expect(screen.getByTestId('url-ingest-form')).toBeInTheDocument();
   });
 
   // ---------------------------------------------------------------------------
@@ -142,63 +131,22 @@ describe('NewItemTabs', () => {
     const user = userEvent.setup();
     render(<NewItemTabs />);
 
-    // Default is write
-    expect(screen.getByRole('tab', { name: /write content/i })).toHaveAttribute(
-      'data-state',
-      'active',
-    );
-
-    // Click URL tab
-    await user.click(screen.getByRole('tab', { name: /import from url/i }));
-
+    // Default is url
     expect(
       screen.getByRole('tab', { name: /import from url/i }),
     ).toHaveAttribute('data-state', 'active');
-    expect(screen.getByRole('tab', { name: /write content/i })).toHaveAttribute(
-      'data-state',
-      'inactive',
-    );
-    expect(screen.getByTestId('url-ingest-form')).toBeInTheDocument();
-  });
 
-  // ---------------------------------------------------------------------------
-  // Cross-method suggestions
-  // ---------------------------------------------------------------------------
-
-  it('"Have a file instead? Upload it" switches to upload tab', async () => {
-    const user = userEvent.setup();
-    render(<NewItemTabs />);
-
-    // The cross-method suggestion is inside the write tab
-    const uploadSuggestion = screen.getByRole('button', {
-      name: /upload it/i,
-    });
-    await user.click(uploadSuggestion);
+    // Click Upload tab
+    await user.click(screen.getByRole('tab', { name: /upload file/i }));
 
     expect(screen.getByRole('tab', { name: /upload file/i })).toHaveAttribute(
       'data-state',
       'active',
     );
-    expect(screen.getByTestId('upload-tab-content')).toBeInTheDocument();
-  });
-
-  it('UrlIngestForm onSuggestManual switches back to write tab', async () => {
-    const user = userEvent.setup();
-    render(<NewItemTabs defaultTab="url" />);
-
-    // URL tab is active
     expect(
       screen.getByRole('tab', { name: /import from url/i }),
-    ).toHaveAttribute('data-state', 'active');
-
-    // Click the mock suggest-manual button
-    await user.click(screen.getByTestId('url-suggest-manual'));
-
-    expect(screen.getByRole('tab', { name: /write content/i })).toHaveAttribute(
-      'data-state',
-      'active',
-    );
-    expect(screen.getByTestId('create-content-client')).toBeInTheDocument();
+    ).toHaveAttribute('data-state', 'inactive');
+    expect(screen.getByTestId('upload-tab-content')).toBeInTheDocument();
   });
 
   it('UploadTabContent onSwitchTab("url") switches to URL tab', async () => {
@@ -217,18 +165,5 @@ describe('NewItemTabs', () => {
     expect(
       screen.getByRole('tab', { name: /import from url/i }),
     ).toHaveAttribute('data-state', 'active');
-  });
-
-  it('UploadTabContent onSwitchTab("write") switches to write tab', async () => {
-    const user = userEvent.setup();
-    render(<NewItemTabs defaultTab="upload" />);
-
-    // Click the mock switch-to-write button
-    await user.click(screen.getByTestId('upload-switch-write'));
-
-    expect(screen.getByRole('tab', { name: /write content/i })).toHaveAttribute(
-      'data-state',
-      'active',
-    );
   });
 });
