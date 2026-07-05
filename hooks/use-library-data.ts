@@ -19,6 +19,16 @@ import type { LibraryFilters } from '@/hooks/browse/use-library-filters';
 const QA_PAIR_LIST_COLUMNS =
   'id, question_text, answer_standard, answer_advanced, publication_status, source_document_id, created_at';
 
+/**
+ * ID-131 {131.21}: q_a_pairs carries no source_file string column (only the
+ * FK-LESS source_document_id uuid — supabase/migrations/20260621105625).
+ * Module-level stable-reference constant (hooks convention) rather than a
+ * fresh `[]` literal per `useLibraryData()` call — an honest "no
+ * source-file filter data yet" rather than a fabricated value; richer
+ * source-document filtering is deferred to id-135 {135.22}.
+ */
+const EMPTY_SOURCE_FILES: string[] = [];
+
 interface QAPairListRow {
   id: string;
   question_text: string;
@@ -172,12 +182,9 @@ export function useLibraryData(filters: LibraryFilters) {
 
   // ─── Source files for filter dropdown (Task 6: use centralised key) ───
   //
-  // ID-131 {131.21}: q_a_pairs carries no source_file string column (only the
-  // FK-LESS source_document_id uuid — supabase/migrations/20260621105625).
-  // Returning [] is an honest "no source-file filter data yet" rather than a
-  // fabricated value; richer source-document filtering is deferred to id-135
-  // {135.22}.
-  const sourceFiles: string[] = [];
+  // See EMPTY_SOURCE_FILES module-level constant above for why this is a
+  // stable empty array rather than a per-call query.
+  const sourceFiles = EMPTY_SOURCE_FILES;
 
   return { items, isLoading, sourceFiles, refetch };
 }
