@@ -35,8 +35,14 @@
 --      record_lifecycle (mirroring the get_dashboard_attention_counts /
 --      get_content_owner_stats pattern) BEFORE this migration applies.
 --
--- A fourth, narrower gap IS fixed here (§ get_content_win_rate below) because
--- it is mechanical and precedented, not a product decision.
+-- A fourth item, get_content_win_rate, turned out to need NO fix at the
+-- public-function layer (corrected per Checker review — see STEP 6 below):
+-- public.get_content_win_rate was ALREADY re-anchored q_a_pair-only by
+-- CITE-EXT (20260628191703, APPLIED). The residual gap there is a STALE
+-- api.* WRAPPER (api.get_content_win_rate still exposes p_content_item_id,
+-- last regenerated BEFORE CITE-EXT landed) — resolved automatically by this
+-- GO's M-API regen step, tracked as GO-RUNBOOK escalation #5
+-- (resolved-by-regen; verify post-apply).
 --
 -- A fifth, narrower gap is flagged not fixed: get_quality_issue_counts() IS
 -- dropped below (per drop_ims_fns.sql's own "DROP in M6/{131.19}" ruling —
@@ -91,12 +97,16 @@
 --      confirmed by grep; never had an api wrapper).
 --   4. ALTER feed_articles DROP COLUMN content_item_id.
 --   5. ALTER citations DROP COLUMN cited_content_item_id + rewrite the
---      exactly-one CHECK to the sole surviving branch (q_a_pair). The
---      `cited_target_kind` enum KEEPS its 'content_item' label (Postgres does
---      not cheaply support dropping an enum value) — it becomes permanently
---      unusable, not removed.
---   6. get_content_win_rate(p_content_item_id uuid) REWRITE (bundled fix, not
---      a fresh drop) — see the dedicated comment block below.
+--      exactly-one CHECK down to the 4 SURVIVING branches (q_a_pair,
+--      reference_item, source_document, concept — CITE-EXT
+--      20260628191703, APPLIED, established all 5; only content_item
+--      retires here). The `cited_target_kind` enum KEEPS its 'content_item'
+--      label (Postgres does not cheaply support dropping an enum value) — it
+--      becomes permanently unusable, not removed.
+--   6. get_content_win_rate — NO SQL here (corrected per Checker review): the
+--      public function was ALREADY re-anchored to q_a_pair by CITE-EXT; the
+--      residual stale-api-wrapper gap is resolved by the M-API regen step
+--      (escalation #5) — see the dedicated comment block below.
 --   7. DROP TABLE content_item_workspaces, content_templates, read_marks,
 --      content_history (referencing tables before the referenced table).
 --   8. DROP the 4 dead trigger fns whose ONLY trigger lived on content_items/
@@ -220,78 +230,62 @@ ALTER TABLE "public"."feed_articles" DROP COLUMN IF EXISTS "content_item_id";
 
 -- ============================================================================
 -- STEP 5 — citations: drop the content_items FK column + fix the exactly-one
--- CHECK down to its sole surviving branch. `cited_target_kind` KEEPS the now
--- permanently-unused 'content_item' enum label (dropping an enum value is not
--- a cheap ALTER TYPE in Postgres, and no PRODUCT/TECH slice asked for it).
+-- CHECK down to the 4 SURVIVING branches. CITE-EXT (20260628191703, APPLIED)
+-- extended citations to FIVE cited_kind branches (content_item, q_a_pair,
+-- reference_item, source_document, concept) — only content_item retires at
+-- M6; the other four stay live (e.g. app/api/procurement/[id]/responses/
+-- draft-stream/route.ts:345-353 INSERTs BOTH cited_kind='q_a_pair' AND
+-- cited_kind='reference_item' rows today). The 4 surviving branch expressions
+-- below are copied VERBATIM from CITE-EXT's 5-branch CHECK, minus the
+-- content_item arm. `cited_target_kind` KEEPS the now permanently-unused
+-- 'content_item' enum label (dropping an enum value is not a cheap ALTER TYPE
+-- in Postgres, and no PRODUCT/TECH slice asked for it).
 -- ============================================================================
 ALTER TABLE "public"."citations" DROP CONSTRAINT IF EXISTS "citations_cited_one_of_chk";
 ALTER TABLE "public"."citations" DROP COLUMN IF EXISTS "cited_content_item_id";
-ALTER TABLE "public"."citations" ADD CONSTRAINT "citations_cited_one_of_chk"
-    CHECK ((("cited_kind" = 'q_a_pair'::"public"."cited_target_kind") AND ("cited_q_a_pair_id" IS NOT NULL)));
+ALTER TABLE "public"."citations" ADD CONSTRAINT "citations_cited_one_of_chk" CHECK (
+  (("cited_kind" = 'q_a_pair'::"public"."cited_target_kind")
+    AND ("cited_q_a_pair_id" IS NOT NULL)
+    AND ("cited_reference_item_id" IS NULL)
+    AND ("cited_source_document_id" IS NULL) AND ("cited_concept_path" IS NULL))
+  OR (("cited_kind" = 'reference_item'::"public"."cited_target_kind")
+    AND ("cited_reference_item_id" IS NOT NULL)
+    AND ("cited_q_a_pair_id" IS NULL)
+    AND ("cited_source_document_id" IS NULL) AND ("cited_concept_path" IS NULL))
+  OR (("cited_kind" = 'source_document'::"public"."cited_target_kind")
+    AND ("cited_source_document_id" IS NOT NULL)
+    AND ("cited_q_a_pair_id" IS NULL) AND ("cited_reference_item_id" IS NULL)
+    AND ("cited_concept_path" IS NULL))
+  OR (("cited_kind" = 'concept'::"public"."cited_target_kind")
+    AND ("cited_concept_path" IS NOT NULL)
+    AND ("cited_q_a_pair_id" IS NULL) AND ("cited_reference_item_id" IS NULL)
+    AND ("cited_source_document_id" IS NULL))
+);
 
 -- ============================================================================
--- STEP 6 — get_content_win_rate: BUNDLED FIX, not a fresh business-logic call.
+-- STEP 6 — get_content_win_rate: NO-OP, CORRECTED HISTORY (an earlier pass of
+-- this migration bundled a "fix" here on a false premise — corrected per
+-- Checker review; no SQL statement in this STEP).
 --
--- This function was NEVER updated by the {131.10}/{131.11} q_a_pair re-anchor
--- that its sibling get_aggregate_win_rate_stats received (cite_ext_winrate_fix,
--- 20260628191703, APPLIED) — it still filters on
--- `cited_kind = 'content_item' AND cited_content_item_id = p_content_item_id`,
--- a column this migration's STEP 5 just dropped. It is ALREADY broken in
--- production today for an unrelated reason: its sole caller,
--- lib/mcp/tools/procurement.ts:554-563, already calls
--- `supabase.rpc('get_content_win_rate', { p_q_a_pair_id: args.content_item_id })`
--- — a parameter name the function has never actually had (the caller's own
--- comment concedes "this tool stays content_item-shaped... win-rate is vacuous
--- in the interim"). This rewrite mirrors get_aggregate_win_rate_stats' ALREADY-
--- SHIPPED pattern exactly (cited_kind='q_a_pair', cited_q_a_pair_id, renamed
--- parameter) so the caller's existing `p_q_a_pair_id` argument name finally
--- resolves. CREATE OR REPLACE (not DROP+CREATE): only the parameter NAME
--- changes, not its type (uuid) or the return shape — legal in-place. The api.*
--- wrapper is NOT hand-edited here: get_content_win_rate stays in
--- generate-api-views.ts's SURFACE_RPCS, so the M-API regen step picks up the
--- renamed parameter automatically via live pg_proc introspection.
+-- public.get_content_win_rate was ALREADY re-anchored content_item -> q_a_pair
+-- by CITE-EXT (20260628191703_id131_cite_ext_winrate_fix.sql §3a, APPLIED):
+-- parameter renamed p_content_item_id -> p_q_a_pair_id via DROP+CREATE
+-- (Postgres 42P13 forbids renaming a parameter via CREATE OR REPLACE), body
+-- re-anchored onto cited_kind='q_a_pair'/cited_q_a_pair_id. There is nothing
+-- left to fix at the public-function layer.
+--
+-- The REAL remaining gap is the STALE api.* WRAPPER: api.get_content_win_rate
+-- was last regenerated at 20260625160000_id130_api_views_regen.sql — BEFORE
+-- CITE-EXT landed — so it still exposes the OLD signature (p_content_item_id)
+-- over the now-renamed public function. get_content_win_rate deliberately
+-- stays in generate-api-views.ts's SURFACE_RPCS (unchanged by this Subtask),
+-- so this GO's M-API whole-surface regen (20260706130000, run AFTER this
+-- migration) resolves the stale wrapper automatically via live pg_proc
+-- introspection — no manual api edit needed here. Tracked as GO-RUNBOOK
+-- escalation #5 (resolved-by-regen; verify post-apply that
+-- api.get_content_win_rate's identity-args show p_q_a_pair_id, not
+-- p_content_item_id).
 -- ============================================================================
-CREATE OR REPLACE FUNCTION "public"."get_content_win_rate"("p_q_a_pair_id" "uuid")
-    RETURNS TABLE("total_citations" bigint, "winning_citations" bigint, "losing_citations" bigint, "pending_citations" bigint, "win_rate" numeric)
-    LANGUAGE "plpgsql"
-    SET "search_path" TO 'public', 'extensions'
-    AS $$
-BEGIN
-  RETURN QUERY
-  WITH "citation_outcomes" AS (
-    SELECT
-      "cc"."cited_q_a_pair_id",
-      "cc"."citing_form_response_id",
-      "ft"."outcome"                    AS "outcome",
-      "fot"."counts_toward_win_rate"    AS "counts_toward_win_rate"
-    FROM "public"."citations" "cc"
-    JOIN "public"."form_responses" "br" ON "br"."id" = "cc"."citing_form_response_id"
-    JOIN "public"."form_questions" "fq" ON "fq"."id" = "br"."question_id"
-    JOIN "public"."form_templates" "ft" ON "ft"."id" = "fq"."form_template_id"
-    LEFT JOIN "public"."form_outcome_types" "fot" ON "fot"."key" = "ft"."outcome"
-    WHERE "cc"."cited_kind" = 'q_a_pair'
-      AND "cc"."cited_q_a_pair_id" = "p_q_a_pair_id"
-  )
-  SELECT
-    COUNT(*)::bigint AS "total_citations",
-    COUNT(*) FILTER (WHERE "co"."outcome" = 'won')::bigint AS "winning_citations",
-    COUNT(*) FILTER (WHERE "co"."outcome" = 'lost')::bigint AS "losing_citations",
-    -- pending = NOT in the win-rate denominator (no counts_toward_win_rate=true outcome yet).
-    COUNT(*) FILTER (WHERE COALESCE("co"."counts_toward_win_rate", false) = false)::bigint AS "pending_citations",
-    CASE
-      WHEN COUNT(*) FILTER (WHERE "co"."counts_toward_win_rate" = true) > 0 THEN
-        ROUND(
-          COUNT(*) FILTER (WHERE "co"."outcome" = 'won')::numeric /
-          COUNT(*) FILTER (WHERE "co"."counts_toward_win_rate" = true)::numeric,
-          2
-        )
-      ELSE 0
-    END AS "win_rate"
-  FROM "citation_outcomes" "co";
-END;
-$$;
-
-COMMENT ON FUNCTION "public"."get_content_win_rate"("p_q_a_pair_id" "uuid") IS 'ID-131.19 M6: bundled fix — re-anchored content_item -> q_a_pair (cited_kind=''q_a_pair'', cited_q_a_pair_id), parameter renamed p_content_item_id -> p_q_a_pair_id to finally match the caller (lib/mcp/tools/procurement.ts) which already sends p_q_a_pair_id. Mirrors the ALREADY-SHIPPED get_aggregate_win_rate_stats re-anchor (20260628191703_id131_cite_ext_winrate_fix.sql). Was vacuous (parameter-name mismatch) before this fix, would have hard-errored after STEP 5 dropped cited_content_item_id if left unfixed.';
 
 -- ============================================================================
 -- STEP 7 — drop the four now-orphaned tables (referencing tables before the

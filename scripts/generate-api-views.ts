@@ -161,11 +161,16 @@ export const SURFACE_TABLES: readonly string[] = [
  * entrypoint per overload, so the actual entrypoint count >= name count.
  *
  * get_dashboard_attention_counts / get_coverage_matrix / get_coverage_summary
- * / get_content_win_rate deliberately STAY here despite the content_items
- * drop — see 20260706110000_id131_drops.sql's header for why (2 of the first
- * function's 9 fields, and the entire body of the next two, are still
- * content_items-shaped and will error post-M6 pending a product-level
- * re-point; get_content_win_rate was bundle-fixed in that same migration).
+ * deliberately STAY here despite the content_items drop — see
+ * 20260706110000_id131_drops.sql's header for why (2 of the first function's
+ * 9 fields, and the entire body of the next two, are still content_items-
+ * shaped and will error post-M6 pending a product-level re-point).
+ *
+ * get_content_win_rate ALSO stays (unrelated to the content_items drop): its
+ * public function was already re-anchored to q_a_pair by CITE-EXT
+ * (20260628191703, APPLIED) — the stale api.* wrapper still exposing the old
+ * p_content_item_id signature (last regenerated before CITE-EXT landed) is
+ * fixed by THIS regen picking up the live, already-renamed parameter.
  */
 const SURFACE_RPCS: readonly string[] = [
   'check_content_exists',
