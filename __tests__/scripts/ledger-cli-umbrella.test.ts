@@ -376,3 +376,54 @@ describe('update-umbrella byte-format fidelity (ID-35.41, inv 51-52)', () => {
     expect(raw).toContain('\n  "document_name"');
   });
 });
+
+describe('show umbrellas read affordance (S450)', () => {
+  function showArgs(positionals: string[]): ParsedArgs {
+    return {
+      subcommand: 'show',
+      positionals,
+      flags: {
+        dryRun: false,
+        pretty: false,
+        regenMirrors: false,
+        scoped: false,
+        noRegenMirrors: true,
+        ledgerDir: dir,
+      },
+    };
+  }
+
+  it('`show umbrellas` (no id) returns the whole validated document', async () => {
+    const r = await run(showArgs(['umbrellas']));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const doc = r.result as { document_name: string; umbrellas: unknown[] };
+    expect(doc.document_name).toBe('umbrellas');
+    expect(doc.umbrellas).toHaveLength(2);
+  });
+
+  it('`show umbrellas <id>` returns the single entry', async () => {
+    const r = await run(showArgs(['umbrellas', 'test-umbrella']));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const entry = r.result as { id: string; task_ids: string[] };
+    expect(entry.id).toBe('test-umbrella');
+    expect(entry.task_ids).toEqual(['10', '11']);
+  });
+
+  it('unknown umbrella id errors record-not-found and names the known ids', async () => {
+    const r = await run(showArgs(['umbrellas', 'nope']));
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error).toBe('record-not-found');
+    expect(String(r.detail)).toContain('test-umbrella');
+    expect(String(r.detail)).toContain('sibling-umbrella');
+  });
+
+  it('read-only: the on-disk file is byte-identical after a show', async () => {
+    const before = rawFile();
+    await run(showArgs(['umbrellas']));
+    await run(showArgs(['umbrellas', 'test-umbrella']));
+    expect(rawFile()).toBe(before);
+  });
+});

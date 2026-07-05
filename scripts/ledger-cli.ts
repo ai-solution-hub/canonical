@@ -20,7 +20,7 @@
  *
  *   bun scripts/ledger-cli.ts <subcommand> [args] [--flags]
  *   read (no write gate):
- *     show           <ledger> <id>                 (ledger: task|roadmap|backlog|retro)
+ *     show           <ledger> <id>                 (ledger: task|roadmap|backlog|retro; `show umbrellas [umbrellaId]` = umbrellas.json read, no id = whole doc)
  *                    [--full|--summary|--no-journals|--fields csv]  (S447 shaping;
  *                    default guaranteed ≤48KB — stub journals → degrade to summary)
  *     get            <ledger> <id> [field]         (single-field read; no field = show)
@@ -1240,7 +1240,9 @@ const SUBCOMMAND_HELP: Record<
   { synopsis: string; flags?: string; kinds?: SchemaRecordKind[] }
 > = {
   show: {
-    synopsis: 'show <ledger> <id> — print a record (read-only)',
+    synopsis:
+      'show <ledger> <id> — print a record (read-only); ' +
+      '`show umbrellas [umbrellaId]` reads umbrellas.json (no id = whole doc)',
     flags:
       'S447 shaping (all read-only). DEFAULT output is GUARANTEED ≤48KB via an ' +
       'escalating valve (only --full may exceed): verbatim if it fits → else ' +
@@ -1450,7 +1452,7 @@ const SUBCOMMAND_HELP: Record<
 };
 
 const USAGE = `ledger-cli — mutate the KH workflow ledgers
-  show           <ledger> <id>                 (ledger: task|roadmap|backlog|retro)
+  show           <ledger> <id>                 (ledger: task|roadmap|backlog|retro; "show umbrellas [umbrellaId]" = umbrellas.json read, no id = whole doc)
                  [--full|--summary|--no-journals|--fields csv]  (default guaranteed ≤48KB: stub journals → degrade to summary; --full opts out)
   get            <ledger> <id> [field]         (single-field read; no field = show)
                  get task <taskId>.<subId> [field]              (subtask path)
@@ -2612,13 +2614,56 @@ async function run(args: ParsedArgs): Promise<CliResult> {
     // ── read ──────────────────────────────────────────────────────────────
     case 'show': {
       const [ledger, id] = p;
-      if (!ledger || !id)
-        return cliErr('show', 'missing-args', 'show <ledger> <id>');
+      if (!ledger) return cliErr('show', 'missing-args', 'show <ledger> <id>');
+      // S450 — umbrellas read affordance. `umbrellas` is a valid server slug
+      // but NOT a LedgerName (ID-35.41: extending the union ripples widely),
+      // so the read is a self-contained load mirroring update-umbrella's.
+      // `show umbrellas` prints the whole document (small, journal-free — the
+      // 48KB valve is irrelevant); `show umbrellas <umbrellaId>` one entry.
+      if (ledger === 'umbrellas') {
+        const path = resolve(dir, UMBRELLAS_FILE);
+        let text: string;
+        try {
+          text = await readFile(path, 'utf8');
+        } catch (err) {
+          return cliErr('show', 'ledger-read-failed', `${path}: ${msg(err)}`);
+        }
+        let raw: unknown;
+        try {
+          raw = JSON.parse(text);
+        } catch (err) {
+          return cliErr('show', 'ledger-parse-failed', `${path}: ${msg(err)}`);
+        }
+        const parsedDoc = UmbrellasSchema.safeParse(raw);
+        if (!parsedDoc.success) {
+          return {
+            ok: false,
+            subcommand: 'show',
+            error: 'ledger-schema-invalid',
+            detail: path,
+            issues: parsedDoc.error.issues,
+            expected: describeExpectedShape(parsedDoc.error),
+          };
+        }
+        if (!id)
+          return { ok: true, subcommand: 'show', result: parsedDoc.data };
+        const entry = parsedDoc.data.umbrellas.find((u) => u.id === id);
+        if (!entry)
+          return cliErr(
+            'show',
+            'record-not-found',
+            `no umbrella with id "${id}" — known: [${parsedDoc.data.umbrellas
+              .map((u) => u.id)
+              .join(', ')}]`,
+          );
+        return { ok: true, subcommand: 'show', result: entry };
+      }
+      if (!id) return cliErr('show', 'missing-args', 'show <ledger> <id>');
       if (!(ledger in LEDGER_FILES))
         return cliErr(
           'show',
           'bad-ledger',
-          `ledger must be task|roadmap|backlog|retro`,
+          `ledger must be task|roadmap|backlog|retro|umbrellas`,
         );
       const loaded = await loadLedger(ledgerPath(dir, ledger as LedgerName));
       if (!loaded.ok) return loaded.result;

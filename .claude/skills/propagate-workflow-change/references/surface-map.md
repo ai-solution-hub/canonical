@@ -131,9 +131,10 @@ manual-compaction prose exists in the workflow skills to update.
 **umbrellas.json** (docs-site `ledgers/umbrellas.json`) — cross-Task strategic initiatives
 (`{id,title,substrate_doc,task_ids[]}`). Small curated file, safe to `Read` wholesale.
 Membership is written via `update-umbrella` (update-roadmap-backlog Step 6); start-session 2e
-surfaces the owning umbrella by scanning `task_ids[]`. NOTE: `show`'s synopsis lists
-task/roadmap/backlog/retro (not `umbrellas`), though `umbrellas` is a valid `LedgerSlug` — the
-read affordance for umbrellas is unconfirmed, so surface via direct `Read`, not `show umbrellas`.
+surfaces the owning umbrella by scanning `task_ids[]`. Read affordance (S450): `show
+umbrellas` prints the whole validated document, `show umbrellas <umbrellaId>` one entry —
+a self-contained read (umbrellas is deliberately NOT a `LedgerName`); direct `Read` of the
+file remains equally fine.
 
 ## Homograph traps (grep over-matches — discard these)
 

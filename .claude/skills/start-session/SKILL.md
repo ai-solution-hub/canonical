@@ -126,10 +126,13 @@ opens with the strategic "why this Task matters" — not just the tactical task 
    reading the full roadmap.
 4. **Surface the owning umbrella (cross-Task initiative).** A Task may also belong to a
    strategic *umbrella* (the Linear-initiative analogue) alongside its roadmap theme.
-   Resolve it by finding which umbrella's `task_ids[]` contains the active Task id in
-   `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/umbrellas.json` — a small curated file,
-   safe to `Read` wholesale (unlike task-list.json) — and surface that umbrella's `title` +
-   `substrate_doc` so the brief carries the cross-Task framing. Emit nothing if no umbrella
+   Resolve it by finding which umbrella's `task_ids[]` contains the active Task id —
+   `bun scripts/ledger-cli.ts show umbrellas` (S450 read verb) or a direct `Read` of
+   `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/umbrellas.json` (small curated file,
+   safe wholesale, unlike task-list.json) — and surface that umbrella's `title` +
+   `substrate_doc` so the brief carries the cross-Task framing. The substrate doc is the
+   floor for the umbrella's latest context, not the ceiling — confirm against the task
+   mirrors and the Decision Register before acting on it. Emit nothing if no umbrella
    lists the Task.
 
 ### 2f: Reconciliation sweep (prompt-independent)
