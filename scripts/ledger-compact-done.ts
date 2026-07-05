@@ -32,7 +32,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const ARCHIVE_THRESHOLD = 400; // chars — details shorter than this stay inline
-const TODAY = '2026-06-12';
+const TODAY = '2026-07-05';
 
 const docsDir = process.env.KH_PRIVATE_DOCS_DIR;
 if (!docsDir) {

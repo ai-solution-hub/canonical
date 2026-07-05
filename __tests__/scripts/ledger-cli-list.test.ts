@@ -124,7 +124,7 @@ async function listOk(
 }
 
 describe('ledger-cli — list snapshot defaults', () => {
-  it('list task returns every non-cancelled task as {id,title,status}', async () => {
+  it('list task returns every non-cancelled task as {id,title,status,subtasks}', async () => {
     const r = await listOk(['task']);
     const res = r.result as ListResult;
     expect(res.ledger).toBe('task');
@@ -133,12 +133,26 @@ describe('ledger-cli — list snapshot defaults', () => {
     expect(res.truncated).toBe(false);
     const ids = (res.records as { id: string }[]).map((x) => x.id).sort();
     expect(ids).toEqual(['1', '2', '35']);
-    // Default projection is exactly id,title,status.
+    // S447: the default projection now carries the derived subtasks roll-up.
     expect(Object.keys(res.records[0] as object).sort()).toEqual([
       'id',
       'status',
+      'subtasks',
       'title',
     ]);
+  });
+
+  it('S447: the subtasks column renders done/total (done counts done+cancelled)', async () => {
+    const r = await listOk(['task']);
+    const rows = (r.result as ListResult).records as {
+      id: string;
+      subtasks: string;
+    }[];
+    const byId = Object.fromEntries(rows.map((x) => [x.id, x.subtasks]));
+    // Fixture: task 1 = 2 pending, task 2 = 1 done, task 35 = 2 pending.
+    expect(byId['1']).toBe('0/2');
+    expect(byId['2']).toBe('1/1');
+    expect(byId['35']).toBe('0/2');
   });
 
   it('is read-only — the ledger mtime is untouched', async () => {

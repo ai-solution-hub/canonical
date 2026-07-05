@@ -21,7 +21,12 @@
  *   bun scripts/ledger-cli.ts <subcommand> [args] [--flags]
  *   read (no write gate):
  *     show           <ledger> <id>                 (ledger: task|roadmap|backlog|retro)
+ *                    [--full|--summary|--no-journals|--fields csv]  (S447 shaping;
+ *                    default guaranteed ≤48KB — stub journals → degrade to summary)
  *     get            <ledger> <id> [field]         (single-field read; no field = show)
+ *                    get task <taskId>.<subId> [field]  (S447 subtask path)
+ *     journal        <taskId>                      (S447 per-subtask journal index)
+ *     journal        <taskId.subId> [--last n]     (S447 chronological journal thread)
  *     schema         [ledger|recordKind]           (field names + types + budgets)
  *     list           <ledger> [filters]            (read-only filtered snapshot; default `list task`)
  *   status flips / field edits:
@@ -511,6 +516,26 @@ interface ParsedArgs {
     recent?: string;
     limit?: string;
     fields?: string;
+    /**
+     * Read-path `show` / `journal` shaping flags (S447 read-path upgrade).
+     * All optional / undefined-as-falsy for back-compat with pre-existing
+     * `ParsedArgs.flags` literals; `show`/`journal` are read-only (no write gate).
+     *   - `full`       : `show` — opt OUT of the 48KB journal-stub safety valve
+     *                    and return the record verbatim.
+     *   - `summary`    : `show` — top-level fields + a compact subtask table
+     *                    ({id,title,status} only), regardless of size.
+     *   - `noJournals` : `show` — strip every subtask's `<info added on …>`
+     *                    journal blocks to a stub, regardless of size.
+     *   - `last`       : `journal <taskId.subId>` — return only the last N
+     *                    entries (raw string → Number() at the call site). The
+     *                    output is prefixed with a supersession warning because
+     *                    later journal entries may correct/supersede earlier ones.
+     * (`--fields` above doubles as `show`'s top-level projection.)
+     */
+    full?: boolean;
+    summary?: boolean;
+    noJournals?: boolean;
+    last?: string;
   };
 }
 
@@ -555,6 +580,10 @@ const VALUE_FLAGS: Record<string, keyof ParsedArgs['flags']> = {
   '--recent': 'recent',
   '--limit': 'limit',
   '--fields': 'fields',
+  // S447 read-path — `journal <taskId.subId> --last <n>` bounds the thread to the
+  // n most-recent entries (consumes the next token; coerced + range-checked at
+  // the `journal` call site, never here — parseArgs stays a pure tokeniser).
+  '--last': 'last',
 };
 
 /** ID-35.15 boolean flags. Presence sets the corresponding `flags` key true. */
@@ -575,6 +604,13 @@ const BOOLEAN_FLAGS: Record<string, keyof ParsedArgs['flags']> = {
   '--append': 'append',
   // `list --ids-only` — project matched records to a bare id string[].
   '--ids-only': 'idsOnly',
+  // S447 read-path `show` shaping flags (read-only; see ParsedArgs.flags docs).
+  //   --full       : opt OUT of the 48KB journal-stub safety valve (verbatim).
+  //   --summary    : top-level fields + a compact {id,title,status} subtask table.
+  //   --no-journals: strip subtask journal blocks to a stub regardless of size.
+  '--full': 'full',
+  '--summary': 'summary',
+  '--no-journals': 'noJournals',
 };
 
 /** Sorted union of every known flag — surfaced in the reject-unknown error. */
@@ -1203,10 +1239,36 @@ const SUBCOMMAND_HELP: Record<
   string,
   { synopsis: string; flags?: string; kinds?: SchemaRecordKind[] }
 > = {
-  show: { synopsis: 'show <ledger> <id> — print a full record (read-only)' },
+  show: {
+    synopsis: 'show <ledger> <id> — print a record (read-only)',
+    flags:
+      'S447 shaping (all read-only). DEFAULT output is GUARANTEED ≤48KB via an ' +
+      'escalating valve (only --full may exceed): verbatim if it fits → else ' +
+      'stub each subtask’s <info added on …> journal blocks (keep prose) → else ' +
+      'degrade to the --summary shape → else identity fields only; every degraded ' +
+      'stage adds a top-level `notice` naming the escape hatches. ' +
+      '--full (verbatim, no valve) | --summary (top-level fields + a compact ' +
+      '{id,title,status} subtask table) | --no-journals (stub journals, keep ' +
+      'prose — a transform, NOT a size cap) | --fields <csv> (project top-level ' +
+      'fields; wins over the others).',
+  },
   get: {
     synopsis:
-      'get <ledger> <id> [field] — read one field (or the whole record)',
+      'get <ledger> <id> [field] — read one field (or the whole record); ' +
+      'S447: `get task <taskId>.<subId> [field]` reaches a single subtask',
+  },
+  journal: {
+    synopsis:
+      'journal <taskId> — per-subtask journal INDEX (block count / chars / ' +
+      'latest timestamp, not content); `journal <taskId.subId>` — that ' +
+      'subtask’s journal thread in chronological order (read-only)',
+    flags:
+      '--last <n> (thread only): return the n most-recent entries — PREFIXED ' +
+      'with a supersession warning, since append-only journals correct/supersede ' +
+      'earlier entries in place, so a partial thread can mislead (default = full ' +
+      'thread). Archive-pointer stubs are resolved from {ledgerDir}/archive/ and ' +
+      'merged chronologically BEFORE the live blocks, marked with provenance.',
+    kinds: ['subtask'],
   },
   schema: {
     synopsis:
@@ -1389,9 +1451,13 @@ const SUBCOMMAND_HELP: Record<
 
 const USAGE = `ledger-cli — mutate the KH workflow ledgers
   show           <ledger> <id>                 (ledger: task|roadmap|backlog|retro)
+                 [--full|--summary|--no-journals|--fields csv]  (default guaranteed ≤48KB: stub journals → degrade to summary; --full opts out)
   get            <ledger> <id> [field]         (single-field read; no field = show)
+                 get task <taskId>.<subId> [field]              (subtask path)
+  journal        <taskId>                       (per-subtask journal index — counts, not content)
+  journal        <taskId.subId> [--last n]      (chronological journal thread; --last warns on supersession)
   schema         [ledger|recordKind]           (print field names + types + budgets)
-  list           <ledger> [filters]            (read-only snapshot; default "list task" = non-cancelled {id,title,status})
+  list           <ledger> [filters]            (read-only snapshot; default "list task" = non-cancelled {id,title,status,subtasks})
   flip-task      <taskId> <status>
   flip-subtask   <taskId.subId> <status>        (legacy <taskId> <subId> <status>)
   update-subtask <taskId.subId> <field> <value>
@@ -1896,6 +1962,370 @@ function journalBlock(text: string): string {
   return `<info added on ${ts}>\n${text}\n</info added on ${ts}>`;
 }
 
+// ── S447 read-path: journal-block parsing (show valve / journal command) ──────
+//
+// A subtask's `details` is prose followed by append-only journal blocks written
+// by `journalBlock()` above: `<info added on {ts}>…</info added on {ts}>`. Two
+// real-corpus quirks the parser must survive (verified against the live
+// task-list): (1) the opening `{ts}` is not always an ISO instant — older
+// hand-authored blocks carry a human label like `2026-06-15 (S355 …)`; (2) the
+// CLOSING tag comes in two shapes — the canonical `</info added on {ts}>` and a
+// bare legacy `</info>`, and some early bodies stored literal `\n` rather than
+// real newlines. So blocks are delimited by the OPENING tag ALONE: a block runs
+// from its `<info added on …>` up to the next opening tag (or end of string),
+// with any closing tag retained inside. Document order == chronological order
+// (append-only), which is what supersession reads depend on.
+
+/** One parsed journal block: raw text (tags included) + the opening timestamp. */
+interface ParsedJournal {
+  raw: string;
+  timestamp: string;
+}
+
+/** Matches a journal opening tag; group 1 is everything up to the first '>'. */
+const JOURNAL_OPEN_RE = /<info added on ([^>]*)>/g;
+
+/**
+ * Split a subtask `details` string into leading non-journal prose (`preamble`)
+ * and the appended journal blocks in document (== chronological) order. A
+ * details string with no journal blocks returns the whole string as `preamble`.
+ */
+function splitDetailsJournals(details: string): {
+  preamble: string;
+  blocks: ParsedJournal[];
+} {
+  const opens: { index: number; ts: string }[] = [];
+  JOURNAL_OPEN_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = JOURNAL_OPEN_RE.exec(details)) !== null) {
+    opens.push({ index: m.index, ts: m[1] });
+  }
+  if (opens.length === 0) return { preamble: details, blocks: [] };
+  const preamble = details.slice(0, opens[0].index);
+  const blocks = opens.map((o, i) => ({
+    raw: details.slice(
+      o.index,
+      i + 1 < opens.length ? opens[i + 1].index : details.length,
+    ),
+    timestamp: o.ts,
+  }));
+  return { preamble, blocks };
+}
+
+/**
+ * Replace a subtask's journal blocks with a single stub, preserving the
+ * non-journal preamble. Returns the details unchanged when it carries no blocks
+ * (so a caller can cheaply detect "nothing stripped"). The stub names the char
+ * footprint elided and the `journal` command that retrieves the full thread.
+ */
+function stubSubtaskJournals(
+  details: string,
+  taskId: string,
+  subId: string,
+): string {
+  const { preamble, blocks } = splitDetailsJournals(details);
+  if (blocks.length === 0) return details;
+  const chars = blocks.reduce((n, b) => n + b.raw.length, 0);
+  const stub = `[${blocks.length} journal block${blocks.length === 1 ? '' : 's'}, ${chars} chars — use: journal ${taskId}.${subId}]`;
+  const pre = preamble.replace(/\s+$/, '');
+  return pre ? `${pre}\n${stub}` : stub;
+}
+
+/** A parsed archive-pointer stub left in a subtask's details post-compaction. */
+interface ArchivePointer {
+  /** Basename of the archive markdown (e.g. `ID-6-journals.md`). */
+  file: string;
+  /** Section id within that file (e.g. `6.1`). */
+  section: string;
+  /** The `original N chars` figure recorded at compaction time. */
+  originalChars: number;
+  /** The archival date lifted from the stub (e.g. `2026-06-12`), or null. */
+  archivedOn: string | null;
+}
+
+// Matches the compaction stub, e.g.:
+//   "Journal archived 2026-06-12 (WS-B3 compaction) ->
+//    ledgers/archive/ID-6-journals.md section 6.1 (original 1182 chars)."
+// The path is captured loosely (any non-space run ending in an `ID-…​.md`) and
+// reduced to its basename at resolve time, so the stub's relative prefix
+// (`ledgers/archive/…`) does not couple the resolver to a fixed layout.
+const ARCHIVE_PTR_RE =
+  /Journal archived\s+(\S+)[^\n]*?->\s*(\S*ID-\S+?\.md)\s+section\s+([\w.]+)\s*\(original\s+(\d+)\s+chars\)/g;
+
+/** Extract every archive-pointer stub from a subtask's details (document order). */
+function parseArchivePointers(details: string): ArchivePointer[] {
+  const out: ArchivePointer[] = [];
+  ARCHIVE_PTR_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = ARCHIVE_PTR_RE.exec(details)) !== null) {
+    out.push({
+      archivedOn: m[1] ?? null,
+      file: m[2].split('/').pop() as string,
+      section: m[3],
+      originalChars: Number(m[4]),
+    });
+  }
+  return out;
+}
+
+/** Escape a string for literal use inside a RegExp (archive section headers). */
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Pull one `## {section} — …` section body out of an archive markdown file. The
+ * section id is matched exactly (a trailing word-boundary stops `6.1` matching
+ * `6.10`); the body runs from the header line up to the next `## ` heading (or
+ * EOF). Returns null when the section is absent.
+ */
+function extractArchiveSection(md: string, section: string): string | null {
+  const lines = md.split('\n');
+  const headRe = new RegExp(`^##\\s+${escapeRegExp(section)}(?:\\s|$)`);
+  let start = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (headRe.test(lines[i])) {
+      start = i;
+      break;
+    }
+  }
+  if (start < 0) return null;
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^##\s/.test(lines[i])) {
+      end = i;
+      break;
+    }
+  }
+  return lines.slice(start, end).join('\n').trim();
+}
+
+/** A resolved archive section, or a reason it could not be resolved. */
+type ArchiveResolution =
+  | { ok: true; content: string }
+  | { ok: false; reason: string };
+
+/**
+ * Resolve one archive pointer to its section body. The archive files live under
+ * `{ledgerDir}/archive/` (the compaction target — ID-6-journals.md et al.); the
+ * pointer's basename + section id address a single `## {section}` block.
+ */
+async function resolveArchivePointer(
+  ledgerDir: string,
+  ptr: ArchivePointer,
+): Promise<ArchiveResolution> {
+  const path = resolve(ledgerDir, 'archive', ptr.file);
+  let md: string;
+  try {
+    md = await readFile(path, 'utf8');
+  } catch (err) {
+    return { ok: false, reason: `archive file unreadable (${msg(err)})` };
+  }
+  const content = extractArchiveSection(md, ptr.section);
+  if (content === null)
+    return {
+      ok: false,
+      reason: `section ${ptr.section} not found in ${ptr.file}`,
+    };
+  return { ok: true, content };
+}
+
+/**
+ * S447 `show` safety valve. The DEFAULT (no-shaping-flag) `show` output is
+ * guaranteed to serialise at or under this size (INVARIANT — see the escalating
+ * valve in `shapeShowRecord`); only `--full` (and the explicit `--no-journals` /
+ * `--fields` shapes the caller opts into) may exceed it. 48KB sits well below
+ * the ~64KB single-tool-result ceiling agents hit, so a `show` never floods the
+ * context and forces a retry (ID-68 verbatim was ~188KB; task 131 ~169KB).
+ */
+const SHOW_SIZE_LIMIT = 48 * 1024;
+
+/** Serialised byte length of a candidate `show` payload. */
+function showBytes(v: unknown): number {
+  return Buffer.byteLength(JSON.stringify(v), 'utf8');
+}
+function showFits(v: unknown): boolean {
+  return showBytes(v) <= SHOW_SIZE_LIMIT;
+}
+
+/** Prepend a top-level `notice` explaining a valve stage (key ordered first). */
+function withShowNotice(
+  obj: Record<string, unknown>,
+  notice: string,
+): Record<string, unknown> {
+  return { notice, ...obj };
+}
+
+/** The compact {id,title,status} subtask table used by --summary + the degrade. */
+function subtaskTable(
+  subtasks: Record<string, unknown>[],
+): { id: unknown; title: unknown; status: unknown }[] {
+  return subtasks.map((s) => ({ id: s.id, title: s.title, status: s.status }));
+}
+
+/** Per-ledger identity fields for the last-resort projection (all short, budgeted). */
+const SHOW_IDENTITY_FIELDS: Record<LedgerName, string[]> = {
+  task: ['id', 'title', 'status'],
+  roadmap: ['id', 'title', 'status'],
+  backlog: ['id', 'title', 'status'],
+  retro: ['id', 'date', 'track'],
+};
+
+/**
+ * Replace each subtask's journal blocks with a stub, keeping non-journal prose.
+ * Returns the (possibly) rewritten record + whether anything was stripped.
+ */
+function stubRecordJournals(
+  record: Record<string, unknown>,
+  subtasks: Record<string, unknown>[],
+  recordId: string,
+): { result: Record<string, unknown>; stripped: boolean } {
+  let stripped = false;
+  const trimmed = subtasks.map((s) => {
+    const details = typeof s.details === 'string' ? s.details : '';
+    const next = stubSubtaskJournals(details, recordId, String(s.id));
+    if (next === details) return s;
+    stripped = true;
+    return { ...s, details: next };
+  });
+  return { result: { ...record, subtasks: trimmed }, stripped };
+}
+
+const NOTICE_STUB =
+  `record exceeded ${SHOW_SIZE_LIMIT >> 10}KB — subtask journal blocks were replaced with stubs. ` +
+  'Pass --full for the verbatim record, or "journal <taskId.subId>" for a single thread.';
+const NOTICE_SUMMARY_DEGRADE =
+  `record still exceeded ${SHOW_SIZE_LIMIT >> 10}KB after stubbing journals — degraded to a summary ` +
+  '(top-level fields + a {id,title,status} subtask table). Escape hatches: --full (verbatim), ' +
+  '--no-journals (keep prose, drop journals), --fields <csv> (pick top-level fields), ' +
+  '"get task <id>.<sub> details" (one subtask), "journal <id.sub>" (one thread).';
+const NOTICE_MINIMAL_DEGRADE =
+  `record still exceeded ${SHOW_SIZE_LIMIT >> 10}KB after summarising (oversized top-level prose) — ` +
+  'degraded to identity fields only. Use --fields <csv> to pick fields, or "get <ledger> <id> <field>" ' +
+  'for one field, or --full for the verbatim record.';
+
+/**
+ * Shape a `show` record for output per the read-path flags (S447). EXPLICIT
+ * shaping flags win and are the caller's own choice of shape (they may exceed
+ * SHOW_SIZE_LIMIT, like --full):
+ *   --fields  → top-level projection.
+ *   --summary → top-level fields + a compact {id,title,status} subtask table.
+ *   --full    → verbatim (opt out of the valve).
+ *   --no-journals → stub journals, keep prose (targeted transform, may exceed).
+ *
+ * Otherwise the DEFAULT path runs the escalating valve, whose INVARIANT is that
+ * the returned payload always serialises ≤ SHOW_SIZE_LIMIT regardless of record
+ * shape:
+ *   verbatim if it already fits → else stub journals (if that fits) → else
+ *   degrade to the --summary shape (if that fits) → else project to identity
+ *   fields (guaranteed tiny). Each degraded stage carries a top-level `notice`
+ *   naming what happened + the escape hatches. Non-task records carry no
+ *   subtasks, so the stub/summary stages are inert for them and the identity
+ *   projection is the only degrade they can hit (they never exceed 48KB today).
+ */
+function shapeShowRecord(
+  record: Record<string, unknown>,
+  ledger: LedgerName,
+  recordId: string,
+  flags: ParsedArgs['flags'],
+): { result: unknown; warnings: string[] } {
+  const warnings: string[] = [];
+
+  const subtasks = Array.isArray(record.subtasks)
+    ? (record.subtasks as Record<string, unknown>[])
+    : null;
+
+  // ── explicit shaping flags (caller-chosen shape; may exceed the valve) ──────
+
+  // --fields: top-level projection (any ledger).
+  if (flags.fields !== undefined) {
+    const wanted = flags.fields
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    const proj: Record<string, unknown> = {};
+    for (const f of wanted) {
+      if (f in record) proj[f] = record[f];
+      else
+        warnings.push(
+          `--fields: "${f}" is not a field of ${ledger} ${recordId}`,
+        );
+    }
+    return { result: proj, warnings };
+  }
+
+  // --summary: identity + a compact subtask table.
+  if (flags.summary) {
+    if (!subtasks) {
+      warnings.push(
+        `--summary: ${ledger} ${recordId} has no subtasks — returning the full record`,
+      );
+      return { result: record, warnings };
+    }
+    return {
+      result: { ...record, subtasks: subtaskTable(subtasks) },
+      warnings,
+    };
+  }
+
+  // --full: verbatim, opt out of the valve.
+  if (flags.full) return { result: record, warnings };
+
+  // --no-journals: explicit strip (keep prose). A targeted transform, NOT a size
+  // cap — it may still exceed the valve on a prose-heavy record (the default
+  // path below is the size guarantee; this is the "keep everything but journals"
+  // opt-in). Inert on subtask-less records.
+  if (flags.noJournals) {
+    if (!subtasks) return { result: record, warnings };
+    const { result, stripped } = stubRecordJournals(record, subtasks, recordId);
+    if (!stripped) return { result: record, warnings };
+    return {
+      result: withShowNotice(
+        result,
+        'subtask journal blocks stripped (--no-journals). Use `journal <taskId.subId>` for a full thread or `journal <taskId>` for the per-subtask index.',
+      ),
+      warnings,
+    };
+  }
+
+  // ── DEFAULT path — the ≤48KB invariant lives here (escalating valve) ─────────
+
+  // Stage 0: already fits → verbatim (pre-S447 behaviour for small records).
+  if (showFits(record)) return { result: record, warnings };
+
+  // Stage 1: stub subtask journals, keep prose.
+  if (subtasks) {
+    const { result: stubbed, stripped } = stubRecordJournals(
+      record,
+      subtasks,
+      recordId,
+    );
+    if (stripped) {
+      const cand = withShowNotice(stubbed, NOTICE_STUB);
+      if (showFits(cand)) return { result: cand, warnings };
+    }
+  }
+
+  // Stage 2: degrade to the --summary shape (drops subtask details entirely).
+  const summary = subtasks
+    ? { ...record, subtasks: subtaskTable(subtasks) }
+    : { ...record };
+  const summaryCand = withShowNotice(summary, NOTICE_SUMMARY_DEGRADE);
+  if (showFits(summaryCand)) return { result: summaryCand, warnings };
+
+  // Stage 3: last resort — project to identity fields (guaranteed tiny). Reached
+  // only when oversized top-level prose (not journals) blows the summary too.
+  const minimal: Record<string, unknown> = {};
+  for (const f of SHOW_IDENTITY_FIELDS[ledger]) {
+    if (f in record) minimal[f] = record[f];
+  }
+  if (subtasks) minimal.subtaskCount = subtasks.length;
+  return {
+    result: withShowNotice(minimal, NOTICE_MINIMAL_DEGRADE),
+    warnings,
+  };
+}
+
 // ── ID-35.21 field-type-aware value coercion (RESEARCH §5.3) ─────────────────
 //
 // The old `update-backlog` heuristic — try `JSON.parse(value)`, else bare
@@ -2203,13 +2633,29 @@ async function run(args: ParsedArgs): Promise<CliResult> {
               : d.data.items.find((it) => it.id === id);
       if (!record)
         return cliErr('show', 'record-not-found', `${ledger} id ${id}`);
-      return { ok: true, subcommand: 'show', result: record };
+      // S447 read-path: shape the record per --fields/--summary/--no-journals/
+      // --full and the 48KB journal-stub safety valve. Verbatim for a small
+      // record with no shaping flag (the pre-S447 behaviour).
+      const shaped = shapeShowRecord(
+        record as Record<string, unknown>,
+        ledger as LedgerName,
+        id,
+        flags,
+      );
+      return {
+        ok: true,
+        subcommand: 'show',
+        result: shaped.result,
+        ...(shaped.warnings.length ? { warnings: shaped.warnings } : {}),
+      };
     }
 
     // ── ID-35.22 single-field read (RESEARCH §5.1) ──────────────────────────
     // `get <ledger> <id> [field]` extends `show` with single-field reads:
     // `get backlog 100 status` prints just the status value; no field behaves
-    // exactly like `show`. Read-only — no write gate.
+    // exactly like `show`. S447: a dotted task id reaches a SUBTASK —
+    // `get task <taskId>.<subId> [field]` returns the subtask (or one of its
+    // fields), the read-path complement to `update-subtask`. Read-only.
     case 'get': {
       const [ledger, id, field] = p;
       if (!ledger || !id)
@@ -2223,6 +2669,41 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       const loaded = await loadLedger(ledgerPath(dir, ledger as LedgerName));
       if (!loaded.ok) return loaded.result;
       const d = loaded.detected;
+
+      // S447 subtask path — `get task <taskId>.<subId> [field]`. Only the task
+      // ledger has subtasks; a dot in any other ledger's id falls through to the
+      // record lookup below (and reports record-not-found as before).
+      if (ledger === 'task' && id.includes('.')) {
+        if (d.kind !== 'task-list')
+          return cliErr(
+            'get',
+            'bad-ledger',
+            'subtask paths read the task ledger',
+          );
+        const parsed = parseDottedSubtaskId('get', id);
+        if (!parsed.ok) return parsed.result;
+        const { taskId, subId } = parsed;
+        const task = d.data.tasks.find((t) => t.id === taskId);
+        if (!task)
+          return cliErr('get', 'record-not-found', `task id ${taskId}`);
+        const sub = task.subtasks.find((s) => String(s.id) === subId);
+        if (!sub)
+          return cliErr(
+            'get',
+            'subtask-not-found',
+            `task ${taskId} has no subtask ${subId}`,
+          );
+        if (field == null) return { ok: true, subcommand: 'get', result: sub };
+        const subRec = sub as Record<string, unknown>;
+        if (!(field in subRec))
+          return cliErr(
+            'get',
+            'field-not-found',
+            `subtask ${taskId}.${subId} has no field "${field}"`,
+          );
+        return { ok: true, subcommand: 'get', result: subRec[field] };
+      }
+
       const record =
         d.kind === 'task-list'
           ? d.data.tasks.find((t) => t.id === id)
@@ -2243,6 +2724,165 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           `${ledger} ${id} has no field "${field}"`,
         );
       return { ok: true, subcommand: 'get', result: rec[field] };
+    }
+
+    // ── S447 journal reads (read-path upgrade) ──────────────────────────────
+    // `journal <taskId.subId>` returns a subtask's journal thread in
+    // chronological order (full thread by default — supersession makes partial
+    // reads unsafe; `--last N` bounds it but prefixes a supersession warning).
+    // `journal <taskId>` returns an INDEX (per-subtask block count / chars /
+    // latest timestamp), not content. Archive-pointer stubs are resolved and
+    // merged chronologically BEFORE the live blocks, marked with provenance.
+    // Reads the task ledger only. Read-only — no write gate.
+    case 'journal': {
+      const arg = p[0];
+      if (!arg)
+        return cliErr(
+          'journal',
+          'missing-args',
+          'journal <taskId> (index) | journal <taskId.subId> [--last n] (thread)',
+        );
+      const loaded = await loadLedger(ledgerPath(dir, 'task'));
+      if (!loaded.ok) return loaded.result;
+      if (loaded.detected.kind !== 'task-list')
+        return cliErr('journal', 'bad-ledger', 'journal reads the task ledger');
+      const tasks = loaded.detected.data.tasks;
+
+      // ── single-subtask thread ──────────────────────────────────────────────
+      if (arg.includes('.')) {
+        const parsed = parseDottedSubtaskId('journal', arg);
+        if (!parsed.ok) return parsed.result;
+        const { taskId, subId } = parsed;
+        const task = tasks.find((t) => t.id === taskId);
+        if (!task)
+          return cliErr('journal', 'record-not-found', `task id ${taskId}`);
+        const sub = task.subtasks.find((s) => String(s.id) === subId);
+        if (!sub)
+          return cliErr(
+            'journal',
+            'subtask-not-found',
+            `task ${taskId} has no subtask ${subId}`,
+          );
+
+        // --last n: coerce + range-check (non-negative integer; never a silent
+        // slice — `--last abc` rejects).
+        let last: number | undefined;
+        if (flags.last !== undefined) {
+          const n = Number(flags.last);
+          if (!Number.isInteger(n) || n < 0)
+            return cliErr(
+              'journal',
+              'bad-flag-value',
+              `--last must be a non-negative integer (got "${flags.last}")`,
+            );
+          last = n;
+        }
+
+        const details =
+          typeof (sub as { details?: unknown }).details === 'string'
+            ? ((sub as { details: string }).details as string)
+            : '';
+        const { blocks } = splitDetailsJournals(details);
+        const pointers = parseArchivePointers(details);
+
+        const warnings: string[] = [];
+        // Archive entries come FIRST (older than any live block). Each resolved
+        // section is marked with provenance; an unresolved pointer degrades to a
+        // warning + a placeholder entry (never a silent drop).
+        const entries: {
+          provenance: 'archived' | 'live';
+          timestamp: string | null;
+          source?: string;
+          text: string;
+        }[] = [];
+        for (const ptr of pointers) {
+          const resolved = await resolveArchivePointer(dir, ptr);
+          const source = `${ptr.file} §${ptr.section}`;
+          if (resolved.ok) {
+            entries.push({
+              provenance: 'archived',
+              timestamp: ptr.archivedOn,
+              source,
+              text: resolved.content,
+            });
+          } else {
+            warnings.push(
+              `archive pointer ${source} unresolved: ${resolved.reason}`,
+            );
+            entries.push({
+              provenance: 'archived',
+              timestamp: ptr.archivedOn,
+              source,
+              text: `[archived ${ptr.originalChars} chars unresolved — ${resolved.reason}]`,
+            });
+          }
+        }
+        for (const b of blocks) {
+          entries.push({
+            provenance: 'live',
+            timestamp: b.timestamp,
+            text: b.raw,
+          });
+        }
+
+        const totalEntries = entries.length;
+        let shownEntries = entries;
+        let truncated = false;
+        if (last !== undefined && last < entries.length) {
+          shownEntries = entries.slice(entries.length - last);
+          truncated = true;
+          warnings.unshift(
+            `--last ${last}: showing the ${last} most-recent of ${totalEntries} entries. Journals are append-only with IN-PLACE supersession — an earlier entry may be corrected or superseded by a later one, so a partial thread can mislead; read the full thread when correctness matters.`,
+          );
+        }
+
+        return {
+          ok: true,
+          subcommand: 'journal',
+          result: {
+            task: taskId,
+            subtask: subId,
+            total: totalEntries,
+            shown: shownEntries.length,
+            truncated,
+            entries: shownEntries,
+          },
+          ...(warnings.length ? { warnings } : {}),
+        };
+      }
+
+      // ── per-task index (counts, not content) ────────────────────────────────
+      const task = tasks.find((t) => t.id === arg);
+      if (!task) return cliErr('journal', 'record-not-found', `task id ${arg}`);
+      const index = task.subtasks.map((s) => {
+        const details =
+          typeof (s as { details?: unknown }).details === 'string'
+            ? ((s as { details: string }).details as string)
+            : '';
+        const { blocks } = splitDetailsJournals(details);
+        const pointers = parseArchivePointers(details);
+        const chars = blocks.reduce((n, b) => n + b.raw.length, 0);
+        return {
+          id: s.id,
+          title: (s as { title?: unknown }).title,
+          journalBlocks: blocks.length,
+          chars,
+          latest: blocks.length ? blocks[blocks.length - 1].timestamp : null,
+          ...(pointers.length
+            ? {
+                archived: pointers.map(
+                  (ptr) =>
+                    `${ptr.file} §${ptr.section} (${ptr.originalChars} chars)`,
+                ),
+              }
+            : {}),
+        };
+      });
+      return {
+        ok: true,
+        subcommand: 'journal',
+        result: { task: task.id, subtasks: index },
+      };
     }
 
     // ── ID-35.22 schema discoverability (RESEARCH §5.2 — prevent guessing) ───
@@ -2334,7 +2974,10 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           themeField: 'capability_theme',
           dependsField: 'dependencies',
           hasStatus: true,
-          defaultFields: ['id', 'title', 'status'],
+          // S447: `subtasks` is a DERIVED roll-up (done/total) rendered in the
+          // projection below, not a raw field. Owner decision — the default
+          // `list task` row now surfaces subtask progress at a glance.
+          defaultFields: ['id', 'title', 'status', 'subtasks'],
         },
         roadmap: {
           themeField: 'id',
@@ -2480,11 +3123,26 @@ async function run(args: ParsedArgs): Promise<CliResult> {
               .filter((s) => s.length > 0)
           : meta.defaultFields;
 
+      // S447 derived roll-up: `subtasks` renders `done/total` where done =
+      // subtasks with status `done` OR `cancelled` (owner decision — a cancelled
+      // subtask is closed, not outstanding). A record with no subtasks reads
+      // `0/0`. Any other field projects the raw value.
+      const projectField = (r: Record<string, unknown>, f: string): unknown => {
+        if (f !== 'subtasks') return r[f];
+        const subs = Array.isArray(r.subtasks)
+          ? (r.subtasks as Record<string, unknown>[])
+          : [];
+        const done = subs.filter(
+          (s) => s.status === 'done' || s.status === 'cancelled',
+        ).length;
+        return `${done}/${subs.length}`;
+      };
+
       const projected = flags.idsOnly
         ? rows.map((r) => r.id)
         : rows.map((r) => {
             const out: Record<string, unknown> = {};
-            for (const f of projFields) out[f] = r[f];
+            for (const f of projFields) out[f] = projectField(r, f);
             return out;
           });
 
