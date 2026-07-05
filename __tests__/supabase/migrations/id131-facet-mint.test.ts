@@ -55,6 +55,41 @@ describe('20260705100000_id131_facet_mint.sql', () => {
     );
   });
 
+  it('mint functions are SECURITY DEFINER, owned by postgres, with EXECUTE revoked from PUBLIC', () => {
+    // These are the exact properties that make the viewer q_a_pair-insert path
+    // safe (see migration header): SECURITY DEFINER + OWNER postgres lets the
+    // mint insert bypass record_lifecycle's editor/admin-only INSERT policy
+    // regardless of the inserting role, and REVOKE ALL FROM PUBLIC keeps the
+    // function trigger-only (never directly callable). A future edit that
+    // drops any of the three would silently reopen the RLS gap.
+    for (const fn of [
+      'record_lifecycle_mint_source_document',
+      'record_lifecycle_mint_q_a_pair',
+    ]) {
+      const createHeader = sql.match(
+        new RegExp(
+          `CREATE OR REPLACE FUNCTION "public"\\."${fn}"\\(\\) RETURNS "trigger"[\\s\\S]*?AS \\$\\$`,
+        ),
+      );
+      expect(
+        createHeader,
+        `${fn}: CREATE FUNCTION header not found`,
+      ).not.toBeNull();
+      expect(createHeader![0]).toMatch(/SECURITY DEFINER/);
+
+      expect(sql).toMatch(
+        new RegExp(
+          `ALTER FUNCTION "public"\\."${fn}"\\(\\) OWNER TO "postgres";`,
+        ),
+      );
+      expect(sql).toMatch(
+        new RegExp(
+          `REVOKE ALL ON FUNCTION "public"\\."${fn}"\\(\\) FROM PUBLIC;`,
+        ),
+      );
+    }
+  });
+
   it('guards every record_lifecycle INSERT with ON CONFLICT (owner_kind, owner_id) DO NOTHING', () => {
     const inserts = sql.match(
       /INSERT INTO (?:public\.|"public"\.)"?record_lifecycle"?[\s\S]*?;/g,
