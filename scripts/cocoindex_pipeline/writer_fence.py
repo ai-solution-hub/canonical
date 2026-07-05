@@ -56,12 +56,38 @@ from __future__ import annotations
 import logging
 import uuid
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, AsyncIterator
+from typing import TYPE_CHECKING, Any, AsyncIterator, Protocol, cast
 
 if TYPE_CHECKING:
     import asyncpg
 
 _logger = logging.getLogger(__name__)
+
+
+# BL-397: `try_acquire_writer_fence` / `release_writer_fence` take a
+# structural (Protocol) connection type, not the nominal `asyncpg.Connection`
+# they took previously. Both are called with whatever `writer_fence()` checks
+# out of the pool — a real `asyncpg.Pool.acquire()` yields a
+# `PoolConnectionProxy`, not a bare `Connection`, and pyright correctly
+# rejects passing that proxy to a parameter typed as `Connection` (different,
+# non-overlapping asyncpg classes). Protocol typing (mirrors
+# `RetryCounterProtocol` / `StageCounterProtocol` in `flow_context.py`) fixes
+# this the same way those do: describe only the one method these two
+# primitives actually call, so BOTH `asyncpg.Connection` and
+# `PoolConnectionProxy` satisfy it structurally, and the test suite's
+# lightweight `_FakeConn` stand-in satisfies it too, with no asyncpg
+# inheritance required. `writer_fence()` below keeps the nominal
+# `asyncpg.Pool` / `asyncpg.Connection` types unchanged on its OWN public
+# signature (its callers, e.g. `server.py`, get back a full `Connection` as
+# before); only its internal checkout is `cast` to bridge the
+# `PoolConnectionProxy` -> `Connection` gap for that one call. Zero runtime
+# behaviour change throughout — asyncpg objects already duck-type this shape.
+class FenceConnection(Protocol):
+    """Structural shape of the connection-like object `try_acquire_writer_fence`
+    / `release_writer_fence` need — just the one `fetchval` call they issue."""
+
+    async def fetchval(self, query: str, *args: object) -> Any: ...
+
 
 # Server-side default TTL (seconds) applied when `ttl_seconds` is omitted —
 # mirrors the SQL function's own DEFAULT (3600s) so callers that pass
@@ -87,7 +113,7 @@ class WriterFenceBusyError(Exception):
 
 
 async def try_acquire_writer_fence(
-    conn: "asyncpg.Connection",
+    conn: FenceConnection,
     holder_token: "uuid.UUID",
     holder: str | None = None,
     ttl_seconds: int = DEFAULT_LEASE_TTL_SECONDS,
@@ -102,16 +128,23 @@ async def try_acquire_writer_fence(
     MUST present the SAME token. Prefer the `writer_fence()` context manager
     below, which mints and threads this token automatically.
     """
-    return await conn.fetchval(
-        "SELECT public.corpus_writer_fence_lease_acquire($1, $2, $3)",
-        holder_token,
-        holder,
-        ttl_seconds,
+    # `fetchval` is typed `Any` (asyncpg is dynamically typed on row/scalar
+    # decoding) — the SQL function itself returns SQL boolean, so `bool(...)`
+    # is a type-narrowing no-op for the real value, and a documented
+    # fail-safe (never expected in practice: this is a scalar function
+    # call, which always returns exactly one row) if it were ever `None`.
+    return bool(
+        await conn.fetchval(
+            "SELECT public.corpus_writer_fence_lease_acquire($1, $2, $3)",
+            holder_token,
+            holder,
+            ttl_seconds,
+        )
     )
 
 
 async def release_writer_fence(
-    conn: "asyncpg.Connection",
+    conn: FenceConnection,
     holder_token: "uuid.UUID",
     holder: str | None = None,
 ) -> bool:
@@ -123,10 +156,13 @@ async def release_writer_fence(
     is a WARNING to investigate, never a hard failure — it can never mean
     this call released someone else's active lease.
     """
-    return await conn.fetchval(
-        "SELECT public.corpus_writer_fence_lease_release($1, $2)",
-        holder_token,
-        holder,
+    # See try_acquire_writer_fence's `bool(...)` note above — same rationale.
+    return bool(
+        await conn.fetchval(
+            "SELECT public.corpus_writer_fence_lease_release($1, $2)",
+            holder_token,
+            holder,
+        )
     )
 
 
@@ -150,7 +186,13 @@ async def writer_fence(
             ...  # critical section (bucket/volume writes)
     """
     holder_token = uuid.uuid4()
-    async with pool.acquire() as conn:
+    async with pool.acquire() as pool_conn:
+        # `Pool.acquire()` actually yields a `PoolConnectionProxy`, which
+        # proxies every `Connection` method (`fetchval` included) — this
+        # `cast` is a type-checker-only bridge (BL-397), not a runtime
+        # conversion, back onto this function's own declared
+        # `asyncpg.Connection` public contract.
+        conn = cast("asyncpg.Connection", pool_conn)
         acquired = await try_acquire_writer_fence(
             conn, holder_token, holder, ttl_seconds
         )
