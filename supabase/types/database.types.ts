@@ -3831,6 +3831,18 @@ export type Database = {
         }
       }
       cleanup_filtered_articles: { Args: never; Returns: number }
+      corpus_writer_fence_lease_acquire: {
+        Args: {
+          p_holder?: string
+          p_holder_token: string
+          p_ttl_seconds?: number
+        }
+        Returns: boolean
+      }
+      corpus_writer_fence_lease_release: {
+        Args: { p_holder?: string; p_holder_token: string }
+        Returns: boolean
+      }
       corpus_writer_fence_release: {
         Args: { p_holder?: string }
         Returns: boolean
@@ -5519,6 +5531,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      corpus_writer_fence_lease: {
+        Row: {
+          acquired_at: string
+          expires_at: string
+          fence_name: string
+          holder_label: string | null
+          holder_token: string
+        }
+        Insert: {
+          acquired_at?: string
+          expires_at: string
+          fence_name: string
+          holder_label?: string | null
+          holder_token: string
+        }
+        Update: {
+          acquired_at?: string
+          expires_at?: string
+          fence_name?: string
+          holder_label?: string | null
+          holder_token?: string
+        }
+        Relationships: []
       }
       coverage_targets: {
         Row: {
@@ -8856,6 +8892,7 @@ export type Database = {
     }
     Functions: {
       _corpus_writer_fence_key: { Args: never; Returns: number }
+      _corpus_writer_fence_lease_name: { Args: never; Returns: string }
       _source_document_cascade_erase: {
         Args: { p_id: string; p_trigger?: string }
         Returns: {
@@ -8880,14 +8917,6 @@ export type Database = {
           p_item_ids: string[]
           p_owner_id: string
         }
-        Returns: number
-      }
-      bulk_delete_tags: {
-        Args: { p_tags: string[]; p_type: string }
-        Returns: number
-      }
-      bulk_merge_tags: {
-        Args: { p_sources: string[]; p_target: string; p_type: string }
         Returns: number
       }
       check_content_exists: {
@@ -8931,6 +8960,18 @@ export type Database = {
         }
       }
       cleanup_filtered_articles: { Args: never; Returns: number }
+      corpus_writer_fence_lease_acquire: {
+        Args: {
+          p_holder?: string
+          p_holder_token: string
+          p_ttl_seconds?: number
+        }
+        Returns: boolean
+      }
+      corpus_writer_fence_lease_release: {
+        Args: { p_holder?: string; p_holder_token: string }
+        Returns: boolean
+      }
       corpus_writer_fence_release: {
         Args: { p_holder?: string }
         Returns: boolean
@@ -8944,7 +8985,6 @@ export type Database = {
         Args: { p_canonical_name: string }
         Returns: number
       }
-      delete_tag: { Args: { p_tag: string; p_type: string }; Returns: number }
       detect_reupload: {
         Args: {
           p_content_hash: string
@@ -8958,75 +8998,6 @@ export type Database = {
           match_type: string
         }[]
       }
-      find_duplicate_pairs: {
-        Args: {
-          limit_count?: number
-          p_domain?: string
-          similarity_threshold?: number
-        }
-        Returns: {
-          domain1: string
-          domain2: string
-          id1: string
-          id2: string
-          similarity: number
-          title1: string
-          title2: string
-          type1: string
-          type2: string
-        }[]
-      }
-      find_duplicate_tags: {
-        Args: { p_type: string }
-        Returns: {
-          canonical: string
-          total_usage: number
-          variant_count: number
-          variants: string[]
-        }[]
-      }
-      find_exact_duplicates: {
-        Args: { p_content_hash: string; p_exclude_id?: string }
-        Returns: {
-          id: string
-          title: string
-        }[]
-      }
-      find_similar_content:
-        | {
-            Args: {
-              limit_count?: number
-              query_embedding: string
-              similarity_threshold?: number
-            }
-            Returns: {
-              author_name: string
-              content: string
-              content_type: string
-              id: string
-              platform: string
-              similarity: number
-              source_domain: string
-              title: string
-            }[]
-          }
-        | {
-            Args: {
-              limit_count?: number
-              query_embedding: string
-              similarity_threshold?: number
-            }
-            Returns: {
-              author_name: string
-              content: string
-              content_type: string
-              id: string
-              platform: string
-              similarity: number
-              source_domain: string
-              title: string
-            }[]
-          }
       get_aggregate_win_rate_stats: {
         Args: never
         Returns: {
@@ -9043,30 +9014,6 @@ export type Database = {
           winning_citations: number
         }[]
       }
-      get_all_tag_counts: {
-        Args: never
-        Returns: {
-          count: number
-          source: string
-          tag: string
-        }[]
-      }
-      get_audit_content_items: {
-        Args: { p_domain?: string; p_limit?: number }
-        Returns: {
-          ai_keywords: string[]
-          classification_confidence: number
-          content_length: number
-          content_type: string
-          freshness: string
-          id: string
-          primary_domain: string
-          suggested_title: string
-          summary: string
-          title: string
-        }[]
-      }
-      get_author_analysis: { Args: { p_author_name: string }; Returns: Json }
       get_capture_activity: {
         Args: { days_back?: number }
         Returns: {
@@ -9074,7 +9021,6 @@ export type Database = {
           period: string
         }[]
       }
-      get_content_gaps: { Args: never; Returns: Json }
       get_content_owner_stats: {
         Args: never
         Returns: {
@@ -9150,14 +9096,6 @@ export type Database = {
           storage_path: string
           uploaded_by: string
           version: number
-        }[]
-      }
-      get_domain_subtopic_counts: {
-        Args: never
-        Returns: {
-          item_count: number
-          primary_domain: string
-          primary_subtopic: string
         }[]
       }
       get_due_feed_sources: {
@@ -9240,7 +9178,6 @@ export type Database = {
           related_entities: Json
         }[]
       }
-      get_filter_counts: { Args: never; Returns: Json }
       get_filter_ratio_trend: {
         Args: {
           p_granularity?: string
@@ -9342,30 +9279,6 @@ export type Database = {
           stale_count: number
         }[]
       }
-      get_item_workspaces: {
-        Args: { p_item_id: string }
-        Returns: {
-          application_type_id: string
-          color: string | null
-          created_at: string | null
-          created_by: string | null
-          description: string | null
-          domain_metadata: Json | null
-          icon: string | null
-          id: string
-          is_archived: boolean | null
-          name: string
-          status: string | null
-          updated_at: string | null
-          updated_by: string | null
-        }[]
-        SetofOptions: {
-          from: "*"
-          to: "workspaces"
-          isOneToOne: false
-          isSetofReturn: true
-        }
-      }
       get_items_with_quality_flags: { Args: never; Returns: string[] }
       get_popular_keywords: {
         Args: { p_limit?: number }
@@ -9382,38 +9295,7 @@ export type Database = {
           severity: string
         }[]
       }
-      get_reading_patterns: { Args: { p_days?: number }; Returns: Json }
       get_review_breakdown_stats: { Args: never; Returns: Json }
-      get_source_documents: {
-        Args: never
-        Returns: {
-          count: number
-          source_document: string
-        }[]
-      }
-      get_tag_counts_filtered: {
-        Args: {
-          p_limit?: number
-          p_min_count?: number
-          p_offset?: number
-          p_search?: string
-          p_type: string
-        }
-        Returns: {
-          count: number
-          source: string
-          tag: string
-          total_count: number
-        }[]
-      }
-      get_tags_by_domain: {
-        Args: { p_type: string }
-        Returns: {
-          count: number
-          domain: string
-          tag: string
-        }[]
-      }
       get_template_summary: {
         Args: { p_template_id: string }
         Returns: {
@@ -9428,42 +9310,6 @@ export type Database = {
           unreviewed_fields: number
         }[]
       }
-      get_top_authors: {
-        Args: { p_limit?: number }
-        Returns: {
-          author_name: string
-          item_count: number
-        }[]
-      }
-      get_topic_deep_dive: { Args: { p_keyword: string }; Returns: Json }
-      get_topic_layers: {
-        Args: { p_topic_id: string }
-        Returns: {
-          content_type: string
-          id: string
-          layer: string
-          metadata: Json
-          primary_domain: string
-          title: string
-        }[]
-      }
-      get_trend_analysis: {
-        Args: { p_days?: number; p_min_count?: number }
-        Returns: {
-          current_count: number
-          domains: string[]
-          growth_rate: number
-          keyword: string
-          previous_count: number
-        }[]
-      }
-      get_unique_authors: {
-        Args: never
-        Returns: {
-          author_name: string
-          count: number
-        }[]
-      }
       get_user_display_names: {
         Args: { user_ids: string[] }
         Returns: {
@@ -9472,13 +9318,6 @@ export type Database = {
         }[]
       }
       get_user_role: { Args: never; Returns: string }
-      get_user_tag_counts: {
-        Args: never
-        Returns: {
-          count: number
-          tag: string
-        }[]
-      }
       grant_standard_public_table_access: {
         Args: { target_table: unknown }
         Returns: undefined
@@ -9541,10 +9380,6 @@ export type Database = {
       merge_item_metadata: {
         Args: { p_item_id: string; p_new_data: Json }
         Returns: undefined
-      }
-      merge_tags: {
-        Args: { p_source: string; p_target: string; p_type: string }
-        Returns: number
       }
       q_a_extractions_promotion_candidates: {
         Args: never
@@ -9748,25 +9583,6 @@ export type Database = {
           title: string
         }[]
       }
-      rename_tag: {
-        Args: { p_new: string; p_old: string; p_type: string }
-        Returns: number
-      }
-      resolve_near_dup_confirm_unique: {
-        Args: {
-          p_actor_user_id: string
-          p_left_id: string
-          p_note?: string
-          p_pair_id: string
-          p_right_id: string
-          p_similarity_at_resolution?: number
-          p_threshold_at_resolution?: number
-        }
-        Returns: {
-          dedup_status: string
-          id: string
-        }[]
-      }
       resolve_or_mint_source_identity: {
         Args: {
           p_content_hash: string
@@ -9889,19 +9705,6 @@ export type Database = {
         Args: { is_local: boolean; setting: string; value: string }
         Returns: string
       }
-      suggest_tags: {
-        Args: { p_prefix: string; p_type: string }
-        Returns: {
-          count: number
-          tag: string
-        }[]
-      }
-      toggle_star:
-        | { Args: { item_id: string }; Returns: boolean }
-        | {
-            Args: { p_item_id: string; p_starred: boolean }
-            Returns: undefined
-          }
       tombstone_source_document: {
         Args: { p_id: string }
         Returns: {
