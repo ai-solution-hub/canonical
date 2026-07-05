@@ -186,8 +186,10 @@ export interface KBCandidate {
   question_id: string;
   question_text: string;
   response_text: string | null;
-  source_content_ids: string[] | null;
-  recommendation: 'new_entry' | 'update_existing' | 'skip';
+  // BL-395: 'update_existing' retired (post-{131.28} HYBRID RETIRE) — the
+  // route always recommends 'new_entry'; source_content_ids-driven detection
+  // was dead compute and has been removed with it.
+  recommendation: 'new_entry' | 'skip';
 }
 
 // ---- Response Versioning ----

@@ -197,12 +197,17 @@ export const POST = defineRoute(
       // explicit recompute_procurement_rollup call is needed here.
 
       // If won and KB integration requested, return candidate responses.
+      // ID-131 {131.28} Part 2 (HYBRID RETIRE) / BL-395: the recommendation is
+      // always 'new_entry' now. 'update_existing' had no live consumer — the
+      // KB integration review dialog already collapses any 'update_existing'
+      // it receives onto 'new_entry' (see kb-integration-review.tsx's
+      // normaliseAction) — so the source_content_ids-driven branch that used
+      // to compute it was dead weight and has been removed.
       let kbCandidates: Array<{
         question_id: string;
         question_text: string;
         response_text: string | null;
-        source_content_ids: string[] | null;
-        recommendation: 'new_entry' | 'update_existing' | 'skip';
+        recommendation: 'new_entry' | 'skip';
       }> = [];
 
       if (outcome === 'won' && integrate_to_kb) {
@@ -239,15 +244,12 @@ export const POST = defineRoute(
             Array<{
               question_id: string;
               response_text: string | null;
-              source_content_ids: string[] | null;
               review_status: string;
             }>
           >(
             supabase
               .from('form_responses')
-              .select(
-                'question_id, response_text, source_content_ids, review_status',
-              )
+              .select('question_id, response_text, review_status')
               .in('question_id', questionIds)
               .in('review_status', ['approved', 'edited']),
             'procurement.outcome.responses',
@@ -274,22 +276,12 @@ export const POST = defineRoute(
             questions.map((q) => [q.id, q.question_text]),
           );
 
-          kbCandidates = responses.map((r) => {
-            // Recommend based on whether sources exist.
-            const hasExistingSources =
-              r.source_content_ids && r.source_content_ids.length > 0;
-            const recommendation = hasExistingSources
-              ? ('update_existing' as const)
-              : ('new_entry' as const);
-
-            return {
-              question_id: r.question_id,
-              question_text: questionMap.get(r.question_id) ?? '',
-              response_text: r.response_text,
-              source_content_ids: r.source_content_ids,
-              recommendation,
-            };
-          });
+          kbCandidates = responses.map((r) => ({
+            question_id: r.question_id,
+            question_text: questionMap.get(r.question_id) ?? '',
+            response_text: r.response_text,
+            recommendation: 'new_entry' as const,
+          }));
         }
       }
 

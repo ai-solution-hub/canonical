@@ -366,7 +366,7 @@ describe('POST /api/bids/:id/outcome', () => {
     expect(updateArg).not.toHaveProperty('outcome_recorded_by');
   });
 
-  it('returns KB candidates when won with integrate_to_kb', async () => {
+  it('returns KB candidates recommending new_entry when won with integrate_to_kb (BL-395: update_existing retired)', async () => {
     configureRole(mockSupabase, 'editor');
 
     // Form found in 'submitted' state (consumes the form-fetch .then-once).
@@ -397,7 +397,6 @@ describe('POST /api/bids/:id/outcome', () => {
               {
                 question_id: QUESTION_ID,
                 response_text: '<p>Our approach is...</p>',
-                source_content_ids: [CONTENT_ID],
                 review_status: 'approved',
               },
             ],
@@ -421,7 +420,11 @@ describe('POST /api/bids/:id/outcome', () => {
     expect(json.kb_candidates).toHaveLength(1);
     expect(json.kb_candidates[0].question_id).toBe(QUESTION_ID);
     expect(json.kb_candidates[0].question_text).toBe('Describe your approach');
-    expect(json.kb_candidates[0].recommendation).toBe('update_existing');
+    // BL-395: recommendation is always 'new_entry' now — 'update_existing'
+    // had no consumer, and the source_content_ids-driven computation that
+    // used to pick it has been removed as dead code.
+    expect(json.kb_candidates[0].recommendation).toBe('new_entry');
+    expect(json.kb_candidates[0]).not.toHaveProperty('source_content_ids');
   });
 
   it('returns 500 when the form update fails', async () => {
@@ -448,52 +451,6 @@ describe('POST /api/bids/:id/outcome', () => {
     expect(res.status).toBe(500);
     const json = await res.json();
     expect(json.error).toBe('Failed to record outcome');
-  });
-
-  it('recommends new_entry when response has no source_content_ids', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    configureWorkspaceAndForm('submitted');
-
-    let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => {
-        thenCallCount++;
-        if (thenCallCount === 1)
-          return resolve({ data: [{ id: FORM_ID }], error: null });
-        if (thenCallCount === 2) {
-          return resolve({
-            data: [{ id: QUESTION_ID, question_text: 'New question' }],
-            error: null,
-          });
-        }
-        if (thenCallCount === 3) {
-          return resolve({
-            data: [
-              {
-                question_id: QUESTION_ID,
-                response_text: '<p>Fresh response</p>',
-                source_content_ids: [],
-                review_status: 'edited',
-              },
-            ],
-            error: null,
-          });
-        }
-        return resolve({ data: [], error: null });
-      },
-    );
-
-    const req = createTestRequest(`/api/procurement/${BID_ID}/outcome`, {
-      method: 'POST',
-      body: { outcome: 'won', integrate_to_kb: true },
-    });
-    const params = createTestParams({ id: BID_ID });
-    const res = await postOutcome(req, { params });
-
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.kb_candidates[0].recommendation).toBe('new_entry');
   });
 });
 
