@@ -24,13 +24,10 @@ export const queryKeys = {
     library: (filters: Record<string, unknown>) =>
       ['content-items', 'library', filters] as const,
     detail: (id: string) => ['content-items', 'detail', id] as const,
-    /**
-     * Folder-drop ({56.12}) ingest poll — correlates a dropped filename to its
-     * freshly-ingested content_items row via `source_file`. Keyed on the
-     * source_file so concurrent drops poll independently.
-     */
-    ingestPoll: (sourceFile: string) =>
-      ['content-items', 'ingest-poll', sourceFile] as const,
+    // Folder-drop ({56.12}) ingest-poll key (`ingestPoll`) was retired at
+    // ID-131.24 (G-UPLOAD-GATE): the admission leg now returns its
+    // `source_documents.id` synchronously (DR-020/DR-025), so there is no
+    // content_items row left to poll for.
   },
 
   // References (global, workspace-less reference layer — ID-75 / ID-111).

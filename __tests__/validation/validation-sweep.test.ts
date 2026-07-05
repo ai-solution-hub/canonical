@@ -44,7 +44,6 @@ const EXEMPT_ROUTE_PATTERNS = [
   '/api/dashboard/', // No user-supplied params
   '/api/quality/summary/', // No user-supplied params
   '/api/search/suggestions/', // Simple GET
-  '/api/ingest/folder-drop/status/', // Simple GET, single optional presence-checked string param
   '/api/change-reports/latest/', // No params
   '/api/content-owners/stats/', // No user-supplied params
   '/api/coverage/guides/', // No user-supplied params

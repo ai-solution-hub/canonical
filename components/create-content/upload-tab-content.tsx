@@ -1,17 +1,19 @@
 'use client';
 
+// ID-131.24 (G-UPLOAD-GATE, DR-025) rework: this tab used to drive TWO
+// separate transports — the synchronous /api/upload content_items pipeline
+// (Upload button) and a distinct folder-drop stage-then-poll flow (Stage &
+// ingest button, polling content_items via source_file). Both are retired.
+// There is now ONE binding-admission gate (lib/upload/folder-drop.ts
+// `stageAndWalk`, ID-138 {138.13}): gate-pass -> Storage PUT -> an
+// admission-minted `source_documents` row, with NO content_items row. The
+// UI reflects DR-025's framing — this is "connect a source" + assign a
+// retention class, not "upload an authoritative document"; authority is
+// earned later at promotion (DR-026), not at admission.
+
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import { useMutation } from '@tanstack/react-query';
-import {
-  Upload,
-  Layers,
-  Check,
-  ChevronDown,
-  Loader2,
-  CheckCircle,
-  XCircle,
-} from 'lucide-react';
+import { Upload, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -21,19 +23,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { FileUpload } from '@/components/create-content/file-upload';
-import {
-  IngestionProgress,
-  type IngestionStep,
-} from '@/components/create-content/ingestion-progress';
-import { IngestionSuccessCard } from '@/components/create-content/ingestion-success-card';
-import { useContentIngestPolling } from '@/hooks/use-content-ingest-polling';
-import { ReuploadBanner } from '@/components/source-document/reupload-banner';
-import { UploadReviewStep } from '@/components/create-content/upload-review-step';
 import { QAPreviewList } from '@/components/qa/qa-preview-list';
 import { ClaudePromptButton } from '@/components/content/claude-prompt-button';
 import { generateIngestDocumentPrompt } from '@/lib/claude-prompts';
-import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
-import { useFileUploadPipeline } from '@/hooks/use-file-upload-pipeline';
+import {
+  useFileUploadPipeline,
+  type UploadRetentionClass,
+} from '@/hooks/use-file-upload-pipeline';
 import type { QACreateInput } from '@/lib/quality/qa-detection';
 
 // ---------------------------------------------------------------------------
@@ -41,13 +37,42 @@ import type { QACreateInput } from '@/lib/quality/qa-detection';
 // ---------------------------------------------------------------------------
 
 interface UploadTabContentProps {
-  /** Navigate to another tab (e.g. 'write' or 'url') */
+  /** Navigate to another tab (e.g. 'url') */
   onSwitchTab?: (tab: string) => void;
   /** Pre-detected Q&A pairs to show in the preview list. */
   detectedQAPairs?: QACreateInput[];
   /** Source document ID to link batch-created items to. */
   sourceDocumentId?: string;
 }
+
+// ---------------------------------------------------------------------------
+// Retention class options (DR-025) — only the two classes that apply to an
+// actual bytes upload; `live_connected` / `external_referenced` are
+// zero-byte connector bindings out of this surface's remit (see
+// `lib/upload/folder-drop.ts` `RetentionClass`).
+// ---------------------------------------------------------------------------
+
+const RETENTION_CLASS_OPTIONS: Array<{
+  value: UploadRetentionClass;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: 'keep_and_watch',
+    label: 'Keep & watch',
+    description: 'A living document — re-checked on future syncs.',
+  },
+  {
+    value: 'ingest_once',
+    label: 'Ingest once',
+    description: 'A one-time extract — never re-walked.',
+  },
+];
+
+const RETENTION_CLASS_LABEL: Record<UploadRetentionClass, string> =
+  Object.fromEntries(
+    RETENTION_CLASS_OPTIONS.map((opt) => [opt.value, opt.label]),
+  ) as Record<UploadRetentionClass, string>;
 
 // ---------------------------------------------------------------------------
 // Component
@@ -58,105 +83,22 @@ export function UploadTabContent({
   detectedQAPairs,
   sourceDocumentId,
 }: UploadTabContentProps) {
-  const { layers, getLayerLabel } = useLayerVocabulary();
-
   const pipeline = useFileUploadPipeline();
 
   const {
-    phase,
     files,
     fileStates,
     isUploading,
-    reviewItems,
     handleFilesAdded,
     handleFileRemoved,
     handleUpload: rawHandleUpload,
     reset,
-    setPhase,
-    setReviewItems,
-    handleSetLayerMode,
-    handleSetSelectedLayer,
     pendingCount,
     hasResults,
-    hasActiveUploads,
   } = pipeline;
 
-  // ---------------------------------------------------------------------------
-  // Folder-drop async ingest ({56.12}, ID-56 Path B)
-  // ---------------------------------------------------------------------------
-  // Distinct from the synchronous /api/upload path above: a folder-drop uploads
-  // the file to the authed /api/ingest/folder-drop route (which stages it into
-  // the cocoindex corpus + triggers an incremental walk), then polls
-  // content_items by source_file until the ingested row appears. The status chip
-  // and progress are driven by REAL poll state via useContentIngestPolling — no
-  // cosmetic timer.
-
-  /** Sub-state for the folder-drop surface. */
-  type FolderDropPhase = 'idle' | 'staging' | 'polling';
-  const [folderDropPhase, setFolderDropPhase] =
-    useState<FolderDropPhase>('idle');
-  const [folderDropError, setFolderDropError] = useState<string | null>(null);
-  const [folderDropTitle, setFolderDropTitle] = useState<string>('');
-
-  const ingestPoll = useContentIngestPolling();
-  const { start: startIngestPoll, reset: resetIngestPoll } = ingestPoll;
-
-  const resetFolderDrop = useCallback(() => {
-    setFolderDropPhase('idle');
-    setFolderDropError(null);
-    setFolderDropTitle('');
-    resetIngestPoll();
-  }, [resetIngestPoll]);
-
-  const stageMutation = useMutation({
-    mutationFn: async (file: File) => {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch('/api/ingest/folder-drop', {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(
-          (data as { error?: string }).error ?? 'Folder-drop ingest failed',
-        );
-      }
-      return data as { sourceFile: string; destPath: string };
-    },
-    onMutate: () => {
-      setFolderDropPhase('staging');
-      setFolderDropError(null);
-    },
-    onSuccess: (data) => {
-      // Hand off to the poll loop — it watches content_items.source_file until
-      // the cocoindex-ingested row lands.
-      startIngestPoll(data.sourceFile);
-      setFolderDropPhase('polling');
-    },
-    onError: (err: unknown) => {
-      const message =
-        err instanceof Error ? err.message : 'Folder-drop ingest failed';
-      setFolderDropError(message);
-      toast.error(message);
-      setFolderDropPhase('idle');
-    },
-  });
-
-  const { mutate: stageMutate, isPending: stageIsPending } = stageMutation;
-
-  const handleFolderDropIngest = useCallback(() => {
-    // Path B handles a single file per drop (cocoindex ingests incrementally).
-    const first = files[0];
-    if (!first) return;
-    setFolderDropTitle(first.file.name);
-    stageMutate(first.file);
-  }, [files, stageMutate]);
-
-  const handleFolderDropDone = useCallback(() => {
-    resetFolderDrop();
-    reset();
-  }, [resetFolderDrop, reset]);
+  const [retentionClass, setRetentionClass] =
+    useState<UploadRetentionClass>('keep_and_watch');
 
   // ---------------------------------------------------------------------------
   // Q&A batch creation state
@@ -257,122 +199,25 @@ export function UploadTabContent({
     reset();
   }, [reset]);
 
-  // Wrap handleUpload to manage phase transitions and toast messages
+  // Wrap handleUpload to surface toasts for the admission outcome.
   const handleUpload = useCallback(async () => {
-    const result = await rawHandleUpload();
+    const result = await rawHandleUpload(retentionClass);
     if (!result) return;
 
-    const { successfulItems, errorCount, skipReview } = result;
+    const { admittedCount, errorCount } = result;
 
-    if (successfulItems.length > 0 && errorCount === 0) {
-      if (skipReview) {
-        toast.success(
-          `${successfulItems.length} file${successfulItems.length !== 1 ? 's' : ''} uploaded and published`,
-        );
-        setPhase('select');
-      } else {
-        setReviewItems(successfulItems);
-        setPhase('review');
-      }
-    } else if (successfulItems.length > 0 && errorCount > 0) {
-      toast.warning(`${successfulItems.length} uploaded, ${errorCount} failed`);
-      if (!skipReview) {
-        setReviewItems(successfulItems);
-        setPhase('review');
-      } else {
-        setPhase('select');
-      }
+    if (admittedCount > 0 && errorCount === 0) {
+      toast.success(
+        `${admittedCount} source${admittedCount !== 1 ? 's' : ''} connected`,
+      );
+    } else if (admittedCount > 0 && errorCount > 0) {
+      toast.warning(`${admittedCount} connected, ${errorCount} failed`);
     } else if (errorCount > 0) {
       toast.error(
-        `${errorCount} file${errorCount !== 1 ? 's' : ''} failed to upload`,
-      );
-      setPhase('select');
-    }
-  }, [rawHandleUpload, setPhase, setReviewItems]);
-
-  // Review step handlers
-  const handlePublishItem = useCallback(async (itemId: string) => {
-    const res = await fetch(`/api/items/${itemId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ field: 'governance_review_status', value: null }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.error || 'Failed to publish item');
-    }
-    toast.success('Item published');
-  }, []);
-
-  const handlePublishAll = useCallback(async () => {
-    const activeItems = reviewItems;
-
-    const results = await Promise.allSettled(
-      activeItems.map((item) => handlePublishItem(item.id)),
-    );
-
-    const failCount = results.filter((r) => r.status === 'rejected').length;
-    if (failCount > 0) {
-      toast.warning(
-        `${activeItems.length - failCount} published, ${failCount} failed`,
-      );
-    } else {
-      toast.success(
-        `${activeItems.length} item${activeItems.length !== 1 ? 's' : ''} published`,
+        `${errorCount} file${errorCount !== 1 ? 's' : ''} failed to connect`,
       );
     }
-  }, [reviewItems, handlePublishItem]);
-
-  const handleDiscardItem = useCallback(async (itemId: string) => {
-    const res = await fetch(`/api/items/${itemId}/archive`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reason: 'Discarded during upload review' }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.error || 'Failed to discard item');
-    }
-    toast.success('Item discarded');
-  }, []);
-
-  const handleEditItem = useCallback((itemId: string) => {
-    window.open(`/item/${itemId}`, '_blank');
-  }, []);
-
-  const handleReviewDismiss = useCallback(() => {
-    reset();
-  }, [reset]);
-
-  // Layer application handler
-  const handleApplyLayer = useCallback(
-    async (fileId: string, layerKey: string) => {
-      const file = files.find((f) => f.id === fileId);
-      const resultId = file?.resultId;
-      if (!resultId) return;
-
-      try {
-        const res = await fetch(`/api/items/${resultId}/metadata`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ layer: layerKey }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || 'Failed to update layer');
-        }
-        handleSetLayerMode(fileId, 'applied');
-        // Update applied layer label in fileStates directly — the hook
-        // does not track this since it needs getLayerLabel from the context
-        toast.success(`Layer set to ${getLayerLabel(layerKey)}`);
-      } catch (err) {
-        toast.error(
-          err instanceof Error ? err.message : 'Failed to update layer',
-        );
-      }
-    },
-    [files, getLayerLabel, handleSetLayerMode],
-  );
+  }, [rawHandleUpload, retentionClass]);
 
   // ---------------------------------------------------------------------------
   // Render: Q&A batch progress (after creation starts)
@@ -498,116 +343,7 @@ export function UploadTabContent({
   }
 
   // ---------------------------------------------------------------------------
-  // Render: Review phase
-  // ---------------------------------------------------------------------------
-
-  if (phase === 'review' && reviewItems.length > 0) {
-    return (
-      <div className="mx-auto max-w-2xl">
-        <UploadReviewStep
-          items={reviewItems}
-          onPublish={handlePublishItem}
-          onPublishAll={handlePublishAll}
-          onDiscard={handleDiscardItem}
-          onEditItem={handleEditItem}
-          onDismiss={handleReviewDismiss}
-        />
-      </div>
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Render: Folder-drop async ingest ({56.12}) — ingested success card
-  // ---------------------------------------------------------------------------
-
-  if (folderDropPhase === 'polling' && ingestPoll.status === 'ingested') {
-    return (
-      <div
-        className="mx-auto max-w-2xl space-y-4"
-        data-testid="folder-drop-ingested"
-      >
-        <IngestionSuccessCard
-          itemId={ingestPoll.itemId ?? ''}
-          title={folderDropTitle}
-          contentType="other"
-        />
-        <div className="flex items-center justify-end">
-          <Button variant="outline" onClick={handleFolderDropDone}>
-            Ingest another
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Render: Folder-drop async ingest — staging / polling (real poll state)
-  // ---------------------------------------------------------------------------
-
-  if (folderDropPhase === 'staging' || folderDropPhase === 'polling') {
-    const isError =
-      ingestPoll.status === 'error' || ingestPoll.status === 'timeout';
-    const steps: IngestionStep[] = [
-      {
-        label: 'Staging file into corpus',
-        status: folderDropPhase === 'staging' ? 'active' : 'done',
-      },
-      {
-        label: 'Ingesting (classify, embed, chunk)',
-        status:
-          folderDropPhase === 'staging'
-            ? 'pending'
-            : isError
-              ? 'error'
-              : 'active',
-      },
-    ];
-
-    return (
-      <div
-        className="mx-auto max-w-2xl space-y-4"
-        data-testid="folder-drop-active"
-      >
-        <div className="mb-2">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
-            <Upload className="size-5" aria-hidden="true" />
-            Ingesting {folderDropTitle}
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            The file is staged into the corpus and processed by the ingestion
-            pipeline. This view updates from real pipeline state.
-          </p>
-        </div>
-
-        <IngestionProgress steps={steps} />
-
-        {isError && (
-          <div
-            role="alert"
-            className="flex items-start gap-2 rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive"
-            data-testid="folder-drop-error"
-          >
-            <XCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            <span>
-              {folderDropError ??
-                (ingestPoll.status === 'timeout'
-                  ? 'Ingestion is taking longer than expected — it may still complete. Check Browse shortly, or try again.'
-                  : 'Ingestion status check failed. The file may still be processing — check Browse shortly.')}
-            </span>
-          </div>
-        )}
-
-        <div className="flex items-center justify-end">
-          <Button variant="outline" onClick={resetFolderDrop}>
-            {isError ? 'Back' : 'Cancel'}
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Render: Upload phase (select + uploading)
+  // Render: connect-a-source phase (select + uploading + admitted results)
   // ---------------------------------------------------------------------------
 
   return (
@@ -615,11 +351,12 @@ export function UploadTabContent({
       <div className="mb-4">
         <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
           <Upload className="size-5" aria-hidden="true" />
-          Upload Documents
+          Connect a source
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Upload PDF, DOCX, Markdown, or text files. They will be processed
-          through the pipeline for classification and embedding.
+          Connect documents (PDF, DOCX, Markdown, or text) as source evidence.
+          Choose how each binding is retained — authority is earned later, at
+          promotion.
         </p>
       </div>
 
@@ -629,121 +366,85 @@ export function UploadTabContent({
         onFileRemoved={handleFileRemoved}
       />
 
-      {/* Per-file pipeline progress */}
-      {files.some((f) => f.status !== 'pending') && (
-        <div className="space-y-3" data-testid="file-progress-section">
+      {/* Retention class picker (DR-025) */}
+      <div className="flex flex-wrap items-center gap-2">
+        <label
+          htmlFor="upload-retention-class"
+          className="text-sm font-medium text-foreground"
+        >
+          Retention
+        </label>
+        <Select
+          value={retentionClass}
+          onValueChange={(value) =>
+            setRetentionClass(value as UploadRetentionClass)
+          }
+        >
+          <SelectTrigger
+            id="upload-retention-class"
+            className="h-8 w-44 text-xs"
+            aria-label="Retention class"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {RETENTION_CLASS_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <span className="text-xs text-muted-foreground">
+          {
+            RETENTION_CLASS_OPTIONS.find((opt) => opt.value === retentionClass)
+              ?.description
+          }
+        </span>
+      </div>
+
+      {/* Per-file admission results */}
+      {files.some((f) => f.status === 'done' || f.status === 'error') && (
+        <div className="space-y-2" data-testid="admission-results">
           {files
-            .filter((f) => f.status !== 'pending')
+            .filter((f) => f.status === 'done' || f.status === 'error')
             .map((f) => {
               const state = fileStates[f.id];
               if (!state) return null;
 
               return (
-                <div key={f.id} className="space-y-2">
-                  <p className="truncate text-xs font-medium text-muted-foreground">
-                    {f.file.name}
-                  </p>
-                  <IngestionProgress
-                    compact={
-                      files.filter((x) => x.status !== 'pending').length > 1
-                    }
-                    steps={state.steps}
-                    warnings={f.status === 'done' ? state.warnings : undefined}
-                  />
-                  {/* Re-upload detection banner per file */}
-                  {f.status === 'done' && state.reuploadInfo && (
-                    <ReuploadBanner
-                      matchType={state.reuploadInfo.matchType}
-                      previousVersion={state.reuploadInfo.previousVersion}
-                      previousDocumentId={state.reuploadInfo.previousDocumentId}
+                <div
+                  key={f.id}
+                  className="flex items-start gap-2 rounded-md border px-3 py-2 text-sm"
+                >
+                  {state.status === 'admitted' ? (
+                    <CheckCircle
+                      className="mt-0.5 size-4 shrink-0 text-status-success"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <XCircle
+                      className="mt-0.5 size-4 shrink-0 text-destructive"
+                      aria-hidden="true"
                     />
                   )}
-                  {/* Layer suggestion per file */}
-                  {f.status === 'done' && state.suggestedLayer && (
-                    <div
-                      className="flex flex-wrap items-center gap-1.5 text-xs"
-                      data-testid={`layer-suggestion-${f.id}`}
-                    >
-                      <Layers
-                        className="size-3 text-primary"
-                        aria-hidden="true"
-                      />
-                      {state.layerMode === 'applied' ? (
-                        <span className="text-muted-foreground">
-                          Layer:{' '}
-                          <span className="font-medium text-foreground">
-                            {state.appliedLayerLabel}
-                          </span>
-                        </span>
-                      ) : state.layerMode === 'change' ? (
-                        <>
-                          <Select
-                            value={state.selectedLayer}
-                            onValueChange={(val) =>
-                              handleSetSelectedLayer(f.id, val)
-                            }
-                          >
-                            <SelectTrigger
-                              className="h-6 w-36 text-xs"
-                              aria-label="Select a layer"
-                            >
-                              <SelectValue placeholder="Select layer..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {layers.map((layer) => (
-                                <SelectItem key={layer.key} value={layer.key}>
-                                  {layer.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-6 gap-1 px-1.5 text-xs"
-                            onClick={() =>
-                              handleApplyLayer(f.id, state.selectedLayer)
-                            }
-                          >
-                            <Check className="size-3" aria-hidden="true" />
-                            Apply
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 px-1.5 text-xs"
-                            onClick={() => handleSetLayerMode(f.id, 'suggest')}
-                          >
-                            Cancel
-                          </Button>
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-muted-foreground">
-                            Layer:{' '}
-                            <span className="font-medium text-foreground">
-                              {getLayerLabel(
-                                state.suggestedLayer.suggestedLayer,
-                              )}
-                            </span>
-                          </span>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 gap-1 px-1.5 text-xs"
-                            onClick={() => handleSetLayerMode(f.id, 'change')}
-                            aria-label="Change layer"
-                          >
-                            <ChevronDown
-                              className="size-3"
-                              aria-hidden="true"
-                            />
-                            Change
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium text-foreground">
+                      {f.file.name}
+                    </p>
+                    {state.status === 'admitted' ? (
+                      <p className="text-xs text-muted-foreground">
+                        {
+                          RETENTION_CLASS_LABEL[
+                            state.retentionClass ?? 'keep_and_watch'
+                          ]
+                        }
+                        {state.wasMinted === false && ' · already connected'}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-destructive">{state.error}</p>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -757,27 +458,13 @@ export function UploadTabContent({
             Clear
           </Button>
         )}
-        {/* Folder-drop async ingest ({56.12}, Path B) \u2014 single-file drops only.
-            Stages into the cocoindex corpus + triggers an incremental walk,
-            then polls content_items for the ingested row. Distinct from the
-            synchronous Upload button below. */}
-        {pendingCount === 1 && (
-          <Button
-            variant="outline"
-            onClick={handleFolderDropIngest}
-            disabled={stageIsPending}
-            data-testid="folder-drop-ingest-button"
-          >
-            {stageIsPending ? 'Staging\u2026' : 'Stage & ingest'}
-          </Button>
-        )}
         <Button
           onClick={handleUpload}
           disabled={pendingCount === 0 || isUploading}
         >
-          {isUploading || hasActiveUploads
-            ? 'Processing\u2026'
-            : `Upload ${pendingCount > 0 ? `(${pendingCount})` : ''}`}
+          {isUploading
+            ? 'Connecting…'
+            : `Connect ${pendingCount > 0 ? `(${pendingCount})` : ''}`}
         </Button>
       </div>
 
@@ -790,28 +477,18 @@ export function UploadTabContent({
             size="sm"
           />
         </div>
-        <p className="text-center text-xs text-muted-foreground">
-          {onSwitchTab && (
-            <>
-              Or{' '}
-              <button
-                type="button"
-                onClick={() => onSwitchTab('url')}
-                className="rounded-sm font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-              >
-                import from a URL
-              </button>
-              {' \u2022 '}
-              <button
-                type="button"
-                onClick={() => onSwitchTab('write')}
-                className="rounded-sm font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-              >
-                write it manually
-              </button>
-            </>
-          )}
-        </p>
+        {onSwitchTab && (
+          <p className="text-center text-xs text-muted-foreground">
+            Or{' '}
+            <button
+              type="button"
+              onClick={() => onSwitchTab('url')}
+              className="rounded-sm font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+            >
+              import from a URL
+            </button>
+          </p>
+        )}
       </div>
     </div>
   );

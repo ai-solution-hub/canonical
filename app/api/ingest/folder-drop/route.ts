@@ -2,6 +2,7 @@ import { defineRoute } from '@/lib/api/define-route';
 import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { logger, withRequestContext } from '@/lib/logger';
+import { parseBody } from '@/lib/validation';
 import {
   assertCorpusRelativeDestPath,
   FolderDropError,
@@ -46,7 +47,19 @@ const FolderDropResponseSchema = z.object({
   // opaque `stageRequestId` correlation token (DR-020 retirement).
   sourceDocumentId: z.string(),
   wasMinted: z.boolean(),
+  // ID-131.24 (G-UPLOAD-GATE, DR-025): the retention class actually applied
+  // at admission — echoed back so the UI can confirm the binding choice.
+  retentionClass: z.enum(['keep_and_watch', 'ingest_once']),
 });
+
+/**
+ * Retention classes selectable at THIS route (DR-025). Only the two classes
+ * that apply to an actual bytes upload — `live_connected` /
+ * `external_referenced` are zero-byte connector bindings (driven by
+ * `source_documents.locator`/`auth`/`cadence`, DR-025) with no meaningful
+ * "uploaded object" and are never offered here.
+ */
+const UploadRetentionClassSchema = z.enum(['keep_and_watch', 'ingest_once']);
 
 export const POST = withRequestContext(
   defineRoute(FolderDropResponseSchema, async (request: NextRequest) => {
@@ -82,6 +95,20 @@ export const POST = withRequestContext(
         );
       }
 
+      // ID-131.24 (G-UPLOAD-GATE, DR-025): an optional retention_class form
+      // field lets the caller pick the binding-admission class; omitted ->
+      // stageAndWalk's own keep_and_watch default applies.
+      const retentionClassRaw = formData.get('retention_class');
+      let retentionClass: 'keep_and_watch' | 'ingest_once' | undefined;
+      if (retentionClassRaw !== null) {
+        const parsedRetention = parseBody(
+          z.object({ retention_class: UploadRetentionClassSchema }),
+          { retention_class: retentionClassRaw },
+        );
+        if (!parsedRetention.success) return parsedRetention.response;
+        retentionClass = parsedRetention.data.retention_class;
+      }
+
       const safeName = sanitiseFilename(file.name || 'upload');
       // destPath is corpus-relative POSIX, consumed verbatim by the worker
       // (uuid5 PK seed, INV-1). Build it with POSIX join so the segment separator
@@ -104,6 +131,7 @@ export const POST = withRequestContext(
         titlePrefix: '',
         contentType: file.type || undefined,
         supabase: auth.supabase,
+        ...(retentionClass ? { retentionClass } : {}),
       });
 
       logger.info(
@@ -112,6 +140,7 @@ export const POST = withRequestContext(
           destPath: result.destPath,
           sourceDocumentId: result.sourceDocumentId,
           wasMinted: result.wasMinted,
+          retentionClass: retentionClass ?? 'keep_and_watch',
         },
         'folder-drop admitted — Storage PUT + source_documents row',
       );
@@ -122,6 +151,7 @@ export const POST = withRequestContext(
           destPath: result.destPath,
           sourceDocumentId: result.sourceDocumentId,
           wasMinted: result.wasMinted,
+          retentionClass: retentionClass ?? 'keep_and_watch',
         },
         { status: 202 },
       );

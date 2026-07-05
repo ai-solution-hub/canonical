@@ -79,6 +79,24 @@ import type { Database } from '@/supabase/types/database.types';
 export type FolderDropStage = 'destPath' | 'put' | 'identity' | 'fence';
 
 /**
+ * Retention classes assignable at the binding-admission gate (DR-025),
+ * mirroring the `source_documents_retention_class_check` DB constraint
+ * verbatim. `keep_and_watch` (re-walked on future syncs) and `ingest_once`
+ * (extracted once, never re-walked) both apply to an actual bytes upload —
+ * this module's remit. `live_connected` / `external_referenced` are
+ * zero-byte connector bindings (driven by the sibling `locator`/`auth`/
+ * `cadence` columns, not by an uploaded object) and are never assigned by
+ * this leg; kept here only so the type stays a single source of truth
+ * mirroring the DB CHECK.
+ */
+/** @public */
+export type RetentionClass =
+  | 'keep_and_watch'
+  | 'ingest_once'
+  | 'live_connected'
+  | 'external_referenced';
+
+/**
  * Loud, typed failure for the folder-drop upload flow. Carries the failing
  * leg plus detail so the API route can map it to an honest response (never
  * a silent accept).
@@ -147,6 +165,13 @@ export interface StageAndWalkInput {
   titlePrefix?: string;
   /** MIME type — stamped on the Storage object and forwarded as `p_mime_type`. */
   contentType?: string;
+  /**
+   * Retention class to assign at admission (DR-025). Defaults to
+   * `keep_and_watch` when omitted — the pre-{131.24} behaviour, preserved
+   * for the `lib/mcp/tools/content.ts` back-compat caller which does not
+   * supply one.
+   */
+  retentionClass?: RetentionClass;
   /**
    * Supabase client for the Storage PUT + identity RPC + writer fence.
    * OPTIONAL — see the module header's "`stageAndWalk` name kept" note. The
@@ -265,7 +290,8 @@ interface ResolveOrMintRow {
  *
  * On success returns the durable `sourceDocumentId`, the echoed `destPath`,
  * and the `sourceFile` correlation key a later walk ingests under. Retention
- * class is fixed to `keep_and_watch` (R(b) — the upload default);
+ * class defaults to `keep_and_watch` (R(b) — the upload default) but a
+ * caller may assign any class via `input.retentionClass` (DR-025, {131.24});
  * `admission_status` defaults to `admitted` (M1 column default);
  * `logical_path := storage_path` on mint (M2, server-side).
  *
@@ -338,7 +364,7 @@ export async function stageAndWalk(
           p_mime_type: input.contentType ?? null,
           p_file_size: fileSize,
           p_origin_type: 'upload',
-          p_retention_class: 'keep_and_watch',
+          p_retention_class: input.retentionClass ?? 'keep_and_watch',
         };
         const rows = await sb<ResolveOrMintRow[]>(
           supabase.rpc(

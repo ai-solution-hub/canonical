@@ -1,13 +1,20 @@
 /**
  * UploadTabContent Component Tests
  *
- * Tests the upload tab content including phase transitions (select, uploading,
- * review), cross-method links, skip-review preference, and review step
- * integration.
+ * ID-131.24 (G-UPLOAD-GATE, DR-025) rework: the tab now drives ONE
+ * binding-admission gate (no content_items row, no folder-drop stage/poll
+ * transport, no review/layer/classification UI — that whole surface was
+ * retired alongside the content_items pipeline). Covers: the retention-class
+ * picker, the connect action + admission-result rendering, cross-method
+ * links (including the {131.18}-orphaned "write it manually" link removal),
+ * and the Q&A preview/batch sub-flow (unchanged, still fed by
+ * `detectedQAPairs`/`sourceDocumentId` props).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { installRadixPointerShims } from '@/__tests__/helpers/radix-pointer-shims';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -24,33 +31,6 @@ vi.mock('@/lib/utils', () => ({
 vi.mock('@/components/create-content/file-upload', () => ({
   FileUpload: ({ files }: { files: unknown[] }) => (
     <div data-testid="file-upload">FileUpload ({files.length} files)</div>
-  ),
-}));
-
-vi.mock('@/components/create-content/ingestion-progress', () => ({
-  IngestionProgress: () => (
-    <div data-testid="ingestion-progress">IngestionProgress</div>
-  ),
-}));
-
-vi.mock('@/components/source-document/reupload-banner', () => ({
-  ReuploadBanner: () => <div data-testid="reupload-banner">ReuploadBanner</div>,
-}));
-
-vi.mock('@/components/create-content/upload-review-step', () => ({
-  UploadReviewStep: ({
-    items,
-    onDismiss,
-  }: {
-    items: unknown[];
-    onDismiss: () => void;
-  }) => (
-    <div data-testid="upload-review-step">
-      UploadReviewStep ({(items as unknown[]).length} items)
-      <button data-testid="mock-dismiss-review" onClick={onDismiss}>
-        Dismiss
-      </button>
-    </div>
   ),
 }));
 
@@ -73,41 +53,23 @@ vi.mock('@/lib/claude-prompts', () => ({
   }),
 }));
 
-vi.mock('@/contexts/layer-vocabulary-context', () => ({
-  useLayerVocabulary: () => ({
-    layers: [
-      {
-        id: '1',
-        key: 'reference',
-        label: 'Reference',
-        description: null,
-        display_order: 1,
-        is_active: true,
-      },
-    ],
-    loading: false,
-    error: null,
-    getLayerKeys: () => ['reference'],
-    getLayerLabel: (key: string) => (key === 'reference' ? 'Reference' : key),
-    getLayerDescription: () => null,
-    refresh: vi.fn(),
-  }),
-}));
-
 // Mock the shared upload pipeline hook with controllable state
 const mockHandleUpload = vi.fn();
 const mockReset = vi.fn();
-const mockSetPhase = vi.fn();
-const mockSetReviewItems = vi.fn();
 const mockHandleFilesAdded = vi.fn();
 const mockHandleFileRemoved = vi.fn();
-const mockHandleSetLayerMode = vi.fn();
-const mockHandleSetSelectedLayer = vi.fn();
-const mockGetSkipReview = vi.fn().mockReturnValue(false);
+
+interface MockFileState {
+  status: 'admitted' | 'error';
+  sourceDocumentId?: string;
+  wasMinted?: boolean;
+  retentionClass?: 'keep_and_watch' | 'ingest_once';
+  error?: string;
+}
 
 // Mutable hook return value that tests can modify
 const hookReturn = {
-  phase: 'select' as 'select' | 'uploading' | 'review',
+  phase: 'select' as 'select' | 'uploading',
   files: [] as Array<{
     id: string;
     file: File;
@@ -115,26 +77,14 @@ const hookReturn = {
     progress: number;
     resultId?: string;
   }>,
-  fileStates: {} as Record<string, unknown>,
+  fileStates: {} as Record<string, MockFileState>,
   isUploading: false,
-  reviewItems: [] as Array<{
-    id: string;
-    title: string;
-    contentType: string;
-    warnings: string[];
-  }>,
   handleFilesAdded: mockHandleFilesAdded,
   handleFileRemoved: mockHandleFileRemoved,
   handleUpload: mockHandleUpload,
   reset: mockReset,
-  setPhase: mockSetPhase,
-  setReviewItems: mockSetReviewItems,
-  handleSetLayerMode: mockHandleSetLayerMode,
-  handleSetSelectedLayer: mockHandleSetSelectedLayer,
   pendingCount: 0,
   hasResults: false,
-  hasActiveUploads: false,
-  getSkipReview: mockGetSkipReview,
 };
 
 vi.mock('@/hooks/use-file-upload-pipeline', () => ({
@@ -149,11 +99,6 @@ import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
 // Helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Render UploadTabContent inside a QueryClientProvider so that the
- * upload surface's `useMutation` hooks (folder-drop, Q&A batch) have a
- * client. We create a fresh wrapper per render to keep cache state isolated.
- */
 function renderTab(props: Parameters<typeof UploadTabContent>[0] = {}) {
   const { Wrapper } = createQueryWrapper();
   return render(<UploadTabContent {...props} />, { wrapper: Wrapper });
@@ -164,10 +109,8 @@ function resetHookReturn() {
   hookReturn.files = [];
   hookReturn.fileStates = {};
   hookReturn.isUploading = false;
-  hookReturn.reviewItems = [];
   hookReturn.pendingCount = 0;
   hookReturn.hasResults = false;
-  hookReturn.hasActiveUploads = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -176,6 +119,7 @@ function resetHookReturn() {
 
 describe('UploadTabContent', () => {
   beforeEach(() => {
+    installRadixPointerShims();
     vi.clearAllMocks();
     localStorage.clear();
     resetHookReturn();
@@ -191,61 +135,100 @@ describe('UploadTabContent', () => {
   // =========================================================================
 
   describe('select phase', () => {
-    it('renders the FileUpload dropzone in the initial select phase', () => {
+    it('renders the FileUpload dropzone with connect-a-source copy', () => {
       renderTab();
 
       expect(screen.getByTestId('file-upload')).toBeInTheDocument();
-      expect(screen.getByText('Upload Documents')).toBeInTheDocument();
+      expect(screen.getByText('Connect a source')).toBeInTheDocument();
     });
 
-    it('renders the Upload button', () => {
+    it('renders the Connect button', () => {
       renderTab();
 
-      const uploadBtn = screen.getByRole('button', { name: /upload/i });
-      expect(uploadBtn).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /connect/i }),
+      ).toBeInTheDocument();
     });
 
-    it('upload button is disabled when no pending files', () => {
+    it('Connect button is disabled when no pending files', () => {
       hookReturn.pendingCount = 0;
-
       renderTab();
 
-      const uploadBtn = screen.getByRole('button', { name: /upload/i });
-      expect(uploadBtn).toBeDisabled();
+      expect(screen.getByRole('button', { name: /connect/i })).toBeDisabled();
     });
 
-    it('upload button is enabled when files are pending', () => {
+    it('Connect button is enabled when files are pending', () => {
       hookReturn.pendingCount = 2;
-
       renderTab();
 
-      const uploadBtn = screen.getByRole('button', { name: /upload/i });
-      expect(uploadBtn).not.toBeDisabled();
+      expect(
+        screen.getByRole('button', { name: /connect/i }),
+      ).not.toBeDisabled();
     });
 
-    it('shows file count in upload button when pending files exist', () => {
+    it('shows file count in the Connect button when pending files exist', () => {
       hookReturn.pendingCount = 3;
-
       renderTab();
 
-      expect(screen.getByText(/Upload \(3\)/)).toBeInTheDocument();
+      expect(screen.getByText(/Connect \(3\)/)).toBeInTheDocument();
     });
   });
 
   // =========================================================================
-  // Cross-method links
+  // Retention class picker (DR-025)
+  // =========================================================================
+
+  describe('retention class picker', () => {
+    it('defaults to Keep & watch', () => {
+      renderTab();
+
+      expect(screen.getByRole('combobox')).toHaveTextContent('Keep & watch');
+    });
+
+    it('calls handleUpload with the selected retention class', async () => {
+      const user = userEvent.setup();
+      hookReturn.pendingCount = 1;
+      mockHandleUpload.mockResolvedValue({ admittedCount: 1, errorCount: 0 });
+
+      renderTab();
+
+      await user.click(screen.getByRole('combobox'));
+      await user.click(screen.getByRole('option', { name: /ingest once/i }));
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /connect/i }));
+      });
+
+      expect(mockHandleUpload).toHaveBeenCalledWith('ingest_once');
+    });
+
+    it('calls handleUpload with the default keep_and_watch class when untouched', async () => {
+      hookReturn.pendingCount = 1;
+      mockHandleUpload.mockResolvedValue({ admittedCount: 1, errorCount: 0 });
+
+      renderTab();
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /connect/i }));
+      });
+
+      expect(mockHandleUpload).toHaveBeenCalledWith('keep_and_watch');
+    });
+  });
+
+  // =========================================================================
+  // Cross-method links — {131.18} dangling onSwitchTab('write') cleanup
   // =========================================================================
 
   describe('cross-method links', () => {
-    it('renders cross-method links when onSwitchTab is provided', () => {
+    it('renders the URL cross-method link when onSwitchTab is provided', () => {
       const onSwitchTab = vi.fn();
       renderTab({ onSwitchTab });
 
       expect(screen.getByText('import from a URL')).toBeInTheDocument();
-      expect(screen.getByText('write it manually')).toBeInTheDocument();
     });
 
-    it('calls onSwitchTab with "url" when URL link is clicked', () => {
+    it('calls onSwitchTab with "url" when the URL link is clicked', () => {
       const onSwitchTab = vi.fn();
       renderTab({ onSwitchTab });
 
@@ -253,180 +236,141 @@ describe('UploadTabContent', () => {
       expect(onSwitchTab).toHaveBeenCalledWith('url');
     });
 
-    it('calls onSwitchTab with "write" when write link is clicked', () => {
+    it('does not render a "write it manually" link — the Write tab no longer exists', () => {
       const onSwitchTab = vi.fn();
       renderTab({ onSwitchTab });
 
-      fireEvent.click(screen.getByText('write it manually'));
-      expect(onSwitchTab).toHaveBeenCalledWith('write');
+      expect(screen.queryByText('write it manually')).not.toBeInTheDocument();
     });
 
     it('does not render cross-method links when onSwitchTab is not provided', () => {
       renderTab();
 
       expect(screen.queryByText('import from a URL')).not.toBeInTheDocument();
-      expect(screen.queryByText('write it manually')).not.toBeInTheDocument();
     });
   });
 
   // =========================================================================
-  // Upload phase transitions
+  // Connect action — toasts + admission-result rendering
   // =========================================================================
 
-  describe('upload phase transitions', () => {
-    it('shows Processing text when uploading', () => {
+  describe('connect action', () => {
+    it('shows Connecting… while uploading', () => {
       hookReturn.isUploading = true;
+      renderTab();
+
+      expect(screen.getByText(/Connecting/)).toBeInTheDocument();
+    });
+
+    it('shows a success toast when all files are admitted', async () => {
+      hookReturn.pendingCount = 1;
+      mockHandleUpload.mockResolvedValue({ admittedCount: 1, errorCount: 0 });
 
       renderTab();
 
-      expect(screen.getByText(/Processing/)).toBeInTheDocument();
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /connect/i }));
+      });
+
+      expect(toast.success).toHaveBeenCalledWith('1 source connected');
     });
 
-    it('transitions to review phase after successful uploads (draft mode)', async () => {
-      hookReturn.pendingCount = 1;
-      const reviewItem = {
-        id: 'item-1',
-        title: 'Test Document',
-        contentType: 'pdf',
-        warnings: [] as string[],
+    it('shows a warning toast for mixed success/failure', async () => {
+      hookReturn.pendingCount = 3;
+      mockHandleUpload.mockResolvedValue({ admittedCount: 1, errorCount: 2 });
+
+      renderTab();
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /connect/i }));
+      });
+
+      expect(toast.warning).toHaveBeenCalledWith('1 connected, 2 failed');
+    });
+
+    it('shows an error toast when all connections fail', async () => {
+      hookReturn.pendingCount = 2;
+      mockHandleUpload.mockResolvedValue({ admittedCount: 0, errorCount: 2 });
+
+      renderTab();
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /connect/i }));
+      });
+
+      expect(toast.error).toHaveBeenCalledWith('2 files failed to connect');
+    });
+
+    it('renders an admitted result with its retention class label', () => {
+      hookReturn.files = [
+        {
+          id: 'f1',
+          file: new File(['x'], 'report.pdf'),
+          status: 'done',
+          progress: 100,
+          resultId: 'sd-1',
+        },
+      ];
+      hookReturn.fileStates = {
+        f1: {
+          status: 'admitted',
+          sourceDocumentId: 'sd-1',
+          wasMinted: true,
+          retentionClass: 'ingest_once',
+        },
       };
 
-      mockHandleUpload.mockResolvedValue({
-        successfulItems: [reviewItem],
-        errorCount: 0,
-        skipReview: false,
-      });
-
       renderTab();
 
-      const uploadBtn = screen.getByRole('button', { name: /upload/i });
-      await act(async () => {
-        fireEvent.click(uploadBtn);
-      });
-
-      expect(mockSetReviewItems).toHaveBeenCalledWith([reviewItem]);
-      expect(mockSetPhase).toHaveBeenCalledWith('review');
+      const result = screen.getByTestId('admission-results');
+      expect(result).toHaveTextContent('report.pdf');
+      expect(result).toHaveTextContent('Ingest once');
     });
 
-    it('skips review phase when skipReview is true in upload result', async () => {
-      hookReturn.pendingCount = 1;
-
-      mockHandleUpload.mockResolvedValue({
-        successfulItems: [{ id: 'item-1', title: 'Test' }],
-        errorCount: 0,
-        skipReview: true,
-      });
+    it('flags an already-connected (idempotent) admission', () => {
+      hookReturn.files = [
+        {
+          id: 'f1',
+          file: new File(['x'], 'report.pdf'),
+          status: 'done',
+          progress: 100,
+          resultId: 'sd-1',
+        },
+      ];
+      hookReturn.fileStates = {
+        f1: {
+          status: 'admitted',
+          sourceDocumentId: 'sd-1',
+          wasMinted: false,
+          retentionClass: 'keep_and_watch',
+        },
+      };
 
       renderTab();
 
-      const uploadBtn = screen.getByRole('button', { name: /upload/i });
-      await act(async () => {
-        fireEvent.click(uploadBtn);
-      });
-
-      expect(mockSetPhase).toHaveBeenCalledWith('select');
-      expect(mockSetReviewItems).not.toHaveBeenCalled();
-      expect(toast.success).toHaveBeenCalledWith(
-        '1 file uploaded and published',
+      expect(screen.getByTestId('admission-results')).toHaveTextContent(
+        'already connected',
       );
     });
 
-    it('shows warning toast for mixed success/failure', async () => {
-      hookReturn.pendingCount = 3;
-
-      mockHandleUpload.mockResolvedValue({
-        successfulItems: [{ id: 'item-1', title: 'Test' }],
-        errorCount: 2,
-        skipReview: true,
-      });
-
-      renderTab();
-
-      const uploadBtn = screen.getByRole('button', { name: /upload/i });
-      await act(async () => {
-        fireEvent.click(uploadBtn);
-      });
-
-      expect(toast.warning).toHaveBeenCalledWith('1 uploaded, 2 failed');
-    });
-
-    it('shows error toast when all uploads fail', async () => {
-      hookReturn.pendingCount = 2;
-
-      mockHandleUpload.mockResolvedValue({
-        successfulItems: [],
-        errorCount: 2,
-        skipReview: false,
-      });
-
-      renderTab();
-
-      const uploadBtn = screen.getByRole('button', { name: /upload/i });
-      await act(async () => {
-        fireEvent.click(uploadBtn);
-      });
-
-      expect(toast.error).toHaveBeenCalledWith('2 files failed to upload');
-      expect(mockSetPhase).toHaveBeenCalledWith('select');
-    });
-  });
-
-  // =========================================================================
-  // Review phase rendering
-  // =========================================================================
-
-  describe('review phase', () => {
-    it('renders UploadReviewStep when phase is review with items', () => {
-      hookReturn.phase = 'review';
-      hookReturn.reviewItems = [
+    it('renders an error result with its message', () => {
+      hookReturn.files = [
         {
-          id: 'item-1',
-          title: 'Test Document',
-          contentType: 'pdf',
-          warnings: [],
+          id: 'f1',
+          file: new File(['x'], 'bad.pdf'),
+          status: 'error',
+          progress: 0,
         },
       ];
+      hookReturn.fileStates = {
+        f1: { status: 'error', error: 'Upload failed' },
+      };
 
       renderTab();
 
-      expect(screen.getByTestId('upload-review-step')).toBeInTheDocument();
-      expect(
-        screen.getByText(/UploadReviewStep \(1 items\)/),
-      ).toBeInTheDocument();
-    });
-
-    it('does not render FileUpload during review phase', () => {
-      hookReturn.phase = 'review';
-      hookReturn.reviewItems = [
-        {
-          id: 'item-1',
-          title: 'Test Document',
-          contentType: 'pdf',
-          warnings: [],
-        },
-      ];
-
-      renderTab();
-
-      expect(screen.queryByTestId('file-upload')).not.toBeInTheDocument();
-    });
-
-    it('transitions back to select phase when review is dismissed', () => {
-      hookReturn.phase = 'review';
-      hookReturn.reviewItems = [
-        {
-          id: 'item-1',
-          title: 'Test Document',
-          contentType: 'pdf',
-          warnings: [],
-        },
-      ];
-
-      renderTab();
-
-      fireEvent.click(screen.getByTestId('mock-dismiss-review'));
-
-      expect(mockReset).toHaveBeenCalled();
+      const result = screen.getByTestId('admission-results');
+      expect(result).toHaveTextContent('bad.pdf');
+      expect(result).toHaveTextContent('Upload failed');
     });
   });
 
@@ -438,7 +382,6 @@ describe('UploadTabContent', () => {
     it('shows Clear button when results exist and not uploading', () => {
       hookReturn.hasResults = true;
       hookReturn.isUploading = false;
-
       renderTab();
 
       expect(
@@ -448,7 +391,6 @@ describe('UploadTabContent', () => {
 
     it('hides Clear button when no results', () => {
       hookReturn.hasResults = false;
-
       renderTab();
 
       expect(
@@ -459,7 +401,6 @@ describe('UploadTabContent', () => {
     it('calls reset when Clear is clicked', () => {
       hookReturn.hasResults = true;
       hookReturn.isUploading = false;
-
       renderTab();
 
       fireEvent.click(screen.getByRole('button', { name: /clear/i }));

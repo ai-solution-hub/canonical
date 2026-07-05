@@ -124,6 +124,7 @@ describe('POST /api/ingest/folder-drop', () => {
       destPath: 'folder-drop/report.pdf',
       sourceDocumentId: SOURCE_DOCUMENT_ID,
       wasMinted: true,
+      retentionClass: 'keep_and_watch',
     });
 
     expect(stageAndWalkMocks.stageAndWalk).toHaveBeenCalledWith(
@@ -134,6 +135,56 @@ describe('POST /api/ingest/folder-drop', () => {
         supabase: mockSupabase,
       }),
     );
+    // No retentionClass form field -> stageAndWalk's own default applies
+    // (undefined is not forwarded as an explicit override).
+    expect(stageAndWalkMocks.stageAndWalk.mock.calls[0][0]).not.toHaveProperty(
+      'retentionClass',
+    );
+  });
+
+  // ID-131.24 (G-UPLOAD-GATE, DR-025) — the app-side upload rebind lets an
+  // editor pick a retention class at admission time.
+  describe('retention_class field (DR-025)', () => {
+    it('threads an explicit retention_class=ingest_once through to stageAndWalk', async () => {
+      authoriseAs('editor');
+      stageAndWalkMocks.stageAndWalk.mockResolvedValue({
+        destPath: 'folder-drop/report.pdf',
+        sourceDocumentId: SOURCE_DOCUMENT_ID,
+        sourceFile: 'report.pdf',
+        wasMinted: true,
+      });
+      const file = createMockFile({ name: 'report.pdf', content: 'bytes' });
+      const req = createMockUploadRequest({
+        path: '/api/ingest/folder-drop',
+        file,
+        fields: { retention_class: 'ingest_once' },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(202);
+      const body = await res.json();
+      expect(body.retentionClass).toBe('ingest_once');
+
+      expect(stageAndWalkMocks.stageAndWalk).toHaveBeenCalledWith(
+        expect.objectContaining({ retentionClass: 'ingest_once' }),
+      );
+    });
+
+    it('400s on an unsupported retention_class value', async () => {
+      authoriseAs('editor');
+      const file = createMockFile({ name: 'report.pdf', content: 'bytes' });
+      const req = createMockUploadRequest({
+        path: '/api/ingest/folder-drop',
+        file,
+        // live_connected is a zero-byte connector class — not valid for a
+        // bytes upload through this route.
+        fields: { retention_class: 'live_connected' },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      expect(stageAndWalkMocks.stageAndWalk).not.toHaveBeenCalled();
+    });
   });
 
   it('400s when no file part is present', async () => {

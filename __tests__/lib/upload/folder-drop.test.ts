@@ -204,6 +204,30 @@ describe('stageAndWalk', () => {
     );
   });
 
+  // ID-131.24 (G-UPLOAD-GATE, DR-025): the binding-admission gate assigns a
+  // caller-supplied retention_class instead of always hard-coding
+  // keep_and_watch — the app-side upload path (rebound onto this leg) lets
+  // an editor pick keep_and_watch vs ingest_once at admission time.
+  it('passes a caller-supplied retentionClass through to the identity resolver', async () => {
+    await stageAndWalk({
+      ...input,
+      retentionClass: 'ingest_once',
+      supabase: asClient(),
+    });
+    expect(mockSupabase.rpc).toHaveBeenCalledWith(
+      'resolve_or_mint_source_identity',
+      expect.objectContaining({ p_retention_class: 'ingest_once' }),
+    );
+  });
+
+  it('defaults retentionClass to keep_and_watch when the caller omits it', async () => {
+    await stageAndWalk({ ...input, supabase: asClient() });
+    expect(mockSupabase.rpc).toHaveBeenCalledWith(
+      'resolve_or_mint_source_identity',
+      expect.objectContaining({ p_retention_class: 'keep_and_watch' }),
+    );
+  });
+
   it('acquires and releases the writer fence around the PUT+identity critical section', async () => {
     await stageAndWalk({ ...input, supabase: asClient() });
     expect(mockSupabase.rpc).toHaveBeenCalledWith(

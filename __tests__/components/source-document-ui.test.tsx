@@ -1,8 +1,13 @@
 /**
  * Source Document UI Component Tests
  *
- * Tests for ReuploadBanner, SourceDocumentHistory, and SourceDocumentInfo
- * components used in the file upload and source document management flows.
+ * Tests for SourceDocumentHistory and SourceDocumentInfo, used in source
+ * document management flows. (ReuploadBanner's coverage was removed here —
+ * ID-131.24 G-UPLOAD-GATE retired the component alongside the synchronous
+ * /api/upload re-upload-detection pipeline it served; DR-025's
+ * content_hash-first admission resolver's `wasMinted` flag is the successor
+ * signal, surfaced inline in the upload tab rather than via a dedicated
+ * banner.)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -39,7 +44,6 @@ vi.mock('next/link', () => ({
   ),
 }));
 
-import { ReuploadBanner } from '@/components/source-document/reupload-banner';
 import { SourceDocumentHistory } from '@/components/source-document/source-document-history';
 import { SourceDocumentInfo } from '@/components/source-document/source-document-info';
 
@@ -66,53 +70,6 @@ function makeVersion(overrides: Record<string, unknown> = {}) {
     content_item_count: overrides.content_item_count ?? 5,
   };
 }
-
-// ---------------------------------------------------------------------------
-// ReuploadBanner
-// ---------------------------------------------------------------------------
-
-describe('ReuploadBanner', () => {
-  it('renders "Duplicate file detected" for identical matchType', () => {
-    render(
-      <ReuploadBanner
-        matchType="identical"
-        previousVersion={2}
-        previousDocumentId="doc-prev"
-      />,
-    );
-
-    expect(screen.getByText('Duplicate file detected')).toBeInTheDocument();
-    expect(
-      screen.getByText(/Version 2 was uploaded previously/),
-    ).toBeInTheDocument();
-  });
-
-  it('renders "Updated document detected" for new_version matchType', () => {
-    render(
-      <ReuploadBanner
-        matchType="new_version"
-        previousVersion={2}
-        previousDocumentId="doc-prev"
-      />,
-    );
-
-    expect(screen.getByText('Updated document detected')).toBeInTheDocument();
-    expect(screen.getByText(/Creating version 3/)).toBeInTheDocument();
-  });
-
-  it('has the previous document ID as a data attribute', () => {
-    render(
-      <ReuploadBanner
-        matchType="identical"
-        previousVersion={1}
-        previousDocumentId="doc-abc"
-      />,
-    );
-
-    const alert = screen.getByRole('alert');
-    expect(alert).toHaveAttribute('data-previous-document-id', 'doc-abc');
-  });
-});
 
 // ---------------------------------------------------------------------------
 // SourceDocumentHistory
