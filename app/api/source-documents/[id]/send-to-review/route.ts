@@ -86,6 +86,17 @@ export const POST = defineRoute(
         }
       }
 
+      // No record_lifecycle facet row is ever minted anywhere in the system
+      // yet (Phase 2 facet-mint migration proposed) — a gap that affects ALL
+      // documents, not just pre-existing ones, until it ships. The facet
+      // SELECT above (`.in('source_document_id', itemIds)`) simply omits any
+      // requested id with no matching row, which would otherwise let items
+      // silently vanish from all three partitions while `total_requested`
+      // stayed honest. Diff the requested ids against what was actually
+      // returned and surface the gap explicitly instead.
+      const returnedIds = new Set(items.map((item) => item.id));
+      const noGovernanceRecord = itemIds.filter((id) => !returnedIds.has(id));
+
       // Batch update eligible items
       if (eligible.length > 0) {
         const reviewDue = new Date(
@@ -211,6 +222,10 @@ export const POST = defineRoute(
         total_requested: itemIds.length,
         sent_ids: eligible,
         unnotified: unnotifiedItems,
+        // Every requested id lands in exactly one of: sent, already_pending,
+        // skipped_draft, no_governance_record — so total_requested is always
+        // fully accounted for.
+        no_governance_record: noGovernanceRecord,
         review_url: `/review?status=all&source_document_id=${documentId}`,
       };
       if (warnings.length > 0) {

@@ -70,20 +70,36 @@ export const POST = defineRoute(
         // updated_by stamp is best-effort (logged, non-blocking) — mirrors
         // the notification-dispatch best-effort pattern used elsewhere in
         // this route.
-        const { error } = await supabase
+        //
+        // No record_lifecycle facet row is ever minted anywhere in the
+        // system yet (a facet-mint migration is proposed at Phase 2) — this
+        // is a gap that affects ALL documents, not just pre-existing ones,
+        // until that migration ships. An UPDATE matching 0 rows is not a
+        // Postgres error, so `.select('id')` + a row-count check is the only
+        // way to detect it; without it this route would 200 + write a
+        // verification_history audit row for a write that changed nothing.
+        const { data: facetRows, error } = await supabase
           .from('record_lifecycle')
           .update({
             verified_at: new Date().toISOString(),
             verified_by: user.id,
           })
           .eq('owner_kind', 'source_document')
-          .eq('source_document_id', item_id);
+          .eq('source_document_id', item_id)
+          .select('id');
 
         if (error) {
           logger.error({ err: error }, 'Failed to verify content item');
           return NextResponse.json(
             { error: 'Failed to verify item' },
             { status: 500 },
+          );
+        }
+
+        if (!facetRows || facetRows.length === 0) {
+          return NextResponse.json(
+            { error: 'No governance record exists for this item yet' },
+            { status: 409 },
           );
         }
 
@@ -126,6 +142,40 @@ export const POST = defineRoute(
             .eq('resolved', false);
         }
       } else if (action === 'flag') {
+        // Clear verified status — flagging returns item to needs-attention
+        // state. This facet write is the primary governance signal for this
+        // action (same gating rule as verify/unverify below): no
+        // record_lifecycle facet row is ever minted anywhere in the system
+        // yet (Phase 2 facet-mint migration proposed), a gap that affects
+        // ALL documents — not just pre-existing ones — until it ships. Gate
+        // the flag insert + audit write on this write actually matching a
+        // row, so a 0-row match returns an explicit error instead of a false
+        // {success:true} plus an audit row for writes that changed nothing.
+        const { data: facetRows, error: facetError } = await supabase
+          .from('record_lifecycle')
+          .update({
+            verified_at: null,
+            verified_by: null,
+          })
+          .eq('owner_kind', 'source_document')
+          .eq('source_document_id', item_id)
+          .select('id');
+
+        if (facetError) {
+          logger.error({ err: facetError }, 'Failed to flag content item');
+          return NextResponse.json(
+            { error: 'Failed to flag item' },
+            { status: 500 },
+          );
+        }
+
+        if (!facetRows || facetRows.length === 0) {
+          return NextResponse.json(
+            { error: 'No governance record exists for this item yet' },
+            { status: 409 },
+          );
+        }
+
         if (sourceDocumentId) {
           const insertPayload = {
             source_document_id: sourceDocumentId,
@@ -159,34 +209,38 @@ export const POST = defineRoute(
           });
         }
 
-        // Clear verified status — flagging returns item to needs-attention state
-        await supabase
-          .from('record_lifecycle')
-          .update({
-            verified_at: null,
-            verified_by: null,
-          })
-          .eq('owner_kind', 'source_document')
-          .eq('source_document_id', item_id);
         await supabase
           .from('source_documents')
           .update({ updated_by: user.id })
           .eq('id', item_id);
       } else if (action === 'unverify') {
-        const { error } = await supabase
+        // No record_lifecycle facet row is ever minted anywhere in the
+        // system yet (Phase 2 facet-mint migration proposed) — a gap that
+        // affects ALL documents, not just pre-existing ones, until it
+        // ships. `.select('id')` + a row-count check is the only way to
+        // detect a 0-row UPDATE match (not a Postgres error).
+        const { data: facetRows, error } = await supabase
           .from('record_lifecycle')
           .update({
             verified_at: null,
             verified_by: null,
           })
           .eq('owner_kind', 'source_document')
-          .eq('source_document_id', item_id);
+          .eq('source_document_id', item_id)
+          .select('id');
 
         if (error) {
           logger.error({ err: error }, 'Failed to unverify content item');
           return NextResponse.json(
             { error: 'Failed to unverify item' },
             { status: 500 },
+          );
+        }
+
+        if (!facetRows || facetRows.length === 0) {
+          return NextResponse.json(
+            { error: 'No governance record exists for this item yet' },
+            { status: 409 },
           );
         }
 

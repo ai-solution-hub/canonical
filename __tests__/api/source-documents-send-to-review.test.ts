@@ -593,4 +593,111 @@ describe('POST /api/source-documents/[id]/send-to-review', () => {
       }),
     );
   });
+
+  // ---------------------------------------------------------------------------
+  // ID-131.19 Blocker 2 fix: no record_lifecycle facet row is ever minted
+  // anywhere in the system yet (system-wide gap until the Phase 2 facet-mint
+  // migration ships), so the facet SELECT can silently omit requested ids
+  // that have no matching row. Those ids must surface explicitly rather than
+  // quietly vanishing from all three partitions.
+  // ---------------------------------------------------------------------------
+
+  // 12. Requested ids with no matching facet row surface in no_governance_record
+  it('surfaces requested ids with no record_lifecycle facet row in no_governance_record, none silently dropped', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Facet SELECT only returns a row for ITEM_ID_1 — ITEM_ID_2 has no
+    // record_lifecycle facet row at all (not even filtered out by a null
+    // source_documents embed; it simply never matched the .in() filter).
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              source_document_id: ITEM_ID_1,
+              governance_review_status: null,
+              content_owner_id: 'owner-1',
+              source_documents: {
+                id: ITEM_ID_1,
+                filename: 'item-one.docx',
+                suggested_title: 'Item One',
+              },
+            },
+          ],
+          error: null,
+        }),
+    );
+
+    // record_lifecycle update succeeds
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    // source_documents updated_at stamp succeeds (best-effort secondary write)
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    // Source document filename lookup (now uses maybeSingle())
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: { filename: 'policy-v2.docx' },
+      error: null,
+    });
+
+    const req = createTestRequest(
+      `/api/source-documents/${DOC_ID}/send-to-review`,
+      { method: 'POST', body: { item_ids: [ITEM_ID_1, ITEM_ID_2] } },
+    );
+    const params = createTestParams({ id: DOC_ID });
+    const res = await POST(req, { params });
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.sent).toBe(1);
+    expect(body.no_governance_record).toEqual([ITEM_ID_2]);
+
+    // Every requested id is accounted for across the four partitions — none
+    // silently dropped.
+    expect(
+      body.sent +
+        body.already_pending +
+        body.skipped_draft +
+        body.no_governance_record.length,
+    ).toBe(body.total_requested);
+  });
+
+  // 13. No missing ids -> no_governance_record is an empty array (always present)
+  it('returns an empty no_governance_record when every requested id has a facet row', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              source_document_id: ITEM_ID_1,
+              governance_review_status: 'pending',
+              content_owner_id: 'owner-1',
+              source_documents: {
+                id: ITEM_ID_1,
+                filename: 'item-one.docx',
+                suggested_title: 'Item One',
+              },
+            },
+          ],
+          error: null,
+        }),
+    );
+
+    const req = createTestRequest(
+      `/api/source-documents/${DOC_ID}/send-to-review`,
+      { method: 'POST', body: { item_ids: [ITEM_ID_1] } },
+    );
+    const params = createTestParams({ id: DOC_ID });
+    const res = await POST(req, { params });
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.no_governance_record).toEqual([]);
+  });
 });

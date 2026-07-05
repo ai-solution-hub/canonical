@@ -399,7 +399,8 @@ describe('POST /api/review/action', () => {
     });
 
     mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: 'facet-row-id' }], error: null }),
     );
 
     const req = createTestRequest('/api/review/action', {
@@ -484,7 +485,8 @@ describe('POST /api/review/action', () => {
     });
 
     mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: 'facet-row-id' }], error: null }),
     );
 
     const req = createTestRequest('/api/review/action', {
@@ -541,7 +543,8 @@ describe('POST /api/review/action', () => {
     });
 
     mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: 'facet-row-id' }], error: null }),
     );
 
     const req = createTestRequest('/api/review/action', {

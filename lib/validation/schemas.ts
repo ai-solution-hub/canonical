@@ -2694,6 +2694,11 @@ export const SendToReviewResultSchema = z.object({
   already_pending: z.number(),
   skipped_draft: z.number(),
   review_url: z.string(),
+  // ID-131.19 Blocker 2 fix: ids requested but with no record_lifecycle
+  // facet row (system-wide gap until the Phase 2 facet-mint migration
+  // ships) — surfaced explicitly so total_requested is always accounted
+  // for across sent + already_pending + skipped_draft + no_governance_record.
+  no_governance_record: z.array(z.string()).optional(),
 });
 
 /** R-WP17 ResponseSchema for `EntityDetail` (hooks/use-entity-detail.ts). Generated; strict per INV-S (TECH §3.1a). */

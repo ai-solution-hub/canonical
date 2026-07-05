@@ -134,7 +134,8 @@ describe('POST /api/review/action — verification_history recording', () => {
 
     // All subsequent operations succeed
     mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: 'facet-row-id' }], error: null }),
     );
 
     const req = createTestRequest('/api/review/action', {
@@ -164,7 +165,8 @@ describe('POST /api/review/action — verification_history recording', () => {
     });
 
     mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: 'facet-row-id' }], error: null }),
     );
 
     const req = createTestRequest('/api/review/action', {
@@ -196,7 +198,8 @@ describe('POST /api/review/action — verification_history recording', () => {
     });
 
     mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: 'facet-row-id' }], error: null }),
     );
 
     const req = createTestRequest('/api/review/action', {
@@ -224,7 +227,8 @@ describe('POST /api/review/action — verification_history recording', () => {
     });
 
     mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: 'facet-row-id' }], error: null }),
     );
 
     const req = createTestRequest('/api/review/action', {
@@ -256,7 +260,8 @@ describe('POST /api/review/action — verification_history recording', () => {
     });
 
     mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: 'facet-row-id' }], error: null }),
     );
 
     const req = createTestRequest('/api/review/action', {
@@ -288,7 +293,8 @@ describe('POST /api/review/action — verification_history recording', () => {
     });
 
     mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: 'facet-row-id' }], error: null }),
     );
 
     const req = createTestRequest('/api/review/action', {
@@ -333,7 +339,8 @@ describe('POST /api/review/action — verification_history recording', () => {
     });
 
     mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: 'facet-row-id' }], error: null }),
     );
 
     const exactNote = 'x'.repeat(500);
@@ -404,7 +411,8 @@ describe('POST /api/review/action — record_lifecycle / source_documents write 
       error: null,
     });
     mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: 'facet-row-id' }], error: null }),
     );
 
     const req = createTestRequest('/api/review/action', {
@@ -429,7 +437,8 @@ describe('POST /api/review/action — record_lifecycle / source_documents write 
       error: null,
     });
     mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: 'facet-row-id' }], error: null }),
     );
 
     const req = createTestRequest('/api/review/action', {
@@ -455,7 +464,8 @@ describe('POST /api/review/action — record_lifecycle / source_documents write 
       error: null,
     });
     mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: 'facet-row-id' }], error: null }),
     );
 
     const req = createTestRequest('/api/review/action', {
@@ -498,5 +508,123 @@ describe('POST /api/review/action — record_lifecycle / source_documents write 
     // The route returns before reaching the source_documents best-effort
     // write on this path.
     expect(mockSupabase._chain.update).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ID-131.19 Blocker 1 fix: no record_lifecycle facet row is ever minted
+// anywhere in the system yet (system-wide gap until the Phase 2 facet-mint
+// migration ships) — a Postgres UPDATE matching 0 rows is NOT an error, so
+// verify/flag/unverify must chain `.select('id')` and check the returned row
+// count explicitly. 0 rows must return an honest error, never a false
+// `{success:true}` plus a verification_history audit row for a write that
+// changed nothing.
+// ---------------------------------------------------------------------------
+
+describe('POST /api/review/action — 0-row facet update honesty (ID-131.19 Blocker 1)', () => {
+  beforeEach(resetMocks);
+
+  function recordedHistoryInsert(): Record<string, unknown> | null {
+    return (
+      mockSupabase._chain.insert.mock.calls
+        .map((c: unknown[]) => c[0] as Record<string, unknown>)
+        .find(
+          (payload) =>
+            payload &&
+            typeof payload === 'object' &&
+            'action_type' in payload &&
+            'performed_by' in payload,
+        ) ?? null
+    );
+  }
+
+  it('verify returns an explicit error and writes no verification_history row when the facet update matches 0 rows', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+    // Facet UPDATE matches nothing — no record_lifecycle row exists for
+    // this item yet. Not a Postgres error: data resolves to an empty array.
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'verify' },
+    });
+    const res = await postAction(req);
+
+    expect(res.status).toBe(409);
+    expect(recordedHistoryInsert()).toBeNull();
+  });
+
+  it('unverify returns an explicit error and writes no verification_history row when the facet update matches 0 rows', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'unverify' },
+    });
+    const res = await postAction(req);
+
+    expect(res.status).toBe(409);
+    expect(recordedHistoryInsert()).toBeNull();
+  });
+
+  it('flag returns an explicit error and writes no verification_history row (nor ingestion_quality_log flag) when the facet update matches 0 rows', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: {
+        item_id: VALID_UUID,
+        action: 'flag',
+        flag_details: 'Outdated statistics',
+      },
+    });
+    const res = await postAction(req);
+
+    expect(res.status).toBe(409);
+    expect(recordedHistoryInsert()).toBeNull();
+    // No ingestion_quality_log insert was attempted — the facet gate is
+    // checked before the flag insert.
+    expect(mockSupabase._chain.insert).not.toHaveBeenCalled();
+  });
+
+  it('verify succeeds and writes verification_history when the facet update matches >=1 row', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: 'facet-row-id' }], error: null }),
+    );
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'verify' },
+    });
+    const res = await postAction(req);
+
+    expect(res.status).toBe(200);
+    expect(recordedHistoryInsert()).toMatchObject({ action_type: 'verify' });
   });
 });
