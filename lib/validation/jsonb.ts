@@ -110,20 +110,10 @@ export function parseJsonbArray<T>(schema: z.ZodType<T>, data: unknown): T[] {
 
 // ── RPC response schemas ──
 
-export const FilterCountsSchema = z
-  .object({
-    domain: z.record(z.string(), z.number().int().nonnegative()).default({}),
-    content_type: z
-      .record(z.string(), z.number().int().nonnegative())
-      .default({}),
-    platform: z.record(z.string(), z.number().int().nonnegative()).default({}),
-  })
-  .strict();
-
 /**
  * Freshness histogram returned as the `freshness_summary` jsonb column of
  * get_dashboard_attention_counts (ID-70). Validated at the consumer boundary
- * (lib/dashboard.ts) via the same parseJsonb pattern as FilterCountsSchema.
+ * (lib/dashboard.ts) via the same parseJsonb pattern used elsewhere in this module.
  */
 export const FreshnessSummarySchema = z.object({
   fresh: z.number().int().nonnegative(),
@@ -131,13 +121,6 @@ export const FreshnessSummarySchema = z.object({
   stale: z.number().int().nonnegative(),
   expired: z.number().int().nonnegative(),
 });
-
-export const AuthorCountSchema = z
-  .object({
-    author_name: z.string(),
-    count: z.number(),
-  })
-  .passthrough();
 
 // ── Write helper ──
 
