@@ -135,7 +135,11 @@ When a new ruling **supersedes** an existing `DR-NNN` (or this session flipped a
 state that downstream docs assert), run the docs-site `sync-ledger-context` skill — or flag
 it in *Session deltas* — so docs carrying the superseded assertion (those with a
 `kh_ledger_sources` frontmatter key) get a *Ledger drift* stamp instead of silently going
-stale.
+stale. This teardown sweep is the PRIMARY trigger; the docs-site weekly cron
+(`sync-ledger-context.yml`, Monday 07:00 UTC) is only the backstop for sessions that skip
+it. A drift section is evidence, not the fix — route each drifted doc by the same DR-021
+rule as findings below: journal the rewrite on the owning active task if one exists, else
+create a backlog item.
 
 ### Finding disposition at close (DR-021)
 
