@@ -309,7 +309,10 @@ tool discipline above) when it modifies files matching any of the following:
 
 - `.md` / `.mdx` — documentation and spec files
 - `.json` (ledger files in the docs-site `src/content/docs/ledgers/`) — workflow ledger files
-- `.py` — Python pipeline scripts (ast-dataflow covers TypeScript only; use grep for Python)
+- `.py` — Python pipeline scripts — **partially in scope**: GitNexus indexes Python
+  (`gitnexus_impact` / `gitnexus_context` / `gitnexus_detect_changes` apply to `.py`);
+  ast-dataflow/ts-morph is TS-only, so string-literal/column-level queries fall back to
+  grep for Python
 - `.sql` — Supabase migration files (use grep for SQL)
 
 **Mixed-dispatch rule:** When a Subtask modifies both in-scope and out-of-scope files,

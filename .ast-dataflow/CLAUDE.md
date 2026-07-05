@@ -63,8 +63,10 @@ propagating to sub-agent worktrees at creation time.
 
 ## ast-dataflow does not cover Python or SQL files
 
-`ts-morph` operates on the TypeScript corpus only. For string-literal searches that need
-to cover Python scripts (`scripts/kb_pipeline/*.py`) or raw SQL migration files
-(`supabase/migrations/*.sql`), run a `grep` sweep in addition to any ast-dataflow query.
+`ts-morph` operates on the TypeScript corpus only — this limit is ast-dataflow's, not
+GitNexus's (GitNexus DOES index Python: impact/context/caller data for `scripts/**.py`).
+For string-literal searches that need to cover Python scripts (`scripts/kb_pipeline/*.py`)
+or raw SQL migration files (`supabase/migrations/*.sql`), run a `grep` sweep in addition
+to any ast-dataflow query.
 
 <!-- ast-dataflow:end -->
