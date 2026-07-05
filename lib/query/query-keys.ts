@@ -294,14 +294,9 @@ export const queryKeys = {
       ['citations', 'orphans', sortedIdKey] as const,
   },
 
-  // Progress
-  progress: {
-    all: ['progress'] as const,
-    stats: (readCount?: number) =>
-      readCount !== undefined
-        ? (['progress', 'stats', readCount] as const)
-        : (['progress', 'stats'] as const),
-  },
+  // Progress key REMOVED (ID-131.19 S450 Wave 1 Fix 4 follow-up) — its sole
+  // consumer, hooks/use-progress.ts, was an orphan (0 production callers,
+  // backed by a since-deleted /api/read-marks route) and has been deleted.
 
   // Q&A Provenance
   qaProvenance: {

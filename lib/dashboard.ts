@@ -16,6 +16,7 @@ import {
 } from '@/lib/activity/team-changes';
 import { buildProcurementSummary } from '@/lib/activity/bid-summary';
 import { parseJsonb, FreshnessSummarySchema } from '@/lib/validation/jsonb';
+import { tryQuery } from '@/lib/supabase/safe';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -250,28 +251,29 @@ export async function fetchUnifiedDashboardData(
   const errors: string[] = [];
   const effectiveRole = role ?? 'viewer';
 
-  // --- Phase 1: User's last activity + cert relationships (needed to scope later queries) ---
-  // ID-131.19 S450 Wave 1 Fix 4: the content_history "last write" leg is
-  // RETIRED here (content_history drops at M6; no cross-entity-type
-  // write-timestamp equivalent exists in the new record/facet model — see
-  // the team_changes/my_recent_work retirement note at Phase 2 below for the
-  // full audit). last_active_at now derives from read_marks / last_sign_in_at
-  // / the 24h fallback only.
-  const [lastReadResult, certRelResult] = await Promise.all([
-    supabase
-      .from('read_marks')
-      .select('read_at')
-      .eq('user_id', userId)
-      .order('read_at', { ascending: false })
-      .limit(1),
-    // Fetch certification relationship targets for expiry count
+  // --- Phase 1: Cert relationships (needed to scope later queries) ---
+  // ID-131.19 S450 Wave 1 Fix 4: the content_history "last write" leg was
+  // RETIRED in the prior commit (content_history drops at M6; no
+  // cross-entity-type write-timestamp equivalent exists — see the
+  // team_changes/my_recent_work retirement note at Phase 2 below for the
+  // full audit). This follow-up (Checker finding, spec-compliance) RETIRES
+  // the read_marks "last read" leg too — read_marks ALSO drops at M6
+  // (migrations-blocked/20260706110000_id131_drops.sql), it is a
+  // reading-progress (content_items-era) signal with no new-model
+  // equivalent, and its only other live reader (hooks/use-progress.ts) was
+  // itself an orphan (0 production callers) and has been deleted alongside.
+  // last_active_at now derives from last_sign_in_at / the 24h fallback only.
+  const certRelQuery = await tryQuery(
     supabase
       .from('entity_relationships')
       .select('target_entity')
       .eq('relationship_type', 'holds'),
-  ]);
-
-  const lastReadAt = lastReadResult.data?.[0]?.read_at ?? null;
+    'dashboard.cert_relationships',
+  );
+  if (!certRelQuery.ok) {
+    errors.push('cert_relationships query failed');
+  }
+  const certRelData = certRelQuery.ok ? certRelQuery.data : null;
 
   // Fetch auth user for last_sign_in_at fallback and display name
   let authUser: {
@@ -289,9 +291,7 @@ export async function fetchUnifiedDashboardData(
   }
 
   let lastActiveAt: string | null = null;
-  if (lastReadAt) {
-    lastActiveAt = lastReadAt;
-  } else if (authUser?.last_sign_in_at) {
+  if (authUser?.last_sign_in_at) {
     lastActiveAt = authUser.last_sign_in_at;
   }
 
@@ -373,14 +373,14 @@ export async function fetchUnifiedDashboardData(
         .limit(5),
 
       // 6: Certification expiry — entity_mentions with certification metadata
-      // containing expiry_date within 90 days. Uses certRelResult from Phase 1.
-      certRelResult.data && certRelResult.data.length > 0
+      // containing expiry_date within 90 days. Uses certRelData from Phase 1.
+      certRelData && certRelData.length > 0
         ? supabase
             .from('entity_mentions')
             .select('canonical_name, metadata')
             .in(
               'canonical_name',
-              certRelResult.data.map((r) => r.target_entity),
+              certRelData.map((r) => r.target_entity),
             )
             .or(
               'entity_type.eq.certification,entity_type_override.eq.certification',

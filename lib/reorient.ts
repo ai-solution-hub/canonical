@@ -15,7 +15,6 @@ import {
   formResponseRowToRecentWork,
 } from '@/lib/activity/team-changes';
 import { buildProcurementSummary } from '@/lib/activity/bid-summary';
-import { tryQuery } from '@/lib/supabase/safe';
 
 // ---------------------------------------------------------------------------
 // Main data fetching function
@@ -34,31 +33,18 @@ export async function fetchReorientData(
 ): Promise<ReorientData> {
   const errors: string[] = [];
 
-  // Query 1: User's last activity timestamp (read activity). ID-131.19 S450
-  // Wave 1 Fix 4: the content_history "last write" leg is RETIRED here
+  // User's last activity timestamp. ID-131.19 S450 Wave 1 Fix 4: the
+  // content_history "last write" leg was RETIRED in the prior commit
   // (content_history drops at M6; no cross-entity-type write-timestamp
-  // equivalent exists in the new record/facet model — see the team_changes/
-  // my_recent_work retirement note at queries 0/1 below for the full audit).
-  // Non-critical — degrades to the last_sign_in_at / null fallback below —
-  // so a failure is tracked in `errors` rather than thrown (tryQuery, not
-  // sb(), per the "sb()/tryQuery() Supabase safety" quality bar).
-  const lastReadResult = await tryQuery(
-    supabase
-      .from('read_marks')
-      .select('read_at')
-      .eq('user_id', userId)
-      .order('read_at', { ascending: false })
-      .limit(1),
-    'reorient.last_read_activity',
-  );
-  if (!lastReadResult.ok) {
-    errors.push('last_read_activity query failed');
-  }
-
-  // Determine last_active_at from read_marks, then auth last_sign_in_at, then 24h ago
-  const lastReadAt = lastReadResult.ok
-    ? (lastReadResult.data?.[0]?.read_at ?? null)
-    : null;
+  // equivalent exists — see the team_changes/my_recent_work retirement note
+  // at queries 0/1 below for the full audit). This follow-up (Checker
+  // finding, spec-compliance) RETIRES the read_marks "last read" leg too —
+  // read_marks ALSO drops at M6 (migrations-blocked/20260706110000_id131_
+  // drops.sql), it is a reading-progress (content_items-era) signal with no
+  // new-model equivalent, and its only other live reader
+  // (hooks/use-progress.ts) was itself an orphan (0 production callers) and
+  // has been deleted alongside. last_active_at now derives from
+  // last_sign_in_at / the 24h fallback only.
 
   // Fetch auth user once — used for last_sign_in_at fallback and display name
   let authUser: {
@@ -77,9 +63,7 @@ export async function fetchReorientData(
 
   let lastActiveAt: string | null = null;
 
-  if (lastReadAt) {
-    lastActiveAt = lastReadAt;
-  } else if (authUser?.last_sign_in_at) {
+  if (authUser?.last_sign_in_at) {
     lastActiveAt = authUser.last_sign_in_at;
   }
 

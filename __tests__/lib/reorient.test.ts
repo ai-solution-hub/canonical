@@ -97,12 +97,13 @@ const TEST_USER_ID = 'user-abc-123';
  * The function structure is (ID-131.19 S450 Wave 1 Fix 4: the content_history
  * "last write" leg and the content_history-sourced team-changes/recent-work
  * legs are RETIRED — content_history drops at M6 and no logical replacement
- * exists; see lib/reorient.ts's retirement comments for the full audit.
- * Retired legs never issue a from() call — they are Promise.resolve stubs —
- * so they no longer consume a `fromCalls` slot below):
- *   1. from('read_marks') for read activity (lastActivity)
- *   2. Then Promise.all with:
- *      a) Promise.allSettled with 8 items:
+ * exists; see lib/reorient.ts's retirement comments for the full audit. The
+ * read_marks "last read" leg is ALSO RETIRED as of the follow-up commit —
+ * read_marks drops at M6 too and had no new-model equivalent; last_active_at
+ * now derives solely from auth.last_sign_in_at. Retired legs never issue a
+ * from() call — they are Promise.resolve stubs, or simply gone — so they no
+ * longer consume a `fromCalls` slot below):
+ *   1. Promise.allSettled with 8 items:
  *         [0] team changes — RETIRED, Promise.resolve stub, no from() call.
  *         [1] recent work — RETIRED, Promise.resolve stub, no from() call.
  *         [2] rpc('get_freshness_breakdown')
@@ -116,12 +117,11 @@ const TEST_USER_ID = 'user-abc-123';
  *         [5] from('notifications') — unread notifications
  *         [6] from('form_response_history') — bid response team changes
  *         [7] from('form_response_history') — bid response recent work
- *      b) fetchActiveProcurementWithStats (mocked — returns workspaces + statsMap)
+ *      2. fetchActiveProcurementWithStats (mocked — returns workspaces + statsMap)
  *   Then auth.getUser() for display name
  */
 function setupDefaultMock(
   overrides: {
-    lastReadActivityData?: unknown[];
     authUser?: Record<string, unknown> | null;
     workspacesData?: unknown[];
     batchStatsData?: unknown[];
@@ -151,16 +151,9 @@ function setupDefaultMock(
     count: number | null;
   }> = [];
 
-  // Call 0: read_marks for lastActivity (read)
-  fromCalls.push({
-    data: overrides.lastReadActivityData ?? [],
-    error: null,
-    count: null,
-  });
-
-  // Promise.allSettled from() calls (queries 2/3 above — team changes / recent
+  // Promise.allSettled from() calls (queries 0/1 above — team changes / recent
   // work — are retired Promise.resolve stubs and never call from(), so the
-  // NEXT from() call slot is query 3, governance reviews):
+  // FIRST from() call slot is query 3, governance reviews):
   // [3] governance reviews — from('record_lifecycle') (ID-131 {131.19}:
   // content_items retired, governance_review_status now on the facet)
   fromCalls.push({
@@ -345,30 +338,14 @@ describe('fetchReorientData', () => {
   // last_active_at resolution
   // =========================================================================
 
-  // ID-131.19 S450 Wave 1 Fix 4: the content_history "last write" leg is
-  // RETIRED (content_history drops at M6; no cross-entity-type write-
-  // timestamp equivalent exists) — last_active_at now derives from
-  // read_marks, then last_sign_in_at, then null. The "more recent of the
-  // two" scenarios this block used to test no longer apply.
+  // ID-131.19 S450 Wave 1 Fix 4 (+ follow-up): both the content_history
+  // "last write" leg AND the read_marks "last read" leg are RETIRED
+  // (content_history and read_marks both drop at M6; neither has a
+  // cross-entity-type equivalent in the new record/facet model) —
+  // last_active_at now derives solely from auth.last_sign_in_at, then null.
   describe('last_active_at', () => {
-    it('returns last_active_at from read_marks when present', async () => {
+    it('returns last_active_at from last_sign_in_at when present', async () => {
       const mock = setupDefaultMock({
-        lastReadActivityData: [{ read_at: '2026-03-08T08:30:00Z' }],
-      });
-
-      const result = await fetchReorientData(
-        mock as unknown as Parameters<typeof fetchReorientData>[0],
-        TEST_USER_ID,
-        false,
-        'editor',
-      );
-
-      expect(result.last_active_at).toBe('2026-03-08T08:30:00Z');
-    });
-
-    it('falls back to last_sign_in_at when no read_marks', async () => {
-      const mock = setupDefaultMock({
-        lastReadActivityData: [],
         authUser: {
           id: TEST_USER_ID,
           email: 'liam@example.com',
@@ -387,9 +364,8 @@ describe('fetchReorientData', () => {
       expect(result.last_active_at).toBe('2026-03-07T14:00:00Z');
     });
 
-    it('falls back to null when no read_marks or last_sign_in_at available', async () => {
+    it('falls back to null when no last_sign_in_at available', async () => {
       const mock = setupDefaultMock({
-        lastReadActivityData: [],
         authUser: {
           id: TEST_USER_ID,
           email: 'liam@example.com',
@@ -407,77 +383,6 @@ describe('fetchReorientData', () => {
 
       // last_active_at should be null, and the sinceDate will fall back to 24h ago
       expect(result.last_active_at).toBeNull();
-    });
-
-    // ID-131.19 S450 Wave 1 Fix 4: the read_marks query is now wrapped in
-    // tryQuery() (not sb()) so a failure degrades gracefully to the
-    // last_sign_in_at fallback and is tracked in `errors`, rather than
-    // throwing and aborting the whole reorient fetch.
-    it('degrades gracefully to last_sign_in_at when the read_marks query fails, tracking the error', async () => {
-      const mock = setupDefaultMock({
-        authUser: {
-          id: TEST_USER_ID,
-          email: 'liam@example.com',
-          user_metadata: {},
-          last_sign_in_at: '2026-03-07T14:00:00Z',
-        },
-      });
-
-      // Override from() entirely for this test — only the read_marks
-      // failure path matters here, not the exact positional shape of every
-      // other query.
-      const chainable = [
-        'select',
-        'eq',
-        'neq',
-        'in',
-        'is',
-        'not',
-        'ilike',
-        'contains',
-        'gte',
-        'lte',
-        'gt',
-        'lt',
-        'or',
-        'order',
-        'limit',
-        'range',
-      ] as const;
-      mock.from.mockImplementation((table: string) => {
-        const chain: Record<string, ReturnType<typeof vi.fn>> = {};
-        for (const m of chainable) {
-          chain[m] = vi.fn().mockReturnValue(chain);
-        }
-        chain.single = vi
-          .fn()
-          .mockResolvedValue({ data: null, error: null, count: null });
-        chain.maybeSingle = vi
-          .fn()
-          .mockResolvedValue({ data: null, error: null, count: null });
-        chain.then = vi.fn((resolve: (v: unknown) => void) => {
-          if (table === 'read_marks') {
-            resolve({
-              data: null,
-              error: { message: 'Connection refused' },
-              count: null,
-            });
-          } else {
-            resolve({ data: [], error: null, count: 0 });
-          }
-        });
-        return chain;
-      });
-
-      const result = await fetchReorientData(
-        mock as unknown as Parameters<typeof fetchReorientData>[0],
-        TEST_USER_ID,
-        false,
-        'editor',
-      );
-
-      expect(result.errors).toContain('last_read_activity query failed');
-      expect(result.last_active_at).toBe('2026-03-07T14:00:00Z');
     });
   });
 

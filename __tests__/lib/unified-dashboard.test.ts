@@ -66,11 +66,12 @@ const TEST_USER_ID = 'user-abc-123';
  * write" leg and the content_history-sourced team-changes/recent-work legs
  * are RETIRED — content_history drops at M6 and no logical replacement
  * exists; see lib/dashboard.ts's retirement comments for the full audit.
- * Retired legs never issue a from() call — they are Promise.resolve stubs —
- * so they no longer consume a `fromCalls` slot below):
- *   Phase 1 (last activity + cert relationships):
- *     from(0): read_marks — last read activity
- *     from(1): entity_relationships — cert relationship targets
+ * The read_marks "last read" leg is ALSO RETIRED as of the follow-up
+ * commit — read_marks drops at M6 too and had no new-model equivalent.
+ * Retired legs never issue a from() call — they are Promise.resolve stubs,
+ * or simply gone — so they no longer consume a `fromCalls` slot below):
+ *   Phase 1 (cert relationships only):
+ *     from(0): entity_relationships — cert relationship targets
  *   Phase 2 (main parallel batch):
  *     Promise.allSettled with 7 items:
  *       [0] attention counts — rpc('get_dashboard_attention_counts')
@@ -88,7 +89,6 @@ const TEST_USER_ID = 'user-abc-123';
  */
 function setupDefaultMock(
   overrides: {
-    lastReadActivityData?: unknown[];
     certRelData?: unknown[];
     authUser?: Record<string, unknown> | null;
     freshnessData?: {
@@ -120,15 +120,9 @@ function setupDefaultMock(
     count: number | null;
   }> = [];
 
-  // Phase 1: last activity + cert relationships
-  // Call 0: read_marks for lastActivity (read)
-  fromCalls.push({
-    data: overrides.lastReadActivityData ?? [],
-    error: null,
-    count: null,
-  });
-
-  // Call 1: entity_relationships for cert targets
+  // Phase 1: cert relationships only (read_marks retired, ID-131.19 S450
+  // Wave 1 Fix 4 follow-up)
+  // Call 0: entity_relationships for cert targets
   fromCalls.push({
     data: overrides.certRelData ?? [],
     error: null,
@@ -542,15 +536,16 @@ describe('fetchUnifiedDashboardData', () => {
   });
 
   it('reorient personal data includes display name and last active', async () => {
+    // ID-131.19 S450 Wave 1 Fix 4 (follow-up): last_active_at now derives
+    // solely from auth.last_sign_in_at — both the content_history write leg
+    // and the read_marks read leg are retired.
     const mock = setupDefaultMock({
       authUser: {
         id: TEST_USER_ID,
         email: 'liam@example.com',
         user_metadata: { display_name: 'Liam Jones' },
+        last_sign_in_at: '2026-03-08T08:00:00Z',
       },
-      // ID-131.19 S450 Wave 1 Fix 4: last_active_at now derives from
-      // read_marks only (the content_history write leg is retired).
-      lastReadActivityData: [{ read_at: '2026-03-08T08:00:00Z' }],
     });
 
     const result = await fetchUnifiedDashboardData(
