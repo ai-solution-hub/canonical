@@ -160,11 +160,22 @@ export const SURFACE_TABLES: readonly string[] = [
  * generator introspects EACH name's overloads from pg_proc and emits one
  * entrypoint per overload, so the actual entrypoint count >= name count.
  *
- * get_dashboard_attention_counts / get_coverage_matrix / get_coverage_summary
- * deliberately STAY here despite the content_items drop — see
- * 20260706110000_id131_drops.sql's header for why (2 of the first function's
- * 9 fields, and the entire body of the next two, are still content_items-
- * shaped and will error post-M6 pending a product-level re-point).
+ * get_dashboard_attention_counts deliberately STAYS here despite the
+ * content_items drop — see 20260706110000_id131_drops.sql's header for why
+ * (2 of its 9 returned fields are still content_items-shaped and will error
+ * post-M6 pending a product-level re-point).
+ *
+ * get_coverage_matrix / get_coverage_summary were REMOVED from this list
+ * (ID-131.19 fix-Executor escalation 2, DR-034 owner ruling): the
+ * content_items-era coverage feature (matrix/summary/routes/cron) is
+ * RETIRED, not re-pointed. Their DROP FUNCTION statements live in the
+ * companion migration `20260706104000_id131_coverage_retire.sql`. NOTE:
+ * `get_guide_coverage` remains listed below despite ALSO being
+ * content_items-shaped (LEFT JOIN content_items) — it still has a live,
+ * unstubbed caller outside the ID-131.19 coverage-retirement boundary
+ * (`app/api/guides/route.ts`), so it could not be retired here; it needs
+ * the same product-level re-point/stub decision as
+ * get_dashboard_attention_counts, tracked as a new escalation.
  *
  * get_content_win_rate ALSO stays (unrelated to the content_items drop): its
  * public function was already re-anchored to q_a_pair by CITE-EXT
@@ -182,8 +193,6 @@ const SURFACE_RPCS: readonly string[] = [
   'get_check_constraint_values',
   'get_content_owner_stats',
   'get_content_win_rate',
-  'get_coverage_matrix',
-  'get_coverage_summary',
   'get_dashboard_attention_counts',
   'get_dashboard_summary',
   'get_due_feed_sources',

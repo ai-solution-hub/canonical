@@ -1991,17 +1991,6 @@ export const RevokeSchema = z.object({
   clientId: z.string().uuid('Invalid client ID'),
 });
 
-/** PUT /api/coverage/targets — upsert coverage targets */
-const coverageTargetEntrySchema = z.object({
-  domain_id: z.string().uuid(),
-  metric_name: z.enum(['item_count', 'fresh_pct', 'max_expired']),
-  target_value: z.number().min(0),
-});
-
-export const CoverageTargetPutBodySchema = z.object({
-  targets: z.array(coverageTargetEntrySchema).min(1).max(200),
-});
-
 /**
  * Build a metadata update schema with DB-driven layer keys.
  *
@@ -2108,26 +2097,6 @@ export const GovernanceReviewParamsSchema = z.object({
     .transform((v) => Math.max(0, v)),
 });
 
-/** GET /api/coverage/gaps */
-const VALID_GAP_SOURCES = ['taxonomy', 'template', 'guide'] as const;
-const VALID_PRIORITY_TIERS = ['critical', 'high', 'medium', 'low'] as const;
-
-export const CoverageGapsParamsSchema = z.object({
-  source: z.enum(VALID_GAP_SOURCES).optional(),
-  priority: z.enum(VALID_PRIORITY_TIERS).optional(),
-  domain: z.string().max(200).optional(),
-  limit: z
-    .number()
-    .int()
-    .default(25)
-    .transform((v) => Math.min(Math.max(v, 1), 100)),
-  offset: z
-    .number()
-    .int()
-    .default(0)
-    .transform((v) => Math.max(0, v)),
-});
-
 /** GET /api/content-suggestions */
 export const ContentSuggestionsParamsSchema = z.object({
   limit: z
@@ -2165,11 +2134,6 @@ export const WorkspaceItemsParamsSchema = z.object({
 /** GET /api/workspaces */
 export const WorkspaceListParamsSchema = z.object({
   include_archived: booleanParam.optional(),
-});
-
-/** GET /api/coverage */
-export const CoverageMatrixParamsSchema = z.object({
-  layer: z.string().max(100).optional(),
 });
 
 /** GET /api/coverage/templates */
@@ -2679,19 +2643,6 @@ export const BatchCreateResultSchema = z.object({
   ),
   pipeline_run_id: z.string().nullable(),
   batch_id: z.string(),
-});
-
-/** R-WP17 ResponseSchema for `TargetsResponse` (hooks/use-coverage-targets.ts). Generated; strict per INV-S (TECH §3.1a). */
-export const TargetsResponseSchema = z.object({
-  targets: z.array(
-    z.object({
-      id: z.string(),
-      domain_id: z.string(),
-      metric_name: z.enum(['item_count', 'fresh_pct', 'max_expired']),
-      target_value: z.number(),
-      domain_name: z.string().nullable(),
-    }),
-  ),
 });
 
 /** R-WP17 ResponseSchema for `SendToReviewResult` (hooks/use-diff-review.ts). Generated; strict per INV-S (TECH §3.1a). */
@@ -3211,19 +3162,6 @@ export const EntityCoOccurrenceResponseSchema = z
         .loose(),
     ),
     total: z.number(),
-  })
-  .loose();
-
-/**
- * ResponseSchema for `PUT /api/coverage/targets` (defect-B5 fix). The PUT
- * upsert returns `{ success, count }`; only the GET on this route returns the
- * `{ targets }` shape that `TargetsResponseSchema` describes. The 32.20 codemod
- * bound `TargetsResponseSchema` to BOTH methods, so the PUT threw LOUD.
- */
-export const CoverageTargetsPutResponseSchema = z
-  .object({
-    success: z.boolean(),
-    count: z.number(),
   })
   .loose();
 

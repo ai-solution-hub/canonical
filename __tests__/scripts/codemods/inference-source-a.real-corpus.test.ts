@@ -500,10 +500,12 @@ describe('inferSchema binds mutationFetchJson write-response baseline interfaces
  * return. NO working-tree routes are wrapped here — the corpus rollout that
  * applies these correct bindings to the working tree is Task ID-49.
  *
- * These tests assert on the OBSERVABLE `inferSchema` output for each of the 6
- * method-bindings, plus the critical no-regression invariant that the
- * coverage/targets GET (which was CORRECTLY bound to `TargetsResponseSchema`)
- * is NOT disturbed by the method-keyed PUT override.
+ * These tests assert on the OBSERVABLE `inferSchema` output for each of the
+ * remaining method-bindings. The coverage/targets no-regression pair (GET
+ * correctly bound to `TargetsResponseSchema`, PUT correctly overridden to
+ * `CoverageTargetsPutResponseSchema`) was removed under ID-131.19
+ * fix-Executor escalation 2 (DR-034) — app/api/coverage/targets/route.ts
+ * and both schemas retired with the content_items-era coverage feature.
  *
  * Spec: docs/specs/id-16-ast-dataflow-tool/ops-t1-codemod/PLAN.md §0; task-list.json
  *       ID-32.28 (RE-SCOPED, OQ-10).
@@ -518,26 +520,13 @@ describe('inferSchema applies the defect-B5 binding-correction override (32.28)'
     });
   });
 
-  it('binds CoverageTargetsPutResponseSchema for PUT /api/coverage/targets (was TargetsResponseSchema)', () => {
-    const project = createCodemodProject();
-    const routes = enumerateRouteFiles(project);
-    const sf = routeBySuffix(routes, 'app/api/coverage/targets/route.ts');
-    expect(inferSchema(sf, 'PUT', project)).toEqual({
-      schema: 'CoverageTargetsPutResponseSchema',
-    });
-  });
-
-  it('does NOT disturb the CORRECT GET /api/coverage/targets binding (still TargetsResponseSchema)', () => {
-    // The GET genuinely returns `{ targets }` and was correctly bound. The
-    // method-keyed PUT override must not leak onto the GET — this guards the
-    // override against a route-level (method-blind) regression.
-    const project = createCodemodProject();
-    const routes = enumerateRouteFiles(project);
-    const sf = routeBySuffix(routes, 'app/api/coverage/targets/route.ts');
-    expect(inferSchema(sf, 'GET', project)).toEqual({
-      schema: 'TargetsResponseSchema',
-    });
-  });
+  // ID-131.19 fix-Executor escalation 2 (DR-034 owner ruling): the
+  // 'binds CoverageTargetsPutResponseSchema for PUT /api/coverage/targets'
+  // and 'does NOT disturb the CORRECT GET /api/coverage/targets binding'
+  // real-corpus cases that lived here were removed —
+  // app/api/coverage/targets/route.ts (and both schemas it bound) retired
+  // with the rest of the content_items-era coverage feature; zero remaining
+  // callers confirmed by rg before deletion.
 
   // ID-131.17: the batch-review and batch-workspaces real-corpus binding
   // cases were removed here — app/api/items/batch-review/route.ts and

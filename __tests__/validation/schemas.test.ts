@@ -16,7 +16,6 @@ import {
   PipelineRunsParamsSchema,
   ProcurementListParamsSchema,
   GovernanceReviewParamsSchema,
-  CoverageGapsParamsSchema,
   ContentSuggestionsParamsSchema,
   WorkspaceItemsParamsSchema,
   EntityCoOccurrenceParamsSchema,
@@ -818,14 +817,6 @@ const LIMIT_CLAMPING_SCHEMAS = [
     max: 100,
   },
   {
-    name: 'CoverageGapsParamsSchema',
-    schema: CoverageGapsParamsSchema,
-    field: 'limit',
-    defaultValue: 25,
-    min: 1,
-    max: 100,
-  },
-  {
     name: 'ContentSuggestionsParamsSchema',
     schema: ContentSuggestionsParamsSchema,
     field: 'limit',
@@ -959,7 +950,6 @@ const OFFSET_CLAMPING_SCHEMAS = [
     name: 'GovernanceReviewParamsSchema',
     schema: GovernanceReviewParamsSchema,
   },
-  { name: 'CoverageGapsParamsSchema', schema: CoverageGapsParamsSchema },
 ] as const;
 
 describe.each(OFFSET_CLAMPING_SCHEMAS)(

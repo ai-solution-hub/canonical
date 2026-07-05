@@ -90,8 +90,6 @@ const { GET: freshnessGet } =
   await import('@/app/api/cron/freshness-transitions/route');
 const { GET: classificationGet } =
   await import('@/app/api/cron/classification-quality/route');
-const { GET: coverageGet } =
-  await import('@/app/api/cron/coverage-alerts/route');
 const { GET: contentGapsGet } =
   await import('@/app/api/cron/content-gaps/route');
 
@@ -1529,192 +1527,13 @@ describe('GET /api/cron/classification-quality', () => {
   });
 });
 
-// ═══════════════════════════════════════════════════════════════════════════
-// GET /api/cron/coverage-alerts
-// ═══════════════════════════════════════════════════════════════════════════
-
-describe('GET /api/cron/coverage-alerts', () => {
-  it('returns 401 when cron auth fails', async () => {
-    mockVerifyCronAuth.mockReturnValue(false);
-
-    const req = cronRequest('/api/cron/coverage-alerts');
-    const res = await coverageGet(req);
-
-    expect(res.status).toBe(401);
-  });
-
-  it('returns 500 when coverage summary RPC fails', async () => {
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'RPC failed' },
-    });
-
-    const req = cronRequest('/api/cron/coverage-alerts');
-    const res = await coverageGet(req);
-
-    expect(res.status).toBe(500);
-  });
-
-  it('returns 200 with zero alerts when all domains are healthy', async () => {
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: [
-        {
-          domain_name: 'Engineering',
-          domain_colour: '#4A90D9',
-          total_items: 10,
-          fresh_pct: 80,
-          gap_count: 0,
-          expired_count: 0,
-        },
-      ],
-      error: null,
-    });
-
-    // Previous run snapshot with same healthy percentages
-    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-      data: {
-        result: {
-          Engineering: {
-            total_items: 10,
-            fresh_pct: 80,
-            gap_count: 0,
-            expired_count: 0,
-          },
-        },
-      },
-      error: null,
-    });
-
-    mockGetUsersByRole.mockResolvedValue(['admin-1']);
-
-    const req = cronRequest('/api/cron/coverage-alerts');
-    const res = await coverageGet(req);
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.critical_gaps).toBe(0);
-    expect(body.degraded_domains).toBe(0);
-  });
-
-  it('detects critical gap when a domain has zero fresh content', async () => {
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: [
-        {
-          domain_name: 'Engineering',
-          domain_colour: '#4A90D9',
-          total_items: 5,
-          fresh_pct: 0,
-          gap_count: 0,
-          expired_count: 5,
-        },
-      ],
-      error: null,
-    });
-
-    // No previous run (first run) — maybeSingle returns null data without error
-    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-      data: null,
-      error: null,
-    });
-
-    mockGetUsersByRole.mockResolvedValue(['admin-1']);
-    mockCreateBulkNotifications.mockResolvedValue({ count: 1, error: null });
-
-    // Existing domain alerts title check (returns empty)
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
-    );
-
-    const req = cronRequest('/api/cron/coverage-alerts');
-    const res = await coverageGet(req);
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.critical_gaps).toBe(1);
-    expect(body.notifications_created).toBe(1);
-  });
-
-  it('detects degradation when fresh percentage drops more than 20 points', async () => {
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: [
-        {
-          domain_name: 'Engineering',
-          domain_colour: '#4A90D9',
-          total_items: 10,
-          fresh_pct: 30,
-          gap_count: 0,
-          expired_count: 2,
-        },
-      ],
-      error: null,
-    });
-
-    // Previous run had 60% fresh (drop of 30 points, >20 threshold)
-    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-      data: {
-        result: {
-          Engineering: {
-            total_items: 10,
-            fresh_pct: 60,
-            gap_count: 0,
-            expired_count: 1,
-          },
-        },
-      },
-      error: null,
-    });
-
-    mockGetUsersByRole.mockResolvedValue(['admin-1']);
-    mockCreateBulkNotifications.mockResolvedValue({ count: 1, error: null });
-
-    // Existing domain alerts title check (returns empty)
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
-    );
-
-    const req = cronRequest('/api/cron/coverage-alerts');
-    const res = await coverageGet(req);
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.degraded_domains).toBe(1);
-  });
-
-  it('stores coverage snapshot in pipeline_runs for next comparison', async () => {
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: [
-        {
-          domain_name: 'Engineering',
-          domain_colour: '#4A90D9',
-          total_items: 10,
-          fresh_pct: 90,
-          gap_count: 0,
-          expired_count: 0,
-        },
-      ],
-      error: null,
-    });
-
-    // No previous run — maybeSingle returns null data without error
-    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-      data: null,
-      error: null,
-    });
-
-    mockGetUsersByRole.mockResolvedValue([]);
-
-    const req = cronRequest('/api/cron/coverage-alerts');
-    const res = await coverageGet(req);
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.snapshot_stored).toBe(true);
-
-    // Verify pipeline_runs insert was called
-    const fromCalls = mockSupabase.from.mock.calls.map((c: unknown[]) => c[0]);
-    expect(fromCalls).toContain('pipeline_runs');
-  });
-});
+// GET /api/cron/coverage-alerts was retired under ID-131.19 fix-Executor
+// escalation 2 (DR-034 owner ruling) — the content_items-era coverage
+// feature (matrix/summary/routes/cron) is retired, not re-pointed. Its
+// describe block, and the vercel.json cron registration, were removed in
+// the same commit. GET /api/cron/content-gaps below is unrelated — it runs
+// on the already-repointed (q_a_pairs/reference_items) template-completion
+// coverage engine, not content_items, and survives untouched.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // GET /api/cron/content-gaps

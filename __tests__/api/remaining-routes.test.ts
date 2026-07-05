@@ -52,8 +52,6 @@ const { GET: digestLatestGet } =
   await import('@/app/api/change-reports/latest/route');
 const { GET: digestListGet } =
   await import('@/app/api/change-reports/list/route');
-const { GET: coverageGuidesGet } =
-  await import('@/app/api/coverage/guides/route');
 const { PATCH: guideSectionPatch, DELETE: guideSectionDelete } =
   await import('@/app/api/guides/[slug]/sections/[sectionId]/route');
 const { GET: completionDownloadGet } =
@@ -393,110 +391,14 @@ describe('GET /api/change-reports/list', () => {
   });
 });
 
-// ═══════════════════════════════════════════════════════════════════════════
-// GET /api/coverage/guides
-// ═══════════════════════════════════════════════════════════════════════════
-
-describe('GET /api/coverage/guides', () => {
-  it('returns 401 when unauthenticated', async () => {
-    configureUnauthenticated(mockSupabase);
-
-    const res = await coverageGuidesGet();
-    expect(res.status).toBe(401);
-
-    const body = await res.json();
-    expect(body.error).toBe('Unauthorised');
-  });
-
-  it('returns 429 when rate limited', async () => {
-    mockCheckRateLimit.mockReturnValueOnce({ allowed: false, remaining: 0 });
-
-    const res = await coverageGuidesGet();
-    expect(res.status).toBe(429);
-  });
-
-  it('returns 200 with empty guides when no data', async () => {
-    mockSupabase.rpc.mockResolvedValueOnce({ data: [], error: null });
-
-    const res = await coverageGuidesGet();
-    expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body.guides).toEqual([]);
-    expect(body.summary).toEqual({
-      total_guides: 0,
-      fully_populated: 0,
-      partially_populated: 0,
-      empty: 0,
-    });
-  });
-
-  it('returns 200 with grouped guide coverage data', async () => {
-    const rpcRows = [
-      {
-        guide_id: VALID_UUID,
-        guide_name: 'Test Guide',
-        guide_slug: 'test-guide',
-        guide_type: 'bid',
-        domain_filter: 'Engineering',
-        section_id: VALID_UUID_2,
-        section_name: 'Introduction',
-        section_order: 1,
-        expected_layer: 'brief',
-        is_required: true,
-        content_count: 3,
-        fresh_count: 2,
-        stale_count: 0,
-      },
-      {
-        guide_id: VALID_UUID,
-        guide_name: 'Test Guide',
-        guide_slug: 'test-guide',
-        guide_type: 'bid',
-        domain_filter: 'Engineering',
-        section_id: VALID_UUID_3,
-        section_name: 'Details',
-        section_order: 2,
-        expected_layer: 'detail',
-        is_required: false,
-        content_count: 0,
-        fresh_count: 0,
-        stale_count: 0,
-      },
-    ];
-
-    mockSupabase.rpc.mockResolvedValueOnce({ data: rpcRows, error: null });
-
-    const res = await coverageGuidesGet();
-    expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body.guides).toHaveLength(1);
-    expect(body.guides[0].name).toBe('Test Guide');
-    expect(body.guides[0].sections).toHaveLength(2);
-    expect(body.guides[0].total_sections).toBe(2);
-    expect(body.guides[0].populated_sections).toBe(1);
-    expect(body.guides[0].required_sections).toBe(1);
-    expect(body.guides[0].populated_required).toBe(1);
-    expect(body.guides[0].sections[0].status).toBe('populated');
-    expect(body.guides[0].sections[1].status).toBe('empty');
-    expect(body.summary.total_guides).toBe(1);
-    expect(body.summary.partially_populated).toBe(1);
-  });
-
-  it('returns 500 when RPC fails', async () => {
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'RPC error', code: '50000' },
-    });
-
-    const res = await coverageGuidesGet();
-    expect(res.status).toBe(500);
-
-    const body = await res.json();
-    expect(body.error).toBe('Failed to load guide coverage data');
-  });
-});
+// GET /api/coverage/guides was retired under ID-131.19 fix-Executor
+// escalation 2 (DR-034 owner ruling) — the content_items-era coverage
+// feature is retired, not re-pointed. Its describe block was removed in the
+// same commit. NOTE: the backing `get_guide_coverage` RPC itself was NOT
+// dropped — `app/api/guides/route.ts` below is a separate, still-live
+// caller outside this Subtask's boundary; see the migration header
+// (supabase/migrations-blocked/20260706104000_id131_coverage_retire.sql)
+// for the unresolved escalation this leaves open.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PATCH /api/guides/[slug]/sections/[sectionId]

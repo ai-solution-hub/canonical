@@ -66,12 +66,6 @@
     }
   },
   {
-    "interface": "TargetsResponse",
-    "declaredAt": {
-      "file": "hooks/use-coverage-targets.ts"
-    }
-  },
-  {
     "interface": "SendToReviewResult",
     "declaredAt": {
       "file": "hooks/use-diff-review.ts"

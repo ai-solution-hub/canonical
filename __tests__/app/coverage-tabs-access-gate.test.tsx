@@ -3,6 +3,13 @@
  *
  * Verifies that viewer role is redirected away from /coverage,
  * while editors and admins retain full access.
+ *
+ * ID-131.19 fix-Executor escalation 2 (DR-034): CoveragePageTabs no longer
+ * hosts multiple tabs (taxonomy/priority-gaps/guides retired) — it renders
+ * the single surviving TemplateCoverageContent view directly. The
+ * deep-link (?tab=) coverage that lived alongside this file retired with
+ * the multi-tab shell; only the access-gating behaviour is still relevant
+ * here.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -12,7 +19,7 @@ import { render, screen } from '@testing-library/react';
 // vi.hoisted() -- mocks referenced in vi.mock() factories
 // ---------------------------------------------------------------------------
 
-const { mockReplace, mockUserRole, mockSearchParamsStore } = vi.hoisted(() => ({
+const { mockReplace, mockUserRole } = vi.hoisted(() => ({
   mockReplace: vi.fn(),
   mockUserRole: {
     role: 'editor' as string | null,
@@ -20,29 +27,10 @@ const { mockReplace, mockUserRole, mockSearchParamsStore } = vi.hoisted(() => ({
     canEdit: true,
     canAdmin: false,
   },
-  mockSearchParamsStore: {
-    store: new Map<string, string>(),
-    get(key: string) {
-      return this.store.get(key) ?? null;
-    },
-    toString() {
-      const params = new URLSearchParams();
-      this.store.forEach((v: string, k: string) => params.set(k, v));
-      return params.toString();
-    },
-    set(key: string, value: string) {
-      this.store.set(key, value);
-    },
-    clear() {
-      this.store.clear();
-    },
-  },
 }));
 
 vi.mock('next/navigation', () => ({
-  useSearchParams: () => mockSearchParamsStore,
   useRouter: () => ({ replace: mockReplace }),
-  usePathname: () => '/coverage',
 }));
 
 vi.mock('@/hooks/use-user-role', () => ({
@@ -53,24 +41,10 @@ vi.mock('@/components/ui/concept-help', () => ({
   ConceptHelp: () => null,
 }));
 
-// Stub child tab components to isolate the access-gating logic
-vi.mock('@/app/coverage/coverage-content', () => ({
-  CoverageContent: () => <div data-testid="tab-taxonomy">Taxonomy</div>,
-}));
-
+// Stub the surviving tab content to isolate the access-gating logic.
 vi.mock('@/components/coverage/template-coverage-content', () => ({
   TemplateCoverageContent: () => (
     <div data-testid="tab-templates">Templates</div>
-  ),
-}));
-
-vi.mock('@/components/coverage/coverage-guide-tab', () => ({
-  CoverageGuideTab: () => <div data-testid="tab-guides">Guides content</div>,
-}));
-
-vi.mock('@/components/coverage/priority-gaps-tab', () => ({
-  PriorityGapsTab: () => (
-    <div data-testid="tab-priority-gaps">Priority Gaps</div>
   ),
 }));
 
@@ -83,7 +57,6 @@ import { CoveragePageTabs } from '@/app/coverage/coverage-tabs';
 describe('CoveragePageTabs access gating (P1-11)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSearchParamsStore.clear();
     // Default: editor with access
     mockUserRole.role = 'editor';
     mockUserRole.loading = false;
@@ -101,12 +74,12 @@ describe('CoveragePageTabs access gating (P1-11)', () => {
     const { container } = render(<CoveragePageTabs />);
 
     expect(mockReplace).toHaveBeenCalledWith('/browse');
-    // Should render nothing (null) -- no tabs visible
+    // Should render nothing (null) -- no content visible
     expect(container.innerHTML).toBe('');
   });
 
   // Test 2: Editor access
-  it('renders tabs for editor role', () => {
+  it('renders the template coverage view for editor role', () => {
     mockUserRole.role = 'editor';
     mockUserRole.canEdit = true;
     mockUserRole.canAdmin = false;
@@ -118,11 +91,11 @@ describe('CoveragePageTabs access gating (P1-11)', () => {
     expect(
       screen.getByRole('heading', { name: /coverage dashboard/i }),
     ).toBeInTheDocument();
-    expect(screen.getByTestId('tab-priority-gaps')).toBeInTheDocument();
+    expect(screen.getByTestId('tab-templates')).toBeInTheDocument();
   });
 
   // Test 3: Admin access
-  it('renders tabs for admin role', () => {
+  it('renders the template coverage view for admin role', () => {
     mockUserRole.role = 'admin';
     mockUserRole.canEdit = true;
     mockUserRole.canAdmin = true;
@@ -134,11 +107,11 @@ describe('CoveragePageTabs access gating (P1-11)', () => {
     expect(
       screen.getByRole('heading', { name: /coverage dashboard/i }),
     ).toBeInTheDocument();
-    expect(screen.getByTestId('tab-priority-gaps')).toBeInTheDocument();
+    expect(screen.getByTestId('tab-templates')).toBeInTheDocument();
   });
 
   // Test 4: Loading state -- no redirect while loading
-  // Intent: the guard renders the full tabs UI while `loading: true` so that
+  // Intent: the guard renders the full view while `loading: true` so that
   // editors/admins never see a flash-of-redirect during the role resolution
   // tick. The positive assertion on the heading documents the expected
   // visible state; the negative assertion on `mockReplace` is the critical

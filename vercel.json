@@ -64,10 +64,6 @@
       "schedule": "45 3 * * *"
     },
     {
-      "path": "/api/cron/coverage-alerts",
-      "schedule": "0 5 * * 1"
-    },
-    {
       "path": "/api/cron/content-gaps",
       "schedule": "30 5 * * 1"
     },

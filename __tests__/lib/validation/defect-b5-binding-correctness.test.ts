@@ -56,9 +56,6 @@ const coOccurrenceBody = {
   total: 1,
 };
 
-/** PUT /api/coverage/targets — `{ success, count }` (route.ts:100). */
-const coverageTargetsPutBody = { success: true, count: 3 };
-
 /** POST /api/items/batch-review — `{ updated }` (route.ts:53). */
 const batchReviewBody = { updated: 7 };
 
@@ -118,28 +115,13 @@ describe('DEFECT-B5 — corrected ResponseSchema bindings (ID-32.28)', () => {
     });
   });
 
-  describe('coverage/targets PUT — CoverageTargetsPutResponseSchema', () => {
-    const schema = () => getSchema('CoverageTargetsPutResponseSchema');
-
-    it('is exported', () => {
-      expect(schema()).toBeDefined();
-    });
-
-    it('ACCEPTS `{ success, count }`', () => {
-      expect(schema().safeParse(coverageTargetsPutBody).success).toBe(true);
-    });
-
-    it('REJECTS a body missing count', () => {
-      expect(schema().safeParse({ success: true }).success).toBe(false);
-    });
-
-    it('proves defect: old TargetsResponseSchema REJECTS the real PUT body', () => {
-      expect(
-        getSchema('TargetsResponseSchema').safeParse(coverageTargetsPutBody)
-          .success,
-      ).toBe(false);
-    });
-  });
+  // The 'coverage/targets PUT — CoverageTargetsPutResponseSchema' block that
+  // lived here was removed under ID-131.19 fix-Executor escalation 2
+  // (DR-034 owner ruling): app/api/coverage/targets/route.ts, its PUT
+  // handler, and both CoverageTargetsPutResponseSchema/TargetsResponseSchema
+  // retired with the rest of the content_items-era coverage feature (the
+  // taxonomy/priority-gaps/guides tabs and target-editor UI were its only
+  // callers, and all retired in the same commit).
 
   describe('items/batch-review — BatchReviewResponseSchema', () => {
     const schema = () => getSchema('BatchReviewResponseSchema');

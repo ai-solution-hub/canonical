@@ -285,11 +285,6 @@ const CASES_BY_GROUP: Record<string, SchemaCase[]> = {
       },
     },
     {
-      schema: 'TargetsResponseSchema',
-      valid: { targets: [] },
-      invalid: { targets: 'none' },
-    },
-    {
       schema: 'SendToReviewResultSchema',
       valid: {
         sent: 1,
@@ -821,11 +816,15 @@ describe('Source-A findSchemaConstant resolves R-WP17 schemas (AC-5)', () => {
     'QaDedupResolveResult',
   ]);
 
-  it('baseline has 36 entries', () => {
+  it('baseline has 35 entries', () => {
     // Was 42; 6 Dedup/NearDup entries retired under ID-131.15 (G-DEDUP
     // legacy dedup-family retirement, S446) alongside the admin
-    // content-dedup routes/schemas they baselined.
-    expect(baseline.length).toBe(36);
+    // content-dedup routes/schemas they baselined. Was 36; the
+    // `TargetsResponse` entry (declaredAt hooks/use-coverage-targets.ts) was
+    // retired under ID-131.19 fix-Executor escalation 2 (DR-034 owner
+    // ruling) alongside the rest of the content_items-era coverage feature
+    // — the hook (and its sole fetcher call site) no longer exists.
+    expect(baseline.length).toBe(35);
   });
 
   it('resolves a real ${interface}Schema for every baseline interface — never null', () => {

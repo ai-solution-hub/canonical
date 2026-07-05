@@ -1,0 +1,83 @@
+-- ID-131.19 fix-Executor escalation 2 (S450 Wave 1) — coverage_retire:
+-- drop the 2 content_items-shaped coverage RPCs per DR-034 (owner ruling).
+--
+-- AUTHORED, NOT APPLIED — owner-gated apply in the {131.19} GO sequence,
+-- AFTER facet-mint (20260706100000) and BEFORE/ALONGSIDE M6
+-- (20260706110000_id131_drops.sql, which drops the `content_items` table
+-- itself). No `supabase db push`, no MCP apply, no types regen in this
+-- Subtask. Sequencing note: dropping these two functions has no ordering
+-- dependency on the M6 content_items drop (a `LANGUAGE sql` function body is
+-- not catalog-bound to the tables it queries the way a view is — DROP
+-- FUNCTION never fails and DROP TABLE never fails because of this file
+-- either way), but the {131.19} GO applies this one first per the owner's
+-- sequencing note in the dispatch brief.
+--
+-- ============================================================================
+-- WHY — DR-034 (owner ruling, binding, cited verbatim from the fix-Executor
+-- dispatch brief): "the content_items-era coverage feature (matrix/summary/
+-- routes/cron) is RETIRED, not re-pointed; retain template-completion
+-- coverage + governance signals only."
+--
+-- M6's own header (20260706110000_id131_drops.sql, escalation item 2)
+-- documented `get_coverage_matrix(p_layer)` / `get_coverage_summary()` as
+-- entirely content_items-shaped (LEFT JOIN content_items on
+-- primary_domain/primary_subtopic/publication_status/freshness) and flagged
+-- them as needing a product-level decision BEFORE the content_items drop
+-- applies, since 3 TS callers would otherwise start erroring at their next
+-- call: app/api/coverage/route.ts, app/api/coverage/gaps/route.ts (its
+-- taxonomy-gap source only — its template-gap source is unrelated and
+-- survives via a route deletion, not a stub), and the unattended
+-- app/api/cron/coverage-alerts/route.ts cron. DR-034 resolves that
+-- open question as RETIREMENT: this Subtask deletes all three TS callers
+-- (plus their supporting UI: the taxonomy/priority-gaps/guides tabs) in the
+-- same commit as this migration, so by apply time there is no live caller
+-- left to error. The surviving `/coverage` page renders only the
+-- template-completion tab (`template-coverage-content.tsx`, already
+-- re-pointed off content_items onto q_a_pairs/reference_items by an earlier
+-- {131} Subtask — no RPC dependency, unaffected by this drop).
+--
+-- NEW ESCALATION surfaced during this Subtask's dependency audit (not in
+-- M6's original 3-item list): `get_guide_coverage()` (public + api) is a
+-- FOURTH content_items-shaped RPC (LEFT JOIN content_items on
+-- primary_domain/primary_subtopic/layer/content_type/publication_status —
+-- structurally identical to get_coverage_matrix) that will ALSO start
+-- erroring post-M6. It is NOT dropped here. Its callers split across the
+-- fix-Executor boundary: app/api/coverage/guides/route.ts and the
+-- guide-gap source in app/api/coverage/gaps/route.ts (both IN this
+-- Subtask's boundary, both deleted below, per the same DR-034
+-- content_items-era classification) — but app/api/guides/route.ts (OUTSIDE
+-- this Subtask's file-ownership boundary) ALSO calls
+-- `supabase.rpc('get_guide_coverage')` and remains live. Deleting only the
+-- in-boundary callers does not fix the underlying danger: the function
+-- itself will error at its next call from app/api/guides/route.ts once
+-- content_items is dropped. This needs the same product-level decision as
+-- M6's own escalation item 1 (get_dashboard_attention_counts) — is guide
+-- freshness a "governance signal" to re-point, or content_items-era to
+-- retire alongside app/api/guides/route.ts's own consumer? Out of an
+-- Executor's authority to decide or fix (touches a file outside this
+-- Subtask's boundary). `get_guide_coverage` is therefore intentionally left
+-- OUT of both this migration's DROP list and generate-api-views.ts's
+-- SURFACE_RPCS pruning — see that file's updated header comment.
+-- ============================================================================
+--
+-- WHAT: drop `get_coverage_matrix(p_layer)` / `get_coverage_summary()` in
+-- BOTH the `api` (Data API wrapper, INVOKER entrypoint) and `public`
+-- (backing implementation) schemas, exact signatures pulled from the last
+-- whole-surface regen (20260625160000_id130_api_views_regen.sql) /
+-- baseline (20260617130000_squash_baseline.sql) — identical signatures
+-- across both. Dependents (api wrappers) dropped before their base
+-- (public) objects, mirroring M6's own ordering convention. Idempotent
+-- (`IF EXISTS`) and safely re-runnable.
+--
+-- Companion generator edit: `get_coverage_matrix` / `get_coverage_summary`
+-- removed from SURFACE_RPCS in scripts/generate-api-views.ts (same commit)
+-- so the next whole-surface regen does not resurrect the api.* wrappers
+-- this migration drops.
+
+-- STEP 1 — drop the api.* wrapper (INVOKER entrypoint) for both functions.
+DROP FUNCTION IF EXISTS api.get_coverage_matrix(p_layer text);
+DROP FUNCTION IF EXISTS api.get_coverage_summary();
+
+-- STEP 2 — drop the public.* backing implementation for both functions.
+DROP FUNCTION IF EXISTS public.get_coverage_matrix(p_layer text);
+DROP FUNCTION IF EXISTS public.get_coverage_summary();

@@ -61,7 +61,11 @@ vi.mock('@/lib/domains/procurement/form-templating/template-coverage', () => ({
 }));
 
 // Import route handlers AFTER mocks are registered
-const { GET: coverageGet } = await import('@/app/api/coverage/route');
+//
+// GET /api/coverage (matrix + summary) was retired by ID-131.19 fix-Executor
+// escalation 2 (DR-034 owner ruling) — the content_items-era coverage
+// feature is retired, not re-pointed. Its describe block below was removed
+// in the same commit.
 const { GET: templatesGet } =
   await import('@/app/api/coverage/templates/route');
 const { GET: templatesListGet } =
@@ -174,88 +178,6 @@ beforeEach(() => {
     top_gaps: [],
   });
   mockFetchContentForMatching.mockResolvedValue([]);
-});
-
-// =============================================================================
-// GET /api/coverage
-// =============================================================================
-
-describe('GET /api/coverage', () => {
-  it('returns 401 when unauthenticated', async () => {
-    configureUnauthenticated(mockSupabase);
-
-    const req = createTestRequest('/api/coverage');
-    const res = await coverageGet(req);
-    expect(res.status).toBe(401);
-
-    const body = await res.json();
-    expect(body.error).toBe('Unauthorised');
-  });
-
-  it('returns 200 with matrix and summary data on success', async () => {
-    const matrixData = [
-      { domain: 'Engineering', subtopic: 'DevOps', count: 5 },
-    ];
-    const summaryData = [{ domain: 'Engineering', total: 10 }];
-
-    mockSupabase.rpc
-      .mockResolvedValueOnce({ data: matrixData, error: null })
-      .mockResolvedValueOnce({ data: summaryData, error: null });
-
-    const req = createTestRequest('/api/coverage');
-    const res = await coverageGet(req);
-    expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body.matrix).toEqual(matrixData);
-    expect(body.summary).toEqual(summaryData);
-  });
-
-  it('returns coverage scoped to the requested layer', async () => {
-    mockSupabase.rpc
-      .mockResolvedValueOnce({ data: [], error: null })
-      .mockResolvedValueOnce({ data: [], error: null });
-
-    const req = createTestRequest('/api/coverage', {
-      searchParams: { layer: 'brief' },
-    });
-    const res = await coverageGet(req);
-    expect(res.status).toBe(200);
-
-    expect(mockSupabase.rpc).toHaveBeenCalledWith('get_coverage_matrix', {
-      p_layer: 'brief',
-    });
-  });
-
-  it('returns 500 when matrix RPC fails', async () => {
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'RPC error' },
-    });
-
-    const req = createTestRequest('/api/coverage');
-    const res = await coverageGet(req);
-    expect(res.status).toBe(500);
-
-    const body = await res.json();
-    expect(body.error).toBe('Failed to load coverage data');
-  });
-
-  it('returns 500 when summary RPC fails', async () => {
-    mockSupabase.rpc
-      .mockResolvedValueOnce({ data: [], error: null })
-      .mockResolvedValueOnce({
-        data: null,
-        error: { message: 'Summary RPC error' },
-      });
-
-    const req = createTestRequest('/api/coverage');
-    const res = await coverageGet(req);
-    expect(res.status).toBe(500);
-
-    const body = await res.json();
-    expect(body.error).toBe('Failed to load coverage summary');
-  });
 });
 
 // =============================================================================

@@ -106,14 +106,6 @@ export const queryKeys = {
     ownedHealth: ['dashboard', 'owned-health'] as const,
   },
 
-  // Coverage
-  coverage: {
-    all: ['coverage'] as const,
-    matrix: ['coverage', 'matrix'] as const,
-    gaps: ['coverage', 'gaps'] as const,
-    targets: ['coverage', 'targets'] as const,
-  },
-
   // Read marks
   readMarks: {
     all: ['read-marks'] as const,
