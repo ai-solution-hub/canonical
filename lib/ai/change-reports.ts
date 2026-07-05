@@ -552,12 +552,20 @@ export async function generateChangeReport(
   // Collect governance data for the period
   let governanceSummary: ChangeReportGovernanceSummary | null = null;
   try {
-    // Count modified items in period
+    // Count modified items in period. ID-131.19 S450 Wave 1 Fix 4:
+    // re-pointed off content_history (drops at M6) onto source_documents —
+    // the digest's "items" concept is already scoped to source_documents
+    // throughout this file (the item-fetch query above), so counting
+    // distinct documents touched in the period via `updated_at` (ID-131
+    // {131.9} M3, added specifically so the record_lifecycle freshness facet
+    // recalc had an updated_at to read) is the consistent re-point — and
+    // arguably MORE correct than the old content_history-row count, which
+    // double-counted an item edited multiple times in the period.
     const { count: modifiedCount } = await supabase
-      .from('content_history')
+      .from('source_documents')
       .select('*', { count: 'exact', head: true })
-      .gte('created_at', periodStartISO)
-      .lte('created_at', periodEndISO);
+      .gte('updated_at', periodStartISO)
+      .lte('updated_at', periodEndISO);
 
     // Count verified items in period. ID-131 {131.19}: verified_at now lives
     // on the record_lifecycle facet (governance axis, BI-20).

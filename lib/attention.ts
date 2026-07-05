@@ -87,7 +87,14 @@ export interface AttentionSourceData {
   expiring_cert_count: number;
   expiring_content_date_count: number;
   unread_notification_count: number;
-  coverage_gap_count: number;
+  // coverage_gap_count RETIRED (ID-131.19 S450 Wave 1 Fix 1) — the
+  // content_items-era "active taxonomy_subtopics with zero content" concept
+  // has no home post content_items retirement (DR-034: coverage feature
+  // retired, retain template-completion coverage + governance signals
+  // only). produceCoverageGapItems removed alongside; 'coverage_gap' stays
+  // in AttentionItem['type'] as an unreachable-but-harmless union member so
+  // lib/mcp/tools/review.ts's FACET_BY_TYPE (untouched — out of this
+  // Subtask's file-ownership boundary) needs no edit.
   /**
    * Count of non-archived content_items whose taxonomy classification is
    * incomplete — `primary_domain = 'unclassified'` OR
@@ -377,31 +384,6 @@ export function produceUnreadNotificationItems(count: number): AttentionItem[] {
 }
 
 /**
- * Coverage gaps — info severity.
- * Visible to editors and admins who manage content.
- */
-export function produceCoverageGapItems(gapCount: number): AttentionItem[] {
-  if (gapCount <= 0) return [];
-
-  return [
-    {
-      id: 'attention-coverage-gaps',
-      type: 'coverage_gap',
-      severity: 'info',
-      entity_type: 'aggregate',
-      entity_id: 'coverage-gaps',
-      title: `${gapCount} coverage ${gapCount === 1 ? 'gap' : 'gaps'} identified`,
-      detail: `${gapCount} ${gapCount === 1 ? 'area has' : 'areas have'} insufficient or missing content coverage.`,
-      action_url: '/coverage',
-      action_label: 'View coverage gaps',
-      role_visibility: ['admin', 'editor'],
-      claude_prompt: `There are ${gapCount} coverage gaps in the knowledge base. Show me the gaps and suggest which to address first.`,
-      count: gapCount,
-    },
-  ];
-}
-
-/**
  * Taxonomy-coverage gap — info severity.
  *
  * Surfaces content_items that landed on the 'unclassified' taxonomy sentinel
@@ -499,7 +481,6 @@ export function buildAttentionItems(
     ...produceExpiringCertItems(data.expiring_cert_count),
     ...produceExpiringContentDateItems(data.expiring_content_date_count),
     ...produceUnreadNotificationItems(data.unread_notification_count),
-    ...produceCoverageGapItems(data.coverage_gap_count),
     ...produceTaxonomyCoverageItems(data.unclassified_count),
   ];
 

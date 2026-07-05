@@ -94,14 +94,17 @@ const TEST_USER_ID = 'user-abc-123';
  * Helper: configure the mock so that fetchReorientData
  * gets sensible defaults for all its queries.
  *
- * The function structure is:
- *   1. Promise.all for lastActivity:
- *      - from('content_history') for write activity
- *      - from('read_marks') for read activity
+ * The function structure is (ID-131.19 S450 Wave 1 Fix 4: the content_history
+ * "last write" leg and the content_history-sourced team-changes/recent-work
+ * legs are RETIRED — content_history drops at M6 and no logical replacement
+ * exists; see lib/reorient.ts's retirement comments for the full audit.
+ * Retired legs never issue a from() call — they are Promise.resolve stubs —
+ * so they no longer consume a `fromCalls` slot below):
+ *   1. from('read_marks') for read activity (lastActivity)
  *   2. Then Promise.all with:
  *      a) Promise.allSettled with 8 items:
- *         [0] from('content_history') — team changes
- *         [1] from('content_history') — recent work
+ *         [0] team changes — RETIRED, Promise.resolve stub, no from() call.
+ *         [1] recent work — RETIRED, Promise.resolve stub, no from() call.
  *         [2] rpc('get_freshness_breakdown')
  *         [3] from('record_lifecycle') or Promise.resolve — governance reviews
  *            (ID-131 {131.19} G-GOV-FACET: content_items retired)
@@ -118,11 +121,8 @@ const TEST_USER_ID = 'user-abc-123';
  */
 function setupDefaultMock(
   overrides: {
-    lastActivityData?: unknown[];
     lastReadActivityData?: unknown[];
     authUser?: Record<string, unknown> | null;
-    teamChangesData?: unknown[];
-    recentWorkData?: unknown[];
     workspacesData?: unknown[];
     batchStatsData?: unknown[];
     freshnessData?: unknown[];
@@ -151,37 +151,16 @@ function setupDefaultMock(
     count: number | null;
   }> = [];
 
-  // Call 0: content_history for lastActivity (write)
-  fromCalls.push({
-    data: overrides.lastActivityData ?? [
-      { created_at: '2026-03-08T08:00:00Z' },
-    ],
-    error: null,
-    count: null,
-  });
-
-  // Call 1: read_marks for lastActivity (read)
+  // Call 0: read_marks for lastActivity (read)
   fromCalls.push({
     data: overrides.lastReadActivityData ?? [],
     error: null,
     count: null,
   });
 
-  // Promise.allSettled from() calls (indices 0-7 in results):
-  // [0] team changes — from('content_history')
-  fromCalls.push({
-    data: overrides.teamChangesData ?? [],
-    error: null,
-    count: null,
-  });
-
-  // [1] recent work — from('content_history')
-  fromCalls.push({
-    data: overrides.recentWorkData ?? [],
-    error: null,
-    count: null,
-  });
-
+  // Promise.allSettled from() calls (queries 2/3 above — team changes / recent
+  // work — are retired Promise.resolve stubs and never call from(), so the
+  // NEXT from() call slot is query 3, governance reviews):
   // [3] governance reviews — from('record_lifecycle') (ID-131 {131.19}:
   // content_items retired, governance_review_status now on the facet)
   fromCalls.push({
@@ -366,42 +345,14 @@ describe('fetchReorientData', () => {
   // last_active_at resolution
   // =========================================================================
 
+  // ID-131.19 S450 Wave 1 Fix 4: the content_history "last write" leg is
+  // RETIRED (content_history drops at M6; no cross-entity-type write-
+  // timestamp equivalent exists) — last_active_at now derives from
+  // read_marks, then last_sign_in_at, then null. The "more recent of the
+  // two" scenarios this block used to test no longer apply.
   describe('last_active_at', () => {
-    it('returns last_active_at from content_history when it is more recent than read_marks', async () => {
+    it('returns last_active_at from read_marks when present', async () => {
       const mock = setupDefaultMock({
-        lastActivityData: [{ created_at: '2026-03-08T09:00:00Z' }],
-        lastReadActivityData: [{ read_at: '2026-03-08T08:00:00Z' }],
-      });
-
-      const result = await fetchReorientData(
-        mock as unknown as Parameters<typeof fetchReorientData>[0],
-        TEST_USER_ID,
-        false,
-        'editor',
-      );
-
-      expect(result.last_active_at).toBe('2026-03-08T09:00:00Z');
-    });
-
-    it('returns last_active_at from read_marks when it is more recent than content_history', async () => {
-      const mock = setupDefaultMock({
-        lastActivityData: [{ created_at: '2026-03-08T07:00:00Z' }],
-        lastReadActivityData: [{ read_at: '2026-03-08T09:30:00Z' }],
-      });
-
-      const result = await fetchReorientData(
-        mock as unknown as Parameters<typeof fetchReorientData>[0],
-        TEST_USER_ID,
-        false,
-        'editor',
-      );
-
-      expect(result.last_active_at).toBe('2026-03-08T09:30:00Z');
-    });
-
-    it('returns last_active_at from read_marks when no content_history exists', async () => {
-      const mock = setupDefaultMock({
-        lastActivityData: [],
         lastReadActivityData: [{ read_at: '2026-03-08T08:30:00Z' }],
       });
 
@@ -415,25 +366,9 @@ describe('fetchReorientData', () => {
       expect(result.last_active_at).toBe('2026-03-08T08:30:00Z');
     });
 
-    it('returns last_active_at from content_history when no read_marks exist', async () => {
+    it('falls back to last_sign_in_at when no read_marks', async () => {
       const mock = setupDefaultMock({
-        lastActivityData: [{ created_at: '2026-03-08T08:30:00Z' }],
         lastReadActivityData: [],
-      });
-
-      const result = await fetchReorientData(
-        mock as unknown as Parameters<typeof fetchReorientData>[0],
-        TEST_USER_ID,
-        false,
-        'editor',
-      );
-
-      expect(result.last_active_at).toBe('2026-03-08T08:30:00Z');
-    });
-
-    it('falls back to last_sign_in_at when no content_history or read_marks', async () => {
-      const mock = setupDefaultMock({
-        lastActivityData: [],
         authUser: {
           id: TEST_USER_ID,
           email: 'liam@example.com',
@@ -452,9 +387,8 @@ describe('fetchReorientData', () => {
       expect(result.last_active_at).toBe('2026-03-07T14:00:00Z');
     });
 
-    it('falls back to null when no content_history, read_marks, or last_sign_in_at available', async () => {
+    it('falls back to null when no read_marks or last_sign_in_at available', async () => {
       const mock = setupDefaultMock({
-        lastActivityData: [],
         lastReadActivityData: [],
         authUser: {
           id: TEST_USER_ID,
@@ -474,29 +408,65 @@ describe('fetchReorientData', () => {
       // last_active_at should be null, and the sinceDate will fall back to 24h ago
       expect(result.last_active_at).toBeNull();
     });
-  });
 
-  // =========================================================================
-  // Team changes
-  // =========================================================================
-
-  describe('team_changes', () => {
-    it('excludes the current user from team changes', async () => {
+    // ID-131.19 S450 Wave 1 Fix 4: the read_marks query is now wrapped in
+    // tryQuery() (not sb()) so a failure degrades gracefully to the
+    // last_sign_in_at fallback and is tracked in `errors`, rather than
+    // throwing and aborting the whole reorient fetch.
+    it('degrades gracefully to last_sign_in_at when the read_marks query fails, tracking the error', async () => {
       const mock = setupDefaultMock({
-        teamChangesData: [
-          {
-            id: 'ch-1',
-            content_item_id: 'item-1',
-            change_type: 'edit',
-            change_summary: 'Updated policy',
-            created_by: 'other-user-1',
-            created_at: '2026-03-08T09:00:00Z',
-            content_items: {
-              title: 'Data Protection Policy',
-              primary_domain: 'Corporate',
-            },
-          },
-        ],
+        authUser: {
+          id: TEST_USER_ID,
+          email: 'liam@example.com',
+          user_metadata: {},
+          last_sign_in_at: '2026-03-07T14:00:00Z',
+        },
+      });
+
+      // Override from() entirely for this test — only the read_marks
+      // failure path matters here, not the exact positional shape of every
+      // other query.
+      const chainable = [
+        'select',
+        'eq',
+        'neq',
+        'in',
+        'is',
+        'not',
+        'ilike',
+        'contains',
+        'gte',
+        'lte',
+        'gt',
+        'lt',
+        'or',
+        'order',
+        'limit',
+        'range',
+      ] as const;
+      mock.from.mockImplementation((table: string) => {
+        const chain: Record<string, ReturnType<typeof vi.fn>> = {};
+        for (const m of chainable) {
+          chain[m] = vi.fn().mockReturnValue(chain);
+        }
+        chain.single = vi
+          .fn()
+          .mockResolvedValue({ data: null, error: null, count: null });
+        chain.maybeSingle = vi
+          .fn()
+          .mockResolvedValue({ data: null, error: null, count: null });
+        chain.then = vi.fn((resolve: (v: unknown) => void) => {
+          if (table === 'read_marks') {
+            resolve({
+              data: null,
+              error: { message: 'Connection refused' },
+              count: null,
+            });
+          } else {
+            resolve({ data: [], error: null, count: 0 });
+          }
+        });
+        return chain;
       });
 
       const result = await fetchReorientData(
@@ -506,18 +476,27 @@ describe('fetchReorientData', () => {
         'editor',
       );
 
-      expect(result.team_changes).toHaveLength(1);
-      expect(result.team_changes[0].user_id).toBe('other-user-1');
-      expect(result.team_changes[0].entity_title).toBe(
-        'Data Protection Policy',
-      );
-      expect(result.team_changes[0].action).toBe('updated');
-      expect(result.team_changes[0].domain).toBe('Corporate');
+      expect(result.errors).toContain('last_read_activity query failed');
+      expect(result.last_active_at).toBe('2026-03-07T14:00:00Z');
     });
+  });
 
-    it('returns a valid team_changes list under the 20-item cap', async () => {
-      // The function calls .limit(20) on the team changes query.
-      // We verify by checking that the mock chain was configured correctly.
+  // =========================================================================
+  // Team changes
+  // =========================================================================
+
+  // ID-131.19 S450 Wave 1 Fix 4: the content_history-sourced 'content_item'
+  // legs of team_changes/my_recent_work are RETIRED (content_history drops
+  // at M6; no logical cross-entity-type replacement exists — see
+  // lib/reorient.ts's queries 0/1 retirement comment for the full audit).
+  // These blocks replace the previous content_history-seeded assertions
+  // (excludes-current-user, change_type→action mapping, item-scoped hrefs),
+  // which tested behaviour that no longer exists. The change_type→action
+  // mapping itself (mapChangeTypeToAction) is exercised by the surviving
+  // 'bid response team changes' / 'bid response recent work' blocks below
+  // via their own (hardcoded 'updated'/'edited') actions.
+  describe('team_changes', () => {
+    it('never produces a content_item-sourced team change (leg retired)', async () => {
       const mock = setupDefaultMock();
 
       const result = await fetchReorientData(
@@ -527,90 +506,10 @@ describe('fetchReorientData', () => {
         'editor',
       );
 
-      // The team changes query uses .limit(20) — with the mock setup,
-      // we verify that the result is valid (not an error).
-      expect(result.team_changes).toBeDefined();
-    });
-
-    it('maps change_type "create" to action "created"', async () => {
-      const mock = setupDefaultMock({
-        teamChangesData: [
-          {
-            id: 'ch-2',
-            content_item_id: 'item-2',
-            change_type: 'create',
-            change_summary: 'New item',
-            created_by: 'other-user',
-            created_at: '2026-03-08T09:00:00Z',
-            content_items: {
-              title: 'New Article',
-              primary_domain: 'Technical',
-            },
-          },
-        ],
-      });
-
-      const result = await fetchReorientData(
-        mock as unknown as Parameters<typeof fetchReorientData>[0],
-        TEST_USER_ID,
-        false,
-        'editor',
-      );
-
-      expect(result.team_changes[0].action).toBe('created');
-    });
-
-    it('maps change_type "rollback" to action "reviewed"', async () => {
-      const mock = setupDefaultMock({
-        teamChangesData: [
-          {
-            id: 'ch-3',
-            content_item_id: 'item-3',
-            change_type: 'rollback',
-            change_summary: 'Rolled back',
-            created_by: 'other-user',
-            created_at: '2026-03-08T09:00:00Z',
-            content_items: {
-              title: 'Rolled Back Item',
-              primary_domain: 'Commercial',
-            },
-          },
-        ],
-      });
-
-      const result = await fetchReorientData(
-        mock as unknown as Parameters<typeof fetchReorientData>[0],
-        TEST_USER_ID,
-        false,
-        'editor',
-      );
-
-      expect(result.team_changes[0].action).toBe('reviewed');
-    });
-
-    it('defaults change_type to "updated" for unknown types', async () => {
-      const mock = setupDefaultMock({
-        teamChangesData: [
-          {
-            id: 'ch-4',
-            content_item_id: 'item-4',
-            change_type: 'unknown_type',
-            change_summary: 'Something',
-            created_by: 'other-user',
-            created_at: '2026-03-08T09:00:00Z',
-            content_items: { title: 'Some Item', primary_domain: null },
-          },
-        ],
-      });
-
-      const result = await fetchReorientData(
-        mock as unknown as Parameters<typeof fetchReorientData>[0],
-        TEST_USER_ID,
-        false,
-        'editor',
-      );
-
-      expect(result.team_changes[0].action).toBe('updated');
+      expect(
+        result.team_changes.some((tc) => tc.entity_type === 'content_item'),
+      ).toBe(false);
+      expect(result.errors).not.toContain('team_changes query failed');
     });
   });
 
@@ -619,19 +518,8 @@ describe('fetchReorientData', () => {
   // =========================================================================
 
   describe('my_recent_work', () => {
-    it('returns recent work items with item-scoped hrefs', async () => {
-      const mock = setupDefaultMock({
-        recentWorkData: [
-          {
-            id: 'h-1',
-            content_item_id: 'item-10',
-            change_type: 'edit',
-            change_summary: 'Edited content',
-            created_at: '2026-03-08T09:30:00Z',
-            content_items: { title: 'My Article' },
-          },
-        ],
-      });
+    it('never produces a content_item-sourced recent-work item (leg retired)', async () => {
+      const mock = setupDefaultMock();
 
       const result = await fetchReorientData(
         mock as unknown as Parameters<typeof fetchReorientData>[0],
@@ -640,16 +528,17 @@ describe('fetchReorientData', () => {
         'editor',
       );
 
-      expect(result.my_recent_work).toHaveLength(1);
-      expect(result.my_recent_work[0].entity_id).toBe('item-10');
-      expect(result.my_recent_work[0].entity_title).toBe('My Article');
-      expect(result.my_recent_work[0].href).toBe('/item/item-10');
-      expect(result.my_recent_work[0].action).toBe('updated');
+      expect(
+        result.my_recent_work.some(
+          (item) => item.entity_type === 'content_item',
+        ),
+      ).toBe(false);
+      expect(result.errors).not.toContain('my_recent_work query failed');
     });
 
-    it('returns empty array when no recent work', async () => {
+    it('returns empty array when no bid response recent work either', async () => {
       const mock = setupDefaultMock({
-        recentWorkData: [],
+        bidResponseRecentWorkData: [],
       });
 
       const result = await fetchReorientData(
@@ -1036,95 +925,15 @@ describe('fetchReorientData', () => {
   // =========================================================================
 
   describe('handles partial query failures gracefully', () => {
-    it('continues with errors array when team changes query fails', async () => {
+    // ID-131.19 S450 Wave 1 Fix 4: team_changes/my_recent_work's
+    // content_history legs are RETIRED — Promise.resolve stubs that can
+    // never fail — so the "team changes query fails" scenario this test
+    // used to construct via a real erroring from() call is no longer
+    // reachable. Replaced with the accurate, opposite assertion: these two
+    // legs NEVER surface a query-failure error, regardless of what real
+    // queries elsewhere in the same batch do.
+    it('team_changes and my_recent_work never surface a query-failure error (legs retired)', async () => {
       const mock = setupDefaultMock();
-
-      // Override: make the team changes from() call return an error.
-      // from() calls: 1=content_history (lastActivity write), 2=read_marks (lastActivity read),
-      // 3=content_history (team changes), 4+=other queries.
-      let callCounter = 0;
-      mock.from.mockImplementation(() => {
-        const currentIdx = ++callCounter;
-        const response = (() => {
-          if (currentIdx === 1) {
-            // First call: content_history for lastActivity (write)
-            return {
-              data: [{ created_at: '2026-03-08T08:00:00Z' }],
-              error: null,
-              count: null,
-            };
-          } else if (currentIdx === 2) {
-            // Second call: read_marks for lastActivity (read)
-            return { data: [], error: null, count: null };
-          } else if (currentIdx === 3) {
-            // Third call: content_history for team changes — return error
-            return {
-              data: null,
-              error: { message: 'Query failed' },
-              count: null,
-            };
-          } else {
-            return { data: [], error: null, count: 0 };
-          }
-        })();
-
-        const c = {
-          select: vi.fn(),
-          insert: vi.fn(),
-          update: vi.fn(),
-          upsert: vi.fn(),
-          delete: vi.fn(),
-          eq: vi.fn(),
-          neq: vi.fn(),
-          in: vi.fn(),
-          is: vi.fn(),
-          not: vi.fn(),
-          ilike: vi.fn(),
-          contains: vi.fn(),
-          gte: vi.fn(),
-          lte: vi.fn(),
-          gt: vi.fn(),
-          lt: vi.fn(),
-          or: vi.fn(),
-          order: vi.fn(),
-          limit: vi.fn(),
-          range: vi.fn(),
-          single: vi.fn().mockResolvedValue({ data: null, error: null }),
-          maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-          csv: vi.fn().mockResolvedValue({ data: null, error: null }),
-          then: vi.fn((resolve: (v: unknown) => void) => {
-            resolve(response);
-          }),
-        };
-        const chainable = [
-          'select',
-          'insert',
-          'update',
-          'upsert',
-          'delete',
-          'eq',
-          'neq',
-          'in',
-          'is',
-          'not',
-          'ilike',
-          'contains',
-          'gte',
-          'lte',
-          'gt',
-          'lt',
-          'or',
-          'order',
-          'limit',
-          'range',
-        ] as const;
-        for (const m of chainable) {
-          (c[m] as ReturnType<typeof vi.fn>).mockReturnValue(c);
-        }
-        return c;
-      });
-
-      mock.rpc.mockResolvedValue({ data: [], error: null });
 
       const result = await fetchReorientData(
         mock as unknown as Parameters<typeof fetchReorientData>[0],
@@ -1135,7 +944,9 @@ describe('fetchReorientData', () => {
 
       // Should still return a valid result
       expect(result.team_changes).toEqual([]);
-      expect(result.errors).toContain('team_changes query failed');
+      expect(result.my_recent_work).toEqual([]);
+      expect(result.errors).not.toContain('team_changes query failed');
+      expect(result.errors).not.toContain('my_recent_work query failed');
       // Other data should still be present
       expect(result.generated_at).toBeDefined();
     });
@@ -1288,20 +1099,6 @@ describe('fetchReorientData', () => {
   describe('bid response team changes', () => {
     it('merges bid response edits into team_changes with entity_type bid_response', async () => {
       const mock = setupDefaultMock({
-        teamChangesData: [
-          {
-            id: 'ch-1',
-            content_item_id: 'item-1',
-            change_type: 'edit',
-            change_summary: 'Updated policy',
-            created_by: 'other-user-1',
-            created_at: '2026-03-08T09:00:00Z',
-            content_items: {
-              title: 'Data Protection Policy',
-              primary_domain: 'Corporate',
-            },
-          },
-        ],
         bidResponseTeamChangesData: [
           {
             id: 'brh-1',
@@ -1328,7 +1125,10 @@ describe('fetchReorientData', () => {
         'admin',
       );
 
-      expect(result.team_changes).toHaveLength(2);
+      // ID-131.19 S450 Wave 1 Fix 4: only ONE entry now — the
+      // content_history-sourced 'content_item' leg this test used to also
+      // seed is retired.
+      expect(result.team_changes).toHaveLength(1);
       const bidChange = result.team_changes.find(
         (tc) => tc.entity_type === 'bid_response',
       );
@@ -1340,27 +1140,33 @@ describe('fetchReorientData', () => {
       expect(bidChange!.question_id).toBe('q-1');
     });
 
-    it('sorts combined team changes by date descending', async () => {
+    it('sorts multiple bid response team changes by date descending', async () => {
+      // ID-131.19 S450 Wave 1 Fix 4: rewritten to use TWO bid-response
+      // entries (the content_item comparison entry this test used to seed
+      // via teamChangesData is retired) — still proves the sort-by-date
+      // behaviour over the surviving single-source data.
       const mock = setupDefaultMock({
-        teamChangesData: [
-          {
-            id: 'ch-1',
-            content_item_id: 'item-1',
-            change_type: 'edit',
-            change_summary: 'Older change',
-            created_by: 'other-user-1',
-            created_at: '2026-03-08T08:00:00Z',
-            content_items: { title: 'Old Item', primary_domain: 'Security' },
-          },
-        ],
         bidResponseTeamChangesData: [
           {
-            id: 'brh-1',
-            response_id: 'resp-1',
+            id: 'brh-older',
+            response_id: 'resp-older',
+            edited_by: 'other-user-1',
+            created_at: '2026-03-08T08:00:00Z',
+            form_responses: {
+              question_id: 'q-1',
+              form_questions: {
+                workspace_id: 'bid-1',
+                workspaces: { name: 'Old Procurement' },
+              },
+            },
+          },
+          {
+            id: 'brh-recent',
+            response_id: 'resp-recent',
             edited_by: 'other-user-2',
             created_at: '2026-03-08T09:00:00Z',
             form_responses: {
-              question_id: 'q-1',
+              question_id: 'q-2',
               form_questions: {
                 workspace_id: 'bid-1',
                 workspaces: { name: 'Recent Procurement' },
@@ -1378,9 +1184,10 @@ describe('fetchReorientData', () => {
         'admin',
       );
 
-      // Procurement response (09:00) should come before content change (08:00)
-      expect(result.team_changes[0].entity_type).toBe('bid_response');
-      expect(result.team_changes[1].entity_type).toBe('content_item');
+      // Recent Procurement (09:00) should come before Old Procurement (08:00)
+      expect(result.team_changes).toHaveLength(2);
+      expect(result.team_changes[0].entity_title).toBe('Recent Procurement');
+      expect(result.team_changes[1].entity_title).toBe('Old Procurement');
     });
   });
 
@@ -1391,7 +1198,6 @@ describe('fetchReorientData', () => {
   describe('bid response recent work', () => {
     it('includes bid response edits in my_recent_work', async () => {
       const mock = setupDefaultMock({
-        recentWorkData: [],
         bidResponseRecentWorkData: [
           {
             id: 'brh-own-1',
@@ -1433,7 +1239,6 @@ describe('fetchReorientData', () => {
       const longQuestion =
         "Please provide a detailed description of your organisation's approach to information security management including all relevant certifications";
       const mock = setupDefaultMock({
-        recentWorkData: [],
         bidResponseRecentWorkData: [
           {
             id: 'brh-own-2',
@@ -1466,48 +1271,19 @@ describe('fetchReorientData', () => {
       expect(result.my_recent_work[0].entity_title).toMatch(/\.\.\.$/);
     });
 
-    it('limits combined recent work to 5 items', async () => {
+    it('limits recent work to 5 items', async () => {
+      // ID-131.19 S450 Wave 1 Fix 4: re-seeded via bidResponseRecentWorkData
+      // only — the content_history leg that used to supply the other 4
+      // entries is retired, but the 5-item cap logic
+      // (dedupeRecentWorkByEntity(...).slice(0, 5)) still applies to
+      // whatever the surviving source produces.
       const mock = setupDefaultMock({
-        recentWorkData: [
-          {
-            id: 'h-1',
-            content_item_id: 'i-1',
-            change_type: 'edit',
-            change_summary: '',
-            created_at: '2026-03-08T09:50:00Z',
-            content_items: { title: 'Item 1' },
-          },
-          {
-            id: 'h-2',
-            content_item_id: 'i-2',
-            change_type: 'edit',
-            change_summary: '',
-            created_at: '2026-03-08T09:40:00Z',
-            content_items: { title: 'Item 2' },
-          },
-          {
-            id: 'h-3',
-            content_item_id: 'i-3',
-            change_type: 'edit',
-            change_summary: '',
-            created_at: '2026-03-08T09:30:00Z',
-            content_items: { title: 'Item 3' },
-          },
-          {
-            id: 'h-4',
-            content_item_id: 'i-4',
-            change_type: 'edit',
-            change_summary: '',
-            created_at: '2026-03-08T09:20:00Z',
-            content_items: { title: 'Item 4' },
-          },
-        ],
         bidResponseRecentWorkData: [
           {
             id: 'brh-1',
             response_id: 'r-1',
             edited_by: TEST_USER_ID,
-            created_at: '2026-03-08T09:45:00Z',
+            created_at: '2026-03-08T09:50:00Z',
             form_responses: {
               question_id: 'q-1',
               form_questions: {
@@ -1521,12 +1297,68 @@ describe('fetchReorientData', () => {
             id: 'brh-2',
             response_id: 'r-2',
             edited_by: TEST_USER_ID,
-            created_at: '2026-03-08T09:35:00Z',
+            created_at: '2026-03-08T09:40:00Z',
             form_responses: {
               question_id: 'q-2',
               form_questions: {
                 workspace_id: 'b-1',
                 question_text: 'Q2',
+                workspaces: { id: 'b-1', name: 'Procurement' },
+              },
+            },
+          },
+          {
+            id: 'brh-3',
+            response_id: 'r-3',
+            edited_by: TEST_USER_ID,
+            created_at: '2026-03-08T09:30:00Z',
+            form_responses: {
+              question_id: 'q-3',
+              form_questions: {
+                workspace_id: 'b-1',
+                question_text: 'Q3',
+                workspaces: { id: 'b-1', name: 'Procurement' },
+              },
+            },
+          },
+          {
+            id: 'brh-4',
+            response_id: 'r-4',
+            edited_by: TEST_USER_ID,
+            created_at: '2026-03-08T09:20:00Z',
+            form_responses: {
+              question_id: 'q-4',
+              form_questions: {
+                workspace_id: 'b-1',
+                question_text: 'Q4',
+                workspaces: { id: 'b-1', name: 'Procurement' },
+              },
+            },
+          },
+          {
+            id: 'brh-5',
+            response_id: 'r-5',
+            edited_by: TEST_USER_ID,
+            created_at: '2026-03-08T09:10:00Z',
+            form_responses: {
+              question_id: 'q-5',
+              form_questions: {
+                workspace_id: 'b-1',
+                question_text: 'Q5',
+                workspaces: { id: 'b-1', name: 'Procurement' },
+              },
+            },
+          },
+          {
+            id: 'brh-6',
+            response_id: 'r-6',
+            edited_by: TEST_USER_ID,
+            created_at: '2026-03-08T09:00:00Z',
+            form_responses: {
+              question_id: 'q-6',
+              form_questions: {
+                workspace_id: 'b-1',
+                question_text: 'Q6',
                 workspaces: { id: 'b-1', name: 'Procurement' },
               },
             },
@@ -1542,30 +1374,18 @@ describe('fetchReorientData', () => {
         'admin',
       );
 
-      // 4 content + 2 bid response = 6 total, should be capped at 5
+      // 6 bid response entries, should be capped at 5
       expect(result.my_recent_work).toHaveLength(5);
     });
 
     it('deduplicates recent work by entity, keeping the newest row', async () => {
+      // ID-131.19 S450 Wave 1 Fix 4: rewritten to use ONLY
+      // form_response_history duplicates (the content_history leg that used
+      // to supply the other duplicate group is retired) — two distinct
+      // bid-response entities, one of which has two revisions, proves
+      // dedup-by-entity + sort-by-date still work over the surviving
+      // single-source data.
       const mock = setupDefaultMock({
-        recentWorkData: [
-          {
-            id: 'h-new',
-            content_item_id: 'i-dup',
-            change_type: 'edit',
-            change_summary: '',
-            created_at: '2026-03-08T09:50:00Z',
-            content_items: { title: 'Repeated Item' },
-          },
-          {
-            id: 'h-old',
-            content_item_id: 'i-dup',
-            change_type: 'create',
-            change_summary: '',
-            created_at: '2026-03-08T08:50:00Z',
-            content_items: { title: 'Repeated Item' },
-          },
-        ],
         bidResponseRecentWorkData: [
           {
             id: 'brh-new',
@@ -1595,6 +1415,20 @@ describe('fetchReorientData', () => {
               },
             },
           },
+          {
+            id: 'brh-other',
+            response_id: 'r-other',
+            edited_by: TEST_USER_ID,
+            created_at: '2026-03-08T08:50:00Z',
+            form_responses: {
+              question_id: 'q-2',
+              form_questions: {
+                workspace_id: 'b-1',
+                question_text: 'A different response',
+                workspaces: { id: 'b-1', name: 'Procurement' },
+              },
+            },
+          },
         ],
         isAdmin: true,
       });
@@ -1608,11 +1442,10 @@ describe('fetchReorientData', () => {
 
       expect(result.my_recent_work).toHaveLength(2);
       expect(result.my_recent_work.map((item) => item.entity_id)).toEqual([
-        'i-dup',
         'r-dup',
+        'r-other',
       ]);
-      expect(result.my_recent_work[0].action).toBe('updated');
-      expect(result.my_recent_work[1].entity_title).toBe('Latest response');
+      expect(result.my_recent_work[0].entity_title).toBe('Latest response');
     });
   });
 

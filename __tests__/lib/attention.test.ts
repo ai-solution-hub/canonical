@@ -14,7 +14,6 @@ import {
   produceExpiringCertItems,
   produceExpiringContentDateItems,
   produceUnreadNotificationItems,
-  produceCoverageGapItems,
   produceTaxonomyCoverageItems,
   sortAttentionItems,
   filterByRole,
@@ -55,7 +54,6 @@ function emptySourceData(): AttentionSourceData {
     expiring_cert_count: 0,
     expiring_content_date_count: 0,
     unread_notification_count: 0,
-    coverage_gap_count: 0,
     unclassified_count: 0,
   };
 }
@@ -408,24 +406,9 @@ describe('produceUnreadNotificationItems', () => {
   });
 });
 
-describe('produceCoverageGapItems', () => {
-  it('returns empty for zero', () => {
-    expect(produceCoverageGapItems(0)).toEqual([]);
-  });
-
-  it('returns info severity editor/admin item', () => {
-    const items = produceCoverageGapItems(3);
-    expect(items).toHaveLength(1);
-    expect(items[0].severity).toBe('info');
-    expect(items[0].role_visibility).toEqual(['admin', 'editor']);
-  });
-
-  it('emits a coverage_gap item linking to /coverage', () => {
-    const items = produceCoverageGapItems(5);
-    expect(items[0].type).toBe('coverage_gap');
-    expect(items[0].action_url).toBe('/coverage');
-  });
-});
+// produceCoverageGapItems REMOVED (ID-131.19 S450 Wave 1 Fix 1) — the
+// content_items-era coverage-gap feature is retired per DR-034; see
+// lib/attention.ts's AttentionSourceData comment for the full rationale.
 
 // ID-63.12 — taxonomy-coverage gap insight (the 'unclassified' sentinel
 // established by {63.11}; tied to the Inv-7 taxonomy-miss concept from the
@@ -603,7 +586,6 @@ describe('buildAttentionItems', () => {
     expiring_cert_count: 0,
     expiring_content_date_count: 0,
     unread_notification_count: 0,
-    coverage_gap_count: 0,
     unclassified_count: 0,
   };
 
@@ -660,17 +642,17 @@ describe('buildAttentionItems', () => {
       expiring_cert_count: 1,
       expiring_content_date_count: 1,
       unread_notification_count: 10,
-      coverage_gap_count: 1,
       unclassified_count: 1,
     };
     const items = buildAttentionItems(data);
     // governance(1) + expired(1) + stale(1) + quality(1) + unverified(1) +
-    // cert(1) + content_date(1) + notifications(1) + coverage(1) +
-    // taxonomy_coverage(1) = 10
-    expect(items.length).toBe(10);
+    // cert(1) + content_date(1) + notifications(1) +
+    // taxonomy_coverage(1) = 9. coverage_gap RETIRED (ID-131.19 S450 Wave 1
+    // Fix 1, DR-034) — no longer contributes an item.
+    expect(items.length).toBe(9);
     // First should be critical (governance)
     expect(items[0].severity).toBe('critical');
-    // Last should be info (certs or coverage)
+    // Last should be info (certs or taxonomy coverage)
     expect(items[items.length - 1].severity).toBe('info');
   });
 
@@ -687,7 +669,6 @@ describe('buildAttentionItems', () => {
       expiring_cert_count: 1,
       expiring_content_date_count: 2,
       unread_notification_count: 8,
-      coverage_gap_count: 5,
       unclassified_count: 3,
     };
     const items = buildAttentionItems(data);
@@ -702,7 +683,9 @@ describe('buildAttentionItems', () => {
     expect(types.has('expiring_certification')).toBe(true);
     expect(types.has('expiring_content_date')).toBe(true);
     expect(types.has('unread_notifications')).toBe(true);
-    expect(types.has('coverage_gap')).toBe(true);
+    // coverage_gap RETIRED (ID-131.19 S450 Wave 1 Fix 1, DR-034) — never
+    // produced now, regardless of any coverage-shaped input.
+    expect(types.has('coverage_gap')).toBe(false);
     expect(types.has('taxonomy_coverage')).toBe(true);
   });
 
@@ -719,7 +702,6 @@ describe('buildAttentionItems', () => {
       expiring_cert_count: 1, // info
       expiring_content_date_count: 0,
       unread_notification_count: 0,
-      coverage_gap_count: 0,
       unclassified_count: 0,
     };
     const items = buildAttentionItems(data);

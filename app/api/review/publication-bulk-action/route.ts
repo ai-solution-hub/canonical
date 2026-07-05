@@ -20,9 +20,23 @@
  * 4. Optimistic-concurrency UPDATE — `.update(...).eq('id', id)
  *    .eq('publication_status', fromStatus)`. PGRST116 (zero rows matched)
  *    → `{ status: 'conflict' }`. Other PG errors → `{ status: 'error' }`.
- * 5. content_history INSERT via `sb()` — `change_reason='bulk_approve'` or
- *    `'bulk_return_to_draft'`, `change_type='publication_state'`. Mirrors
- *    PATCH route insert shape at line 343-357.
+ *
+ * ID-131.19 S450 Wave 1 Fix 4 (this Subtask): step 5 — the content_history
+ * audit INSERT — is RETIRED. content_history drops at M6; the insert was
+ * already a "documented, bounded degradation" (title/content hardcoded to
+ * empty/null placeholders, no typed-record home post BI-11 drop list) that
+ * this Subtask's brief anticipated becoming "fully vestigial" once M6 lands.
+ * `sb()` throws on error — leaving the insert in place would have made this
+ * PER-ITEM iteration throw once content_history is gone, which the outer
+ * try/catch would turn into a misleading top-level 500 AFTER the item's
+ * publication_status UPDATE (step 4) had ALREADY committed, and would abort
+ * the remaining `ids` in the loop. No typed-record audit-trail replacement
+ * exists yet for publication-transition history on source_documents — the
+ * transition itself is durably recorded via the step-4 UPDATE
+ * (publication_status + updated_by), but the specific "who changed it from
+ * X to Y and why" audit trail is lost until a proper replacement is
+ * designed (flagged for the Orchestrator/Curator, out of this Subtask's
+ * scope).
  *
  * Response is ALWAYS HTTP 200 with `{ totalRequested, successCount,
  * failureCount, results }`. Outer try/catch returns 500 on route-level
@@ -51,7 +65,6 @@ import {
   type PublicationStatus,
 } from '@/lib/governance/publication-transitions';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { sb } from '@/lib/supabase/safe';
 import { parseBody } from '@/lib/validation';
 import { PublicationBulkActionBodySchema } from '@/lib/validation/schemas';
 import type { Database } from '@/supabase/types/database.types';
@@ -274,45 +287,10 @@ export const POST = defineRoute(
         }
         void updated;
 
-        // Step 5: content_history INSERT via `sb()` (fail-fast).
-        //
-        // `change_reason` carries the BULK literal (`'bulk_approve'` /
-        // `'bulk_return_to_draft'`) — distinct from the per-row PATCH
-        // phrasing `'Transition from in_review to published'`. This is the
-        // primary motivation for a server-side bulk endpoint vs a client
-        // loop-over-PATCH (spec §2.3 — audit-trail semantic preservation).
-        //
-        // `version` is set automatically by the
-        // `auto_version_content_history` BEFORE INSERT trigger; payload
-        // omits it. The Insert TS type marks `version` required, so the
-        // payload is cast to the table's Insert shape — same pattern as
-        // PATCH route line 355.
-        //
-        // change_reason is always present, satisfying the S153 guard test
-        // (`feedback_content_history_change_reason_mandatory`).
-        const changeReasonLiteral =
-          action === 'approve' ? 'bulk_approve' : 'bulk_return_to_draft';
-
-        // ID-131 {131.19}: title/content/brief/detail/reference have no
-        // typed-record home post-refactor (BI-11 drop list) — content_history
-        // itself is dropped wholesale at M6, so this insert is a documented,
-        // bounded degradation (empty/null placeholders) rather than a fetch
-        // from a column that no longer has a source.
-        await sb(
-          supabase.from('content_history').insert({
-            content_item_id: id,
-            title: '',
-            content: '',
-            brief: null,
-            detail: null,
-            reference: null,
-            change_summary: `Publication status: ${fromStatus} -> ${newStatus}`,
-            change_reason: changeReasonLiteral,
-            change_type: 'publication_state',
-            created_by: user.id,
-          } as Database['public']['Tables']['content_history']['Insert']),
-          'review.publication_bulk_action.history_insert',
-        );
+        // Step 5 (content_history audit INSERT) RETIRED — ID-131.19 S450
+        // Wave 1 Fix 4. See the module header for the full rationale. The
+        // publication_status transition itself already committed at step 4;
+        // there is no separate audit-trail write to perform here anymore.
 
         results.push({
           id,

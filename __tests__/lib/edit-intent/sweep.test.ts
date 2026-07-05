@@ -1,14 +1,13 @@
 /**
  * {59.13} — UC3 sweeping-rename orchestrator (batched single-actor file
- * write-back) + whole-sweep / per-match rollback. PRODUCT PC-6 / INV-6 (TECH
- * §PC-6→INV-6).
+ * write-back). PRODUCT PC-6 / INV-6 (TECH §PC-6→INV-6).
  *
- * {138.12} T1 RE-POINT (necessary collateral, TECH §3.3 T1/§2.1 R(a)): both
- * `runSweep`/`rollbackSweep` call the SHARED `writeBackFileFirst` primitive,
- * whose file leg PUTs into the `corpus` Storage bucket instead of rewriting a
- * real on-disk file. This test double models the bucket as an in-memory
- * object store (`db.objects`, keyed by `storage_path`) plus a stubbed
- * writer-fence RPC, rather than writing to a real temp directory.
+ * {138.12} T1 RE-POINT (necessary collateral, TECH §3.3 T1/§2.1 R(a)):
+ * `runSweep` calls the SHARED `writeBackFileFirst` primitive, whose file leg
+ * PUTs into the `corpus` Storage bucket instead of rewriting a real on-disk
+ * file. This test double models the bucket as an in-memory object store
+ * (`db.objects`, keyed by `storage_path`) plus a stubbed writer-fence RPC,
+ * rather than writing to a real temp directory.
  *
  * ID-131 {131.17} G-IMS-DELETE KEEP-list RE-POINT: `sweep.ts` +
  * `write-back.ts` now read/write `source_documents` directly (`content` ->
@@ -24,27 +23,25 @@
  * `content_history` audit snapshot per match — `content_item_id` has been a
  * dead FK since the M0c debris-wipe (content_items is permanently empty;
  * every insert FK-violated), and content_history itself drops at M6.
- * `rollbackSweep`'s restore mechanism still READS `content_history` by
- * `metadata.sweep_id` (0 production callers — its only caller,
- * `app/api/items/[id]/rollback/route.ts`, is already deleted), so the
- * rollback tests below seed `db.history` directly rather than chaining off a
- * `runSweep` call that no longer populates it.
  *
- * The testStrategy proofs (re-targeted to Storage, {138.12}; audit/rollback
- * proofs re-targeted again for the content_history retirement, S447):
+ * ID-131.19 S450 Wave 1 Fix 4 (this Subtask): `rollbackSweep` — which still
+ * READ `content_history` by `metadata.sweep_id` post-S447 — is REMOVED
+ * entirely from `sweep.ts` (0 production callers, confirmed via
+ * `gitnexus_impact` + a repo-wide grep; content_history drops at M6). The
+ * rollback-specific tests (PROOF 3, PROOF 5, and the `content_history` mock
+ * table + `HistoryRow` plumbing they depended on) are removed alongside —
+ * there is no `rollbackSweep` left to exercise.
+ *
+ * The testStrategy proofs (re-targeted to Storage, {138.12}; audit-write
+ * proof re-targeted again for the content_history retirement, S447):
  *   1. one sweep PUTs N objects at their storage_path (object key);
  *   2. all N matches share a single sweep-id (no content_history audit
  *      write — retired, BI-34);
- *   3. rollbackSweep's restore mechanism (given pre-existing content_history
- *      rows) restores ALL N objects to their prior bytes; chained directly
- *      after a real `runSweep` call it now finds nothing (documented, not a
- *      regression — 0 production callers);
- *   4. arbitrate()/arbitrateMany() are NEVER called (batched single-actor);
- *   5. per-match revert (given seeded rows) restores ONLY that match.
+ *   4. arbitrate()/arbitrateMany() are NEVER called (batched single-actor).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { runSweep, rollbackSweep } from '@/lib/edit-intent/sweep';
+import { runSweep } from '@/lib/edit-intent/sweep';
 import type { SweepMatchInput } from '@/lib/edit-intent/sweep';
 import { CORPUS_BUCKET } from '@/lib/edit-intent/write-back';
 
@@ -59,33 +56,22 @@ const ITEM_B = '22222222-2222-4222-8222-222222222222';
 const ITEM_C = '33333333-3333-4333-8333-333333333333';
 const ACTOR = 'a0000000-0000-4000-8000-000000000099';
 
-interface HistoryRow {
-  content_item_id: string;
-  version: number;
-  content: string;
-  edit_intent: string | null;
-  change_type: string;
-  change_reason: string | null;
-  metadata: { sweep_id?: string; prior_content?: string } | null;
-  created_by: string | null;
-}
-
 /**
- * In-memory supabase stub modelling the tables + Storage surface the sweep +
- * rollback touch: source_documents (extracted_text + storage_path, ID-131
- * {131.17} — a single row per id, read/written directly by PK; `contentItemId`
- * IS the source_documents id post-repoint, no second-table indirection),
- * content_history (READ-only from production code's perspective post-S447 —
- * `rollbackSweep` still reads sweep-id-tagged rows to know what to restore,
- * but nothing writes them anymore; tests seed `history` directly), the
+ * In-memory supabase stub modelling the table + Storage surface `runSweep`
+ * touches: source_documents (extracted_text + storage_path, ID-131 {131.17}
+ * — a single row per id, read/written directly by PK; `contentItemId` IS the
+ * source_documents id post-repoint, no second-table indirection), the
  * `corpus` Storage bucket (an in-memory object store keyed by storage_path,
  * {138.12} re-point), and the writer-fence RPC (always succeeds —
  * single-actor, no real concurrency to model here). The stub is deliberately
- * small — it only models the exact query shapes the code issues.
+ * small — it only models the exact query shapes the code issues. It
+ * DELIBERATELY does not model `content_history` (ID-131.19 S450 Wave 1
+ * Fix 4) — `runSweep` never touches it, and `from()`'s catch-all
+ * `throw new Error('unexpected table ...')` below is now itself the
+ * regression guard against a future edit reintroducing that read/write.
  */
 function makeDb(files: Record<string, { rel: string; content: string }>): {
   client: unknown;
-  history: HistoryRow[];
   liveContent: () => Record<string, string>;
   objects: Record<string, string>;
 } {
@@ -102,7 +88,6 @@ function makeDb(files: Record<string, { rel: string; content: string }>): {
     docs[id] = { extracted_text: f.content, storage_path: f.rel };
     objects[f.rel] = f.content;
   }
-  const history: HistoryRow[] = [];
 
   // A tiny PostgREST-shaped builder. Each `.from(table)` returns a builder
   // whose terminal awaitable resolves the query. We only model the verbs the
@@ -147,62 +132,9 @@ function makeDb(files: Record<string, { rel: string; content: string }>): {
         },
       };
     }
-    if (table === 'content_history') {
-      return {
-        select() {
-          return {
-            eq(col: string, val: string) {
-              // Two consumers: maxVersion-by-item, and whole-sweep fetch by
-              // metadata->>'sweep_id'. The route distinguishes them by the
-              // builder it chains; we expose both shapes.
-              if (col === 'content_item_id') {
-                return {
-                  order() {
-                    return {
-                      limit() {
-                        return {
-                          async maybeSingle() {
-                            const rows = history
-                              .filter((r) => r.content_item_id === val)
-                              .sort((a, b) => b.version - a.version);
-                            return {
-                              data: rows[0] ?? null,
-                              error: null,
-                            };
-                          },
-                        };
-                      },
-                    };
-                  },
-                };
-              }
-              // sweep_id fetch
-              return {
-                async then(resolve: (v: unknown) => void) {
-                  const rows = history.filter(
-                    (r) => r.metadata?.sweep_id === val,
-                  );
-                  resolve({ data: rows, error: null });
-                },
-              };
-            },
-          };
-        },
-        insert(row: Partial<HistoryRow>) {
-          history.push({
-            content_item_id: row.content_item_id ?? '',
-            version: row.version ?? 1,
-            content: row.content ?? '',
-            edit_intent: row.edit_intent ?? null,
-            change_type: row.change_type ?? 'edit',
-            change_reason: row.change_reason ?? null,
-            metadata: row.metadata ?? null,
-            created_by: row.created_by ?? null,
-          });
-          return { error: null };
-        },
-      };
-    }
+    // content_history is DELIBERATELY not modelled (ID-131.19 S450 Wave 1
+    // Fix 4) — runSweep never touches it; this throw is the regression
+    // guard against a future edit reintroducing that read/write.
     throw new Error(`unexpected table ${table}`);
   }
 
@@ -238,7 +170,6 @@ function makeDb(files: Record<string, { rel: string; content: string }>): {
 
   return {
     client: { from, storage, rpc } as unknown,
-    history,
     objects,
     liveContent: () => {
       const out: Record<string, string> = {};
@@ -249,7 +180,7 @@ function makeDb(files: Record<string, { rel: string; content: string }>): {
   };
 }
 
-describe('runSweep — UC3 batched single-actor sweep + whole-sweep rollback', () => {
+describe('runSweep — UC3 batched single-actor sweep', () => {
   const REL = {
     a: 'corpus/team/alpha.md',
     b: 'corpus/team/bravo.md',
@@ -306,8 +237,10 @@ describe('runSweep — UC3 batched single-actor sweep + whole-sweep rollback', (
     expect(ids).toEqual([ITEM_A, ITEM_B, ITEM_C].sort());
 
     // ID-131 FIX-SLICE (S447): the per-match content_history audit insert is
-    // retired (dead FK post-M0c debris-wipe) — NO history row is written.
-    expect(db.history).toHaveLength(0);
+    // retired (dead FK post-M0c debris-wipe) — the mock's `from()` throws on
+    // any table other than source_documents (content_history is
+    // deliberately not modelled, ID-131.19 S450 Wave 1 Fix 4), so this test
+    // completing without throwing IS the proof no history row is attempted.
   });
 
   it('PROOF 4 — does NOT invoke arbitrate()/arbitrateMany() (batched single-actor)', async () => {
@@ -343,124 +276,9 @@ describe('runSweep — UC3 batched single-actor sweep + whole-sweep rollback', (
 
     expect(result.matchCount).toBe(1);
     expect(db.objects[REL.a]).toBe(NEW.a);
-    expect(db.history).toHaveLength(0);
   });
 
-  describe('rollbackSweep — restore mechanism (content_history audit write retired, BI-34; 0 production callers)', () => {
-    it('PROOF 3-consequence — chained directly after runSweep, finds nothing to restore (no audit row was written)', async () => {
-      const db = makeDb({
-        [ITEM_A]: { rel: REL.a, content: PRIOR.a },
-        [ITEM_B]: { rel: REL.b, content: PRIOR.b },
-        [ITEM_C]: { rel: REL.c, content: PRIOR.c },
-      });
-
-      const { sweepId } = await runSweep({
-        supabase: db.client as never,
-        matches: matches(),
-        intent: 'structural',
-        actorId: ACTOR,
-      });
-
-      // Objects now hold the new bytes.
-      expect(db.objects[REL.a]).toBe(NEW.a);
-
-      const rolled = await rollbackSweep({
-        supabase: db.client as never,
-        sweepId,
-        actorId: ACTOR,
-      });
-
-      // Nothing restored — runSweep left no content_history row for
-      // rollbackSweep's lookup to find (retired, BI-34). Documented
-      // consequence, not a regression: rollbackSweep has 0 production
-      // callers (its only caller route is already deleted).
-      expect(rolled.restoredCount).toBe(0);
-      expect(db.objects[REL.a]).toBe(NEW.a);
-      expect(db.objects[REL.b]).toBe(NEW.b);
-      expect(db.objects[REL.c]).toBe(NEW.c);
-    });
-
-    /** Seed a content_history row directly, bypassing runSweep (which no
-     * longer writes them) — exercises rollbackSweep's own read + restore
-     * logic in isolation. */
-    function seedHistoryRow(
-      db: ReturnType<typeof makeDb>,
-      sweepId: string,
-      contentItemId: string,
-      priorContent: string,
-    ): void {
-      db.history.push({
-        content_item_id: contentItemId,
-        version: 1,
-        content: priorContent,
-        edit_intent: 'structural',
-        change_type: 'edit',
-        change_reason: `sweep:${sweepId}`,
-        metadata: { sweep_id: sweepId, prior_content: priorContent },
-        created_by: ACTOR,
-      });
-    }
-
-    it('whole-sweep rollback restores ALL N objects to their prior bytes, given pre-existing content_history rows', async () => {
-      const db = makeDb({
-        [ITEM_A]: { rel: REL.a, content: PRIOR.a },
-        [ITEM_B]: { rel: REL.b, content: PRIOR.b },
-        [ITEM_C]: { rel: REL.c, content: PRIOR.c },
-      });
-      // Objects already hold the NEW bytes (a sweep already ran); seed the
-      // audit rows a sweep used to leave, since runSweep no longer does.
-      db.objects[REL.a] = NEW.a;
-      db.objects[REL.b] = NEW.b;
-      db.objects[REL.c] = NEW.c;
-      const sweepId = 'seeded-sweep-id';
-      seedHistoryRow(db, sweepId, ITEM_A, PRIOR.a);
-      seedHistoryRow(db, sweepId, ITEM_B, PRIOR.b);
-      seedHistoryRow(db, sweepId, ITEM_C, PRIOR.c);
-
-      const rolled = await rollbackSweep({
-        supabase: db.client as never,
-        sweepId,
-        actorId: ACTOR,
-      });
-
-      expect(rolled.restoredCount).toBe(3);
-      // Every object restored to its PRIOR bytes (whole-sweep, as a unit).
-      expect(db.objects[REL.a]).toBe(PRIOR.a);
-      expect(db.objects[REL.b]).toBe(PRIOR.b);
-      expect(db.objects[REL.c]).toBe(PRIOR.c);
-      // Live DB content restored too.
-      const live = db.liveContent();
-      expect(live[ITEM_A]).toBe(PRIOR.a);
-      expect(live[ITEM_B]).toBe(PRIOR.b);
-      expect(live[ITEM_C]).toBe(PRIOR.c);
-    });
-
-    it('per-match revert restores ONLY that match (others untouched), given pre-existing content_history rows', async () => {
-      const db = makeDb({
-        [ITEM_A]: { rel: REL.a, content: PRIOR.a },
-        [ITEM_B]: { rel: REL.b, content: PRIOR.b },
-        [ITEM_C]: { rel: REL.c, content: PRIOR.c },
-      });
-      db.objects[REL.a] = NEW.a;
-      db.objects[REL.b] = NEW.b;
-      db.objects[REL.c] = NEW.c;
-      const sweepId = 'seeded-sweep-id-2';
-      seedHistoryRow(db, sweepId, ITEM_A, PRIOR.a);
-      seedHistoryRow(db, sweepId, ITEM_B, PRIOR.b);
-      seedHistoryRow(db, sweepId, ITEM_C, PRIOR.c);
-
-      const rolled = await rollbackSweep({
-        supabase: db.client as never,
-        sweepId,
-        actorId: ACTOR,
-        contentItemId: ITEM_B, // per-match revert
-      });
-
-      expect(rolled.restoredCount).toBe(1);
-      // Only B restored; A and C still hold the new bytes.
-      expect(db.objects[REL.b]).toBe(PRIOR.b);
-      expect(db.objects[REL.a]).toBe(NEW.a);
-      expect(db.objects[REL.c]).toBe(NEW.c);
-    });
-  });
+  // rollbackSweep tests REMOVED (ID-131.19 S450 Wave 1 Fix 4) — the function
+  // itself is removed from sweep.ts (0 production callers; see the module
+  // header for the full rationale). Nothing left to exercise.
 });

@@ -158,93 +158,11 @@ describe('certification expiry count extraction', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Coverage gap count extraction logic tests
-// ---------------------------------------------------------------------------
-
-describe('coverage gap count extraction', () => {
-  /**
-   * Mirrors the extraction logic from fetchUnifiedDashboardData for
-   * queries 12+13. Extracted here for isolated testing.
-   */
-  function countCoverageGaps(
-    activeSubtopics: { id: string; name: string; domain_id: string }[],
-    contentItems: { primary_subtopic: string | null }[],
-  ): number {
-    const coveredSubtopics = new Set(
-      contentItems
-        .map((item) => item.primary_subtopic)
-        .filter((s): s is string => s !== null),
-    );
-    return activeSubtopics.filter((st) => !coveredSubtopics.has(st.name))
-      .length;
-  }
-
-  it('counts subtopics with zero content items', () => {
-    const subtopics = [
-      { id: '1', name: 'Data Protection', domain_id: 'd1' },
-      { id: '2', name: 'Network Security', domain_id: 'd1' },
-      { id: '3', name: 'Business Continuity', domain_id: 'd2' },
-    ];
-
-    const contentItems = [
-      { primary_subtopic: 'Data Protection' },
-      { primary_subtopic: 'Data Protection' },
-    ];
-
-    // Network Security and Business Continuity have no content
-    expect(countCoverageGaps(subtopics, contentItems)).toBe(2);
-  });
-
-  it('returns 0 when all subtopics have content', () => {
-    const subtopics = [
-      { id: '1', name: 'A', domain_id: 'd1' },
-      { id: '2', name: 'B', domain_id: 'd1' },
-    ];
-
-    const contentItems = [{ primary_subtopic: 'A' }, { primary_subtopic: 'B' }];
-
-    expect(countCoverageGaps(subtopics, contentItems)).toBe(0);
-  });
-
-  it('returns full count when no content items exist', () => {
-    const subtopics = [
-      { id: '1', name: 'X', domain_id: 'd1' },
-      { id: '2', name: 'Y', domain_id: 'd1' },
-      { id: '3', name: 'Z', domain_id: 'd2' },
-    ];
-
-    expect(countCoverageGaps(subtopics, [])).toBe(3);
-  });
-
-  it('returns 0 for empty subtopics', () => {
-    expect(countCoverageGaps([], [{ primary_subtopic: 'A' }])).toBe(0);
-  });
-
-  it('ignores content items with null primary_subtopic', () => {
-    const subtopics = [{ id: '1', name: 'A', domain_id: 'd1' }];
-
-    const contentItems = [
-      { primary_subtopic: null },
-      { primary_subtopic: null },
-    ];
-
-    // A has no content (null subtopics don't count)
-    expect(countCoverageGaps(subtopics, contentItems)).toBe(1);
-  });
-
-  it('handles large taxonomy correctly', () => {
-    const subtopics = Array.from({ length: 34 }, (_, i) => ({
-      id: `${i}`,
-      name: `Subtopic ${i}`,
-      domain_id: `d${Math.floor(i / 5)}`,
-    }));
-
-    // Cover 20 out of 34 subtopics
-    const contentItems = Array.from({ length: 20 }, (_, i) => ({
-      primary_subtopic: `Subtopic ${i}`,
-    }));
-
-    expect(countCoverageGaps(subtopics, contentItems)).toBe(14);
-  });
-});
+// Coverage gap count extraction tests REMOVED (ID-131.19 S450 Wave 1 Fix 1)
+// — coverage_gap_count is RETIRED per DR-034 (content_items-era coverage
+// feature retired). This describe block tested a client-side taxonomy/
+// content-item mirror of logic that had already moved entirely into the
+// get_dashboard_attention_counts RPC (fetchUnifiedDashboardData just reads
+// counts.coverage_gap_count) — it was already stale relative to the real
+// code path even before the retirement. See lib/attention.ts and
+// lib/dashboard.ts for the full disposition.

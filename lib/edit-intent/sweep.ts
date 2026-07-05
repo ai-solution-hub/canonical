@@ -1,6 +1,6 @@
 /**
  * {59.13} — UC3 sweeping-rename orchestrator (batched single-actor file
- * write-back) + whole-sweep / per-match rollback.
+ * write-back).
  *
  * PRODUCT PC-6 (INV-6) · TECH §PC-6→INV-6.
  *
@@ -12,44 +12,50 @@
  * at its `storage_path` via the PC-1 adapter `writeBackFileFirst`
  * ({59.9}, `@/lib/edit-intent/write-back` — direct import, never edited here).
  *
- * ── Single sweep identifier (audit + whole-sweep rollback) ───────────────────
+ * ── Single sweep identifier (audit) ──────────────────────────────────────────
  * Every record touched by ONE sweep shares a single SWEEP IDENTIFIER (`sweepId`,
  * a v4 UUID minted once per `runSweep` call) and is returned per-match so a
  * caller can correlate which records one sweep touched.
  *
  * ID-131 FIX-SLICE (S447, BI-34): the per-match `content_history` audit
  * snapshot (`metadata.sweep_id` + `change_reason: "sweep:<id>"` +
- * `metadata.prior_content`) that USED to back audit/rollback is retired —
- * `content_history.content_item_id` has been a dead FK since the M0c
- * debris-wipe (content_items is permanently empty) and content_history
- * itself drops at M6. `runSweep` no longer writes it (every insert was an FK
- * violation). `rollbackSweep`'s restore mechanism still READS
- * `content_history` by `metadata.sweep_id` (kept — 0 production callers, see
- * below) but will find nothing for any sweep run after this fix; it remains
- * testable only against pre-seeded rows (see `sweep.test.ts`).
+ * `metadata.prior_content`) that USED to back audit/rollback was retired —
+ * `content_history.content_item_id` had been a dead FK since the M0c
+ * debris-wipe (content_items is permanently empty). `runSweep` stopped
+ * writing it (every insert was an FK violation).
+ *
+ * ID-131.19 S450 Wave 1 Fix 4 (this Subtask): `rollbackSweep` — whose restore
+ * mechanism still READ `content_history` by `metadata.sweep_id` post-S447 —
+ * is REMOVED entirely. content_history drops at M6 and `rollbackSweep` had 0
+ * production callers (its only caller, `app/api/items/[id]/rollback/route.ts`,
+ * was already deleted under the parallel G-IMS-DELETE lane; confirmed via
+ * `gitnexus_impact` — 0 upstream — and a repo-wide grep). Keeping a function
+ * whose only behaviour is a read against a table about to be dropped, with no
+ * caller to ever notice it start erroring, is exactly the "silent stub" this
+ * Subtask's brief prohibits — removed honestly instead. Whole-sweep audit /
+ * revert is therefore no longer offered by this module; a replacement would
+ * need a new persisted trail on the new record model, out of this Subtask's
+ * scope.
  *
  * ── Batched single-actor → NO arbitration ────────────────────────────────────
  * A sweep is a batched single-actor operation: there is no concurrent CRDT
  * merge, so it does NOT invoke `arbitrate()` / `arbitrateMany()`. (Arbitration
  * is invoked ONLY on the UC1/UC4/UC6-user CRDT paths — see `arbitrate.ts`.)
  * The sweep's SINGLE intent (`RunSweepParams.intent`, typically `'structural'`
- * or `'data'`) is part of the caller contract but, post this FIX-SLICE, is no
- * longer stamped anywhere observable (it was only ever recorded on the now-
- * retired content_history row).
+ * or `'data'`) is part of the caller contract but, post the S447 FIX-SLICE, is
+ * no longer stamped anywhere observable (it was only ever recorded on the
+ * now-retired content_history row).
  *
  * ── Atomicity ────────────────────────────────────────────────────────────────
  * Each per-match write reuses the PC-1 adapter's file-first + compensating
  * restore (INV-2): the file leg lands before the DB leg, and a DB-leg failure
  * restores that match's prior bytes. The sweep is NOT a cross-match transaction:
- * if match k fails, matches 0..k-1 already applied stay applied. Per-sweep
- * audit/revert (via the sweep-id) is no longer backed by a persisted trail —
- * see the FIX-SLICE note above.
+ * if match k fails, matches 0..k-1 already applied stay applied.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { EditIntent } from '@/lib/edit-intent/arbitrate';
 import { writeBackFileFirst } from '@/lib/edit-intent/write-back';
-import { sb, type PostgrestLike } from '@/lib/supabase/safe';
 import type { Database } from '@/supabase/types/database.types';
 
 /**
@@ -117,9 +123,10 @@ export interface RunSweepResult {
  * individually revertible. That insert is retired — `content_item_id` has
  * been a dead FK since the M0c debris-wipe (content_items is permanently
  * empty; every insert FK-violated) and content_history itself drops at M6.
- * `runSweep` had 0 production callers, so this is a same-day-safe removal;
- * see `rollbackSweep` below for the now-consequence (it can no longer find
- * anything to restore for a sweep run after this fix).
+ * `runSweep` had 0 production callers, so this was a same-day-safe removal.
+ * ID-131.19 S450 Wave 1 Fix 4 (this Subtask): the restore/rollback half of
+ * this story (`rollbackSweep`) is now REMOVED entirely — see the module
+ * header for why.
  *
  * Does NOT call `arbitrate()`/`arbitrateMany()` — the sweep's single intent is
  * batched single-actor (see `RunSweepParams.intent`). The PK boundary throws
@@ -173,123 +180,7 @@ export async function runSweep(
   };
 }
 
-export interface RollbackSweepParams {
-  supabase: SupabaseClient<Database>;
-  /** The sweep identifier whose matches to revert. */
-  sweepId: string;
-  /** The acting user/agent id — recorded on the compensating snapshot rows. */
-  actorId: string;
-  /**
-   * When set, revert ONLY this match (per-match revert). When omitted, revert
-   * the WHOLE sweep (all N matches) as a unit.
-   */
-  contentItemId?: string;
-  /** Optional structured-log context tag forwarded to the PC-1 adapter. */
-  context?: string;
-}
-
-export interface RollbackSweepResult {
-  sweepId: string;
-  /** Count of matches restored. */
-  restoredCount: number;
-  restored: string[];
-  warnings: readonly string[];
-}
-
-/**
- * A sweep snapshot row, as fetched for rollback. The `metadata.prior_content`
- * carries the exact bytes to restore for this match.
- */
-interface SweepHistoryRow {
-  content_item_id: string | null;
-  metadata: { sweep_id?: string; prior_content?: string } | null;
-}
-
-/**
- * Roll back a sweep — whole-sweep (all N matches) or a single match.
- *
- * Restoration reuses the PC-1 adapter so the file leg is restored FIRST (to the
- * captured prior bytes) and the DB leg follows, keeping the same one-outcome
- * atomicity per match.
- *
- * When `contentItemId` is supplied, only that match is reverted (others left at
- * their post-sweep bytes — PROOF 5). Otherwise every match sharing the sweep-id
- * is reverted.
- *
- * ID-131 FIX-SLICE (S447, BI-34): the compensating restore used to ALSO
- * INSERT a fresh content_history snapshot row recording the revert. That
- * insert is retired (same dead-FK reason as `runSweep`). The READ below
- * (fetching sweep-member rows by `metadata->>sweep_id`) is UNCHANGED —
- * `rollbackSweep` has 0 production callers (its only caller,
- * `app/api/items/[id]/rollback/route.ts`, has already been deleted under the
- * parallel G-IMS-DELETE lane), so this function is only reachable from
- * `sweep.test.ts`, which now seeds `content_history` rows directly since
- * `runSweep` no longer writes them.
- */
-export async function rollbackSweep(
-  params: RollbackSweepParams,
-): Promise<RollbackSweepResult> {
-  const { supabase, sweepId, actorId, contentItemId, context } = params;
-
-  // Fetch every snapshot row for this sweep-id (audit-by-sweep). The
-  // metadata->>'sweep_id' filter is the canonical whole-sweep selector.
-  const rows = await sb<SweepHistoryRow[]>(
-    supabase
-      .from('content_history')
-      .select('content_item_id, metadata')
-      // metadata->>sweep_id is the canonical whole-sweep selector. The select
-      // shape (content_item_id + the JSONB metadata) is hand-typed as
-      // SweepHistoryRow[] because the generated row type widens metadata to a
-      // bare Json; the coercion through PostgrestLike (the shared alias from
-      // @/lib/supabase/safe) narrows it to the {sweep_id, prior_content} shape
-      // the sweep writer guarantees, rather than `as never` which would swallow
-      // any unrelated type error on the chain.
-      .eq('metadata->>sweep_id', sweepId) as unknown as PostgrestLike<
-      SweepHistoryRow[]
-    >,
-    'edit-intent.sweep.rollback.fetch',
-  );
-
-  // Scope to a single match when contentItemId is supplied (per-match revert).
-  const scoped = (rows ?? []).filter(
-    (r) =>
-      r.content_item_id &&
-      r.metadata?.sweep_id === sweepId &&
-      (contentItemId ? r.content_item_id === contentItemId : true),
-  );
-
-  const restored: string[] = [];
-  const warnings: string[] = [];
-
-  for (const row of scoped) {
-    const itemId = row.content_item_id as string;
-    const priorContent = row.metadata?.prior_content ?? '';
-
-    // ID-131 {131.17}: re-pointed off content_items onto source_documents
-    // (`content` -> `extracted_text`).
-    const applyDbLeg = async (): Promise<void> => {
-      const { error: updateError } = await supabase
-        .from('source_documents')
-        .update({ extracted_text: priorContent, updated_by: actorId })
-        .eq('id', itemId);
-      if (updateError) throw updateError;
-    };
-
-    const writeBack = await writeBackFileFirst({
-      supabase,
-      contentItemId: itemId,
-      newContent: priorContent,
-      applyDbLeg,
-      context: context ?? 'edit-intent.sweep.rollback.write-back',
-    });
-    for (const w of writeBack.warnings) warnings.push(w);
-    restored.push(itemId);
-  }
-
-  return {
-    sweepId,
-    restoredCount: restored.length,
-    restored,
-    warnings,
-  };
-}
+// rollbackSweep / RollbackSweepParams / RollbackSweepResult / SweepHistoryRow
+// REMOVED (ID-131.19 S450 Wave 1 Fix 4) — see the module header for the full
+// rationale (0 production callers, content_history read about to break at
+// M6, no silent-stub value in keeping it).

@@ -1,4 +1,20 @@
 /**
+ * ⛔ ID-131.19 S450 Wave 1 Fix 4 FLAG (not fixed here — out of this
+ * Subtask's scope; this suite runs via `bun run test:integration` against a
+ * live DB, which this Subtask's worktree dispatch cannot execute/verify
+ * against). `app/api/review/publication-bulk-action/route.ts` no longer
+ * performs the content_history audit INSERT this file's AC-bulk-3.x tests
+ * (below) assert against — `sb()`'s fail-fast throw on that insert would
+ * have broken every bulk-approved item once content_history drops at M6, so
+ * the insert was retired (see the route's own header + the unit-test
+ * analogue's "content_history insert retirement" describe block). AC-bulk-3.1
+ * through 3.4 (history-row-count / change_reason / change_summary
+ * assertions) and the AC-bulk-3.5 `auto_version_content_history` trigger
+ * assertion are now testing behaviour that no longer exists and WILL FAIL
+ * once this suite is next run against a live DB. Flagged for the
+ * Orchestrator/Curator to route to a follow-up Subtask — a full rewrite
+ * needs a live DB to verify against, which this dispatch does not have.
+ *
  * §5.3 Publication Approval Gate — bulk-action integration test
  * (S220 W1a IMPL-B1).
  *

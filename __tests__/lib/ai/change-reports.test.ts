@@ -390,3 +390,32 @@ describe('Digest Content Suggestions Integration', () => {
     expect(opportunities[0].domain).toBe('Compliance');
   });
 });
+
+// ---------------------------------------------------------------------------
+// ID-131.19 S450 Wave 1 Fix 4 — governance "items modified" count re-point
+// ---------------------------------------------------------------------------
+
+describe('governance summary — items_modified re-point (ID-131.19 S450 Wave 1 Fix 4)', () => {
+  it('counts modified items via source_documents.updated_at, never content_history', async () => {
+    await generateChangeReport({
+      supabase: mockSupabase as unknown as SupabaseClient<Database>,
+      periodDays: 7,
+      digestType: 'weekly',
+      userId: 'test-user-id',
+    });
+
+    // content_history drops at M6 — the governance modifiedCount query must
+    // never target it, and must target source_documents (already the sole
+    // "items" table throughout this file post content_items retirement).
+    const fromCalls = mockSupabase.from.mock.calls.map((c) => c[0]);
+    expect(fromCalls).not.toContain('content_history');
+    expect(fromCalls).toContain('source_documents');
+
+    // The modifiedCount query filters on updated_at (not content_history's
+    // created_at) — gte/lte are shared across several queries in this
+    // function, so just confirm updated_at appears at least once and
+    // created_at is never used as a governance-count filter column.
+    const gteCalls = mockSupabase._chain.gte.mock.calls.map((c) => c[0]);
+    expect(gteCalls).toContain('updated_at');
+  });
+});

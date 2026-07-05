@@ -11,9 +11,7 @@ import { getUserDisplayName } from '@/lib/users/self-display-name';
 import { UNCLASSIFIED_TAXONOMY_OR_PREDICATE } from '@/lib/validation/schemas';
 import { dedupeRecentWorkByEntity } from '@/lib/activity/recent-work';
 import {
-  contentHistoryRowToTeamChange,
   formResponseRowToTeamChange,
-  contentHistoryRowToRecentWork,
   formResponseRowToRecentWork,
 } from '@/lib/activity/team-changes';
 import { buildProcurementSummary } from '@/lib/activity/bid-summary';
@@ -188,7 +186,10 @@ export interface UnifiedDashboardData {
     expiring_cert_count: number;
     expiring_content_date_count: number;
     unread_notification_count: number;
-    coverage_gap_count: number;
+    // coverage_gap_count RETIRED (ID-131.19 S450 Wave 1 Fix 1, DR-034) —
+    // content_items-era coverage feature has no home post content_items
+    // retirement; see the migration comment in
+    // supabase/migrations-blocked/20260706103000_id131_attention_counts_rewrite.sql.
     /**
      * Count of non-archived content_items on the taxonomy 'unclassified'
      * sentinel (primary_domain='unclassified' OR primary_subtopic=
@@ -250,13 +251,13 @@ export async function fetchUnifiedDashboardData(
   const effectiveRole = role ?? 'viewer';
 
   // --- Phase 1: User's last activity + cert relationships (needed to scope later queries) ---
-  const [lastWriteResult, lastReadResult, certRelResult] = await Promise.all([
-    supabase
-      .from('content_history')
-      .select('created_at')
-      .eq('created_by', userId)
-      .order('created_at', { ascending: false })
-      .limit(1),
+  // ID-131.19 S450 Wave 1 Fix 4: the content_history "last write" leg is
+  // RETIRED here (content_history drops at M6; no cross-entity-type
+  // write-timestamp equivalent exists in the new record/facet model — see
+  // the team_changes/my_recent_work retirement note at Phase 2 below for the
+  // full audit). last_active_at now derives from read_marks / last_sign_in_at
+  // / the 24h fallback only.
+  const [lastReadResult, certRelResult] = await Promise.all([
     supabase
       .from('read_marks')
       .select('read_at')
@@ -270,7 +271,6 @@ export async function fetchUnifiedDashboardData(
       .eq('relationship_type', 'holds'),
   ]);
 
-  const lastWriteAt = lastWriteResult.data?.[0]?.created_at ?? null;
   const lastReadAt = lastReadResult.data?.[0]?.read_at ?? null;
 
   // Fetch auth user for last_sign_in_at fallback and display name
@@ -289,12 +289,7 @@ export async function fetchUnifiedDashboardData(
   }
 
   let lastActiveAt: string | null = null;
-  if (lastWriteAt && lastReadAt) {
-    lastActiveAt =
-      new Date(lastWriteAt) >= new Date(lastReadAt) ? lastWriteAt : lastReadAt;
-  } else if (lastWriteAt) {
-    lastActiveAt = lastWriteAt;
-  } else if (lastReadAt) {
+  if (lastReadAt) {
     lastActiveAt = lastReadAt;
   } else if (authUser?.last_sign_in_at) {
     lastActiveAt = authUser.last_sign_in_at;
@@ -330,26 +325,31 @@ export async function fetchUnifiedDashboardData(
         error: null as { message: string } | null,
       }),
 
-      // 2: Team changes — content_history since last active (others' work)
-      supabase
-        .from('content_history')
-        .select(
-          'id, content_item_id, change_type, change_summary, created_by, created_at, content_items!inner(title, primary_domain)',
-        )
-        .gt('created_at', sinceDate)
-        .neq('created_by', userId)
-        .order('created_at', { ascending: false })
-        .limit(20),
+      // 2: Team changes — content_history since last active (others' work).
+      // ID-131.19 S450 Wave 1 Fix 4: content_history + its content_items!inner
+      // join drop at M6 — RETIRED, not re-pointed. Audited replacement
+      // candidates: q_a_pair_history covers ONLY q_a_pairs (no change_type/
+      // domain columns, and content_history's team-changes concept spanned
+      // ALL content types via content_items, not just Q&A); record_lifecycle
+      // is a current-state facet with no per-edit actor/timestamp log. No
+      // logical 1:1 replacement exists — mirrors the sibling recent_activity
+      // stub above (query 1, same GO, same content_items-anchored-feature
+      // reasoning). Stubbed to an always-empty result so the module keeps
+      // compiling with the same `{data, error}` shape the extraction below
+      // expects; the surviving form_response_history-sourced half of
+      // team_changes (query 4 below) is untouched and keeps working.
+      Promise.resolve({
+        data: [] as unknown[],
+        error: null as { message: string } | null,
+      }),
 
-      // 3: User's own recent work — content_history
-      supabase
-        .from('content_history')
-        .select(
-          'id, content_item_id, change_type, change_summary, created_at, content_items!inner(title)',
-        )
-        .eq('created_by', userId)
-        .order('created_at', { ascending: false })
-        .limit(5),
+      // 3: User's own recent work — content_history. RETIRED for the same
+      // reason as query 2 above (no logical replacement; surviving
+      // form_response_history half at query 5 below is untouched).
+      Promise.resolve({
+        data: [] as unknown[],
+        error: null as { message: string } | null,
+      }),
 
       // 4: Procurement response changes by others (team changes)
       supabase
@@ -413,7 +413,6 @@ export async function fetchUnifiedDashboardData(
   let expired_content_count = 0;
   let unread_notification_count = 0;
   let expiring_content_date_count = 0;
-  let coverage_gap_count = 0;
 
   if (results[0].status === 'fulfilled') {
     const { data, error } = results[0].value;
@@ -421,8 +420,10 @@ export async function fetchUnifiedDashboardData(
       errors.push('attention_counts RPC failed');
     } else if (data && data[0]) {
       // ID-70: get_dashboard_attention_counts now returns a single typed row
-      // (RETURNS TABLE) — 8 scalar columns + a freshness_summary jsonb column
+      // (RETURNS TABLE) — 7 scalar columns + a freshness_summary jsonb column
       // validated at this boundary via parseJsonb (matches get_filter_counts).
+      // ID-131.19 S450 Wave 1 Fix 1: coverage_gap_count RETIRED (DR-034) —
+      // no longer part of the RETURNS TABLE shape, nothing to read here.
       const counts = data[0];
       governance_review_count = counts.governance_review_count ?? 0;
       unverified_count = counts.unverified_count ?? 0;
@@ -431,7 +432,6 @@ export async function fetchUnifiedDashboardData(
       expired_content_count = counts.expired_content_count ?? 0;
       expiring_content_date_count = counts.expiring_content_date_count ?? 0;
       unread_notification_count = counts.unread_notification_count ?? 0;
-      coverage_gap_count = counts.coverage_gap_count ?? 0;
       const fs = parseJsonb(FreshnessSummarySchema, counts.freshness_summary);
       if (fs) {
         freshness_summary.fresh = fs.fresh;
@@ -457,35 +457,14 @@ export async function fetchUnifiedDashboardData(
     errors.push('recent_activity query failed');
   }
 
-  // --- Extract team changes — content_history (query 2) ---
+  // --- team_changes / my_recent_work (queries 2 + 3 are the RETIRED
+  // content_history legs — see the Phase 2 comment above; they always
+  // resolve to `{data: [], error: null}` and can never fail or contribute an
+  // item, so there is nothing to extract from results[2]/results[3]. Both
+  // arrays are seeded here and populated below solely from the surviving
+  // form_response_history legs (queries 4 + 5). ID-131.19 S450 Wave 1 Fix 4. ---
   const team_changes: TeamChange[] = [];
-  if (results[2].status === 'fulfilled') {
-    const { data, error } = results[2].value;
-    if (error) {
-      errors.push('team_changes query failed');
-    } else if (data) {
-      for (const row of data) {
-        team_changes.push(contentHistoryRowToTeamChange(row));
-      }
-    }
-  } else {
-    errors.push('team_changes query failed');
-  }
-
-  // --- Extract user's recent work — content_history (query 3) ---
   const my_recent_work: RecentWorkItem[] = [];
-  if (results[3].status === 'fulfilled') {
-    const { data, error } = results[3].value;
-    if (error) {
-      errors.push('my_recent_work query failed');
-    } else if (data) {
-      for (const row of data) {
-        my_recent_work.push(contentHistoryRowToRecentWork(row));
-      }
-    }
-  } else {
-    errors.push('my_recent_work query failed');
-  }
 
   // --- Extract bid response team changes (query 4) ---
   if (results[4].status === 'fulfilled') {
@@ -501,7 +480,10 @@ export async function fetchUnifiedDashboardData(
     errors.push('bid_response team_changes query failed');
   }
 
-  // Sort combined team changes by date (content_history + form_response_history)
+  // Sort team changes by date. Sourced solely from form_response_history now
+  // (the content_history leg is retired, ID-131.19 S450 Wave 1 Fix 4) — the
+  // DB query already orders descending, but this stays as a defensive
+  // re-sort in case that ever changes.
   team_changes.sort(
     (a, b) =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
@@ -521,11 +503,12 @@ export async function fetchUnifiedDashboardData(
     errors.push('bid_response my_recent_work query failed');
   }
 
-  // Sort combined recent work by date, collapse repeated audit rows for the
-  // same entity, and limit to 5. Multiple content_history rows per item are
-  // legitimate (publication-state transitions, edits, imports), but the
-  // dashboard "pick up where you left off" surface should show the latest
-  // entity once rather than render duplicate React keys for the same UUID.
+  // Sort recent work by date, collapse repeated rows for the same entity,
+  // and limit to 5. Sourced solely from form_response_history now (the
+  // content_history leg is retired, ID-131.19 S450 Wave 1 Fix 4) — a bid
+  // response can still be edited multiple times, so the dedup-by-entity
+  // step still matters: the "pick up where you left off" surface should
+  // show the latest entity once rather than render duplicate React keys.
   my_recent_work.sort(
     (a, b) =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
@@ -635,7 +618,6 @@ export async function fetchUnifiedDashboardData(
       expiring_cert_count,
       expiring_content_date_count,
       unread_notification_count,
-      coverage_gap_count,
       unclassified_count,
     },
     active_bids,

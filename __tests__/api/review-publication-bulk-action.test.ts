@@ -101,10 +101,9 @@ function makePostRequest(body: unknown) {
 //      `mockSupabase._chain.maybeSingle.mockResolvedValueOnce(...)`.
 //   2. UPDATE returning `.single()` — controlled by
 //      `mockSupabase._chain.single.mockResolvedValueOnce(...)`.
-//   3. INSERT into content_history — terminal supabase-js insert resolves
-//      via the chain `then` shim. Default response = `{ data: null,
-//      error: null, count: 0 }`, which is success for `sb()`. Override on
-//      a per-test basis if a content_history failure path is asserted.
+//   Step 3 (INSERT into content_history) is RETIRED — ID-131.19 S450 Wave 1
+//   Fix 4 — the route no longer performs it; see the retirement describe
+//   block below.
 //
 // `configureRole(mockSupabase, role)` queues the FIRST `.single()` to
 // return `{ data: { role }, error: null }` for the user_roles lookup that
@@ -200,9 +199,10 @@ beforeEach(() => {
     error: null,
   });
   mockSupabase._chain.then.mockReset();
-  // Default: terminal awaits (e.g. content_history.insert with no
-  // .single()) resolve to a success-shaped response — matches sb()
-  // contract for non-throwing inserts.
+  // Default: any bare-awaited chain (no terminal `.single()`/`.maybeSingle()`)
+  // resolves to a success-shaped response. Retained defensively even though
+  // the route's own bare-awaited content_history insert is retired
+  // (ID-131.19 S450 Wave 1 Fix 4) — harmless if nothing hits this path.
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: null, error: null, count: 0 }),
   );
@@ -770,11 +770,20 @@ describe('AC-bulk-5.x — optimistic concurrency', () => {
 });
 
 // ===========================================================================
-// content_history insert contract — bulk-aware change_reason literal
+// content_history insert RETIREMENT — ID-131.19 S450 Wave 1 Fix 4
 // ===========================================================================
+//
+// The step-5 content_history audit INSERT (change_reason='bulk_approve' /
+// 'bulk_return_to_draft', change_type='publication_state') is REMOVED from
+// the route — content_history drops at M6 and the insert had already
+// degraded to hardcoded empty/null placeholders (BI-11 drop list). Per
+// `sb()`'s fail-fast contract, leaving it in place would have made every
+// bulk-approved item throw mid-loop once the table is gone. These tests
+// replace the former "content_history insert contract" block, which
+// asserted a payload shape that no longer exists.
 
-describe('content_history insert contract — bulk literals (§6)', () => {
-  it("approve → content_history insert carries change_reason='bulk_approve' + change_type='publication_state'", async () => {
+describe('content_history insert retirement (ID-131.19 S450 Wave 1 Fix 4)', () => {
+  it('approve does not insert into content_history — the transition still succeeds via the source_documents UPDATE', async () => {
     configureRole(mockSupabase, 'admin');
     queueFetch(makeCurrentRow(ID_A, { publication_status: 'in_review' }));
     queueUpdateSuccess(ID_A, 'published');
@@ -782,37 +791,27 @@ describe('content_history insert contract — bulk literals (§6)', () => {
     const res = await POST(makePostRequest({ ids: [ID_A], action: 'approve' }));
 
     expect(res.status).toBe(200);
-    // Find the content_history insert — identifiable by
-    // change_type='publication_state' on the payload.
+    const body = await res.json();
+    expect(body.successCount).toBe(1);
+    expect(body.results[0]).toMatchObject({
+      id: ID_A,
+      status: 'success',
+      previousStatus: 'in_review',
+      newStatus: 'published',
+    });
+
+    // No call anywhere in this request inserted a publication_state-shaped
+    // content_history row.
     const historyCall = mockSupabase._chain.insert.mock.calls.find(
       (call: unknown[]) => {
         const payload = call[0] as Record<string, unknown>;
         return payload.change_type === 'publication_state';
       },
     );
-    expect(historyCall).toBeDefined();
-    const payload = historyCall![0] as Record<string, unknown>;
-    expect(payload.change_type).toBe('publication_state');
-    expect(payload.change_reason).toBe('bulk_approve');
-    expect(payload.change_summary).toBe(
-      'Publication status: in_review -> published',
-    );
-    expect(payload.content_item_id).toBe(ID_A);
-    expect(payload.created_by).toBe(USER_ID);
-    // version is OMITTED — auto_version_content_history trigger sets it.
-    expect('version' in payload).toBe(false);
-    // ID-131 {131.19}: title/content/brief/detail/reference have no typed-
-    // record home post-refactor (BI-11 drop list) — the route no longer
-    // fetches them in step 1, so the content_history insert hardcodes empty/
-    // null placeholders rather than reading from the (now-absent) fetch data.
-    expect(payload.title).toBe('');
-    expect(payload.content).toBe('');
-    expect(payload.brief).toBeNull();
-    expect(payload.detail).toBeNull();
-    expect(payload.reference).toBeNull();
+    expect(historyCall).toBeUndefined();
   });
 
-  it("return_to_draft → content_history insert carries change_reason='bulk_return_to_draft'", async () => {
+  it('return_to_draft does not insert into content_history either', async () => {
     configureRole(mockSupabase, 'admin');
     queueFetch(makeCurrentRow(ID_A, { publication_status: 'in_review' }));
     queueUpdateSuccess(ID_A, 'draft');
@@ -822,42 +821,33 @@ describe('content_history insert contract — bulk literals (§6)', () => {
     );
 
     expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.successCount).toBe(1);
+
     const historyCall = mockSupabase._chain.insert.mock.calls.find(
       (call: unknown[]) => {
         const payload = call[0] as Record<string, unknown>;
         return payload.change_type === 'publication_state';
       },
     );
-    expect(historyCall).toBeDefined();
-    const payload = historyCall![0] as Record<string, unknown>;
-    expect(payload.change_reason).toBe('bulk_return_to_draft');
-    expect(payload.change_summary).toBe(
-      'Publication status: in_review -> draft',
-    );
+    expect(historyCall).toBeUndefined();
   });
 
-  it('failed iterations (conflict / not_found / error) write ZERO content_history rows', async () => {
-    // Per spec §6.4: failed bulk attempts are NOT persisted to
-    // content_history. Verify by enumerating every .insert() call and
-    // confirming none target content_history (i.e. none have
-    // change_type='publication_state' in the payload).
+  it('multiple successful items in one request insert ZERO content_history rows total', async () => {
     configureRole(mockSupabase, 'admin');
-    queueFetch(null); // not_found
-    queueFetch(makeCurrentRow(ID_B, { publication_status: 'published' })); // pre-loop guard
-    queueFetch(makeCurrentRow(ID_C, { publication_status: 'in_review' })); // race-loss
-    queueUpdateRaceLoss();
+    queueFetch(makeCurrentRow(ID_A, { publication_status: 'in_review' }));
+    queueUpdateSuccess(ID_A, 'published');
+    queueFetch(makeCurrentRow(ID_B, { publication_status: 'in_review' }));
+    queueUpdateSuccess(ID_B, 'published');
 
     const res = await POST(
-      makePostRequest({
-        ids: [ID_A, ID_B, ID_C],
-        action: 'approve',
-      }),
+      makePostRequest({ ids: [ID_A, ID_B], action: 'approve' }),
     );
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.successCount).toBe(0);
-    expect(body.failureCount).toBe(3);
+    expect(body.successCount).toBe(2);
+
     const historyInserts = mockSupabase._chain.insert.mock.calls.filter(
       (call: unknown[]) => {
         const payload = call[0] as Record<string, unknown>;

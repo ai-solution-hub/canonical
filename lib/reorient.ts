@@ -11,12 +11,11 @@ import { formatRelativeDate } from '@/lib/format';
 import { getUserDisplayName } from '@/lib/users/self-display-name';
 import { dedupeRecentWorkByEntity } from '@/lib/activity/recent-work';
 import {
-  contentHistoryRowToTeamChange,
   formResponseRowToTeamChange,
-  contentHistoryRowToRecentWork,
   formResponseRowToRecentWork,
 } from '@/lib/activity/team-changes';
 import { buildProcurementSummary } from '@/lib/activity/bid-summary';
+import { tryQuery } from '@/lib/supabase/safe';
 
 // ---------------------------------------------------------------------------
 // Main data fetching function
@@ -35,26 +34,31 @@ export async function fetchReorientData(
 ): Promise<ReorientData> {
   const errors: string[] = [];
 
-  // Query 1: User's last activity timestamp (write activity + read activity)
-  const [lastWriteResult, lastReadResult] = await Promise.all([
-    supabase
-      .from('content_history')
-      .select('created_at')
-      .eq('created_by', userId)
-      .order('created_at', { ascending: false })
-      .limit(1),
+  // Query 1: User's last activity timestamp (read activity). ID-131.19 S450
+  // Wave 1 Fix 4: the content_history "last write" leg is RETIRED here
+  // (content_history drops at M6; no cross-entity-type write-timestamp
+  // equivalent exists in the new record/facet model — see the team_changes/
+  // my_recent_work retirement note at queries 0/1 below for the full audit).
+  // Non-critical — degrades to the last_sign_in_at / null fallback below —
+  // so a failure is tracked in `errors` rather than thrown (tryQuery, not
+  // sb(), per the "sb()/tryQuery() Supabase safety" quality bar).
+  const lastReadResult = await tryQuery(
     supabase
       .from('read_marks')
       .select('read_at')
       .eq('user_id', userId)
       .order('read_at', { ascending: false })
       .limit(1),
-  ]);
+    'reorient.last_read_activity',
+  );
+  if (!lastReadResult.ok) {
+    errors.push('last_read_activity query failed');
+  }
 
-  // Determine last_active_at from the most recent of content_history or read_marks,
-  // then auth last_sign_in_at, then 24h ago
-  const lastWriteAt = lastWriteResult.data?.[0]?.created_at ?? null;
-  const lastReadAt = lastReadResult.data?.[0]?.read_at ?? null;
+  // Determine last_active_at from read_marks, then auth last_sign_in_at, then 24h ago
+  const lastReadAt = lastReadResult.ok
+    ? (lastReadResult.data?.[0]?.read_at ?? null)
+    : null;
 
   // Fetch auth user once — used for last_sign_in_at fallback and display name
   let authUser: {
@@ -73,13 +77,7 @@ export async function fetchReorientData(
 
   let lastActiveAt: string | null = null;
 
-  if (lastWriteAt && lastReadAt) {
-    // Take the more recent of the two
-    lastActiveAt =
-      new Date(lastWriteAt) >= new Date(lastReadAt) ? lastWriteAt : lastReadAt;
-  } else if (lastWriteAt) {
-    lastActiveAt = lastWriteAt;
-  } else if (lastReadAt) {
+  if (lastReadAt) {
     lastActiveAt = lastReadAt;
   } else if (authUser?.last_sign_in_at) {
     lastActiveAt = authUser.last_sign_in_at;
@@ -96,26 +94,31 @@ export async function fetchReorientData(
   // Run remaining queries in parallel (active procurements via shared helper)
   const [results, activeProcurementsResult] = await Promise.all([
     Promise.allSettled([
-      // 0: Team changes since last active
-      supabase
-        .from('content_history')
-        .select(
-          'id, content_item_id, change_type, change_summary, created_by, created_at, content_items!inner(title, primary_domain)',
-        )
-        .gt('created_at', sinceDate)
-        .neq('created_by', userId)
-        .order('created_at', { ascending: false })
-        .limit(20),
+      // 0: Team changes since last active. ID-131.19 S450 Wave 1 Fix 4:
+      // content_history + its content_items!inner join drop at M6 — RETIRED,
+      // not re-pointed. Audited replacement candidates: q_a_pair_history
+      // covers ONLY q_a_pairs (no change_type/domain columns, and
+      // content_history's team-changes concept spanned ALL content types via
+      // content_items, not just Q&A); record_lifecycle is a current-state
+      // facet with no per-edit actor/timestamp log. No logical 1:1
+      // replacement exists — mirrors lib/dashboard.ts's identical
+      // content_items-anchored-feature reasoning for its sibling
+      // recent_activity stub (same GO). Stubbed to an always-empty result
+      // so the module keeps compiling with the same `{data, error}` shape
+      // the extraction below expects; the surviving form_response_history
+      // half of team_changes (query 6 below) is untouched.
+      Promise.resolve({
+        data: [] as unknown[],
+        error: null as { message: string } | null,
+      }),
 
-      // 1: User's own recent work
-      supabase
-        .from('content_history')
-        .select(
-          'id, content_item_id, change_type, change_summary, created_at, content_items!inner(title)',
-        )
-        .eq('created_by', userId)
-        .order('created_at', { ascending: false })
-        .limit(5),
+      // 1: User's own recent work. RETIRED for the same reason as query 0
+      // above (no logical replacement; surviving form_response_history half
+      // at query 7 below is untouched).
+      Promise.resolve({
+        data: [] as unknown[],
+        error: null as { message: string } | null,
+      }),
 
       // 2: Expired content count
       supabase.rpc('get_freshness_breakdown'),
@@ -184,20 +187,13 @@ export async function fetchReorientData(
     fetchActiveProcurementWithStats(supabase),
   ]);
 
-  // --- Extract team changes ---
+  // --- team_changes / my_recent_work: query 0/1 are the RETIRED
+  // content_history legs (see the comment above) — they always resolve to
+  // `{data: [], error: null}` and can never fail or contribute an item, so
+  // there is nothing to extract from results[0]/results[1]. Both arrays are
+  // seeded here and populated below solely from the surviving
+  // form_response_history legs (queries 6 + 7). ID-131.19 S450 Wave 1 Fix 4. ---
   const team_changes: TeamChange[] = [];
-  if (results[0].status === 'fulfilled') {
-    const { data, error } = results[0].value;
-    if (error) {
-      errors.push('team_changes query failed');
-    } else if (data) {
-      for (const row of data) {
-        team_changes.push(contentHistoryRowToTeamChange(row));
-      }
-    }
-  } else {
-    errors.push('team_changes query failed');
-  }
 
   // --- Extract bid response team changes ---
   if (results[6].status === 'fulfilled') {
@@ -213,26 +209,16 @@ export async function fetchReorientData(
     errors.push('bid_response team_changes query failed');
   }
 
-  // Sort combined team changes by date (content_history + form_response_history)
+  // Sort team changes by date. Sourced solely from form_response_history now
+  // (the content_history leg is retired, ID-131.19 S450 Wave 1 Fix 4) — the
+  // DB query already orders descending, but this stays as a defensive
+  // re-sort in case that ever changes.
   team_changes.sort(
     (a, b) =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
 
-  // --- Extract user's recent work ---
   const my_recent_work: RecentWorkItem[] = [];
-  if (results[1].status === 'fulfilled') {
-    const { data, error } = results[1].value;
-    if (error) {
-      errors.push('my_recent_work query failed');
-    } else if (data) {
-      for (const row of data) {
-        my_recent_work.push(contentHistoryRowToRecentWork(row));
-      }
-    }
-  } else {
-    errors.push('my_recent_work query failed');
-  }
 
   // --- Extract user's own bid response edits ---
   if (results[7].status === 'fulfilled') {
@@ -248,10 +234,11 @@ export async function fetchReorientData(
     errors.push('bid_response my_recent_work query failed');
   }
 
-  // Sort combined recent work by date, collapse repeated audit rows for the
-  // same entity, and limit to 5. Multiple content_history rows per item are
-  // legitimate (publication-state transitions, edits, imports), but reorient
-  // should present the latest entity once rather than duplicate the same UUID.
+  // Sort recent work by date, collapse repeated rows for the same entity,
+  // and limit to 5. Sourced solely from form_response_history now (the
+  // content_history leg is retired, ID-131.19 S450 Wave 1 Fix 4) — a bid
+  // response can still be edited multiple times, so reorient should present
+  // the latest entity once rather than duplicate the same UUID.
   my_recent_work.sort(
     (a, b) =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),

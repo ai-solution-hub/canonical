@@ -62,11 +62,15 @@ const TEST_USER_ID = 'user-abc-123';
 /**
  * Configure the mock Supabase client for fetchUnifiedDashboardData.
  *
- * Query structure:
+ * Query structure (ID-131.19 S450 Wave 1 Fix 4: the content_history "last
+ * write" leg and the content_history-sourced team-changes/recent-work legs
+ * are RETIRED — content_history drops at M6 and no logical replacement
+ * exists; see lib/dashboard.ts's retirement comments for the full audit.
+ * Retired legs never issue a from() call — they are Promise.resolve stubs —
+ * so they no longer consume a `fromCalls` slot below):
  *   Phase 1 (last activity + cert relationships):
- *     from(0): content_history — last write activity
- *     from(1): read_marks — last read activity
- *     from(2): entity_relationships — cert relationship targets
+ *     from(0): read_marks — last read activity
+ *     from(1): entity_relationships — cert relationship targets
  *   Phase 2 (main parallel batch):
  *     Promise.allSettled with 7 items:
  *       [0] attention counts — rpc('get_dashboard_attention_counts')
@@ -74,8 +78,8 @@ const TEST_USER_ID = 'user-abc-123';
  *           dropped at M6 (content_items-anchored) — this leg is now always
  *           Promise.resolve({data: [], error: null}), never rpc(). Only ONE
  *           rpc() call fires per invocation now (attention counts).
- *       [2] team changes (content_history) — from('content_history')
- *       [3] recent work (content_history) — from('content_history')
+ *       [2] team changes — RETIRED, Promise.resolve stub, no from() call.
+ *       [3] recent work — RETIRED, Promise.resolve stub, no from() call.
  *       [4] bid response team changes — from('form_response_history')
  *       [5] bid response recent work — from('form_response_history')
  *       [6] cert expiry — from('entity_mentions') or Promise.resolve
@@ -84,12 +88,9 @@ const TEST_USER_ID = 'user-abc-123';
  */
 function setupDefaultMock(
   overrides: {
-    lastActivityData?: unknown[];
     lastReadActivityData?: unknown[];
     certRelData?: unknown[];
     authUser?: Record<string, unknown> | null;
-    teamChangesData?: unknown[];
-    recentWorkData?: unknown[];
     freshnessData?: {
       fresh: number;
       aging: number;
@@ -104,7 +105,6 @@ function setupDefaultMock(
     unverifiedCount?: number;
     expiringContentDateCount?: number;
     certMentionsData?: unknown[];
-    coverageGapCount?: number;
     unclassifiedCount?: number;
     activityFeedData?: unknown[];
     workspaces?: unknown[];
@@ -121,44 +121,22 @@ function setupDefaultMock(
   }> = [];
 
   // Phase 1: last activity + cert relationships
-  // Call 0: content_history for lastActivity (write)
-  fromCalls.push({
-    data: overrides.lastActivityData ?? [
-      { created_at: '2026-03-08T08:00:00Z' },
-    ],
-    error: null,
-    count: null,
-  });
-
-  // Call 1: read_marks for lastActivity (read)
+  // Call 0: read_marks for lastActivity (read)
   fromCalls.push({
     data: overrides.lastReadActivityData ?? [],
     error: null,
     count: null,
   });
 
-  // Call 2: entity_relationships for cert targets
+  // Call 1: entity_relationships for cert targets
   fromCalls.push({
     data: overrides.certRelData ?? [],
     error: null,
     count: null,
   });
 
-  // Phase 2: from() calls (queries 2-6 in Promise.allSettled)
-  // [2] team changes — from('content_history')
-  fromCalls.push({
-    data: overrides.teamChangesData ?? [],
-    error: null,
-    count: null,
-  });
-
-  // [3] recent work — from('content_history')
-  fromCalls.push({
-    data: overrides.recentWorkData ?? [],
-    error: null,
-    count: null,
-  });
-
+  // Phase 2: from() calls (queries 4-6 in Promise.allSettled — queries 2/3
+  // are the retired content_history stubs and never call from())
   // [4] bid response team changes — from('form_response_history')
   fromCalls.push({
     data: overrides.bidResponseTeamChangesData ?? [],
@@ -184,7 +162,7 @@ function setupDefaultMock(
     });
   }
 
-  // [7] taxonomy-coverage gap (ID-63.12) — from('content_items') head:true +
+  // [7] taxonomy-coverage gap (ID-63.12) — from('source_documents') head:true +
   // count:'exact'. Always issued (no Promise.resolve short-circuit), so it
   // always consumes the next from() call slot.
   fromCalls.push({
@@ -257,7 +235,8 @@ function setupDefaultMock(
           expired_content_count: defaultFreshness.expired,
           expiring_content_date_count: overrides.expiringContentDateCount ?? 0,
           unread_notification_count: overrides.notificationsCount ?? 0,
-          coverage_gap_count: overrides.coverageGapCount ?? 0,
+          // coverage_gap_count RETIRED (ID-131.19 S450 Wave 1 Fix 1, DR-034)
+          // — no longer part of the RPC's RETURNS TABLE shape.
           freshness_summary: defaultFreshness,
         },
       ],
@@ -355,7 +334,9 @@ describe('fetchUnifiedDashboardData', () => {
     expect(sources.expiring_content_date_count).toBe(2);
     // Cert and coverage counts are now wired server-side
     expect(sources.expiring_cert_count).toBe(0); // No cert relationship data in default mock
-    expect(sources.coverage_gap_count).toBe(0); // No subtopics in default mock
+    // coverage_gap_count RETIRED (ID-131.19 S450 Wave 1 Fix 1, DR-034) — no
+    // longer a field on attention_sources at all.
+    expect(sources).not.toHaveProperty('coverage_gap_count');
   });
 
   // ID-63.12 — taxonomy-coverage gap count flows from the new
@@ -567,7 +548,9 @@ describe('fetchUnifiedDashboardData', () => {
         email: 'liam@example.com',
         user_metadata: { display_name: 'Liam Jones' },
       },
-      lastActivityData: [{ created_at: '2026-03-08T08:00:00Z' }],
+      // ID-131.19 S450 Wave 1 Fix 4: last_active_at now derives from
+      // read_marks only (the content_history write leg is retired).
+      lastReadActivityData: [{ read_at: '2026-03-08T08:00:00Z' }],
     });
 
     const result = await fetchUnifiedDashboardData(
@@ -583,23 +566,15 @@ describe('fetchUnifiedDashboardData', () => {
     expect(result.reorient.last_active_relative).toBe('2 hours ago');
   });
 
-  it('reorient includes team changes from content_history', async () => {
-    const mock = setupDefaultMock({
-      teamChangesData: [
-        {
-          id: 'ch-1',
-          content_item_id: 'item-1',
-          change_type: 'edit',
-          change_summary: 'Updated title',
-          created_by: 'other-user',
-          created_at: '2026-03-08T09:00:00Z',
-          content_items: {
-            title: 'Some Article',
-            primary_domain: 'compliance',
-          },
-        },
-      ],
-    });
+  // ID-131.19 S450 Wave 1 Fix 4: the content_history-sourced 'content_item'
+  // legs of team_changes/my_recent_work are RETIRED (content_history drops
+  // at M6; no logical cross-entity-type replacement exists — see
+  // lib/dashboard.ts's query-2/3 retirement comment for the full audit).
+  // These two tests replace 'reorient includes team changes from
+  // content_history' / 'reorient includes my_recent_work from
+  // content_history', which asserted behaviour that no longer exists.
+  it('never produces a content_item-sourced team change (leg retired)', async () => {
+    const mock = setupDefaultMock();
 
     const result = await fetchUnifiedDashboardData(
       mock as never,
@@ -608,25 +583,16 @@ describe('fetchUnifiedDashboardData', () => {
       'admin',
     );
 
-    expect(result.reorient.team_changes.length).toBe(1);
-    expect(result.reorient.team_changes[0].entity_type).toBe('content_item');
-    expect(result.reorient.team_changes[0].entity_title).toBe('Some Article');
-    expect(result.reorient.team_changes[0].action).toBe('updated');
+    expect(
+      result.reorient.team_changes.some(
+        (tc) => tc.entity_type === 'content_item',
+      ),
+    ).toBe(false);
+    expect(result.errors).not.toContain('team_changes query failed');
   });
 
-  it('reorient includes my_recent_work from content_history', async () => {
-    const mock = setupDefaultMock({
-      recentWorkData: [
-        {
-          id: 'ch-2',
-          content_item_id: 'item-2',
-          change_type: 'create',
-          change_summary: 'Created article',
-          created_at: '2026-03-08T07:00:00Z',
-          content_items: { title: 'My New Article' },
-        },
-      ],
-    });
+  it('never produces a content_item-sourced recent-work item (leg retired)', async () => {
+    const mock = setupDefaultMock();
 
     const result = await fetchUnifiedDashboardData(
       mock as never,
@@ -635,35 +601,21 @@ describe('fetchUnifiedDashboardData', () => {
       'admin',
     );
 
-    expect(result.reorient.my_recent_work.length).toBe(1);
-    expect(result.reorient.my_recent_work[0].entity_type).toBe('content_item');
-    expect(result.reorient.my_recent_work[0].entity_title).toBe(
-      'My New Article',
-    );
-    expect(result.reorient.my_recent_work[0].action).toBe('created');
-    expect(result.reorient.my_recent_work[0].href).toBe('/item/item-2');
+    expect(
+      result.reorient.my_recent_work.some(
+        (item) => item.entity_type === 'content_item',
+      ),
+    ).toBe(false);
+    expect(result.errors).not.toContain('my_recent_work query failed');
   });
 
   it('deduplicates my_recent_work by entity, keeping the latest activity', async () => {
+    // ID-131.19 S450 Wave 1 Fix 4: rewritten to use ONLY form_response_history
+    // duplicates (the content_history leg that used to supply the other
+    // duplicate group is retired) — two distinct bid-response entities, one
+    // of which has two revisions, proves dedup-by-entity + sort-by-date
+    // still work over the surviving single-source data.
     const mock = setupDefaultMock({
-      recentWorkData: [
-        {
-          id: 'ch-new',
-          content_item_id: 'item-dup',
-          change_type: 'edit',
-          change_summary: 'Published article',
-          created_at: '2026-03-08T09:00:00Z',
-          content_items: { title: 'Published Article' },
-        },
-        {
-          id: 'ch-old',
-          content_item_id: 'item-dup',
-          change_type: 'create',
-          change_summary: 'Created article',
-          created_at: '2026-03-08T08:00:00Z',
-          content_items: { title: 'Published Article' },
-        },
-      ],
       bidResponseRecentWorkData: [
         {
           id: 'brh-new',
@@ -693,6 +645,20 @@ describe('fetchUnifiedDashboardData', () => {
             },
           },
         },
+        {
+          id: 'brh-other',
+          response_id: 'response-other',
+          edited_by: TEST_USER_ID,
+          created_at: '2026-03-08T08:00:00Z',
+          form_responses: {
+            question_id: 'q-2',
+            form_questions: {
+              workspace_id: 'bid-1',
+              question_text: 'A different response',
+              workspaces: { id: 'bid-1', name: 'Procurement' },
+            },
+          },
+        },
       ],
     });
 
@@ -706,11 +672,10 @@ describe('fetchUnifiedDashboardData', () => {
     expect(result.reorient.my_recent_work).toHaveLength(2);
     expect(
       result.reorient.my_recent_work.map((item) => item.entity_id),
-    ).toEqual(['response-dup', 'item-dup']);
+    ).toEqual(['response-dup', 'response-other']);
     expect(result.reorient.my_recent_work[0].entity_title).toBe(
       'Latest answer',
     );
-    expect(result.reorient.my_recent_work[1].action).toBe('updated');
   });
 
   it('error array tracks RPC failure', async () => {
@@ -820,8 +785,6 @@ describe('fetchUnifiedDashboardData', () => {
 
   it('returns empty arrays when no data exists', async () => {
     const mock = setupDefaultMock({
-      teamChangesData: [],
-      recentWorkData: [],
       activityFeedData: [],
     });
 
@@ -840,14 +803,24 @@ describe('fetchUnifiedDashboardData', () => {
   });
 
   it('limits my_recent_work to 5 items', async () => {
+    // ID-131.19 S450 Wave 1 Fix 4: re-seeded via bidResponseRecentWorkData —
+    // the content_history leg that used to supply this data is retired, but
+    // the 5-item cap logic (dedupeRecentWorkByEntity(...).slice(0, 5)) still
+    // applies to whatever the surviving source produces.
     const mock = setupDefaultMock({
-      recentWorkData: Array.from({ length: 8 }, (_, i) => ({
-        id: `ch-${i}`,
-        content_item_id: `item-${i}`,
-        change_type: 'edit',
-        change_summary: `Edit ${i}`,
+      bidResponseRecentWorkData: Array.from({ length: 8 }, (_, i) => ({
+        id: `brh-${i}`,
+        response_id: `response-${i}`,
+        edited_by: TEST_USER_ID,
         created_at: new Date(Date.now() - i * 3600000).toISOString(),
-        content_items: { title: `Article ${i}` },
+        form_responses: {
+          question_id: `q-${i}`,
+          form_questions: {
+            workspace_id: 'bid-1',
+            question_text: `Question ${i}`,
+            workspaces: { id: 'bid-1', name: 'Procurement' },
+          },
+        },
       })),
     });
 
