@@ -7,7 +7,7 @@
  * `supabase/migrations/20260625160000_id130_api_views_regen.sql` (re-timestamped
  * after the ID-130 spine — see OUTPUT_FILE below):
  *
- *   1. 61 × `CREATE VIEW api.<t> WITH (security_invoker = true)` — 1:1 over the
+ *   1. 59 × `CREATE VIEW api.<t> WITH (security_invoker = true)` — 1:1 over the
  *      public base tables in the Data API surface, EXPLICIT ordered column lists
  *      (never `SELECT *`), every FK column projected verbatim so PostgREST
  *      relationship inference fires (S1 spike GREEN). Generated columns
@@ -55,20 +55,25 @@ const DB_URL =
 
 const MIGRATIONS_DIR = join(import.meta.dir, '..', 'supabase', 'migrations');
 // Fixed filename — stable across regens so the idempotency diff is meaningful.
-// Re-timestamped to AFTER the ID-130 spine (id-130 {130.9}): the api surface now
-// mirrors ID-130 tables/columns (form_outcome_types, form_templates.outcome/
-// workflow_state, form_questions.form_template_id, q_a_pairs.source_form_template_id)
-// that the spine 20260625120000 creates — so the generated migration MUST apply
-// AFTER it. The earlier 20260623140000_id115_api_views_and_rpcs.sql stays the
-// PRE-ID-130 baseline (the ID-115 surface, on which 20260624120000's anon-revoke
-// still depends); this forward migration re-emits the FULL post-ID-130 surface as
-// idempotent DROP/CREATE (every view + fn is `DROP ... IF EXISTS` then `CREATE`),
-// so it applies cleanly on a fresh stack (local `db reset`, fresh client DB) and is
-// a no-op rebuild on hosted where the objects already exist — no superuser, no
-// ordering risk. Both files fold into the next squash baseline.
+// Re-timestamped to AFTER the {131.19} coordinated-GO DDL (M6 id131_drops,
+// 20260706110000, and the un-quarantined drop_inline_vector_cols, 20260706120000):
+// this whole-surface regen must run LAST — it rebuilds api.record_lifecycle /
+// api.record_embeddings, drops every api.* wrapper/view for a fn/table the GO
+// retires (content_items, content_item_workspaces, content_history, read_marks,
+// the tag/author/toggle_star/reading/filter/workspace/topic/gaps/dedup/quality-
+// flag/activity-feed function families), and picks up the 8 new id138 SECURITY
+// DEFINER wrappers (EXTRA_DEFINER_RPCS) live from the catalog. The earlier
+// 20260625160000_id130_api_views_regen.sql STAYS as the pre-{131.19} snapshot
+// (mirrors the 20260623140000_id115_api_views_and_rpcs.sql precedent from the
+// prior re-timestamp) — this forward migration re-emits the FULL post-{131.19}
+// surface as idempotent DROP/CREATE, so it applies cleanly on a fresh stack and
+// is a no-op rebuild on hosted where surviving objects already exist. Both files
+// fold into the next squash baseline. GENERATED, NOT YET WRITTEN — this Subtask
+// only re-points the constant; the file itself is produced by running this
+// script against a live local Postgres catalog (owner-gated, not run here).
 const OUTPUT_FILE = join(
   MIGRATIONS_DIR,
-  '20260625160000_id130_api_views_regen.sql',
+  '20260706130000_id131_api_views_regen.sql',
 );
 
 const ROLES = ['anon', 'authenticated', 'service_role'] as const;
@@ -88,9 +93,6 @@ export const SURFACE_TABLES: readonly string[] = [
   'classification_disputes',
   'company_profiles',
   'content_chunks',
-  'content_history',
-  'content_item_workspaces',
-  'content_items',
   'content_propagation_version',
   'coverage_targets',
   'entity_aliases',
@@ -125,7 +127,8 @@ export const SURFACE_TABLES: readonly string[] = [
   'q_a_pair_dedup_proposals',
   'q_a_pair_history',
   'q_a_pairs',
-  'read_marks',
+  'record_embeddings',
+  'record_lifecycle',
   'reference_items',
   'review_assignments',
   'si_processing_queue',
@@ -145,34 +148,33 @@ export const SURFACE_TABLES: readonly string[] = [
 ];
 
 /**
- * RPC entrypoints to mirror into `api`. = the 58 `.rpc()`-surface names
+ * RPC entrypoints to mirror into `api`. = the surviving `.rpc()`-surface names
  * (SURFACE.md §2) MINUS the 3 that do not exist in the DB (dead `.rpc()` calls
- * with deliberate fallbacks — confirmed never-created, see ID-115 research),
- * PLUS the 7 SECURITY DEFINER fns reached via lib/mcp/plugin-bundle.ts +
- * app/api/ingest/url (excluded from the SURFACE scan). The generator introspects
- * EACH name's overloads from pg_proc and emits one entrypoint per overload, so
- * the actual entrypoint count >= name count (filter_by_keywords / find_similar_content
- * / toggle_star are overloaded).
+ * with deliberate fallbacks — confirmed never-created, see ID-115 research)
+ * MINUS the {131.19} M6 DROP set (20260706110000_id131_drops.sql — the tag/
+ * author/toggle_star/reading/filter/workspace/topic/gaps/dedup families,
+ * filter_by_keywords BOTH overloads, get_grouped_activity_feed,
+ * get_items_with_quality_flags, get_quality_issue_counts), PLUS the SECURITY
+ * DEFINER fns reached via lib/mcp/plugin-bundle.ts + app/api/ingest/url
+ * (excluded from the SURFACE scan — see EXTRA_DEFINER_RPCS below). The
+ * generator introspects EACH name's overloads from pg_proc and emits one
+ * entrypoint per overload, so the actual entrypoint count >= name count.
+ *
+ * get_dashboard_attention_counts / get_coverage_matrix / get_coverage_summary
+ * / get_content_win_rate deliberately STAY here despite the content_items
+ * drop — see 20260706110000_id131_drops.sql's header for why (2 of the first
+ * function's 9 fields, and the entire body of the next two, are still
+ * content_items-shaped and will error post-M6 pending a product-level
+ * re-point; get_content_win_rate was bundle-fixed in that same migration).
  */
 const SURFACE_RPCS: readonly string[] = [
-  'bulk_delete_tags',
-  'bulk_merge_tags',
   'check_content_exists',
   'claim_next_job',
   'cleanup_filtered_articles',
   'count_auth_users',
-  'delete_tag',
-  'filter_by_keywords',
-  'find_duplicate_pairs',
-  'find_duplicate_tags',
-  'find_exact_duplicates',
   'find_related_items',
-  'find_similar_content',
   'get_aggregate_win_rate_stats',
-  'get_all_tag_counts',
-  'get_author_analysis',
   'get_check_constraint_values',
-  'get_content_gaps',
   'get_content_owner_stats',
   'get_content_win_rate',
   'get_coverage_matrix',
@@ -182,42 +184,25 @@ const SURFACE_RPCS: readonly string[] = [
   'get_due_feed_sources',
   'get_entity_list_aggregated',
   'get_entity_summary',
-  'get_filter_counts',
   'get_filter_ratio_trend',
   'get_form_question_stats',
   'get_form_question_stats_batch',
   'get_freshness_breakdown',
-  'get_grouped_activity_feed',
   'get_guide_content',
   'get_guide_coverage',
-  'get_item_workspaces',
   'get_items_needing_layer',
-  'get_items_with_quality_flags',
   'get_popular_keywords',
-  'get_quality_issue_counts',
-  'get_reading_patterns',
   'get_review_breakdown_stats',
-  'get_tag_counts_filtered',
-  'get_tags_by_domain',
-  'get_topic_deep_dive',
-  'get_topic_layers',
-  'get_trend_analysis',
-  'get_unique_authors',
   'get_user_display_names',
-  'get_user_tag_counts',
   'hybrid_search',
   'list_public_tables',
   'merge_entities',
   'merge_item_metadata',
-  'merge_tags',
   'q_a_extractions_promotion_candidates',
   'reap_stuck_jobs',
   'recalculate_all_freshness',
-  'rename_tag',
   'search_for_form_response',
   'set_config',
-  'suggest_tags',
-  'toggle_star',
 ];
 
 /**
@@ -250,6 +235,18 @@ const MISSING_RPCS: readonly string[] = [
  * invariant and mirrors api.count_auth_users — a sibling SECDEF auth helper
  * already wrapped with REVOKE-PUBLIC + service_role GRANT, so anon cannot reach
  * them.
+ *
+ * ID-138 additions ({131.19} GO-PREP): 6 SECURITY DEFINER fns that
+ * 20260703210000_id138_api_rpc_wrappers.sql hand-authored api.* wrappers for
+ * (resolve_or_mint_source_identity, tombstone_source_document,
+ * reap_orphaned_source_documents, citations_cascade_preflight,
+ * corpus_writer_fence_try_acquire, corpus_writer_fence_release) — added here
+ * so the generator's whole-surface regen supersedes that one-off hand
+ * migration instead of leaving it as a permanent side channel outside the
+ * generator's purview. Plus corpus_writer_fence_lease_acquire/_release
+ * (20260704140000_id138_writer_fence_lease.sql, SECURITY DEFINER, landed
+ * AFTER the hand-authored wrapper migration) — these have NEVER had an api.*
+ * wrapper at all (hand-written or generated) until now.
  */
 const EXTRA_DEFINER_RPCS: readonly string[] = [
   '_test_delete_broken_auth_user',
@@ -261,6 +258,14 @@ const EXTRA_DEFINER_RPCS: readonly string[] = [
   'reference_search',
   'reference_get_verbatim',
   'reference_ingest',
+  'resolve_or_mint_source_identity',
+  'tombstone_source_document',
+  'reap_orphaned_source_documents',
+  'citations_cascade_preflight',
+  'corpus_writer_fence_try_acquire',
+  'corpus_writer_fence_release',
+  'corpus_writer_fence_lease_acquire',
+  'corpus_writer_fence_lease_release',
 ];
 
 const RPC_NAMES: readonly string[] = [

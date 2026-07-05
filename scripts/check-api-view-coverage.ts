@@ -37,12 +37,18 @@ const DB_URL =
  * direct-Postgres consumers — cocoindex asyncpg, internal RPCs, future/unused
  * workspace-type scaffolding). A new public table must be added EITHER to the
  * generator's SURFACE_TABLES (→ gets an api view) OR here (with justification),
- * else the coverage drift check fails. Audited against the 70-table catalog at
- * ID-115 S2 (70 base tables = 60 surface + these 10).
+ * else the coverage drift check fails. Originally audited against the 70-table
+ * catalog at ID-115 S2 (70 base tables = 60 surface + these 10); counts drift
+ * as tables are added/dropped — the live catalog check above is authoritative,
+ * this list is not a count assertion.
+ *
+ * `content_templates` REMOVED at {131.19} M6 (20260706110000_id131_drops.sql
+ * `DROP TABLE content_templates`) — the table no longer exists, so it is
+ * neither a surface entry nor an internal-only allow-list entry; leaving it
+ * here would be a dead reference once the M6 migration applies.
  */
 const INTERNAL_ONLY_TABLES: readonly string[] = [
   'competitor_research_workspaces',
-  'content_templates',
   'entity_pair_resolutions',
   'procurement_vehicle_instances',
   'procurement_vehicles',

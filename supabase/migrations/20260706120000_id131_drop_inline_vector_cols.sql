@@ -1,0 +1,102 @@
+-- UN-QUARANTINED + RE-TIMESTAMPED by {131.19} M6-adjacent GO-PREP (was
+-- migrations-blocked/20260702120001_id131_drop_inline_vector_cols.sql).
+-- Re-sequenced to 20260706120000 — AFTER M6 (20260706110000_id131_drops.sql,
+-- which drops content_items and its own dependent api views/fns) and BEFORE
+-- the M-API whole-surface regen (which rebuilds every projecting api.* view
+-- without these columns). AUTHORED, NOT APPLIED — owner-gated apply in the
+-- {131.19} GO sequence. No `supabase db push`, no MCP apply, no types regen
+-- in this Subtask.
+--
+-- RE-VERIFIED at GO-PREP time (grep across the current TS corpus + the DB
+-- catalog's owner_kind CHECK), status per original col:
+--   content_chunks.embedding      — CONFIRMED SAFE. hybrid_search/
+--     search_content_chunks (20260702120000_id131_search_rpcs.sql, APPLIED)
+--     read record_embeddings (owner_kind='content_chunk'), not this column.
+--   q_a_pairs.question_embedding  — CONFIRMED SAFE. promote-corpus.ts already
+--     dual-writes record_embeddings (owner_kind='q_a_pair') at publish time
+--     (lib/q-a-pairs/promote-corpus.ts:1030-1096); hybrid_search reads
+--     record_embeddings, not this column.
+--   reference_items.embedding     — CONFIRMED SAFE. hybrid_search's
+--     reference_item arm reads record_embeddings, not this column.
+--   company_profiles.company_embedding (TEXT) — CONFIRMED SAFE, NEWLY
+--     RESOLVED since this file was quarantined: all 3 original TODO(OQ)
+--     blockers are now cleared —
+--     20260703140000_id131_company_embedding_migrate.sql (APPLIED) widened
+--     record_embeddings_owner_kind_chk to include 'company_profile' and
+--     backfilled the normalised rows; lib/intelligence/pipeline.ts:134/173
+--     (verified) now reads/writes record_embeddings(owner_kind=
+--     'company_profile'), not this column. See the historical TODO(OQ) block
+--     below — kept for provenance, its blockers are resolved, not open.
+--   form_template_requirements.requirement_embedding — ⛔ NOT SAFE. NEWLY
+--     FLAGGED at GO-PREP time (was NOT called out as blocked in the original
+--     quarantine header, unlike company_profiles — an omission). record_
+--     embeddings_owner_kind_chk has NO 'form_template_requirement' value (only
+--     source_document|content_chunk|q_a_pair|reference_item|concept|
+--     company_profile) — there is no store this column could have been
+--     migrated to. It is ACTIVELY read AND written directly today:
+--     lib/domains/procurement/form-templating/catalogue/from-instance.ts
+--     (buildCatalogueRow + the natural-key reuse pre-read), lib/domains/
+--     procurement/form-templating/template-coverage.ts (catalogue requirement
+--     hydration — NOT the record_embeddings-based content-matching arm, which
+--     is a separate query in the same file), scripts/calibrate-coverage-
+--     thresholds.ts, scripts/catalogue-standard-sq.ts. DROPPING THIS COLUMN
+--     BREAKS THE CATALOGUE PIPELINE. Its DROP statement below is retained
+--     (kept, not deleted, so this stays the complete "5 inline vector cols"
+--     artifact) but WRAPPED in a DO-NOT-APPLY comment — see that statement.
+--     Escalated: the owner must either (a) extend record_embeddings'
+--     owner_kind CHECK + re-point the 4 files above onto it, or (b) rule that
+--     requirement_embedding is out of EMB-STORE scope permanently (a private,
+--     catalogue-only column) and strike it from this migration for good.
+--
+-- api REGEN CONSEQUENCE (comment only — NO api edits here; the M-API whole-
+-- surface regen owns it): dropping these cols invalidates the explicit-col
+-- security_invoker views that project them — api.content_chunks (embedding),
+-- api.q_a_pairs (question_embedding), api.reference_items (embedding),
+-- api.company_profiles (company_embedding). (api.form_template_requirements
+-- is UNAFFECTED here — its DROP is commented out below.) The whole-surface
+-- regen (generate-api-views.ts) must run AFTER this migration to rebuild them
+-- without the cols.
+
+-- ---------------------------------------------------------------------------
+-- The 3 record_embeddings-superseded vector cols confirmed safe at GO-PREP
+-- time (re-verified above). Their reads now live in public.record_embeddings
+-- (owner_kind, owner_id, model); these inline cols are dead weight.
+-- ---------------------------------------------------------------------------
+ALTER TABLE "public"."content_chunks" DROP COLUMN IF EXISTS "embedding";
+ALTER TABLE "public"."q_a_pairs" DROP COLUMN IF EXISTS "question_embedding";
+ALTER TABLE "public"."reference_items" DROP COLUMN IF EXISTS "embedding";
+
+-- ---------------------------------------------------------------------------
+-- ⛔ form_template_requirements.requirement_embedding — DO NOT APPLY.
+-- NOT part of the EMB-STORE unification (no 'form_template_requirement'
+-- owner_kind exists on record_embeddings) and ACTIVELY read/written directly
+-- today by lib/domains/procurement/form-templating/catalogue/from-instance.ts,
+-- lib/domains/procurement/form-templating/template-coverage.ts, scripts/
+-- calibrate-coverage-thresholds.ts, scripts/catalogue-standard-sq.ts. See the
+-- GO-PREP header note above for the full audit. Statement kept commented
+-- (not deleted) for provenance; do not uncomment without first either
+-- extending record_embeddings' owner_kind CHECK + re-pointing the 4 files
+-- above, or an owner ruling that this column is permanently out of EMB-STORE
+-- scope.
+-- ALTER TABLE "public"."form_template_requirements" DROP COLUMN IF EXISTS "requirement_embedding";
+
+-- ---------------------------------------------------------------------------
+-- company_profiles.company_embedding (TEXT) — RESOLVED at GO-PREP time (see
+-- header note above); kept here for provenance of the original {131.11}
+-- G-SEARCH OQ this migration once escalated.
+--
+-- The design note (§3, BI-17) said NORMALISE this TEXT (JSON-serialised)
+-- embedding into record_embeddings as part of EMB-STORE completeness, blocked
+-- on THREE reasons — ALL THREE now cleared:
+--   1. record_embeddings.owner_kind CHECK had NO 'company_profile' value —
+--      RESOLVED: 20260703140000_id131_company_embedding_migrate.sql (APPLIED)
+--      widened the CHECK and backfilled the normalised rows.
+--   2. lib/intelligence/pipeline.ts:123 (old line ref) ACTIVELY read
+--      company_profiles.company_embedding (TEXT) — RESOLVED: pipeline.ts:134/
+--      173 (verified) now reads/writes record_embeddings(owner_kind=
+--      'company_profile') instead.
+--   3. Whether company_profile belongs in EMB-STORE at all — RESOLVED by the
+--      same migration's owner-ratified T4-OQ-1 = MIGRATE decision.
+-- The DROP below is therefore SAFE to include in this GO's apply set.
+-- ---------------------------------------------------------------------------
+ALTER TABLE "public"."company_profiles" DROP COLUMN IF EXISTS "company_embedding";

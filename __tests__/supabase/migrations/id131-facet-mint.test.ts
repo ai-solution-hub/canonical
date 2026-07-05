@@ -1,5 +1,5 @@
 /**
- * Static shape check for supabase/migrations/20260705100000_id131_facet_mint.sql
+ * Static shape check for supabase/migrations/20260706100000_id131_facet_mint.sql
  * (ID-131.38 FACET-MINT). This is a SQL-only migration — not applied by this
  * Subtask (owner-gated apply lands later in the {131.19} GO sequence) — so
  * there is no live DB to assert behaviour against yet. This test instead pins
@@ -19,12 +19,12 @@ import { join } from 'path';
 
 const MIGRATION_PATH = join(
   process.cwd(),
-  'supabase/migrations/20260705100000_id131_facet_mint.sql',
+  'supabase/migrations/20260706100000_id131_facet_mint.sql',
 );
 
 const sql = readFileSync(MIGRATION_PATH, 'utf-8');
 
-describe('20260705100000_id131_facet_mint.sql', () => {
+describe('20260706100000_id131_facet_mint.sql', () => {
   it('backfills source_documents into record_lifecycle', () => {
     expect(sql).toMatch(
       /INSERT INTO "public"\."record_lifecycle"[\s\S]*?FROM "public"\."source_documents"/,
