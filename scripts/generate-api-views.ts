@@ -186,7 +186,9 @@ const SURFACE_RPCS: readonly string[] = [
   'claim_next_job',
   'cleanup_filtered_articles',
   'count_auth_users',
-  'find_related_items',
+  // find_related_items removed at the S450 GO: public fn already gone on the live
+  // catalog (content_items-era, zero TS callers); orphan api wrapper reaped by
+  // 20260706125000_id131_drop_find_related_items_wrapper.sql.
   'get_aggregate_win_rate_stats',
   'get_check_constraint_values',
   'get_content_owner_stats',

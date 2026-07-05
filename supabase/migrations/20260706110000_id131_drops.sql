@@ -195,8 +195,11 @@ DROP FUNCTION IF EXISTS api.filter_by_keywords(search_terms text[]);
 -- Dedup family (4 — resolve_near_dup_confirm_unique never had a wrapper)
 DROP FUNCTION IF EXISTS api.find_duplicate_pairs(similarity_threshold numeric, p_domain text, limit_count integer);
 DROP FUNCTION IF EXISTS api.find_exact_duplicates(p_content_hash text, p_exclude_id uuid);
-DROP FUNCTION IF EXISTS api.find_similar_content(query_embedding vector, similarity_threshold double precision, limit_count integer);
-DROP FUNCTION IF EXISTS api.find_similar_content(query_embedding vector, similarity_threshold numeric, limit_count integer);
+-- `extensions.vector` schema-qualified: unqualified `vector` does not resolve in
+-- the push-time search_path — the S450 staging apply NOTICE'd "type vector does
+-- not exist, skipping" and silently skipped both drops.
+DROP FUNCTION IF EXISTS api.find_similar_content(query_embedding extensions.vector, similarity_threshold double precision, limit_count integer);
+DROP FUNCTION IF EXISTS api.find_similar_content(query_embedding extensions.vector, similarity_threshold numeric, limit_count integer);
 
 -- detect_reupload — sole caller died at 131.24; never had an api wrapper
 -- (defensive no-op).
@@ -298,7 +301,19 @@ DROP TABLE IF EXISTS "public"."read_marks";
 DROP TABLE IF EXISTS "public"."content_history";
 
 -- ============================================================================
--- STEP 8 — drop the dead content_items/content_history-only trigger fns.
+-- STEP 8 — DROP TABLE content_items (every dependent object above is now
+-- gone: the 6 api views, the citations/feed_articles columns, the 4 child
+-- tables, and every retiring public/api function). Its remaining triggers
+-- (trg_content_items_ensure_v1_history, trg_enforce_archive_state_consistency,
+-- set_content_items_updated_at, trg_validate_layer_key) drop WITH the table.
+-- ============================================================================
+DROP TABLE IF EXISTS "public"."content_items";
+
+-- ============================================================================
+-- STEP 9 — drop the dead content_items/content_history-only trigger fns.
+-- MUST run AFTER the table drops (S450 staging apply failed 2BP01 here when
+-- this step preceded STEP 8: trg_content_items_ensure_v1_history and
+-- trg_enforce_archive_state_consistency still depended on these fns).
 -- `update_updated_at_column` (used everywhere) and `validate_layer_key`
 -- (still fires on reference_items via trg_validate_reference_items_layer —
 -- verified live, EXCLUDED despite appearing on an earlier "dead trigger fns"
@@ -308,10 +323,3 @@ DROP FUNCTION IF EXISTS public.ensure_v1_history_at_commit();
 DROP FUNCTION IF EXISTS public.auto_version_content_history();
 DROP FUNCTION IF EXISTS public.content_history_auto_version();
 DROP FUNCTION IF EXISTS public.enforce_archive_state_consistency();
-
--- ============================================================================
--- STEP 9 — DROP TABLE content_items (last — every dependent object above is
--- now gone: the 6 api views, the citations/feed_articles columns, the 4
--- child tables, the 4 trigger fns, and every retiring public/api function).
--- ============================================================================
-DROP TABLE IF EXISTS "public"."content_items";

@@ -1,0 +1,11 @@
+-- ID-131.19 S450 GO — drop the orphaned api.find_related_items wrapper.
+--
+-- GO-prep classified public.find_related_items as entirely content_items-shaped
+-- and dead (zero live TS callers) but left it untouched as out-of-brief. At the
+-- S450 GO the live catalog shows the PUBLIC fn already gone while its api
+-- wrapper survives — the wrapper errors at call time and blocks nothing, but
+-- the M-API generator (rightly) refuses to regenerate a wrapper with no base fn.
+-- find_related_items is removed from SURFACE_RPCS in the same commit; this
+-- migration reaps the orphan by exact signature. Sequenced AFTER
+-- 20260706120000 (inline-vector-cols) and BEFORE 20260706130000 (M-API regen).
+DROP FUNCTION IF EXISTS api.find_related_items(p_item_id uuid, p_similarity_threshold double precision, p_limit_count integer);

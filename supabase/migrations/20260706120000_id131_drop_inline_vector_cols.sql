@@ -58,6 +58,18 @@
 -- without the cols.
 
 -- ---------------------------------------------------------------------------
+-- Pre-drop the 4 projecting api.* views (S450 staging apply failed 2BP01:
+-- api.content_chunks depends on content_chunks.embedding — a projecting view
+-- blocks DROP COLUMN). The M-API whole-surface regen immediately after this
+-- migration rebuilds all 4 without the cols; the gap is seconds-long and
+-- inside the same owner-gated GO batch. Mirrors M6's own STEP-0 pattern.
+-- ---------------------------------------------------------------------------
+DROP VIEW IF EXISTS api.content_chunks;
+DROP VIEW IF EXISTS api.q_a_pairs;
+DROP VIEW IF EXISTS api.reference_items;
+DROP VIEW IF EXISTS api.company_profiles;
+
+-- ---------------------------------------------------------------------------
 -- The 3 record_embeddings-superseded vector cols confirmed safe at GO-PREP
 -- time (re-verified above). Their reads now live in public.record_embeddings
 -- (owner_kind, owner_id, model); these inline cols are dead weight.

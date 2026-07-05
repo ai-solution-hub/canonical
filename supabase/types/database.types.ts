@@ -164,7 +164,6 @@ export type Database = {
         Row: {
           citation_type: string | null
           cited_concept_path: string | null
-          cited_content_item_id: string | null
           cited_end: number | null
           cited_kind: Database["public"]["Enums"]["cited_target_kind"] | null
           cited_location_kind: string | null
@@ -184,7 +183,6 @@ export type Database = {
         Insert: {
           citation_type?: string | null
           cited_concept_path?: string | null
-          cited_content_item_id?: string | null
           cited_end?: number | null
           cited_kind?: Database["public"]["Enums"]["cited_target_kind"] | null
           cited_location_kind?: string | null
@@ -204,7 +202,6 @@ export type Database = {
         Update: {
           citation_type?: string | null
           cited_concept_path?: string | null
-          cited_content_item_id?: string | null
           cited_end?: number | null
           cited_kind?: Database["public"]["Enums"]["cited_target_kind"] | null
           cited_location_kind?: string | null
@@ -222,13 +219,6 @@ export type Database = {
           id?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "citations_cited_content_item_id_fkey"
-            columns: ["cited_content_item_id"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "citations_cited_q_a_pair_id_fkey"
             columns: ["cited_q_a_pair_id"]
@@ -339,7 +329,6 @@ export type Database = {
       company_profiles: {
         Row: {
           certifications: string[] | null
-          company_embedding: string | null
           competitors: Json | null
           created_at: string | null
           created_by: string | null
@@ -360,7 +349,6 @@ export type Database = {
         }
         Insert: {
           certifications?: string[] | null
-          company_embedding?: string | null
           competitors?: Json | null
           created_at?: string | null
           created_by?: string | null
@@ -381,7 +369,6 @@ export type Database = {
         }
         Update: {
           certifications?: string[] | null
-          company_embedding?: string | null
           competitors?: Json | null
           created_at?: string | null
           created_by?: string | null
@@ -415,7 +402,6 @@ export type Database = {
           char_count: number | null
           content: string | null
           created_at: string | null
-          embedding: string | null
           heading_level: number | null
           heading_path: string[] | null
           heading_text: string | null
@@ -431,7 +417,6 @@ export type Database = {
           char_count?: number | null
           content?: string | null
           created_at?: string | null
-          embedding?: string | null
           heading_level?: number | null
           heading_path?: string[] | null
           heading_text?: string | null
@@ -447,7 +432,6 @@ export type Database = {
           char_count?: number | null
           content?: string | null
           created_at?: string | null
-          embedding?: string | null
           heading_level?: number | null
           heading_path?: string[] | null
           heading_text?: string | null
@@ -472,374 +456,6 @@ export type Database = {
             columns: ["source_document_id"]
             isOneToOne: false
             referencedRelation: "source_documents"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      content_history: {
-        Row: {
-          arbitration_inputs: Json | null
-          brief: string | null
-          change_reason: string | null
-          change_summary: string | null
-          change_type: string | null
-          content: string | null
-          content_item_id: string | null
-          created_at: string | null
-          created_by: string | null
-          detail: string | null
-          edit_intent: string | null
-          id: string | null
-          metadata: Json | null
-          reference: string | null
-          title: string | null
-          version: number | null
-        }
-        Insert: {
-          arbitration_inputs?: Json | null
-          brief?: string | null
-          change_reason?: string | null
-          change_summary?: string | null
-          change_type?: string | null
-          content?: string | null
-          content_item_id?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          detail?: string | null
-          edit_intent?: string | null
-          id?: string | null
-          metadata?: Json | null
-          reference?: string | null
-          title?: string | null
-          version?: number | null
-        }
-        Update: {
-          arbitration_inputs?: Json | null
-          brief?: string | null
-          change_reason?: string | null
-          change_summary?: string | null
-          change_type?: string | null
-          content?: string | null
-          content_item_id?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          detail?: string | null
-          edit_intent?: string | null
-          id?: string | null
-          metadata?: Json | null
-          reference?: string | null
-          title?: string | null
-          version?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "content_history_content_item_id_fkey"
-            columns: ["content_item_id"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_history_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      content_item_workspaces: {
-        Row: {
-          assigned_at: string | null
-          content_item_id: string | null
-          id: string | null
-          workspace_id: string | null
-        }
-        Insert: {
-          assigned_at?: string | null
-          content_item_id?: string | null
-          id?: string | null
-          workspace_id?: string | null
-        }
-        Update: {
-          assigned_at?: string | null
-          content_item_id?: string | null
-          id?: string | null
-          workspace_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "content_item_workspaces_content_item_id_fkey"
-            columns: ["content_item_id"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_item_workspaces_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      content_items: {
-        Row: {
-          ai_keywords: string[] | null
-          answer_advanced: string | null
-          answer_standard: string | null
-          archive_reason: string | null
-          archived_at: string | null
-          archived_by: string | null
-          author_name: string | null
-          brief: string | null
-          captured_date: string | null
-          citation_count: number | null
-          classification_confidence: number | null
-          classification_model: string | null
-          classification_reasoning: string | null
-          classified_at: string | null
-          content: string | null
-          content_owner_id: string | null
-          content_text_hash: string | null
-          content_type: string | null
-          created_at: string | null
-          created_by: string | null
-          dedup_status: string | null
-          detail: string | null
-          embedding: string | null
-          embedding_model: string | null
-          expiry_date: string | null
-          file_path: string | null
-          freshness: string | null
-          freshness_checked_at: string | null
-          governance_review_due: string | null
-          governance_review_status: string | null
-          governance_reviewer_id: string | null
-          id: string | null
-          ingestion_source: string | null
-          layer: string | null
-          lifecycle_type: string | null
-          metadata: Json | null
-          next_review_date: string | null
-          op_id: string | null
-          platform: string | null
-          previous_freshness: string | null
-          previous_quality_score: number | null
-          primary_domain: string | null
-          primary_subtopic: string | null
-          priority: string | null
-          publication_status: string | null
-          quality_score: number | null
-          quality_score_updated_at: string | null
-          reference: string | null
-          review_cadence_days: number | null
-          secondary_domain: string | null
-          secondary_subtopic: string | null
-          source_document_id: string | null
-          source_domain: string | null
-          source_file: string | null
-          source_url: string | null
-          starred: boolean | null
-          suggested_title: string | null
-          summary: string | null
-          summary_data: Json | null
-          superseded_by: string | null
-          thumbnail_url: string | null
-          title: string | null
-          updated_at: string | null
-          updated_by: string | null
-          user_tags: string[] | null
-          verified_at: string | null
-          verified_by: string | null
-        }
-        Insert: {
-          ai_keywords?: string[] | null
-          answer_advanced?: string | null
-          answer_standard?: string | null
-          archive_reason?: string | null
-          archived_at?: string | null
-          archived_by?: string | null
-          author_name?: string | null
-          brief?: string | null
-          captured_date?: string | null
-          citation_count?: number | null
-          classification_confidence?: number | null
-          classification_model?: string | null
-          classification_reasoning?: string | null
-          classified_at?: string | null
-          content?: string | null
-          content_owner_id?: string | null
-          content_text_hash?: string | null
-          content_type?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          dedup_status?: string | null
-          detail?: string | null
-          embedding?: string | null
-          embedding_model?: string | null
-          expiry_date?: string | null
-          file_path?: string | null
-          freshness?: string | null
-          freshness_checked_at?: string | null
-          governance_review_due?: string | null
-          governance_review_status?: string | null
-          governance_reviewer_id?: string | null
-          id?: string | null
-          ingestion_source?: string | null
-          layer?: string | null
-          lifecycle_type?: string | null
-          metadata?: Json | null
-          next_review_date?: string | null
-          op_id?: string | null
-          platform?: string | null
-          previous_freshness?: string | null
-          previous_quality_score?: number | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
-          priority?: string | null
-          publication_status?: string | null
-          quality_score?: number | null
-          quality_score_updated_at?: string | null
-          reference?: string | null
-          review_cadence_days?: number | null
-          secondary_domain?: string | null
-          secondary_subtopic?: string | null
-          source_document_id?: string | null
-          source_domain?: string | null
-          source_file?: string | null
-          source_url?: string | null
-          starred?: boolean | null
-          suggested_title?: string | null
-          summary?: string | null
-          summary_data?: Json | null
-          superseded_by?: string | null
-          thumbnail_url?: string | null
-          title?: string | null
-          updated_at?: string | null
-          updated_by?: string | null
-          user_tags?: string[] | null
-          verified_at?: string | null
-          verified_by?: string | null
-        }
-        Update: {
-          ai_keywords?: string[] | null
-          answer_advanced?: string | null
-          answer_standard?: string | null
-          archive_reason?: string | null
-          archived_at?: string | null
-          archived_by?: string | null
-          author_name?: string | null
-          brief?: string | null
-          captured_date?: string | null
-          citation_count?: number | null
-          classification_confidence?: number | null
-          classification_model?: string | null
-          classification_reasoning?: string | null
-          classified_at?: string | null
-          content?: string | null
-          content_owner_id?: string | null
-          content_text_hash?: string | null
-          content_type?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          dedup_status?: string | null
-          detail?: string | null
-          embedding?: string | null
-          embedding_model?: string | null
-          expiry_date?: string | null
-          file_path?: string | null
-          freshness?: string | null
-          freshness_checked_at?: string | null
-          governance_review_due?: string | null
-          governance_review_status?: string | null
-          governance_reviewer_id?: string | null
-          id?: string | null
-          ingestion_source?: string | null
-          layer?: string | null
-          lifecycle_type?: string | null
-          metadata?: Json | null
-          next_review_date?: string | null
-          op_id?: string | null
-          platform?: string | null
-          previous_freshness?: string | null
-          previous_quality_score?: number | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
-          priority?: string | null
-          publication_status?: string | null
-          quality_score?: number | null
-          quality_score_updated_at?: string | null
-          reference?: string | null
-          review_cadence_days?: number | null
-          secondary_domain?: string | null
-          secondary_subtopic?: string | null
-          source_document_id?: string | null
-          source_domain?: string | null
-          source_file?: string | null
-          source_url?: string | null
-          starred?: boolean | null
-          suggested_title?: string | null
-          summary?: string | null
-          summary_data?: Json | null
-          superseded_by?: string | null
-          thumbnail_url?: string | null
-          title?: string | null
-          updated_at?: string | null
-          updated_by?: string | null
-          user_tags?: string[] | null
-          verified_at?: string | null
-          verified_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "content_items_archived_by_fkey"
-            columns: ["archived_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_items_content_owner_id_fkey"
-            columns: ["content_owner_id"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_items_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_items_governance_reviewer_id_fkey"
-            columns: ["governance_reviewer_id"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_items_superseded_by_fkey"
-            columns: ["superseded_by"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_items_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_items_verified_by_fkey"
-            columns: ["verified_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1203,7 +819,6 @@ export type Database = {
       feed_articles: {
         Row: {
           ai_summary: string | null
-          content_item_id: string | null
           created_at: string | null
           external_id: string | null
           external_url: string | null
@@ -1226,7 +841,6 @@ export type Database = {
         }
         Insert: {
           ai_summary?: string | null
-          content_item_id?: string | null
           created_at?: string | null
           external_id?: string | null
           external_url?: string | null
@@ -1249,7 +863,6 @@ export type Database = {
         }
         Update: {
           ai_summary?: string | null
-          content_item_id?: string | null
           created_at?: string | null
           external_id?: string | null
           external_url?: string | null
@@ -1271,13 +884,6 @@ export type Database = {
           workspace_id?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "feed_articles_content_item_id_fkey"
-            columns: ["content_item_id"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "feed_articles_feed_source_id_fkey"
             columns: ["feed_source_id"]
@@ -2816,7 +2422,6 @@ export type Database = {
           id: string | null
           origin_kind: string | null
           publication_status: string | null
-          question_embedding: string | null
           question_text: string | null
           scope_tag: string[] | null
           source_document_id: string | null
@@ -2839,7 +2444,6 @@ export type Database = {
           id?: string | null
           origin_kind?: string | null
           publication_status?: string | null
-          question_embedding?: string | null
           question_text?: string | null
           scope_tag?: string[] | null
           source_document_id?: string | null
@@ -2862,7 +2466,6 @@ export type Database = {
           id?: string | null
           origin_kind?: string | null
           publication_status?: string | null
-          question_embedding?: string | null
           question_text?: string | null
           scope_tag?: string[] | null
           source_document_id?: string | null
@@ -2913,34 +2516,119 @@ export type Database = {
           },
         ]
       }
-      read_marks: {
+      record_embeddings: {
         Row: {
-          content_item_id: string | null
+          created_at: string | null
+          embedding: string | null
           id: string | null
-          read_at: string | null
-          source: string | null
-          user_id: string | null
+          model: string | null
+          owner_id: string | null
+          owner_kind: string | null
+          updated_at: string | null
         }
         Insert: {
-          content_item_id?: string | null
+          created_at?: string | null
+          embedding?: string | null
           id?: string | null
-          read_at?: string | null
-          source?: string | null
-          user_id?: string | null
+          model?: string | null
+          owner_id?: string | null
+          owner_kind?: string | null
+          updated_at?: string | null
         }
         Update: {
-          content_item_id?: string | null
+          created_at?: string | null
+          embedding?: string | null
           id?: string | null
-          read_at?: string | null
-          source?: string | null
-          user_id?: string | null
+          model?: string | null
+          owner_id?: string | null
+          owner_kind?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      record_lifecycle: {
+        Row: {
+          content_owner_id: string | null
+          created_at: string | null
+          domain: string | null
+          expiry_date: string | null
+          freshness: string | null
+          freshness_checked_at: string | null
+          governance_review_due: string | null
+          governance_review_status: string | null
+          governance_reviewer_id: string | null
+          id: string | null
+          lifecycle_type: string | null
+          next_review_date: string | null
+          owner_id: string | null
+          owner_kind: string | null
+          previous_freshness: string | null
+          q_a_pair_id: string | null
+          review_cadence_days: number | null
+          source_document_id: string | null
+          updated_at: string | null
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          content_owner_id?: string | null
+          created_at?: string | null
+          domain?: string | null
+          expiry_date?: string | null
+          freshness?: string | null
+          freshness_checked_at?: string | null
+          governance_review_due?: string | null
+          governance_review_status?: string | null
+          governance_reviewer_id?: string | null
+          id?: string | null
+          lifecycle_type?: string | null
+          next_review_date?: string | null
+          owner_id?: string | null
+          owner_kind?: string | null
+          previous_freshness?: string | null
+          q_a_pair_id?: string | null
+          review_cadence_days?: number | null
+          source_document_id?: string | null
+          updated_at?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          content_owner_id?: string | null
+          created_at?: string | null
+          domain?: string | null
+          expiry_date?: string | null
+          freshness?: string | null
+          freshness_checked_at?: string | null
+          governance_review_due?: string | null
+          governance_review_status?: string | null
+          governance_reviewer_id?: string | null
+          id?: string | null
+          lifecycle_type?: string | null
+          next_review_date?: string | null
+          owner_id?: string | null
+          owner_kind?: string | null
+          previous_freshness?: string | null
+          q_a_pair_id?: string | null
+          review_cadence_days?: number | null
+          source_document_id?: string | null
+          updated_at?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "read_marks_content_item_id_fkey"
-            columns: ["content_item_id"]
+            foreignKeyName: "record_lifecycle_q_a_pair_id_fkey"
+            columns: ["q_a_pair_id"]
             isOneToOne: false
-            referencedRelation: "content_items"
+            referencedRelation: "q_a_pairs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "record_lifecycle_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "source_documents"
             referencedColumns: ["id"]
           },
         ]
@@ -2949,7 +2637,6 @@ export type Database = {
         Row: {
           body: string | null
           created_at: string | null
-          embedding: string | null
           id: string | null
           ingestion_source: string | null
           layer: string | null
@@ -2968,7 +2655,6 @@ export type Database = {
         Insert: {
           body?: string | null
           created_at?: string | null
-          embedding?: string | null
           id?: string | null
           ingestion_source?: string | null
           layer?: string | null
@@ -2987,7 +2673,6 @@ export type Database = {
         Update: {
           body?: string | null
           created_at?: string | null
-          embedding?: string | null
           id?: string | null
           ingestion_source?: string | null
           layer?: string | null
@@ -3798,14 +3483,6 @@ export type Database = {
         Args: { probe_email: string; probe_id: string }
         Returns: undefined
       }
-      bulk_delete_tags: {
-        Args: { p_tags: string[]; p_type: string }
-        Returns: number
-      }
-      bulk_merge_tags: {
-        Args: { p_sources: string[]; p_target: string; p_type: string }
-        Returns: number
-      }
       check_content_exists: {
         Args: { ids: string[] }
         Returns: {
@@ -3852,114 +3529,6 @@ export type Database = {
         Returns: boolean
       }
       count_auth_users: { Args: never; Returns: number }
-      delete_tag: { Args: { p_tag: string; p_type: string }; Returns: number }
-      filter_by_keywords:
-        | {
-            Args: { keyword_list: string[]; match_mode?: string }
-            Returns: Database["public"]["Tables"]["content_items"]["Row"][]
-            SetofOptions: {
-              from: "*"
-              to: "content_items"
-              isOneToOne: false
-              isSetofReturn: true
-            }
-          }
-        | { Args: { search_terms: string[] }; Returns: string[] }
-      find_duplicate_pairs: {
-        Args: {
-          limit_count?: number
-          p_domain?: string
-          similarity_threshold?: number
-        }
-        Returns: {
-          domain1: string
-          domain2: string
-          id1: string
-          id2: string
-          similarity: number
-          title1: string
-          title2: string
-          type1: string
-          type2: string
-        }[]
-      }
-      find_duplicate_tags: {
-        Args: { p_type: string }
-        Returns: {
-          canonical: string
-          total_usage: number
-          variant_count: number
-          variants: string[]
-        }[]
-      }
-      find_exact_duplicates: {
-        Args: { p_content_hash: string; p_exclude_id?: string }
-        Returns: {
-          id: string
-          title: string
-        }[]
-      }
-      find_related_items: {
-        Args: {
-          p_item_id: string
-          p_limit_count?: number
-          p_similarity_threshold?: number
-        }
-        Returns: {
-          ai_keywords: string[]
-          author_name: string
-          captured_date: string
-          classification_confidence: number
-          content_type: string
-          id: string
-          platform: string
-          primary_domain: string
-          primary_subtopic: string
-          priority: string
-          similarity: number
-          source_domain: string
-          suggested_title: string
-          summary: string
-          thumbnail_url: string
-          title: string
-          user_tags: string[]
-        }[]
-      }
-      find_similar_content:
-        | {
-            Args: {
-              limit_count?: number
-              query_embedding: string
-              similarity_threshold?: number
-            }
-            Returns: {
-              author_name: string
-              content: string
-              content_type: string
-              id: string
-              platform: string
-              similarity: number
-              source_domain: string
-              title: string
-            }[]
-          }
-        | {
-            Args: {
-              limit_count?: number
-              query_embedding: string
-              similarity_threshold?: number
-            }
-            Returns: {
-              author_name: string
-              content: string
-              content_type: string
-              id: string
-              platform: string
-              similarity: number
-              source_domain: string
-              title: string
-            }[]
-          }
       get_aggregate_win_rate_stats: {
         Args: never
         Returns: {
@@ -3976,16 +3545,6 @@ export type Database = {
           winning_citations: number
         }[]
       }
-      get_all_tag_counts: {
-        Args: never
-        Returns: {
-          count: number
-          source: string
-          tag: string
-        }[]
-      }
-      get_author_analysis: { Args: { p_author_name: string }; Returns: Json }
-      get_content_gaps: { Args: never; Returns: Json }
       get_content_owner_stats: {
         Args: never
         Returns: {
@@ -3999,7 +3558,7 @@ export type Database = {
         }[]
       }
       get_content_win_rate: {
-        Args: { p_content_item_id: string }
+        Args: { p_q_a_pair_id: string }
         Returns: {
           losing_citations: number
           pending_citations: number
@@ -4008,33 +3567,9 @@ export type Database = {
           winning_citations: number
         }[]
       }
-      get_coverage_matrix: {
-        Args: { p_layer?: string }
-        Returns: {
-          aging_count: number
-          domain_name: string
-          expired_count: number
-          fresh_count: number
-          item_count: number
-          stale_count: number
-          subtopic_name: string
-        }[]
-      }
-      get_coverage_summary: {
-        Args: never
-        Returns: {
-          domain_colour: string
-          domain_name: string
-          expired_count: number
-          fresh_pct: number
-          gap_count: number
-          total_items: number
-        }[]
-      }
       get_dashboard_attention_counts: {
         Args: { p_role?: string; p_user_id: string }
         Returns: {
-          coverage_gap_count: number
           expired_content_count: number
           expiring_content_date_count: number
           freshness_summary: Json
@@ -4080,7 +3615,6 @@ export type Database = {
           related_entities: Json
         }[]
       }
-      get_filter_counts: { Args: never; Returns: Json }
       get_filter_ratio_trend: {
         Args: {
           p_granularity?: string
@@ -4129,20 +3663,6 @@ export type Database = {
           freshness: string
         }[]
       }
-      get_grouped_activity_feed: {
-        Args: { p_before?: string; p_is_admin?: boolean; p_limit?: number }
-        Returns: {
-          earliest_at: string
-          entity_id: string
-          entity_type: string
-          event_count: number
-          id: string
-          latest_at: string
-          summary: string
-          type: string
-          user_id: string
-        }[]
-      }
       get_guide_content: {
         Args: { p_guide_slug: string }
         Returns: {
@@ -4163,35 +3683,6 @@ export type Database = {
           subtopic_filter: string
         }[]
       }
-      get_guide_coverage: {
-        Args: never
-        Returns: {
-          content_count: number
-          domain_filter: string
-          expected_layer: string
-          fresh_count: number
-          guide_id: string
-          guide_name: string
-          guide_slug: string
-          guide_type: string
-          is_required: boolean
-          section_id: string
-          section_name: string
-          section_order: number
-          stale_count: number
-        }[]
-      }
-      get_item_workspaces: {
-        Args: { p_item_id: string }
-        Returns: Database["public"]["Tables"]["workspaces"]["Row"][]
-        SetofOptions: {
-          from: "*"
-          to: "workspaces"
-          isOneToOne: false
-          isSetofReturn: true
-        }
-      }
-      get_items_with_quality_flags: { Args: never; Returns: string[] }
       get_popular_keywords: {
         Args: { p_limit?: number }
         Returns: {
@@ -4199,68 +3690,7 @@ export type Database = {
           keyword: string
         }[]
       }
-      get_quality_issue_counts: {
-        Args: never
-        Returns: {
-          flag_type: string
-          open_count: number
-          severity: string
-        }[]
-      }
-      get_reading_patterns: { Args: { p_days?: number }; Returns: Json }
       get_review_breakdown_stats: { Args: never; Returns: Json }
-      get_tag_counts_filtered: {
-        Args: {
-          p_limit?: number
-          p_min_count?: number
-          p_offset?: number
-          p_search?: string
-          p_type: string
-        }
-        Returns: {
-          count: number
-          source: string
-          tag: string
-          total_count: number
-        }[]
-      }
-      get_tags_by_domain: {
-        Args: { p_type: string }
-        Returns: {
-          count: number
-          domain: string
-          tag: string
-        }[]
-      }
-      get_topic_deep_dive: { Args: { p_keyword: string }; Returns: Json }
-      get_topic_layers: {
-        Args: { p_topic_id: string }
-        Returns: {
-          content_type: string
-          id: string
-          layer: string
-          metadata: Json
-          primary_domain: string
-          title: string
-        }[]
-      }
-      get_trend_analysis: {
-        Args: { p_days?: number; p_min_count?: number }
-        Returns: {
-          current_count: number
-          domains: string[]
-          growth_rate: number
-          keyword: string
-          previous_count: number
-        }[]
-      }
-      get_unique_authors: {
-        Args: never
-        Returns: {
-          author_name: string
-          count: number
-        }[]
-      }
       get_user_display_names: {
         Args: { user_ids: string[] }
         Returns: {
@@ -4268,46 +3698,74 @@ export type Database = {
           user_id: string
         }[]
       }
-      get_user_tag_counts: {
-        Args: never
-        Returns: {
-          count: number
-          tag: string
-        }[]
-      }
-      hybrid_search: {
-        Args: {
-          include_superseded?: boolean
-          limit_count?: number
-          query_embedding: string
-          query_text?: string
-          similarity_threshold?: number
-          visibility_filter?: string
-        }
-        Returns: {
-          ai_keywords: string[]
-          author_name: string
-          captured_date: string
-          classification_confidence: number
-          content_type: string
-          created_by: string
-          id: string
-          metadata: Json
-          platform: string
-          primary_domain: string
-          primary_subtopic: string
-          priority: string
-          similarity: number
-          snippet: string
-          source_domain: string
-          suggested_title: string
-          summary: string
-          thumbnail_url: string
-          title: string
-          verified_at: string
-          verified_by: string
-        }[]
-      }
+      hybrid_search:
+        | {
+            Args: {
+              include_superseded?: boolean
+              limit_count?: number
+              query_embedding: string
+              query_text?: string
+              similarity_threshold?: number
+              visibility_filter?: string
+            }
+            Returns: {
+              ai_keywords: string[]
+              author_name: string
+              captured_date: string
+              classification_confidence: number
+              content_type: string
+              created_by: string
+              id: string
+              metadata: Json
+              platform: string
+              primary_domain: string
+              primary_subtopic: string
+              priority: string
+              similarity: number
+              snippet: string
+              source_domain: string
+              suggested_title: string
+              summary: string
+              thumbnail_url: string
+              title: string
+              verified_at: string
+              verified_by: string
+            }[]
+          }
+        | {
+            Args: {
+              application_type?: string
+              include_superseded?: boolean
+              limit_count?: number
+              query_embedding: string
+              query_text?: string
+              similarity_threshold?: number
+              visibility_filter?: string
+            }
+            Returns: {
+              ai_keywords: string[]
+              author_name: string
+              captured_date: string
+              classification_confidence: number
+              content_type: string
+              created_by: string
+              id: string
+              metadata: Json
+              platform: string
+              primary_domain: string
+              primary_subtopic: string
+              priority: string
+              similarity: number
+              snippet: string
+              source_domain: string
+              suggested_title: string
+              summary: string
+              thumbnail_url: string
+              title: string
+              verified_at: string
+              verified_by: string
+            }[]
+          }
       list_public_tables: { Args: never; Returns: string[] }
       merge_entities: {
         Args: {
@@ -4328,10 +3786,6 @@ export type Database = {
       merge_item_metadata: {
         Args: { p_item_id: string; p_new_data: Json }
         Returns: undefined
-      }
-      merge_tags: {
-        Args: { p_source: string; p_target: string; p_type: string }
-        Returns: number
       }
       q_a_extractions_promotion_candidates: {
         Args: never
@@ -4514,10 +3968,6 @@ export type Database = {
           title: string
         }[]
       }
-      rename_tag: {
-        Args: { p_new: string; p_old: string; p_type: string }
-        Returns: number
-      }
       resolve_or_mint_source_identity: {
         Args: {
           p_content_hash: string
@@ -4543,15 +3993,11 @@ export type Database = {
           visibility_filter?: string
         }
         Returns: {
-          ai_keywords: string[]
-          brief: string
           content: string
           content_type: string
-          detail: string
           id: string
-          primary_domain: string
-          primary_subtopic: string
           similarity: number
+          summary: string
           title: string
         }[]
       }
@@ -4559,19 +4005,6 @@ export type Database = {
         Args: { is_local: boolean; setting: string; value: string }
         Returns: string
       }
-      suggest_tags: {
-        Args: { p_prefix: string; p_type: string }
-        Returns: {
-          count: number
-          tag: string
-        }[]
-      }
-      toggle_star:
-        | { Args: { item_id: string }; Returns: boolean }
-        | {
-            Args: { p_item_id: string; p_starred: boolean }
-            Returns: undefined
-          }
       tombstone_source_document: {
         Args: { p_id: string }
         Returns: {
@@ -4740,7 +4173,6 @@ export type Database = {
         Row: {
           citation_type: string
           cited_concept_path: string | null
-          cited_content_item_id: string | null
           cited_end: number | null
           cited_kind: Database["public"]["Enums"]["cited_target_kind"]
           cited_location_kind: string | null
@@ -4760,7 +4192,6 @@ export type Database = {
         Insert: {
           citation_type?: string
           cited_concept_path?: string | null
-          cited_content_item_id?: string | null
           cited_end?: number | null
           cited_kind: Database["public"]["Enums"]["cited_target_kind"]
           cited_location_kind?: string | null
@@ -4780,7 +4211,6 @@ export type Database = {
         Update: {
           citation_type?: string
           cited_concept_path?: string | null
-          cited_content_item_id?: string | null
           cited_end?: number | null
           cited_kind?: Database["public"]["Enums"]["cited_target_kind"]
           cited_location_kind?: string | null
@@ -4798,13 +4228,6 @@ export type Database = {
           id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "citations_cited_content_item_id_fkey"
-            columns: ["cited_content_item_id"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "citations_cited_q_a_pair_id_fkey"
             columns: ["cited_q_a_pair_id"]
@@ -4915,7 +4338,6 @@ export type Database = {
       company_profiles: {
         Row: {
           certifications: string[]
-          company_embedding: string | null
           competitors: Json
           created_at: string
           created_by: string | null
@@ -4936,7 +4358,6 @@ export type Database = {
         }
         Insert: {
           certifications?: string[]
-          company_embedding?: string | null
           competitors?: Json
           created_at?: string
           created_by?: string | null
@@ -4957,7 +4378,6 @@ export type Database = {
         }
         Update: {
           certifications?: string[]
-          company_embedding?: string | null
           competitors?: Json
           created_at?: string
           created_by?: string | null
@@ -5020,7 +4440,6 @@ export type Database = {
           char_count: number
           content: string
           created_at: string
-          embedding: string | null
           heading_level: number | null
           heading_path: string[]
           heading_text: string | null
@@ -5036,7 +4455,6 @@ export type Database = {
           char_count?: number
           content: string
           created_at?: string
-          embedding?: string | null
           heading_level?: number | null
           heading_path?: string[]
           heading_text?: string | null
@@ -5052,7 +4470,6 @@ export type Database = {
           char_count?: number
           content?: string
           created_at?: string
-          embedding?: string | null
           heading_level?: number | null
           heading_path?: string[]
           heading_text?: string | null
@@ -5081,374 +4498,6 @@ export type Database = {
           },
         ]
       }
-      content_history: {
-        Row: {
-          arbitration_inputs: Json | null
-          brief: string | null
-          change_reason: string | null
-          change_summary: string | null
-          change_type: string
-          content: string
-          content_item_id: string | null
-          created_at: string
-          created_by: string | null
-          detail: string | null
-          edit_intent: string | null
-          id: string
-          metadata: Json | null
-          reference: string | null
-          title: string
-          version: number
-        }
-        Insert: {
-          arbitration_inputs?: Json | null
-          brief?: string | null
-          change_reason?: string | null
-          change_summary?: string | null
-          change_type: string
-          content: string
-          content_item_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          detail?: string | null
-          edit_intent?: string | null
-          id?: string
-          metadata?: Json | null
-          reference?: string | null
-          title: string
-          version: number
-        }
-        Update: {
-          arbitration_inputs?: Json | null
-          brief?: string | null
-          change_reason?: string | null
-          change_summary?: string | null
-          change_type?: string
-          content?: string
-          content_item_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          detail?: string | null
-          edit_intent?: string | null
-          id?: string
-          metadata?: Json | null
-          reference?: string | null
-          title?: string
-          version?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "content_history_content_item_id_fkey"
-            columns: ["content_item_id"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_history_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      content_item_workspaces: {
-        Row: {
-          assigned_at: string | null
-          content_item_id: string
-          id: string
-          workspace_id: string
-        }
-        Insert: {
-          assigned_at?: string | null
-          content_item_id: string
-          id?: string
-          workspace_id: string
-        }
-        Update: {
-          assigned_at?: string | null
-          content_item_id?: string
-          id?: string
-          workspace_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "content_item_workspaces_content_item_id_fkey"
-            columns: ["content_item_id"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_item_workspaces_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      content_items: {
-        Row: {
-          ai_keywords: string[] | null
-          answer_advanced: string | null
-          answer_standard: string | null
-          archive_reason: string | null
-          archived_at: string | null
-          archived_by: string | null
-          author_name: string | null
-          brief: string | null
-          captured_date: string | null
-          citation_count: number
-          classification_confidence: number | null
-          classification_model: string | null
-          classification_reasoning: string | null
-          classified_at: string | null
-          content: string
-          content_owner_id: string | null
-          content_text_hash: string | null
-          content_type: string
-          created_at: string
-          created_by: string | null
-          dedup_status: string
-          detail: string | null
-          embedding: string | null
-          embedding_model: string | null
-          expiry_date: string | null
-          file_path: string | null
-          freshness: string | null
-          freshness_checked_at: string | null
-          governance_review_due: string | null
-          governance_review_status: string | null
-          governance_reviewer_id: string | null
-          id: string
-          ingestion_source: string | null
-          layer: string | null
-          lifecycle_type: string | null
-          metadata: Json | null
-          next_review_date: string | null
-          op_id: string | null
-          platform: string | null
-          previous_freshness: string | null
-          previous_quality_score: number | null
-          primary_domain: string
-          primary_subtopic: string
-          priority: string | null
-          publication_status: string
-          quality_score: number | null
-          quality_score_updated_at: string | null
-          reference: string | null
-          review_cadence_days: number | null
-          secondary_domain: string | null
-          secondary_subtopic: string | null
-          source_document_id: string | null
-          source_domain: string | null
-          source_file: string | null
-          source_url: string | null
-          starred: boolean
-          suggested_title: string | null
-          summary: string | null
-          summary_data: Json | null
-          superseded_by: string | null
-          thumbnail_url: string | null
-          title: string
-          updated_at: string | null
-          updated_by: string | null
-          user_tags: string[] | null
-          verified_at: string | null
-          verified_by: string | null
-        }
-        Insert: {
-          ai_keywords?: string[] | null
-          answer_advanced?: string | null
-          answer_standard?: string | null
-          archive_reason?: string | null
-          archived_at?: string | null
-          archived_by?: string | null
-          author_name?: string | null
-          brief?: string | null
-          captured_date?: string | null
-          citation_count?: number
-          classification_confidence?: number | null
-          classification_model?: string | null
-          classification_reasoning?: string | null
-          classified_at?: string | null
-          content: string
-          content_owner_id?: string | null
-          content_text_hash?: string | null
-          content_type: string
-          created_at?: string
-          created_by?: string | null
-          dedup_status?: string
-          detail?: string | null
-          embedding?: string | null
-          embedding_model?: string | null
-          expiry_date?: string | null
-          file_path?: string | null
-          freshness?: string | null
-          freshness_checked_at?: string | null
-          governance_review_due?: string | null
-          governance_review_status?: string | null
-          governance_reviewer_id?: string | null
-          id?: string
-          ingestion_source?: string | null
-          layer?: string | null
-          lifecycle_type?: string | null
-          metadata?: Json | null
-          next_review_date?: string | null
-          op_id?: string | null
-          platform?: string | null
-          previous_freshness?: string | null
-          previous_quality_score?: number | null
-          primary_domain?: string
-          primary_subtopic?: string
-          priority?: string | null
-          publication_status?: string
-          quality_score?: number | null
-          quality_score_updated_at?: string | null
-          reference?: string | null
-          review_cadence_days?: number | null
-          secondary_domain?: string | null
-          secondary_subtopic?: string | null
-          source_document_id?: string | null
-          source_domain?: string | null
-          source_file?: string | null
-          source_url?: string | null
-          starred?: boolean
-          suggested_title?: string | null
-          summary?: string | null
-          summary_data?: Json | null
-          superseded_by?: string | null
-          thumbnail_url?: string | null
-          title: string
-          updated_at?: string | null
-          updated_by?: string | null
-          user_tags?: string[] | null
-          verified_at?: string | null
-          verified_by?: string | null
-        }
-        Update: {
-          ai_keywords?: string[] | null
-          answer_advanced?: string | null
-          answer_standard?: string | null
-          archive_reason?: string | null
-          archived_at?: string | null
-          archived_by?: string | null
-          author_name?: string | null
-          brief?: string | null
-          captured_date?: string | null
-          citation_count?: number
-          classification_confidence?: number | null
-          classification_model?: string | null
-          classification_reasoning?: string | null
-          classified_at?: string | null
-          content?: string
-          content_owner_id?: string | null
-          content_text_hash?: string | null
-          content_type?: string
-          created_at?: string
-          created_by?: string | null
-          dedup_status?: string
-          detail?: string | null
-          embedding?: string | null
-          embedding_model?: string | null
-          expiry_date?: string | null
-          file_path?: string | null
-          freshness?: string | null
-          freshness_checked_at?: string | null
-          governance_review_due?: string | null
-          governance_review_status?: string | null
-          governance_reviewer_id?: string | null
-          id?: string
-          ingestion_source?: string | null
-          layer?: string | null
-          lifecycle_type?: string | null
-          metadata?: Json | null
-          next_review_date?: string | null
-          op_id?: string | null
-          platform?: string | null
-          previous_freshness?: string | null
-          previous_quality_score?: number | null
-          primary_domain?: string
-          primary_subtopic?: string
-          priority?: string | null
-          publication_status?: string
-          quality_score?: number | null
-          quality_score_updated_at?: string | null
-          reference?: string | null
-          review_cadence_days?: number | null
-          secondary_domain?: string | null
-          secondary_subtopic?: string | null
-          source_document_id?: string | null
-          source_domain?: string | null
-          source_file?: string | null
-          source_url?: string | null
-          starred?: boolean
-          suggested_title?: string | null
-          summary?: string | null
-          summary_data?: Json | null
-          superseded_by?: string | null
-          thumbnail_url?: string | null
-          title?: string
-          updated_at?: string | null
-          updated_by?: string | null
-          user_tags?: string[] | null
-          verified_at?: string | null
-          verified_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "content_items_archived_by_fkey"
-            columns: ["archived_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_items_content_owner_id_fkey"
-            columns: ["content_owner_id"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_items_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_items_governance_reviewer_id_fkey"
-            columns: ["governance_reviewer_id"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_items_superseded_by_fkey"
-            columns: ["superseded_by"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_items_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_items_verified_by_fkey"
-            columns: ["verified_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       content_propagation_version: {
         Row: {
           applied_at: string
@@ -5469,68 +4518,6 @@ export type Database = {
           version?: number
         }
         Relationships: []
-      }
-      content_templates: {
-        Row: {
-          brief_template: string | null
-          content_template: string
-          content_type: string
-          created_at: string
-          created_by: string | null
-          default_tags: string[] | null
-          description: string
-          display_order: number
-          id: string
-          is_active: boolean
-          name: string
-          slug: string
-          suggested_domain: string | null
-          title_template: string
-          updated_at: string | null
-        }
-        Insert: {
-          brief_template?: string | null
-          content_template?: string
-          content_type: string
-          created_at?: string
-          created_by?: string | null
-          default_tags?: string[] | null
-          description?: string
-          display_order?: number
-          id?: string
-          is_active?: boolean
-          name: string
-          slug: string
-          suggested_domain?: string | null
-          title_template?: string
-          updated_at?: string | null
-        }
-        Update: {
-          brief_template?: string | null
-          content_template?: string
-          content_type?: string
-          created_at?: string
-          created_by?: string | null
-          default_tags?: string[] | null
-          description?: string
-          display_order?: number
-          id?: string
-          is_active?: boolean
-          name?: string
-          slug?: string
-          suggested_domain?: string | null
-          title_template?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "content_templates_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       corpus_writer_fence_lease: {
         Row: {
@@ -5924,7 +4911,6 @@ export type Database = {
       feed_articles: {
         Row: {
           ai_summary: string | null
-          content_item_id: string | null
           created_at: string
           external_id: string | null
           external_url: string
@@ -5947,7 +4933,6 @@ export type Database = {
         }
         Insert: {
           ai_summary?: string | null
-          content_item_id?: string | null
           created_at?: string
           external_id?: string | null
           external_url: string
@@ -5970,7 +4955,6 @@ export type Database = {
         }
         Update: {
           ai_summary?: string | null
-          content_item_id?: string | null
           created_at?: string
           external_id?: string | null
           external_url?: string
@@ -5992,13 +4976,6 @@ export type Database = {
           workspace_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "feed_articles_content_item_id_fkey"
-            columns: ["content_item_id"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "feed_articles_feed_source_id_fkey"
             columns: ["feed_source_id"]
@@ -7660,7 +6637,6 @@ export type Database = {
           id: string
           origin_kind: string
           publication_status: string
-          question_embedding: string | null
           question_text: string
           scope_tag: string[]
           source_document_id: string | null
@@ -7683,7 +6659,6 @@ export type Database = {
           id?: string
           origin_kind?: string
           publication_status?: string
-          question_embedding?: string | null
           question_text: string
           scope_tag?: string[]
           source_document_id?: string | null
@@ -7706,7 +6681,6 @@ export type Database = {
           id?: string
           origin_kind?: string
           publication_status?: string
-          question_embedding?: string | null
           question_text?: string
           scope_tag?: string[]
           source_document_id?: string | null
@@ -7812,38 +6786,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "form_types"
             referencedColumns: ["key"]
-          },
-        ]
-      }
-      read_marks: {
-        Row: {
-          content_item_id: string
-          id: string
-          read_at: string
-          source: string
-          user_id: string
-        }
-        Insert: {
-          content_item_id: string
-          id?: string
-          read_at?: string
-          source?: string
-          user_id: string
-        }
-        Update: {
-          content_item_id?: string
-          id?: string
-          read_at?: string
-          source?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "read_marks_content_item_id_fkey"
-            columns: ["content_item_id"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
           },
         ]
       }
@@ -7968,7 +6910,6 @@ export type Database = {
         Row: {
           body: string
           created_at: string
-          embedding: string | null
           id: string
           ingestion_source: string
           layer: string | null
@@ -7987,7 +6928,6 @@ export type Database = {
         Insert: {
           body: string
           created_at?: string
-          embedding?: string | null
           id: string
           ingestion_source: string
           layer?: string | null
@@ -8006,7 +6946,6 @@ export type Database = {
         Update: {
           body?: string
           created_at?: string
-          embedding?: string | null
           id?: string
           ingestion_source?: string
           layer?: string | null
@@ -8867,28 +7806,7 @@ export type Database = {
       }
     }
     Views: {
-      quality_issues_pending: {
-        Row: {
-          content_item_id: string | null
-          created_at: string | null
-          details: Json | null
-          flag_type: string | null
-          id: string | null
-          ingestion_batch: string | null
-          item_title: string | null
-          resolved: boolean | null
-          severity: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ingestion_quality_log_source_document_id_fkey"
-            columns: ["content_item_id"]
-            isOneToOne: false
-            referencedRelation: "source_documents"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
+      [_ in never]: never
     }
     Functions: {
       _corpus_writer_fence_key: { Args: never; Returns: number }
@@ -8985,19 +7903,6 @@ export type Database = {
         Args: { p_canonical_name: string }
         Returns: number
       }
-      detect_reupload: {
-        Args: {
-          p_content_hash: string
-          p_filename: string
-          p_uploaded_by: string
-        }
-        Returns: {
-          existing_content_hash: string
-          existing_document_id: string
-          existing_version: number
-          match_type: string
-        }[]
-      }
       get_aggregate_win_rate_stats: {
         Args: never
         Returns: {
@@ -9043,33 +7948,9 @@ export type Database = {
           winning_citations: number
         }[]
       }
-      get_coverage_matrix: {
-        Args: { p_layer?: string }
-        Returns: {
-          aging_count: number
-          domain_name: string
-          expired_count: number
-          fresh_count: number
-          item_count: number
-          stale_count: number
-          subtopic_name: string
-        }[]
-      }
-      get_coverage_summary: {
-        Args: never
-        Returns: {
-          domain_colour: string
-          domain_name: string
-          expired_count: number
-          fresh_pct: number
-          gap_count: number
-          total_items: number
-        }[]
-      }
       get_dashboard_attention_counts: {
         Args: { p_role?: string; p_user_id: string }
         Returns: {
-          coverage_gap_count: number
           expired_content_count: number
           expiring_content_date_count: number
           freshness_summary: Json
@@ -9227,20 +8108,6 @@ export type Database = {
           freshness: string
         }[]
       }
-      get_grouped_activity_feed: {
-        Args: { p_before?: string; p_is_admin?: boolean; p_limit?: number }
-        Returns: {
-          earliest_at: string
-          entity_id: string
-          entity_type: string
-          event_count: number
-          id: string
-          latest_at: string
-          summary: string
-          type: string
-          user_id: string
-        }[]
-      }
       get_guide_content: {
         Args: { p_guide_slug: string }
         Returns: {
@@ -9261,38 +8128,11 @@ export type Database = {
           subtopic_filter: string
         }[]
       }
-      get_guide_coverage: {
-        Args: never
-        Returns: {
-          content_count: number
-          domain_filter: string
-          expected_layer: string
-          fresh_count: number
-          guide_id: string
-          guide_name: string
-          guide_slug: string
-          guide_type: string
-          is_required: boolean
-          section_id: string
-          section_name: string
-          section_order: number
-          stale_count: number
-        }[]
-      }
-      get_items_with_quality_flags: { Args: never; Returns: string[] }
       get_popular_keywords: {
         Args: { p_limit?: number }
         Returns: {
           item_count: number
           keyword: string
-        }[]
-      }
-      get_quality_issue_counts: {
-        Args: never
-        Returns: {
-          flag_type: string
-          open_count: number
-          severity: string
         }[]
       }
       get_review_breakdown_stats: { Args: never; Returns: Json }
@@ -9597,14 +8437,6 @@ export type Database = {
         Returns: {
           source_document_id: string
           was_minted: boolean
-        }[]
-      }
-      run_quality_scan: {
-        Args: { p_batch_name?: string }
-        Returns: {
-          flags_created: number
-          issue_type: string
-          items_found: number
         }[]
       }
       search_content:

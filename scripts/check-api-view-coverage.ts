@@ -49,6 +49,9 @@ const DB_URL =
  */
 const INTERNAL_ONLY_TABLES: readonly string[] = [
   'competitor_research_workspaces',
+  // id-138 writer-fence lease (20260704140000) — pipeline-internal advisory
+  // lease, never an app read surface (classified at the S450 GO, INV-16).
+  'corpus_writer_fence_lease',
   'entity_pair_resolutions',
   'procurement_vehicle_instances',
   'procurement_vehicles',
