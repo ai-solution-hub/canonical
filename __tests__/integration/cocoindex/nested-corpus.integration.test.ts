@@ -64,14 +64,16 @@ afterAll(async () => {
   if (!ENABLED) return;
   if (seededContentIds.length === 0) return;
   const client = await createLiveServiceClient();
-  await client.from('content_items').delete().in('id', seededContentIds);
+  // ID-131.19 M6 retirement: content_items DROPPED at M6; source_documents
+  // replaces it as the seeded-row cleanup target.
+  await client.from('source_documents').delete().in('id', seededContentIds);
 }, 30_000);
 
 describe.skipIf(!ENABLED)(
-  'Inv-5 — nested-corpus coverage (3-level-deep file produces content_items row)',
+  'Inv-5 — nested-corpus coverage (3-level-deep file produces source_documents row)',
   () => {
     it(
-      'produces a content_items row for a file at <source>/a/b/c/file.md',
+      'produces a source_documents row for a file at <source>/a/b/c/file.md',
       async () => {
         const client = await createLiveServiceClient();
 
@@ -79,16 +81,21 @@ describe.skipIf(!ENABLED)(
         let landedRow: { id: string; metadata: unknown } | null = null;
 
         while (Date.now() < deadline) {
+          // ID-131.19 M6 retirement: content_items DROPPED at M6;
+          // source_documents.filename replaces content_items.title, and
+          // source_documents.extraction_metadata replaces content_items's
+          // `metadata` column (no `metadata` column exists on
+          // source_documents).
           const { data } = await client
-            .from('content_items')
-            .select('id, metadata')
-            .ilike('title', `${TEST_PREFIX}%`)
+            .from('source_documents')
+            .select('id, extraction_metadata')
+            .ilike('filename', `${TEST_PREFIX}%`)
             .limit(1);
 
           if (data && data.length > 0) {
             landedRow = {
               id: data[0]!.id as string,
-              metadata: data[0]!.metadata,
+              metadata: data[0]!.extraction_metadata,
             };
             seededContentIds.push(landedRow.id);
             break;
@@ -103,9 +110,10 @@ describe.skipIf(!ENABLED)(
         // skipping nested files.
         expect(landedRow).not.toBeNull();
 
-        // Defensive sanity check: the row's metadata should include the
-        // nested path (the per-document source_uri / file_path is part of
-        // the FlowRowMetadata shape stamped during the postgres_upsert stage).
+        // Defensive sanity check: the row's extraction_metadata should
+        // include the nested path (the per-document source_uri / file_path
+        // is part of the FlowRowMetadata shape stamped during the
+        // postgres_upsert stage).
         const metadata = landedRow!.metadata as Record<string, unknown> | null;
         if (metadata) {
           // Common fields the metadata might carry — check whichever is

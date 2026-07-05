@@ -35,6 +35,16 @@
  *   - Test data is namespaced with a prefix that includes Date.now() + a
  *     random slug, so two parallel runs can't collide.
  *
+ * ID-131.19 M6 retirement note (S450 GO tail): `content_items` was DROPPED
+ * at M6. Both the cron (app/api/cron/review-cadence/route.ts) and the
+ * approve handler (app/api/governance/review/route.ts) were ALREADY
+ * re-pointed at ID-131.19 G-GOV-FACET onto the `record_lifecycle` facet
+ * (owner_kind='source_document') for governance_review_status/
+ * governance_review_due/governance_reviewer_id/next_review_date/
+ * review_cadence_days/verified_at, joined to `source_documents` for
+ * filename/publication_status/archived_at. This fixture is re-seeded
+ * accordingly: a `source_documents` row + its `record_lifecycle` facet row.
+ *
  * @vitest-environment node
  */
 
@@ -145,21 +155,25 @@ afterAll(async () => {
   if (createdItemIds.length === 0) return;
 
   // Cleanup ordering matters: notifications.entity_id is intentionally a
-  // string (polymorphic) with no FK cascade to content_items, so we must
-  // delete notifications BEFORE the content_items rows. Per
-  // feedback_silent_failure_prevention we still surface errors via
-  // expect(error).toBeNull() inside the test; the afterAll path tolerates
-  // missing rows because some steps may not have written notifications.
+  // string (polymorphic) with no FK cascade, so we must delete notifications
+  // BEFORE the source_documents rows. Per feedback_silent_failure_prevention
+  // we still surface errors via expect(error).toBeNull() inside the test;
+  // the afterAll path tolerates missing rows because some steps may not
+  // have written notifications.
   for (const itemId of createdItemIds) {
     await serviceClient.from('notifications').delete().eq('entity_id', itemId);
   }
-  // content_history rows are emitted by an AFTER INSERT trigger on
-  // content_items; delete them before the parent row to avoid FK blocks.
+  // ID-131.19 M6 retirement: content_history/content_items DROPPED at M6.
+  // Clean the record_lifecycle facet row before the source_documents row.
   await serviceClient
-    .from('content_history')
+    .from('record_lifecycle')
     .delete()
-    .in('content_item_id', createdItemIds);
-  await serviceClient.from('content_items').delete().in('id', createdItemIds);
+    .eq('owner_kind', 'source_document')
+    .in('source_document_id', createdItemIds);
+  await serviceClient
+    .from('source_documents')
+    .delete()
+    .in('id', createdItemIds);
 }, 30_000);
 
 // ---------------------------------------------------------------------------
@@ -170,33 +184,56 @@ describeIfEnv(
   '§5.5 Phase 2 T3 — Review-cadence full lifecycle (real DB)',
   () => {
     it('walks insert → cron flip → notification → idempotency → approve → auto-renewal', async () => {
-      // ── Step 0: Setup — seed a content item that the cron will catch ────
-      // GENERATED ALWAYS column `content_text_hash` MUST be omitted (CLAUDE.md
-      // gotcha). Required columns: title, content, content_type. We seed
-      // with `governance_review_status='approved'` (one of the cron's eligible
-      // statuses per spec §6.3) and a `next_review_date` in the past so the
-      // cron flips it to 'review_overdue'.
+      // ── Step 0: Setup — seed a source_documents + record_lifecycle row
+      //    the cron will catch ──────────────────────────────────────────
+      // ID-131.19 M6 retirement: content_items DROPPED at M6; the cron +
+      // approve handler both key off `record_lifecycle`
+      // (owner_kind='source_document') for governance_review_status/
+      // next_review_date/review_cadence_days/content_owner_id/verified_at,
+      // joined to `source_documents` for filename/publication_status. We
+      // seed with `governance_review_status='approved'` (one of the cron's
+      // eligible statuses per spec §6.3) and a `next_review_date` in the
+      // past so the cron flips it to 'review_overdue'.
       const seedSlug = randomUUID();
-      const { data: seeded, error: seedError } = await serviceClient
-        .from('content_items')
+      const { data: seededDoc, error: seedDocError } = await serviceClient
+        .from('source_documents')
         .insert({
-          title: TEST_TITLE,
-          content: `Lifecycle test fixture: ${RUN_PREFIX}. Disposable.`,
+          filename: TEST_TITLE,
+          mime_type: 'text/plain',
+          file_size: 1,
+          content_hash: `${RUN_PREFIX}-${seedSlug}`,
+          storage_path: `test-fixtures/${RUN_PREFIX}/${seedSlug}.txt`,
           content_type: 'article',
+        })
+        .select('id')
+        .single();
+
+      expect(
+        seedDocError,
+        'seed source_documents insert must succeed',
+      ).toBeNull();
+      expect(seededDoc).toBeTruthy();
+      const itemId = seededDoc!.id;
+      createdItemIds.push(itemId);
+
+      const { error: seedLifecycleError } = await serviceClient
+        .from('record_lifecycle')
+        .insert({
+          owner_kind: 'source_document',
+          owner_id: itemId,
+          source_document_id: itemId,
           next_review_date: PAST_REVIEW_DATE,
           review_cadence_days: REVIEW_CADENCE_DAYS,
           governance_review_status: 'approved',
           content_owner_id: TEST_USER_1_ID,
           verified_at: null,
-          metadata: { test_run: RUN_PREFIX, seed_slug: seedSlug },
-        })
-        .select('id')
-        .single();
+          domain: `${RUN_PREFIX} ${seedSlug}`,
+        });
 
-      expect(seedError, 'seed insert must succeed').toBeNull();
-      expect(seeded).toBeTruthy();
-      const itemId = seeded!.id;
-      createdItemIds.push(itemId);
+      expect(
+        seedLifecycleError,
+        'seed record_lifecycle insert must succeed',
+      ).toBeNull();
 
       // Pin "today" for the renewal assertion — the cron computes
       // GREATEST(current, today) + cadence. Since current (2025-01-01) is in
@@ -237,11 +274,12 @@ describeIfEnv(
       // ── Step 2: DB invariants post-flip ────────────────────────────────
       const { data: postFlipItem, error: postFlipFetchErr } =
         await serviceClient
-          .from('content_items')
+          .from('record_lifecycle')
           .select(
-            'id, governance_review_status, governance_review_due, next_review_date',
+            'source_document_id, governance_review_status, governance_review_due, next_review_date',
           )
-          .eq('id', itemId)
+          .eq('owner_kind', 'source_document')
+          .eq('source_document_id', itemId)
           .single();
 
       expect(postFlipFetchErr).toBeNull();
@@ -289,9 +327,10 @@ describeIfEnv(
 
       const { data: postRerunItem, error: postRerunFetchErr } =
         await serviceClient
-          .from('content_items')
+          .from('record_lifecycle')
           .select('governance_review_status')
-          .eq('id', itemId)
+          .eq('owner_kind', 'source_document')
+          .eq('source_document_id', itemId)
           .single();
       expect(postRerunFetchErr).toBeNull();
       expect(postRerunItem!.governance_review_status).toBe('review_overdue');
@@ -345,11 +384,12 @@ describeIfEnv(
       // ── Step 6: Post-approve invariants ───────────────────────────────
       const { data: postApproveItem, error: postApproveFetchErr } =
         await serviceClient
-          .from('content_items')
+          .from('record_lifecycle')
           .select(
-            'id, governance_review_status, governance_review_due, next_review_date, verified_at, review_cadence_days',
+            'source_document_id, governance_review_status, governance_review_due, next_review_date, verified_at, review_cadence_days',
           )
-          .eq('id', itemId)
+          .eq('owner_kind', 'source_document')
+          .eq('source_document_id', itemId)
           .single();
 
       expect(postApproveFetchErr).toBeNull();

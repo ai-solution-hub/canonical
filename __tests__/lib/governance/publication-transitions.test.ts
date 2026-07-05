@@ -56,13 +56,20 @@ describe('VALID_PUBLICATION_STATUSES', () => {
     ]);
   });
 
-  it('is type-compatible with the generated `content_items.publication_status` column', () => {
+  it('is type-compatible with the generated `q_a_pairs.publication_status` column', () => {
     // Compile-time check: every value in VALID_PUBLICATION_STATUSES is
     // assignable to the generated column type. The generated type is
     // `string`, so this is a one-way check — but it ensures we never
     // accidentally widen the tuple beyond what the column accepts.
+    //
+    // ID-131.19 M6 retirement: `content_items` (and its identical
+    // `content_items_publication_status_check` CHECK) was DROPPED at M6.
+    // `q_a_pairs_publication_status_check` carries the exact same 4-value
+    // array (supabase/migrations/20260617130000_squash_baseline.sql:7152)
+    // and is the only surviving table with a matching CHECK, so it is the
+    // honest replacement anchor for this drift guard.
     type ColumnType =
-      Database['public']['Tables']['content_items']['Row']['publication_status'];
+      Database['public']['Tables']['q_a_pairs']['Row']['publication_status'];
     const sample = VALID_PUBLICATION_STATUSES[0] satisfies ColumnType;
     expect(typeof sample).toBe('string');
   });

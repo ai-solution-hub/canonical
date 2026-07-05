@@ -33,8 +33,9 @@
  *
  *   Strategy B (cocoindex-native observability):
  *     Re-ingest the same content_text → assert the q_a_extractions /
- *     entity_mentions / content_items_classification rows are
- *     BYTE-IDENTICAL on the second pass. Memo-hit determinism means the
+ *     entity_mentions / source_documents-classification rows are
+ *     BYTE-IDENTICAL on the second pass (ID-131.19 M6 retirement:
+ *     content_items DROPPED at M6). Memo-hit determinism means the
  *     same input produces the same output rows; LLM stochasticity is
  *     bounded by the memo cache (Inv-21 verbatim statement).
  *
@@ -138,7 +139,9 @@ afterAll(async () => {
     .from('entity_mentions')
     .delete()
     .in('source_document_id', seededContentIds);
-  await client.from('content_items').delete().in('id', seededContentIds);
+  // ID-131.19 M6 retirement: content_items DROPPED at M6; seededContentIds
+  // holds source_documents.id values.
+  await client.from('source_documents').delete().in('id', seededContentIds);
 }, 30_000);
 
 // ---------------------------------------------------------------------------
@@ -271,16 +274,17 @@ describe.skipIf(!ENABLED)(
       expect(pass2Signature).toBe(pass1Signature);
     });
 
-    it('content_items classification fields unchanged after re-ingest', async () => {
+    it('source_documents classification fields unchanged after re-ingest', async () => {
       // The classification extractor lands its outputs on
-      // content_items.{content_type, primary_domain, confidence_score}
-      // per Path A target-binding (extraction.py
-      // `extract_classification`). Memo hit → these columns are NOT
-      // re-written → values are unchanged on the post-pass-2 read.
+      // source_documents.{content_type, primary_domain, classification_confidence}
+      // per Path A target-binding (extraction.py `extract_classification`;
+      // ID-131.19 M6 retirement: content_items DROPPED at M6). Memo hit →
+      // these columns are NOT re-written → values are unchanged on the
+      // post-pass-2 read.
       const client = await createLiveServiceClient();
       const { data: pass1Rows, error: pass1Error } = await client
-        .from('content_items')
-        .select('id, content_type, primary_domain, confidence_score')
+        .from('source_documents')
+        .select('id, content_type, primary_domain, classification_confidence')
         .in('id', seededContentIds);
 
       expect(pass1Error).toBeNull();
@@ -294,8 +298,8 @@ describe.skipIf(!ENABLED)(
       );
 
       const { data: pass2Rows, error: pass2Error } = await client
-        .from('content_items')
-        .select('id, content_type, primary_domain, confidence_score')
+        .from('source_documents')
+        .select('id, content_type, primary_domain, classification_confidence')
         .in('id', seededContentIds);
 
       expect(pass2Error).toBeNull();

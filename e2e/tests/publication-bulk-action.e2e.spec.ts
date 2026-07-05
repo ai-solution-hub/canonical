@@ -27,9 +27,15 @@
  * Fixture seeding strategy:
  *   `test.beforeAll` inserts N publication_status='in_review' items with
  *   the admin user as `created_by`. Cleanup happens in `test.afterAll`
- *   (delete by title prefix + cleanup of content_history rows the bulk
- *   endpoint creates). Mirrors the seeding pattern in
+ *   (delete by title prefix). Mirrors the seeding pattern in
  *   `content-ingestion-markdown-batch.spec.ts`.
+ *
+ *   ID-131.19 M6 retirement (S450 GO tail): `content_items` (+
+ *   `content_history`) DROPPED at M6; `app/api/review/publication-bulk-action/route.ts`
+ *   was ALREADY re-pointed onto `source_documents` and no longer writes a
+ *   content_history audit row at all (Wave 1 Fix 4) — the fixture below
+ *   seeds `source_documents` directly and the cleanup no longer needs a
+ *   history-row pass.
  *
  *   `feedback_supabase_branch_data_empty`: persistent staging branches
  *   start data-empty for application rows; we explicitly seed and never
@@ -73,11 +79,17 @@ interface SeedResult {
 }
 
 /**
- * Seed N `publication_status='in_review'` content_items rows with the admin
- * user as `created_by`. Returns ids + titles for assertion + cleanup.
+ * Seed N `publication_status='in_review'` `source_documents` rows with the
+ * admin user as `created_by`/`content_owner_id`. Returns ids + titles for
+ * assertion + cleanup.
  *
- * `content_text_hash` is OMITTED — column is GENERATED ALWAYS
- * (CLAUDE.md / `feedback_content_text_hash_generated_always`).
+ * ID-131.19 M6 retirement: `content_items` DROPPED at M6; the production
+ * route (app/api/review/publication-bulk-action/route.ts) reads/writes
+ * `source_documents` — this fixture matches. `title` has no
+ * source_documents equivalent (used only for locator-matching in this
+ * spec's UI assertions) — `filename` carries the same seed-prefixed value
+ * so the queue UI (which reads `suggested_title ?? filename`) renders it
+ * identically to how `title` used to render.
  */
 async function seedInReviewItems(
   count: number,
@@ -106,9 +118,9 @@ async function seedInReviewItems(
   // Best-effort clear of any leftover seed rows from a previous failed run
   // (idempotent — title-prefix + tag namespace keeps cleanup scoped).
   await svc
-    .from('content_items')
+    .from('source_documents')
     .delete()
-    .like('title', `${SEED_PREFIX} ${testTag}%`);
+    .like('filename', `${SEED_PREFIX} ${testTag}%`);
 
   const titles: string[] = [];
   const inserts: Record<string, unknown>[] = [];
@@ -116,24 +128,25 @@ async function seedInReviewItems(
     const title = `${SEED_PREFIX} ${testTag} item ${i + 1}`;
     titles.push(title);
     inserts.push({
-      title,
-      content: `E2E publication-bulk-action seed body for ${title}.`,
+      filename: title,
+      extracted_text: `E2E publication-bulk-action seed body for ${title}.`,
       summary: `E2E summary for ${title}`,
       content_type: 'article',
       primary_domain: 'Service Delivery',
-      platform: 'manual',
-      ingestion_source: 'manual',
       publication_status: 'in_review',
       created_by: adminUserId,
       content_owner_id: adminUserId,
-      // content_text_hash OMITTED — GENERATED ALWAYS column.
+      mime_type: 'text/plain',
+      file_size: 1,
+      content_hash: `${SEED_PREFIX}-${testTag}-${i}`,
+      storage_path: `test-fixtures/${SEED_PREFIX}/${testTag}-${i}.txt`,
     });
   }
 
   const { data, error } = await svc
-    .from('content_items')
+    .from('source_documents')
     .insert(inserts)
-    .select('id, title')
+    .select('id, filename')
     .throwOnError();
 
   if (error || !data) {
@@ -148,8 +161,8 @@ async function seedInReviewItems(
   // (Postgres does not guarantee `RETURNING` ordering, and the test does
   // not depend on order, but a stable mapping aids debugging).
   const idsByTitle = new Map<string, string>();
-  for (const row of data as { id: string; title: string }[]) {
-    idsByTitle.set(row.title, row.id);
+  for (const row of data as { id: string; filename: string }[]) {
+    idsByTitle.set(row.filename, row.id);
   }
   const ids = titles.map((t) => idsByTitle.get(t) ?? '').filter(Boolean);
   if (ids.length !== count) {
@@ -161,28 +174,19 @@ async function seedInReviewItems(
 }
 
 /**
- * Cleanup seeded rows + any content_history rows the bulk endpoint may have
- * created. Idempotent — safe to call from `afterEach`/`afterAll` without
- * tracking state per test.
+ * Cleanup seeded rows. Idempotent — safe to call from `afterEach`/`afterAll`
+ * without tracking state per test.
+ *
+ * ID-131.19 M6 retirement: content_history DROPPED at M6 and the bulk-action
+ * route no longer writes an audit trail at all (Wave 1 Fix 4) — no history
+ * cleanup pass needed anymore.
  */
 async function cleanupSeed(testTag: string): Promise<void> {
   const svc = createServiceClient();
-
-  // Find row ids to drop history for (FK cascade is not configured for
-  // content_history → content_items; clean explicitly).
-  const { data: rows } = await svc
-    .from('content_items')
-    .select('id')
-    .like('title', `${SEED_PREFIX} ${testTag}%`);
-
-  const ids = (rows ?? []).map((r: { id: string }) => r.id);
-  if (ids.length > 0) {
-    await svc.from('content_history').delete().in('content_item_id', ids);
-  }
   await svc
-    .from('content_items')
+    .from('source_documents')
     .delete()
-    .like('title', `${SEED_PREFIX} ${testTag}%`);
+    .like('filename', `${SEED_PREFIX} ${testTag}%`);
 }
 
 /**

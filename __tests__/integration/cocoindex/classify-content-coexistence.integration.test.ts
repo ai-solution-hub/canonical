@@ -39,7 +39,7 @@ import {
   createLiveServiceClient,
   hasRealLiveDbCredentials,
 } from '../helpers/supabase-client';
-import { createTestContentItem, testUUID } from '../helpers/test-data-factory';
+import { testUUID } from '../helpers/test-data-factory';
 import {
   dropFixture,
   pollContentItemsFor,
@@ -67,26 +67,34 @@ beforeAll(async () => {
   if (!ENABLED) return;
   const client = await createLiveServiceClient();
 
-  // 1. Seed a content_item + a NULL-op_id entity_mentions row simulating the
-  //    classifyContent INSERT path (lib/ai/classify.ts:1751 — no op_id field).
+  // 1. Seed a source_documents row + a NULL-op_id entity_mentions row
+  //    simulating the classifyContent INSERT path (lib/ai/classify.ts:1751
+  //    — no op_id field). (ID-131.19 M6 retirement: content_items DROPPED
+  //    at M6; entity_mentions.source_document_id is a direct FK to
+  //    source_documents, so the seeded row must live there now.)
   const contentItemId = testUUID();
   nullOpContentItemId = contentItemId;
-  // Seed via createTestContentItem(...) so all required (NOT NULL) schema
-  // fields (content_type, content, primary_domain, …) are populated — a raw
-  // minimal insert hard-fails on those columns when run live. op_id is left
-  // unset → defaults to NULL (this content_item is NOT part of a pipeline run,
-  // mirroring the classifyContent INSERT path).
-  const { error: ciErr } = await client.from('content_items').insert(
-    createTestContentItem({
-      id: contentItemId,
-      title: `${TEST_PREFIX}-classifyContent-item`,
-    }),
-  );
+  // Populate all required (NOT NULL) source_documents schema fields
+  // (content_hash, file_size, filename, mime_type, storage_path) directly
+  // — a raw minimal insert hard-fails on those columns when run live.
+  // op_id is left unset → defaults to NULL (this source document is NOT
+  // part of a pipeline run, mirroring the classifyContent INSERT path).
+  const { error: ciErr } = await client.from('source_documents').insert({
+    id: contentItemId,
+    filename: `${TEST_PREFIX}-classifyContent-item.txt`,
+    mime_type: 'text/plain',
+    file_size: 1,
+    content_hash: `${TEST_PREFIX}-classifyContent-item`,
+    storage_path: `test-fixtures/${TEST_PREFIX}/classifyContent-item.txt`,
+    status: 'processed',
+  });
   // If the seed insert is still rejected, fall back to NOT seeding — the test
   // will skip its assertion body gracefully via the null guard. We surface the
   // error for diagnosis.
   if (ciErr) {
-    console.warn(`Inv-8 seed: content_items insert warning — ${ciErr.message}`);
+    console.warn(
+      `Inv-8 seed: source_documents insert warning — ${ciErr.message}`,
+    );
     nullOpContentItemId = null;
     return;
   }
@@ -124,7 +132,12 @@ afterAll(async () => {
     await client.from('entity_mentions').delete().eq('id', nullOpMentionId);
   }
   if (nullOpContentItemId) {
-    await client.from('content_items').delete().eq('id', nullOpContentItemId);
+    // ID-131.19 M6 retirement: content_items DROPPED at M6;
+    // source_documents replaces it as the seeded-row cleanup target.
+    await client
+      .from('source_documents')
+      .delete()
+      .eq('id', nullOpContentItemId);
   }
   await dropFixture({ titlePrefix: TEST_PREFIX, contentIds: seededContentIds });
 }, 30_000);

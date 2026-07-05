@@ -122,15 +122,12 @@ describe.skipIf(!ENABLED)(
         // not a placeholder string).
         expect(contentRow.op_id).toMatch(UUID_V4_REGEX);
 
-        // q_a_extractions.source_document_id is an FK to source_documents,
-        // NOT content_items (ID-131 M2 / ID-131.26) — resolve the content
-        // item's linked source_document_id before querying its extractions.
-        const { data: sourceDocLink } = await client
-          .from('content_items')
-          .select('source_document_id')
-          .eq('id', contentRow.id)
-          .maybeSingle();
-        const sourceDocumentId = sourceDocLink?.source_document_id;
+        // ID-131.19 M6 retirement: `content_items` was DROPPED at M6.
+        // `pollContentItemsFor` (see _helpers/fixture-staging.ts's M6
+        // retarget note) already returns the `source_documents.id`
+        // directly, so `contentRow.id` IS the source_document_id — no
+        // separate resolution query is needed anymore.
+        const sourceDocumentId = contentRow.id;
 
         // Inv-11 verifiability part 2: q_a_extractions rows for the same
         // source document carry the SAME op_id value.
@@ -161,8 +158,10 @@ describe.skipIf(!ENABLED)(
       // Use the seeded op_id from the previous test (intra-suite chain).
       // If the previous test failed, this test is also expected to fail
       // — that's acceptable: Inv-11 break implies Inv-12 also breaks.
+      // ID-131.19 M6 retirement: content_items DROPPED at M6;
+      // source_documents.op_id replaces content_items.op_id.
       const { data: items } = await client
-        .from('content_items')
+        .from('source_documents')
         .select('op_id')
         .in('id', seededContentIds);
 
@@ -173,9 +172,9 @@ describe.skipIf(!ENABLED)(
           ? items.map((r) => r.op_id as string)
           : await (async () => {
               const { data } = await client
-                .from('content_items')
+                .from('source_documents')
                 .select('op_id')
-                .ilike('title', `${TEST_PREFIX}%`);
+                .ilike('filename', `${TEST_PREFIX}%`);
               return data?.map((r) => r.op_id as string) ?? [];
             })();
 

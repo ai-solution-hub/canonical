@@ -63,14 +63,16 @@ afterAll(async () => {
   if (!ENABLED) return;
   if (seededContentIds.length === 0) return;
   const client = await createLiveServiceClient();
-  await client.from('content_items').delete().in('id', seededContentIds);
+  // ID-131.19 M6 retirement: content_items DROPPED at M6; seededContentIds
+  // holds source_documents.id values (see pollContentItemsFor's M6 retarget).
+  await client.from('source_documents').delete().in('id', seededContentIds);
 }, 30_000);
 
 describe.skipIf(!ENABLED)(
   'Inv-2 — per-file latency budget (markdown direct ingest within p95)',
   () => {
     it(
-      'lands a content_items row within the per-file budget after fixture drop',
+      'lands a source_documents row within the per-file budget after fixture drop',
       async () => {
         const client = await createLiveServiceClient();
         const startTime = Date.now();
@@ -79,10 +81,12 @@ describe.skipIf(!ENABLED)(
         let landedRow: { id: string; created_at: string } | null = null;
 
         while (Date.now() < deadline) {
+          // ID-131.19 M6 retirement: content_items DROPPED at M6;
+          // source_documents.filename replaces title.
           const { data, error } = await client
-            .from('content_items')
+            .from('source_documents')
             .select('id, created_at')
-            .ilike('title', `${TEST_PREFIX}%`)
+            .ilike('filename', `${TEST_PREFIX}%`)
             .order('created_at', { ascending: false })
             .limit(1);
 
@@ -100,7 +104,7 @@ describe.skipIf(!ENABLED)(
           await new Promise((resolve) => setTimeout(resolve, 2_000));
         }
 
-        // Per Inv-2 verifiability: the content_items row MUST be present
+        // Per Inv-2 verifiability: the source_documents row MUST be present
         // within the budget. Absence proves either: (a) the budget is being
         // violated (caching / cold-start / load issue), or (b) the pipeline
         // didn't fire on the fixture drop (which would also break Inv-1).

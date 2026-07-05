@@ -83,14 +83,16 @@ afterAll(async () => {
   if (!ENABLED) return;
   if (seededContentIds.length === 0) return;
   const client = await createLiveServiceClient();
-  await client.from('content_items').delete().in('id', seededContentIds);
+  // ID-131.19 M6 retirement: content_items DROPPED at M6; source_documents
+  // replaces it as the seeded-row cleanup target.
+  await client.from('source_documents').delete().in('id', seededContentIds);
 }, 30_000);
 
 describe.skipIf(!ENABLED)(
   'Inv-13 — audit-log shipping (v1 substrate: op_id-via-pipeline_runs; v1.1 future: audit_log table)',
   () => {
     it(
-      'v1 substrate: pipeline_runs.op_id is recoverable for every pipeline-driven content_items row',
+      'v1 substrate: pipeline_runs.op_id is recoverable for every pipeline-driven source_documents row',
       async () => {
         const client = await createLiveServiceClient();
 
@@ -98,10 +100,12 @@ describe.skipIf(!ENABLED)(
         let contentItem: { id: string; op_id: string } | null = null;
 
         while (Date.now() < deadline) {
+          // ID-131.19 M6 retirement: content_items DROPPED at M6;
+          // source_documents.filename replaces content_items.title.
           const { data } = await client
-            .from('content_items')
+            .from('source_documents')
             .select('id, op_id')
-            .ilike('title', `${TEST_PREFIX}%`)
+            .ilike('filename', `${TEST_PREFIX}%`)
             .limit(1);
 
           if (data && data.length > 0 && data[0]!.op_id) {
@@ -160,11 +164,13 @@ describe.skipIf(!ENABLED)(
       }
 
       // V1.1 substrate is live. Find audit_log rows for the test's
-      // pipeline-driven writes.
+      // pipeline-driven writes. (ID-131.19 M6 retirement: content_items
+      // DROPPED at M6; source_documents.filename replaces
+      // content_items.title.)
       const { data: items } = await client
-        .from('content_items')
+        .from('source_documents')
         .select('id, op_id')
-        .ilike('title', `${TEST_PREFIX}%`)
+        .ilike('filename', `${TEST_PREFIX}%`)
         .limit(1);
 
       if (!items || items.length === 0) {
@@ -174,12 +180,14 @@ describe.skipIf(!ENABLED)(
 
       const opId = items[0]!.op_id as string;
 
-      // V1.1 contract: audit_log row(s) with table_name='content_items'
-      // for our content_item_id, carrying the same op_id.
+      // V1.1 contract: audit_log row(s) with table_name='source_documents'
+      // for our source_document_id, carrying the same op_id. (ID-131.19 M6
+      // retirement: content_items DROPPED at M6 — source_documents is now
+      // the governed table a pipeline-driven write would land on.)
       const { data: auditRows } = await client
         .from('audit_log')
         .select('id, op_id, table_name, row_id, operation_type')
-        .eq('table_name', 'content_items')
+        .eq('table_name', 'source_documents')
         .eq('row_id', items[0]!.id as string);
 
       expect(auditRows).not.toBeNull();

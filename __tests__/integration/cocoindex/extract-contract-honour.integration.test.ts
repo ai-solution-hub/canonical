@@ -238,10 +238,11 @@ describe.skipIf(!ENABLED)(
   () => {
     it('classification rows match ClassificationExtraction shape', async () => {
       // Verifiable per Inv-20: a flow run that processed the classification-
-      // kind fixture must produce rows on `content_items` (the classification
-      // outputs are stamped onto the content_items row per cocoindex Path A
-      // target-binding — content_type lands in content_items.content_type,
-      // classification_confidence in content_items.confidence_score, etc.).
+      // kind fixture must produce rows on `source_documents` (ID-131.19 M6
+      // retirement: content_items DROPPED at M6 — the classification outputs
+      // are now stamped onto the source_documents row — content_type lands
+      // in source_documents.content_type, classification_confidence in
+      // source_documents.classification_confidence, etc.).
       //
       // The assertion is a structural contract check — every classification
       // output value must be a member of the canonical Q-EX2 vocabulary or
@@ -250,9 +251,9 @@ describe.skipIf(!ENABLED)(
       // landed DB row, breaking Inv-20.
       const client = await createLiveServiceClient();
       const { data, error } = await client
-        .from('content_items')
-        .select('id, content_type, primary_domain, confidence_score')
-        .ilike('title', `${TEST_PREFIX}%`)
+        .from('source_documents')
+        .select('id, content_type, primary_domain, classification_confidence')
+        .ilike('filename', `${TEST_PREFIX}%`)
         .in('id', seededContentIds);
 
       // Use hard expect()s (no silent fallback) per CLAUDE.md Gotcha
@@ -275,8 +276,9 @@ describe.skipIf(!ENABLED)(
 
         // classification_confidence ∈ [0, 1] per Q-EX2
         // `ClassificationExtraction.classification_confidence`.
-        // Lands in content_items.confidence_score per Path A target-binding.
-        const confidence = row.confidence_score as number | null;
+        // Lands in source_documents.classification_confidence per Path A
+        // target-binding (ID-131.19 M6 retirement: content_items DROPPED).
+        const confidence = row.classification_confidence as number | null;
         expect(confidence).not.toBeNull();
         expect(typeof confidence).toBe('number');
         expect(confidence!).toBeGreaterThanOrEqual(0);
@@ -293,10 +295,11 @@ describe.skipIf(!ENABLED)(
       //
       // form_metadata lands either on a sibling `form_templates` row (if
       // ratified by 28.13+ schema migration) OR inline in
-      // `content_items.metadata` (v1 substrate). Per the dispatch brief
-      // scope, this test asserts the QAPair shape on `q_a_extractions` —
-      // the form_templates / content_items.metadata routing is owned by
-      // 28.13 schema-design.
+      // `source_documents.extraction_metadata` (v1 substrate; ID-131.19 M6
+      // retirement: content_items.metadata DROPPED at M6). Per the dispatch
+      // brief scope, this test asserts the QAPair shape on `q_a_extractions`
+      // — the form_templates / source_documents.extraction_metadata routing
+      // is owned by 28.13 schema-design.
       const client = await createLiveServiceClient();
       const { data, error } = await client
         .from('q_a_extractions')
@@ -335,7 +338,8 @@ describe.skipIf(!ENABLED)(
 
     it('entity_mention rows match EntityMentionExtraction shape (entity_type in 12-value vocabulary)', async () => {
       // Verifiable per Inv-20: entity_mention extraction produces rows on
-      // `entity_mentions` keyed by content_items_id, each row matching the
+      // `entity_mentions` keyed by source_document_id (ID-131.19 M6
+      // retirement: content_items DROPPED at M6), each row matching the
       // `EntityMentionExtraction` Pydantic shape (entity_type in 12-value
       // Literal, entity_name non-empty, source_span_start/end ≥ 0,
       // mention_confidence ∈ [0,1]).
@@ -384,23 +388,27 @@ describe.skipIf(!ENABLED)(
       // per docs/ontology/26-form-type.md). The post-flow landing surface
       // for FormMetadata is owned by 28.13 schema design — at the time of
       // 28.14 narrowed-scope authoring it may land either inline on
-      // `content_items.metadata` (JSONB) or on a sibling `form_templates`
-      // row. This test asserts the contract against whichever landing
-      // surface is canonical at run-time.
+      // `source_documents.extraction_metadata` (JSONB; ID-131.19 M6
+      // retirement: content_items.metadata DROPPED at M6) or on a sibling
+      // `form_templates` row. This test asserts the contract against
+      // whichever landing surface is canonical at run-time.
       //
       // The structural shape verified: when form_metadata is present,
       // form_type ∈ VALID_FORM_TYPES and form_format ∈ VALID_FORM_FORMATS.
       const client = await createLiveServiceClient();
       const { data, error } = await client
-        .from('content_items')
-        .select('id, metadata')
+        .from('source_documents')
+        .select('id, extraction_metadata')
         .in('id', seededContentIds);
 
       expect(error).toBeNull();
       expect(data).toBeTruthy();
 
       for (const row of data!) {
-        const metadata = row.metadata as Record<string, unknown> | null;
+        const metadata = row.extraction_metadata as Record<
+          string,
+          unknown
+        > | null;
         // form_metadata may be absent on classification-only or entity-
         // only fixtures — only assert when present.
         const formMetadata = metadata?.form_metadata as

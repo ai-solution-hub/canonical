@@ -211,16 +211,11 @@ afterAll(async () => {
   if (!ENABLED) return;
   if (seededContentIds.length === 0) return;
   const client = await createLiveServiceClient();
-  // q_a_extractions/entity_mentions.source_document_id is an FK to
-  // source_documents, NOT content_items (ID-131 M2 / ID-131.26) — resolve
-  // the linked source_document_id(s) before cleaning up child rows.
-  const { data: sourceDocLinks } = await client
-    .from('content_items')
-    .select('source_document_id')
-    .in('id', seededContentIds);
-  const sourceDocumentIds = (sourceDocLinks ?? [])
-    .map((r) => r.source_document_id)
-    .filter((id): id is string => typeof id === 'string' && id.length > 0);
+  // ID-131.19 M6 retirement: `content_items` was DROPPED at M6.
+  // `seededContentIds` already holds `source_documents.id` values directly
+  // (per `pollContentItemsFor`'s M6 retarget note in
+  // `_helpers/fixture-staging.ts`) — no resolution query is needed.
+  const sourceDocumentIds = seededContentIds;
   if (sourceDocumentIds.length > 0) {
     await client
       .from('q_a_extractions')
@@ -231,7 +226,7 @@ afterAll(async () => {
       .delete()
       .in('source_document_id', sourceDocumentIds);
   }
-  await client.from('content_items').delete().in('id', seededContentIds);
+  await client.from('source_documents').delete().in('id', seededContentIds);
   // pipeline_runs cleanup is keyed on op_id (the per-flow-invocation UUID).
   if (observedOpIdRef.current) {
     await client
@@ -322,19 +317,12 @@ describe.skipIf(!ENABLED)(
 
       const client = await createLiveServiceClient();
 
-      // q_a_extractions/entity_mentions.source_document_id is an FK to
-      // source_documents, NOT content_items (ID-131 M2 / ID-131.26) —
-      // resolve the seeded content items' linked source_document_id(s) so
-      // the "zero rows" assertion below is scoped to THIS fixture rather
-      // than trivially vacuous against ids that could never match anyway.
-      const { data: sourceDocLinks, error: sourceDocLinkErr } = await client
-        .from('content_items')
-        .select('source_document_id')
-        .in('id', seededContentIds);
-      expect(sourceDocLinkErr).toBeNull();
-      const sourceDocumentIds = (sourceDocLinks ?? [])
-        .map((r) => r.source_document_id)
-        .filter((id): id is string => typeof id === 'string' && id.length > 0);
+      // ID-131.19 M6 retirement: `content_items` was DROPPED at M6.
+      // `seededContentIds` already holds `source_documents.id` values
+      // directly (per `pollContentItemsFor`'s M6 retarget note), so the
+      // "zero rows" assertion below is scoped to THIS fixture without any
+      // separate resolution query.
+      const sourceDocumentIds = seededContentIds;
       expect(sourceDocumentIds.length).toBeGreaterThan(0);
 
       const { data: qaRows, error: qaError } = await client
@@ -354,16 +342,18 @@ describe.skipIf(!ENABLED)(
       expect(entityRows).toBeTruthy();
       expect(entityRows!.length).toBe(0);
 
-      // content_items row itself may exist (created by an earlier stage
+      // source_documents row itself may exist (created by an earlier stage
       // of the flow, BEFORE the extraction stage that failed) — but the
       // classification-output fields (content_type, primary_domain,
-      // confidence_score) MUST be unpopulated by the failed flow. Per
-      // Path A binding semantics, these columns are written by
+      // classification_confidence) MUST be unpopulated by the failed flow.
+      // Per Path A binding semantics, these columns are written by
       // `extract_classification` post-validation; a validation failure
-      // means the UPSERT never executed.
+      // means the UPSERT never executed. (ID-131.19 M6 retirement:
+      // content_items DROPPED at M6; source_documents.classification_confidence
+      // replaces content_items.confidence_score.)
       const { data: contentRows, error: contentError } = await client
-        .from('content_items')
-        .select('id, content_type, primary_domain, confidence_score')
+        .from('source_documents')
+        .select('id, content_type, primary_domain, classification_confidence')
         .in('id', seededContentIds);
       expect(contentError).toBeNull();
       expect(contentRows).toBeTruthy();
@@ -377,7 +367,7 @@ describe.skipIf(!ENABLED)(
         // float in [0,1] if extraction succeeded) — its NULL state is
         // the cleanest observable proof that classification UPSERT
         // didn't fire.
-        expect(row.confidence_score).toBeNull();
+        expect(row.classification_confidence).toBeNull();
       }
     });
 

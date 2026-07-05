@@ -84,7 +84,9 @@ afterAll(async () => {
     await client.from('pipeline_runs').delete().in('id', seededRunIds);
   }
   if (seededContentIds.length > 0) {
-    await client.from('content_items').delete().in('id', seededContentIds);
+    // ID-131.19 M6 retirement: content_items DROPPED at M6;
+    // source_documents replaces it as the seeded-row cleanup target.
+    await client.from('source_documents').delete().in('id', seededContentIds);
   }
 }, 30_000);
 
@@ -101,10 +103,12 @@ describe.skipIf(!ENABLED)(
         let contentItem: { id: string; op_id: string } | null = null;
 
         while (Date.now() < firstIngestDeadline) {
+          // ID-131.19 M6 retirement: content_items DROPPED at M6;
+          // source_documents.filename replaces content_items.title.
           const { data } = await client
-            .from('content_items')
+            .from('source_documents')
             .select('id, op_id')
-            .ilike('title', `${TEST_PREFIX}%`)
+            .ilike('filename', `${TEST_PREFIX}%`)
             .limit(1);
 
           if (data && data.length > 0 && data[0]!.op_id) {
@@ -122,8 +126,9 @@ describe.skipIf(!ENABLED)(
         expect(contentItem).not.toBeNull();
 
         // Capture pipeline_runs count for THIS content's lineage. We can't
-        // use content_item_id directly (pipeline_runs doesn't reference
-        // content_items by FK; it stores the op_id). Instead query by the
+        // use the source_document_id directly (pipeline_runs doesn't
+        // reference source_documents by FK; it stores the op_id). Instead
+        // query by the
         // pipeline_name=KH_CANONICAL_PIPELINE_NAME + a time window covering the
         // test prefix's lifetime — but that's noisy.
         //
@@ -216,20 +221,23 @@ describe.skipIf(!ENABLED)(
         return;
       }
 
-      // V1.1 substrate. Find the content_item from the previous test
-      // (intra-suite chain).
+      // V1.1 substrate. Find the source_documents row from the previous
+      // test (intra-suite chain).
       if (seededContentIds.length === 0) return;
       const contentItemId = seededContentIds[0]!;
 
+      // ID-131.19 M6 retirement: content_items DROPPED at M6 —
+      // source_documents is now the governed table a pipeline-driven
+      // write would land on.
       const { count: auditRowsAfter } = await client
         .from('audit_log')
         .select('id', { count: 'exact', head: true })
-        .eq('table_name', 'content_items')
+        .eq('table_name', 'source_documents')
         .eq('row_id', contentItemId);
 
       // Inv-15 verifiability: at v1.1, audit_log row count for the
-      // content_item is the SAME after the memo-hit cycle as after the
-      // first ingest. The memo-hit path didn't UPDATE the row, so the
+      // source_documents row is the SAME after the memo-hit cycle as after
+      // the first ingest. The memo-hit path didn't UPDATE the row, so the
       // AFTER UPDATE trigger didn't fire.
       //
       // The expected count is exactly 1 (the INSERT trigger from the

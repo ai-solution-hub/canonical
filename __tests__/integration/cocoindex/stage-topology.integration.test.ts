@@ -90,7 +90,9 @@ afterAll(async () => {
     await client.from('pipeline_runs').delete().in('id', seededRunIds);
   }
   if (seededContentIds.length > 0) {
-    await client.from('content_items').delete().in('id', seededContentIds);
+    // ID-131.19 M6 retirement: content_items DROPPED at M6; seededContentIds
+    // holds source_documents.id values.
+    await client.from('source_documents').delete().in('id', seededContentIds);
   }
 }, 30_000);
 
@@ -108,10 +110,12 @@ describe.skipIf(!ENABLED)(
         let pipelineRunId: string | null = null;
 
         while (Date.now() < deadline) {
+          // ID-131.19 M6 retirement: content_items DROPPED at M6;
+          // source_documents.filename replaces title.
           const { data: items } = await client
-            .from('content_items')
+            .from('source_documents')
             .select('id, op_id')
-            .ilike('title', `${TEST_PREFIX}%`)
+            .ilike('filename', `${TEST_PREFIX}%`)
             .limit(1);
 
           if (items && items.length > 0 && items[0]!.op_id) {
@@ -157,13 +161,29 @@ describe.skipIf(!ENABLED)(
       POLL_TIMEOUT_MS + 30_000,
     );
 
-    it('content_items.embedding is non-null when status is succeeded (Inv-3 embedding-stage verifiability)', async () => {
+    it('record_embeddings row for the source_documents owner is non-null when status is succeeded (Inv-3 embedding-stage verifiability)', async () => {
       const client = await createLiveServiceClient();
 
+      // ID-131.19 M6 retirement: content_items.embedding DROPPED at M6;
+      // vector storage moved to the separate record_embeddings table keyed
+      // by (owner_kind, owner_id) — resolve the source_documents id via
+      // filename first, then read its record_embeddings row.
+      const { data: docs, error: docsError } = await client
+        .from('source_documents')
+        .select('id')
+        .ilike('filename', `${TEST_PREFIX}%`)
+        .limit(1);
+
+      expect(docsError).toBeNull();
+      expect(docs).not.toBeNull();
+      expect(docs!.length).toBeGreaterThan(0);
+      const sourceDocumentId = docs![0]!.id as string;
+
       const { data, error } = await client
-        .from('content_items')
+        .from('record_embeddings')
         .select('id, embedding')
-        .ilike('title', `${TEST_PREFIX}%`)
+        .eq('owner_kind', 'source_document')
+        .eq('owner_id', sourceDocumentId)
         .limit(1);
 
       expect(error).toBeNull();
@@ -171,9 +191,10 @@ describe.skipIf(!ENABLED)(
       expect(data!.length).toBeGreaterThan(0);
 
       // Per Inv-3 verifiability: "a run that completes MUST have written
-      // embeddings to content_items.embedding". Null embedding on a row
-      // with no matching failure row proves the embedding stage was
-      // skipped or silently failed.
+      // embeddings" — now landing on record_embeddings (owner_kind =
+      // 'source_document') rather than the dropped content_items.embedding.
+      // Null embedding on a row with no matching failure row proves the
+      // embedding stage was skipped or silently failed.
       const embedding = data![0]!.embedding;
       expect(embedding).not.toBeNull();
     }, 30_000);

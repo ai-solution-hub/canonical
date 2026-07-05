@@ -156,7 +156,6 @@ describe.skipIf(!ENABLED)('URL landing set (ID-75 TECH §5)', () => {
   const normalised = PROOF_URL ? normaliseUrl(PROOF_URL) : '';
   const sdId = normalised ? sdIdFor(normalised) : '';
   const riId = normalised ? riIdFor(normalised) : '';
-  const ciId = normalised ? ciIdFor(normalised) : '';
 
   let client: Awaited<ReturnType<typeof createLiveServiceClient>>;
 
@@ -220,21 +219,15 @@ describe.skipIf(!ENABLED)('URL landing set (ID-75 TECH §5)', () => {
     );
   });
 
-  it('lands ZERO content_items for the URL (§5.3 — evidence pair, not a ci landing)', async () => {
-    const { count: byId, error: idError } = await client
-      .from('content_items')
-      .select('id', { count: 'exact', head: true })
-      .eq('id', ciId);
-    expect(idError).toBeNull();
-    expect(byId).toBe(0);
-
-    const { count: byUrl, error: urlError } = await client
-      .from('content_items')
-      .select('id', { count: 'exact', head: true })
-      .eq('source_url', normalised);
-    expect(urlError).toBeNull();
-    expect(byUrl).toBe(0);
-  });
+  // ID-131.19 M6 retirement: `content_items` was DROPPED at M6 with no
+  // replacement table. This block's entire subject — proving the URL
+  // pipeline lands ZERO content_items rows (as opposed to the
+  // source_documents/reference_items evidence pair) — is now moot: the
+  // table it queried no longer exists, so a live `.from('content_items')`
+  // call would error (relation does not exist) rather than legitimately
+  // return a zero count. Removed rather than redirected to
+  // `source_documents`, since there is no destination table for a
+  // "this table has zero rows" assertion once the table itself is gone.
 
   it('backlinks every ledger row to the ri id with content_item_id NULL (§5.4)', async () => {
     // {75.17} two-walk contract: walk 1 ALWAYS defers this backlink (the

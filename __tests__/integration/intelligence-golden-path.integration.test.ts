@@ -1,10 +1,23 @@
 /**
  * Sector Intelligence Golden Path Real DB Integration Tests
  *
- * Verifies the complete SI pipeline end-to-end against the real Supabase database:
+ * Verifies the live SI pipeline end-to-end against the real Supabase database:
  *   Create workspace -> Add feed source -> Ingest articles (simulated)
- *     -> Create content items for passed articles -> Classify (real AI)
- *       -> Link to workspace via junction -> Summary aggregation
+ *     -> Verify workspace-scoped article query -> Summary aggregation
+ *
+ * The pipeline previously continued past ingestion into "create content items
+ * for passed articles -> classify (real AI) -> link to workspace via junction
+ * table" -- that TS-side content-item-promotion step was already retired in
+ * production before M6 (see `lib/intelligence/pipeline.ts` ID-75 WP-E (BI-11):
+ * the gate-passed `feed_articles` row IS the landing record now, and the
+ * Python cocoindex walk enumerates passed rows and lands them as
+ * `reference_items`). ID-131.19 (M6, S450 GO tail) then separately DROPPED
+ * the `content_items`, `content_item_workspaces`, `content_history`, and
+ * `read_marks` tables/views outright. This Subtask removed the test steps
+ * that exercised the already-dead promotion flow (they were testing an
+ * architecture production had already stopped running); the steps that
+ * exercise the still-live `feed_articles`/`feed_sources`/`workspaces`
+ * ingestion + summary-aggregation path are unchanged.
  *
  * These tests call real AI APIs (Claude for classification, OpenAI for embeddings)
  * and write to the real Supabase database. No mocks.
@@ -17,12 +30,14 @@
  *
  * @vitest-environment node
  */
+// ID-131.19 M6 retirement (S450 GO tail): Steps 4/5/6/9 (+ the content_items-shaped
+// edge-case/validation `it()` blocks below) were removed -- they tested a TS-side
+// content-item-promotion architecture already retired at ID-75 WP-E, independent of
+// M6's table drop. See docstring above for the full rationale.
 
 import { describe, it, expect, afterAll, beforeAll } from 'vitest';
 // service-client MUST be imported first -- it loads dotenv for all env vars
 import { serviceClient } from './helpers/service-client';
-import { getTestUserId } from './helpers/auth-session';
-import { classifyContent } from '@/lib/ai/classify';
 import { fetchIntelligenceSummary } from '@/lib/intelligence/summary';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
@@ -40,17 +55,12 @@ const ENABLED = process.env.INTEGRATION_INTELLIGENCE === '1';
 
 const TEST_PREFIX = `[SI-GOLDEN-${Date.now()}]`;
 
-// Test user 1 (admin) — resolved at beforeAll from email via auth admin API
-// (S186 WP-C — no more hardcoded OLD-project UUIDs).
-let TEST_USER_ID: string = '';
-
 // Intelligence application_type id — resolved at beforeAll from the seeded
 // `application_types` table (S246 WP2b T2 — discriminator is now
 // application_type_id FK, not workspaces.type text col).
 let INTELLIGENCE_APP_TYPE_ID: string = '';
 
 beforeAll(async () => {
-  TEST_USER_ID = await getTestUserId('admin');
   const { data: appType, error: appTypeErr } = await serviceClient
     .from('application_types')
     .select('id')
@@ -71,13 +81,9 @@ beforeAll(async () => {
 let workspaceId: string | null = null;
 let feedSourceId: string | null = null;
 const feedArticleIds: string[] = [];
-const contentItemIds: string[] = [];
-const contentItemWorkspaceIds: string[] = [];
 
 // Edge case test data to clean up
 const edgeCaseWorkspaceIds: string[] = [];
-const edgeCaseContentItemIds: string[] = [];
-const cascadeTestContentItemIds: string[] = [];
 
 // ---------------------------------------------------------------------------
 // Cleanup
@@ -87,97 +93,27 @@ afterAll(async () => {
   if (!ENABLED) return;
 
   try {
-    // 1. content_item_workspaces junction rows (CASCADE from both sides,
-    //    but clean explicitly for safety)
-    if (workspaceId) {
-      await serviceClient
-        .from('content_item_workspaces')
-        .delete()
-        .eq('workspace_id', workspaceId);
-    }
-
-    // 2. feed_articles (references feed_sources and content_items)
+    // 1. feed_articles (references feed_sources)
     for (const articleId of feedArticleIds) {
       await serviceClient.from('feed_articles').delete().eq('id', articleId);
     }
 
-    // 3. feed_sources (references workspaces)
+    // 2. feed_sources (references workspaces)
     if (feedSourceId) {
       await serviceClient.from('feed_sources').delete().eq('id', feedSourceId);
     }
 
-    // 4. Entity data for content items (CASCADE from content_item deletion,
-    //    but clean explicitly in case of partial failures)
-    for (const itemId of contentItemIds) {
-      await serviceClient
-        .from('entity_relationships')
-        .delete()
-        .eq('source_document_id', itemId);
-      await serviceClient
-        .from('entity_mentions')
-        .delete()
-        .eq('source_document_id', itemId);
-      await serviceClient
-        .from('content_history')
-        .delete()
-        .eq('content_item_id', itemId);
-    }
-
-    // 5. Content items
-    for (const itemId of contentItemIds) {
-      await serviceClient.from('content_items').delete().eq('id', itemId);
-    }
-
-    // 6. Main workspace (cascade should handle remaining FKs)
+    // 3. Main workspace (cascade should handle remaining FKs)
     if (workspaceId) {
       await serviceClient.from('workspaces').delete().eq('id', workspaceId);
     }
 
-    // 7. Edge case workspaces
+    // 4. Edge case workspaces
     for (const wsId of edgeCaseWorkspaceIds) {
       await serviceClient.from('workspaces').delete().eq('id', wsId);
     }
 
-    // 8. Edge case content items (survive workspace deletion)
-    for (const itemId of edgeCaseContentItemIds) {
-      await serviceClient
-        .from('entity_relationships')
-        .delete()
-        .eq('source_document_id', itemId);
-      await serviceClient
-        .from('entity_mentions')
-        .delete()
-        .eq('source_document_id', itemId);
-      await serviceClient
-        .from('content_history')
-        .delete()
-        .eq('content_item_id', itemId);
-      await serviceClient.from('content_items').delete().eq('id', itemId);
-    }
-
-    // 9. Cascade test content items
-    for (const itemId of cascadeTestContentItemIds) {
-      await serviceClient
-        .from('entity_mentions')
-        .delete()
-        .eq('source_document_id', itemId);
-      await serviceClient
-        .from('entity_relationships')
-        .delete()
-        .eq('source_document_id', itemId);
-      await serviceClient
-        .from('content_history')
-        .delete()
-        .eq('content_item_id', itemId);
-      await serviceClient.from('content_items').delete().eq('id', itemId);
-    }
-
-    // 10. Safety net: prefix-based cleanup for any stragglers
-    await serviceClient
-      .from('content_items')
-      .delete()
-      .like('title', `%${TEST_PREFIX}%`);
-
+    // 5. Safety net: prefix-based cleanup for any stragglers
     await serviceClient
       .from('workspaces')
       .delete()
@@ -354,149 +290,23 @@ describe.skipIf(!ENABLED)('SI Golden Path Real DB Integration', () => {
   });
 
   // -----------------------------------------------------------------------
-  // Step 4: Create content items for passed articles
-  // -----------------------------------------------------------------------
-  it('Step 4: Create content items for passed articles', async () => {
-    expect(feedArticleIds.length).toBe(3);
-
-    // Query passed articles
-    const { data: passedArticles } = await serviceClient
-      .from('feed_articles')
-      .select('id, title, raw_content, external_url, published_at')
-      .eq('workspace_id', workspaceId!)
-      .eq('passed', true);
-
-    expect(passedArticles).toBeTruthy();
-    expect(passedArticles!.length).toBe(2);
-
-    for (const article of passedArticles!) {
-      // Create content item
-      const { data: contentItem, error } = await serviceClient
-        .from('content_items')
-        .insert({
-          title: article.title,
-          content: article.raw_content,
-          content_type: 'article',
-          source_url: article.external_url,
-          metadata: {
-            source: 'intelligence_pipeline',
-            feed_source_id: feedSourceId,
-            feed_source_name: `${TEST_PREFIX} Test RSS Feed`,
-            published_at: article.published_at,
-          },
-        } as never)
-        .select('id')
-        .single();
-
-      expect(error).toBeNull();
-      expect(contentItem).toBeTruthy();
-      contentItemIds.push(contentItem!.id);
-
-      // Link back to feed_article
-      const { error: updateErr } = await serviceClient
-        .from('feed_articles')
-        .update({ content_item_id: contentItem!.id })
-        .eq('id', article.id);
-
-      expect(updateErr).toBeNull();
-    }
-
-    expect(contentItemIds.length).toBe(2);
-
-    // Verify content items have correct metadata
-    for (const itemId of contentItemIds) {
-      const { data: item } = await serviceClient
-        .from('content_items')
-        .select('content_type, source_url, metadata')
-        .eq('id', itemId)
-        .single();
-
-      expect(item).toBeTruthy();
-      expect(item!.content_type).toBe('article');
-      const meta = item!.metadata as Record<string, unknown>;
-      expect(meta?.source).toBe('intelligence_pipeline');
-    }
-  });
-
-  // -----------------------------------------------------------------------
-  // Step 5: Classify content items (real AI API call)
-  // -----------------------------------------------------------------------
-  it('Step 5: Classify content items', async () => {
-    expect(contentItemIds.length).toBe(2);
-
-    for (const itemId of contentItemIds) {
-      const result = await classifyContent({
-        supabase: serviceClient,
-        itemId,
-        force: true,
-        userId: TEST_USER_ID,
-      });
-
-      // AI is non-deterministic -- use flexible assertions
-      expect(result.primary_domain).toBeTruthy();
-      expect(result.primary_subtopic).toBeTruthy();
-      expect(result.classification_confidence).toBeGreaterThan(0);
-
-      // Verify the DB was updated
-      const { data: classified } = await serviceClient
-        .from('content_items')
-        .select('primary_domain, primary_subtopic, classified_at, embedding')
-        .eq('id', itemId)
-        .single();
-
-      expect(classified?.primary_domain).toBeTruthy();
-      expect(classified?.primary_subtopic).toBeTruthy();
-      expect(classified?.classified_at).toBeTruthy();
-      expect(classified?.embedding).toBeTruthy();
-    }
-  }, 90_000);
-
-  // -----------------------------------------------------------------------
-  // Step 6: Link content items to workspace via junction table
-  // -----------------------------------------------------------------------
-  it('Step 6: Link content items to workspace via junction table', async () => {
-    expect(workspaceId).toBeTruthy();
-    expect(contentItemIds.length).toBe(2);
-
-    for (const itemId of contentItemIds) {
-      const { data, error } = await serviceClient
-        .from('content_item_workspaces')
-        .insert({
-          workspace_id: workspaceId!,
-          content_item_id: itemId,
-        })
-        .select('id')
-        .single();
-
-      expect(error).toBeNull();
-      expect(data).toBeTruthy();
-      contentItemWorkspaceIds.push(data!.id);
-    }
-
-    // Verify both junction rows exist
-    const { data: junctionRows } = await serviceClient
-      .from('content_item_workspaces')
-      .select('content_item_id')
-      .eq('workspace_id', workspaceId!);
-
-    expect(junctionRows).toBeTruthy();
-    expect(junctionRows!.length).toBe(2);
-
-    const linkedIds = junctionRows!.map((r) => r.content_item_id);
-    for (const itemId of contentItemIds) {
-      expect(linkedIds).toContain(itemId);
-    }
-  });
-
-  // -----------------------------------------------------------------------
   // Step 7: Verify workspace-scoped article query
+  //
+  // ID-131.19 M6 retirement: this step previously also asserted on
+  // `feed_articles.content_item_id` (set by the now-deleted Step 4/6
+  // content-item promotion + junction link). That column no longer exists
+  // on `feed_articles` -- it was replaced by `reference_item_id`, which is
+  // populated asynchronously by the Python cocoindex walk (ID-75 WP-E), not
+  // by this test's synchronous TS insert, so there is no honest equivalent
+  // assertion to make here. Only the still-live count/shape assertions
+  // survive.
   // -----------------------------------------------------------------------
   it('Step 7: Verify workspace-scoped article query', async () => {
     expect(workspaceId).toBeTruthy();
 
     const { data: allArticles, error: allErr } = await serviceClient
       .from('feed_articles')
-      .select('id, title, passed, relevance_score, content_item_id')
+      .select('id, title, passed, relevance_score')
       .eq('workspace_id', workspaceId!);
 
     expect(allErr).toBeNull();
@@ -505,7 +315,7 @@ describe.skipIf(!ENABLED)('SI Golden Path Real DB Integration', () => {
 
     const { data: passedArticles, error: passedErr } = await serviceClient
       .from('feed_articles')
-      .select('id, title, content_item_id')
+      .select('id, title')
       .eq('workspace_id', workspaceId!)
       .eq('passed', true);
 
@@ -513,21 +323,14 @@ describe.skipIf(!ENABLED)('SI Golden Path Real DB Integration', () => {
     expect(passedArticles).toBeTruthy();
     expect(passedArticles!.length).toBe(2);
 
-    // All passed articles have content_item_id set
-    for (const article of passedArticles!) {
-      expect(article.content_item_id).toBeTruthy();
-    }
-
-    // The filtered article has no content_item_id
     const { data: filteredArticles } = await serviceClient
       .from('feed_articles')
-      .select('id, content_item_id')
+      .select('id')
       .eq('workspace_id', workspaceId!)
       .eq('passed', false);
 
     expect(filteredArticles).toBeTruthy();
     expect(filteredArticles!.length).toBe(1);
-    expect(filteredArticles![0].content_item_id).toBeNull();
   });
 
   // -----------------------------------------------------------------------
@@ -566,28 +369,14 @@ describe.skipIf(!ENABLED)('SI Golden Path Real DB Integration', () => {
   });
 
   // -----------------------------------------------------------------------
-  // Step 9: Verify workspace-scoped content item query
-  // -----------------------------------------------------------------------
-  it('Step 9: Verify workspace-scoped content item query via junction', async () => {
-    expect(workspaceId).toBeTruthy();
-
-    const { data: workspaceItems, error } = await serviceClient
-      .from('content_item_workspaces')
-      .select('content_item_id')
-      .eq('workspace_id', workspaceId!);
-
-    expect(error).toBeNull();
-    expect(workspaceItems).toBeTruthy();
-    expect(workspaceItems!.length).toBe(2);
-
-    const itemIds = workspaceItems!.map((r) => r.content_item_id);
-    for (const id of contentItemIds) {
-      expect(itemIds).toContain(id);
-    }
-  });
-
-  // -----------------------------------------------------------------------
   // Step 10: Full chain verification
+  //
+  // ID-131.19 M6 retirement: previously also verified "2 content items with
+  // classification data" (queried the dropped `content_items` table) and
+  // "2 junction rows" (queried the dropped `content_item_workspaces` table).
+  // Both asserted on the retired TS-side content-item-promotion flow; the
+  // still-live workspace/feed-source/feed-article/summary assertions
+  // survive unchanged.
   // -----------------------------------------------------------------------
   it('Step 10: Full chain verification', async () => {
     expect(workspaceId).toBeTruthy();
@@ -619,29 +408,6 @@ describe.skipIf(!ENABLED)('SI Golden Path Real DB Integration', () => {
     expect(articles!.length).toBe(3);
     expect(articles!.filter((a) => a.passed).length).toBe(2);
     expect(articles!.filter((a) => !a.passed).length).toBe(1);
-
-    // 2 content items with classification data
-    for (const itemId of contentItemIds) {
-      const { data: item } = await serviceClient
-        .from('content_items')
-        .select(
-          'id, primary_domain, primary_subtopic, embedding, classified_at',
-        )
-        .eq('id', itemId)
-        .single();
-      expect(item).toBeTruthy();
-      expect(item!.primary_domain).toBeTruthy();
-      expect(item!.primary_subtopic).toBeTruthy();
-      expect(item!.classified_at).toBeTruthy();
-      expect(item!.embedding).toBeTruthy();
-    }
-
-    // 2 junction rows
-    const { data: junctions } = await serviceClient
-      .from('content_item_workspaces')
-      .select('content_item_id')
-      .eq('workspace_id', workspaceId!);
-    expect(junctions!.length).toBe(2);
 
     // Summary aggregation works
     const summary = await fetchIntelligenceSummary(
@@ -788,114 +554,11 @@ describe.skipIf(!ENABLED)('SI Edge Cases', () => {
     expect(summary.by_source).toEqual([]);
   });
 
-  // -------------------------------------------------------------------------
-  // 4.5 Workspace deletion cascade
-  // -------------------------------------------------------------------------
-  it('Workspace deletion cascades to sources and articles but not content items', async () => {
-    // Create a dedicated cascade test workspace
-    const { data: cascadeWs } = await serviceClient
-      .from('workspaces')
-      .insert({
-        name: `${TEST_PREFIX} Cascade Test Workspace`,
-        application_type_id: INTELLIGENCE_APP_TYPE_ID,
-      })
-      .select('id')
-      .single();
-
-    expect(cascadeWs).toBeTruthy();
-
-    // Create a feed source
-    const { data: cascadeSource } = await serviceClient
-      .from('feed_sources')
-      .insert({
-        workspace_id: cascadeWs!.id,
-        name: `${TEST_PREFIX} Cascade Feed`,
-        url: 'https://example.com/cascade-feed.xml',
-        source_type: 'rss',
-      })
-      .select('id')
-      .single();
-
-    expect(cascadeSource).toBeTruthy();
-
-    // Create a feed article
-    const { data: cascadeArticle } = await serviceClient
-      .from('feed_articles')
-      .insert({
-        workspace_id: cascadeWs!.id,
-        feed_source_id: cascadeSource!.id,
-        external_url: `https://example.com/${TEST_PREFIX}/cascade-article`,
-        title: `${TEST_PREFIX} Cascade Test Article`,
-        passed: true,
-      })
-      .select('id')
-      .single();
-
-    expect(cascadeArticle).toBeTruthy();
-
-    // Create a content item and link it
-    const { data: cascadeItem } = await serviceClient
-      .from('content_items')
-      .insert({
-        title: `${TEST_PREFIX} Cascade Content Item`,
-        content: 'Test content for cascade verification.',
-        content_type: 'article',
-      })
-      .select('id')
-      .single();
-
-    expect(cascadeItem).toBeTruthy();
-    cascadeTestContentItemIds.push(cascadeItem!.id);
-
-    // Link via junction
-    await serviceClient.from('content_item_workspaces').insert({
-      workspace_id: cascadeWs!.id,
-      content_item_id: cascadeItem!.id,
-    });
-
-    // Link article to content item
-    await serviceClient
-      .from('feed_articles')
-      .update({ content_item_id: cascadeItem!.id })
-      .eq('id', cascadeArticle!.id);
-
-    // Now delete the workspace
-    const { error: deleteErr } = await serviceClient
-      .from('workspaces')
-      .delete()
-      .eq('id', cascadeWs!.id);
-
-    expect(deleteErr).toBeNull();
-
-    // Verify: feed_sources deleted
-    const { data: remainingSources } = await serviceClient
-      .from('feed_sources')
-      .select('id')
-      .eq('id', cascadeSource!.id);
-    expect(remainingSources).toEqual([]);
-
-    // Verify: feed_articles deleted
-    const { data: remainingArticles } = await serviceClient
-      .from('feed_articles')
-      .select('id')
-      .eq('id', cascadeArticle!.id);
-    expect(remainingArticles).toEqual([]);
-
-    // Verify: content_item_workspaces junction deleted
-    const { data: remainingJunctions } = await serviceClient
-      .from('content_item_workspaces')
-      .select('id')
-      .eq('workspace_id', cascadeWs!.id);
-    expect(remainingJunctions).toEqual([]);
-
-    // Verify: content item SURVIVES (not cascade-deleted)
-    const { data: survivingItem } = await serviceClient
-      .from('content_items')
-      .select('id')
-      .eq('id', cascadeItem!.id)
-      .single();
-    expect(survivingItem).toBeTruthy();
-  });
+  // ID-131.19 M6 retirement: removed "Workspace deletion cascades to sources
+  // and articles but not content items" -- it existed solely to prove
+  // content_items rows survive workspace-cascade deletion via the
+  // content_item_workspaces junction. Both tables are dropped at M6, so
+  // there is no surviving subject for this assertion.
 });
 
 // ---------------------------------------------------------------------------
@@ -937,33 +600,10 @@ describe.skipIf(!ENABLED)('SI Data Validation', () => {
     expect(error).toBeTruthy();
   });
 
-  // -------------------------------------------------------------------------
-  // 5.2 Content item source metadata
-  // -------------------------------------------------------------------------
-  it('Content items from pipeline have correct source metadata', async () => {
-    expect(contentItemIds.length).toBe(2);
-
-    for (const itemId of contentItemIds) {
-      const { data: item } = await serviceClient
-        .from('content_items')
-        .select('content_type, source_url, metadata')
-        .eq('id', itemId)
-        .single();
-
-      expect(item).toBeTruthy();
-      expect(item!.content_type).toBe('article');
-
-      const meta = item!.metadata as Record<string, unknown>;
-      expect(meta.source).toBe('intelligence_pipeline');
-      expect(meta.feed_source_id).toBe(feedSourceId);
-      expect(meta.feed_source_name).toBeTruthy();
-      expect(typeof meta.feed_source_name).toBe('string');
-
-      // source_url should match the article's external_url
-      expect(item!.source_url).toBeTruthy();
-      expect(item!.source_url).toContain('example.com');
-    }
-  });
+  // ID-131.19 M6 retirement: removed "Content items from pipeline have
+  // correct source metadata" -- asserted on `content_items` rows created by
+  // the retired TS-side promotion step (deleted Step 4); no equivalent
+  // content_items-shaped destination exists post-M6.
 
   // -------------------------------------------------------------------------
   // 5.3 Feed source article_count tracking

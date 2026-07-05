@@ -17,9 +17,10 @@
  *
  * Test strategy:
  *   Drop one fixture per MIME type into the source-binding location, then
- *   poll Supabase for the resulting `content_items` rows. Each row MUST
- *   have non-empty `content_text` — empty content proves the extractor
- *   was not invoked OR the extractor failed silently (broken Inv-7).
+ *   poll Supabase for the resulting `source_documents` rows (ID-131.19 M6
+ *   retirement: content_items DROPPED at M6). Each row MUST have non-empty
+ *   `extracted_text` — empty content proves the extractor was not invoked
+ *   OR the extractor failed silently (broken Inv-7).
  *
  * HTML is NOT a file-corpus MIME (ID-75 WP-D / ID-112.7): a `.html` file
  * staged into the localfs corpus fails LOUDLY (LocalfsHtmlRetiredError);
@@ -79,7 +80,9 @@ afterAll(async () => {
   if (!ENABLED) return;
   if (seededContentIds.length === 0) return;
   const client = await createLiveServiceClient();
-  await client.from('content_items').delete().in('id', seededContentIds);
+  // ID-131.19 M6 retirement: content_items DROPPED at M6; seededContentIds
+  // holds source_documents.id values (see pollContentItemsFor's M6 retarget).
+  await client.from('source_documents').delete().in('id', seededContentIds);
 }, 30_000);
 
 describe.skipIf(!ENABLED)(
@@ -87,24 +90,27 @@ describe.skipIf(!ENABLED)(
   () => {
     for (const mime of MIME_SET) {
       it(
-        `lands a content_items row with non-empty content_text for ${mime.kind.toUpperCase()} MIME`,
+        `lands a source_documents row with non-empty extracted_text for ${mime.kind.toUpperCase()} MIME`,
         async () => {
           const client = await createLiveServiceClient();
 
           const deadline = Date.now() + POLL_TIMEOUT_MS;
-          let landedRow: { id: string; content_text: string } | null = null;
+          let landedRow: { id: string; extracted_text: string } | null = null;
 
           while (Date.now() < deadline) {
+            // ID-131.19 M6 retirement: content_items DROPPED at M6;
+            // source_documents.filename replaces title, extracted_text
+            // replaces content_text.
             const { data } = await client
-              .from('content_items')
-              .select('id, content_text')
-              .ilike('title', `${TEST_PREFIX}-${mime.kind}%`)
+              .from('source_documents')
+              .select('id, extracted_text')
+              .ilike('filename', `${TEST_PREFIX}-${mime.kind}%`)
               .limit(1);
 
-            if (data && data.length > 0 && data[0]!.content_text) {
+            if (data && data.length > 0 && data[0]!.extracted_text) {
               landedRow = {
                 id: data[0]!.id as string,
-                content_text: data[0]!.content_text as string,
+                extracted_text: data[0]!.extracted_text as string,
               };
               seededContentIds.push(landedRow.id);
               break;
@@ -117,7 +123,7 @@ describe.skipIf(!ENABLED)(
           // non-empty content. Empty / null content proves the extractor
           // wasn't invoked or failed silently.
           expect(landedRow).not.toBeNull();
-          expect(landedRow!.content_text.length).toBeGreaterThan(0);
+          expect(landedRow!.extracted_text.length).toBeGreaterThan(0);
         },
         POLL_TIMEOUT_MS + 30_000,
       );

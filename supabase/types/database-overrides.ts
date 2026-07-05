@@ -20,7 +20,11 @@
  *
  * Scope (ID-47.5, wave-1 HIGH base-table Row columns ONLY):
  *   - workspaces.Row.domain_metadata       -> ProcurementMetadata | null
- *   - content_items.Row.summary_data       -> SummaryData | null
+ *   - source_documents.Row.summary_data    -> SummaryData | null
+ *     (ID-131.19 M6 retirement: `content_items` was DROPPED at M6; the
+ *     `summary_data` JSONB producer — lib/ai/summarise.ts — was already
+ *     re-pointed onto `source_documents` at ID-131.17, so the override
+ *     moves with it.)
  *   - feed_prompts.Row.performance_snapshot -> FeedPromptPerformanceSnapshot | null
  *   - processing_queue.Row.payload          -> QueueJobPayload<Record<string, unknown>>
  *
@@ -87,7 +91,7 @@ type OverrideRow<T extends keyof GenTables, RowPatch> = Omit<
 type MergedTables = Omit<
   GenTables,
   | 'workspaces'
-  | 'content_items'
+  | 'source_documents'
   | 'feed_prompts'
   | 'processing_queue'
   | 'form_templates'
@@ -96,8 +100,11 @@ type MergedTables = Omit<
     'workspaces',
     { domain_metadata: ProcurementMetadata | null }
   >;
-  content_items: OverrideRow<
-    'content_items',
+  // ID-131.19 M6 retirement: content_items DROPPED at M6 — the
+  // summary_data JSONB override moves to source_documents (its real
+  // producer since ID-131.17; see the module docstring).
+  source_documents: OverrideRow<
+    'source_documents',
     { summary_data: SummaryData | null }
   >;
   feed_prompts: OverrideRow<

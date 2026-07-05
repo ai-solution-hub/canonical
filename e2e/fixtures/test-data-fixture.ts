@@ -26,6 +26,12 @@ import precomputedEmbeddings from './embeddings.json';
  *
  * Phase 3 (S75): pre-computed embeddings for 5 items (search tests).
  * Phase 5 (S75): data shapes centralised in test-data.ts.
+ *
+ * ID-131.19 M6 retirement (S450 GO tail): `content_items`, `read_marks`,
+ * and `content_item_workspaces` were all DROPPED at M6 — see the seeding
+ * block below for the full q_a_pairs/source_documents re-point and what
+ * lost its destination entirely (read marks; the feed-article <-> document
+ * link).
  */
 
 /**
@@ -93,14 +99,17 @@ export interface WorkerData {
  * the worker finishes.
  *
  * Seeded entities:
- * - 12 content items (article, 2 q_a_pairs, certification, case_study,
- *   methodology, 4 policies, note) across 7 domains
+ * - 12 "content items" (article, 2 q_a_pairs, certification, case_study,
+ *   methodology, 4 policies, note) across 7 domains — ID-131.19 M6
+ *   retirement: `content_items` was DROPPED at M6, so the 2 q_a_pair-typed
+ *   shapes land on `q_a_pairs` and the other 10 land on `source_documents`
+ *   (see the seeding block below for the full disposition + what's lost).
  * - 3 workspaces (kb_section, bid, project)
  * - 1 bid with 4 questions and 2 responses, advanced to drafting state
- * - 4 workspace-item assignments (items 1-4 -> kb_section)
+ * - 2 workspace-item assignments (source_documents indices 0, 3 -> kb_section;
+ *   the 2 q_a_pairs indices have no workspace_id column to assign)
  * - 2 notifications (freshness_alert + governance_review)
- * - 2 read marks (admin user)
- * - 5 pre-computed embeddings (items 0, 1, 2, 3, 7)
+ * - 5 pre-computed embeddings (items 0, 1, 2, 3, 7), now via `record_embeddings`
  */
 export const test = base.extend<{}, { workerData: WorkerData }>({
   workerData: [
@@ -136,19 +145,82 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       };
 
       // --- Seed content items (from centralised shapes) ---
+      //
+      // ID-131.19 M6 retirement note (S450 GO tail): `content_items` was
+      // DROPPED at M6. No single surviving table is shaped like the old
+      // god-table, so the 12 shapes split across two destinations:
+      //   - The 2 Q&A-typed shapes (indices 1, 2) -> `q_a_pairs` (the same
+      //     table `/library` reads — {131.21} G-MANUAL-QA).
+      //   - The other 10 generic shapes (article/policy/note/
+      //     certification/case_study/methodology/other) -> `source_documents`
+      //     (the corpus's other surviving generic-document table), using
+      //     only the fields that exist there (filename/primary_domain/
+      //     summary/source_url/content_type). Rich content_items-only
+      //     fields (brief/detail/reference/freshness/lifecycle_type/
+      //     expiry_date/verified_at/metadata) have no destination and are
+      //     dropped — the specs that read them (browse-search/
+      //     entity-filters/item-detail/wave1-item-detail-dates.spec.ts)
+      //     already exercise `/browse` and `/item/[id]`, BOTH deleted at
+      //     ID-131.17 (pre-existing, unrelated to M6 — see this Subtask's
+      //     journal for the full finding).
+      // `itemIds` is reassembled in the ORIGINAL 12-shape order so every
+      // downstream index reference (WorkerData fields, entity fixtures,
+      // embeddings) is unchanged.
+      const QA_SHAPE_INDICES = new Set([1, 2]);
       const contentItemShapes = buildCoreContentItems(timestamps);
-      const contentItems = contentItemShapes.map((shape) => ({
-        ...shape,
-        title: `${prefix} ${shape.title}`,
-      }));
 
-      const { data: items } = await supabase
-        .from('content_items')
-        .insert(contentItems)
-        .select('id')
-        .throwOnError();
+      const qaShapeEntries = contentItemShapes
+        .map((shape, index) => ({ shape, index }))
+        .filter(({ index }) => QA_SHAPE_INDICES.has(index));
+      const sdShapeEntries = contentItemShapes
+        .map((shape, index) => ({ shape, index }))
+        .filter(({ index }) => !QA_SHAPE_INDICES.has(index));
 
-      const itemIds = (items ?? []).map((i) => i.id);
+      const itemIds: string[] = new Array(contentItemShapes.length).fill('');
+      // Real ids only (no empty-string placeholders) — the source of truth
+      // for embeddings/entity-linking/cleanup below.
+      const qaPairIds: string[] = [];
+      const sourceDocumentIds: string[] = [];
+
+      if (qaShapeEntries.length > 0) {
+        const { data: qaRows } = await supabase
+          .from('q_a_pairs')
+          .insert(
+            qaShapeEntries.map(({ shape }) => ({
+              question_text: `${prefix} ${shape.title}`,
+              answer_standard: shape.answer_standard ?? shape.content,
+              answer_advanced: shape.answer_advanced ?? null,
+              publication_status: 'published',
+            })),
+          )
+          .select('id')
+          .throwOnError();
+        (qaRows ?? []).forEach((row: { id: string }, i: number) => {
+          itemIds[qaShapeEntries[i]!.index] = row.id;
+          qaPairIds.push(row.id);
+        });
+      }
+
+      if (sdShapeEntries.length > 0) {
+        const { data: sdRows } = await supabase
+          .from('source_documents')
+          .insert(
+            sdShapeEntries.map(({ shape }) => ({
+              filename: `${prefix} ${shape.title}`,
+              primary_domain: shape.primary_domain,
+              summary: shape.summary,
+              content_type: shape.content_type,
+              source_url: shape.source_url ?? null,
+              status: 'processed',
+            })),
+          )
+          .select('id')
+          .throwOnError();
+        (sdRows ?? []).forEach((row: { id: string }, i: number) => {
+          itemIds[sdShapeEntries[i]!.index] = row.id;
+          sourceDocumentIds.push(row.id);
+        });
+      }
 
       // --- Seed entity_mentions for the entity filter UI and certifications card ---
       //
@@ -206,14 +278,26 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       }
 
       // --- Insert pre-computed embeddings for search tests (parallel) ---
+      //
+      // ID-131.19 M6 retirement: content_items.embedding (inline vector
+      // column) has no source_documents/q_a_pairs analog — vector storage
+      // moved to the polymorphic `record_embeddings` table (BI-17
+      // EMB-STORE). Route each embedding to the owner_kind matching where
+      // its itemIndex landed above (q_a_pair vs source_document).
       await Promise.all(
         precomputedEmbeddings
           .filter((e) => itemIds[e.itemIndex])
           .map((e) =>
             supabase
-              .from('content_items')
-              .update({ embedding: JSON.stringify(e.embedding) })
-              .eq('id', itemIds[e.itemIndex])
+              .from('record_embeddings')
+              .insert({
+                owner_kind: QA_SHAPE_INDICES.has(e.itemIndex)
+                  ? 'q_a_pair'
+                  : 'source_document',
+                owner_id: itemIds[e.itemIndex],
+                model: 'text-embedding-3-large',
+                embedding: JSON.stringify(e.embedding),
+              })
               .throwOnError(),
           ),
       );
@@ -272,15 +356,24 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       const projectId = workspaceIds[2];
 
       // --- Workspace-item assignments: link items 0-3 to kb_section ---
-      const junctionRecords = itemIds.slice(0, 4).map((contentItemId) => ({
-        content_item_id: contentItemId,
-        workspace_id: kbSectionId,
-      }));
-
-      await supabase
-        .from('content_item_workspaces')
-        .insert(junctionRecords)
-        .throwOnError();
+      //
+      // ID-131.19 M6 retirement: `content_item_workspaces` (many-to-many
+      // junction) was DROPPED at M6 — `source_documents` now carries a
+      // direct `workspace_id` FK column instead. Of items 0-3, only indices
+      // 0 and 3 are `source_documents` rows (1 and 2 are `q_a_pairs`, which
+      // has no workspace_id column at all — this narrows the original
+      // 4-item link to 2; no live spec asserts on the q_a_pairs items'
+      // workspace membership).
+      const kbSectionItemIds = [itemIds[0], itemIds[3]].filter(
+        (id): id is string => Boolean(id) && sourceDocumentIds.includes(id),
+      );
+      if (kbSectionItemIds.length > 0) {
+        await supabase
+          .from('source_documents')
+          .update({ workspace_id: kbSectionId })
+          .in('id', kbSectionItemIds)
+          .throwOnError();
+      }
 
       // --- Procurement questions + responses (from centralised shapes) ---
       // SKIPPED when E2E_EXCLUDE_BID is set: id-130 {130.5} dropped the
@@ -357,7 +450,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         liveMetadata = nextMetadata;
       }
 
-      // --- Notifications and read marks require admin user_id ---
+      // --- Notifications require admin user_id ---
       const { data: adminRole } = await supabase
         .from('user_roles')
         .select('user_id')
@@ -399,21 +492,11 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
 
         notificationIds = (notifs ?? []).map((n) => n.id);
 
-        // --- Read marks: 2 items marked as read by admin ---
-        const readMarks = [
-          {
-            user_id: adminUserId,
-            content_item_id: itemIds[0], // article (IT Support Policy)
-            source: 'detail_view',
-          },
-          {
-            user_id: adminUserId,
-            content_item_id: itemIds[1], // Q&A pair (What is your SLA?)
-            source: 'browse',
-          },
-        ];
-
-        await supabase.from('read_marks').insert(readMarks).throwOnError();
+        // ID-131.19 M6 retirement: `read_marks` table DROPPED at M6 (S450
+        // wave-1 also retired its production readers in lib/dashboard.ts +
+        // lib/reorient.ts — last_active_at now falls back to
+        // last_sign_in_at). The "2 items marked as read by admin" seed step
+        // that used to live here has no destination and is removed.
       }
 
       // --- Intelligence workspace, feed source, and articles ---
@@ -464,55 +547,37 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         (a: { id: string }) => a.id,
       );
 
-      // Create content items for the 2 passed articles and link to workspace
+      // --- Create documents for the 2 passed articles, linked to workspace ---
+      //
+      // ID-131.19 M6 retirement: `content_items` was DROPPED at M6 and
+      // `feed_articles.content_item_id` was DROPPED alongside it (M6
+      // `ALTER TABLE feed_articles DROP COLUMN content_item_id`) — there is
+      // no surviving way to link a feed article to the document it
+      // produced. These land on `source_documents` (workspace_id set
+      // directly — `content_item_workspaces` junction also DROPPED) purely
+      // so `intelItemIds`/downstream cleanup stay meaningful; the
+      // feed-article <-> document link itself has no replacement (no live
+      // spec asserts on it — si-*.spec.ts / intelligence-workflow.spec.ts
+      // only consume `intelligenceWorkspaceId`/`intelligenceFeedSourceId`).
       const passedArticleShapes = articleShapes.filter((a) => a.passed);
-      const intelContentItems = passedArticleShapes.map((shape) => ({
-        title: `${prefix} ${shape.title}`,
-        content_type: 'article' as const,
+      const intelSourceDocuments = passedArticleShapes.map((shape) => ({
+        filename: `${prefix} ${shape.title}`,
+        content_type: 'article',
         primary_domain: 'Market Intelligence',
         summary: shape.ai_summary ?? '',
-        platform: 'web',
-        content: shape.ai_summary ?? '',
         source_url: shape.external_url,
+        workspace_id: intelligenceWorkspaceId,
+        status: 'processed',
       }));
 
       const { data: intelItems } = await supabase
-        .from('content_items')
-        .insert(intelContentItems)
+        .from('source_documents')
+        .insert(intelSourceDocuments)
         .select('id')
         .throwOnError();
 
       const intelItemIds = (intelItems ?? []).map((i: { id: string }) => i.id);
-      const allContentItemIds = [...itemIds, ...intelItemIds];
-
-      // Link content items to intelligence workspace
-      if (intelItemIds.length > 0) {
-        await supabase
-          .from('content_item_workspaces')
-          .insert(
-            intelItemIds.map((contentItemId: string) => ({
-              content_item_id: contentItemId,
-              workspace_id: intelligenceWorkspaceId,
-            })),
-          )
-          .throwOnError();
-
-        // Update feed articles with content_item_id
-        const passedFeedArticleIds = feedArticleIds.filter(
-          (_: string, i: number) => articleShapes[i]?.passed,
-        );
-        for (
-          let i = 0;
-          i < passedFeedArticleIds.length && i < intelItemIds.length;
-          i++
-        ) {
-          await supabase
-            .from('feed_articles')
-            .update({ content_item_id: intelItemIds[i] })
-            .eq('id', passedFeedArticleIds[i])
-            .throwOnError();
-        }
-      }
+      sourceDocumentIds.push(...intelItemIds);
 
       const data: WorkerData = {
         contentItemIds: itemIds,
@@ -559,54 +624,60 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       );
 
       // Delete in dependency order to avoid FK constraint violations.
+      //
+      // ID-131.19 M6 retirement: `read_marks` and `content_item_workspaces`
+      // were both DROPPED at M6 — steps that used to clean them up here are
+      // removed. `content_items`/`content_history` are also DROPPED;
+      // cleanup now targets `q_a_pairs` + `source_documents` (+ their
+      // `record_embeddings` rows — polymorphic, no FK cascade).
 
-      // 1. Read marks (FK -> content_items)
-      if (adminUserId) {
-        await supabase
-          .from('read_marks')
-          .delete()
-          .eq('user_id', adminUserId)
-          .in('content_item_id', itemIds);
-      }
-
-      // 2. Notifications (by ID)
+      // 1. Notifications (by ID)
       if (notificationIds.length > 0) {
         await supabase.from('notifications').delete().in('id', notificationIds);
       }
 
-      // 3. Procurement responses (safety net — CASCADE from workspace should handle)
+      // 2. Procurement responses (safety net — CASCADE from workspace should handle)
       if (responseIds.length > 0) {
         await supabase.from('bid_responses').delete().in('id', responseIds);
       }
 
-      // 4. Content-item-workspace junctions (CASCADE from workspace should handle)
-      await supabase
-        .from('content_item_workspaces')
-        .delete()
-        .eq('workspace_id', kbSectionId);
-
-      // 5. Entity mentions and relationships (FK -> content_items)
-      if (itemIds.length > 0) {
+      // 3. Entity mentions and relationships (FK -> source_documents)
+      if (sourceDocumentIds.length > 0) {
         await supabase
           .from('entity_mentions')
           .delete()
-          .in('source_document_id', itemIds);
+          .in('source_document_id', sourceDocumentIds);
         await supabase
           .from('entity_relationships')
           .delete()
-          .in('source_document_id', itemIds);
+          .in('source_document_id', sourceDocumentIds);
       }
 
-      // 6. Content items and workspaces (by prefix)
-      if (allContentItemIds.length > 0) {
+      // 4. record_embeddings (polymorphic — no FK cascade from either owner table)
+      if (qaPairIds.length > 0) {
         await supabase
-          .from('content_history')
+          .from('record_embeddings')
           .delete()
-          .in('content_item_id', allContentItemIds);
+          .eq('owner_kind', 'q_a_pair')
+          .in('owner_id', qaPairIds);
+      }
+      if (sourceDocumentIds.length > 0) {
         await supabase
-          .from('content_items')
+          .from('record_embeddings')
           .delete()
-          .in('id', allContentItemIds);
+          .eq('owner_kind', 'source_document')
+          .in('owner_id', sourceDocumentIds);
+      }
+
+      // 5. q_a_pairs + source_documents (by id) and workspaces (by prefix)
+      if (qaPairIds.length > 0) {
+        await supabase.from('q_a_pairs').delete().in('id', qaPairIds);
+      }
+      if (sourceDocumentIds.length > 0) {
+        await supabase
+          .from('source_documents')
+          .delete()
+          .in('id', sourceDocumentIds);
       }
       await supabase.from('workspaces').delete().like('name', `${prefix}%`);
     },

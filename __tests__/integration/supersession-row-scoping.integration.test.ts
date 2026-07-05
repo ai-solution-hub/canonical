@@ -30,15 +30,25 @@
  *
  * Spec: docs/specs/supersession-model-spec.md §5.4 (UPDATE writes the OLD row only).
  *
+ * ID-131.19 M6 retirement note (S450 GO tail): `setSupersession` was
+ * ALREADY re-pointed onto `q_a_pairs` at ID-131.37 F1 (owner S446 ruling) —
+ * it now reads/writes ONLY `superseded_by` + `publication_status`, the two
+ * columns q_a_pairs carries (no `dedup_status`/`archived_at`/`archived_by`/
+ * `archive_reason`/`updated_by` — those legs were dropped, not persisted,
+ * per set.ts's own ID-131.37 F1 docstring). This fixture re-seeds onto
+ * `q_a_pairs` accordingly; the row-scoping assertion (sibling untouched) is
+ * unaffected by the narrower column set — it is still the load-bearing
+ * proof that `.eq('id', oldId)` confines the UPDATE. `content_items` itself
+ * was separately DROPPED at M6 (unrelated but coincident retirement).
+ *
  * Prereqs (env-gated skip mirrors publication-state-supersession.integration.test.ts):
- *   - `.env.local` with NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
- *     OPENAI_API_KEY (for embeddings), TEST_USER_1_PASSWORD/_EMAIL.
+ *   - `.env.local` with NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
  *
  * Runs via: `bun run test:integration -- supersession-row-scoping`
  *   (NOT picked up by `bun run test`; integration runner only.)
  *
- * Teardown: every seeded row is tracked in `seededIds` and deleted in afterAll
- *   (content_history first to clear the FK) — NO orphan rows in the prod-acting DB.
+ * Teardown: every seeded row is tracked in `seededIds` and deleted in
+ *   afterAll — NO orphan rows in the prod-acting DB.
  *
  * @vitest-environment node
  */
@@ -46,7 +56,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { serviceClient } from './helpers/service-client';
 import { setSupersession } from '@/lib/supersession/set';
-import { generateEmbedding } from '@/lib/ai/embed';
 
 // ---------------------------------------------------------------------------
 // Constants — unique per run so concurrent/repeated runs never collide.
@@ -56,14 +65,11 @@ const TEST_PREFIX = `[SUPSEDE-SCOPE-${Date.now()}-${Math.random().toString(36).s
 const UNIQUE_KEYWORD = `SUPSEDESCOPE${Date.now().toString(36)}`;
 
 // ---------------------------------------------------------------------------
-// Env-gated skip — mirrors publication-state-supersession.integration.test.ts.
+// Env-gated skip.
 // ---------------------------------------------------------------------------
 
 const HAS_REQUIRED_ENV = Boolean(
-  process.env.NEXT_PUBLIC_SUPABASE_URL &&
-  process.env.SUPABASE_SERVICE_ROLE_KEY &&
-  process.env.OPENAI_API_KEY &&
-  process.env.TEST_USER_1_PASSWORD,
+  process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
 );
 const describeIfEnv = HAS_REQUIRED_ENV ? describe : describe.skip;
 
@@ -76,7 +82,6 @@ let actorUserId = '';
 let oldId = '';
 let newId = '';
 let siblingId = '';
-let embedding: number[] | null = null;
 
 // ---------------------------------------------------------------------------
 // Helpers.
@@ -103,23 +108,16 @@ async function resolveAdminUserId(): Promise<string> {
 }
 
 async function seedItem(label: string): Promise<string> {
-  // GENERATED ALWAYS column `content_text_hash` MUST be omitted (CLAUDE.md
-  // gotcha `feedback_content_text_hash_generated_always`).
-  const content =
-    `${UNIQUE_KEYWORD} ${TEST_PREFIX} ${label}. ` +
-    'Certification audit fixture for supersession row-scoping integration ' +
-    'testing. Disposable.';
   const { data, error } = await serviceClient
-    .from('content_items')
+    .from('q_a_pairs')
     .insert({
-      title: `${TEST_PREFIX} ${label}`,
-      content,
-      content_type: 'article',
+      question_text: `${UNIQUE_KEYWORD} ${TEST_PREFIX} ${label} certification audit question`,
+      answer_standard:
+        `${UNIQUE_KEYWORD} ${TEST_PREFIX} ${label}. ` +
+        'Certification audit fixture for supersession row-scoping integration testing.',
       publication_status: 'published',
-      embedding: JSON.stringify(embedding),
-      created_by: actorUserId,
     })
-    .select('id, publication_status, archived_at, superseded_by, dedup_status')
+    .select('id, publication_status, superseded_by')
     .single();
 
   if (error || !data) {
@@ -127,9 +125,9 @@ async function seedItem(label: string): Promise<string> {
       `Seed item "${label}" failed: ${error?.message ?? 'no data'}`,
     );
   }
-  if (data.publication_status !== 'published' || data.archived_at !== null) {
+  if (data.publication_status !== 'published') {
     throw new Error(
-      `Seed item "${label}" baseline drift: pub=${data.publication_status} archived_at=${data.archived_at}`,
+      `Seed item "${label}" baseline drift: pub=${data.publication_status}`,
     );
   }
   seededIds.push(data.id);
@@ -139,20 +137,13 @@ async function seedItem(label: string): Promise<string> {
 interface RowSnapshot {
   id: string;
   publication_status: string | null;
-  archived_at: string | null;
-  archived_by: string | null;
-  archive_reason: string | null;
   superseded_by: string | null;
-  dedup_status: string | null;
-  updated_by: string | null;
 }
 
 async function readRow(itemId: string): Promise<RowSnapshot> {
   const { data, error } = await serviceClient
-    .from('content_items')
-    .select(
-      'id, publication_status, archived_at, archived_by, archive_reason, superseded_by, dedup_status, updated_by',
-    )
+    .from('q_a_pairs')
+    .select('id, publication_status, superseded_by')
     .eq('id', itemId)
     .single();
   if (error || !data) {
@@ -170,9 +161,6 @@ async function readRow(itemId: string): Promise<RowSnapshot> {
 beforeAll(async () => {
   if (!HAS_REQUIRED_ENV) return;
   actorUserId = await resolveAdminUserId();
-  embedding = await generateEmbedding(
-    `${UNIQUE_KEYWORD} certification audit report fixture for integration tests`,
-  );
   oldId = await seedItem('OLD (to be superseded)');
   newId = await seedItem('NEW (successor)');
   siblingId = await seedItem('SIBLING (unrelated, must stay untouched)');
@@ -180,13 +168,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (seededIds.length === 0) return;
-  // content_history.content_item_id has FK → content_items.id; clear history
-  // first so the parent delete is not blocked.
-  await serviceClient
-    .from('content_history')
-    .delete()
-    .in('content_item_id', seededIds);
-  await serviceClient.from('content_items').delete().in('id', seededIds);
+  await serviceClient.from('q_a_pairs').delete().in('id', seededIds);
 }, 30_000);
 
 // ---------------------------------------------------------------------------
@@ -208,9 +190,7 @@ describeIfEnv(
       for (const id of [oldId, newId, siblingId]) {
         const row = await readRow(id);
         expect(row.publication_status).toBe('published');
-        expect(row.archived_at).toBeNull();
         expect(row.superseded_by).toBeNull();
-        expect(row.dedup_status).not.toBe('superseded');
       }
 
       siblingBefore = await readRow(siblingId);
@@ -222,16 +202,10 @@ describeIfEnv(
         serviceClient,
       );
 
-      // Helper return contract (ID-131.37 F1 compile-only fix): the
-      // projection is now id/question_text/superseded_by/publication_status
-      // — `dedup_status` no longer exists, since `setSupersession` is
-      // re-pointed onto q_a_pairs. NOTE: this content_items-seeded test now
-      // has a fixture/helper mismatch — `setSupersession` will actually
-      // throw OLD_NOT_FOUND at runtime because oldId/newId are content_items
-      // rows, not q_a_pairs rows. This edit is compile-only (keeps
-      // `bun run typecheck` green); the real retirement/re-seed is outside
-      // lib/supersession/set.ts's file-ownership boundary — flagged as an
-      // out-of-scope finding in the ID-131.37 journal for follow-up.
+      // Helper return contract (ID-131.37 F1) — q_a_pairs archived model:
+      // the projection is id/question_text/superseded_by/publication_status
+      // only (no dedup_status/archived_at/archived_by/archive_reason/
+      // updated_by — q_a_pairs carries none of those columns).
       expect(result.oldItem.id).toBe(oldId);
       expect(result.oldItem.superseded_by).toBe(newId);
       expect(result.oldItem.publication_status).toBe('archived');
@@ -239,12 +213,7 @@ describeIfEnv(
       // DB read-back of the OLD row — the write actually landed.
       const post = await readRow(oldId);
       expect(post.superseded_by).toBe(newId);
-      expect(post.dedup_status).toBe('superseded');
       expect(post.publication_status).toBe('archived');
-      expect(post.archived_at).not.toBeNull();
-      expect(post.archived_by).toBe(actorUserId);
-      expect(post.archive_reason).toBe(`Superseded by item ${newId}`);
-      expect(post.updated_by).toBe(actorUserId);
     }, 60_000);
 
     it('the unrelated SIBLING row is byte-for-byte unchanged (proves WHERE id = oldId confined the write)', async () => {
@@ -260,19 +229,13 @@ describeIfEnv(
       // Explicit per-field guards (defence in depth — toEqual already covers
       // these, but they pin the exact invariant the scoping protects).
       expect(siblingAfter.superseded_by).toBeNull();
-      expect(siblingAfter.dedup_status).not.toBe('superseded');
       expect(siblingAfter.publication_status).toBe('published');
-      expect(siblingAfter.archived_at).toBeNull();
-      expect(siblingAfter.archived_by).toBeNull();
-      expect(siblingAfter.archive_reason).toBeNull();
     }, 60_000);
 
     it('the successor NEW row is also left untouched by the op', async () => {
       const newRow = await readRow(newId);
       expect(newRow.superseded_by).toBeNull();
-      expect(newRow.dedup_status).not.toBe('superseded');
       expect(newRow.publication_status).toBe('published');
-      expect(newRow.archived_at).toBeNull();
     }, 60_000);
   },
 );

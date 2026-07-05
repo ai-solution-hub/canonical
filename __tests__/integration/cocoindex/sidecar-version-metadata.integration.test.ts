@@ -17,8 +17,9 @@
  *
  * Test strategy:
  *   1. Wait for a pipeline_runs row from a successful flow run (poll on
- *      content_items.title with the test prefix → resolve op_id → find
- *      pipeline_runs row).
+ *      source_documents.filename with the test prefix → resolve op_id →
+ *      find pipeline_runs row; ID-131.19 M6 retirement: content_items
+ *      DROPPED at M6).
  *   2. Assert pipeline_runs.result (JSONB) carries at least one of the
  *      canonical extractor-identification fields: extractor_image_sha,
  *      extractor_build_tag, docling_version, or sidecar_image.
@@ -83,7 +84,9 @@ afterAll(async () => {
     await client.from('pipeline_runs').delete().in('id', seededRunIds);
   }
   if (seededContentIds.length > 0) {
-    await client.from('content_items').delete().in('id', seededContentIds);
+    // ID-131.19 M6 retirement: content_items DROPPED at M6; seededContentIds
+    // holds source_documents.id values.
+    await client.from('source_documents').delete().in('id', seededContentIds);
   }
 }, 30_000);
 
@@ -99,10 +102,12 @@ describe.skipIf(!ENABLED)(
         let pipelineRunResult: Record<string, unknown> | null = null;
 
         while (Date.now() < deadline) {
+          // ID-131.19 M6 retirement: content_items DROPPED at M6;
+          // source_documents.filename replaces title.
           const { data: items } = await client
-            .from('content_items')
+            .from('source_documents')
             .select('id, op_id')
-            .ilike('title', `${TEST_PREFIX}%`)
+            .ilike('filename', `${TEST_PREFIX}%`)
             .limit(1);
 
           if (items && items.length > 0 && items[0]!.op_id) {

@@ -1,19 +1,19 @@
 /**
- * ⛔ ID-131.19 S450 Wave 1 Fix 4 FLAG (not fixed here — out of this
- * Subtask's scope; this suite runs via `bun run test:integration` against a
- * live DB, which this Subtask's worktree dispatch cannot execute/verify
- * against). `app/api/review/publication-bulk-action/route.ts` no longer
- * performs the content_history audit INSERT this file's AC-bulk-3.x tests
- * (below) assert against — `sb()`'s fail-fast throw on that insert would
- * have broken every bulk-approved item once content_history drops at M6, so
- * the insert was retired (see the route's own header + the unit-test
- * analogue's "content_history insert retirement" describe block). AC-bulk-3.1
- * through 3.4 (history-row-count / change_reason / change_summary
- * assertions) and the AC-bulk-3.5 `auto_version_content_history` trigger
- * assertion are now testing behaviour that no longer exists and WILL FAIL
- * once this suite is next run against a live DB. Flagged for the
- * Orchestrator/Curator to route to a follow-up Subtask — a full rewrite
- * needs a live DB to verify against, which this dispatch does not have.
+ * ID-131.19 M6 retirement (S450 GO tail — resolves the Wave 1 Fix 4 FLAG
+ * left in this header): `app/api/review/publication-bulk-action/route.ts`
+ * no longer performs the content_history audit INSERT (retired at Wave 1
+ * Fix 4, see the route's own header) AND is now re-pointed onto
+ * `source_documents` (content_items DROPPED at M6). The AC-bulk-3.x describe
+ * block below (20/3/mixed-batch history-row-count + change_reason/
+ * change_summary assertions + the AC-bulk-3.5 auto_version_content_history
+ * trigger assertion) tested an audit-trail write that no longer exists on
+ * ANY table — it is RETIRED here with no replacement (the route's own
+ * header documents the gap: "the specific 'who changed it from X to Y and
+ * why' audit trail is lost until a proper replacement is designed"). The
+ * surviving AC-bulk-5.x (optimistic concurrency) and editor-role blocks are
+ * re-seeded onto `source_documents` and have their now-meaningless
+ * content_history assertions trimmed — their core subject (concurrency
+ * guard behaviour, RBAC transitions) is unaffected and still fully live.
  *
  * §5.3 Publication Approval Gate — bulk-action integration test
  * (S220 W1a IMPL-B1).
@@ -24,22 +24,12 @@
  *
  * The unit-test analogue at `__tests__/api/review-publication-bulk-action.test.ts`
  * covers AC-bulk-1.x + 2.1..2.10 against a mocked Supabase client. This file
- * exercises the FULL audit-trail chain against the staging Supabase branch:
+ * exercises the concurrency-guard + RBAC chain against the staging Supabase
+ * branch:
  *
- *   - AC-bulk-3.1 — 20 successful approves emit exactly 20 content_history
- *     rows with `change_type='publication_state'`,
- *     `change_reason='bulk_approve'`,
- *     `change_summary='Publication status: in_review -> published'`.
- *   - AC-bulk-3.2 — 3 successful return-to-draft transitions emit 3 history
- *     rows with `change_reason='bulk_return_to_draft'`.
- *   - AC-bulk-3.3 — Mixed batch: 5 ids, 2 not in_review, only 3 succeed →
- *     exactly 3 history rows, NOT 5 (failure-row audit policy §6.4).
- *   - AC-bulk-3.4 — Smoke check that every history row carries a non-empty
- *     `change_reason` (the dedicated guard at
- *     `__tests__/validation/content-history-change-reason.test.ts` is the
- *     primary enforcer; this is a belt-and-braces assertion).
- *   - AC-bulk-3.5 — `auto_version_content_history` BEFORE-INSERT trigger
- *     bumps `version` correctly across bulk iterations.
+ *   - AC-bulk-3.x (content_history audit-trail) — RETIRED (ID-131.19 M6;
+ *     see the header note above). The route no longer writes an audit
+ *     trail at all.
  *   - AC-bulk-5.1 — `.eq('publication_status', fromStatus)` optimistic-
  *     concurrency filter is exercised behaviourally (success path).
  *   - AC-bulk-5.2 — Race-loss simulated via the deterministic pre-loop
@@ -62,9 +52,8 @@
  *     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, SUPABASE_SERVICE_ROLE_KEY,
  *     TEST_USER_1_PASSWORD, TEST_USER_2_PASSWORD, NEXT_PUBLIC_CLIENT_ID.
  *   - `bun run seed:e2e-users` has been run against the target DB.
- *   - Schema includes the §6.6 archive-state trigger + the
- *     `content_history.change_type='publication_state'` CHECK extension
- *     (live on the production project and the staging branch).
+ *   - Schema includes the §6.6 archive-state trigger (live on the
+ *     production project and the staging branch).
  *
  * Runs via: `bun run test:integration -- publication-bulk-action`
  *   (NOT picked up by `bun run test`; integration runner only — see
@@ -159,14 +148,15 @@ const describeIfEnv = HAS_REQUIRED_ENV ? describe : describe.skip;
 // ---------------------------------------------------------------------------
 
 /**
- * Direct service-role insert for a fresh `content_items` row at the requested
- * `publication_status`. Bypasses the API deliberately — we want a clean
- * baseline so the bulk endpoint can immediately exercise transitions out of
- * that state.
+ * Direct service-role insert for a fresh `source_documents` row at the
+ * requested `publication_status`. Bypasses the API deliberately — we want a
+ * clean baseline so the bulk endpoint can immediately exercise transitions
+ * out of that state.
  *
- * `content_text_hash` is GENERATED ALWAYS so it MUST be omitted (CLAUDE.md
- * gotcha). Archive metadata is added when seeding `'archived'` to keep the
- * §6.6 trigger and the spec invariant happy on insert.
+ * ID-131.19 M6 retirement: content_items DROPPED at M6; the production
+ * route reads/writes `source_documents` (BI-20 inline hot). Archive
+ * metadata is added when seeding `'archived'` to keep the §6.6 trigger
+ * and the spec invariant happy on insert.
  *
  * Tracks the inserted id in `seededIds` for `afterAll` cleanup.
  */
@@ -183,13 +173,15 @@ async function seedItem(
       : {};
 
   const { data, error } = await serviceClient
-    .from('content_items')
+    .from('source_documents')
     .insert({
-      title: `${TEST_PREFIX} ${label}`,
-      content: `Publication-bulk-action integration fixture: ${label}. Disposable.`,
+      filename: `${TEST_PREFIX} ${label}.txt`,
+      mime_type: 'text/plain',
+      file_size: 1,
+      content_hash: `${TEST_PREFIX}-${label}`,
+      storage_path: `test-fixtures/${TEST_PREFIX}/${label}.txt`,
       content_type: 'article',
       publication_status: initialStatus,
-      created_by: TEST_USER_1_ID,
       ...archiveMetadata,
     })
     .select('id, publication_status')
@@ -258,54 +250,10 @@ async function postBulkAction(body: {
   return { status: res.status, json, rawText };
 }
 
-/**
- * Fetch all `publication_state` history rows for the given content_item_ids,
- * ordered by `version` ascending (which is also `created_at` ascending under
- * the auto-version trigger). Filters to `change_type='publication_state'`
- * because the deferred `trg_content_items_ensure_v1_history` constraint
- * trigger writes a v1 row with `change_type='create'` for each newly-seeded
- * item (S186 WP-E backstop) — those are unrelated to the bulk-action audit.
- */
-async function fetchPublicationHistoryFor(contentItemIds: string[]): Promise<
-  Array<{
-    content_item_id: string;
-    version: number;
-    change_type: string;
-    change_reason: string | null;
-    change_summary: string | null;
-    created_at: string;
-  }>
-> {
-  const { data, error } = await serviceClient
-    .from('content_history')
-    .select(
-      'content_item_id, version, change_type, change_reason, change_summary, created_at',
-    )
-    .in('content_item_id', contentItemIds)
-    .eq('change_type', 'publication_state')
-    .order('content_item_id', { ascending: true })
-    .order('version', { ascending: true });
-
-  if (error) {
-    throw new Error(`fetchPublicationHistoryFor failed: ${error.message}`);
-  }
-  // content_history.content_item_id is generated as nullable in the
-  // Database type but is always populated for production-written rows.
-  // Filter null defensively to satisfy the non-nullable return type.
-  return (data ?? [])
-    .filter(
-      (row): row is typeof row & { content_item_id: string } =>
-        row.content_item_id !== null,
-    )
-    .map((row) => ({
-      content_item_id: row.content_item_id,
-      version: row.version,
-      change_type: row.change_type,
-      change_reason: row.change_reason,
-      change_summary: row.change_summary,
-      created_at: row.created_at,
-    }));
-}
+// ID-131.19 M6 retirement: `fetchPublicationHistoryFor` (queried
+// content_history for the bulk-action audit trail) is REMOVED — the route
+// no longer writes an audit trail at all (Wave 1 Fix 4 retired the insert;
+// content_history itself was DROPPED at M6). See the module header.
 
 // ---------------------------------------------------------------------------
 // Lifecycle hooks
@@ -330,188 +278,10 @@ beforeEach(() => {
 
 afterAll(async () => {
   if (seededIds.length === 0) return;
-
-  // content_history rows reference content_items via FK — delete history
-  // rows first to avoid the FK blocking. Includes BOTH the deferred-trigger
-  // v1 rows (`change_type='create'`) and the explicit bulk-action rows
-  // (`change_type='publication_state'`).
-  await serviceClient
-    .from('content_history')
-    .delete()
-    .in('content_item_id', seededIds);
-  await serviceClient.from('content_items').delete().in('id', seededIds);
+  // ID-131.19 M6 retirement: content_history/content_items DROPPED at M6 —
+  // no history cleanup step needed anymore.
+  await serviceClient.from('source_documents').delete().in('id', seededIds);
 }, 60_000);
-
-// ---------------------------------------------------------------------------
-// Tests — AC-bulk-3.x audit trail
-// ---------------------------------------------------------------------------
-
-describeIfEnv(
-  '§5.3 publication-bulk-action — audit trail (AC-bulk-3.x)',
-  () => {
-    it('AC-bulk-3.1: 20 successful approves emit exactly 20 publication_state history rows with bulk_approve literal', async () => {
-      const ids = await seedItems(20, 'in_review', 'ac3-1-approve');
-
-      const { status, json } = await postBulkAction({ ids, action: 'approve' });
-
-      expect(status).toBe(200);
-      expect(json.action).toBe('approve');
-      expect(json.totalRequested).toBe(20);
-      expect(json.successCount).toBe(20);
-      expect(json.failureCount).toBe(0);
-      expect(json.results).toHaveLength(20);
-      expect(json.results.every((r) => r.status === 'success')).toBe(true);
-
-      // Audit-trail assertion. Filter by content_item_id IN (ids) to
-      // exclude unrelated history written by other concurrent tests on the
-      // shared staging branch.
-      const history = await fetchPublicationHistoryFor(ids);
-      expect(history).toHaveLength(20);
-
-      for (const row of history) {
-        expect(row.change_type).toBe('publication_state');
-        expect(row.change_reason).toBe('bulk_approve');
-        expect(row.change_summary).toBe(
-          'Publication status: in_review -> published',
-        );
-        // AC-bulk-3.4 belt-and-braces: change_reason is non-null/non-empty.
-        expect(row.change_reason).toBeTruthy();
-      }
-
-      // Every seeded id appears exactly once in the history result set.
-      const historyByItem = new Map<string, number>();
-      for (const row of history) {
-        historyByItem.set(
-          row.content_item_id,
-          (historyByItem.get(row.content_item_id) ?? 0) + 1,
-        );
-      }
-      for (const id of ids) {
-        expect(historyByItem.get(id)).toBe(1);
-      }
-    }, 90_000);
-
-    it('AC-bulk-3.2: 3 successful return_to_draft emit 3 publication_state history rows with bulk_return_to_draft literal', async () => {
-      const ids = await seedItems(3, 'in_review', 'ac3-2-return');
-
-      const { status, json } = await postBulkAction({
-        ids,
-        action: 'return_to_draft',
-      });
-
-      expect(status).toBe(200);
-      expect(json.action).toBe('return_to_draft');
-      expect(json.successCount).toBe(3);
-      expect(json.failureCount).toBe(0);
-
-      const history = await fetchPublicationHistoryFor(ids);
-      expect(history).toHaveLength(3);
-
-      for (const row of history) {
-        expect(row.change_type).toBe('publication_state');
-        expect(row.change_reason).toBe('bulk_return_to_draft');
-        expect(row.change_summary).toBe(
-          'Publication status: in_review -> draft',
-        );
-      }
-    }, 60_000);
-
-    it('AC-bulk-3.3: mixed batch — 3 of 5 succeed → exactly 3 publication_state history rows (failure-row audit policy §6.4)', async () => {
-      // Seed 3 in_review (will succeed) + 1 published + 1 draft (both will
-      // hit the §5.3 pre-loop guard with status='conflict').
-      const inReviewIds = await seedItems(
-        3,
-        'in_review',
-        'ac3-3-mixed-success',
-      );
-      const publishedId = await seedItem('published', 'ac3-3-mixed-pub');
-      const draftId = await seedItem('draft', 'ac3-3-mixed-draft');
-      const allIds = [...inReviewIds, publishedId, draftId];
-
-      const { status, json } = await postBulkAction({
-        ids: allIds,
-        action: 'approve',
-      });
-
-      expect(status).toBe(200);
-      expect(json.totalRequested).toBe(5);
-      expect(json.successCount).toBe(3);
-      expect(json.failureCount).toBe(2);
-
-      // The 3 in_review rows are 'success'; the 2 non-in_review rows are
-      // 'conflict' with previousStatus reflecting the actual state.
-      const successResults = json.results.filter((r) => r.status === 'success');
-      const conflictResults = json.results.filter(
-        (r) => r.status === 'conflict',
-      );
-      expect(successResults).toHaveLength(3);
-      expect(conflictResults).toHaveLength(2);
-      const conflictPrevStatuses = conflictResults
-        .map((r) => r.previousStatus)
-        .sort();
-      expect(conflictPrevStatuses).toEqual(['draft', 'published']);
-
-      // Critical §6.4 assertion: failure rows produce ZERO content_history
-      // rows. So the 5-id batch yields exactly 3 publication_state rows.
-      const history = await fetchPublicationHistoryFor(allIds);
-      expect(history).toHaveLength(3);
-
-      // Sanity: the 3 history rows belong to the 3 in_review ids, not the
-      // failure ids.
-      const historyItemIds = new Set(history.map((r) => r.content_item_id));
-      for (const id of inReviewIds) {
-        expect(historyItemIds.has(id)).toBe(true);
-      }
-      expect(historyItemIds.has(publishedId)).toBe(false);
-      expect(historyItemIds.has(draftId)).toBe(false);
-
-      for (const row of history) {
-        expect(row.change_reason).toBe('bulk_approve');
-      }
-    }, 60_000);
-
-    it('AC-bulk-3.5: auto_version_content_history trigger increments version monotonically per content_item_id across bulk iterations', async () => {
-      // Seed fresh in_review items. Each newly-inserted content_items row
-      // gets a v1 history row from the deferred backstop trigger
-      // (change_type='create'). The bulk-approve path then writes a
-      // change_type='publication_state' row whose version is bumped by
-      // the auto_version BEFORE-INSERT trigger relative to the existing
-      // history for that item — typically v=2.
-      const ids = await seedItems(5, 'in_review', 'ac3-5-version');
-
-      // Capture the pre-bulk max version per item (v1 from the backstop).
-      const { data: preRows, error: preErr } = await serviceClient
-        .from('content_history')
-        .select('content_item_id, version')
-        .in('content_item_id', ids);
-      expect(preErr).toBeNull();
-      const preMaxByItem = new Map<string, number>();
-      for (const row of preRows ?? []) {
-        if (row.content_item_id === null) continue;
-        const cur = preMaxByItem.get(row.content_item_id) ?? 0;
-        if (row.version > cur)
-          preMaxByItem.set(row.content_item_id, row.version);
-      }
-      // Every item should already have at least one history row (v1) from
-      // the deferred backstop.
-      for (const id of ids) {
-        expect(preMaxByItem.get(id) ?? 0).toBeGreaterThanOrEqual(1);
-      }
-
-      const { json } = await postBulkAction({ ids, action: 'approve' });
-      expect(json.successCount).toBe(5);
-
-      // Per-item: the new publication_state row's version equals
-      // pre-existing max + 1.
-      const postHistory = await fetchPublicationHistoryFor(ids);
-      expect(postHistory).toHaveLength(5);
-      for (const row of postHistory) {
-        const preMax = preMaxByItem.get(row.content_item_id) ?? 0;
-        expect(row.version).toBe(preMax + 1);
-      }
-    }, 60_000);
-  },
-);
 
 // ---------------------------------------------------------------------------
 // Tests — AC-bulk-5.x optimistic concurrency
@@ -543,7 +313,7 @@ describeIfEnv(
 
       // Confirm the row's publication_status actually transitioned.
       const { data } = await serviceClient
-        .from('content_items')
+        .from('source_documents')
         .select('publication_status')
         .eq('id', id)
         .single();
@@ -588,10 +358,24 @@ describeIfEnv(
       );
       expect(goodResult!.status).toBe('success');
 
-      // Failure row produced ZERO history rows; success row produced 1.
-      const history = await fetchPublicationHistoryFor([racedId, goodId]);
-      expect(history).toHaveLength(1);
-      expect(history[0]!.content_item_id).toBe(goodId);
+      // ID-131.19 M6 retirement: the route no longer writes an audit trail
+      // (content_history DROPPED); the state-write proof is a direct
+      // re-read of source_documents.publication_status instead — the
+      // conflict row must stay 'published' (untouched), the success row
+      // must actually flip to 'published'.
+      const { data: racedRow } = await serviceClient
+        .from('source_documents')
+        .select('publication_status')
+        .eq('id', racedId)
+        .single();
+      expect(racedRow?.publication_status).toBe('published');
+
+      const { data: goodRow } = await serviceClient
+        .from('source_documents')
+        .select('publication_status')
+        .eq('id', goodId)
+        .single();
+      expect(goodRow?.publication_status).toBe('published');
     }, 30_000);
 
     it('AC-bulk-5.3: pre-loop fromStatus guard rejects archived rows with verbatim "Pre-loop guard: …" reason', async () => {
@@ -616,9 +400,15 @@ describeIfEnv(
       expect(result.reason).toContain("fromStatus 'archived'");
       expect(result.reason).toContain("not 'in_review'");
 
-      // No history row written for the conflict.
-      const history = await fetchPublicationHistoryFor([archivedId]);
-      expect(history).toHaveLength(0);
+      // ID-131.19 M6 retirement: no audit trail to check (content_history
+      // DROPPED); confirm no write occurred instead — the row must remain
+      // 'archived' (the conflict path never reaches the UPDATE step).
+      const { data: row } = await serviceClient
+        .from('source_documents')
+        .select('publication_status')
+        .eq('id', archivedId)
+        .single();
+      expect(row?.publication_status).toBe('archived');
     }, 30_000);
 
     it('AC-bulk-5.4: two sequential bulk-approve requests on same 5 ids — first all-success, second all-conflict (pre-loop guard catches now-published rows)', async () => {
@@ -645,13 +435,16 @@ describeIfEnv(
         expect(r.previousStatus).toBe('published');
       }
 
-      // Audit table: exactly 5 publication_state rows from the FIRST
-      // request; the second request's pre-loop guard rejections produced
-      // ZERO additional history rows (failure-row audit policy §6.4).
-      const history = await fetchPublicationHistoryFor(ids);
-      expect(history).toHaveLength(5);
-      for (const row of history) {
-        expect(row.change_reason).toBe('bulk_approve');
+      // ID-131.19 M6 retirement: no audit trail to check (content_history
+      // DROPPED); confirm the state-write landed for all 5 from the FIRST
+      // request instead — every row must now be 'published'.
+      for (const id of ids) {
+        const { data: row } = await serviceClient
+          .from('source_documents')
+          .select('publication_status')
+          .eq('id', id)
+          .single();
+        expect(row?.publication_status).toBe('published');
       }
     }, 60_000);
   },
@@ -664,7 +457,7 @@ describeIfEnv(
 describeIfEnv(
   '§5.3 publication-bulk-action — editor role (AC-bulk-1.2 integration)',
   () => {
-    it('editor can bulk-approve in_review items end-to-end with bulk_approve audit row', async () => {
+    it('editor can bulk-approve in_review items end-to-end, attributed to the editor via updated_by', async () => {
       // Switch active session to editor for this test. The default
       // beforeEach sets admin; restoreSession() clears + repopulates.
       restoreSession(authCookies, cachedSessions, 'editor');
@@ -682,19 +475,21 @@ describeIfEnv(
         expect(r.newStatus).toBe('published');
       }
 
-      // PR-1 RBAC matrix sanity: editor's writes are attributed to the
-      // editor user (TEST_USER_2) in content_history.created_by, not to
-      // the admin user.
-      const { data: hist, error: histErr } = await serviceClient
-        .from('content_history')
-        .select('content_item_id, change_reason, created_by')
-        .in('content_item_id', ids)
-        .eq('change_type', 'publication_state');
-      expect(histErr).toBeNull();
-      expect(hist).toHaveLength(2);
-      for (const row of hist!) {
-        expect(row.change_reason).toBe('bulk_approve');
-        expect(row.created_by).toBe(TEST_USER_2_ID);
+      // ID-131.19 M6 retirement: content_history (and its created_by audit
+      // trail) DROPPED at M6. PR-1 RBAC matrix sanity now checks the
+      // surviving attribution column instead — the route's step-4 UPDATE
+      // sets `updated_by: user.id` on `source_documents` directly (see
+      // app/api/review/publication-bulk-action/route.ts) — editor's writes
+      // must be attributed to the editor user (TEST_USER_2), not admin.
+      const { data: rows, error: rowsErr } = await serviceClient
+        .from('source_documents')
+        .select('id, publication_status, updated_by')
+        .in('id', ids);
+      expect(rowsErr).toBeNull();
+      expect(rows).toHaveLength(2);
+      for (const row of rows!) {
+        expect(row.publication_status).toBe('published');
+        expect(row.updated_by).toBe(TEST_USER_2_ID);
       }
     }, 60_000);
   },

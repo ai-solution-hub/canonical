@@ -22,22 +22,24 @@
  *
  * Reading Inv-27 against T-OQ5: at v1 the contract is PER-ROW atomicity
  * (one row succeeds or one row fails — never half-written). The test
- * verifiable form is: for every content_items row with a pipeline-stamped
- * op_id, the corresponding q_a_extractions derivation rows either ALL
- * share the same op_id OR none exist (the extractor didn't produce them
- * for the content type).
+ * verifiable form is: for every source_documents row (ID-131.19 M6
+ * retirement: content_items DROPPED at M6) with a pipeline-stamped op_id,
+ * the corresponding q_a_extractions derivation rows either ALL share the
+ * same op_id OR none exist (the extractor didn't produce them for the
+ * content type).
  *
  * entity_mentions assertions intentionally OMITTED — ID-49.5 is DEFERRED
  * per S273 OQ-1 ratification (no entity-resolution work in this slice).
  * Re-add when entity_mentions write-path lands.
  *
  * Test strategy:
- *   1. For each recent content_items row from a 'succeeded' pipeline_run,
- *      assert that all q_a_extractions rows for that item's linked
- *      source_document_id share the SAME op_id as the content_items row.
+ *   1. For each recent source_documents row from a 'succeeded' pipeline_run,
+ *      assert that all q_a_extractions rows for that row's source_document_id
+ *      (the row's own id — ID-131.19 M6 retirement: content_items DROPPED at
+ *      M6) share the SAME op_id as the source_documents row.
  *      ("Both side-effects land".)
- *   2. For each recent content_items row from a 'failed' pipeline_run,
- *      assert that NO q_a_extractions rows exist linked to that item's
+ *   2. For each recent source_documents row from a 'failed' pipeline_run,
+ *      assert that NO q_a_extractions rows exist linked to that row's
  *      source_document_id with the failed run's op_id. ("Neither does".)
  *
  * Env-gate: live Supabase only.
@@ -64,9 +66,9 @@ const HAS_LIVE_DB = hasRealLiveDbCredentials();
 const ENABLED = HAS_LIVE_DB;
 
 describe.skipIf(!ENABLED)(
-  'Inv-27 — no silent partial writes (per-row atomicity across content_items + derivation tables)',
+  'Inv-27 — no silent partial writes (per-row atomicity across source_documents + derivation tables)',
   () => {
-    it('succeeded runs: all derivation rows for a content_items row share the SAME op_id as that row', async () => {
+    it('succeeded runs: all derivation rows for a source_documents row share the SAME op_id as that row', async () => {
       const client = await createLiveServiceClient();
 
       // Find recent successful cocoindex runs.
@@ -89,28 +91,29 @@ describe.skipIf(!ENABLED)(
         return;
       }
 
-      // For each succeeded run, find content_items with that op_id,
-      // then assert all derivation rows for those content_items share
-      // the same op_id.
+      // For each succeeded run, find source_documents rows with that op_id,
+      // then assert all derivation rows for those source_documents share
+      // the same op_id. (ID-131.19 M6 retirement: content_items DROPPED at
+      // M6 — the row queried here IS the source_documents row directly.)
       for (const run of succeededRuns) {
         const opId = run.op_id as string | null;
         if (!opId) continue;
 
         const { data: items } = await client
-          .from('content_items')
-          .select('id, op_id, source_document_id')
+          .from('source_documents')
+          .select('id, op_id')
           .eq('op_id', opId);
 
         if (!items || items.length === 0) continue;
 
         for (const item of items) {
-          // q_a_extractions.source_document_id is an FK to source_documents,
-          // NOT content_items (ID-131 M2 / ID-131.26) — skip items with no
-          // linked source document (no valid derivation-row parent to check).
-          const sourceDocumentId = item.source_document_id as string | null;
-          if (!sourceDocumentId) continue;
+          // ID-131.19 M6 retirement: item.id already IS the
+          // source_documents id (no separate FK resolution needed — see
+          // pollContentItemsFor's M6 retarget note in
+          // _helpers/fixture-staging.ts).
+          const sourceDocumentId = item.id as string;
 
-          // q_a_extractions linked to this content_item's source document
+          // q_a_extractions linked to this source document
           const { data: extractions } = await client
             .from('q_a_extractions')
             .select('id, op_id, source_document_id')
@@ -119,9 +122,9 @@ describe.skipIf(!ENABLED)(
           if (extractions && extractions.length > 0) {
             for (const ext of extractions) {
               // Inv-27 verifiability: all derivation rows share the
-              // content_items row's op_id. A mismatch proves the
+              // source_documents row's op_id. A mismatch proves the
               // derivation row was written by a DIFFERENT run than the
-              // content_items row — silent partial write across runs.
+              // source_documents row — silent partial write across runs.
               expect(ext.op_id).toBe(opId);
             }
           }
@@ -168,21 +171,23 @@ describe.skipIf(!ENABLED)(
           .select('id', { count: 'exact', head: true })
           .eq('op_id', opId);
 
-        // Per T-OQ5 per-row atomicity: each content_items row's
+        // Per T-OQ5 per-row atomicity: each source_documents row's
+        // (ID-131.19 M6 retirement: content_items DROPPED at M6)
         // derivation rows either all land or none do. A failed run that
-        // produced 0 content_items rows MUST have 0 derivation rows
-        // too. A failed run that produced N content_items rows is
+        // produced 0 source_documents rows MUST have 0 derivation rows
+        // too. A failed run that produced N source_documents rows is
         // allowed N q_a_extractions rows (per-row success) — only the
         // FAILED row should have 0 derivations.
         //
         // The strict test: for the failed run's op_id, the COUNT of
         // q_a_extractions rows MUST equal 0 — because the failed run's
-        // pipeline_runs.status='failed' implies NO content_items row
+        // pipeline_runs.status='failed' implies NO source_documents row
         // succeeded for that exact run (the run as a whole failed).
         //
         // Defensive note: per-row atomicity may allow this to be > 0 if
-        // the failure was at the LAST content_items in a multi-document
-        // batch. The cocoindex flow processes one document at a time
+        // the failure was at the LAST source_documents row in a
+        // multi-document batch. The cocoindex flow processes one document
+        // at a time
         // per the canonical six-stage model, so a 'failed' run row
         // implies the single document that run was for failed end-to-
         // end. Therefore 0 is the strict assertion.

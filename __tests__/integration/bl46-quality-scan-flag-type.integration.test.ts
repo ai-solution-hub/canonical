@@ -11,7 +11,8 @@
  * 23514 (latent — the function has no callers yet).
  *
  * This test verifies the migration's effect against the live DB, mirroring the
- * publication-status-migration constraint-probe convention: write a row with
+ * constraint-probe convention used by the (now-retired, ID-131.19 M6)
+ * publication-status-migration test: write a row with
  * the previously-rejected flag_type through the service client and assert the
  * CHECK now ACCEPTS it (no 23514), with a negative control proving the CHECK
  * is still enforced for genuinely-unknown values. source_document_id is

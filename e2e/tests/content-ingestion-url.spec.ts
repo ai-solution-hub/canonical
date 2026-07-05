@@ -184,14 +184,11 @@ test.describe('Content ingestion -- 8.0.5 URL ingestion (reference layer)', () =
     expect(sdErr).toBeNull();
     expect(sdRow).not.toBeNull();
 
-    // 5. NO content_items row was written for this URL — the route is fully
-    //    re-pointed off the content_items path (ID-110 core invariant).
-    const { count: contentCount, error: contentCountErr } = await svc
-      .from('content_items')
-      .select('id', { count: 'exact', head: true })
-      .eq('source_url', normalisedUrl);
-    expect(contentCountErr).toBeNull();
-    expect(contentCount).toBe(0);
+    // 5. ID-131.19 M6 retirement: `content_items` was DROPPED at M6 — the
+    //    "NO content_items row was written" assertion (ID-110 core
+    //    invariant) is now enforced by the schema itself (there is no
+    //    table left to accidentally write to), so the query is removed
+    //    rather than left to error against a nonexistent relation.
 
     // 5b. Create → read round-trip (bl-119 / ID-111.11). The success card
     //     surfaces a "View reference" link to the landed reference's own detail

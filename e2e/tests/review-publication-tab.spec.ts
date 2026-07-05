@@ -43,11 +43,18 @@ test.describe('Review page — awaiting-publication tab (S31 W3)', () => {
     // (the seed runs once per CI job, not per test). The .select('id')
     // chain forces a 200 + row response so the COMMIT is fully visible
     // before control returns (mirrors the test-data-fixture pattern).
+    // ID-131.19 M6 retirement: content_items DROPPED at M6. The fixture
+    // this row is seeded from (scripts/seed-e2e-users.ts
+    // seedPublicationReviewFixture(), content_type='q_a_pair') needs a
+    // companion re-point onto `q_a_pairs` — flagged as an out-of-scope
+    // production finding for this Subtask (the seeding script is out of
+    // the tests/e2e/helpers file-ownership boundary). This reset targets
+    // the honest destination that fixture will need once re-pointed.
     const supabase = createServiceClient();
     await supabase
-      .from('content_items')
+      .from('q_a_pairs')
       .update({ publication_status: 'in_review' })
-      .eq('title', FIXTURE_TITLE)
+      .eq('question_text', FIXTURE_TITLE)
       .select('id')
       .throwOnError();
   });

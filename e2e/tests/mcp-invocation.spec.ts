@@ -13,9 +13,13 @@
  *     grant).
  *
  * USER FLOW:
- *   1. Pre-seed a deterministic `content_items` row whose title contains a
- *      unique sentinel string (e.g. `[E2E-MCP-<workerPrefix>] Sentinel
- *      Pricing Policy <ts>`) via `createTestItem()` from `data-factory.ts`.
+ *   1. Pre-seed a deterministic `q_a_pairs` row (+ `record_embeddings` vector
+ *      row) whose question_text contains a unique sentinel string (e.g.
+ *      `[E2E-MCP-<workerPrefix>] Sentinel Pricing Policy <ts>`) — ID-131.19
+ *      M6 retirement: `search_knowledge_base` calls the `hybrid_search` RPC,
+ *      a polymorphic UNION over `record_embeddings` with NO `content_items`
+ *      scan (never did, even before the table was DROPPED at M6), so the
+ *      fixture targets `q_a_pairs` directly (see `beforeAll` below).
  *      The row MUST be embedded so `search_knowledge_base` can find it
  *      semantically — Phase 3 implementer must either (a) populate the
  *      `embedding` column directly via service key with a deterministic
@@ -64,7 +68,7 @@
  *   - Parse the `result.content[0].text` (or whichever entry is the
  *     structured payload — Phase 3 must verify against the
  *     `search_knowledge_base` tool's documented output schema in
- *     `lib/mcp/tools/search/`) and assert the seeded `content_items.id`
+ *     `lib/mcp/tools/search/`) and assert the seeded `q_a_pairs.id`
  *     appears in an `items[].id`-style field. (Substring presence in the
  *     JSON blob is necessary; structured ID match is sufficient.)
  *   - Unauthenticated POST returns HTTP 401 AND the body parses as JSON
@@ -80,9 +84,9 @@
  *     valid tool names also return empty).
  *
  * FIXTURE DATA (pre-seeded before test runs):
- *   - Sentinel `content_items` row + embedding — seeded via service-key
- *     insert in this file's `beforeAll`. Use a worker-prefixed title to
- *     remain isolated and cleanable.
+ *   - Sentinel `q_a_pairs` row + `record_embeddings` vector row — seeded via
+ *     service-key insert in this file's `beforeAll`. Use a worker-prefixed
+ *     question_text to remain isolated and cleanable.
  *   - OAuth client + active grant + access token — see step 2 above.
  *     Phase 3 implementer documents the chosen approach in the test file.
  *   - Existing worker-scoped fixture data is NOT relied on (this spec must
@@ -98,7 +102,7 @@
  *     no-Authorization 401 assertion.
  *   - Tool dispatcher returns an empty `result.content` array regardless
  *     of arguments (silent failure) → caught by sentinel substring +
- *     content_items.id presence assertions.
+ *     q_a_pairs.id presence assertions.
  *   - JSON-RPC `id` echoed incorrectly → caught by `id === 1` assertion.
  *   - Unknown tool names silently return empty results instead of an
  *     error envelope (which would mask real bugs in valid-tool dispatch)
@@ -116,8 +120,8 @@
  *   admin is the broadest scope and proves the happy path.
  *
  * CLEANUP:
- *   afterAll: service-key delete of seeded `content_items` row (and its
- *   embedding row). Revoke the test OAuth grant via `/api/oauth/revoke`.
+ *   afterAll: service-key delete of seeded `q_a_pairs` row (and its
+ *   `record_embeddings` row). Revoke the test OAuth grant via `/api/oauth/revoke`.
  *   No afterEach — the spec is a single happy path + three negative cases
  *   that share the same seeded fixture state.
  *
@@ -203,6 +207,18 @@ test.describe('8.0.2 MCP tool invocation', () => {
   let sentinel: string;
   let accessToken: string;
 
+  // ID-131.19 M6 retirement note (S450 GO tail): `search_knowledge_base`
+  // calls the `hybrid_search` RPC (lib/mcp/tools/search.ts), which has been a
+  // 4-arm polymorphic UNION over `record_embeddings` (source_documents /
+  // content_chunks / q_a_pairs / reference_items) since ID-131.11 — it never
+  // scanned `content_items` even before the table was DROPPED at M6. This
+  // fixture now seeds `q_a_pairs` + `record_embeddings` directly (mirroring
+  // `__tests__/integration/supersession-filter.integration.test.ts`'s idiom),
+  // which is both the honest new-model equivalent AND a correctness fix (the
+  // old content_items-seeded fixture could never have been found by this
+  // RPC either).
+  const EMBEDDING_MODEL = 'text-embedding-3-large';
+
   test.beforeAll(async ({}, testInfo) => {
     accessToken = await getUserAccessToken();
     const supabase = createServiceClient();
@@ -214,38 +230,54 @@ test.describe('8.0.2 MCP tool invocation', () => {
       .slice(2, 8)}`;
 
     // Use an existing pre-computed embedding vector (1024 dims) so the row
-    // satisfies the `embedding IS NOT NULL` filter in hybrid_search. The
-    // sentinel substring is unique enough to be matched via the keyword
-    // (ILIKE title) branch of hybrid_search regardless of vector similarity.
+    // satisfies the vector JOIN in hybrid_search. The sentinel substring is
+    // unique enough to be matched via the keyword (ILIKE question_text)
+    // branch of hybrid_search regardless of vector similarity.
     const sampleEmbedding = (
       precomputedEmbeddings as Array<{ itemIndex: number; embedding: number[] }>
     )[0].embedding;
 
     const { data, error } = await supabase
-      .from('content_items')
+      .from('q_a_pairs')
       .insert({
-        title: `${workerPrefix} ${sentinel} Pricing Policy`,
-        content: `This is a sentinel content item for the MCP invocation E2E test. ${sentinel}`,
-        content_type: 'note',
-        primary_domain: 'General',
-        platform: 'manual',
-        embedding: JSON.stringify(sampleEmbedding),
+        question_text: `${workerPrefix} ${sentinel} Pricing Policy`,
+        answer_standard: `This is a sentinel Q&A pair for the MCP invocation E2E test. ${sentinel}`,
+        publication_status: 'published',
       })
       .select('id')
       .single();
     if (error || !data) {
       throw new Error(
-        `Failed to seed sentinel content item: ${error?.message ?? 'no data'}`,
+        `Failed to seed sentinel q_a_pair: ${error?.message ?? 'no data'}`,
       );
     }
     seededItemId = data.id;
+
+    const { error: embeddingError } = await supabase
+      .from('record_embeddings')
+      .insert({
+        owner_kind: 'q_a_pair',
+        owner_id: seededItemId,
+        model: EMBEDDING_MODEL,
+        embedding: JSON.stringify(sampleEmbedding),
+      });
+    if (embeddingError) {
+      throw new Error(
+        `Failed to seed sentinel record_embeddings row: ${embeddingError.message}`,
+      );
+    }
   });
 
   test.afterAll(async () => {
     if (seededItemId) {
       const supabase = createServiceClient();
       try {
-        await supabase.from('content_items').delete().eq('id', seededItemId);
+        await supabase
+          .from('record_embeddings')
+          .delete()
+          .eq('owner_kind', 'q_a_pair')
+          .eq('owner_id', seededItemId);
+        await supabase.from('q_a_pairs').delete().eq('id', seededItemId);
       } catch {
         // ignore
       }
@@ -303,7 +335,7 @@ test.describe('8.0.2 MCP tool invocation', () => {
     // sentinel as plain text without actually hitting the DB.
     expect(
       fullPayloadJson.includes(seededItemId),
-      `seeded content_items.id '${seededItemId}' must appear in the response`,
+      `seeded q_a_pairs.id '${seededItemId}' must appear in the response`,
     ).toBe(true);
 
     // -------------------------------------------------------------------

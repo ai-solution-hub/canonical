@@ -45,6 +45,7 @@ import {
 
 // service-client MUST import first — loads dotenv for env vars.
 import { serviceClient } from '../helpers/service-client';
+import { randomUUID } from 'crypto';
 import {
   getTestUserIds,
   signInAsTestUser,
@@ -120,25 +121,35 @@ vi.mock('next/headers', () => ({
 // ---------------------------------------------------------------------------
 
 /**
- * Insert a seeded content_items row scoped to the test prefix. Items are
- * UNCLASSIFIED by default so the candidate filter selects them under
+ * Insert a seeded `source_documents` row scoped to the test prefix. Items
+ * are UNCLASSIFIED by default so the candidate filter selects them under
  * `force: false`.
+ *
+ * ID-131.19 M6 retirement note (S450 GO tail): `content_items` was DROPPED
+ * at M6. `lib/queue/handlers/batch-reclassify.ts` was ALREADY re-pointed
+ * onto `source_documents` at ID-131.17 (M3 gave source_documents the
+ * classification family: primary_domain/primary_subtopic/classified_at/
+ * classification_confidence/ai_keywords all live there unchanged) — this
+ * fixture now seeds that table directly. `title`/`content`/`platform` have
+ * no source_documents equivalent (`suggested_title`/`extracted_text` are
+ * the nearest analogs; `platform` is dropped, no destination).
  */
 async function createTestContentItem(opts: {
   classified?: boolean;
   domain?: string | null;
 }): Promise<{ itemId: string }> {
   const classified = opts.classified ?? false;
-  // Use a hash that the GENERATED ALWAYS column will compute itself
-  // (per CLAUDE.md gotcha — content_text_hash is GENERATED ALWAYS).
   const { data: item, error: itemErr } = await serviceClient
-    .from('content_items')
+    .from('source_documents')
     .insert({
-      title: `${TEST_PREFIX} test item`,
+      filename: `${TEST_PREFIX} test item.txt`,
       suggested_title: `${TEST_PREFIX} test item`,
-      content: `${TEST_PREFIX} sample content text about security and encryption.`,
+      extracted_text: `${TEST_PREFIX} sample content text about security and encryption.`,
+      mime_type: 'text/plain',
+      file_size: 1,
+      content_hash: `${TEST_PREFIX}-${randomUUID()}`,
+      storage_path: `test-fixtures/${TEST_PREFIX}/${randomUUID()}.txt`,
       content_type: 'q_a_pair',
-      platform: 'extraction',
       primary_domain: classified ? (opts.domain ?? 'security') : 'unclassified',
       primary_subtopic: classified ? 'cyber-security' : 'unclassified',
       classified_at: classified ? new Date(Date.now()).toISOString() : null,
@@ -203,34 +214,25 @@ beforeAll(async () => {
 afterAll(async () => {
   if (!HAS_REQUIRED_ENV) return;
 
-  // Scrub in dependency-order — entity_mentions / entity_relationships are
-  // FK to source_documents, NOT content_items (ID-131 M2 / ID-131.26), so
-  // deleting content_items no longer cascades to them. Resolve each seeded
-  // item's linked source_document_id (best-effort; items with none simply
-  // never got entity rows written) before cleaning up, to avoid orphan-row
-  // buildup on the persistent staging branch.
+  // ID-131.19 M6 retirement: content_items DROPPED at M6 — seeded ids are
+  // now directly source_documents ids (createTestContentItem re-point), so
+  // no source_document_id resolution indirection is needed anymore;
+  // entity_mentions/entity_relationships key off source_document_id
+  // directly (ID-131 M2 / ID-131.26).
   if (seededContentItemIds.size > 0) {
-    const { data: sourceDocLinks } = await serviceClient
-      .from('content_items')
-      .select('source_document_id')
-      .in('id', Array.from(seededContentItemIds));
-    const sourceDocumentIds = (sourceDocLinks ?? [])
-      .map((r) => r.source_document_id)
-      .filter((id): id is string => typeof id === 'string' && id.length > 0);
-    if (sourceDocumentIds.length > 0) {
-      await serviceClient
-        .from('entity_mentions')
-        .delete()
-        .in('source_document_id', sourceDocumentIds);
-      await serviceClient
-        .from('entity_relationships')
-        .delete()
-        .in('source_document_id', sourceDocumentIds);
-    }
+    const sourceDocumentIds = Array.from(seededContentItemIds);
     await serviceClient
-      .from('content_items')
+      .from('entity_mentions')
       .delete()
-      .in('id', Array.from(seededContentItemIds));
+      .in('source_document_id', sourceDocumentIds);
+    await serviceClient
+      .from('entity_relationships')
+      .delete()
+      .in('source_document_id', sourceDocumentIds);
+    await serviceClient
+      .from('source_documents')
+      .delete()
+      .in('id', sourceDocumentIds);
   }
   if (seededJobIds.size > 0) {
     await serviceClient

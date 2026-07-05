@@ -21,8 +21,10 @@
  *   2. Verify the Service is cold (HTTP probe with cold-start timing
  *      signature).
  *   3. Drop a PDF fixture into the source-binding location.
- *   4. Time the end-to-end ingest until `content_items.embedding` is
- *      populated.
+ *   4. Time the end-to-end ingest until a `record_embeddings` row (keyed
+ *      to the landed `source_documents.id`, owner_kind='source_document')
+ *      has a populated embedding (ID-131.19 M6 retirement: content_items,
+ *      and its direct `embedding` column, DROPPED at M6).
  *   5. Assert elapsed time ≤ 60 s.
  *
  * Cold-start trigger limitation:
@@ -99,14 +101,16 @@ afterAll(async () => {
   if (!ENABLED) return;
   if (seededContentIds.length === 0) return;
   const client = await createLiveServiceClient();
-  await client.from('content_items').delete().in('id', seededContentIds);
+  // ID-131.19 M6 retirement: content_items DROPPED at M6;
+  // source_documents replaces it as the seeded-row cleanup target.
+  await client.from('source_documents').delete().in('id', seededContentIds);
 }, 30_000);
 
 describe.skipIf(!ENABLED)(
   'Inv-10 — sidecar cold-start latency budget (first PDF ingest ≤ 60 s)',
   () => {
     it(
-      'first PDF ingest after cold-start lands content_items.embedding within 60 s',
+      'first PDF ingest after cold-start lands a record_embeddings row within 60 s',
       async () => {
         const client = await createLiveServiceClient();
         const startTime = Date.now();
@@ -115,19 +119,36 @@ describe.skipIf(!ENABLED)(
         let landedRow: { id: string; embedding: unknown } | null = null;
 
         while (Date.now() < deadline) {
-          const { data } = await client
-            .from('content_items')
-            .select('id, embedding')
-            .ilike('title', `${TEST_PREFIX}%`)
+          // ID-131.19 M6 retirement: content_items (with its direct
+          // `embedding` column) was DROPPED at M6; source_documents has no
+          // `embedding` column of its own — vector storage moved to the
+          // separate `record_embeddings` table (owner_kind='source_document').
+          // Poll source_documents for the landed row's id, then check
+          // record_embeddings for a populated embedding keyed to that id.
+          const { data: sourceDocs } = await client
+            .from('source_documents')
+            .select('id')
+            .ilike('filename', `${TEST_PREFIX}%`)
             .limit(1);
 
-          if (data && data.length > 0 && data[0]!.embedding !== null) {
-            landedRow = {
-              id: data[0]!.id as string,
-              embedding: data[0]!.embedding,
-            };
-            seededContentIds.push(landedRow.id);
-            break;
+          if (sourceDocs && sourceDocs.length > 0) {
+            const sourceDocId = sourceDocs[0]!.id as string;
+            const { data: embeddingRows } = await client
+              .from('record_embeddings')
+              .select('id, embedding')
+              .eq('owner_kind', 'source_document')
+              .eq('owner_id', sourceDocId)
+              .not('embedding', 'is', null)
+              .limit(1);
+
+            if (embeddingRows && embeddingRows.length > 0) {
+              landedRow = {
+                id: sourceDocId,
+                embedding: embeddingRows[0]!.embedding,
+              };
+              seededContentIds.push(sourceDocId);
+              break;
+            }
           }
 
           await new Promise((resolve) => setTimeout(resolve, 2_000));

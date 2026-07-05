@@ -96,9 +96,12 @@ describe('PublicationStatusBadge', () => {
       // Pin the case-sensitive `VALID_PUBLICATION_STATUSES.includes(value)`
       // semantics in `publication-status-badge.tsx#isVisibleStatus` against
       // a future refactor that toLowerCases before lookup. The DB CHECK on
-      // `content_items.publication_status` is also case-sensitive
-      // (lowercase-only enum), so accepting capitalised inputs would
-      // silently diverge the badge from the DB constraint.
+      // `q_a_pairs.publication_status` (ID-131.19 M6 retirement:
+      // content_items DROPPED at M6; q_a_pairs carries the identical
+      // 4-value CHECK — see __tests__/lib/governance/publication-transitions.test.ts)
+      // is also case-sensitive (lowercase-only enum), so accepting
+      // capitalised inputs would silently diverge the badge from the DB
+      // constraint.
       const { container: capContainer } = render(
         <PublicationStatusBadge status="Published" />,
       );
@@ -168,10 +171,17 @@ describe('PublicationStatusBadge', () => {
 
       // Configure the chain to resolve to a single row carrying
       // `publication_status: 'in_review'` (matches the projection that
-      // `use-library-data.ts:43` and `use-browse-data.ts:281` use).
+      // `use-library-data.ts:43` uses).
+      //
+      // ID-131.19 M6 retirement: content_items DROPPED at M6; `/browse`'s
+      // `use-browse-data.ts` + `content-card.tsx` were retired earlier at
+      // ID-131.17 (dead IMS browse/item-detail surface) and no longer
+      // exist. `/library`'s `use-library-data.ts` (re-pointed onto
+      // `q_a_pairs` at {131.21} G-MANUAL-QA) is now the live consumer this
+      // mocked chain simulates — `title` maps to q_a_pairs' `question_text`.
       const inReviewRow = {
         id: 'item-1',
-        title: 'Draft article in review',
+        question_text: 'Draft article in review',
         publication_status: 'in_review' as const,
       };
       supabase._chain.then.mockImplementationOnce(
@@ -182,10 +192,10 @@ describe('PublicationStatusBadge', () => {
       // Simulate a real consumer chain. `from(...).select(...)` returns the
       // same `_chain` (vitest mocks satisfy the runtime contract; the cast
       // bridges the discriminated `Mock<Procedure | Constructable>` to the
-      // call signature). Matches use-library-data.ts:43 + use-browse-data.ts:281.
+      // call signature). Matches use-library-data.ts:43 (q_a_pairs).
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const builder = (supabase as any)
-        .from('content_items')
+        .from('q_a_pairs')
         .select(CONTENT_LIST_COLUMNS);
       const { data, error } = (await builder) as {
         data: Array<{ publication_status: string }> | null;

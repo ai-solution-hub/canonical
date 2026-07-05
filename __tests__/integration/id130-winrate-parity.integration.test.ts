@@ -55,7 +55,7 @@ const seeded = {
   formQuestionIds: [] as string[],
   formTemplateIds: [] as string[],
   workspaceIds: [] as string[],
-  contentItemIds: [] as string[],
+  qaPairIds: [] as string[],
   // form_types keys we INSERTED (only torn down if we created them — never delete a
   // pre-existing CV row the live system depends on).
   insertedFormTypeKeys: [] as string[],
@@ -65,7 +65,13 @@ let skip = false;
 
 let db: Awaited<ReturnType<typeof createLiveServiceClient>>;
 
-// Cited content item per form (so we can assert per-item win-rate independently).
+// Cited q_a_pair per form (so we can assert per-item win-rate independently).
+// ID-131.19 M6 retirement note: `get_content_win_rate` was ALREADY
+// re-anchored from `p_content_item_id` to `p_q_a_pair_id` by CITE-EXT
+// (20260628191703, APPLIED, ID-131.10 BI-26) — before M6 even ran. M6 then
+// dropped `content_items` and `citations.cited_content_item_id` entirely.
+// This fixture now cites `q_a_pairs` (cited_kind='q_a_pair' +
+// cited_q_a_pair_id) to match the live RPC signature.
 let wonContentItemId = '';
 let notShortlistedContentItemId = '';
 
@@ -97,12 +103,11 @@ async function ensureFormType(key: string, label: string): Promise<void> {
 
 async function insertContentItem(label: string): Promise<string> {
   const { data, error } = await db
-    .from('content_items')
+    .from('q_a_pairs')
     .insert({
-      title: `[${TEST_TAG}] ${label}`,
-      content: `Synthetic win-rate parity fixture: ${label}. Disposable.`,
-      content_type: 'article',
-      // primary_domain has a default ('unclassified'); leave it so both rows share a domain.
+      question_text: `[${TEST_TAG}] ${label}`,
+      answer_standard: `Synthetic win-rate parity fixture: ${label}. Disposable.`,
+      publication_status: 'published',
     })
     .select('id')
     .single();
@@ -111,7 +116,7 @@ async function insertContentItem(label: string): Promise<string> {
       `insertContentItem(${label}): ${error?.message ?? 'no data'}`,
     );
   }
-  seeded.contentItemIds.push(data.id);
+  seeded.qaPairIds.push(data.id);
   return data.id;
 }
 
@@ -209,14 +214,18 @@ async function seedForm(args: {
   }
   seeded.formResponseIds.push(fr.id);
 
-  // citations — form_response cites the content item. cited_kind='content_item'.
+  // citations — form_response cites the q_a_pair. ID-131.19 M6 retirement:
+  // cited_kind='content_item' + cited_content_item_id both DROPPED at M6
+  // (citations.cited_content_item_id column + the CHECK branch) — the
+  // surviving q_a_pair branch is what get_content_win_rate's
+  // ID-131.10/CITE-EXT re-anchor (p_q_a_pair_id) actually reads.
   const { data: cc, error: ccErr } = await db
     .from('citations')
     .insert({
       citing_kind: 'form_response',
       citing_form_response_id: fr.id,
-      cited_kind: 'content_item',
-      cited_content_item_id: args.citedContentItemId,
+      cited_kind: 'q_a_pair',
+      cited_q_a_pair_id: args.citedContentItemId,
       citation_type: 'reference',
     })
     .select('id')
@@ -321,8 +330,8 @@ afterAll(async () => {
   if (seeded.workspaceIds.length) {
     await db.from('workspaces').delete().in('id', seeded.workspaceIds);
   }
-  if (seeded.contentItemIds.length) {
-    await db.from('content_items').delete().in('id', seeded.contentItemIds);
+  if (seeded.qaPairIds.length) {
+    await db.from('q_a_pairs').delete().in('id', seeded.qaPairIds);
   }
   // Only delete form_types rows WE inserted — never a pre-existing CV row.
   if (seeded.insertedFormTypeKeys.length) {
@@ -337,7 +346,7 @@ describe('ID-130.7 win-rate engine rewrite — synthetic parity', () => {
     // Per-item win-rate for the WON form's cited content item: 1 citation, outcome=won,
     // counts_toward_win_rate=true → numerator 1, denominator 1, win_rate 1.00.
     const { data, error } = await db.rpc('get_content_win_rate', {
-      p_content_item_id: wonContentItemId,
+      p_q_a_pair_id: wonContentItemId,
     });
     expect(error).toBeNull();
     const row = Array.isArray(data) ? data[0] : data;
@@ -357,7 +366,7 @@ describe('ID-130.7 win-rate engine rewrite — synthetic parity', () => {
     // (shortlist-stage, counts_toward_win_rate=false) outcome is counted in total but excluded from
     // the win-rate denominator (pending), win_rate 0.
     const { data, error } = await db.rpc('get_content_win_rate', {
-      p_content_item_id: notShortlistedContentItemId,
+      p_q_a_pair_id: notShortlistedContentItemId,
     });
     expect(error).toBeNull();
     const row = Array.isArray(data) ? data[0] : data;

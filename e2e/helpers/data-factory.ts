@@ -1,34 +1,25 @@
 import { createServiceClient } from '../fixtures/supabase';
 
-/**
- * Create a content item for a single test, returning its ID.
- * Uses the worker prefix for automatic cleanup by the worker-scoped fixture.
- */
-export async function createTestItem(
-  prefix: string,
-  overrides: Record<string, unknown> = {},
-): Promise<string> {
-  const supabase = createServiceClient();
-  const { data } = await supabase
-    .from('content_items')
-    .insert({
-      title: `${prefix} Temp Item ${Date.now()}`,
-      content_type: 'note',
-      primary_domain: 'General',
-      platform: 'manual',
-      content: 'Temporary test item.',
-      ...overrides,
-    })
-    .select('id')
-    .single()
-    .throwOnError();
-
-  return data!.id;
-}
+// ID-131.19 M6 retirement note (S450 GO tail): `createTestItem` (generic
+// content_items seed, zero real callers — only a planning-doc mention in
+// mcp-invocation.spec.ts, never an actual call) and `createItemsAcrossDomains`
+// / `assignItemToWorkspace` (zero callers anywhere) are REMOVED — content_items
+// and content_item_workspaces were both DROPPED at M6, and none of the three
+// had a surviving consumer to modernize for.
 
 /**
- * Create a Q&A pair content item with answer_standard (and optionally answer_advanced).
- * Returns the created item ID.
+ * Create a Q&A pair with answer_standard (and optionally answer_advanced).
+ * Returns the created row's id.
+ *
+ * ID-131.19 M6 retirement: content_items (content_type='q_a_pair') was
+ * DROPPED at M6; this now writes the dedicated `q_a_pairs` table, which
+ * `/library` already reads from ({131.21} G-MANUAL-QA — hooks/use-library-data.ts).
+ * `domain` has no q_a_pairs column (that facet lives on `record_lifecycle`,
+ * currently zero-row) — folded into the default question_text for
+ * readability only, same as before. `overrides.title` (the pre-M6 call
+ * convention) remaps onto `question_text`; any other override key (e.g.
+ * `answer_standard`/`answer_advanced`) passes straight through since those
+ * are already q_a_pairs column names.
  */
 export async function createTestQAPair(
   prefix: string,
@@ -37,16 +28,17 @@ export async function createTestQAPair(
 ): Promise<string> {
   const supabase = createServiceClient();
   const timestamp = Date.now();
+  const { title, ...qaOverrides } = overrides as { title?: string } & Record<
+    string,
+    unknown
+  >;
   const { data } = await supabase
-    .from('content_items')
+    .from('q_a_pairs')
     .insert({
-      title: `${prefix} Q&A ${domain} ${timestamp}`,
-      content_type: 'q_a_pair',
-      primary_domain: domain,
-      platform: 'manual',
-      content: `Q: Test question about ${domain}?\nA: Test answer for ${domain}.`,
+      question_text: title ?? `${prefix} Q&A ${domain} ${timestamp}`,
       answer_standard: `Standard answer for ${domain} test Q&A pair.`,
-      ...overrides,
+      publication_status: 'published',
+      ...qaOverrides,
     })
     .select('id')
     .single()
@@ -205,55 +197,6 @@ export async function createExportReadyBid(prefix: string): Promise<{
   await advanceBidState(procurementId, 'ready_for_export');
 
   return { procurementId, questionIds, responseIds };
-}
-
-/**
- * Create one content item per domain, returning all created IDs.
- */
-export async function createItemsAcrossDomains(
-  prefix: string,
-  domains: string[],
-): Promise<string[]> {
-  const supabase = createServiceClient();
-  const timestamp = Date.now();
-
-  const items = domains.map((domain, i) => ({
-    title: `${prefix} Domain Item ${domain} ${timestamp}-${i}`,
-    content_type: 'note' as const,
-    primary_domain: domain,
-    platform: 'manual' as const,
-    content: `Test content item for domain: ${domain}.`,
-  }));
-
-  const { data } = await supabase
-    .from('content_items')
-    .insert(items)
-    .select('id')
-    .throwOnError();
-
-  return (data ?? []).map((d) => d.id);
-}
-
-/**
- * Assign a content item to a workspace via the junction table.
- * Returns the junction record ID.
- */
-export async function assignItemToWorkspace(
-  itemId: string,
-  workspaceId: string,
-): Promise<string> {
-  const supabase = createServiceClient();
-  const { data } = await supabase
-    .from('content_item_workspaces')
-    .insert({
-      content_item_id: itemId,
-      workspace_id: workspaceId,
-    })
-    .select('id')
-    .single()
-    .throwOnError();
-
-  return data!.id;
 }
 
 /**

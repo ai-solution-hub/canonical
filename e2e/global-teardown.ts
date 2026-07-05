@@ -1,66 +1,67 @@
 import { createServiceClient } from './fixtures/supabase';
 const E2E_CONTENT_PREFIXES = ['[E2E-', '[E2E Test]'] as const;
 
+/**
+ * ID-131.19 M6 retirement note (S450 GO tail): `content_items` (+
+ * `content_history`) was DROPPED at M6. There is no single surviving
+ * table shaped like the old god-table — the per-worker fixture
+ * (test-data-fixture.ts) now splits seeded rows across `q_a_pairs`
+ * (question_text-prefixed) and `source_documents` (filename-prefixed), so
+ * this safety sweep now targets both.
+ */
 async function cleanupContentItemsByTitlePrefix(
   supabase: ReturnType<typeof createServiceClient>,
   prefix: string,
 ): Promise<void> {
-  const { data: rows, error } = await supabase
-    .from('content_items')
+  const { data: qaRows, error: qaError } = await supabase
+    .from('q_a_pairs')
     .select('id')
-    .like('title', `${prefix}%`);
+    .like('question_text', `${prefix}%`);
 
-  if (error) {
+  if (qaError) {
     throw new Error(
-      `Failed to query E2E content items for prefix ${prefix}: ${error.message}`,
+      `Failed to query E2E q_a_pairs for prefix ${prefix}: ${qaError.message}`,
     );
   }
 
-  const ids = (rows ?? []).map((row) => row.id);
-  if (ids.length === 0) return;
+  const qaIds = (qaRows ?? []).map((row) => row.id);
+  if (qaIds.length > 0) {
+    await supabase
+      .from('record_embeddings')
+      .delete()
+      .eq('owner_kind', 'q_a_pair')
+      .in('owner_id', qaIds);
+    await supabase.from('q_a_pairs').delete().in('id', qaIds);
+  }
 
-  await supabase.from('content_history').delete().in('content_item_id', ids);
-  await supabase.from('content_items').delete().in('id', ids);
-}
-
-/**
- * Tag-based fallback sweep — catches admin-dedup fixture rows that escaped
- * per-worker cleanup. Admin-dedup fixtures use realistic-looking titles
- * (per design §3.2), so the title-prefix sweep above does NOT catch them;
- * the metadata->>'e2e_dedup_fixture_run_id' tag is the canonical handle.
- *
- * No time-window guard here: globalTeardown runs after every worker has
- * finished, so any tagged rows still present are by definition orphaned.
- *
- * FK-safe order: clear superseded_by self-FK first (a merge action may have
- * been exercised), then chunks, history, items. Mirrors sweepOrphanFixtures
- * in admin-dedup-fixture-helpers.ts.
- */
-async function cleanupContentItemsByDedupFixtureTag(
-  supabase: ReturnType<typeof createServiceClient>,
-): Promise<void> {
-  const { data: rows, error } = await supabase
-    .from('content_items')
+  const { data: sdRows, error: sdError } = await supabase
+    .from('source_documents')
     .select('id')
-    .not('metadata->e2e_dedup_fixture_run_id', 'is', null);
+    .like('filename', `${prefix}%`);
 
-  if (error) {
+  if (sdError) {
     throw new Error(
-      `Failed to query admin-dedup fixture content_items: ${error.message}`,
+      `Failed to query E2E source_documents for prefix ${prefix}: ${sdError.message}`,
     );
   }
 
-  const ids = (rows ?? []).map((row) => row.id);
-  if (ids.length === 0) return;
+  const sdIds = (sdRows ?? []).map((row) => row.id);
+  if (sdIds.length === 0) return;
 
-  // FK-safe order: clear superseded_by FK first, then chunks, history, items
   await supabase
-    .from('content_items')
-    .update({ superseded_by: null })
-    .in('id', ids);
-  await supabase.from('content_chunks').delete().in('source_document_id', ids);
-  await supabase.from('content_history').delete().in('content_item_id', ids);
-  await supabase.from('content_items').delete().in('id', ids);
+    .from('entity_mentions')
+    .delete()
+    .in('source_document_id', sdIds);
+  await supabase
+    .from('entity_relationships')
+    .delete()
+    .in('source_document_id', sdIds);
+  await supabase
+    .from('record_embeddings')
+    .delete()
+    .eq('owner_kind', 'source_document')
+    .in('owner_id', sdIds);
+  await supabase.from('source_documents').delete().in('id', sdIds);
 }
 
 /**
@@ -87,9 +88,11 @@ async function globalTeardown(): Promise<void> {
     // Also clean legacy [E2E Test] prefix data
     await supabase.from('workspaces').delete().like('name', '[E2E Test]%');
 
-    // Tag-based fallback for admin-dedup fixtures (titles are realistic, so
-    // the title-prefix sweeps above do not catch these). Per design §5.4.
-    await cleanupContentItemsByDedupFixtureTag(supabase);
+    // ID-131.19: the admin-dedup fixture tag-based fallback sweep that used
+    // to run here was retired at ID-131.15 (G-DEDUP) alongside the
+    // admin-dedup E2E fixture family itself and the content_items rows it
+    // tagged — see e2e/global-setup.ts's ID-131.15 note (the symmetric
+    // Step-0 removal on the setup side). Nothing left to sweep.
 
     console.log('E2E teardown: safety cleanup complete.');
   } catch (error) {

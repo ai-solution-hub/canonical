@@ -27,6 +27,16 @@
  * assertions on the test rows use re-fetch-by-ID, not global counts
  * (mirroring `review-cadence-lifecycle.integration.test.ts` T3 pattern).
  *
+ * ID-131.19 M6 retirement note (S450 GO tail): `content_items` was DROPPED
+ * at M6. The cron itself was ALREADY re-pointed at ID-131.19 G-GOV-FACET
+ * onto the `record_lifecycle` facet (owner_kind='source_document') joined
+ * to `source_documents` (see app/api/cron/review-cadence/route.ts's own
+ * G-GOV-FACET docstring) — `next_review_date`/`review_cadence_days`/
+ * `content_owner_id`/`governance_review_status` now live on
+ * `record_lifecycle`; `publication_status`/`archived_at` stay on
+ * `source_documents`. This fixture is re-seeded accordingly: each item is
+ * a `source_documents` row + its `record_lifecycle` facet row.
+ *
  * Spec sources:
  *   - §6.4 lines 986-1011 — §5.5 cadence cron exclusion concrete coordination
  *   - §9.5 line 1624 — AC5.5 verbatim
@@ -119,69 +129,96 @@ async function seedOverdueItem({
   label,
   publicationStatus,
 }: SeedItemParams): Promise<string> {
-  // GENERATED ALWAYS column `content_text_hash` MUST be omitted (CLAUDE.md
-  // gotcha `feedback_content_text_hash_generated_always`).
+  // ID-131.19 M6 retirement: content_items DROPPED at M6; the cron reads
+  // publication_status/archived_at off `source_documents` and
+  // next_review_date/review_cadence_days/content_owner_id/
+  // governance_review_status off the `record_lifecycle` facet
+  // (owner_kind='source_document'). Seed both rows — the source_documents
+  // id is the join key the cron's `source_documents!inner(...)` and its
+  // per-candidate UPDATE both key off.
+  //
   // INSERT does NOT fire BEFORE UPDATE on the inserted row, so seeding with
   // publication_status='archived' requires explicit archived_at to uphold
   // the §6.6 invariant on the seed row (mirrors W1 archive-trigger-coverage
   // seedItem helper).
+  // `archive_reason` has no source_documents column (content_items-only —
+  // dropped at M6); archived_at/archived_by are the surviving pair.
   const archiveMetadata =
     publicationStatus === 'archived'
       ? {
           archived_at: new Date().toISOString(),
           archived_by: TEST_USER_1_ID,
-          archive_reason: `${RUN_PREFIX} — seeded archive for AC5.5 fixture`,
         }
       : {};
 
   const seedSlug = randomUUID();
-  const { data, error } = await serviceClient
-    .from('content_items')
+  const { data: sourceDoc, error: sourceDocError } = await serviceClient
+    .from('source_documents')
     .insert({
-      title: `${RUN_PREFIX} ${label}`,
-      content: `AC5.5 cadence cron exclusion fixture: ${label} (${RUN_PREFIX}). Disposable.`,
+      filename: `${RUN_PREFIX} ${label}.txt`,
+      mime_type: 'text/plain',
+      file_size: 1,
+      content_hash: `${RUN_PREFIX}-${seedSlug}`,
+      storage_path: `test-fixtures/${RUN_PREFIX}/${seedSlug}.txt`,
       content_type: 'article',
-      next_review_date: PAST_REVIEW_DATE,
-      review_cadence_days: REVIEW_CADENCE_DAYS,
-      governance_review_status: 'approved',
-      content_owner_id: TEST_USER_1_ID,
       publication_status: publicationStatus,
-      verified_at: null,
-      metadata: { test_run: RUN_PREFIX, seed_slug: seedSlug },
       ...archiveMetadata,
     })
-    .select('id, publication_status, archived_at, governance_review_status')
+    .select('id, publication_status, archived_at')
     .single();
 
-  if (error || !data) {
+  if (sourceDocError || !sourceDoc) {
     throw new Error(
-      `Seed item "${label}" failed: ${error?.message ?? 'no data'}`,
+      `Seed item "${label}" (source_documents) failed: ${sourceDocError?.message ?? 'no data'}`,
     );
   }
-  if (data.publication_status !== publicationStatus) {
+  if (sourceDoc.publication_status !== publicationStatus) {
     throw new Error(
-      `Seed item "${label}" baseline drift: requested ${publicationStatus}, got ${data.publication_status}`,
+      `Seed item "${label}" baseline drift: requested ${publicationStatus}, got ${sourceDoc.publication_status}`,
     );
   }
-  if (publicationStatus === 'archived' && data.archived_at === null) {
+  if (publicationStatus === 'archived' && sourceDoc.archived_at === null) {
     throw new Error(
       `Seed item "${label}" baseline drift: archived item must have archived_at set`,
     );
   }
-  if (data.governance_review_status !== 'approved') {
+
+  const { data: lifecycle, error: lifecycleError } = await serviceClient
+    .from('record_lifecycle')
+    .insert({
+      owner_kind: 'source_document',
+      owner_id: sourceDoc.id,
+      source_document_id: sourceDoc.id,
+      next_review_date: PAST_REVIEW_DATE,
+      review_cadence_days: REVIEW_CADENCE_DAYS,
+      governance_review_status: 'approved',
+      content_owner_id: TEST_USER_1_ID,
+      domain: `${RUN_PREFIX} ${seedSlug}`,
+    })
+    .select('governance_review_status')
+    .single();
+
+  if (lifecycleError || !lifecycle) {
     throw new Error(
-      `Seed item "${label}" baseline drift: requested status='approved', got ${data.governance_review_status}`,
+      `Seed item "${label}" (record_lifecycle) failed: ${lifecycleError?.message ?? 'no data'}`,
     );
   }
-  seededIds.push(data.id);
-  return data.id;
+  if (lifecycle.governance_review_status !== 'approved') {
+    throw new Error(
+      `Seed item "${label}" baseline drift: requested status='approved', got ${lifecycle.governance_review_status}`,
+    );
+  }
+
+  seededIds.push(sourceDoc.id);
+  return sourceDoc.id;
 }
 
 async function readGovernanceStatus(itemId: string): Promise<string | null> {
   const { data, error } = await serviceClient
-    .from('content_items')
+    .from('record_lifecycle')
     .select('governance_review_status')
-    .eq('id', itemId)
+    .eq('owner_kind', 'source_document')
+    .eq('source_document_id', itemId)
     .single();
   if (error || !data) {
     throw new Error(
@@ -225,13 +262,14 @@ afterAll(async () => {
   for (const itemId of seededIds) {
     await serviceClient.from('notifications').delete().eq('entity_id', itemId);
   }
-  // content_history rows are emitted by AFTER INSERT trigger; clean before
-  // the parent row.
+  // ID-131.19 M6 retirement: content_history/content_items DROPPED at M6.
+  // Clean the record_lifecycle facet row before the source_documents row.
   await serviceClient
-    .from('content_history')
+    .from('record_lifecycle')
     .delete()
-    .in('content_item_id', seededIds);
-  await serviceClient.from('content_items').delete().in('id', seededIds);
+    .eq('owner_kind', 'source_document')
+    .in('source_document_id', seededIds);
+  await serviceClient.from('source_documents').delete().in('id', seededIds);
 }, 30_000);
 
 // ---------------------------------------------------------------------------

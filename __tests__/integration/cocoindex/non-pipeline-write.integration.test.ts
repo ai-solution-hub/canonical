@@ -23,15 +23,20 @@
  *   - V1 (no audit_log): asserts via structured-log substrate (no audit
  *     rows exist for ANY writer — trivial pass with documented gap).
  *   - V1.1 (audit_log lives): asserts that a non-pipeline UPDATE on
- *     content_items produces an audit_log row with op_id=NULL.
+ *     source_documents produces an audit_log row with op_id=NULL
+ *     (ID-131.19 M6 retirement: content_items DROPPED at M6).
  *
  * Test strategy:
- *   1. Insert a fresh content_items row via the service-role client
+ *   1. Insert a fresh source_documents row via the service-role client
  *      directly (NOT via the pipeline) — this is the "non-pipeline write"
  *      surface.
  *   2. Query audit_log for an entry on that row.
  *   3. If audit_log exists, assert op_id IS NULL on that row.
  *   4. If audit_log doesn't exist (v1), document the v1 substrate gap.
+ *
+ * source_documents required NOT NULL columns (filename, mime_type,
+ * file_size, content_hash, storage_path) are supplied per the seeding
+ * convention established in publication-bulk-action.integration.test.ts.
  *
  * Env-gate: live Supabase ONLY. No staging Service or fixture-staging
  * required — the test creates its own non-pipeline write via the service-
@@ -67,13 +72,15 @@ afterAll(async () => {
   if (!ENABLED) return;
   if (seededContentIds.length === 0) return;
   const client = await createLiveServiceClient();
-  await client.from('content_items').delete().in('id', seededContentIds);
+  // ID-131.19 M6 retirement: content_items DROPPED at M6; seededContentIds
+  // holds source_documents.id values.
+  await client.from('source_documents').delete().in('id', seededContentIds);
 }, 30_000);
 
 describe.skipIf(!ENABLED)(
   'Inv-14 — non-pipeline writes produce audit_log rows with NULL op_id',
   () => {
-    it('a direct service-role INSERT on content_items produces an audit_log row with op_id IS NULL (v1.1 surface)', async () => {
+    it('a direct service-role INSERT on source_documents produces an audit_log row with op_id IS NULL (v1.1 surface)', async () => {
       const client = await createLiveServiceClient();
 
       // Probe audit_log existence — if absent (v1 environment), the v1
@@ -107,19 +114,19 @@ describe.skipIf(!ENABLED)(
         return;
       }
 
-      // V1.1 substrate: insert a non-pipeline content_items row directly
+      // V1.1 substrate: insert a non-pipeline source_documents row directly
       // via the service-role client. This is the "direct UI edit /
       // governance-cron update / non-cocoindex write path" surface.
+      // ID-131.19 M6 retirement: content_items DROPPED at M6; source_documents
+      // required NOT NULL columns (filename, mime_type, file_size,
+      // content_hash, storage_path) are supplied per the seeding convention
+      // established in publication-bulk-action.integration.test.ts.
       const directInsert = {
-        title: `${TEST_PREFIX} non-pipeline write test`,
-        // `content` is NOT NULL on content_items (schema baseline since the
-        // squash) — a direct INSERT omitting it fails with Postgres 23502
-        // before the audit-log surface can be exercised. Supply a minimal
-        // body so the row lands and the Inv-14 assertion below is reachable.
-        content: `${TEST_PREFIX} non-pipeline write body`,
-        // 'reference' is NOT in the content_items_valid_content_type CHECK
-        // set (the 15 ontology baseline values); use a valid neutral type so
-        // the row lands and the Inv-14 audit-log assertion below is reachable.
+        filename: `${TEST_PREFIX} non-pipeline write test.txt`,
+        mime_type: 'text/plain',
+        file_size: 1,
+        content_hash: `${TEST_PREFIX}-non-pipeline-write`,
+        storage_path: `test-fixtures/${TEST_PREFIX}/non-pipeline-write.txt`,
         content_type: 'note',
         primary_domain: 'general',
         // op_id intentionally OMITTED — this is the non-pipeline write
@@ -127,7 +134,7 @@ describe.skipIf(!ENABLED)(
       } as Record<string, unknown>;
 
       const { data: insertResult, error: insertError } = await client
-        .from('content_items')
+        .from('source_documents')
         .insert(directInsert)
         .select('id')
         .single();
@@ -137,16 +144,16 @@ describe.skipIf(!ENABLED)(
       // want to silently pass.
       expect(insertError).toBeNull();
       expect(insertResult).not.toBeNull();
-      const contentItemId = insertResult!.id as string;
-      seededContentIds.push(contentItemId);
+      const sourceDocumentId = insertResult!.id as string;
+      seededContentIds.push(sourceDocumentId);
 
       // Audit_log row for this insert MUST exist (audit-log surface is
       // coverage-complete across writers per Inv-14).
       const { data: auditRows } = await client
         .from('audit_log')
         .select('id, op_id, table_name, row_id, operation_type')
-        .eq('table_name', 'content_items')
-        .eq('row_id', contentItemId);
+        .eq('table_name', 'source_documents')
+        .eq('row_id', sourceDocumentId);
 
       expect(auditRows).not.toBeNull();
       expect(auditRows!.length).toBeGreaterThan(0);
@@ -158,8 +165,8 @@ describe.skipIf(!ENABLED)(
         expect(row.op_id).toBeNull();
         // Populated invariant: table-name, row-id, operation-type all
         // present (the audit row is meaningful even without op_id).
-        expect(row.table_name).toBe('content_items');
-        expect(row.row_id).toBe(contentItemId);
+        expect(row.table_name).toBe('source_documents');
+        expect(row.row_id).toBe(sourceDocumentId);
         expect(typeof row.operation_type).toBe('string');
         expect((row.operation_type as string).length).toBeGreaterThan(0);
       }

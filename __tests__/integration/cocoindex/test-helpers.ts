@@ -4,13 +4,14 @@
  * Shared utilities for the 16 Stage-5 invariant integration tests
  * (`__tests__/integration/cocoindex/*.integration.test.ts`). These build on
  * the ID-49.10 fixture-staging helper layer (`_helpers/fixture-staging.ts`)
- * which owns the file-drop → poll-content_items → drop lifecycle; this module
- * adds the `entity_mentions`-facing analogues the Stage-5 invariants need:
+ * which owns the file-drop → poll-source_documents → drop lifecycle (see its
+ * ID-131.19 M6 retarget note); this module adds the `entity_mentions`-facing
+ * analogues the Stage-5 invariants need:
  *
  *   - `pollEntityMentionsFor(...)` — analogue of `pollContentItemsFor` that
- *     polls `entity_mentions` by op_id, content_item id(s), OR the
- *     title-prefix → content_items → entity_mentions join, until at least one
- *     row lands (or the deadline is reached).
+ *     polls `entity_mentions` by op_id, source_document id(s), OR a
+ *     title-prefix → source_documents → entity_mentions join, until at least
+ *     one row lands (or the deadline is reached).
  *   - `assertOpIdRoundTrip(...)` — given an `entity_mentions.op_id`, asserts
  *     `pipeline_runs WHERE op_id = <value>` returns exactly one row (Inv-6).
  *   - `seedAliasMap(...)` / `cleanupAliasMap(...)` — INSERT active rows into
@@ -98,20 +99,19 @@ export interface PollEntityMentionsOpts {
   /** Match rows whose `op_id` equals this value (Inv-5 scope). */
   opId?: string;
   /**
-   * Match rows whose owning content_item is in this set. Values are
-   * `content_items.id` (matching `pollContentItemsFor`'s return shape) —
-   * resolved internally to the linked `source_document_id`(s), since
-   * `entity_mentions.source_document_id` is an FK to `source_documents`, NOT
-   * `content_items` (ID-131 M2 rename; entity_mentions/entity_relationships/
-   * content_chunks/classification_disputes/q_a_extractions all re-parented
-   * off content_item_id onto source_document_id — ID-131.26).
+   * Match rows whose `source_document_id` is in this set. Values are
+   * `source_documents.id` (matching `pollContentItemsFor`'s return shape —
+   * ID-131.19 M6 retarget; `entity_mentions.source_document_id` is a direct
+   * FK to `source_documents`, not the dropped `content_items` table).
    */
   contentItemIds?: string[];
   /**
-   * Match rows whose owning content_item's `title ILIKE '${titlePrefix}%'`.
-   * Resolved via a two-step query (content_items → source_document_id →
-   * entity_mentions) because `entity_mentions` carries no title column and
-   * is no longer directly keyed by content_items.id.
+   * Match rows whose owning `source_documents.filename ILIKE
+   * '${titlePrefix}%'`. Resolved via a single query (source_documents →
+   * entity_mentions) — `entity_mentions` carries no title column itself.
+   * ID-131.19 M6 retarget: this used to route through `content_items.title`
+   * (dropped); `source_documents.filename` is the direct equivalent (see
+   * `_helpers/fixture-staging.ts`'s `pollContentItemsFor` retarget note).
    */
   titlePrefix?: string;
   /** Maximum wait for at least one row, ms. Default 120_000. */
@@ -163,46 +163,26 @@ export async function pollEntityMentionsFor(
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    // Resolve the content_item id scope first when only a titlePrefix is
-    // given (entity_mentions has no title column).
-    let contentItemIds = opts.contentItemIds;
-    if (!opts.opId && !contentItemIds && opts.titlePrefix) {
-      const { data: items, error: itemsErr } = await client
-        .from('content_items')
+    // Resolve the source_documents id scope first when only a titlePrefix is
+    // given (entity_mentions has no title/filename column of its own).
+    // ID-131.19 M6 retarget: this used to be a two-step content_items ->
+    // source_document_id resolution (content_items dropped at M6);
+    // source_documents already carries both the filename to ILIKE-match AND
+    // the id entity_mentions.source_document_id references directly, so one
+    // lookup now suffices.
+    let sourceDocumentIds = opts.contentItemIds;
+    if (!opts.opId && !sourceDocumentIds && opts.titlePrefix) {
+      const { data: docs, error: docsErr } = await client
+        .from('source_documents')
         .select('id')
-        .ilike('title', `${opts.titlePrefix}%`);
-      if (itemsErr) {
+        .ilike('filename', `${opts.titlePrefix}%`);
+      if (docsErr) {
         throw new Error(
-          `pollEntityMentionsFor: content_items title lookup failed — ${itemsErr.message ?? String(itemsErr)}`,
+          `pollEntityMentionsFor: source_documents filename lookup failed — ${docsErr.message ?? String(docsErr)}`,
         );
       }
-      contentItemIds = (items ?? []).map((r) => r.id as string);
-      // No content_items yet → nothing to poll this cycle.
-      if (contentItemIds.length === 0) {
-        await sleep(pollIntervalMs);
-        continue;
-      }
-    }
-
-    // Resolve content_items.id -> the linked source_document_id(s).
-    // entity_mentions is keyed off source_document_id, not content_items.id
-    // (ID-131 M2 / ID-131.26) — content_items without a linked source
-    // document have no entity_mentions rows to find.
-    let sourceDocumentIds: string[] | undefined;
-    if (!opts.opId && contentItemIds && contentItemIds.length > 0) {
-      const { data: linkRows, error: linkErr } = await client
-        .from('content_items')
-        .select('source_document_id')
-        .in('id', contentItemIds);
-      if (linkErr) {
-        throw new Error(
-          `pollEntityMentionsFor: content_items source_document_id lookup failed — ${linkErr.message ?? String(linkErr)}`,
-        );
-      }
-      sourceDocumentIds = (linkRows ?? [])
-        .map((r) => r.source_document_id)
-        .filter((id): id is string => typeof id === 'string' && id.length > 0);
-      // No linked source_documents yet → nothing to poll this cycle.
+      sourceDocumentIds = (docs ?? []).map((r) => r.id as string);
+      // No source_documents yet → nothing to poll this cycle.
       if (sourceDocumentIds.length === 0) {
         await sleep(pollIntervalMs);
         continue;

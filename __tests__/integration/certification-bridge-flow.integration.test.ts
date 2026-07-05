@@ -38,18 +38,8 @@ const PAST_EXPIRY_DATE = '2023-01-01';
 // Shared state across sequential tests
 // ---------------------------------------------------------------------------
 
-const createdItemIds: string[] = [];
 const createdSourceDocumentIds: string[] = [];
 const createdEntityMentionIds: string[] = [];
-
-/**
- * content_items.id -> its linked source_documents.id (ID-131.26). The
- * bridge — and entity_mentions/entity_relationships in general — are keyed
- * off source_document_id, NOT content_items.id (M2 rename), so every
- * fixture content item in this suite needs a real linked source_documents
- * row for `bridgeTemporalReferencesToEntities` to find any rows to bridge.
- */
-const sourceDocumentIdByItemId = new Map<string, string>();
 
 // ---------------------------------------------------------------------------
 // Cleanup
@@ -72,13 +62,6 @@ afterAll(async () => {
         .from('entity_mentions')
         .delete()
         .in('source_document_id', createdSourceDocumentIds);
-    }
-
-    for (const itemId of createdItemIds) {
-      await serviceClient.from('content_items').delete().eq('id', itemId);
-    }
-
-    if (createdSourceDocumentIds.length > 0) {
       await serviceClient
         .from('source_documents')
         .delete()
@@ -90,12 +73,27 @@ afterAll(async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Helper: create a content item with temporal references in metadata,
-// linked to a real source_documents row (ID-131.26 — entity_mentions is
-// keyed off source_document_id, not content_items.id).
+// Helper: create a source_documents row with temporal references in
+// metadata.
+//
+// ID-131.19 M6 retirement note (S450 GO tail): this helper previously ALSO
+// created a `content_items` row (with the SAME metadata) and returned ITS
+// id, while `bridgeTemporalReferencesToEntities` — re-pointed at ID-131.17
+// onto `source_documents` directly — was called with that content_items id.
+// Since content_items.id was never equal to its own linked
+// source_documents.id, the bridge's `.from('source_documents').eq('id',
+// itemId)` lookup could never have found a row: this test suite has been
+// silently exercising a no-op bridge call since ID-131.17, independent of
+// the M6 content_items DROP (metadata assertions passed only because
+// `deriveExpiryStatus`/DB re-reads happened to key off the entity_mentions
+// row directly — see git history for the pre-fix shape). `content_items` is
+// now dropped entirely, which forced this fix: the metadata moves onto the
+// `source_documents` insert directly (the bridge's real read target) and
+// this helper returns the `source_documents.id`, restoring the intended
+// (and now actually exercised) T2.3b/T2.4b/T2.5b behaviour.
 // ---------------------------------------------------------------------------
 
-async function createContentItemWithTemporalRefs(
+async function createSourceDocumentWithTemporalRefs(
   title: string,
   temporalRefs: Array<{
     date: string;
@@ -121,6 +119,12 @@ async function createContentItemWithTemporalRefs(
       content_hash: `${TEST_PREFIX}-${title}`,
       storage_path: `test-fixtures/${TEST_PREFIX}/${title}.txt`,
       status: 'processed',
+      // The bridge reads `extraction_metadata` (source_documents has no
+      // `metadata` column of the same name as content_items did — see
+      // bridgeTemporalReferencesToEntities's ID-131.17 docstring).
+      extraction_metadata: {
+        ai_temporal_references: temporalRefs,
+      },
     })
     .select('id')
     .single();
@@ -130,48 +134,19 @@ async function createContentItemWithTemporalRefs(
       `Failed to create source document: ${sourceDocError.message}`,
     );
   createdSourceDocumentIds.push(sourceDoc!.id);
-
-  const { data, error } = await serviceClient
-    .from('content_items')
-    .insert({
-      title: `${TEST_PREFIX} ${title}`,
-      content: `${TEST_PREFIX} Test content for ${title}`,
-      content_type: 'policy',
-      platform: 'manual',
-      source_document_id: sourceDoc!.id,
-      metadata: {
-        ai_temporal_references: temporalRefs,
-      },
-    })
-    .select('id')
-    .single();
-
-  if (error) throw new Error(`Failed to create content item: ${error.message}`);
-  createdItemIds.push(data!.id);
-  sourceDocumentIdByItemId.set(data!.id, sourceDoc!.id);
-  return data!.id;
+  return sourceDoc!.id;
 }
 
 // ---------------------------------------------------------------------------
-// Helper: create an entity mention for a content item
+// Helper: create an entity mention for a source document
 // ---------------------------------------------------------------------------
 
 async function createEntityMention(
-  contentItemId: string,
+  sourceDocumentId: string,
   canonicalName: string,
   entityType: string,
   contextSnippet?: string,
 ): Promise<string> {
-  // entity_mentions.source_document_id is an FK to source_documents, NOT
-  // content_items (ID-131 M2 / ID-131.26) — resolve via the map populated
-  // by createContentItemWithTemporalRefs.
-  const sourceDocumentId = sourceDocumentIdByItemId.get(contentItemId);
-  if (!sourceDocumentId) {
-    throw new Error(
-      `createEntityMention: no linked source_document_id for content item ${contentItemId} — call createContentItemWithTemporalRefs first`,
-    );
-  }
-
   const { data, error } = await serviceClient
     .from('entity_mentions')
     .insert({
@@ -226,7 +201,7 @@ describe('Certification Bridge Flow — Real DB Integration', () => {
   // ---------------------------------------------------------------------------
   it('T2.3b: bridge populates expiry_date and deriveExpiryStatus returns correct status', async () => {
     // 1. Create content item with ISO 27001 expiry temporal reference
-    const itemId = await createContentItemWithTemporalRefs(
+    const itemId = await createSourceDocumentWithTemporalRefs(
       'ISO 27001 Certification Status',
       [
         {
@@ -274,7 +249,7 @@ describe('Certification Bridge Flow — Real DB Integration', () => {
     const { data: dbMentions, error: dbError } = await serviceClient
       .from('entity_mentions')
       .select('entity_name, entity_type, metadata')
-      .eq('source_document_id', sourceDocumentIdByItemId.get(itemId)!)
+      .eq('source_document_id', itemId)
       .eq('entity_type', 'certification');
 
     expect(dbError).toBeNull();
@@ -304,7 +279,7 @@ describe('Certification Bridge Flow — Real DB Integration', () => {
   // token → 0.5 coverage → 0.6 confidence).
   it('T2.4b: multiple certification entities get correct metadata and expiry_status', async () => {
     // 1. Create content item with temporal references for multiple certifications
-    const itemId = await createContentItemWithTemporalRefs(
+    const itemId = await createSourceDocumentWithTemporalRefs(
       'Multiple Certifications',
       [
         {
@@ -397,7 +372,7 @@ describe('Certification Bridge Flow — Real DB Integration', () => {
   // old dates are replaced.
   it('T2.5b: reclassification replaces old temporal references after re-bridge', async () => {
     // 1. Create content item with initial temporal reference
-    const itemId = await createContentItemWithTemporalRefs(
+    const itemId = await createSourceDocumentWithTemporalRefs(
       'ISO 27001 Reclassification Test',
       [
         {
@@ -429,12 +404,13 @@ describe('Certification Bridge Flow — Real DB Integration', () => {
     const firstMeta = firstBridge!.metadata as Record<string, unknown>;
     expect(firstMeta.expiry_date).toBe('2025-06-30');
 
-    // 5. Simulate reclassification: update temporal references in metadata
-    //    (this is what classifyContent does when force=true)
+    // 5. Simulate reclassification: update temporal references in
+    //    extraction_metadata (this is what classifyContent does when
+    //    force=true — re-pointed onto source_documents at ID-131.17).
     const { error: updateError } = await serviceClient
-      .from('content_items')
+      .from('source_documents')
       .update({
-        metadata: {
+        extraction_metadata: {
           ai_temporal_references: [
             {
               date: '2027-12-31',

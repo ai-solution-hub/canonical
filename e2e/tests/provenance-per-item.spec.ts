@@ -65,10 +65,14 @@ test.describe('Provenance -- Per-item tab', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    // workerData.articleId is the first seeded content item (IT Support Policy);
-    // the worker-scoped fixture seeds 12 content_items via `.throwOnError()`,
-    // so `articleId` is always present. Hard-expecting its truthiness lets a
-    // missing-fixture regression fail honestly rather than skip silently per
+    // workerData.articleId is the first seeded item (IT Support Policy).
+    // ID-131.19 M6 retirement: content_items DROPPED at M6; the
+    // worker-scoped fixture now seeds this item onto `source_documents`
+    // (test-data-fixture.ts) via `.throwOnError()`, which happens to match
+    // `/provenance`'s own ID-131.17 re-point onto `source_documents` — so
+    // `articleId` is both always present AND the correct id shape for this
+    // route. Hard-expecting its truthiness lets a missing-fixture
+    // regression fail honestly rather than skip silently per
     // `feedback_e2e_conditional_false_pass` (test-philosophy §2.1).
     const itemId = workerData.articleId;
     expect(

@@ -7,12 +7,27 @@
  *
  *   - `stageFixture(...)` — POSTs fixture metadata to the staging service so
  *     it lands in the cocoindex-watched corpus path.
- *   - `pollContentItemsFor(titlePrefix, opts?)` — polls `content_items` via
- *     the live service-role client until at least one row matching the
+ *   - `pollContentItemsFor(titlePrefix, opts?)` — polls `source_documents`
+ *     via the live service-role client until at least one row matching the
  *     prefix lands, or the deadline is reached.
- *   - `dropFixture({...})` — purges derivation rows + content_items rows
- *     for a single test fixture. Best-effort across tables; explicitly
+ *   - `dropFixture({...})` — purges derivation rows + `source_documents`
+ *     rows for a single test fixture. Best-effort across tables; explicitly
  *     scoped to a caller-supplied `contentIds` / `titlePrefix`.
+ *
+ * ID-131.19 M6 retirement note (S450 GO tail): `content_items` was DROPPED
+ * at M6. `pollContentItemsFor` / `dropFixture` are retained under their
+ * ORIGINAL names + signatures (dozens of Stage-5/chunking integration tests
+ * import them unchanged) but now read/write `source_documents` directly —
+ * the ingest pipeline's actual row-of-record post-ID-131 (entity_mentions /
+ * content_chunks / q_a_extractions all key off `source_document_id`, not a
+ * content_items id). The prior code already treated the ids these helpers
+ * exchange as `source_documents.id` in every FK-join call site (see
+ * `pollContentChunksFor`'s `.eq('source_document_id', contentItemId)` below,
+ * fed directly from this helper's return value) — this re-point makes that
+ * implicit equivalence the literal, honest one. Renaming the exports to
+ * `pollSourceDocumentsFor` / drop the `content`-flavoured naming entirely is
+ * a follow-up outside this Subtask's file-ownership boundary (would require
+ * touching every consumer test file, not just this helper).
  *
  * The helpers are env-gated: every caller MUST check `hasFixtureStagingUrl()`
  * (or the equivalent local env-gate) before invoking `stageFixture`. The
@@ -66,9 +81,10 @@ export interface StageFixtureArgs {
   destPath: string;
   /**
    * Title prefix the calling test will later poll for. The staging service
-   * may inject this into the file's title metadata (when the file format
-   * supports it) so the cocoindex pipeline produces a `content_items.title`
-   * that the poll matches via `ILIKE \`${titlePrefix}%\``.
+   * writes the fixture under a dest filename carrying this prefix, and the
+   * cocoindex pipeline stamps `source_documents.filename` from the ingested
+   * path basename, so the poll matches via `ILIKE \`${titlePrefix}%\`` on
+   * `filename` (post-ID-131.19 M6 retarget — was `content_items.title`).
    */
   titlePrefix: string;
 }
@@ -158,8 +174,9 @@ export async function stageFixture(
 export interface PollContentItemsOpts {
   /**
    * Maximum wait, in milliseconds, for at least one row to land. Defaults
-   * to 120_000 (matches the existing POLL_TIMEOUT_MS sentinel used in
-   * `inv-1-content-items-row-produced.integration.test.ts`).
+   * to 120_000 (matches the POLL_TIMEOUT_MS sentinel used across the
+   * cocoindex integration suite — formerly pinned to the now-retired
+   * `inv-1-content-items-row-produced.integration.test.ts`, ID-131.19 M6).
    */
   timeoutMs?: number;
   /**
@@ -177,10 +194,21 @@ const DEFAULT_TIMEOUT_MS = 120_000;
 const DEFAULT_POLL_INTERVAL_MS = 2_000;
 
 /**
- * Poll the `content_items` table via the live service-role client until at
- * least one row whose `title ILIKE '${titlePrefix}%'` lands, or the deadline
- * is reached. Resolves with the landed row set on success; rejects with a
- * timeout error otherwise.
+ * Poll the `source_documents` table via the live service-role client until
+ * at least one row whose `filename ILIKE '${titlePrefix}%'` lands, or the
+ * deadline is reached. Resolves with the landed row set on success; rejects
+ * with a timeout error otherwise.
+ *
+ * ID-131.19 M6 retarget: this originally polled `content_items.title`;
+ * `content_items` was DROPPED at M6. `source_documents.filename` is stamped
+ * from the ingested path basename (`file.file_path.path.name` in
+ * scripts/cocoindex_pipeline/flow.py), which is exactly the destination
+ * filename `stageFixture` callers construct from `titlePrefix` (e.g.
+ * `destPath: \`corpus/\${titlePrefix}.md\``), so the ILIKE-prefix match is
+ * unchanged in spirit. The returned `id` is now literally
+ * `source_documents.id` — every consumer already fed this value into FK
+ * joins keyed on `source_document_id` (see `pollContentChunksFor` below),
+ * so this is a correctness fix, not just a rename.
  *
  * Throws when live-DB credentials are not real (callers must env-gate via
  * `hasRealLiveDbCredentials()` first).
@@ -207,9 +235,9 @@ export async function pollContentItemsFor(
 
   while (Date.now() < deadline) {
     const { data, error } = await client
-      .from('content_items')
+      .from('source_documents')
       .select('id, op_id')
-      .ilike('title', `${titlePrefix}%`);
+      .ilike('filename', `${titlePrefix}%`);
 
     if (error) {
       // Surface PostgREST / network errors to the caller. Network-isolation
@@ -231,7 +259,7 @@ export async function pollContentItemsFor(
   }
 
   throw new Error(
-    `pollContentItemsFor: timed out after ${timeoutMs}ms waiting for content_items row with title ILIKE '${titlePrefix}%'`,
+    `pollContentItemsFor: timed out after ${timeoutMs}ms waiting for source_documents row with filename ILIKE '${titlePrefix}%'`,
   );
 }
 
@@ -355,24 +383,36 @@ export interface DropFixtureArgs {
    */
   titlePrefix: string;
   /**
-   * The content_items ids the test seeded. The cleanup runs PK-scoped
-   * deletes across derivation tables first (FK respect), then deletes the
-   * content_items rows themselves.
+   * The `source_documents` ids the test seeded (returned by
+   * `pollContentItemsFor` — see its ID-131.19 M6 retarget note). Named
+   * `contentIds` for caller-signature stability; the cleanup runs
+   * PK-scoped deletes across derivation tables first (FK respect), then
+   * deletes the `source_documents` rows themselves.
    */
   contentIds: string[];
 }
 
 /**
- * Purge derivation rows + content_items rows for a single test fixture.
- * Operates in two passes:
+ * Purge derivation rows + `source_documents` rows for a single test
+ * fixture. Operates in two passes:
  *
  *   1. Delete from derivation tables keyed by `source_document_id` IN
- *      (...contentIds): `q_a_extractions` and `source_documents`. Also
- *      attempts `entity_mentions` on a best-effort basis (ID-49.5 is
- *      currently deferred per S273 OQ-1 — the table or the FK may be
- *      absent; we swallow the resulting error rather than fail the
- *      cleanup pass).
- *   2. Delete from `content_items` by id.
+ *      (...contentIds): `q_a_extractions`. Also attempts `entity_mentions`
+ *      on a best-effort basis (ID-49.5 is currently deferred per S273 OQ-1
+ *      — the table or the FK may be absent; we swallow the resulting error
+ *      rather than fail the cleanup pass).
+ *   2. Delete from `source_documents` by id.
+ *
+ * ID-131.19 M6 retirement note (S450 GO tail): `content_items` was DROPPED
+ * at M6. The prior implementation's step 1c fetched
+ * `content_items.source_document_id` for the given `contentIds` and deleted
+ * `source_documents` by THAT resolved id — but every other call site in this
+ * module already treats `contentIds` as `source_documents.id` values
+ * directly (see the q_a_extractions/entity_mentions deletes below, both
+ * pre-existing and unchanged), so the fetch-then-resolve indirection was
+ * redundant even before M6. This version deletes `source_documents` by
+ * `contentIds` directly; the old final "content_items PK delete" pass is
+ * removed (the table no longer exists).
  *
  * Refuses to run when `contentIds` is empty OR `titlePrefix` is empty —
  * the helper MUST be scoped to a specific test fixture. Either an empty
@@ -439,48 +479,15 @@ export async function dropFixture(args: DropFixtureArgs): Promise<void> {
     );
   }
 
-  // 1c. source_documents — content_items.source_document_id → source_documents.id.
-  //      FK direction is reversed from the children above: fetch the
-  //      source_document_ids referenced by the content_items rows being
-  //      dropped, then delete from source_documents by id. Best-effort log
-  //      on error (matches the pattern of the q_a_extractions / entity_mentions
-  //      blocks above).
-  {
-    const { data: srcDocRows, error: srcDocFetchErr } = await client
-      .from('content_items')
-      .select('source_document_id')
-      .in('id', args.contentIds);
-    if (srcDocFetchErr) {
-      console.warn(
-        `dropFixture: source_documents id fetch warning — ${srcDocFetchErr.message ?? String(srcDocFetchErr)}`,
-      );
-    } else {
-      const srcDocIds = (srcDocRows ?? [])
-        .map((r) => r.source_document_id)
-        .filter((id): id is string => typeof id === 'string' && id.length > 0);
-      if (srcDocIds.length > 0) {
-        const { error: srcDocDelErr } = await client
-          .from('source_documents')
-          .delete()
-          .in('id', srcDocIds);
-        if (srcDocDelErr) {
-          console.warn(
-            `dropFixture: source_documents cleanup warning — ${srcDocDelErr.message ?? String(srcDocDelErr)}`,
-          );
-        }
-      }
-    }
-  }
-
-  // 2. content_items — final pass, PK delete.
+  // 2. source_documents — final pass, PK delete.
   {
     const { error } = await client
-      .from('content_items')
+      .from('source_documents')
       .delete()
       .in('id', args.contentIds);
     if (error) {
       console.warn(
-        `dropFixture: content_items cleanup warning — ${error.message ?? String(error)}`,
+        `dropFixture: source_documents cleanup warning — ${error.message ?? String(error)}`,
       );
     }
   }

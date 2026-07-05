@@ -107,7 +107,8 @@ describe.skipIf(!ENABLED)(
     it('produces exactly one pipeline_runs row scoped to the dropped file within the polling window', async () => {
       // Verifiable per Inv-1: poll `pipeline_runs` for a row that
       // references the newly-dropped fixture (via op_id linkage to a
-      // content_items row with the TEST_PREFIX title), within the polling
+      // source_documents row with the TEST_PREFIX filename — ID-131.19 M6
+      // retirement: content_items DROPPED at M6), within the polling
       // cadence window.
       const client = await createLiveServiceClient();
 
@@ -116,13 +117,14 @@ describe.skipIf(!ENABLED)(
         [];
 
       while (Date.now() < deadline) {
-        // Query content_items by title (the markdown fixture's H1 becomes
-        // the title via Docling/markdown direct ingest), then join back to
-        // pipeline_runs via op_id.
+        // Query source_documents by filename (the markdown fixture's H1
+        // becomes the title via Docling/markdown direct ingest, but
+        // source_documents has no title column — only filename), then join
+        // back to pipeline_runs via op_id.
         const { data: items } = await client
-          .from('content_items')
-          .select('id, op_id, title')
-          .ilike('title', `${TEST_PREFIX}%`);
+          .from('source_documents')
+          .select('id, op_id, filename')
+          .ilike('filename', `${TEST_PREFIX}%`);
 
         if (items && items.length > 0) {
           const opIds = items

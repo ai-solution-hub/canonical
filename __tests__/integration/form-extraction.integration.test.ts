@@ -421,12 +421,17 @@ describe.skipIf(!ENABLED)(
         // Light sanity: Path A (answered-form Q&A → q_a_extractions) is a
         // distinct write path the form-extraction work does not touch. The
         // canonical Path-A integration coverage lives in the cocoindex suite
-        // (inv-1-content-items-row-produced + the q_a_extractions tests) and
-        // in the Python gate test_cocoindex_flow_write_path.py. Here we assert
-        // only that staging a Mode-1 xlsx fixture still produces a
-        // content_items row — i.e. Path A coexists with the new form path.
-        // The assertion is corpus-agnostic (content_items row produced), so the
-        // EFA fixture stands in for the prior CSP fixture removed by ID-68.5.
+        // (the q_a_extractions tests) and in the Python gate
+        // test_cocoindex_flow_write_path.py — the sibling
+        // inv-1-content-items-row-produced.integration.test.ts was RETIRED
+        // under ID-131.19 (M6 dropped content_items outright; see that
+        // Subtask's journal). Here we assert only that staging a Mode-1 xlsx
+        // fixture still produces a `source_documents` row (ID-131.19 M6
+        // retarget: `pollContentItemsFor` now polls `source_documents`, not
+        // the dropped `content_items`) — i.e. Path A coexists with the new
+        // form path. The assertion is corpus-agnostic (a document row is
+        // produced), so the EFA fixture stands in for the prior CSP fixture
+        // removed by ID-68.5.
         const namePrefix = `[52.13-INV19-${RUN}]`;
         const { pollContentItemsFor, dropFixture } =
           await import('./cocoindex/_helpers/fixture-staging');
@@ -439,7 +444,8 @@ describe.skipIf(!ENABLED)(
           timeoutMs: POLL_TIMEOUT_MS,
         });
         expect(items.length).toBeGreaterThan(0);
-        // Clean up the Path-A content_items rows this sanity check seeded.
+        // Clean up the Path-A source_documents rows this sanity check seeded
+        // (ID-131.19 M6 retirement: content_items DROPPED at M6).
         await dropFixture({
           titlePrefix: namePrefix,
           contentIds: items.map((r) => r.id),

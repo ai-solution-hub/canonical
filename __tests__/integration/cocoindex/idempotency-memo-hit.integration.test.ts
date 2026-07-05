@@ -116,17 +116,12 @@ describe.skipIf(!ENABLED)(
           /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
         );
 
-        // q_a_extractions.source_document_id is an FK to source_documents,
-        // NOT content_items (ID-131 M2 / ID-131.26) — resolve the content
-        // item's linked source_document_id once and use it for both
-        // extraction-count reads below.
-        const { data: sourceDocLink, error: sourceDocLinkErr } = await client
-          .from('content_items')
-          .select('source_document_id')
-          .eq('id', initialRow.id)
-          .maybeSingle();
-        expect(sourceDocLinkErr).toBeNull();
-        const sourceDocumentId = sourceDocLink?.source_document_id;
+        // ID-131.19 M6 retirement: `content_items` was DROPPED at M6.
+        // `pollContentItemsFor` (see _helpers/fixture-staging.ts's M6
+        // retarget note) already returns the `source_documents.id`
+        // directly, so `initialRow.id` IS the source_document_id —
+        // no separate resolution query is needed anymore.
+        const sourceDocumentId = initialRow.id;
         expect(sourceDocumentId).toBeTruthy();
 
         // Capture pre-second-pass q_a_extractions row count for the
@@ -149,9 +144,10 @@ describe.skipIf(!ENABLED)(
         // ---------------------------------------------------------------
         await new Promise((resolve) => setTimeout(resolve, 10_000));
 
-        // OQ-A RATIFIED ASSERTION — content_items.op_id is STILL A.
+        // OQ-A RATIFIED ASSERTION — source_documents.op_id is STILL A
+        // (ID-131.19 M6 retirement: content_items DROPPED at M6).
         const { data: postRow, error: postErr } = await client
-          .from('content_items')
+          .from('source_documents')
           .select('id, op_id')
           .eq('id', initialRow.id)
           .maybeSingle();
@@ -177,22 +173,23 @@ describe.skipIf(!ENABLED)(
         expect(extractionsAfter).toBe(extractionsBefore);
 
         // Secondary (S274 nit #3 — pipeline_runs distinct op_id
-        // assertion). The memo-hit short-circuit means the content_items
+        // assertion). The memo-hit short-circuit means the source_documents
         // row's op_id stays at A, but the second incremental pass STILL
         // produces its own pipeline_runs row stamped with op_id=B. The
         // distinct op_id count across pipeline_runs scoped to the test
-        // prefix's content_items therefore reflects the number of
+        // prefix's source_documents therefore reflects the number of
         // distinct OPERATIONS observed against this fixture. Inv-4
         // verifiability semantic: every pipeline_runs row whose op_id
-        // landed on the content_items row carries the SAME (A) op_id —
+        // landed on the source_documents row carries the SAME (A) op_id —
         // because the memo-hit path did not re-stamp the row. The
-        // distinct count over content_items.op_id values is therefore
+        // distinct count over source_documents.op_id values is therefore
         // exactly 1 (just A), regardless of how many pipeline_runs rows
-        // exist for this title prefix.
+        // exist for this title prefix. (ID-131.19 M6 retirement:
+        // content_items DROPPED at M6; filename replaces title.)
         const { data: rowsByPrefix, error: rowsErr } = await client
-          .from('content_items')
+          .from('source_documents')
           .select('op_id')
-          .ilike('title', `${TEST_PREFIX}%`);
+          .ilike('filename', `${TEST_PREFIX}%`);
         expect(rowsErr).toBeNull();
         const distinctOpIds = new Set(
           (rowsByPrefix ?? [])

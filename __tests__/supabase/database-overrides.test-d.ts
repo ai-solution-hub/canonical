@@ -43,8 +43,10 @@ type _AssertWorkspacesDomainMetadata = Expect<
   Equal<WorkspacesDomainMetadata, ProcurementMetadata | null>
 >;
 
-// content_items.Row.summary_data resolves to SummaryData | null (not Json).
-type ContentItemsSummaryData = Tables<'content_items'>['summary_data'];
+// source_documents.Row.summary_data resolves to SummaryData | null (not
+// Json). ID-131.19 M6 retirement: content_items DROPPED at M6; the
+// override moved to source_documents (see database-overrides.ts).
+type ContentItemsSummaryData = Tables<'source_documents'>['summary_data'];
 type _AssertContentItemsSummaryData = Expect<
   Equal<ContentItemsSummaryData, SummaryData | null>
 >;

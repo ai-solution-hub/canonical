@@ -6,10 +6,11 @@
  *
  * Per the dispatch brief, `extractor-version-cross-ref.integration.test.ts`
  * is an explicit Inv-14 angle: a forensic consumer should be able to
- * resolve from any content_items row → its pipeline_runs row → the
- * extractor build that produced it. This is the cross-reference angle of
- * Inv-14 ("audit-log surface is coverage-complete across writers"), as
- * applied to extractor-version forensics.
+ * resolve from any source_documents row (ID-131.19 M6 retirement:
+ * content_items DROPPED at M6) → its pipeline_runs row → the extractor
+ * build that produced it. This is the cross-reference angle of Inv-14
+ * ("audit-log surface is coverage-complete across writers"), as applied to
+ * extractor-version forensics.
  *
  * Inv-14 statement (verbatim from
  * `docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md`):
@@ -24,11 +25,11 @@
  * pipeline_runs row whose `result` JSONB carries the extractor-version
  * metadata (Inv-8). This test exercises that full forensic chain:
  *
- *   content_items.op_id → pipeline_runs.op_id → pipeline_runs.result
+ *   source_documents.op_id → pipeline_runs.op_id → pipeline_runs.result
  *     → extractor identification field
  *
  * Test strategy:
- *   For each recent content_items row with op_id stamped, traverse to
+ *   For each recent source_documents row with op_id stamped, traverse to
  *   pipeline_runs and assert the extractor-version metadata is present.
  *
  * Env-gate: live Supabase only (reads existing data). No staging Service
@@ -67,15 +68,15 @@ const EXTRACTOR_ID_KEYS = [
 ] as const;
 
 describe.skipIf(!ENABLED)(
-  'Inv-14 + Inv-8 cross-ref — content_items.op_id → pipeline_runs → extractor-version metadata',
+  'Inv-14 + Inv-8 cross-ref — source_documents.op_id → pipeline_runs → extractor-version metadata',
   () => {
-    it('every content_items row with op_id stamped resolves to a pipeline_runs row carrying extractor identification', async () => {
+    it('every source_documents row with op_id stamped resolves to a pipeline_runs row carrying extractor identification', async () => {
       const client = await createLiveServiceClient();
 
-      // Find recent content_items rows from the cocoindex pipeline path
-      // (op_id stamped).
+      // Find recent source_documents rows from the cocoindex pipeline path
+      // (op_id stamped). ID-131.19 M6 retirement: content_items DROPPED at M6.
       const { data: items, error } = await client
-        .from('content_items')
+        .from('source_documents')
         .select('id, op_id')
         .not('op_id', 'is', null)
         .order('created_at', { ascending: false })
@@ -100,7 +101,7 @@ describe.skipIf(!ENABLED)(
         return;
       }
 
-      // For each content_items row, resolve to the pipeline_runs row
+      // For each source_documents row, resolve to the pipeline_runs row
       // via op_id and assert extractor metadata is present.
       let rowsResolved = 0;
       let rowsCheckedWithExtractorId = 0;
@@ -114,14 +115,14 @@ describe.skipIf(!ENABLED)(
           .limit(1);
 
         if (!runs || runs.length === 0) {
-          // Forensic-chain orphan: content_items has an op_id but no
+          // Forensic-chain orphan: source_documents has an op_id but no
           // pipeline_runs row resolves. This is stale CI-DB data (a
           // truncated/pruned pipeline_runs history), not a code regression,
           // so scope it OUT rather than asserting global forensic
           // completeness — the assertion below holds only over rows whose
           // chain actually resolves.
           console.warn(
-            `Inv-14/Inv-8 cross-ref: skipping orphan op_id — content_items ${item.id} has op_id=${opId} with no resolving pipeline_runs row`,
+            `Inv-14/Inv-8 cross-ref: skipping orphan op_id — source_documents ${item.id} has op_id=${opId} with no resolving pipeline_runs row`,
           );
           continue;
         }
@@ -145,12 +146,12 @@ describe.skipIf(!ENABLED)(
       // here would fail on stale data rather than a real cross-ref regression.
       if (rowsResolved === 0) {
         console.warn(
-          'Inv-14/Inv-8 cross-ref: skipping — no sampled content_items op_id resolved to a pipeline_runs row (stale CI-DB data)',
+          'Inv-14/Inv-8 cross-ref: skipping — no sampled source_documents op_id resolved to a pipeline_runs row (stale CI-DB data)',
         );
         return;
       }
 
-      // Inv-14 + Inv-8 verifiability: over the RESOLVED content_items → run
+      // Inv-14 + Inv-8 verifiability: over the RESOLVED source_documents → run
       // chains, at least one MUST land an extractor-version field. Zero proves
       // the cross-ref surface is broken (extractor identification not landing
       // per Inv-8). The exact ratio depends on when the 28.13 wiring landed
