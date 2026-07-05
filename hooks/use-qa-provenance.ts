@@ -35,19 +35,6 @@ export interface UseQAProvenanceReturn {
 }
 
 // ---------------------------------------------------------------------------
-// Types for Supabase join query
-// ---------------------------------------------------------------------------
-
-interface WorkspaceJoinRow {
-  workspace_id: string;
-  workspaces: {
-    id: string;
-    name: string;
-    application_types: { key: string } | { key: string }[] | null;
-  } | null;
-}
-
-// ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
 
@@ -69,42 +56,20 @@ export function useQAProvenance({
 
   // -----------------------------------------------------------------------
   // Query 1: Workspaces (bids) using this Q&A pair
+  //
+  // ID-131.19 (M6, S450 GO tail): content_item_workspaces DROPPED — the S440
+  // owner ruling accepted this breakage and the rebind to the new
+  // workspace-membership model is owned by {135.22}. This hook has NO
+  // production caller today (see the Query 2 comment below — the IMS
+  // item-detail surface it served was deleted at {131.17}), so the query is
+  // stubbed to an always-empty result rather than rebuilt. `usedInWorkspaces`
+  // stays part of the public return shape for whoever wires a live caller.
   // -----------------------------------------------------------------------
   const workspacesQuery = useQuery({
     queryKey: queryKeys.qaProvenance.workspaces(itemId),
-    queryFn: async () => {
-      const supabase = createClient();
-      // Post-T2: workspaces.type column dropped — read application_types.key
-      // via nested JOIN. 'bid' maps to 'procurement' per Q-OQR1-02.
-      const { data } = await supabase
-        .from('content_item_workspaces')
-        // Embed by relation name, not FK column: the client runs in the `api`
-        // schema (lib/supabase/schema.ts), whose views carry no FK constraints,
-        // so `workspaces:workspace_id` 400s with PGRST200. The single FK makes
-        // `workspaces` unambiguous.
-        .select('workspace_id, workspaces(id, name, application_types(key))')
-        .eq('content_item_id', itemId);
-      if (!data) return [];
-      return (data as unknown as WorkspaceJoinRow[])
-        .map((d) => d.workspaces)
-        .filter((w): w is NonNullable<WorkspaceJoinRow['workspaces']> => {
-          if (!w) return false;
-          const appType = Array.isArray(w.application_types)
-            ? (w.application_types[0] ?? null)
-            : w.application_types;
-          return appType?.key === 'procurement';
-        })
-        .map((w) => {
-          const appType = Array.isArray(w.application_types)
-            ? (w.application_types[0] ?? null)
-            : w.application_types;
-          return {
-            id: w.id,
-            name: w.name,
-            type: appType?.key ?? 'procurement',
-          };
-        });
-    },
+    queryFn: async (): Promise<
+      Array<{ id: string; name: string; type: string }>
+    > => [],
     enabled: isQAPair,
     staleTime: 30_000,
   });

@@ -1,28 +1,42 @@
-import type { Database } from '@/supabase/types/database.types';
 import type { PublicationStatus } from '@/lib/governance/publication-transitions';
 
-type ContentItemRow = Database['public']['Tables']['content_items']['Row'];
+// content_items (the former IMS content table) was DROPPED at M6 (ID-131.19,
+// S450 GO tail). This type module has been UI-facing-shape-only for a while:
+// `ContentListItem` is consumed by ~10 files (app/library/library-content.tsx,
+// components/content/content-library-{result,drawer}.tsx,
+// components/qa/qa-row.tsx, components/shell/collapsible-group.tsx,
+// hooks/use-{library-data,library-bulk-actions,search,transcript}.ts,
+// lib/ai/summarise.ts) that already map OTHER tables (q_a_pairs,
+// source_documents, hybrid_search RPC rows) onto this shape — see e.g.
+// `mapQAPairToContentListItem` in hooks/use-library-data.ts (ID-131 {131.21}
+// G-MANUAL-QA) — none of them derive it from a live `content_items` row any
+// more (grepped clean). The field types below are HAND-WRITTEN, preserving
+// the exact historical `content_items.Row` shape (pre-M6 — the field types
+// this interface's `Database['public']['Tables']['content_items']['Row']`
+// lookups used to resolve to) so no consumer's structural typing changes;
+// only the derivation mechanism (a lookup against a now-dropped table) is
+// removed.
 
 /** Display-optimised subset for list/grid views */
 export interface ContentListItem {
-  id: ContentItemRow['id'];
-  title: ContentItemRow['title'];
-  suggested_title: ContentItemRow['suggested_title'];
-  summary: ContentItemRow['summary'];
-  primary_domain: ContentItemRow['primary_domain'];
-  primary_subtopic: ContentItemRow['primary_subtopic'];
-  content_type: ContentItemRow['content_type'];
-  platform: ContentItemRow['platform'];
-  author_name: ContentItemRow['author_name'];
-  source_domain: ContentItemRow['source_domain'];
-  thumbnail_url: ContentItemRow['thumbnail_url'];
-  captured_date: ContentItemRow['captured_date'];
-  ai_keywords: ContentItemRow['ai_keywords'];
-  classification_confidence: ContentItemRow['classification_confidence'];
-  priority: ContentItemRow['priority'];
-  freshness: ContentItemRow['freshness'];
-  user_tags: ContentItemRow['user_tags'];
-  governance_review_status: ContentItemRow['governance_review_status'];
+  id: string;
+  title: string;
+  suggested_title: string | null;
+  summary: string | null;
+  primary_domain: string;
+  primary_subtopic: string;
+  content_type: string;
+  platform: string | null;
+  author_name: string | null;
+  source_domain: string | null;
+  thumbnail_url: string | null;
+  captured_date: string | null;
+  ai_keywords: string[] | null;
+  classification_confidence: number | null;
+  priority: string | null;
+  freshness: string | null;
+  user_tags: string[] | null;
+  governance_review_status: string | null;
   metadata: Record<string, unknown> | null;
   /** ISO timestamp when the item was verified, null if unverified */
   verified_at?: string | null;
@@ -217,28 +231,9 @@ export interface BrowseFilters {
   order?: 'asc' | 'desc';
 }
 
-/** Columns selected for list/grid views */
-export const CONTENT_LIST_COLUMNS = `
-  id, title, suggested_title, summary,
-  primary_domain, primary_subtopic, content_type, platform,
-  author_name, source_domain, thumbnail_url, captured_date,
-  ai_keywords, classification_confidence, priority, freshness, user_tags, governance_review_status, metadata,
-  verified_at, verified_by, brief, content,
-  answer_standard, answer_advanced,
-  content_owner_id, quality_score,
-  source_document_id, citation_count, source_file,
-  layer, starred,
-  next_review_date, review_cadence_days,
-  publication_status
-` as const;
-
-/** Columns selected for detail view */
-export const CONTENT_DETAIL_COLUMNS = `
-  ${CONTENT_LIST_COLUMNS},
-  source_url, file_path, secondary_domain, secondary_subtopic,
-  classification_reasoning, classified_at, summary_data,
-  created_at, updated_at, created_by, updated_by,
-  detail, reference,
-  governance_review_status, governance_review_due, governance_reviewer_id,
-  source_document_id, expiry_date, lifecycle_type
-` as const;
+// CONTENT_LIST_COLUMNS / CONTENT_DETAIL_COLUMNS RETIRED (ID-131.19, M6, S450
+// GO tail): both were `.select()` projection strings against `content_items`
+// (dropped table). Dead residue — grepped clean of any live `.select()`
+// caller; their sole other reference was a stale test-premise "regression
+// guard" in __tests__/components/shared/publication-status-badge.test.tsx
+// (also retired alongside this).

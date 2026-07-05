@@ -421,7 +421,7 @@ export async function registerProcurementTools(
     {
       title: 'Cite Content',
       description:
-        'Record that a knowledge base content item was used when drafting a form response. This tracks which content contributes to responses and enables win rate analysis. Requires editor or admin role. Note: if the same content_item_id + form_response_id pair is cited again, the existing citation is updated (upsert) — re-citing with a different citation_type will silently overwrite the previous type.',
+        'Record that a knowledge base Q&A pair was used when drafting a form response. This tracks which content contributes to responses and enables win rate analysis. Requires editor or admin role. Note: if the same content_item_id + form_response_id pair is cited again, the existing citation is updated (upsert) — re-citing with a different citation_type will silently overwrite the previous type.',
       inputSchema: {
         content_item_id: z
           .string()
@@ -456,12 +456,22 @@ export async function registerProcurementTools(
         const supabase = createMcpClient(extra.authInfo);
         const userId = getMcpUserId(extra.authInfo);
 
+        // ID-131.19 (M6, S450 GO tail): cited_kind='content_item' +
+        // cited_content_item_id were DROPPED at M6 — the CHECK constraint no
+        // longer permits the 'content_item' branch at all. Re-anchored onto
+        // 'q_a_pair' (cited_q_a_pair_id), mirroring the ALREADY-shipped
+        // production writer at app/api/procurement/[id]/responses/
+        // draft-stream/route.ts ({131.16} BI-29), which stopped writing
+        // content_item rows before this column even dropped. The external
+        // arg stays `content_item_id`-shaped (full surface rename to
+        // q_a_pair_id is ID-131.11 scope) — same convention already used by
+        // the sibling get_content_effectiveness tool below.
         const insertData: Database['public']['Tables']['citations']['Insert'] =
           {
             citing_kind: 'form_response',
             citing_form_response_id: args.form_response_id,
-            cited_kind: 'content_item',
-            cited_content_item_id: args.content_item_id,
+            cited_kind: 'q_a_pair',
+            cited_q_a_pair_id: args.content_item_id,
             citation_type: args.citation_type ?? 'reference',
             created_by: userId,
           };
@@ -469,17 +479,16 @@ export async function registerProcurementTools(
         const { data: citation, error } = await supabase
           .from('citations')
           .upsert(insertData, {
-            onConflict: 'citing_form_response_id,cited_content_item_id',
+            onConflict: 'citing_form_response_id,cited_q_a_pair_id',
           })
           .select(
             // ID-131.28 (G-CITE-READERS): select all four per-kind target
             // columns from the extended cited_target_kind contract ({131.10}
-            // M4b), not just cited_content_item_id — this tool still only
-            // ever writes cited_kind='content_item' rows itself, but
-            // CitationResult/formatCitation are the shared read/display shape
-            // for ANY citations row, so the reader must not assume
-            // content_item is the only populated kind.
-            'id, cited_kind, cited_content_item_id, cited_q_a_pair_id, cited_reference_item_id, cited_source_document_id, cited_concept_path, citing_kind, citing_form_response_id, citation_type, cited_version',
+            // M4b) — this tool only ever writes cited_kind='q_a_pair' rows
+            // itself, but CitationResult/formatCitation are the shared
+            // read/display shape for ANY citations row, so the reader must
+            // not assume q_a_pair is the only populated kind.
+            'id, cited_kind, cited_q_a_pair_id, cited_reference_item_id, cited_source_document_id, cited_concept_path, citing_kind, citing_form_response_id, citation_type, cited_version',
           )
           .single();
 
@@ -498,7 +507,6 @@ export async function registerProcurementTools(
         const result: CitationResult = {
           id: citation.id,
           cited_kind: citation.cited_kind,
-          cited_content_item_id: citation.cited_content_item_id,
           cited_q_a_pair_id: citation.cited_q_a_pair_id,
           cited_reference_item_id: citation.cited_reference_item_id,
           cited_source_document_id: citation.cited_source_document_id,

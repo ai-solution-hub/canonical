@@ -48,7 +48,6 @@ import {
   defineTool,
   READ_ONLY_ANNOTATIONS,
 } from './shared';
-import { logger } from '@/lib/logger';
 
 // ---------------------------------------------------------------------------
 // Load domain names from DB at registration time so tool descriptions stay
@@ -182,35 +181,15 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
         });
       }
 
-      // Post-filter by workspace if specified (AND logic with scope/type)
-      // TODO(131.18): content_item_workspaces is dropped by G-MANUAL-REMOVE
-      // (ID-131.18); workspace membership re-homes onto the typed L-records
-      // substrate then. Left intact here (cross-slice — NOT rebuilt in this
-      // subtask); the lookup degrades gracefully if the table is already gone.
-      if (args.workspace_id) {
-        const junctionResult = await tryQuery(
-          supabase
-            .from('content_item_workspaces')
-            .select('content_item_id')
-            .eq('workspace_id', args.workspace_id),
-          'mcp.find.workspace_junction',
-        );
-        if (!junctionResult.ok) {
-          logger.warn(
-            { err: junctionResult.error.message },
-            '[mcp.find.workspace_junction] degraded — no workspace filter applied',
-          );
-        } else {
-          const workspaceItemIds = new Set(
-            (junctionResult.data ?? []).map(
-              (row: { content_item_id: string }) => row.content_item_id,
-            ),
-          );
-          filtered = filtered.filter((r: Record<string, unknown>) =>
-            workspaceItemIds.has(r.id as string),
-          );
-        }
-      }
+      // Post-filter by workspace RETIRED (ID-131.19, M6, S450 GO tail):
+      // content_item_workspaces was DROPPED — the TODO(131.18) above already
+      // anticipated this and the "degrades gracefully" fallback this block
+      // relied on is no longer reachable (the table doesn't exist in the
+      // generated types at all, so the query can't even compile). Workspace-
+      // scoped search filtering has no logical successor yet (typed
+      // L-records re-home per {131.18}/{135.22}) — `args.workspace_id` is a
+      // no-op for this post-filter until that rebind lands (it is still used
+      // above to derive the ranking `application_type`).
 
       // Apply pagination via slice
       const totalFiltered = filtered.length;
@@ -663,7 +642,7 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
           .uuid()
           .optional()
           .describe(
-            'Filter results to a specific workspace (item granularity). Items matched via the content_item_workspaces junction table.',
+            'Derives the ranking profile from the workspace application type (item granularity). ID-131.19 (M6): the former workspace-scoped item post-filter (content_item_workspaces junction table) is retired — this no longer restricts results to items assigned to the workspace, only influences ranking.',
           ),
         content_item_id: z
           .string()

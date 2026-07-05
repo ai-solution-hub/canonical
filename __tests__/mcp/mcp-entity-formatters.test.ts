@@ -343,9 +343,8 @@ describe('formatEntityOverview', () => {
 describe('formatCitation', () => {
   const sampleCitation: CitationResult = {
     id: 'cit-001',
-    cited_kind: 'content_item',
-    cited_content_item_id: 'item-abc-123',
-    cited_q_a_pair_id: null,
+    cited_kind: 'q_a_pair',
+    cited_q_a_pair_id: 'qap-abc-123',
     cited_reference_item_id: null,
     cited_source_document_id: null,
     cited_concept_path: null,
@@ -359,8 +358,8 @@ describe('formatCitation', () => {
     const result = formatCitation(sampleCitation);
 
     expect(result).toContain('# Citation Recorded');
-    expect(result).toContain('**Cited kind:** content_item');
-    expect(result).toContain('**Content item:** item-abc-123');
+    expect(result).toContain('**Cited kind:** q_a_pair');
+    expect(result).toContain('**Q&A pair:** qap-abc-123');
     expect(result).toContain('**Citing kind:** form_response');
     expect(result).toContain('**Procurement response:** resp-xyz-456');
     expect(result).toContain('**Type:** reference');
@@ -372,9 +371,8 @@ describe('formatCitation', () => {
   it('returns item ID and response ID in output', () => {
     const citation: CitationResult = {
       id: 'cit-999',
-      cited_kind: 'content_item',
-      cited_content_item_id: 'content-id-abc',
-      cited_q_a_pair_id: null,
+      cited_kind: 'q_a_pair',
+      cited_q_a_pair_id: 'qap-id-abc',
       cited_reference_item_id: null,
       cited_source_document_id: null,
       cited_concept_path: null,
@@ -386,16 +384,41 @@ describe('formatCitation', () => {
 
     const result = formatCitation(citation);
 
-    expect(result).toContain('content-id-abc');
+    expect(result).toContain('qap-id-abc');
     expect(result).toContain('response-id-def');
     expect(result).toContain('**Type:** adapted');
   });
 
+  // ID-131.19 (M6, S450 GO tail): 'content_item' retired — the
+  // cited_content_item_id column was dropped and the CHECK constraint no
+  // longer permits new rows of this kind. A pre-M6 legacy row may still
+  // carry cited_kind='content_item' (the DB enum label survives), but it has
+  // no renderable target column left — this must render a "retired" label
+  // rather than crash or show a blank/undefined field.
+  it('renders a retired legacy content_item citation without a target column', () => {
+    const citation: CitationResult = {
+      id: 'cit-legacy-1',
+      cited_kind: 'content_item',
+      cited_q_a_pair_id: null,
+      cited_reference_item_id: null,
+      cited_source_document_id: null,
+      cited_concept_path: null,
+      citing_kind: 'form_response',
+      citing_form_response_id: 'resp-legacy-1',
+      citation_type: 'reference',
+      cited_version: null,
+    };
+
+    const result = formatCitation(citation);
+
+    expect(result).toContain('**Cited kind:** content_item');
+    expect(result).toContain('**Content item (retired):** —');
+  });
+
   // ID-131.28 (G-CITE-READERS) — the extended cited_target_kind contract
   // ({131.10} M4b) added q_a_pair/reference_item/source_document/concept
-  // kinds. Citations of these kinds were previously INVISIBLE to this
-  // formatter (it only ever displayed cited_content_item_id). Each kind
-  // must now render its own populated column, not a blank/undefined field.
+  // kinds. Each kind must render its own populated column, not a
+  // blank/undefined field.
   it.each([
     {
       cited_kind: 'q_a_pair',
@@ -427,7 +450,6 @@ describe('formatCitation', () => {
       const citation: CitationResult = {
         id: 'cit-ext-1',
         cited_kind,
-        cited_content_item_id: null,
         cited_q_a_pair_id: null,
         cited_reference_item_id: null,
         cited_source_document_id: null,

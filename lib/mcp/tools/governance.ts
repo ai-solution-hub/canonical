@@ -516,14 +516,20 @@ export async function registerGovernanceTools(
                 }
               }
 
-              // Update: set embedding (q_a_pair only) and, when row is
-              // currently `'draft'`, promote publication_status='published'.
-              // Conditional spread ensures already-published / in_review
-              // rows are NOT touched on publication_status (no-op for those
-              // branches). `governance_review_status` no longer lives on
-              // this table — cleared via the record_lifecycle facet below.
-              // Split by owner kind: `updated_by` exists on source_documents
-              // but NOT on q_a_pairs (ID-131 content-drift — no home there).
+              // Update: promote publication_status='published' when row is
+              // currently `'draft'`. Conditional spread ensures
+              // already-published / in_review rows are NOT touched on
+              // publication_status (no-op for those branches).
+              // `governance_review_status` no longer lives on this table —
+              // cleared via the record_lifecycle facet below. Split by owner
+              // kind: `updated_by` exists on source_documents but NOT on
+              // q_a_pairs (ID-131 content-drift — no home there).
+              //
+              // ID-131.19 (M6, S450 GO tail): q_a_pairs.question_embedding
+              // was DROPPED — the inline-column write is removed from this
+              // UPDATE; the record_embeddings dual-write below (mirroring
+              // lib/q-a-pairs/promote-corpus.ts's embedAndPublish) is now the
+              // sole write path hybrid_search's q_a_pair arm reads.
               const publishPromotion =
                 row.publication_status === 'draft'
                   ? { publication_status: 'published' as const }
@@ -540,7 +546,6 @@ export async function registerGovernanceTools(
                   : await supabase
                       .from('q_a_pairs')
                       .update({
-                        question_embedding: JSON.stringify(embedding),
                         ...publishPromotion,
                       } satisfies Database['public']['Tables']['q_a_pairs']['Update'])
                       .eq('id', itemId);
@@ -553,6 +558,30 @@ export async function registerGovernanceTools(
                   error: updateError.message,
                 });
                 continue;
+              }
+
+              // ID-131.19: dual-write the freshly generated embedding into
+              // the polymorphic record_embeddings store (the q_a_pair inline
+              // column is gone). Best-effort — a failure here must NOT
+              // un-publish a pair that already published successfully above.
+              if (row.ownerKind === 'q_a_pair' && embedding) {
+                const { error: recordEmbeddingError } = await supabase
+                  .from('record_embeddings')
+                  .upsert(
+                    {
+                      owner_kind: 'q_a_pair',
+                      owner_id: itemId,
+                      model: 'text-embedding-3-large',
+                      embedding: JSON.stringify(embedding),
+                    },
+                    { onConflict: 'owner_kind,owner_id,model' },
+                  );
+                if (recordEmbeddingError) {
+                  logger.warn(
+                    { err: recordEmbeddingError, itemId },
+                    'review_governance_item: record_embeddings dual-write failed',
+                  );
+                }
               }
 
               // ID-131 BI-18: governance_review_status now lives on the

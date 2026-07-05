@@ -60,7 +60,7 @@ const MOCK_ARTICLE = {
   ai_summary: 'The government has announced new cybersecurity regulations.',
   ingested_at: '2026-03-15T10:00:00Z',
   published_at: '2026-03-14T09:00:00Z',
-  content_item_id: null,
+  // content_item_id RETIRED (ID-131.19, M6) — column dropped.
   passed: true,
   feed_sources: { name: 'Gov.uk Security' },
   feed_flags: [],

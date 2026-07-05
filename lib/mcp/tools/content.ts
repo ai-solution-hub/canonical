@@ -1,12 +1,12 @@
 /**
- * Content item tool registrations (6 tools):
+ * Content item tool registrations (5 tools):
  *      get            (one-or-many; consolidates get_content_item + get_content_items, ID-71.10)
  *  12. create_content_item
  *  19. update_content_item
- *      get_workspace_items
  *      assign         (one-or-many; consolidates assign_content_owner + bulk_assign_owner, ID-71.10)
  *  33. get_document_versions
  *  (get_document_diff RETIRED ID-117.12 — legacy diff-display surface removed)
+ *  (get_workspace_items RETIRED ID-131.19 — content_item_workspaces dropped at M6)
  */
 import { createHash } from 'crypto';
 import { z } from 'zod';
@@ -1240,87 +1240,15 @@ export async function registerContentTools(server: McpServer): Promise<void> {
     },
   );
 
-  // -------------------------------------------------------------------------
-  // get_workspace_items
-  // -------------------------------------------------------------------------
-  defineTool(
-    server,
-    'get_workspace_items',
-    {
-      title: 'Get Workspace Items',
-      description:
-        'Fetch content items assigned to a specific workspace via the content_item_workspaces junction table. Returns paginated items with full detail. Use this to browse all content within a workspace without needing to know individual item IDs.',
-      inputSchema: {
-        workspace_id: z
-          .string()
-          .uuid()
-          .describe('Workspace UUID to fetch items for'),
-        limit: z
-          .number()
-          .optional()
-          .describe('Maximum items to return (default: 20, max: 50)'),
-        offset: z
-          .number()
-          .optional()
-          .describe('Pagination offset (default: 0)'),
-      },
-      annotations: READ_ONLY_ANNOTATIONS,
-    },
-    async (args, extra: ToolExtra) => {
-      try {
-        const supabase = createMcpClient(extra.authInfo);
-        const itemLimit = Math.min(args.limit ?? 20, 50);
-        const itemOffset = args.offset ?? 0;
-
-        // Query junction table for workspace content items, ordered by assignment date
-        const { data: junctionRows, error: junctionError } = await supabase
-          .from('content_item_workspaces')
-          .select('content_item_id')
-          .eq('workspace_id', args.workspace_id)
-          .order('assigned_at', { ascending: false })
-          .range(itemOffset, itemOffset + itemLimit - 1); // Supabase range is inclusive on both ends
-
-        if (junctionError) {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: `Failed to fetch workspace items: ${junctionError.message}.`,
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        const itemIds = (junctionRows ?? []).map(
-          (row: { content_item_id: string }) => row.content_item_id,
-        );
-
-        const result = await fetchAndFormatContentItems(supabase, itemIds);
-
-        const markdown = truncateResponse(formatBatchContentItems(result));
-        return {
-          content: [{ type: 'text' as const, text: markdown }],
-          structuredContent: toStructuredContent({
-            workspace_id: args.workspace_id,
-            offset: itemOffset,
-            ...result,
-          }),
-        };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `Failed to fetch workspace items: ${message}. Check the workspace_id is a valid UUID.`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    },
-  );
+  // get_workspace_items RETIRED (ID-131.19, M6, S450 GO tail): its sole
+  // mechanism, the content_item_workspaces junction table, was dropped at
+  // M6 — the S440 owner ruling accepted this breakage and the rebind to the
+  // new workspace-membership model is owned by {135.22}/{131.18}. No
+  // production caller existed (grepped clean); honest deletion beats a
+  // broken retention (mirrors the workspaces-route disposition this same
+  // GO tail applied elsewhere). Removed from scripts/mcp-eval/fixtures.ts,
+  // lib/mcp/tools/index.ts's header, and __tests__/mcp/
+  // intelligence-workflow.test.ts's dead describe block alongside this.
 
   // -------------------------------------------------------------------------
   // assign (one-or-many) — consolidates assign_content_owner + bulk_assign_owner

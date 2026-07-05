@@ -39,7 +39,6 @@ import {
   PATCH as updateWorkspace,
   DELETE as deleteWorkspace,
 } from '@/app/api/workspaces/[id]/route';
-import { GET as getWorkspaceItems } from '@/app/api/workspaces/[id]/items/route';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -586,23 +585,16 @@ describe('DELETE /api/workspaces/[id]', () => {
     expect(updateArg).toMatchObject({ is_archived: true });
   });
 
-  it('permanently deletes when permanent=true and no assigned items', async () => {
+  // ID-131.19 (M6, S450 GO tail): the "assigned items" pre-delete guard
+  // (content_item_workspaces count check) was RETIRED — the junction table
+  // was dropped; the S440 owner ruling accepted this breakage and the
+  // rebind is owned by {135.22}. Permanent delete now goes straight to the
+  // hard delete — a single `.then()` resolution, no count-check leg.
+  it('permanently deletes when permanent=true (assigned-items guard retired)', async () => {
     configureRole(mockSupabase, 'admin');
 
-    // The count query for content_item_workspaces uses await with chain (no .single),
-    // so it resolves via .then. Return count: 0 for the first call (count check),
-    // then the delete also resolves via .then.
-    let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => {
-        thenCallCount++;
-        if (thenCallCount === 1) {
-          // Count of assigned items
-          return resolve({ data: null, error: null, count: 0 });
-        }
-        // Hard delete result
-        return resolve({ data: null, error: null });
-      },
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest(`/api/workspaces/${VALID_UUID}`, {
@@ -617,13 +609,11 @@ describe('DELETE /api/workspaces/[id]', () => {
     expect(json.success).toBe(true);
   });
 
-  it('returns 409 for permanent delete with assigned items', async () => {
+  it('never queries content_item_workspaces on permanent delete (ID-131.19 trim)', async () => {
     configureRole(mockSupabase, 'admin');
 
-    // Count of assigned items returns > 0
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null, count: 5 }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest(`/api/workspaces/${VALID_UUID}`, {
@@ -631,87 +621,16 @@ describe('DELETE /api/workspaces/[id]', () => {
       searchParams: { permanent: 'true' },
     });
     const params = createTestParams({ id: VALID_UUID });
-    const res = await deleteWorkspace(req, { params });
+    await deleteWorkspace(req, { params });
 
-    expect(res.status).toBe(409);
-    const json = await res.json();
-    expect(json.error).toContain(
-      'Cannot delete a workspace with assigned items',
+    expect(mockSupabase.from).not.toHaveBeenCalledWith(
+      'content_item_workspaces',
     );
   });
 });
 
-// ===========================================================================
-// GET /api/workspaces/[id]/items
-// ===========================================================================
-
-describe('GET /api/workspaces/[id]/items', () => {
-  beforeEach(resetMocks);
-
-  it('returns 401 when unauthenticated', async () => {
-    configureUnauthenticated(mockSupabase);
-
-    const req = createTestRequest(`/api/workspaces/${VALID_UUID}/items`);
-    const params = createTestParams({ id: VALID_UUID });
-    const res = await getWorkspaceItems(req, { params });
-
-    expect(res.status).toBe(401);
-    const json = await res.json();
-    expect(json.error).toBe('Unauthorised');
-  });
-
-  it('returns 400 for invalid UUID', async () => {
-    const req = createTestRequest('/api/workspaces/bad-id/items');
-    const params = createTestParams({ id: 'bad-id' });
-    const res = await getWorkspaceItems(req, { params });
-
-    expect(res.status).toBe(400);
-    const json = await res.json();
-    expect(json.error).toContain('Invalid workspace ID');
-  });
-
-  it('returns 200 with flattened items on success', async () => {
-    const mockRows = [
-      {
-        assigned_at: '2026-01-15T10:00:00Z',
-        content_items: {
-          id: VALID_UUID,
-          suggested_title: 'Test Article',
-          content_type: 'article',
-          captured_date: '2026-01-10',
-        },
-      },
-    ];
-
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: mockRows, error: null }),
-    );
-
-    const req = createTestRequest(`/api/workspaces/${VALID_UUID}/items`);
-    const params = createTestParams({ id: VALID_UUID });
-    const res = await getWorkspaceItems(req, { params });
-
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json).toHaveLength(1);
-    expect(json[0].id).toBe(VALID_UUID);
-    expect(json[0].suggested_title).toBe('Test Article');
-    expect(json[0].assigned_at).toBe('2026-01-15T10:00:00Z');
-  });
-
-  it('returns 500 when Supabase query fails', async () => {
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: { message: 'Query failed' } }),
-    );
-
-    const req = createTestRequest(`/api/workspaces/${VALID_UUID}/items`);
-    const params = createTestParams({ id: VALID_UUID });
-    const res = await getWorkspaceItems(req, { params });
-
-    expect(res.status).toBe(500);
-    const json = await res.json();
-    expect(json.error).toBe('Failed to fetch workspace items');
-  });
-});
+// GET /api/workspaces/[id]/items RETIRED (ID-131.19, M6, S450 GO tail) — its
+// sole mechanism, the content_item_workspaces junction table, was dropped at
+// M6. No production caller existed (grepped clean); honest deletion beats a
+// broken retention. The S440 owner ruling accepted this breakage and the
+// rebind to the new workspace-membership model is owned by {135.22}.

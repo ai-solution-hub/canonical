@@ -96,7 +96,11 @@ describe('domainDeltas', () => {
 });
 
 describe('cosineSimilarity (compare-quality copy)', () => {
-  it('matches the embedding-smoke-test copy on identical inputs', () => {
+  // ID-131.19: the sibling embedding-smoke-test.ts copy was RETIRED (its
+  // content_items subject was dropped wholesale at M6) — this is now the
+  // sole cosineSimilarity implementation; __tests__/scripts/
+  // cosine-similarity.test.ts imports it directly for its full test suite.
+  it('returns 1 for identical inputs', () => {
     expect(cosineSimilarity([0.3, 0.4], [0.3, 0.4])).toBeCloseTo(1, 10);
   });
 });

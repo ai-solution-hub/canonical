@@ -243,81 +243,10 @@ describe('workspace-scoped search', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Tests — get_workspace_items
-// ---------------------------------------------------------------------------
-
-describe('get_workspace_items', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('returns items for a valid workspace via junction table', () => {
-    const junctionRows = [
-      { content_item_id: CONTENT_ITEM_1.id },
-      { content_item_id: CONTENT_ITEM_2.id },
-    ];
-
-    const itemIds = junctionRows.map((r) => r.content_item_id);
-
-    expect(itemIds).toHaveLength(2);
-    expect(itemIds).toContain(CONTENT_ITEM_1.id);
-    expect(itemIds).toContain(CONTENT_ITEM_2.id);
-  });
-
-  it('respects pagination limit and offset', () => {
-    // Simulate 5 junction rows
-    const allJunction = Array.from({ length: 5 }, (_, i) => ({
-      content_item_id: `item-${i}`,
-    }));
-
-    // Limit 2, offset 1 (Supabase range is inclusive)
-    const offset = 1;
-    const limit = 2;
-    const paged = allJunction.slice(offset, offset + limit);
-
-    expect(paged).toHaveLength(2);
-    expect(paged[0].content_item_id).toBe('item-1');
-    expect(paged[1].content_item_id).toBe('item-2');
-  });
-
-  it('caps limit at 50', () => {
-    const requestedLimit = 100;
-    const effectiveLimit = Math.min(requestedLimit, 50);
-
-    expect(effectiveLimit).toBe(50);
-  });
-
-  it('defaults limit to 20 and offset to 0', () => {
-    const limit = undefined;
-    const offset = undefined;
-
-    const effectiveLimit = Math.min(limit ?? 20, 50);
-    const effectiveOffset = offset ?? 0;
-
-    expect(effectiveLimit).toBe(20);
-    expect(effectiveOffset).toBe(0);
-  });
-
-  it('returns empty items for a workspace with no content', () => {
-    const junctionRows: { content_item_id: string }[] = [];
-    const itemIds = junctionRows.map((r) => r.content_item_id);
-
-    expect(itemIds).toHaveLength(0);
-  });
-
-  it('includes workspace_id in structured response', () => {
-    const response = {
-      workspace_id: WORKSPACE_ID,
-      offset: 0,
-      items: [CONTENT_ITEM_1],
-      total: 1,
-    };
-
-    expect(response.workspace_id).toBe(WORKSPACE_ID);
-    expect(response.items).toHaveLength(1);
-  });
-});
+// get_workspace_items tests RETIRED (ID-131.19, M6, S450 GO tail) — the tool
+// itself was retired in lib/mcp/tools/content.ts; its sole mechanism
+// (content_item_workspaces junction table) was dropped at M6 and had no
+// production caller.
 
 // ---------------------------------------------------------------------------
 // Tests — get_intelligence_summary

@@ -677,12 +677,10 @@ export const DELETE = defineRoute(
         logger.error({ err: storageErr }, 'Storage cleanup failed (non-fatal)');
       }
 
-      // Remove content_item_workspaces junction rows first — FK is NO ACTION
-      // so these would block the workspace delete if any content is linked
-      await supabase
-        .from('content_item_workspaces')
-        .delete()
-        .eq('workspace_id', id);
+      // content_item_workspaces pre-delete cleanup RETIRED (ID-131.19, M6,
+      // S450 GO tail) — the junction table was dropped; the S440 owner
+      // ruling accepted this breakage and the rebind to the new
+      // workspace-membership model is owned by {135.22}.
 
       // DELETE narrows on id only (prior fetchError gate enforces procurement-type).
       const { error } = await supabase.from('workspaces').delete().eq('id', id);

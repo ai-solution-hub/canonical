@@ -153,8 +153,11 @@ describe('wrap-define-route CLI scaffold', () => {
     const result = runCodemod([], { outputDir: tmpOutputDir });
     expect(result.status).toBe(0);
     // Per TECH §2.2, ts-morph enumeration over the working tree should
-    // discover the full app/api/**/route.ts corpus. Current count is 165
-    // (was 193/floor 190 before ID-131.17 (G-IMS-DELETE) retired 24
+    // discover the full app/api/**/route.ts corpus. Current count is 159
+    // (was 165/floor 160 before ID-131.19 (M6, S450 GO tail) deleted
+    // app/api/workspaces/[id]/items/route.ts — its sole mechanism,
+    // content_item_workspaces, was dropped and no production caller
+    // existed; was 193/floor 190 before ID-131.17 (G-IMS-DELETE) retired 24
     // IMS-only routes — app/api/tags/**, app/api/insights, app/api/quality
     // [/summary], app/api/read-marks, and the confirmed-orphaned
     // app/api/items/[id]/{images,files,owner,priority,effectiveness,layers,
@@ -163,12 +166,12 @@ describe('wrap-define-route CLI scaffold', () => {
     // deleted the last 7 deferred legacy routes — app/api/items/route.ts,
     // app/api/items/[id]/route.ts, app/api/items/[id]/{metadata,classify,
     // archive,workspaces}/route.ts, app/api/items/batch/route.ts — retiring
-    // the app/api/items directory entirely). Hard floor: 160 to allow minor
+    // the app/api/items directory entirely). Hard floor: 159 to allow minor
     // churn.
     const match = result.stdout.match(/(\d+) route\(s\) discovered/);
     expect(match).not.toBeNull();
     const count = match ? parseInt(match[1]!, 10) : 0;
-    expect(count).toBeGreaterThanOrEqual(160);
+    expect(count).toBeGreaterThanOrEqual(159);
   });
 
   it('honours --scope filter to a subdirectory', () => {

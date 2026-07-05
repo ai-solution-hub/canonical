@@ -30,12 +30,16 @@ export const GET = defineRoute(
       const from = (page - 1) * limit;
       const to = from + limit - 1;
 
+      // ID-131.19 (M6, S450 GO tail): feed_articles.content_item_id DROPPED
+      // (STEP 4, the content_items FK column) — removed from the select and
+      // the response mapping below alongside its output-schema leg. No live
+      // consumer rendered it (grepped clean across hooks/components).
       let query = supabase
         .from('feed_articles')
         .select(
           `id, title, external_url, relevance_score, relevance_category,
          relevance_reasoning, ai_summary, ingested_at, published_at,
-         content_item_id, passed,
+         passed,
          feed_sources!inner(name),
          feed_flags(id)`,
           { count: 'exact' },
@@ -78,7 +82,6 @@ export const GET = defineRoute(
           ai_summary: row.ai_summary,
           ingested_at: row.ingested_at,
           published_at: row.published_at,
-          content_item_id: row.content_item_id,
           passed: row.passed,
           source_name: feedSources?.name ?? null,
           flag_count: feedFlags?.length ?? 0,

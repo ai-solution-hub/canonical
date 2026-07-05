@@ -17,7 +17,6 @@ import {
   ProcurementListParamsSchema,
   GovernanceReviewParamsSchema,
   ContentSuggestionsParamsSchema,
-  WorkspaceItemsParamsSchema,
   EntityCoOccurrenceParamsSchema,
 } from '@/lib/validation/schemas';
 import { IngestUrlBodySchema } from '@/lib/validation/ingest-schemas';
@@ -823,14 +822,6 @@ const LIMIT_CLAMPING_SCHEMAS = [
     defaultValue: 5,
     min: 1,
     max: 20,
-  },
-  {
-    name: 'WorkspaceItemsParamsSchema',
-    schema: WorkspaceItemsParamsSchema,
-    field: 'limit',
-    defaultValue: 10,
-    min: 1,
-    max: 50,
   },
   {
     name: 'EntityCoOccurrenceParamsSchema',

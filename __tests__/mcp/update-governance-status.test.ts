@@ -178,8 +178,11 @@ async function callTool(
  *      (`.in('id', ids)`) plus `record_lifecycle` (governance_review_status,
  *      keyed by `owner_id`) — whichever typed table has a matching row wins
  *      (`ownerKind` param below selects which).
- *   3. For each item: q_a_pair owners generate an embedding
- *      (`question_embedding`) before the update; source_document owners
+ *   3. For each item: q_a_pair owners generate an embedding and, on a
+ *      successful publish, dual-write it into the polymorphic
+ *      `record_embeddings` store (ID-131.19, M6 — the inline
+ *      `question_embedding` column was dropped; hybrid_search's q_a_pair arm
+ *      reads record_embeddings, not the column); source_document owners
  *      skip embedding entirely (no embedding column under OKF) but may run
  *      the classify-on-first-publish leg.
  *   4. On publish, clears `governance_review_status` via a SEPARATE
@@ -216,6 +219,7 @@ async function runUpdate({
   updatePayload: Record<string, unknown> | undefined;
   facetUpsertPayload: Record<string, unknown> | undefined;
   historyInsertPayload: Record<string, unknown> | undefined;
+  recordEmbeddingPayload: Record<string, unknown> | undefined;
   fromCalls: string[];
 }> {
   vi.clearAllMocks();
@@ -269,6 +273,9 @@ async function runUpdate({
   });
   const facetUpsertChain = chain({ data: null, error: null });
   const historyChain = chain({ data: null, error: null });
+  // ID-131.19: the q_a_pair embedding dual-write target (question_embedding
+  // column dropped at M6 — record_embeddings is the sole write path now).
+  const recordEmbeddingsChain = chain({ data: null, error: null });
 
   // First `.from('source_documents')` / `.from('q_a_pairs')` call = the
   // parallel batch fetch; a subsequent call (source_document/q_a_pair owner
@@ -293,6 +300,7 @@ async function runUpdate({
       recordLifecycleCall += 1;
       return recordLifecycleCall === 1 ? lifecycleFetchChain : facetUpsertChain;
     }
+    if (table === 'record_embeddings') return recordEmbeddingsChain;
     return chain({ data: null, error: null });
   });
   mocks.createMcpClient.mockReturnValue({ from: fromMock });
@@ -321,11 +329,19 @@ async function runUpdate({
     | Record<string, unknown>
     | undefined;
 
+  const recordEmbeddingUpsertFn = recordEmbeddingsChain.upsert as ReturnType<
+    typeof vi.fn
+  >;
+  const recordEmbeddingPayload = recordEmbeddingUpsertFn.mock.calls[0]?.[0] as
+    | Record<string, unknown>
+    | undefined;
+
   return {
     res,
     updatePayload,
     facetUpsertPayload,
     historyInsertPayload,
+    recordEmbeddingPayload,
     fromCalls,
   };
 }
@@ -724,9 +740,8 @@ describe('update_governance_status — action="publish" branch (post-Wave-3A)', 
     expect(mocks.generateEmbedding).not.toHaveBeenCalled();
   });
 
-  it('generates a question_embedding via generateEmbedding for a q_a_pair owner before update', async () => {
-    // q_a_pairs still carries `question_embedding` (pre-M5) — the
-    // embed-then-commit step survives for this owner kind only.
+  it('generates an embedding via generateEmbedding for a q_a_pair owner before update', async () => {
+    // The embed-then-commit step survives for this owner kind only.
     const { updatePayload } = await runUpdate({
       role: 'admin',
       status: 'publish',
@@ -741,7 +756,35 @@ describe('update_governance_status — action="publish" branch (post-Wave-3A)', 
     });
     expect(mocks.generateEmbedding).toHaveBeenCalled();
     expect(updatePayload).toBeDefined();
-    expect(updatePayload!.question_embedding).toBeDefined();
+    // ID-131.19 (M6): question_embedding column dropped — the inline
+    // q_a_pairs UPDATE no longer carries an embedding field at all.
+    expect(updatePayload).not.toHaveProperty('question_embedding');
+    expect(updatePayload!.publication_status).toBe('published');
+  });
+
+  it('dual-writes the generated embedding into record_embeddings for a q_a_pair owner (ID-131.19)', async () => {
+    const { recordEmbeddingPayload } = await runUpdate({
+      role: 'admin',
+      status: 'publish',
+      ownerKind: 'q_a_pair',
+      embedding: [0.4, 0.5, 0.6],
+      itemRow: {
+        id: TEST_ITEM_ID,
+        question_text: 'What is the refund policy?',
+        answer_standard: 'body content',
+        publication_status: 'draft',
+        governance_review_status: 'pending',
+      },
+    });
+    expect(recordEmbeddingPayload).toBeDefined();
+    expect(recordEmbeddingPayload).toMatchObject({
+      owner_kind: 'q_a_pair',
+      owner_id: TEST_ITEM_ID,
+      model: 'text-embedding-3-large',
+    });
+    expect(recordEmbeddingPayload!.embedding).toBe(
+      JSON.stringify([0.4, 0.5, 0.6]),
+    );
   });
 
   it('reports per-item failure when embedding generation fails for a q_a_pair owner', async () => {

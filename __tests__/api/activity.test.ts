@@ -1,8 +1,12 @@
 /**
  * API route tests for GET /api/activity.
  *
- * Tests authentication enforcement, response shape, RPC parameter mapping,
- * cursor-based pagination, and limit clamping.
+ * ID-131.19 (M6, S450 GO tail): get_grouped_activity_feed dropped (IMS
+ * activity-feed feature, content_items-anchored). Mirrors the identical stub
+ * in lib/dashboard.ts's unified aggregator (query 1) — the route no longer
+ * calls any RPC and always returns an empty activity feed. Tests verify
+ * authentication enforcement, limit clamping (still schema-validated), and
+ * the always-empty response shape.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
@@ -38,25 +42,6 @@ vi.spyOn(console, 'error').mockImplementation(() => {});
 // ---------------------------------------------------------------------------
 
 import { GET } from '@/app/api/activity/route';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function makeRpcRow(overrides: Record<string, unknown> = {}) {
-  return {
-    id: 'a1b2c3d4-0000-0000-0000-000000000001',
-    type: 'edit',
-    entity_type: 'content_item',
-    entity_id: 'b1c2d3e4-0000-0000-0000-000000000001',
-    summary: 'Updated title',
-    user_id: 'u1000000-0000-0000-0000-000000000001',
-    latest_at: '2026-03-08T10:00:00Z',
-    earliest_at: '2026-03-08T10:00:00Z',
-    event_count: 1,
-    ...overrides,
-  };
-}
 
 function resetMocks() {
   vi.clearAllMocks();
@@ -147,22 +132,17 @@ describe('GET /api/activity', () => {
     expect(response.status).toBe(200);
   });
 
-  // -- Default limit --
+  // -- Limit clamping (schema-validated independent of the retired RPC) --
 
-  it('returns up to 20 activity items when no limit is specified', async () => {
+  it('defaults limit to 20 when no limit is specified', async () => {
     configureAuth(mockSupabase).asAdmin();
 
     const req = createTestRequest('/api/activity');
-    await GET(req);
+    const response = await GET(req);
+    const body = await response.json();
 
-    expect(mockSupabase.rpc).toHaveBeenCalledWith('get_grouped_activity_feed', {
-      p_limit: 20,
-      p_is_admin: true,
-      p_before: undefined,
-    });
+    expect(body.limit).toBe(20);
   });
-
-  // -- Custom limit --
 
   it('honours a custom limit supplied in the query string', async () => {
     configureAuth(mockSupabase).asAdmin();
@@ -170,13 +150,10 @@ describe('GET /api/activity', () => {
     const req = createTestRequest('/api/activity', {
       searchParams: { limit: '50' },
     });
-    await GET(req);
+    const response = await GET(req);
+    const body = await response.json();
 
-    expect(mockSupabase.rpc).toHaveBeenCalledWith('get_grouped_activity_feed', {
-      p_limit: 50,
-      p_is_admin: true,
-      p_before: undefined,
-    });
+    expect(body.limit).toBe(50);
   });
 
   it('clamps limit to maximum of 100', async () => {
@@ -185,13 +162,10 @@ describe('GET /api/activity', () => {
     const req = createTestRequest('/api/activity', {
       searchParams: { limit: '500' },
     });
-    await GET(req);
+    const response = await GET(req);
+    const body = await response.json();
 
-    expect(mockSupabase.rpc).toHaveBeenCalledWith('get_grouped_activity_feed', {
-      p_limit: 100,
-      p_is_admin: true,
-      p_before: undefined,
-    });
+    expect(body.limit).toBe(100);
   });
 
   it('clamps limit to minimum of 1', async () => {
@@ -200,148 +174,16 @@ describe('GET /api/activity', () => {
     const req = createTestRequest('/api/activity', {
       searchParams: { limit: '-5' },
     });
-    await GET(req);
-
-    expect(mockSupabase.rpc).toHaveBeenCalledWith('get_grouped_activity_feed', {
-      p_limit: 1,
-      p_is_admin: true,
-      p_before: undefined,
-    });
-  });
-
-  // -- Cursor / before parameter --
-
-  it('paginates from the supplied before cursor', async () => {
-    configureAuth(mockSupabase).asAdmin();
-
-    const req = createTestRequest('/api/activity', {
-      searchParams: { before: '2026-03-07T12:00:00Z' },
-    });
-    await GET(req);
-
-    expect(mockSupabase.rpc).toHaveBeenCalledWith('get_grouped_activity_feed', {
-      p_limit: 20,
-      p_is_admin: true,
-      p_before: '2026-03-07T12:00:00Z',
-    });
-  });
-
-  it('omits before when not provided', async () => {
-    configureAuth(mockSupabase).asAdmin();
-
-    const req = createTestRequest('/api/activity');
-    await GET(req);
-
-    const rpcArgs = mockSupabase.rpc.mock.calls[0][1];
-    expect(rpcArgs.p_before).toBeUndefined();
-  });
-
-  // -- Response shape mapping --
-
-  it('maps latest_at to created_at in response', async () => {
-    configureAuth(mockSupabase).asAdmin();
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: [makeRpcRow({ latest_at: '2026-03-08T10:00:00Z' })],
-      error: null,
-    });
-
-    const req = createTestRequest('/api/activity');
     const response = await GET(req);
     const body = await response.json();
 
-    expect(body.activities[0].created_at).toBe('2026-03-08T10:00:00Z');
-    expect(body.activities[0].latest_at).toBe('2026-03-08T10:00:00Z');
+    expect(body.limit).toBe(1);
   });
 
-  it('includes earliest_at and event_count in response', async () => {
+  // -- Retired RPC (ID-131.19) --
+
+  it('always returns an empty activities array and has_more=false (get_grouped_activity_feed retired)', async () => {
     configureAuth(mockSupabase).asAdmin();
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: [
-        makeRpcRow({
-          earliest_at: '2026-03-08T08:00:00Z',
-          event_count: 5,
-        }),
-      ],
-      error: null,
-    });
-
-    const req = createTestRequest('/api/activity');
-    const response = await GET(req);
-    const body = await response.json();
-
-    expect(body.activities[0].earliest_at).toBe('2026-03-08T08:00:00Z');
-    expect(body.activities[0].event_count).toBe(5);
-  });
-
-  it('does not include metadata in response', async () => {
-    configureAuth(mockSupabase).asAdmin();
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: [makeRpcRow()],
-      error: null,
-    });
-
-    const req = createTestRequest('/api/activity');
-    const response = await GET(req);
-    const body = await response.json();
-
-    expect(body.activities[0]).not.toHaveProperty('metadata');
-  });
-
-  // -- has_more flag --
-
-  it('reports has_more=true when results saturate the requested limit', async () => {
-    configureAuth(mockSupabase).asAdmin();
-    // Return exactly 20 rows (the default limit)
-    const rows = Array.from({ length: 20 }, (_, i) =>
-      makeRpcRow({
-        id: `a1b2c3d4-0000-0000-0000-${String(i).padStart(12, '0')}`,
-      }),
-    );
-    mockSupabase.rpc.mockResolvedValueOnce({ data: rows, error: null });
-
-    const req = createTestRequest('/api/activity');
-    const response = await GET(req);
-    const body = await response.json();
-
-    expect(body.has_more).toBe(true);
-  });
-
-  it('reports has_more=false when results fall short of the limit', async () => {
-    configureAuth(mockSupabase).asAdmin();
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: [makeRpcRow()],
-      error: null,
-    });
-
-    const req = createTestRequest('/api/activity');
-    const response = await GET(req);
-    const body = await response.json();
-
-    expect(body.has_more).toBe(false);
-  });
-
-  // -- RPC error handling --
-
-  it('returns 500 when RPC returns an error', async () => {
-    configureAuth(mockSupabase).asAdmin();
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'function not found' },
-    });
-
-    const req = createTestRequest('/api/activity');
-    const response = await GET(req);
-    expect(response.status).toBe(500);
-
-    const body = await response.json();
-    expect(body.error).toBe('Failed to fetch activity feed');
-  });
-
-  // -- Empty data --
-
-  it('returns empty activities array when RPC returns null data', async () => {
-    configureAuth(mockSupabase).asAdmin();
-    mockSupabase.rpc.mockResolvedValueOnce({ data: null, error: null });
 
     const req = createTestRequest('/api/activity');
     const response = await GET(req);
@@ -351,14 +193,24 @@ describe('GET /api/activity', () => {
     expect(body.has_more).toBe(false);
   });
 
+  it('never calls the dropped get_grouped_activity_feed RPC (ID-131.19 trim)', async () => {
+    configureAuth(mockSupabase).asAdmin();
+
+    const req = createTestRequest('/api/activity', {
+      searchParams: { before: '2026-03-07T12:00:00Z' },
+    });
+    await GET(req);
+
+    expect(mockSupabase.rpc).not.toHaveBeenCalledWith(
+      'get_grouped_activity_feed',
+      expect.anything(),
+    );
+  });
+
   // -- Response envelope --
 
   it('returns correct response envelope shape', async () => {
     configureAuth(mockSupabase).asAdmin();
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: [makeRpcRow()],
-      error: null,
-    });
 
     const req = createTestRequest('/api/activity');
     const response = await GET(req);

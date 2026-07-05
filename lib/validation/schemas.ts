@@ -2124,14 +2124,9 @@ export const GuideListParamsSchema = z.object({
   include_unpublished: booleanParam.optional(),
 });
 
-/** GET /api/workspaces/[id]/items */
-export const WorkspaceItemsParamsSchema = z.object({
-  limit: z
-    .number()
-    .int()
-    .default(10)
-    .transform((v) => Math.max(1, Math.min(50, v))),
-});
+// WorkspaceItemsParamsSchema RETIRED (ID-131.19, M6, S450 GO tail) — its sole
+// consumer, GET /api/workspaces/[id]/items, was deleted (content_item_workspaces
+// junction table dropped, no production caller).
 
 /** GET /api/workspaces */
 export const WorkspaceListParamsSchema = z.object({
@@ -2853,7 +2848,8 @@ export const ArticlesResponseSchema = z.object({
       ai_summary: z.string().nullable(),
       ingested_at: z.string(),
       published_at: z.string().nullable(),
-      content_item_id: z.string().nullable(),
+      // content_item_id RETIRED (ID-131.19, M6) — feed_articles.content_item_id
+      // (the content_items FK column) was dropped; no consumer rendered it.
       passed: z.boolean(),
       source_name: z.string().nullable(),
       flag_count: z.number(),

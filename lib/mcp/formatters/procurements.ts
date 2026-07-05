@@ -170,11 +170,21 @@ export function formatProcurementQuestion(
 export interface CitationResult {
   id: string;
   cited_kind: string;
-  cited_content_item_id: string | null;
+  // ID-131.19 (M6, S450 GO tail): `cited_content_item_id` + the
+  // `content_item` CHECK branch were DROPPED from `citations` at M6 — the
+  // production writer (app/api/procurement/[id]/responses/draft-stream/
+  // route.ts, {131.16} BI-29) had already stopped writing cited_kind=
+  // 'content_item' rows before the column drop, targeting q_a_pair/
+  // reference_item exclusively. No `cited_content_item_id` field here
+  // anymore; `resolveCitedTarget` below falls back to a "retired" label for
+  // any pre-M6 legacy row that still carries cited_kind='content_item' (the
+  // enum label survives per the M6 migration's own note — dropping an enum
+  // value is not a cheap ALTER TYPE — but it has no renderable target left).
+  //
   // ID-131.28 (G-CITE-READERS) — the extended cited_target_kind contract
-  // ({131.10} M4b) added three more per-kind target columns alongside
-  // cited_content_item_id. Exactly one of the four is populated per row per
-  // the DB's cited_one_of CHECK constraint; cited_kind says which.
+  // ({131.10} M4b) added three more per-kind target columns. Exactly one of
+  // the four is populated per row per the DB's cited_one_of CHECK
+  // constraint; cited_kind says which.
   cited_q_a_pair_id: string | null;
   cited_reference_item_id: string | null;
   cited_source_document_id: string | null;
@@ -209,9 +219,9 @@ function resolveCitedTarget(citation: CitationResult): {
       };
     case 'concept':
       return { label: 'Concept', value: citation.cited_concept_path };
-    case 'content_item':
     default:
-      return { label: 'Content item', value: citation.cited_content_item_id };
+      // 'content_item' retired at M6 (ID-131.19) — no target column survives.
+      return { label: 'Content item (retired)', value: null };
   }
 }
 

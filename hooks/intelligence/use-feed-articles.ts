@@ -24,7 +24,8 @@ export interface FeedArticle {
   ai_summary: string | null;
   ingested_at: string;
   published_at: string | null;
-  content_item_id: string | null;
+  // content_item_id RETIRED (ID-131.19, M6) — feed_articles.content_item_id
+  // (content_items FK column) was dropped.
   passed: boolean;
   source_name: string | null;
   flag_count: number;

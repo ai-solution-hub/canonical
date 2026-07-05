@@ -338,8 +338,8 @@ describe('MCP tools #14-16', () => {
         single: vi.fn().mockResolvedValue({
           data: {
             id: 'cit-001',
-            cited_kind: 'content_item',
-            cited_content_item_id: 'item-abc',
+            cited_kind: 'q_a_pair',
+            cited_q_a_pair_id: 'item-abc',
             citing_kind: 'form_response',
             citing_form_response_id: 'resp-xyz',
             citation_type: 'reference',
@@ -366,18 +366,18 @@ describe('MCP tools #14-16', () => {
         expect.objectContaining({
           citing_kind: 'form_response',
           citing_form_response_id: 'resp-xyz',
-          cited_kind: 'content_item',
-          cited_content_item_id: 'item-abc',
+          cited_kind: 'q_a_pair',
+          cited_q_a_pair_id: 'item-abc',
           citation_type: 'reference',
           created_by: 'user-123',
         }),
-        { onConflict: 'citing_form_response_id,cited_content_item_id' },
+        { onConflict: 'citing_form_response_id,cited_q_a_pair_id' },
       );
       expect(result.content[0].text).toContain('Citation Recorded');
       expect(result.content[0].text).toContain('item-abc');
       expect(result.content[0].text).toContain('resp-xyz');
       expect(result.structuredContent.id).toBe('cit-001');
-      expect(result.structuredContent.cited_kind).toBe('content_item');
+      expect(result.structuredContent.cited_kind).toBe('q_a_pair');
       expect(result.structuredContent.citing_kind).toBe('form_response');
     });
 
@@ -390,8 +390,8 @@ describe('MCP tools #14-16', () => {
         single: vi.fn().mockResolvedValue({
           data: {
             id: 'cit-002',
-            cited_kind: 'content_item',
-            cited_content_item_id: 'item-abc',
+            cited_kind: 'q_a_pair',
+            cited_q_a_pair_id: 'item-abc',
             citing_kind: 'form_response',
             citing_form_response_id: 'resp-xyz',
             citation_type: 'adapted',

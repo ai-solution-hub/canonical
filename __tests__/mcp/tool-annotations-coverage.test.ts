@@ -124,7 +124,7 @@ describe('MCP tool annotation coverage (P0-19 regression guard)', () => {
     tools = await collectAllTools();
   });
 
-  it('registers exactly 42 tools across all 16 modules', () => {
+  it('registers exactly 40 tools across all 16 modules', () => {
     // This guards against accidental duplicate registrations or a module
     // silently no-oping (e.g. a lazy-import failure inside registerAppTools).
     // 53 = 58 − 2 (ID-71.10 M32: get_content_item+get_content_items → `get`,
@@ -143,7 +143,9 @@ describe('MCP tool annotation coverage (P0-19 regression guard)', () => {
     // `find_duplicates` (scope: 'item' | 'all')).
     // 41 = 42 − 1 (ID-117.12: get_document_diff retired with the legacy
     // diff-display surface / source_document_diffs engine).
-    expect(tools.length).toBe(41);
+    // 40 = 41 − 1 (ID-131.19, M6: get_workspace_items retired —
+    // content_item_workspaces junction table dropped, no production caller).
+    expect(tools.length).toBe(40);
   });
 
   it('every registered tool declares all four ToolAnnotations fields', () => {

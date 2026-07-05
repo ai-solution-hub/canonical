@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { cosineSimilarity } from '@/scripts/embedding-smoke-test';
+// ID-131.19 (M6, S450 GO tail): scripts/embedding-smoke-test.ts RETIRED —
+// its subject (content_items.embedding, title, content columns) was dropped
+// wholesale (content_items table + the inline vector columns). Re-pointed
+// onto compare-quality.ts's identical pure implementation (see
+// __tests__/scripts/compare-quality.test.ts's "cosineSimilarity" describe).
+import { cosineSimilarity } from '@/scripts/compare-quality';
 
 describe('cosineSimilarity', () => {
   it('returns 1.0 for identical vectors', () => {

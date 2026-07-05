@@ -5,13 +5,18 @@
  * This is intentionally staging-only by default:
  * - Requires ALLOW_STALE_TEST_ARTIFACT_CLEANUP=1.
  * - Refuses to run against the production project ref.
- * - Deletes only known test-prefixed content rows older than a configurable
+ * - Deletes only known test-prefixed workspaces older than a configurable
  *   age threshold, so concurrent CI jobs do not lose fresh fixtures.
  *
- * The main target is leaked integration/MCP/E2E content_items that remain
- * visible to dashboard/reorient queries and can create noisy test data. Related
- * child rows are deleted before parent content_items so content_history does not
- * become an ON DELETE SET NULL orphan.
+ * ID-131.19 (M6, S450 GO tail): the former content_items-anchored cleanup
+ * leg (content_items + its child rows — content_history,
+ * content_item_workspaces, read_marks, citations.cited_content_item_id, and
+ * the source_document_id-keyed related tables resolved via content_items)
+ * is RETIRED — content_items and the three junction/history tables were
+ * DROPPED at M6; there is nothing left to query. No production caller wired
+ * this leg into CI (grepped clean), so the retirement is honest deletion,
+ * not a silent behaviour change on a live path. The workspace cleanup below
+ * is unaffected — workspaces is a separate table, not dropped.
  */
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -19,7 +24,6 @@ import { resolve } from 'node:path';
 import { config as loadDotenv } from 'dotenv';
 import { createLooseScriptClient } from '@/scripts/lib/supabase-script-client';
 import { platformProjectRef } from '@/scripts/lib/project-refs';
-import { MCP_EVAL_SEED_METADATA_FLAG } from './mcp-eval/seed-data';
 
 for (const envFile of ['.env.local', '.env']) {
   const path = resolve(process.cwd(), envFile);
@@ -29,13 +33,6 @@ for (const envFile of ['.env.local', '.env']) {
 }
 
 const DEFAULT_MIN_AGE_MINUTES = 120;
-const CONTENT_TITLE_PREFIXES = [
-  '[E2E-',
-  '[E2E Test]',
-  '[MCP-EVAL]',
-  '[PUB-PATCH-',
-  '[PUB-BULK-',
-] as const;
 const WORKSPACE_NAME_PREFIXES = ['[E2E-', '[E2E Test]'] as const;
 
 const allowCleanup = process.env.ALLOW_STALE_TEST_ARTIFACT_CLEANUP === '1';
@@ -89,56 +86,6 @@ const cutoffIso = new Date(Date.now() - minAgeMinutes * 60_000).toISOString();
 const supabase = createLooseScriptClient(supabaseUrl, serviceRoleKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
-function isPersistentMcpEvalSeed(metadata: unknown): boolean {
-  return (
-    typeof metadata === 'object' &&
-    metadata !== null &&
-    (metadata as Record<string, unknown>)[MCP_EVAL_SEED_METADATA_FLAG] === true
-  );
-}
-
-async function selectContentItemIdsByPrefix(
-  prefixes: readonly string[],
-): Promise<{
-  ids: string[];
-  sourceDocumentIds: string[];
-}> {
-  const ids = new Set<string>();
-  // ingestion_quality_log is keyed by source_document_id, not content_items.id
-  // (ID-131 {131.13} G-GOV-FACET-B rename) — collected separately so its
-  // cleanup below joins on the right column.
-  const sourceDocumentIds = new Set<string>();
-  for (const prefix of prefixes) {
-    const { data, error } = await supabase
-      .from('content_items')
-      .select('id, metadata, source_document_id')
-      .like('title', `${prefix}%`)
-      .lt('created_at', cutoffIso)
-      .limit(1000);
-
-    if (error) {
-      throw new Error(
-        `Failed to query stale content_items for prefix ${prefix}: ${error.message}`,
-      );
-    }
-
-    for (const row of data ?? []) {
-      if (
-        typeof row.id === 'string' &&
-        !isPersistentMcpEvalSeed(row.metadata)
-      ) {
-        ids.add(row.id);
-        if (typeof row.source_document_id === 'string') {
-          sourceDocumentIds.add(row.source_document_id);
-        }
-      }
-    }
-  }
-  return {
-    ids: Array.from(ids),
-    sourceDocumentIds: Array.from(sourceDocumentIds),
-  };
-}
 
 async function selectIdsByPrefix(
   table: 'workspaces',
@@ -167,14 +114,6 @@ async function selectIdsByPrefix(
   return Array.from(ids);
 }
 
-// Bound the PostgREST `in.(…)` request-URI length. A `.in(col, ids)` serialises
-// every id into the URL; the prefix sweep above can return up to ~5000 UUIDs
-// (5 prefixes × limit 1000), which blows past the Supabase gateway's ~8 KB URI
-// cap → a bare-text "400 Bad Request" (non-JSON, so PostgREST surfaces it as the
-// literal message "Bad Request"). That silently no-ops the ENTIRE cleanup loop
-// (each delete logs a warning, returns 0) and is why stale rows accumulate.
-const DELETE_BATCH_SIZE = 100; // ~100 UUIDs ≈ 4 KB URI, safely under the cap
-
 async function deleteByIds(
   table: string,
   column: string,
@@ -182,6 +121,10 @@ async function deleteByIds(
 ): Promise<number> {
   if (ids.length === 0) return 0;
   let deleted = 0;
+  // Bound the PostgREST `in.(…)` request-URI length. A `.in(col, ids)`
+  // serialises every id into the URL; batching keeps well under the
+  // Supabase gateway's ~8 KB URI cap.
+  const DELETE_BATCH_SIZE = 100; // ~100 UUIDs ≈ 4 KB URI, safely under the cap
   for (let i = 0; i < ids.length; i += DELETE_BATCH_SIZE) {
     const batch = ids.slice(i, i + DELETE_BATCH_SIZE);
     const { count, error } = await supabase
@@ -200,78 +143,18 @@ async function deleteByIds(
   return deleted;
 }
 
-const { ids: contentItemIds, sourceDocumentIds: contentItemSourceDocumentIds } =
-  await selectContentItemIdsByPrefix(CONTENT_TITLE_PREFIXES);
 const workspaceIds = await selectIdsByPrefix(
   'workspaces',
   'name',
   WORKSPACE_NAME_PREFIXES,
 );
 
-let relatedRowsDeleted = 0;
-// ingestion_quality_log, content_chunks, entity_mentions,
-// entity_relationships, classification_disputes, and verification_history are
-// all keyed by source_document_id, not content_items.id (ID-131 {131.13}
-// G-GOV-FACET-B + {131.8} M2 rename — entity_mentions/entity_relationships
-// were repointed to source_documents; content_chunks/classification_disputes
-// were renamed + repointed in the same M2 reparent migration;
-// verification_history was renamed + repointed in {131.29}'s re-parent).
-// Matching those columns against contentItemIds (content_items.id values) is
-// a silent no-op — independent PK spaces never intersect — so these six are
-// cleaned up via the resolved contentItemSourceDocumentIds instead
-// (ID-131.30 G-EXTRACT-CONSUMER-SWEEP-3 + {131.29}).
-for (const [table, column] of [
-  ['ingestion_quality_log', 'source_document_id'],
-  ['content_chunks', 'source_document_id'],
-  ['entity_mentions', 'source_document_id'],
-  ['entity_relationships', 'source_document_id'],
-  ['classification_disputes', 'source_document_id'],
-  ['verification_history', 'source_document_id'],
-] as const) {
-  relatedRowsDeleted += await deleteByIds(
-    table,
-    column,
-    contentItemSourceDocumentIds,
-  );
-}
-for (const [table, column] of [
-  ['citations', 'cited_content_item_id'],
-  ['content_history', 'content_item_id'],
-  ['content_item_workspaces', 'content_item_id'],
-  ['read_marks', 'content_item_id'],
-] as const) {
-  relatedRowsDeleted += await deleteByIds(table, column, contentItemIds);
-}
-relatedRowsDeleted += await deleteByIds(
-  'notifications',
-  'entity_id',
-  contentItemIds,
-);
-
-const contentRowsDeleted = await deleteByIds(
-  'content_items',
-  'id',
-  contentItemIds,
-);
 const workspaceRowsDeleted = await deleteByIds(
   'workspaces',
   'id',
   workspaceIds,
 );
 
-const { count: orphanHistoryRowsDeleted, error: orphanError } = await supabase
-  .from('content_history')
-  .delete({ count: 'exact' })
-  .is('content_item_id', null);
-
-if (orphanError) {
-  console.warn(
-    `Warning: failed to delete orphaned content_history rows: ${orphanError.message}`,
-  );
-}
-
 console.log(
-  `stale test artifact cleanup complete: ${contentRowsDeleted} content item(s), ` +
-    `${workspaceRowsDeleted} workspace(s), ${relatedRowsDeleted} related row(s), ` +
-    `${orphanHistoryRowsDeleted ?? 0} orphan history row(s) deleted; cutoff=${cutoffIso}`,
+  `stale test artifact cleanup complete: ${workspaceRowsDeleted} workspace(s) deleted; cutoff=${cutoffIso}`,
 );

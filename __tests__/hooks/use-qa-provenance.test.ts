@@ -7,26 +7,23 @@ import React from 'react';
 // Hoisted mocks
 // ---------------------------------------------------------------------------
 
-const {
-  mockToast,
-  mockIsFeatureEnabled,
-  mockWorkspaceResult,
-  mockRelatedResult,
-  mockFromCalls,
-} = vi.hoisted(() => ({
-  mockToast: Object.assign(vi.fn(), {
-    success: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-    warning: vi.fn(),
-  }),
-  mockIsFeatureEnabled: vi.fn(() => false),
-  mockWorkspaceResult: { data: null as unknown, error: null as unknown },
-  mockRelatedResult: { data: null as unknown, error: null as unknown },
-  // Tracks every `.from(<table>)` call across ALL createClient() instances —
-  // ID-131 {131.21} asserts the related-Q&A query never reads content_items.
-  mockFromCalls: [] as string[],
-}));
+const { mockToast, mockIsFeatureEnabled, mockRelatedResult, mockFromCalls } =
+  vi.hoisted(() => ({
+    mockToast: Object.assign(vi.fn(), {
+      success: vi.fn(),
+      error: vi.fn(),
+      info: vi.fn(),
+      warning: vi.fn(),
+    }),
+    mockIsFeatureEnabled: vi.fn(() => false),
+    mockRelatedResult: { data: null as unknown, error: null as unknown },
+    // Tracks every `.from(<table>)` call across ALL createClient() instances —
+    // ID-131 {131.21} asserts the related-Q&A query never reads content_items;
+    // ID-131.19 asserts the workspace query never reads
+    // content_item_workspaces (dropped at M6 — see hooks/use-qa-provenance.ts
+    // Query 1, stubbed to an always-empty result, {135.22} rebind owner).
+    mockFromCalls: [] as string[],
+  }));
 
 vi.mock('sonner', () => ({ toast: mockToast }));
 
@@ -55,9 +52,6 @@ vi.mock('@/lib/supabase/client', () => ({
         chain[m] = vi.fn().mockReturnValue(chain);
       }
       chain.then = (onFulfilled?: (v: unknown) => unknown) => {
-        if (tableName === 'content_item_workspaces') {
-          return Promise.resolve(mockWorkspaceResult).then(onFulfilled);
-        }
         // ID-131 {131.21}: the related-Q&A query is re-pointed off
         // content_items onto q_a_pairs.
         if (tableName === 'q_a_pairs') {
@@ -122,21 +116,6 @@ describe('useQAProvenance', () => {
     mockFromCalls.length = 0;
     mockIsFeatureEnabled.mockReturnValue(false);
 
-    // Default workspace query result.
-    // Post-T2: hook reads `application_types.key` via nested JOIN and filters
-    // workspaces where key === 'procurement'.
-    mockWorkspaceResult.data = [
-      {
-        workspace_id: 'ws-1',
-        workspaces: {
-          id: 'ws-1',
-          name: 'Procurement Alpha',
-          application_types: { key: 'procurement' },
-        },
-      },
-    ];
-    mockWorkspaceResult.error = null;
-
     // Default related Q&A result — q_a_pairs row shape (ID-131 {131.21}):
     // the hook maps question_text -> the returned `title` field.
     mockRelatedResult.data = [
@@ -175,20 +154,31 @@ describe('useQAProvenance', () => {
   });
 
   // -----------------------------------------------------------------------
-  // Workspace fetch
+  // Workspace fetch — ID-131.19 (M6, S450 GO tail): content_item_workspaces
+  // dropped; Query 1 is stubbed to an always-empty result ({135.22} rebind
+  // owner) rather than rebuilt, since this hook has no production caller.
   // -----------------------------------------------------------------------
 
-  it('fetches workspaces for Q&A pair items', async () => {
+  it('always returns an empty usedInWorkspaces (content_item_workspaces retired)', async () => {
     const { result } = renderHook(() => useQAProvenance(DEFAULT_PARAMS), {
       wrapper: createWrapper(),
     });
 
     await waitFor(() => {
-      expect(result.current.usedInWorkspaces).toHaveLength(1);
+      expect(result.current.relatedQA.length).toBeGreaterThan(0);
+    });
+    expect(result.current.usedInWorkspaces).toEqual([]);
+  });
+
+  it('never queries content_item_workspaces (ID-131.19 trim)', async () => {
+    const { result } = renderHook(() => useQAProvenance(DEFAULT_PARAMS), {
+      wrapper: createWrapper(),
     });
 
-    expect(result.current.usedInWorkspaces[0].name).toBe('Procurement Alpha');
-    expect(result.current.usedInWorkspaces[0].type).toBe('procurement');
+    await waitFor(() => {
+      expect(result.current.relatedQA.length).toBeGreaterThan(0);
+    });
+    expect(mockFromCalls).not.toContain('content_item_workspaces');
   });
 
   it('does not fetch workspaces when isQAPair is false', async () => {
@@ -199,41 +189,6 @@ describe('useQAProvenance', () => {
 
     await new Promise((r) => setTimeout(r, 50));
     expect(result.current.usedInWorkspaces).toEqual([]);
-  });
-
-  it('filters out non-procurement workspaces and null entries', async () => {
-    mockWorkspaceResult.data = [
-      {
-        workspace_id: 'ws-1',
-        workspaces: {
-          id: 'ws-1',
-          name: 'Procurement Alpha',
-          application_types: { key: 'procurement' },
-        },
-      },
-      {
-        workspace_id: 'ws-2',
-        workspaces: {
-          id: 'ws-2',
-          name: 'Intel Stream',
-          application_types: { key: 'intelligence' },
-        },
-      },
-      {
-        workspace_id: 'ws-3',
-        workspaces: null,
-      },
-    ];
-
-    const { result } = renderHook(() => useQAProvenance(DEFAULT_PARAMS), {
-      wrapper: createWrapper(),
-    });
-
-    await waitFor(() => {
-      expect(result.current.usedInWorkspaces).toHaveLength(1);
-    });
-
-    expect(result.current.usedInWorkspaces[0].name).toBe('Procurement Alpha');
   });
 
   // -----------------------------------------------------------------------

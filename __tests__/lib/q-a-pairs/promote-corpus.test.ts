@@ -189,7 +189,7 @@ describe('promoteCorpusExtractions — {59.22} core loop', () => {
     expect(insertPayload.alternate_question_phrasings).toBeUndefined();
     // publication_status must be 'draft' at insert time
     expect(insertPayload.publication_status).toBe('draft');
-    // question_embedding must NOT be set in the INSERT (set via UPDATE)
+    // question_embedding column dropped at M6 (ID-131.19) — never in the INSERT
     expect(insertPayload.question_embedding).toBeUndefined();
     // Form FKs must be absent (route-i pairs have no form response lineage)
     expect(insertPayload.source_form_response_id).toBeUndefined();
@@ -201,8 +201,10 @@ describe('promoteCorpusExtractions — {59.22} core loop', () => {
       extraction.extracted_question_text,
     );
 
-    // Verify embed UPDATE sets BOTH question_embedding AND publication_status
-    // in the same payload (INV-12: publish ONLY with embedding together)
+    // Verify embed UPDATE sets publication_status. ID-131.19 (M6): the inline
+    // question_embedding column was dropped — the embedding now lands solely
+    // in record_embeddings (see the {131.21} dual-write describe block
+    // below), never in this UPDATE payload.
     const updateMock = supabase._chain.update;
     expect(updateMock).toHaveBeenCalled();
     const updateCalls = updateMock.mock.calls as Array<
@@ -213,9 +215,7 @@ describe('promoteCorpusExtractions — {59.22} core loop', () => {
     );
     expect(embedUpdateCall).toBeDefined();
     const embedUpdatePayload = embedUpdateCall![0];
-    expect(embedUpdatePayload.question_embedding).toBe(
-      JSON.stringify(STUB_EMBEDDING),
-    );
+    expect(embedUpdatePayload).not.toHaveProperty('question_embedding');
     expect(embedUpdatePayload.publication_status).toBe('published');
   });
 
@@ -426,12 +426,9 @@ describe('promoteCorpusExtractions — {59.23} embed-decouple + self-heal (OQ-3)
 
     supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
 
-    // single #1: {59.31} re-promote reads the pair's stored question_text. Same
-    // value as the re-extraction → no mark-stale, focus stays on embed/publish.
-    supabase._chain.single.mockResolvedValueOnce({
-      data: { question_text: extraction.extracted_question_text },
-      error: null,
-    });
+    // ID-131.19 (M6): the {59.31} re-promote's stored-question-text pre-read
+    // (+ mark-stale rider) is RETIRED — repromoteCarriedFields no longer
+    // calls `.single()` at all, so there is no read to mock here.
     // then #1: {59.31} carried-only UPDATE → 1 row
     supabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
@@ -484,23 +481,25 @@ describe('promoteCorpusExtractions — {59.23} embed-decouple + self-heal (OQ-3)
     expect(carried!.publication_status).toBeUndefined();
     expect(carried!.source_document_id).toBeUndefined();
 
-    // INV-12: the embed UPDATE sets question_embedding AND publication_status.
+    // The embed UPDATE sets publication_status. ID-131.19 (M6): no
+    // question_embedding column to set — the embedding lands in
+    // record_embeddings instead (see the {131.21} dual-write describe block).
     const embedPayload = updateCalls.find(
       (call) => call[0].publication_status === 'published',
     )?.[0];
     expect(embedPayload).toBeDefined();
-    expect(embedPayload!.question_embedding).toBe(
-      JSON.stringify(STUB_EMBEDDING),
-    );
+    expect(embedPayload).not.toHaveProperty('question_embedding');
     expect(embedPayload!.publication_status).toBe('published');
   });
 
   // -------------------------------------------------------------------------
-  // INV-12: published-with-NULL-embedding is UNREACHABLE.
-  // Every UPDATE that sets publication_status='published' must also set
-  // question_embedding, and vice versa — never one without the other.
+  // ID-131.19 (M6): question_embedding was DROPPED — no q_a_pairs UPDATE
+  // payload may reference it any more (the embedding lands solely in
+  // record_embeddings; see the {131.21} dual-write describe block). This
+  // supersedes the pre-M6 "INV-12: publish only with embedding together"
+  // invariant, which was anchored on the now-dropped column.
   // -------------------------------------------------------------------------
-  it('INV-12: embed UPDATE always sets question_embedding AND publication_status together', async () => {
+  it('never references question_embedding in a q_a_pairs UPDATE payload (ID-131.19)', async () => {
     const extraction = makeExtraction({ id: UUID_A });
 
     supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
@@ -526,17 +525,7 @@ describe('promoteCorpusExtractions — {59.23} embed-decouple + self-heal (OQ-3)
     for (const call of updateMock.mock.calls as Array<
       [Record<string, unknown>]
     >) {
-      const payload = call[0];
-      if (payload.publication_status === 'published') {
-        expect(payload.question_embedding).toBeDefined();
-        expect(payload.question_embedding).not.toBeNull();
-      }
-      if (
-        'question_embedding' in payload &&
-        payload.question_embedding !== undefined
-      ) {
-        expect(payload.publication_status).toBe('published');
-      }
+      expect(call[0]).not.toHaveProperty('question_embedding');
     }
   });
 
@@ -605,12 +594,9 @@ describe('promoteCorpusExtractions — {59.23} embed-decouple + self-heal (OQ-3)
         resolve({ data: [{ id: UUID_NEW_PAIR_B }], error: null }),
     );
 
-    // Row C (self-heal): single #3 reads the pair's stored question_text
-    // ({59.31} re-promote). Same value as the re-extraction → no mark-stale.
-    supabase._chain.single.mockResolvedValueOnce({
-      data: { question_text: extractionC.extracted_question_text },
-      error: null,
-    });
+    // Row C (self-heal): ID-131.19 (M6) retired the {59.31} re-promote's
+    // stored-question-text pre-read — repromoteCarriedFields no longer calls
+    // `.single()`, so there is no third single() mock to register here.
     // Row C: carried-only UPDATE → 1 row
     supabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
@@ -1265,12 +1251,9 @@ describe('promoteCorpusExtractions — {59.29} corpus provenance-link leg (link-
 
     supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
     // Self-heal path: NO INSERT, NO CAS, NO provenance-link emit (the re-promote
-    // branch does not re-link). {59.31}: a carried re-sync UPDATE precedes the embed.
-    // single #1: read the pair's stored question_text (unchanged → no mark-stale)
-    supabase._chain.single.mockResolvedValueOnce({
-      data: { question_text: extraction.extracted_question_text },
-      error: null,
-    });
+    // branch does not re-link). {59.31}: a carried re-sync UPDATE precedes the
+    // embed. ID-131.19 (M6): the stored-question-text pre-read is retired, so
+    // there is no `.single()` call to mock on this path any more.
     // then #1: carried-only UPDATE → 1 row
     supabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
@@ -1305,24 +1288,31 @@ describe('promoteCorpusExtractions — {59.29} corpus provenance-link leg (link-
 });
 
 // ---------------------------------------------------------------------------
-// Test suite — {59.31} re-walk not-round-tripped enforcement (S233 gate)
-//             + mark-stale on question_text change.
+// Test suite — {59.31} re-walk not-round-tripped enforcement (S233 gate).
 //
-// Spec: TECH-qa-sidecar-canonical.md R3 (maps INV-1/2/3/9/10); the S233
+// Spec: TECH-qa-sidecar-canonical.md R3 (maps INV-1/2/3/9); the S233
 //       SIDECAR-REOPENED gate re-ratified.
 //
 // SHAPE: these exercise the re-promotion (self-heal) path — an extraction the
 // eligibility RPC returns with promoted_to_pair_id ALREADY set (pair exists,
-// embedding NULL). The re-walk ({59.26}) has UPSERTed the same-PK extraction
-// row with the re-extracted carried text; this slice re-syncs ONLY the carried
+// unembedded). The re-walk ({59.26}) has UPSERTed the same-PK extraction row
+// with the re-extracted carried text; this slice re-syncs ONLY the carried
 // fields onto the linked pair and NEVER touches the not-carried (lifecycle)
-// set (INV-9). On a question_text change the embedding is NULL'd in the SAME
-// carried UPDATE (the explicit INV-10 mark-stale exception).
+// set (INV-9).
+//
+// ID-131.19 (M6, S450 GO tail): the former INV-10 mark-stale rider (NULL the
+// embedding in the SAME carried UPDATE on a question_text change) is RETIRED
+// — q_a_pairs.question_embedding was DROPPED, so there is no inline column
+// left to NULL. The stored-question-text pre-read this rider depended on is
+// ALSO removed (repromoteCarriedFields no longer calls `.single()` at all).
+// See lib/q-a-pairs/promote-corpus.ts's header comment on
+// repromoteCarriedFields for why no substitute write was added (the
+// separately-broken eligibility RPC makes any substitute incomplete anyway
+// — escalated, not fixed here).
 //
 // DB-call order on the re-promotion path (COCOINDEX_SOURCE_PATH irrelevant —
 // no file leg on re-promote; the sidecar already exists on disk):
 //   rpc                              → eligible set (one linked-unembedded row)
-//   single #1                        → read the pair's stored question_text
 //   then  #1                         → carried-only UPDATE (1 row)
 //   then  #2                         → embed UPDATE (publish)
 //
@@ -1332,7 +1322,7 @@ describe('promoteCorpusExtractions — {59.29} corpus provenance-link leg (link-
 // payload (the S233 gate).
 // ---------------------------------------------------------------------------
 
-describe('promoteCorpusExtractions — {59.31} re-walk carried-only re-promote + mark-stale', () => {
+describe('promoteCorpusExtractions — {59.31} re-walk carried-only re-promote', () => {
   let supabase: MockSupabaseClient;
 
   beforeEach(() => {
@@ -1342,8 +1332,10 @@ describe('promoteCorpusExtractions — {59.31} re-walk carried-only re-promote +
   });
 
   /** The not-carried (lifecycle) set that MUST NEVER appear in a re-promote
-   *  carried UPDATE payload (INV-9 / the S233 gate). question_embedding is the
-   *  ONLY not-carried key permitted, and ONLY as the mark-stale NULL rider. */
+   *  carried UPDATE payload (INV-9 / the S233 gate). ID-131.19 (M6):
+   *  question_embedding is no longer a permitted key at all (the mark-stale
+   *  NULL rider was retired alongside the dropped column) — it must be
+   *  absent from every carried payload, changed question or not. */
   const NOT_CARRIED_KEYS = [
     'publication_status',
     'superseded_by',
@@ -1376,11 +1368,10 @@ describe('promoteCorpusExtractions — {59.31} re-walk carried-only re-promote +
 
   // -------------------------------------------------------------------------
   // S233 gate: a changed answer_standard re-syncs ONLY the carried field; the
-  // not-carried lifecycle set is byte-untouched (never in the payload), and
-  // because question_text is UNCHANGED the embedding is NOT NULL'd (no
-  // mark-stale rider). The pair then re-embeds + publishes.
+  // not-carried lifecycle set is byte-untouched (never in the payload). The
+  // pair then re-embeds + publishes.
   // -------------------------------------------------------------------------
-  it('S233: changed answer_standard → carried-only UPDATE, NO not-carried keys, NO mark-stale (question unchanged)', async () => {
+  it('S233: changed answer_standard → carried-only UPDATE, NO not-carried keys', async () => {
     const STORED_QUESTION = 'What is the procurement threshold?';
     const extraction = makeExtraction({
       id: UUID_A,
@@ -1391,11 +1382,6 @@ describe('promoteCorpusExtractions — {59.31} re-walk carried-only re-promote +
 
     supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
 
-    // single #1: read the pair's stored question_text (unchanged → no mark-stale)
-    supabase._chain.single.mockResolvedValueOnce({
-      data: { question_text: STORED_QUESTION },
-      error: null,
-    });
     // then #1: carried-only UPDATE → 1 row
     supabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
@@ -1422,17 +1408,18 @@ describe('promoteCorpusExtractions — {59.31} re-walk carried-only re-promote +
     for (const key of NOT_CARRIED_KEYS) {
       expect(carried!).not.toHaveProperty(key);
     }
-    // question_text UNCHANGED → no mark-stale rider (embedding key absent).
     expect(carried!).not.toHaveProperty('question_embedding');
   });
 
   // -------------------------------------------------------------------------
-  // INV-10 mark-stale: a changed question_text NULLs the embedding in the SAME
-  // carried UPDATE (the only permitted not-carried touch). The pair then
-  // re-embeds via the existing self-heal embed path → no published+stale-vector
-  // window (the wrong-vector hazard the RPC's NULL-embedding exclusion closes).
+  // ID-131.19 (M6): the former INV-10 mark-stale rider (NULL the embedding in
+  // the SAME carried UPDATE on a question_text change) is RETIRED — there is
+  // no inline column left to NULL. A changed question_text still re-syncs
+  // correctly as a carried-only UPDATE; it just never touches
+  // question_embedding, same as the unchanged-question case above. The pair
+  // still re-embeds via the existing self-heal embed path afterward.
   // -------------------------------------------------------------------------
-  it('INV-10: changed question_text → mark-stale NULLs question_embedding in the SAME carried UPDATE', async () => {
+  it('changed question_text → carried-only UPDATE, still no question_embedding key (mark-stale retired)', async () => {
     const extraction = makeExtraction({
       id: UUID_A,
       promoted_to_pair_id: UUID_EXISTING_PAIR,
@@ -1442,12 +1429,7 @@ describe('promoteCorpusExtractions — {59.31} re-walk carried-only re-promote +
 
     supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
 
-    // single #1: stored question_text DIFFERS → mark-stale fires
-    supabase._chain.single.mockResolvedValueOnce({
-      data: { question_text: 'What is the procurement threshold?' },
-      error: null,
-    });
-    // then #1: carried-only UPDATE (with the embedding-NULL rider) → 1 row
+    // then #1: carried-only UPDATE → 1 row
     supabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: [{ id: UUID_EXISTING_PAIR }], error: null }),
@@ -1469,10 +1451,8 @@ describe('promoteCorpusExtractions — {59.31} re-walk carried-only re-promote +
     expect(carried!.question_text).toBe(
       'What is the NEW procurement threshold?',
     );
-    // INV-10: embedding NULL'd in the SAME UPDATE.
-    expect(carried!).toHaveProperty('question_embedding', null);
-    // The embedding-NULL rider is the ONLY not-carried touch — all other
-    // lifecycle keys are still absent (INV-9).
+    // ID-131.19: no mark-stale rider — question_embedding is never a key.
+    expect(carried!).not.toHaveProperty('question_embedding');
     for (const key of NOT_CARRIED_KEYS) {
       expect(carried!).not.toHaveProperty(key);
     }
@@ -1496,11 +1476,6 @@ describe('promoteCorpusExtractions — {59.31} re-walk carried-only re-promote +
 
     supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
 
-    // single #1: read stored question_text
-    supabase._chain.single.mockResolvedValueOnce({
-      data: { question_text: 'What is the procurement threshold?' },
-      error: null,
-    });
     // then #1: carried UPDATE → 0 rows (silent no-op)
     supabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
@@ -1538,10 +1513,6 @@ describe('promoteCorpusExtractions — {59.31} re-walk carried-only re-promote +
 
     supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
 
-    supabase._chain.single.mockResolvedValueOnce({
-      data: { question_text: 'What is the procurement threshold?' },
-      error: null,
-    });
     supabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: [{ id: UUID_EXISTING_PAIR }], error: null }),
@@ -1612,11 +1583,8 @@ describe('promoteCorpusExtractions — {59.31} re-walk carried-only re-promote +
         resolve({ data: [{ id: UUID_NEW_PAIR }], error: null }),
     );
 
-    // Relinked row: single #1 read stored question_text (changed → mark-stale)
-    supabase._chain.single.mockResolvedValueOnce({
-      data: { question_text: 'Original relinked question?' },
-      error: null,
-    });
+    // Relinked row: ID-131.19 (M6) retired the stored-question-text pre-read
+    // — no `.single()` mock needed on this path any more.
     // Relinked: then #3 carried UPDATE → 1 row
     supabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
@@ -1637,12 +1605,12 @@ describe('promoteCorpusExtractions — {59.31} re-walk carried-only re-promote +
     expect(result.embed_failed).toBe(0);
     expect(result.already_promoted).toBe(0);
 
-    // The re-sync carried UPDATE (relinked) carries question_text + the
-    // mark-stale rider, but no other lifecycle key.
+    // The re-sync carried UPDATE (relinked) carries question_text but no
+    // other lifecycle key — and, post-ID-131.19, no question_embedding key.
     const carried = findCarriedUpdate(supabase);
     expect(carried).toBeDefined();
     expect(carried!.question_text).toBe('Relinked question?');
-    expect(carried!).toHaveProperty('question_embedding', null);
+    expect(carried!).not.toHaveProperty('question_embedding');
     for (const key of NOT_CARRIED_KEYS) {
       expect(carried!).not.toHaveProperty(key);
     }
@@ -1653,9 +1621,11 @@ describe('promoteCorpusExtractions — {59.31} re-walk carried-only re-promote +
 // Test suite — {131.21} G-MANUAL-QA HIGH-priority dual-write
 //
 // embedAndPublish() upserts the polymorphic record_embeddings store
-// (owner_kind='q_a_pair') alongside the inline question_embedding column, so
-// hybrid_search's q_a_pair arm has a row once the inline column drops at M6
-// (flow.py never embeds q_a_pairs — this promotion path is the SOLE writer).
+// (owner_kind='q_a_pair') so hybrid_search's q_a_pair arm has a row (flow.py
+// never embeds q_a_pairs — this promotion path is the SOLE writer). ID-131.19
+// (M6, S450 GO tail): the inline question_embedding column this dual-write
+// originally sat alongside has been DROPPED — record_embeddings is now the
+// sole store.
 //
 // Mock-queue note: the upsert is terminated with `.select('id').maybeSingle()`
 // rather than an awaited-chain `.then()` — `.maybeSingle()` is a SEPARATE,
@@ -1773,8 +1743,8 @@ describe('promoteCorpusExtractions — {131.21} record_embeddings dual-write', (
       supabase as unknown as SupabaseClientLike,
     );
 
-    // The inline-column publish already succeeded — a record_embeddings
-    // failure is swallowed (best-effort), never counted as embed_failed.
+    // The publish UPDATE already succeeded — a record_embeddings failure is
+    // swallowed (best-effort), never counted as embed_failed.
     expect(result.promoted).toBe(1);
     expect(result.embed_failed).toBe(0);
   });

@@ -550,7 +550,9 @@ describe('Integration: full codebase extraction', () => {
       //   find_all_duplicates → ONE parameterised `find_duplicates`). 43 → 42.
       // − 1 (ID-117.12: get_document_diff retired with the legacy diff-display
       //   surface / source_document_diffs engine). 42 → 41.
-      expect(allTools.length).toBe(41);
+      // − 1 (ID-131.19, M6: get_workspace_items retired — content_item_workspaces
+      //   junction table dropped, no production caller). 41 → 40.
+      expect(allTools.length).toBe(40);
 
       // Every tool should have a non-empty name
       for (const tool of allTools) {

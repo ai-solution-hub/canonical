@@ -530,24 +530,29 @@ async function fetchEntityMentions(
 
 /**
  * Fetch title for a content item.
+ *
+ * ID-131.19 (M6, S450 GO tail): content_items DROPPED — entity_mentions.
+ * source_document_id already FKs to `source_documents` (not content_items;
+ * confirmed via the generated types' Relationships), so this is a trivial
+ * table+column re-point (`title` -> `suggested_title`), not a re-anchor.
  */
 async function fetchItemTitle(
   supabase: SupabaseClient<Database>,
   itemId: string,
 ): Promise<string | null> {
   const { data, error } = await supabase
-    .from('content_items')
-    .select('title')
+    .from('source_documents')
+    .select('suggested_title')
     .eq('id', itemId)
     .maybeSingle();
 
   if (error) {
     throw new Error(
-      `Failed to fetch content_items title for ${itemId}: ${error.message}`,
+      `Failed to fetch source_documents title for ${itemId}: ${error.message}`,
     );
   }
 
-  return data?.title ?? null;
+  return data?.suggested_title ?? null;
 }
 
 /**
@@ -594,27 +599,30 @@ function resolveItemIds(prefixes: string[], knownIds: string[]): string[] {
 }
 
 /**
- * Resolve residual item IDs. We look them up from content_items since
+ * Resolve residual item IDs. We look them up from source_documents since
  * residual items may not have holds relationships.
  *
  * Supabase UUID columns do not support LIKE — we use `id::text` via
  * an RPC-free approach: fetch a broader set and filter client-side.
  * With only ~500 content items on prod 'r', fetching all IDs is cheap.
+ *
+ * ID-131.19 (M6, S450 GO tail): content_items DROPPED — re-pointed onto
+ * source_documents (same trivial table swap as fetchItemTitle above).
  */
 async function resolveResidualItemIds(
   supabase: SupabaseClient<Database>,
 ): Promise<string[]> {
-  const { data, error } = await supabase.from('content_items').select('id');
+  const { data, error } = await supabase.from('source_documents').select('id');
 
   if (error) {
     log(
-      `Warning: could not fetch content_items for residual lookup: ${error.message}`,
+      `Warning: could not fetch source_documents for residual lookup: ${error.message}`,
     );
     return [];
   }
 
   if (!data || data.length === 0) {
-    log('Warning: content_items table is empty.');
+    log('Warning: source_documents table is empty.');
     return [];
   }
 
@@ -624,7 +632,7 @@ async function resolveResidualItemIds(
   for (const prefix of RESIDUAL_SHORT_PREFIXES) {
     const matches = allIds.filter((id) => id.startsWith(prefix));
     if (matches.length === 0) {
-      log(`Warning: no content_items match residual prefix "${prefix}".`);
+      log(`Warning: no source_documents match residual prefix "${prefix}".`);
     } else if (matches.length > 1) {
       log(
         `Warning: ambiguous residual prefix "${prefix}" matches ${matches.length} items. Using first.`,
@@ -1361,20 +1369,26 @@ Overall:                ${allPassed ? 'ALL PASSED' : 'FAILED'}
 // the Python parity driver subprocess. ZERO DB writes on either side.
 // ──────────────────────────────────────────
 
-/** Persisted item content text needed by the Python cocoindex driver. */
+/**
+ * Persisted item content text needed by the Python cocoindex driver.
+ *
+ * ID-131.19 (M6, S450 GO tail): content_items DROPPED — re-pointed onto
+ * source_documents.extracted_text (same trivial table+column swap as
+ * fetchItemTitle above).
+ */
 async function fetchItemContent(
   supabase: SupabaseClient<Database>,
   itemId: string,
 ): Promise<string | null> {
   const { data, error } = await supabase
-    .from('content_items')
-    .select('content')
+    .from('source_documents')
+    .select('extracted_text')
     .eq('id', itemId)
     .maybeSingle();
   if (error) {
     throw new Error(`Failed to fetch content for ${itemId}: ${error.message}`);
   }
-  return data?.content ?? null;
+  return data?.extracted_text ?? null;
 }
 
 /**

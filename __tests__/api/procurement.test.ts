@@ -934,10 +934,9 @@ describe('DELETE /api/procurement/[id]', () => {
     };
     mockSupabase.storage.from.mockReturnValue(storageBucket);
 
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
-    );
-
+    // ID-131.19 (M6): the content_item_workspaces pre-delete cleanup was
+    // RETIRED (dropped table) — only the workspaces DELETE itself resolves
+    // via `.then()` now.
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );

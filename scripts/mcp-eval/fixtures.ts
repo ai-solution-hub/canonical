@@ -47,10 +47,12 @@ export function loadEnv(): void {
 // 43 → 42 (−2 +1). ID-131.15 (G-DEDUP legacy dedup-family retirement, S446)
 // later removed the whole-KB batch-scan branch (the find_duplicate_pairs RPC
 // it depended on was dropped) — find_duplicates is now single-item-only, no
-// `scope` param.
+// `scope` param. ID-131.19 (M6, S450 GO tail) RETIRED get_workspace_items —
+// its sole mechanism (content_item_workspaces junction table) was dropped at
+// M6, no production caller existed. 42 → 41 → 40.
 // ---------------------------------------------------------------------------
 
-/** Canonical set of all 41 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
+/** Canonical set of all 40 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
 export const CANONICAL_TOOL_NAMES = [
   // ID-71.7 — ONE consolidated find/answer entry (search + QA + chunk + similar).
   'find', // 1
@@ -67,7 +69,7 @@ export const CANONICAL_TOOL_NAMES = [
   'get', // 13 (ID-71.10 — one-or-many; was get_content_item + get_content_items)
   'create_content_item', // 14
   'update_content_item', // 15
-  'get_workspace_items', // 16
+  // get_workspace_items RETIRED (ID-131.19, M6) — content_item_workspaces dropped.
   'assign', // 17 (ID-71.10 — one-or-many; was assign_content_owner + bulk_assign_owner)
   'get_document_versions', // 18
   // get_document_diff RETIRED (ID-117.12) — legacy diff-display surface removed.
@@ -110,7 +112,7 @@ export const CANONICAL_TOOL_NAMES = [
   'update_publication_status', // 57
 ] as const;
 
-export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 41 (ID-117.12 retired get_document_diff: 42 − 1)
+export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 40 (ID-117.12 retired get_document_diff: 42 − 1; ID-131.19 retired get_workspace_items: 41 − 1)
 
 /** Read-only tools (no side effects). */
 export const READ_ONLY_TOOLS = new Set([
@@ -124,7 +126,7 @@ export const READ_ONLY_TOOLS = new Set([
   'get_form_question',
   'get_content_effectiveness',
   'get', // ID-71.10 — one-or-many (was get_content_item + get_content_items)
-  'get_workspace_items',
+  // get_workspace_items RETIRED (ID-131.19, M6) — content_item_workspaces dropped.
   'suggest_content_creation',
   'get_entity_relationships',
   'list_templates',
@@ -508,11 +510,6 @@ export function getMinimalArgs(
       // ID-131.15 (G-DEDUP legacy dedup-family retirement, S446) — the
       // find_duplicate_pairs RPC it depended on was dropped.
       return { id: knownUUIDs.contentItemId };
-    case 'get_workspace_items':
-      return {
-        workspace_id:
-          knownUUIDs.procurementId ?? '00000000-0000-0000-0000-000000000000',
-      };
     case 'show_coverage_matrix':
       return {};
     case 'show_procurement_dashboard':

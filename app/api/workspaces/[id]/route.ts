@@ -112,21 +112,10 @@ export const DELETE = defineRoute(
       const permanent = parsed.data.permanent === true;
 
       if (permanent) {
-        // Check for assigned items first
-        const { count } = await supabase
-          .from('content_item_workspaces')
-          .select('*', { count: 'exact', head: true })
-          .eq('workspace_id', id);
-
-        if (count && count > 0) {
-          return NextResponse.json(
-            {
-              error:
-                'Cannot delete a workspace with assigned items. Remove all items first.',
-            },
-            { status: 409 },
-          );
-        }
+        // The "assigned items" pre-delete guard is RETIRED (ID-131.19, M6,
+        // S450 GO tail) — its check (content_item_workspaces) was dropped;
+        // the S440 owner ruling accepted this breakage and the rebind to the
+        // new workspace-membership model is owned by {135.22}.
 
         // Hard delete
         const { error } = await supabase

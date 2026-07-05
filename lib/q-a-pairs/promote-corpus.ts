@@ -6,15 +6,22 @@
  * ID-59 {59.24} — OQ-2 active retirement pass (after the promote loop).
  * ID-59 {59.29} — corpus sidecar-emit leg (emit-then-publish) + bl-323 fold:
  *                 unified per-extraction failure record (embed | sidecar).
- * ID-131 {131.21} — HIGH-priority dual-write: embedAndPublish() ALSO upserts
- *                   the polymorphic record_embeddings store (owner_kind=
- *                   'q_a_pair') alongside the inline q_a_pairs.question_embedding
- *                   column. flow.py never embeds q_a_pairs — this promotion path
- *                   is the SOLE q_a_pair embedding writer — so hybrid_search's
- *                   q_a_pair arm would return 0 rows once the inline column
- *                   drops at M6 (quarantined migration, commit 8eb200e6) without
- *                   this. Best-effort: mirrors classify.ts's non-fatal
- *                   record_embeddings upsert-failure handling.
+ * ID-131 {131.21} — HIGH-priority dual-write: embedAndPublish() upserts the
+ *                   polymorphic record_embeddings store (owner_kind=
+ *                   'q_a_pair'). flow.py never embeds q_a_pairs — this
+ *                   promotion path is the SOLE q_a_pair embedding writer —
+ *                   so hybrid_search's q_a_pair arm needs this row. Best-
+ *                   effort: mirrors classify.ts's non-fatal record_embeddings
+ *                   upsert-failure handling.
+ * ID-131.19 (M6, S450 GO tail) — q_a_pairs.question_embedding (the inline
+ *                   column this dual-write originally sat ALONGSIDE) was
+ *                   DROPPED (20260706120000_id131_drop_inline_vector_cols.sql,
+ *                   applied). record_embeddings is now the sole store;
+ *                   embedAndPublish's inline UPDATE carries publication_status
+ *                   only. See that function + repromoteCarriedFields' header
+ *                   comments for the retired mark-stale rider and the
+ *                   separately-broken eligibility RPC (escalated, not fixed
+ *                   here — out of this Subtask's file-ownership boundary).
  *
  * Spec: specs/id-59-concurrent-edit-intent-arbitration/TECH-qa-corpus-promotion.md
  *       R1 steps 1, 2, 3, 4, 5, 6, 7.
@@ -37,13 +44,17 @@
  * below — see the note near the INSERT.
  *
  * OQ-3 decouple: the extraction→pair LINK (CAS) is NOT conditional on
- * embedding success. If embedding fails, the pair stays draft+NULL — which
- * q_a_search correctly excludes (INV-11). The eligibility RPC re-selects
- * linked-but-unembedded pairs next run → self-healing. The batch NEVER aborts
- * for one embedding failure (INV-10).
+ * embedding success. If embedding fails, the pair stays draft — which
+ * q_a_search correctly excludes (INV-11). The eligibility RPC (SEPARATELY
+ * broken post-M6 — see the ID-131.19 header note above) was intended to
+ * re-select linked-but-unembedded pairs next run → self-healing. The batch
+ * NEVER aborts for one embedding failure (INV-10).
  *
- * INV-12 invariant: `publication_status='published'` is ONLY set in the same
- * UPDATE that sets `question_embedding`. Never one without the other.
+ * INV-12 invariant (pre-M6): `publication_status='published'` was ONLY set
+ * in the same UPDATE that set `question_embedding`. ID-131.19 (M6): the
+ * inline column is gone — the UPDATE now sets publication_status alone, and
+ * the record_embeddings dual-write happens in a separate best-effort step
+ * (see embedAndPublish's header comment).
  *
  * INV-23 equation: for one run, published-this-run == promoted - embed_failed.
  *   promoted = CAS-wins + self-heal attempts (all paths that reach the embed step)
@@ -226,8 +237,10 @@ export interface SupabaseClientLike {
  *       materialised (BI-16 QA-DBONLY). A link failure aborts the publish (pair
  *       stays draft, count sidecar_failed, self-heal next run).
  *   4.  Embed: generateEmbedding(question_text). On success: UPDATE pair
- *       SET question_embedding + publication_status='published' together
- *       (INV-12). On failure: leave draft+NULL, count embed_failed, continue.
+ *       SET publication_status='published', then dual-write the embedding
+ *       into record_embeddings (ID-131.19, M6 — the inline question_embedding
+ *       column this step used to also set was dropped). On failure: leave
+ *       draft, count embed_failed, continue.
  *   6.  Retirement pass (OQ-2): after the promote loop, archive invalidated
  *       published pairs. A same-run replacement is available at this point
  *       because it was created in step 3a above.
@@ -372,8 +385,9 @@ export async function promoteCorpusExtractions(
     //                                   q_a_extractions. Update when ID-94.1/G4
     //                                   adds a known phrasings key.
     //   origin_kind               ← 'extracted_from_corpus' (INV-4)
-    //   publication_status        ← 'draft' (step 4 publishes in same UPDATE as embed)
-    //   question_embedding        ← omitted/NULL (step 4 sets it)
+    //   publication_status        ← 'draft' (step 4 publishes)
+    //   (question_embedding column DROPPED at M6, ID-131.19 — the embedding
+    //    step 4 generates now lands solely in record_embeddings)
     //   source_form_response_id   ← omitted (route-i pairs have no form lineage)
     //   source_question_id        ← omitted (route-i pairs have no form lineage)
     //   source_form_template_id   ← omitted ({130.15}/T-B21: .docx imports land
@@ -390,7 +404,8 @@ export async function promoteCorpusExtractions(
       // (text[] NOT NULL DEFAULT '{}') fills it. Update here for ID-94.1/G4.
       origin_kind: 'extracted_from_corpus',
       publication_status: 'draft',
-      // question_embedding intentionally omitted — step 4 embeds + publishes
+      // question_embedding column DROPPED at M6 (ID-131.19) — step 4 embeds
+      // + publishes via record_embeddings instead.
     };
     const insertResult = await tryQuery(
       client.from('q_a_pairs').insert(pairInsert).select('id').single(),
@@ -608,12 +623,21 @@ async function emitCorpusSidecar(
 // exclusion is COMPILE-CHECKED: adding a not-carried key to the literal is a
 // type error (mirrors the typed Pick payloads at the embed/archive sites).
 //
-// Mark-stale (INV-10, OQ-25-2): the helper first reads the pair's stored
-// question_text and compares it to the re-extracted value; on inequality it
-// adds `question_embedding: null` to the SAME carried UPDATE — the ONLY
-// permitted not-carried touch, and the explicit INV-10 exception. q_a_search
-// (published AND question_embedding IS NOT NULL) then excludes the pair until
-// the very next embed step re-embeds it, so there is no wrong-vector window.
+// Mark-stale (INV-10, OQ-25-2) — RETIRED at M6 (ID-131.19, S450 GO tail):
+// q_a_pairs.question_embedding was DROPPED (20260706120000_id131_drop_
+// inline_vector_cols.sql); this helper no longer has an inline column to
+// NULL on a question-text change. No re-point performed: hybrid_search's
+// eligibility RPC (public.q_a_extractions_promotion_candidates, defined in
+// 20260617130000_squash_baseline.sql) STILL predicates on
+// `p.question_embedding IS NULL` at the SQL level — a pre-existing,
+// separate, DB-level defect this Subtask's file-ownership boundary does not
+// cover (a SQL migration is out of scope here). Escalated to the
+// Orchestrator/Curator: until that RPC is fixed to check record_embeddings
+// absence instead, NEITHER a NULL-column rider NOR a record_embeddings
+// DELETE would re-enter the self-healing loop the original comment
+// described — so no substitute mark-stale write is added here; a stale
+// embedding is a stricter regression than doing nothing until the RPC is
+// repaired.
 //
 // Carried fields re-synced are exactly those the extraction carries:
 //   question_text  ← extracted_question_text   (NOT NULL on both)
@@ -632,10 +656,11 @@ async function emitCorpusSidecar(
 // ---------------------------------------------------------------------------
 
 /** The CARRIED fields the re-promotion UPDATE may set (compile-checked
- *  exclusion of the not-carried lifecycle set). `question_embedding` is the
- *  ONLY not-carried key permitted, and ONLY as the mark-stale NULL rider —
- *  it is added to the payload type via an intersection at the call site, not
- *  listed here, so the carried boundary stays self-documenting. */
+ *  exclusion of the not-carried lifecycle set). ID-131.19 (M6): the former
+ *  `question_embedding` mark-stale NULL rider is RETIRED — the column was
+ *  dropped and no substitute write was added (see the comment above
+ *  `repromoteCarriedFields`) — so this is now a plain carried-fields union,
+ *  no intersection needed at the call site. */
 type CarriedRepromoteFields =
   | 'question_text'
   | 'answer_standard'
@@ -656,21 +681,10 @@ async function repromoteCarriedFields(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   extraction: any,
 ): Promise<boolean> {
-  // ── Read the stored question_text for the mark-stale comparison (INV-10) ──
-  const storedResult = await client
-    .from('q_a_pairs')
-    .select('question_text')
-    .eq('id', existingPairId)
-    .single();
-
-  const storedError = storedResult?.error ?? null;
-  if (storedError) {
-    // The pair could not be read — treat as a soft re-sync failure.
-    return false;
-  }
-  const storedQuestionText: string | null =
-    (storedResult?.data as { question_text: string } | null)?.question_text ??
-    null;
+  // The stored-question-text pre-read (for the mark-stale comparison, INV-10)
+  // is RETIRED (ID-131.19, M6) alongside the rider itself — see the comment
+  // above this function. There is no other consumer of that read, so it is
+  // removed entirely rather than kept as a dead round-trip.
 
   // ── Build the CARRIED-ONLY payload (typed Pick — compile-checked exclusion).
   const reExtractedQuestion: string = extraction.extracted_question_text;
@@ -692,23 +706,10 @@ async function repromoteCarriedFields(
     carriedPayload.answer_standard = reExtractedAnswer;
   }
 
-  // ── Mark-stale rider (INV-10): NULL the embedding ONLY on a question change.
-  // question_embedding is the single permitted not-carried touch; the
-  // intersection type keeps the literal exhaustive-checked while making the
-  // exception explicit at the write site.
-  const markStale = storedQuestionText !== reExtractedQuestion;
-  const updatePayload: typeof carriedPayload &
-    Pick<
-      Database['public']['Tables']['q_a_pairs']['Update'],
-      'question_embedding'
-    > = markStale
-    ? { ...carriedPayload, question_embedding: null }
-    : carriedPayload;
-
   // ── Carried UPDATE — assert affected-row = 1 (REST PATCH silent-no-op guard).
   const updateResult = await client
     .from('q_a_pairs')
-    .update(updatePayload)
+    .update(carriedPayload)
     .eq('id', existingPairId)
     .select('id');
 
@@ -996,19 +997,31 @@ async function retireSupersededPairs(
 // ---------------------------------------------------------------------------
 // Step 4 — embed + publish helper (OQ-3 decouple)
 //
-// Attempts to generate an embedding for the question text and UPDATE the pair
-// with both question_embedding AND publication_status='published' in ONE
-// statement (INV-12: publish ONLY with embedding together — never one without
-// the other; a pair with published+NULL-embedding would be invisible to
-// q_a_search, violating INV-11).
+// Attempts to generate an embedding for the question text, UPDATEs the pair
+// to publication_status='published', then dual-writes the embedding into the
+// polymorphic record_embeddings store.
+//
+// ID-131.19 (M6, S450 GO tail): q_a_pairs.question_embedding was DROPPED
+// (20260706120000_id131_drop_inline_vector_cols.sql) — the former INV-12
+// "publish ONLY with embedding together, in ONE statement" atomicity was
+// anchored on that inline column; it no longer exists, so the UPDATE below
+// carries publication_status ONLY. record_embeddings is now the sole store
+// hybrid_search's q_a_pair arm reads (the {131.21} dual-write already
+// existed alongside the inline column — see the record_embeddings upsert
+// below, UNCHANGED). This does introduce a short best-effort window between
+// the publish UPDATE and the record_embeddings upsert landing; that trade-off
+// was already accepted for the dual-write's failure path ("must NOT
+// un-publish"), so no NEW risk is introduced by this file's fix, only the
+// removal of a write to a column that no longer exists.
 //
 // On ANY failure (generateEmbedding throws, or UPDATE returns 0 rows):
-//   - The pair remains draft + question_embedding NULL.
+//   - The pair remains draft.
 //   - q_a_search correctly excludes it (INV-11 satisfied).
 //   - onFail() is called (caller increments embed_failed).
 //   - The loop CONTINUES — no batch abort (INV-10).
-//   - The eligibility RPC re-selects this linked-unembedded pair next run →
-//     self-healing (the link does NOT block retry).
+//   - The eligibility RPC is SEPARATELY broken post-M6 (still predicates on
+//     the dropped question_embedding column — escalated, not fixed here; a
+//     SQL migration is out of this Subtask's file-ownership boundary).
 // ---------------------------------------------------------------------------
 async function embedAndPublish(
   client: SupabaseClientLike,
@@ -1021,24 +1034,22 @@ async function embedAndPublish(
   try {
     embedding = await generateEmbedding(questionText);
   } catch {
-    // generateEmbedding threw — leave pair draft+NULL, self-heal next run.
+    // generateEmbedding threw — leave pair draft, self-heal next run.
     onFail();
     return;
   }
 
-  // Serialised once — reused for BOTH the inline column UPDATE below AND the
-  // record_embeddings dual-write (RPC/vector-param convention: JSON.stringify,
-  // never a raw array — supabase/CLAUDE.md Embeddings).
+  // Serialised once — reused for the record_embeddings dual-write (RPC/
+  // vector-param convention: JSON.stringify, never a raw array —
+  // supabase/CLAUDE.md Embeddings).
   const serialisedEmbedding = JSON.stringify(embedding);
 
-  // UPDATE pair SET question_embedding + publication_status='published' TOGETHER.
-  // INV-12: these two fields are ALWAYS set in the same UPDATE statement.
-  // Typed update payload — compile-check that field names match the schema.
+  // UPDATE pair SET publication_status='published'. ID-131.19: no longer
+  // carries question_embedding (column dropped) — see the header comment.
   const embedUpdatePayload: Pick<
     Database['public']['Tables']['q_a_pairs']['Update'],
-    'question_embedding' | 'publication_status'
+    'publication_status'
   > = {
-    question_embedding: serialisedEmbedding,
     publication_status: 'published',
   };
 
