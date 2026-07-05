@@ -286,8 +286,10 @@ severity mapping:
 
 **Step 1 — Read the spec slice and subtask brief**
 
-Read the spec section(s) referenced in `details`. Read `testStrategy`. Read any
-`<info added on …>` journal blocks in `details`.
+Read the spec section(s) referenced in `details`. Read `testStrategy`. Read the
+`<info added on …>` journal blocks the Executor left in `details` — retrieve the
+thread via `bun scripts/ledger-cli.ts journal <N>.<M>` (a bare `show` stubs those
+blocks on large tasks), which also resolves any compaction archive-pointers.
 
 **Step 1b — Empirical-grounding pre-check**
 

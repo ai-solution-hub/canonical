@@ -81,14 +81,17 @@ ledger JSON files wholesale** (task-list.json is multi-MB; full reads burn
 context for nothing):
 
 ```bash
-bun scripts/ledger-cli.ts show task <id>          # one task record
-bun scripts/ledger-cli.ts get task <id> <field>   # one field (e.g. status_note)
+bun scripts/ledger-cli.ts show task <id>            # one task record (size-shaped ≤48KB; --full for verbatim)
+bun scripts/ledger-cli.ts get task <id> <field>     # one field (e.g. status_note)
+bun scripts/ledger-cli.ts get task <id>.<subId>     # one subtask directly (no whole-task fetch)
 ```
 
-For tasks referenced by the continuation prompt, the records' `<info added on …>`
-journal blocks (PRODUCT inv 13) surface what shipped, commit SHAs, and any
-in-flight discoveries the previous Executor / Checker left behind that may
-have been omitted from the continuation prompt. Prefer `get … details` /
+For tasks referenced by the continuation prompt, the `<info added on …>` journal
+blocks (PRODUCT inv 13) surface what shipped, commit SHAs, and any in-flight
+discoveries the previous Executor / Checker left behind. A bare `show` now stubs
+those blocks on large tasks to keep the payload under 48KB, so read the thread
+explicitly via `journal <id>.<subId>` (or `journal <id>` for the per-subtask
+index); `--full` opts `show` out of the valve. Prefer `get … details` /
 `get … status_note` over `show` for large done tasks.
 
 NB: For viewing multiple backlog items use the following approach - no prefix required (e.g., BL-, bl-):
@@ -121,6 +124,13 @@ opens with the strategic "why this Task matters" — not just the tactical task 
    `capability_theme` (unset or operational), emit an **explicit** note —
    *"no owning theme — operational Task"* — rather than a silent skip. Never fall back to
    reading the full roadmap.
+4. **Surface the owning umbrella (cross-Task initiative).** A Task may also belong to a
+   strategic *umbrella* (the Linear-initiative analogue) alongside its roadmap theme.
+   Resolve it by finding which umbrella's `task_ids[]` contains the active Task id in
+   `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/umbrellas.json` — a small curated file,
+   safe to `Read` wholesale (unlike task-list.json) — and surface that umbrella's `title` +
+   `substrate_doc` so the brief carries the cross-Task framing. Emit nothing if no umbrella
+   lists the Task.
 
 ### 2f: Reconciliation sweep (prompt-independent)
 

@@ -44,8 +44,8 @@ do not write to the roadmap or backlog, and you never set a Subtask's status to 
 
 ## What you receive from the orchestrator
 
-A **Subtask dispatch brief** drawn from the task-list ledger (accessed via
-`bun scripts/ledger-cli.ts get task <N>`):
+A **Subtask dispatch brief** drawn from the task-list ledger (the single Subtask
+is reachable directly via `bun scripts/ledger-cli.ts get task <N>.<M>`):
 
 - **Subtask ID** — `ID-N.M` (the canonical identifier — also the branch / commit-message
   scope).

@@ -46,7 +46,7 @@ wrapper) carries:
 | Field | Source |
 |---|---|
 | Subtask id (`ID-N.M`) | Composite-id prose used in the dispatch message. |
-| `task-list.json` path | Access via `bun scripts/ledger-cli.ts get task <N>`; ledger lives in `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/task-list.json`. |
+| `task-list.json` path | Access the single Subtask via `bun scripts/ledger-cli.ts get task <N>.<M>` (subtask path — no whole-task fetch); ledger lives in `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/task-list.json`. |
 | Location of the Subtask `details` field within it | Parent Task id (`N`) + Subtask id (`M`). |
 | Spec-slice path | The `details` field references something like `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/<task-slug>/PRODUCT.md#<section>` or `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/<task-slug>/TECH.md#<section>`. Read only that slice — not the whole document. |
 | `testStrategy` | One-line prose acceptance statement (Planner-populated, per PRODUCT inv 9). |
@@ -58,9 +58,10 @@ Orchestrator before starting — do not guess.
 
 ### Step 1 — Read the brief
 
-Obtain the parent Task + Subtask via `bun scripts/ledger-cli.ts get task <N>`
-(slice read — never wholesale-load the multi-MB ledger); locate the Subtask
-by id within the returned `subtasks[]`. Read the `details` markdown field in full —
+Obtain the Subtask directly via `bun scripts/ledger-cli.ts get task <N>.<M>`
+(subtask path — no need to fetch the whole Task and hand-locate it in
+`subtasks[]`; still a slice read, never a wholesale load of the multi-MB
+ledger). Read the `details` markdown field in full —
 **this is your primary input**, more authoritative than the dispatch
 message itself.
 

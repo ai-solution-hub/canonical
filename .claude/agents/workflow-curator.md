@@ -296,6 +296,9 @@ curator (uncommon — usually the orchestrator dispatches):**
 - Do **not** write the register: `DR-NNN` entries are written on `main` by the Orchestrator
   / handoff — the decision register is not one of the three workflow ledgers, so
   `update-roadmap-backlog` does not touch it.
+- If the ruling **supersedes** an existing `DR-NNN`, record it in the intent (`Supersedes:
+  {DR-NNN}`) and note that downstream docs asserting the old ruling may now be stale — the
+  Orchestrator/handoff runs `sync-ledger-context` to stamp them.
 
 **If `decision === "no-action"`:**
 

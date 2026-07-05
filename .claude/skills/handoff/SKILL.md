@@ -18,7 +18,7 @@ at session close (the file is written to, and committed in, the docs-site checko
 
 | Content                                                          | Lives in                                                                       |
 | ---------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| Task / Subtask state, `details`, `testStrategy`, what shipped + SHAs | the ledgers — slice-read via `bun scripts/ledger-cli.ts show task <id>` (docs-site `ledgers/`; `<info added on …>` journals) |
+| Task / Subtask state, `details`, `testStrategy`, what shipped + SHAs | the ledgers — slice-read via `bun scripts/ledger-cli.ts show task <id>` (docs-site `ledgers/`). A bare `show` is size-shaped and stubs journals on large tasks; read the `<info added on …>` thread via `journal <id>.<subId>`, or `show … --full` |
 | Per-terminal scope, bootstrap reads, file ownership, sequence/gates  | the per-Task cmux briefs (`.claude/cmux-briefs/cmux-brief-*.md`) |
 | Recency-weighted multi-session history                           | Mempalace diary (`mempalace_diary_read agent=claude`)                          |
 | Settled cross-cutting rulings / won't-fixes (binding)            | the Decision Register — `reference/decision-register.md` (cite NEW `DR-NNN` here; start-session reads in-force entries) |
@@ -45,6 +45,10 @@ Confirm before drafting (ask Liam if unsure):
 6. Allowlist candidates + sandbox bypass notes — any commands that hit sandbox
    friction this session and should be allowlisted or carried forward (e.g.
    commands that needed `dangerouslyDisableSandbox`)?
+7. Did this session change workflow **tooling, data shapes, or process** (a ledger-cli
+   flag/command, a ledger schema field, a hook, a skill added/retired)? If so, run
+   `propagate-workflow-change` over the dev-lifecycle skills + agents before teardown, so the
+   next session's agents don't read stale instructions.
 
 ---
 
@@ -66,7 +70,7 @@ Working directory: `{cwd}` ({branch}).
 ## READ FIRST
 
 - `${KH_PRIVATE_DOCS_DIR}/src/content/docs/themes/canonical-pipeline/reference/v1-completion-sequence.md` — the forward map.
-- Ledger slice-reads only: `bun scripts/ledger-cli.ts show task <id>`. Diary: `mempalace_diary_read agent=claude last_n=3`.
+- Ledger slice-reads only: `bun scripts/ledger-cli.ts show task <id>` (record; add `--full` for verbatim), `journal <id>.<subId>` (journal thread — a bare `show` stubs it on large tasks). Diary: `mempalace_diary_read agent=claude last_n=3`.
 - {Additional context documents - if required}
 
 ## Next-session focus
@@ -126,6 +130,12 @@ re-litigate) and append them to
 **DR-intents**; you (O-of-O) write them on `main`. Then cite only the NEW ids in the prompt's
 *Settled this session* section. Boundary: a binding ruling → register; an observation /
 friction → the retro (Step 7). Skip if the session settled nothing.
+
+When a new ruling **supersedes** an existing `DR-NNN` (or this session flipped a Task/spec
+state that downstream docs assert), run the docs-site `sync-ledger-context` skill — or flag
+it in *Session deltas* — so docs carrying the superseded assertion (those with a
+`kh_ledger_sources` frontmatter key) get a *Ledger drift* stamp instead of silently going
+stale.
 
 ### Finding disposition at close (DR-021)
 

@@ -70,9 +70,11 @@ SESSION
   Curator triage complete and roadmap/backlog implications recorded.
 
 **Task-list ingress:** SLICE READS ONLY — `bun scripts/ledger-cli.ts show task <id>`
-/ `get task <id> <field>` (ledgers live in the docs-site; the CLI resolves the
-dir). Never Read/`JSON.parse` the ledger JSONs wholesale — task-list.json is
-multi-MB. Programmatic full-list validation (rare) goes through
+/ `get task <id> <field>` / `get task <id>.<subId>` (single subtask) (ledgers live
+in the docs-site; the CLI resolves the dir). A bare `show` is size-shaped to ≤48KB
+and stubs subtask journals on large tasks — pass `--full` for the verbatim record,
+or read a journal thread via `journal <id>.<subId>` when building a dispatch brief.
+Never Read/`JSON.parse` the ledger JSONs wholesale — task-list.json is multi-MB. Programmatic full-list validation (rare) goes through
 `parseTaskListWithWarnings` from `lib/validation/task-list-schema.ts`.
 
 For full per-phase detail (Planner-model rules, subtask `details`/`testStrategy`
@@ -168,6 +170,11 @@ won't-fixes. It binds the Orchestrator at three moments:
   backlog / no-action): a finding that is a settled won't-fix ruling routes to the
   `workflow-curator`, which returns a DR-intent for the Orchestrator to write. See Finding
   routing.
+- **Superseding a ruling → downstream doc drift.** When a new `DR-NNN` supersedes an
+  existing one — or a Task/spec state that downstream docs assert changes — the docs that
+  cited the old state go stale silently. Run the docs-site `sync-ledger-context` skill (docs
+  opt in via a `kh_ledger_sources` frontmatter key) so those docs get an append-only
+  *Ledger drift* stamp; if it can't run now, flag it in the handoff.
 
 ---
 
@@ -438,6 +445,12 @@ bun scripts/ledger-cli.ts promote <backlogId> <taskJson>
 bun scripts/ledger-cli.ts promote <backlogId> <taskJson> \
   --capability-theme <themeId>
 ```
+
+A new top-level Task carries two orthogonal strategic groupings — its roadmap theme
+(`--capability-theme` above) and its cross-Task **umbrella**. Add it to the umbrella via
+`bun scripts/ledger-cli.ts update-umbrella <umbrellaId> --add-tasks <newTaskId>` (see
+`update-roadmap-backlog` Step 6) so task pickup surfaces the strategic grouping, not just the
+theme.
 
 **Orchestrator-direct:** The curator handles triage and create; the
 Orchestrator handles the backlog → task-list lifecycle transition via the

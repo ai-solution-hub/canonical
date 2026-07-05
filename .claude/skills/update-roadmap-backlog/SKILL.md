@@ -177,7 +177,9 @@ bun scripts/ledger-cli.ts update-umbrella <umbrella_id> --add-tasks <new-task-id
 
 `--add-tasks` is idempotent (re-adding is a no-op). `umbrellas.json` is NOT
 mirrored and has no budgeted fields. Verify the surface via `bun
-scripts/ledger-cli.ts update-umbrella --help`.
+scripts/ledger-cli.ts update-umbrella --help`. Scope: `update-umbrella` owns
+`task_ids[]` **membership only** — creating a new umbrella or editing its metadata
+(`title`, `substrate_doc`) is a direct `umbrellas.json` edit, not a CLI op.
 
 **Commit-coupling (load-bearing):** the caller MUST include BOTH the
 `task-list.json` and `umbrellas.json` edits in a **single commit** — the
