@@ -398,7 +398,7 @@ describe('GET /api/change-reports/list', () => {
 // (the `?include=stats` leg of `app/api/guides/route.ts`) was retired in
 // escalation 2b — see `__tests__/api/guides.test.ts` for that route's
 // current (coverage-free) coverage and the migration header
-// (supabase/migrations-blocked/20260706104000_id131_coverage_retire.sql)
+// (supabase/migrations/20260706104000_id131_coverage_retire.sql)
 // for the DROP FUNCTION statements now covering `get_guide_coverage`.
 
 // ═══════════════════════════════════════════════════════════════════════════

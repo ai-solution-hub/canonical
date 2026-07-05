@@ -1,6 +1,6 @@
 /**
  * Static shape check for
- * supabase/migrations-blocked/20260706104000_id131_coverage_retire.sql
+ * supabase/migrations/20260706104000_id131_coverage_retire.sql
  * (ID-131.19 fix-Executor escalation 2 + 2b, DR-034 owner ruling). This is a
  * SQL-only migration — not applied by this Subtask (owner-gated apply lands
  * later in the {131.19} GO sequence) — so there is no live DB to assert
@@ -20,7 +20,7 @@ import { join } from 'path';
 
 const MIGRATION_PATH = join(
   process.cwd(),
-  'supabase/migrations-blocked/20260706104000_id131_coverage_retire.sql',
+  'supabase/migrations/20260706104000_id131_coverage_retire.sql',
 );
 
 const sql = readFileSync(MIGRATION_PATH, 'utf-8');

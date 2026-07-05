@@ -1,6 +1,6 @@
 /**
  * Static shape check for
- * supabase/migrations-blocked/20260706103000_id131_attention_counts_rewrite.sql
+ * supabase/migrations/20260706103000_id131_attention_counts_rewrite.sql
  * (ID-131.19 S450 Wave 1, Fix 1). This is a SQL-only migration — not applied
  * by this Subtask (owner-gated apply lands later in the {131.19} GO
  * sequence) — so there is no live DB to assert behaviour against yet. This
@@ -22,7 +22,7 @@ import { join } from 'path';
 
 const MIGRATION_PATH = join(
   process.cwd(),
-  'supabase/migrations-blocked/20260706103000_id131_attention_counts_rewrite.sql',
+  'supabase/migrations/20260706103000_id131_attention_counts_rewrite.sql',
 );
 
 const sql = readFileSync(MIGRATION_PATH, 'utf-8');

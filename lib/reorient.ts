@@ -39,7 +39,7 @@ export async function fetchReorientData(
   // equivalent exists — see the team_changes/my_recent_work retirement note
   // at queries 0/1 below for the full audit). This follow-up (Checker
   // finding, spec-compliance) RETIRES the read_marks "last read" leg too —
-  // read_marks ALSO drops at M6 (migrations-blocked/20260706110000_id131_
+  // read_marks ALSO drops at M6 (migrations/20260706110000_id131_
   // drops.sql), it is a reading-progress (content_items-era) signal with no
   // new-model equivalent, and its only other live reader
   // (hooks/use-progress.ts) was itself an orphan (0 production callers) and

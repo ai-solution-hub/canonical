@@ -190,7 +190,7 @@ export interface UnifiedDashboardData {
     // coverage_gap_count RETIRED (ID-131.19 S450 Wave 1 Fix 1, DR-034) —
     // content_items-era coverage feature has no home post content_items
     // retirement; see the migration comment in
-    // supabase/migrations-blocked/20260706103000_id131_attention_counts_rewrite.sql.
+    // supabase/migrations/20260706103000_id131_attention_counts_rewrite.sql.
     /**
      * Count of non-archived content_items on the taxonomy 'unclassified'
      * sentinel (primary_domain='unclassified' OR primary_subtopic=
@@ -258,7 +258,7 @@ export async function fetchUnifiedDashboardData(
   // team_changes/my_recent_work retirement note at Phase 2 below for the
   // full audit). This follow-up (Checker finding, spec-compliance) RETIRES
   // the read_marks "last read" leg too — read_marks ALSO drops at M6
-  // (migrations-blocked/20260706110000_id131_drops.sql), it is a
+  // (migrations/20260706110000_id131_drops.sql), it is a
   // reading-progress (content_items-era) signal with no new-model
   // equivalent, and its only other live reader (hooks/use-progress.ts) was
   // itself an orphan (0 production callers) and has been deleted alongside.
