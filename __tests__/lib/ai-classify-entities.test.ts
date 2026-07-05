@@ -739,6 +739,41 @@ describe('classifyContent — entity extraction', () => {
       expect(fromCalls).not.toContain('entity_relationships');
     });
 
+    it('skips all entity_mentions/entity_relationships writes when the source document id is empty ({131.26} guard, BL-396)', async () => {
+      // `sourceDocumentId` (lib/ai/classify.ts) is derived directly from
+      // `itemId` (ID-131.17 identity collapse) and gates BOTH the
+      // delete-before-reinsert and the entity/relationship upsert blocks on
+      // it being truthy. In real usage this guard is unreachable through the
+      // public entry point (an empty itemId would already have failed the
+      // `source_documents` fetch above it, throwing before this point) — but
+      // it is still a defensive guard with no direct regression coverage.
+      // Exercise the skip path here with a mock that resolves the item
+      // fetch unconditionally regardless of the id passed in.
+      mockCreate.mockResolvedValueOnce(
+        createToolUseResponse({
+          ...baseClassificationInput,
+          entities: sampleEntities,
+          relationships: sampleRelationships,
+        }),
+      );
+
+      await classifyContent({
+        supabase: mockSupabase as never,
+        itemId: '',
+        force: true,
+        userId: USER_ID,
+      });
+
+      const fromCalls = mockSupabase.from.mock.calls.map(
+        (c: unknown[]) => c[0],
+      );
+      expect(fromCalls).not.toContain('entity_mentions');
+      expect(fromCalls).not.toContain('entity_relationships');
+      expect(mockSupabase._chain.delete).not.toHaveBeenCalled();
+      expect(whereUpserted('entity_mentions')).toHaveLength(0);
+      expect(whereUpserted('entity_relationships')).toHaveLength(0);
+    });
+
     it('persists entity canonical_name values canonicalised and lowercased', async () => {
       const entitiesWithRawNames: ExtractedEntity[] = [
         { name: 'ISO27001', type: 'certification', canonical_name: 'ISO27001' },

@@ -208,6 +208,32 @@ describe('bridgeTemporalReferencesToEntities', () => {
     expect(mockSupabase.from).toHaveBeenCalledTimes(1);
   });
 
+  it('should skip entity_mentions writes when no mentions match the source document id ({131.26} guard, BL-396)', async () => {
+    // Analogue of the classify.ts sourceDocumentId guard for this module:
+    // `sourceDocumentId` here is now a direct identity assignment off
+    // `contentItemId` (ID-131.17 repoint comment above), so there's no
+    // standalone `if (!sourceDocumentId)` conditional left to unit test —
+    // but the entity_mentions lookup keyed on it
+    // (`.eq('source_document_id', sourceDocumentId)`) has its own
+    // no-match early-return (skip path) that had no positive coverage.
+    setupContentItem([
+      {
+        date: '2027-03-01',
+        context: 'Annual security audit certification renewal',
+        context_type: 'expiry',
+        related_entity: 'ISO 27001',
+      },
+    ]);
+    setupEntityMentions([]);
+
+    await bridgeTemporalReferencesToEntities(
+      mockSupabase as unknown as SupabaseClient<Database>,
+      contentItemId,
+    );
+
+    expect(mockSupabase._chain.update).not.toHaveBeenCalled();
+  });
+
   it('should store renewal_period for matched ref with unknown context_type and duration date', async () => {
     setupContentItem([
       {
