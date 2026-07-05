@@ -14,28 +14,36 @@
  *
  * ── Single sweep identifier (audit + whole-sweep rollback) ───────────────────
  * Every record touched by ONE sweep shares a single SWEEP IDENTIFIER (`sweepId`,
- * a v4 UUID minted once per `runSweep` call). It is recorded per-match on each
- * `content_history` snapshot row (`metadata.sweep_id` + `change_reason:
- * "sweep:<id>"`) so a user can:
- *   - AUDIT which files a sweep changed (query history by sweep-id);
- *   - ROLL BACK the whole sweep as a unit (restore all N records' prior bytes);
- *   - REVERT a single match (restore one record's prior bytes).
- * The prior bytes are captured per-match in `metadata.prior_content` so the
- * restore is self-contained (no dependence on a separate version pointer).
+ * a v4 UUID minted once per `runSweep` call) and is returned per-match so a
+ * caller can correlate which records one sweep touched.
+ *
+ * ID-131 FIX-SLICE (S447, BI-34): the per-match `content_history` audit
+ * snapshot (`metadata.sweep_id` + `change_reason: "sweep:<id>"` +
+ * `metadata.prior_content`) that USED to back audit/rollback is retired —
+ * `content_history.content_item_id` has been a dead FK since the M0c
+ * debris-wipe (content_items is permanently empty) and content_history
+ * itself drops at M6. `runSweep` no longer writes it (every insert was an FK
+ * violation). `rollbackSweep`'s restore mechanism still READS
+ * `content_history` by `metadata.sweep_id` (kept — 0 production callers, see
+ * below) but will find nothing for any sweep run after this fix; it remains
+ * testable only against pre-seeded rows (see `sweep.test.ts`).
  *
  * ── Batched single-actor → NO arbitration ────────────────────────────────────
  * A sweep is a batched single-actor operation: there is no concurrent CRDT
- * merge, so it does NOT invoke `arbitrate()` / `arbitrateMany()`. Each touched
- * record stamps the sweep's SINGLE intent (typically `'structural'` or
- * `'data'`) directly. (Arbitration is invoked ONLY on the UC1/UC4/UC6-user
- * CRDT paths — see `arbitrate.ts`.)
+ * merge, so it does NOT invoke `arbitrate()` / `arbitrateMany()`. (Arbitration
+ * is invoked ONLY on the UC1/UC4/UC6-user CRDT paths — see `arbitrate.ts`.)
+ * The sweep's SINGLE intent (`RunSweepParams.intent`, typically `'structural'`
+ * or `'data'`) is part of the caller contract but, post this FIX-SLICE, is no
+ * longer stamped anywhere observable (it was only ever recorded on the now-
+ * retired content_history row).
  *
  * ── Atomicity ────────────────────────────────────────────────────────────────
  * Each per-match write reuses the PC-1 adapter's file-first + compensating
  * restore (INV-2): the file leg lands before the DB leg, and a DB-leg failure
  * restores that match's prior bytes. The sweep is NOT a cross-match transaction:
- * if match k fails, matches 0..k-1 already applied stay applied. The sweep-id
- * makes that partial state auditable and (whole-sweep or per-match) revertible.
+ * if match k fails, matches 0..k-1 already applied stay applied. Per-sweep
+ * audit/revert (via the sweep-id) is no longer backed by a persisted trail —
+ * see the FIX-SLICE note above.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -64,11 +72,13 @@ export interface RunSweepParams {
   /** The affected source_documents + their post-rename bytes. */
   matches: SweepMatchInput[];
   /**
-   * The sweep's SINGLE intent, stamped verbatim on every match WITHOUT
-   * arbitration. Typically `'structural'` (a rename is structural) or `'data'`.
+   * The sweep's SINGLE intent. Kept for caller-contract stability
+   * (batched-single-actor, no arbitration) but no longer stamped anywhere
+   * observable — it was only ever recorded on the now-retired content_history
+   * row (ID-131 FIX-SLICE, S447, BI-34).
    */
   intent: EditIntent;
-  /** The acting user/agent id — recorded as `created_by` on each history row. */
+  /** The acting user/agent id — recorded as `updated_by` on the live update. */
   actorId: string;
   /** Optional structured-log context tag forwarded to the PC-1 adapter. */
   context?: string;
@@ -78,8 +88,9 @@ export interface SweepMatchResult {
   contentItemId: string;
   /** True when this match's item was file-backed (a file leg actually wrote). */
   fileBacked: boolean;
-  /** The version number of the snapshot row written for this match. */
-  version: number;
+  // `version` (content_history snapshot version) retired here — the
+  // content_history audit write is gone (dead FK post-M0c debris-wipe; table
+  // drops at M6, BI-34). ID-131 FIX-SLICE (S447).
 }
 
 export interface RunSweepResult {
@@ -92,145 +103,51 @@ export interface RunSweepResult {
   warnings: readonly string[];
 }
 
-/** content_history change_reason prefix that tags a sweep snapshot. */
-export const SWEEP_REASON_PREFIX = 'sweep:';
-
-/**
- * Build the canonical `change_reason` for a sweep snapshot row. The whole-sweep
- * rollback path matches on `metadata.sweep_id`; this string is the
- * human-readable mirror that surfaces in the version-history UI.
- */
-export function sweepReason(sweepId: string): string {
-  return `${SWEEP_REASON_PREFIX}${sweepId}`;
-}
-
-/**
- * Resolve the current live bytes of a content_item (the prior bytes captured
- * per-match before the sweep overwrites them — needed for revert).
- *
- * ID-131 {131.17} G-IMS-DELETE KEEP-list: re-pointed off content_items onto
- * source_documents (M3 gave SD the classification family; `content` has no
- * SD column of the same name — `extracted_text` is the nearest analog, the
- * same mapping `write-back.ts`'s storage_path resolution now uses for this
- * id post-repoint).
- */
-async function readPriorContent(
-  supabase: SupabaseClient<Database>,
-  contentItemId: string,
-): Promise<string> {
-  const row = await sb(
-    supabase
-      .from('source_documents')
-      .select('extracted_text')
-      .eq('id', contentItemId)
-      .single(),
-    'edit-intent.sweep.read-prior-content',
-  );
-  return row?.extracted_text ?? '';
-}
-
-/**
- * Compute the next sequential `content_history.version` for an item.
- */
-async function nextHistoryVersion(
-  supabase: SupabaseClient<Database>,
-  contentItemId: string,
-): Promise<number> {
-  const maxRow = await sb(
-    supabase
-      .from('content_history')
-      .select('version')
-      .eq('content_item_id', contentItemId)
-      .order('version', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    'edit-intent.sweep.max-version',
-  );
-  return (maxRow?.version ?? 0) + 1;
-}
-
 /**
  * Run a UC3 sweeping rename over the supplied matches.
  *
  * For each match, in order:
- *   1. snapshot the prior live bytes (for revert);
- *   2. rewrite the file leg at `storage_path` + apply the DB leg via the PC-1
- *      adapter `writeBackFileFirst`. The DB leg:
- *        a. UPDATEs `source_documents.extracted_text` to the new bytes
- *           (ID-131 {131.17} re-point off `content_items.content`);
- *        b. INSERTs a `content_history` snapshot stamping the sweep's single
- *           intent, the sweep-id (`metadata.sweep_id` + `change_reason`), and
- *           the prior bytes (`metadata.prior_content`) so the match is
- *           individually revertible.
+ *   1. rewrite the file leg at `storage_path` + apply the DB leg via the PC-1
+ *      adapter `writeBackFileFirst`. The DB leg UPDATEs
+ *      `source_documents.extracted_text` to the new bytes (ID-131 {131.17}
+ *      re-point off `content_items.content`).
+ *
+ * ID-131 FIX-SLICE (S447, BI-34): the DB leg used to ALSO INSERT a
+ * `content_history` snapshot (sweep-id + prior bytes) so the match was
+ * individually revertible. That insert is retired — `content_item_id` has
+ * been a dead FK since the M0c debris-wipe (content_items is permanently
+ * empty; every insert FK-violated) and content_history itself drops at M6.
+ * `runSweep` had 0 production callers, so this is a same-day-safe removal;
+ * see `rollbackSweep` below for the now-consequence (it can no longer find
+ * anything to restore for a sweep run after this fix).
  *
  * Does NOT call `arbitrate()`/`arbitrateMany()` — the sweep's single intent is
- * stamped verbatim (batched single-actor). The PK boundary throws on the first
- * failing match (the adapter restores THAT match's file); earlier matches that
- * already applied remain applied and are revertible via the sweep-id.
+ * batched single-actor (see `RunSweepParams.intent`). The PK boundary throws
+ * on the first failing match (the adapter restores THAT match's file);
+ * earlier matches that already applied remain applied.
  */
 export async function runSweep(
   params: RunSweepParams,
 ): Promise<RunSweepResult> {
   const { supabase, matches, intent, actorId, context } = params;
+  void intent; // caller-contract only post-retirement — see RunSweepParams.intent
   const sweepId = crypto.randomUUID();
-  const reason = sweepReason(sweepId);
   const results: SweepMatchResult[] = [];
   const warnings: string[] = [];
 
   for (const match of matches) {
     const { contentItemId, newContent } = match;
 
-    // (1) Capture prior bytes BEFORE the overwrite — recorded per-match so a
-    // whole-sweep or per-match revert can restore the exact prior content.
-    const priorContent = await readPriorContent(supabase, contentItemId);
-    const version = await nextHistoryVersion(supabase, contentItemId);
-
-    // (2) The DB leg: live UPDATE + the sweep-stamped history snapshot. Injected
-    // into the PC-1 adapter so file-first ordering + compensating restore are
-    // reused unchanged. ID-131 {131.17}: the live UPDATE is re-pointed off
-    // content_items onto source_documents (`content` -> `extracted_text`).
-    //
-    // NOTE (flagged, not fixed — out of this Subtask's file-ownership
-    // boundary): `content_history.content_item_id` is FK-enforced to
-    // `content_items` (ON DELETE SET NULL) and content_history itself is
-    // scheduled for DROP TABLE at M6 (TECH.md §"Migration set" M6) with no
-    // re-homed successor — it dies WITH content_items, not onto
-    // source_documents. Post-repoint, `contentItemId` is a source_documents
-    // id, so this INSERT's `content_item_id: contentItemId` value is no
-    // longer guaranteed to resolve against content_items (it will FK-violate
-    // unless a content_items row of the same id happens to exist). This is
-    // unchanged from this Subtask's perspective: `content_history` is not
-    // one of the 13 owned files/columns re-pointed here, and both callers of
-    // this write path (`runSweep`: 0 production callers today; the
-    // `app/api/items/[id]/rollback/route.ts` route via `rollbackSweep`: an
-    // IMS route slated for deletion under the parallel G-IMS-DELETE lane)
-    // are non-live in the surviving system. Journaled for the Checker/
-    // orchestrator — see this Subtask's dispatch report.
+    // The DB leg: live UPDATE only. Injected into the PC-1 adapter so
+    // file-first ordering + compensating restore are reused unchanged.
+    // ID-131 {131.17}: re-pointed off content_items onto source_documents
+    // (`content` -> `extracted_text`).
     const applyDbLeg = async (): Promise<void> => {
       const { error: updateError } = await supabase
         .from('source_documents')
         .update({ extracted_text: newContent, updated_by: actorId })
         .eq('id', contentItemId);
       if (updateError) throw updateError;
-
-      const { error: snapshotError } = await supabase
-        .from('content_history')
-        .insert({
-          content_item_id: contentItemId,
-          version,
-          // The post-sweep bytes are the new canonical content; the snapshot
-          // row records them as the version content, with the PRIOR bytes in
-          // metadata for revert.
-          content: newContent,
-          title: '',
-          change_type: 'edit',
-          change_reason: reason,
-          change_summary: `Sweep ${sweepId}`,
-          edit_intent: intent,
-          created_by: actorId,
-          metadata: { sweep_id: sweepId, prior_content: priorContent },
-        });
-      if (snapshotError) throw snapshotError;
     };
 
     const writeBack = await writeBackFileFirst({
@@ -245,7 +162,6 @@ export async function runSweep(
     results.push({
       contentItemId,
       fileBacked: writeBack.fileBacked,
-      version,
     });
   }
 
@@ -294,13 +210,21 @@ interface SweepHistoryRow {
  *
  * Restoration reuses the PC-1 adapter so the file leg is restored FIRST (to the
  * captured prior bytes) and the DB leg follows, keeping the same one-outcome
- * atomicity per match. The restore is itself recorded as a fresh sweep snapshot
- * (a new sweep-id) so the version history stays append-only and the revert is
- * itself auditable + re-revertible.
+ * atomicity per match.
  *
  * When `contentItemId` is supplied, only that match is reverted (others left at
  * their post-sweep bytes — PROOF 5). Otherwise every match sharing the sweep-id
  * is reverted.
+ *
+ * ID-131 FIX-SLICE (S447, BI-34): the compensating restore used to ALSO
+ * INSERT a fresh content_history snapshot row recording the revert. That
+ * insert is retired (same dead-FK reason as `runSweep`). The READ below
+ * (fetching sweep-member rows by `metadata->>sweep_id`) is UNCHANGED —
+ * `rollbackSweep` has 0 production callers (its only caller,
+ * `app/api/items/[id]/rollback/route.ts`, has already been deleted under the
+ * parallel G-IMS-DELETE lane), so this function is only reachable from
+ * `sweep.test.ts`, which now seeds `content_history` rows directly since
+ * `runSweep` no longer writes them.
  */
 export async function rollbackSweep(
   params: RollbackSweepParams,
@@ -334,8 +258,6 @@ export async function rollbackSweep(
       (contentItemId ? r.content_item_id === contentItemId : true),
   );
 
-  const restoreSweepId = crypto.randomUUID();
-  const restoreReason = sweepReason(restoreSweepId);
   const restored: string[] = [];
   const warnings: string[] = [];
 
@@ -343,35 +265,14 @@ export async function rollbackSweep(
     const itemId = row.content_item_id as string;
     const priorContent = row.metadata?.prior_content ?? '';
 
-    const version = await nextHistoryVersion(supabase, itemId);
-
     // ID-131 {131.17}: re-pointed off content_items onto source_documents
-    // (`content` -> `extracted_text`) — see the parallel `runSweep` NOTE
-    // above re: the content_history FK caveat (unchanged, out of scope).
+    // (`content` -> `extracted_text`).
     const applyDbLeg = async (): Promise<void> => {
       const { error: updateError } = await supabase
         .from('source_documents')
         .update({ extracted_text: priorContent, updated_by: actorId })
         .eq('id', itemId);
       if (updateError) throw updateError;
-
-      const { error: snapshotError } = await supabase
-        .from('content_history')
-        .insert({
-          content_item_id: itemId,
-          version,
-          content: priorContent,
-          title: '',
-          change_type: 'rollback',
-          change_reason: restoreReason,
-          change_summary: `Reverted sweep ${sweepId}`,
-          created_by: actorId,
-          metadata: {
-            sweep_id: restoreSweepId,
-            reverts_sweep_id: sweepId,
-          },
-        });
-      if (snapshotError) throw snapshotError;
     };
 
     const writeBack = await writeBackFileFirst({

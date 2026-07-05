@@ -20,12 +20,27 @@
  * table (extracted_text + storage_path per id) rather than the former
  * two-table split.
  *
- * The testStrategy proofs (unchanged in intent, re-targeted to Storage):
+ * ID-131 FIX-SLICE (S447, BI-34): `runSweep` no longer INSERTs a
+ * `content_history` audit snapshot per match — `content_item_id` has been a
+ * dead FK since the M0c debris-wipe (content_items is permanently empty;
+ * every insert FK-violated), and content_history itself drops at M6.
+ * `rollbackSweep`'s restore mechanism still READS `content_history` by
+ * `metadata.sweep_id` (0 production callers — its only caller,
+ * `app/api/items/[id]/rollback/route.ts`, is already deleted), so the
+ * rollback tests below seed `db.history` directly rather than chaining off a
+ * `runSweep` call that no longer populates it.
+ *
+ * The testStrategy proofs (re-targeted to Storage, {138.12}; audit/rollback
+ * proofs re-targeted again for the content_history retirement, S447):
  *   1. one sweep PUTs N objects at their storage_path (object key);
- *   2. all N matches share a single sweep-id, recorded per-match (audit);
- *   3. whole-sweep rollback restores ALL N objects to their prior bytes;
+ *   2. all N matches share a single sweep-id (no content_history audit
+ *      write — retired, BI-34);
+ *   3. rollbackSweep's restore mechanism (given pre-existing content_history
+ *      rows) restores ALL N objects to their prior bytes; chained directly
+ *      after a real `runSweep` call it now finds nothing (documented, not a
+ *      regression — 0 production callers);
  *   4. arbitrate()/arbitrateMany() are NEVER called (batched single-actor);
- *   5. per-match provenance is auditable AND per-match revert works.
+ *   5. per-match revert (given seeded rows) restores ONLY that match.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -60,12 +75,13 @@ interface HistoryRow {
  * rollback touch: source_documents (extracted_text + storage_path, ID-131
  * {131.17} — a single row per id, read/written directly by PK; `contentItemId`
  * IS the source_documents id post-repoint, no second-table indirection),
- * content_history (the per-match snapshot rows carrying the sweep-id
- * provenance — unchanged, out of this Subtask's file-ownership boundary),
- * the `corpus` Storage bucket (an in-memory object store keyed by
- * storage_path, {138.12} re-point), and the writer-fence RPC (always
- * succeeds — single-actor, no real concurrency to model here). The stub is
- * deliberately small — it only models the exact query shapes the code issues.
+ * content_history (READ-only from production code's perspective post-S447 —
+ * `rollbackSweep` still reads sweep-id-tagged rows to know what to restore,
+ * but nothing writes them anymore; tests seed `history` directly), the
+ * `corpus` Storage bucket (an in-memory object store keyed by storage_path,
+ * {138.12} re-point), and the writer-fence RPC (always succeeds —
+ * single-actor, no real concurrency to model here). The stub is deliberately
+ * small — it only models the exact query shapes the code issues.
  */
 function makeDb(files: Record<string, { rel: string; content: string }>): {
   client: unknown;
@@ -262,7 +278,7 @@ describe('runSweep — UC3 batched single-actor sweep + whole-sweep rollback', (
     ];
   }
 
-  it('PROOF 1+2 — PUTs N objects at storage_path; ALL share one sweep-id recorded per-match', async () => {
+  it('PROOF 1+2 — PUTs N objects at storage_path; ALL share one sweep-id; NO content_history audit row written (retired, BI-34)', async () => {
     const db = makeDb({
       [ITEM_A]: { rel: REL.a, content: PRIOR.a },
       [ITEM_B]: { rel: REL.b, content: PRIOR.b },
@@ -286,19 +302,12 @@ describe('runSweep — UC3 batched single-actor sweep + whole-sweep rollback', (
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     );
     expect(result.matchCount).toBe(3);
-
-    // Per-match provenance: every history row carries the SAME sweep-id and the
-    // sweep's single intent — recorded per-match for audit.
-    expect(db.history).toHaveLength(3);
-    for (const row of db.history) {
-      expect(row.metadata?.sweep_id).toBe(result.sweepId);
-      expect(row.edit_intent).toBe('structural');
-      expect(row.change_reason).toBe(`sweep:${result.sweepId}`);
-      // prior bytes captured per-match so whole-sweep + per-match revert work.
-      expect(typeof row.metadata?.prior_content).toBe('string');
-    }
-    const ids = db.history.map((r) => r.content_item_id).sort();
+    const ids = result.matches.map((m) => m.contentItemId).sort();
     expect(ids).toEqual([ITEM_A, ITEM_B, ITEM_C].sort());
+
+    // ID-131 FIX-SLICE (S447): the per-match content_history audit insert is
+    // retired (dead FK post-M0c debris-wipe) — NO history row is written.
+    expect(db.history).toHaveLength(0);
   });
 
   it('PROOF 4 — does NOT invoke arbitrate()/arbitrateMany() (batched single-actor)', async () => {
@@ -322,70 +331,7 @@ describe('runSweep — UC3 batched single-actor sweep + whole-sweep rollback', (
     expect(arbitrateManySpy).not.toHaveBeenCalled();
   });
 
-  it('PROOF 3 — whole-sweep rollback restores ALL N objects to their prior bytes', async () => {
-    const db = makeDb({
-      [ITEM_A]: { rel: REL.a, content: PRIOR.a },
-      [ITEM_B]: { rel: REL.b, content: PRIOR.b },
-      [ITEM_C]: { rel: REL.c, content: PRIOR.c },
-    });
-
-    const { sweepId } = await runSweep({
-      supabase: db.client as never,
-      matches: matches(),
-      intent: 'structural',
-      actorId: ACTOR,
-    });
-
-    // Objects now hold the new bytes.
-    expect(db.objects[REL.a]).toBe(NEW.a);
-
-    const rolled = await rollbackSweep({
-      supabase: db.client as never,
-      sweepId,
-      actorId: ACTOR,
-    });
-
-    expect(rolled.restoredCount).toBe(3);
-    // Every object restored to its PRIOR bytes (whole-sweep, as a unit).
-    expect(db.objects[REL.a]).toBe(PRIOR.a);
-    expect(db.objects[REL.b]).toBe(PRIOR.b);
-    expect(db.objects[REL.c]).toBe(PRIOR.c);
-    // Live DB content restored too.
-    const live = db.liveContent();
-    expect(live[ITEM_A]).toBe(PRIOR.a);
-    expect(live[ITEM_B]).toBe(PRIOR.b);
-    expect(live[ITEM_C]).toBe(PRIOR.c);
-  });
-
-  it('PROOF 5 — per-match revert restores ONLY that match (others untouched)', async () => {
-    const db = makeDb({
-      [ITEM_A]: { rel: REL.a, content: PRIOR.a },
-      [ITEM_B]: { rel: REL.b, content: PRIOR.b },
-      [ITEM_C]: { rel: REL.c, content: PRIOR.c },
-    });
-
-    const { sweepId } = await runSweep({
-      supabase: db.client as never,
-      matches: matches(),
-      intent: 'structural',
-      actorId: ACTOR,
-    });
-
-    const rolled = await rollbackSweep({
-      supabase: db.client as never,
-      sweepId,
-      actorId: ACTOR,
-      contentItemId: ITEM_B, // per-match revert
-    });
-
-    expect(rolled.restoredCount).toBe(1);
-    // Only B restored; A and C still hold the new bytes.
-    expect(db.objects[REL.b]).toBe(PRIOR.b);
-    expect(db.objects[REL.a]).toBe(NEW.a);
-    expect(db.objects[REL.c]).toBe(NEW.c);
-  });
-
-  it('stamps the sweep intent verbatim WITHOUT arbitration even for a single match', async () => {
+  it('does not write a content_history row even for a single-match sweep (audit write retired, BI-34)', async () => {
     const db = makeDb({ [ITEM_A]: { rel: REL.a, content: PRIOR.a } });
 
     const result = await runSweep({
@@ -396,7 +342,125 @@ describe('runSweep — UC3 batched single-actor sweep + whole-sweep rollback', (
     });
 
     expect(result.matchCount).toBe(1);
-    expect(db.history[0].edit_intent).toBe('data');
-    expect(db.history[0].metadata?.sweep_id).toBe(result.sweepId);
+    expect(db.objects[REL.a]).toBe(NEW.a);
+    expect(db.history).toHaveLength(0);
+  });
+
+  describe('rollbackSweep — restore mechanism (content_history audit write retired, BI-34; 0 production callers)', () => {
+    it('PROOF 3-consequence — chained directly after runSweep, finds nothing to restore (no audit row was written)', async () => {
+      const db = makeDb({
+        [ITEM_A]: { rel: REL.a, content: PRIOR.a },
+        [ITEM_B]: { rel: REL.b, content: PRIOR.b },
+        [ITEM_C]: { rel: REL.c, content: PRIOR.c },
+      });
+
+      const { sweepId } = await runSweep({
+        supabase: db.client as never,
+        matches: matches(),
+        intent: 'structural',
+        actorId: ACTOR,
+      });
+
+      // Objects now hold the new bytes.
+      expect(db.objects[REL.a]).toBe(NEW.a);
+
+      const rolled = await rollbackSweep({
+        supabase: db.client as never,
+        sweepId,
+        actorId: ACTOR,
+      });
+
+      // Nothing restored — runSweep left no content_history row for
+      // rollbackSweep's lookup to find (retired, BI-34). Documented
+      // consequence, not a regression: rollbackSweep has 0 production
+      // callers (its only caller route is already deleted).
+      expect(rolled.restoredCount).toBe(0);
+      expect(db.objects[REL.a]).toBe(NEW.a);
+      expect(db.objects[REL.b]).toBe(NEW.b);
+      expect(db.objects[REL.c]).toBe(NEW.c);
+    });
+
+    /** Seed a content_history row directly, bypassing runSweep (which no
+     * longer writes them) — exercises rollbackSweep's own read + restore
+     * logic in isolation. */
+    function seedHistoryRow(
+      db: ReturnType<typeof makeDb>,
+      sweepId: string,
+      contentItemId: string,
+      priorContent: string,
+    ): void {
+      db.history.push({
+        content_item_id: contentItemId,
+        version: 1,
+        content: priorContent,
+        edit_intent: 'structural',
+        change_type: 'edit',
+        change_reason: `sweep:${sweepId}`,
+        metadata: { sweep_id: sweepId, prior_content: priorContent },
+        created_by: ACTOR,
+      });
+    }
+
+    it('whole-sweep rollback restores ALL N objects to their prior bytes, given pre-existing content_history rows', async () => {
+      const db = makeDb({
+        [ITEM_A]: { rel: REL.a, content: PRIOR.a },
+        [ITEM_B]: { rel: REL.b, content: PRIOR.b },
+        [ITEM_C]: { rel: REL.c, content: PRIOR.c },
+      });
+      // Objects already hold the NEW bytes (a sweep already ran); seed the
+      // audit rows a sweep used to leave, since runSweep no longer does.
+      db.objects[REL.a] = NEW.a;
+      db.objects[REL.b] = NEW.b;
+      db.objects[REL.c] = NEW.c;
+      const sweepId = 'seeded-sweep-id';
+      seedHistoryRow(db, sweepId, ITEM_A, PRIOR.a);
+      seedHistoryRow(db, sweepId, ITEM_B, PRIOR.b);
+      seedHistoryRow(db, sweepId, ITEM_C, PRIOR.c);
+
+      const rolled = await rollbackSweep({
+        supabase: db.client as never,
+        sweepId,
+        actorId: ACTOR,
+      });
+
+      expect(rolled.restoredCount).toBe(3);
+      // Every object restored to its PRIOR bytes (whole-sweep, as a unit).
+      expect(db.objects[REL.a]).toBe(PRIOR.a);
+      expect(db.objects[REL.b]).toBe(PRIOR.b);
+      expect(db.objects[REL.c]).toBe(PRIOR.c);
+      // Live DB content restored too.
+      const live = db.liveContent();
+      expect(live[ITEM_A]).toBe(PRIOR.a);
+      expect(live[ITEM_B]).toBe(PRIOR.b);
+      expect(live[ITEM_C]).toBe(PRIOR.c);
+    });
+
+    it('per-match revert restores ONLY that match (others untouched), given pre-existing content_history rows', async () => {
+      const db = makeDb({
+        [ITEM_A]: { rel: REL.a, content: PRIOR.a },
+        [ITEM_B]: { rel: REL.b, content: PRIOR.b },
+        [ITEM_C]: { rel: REL.c, content: PRIOR.c },
+      });
+      db.objects[REL.a] = NEW.a;
+      db.objects[REL.b] = NEW.b;
+      db.objects[REL.c] = NEW.c;
+      const sweepId = 'seeded-sweep-id-2';
+      seedHistoryRow(db, sweepId, ITEM_A, PRIOR.a);
+      seedHistoryRow(db, sweepId, ITEM_B, PRIOR.b);
+      seedHistoryRow(db, sweepId, ITEM_C, PRIOR.c);
+
+      const rolled = await rollbackSweep({
+        supabase: db.client as never,
+        sweepId,
+        actorId: ACTOR,
+        contentItemId: ITEM_B, // per-match revert
+      });
+
+      expect(rolled.restoredCount).toBe(1);
+      // Only B restored; A and C still hold the new bytes.
+      expect(db.objects[REL.b]).toBe(PRIOR.b);
+      expect(db.objects[REL.a]).toBe(NEW.a);
+      expect(db.objects[REL.c]).toBe(NEW.c);
+    });
   });
 });

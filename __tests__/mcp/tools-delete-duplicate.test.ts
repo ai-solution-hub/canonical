@@ -93,7 +93,7 @@ describe('delete_content_item', () => {
     );
   });
 
-  it('archives item and records history when mode: archive', async () => {
+  it('archives item and does NOT write a content_history row (audit insert retired, BI-34)', async () => {
     const handler = mockServer.getHandler('delete_content_item')!;
 
     // 1. Mock fetch item — ID-131 (G-MCP-REPOINT): resolves against
@@ -111,12 +111,11 @@ describe('delete_content_item', () => {
           error: null,
         }),
     );
-    // 2. Mock fetch history for version tracking
-    mocks.chainMethods.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [{ version: 2 }], error: null }),
-    );
-    // 3 & 4. update and insert use default then (data: null)
+    // 2. ID-131 FIX-SLICE (S447, BI-34): the content_history version-lookup
+    // + insert are retired — content_item_id has been a dead FK since the
+    // M0c debris-wipe. The update below now uses the default `then`
+    // (data: null, error: null) — there is no longer an intervening
+    // history-lookup query to mock.
 
     const result = (await handler(
       { id: '1', mode: 'archive', reason: 'R' },
@@ -126,13 +125,7 @@ describe('delete_content_item', () => {
     expect(result.content[0].text).toContain('# Content Item Archived');
     expect(result.content[0].text).toContain('**Mode:** archive');
     expect(mocks.chainMethods.update).toHaveBeenCalled();
-    expect(mocks.chainMethods.insert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        version: 3,
-        change_type: 'archive',
-        change_summary: 'Item archived: R',
-      }),
-    );
+    expect(mocks.chainMethods.insert).not.toHaveBeenCalled();
   });
 
   it('returns informational message if already archived', async () => {
@@ -172,7 +165,7 @@ describe('delete_content_item', () => {
     expect(result.content[0].text).toContain('requires admin');
   });
 
-  it('allows delete for admin and records history', async () => {
+  it('allows delete for admin and does NOT write a content_history row (audit insert retired, BI-34)', async () => {
     const handler = mockServer.getHandler('delete_content_item')!;
     mocks.getMcpUserRole.mockResolvedValueOnce('admin');
 
@@ -184,23 +177,17 @@ describe('delete_content_item', () => {
           error: null,
         }),
     );
-    // 2. Mock fetch history for version tracking
-    mocks.chainMethods.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [{ version: 2 }], error: null }),
-    );
-    // 3 & 4. insert and delete use default then
+    // 2. ID-131 FIX-SLICE (S447, BI-34): the content_history version-lookup
+    // + insert are retired — content_item_id has been a dead FK since the
+    // M0c debris-wipe. The delete below now uses the default `then`
+    // (data: null, error: null).
 
     const result = (await handler(
       { id: '1', mode: 'delete', reason: 'R' },
       extra as Record<string, unknown>,
     )) as ToolResult;
     expect(result.content[0].text).toContain('# Content Item Deleted');
-    expect(mocks.chainMethods.insert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        change_type: 'delete',
-      }),
-    );
+    expect(mocks.chainMethods.insert).not.toHaveBeenCalled();
     expect(mocks.chainMethods.delete).toHaveBeenCalled();
   });
 

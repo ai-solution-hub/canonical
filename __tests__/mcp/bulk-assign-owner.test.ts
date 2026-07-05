@@ -8,7 +8,11 @@
  *   - Skip-if-owned default + force_override
  *   - Owner validation
  *   - Cursor pagination + scope_hash mismatch
- *   - Audit trail best-effort
+ *   - Audit trail (content_history) write RETIRED (ID-131 FIX-SLICE, S447,
+ *     BI-34) — content_item_id has been a dead FK since the M0c
+ *     debris-wipe; no insert is attempted anymore, so T14 (below) now
+ *     proves the ABSENCE of the write rather than its best-effort failure
+ *     handling.
  *   - Notification matrix + self-assign skip
  *
  * T8 ("dry-run after apply reflects post-apply state") is an integration
@@ -255,14 +259,6 @@ function setOwnerExists(exists: boolean) {
   );
 }
 
-/** Helper: make content_history insert fail */
-function setHistoryInsertError(message: string) {
-  mocks.contentHistoryChain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { message } }),
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Tests (T1-T18)
 // ---------------------------------------------------------------------------
@@ -295,7 +291,10 @@ describe('bulk_assign_owner MCP tool', () => {
     });
     mocks.mockSupabaseClient.rpc.mockResolvedValue({ data: 0, error: null });
 
-    // Defaults: owner exists, no items, history insert succeeds, notification succeeds
+    // Defaults: owner exists, no items, notification succeeds. The
+    // content_history chain is wired defensively (unused by production
+    // code post-S447 — the audit insert is retired) so an accidental
+    // regression call doesn't crash the mock.
     setOwnerExists(true);
     setContentItems([]);
     mocks.contentHistoryChain.insert.mockReturnValue(mocks.contentHistoryChain);
@@ -366,12 +365,10 @@ describe('bulk_assign_owner MCP tool', () => {
       },
     );
 
-    // Verify content_history insert
-    expect(mocks.contentHistoryChain.insert).toHaveBeenCalledTimes(1);
-    const historyRows = mocks.contentHistoryChain.insert.mock.calls[0][0];
-    expect(historyRows).toHaveLength(2);
-    expect(historyRows[0].change_type).toBe('owner_assigned');
-    expect(historyRows[0].content_item_id).toBe(ITEM_1);
+    // ID-131 FIX-SLICE (S447, BI-34): the content_history audit insert is
+    // retired — content_item_id has been a dead FK since the M0c
+    // debris-wipe. No insert is attempted.
+    expect(mocks.contentHistoryChain.insert).not.toHaveBeenCalled();
 
     // Verify notification sent
     expect(mocks.notificationsChain.insert).toHaveBeenCalledTimes(1);
@@ -817,11 +814,14 @@ describe('bulk_assign_owner MCP tool', () => {
     expect(mocks.sourceDocumentsChain.gt).toHaveBeenCalled();
   });
 
-  // T14: content_history insert fails post-RPC — best-effort
-  it('T14: audit write failure is best-effort — tool still succeeds', async () => {
+  // T14: content_history audit write retired (ID-131 FIX-SLICE, S447,
+  // BI-34) — content_item_id has been a dead FK since the M0c debris-wipe,
+  // so the insert this test used to force-fail was ALREADY failing on
+  // every call in production (the try/catch just swallowed it silently).
+  // No insert is attempted anymore, so there's nothing left to fail.
+  it('T14: does not attempt a content_history insert, and reports no audit warning (write retired, BI-34)', async () => {
     setContentItems([{ id: ITEM_1, title: 'Item A', content_owner_id: null }]);
     mocks.mockSupabaseClient.rpc.mockResolvedValue({ data: 1, error: null });
-    setHistoryInsertError('content_history insert failed');
 
     const result = await tool.handler(
       {
@@ -835,21 +835,18 @@ describe('bulk_assign_owner MCP tool', () => {
       createMockExtra(),
     );
 
-    // Tool succeeds despite audit failure
     expect(result.isError).toBeUndefined();
     expect(result.structuredContent!.assigned_count).toBe(1);
+    expect(mocks.contentHistoryChain.insert).not.toHaveBeenCalled();
 
-    // logBestEffortWarn was called
-    expect(mocks.logBestEffortWarn).toHaveBeenCalledWith(
+    // No audit-failure warning — there's no audit write attempt left to fail.
+    expect(mocks.logBestEffortWarn).not.toHaveBeenCalledWith(
       'content.owner.audit',
-      expect.stringContaining('content_history'),
-      expect.objectContaining({ affected_count: 1 }),
+      expect.anything(),
+      expect.anything(),
     );
-
-    // Warning present in response
-    const warnings = result.structuredContent!.warnings as string[];
-    expect(warnings).toBeDefined();
-    expect(warnings.some((w: string) => w.includes('Audit trail'))).toBe(true);
+    const warnings = (result.structuredContent!.warnings ?? []) as string[];
+    expect(warnings.some((w: string) => w.includes('Audit trail'))).toBe(false);
   });
 
   // T15: notify: false

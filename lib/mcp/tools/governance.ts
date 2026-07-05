@@ -207,22 +207,13 @@ export async function registerGovernanceTools(
             };
           }
 
-          // Get latest version
-          const history = await sb(
-            supabase
-              .from('content_history')
-              .select('version')
-              .eq('content_item_id', args.id)
-              .order('version', { ascending: false })
-              .limit(1),
-            'mcp.governance.history_latest_version_archive',
-          );
-
-          const nextVersion = (history?.[0]?.version ?? 0) + 1;
-
           // Archive logic (source_documents only — see guard above).
-          // `archive_reason` had no successor column (BI-11) — the reason
-          // is still captured below in content_history.change_reason.
+          // `archive_reason` had no successor column (BI-11). The reason was
+          // previously captured in content_history.change_reason, but that
+          // write is retired here — content_item_id has been a dead FK
+          // since the M0c debris-wipe (content_items is permanently empty),
+          // and content_history itself drops at M6 (BI-34). ID-131
+          // FIX-SLICE (S447).
           const { error: updateError } = await supabase
             .from('source_documents')
             .update({
@@ -243,23 +234,6 @@ export async function registerGovernanceTools(
             };
           }
 
-          // Record history for archive
-          await supabase.from('content_history').insert({
-            content_item_id: args.id,
-            version: nextVersion,
-            title: displayTitle,
-            content: item.content || '',
-            brief: null,
-            detail: null,
-            reference: null,
-            metadata: null,
-            change_type: 'archive',
-            change_summary: `Item archived: ${args.reason || 'No reason provided'}`,
-            // S152B WP3 / S153: canonical archive reason.
-            change_reason: 'archive',
-            created_by: userId,
-          });
-
           const result: DeleteContentResult = {
             id: args.id,
             title: displayTitle,
@@ -274,38 +248,11 @@ export async function registerGovernanceTools(
             structuredContent: toStructuredContent(result),
           };
         } else {
-          // Hard Delete: Record history before deletion (preserved via ON DELETE SET NULL)
-          const history = await sb(
-            supabase
-              .from('content_history')
-              .select('version')
-              .eq('content_item_id', args.id)
-              .order('version', { ascending: false })
-              .limit(1),
-            'mcp.governance.history_latest_version_delete',
-          );
-
-          const nextVersion = (history?.[0]?.version ?? 0) + 1;
-
-          await supabase.from('content_history').insert({
-            content_item_id: args.id,
-            version: nextVersion,
-            title: displayTitle,
-            content: item.content || '',
-            brief: null,
-            detail: null,
-            reference: null,
-            metadata: null,
-            change_type: 'delete',
-            change_summary: `Item hard-deleted: ${args.reason}`,
-            // S152B WP3 / S153: canonical hard_delete reason (note: the row
-            // will be preserved via ON DELETE SET NULL after the owner
-            // record delete, so the reason survives the deletion).
-            change_reason: 'hard_delete',
-            created_by: userId,
-          });
-
-          // Delete logic (hard delete) — works for either owner kind.
+          // Hard Delete — works for either owner kind. The pre-delete
+          // content_history audit insert is retired here: content_item_id
+          // has been a dead FK since the M0c debris-wipe, and
+          // content_history itself drops at M6 (BI-34). ID-131 FIX-SLICE
+          // (S447).
           const table =
             ownerKind === 'source_document' ? 'source_documents' : 'q_a_pairs';
           const { error: deleteError } = await supabase
@@ -720,36 +667,10 @@ export async function registerGovernanceTools(
               }
             }
 
-            // Record content_history entry
-            const history = await sb(
-              supabase
-                .from('content_history')
-                .select('version')
-                .eq('content_item_id', itemId)
-                .order('version', { ascending: false })
-                .limit(1),
-              'mcp.governance.history_latest_version_status',
-            );
-
-            const nextVersion = (history?.[0]?.version ?? 0) + 1;
-            const changeType = args.status === 'publish' ? 'publish' : 'draft';
-
-            await supabase.from('content_history').insert({
-              content_item_id: itemId,
-              version: nextVersion,
-              title: displayTitle,
-              content: row.content || '',
-              change_type: changeType,
-              change_summary:
-                args.status === 'publish'
-                  ? 'Item published from draft to live'
-                  : 'Item moved to draft status',
-              // S152B WP3 / S153: canonical status_change reason (draft/publish
-              // via the MCP governance set_status tool).
-              change_reason: `status_change_${args.status}`,
-              created_by: userId,
-            });
-
+            // content_history audit insert retired here: content_item_id
+            // has been a dead FK since the M0c debris-wipe, and
+            // content_history itself drops at M6 (BI-34). ID-131 FIX-SLICE
+            // (S447).
             items.push({ id: itemId, title: displayTitle, success: true });
           } catch (itemErr) {
             const msg =
@@ -798,9 +719,11 @@ export async function registerGovernanceTools(
   // 31. update_publication_status (write tool — editor or admin)
   //
   // Mirrors the PATCH /api/items/[id] publication_status branch (T6) so the
-  // MCP path uses the same T5 helpers, the same role-gate matrix, and writes
-  // the same `content_history` rows. Distinct from `update_governance_status`
-  // which handles change-management states (publish/draft on
+  // MCP path uses the same T5 helpers and the same role-gate matrix. (The
+  // `content_history` transition-snapshot write this comment used to
+  // describe is retired on this path — ID-131 FIX-SLICE, BI-34.) Distinct
+  // from `update_governance_status` which handles change-management states
+  // (publish/draft on
   // `governance_review_status`) — this tool is about the publication
   // lifecycle column `publication_status`.
   //
@@ -1057,47 +980,10 @@ export async function registerGovernanceTools(
           'mcp.governance.update_publication_status.update',
         );
 
-        // Write a content_history row capturing the transition. Per
-        // CLAUDE.md `feedback_content_history_change_reason_mandatory`, the
-        // canonical phrasing is `Transition from ${from} to ${to}` (+
-        // optional ` (reason: ${archive_reason})` suffix). The
-        // change_type='publication_state' value was added to the CHECK enum
-        // in commit eeb8ae25.
-        const changeReasonText =
-          `Transition from ${fromStatus} to ${newStatus}` +
-          (args.archive_reason ? ` (reason: ${args.archive_reason})` : '');
-
-        const maxVersionRes = await tryQuery(
-          supabase
-            .from('content_history')
-            .select('version')
-            .eq('content_item_id', args.item_id)
-            .order('version', { ascending: false })
-            .limit(1)
-            .maybeSingle(),
-          'mcp.governance.update_publication_status.history_version_lookup',
-        );
-        const nextVersion = isOk(maxVersionRes)
-          ? (maxVersionRes.data?.version ?? 0) + 1
-          : 1;
-
-        await sb(
-          supabase.from('content_history').insert({
-            content_item_id: args.item_id,
-            version: nextVersion,
-            title: current.title ?? '',
-            content: current.content ?? '',
-            brief: null,
-            detail: null,
-            reference: null,
-            change_summary: `Publication status: ${fromStatus} -> ${newStatus}`,
-            change_reason: changeReasonText,
-            change_type: 'publication_state',
-            created_by: userId,
-          }),
-          'mcp.governance.update_publication_status.history_insert',
-        );
-
+        // The content_history transition-snapshot insert is retired here:
+        // content_item_id has been a dead FK since the M0c debris-wipe, and
+        // content_history itself drops at M6 (BI-34). ID-131 FIX-SLICE
+        // (S447).
         const displayTitle = current.title ?? '(untitled)';
         const result: PublicationStatusUpdateResult = {
           item_id: args.item_id,

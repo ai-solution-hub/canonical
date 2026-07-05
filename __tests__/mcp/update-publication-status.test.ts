@@ -14,9 +14,9 @@
  *   - Side-effects — archive_reason flows through to archive_reason column on
  *     published→archived; un-archive clears archived_at, preserves
  *     archived_by + archive_reason.
- *   - content_history — row written with change_type='publication_state' and
- *     canonical change_reason `Transition from ${from} to ${to}` (+ archive
- *     reason suffix).
+ *   - content_history — NO row is written (ID-131 FIX-SLICE, S447, BI-34:
+ *     the audit insert is retired — content_item_id has been a dead FK
+ *     since the M0c debris-wipe, and content_history itself drops at M6).
  *
  * (ID-71.9 retired `get_governance_queue` into `whats_in_my_queue`; the former
  * get-side publication_status widening block was removed with the tool.)
@@ -130,13 +130,20 @@ async function callTool(
 
 /**
  * Build a transition test harness. Wires `tryQuery` to return the current
- * item state, captures the `update` payload, captures the `content_history`
- * insert payload, and returns the tool result + the captured payloads.
+ * item state and captures the `update` payload.
+ *
+ * ID-131 FIX-SLICE (S447, BI-34): the content_history version-lookup
+ * (`tryQuery`) and insert (`sb`) are retired — content_item_id has been a
+ * dead FK since the M0c debris-wipe, and content_history itself drops at
+ * M6. `historyInsertPayload` stays wired (via the 2nd `sb()` call slot,
+ * which is now never assigned) so a regression — a content_history write
+ * reappearing — would flip it from `undefined` to defined and fail the
+ * tests below that assert it stays `undefined`.
  *
  * Uses a single mock createMcpClient.from that returns an item-shaped chain
- * for the first invocation (the SELECT) and a generic chain for downstream
- * UPDATE/INSERT/SELECT history-version-lookup calls. The `update` and
- * `insert` mock-fn calls are inspected after the tool returns.
+ * for the first invocation (the SELECT) and a generic chain for the
+ * downstream UPDATE call. The `update` mock-fn call is inspected after the
+ * tool returns.
  */
 async function runTransition({
   role,
@@ -181,7 +188,10 @@ async function runTransition({
     ...itemOverrides,
   };
 
-  // tryQuery: 1st call = item fetch, 2nd call = max version lookup.
+  // tryQuery: 1st call = item fetch (source_documents). The 2nd-call
+  // fallback below is a defensive no-op post-S447 (content_history's max
+  // version lookup, the previous 2nd call, is retired) — kept so an
+  // unexpected extra tryQuery call doesn't throw.
   let tryQueryCallNo = 0;
   mocks.tryQuery.mockImplementation(async () => {
     tryQueryCallNo += 1;
@@ -191,7 +201,9 @@ async function runTransition({
     return { ok: true, data: { version: 0 } };
   });
 
-  // sb: terminal awaits for update + history insert. Capture chains.
+  // sb: terminal await for the update. Capture chains. (The 2nd-call slot
+  // below, `historyChain`, is never assigned post-S447 — content_history's
+  // insert is retired — so `historyInsertPayload` stays `undefined`.)
   let sbCallNo = 0;
   let updateChain: ReturnType<typeof chain> | null = null;
   let historyChain: ReturnType<typeof chain> | null = null;
@@ -561,42 +573,31 @@ describe('update_publication_status — archive side-effects', () => {
 });
 
 // ---------------------------------------------------------------------------
-// content_history row written
+// content_history — audit write retired (ID-131 FIX-SLICE, S447, BI-34)
 // ---------------------------------------------------------------------------
 
-describe('update_publication_status — content_history write', () => {
-  it('writes change_type=publication_state with canonical change_reason', async () => {
-    const { historyInsertPayload } = await runTransition({
+describe('update_publication_status — content_history write retired (BI-34)', () => {
+  it('does NOT write a content_history row on an ordinary transition (dead FK post-M0c wipe)', async () => {
+    const { res, historyInsertPayload } = await runTransition({
       role: 'editor',
       fromStatus: 'draft',
       newStatus: 'in_review',
     });
 
-    expect(historyInsertPayload).toBeDefined();
-    expect(historyInsertPayload?.change_type).toBe('publication_state');
-    expect(historyInsertPayload?.change_reason).toBe(
-      'Transition from draft to in_review',
-    );
-    expect(historyInsertPayload?.change_summary).toBe(
-      'Publication status: draft -> in_review',
-    );
-    expect(historyInsertPayload?.content_item_id).toBe(TEST_ITEM_ID);
-    expect(historyInsertPayload?.created_by).toBe(TEST_USER_ID);
-    // Auto-version: max(0) + 1 = 1.
-    expect(historyInsertPayload?.version).toBe(1);
+    expect(res.isError).toBeUndefined();
+    expect(historyInsertPayload).toBeUndefined();
   });
 
-  it('appends archive_reason suffix to change_reason on archive transition', async () => {
-    const { historyInsertPayload } = await runTransition({
+  it('does NOT write a content_history row on an archive transition either', async () => {
+    const { res, historyInsertPayload } = await runTransition({
       role: 'admin',
       fromStatus: 'published',
       newStatus: 'archived',
       archiveReason: 'Superseded by Q2 policy',
     });
 
-    expect(historyInsertPayload?.change_reason).toBe(
-      'Transition from published to archived (reason: Superseded by Q2 policy)',
-    );
+    expect(res.isError).toBeUndefined();
+    expect(historyInsertPayload).toBeUndefined();
   });
 });
 

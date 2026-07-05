@@ -1872,44 +1872,12 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             ? updatedCount
             : itemsAffected.length;
 
-        // 9. Audit trail — best-effort content_history insert.
-        // change_reason: canonical 'owner_change' value (Appendix D of
-        // docs/reference/data-entry-points.md) — matches single-item
-        // owner PATCH so provenance queries group both paths together.
-        try {
-          await sb(
-            supabase.from('content_history').insert(
-              itemsAffected.map((item) => ({
-                content_item_id: item.id,
-                change_type: 'owner_assigned',
-                change_reason: 'owner_change',
-                title: `Ownership assigned via bulk_assign_owner`,
-                content: `Owner changed to ${ownerId}`,
-                version: 0,
-                created_by: actingUserId,
-                metadata: {
-                  source: 'mcp:bulk_assign_owner',
-                  scope: scopeSnapshot,
-                  previous_owner_id: item.previous_owner_id,
-                  new_owner_id: ownerId,
-                } as unknown as Json,
-              })),
-            ),
-            'content_history.bulk_assign_owner',
-          );
-        } catch (err) {
-          logBestEffortWarn(
-            'content.owner.audit',
-            'Failed to write content_history for bulk owner assignment',
-            {
-              affected_count: itemsAffected.length,
-              error: err instanceof Error ? err.message : String(err),
-            },
-          );
-          warnings.push(
-            'Audit trail write failed — ownership was assigned but history records were not created.',
-          );
-        }
+        // Audit-trail content_history insert retired here: content_item_id
+        // has been a dead FK since the M0c debris-wipe (content_items is
+        // permanently empty), so this insert failed on every call — the
+        // best-effort catch below just logged + warned every time, never
+        // actually recording history. content_history itself drops at M6
+        // (BI-34). ID-131 FIX-SLICE (S447).
 
         // 10. Notification (best-effort)
         if (notify && ownerId !== actingUserId) {

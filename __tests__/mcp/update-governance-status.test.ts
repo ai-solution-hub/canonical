@@ -15,8 +15,10 @@
  *         `governance_review_status`) per spec §6.5 / Phase 2.5 rewire.
  *       * Does NOT clear `governance_review_status` (legacy column left as-is
  *         per §10.6 read-side compatibility).
- *       * `content_history` row written with canonical
- *         `change_reason: 'status_change_draft'` and `change_type: 'draft'`.
+ *       * Does NOT write a `content_history` row (ID-131 FIX-SLICE, S447,
+ *         BI-34: the audit insert is retired — content_item_id has been a
+ *         dead FK since the M0c debris-wipe, and content_history itself
+ *         drops at M6).
  *       * Covers transitioning from `'published' → 'draft'` and
  *         `'in_review' → 'draft'`.
  *   - `action='publish'` branch (post-Wave-3A coherence fix):
@@ -183,12 +185,15 @@ async function callTool(
  *   4. On publish, clears `governance_review_status` via a SEPARATE
  *      `record_lifecycle` upsert (facet clear) — no longer part of the main
  *      table's `.update()` payload.
- *   5. Performs a content_history version lookup via `sb()` then inserts a
- *      content_history row.
+ *   5. ID-131 FIX-SLICE (S447, BI-34): NO LONGER performs a content_history
+ *      version lookup or insert — that audit write is retired (dead FK post
+ *      M0c debris-wipe; content_history drops at M6). `historyChain` /
+ *      `historyInsertPayload` below stay wired so a regression (a write
+ *      reappearing) would be caught — every current test asserts
+ *      `historyInsertPayload` is `undefined`.
  *
- * Captures the `update(...)` payload on the resolved owner table, the
- * `upsert(...)` payload on `record_lifecycle` (facet clear), and the
- * `insert(...)` payload on `content_history`.
+ * Captures the `update(...)` payload on the resolved owner table and the
+ * `upsert(...)` payload on `record_lifecycle` (facet clear).
  */
 async function runUpdate({
   role,
@@ -222,12 +227,13 @@ async function runUpdate({
   mocks.getMcpUserId.mockReturnValue(TEST_USER_ID);
   mocks.getMcpUserRole.mockResolvedValue(role);
 
-  // tryQuery is used for the embedding-pipeline classify + the
-  // content_history version lookup. Stub a generic ok response.
+  // tryQuery is used for the embedding-pipeline classify path.
   mocks.tryQuery.mockResolvedValue({ ok: true, data: null });
 
-  // sb() is used for the content_history version lookup. Returns
-  // [{ version: 0 }] so nextVersion = 1.
+  // sb() is used for the publish-branch record_lifecycle facet-clear upsert
+  // (the content_history version lookup this used to also back is retired —
+  // ID-131 FIX-SLICE, S447). Generic resolved value; the facet-clear call
+  // doesn't consume the shape.
   mocks.sb.mockResolvedValue([{ version: 0 }]);
 
   if (embeddingError) {
@@ -547,8 +553,8 @@ describe('update_governance_status — action="draft" branch (T8a)', () => {
     expect('governance_review_status' in updatePayload!).toBe(false);
   });
 
-  it('writes content_history with change_type="draft" and canonical change_reason', async () => {
-    const { historyInsertPayload } = await runUpdate({
+  it('does NOT write a content_history row (audit insert retired — dead FK post-M0c wipe, BI-34)', async () => {
+    const { historyInsertPayload, fromCalls } = await runUpdate({
       role: 'editor',
       status: 'draft',
       itemRow: {
@@ -561,15 +567,8 @@ describe('update_governance_status — action="draft" branch (T8a)', () => {
         classified_at: '2026-01-01T00:00:00Z',
       },
     });
-    expect(historyInsertPayload).toBeDefined();
-    expect(historyInsertPayload!.change_type).toBe('draft');
-    expect(historyInsertPayload!.change_reason).toBe('status_change_draft');
-    expect(historyInsertPayload!.change_summary).toBe(
-      'Item moved to draft status',
-    );
-    expect(historyInsertPayload!.content_item_id).toBe(TEST_ITEM_ID);
-    expect(historyInsertPayload!.created_by).toBe(TEST_USER_ID);
-    expect(historyInsertPayload!.version).toBe(1);
+    expect(historyInsertPayload).toBeUndefined();
+    expect(fromCalls).not.toContain('content_history');
   });
 });
 
@@ -686,8 +685,8 @@ describe('update_governance_status — action="publish" branch (post-Wave-3A)', 
     expect(text).toMatch(/update_publication_status/);
   });
 
-  it('writes content_history with change_type="publish" and canonical change_reason', async () => {
-    const { historyInsertPayload } = await runUpdate({
+  it('does NOT write a content_history row (audit insert retired — dead FK post-M0c wipe, BI-34)', async () => {
+    const { historyInsertPayload, fromCalls } = await runUpdate({
       role: 'admin',
       status: 'publish',
       itemRow: {
@@ -700,12 +699,8 @@ describe('update_governance_status — action="publish" branch (post-Wave-3A)', 
         classified_at: '2026-01-01T00:00:00Z',
       },
     });
-    expect(historyInsertPayload).toBeDefined();
-    expect(historyInsertPayload!.change_type).toBe('publish');
-    expect(historyInsertPayload!.change_reason).toBe('status_change_publish');
-    expect(historyInsertPayload!.change_summary).toBe(
-      'Item published from draft to live',
-    );
+    expect(historyInsertPayload).toBeUndefined();
+    expect(fromCalls).not.toContain('content_history');
   });
 
   it('does NOT generate an embedding for a source_document owner (no embedding column under OKF)', async () => {
