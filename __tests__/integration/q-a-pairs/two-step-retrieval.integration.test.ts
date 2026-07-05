@@ -37,18 +37,19 @@
  * (owner_kind='q_a_pair', owner_id, model). `seedQaPair`'s `embedding` option now
  * writes record_embeddings directly instead of the inline column.
  *
- * KNOWN GAP (flagged, not fixed here — outside this Subtask's migrations
- * boundary): the `q_a_search` SQL function (exercised by the "two-step
- * retrieval Step 1" tests below) still reads `qap.question_embedding` directly
- * in its body (cosine-distance expression + `WHERE qap.question_embedding IS
- * NOT NULL`; squash baseline, never redefined). Since that column is DROPPED,
- * those calls will error ("column does not exist") against a live DB with the
- * drop actually applied, until the function is rewritten onto
- * record_embeddings. `q_a_get_verbatim` (Step 2) has NO question_embedding
- * reference (the whole point of the two-step pattern is that Step 2 excludes
- * the embedding payload) and the `q_a_pair_history`/CASCADE DELETE tests below
- * are unaffected — only the q_a_search-dependent tests are blocked. This is a
- * separate SQL-layer fix from lib/q-a-pairs/promote-corpus.ts's parallel fix.
+ * FIXED (ID-131.19, S450 GO tail #3): the `q_a_search` SQL function
+ * (exercised by the "two-step retrieval Step 1" tests below) used to read
+ * `qap.question_embedding` directly in its body (cosine-distance expression +
+ * `WHERE qap.question_embedding IS NOT NULL`; squash baseline, never
+ * redefined by the {131.11} search redesign), which errored ("column does
+ * not exist") once the column was dropped. Re-pointed onto record_embeddings
+ * by supabase/migrations/20260706170000_id131_qa_fns_record_embeddings_repoint.sql
+ * — AUTHORED, NOT YET APPLIED (owner-gated GO-sequence apply); the
+ * q_a_search-dependent tests below pass once that migration lands.
+ * `q_a_get_verbatim` (Step 2) has NO question_embedding reference (the whole
+ * point of the two-step pattern is that Step 2 excludes the embedding
+ * payload) and the `q_a_pair_history`/CASCADE DELETE tests below were never
+ * affected. Separate from lib/q-a-pairs/promote-corpus.ts's parallel fix.
  *
  * @vitest-environment node
  */
@@ -394,11 +395,9 @@ describe.skipIf(!RUN_INTEGRATION)(
       const queryEmbedding = makeEmbedding(1.0, 0.5);
       const queryText = 'GDPR compliance documentation';
 
-      // KNOWN GAP — see module docstring: q_a_search's SQL body still reads
-      // qap.question_embedding directly (dropped column), so this call
-      // errors against a live DB with drop_inline_vector_cols actually
-      // applied, until the function is rewritten onto record_embeddings.
-      // Not fixed here (outside this Subtask's migrations boundary).
+      // FIXED — see module docstring: q_a_search now joins record_embeddings
+      // (20260706170000_id131_qa_fns_record_embeddings_repoint.sql, authored,
+      // pending owner-gated apply).
       const { data, error } = await db.rpc('q_a_search', {
         p_query: queryText,
         p_query_embedding: JSON.stringify(queryEmbedding), // CLAUDE.md: must stringify

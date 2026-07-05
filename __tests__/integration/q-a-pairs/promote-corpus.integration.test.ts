@@ -589,14 +589,15 @@ describe.skipIf(!RUN_INTEGRATION)(
       // A self-match gives high cosine similarity so the pair ranks top.
       // Uses the first successfully published seeded pair.
       //
-      // KNOWN GAP (flagged, not fixed here — outside this Subtask's migrations
-      // boundary): the `q_a_search` SQL function body still reads
-      // `qap.question_embedding` directly (squash baseline; never redefined).
-      // Since that column was DROPPED by drop_inline_vector_cols, this RPC call
-      // will error ("column does not exist") against a live DB with the drop
-      // actually applied, until the function is rewritten to join
-      // record_embeddings (owner_kind='q_a_pair') instead. External contract
-      // (params/return shape) is unchanged, so no call-site edit is made here.
+      // FIXED (ID-131.19, S450 GO tail #3): the `q_a_search` SQL function body
+      // used to read `qap.question_embedding` directly (squash baseline,
+      // never redefined by the {131.11} search redesign), which errored
+      // ("column does not exist") once drop_inline_vector_cols dropped the
+      // column. Re-pointed to join record_embeddings (owner_kind='q_a_pair')
+      // by 20260706170000_id131_qa_fns_record_embeddings_repoint.sql —
+      // AUTHORED, NOT YET APPLIED (owner-gated GO-sequence apply); this call
+      // succeeds once that migration lands. External contract (params/return
+      // shape) unchanged, so no call-site edit is needed here.
       if (promotedPairIds.length > 0 && summary.embed_failed === 0) {
         // Fetch the question text for the first promoted pair
         const { data: firstPair } = await db

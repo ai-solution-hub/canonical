@@ -49,15 +49,17 @@
  * (owner_kind='q_a_pair', owner_id, model). `seedQaPair`'s `embedding` option now
  * writes record_embeddings directly instead of the inline column.
  *
- * KNOWN GAP (flagged, not fixed here — outside this Subtask's migrations
- * boundary): the `question_match_recompute` SQL function — THE subject of this
- * whole suite — still reads `qap.question_embedding` directly in its body (the
- * cosine-distance expression AND the B6 `WHERE qap.question_embedding IS NOT
- * NULL` eligibility filter; squash baseline, never redefined). Since that
- * column is DROPPED, this RPC will error ("column does not exist") against a
- * live DB with the drop actually applied, until the function is rewritten to
- * JOIN record_embeddings (owner_kind='q_a_pair') instead. This is a separate
- * SQL-layer fix from lib/q-a-pairs/promote-corpus.ts's parallel fix.
+ * FIXED (ID-131.19, S450 GO tail #3): the `question_match_recompute` SQL
+ * function — THE subject of this whole suite — used to read
+ * `qap.question_embedding` directly in its body (the cosine-distance
+ * expression AND the B6 `WHERE qap.question_embedding IS NOT NULL`
+ * eligibility filter; squash baseline, never redefined by the {131.11}
+ * search redesign), which errored ("column does not exist") once the column
+ * was dropped. Re-pointed to JOIN record_embeddings (owner_kind='q_a_pair')
+ * by supabase/migrations/20260706170000_id131_qa_fns_record_embeddings_repoint.sql
+ * — AUTHORED, NOT YET APPLIED (owner-gated GO-sequence apply); this suite
+ * passes once that migration lands on the live DB. Separate from
+ * lib/q-a-pairs/promote-corpus.ts's parallel fix.
  *
  * @vitest-environment node
  */
@@ -282,11 +284,9 @@ interface RecomputeArgs {
 async function recompute(
   args: RecomputeArgs,
 ): Promise<{ data: number | null; error: { message: string } | null }> {
-  // KNOWN GAP — see module docstring: this RPC's SQL body still reads
-  // qap.question_embedding directly (dropped column), so this call errors
-  // against a live DB with drop_inline_vector_cols actually applied, until
-  // the function is rewritten onto record_embeddings. Not fixed here
-  // (outside this Subtask's migrations boundary).
+  // FIXED — see module docstring: this RPC now JOINs record_embeddings
+  // (20260706170000_id131_qa_fns_record_embeddings_repoint.sql, authored,
+  // pending owner-gated apply).
   const { data, error } = await (db as unknown as SupabaseClient).rpc(
     'question_match_recompute',
     args,

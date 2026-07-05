@@ -34,14 +34,16 @@
  * (owner_kind='q_a_pair', owner_id, model). `seedPair`'s "embedded" fixture now
  * writes record_embeddings directly instead of the inline column.
  *
- * KNOWN GAP (flagged, not fixed here — outside this Subtask's migrations
- * boundary): the `q_a_extractions_promotion_candidates()` SQL function — THE
- * subject of testStrategy 2 below — still has `p.question_embedding IS NULL`
- * in its WHERE clause (squash baseline; never redefined). Since that column
- * is DROPPED, this RPC will error ("column does not exist") against a live DB
- * with the drop actually applied, until the function is rewritten to check
- * record_embeddings absence (owner_kind='q_a_pair') instead. This is a
- * separate SQL-layer fix from lib/q-a-pairs/promote-corpus.ts's parallel fix.
+ * FIXED (ID-131.19, S450 GO tail #3): the `q_a_extractions_promotion_candidates()`
+ * SQL function — THE subject of testStrategy 2 below — used to have
+ * `p.question_embedding IS NULL` in its WHERE clause (squash baseline, never
+ * redefined by the {131.11} search redesign), which errored ("column does not
+ * exist") once the column was dropped. Re-pointed onto a `NOT EXISTS` check
+ * against `record_embeddings` (owner_kind='q_a_pair') by
+ * supabase/migrations/20260706170000_id131_qa_fns_record_embeddings_repoint.sql
+ * — AUTHORED, NOT YET APPLIED (owner-gated GO-sequence apply); this test
+ * passes once that migration lands on the live DB. Separate from
+ * lib/q-a-pairs/promote-corpus.ts's parallel fix.
  *
  * @vitest-environment node
  */
@@ -293,11 +295,9 @@ describe.skipIf(!RUN_INTEGRATION)(
         invalidated: true,
       });
 
-      // KNOWN GAP — see module docstring: this RPC's SQL body still checks
-      // `question_embedding IS NULL` (dropped column), so this call errors
-      // against a live DB with drop_inline_vector_cols actually applied,
-      // until the function is rewritten onto record_embeddings. Not fixed
-      // here (outside this Subtask's migrations boundary).
+      // FIXED — see module docstring: this RPC now checks record_embeddings
+      // absence via NOT EXISTS (20260706170000_id131_qa_fns_record_embeddings_
+      // repoint.sql, authored, pending owner-gated apply).
       const { data, error } = await db.rpc(
         'q_a_extractions_promotion_candidates',
       );
