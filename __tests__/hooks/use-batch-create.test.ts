@@ -13,19 +13,20 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 // Hoisted mocks
 // ---------------------------------------------------------------------------
 
-const { mockSelect, mockLimit } = vi.hoisted(() => {
+const { mockFrom, mockSelect, mockLimit } = vi.hoisted(() => {
   const mockLimit = vi.fn();
   const mockIlike = vi.fn().mockReturnValue({ limit: mockLimit });
   const mockSelect = vi.fn().mockReturnValue({ ilike: mockIlike });
+  // Tracks which table each duplicate-check query targets — ID-131 {131.21}
+  // asserts the rebound hook reads q_a_pairs, never content_items.
+  const mockFrom = vi.fn().mockReturnValue({ select: mockSelect });
 
-  return { mockIlike, mockSelect, mockLimit };
+  return { mockIlike, mockFrom, mockSelect, mockLimit };
 });
 
 vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
-    from: () => ({
-      select: mockSelect,
-    }),
+    from: mockFrom,
   }),
 }));
 
@@ -119,7 +120,7 @@ describe('useBatchCreate', () => {
       });
 
       // Verify fetch was called correctly
-      expect(global.fetch).toHaveBeenCalledWith('/api/items/batch', {
+      expect(global.fetch).toHaveBeenCalledWith('/api/q-a-pairs/batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: expect.any(String),
@@ -129,14 +130,12 @@ describe('useBatchCreate', () => {
       const fetchCall = vi.mocked(global.fetch).mock.calls[0];
       const body = JSON.parse(fetchCall[1]?.body as string);
       expect(body.items).toHaveLength(2);
-      // Post-S193 WP1 Part 3: canonical payload includes explicit
-      // `answerStandard` alongside composite `content`, so the server can
-      // skip the `extractAnswerFromContent` round-trip.
+      // ID-131 {131.21}: q_a_pairs stores question/answer as distinct typed
+      // columns — no composite "content" field, no contentType discriminator
+      // (the route is Q&A-only by construction).
       expect(body.items[0]).toEqual({
-        title: 'What is X?',
-        content: 'Q: What is X?\n\nX is a thing',
-        contentType: 'q_a_pair',
-        answerStandard: 'X is a thing',
+        question_text: 'What is X?',
+        answer_standard: 'X is a thing',
       });
 
       // Verify result
@@ -308,7 +307,7 @@ describe('useBatchCreate', () => {
         submitResult = await result.current.submit([]);
       });
 
-      expect(global.fetch).toHaveBeenCalledWith('/api/items/batch', {
+      expect(global.fetch).toHaveBeenCalledWith('/api/q-a-pairs/batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items: [] }),
@@ -358,6 +357,24 @@ describe('useBatchCreate', () => {
   });
 
   describe('checkDuplicates', () => {
+    it('queries q_a_pairs, never content_items (ID-131 {131.21})', async () => {
+      mockLimit.mockResolvedValue({ data: [], error: null });
+
+      const { result } = renderHook(() => useBatchCreate(), {
+        wrapper: createWrapper(),
+      });
+
+      await act(async () => {
+        await result.current.checkDuplicates([
+          { question: 'Unique question?', answer: 'Answer' },
+        ]);
+      });
+
+      expect(mockFrom).toHaveBeenCalledWith('q_a_pairs');
+      expect(mockFrom).not.toHaveBeenCalledWith('content_items');
+      expect(mockSelect).toHaveBeenCalledWith('id, question_text');
+    });
+
     it('returns empty array when no duplicates found', async () => {
       mockLimit.mockResolvedValue({ data: [], error: null });
 
@@ -378,7 +395,7 @@ describe('useBatchCreate', () => {
 
     it('returns matches when duplicates found', async () => {
       mockLimit.mockResolvedValue({
-        data: [{ id: 'existing-1', title: 'What is X?' }],
+        data: [{ id: 'existing-1', question_text: 'What is X?' }],
         error: null,
       });
 
@@ -401,7 +418,7 @@ describe('useBatchCreate', () => {
     it('deduplicates matches by ID', async () => {
       // Same item matched by multiple queries
       mockLimit.mockResolvedValue({
-        data: [{ id: 'existing-1', title: 'What is X?' }],
+        data: [{ id: 'existing-1', question_text: 'What is X?' }],
         error: null,
       });
 

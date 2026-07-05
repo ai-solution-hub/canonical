@@ -12,6 +12,7 @@ const {
   mockIsFeatureEnabled,
   mockWorkspaceResult,
   mockRelatedResult,
+  mockFromCalls,
 } = vi.hoisted(() => ({
   mockToast: Object.assign(vi.fn(), {
     success: vi.fn(),
@@ -22,6 +23,9 @@ const {
   mockIsFeatureEnabled: vi.fn(() => false),
   mockWorkspaceResult: { data: null as unknown, error: null as unknown },
   mockRelatedResult: { data: null as unknown, error: null as unknown },
+  // Tracks every `.from(<table>)` call across ALL createClient() instances —
+  // ID-131 {131.21} asserts the related-Q&A query never reads content_items.
+  mockFromCalls: [] as string[],
 }));
 
 vi.mock('sonner', () => ({ toast: mockToast }));
@@ -54,7 +58,9 @@ vi.mock('@/lib/supabase/client', () => ({
         if (tableName === 'content_item_workspaces') {
           return Promise.resolve(mockWorkspaceResult).then(onFulfilled);
         }
-        if (tableName === 'content_items') {
+        // ID-131 {131.21}: the related-Q&A query is re-pointed off
+        // content_items onto q_a_pairs.
+        if (tableName === 'q_a_pairs') {
           return Promise.resolve(mockRelatedResult).then(onFulfilled);
         }
         return Promise.resolve({ data: null, error: null }).then(onFulfilled);
@@ -65,6 +71,7 @@ vi.mock('@/lib/supabase/client', () => ({
     return {
       from: vi.fn((table: string) => {
         tableName = table;
+        mockFromCalls.push(table);
         return makeChain();
       }),
       rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
@@ -112,6 +119,7 @@ function createWrapper() {
 describe('useQAProvenance', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockFromCalls.length = 0;
     mockIsFeatureEnabled.mockReturnValue(false);
 
     // Default workspace query result.
@@ -129,10 +137,11 @@ describe('useQAProvenance', () => {
     ];
     mockWorkspaceResult.error = null;
 
-    // Default related Q&A result
+    // Default related Q&A result — q_a_pairs row shape (ID-131 {131.21}):
+    // the hook maps question_text -> the returned `title` field.
     mockRelatedResult.data = [
-      { id: 'related-1', title: 'Related Question 1' },
-      { id: 'related-2', title: 'Related Question 2' },
+      { id: 'related-1', question_text: 'Related Question 1' },
+      { id: 'related-2', question_text: 'Related Question 2' },
     ];
     mockRelatedResult.error = null;
 
@@ -241,6 +250,19 @@ describe('useQAProvenance', () => {
     });
 
     expect(result.current.relatedQA[0].title).toBe('Related Question 1');
+  });
+
+  it('queries q_a_pairs for related Q&A, never content_items (ID-131 {131.21})', async () => {
+    const { result } = renderHook(() => useQAProvenance(DEFAULT_PARAMS), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.relatedQA).toHaveLength(2);
+    });
+
+    expect(mockFromCalls).toContain('q_a_pairs');
+    expect(mockFromCalls).not.toContain('content_items');
   });
 
   it('does not fetch related Q&A when no source_file available', async () => {

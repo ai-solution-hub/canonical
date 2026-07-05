@@ -5,7 +5,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
 import { mutationFetchJson } from '@/lib/query/fetchers';
 import { createClient } from '@/lib/supabase/client';
-import { formatQAContent } from '@/components/qa/batch-qa-preview-table';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -81,7 +80,14 @@ interface SubmitVariables {
 // ---------------------------------------------------------------------------
 
 /**
- * Hook wrapping the `POST /api/items/batch` endpoint for batch Q&A creation.
+ * Hook wrapping the `POST /api/q-a-pairs/batch` endpoint for batch Q&A
+ * creation.
+ *
+ * ID-131 {131.21} G-MANUAL-QA: rebound off `POST /api/items/batch`
+ * (content_items writes) onto the typed `q_a_pairs` table — origin_kind is
+ * always 'manually_authored' on rows created here. Duplicate-checking is
+ * likewise rebound to read `q_a_pairs.question_text` instead of
+ * `content_items.title`.
  *
  * Provides submit, progress tracking, duplicate checking, and error handling.
  *
@@ -106,13 +112,12 @@ export function useBatchCreate(): UseBatchCreateReturn {
       mutationFn: async ({ pairs, options }: SubmitVariables) => {
         setProgress({ current: 0, total: pairs.length });
 
+        // ID-131 {131.21}: q_a_pairs stores question/answer as distinct typed
+        // columns — no composite "content" field to build (unlike the retired
+        // content_items write path).
         const items = pairs.map((pair) => ({
-          title: pair.question,
-          content: formatQAContent(pair),
-          contentType: 'q_a_pair' as const,
-          // Option A (P0-BM Phase 3 WP1 Part 3): send answer explicitly so
-          // the server does not need to re-parse from the composite content.
-          answerStandard: pair.answer,
+          question_text: pair.question,
+          answer_standard: pair.answer,
         }));
 
         const body: Record<string, unknown> = { items };
@@ -130,7 +135,7 @@ export function useBatchCreate(): UseBatchCreateReturn {
 
         try {
           const result = await mutationFetchJson<BatchCreateResult>(
-            '/api/items/batch',
+            '/api/q-a-pairs/batch',
             body,
           );
 
@@ -148,7 +153,10 @@ export function useBatchCreate(): UseBatchCreateReturn {
         }
       },
       onSuccess: () => {
-        // Invalidate content items cache — new items were created
+        // Invalidate content items cache — new q_a_pairs rows were created.
+        // ID-131 {131.21}: the /library list re-point (hooks/use-library-data.ts)
+        // still keys its query under queryKeys.contentItems.library(...), so
+        // this invalidation continues to trigger the correct refetch.
         queryClient.invalidateQueries({ queryKey: queryKeys.contentItems.all });
       },
     },
@@ -170,19 +178,25 @@ export function useBatchCreate(): UseBatchCreateReturn {
           const searchTerm = pair.question
             .slice(0, 100)
             .replace(/[\\%_]/g, '\\$&');
+          // ID-131 {131.21}: rebound off content_items.title onto
+          // q_a_pairs.question_text — this hook now writes q_a_pairs, so the
+          // duplicate check must search the same table it writes to.
           const { data } = await supabase
-            .from('content_items')
-            .select('id, title')
-            .ilike('title', `%${searchTerm}%`)
+            .from('q_a_pairs')
+            .select('id, question_text')
+            .ilike('question_text', `%${searchTerm}%`)
             .limit(3);
 
           if (data && data.length > 0) {
-            for (const item of data) {
+            for (const item of data as Array<{
+              id: string;
+              question_text: string;
+            }>) {
               // Avoid duplicate entries in the matches list
               if (!matches.some((m) => m.id === item.id)) {
                 matches.push({
                   id: item.id,
-                  title: item.title,
+                  title: item.question_text,
                   question: pair.question,
                 });
               }

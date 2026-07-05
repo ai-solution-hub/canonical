@@ -6,6 +6,15 @@
  * ID-59 {59.24} — OQ-2 active retirement pass (after the promote loop).
  * ID-59 {59.29} — corpus sidecar-emit leg (emit-then-publish) + bl-323 fold:
  *                 unified per-extraction failure record (embed | sidecar).
+ * ID-131 {131.21} — HIGH-priority dual-write: embedAndPublish() ALSO upserts
+ *                   the polymorphic record_embeddings store (owner_kind=
+ *                   'q_a_pair') alongside the inline q_a_pairs.question_embedding
+ *                   column. flow.py never embeds q_a_pairs — this promotion path
+ *                   is the SOLE q_a_pair embedding writer — so hybrid_search's
+ *                   q_a_pair arm would return 0 rows once the inline column
+ *                   drops at M6 (quarantined migration, commit 8eb200e6) without
+ *                   this. Best-effort: mirrors classify.ts's non-fatal
+ *                   record_embeddings upsert-failure handling.
  *
  * Spec: specs/id-59-concurrent-edit-intent-arbitration/TECH-qa-corpus-promotion.md
  *       R1 steps 1, 2, 3, 4, 5, 6, 7.
@@ -52,6 +61,7 @@
 import { tryQuery } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
 import { generateEmbedding } from '@/lib/ai/embed';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 // ID-131 {131.8} BI-16 (QA-DBONLY): the `__qa__/*.md` sidecar emit is retired —
 // only the pure-DB source_document_id provenance link survives, so the fs /
 // path / carried-set-serialise / write-back-restore imports are no longer used.
@@ -1016,6 +1026,11 @@ async function embedAndPublish(
     return;
   }
 
+  // Serialised once — reused for BOTH the inline column UPDATE below AND the
+  // record_embeddings dual-write (RPC/vector-param convention: JSON.stringify,
+  // never a raw array — supabase/CLAUDE.md Embeddings).
+  const serialisedEmbedding = JSON.stringify(embedding);
+
   // UPDATE pair SET question_embedding + publication_status='published' TOGETHER.
   // INV-12: these two fields are ALWAYS set in the same UPDATE statement.
   // Typed update payload — compile-check that field names match the schema.
@@ -1023,7 +1038,7 @@ async function embedAndPublish(
     Database['public']['Tables']['q_a_pairs']['Update'],
     'question_embedding' | 'publication_status'
   > = {
-    question_embedding: JSON.stringify(embedding),
+    question_embedding: serialisedEmbedding,
     publication_status: 'published',
   };
 
@@ -1051,6 +1066,39 @@ async function embedAndPublish(
     // a concurrent update already published it. Either way, count as
     // embed_failed so the operator can see the discrepancy (INV-12 defence).
     onFail();
+    return;
   }
-  // embedRowCount > 0: pair is now published with a non-null embedding. Success.
+
+  // embedRowCount > 0: pair is now published with a non-null embedding.
+  //
+  // ID-131 {131.21} HIGH-priority dual-write (see module header): also upsert
+  // the polymorphic record_embeddings store so hybrid_search's q_a_pair arm
+  // has a row once the inline column drops at M6. Best-effort — a failure
+  // here must NOT un-publish a pair that already published successfully via
+  // the inline column above, so it is never surfaced as embed_failed.
+  const recordEmbeddingResult = await client
+    .from('record_embeddings')
+    .upsert(
+      {
+        owner_kind: 'q_a_pair',
+        owner_id: pairId,
+        model: 'text-embedding-3-large',
+        embedding: serialisedEmbedding,
+      },
+      { onConflict: 'owner_kind,owner_id,model' },
+    )
+    .select('id')
+    .maybeSingle();
+
+  if (recordEmbeddingResult?.error) {
+    logBestEffortWarn(
+      'qa.promote.record_embeddings_upsert_failed',
+      'Failed to dual-write q_a_pair embedding into record_embeddings',
+      {
+        extractionId,
+        pairId,
+        error: recordEmbeddingResult.error,
+      },
+    );
+  }
 }

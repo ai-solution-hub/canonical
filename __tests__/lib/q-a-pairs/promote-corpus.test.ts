@@ -1648,3 +1648,134 @@ describe('promoteCorpusExtractions — {59.31} re-walk carried-only re-promote +
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Test suite — {131.21} G-MANUAL-QA HIGH-priority dual-write
+//
+// embedAndPublish() upserts the polymorphic record_embeddings store
+// (owner_kind='q_a_pair') alongside the inline question_embedding column, so
+// hybrid_search's q_a_pair arm has a row once the inline column drops at M6
+// (flow.py never embeds q_a_pairs — this promotion path is the SOLE writer).
+//
+// Mock-queue note: the upsert is terminated with `.select('id').maybeSingle()`
+// rather than an awaited-chain `.then()` — `.maybeSingle()` is a SEPARATE,
+// independently-queued mock method (see __tests__/helpers/mock-supabase.ts),
+// unused anywhere else in this file, so adding this call never shifts the
+// `.then()` queue positions the other ~20 scenarios above depend on.
+// ---------------------------------------------------------------------------
+describe('promoteCorpusExtractions — {131.21} record_embeddings dual-write', () => {
+  let supabase: MockSupabaseClient;
+
+  beforeEach(() => {
+    supabase = createMockSupabaseClient();
+    vi.clearAllMocks();
+    mockGenerateEmbedding.mockResolvedValue(STUB_EMBEDDING);
+  });
+
+  it('upserts record_embeddings with owner_kind=q_a_pair, owner_id=pairId, JSON.stringify(embedding) on successful publish', async () => {
+    const extraction = makeExtraction({ id: UUID_A });
+    supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
+
+    supabase._chain.single.mockResolvedValueOnce({
+      data: { id: UUID_NEW_PAIR },
+      error: null,
+    });
+    // CAS
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: extraction.id }], error: null }),
+    );
+    // provenance link
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: UUID_NEW_PAIR }], error: null }),
+    );
+    // embed UPDATE success
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: UUID_NEW_PAIR }], error: null }),
+    );
+    // record_embeddings upsert — independent .maybeSingle() queue
+    supabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'record-embedding-row-id' },
+      error: null,
+    });
+
+    await promoteCorpusExtractions(supabase as unknown as SupabaseClientLike);
+
+    const upsertMock = supabase._chain.upsert;
+    expect(upsertMock).toHaveBeenCalledTimes(1);
+    const [upsertPayload, upsertOptions] = upsertMock.mock.calls[0] as [
+      Record<string, unknown>,
+      Record<string, unknown>,
+    ];
+    expect(upsertPayload).toEqual({
+      owner_kind: 'q_a_pair',
+      owner_id: UUID_NEW_PAIR,
+      model: 'text-embedding-3-large',
+      embedding: JSON.stringify(STUB_EMBEDDING),
+    });
+    expect(upsertOptions).toEqual({ onConflict: 'owner_kind,owner_id,model' });
+  });
+
+  it('does not call the record_embeddings upsert when the pair embed fails', async () => {
+    const extraction = makeExtraction({ id: UUID_A });
+    supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
+
+    supabase._chain.single.mockResolvedValueOnce({
+      data: { id: UUID_NEW_PAIR },
+      error: null,
+    });
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: extraction.id }], error: null }),
+    );
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: UUID_NEW_PAIR }], error: null }),
+    );
+    mockGenerateEmbedding.mockRejectedValueOnce(new Error('embed fail'));
+
+    const result: PromotionSummary = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
+
+    expect(result.embed_failed).toBe(1);
+    expect(supabase._chain.upsert).not.toHaveBeenCalled();
+  });
+
+  it('is best-effort: a record_embeddings upsert failure does not un-publish the pair or count as embed_failed', async () => {
+    const extraction = makeExtraction({ id: UUID_A });
+    supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
+
+    supabase._chain.single.mockResolvedValueOnce({
+      data: { id: UUID_NEW_PAIR },
+      error: null,
+    });
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: extraction.id }], error: null }),
+    );
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: UUID_NEW_PAIR }], error: null }),
+    );
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: UUID_NEW_PAIR }], error: null }),
+    );
+    supabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'unique_violation', code: '23505' },
+    });
+
+    const result: PromotionSummary = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
+
+    // The inline-column publish already succeeded — a record_embeddings
+    // failure is swallowed (best-effort), never counted as embed_failed.
+    expect(result.promoted).toBe(1);
+    expect(result.embed_failed).toBe(0);
+  });
+});

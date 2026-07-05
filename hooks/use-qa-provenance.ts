@@ -111,21 +111,34 @@ export function useQAProvenance({
 
   // -----------------------------------------------------------------------
   // Query 2: Related Q&A from the same source document
+  //
+  // ID-131 {131.21} G-MANUAL-QA: re-pointed off `content_items` onto the
+  // typed `q_a_pairs` table (zero content_items reads, S440 owner-ratified
+  // narrowing). NOTE: this hook has NO production caller today (the IMS
+  // item-detail surface it served was deleted at {131.17}) — `sourceFile`
+  // is historically a source_document FILENAME string, while q_a_pairs links
+  // to its source via the FK-LESS `source_document_id` UUID (supabase/
+  // migrations/20260621105625). Filtering by `source_document_id` against a
+  // filename value is therefore a placeholder that never matches in
+  // production; a real filename->id resolution is deferred to whoever wires
+  // a live caller (id-135 {135.22} richer-viewer work) — {131.21} only
+  // retires the content_items read.
   // -----------------------------------------------------------------------
   const relatedQuery = useQuery({
     queryKey: queryKeys.qaProvenance.related(itemId, sourceFile ?? ''),
     queryFn: async () => {
       const supabase = createClient();
       const { data } = await supabase
-        .from('content_items')
-        .select('id, title')
-        .eq('content_type', 'q_a_pair')
-        .eq('source_file', sourceFile!)
+        .from('q_a_pairs')
+        .select('id, question_text')
+        .eq('source_document_id', sourceFile!)
         .neq('id', itemId)
-        .order('title')
+        .order('question_text')
         .limit(10);
       if (!data) return [];
-      return data as Array<{ id: string; title: string | null }>;
+      return (data as Array<{ id: string; question_text: string | null }>).map(
+        (row) => ({ id: row.id, title: row.question_text }),
+      );
     },
     enabled: isQAPair && !!sourceFile,
     staleTime: 30_000,

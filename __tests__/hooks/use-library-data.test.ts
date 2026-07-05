@@ -46,27 +46,17 @@ const DEFAULT_FILTERS: LibraryFilters = {
   verified: undefined,
 };
 
-const MOCK_ITEMS = [
+// ID-131 {131.21}: fixture now shaped as a raw `q_a_pairs` row — the hook
+// maps this onto ContentListItem internally (mapQAPairToContentListItem).
+const MOCK_QA_PAIR_ROWS = [
   {
     id: 'item-1',
-    title: 'Test Q&A',
-    content_type: 'q_a_pair',
-    primary_domain: 'Technical',
-    primary_subtopic: null,
-    summary: null,
-    suggested_title: null,
-    platform: null,
-    author_name: null,
-    source_domain: null,
-    thumbnail_url: null,
-    captured_date: '2026-01-01',
-    ai_keywords: null,
-    classification_confidence: 0.9,
-    priority: null,
-    freshness: 'fresh',
-    user_tags: null,
-    governance_review_status: null,
-    metadata: null,
+    question_text: 'Test Q&A',
+    answer_standard: 'Standard answer',
+    answer_advanced: null,
+    publication_status: 'published',
+    source_document_id: null,
+    created_at: '2026-01-01T00:00:00.000Z',
   },
 ];
 
@@ -81,11 +71,11 @@ describe('useLibraryData', () => {
     vi.restoreAllMocks();
   });
 
-  it('fetches Q&A items with default filters', async () => {
+  it('fetches Q&A items from q_a_pairs with default filters (ID-131 {131.21})', async () => {
     // Configure chain to return items when awaited
     mockSupabase._chain.then.mockImplementation(
       (resolve: (v: unknown) => void) =>
-        resolve({ data: MOCK_ITEMS, error: null }),
+        resolve({ data: MOCK_QA_PAIR_ROWS, error: null }),
     );
 
     const { result } = renderHook(() => useLibraryData(DEFAULT_FILTERS), {
@@ -100,27 +90,18 @@ describe('useLibraryData', () => {
 
     expect(result.current.items).toHaveLength(1);
     expect(result.current.items[0].id).toBe('item-1');
+    // Mapped onto the shared ContentListItem shape: title <- question_text.
+    expect(result.current.items[0].title).toBe('Test Q&A');
+    expect(result.current.items[0].content_type).toBe('q_a_pair');
+
+    expect(mockSupabase.from).toHaveBeenCalledWith('q_a_pairs');
+    expect(mockSupabase.from).not.toHaveBeenCalledWith('content_items');
   });
 
-  it('fetches source files for filter dropdown', async () => {
-    // First call: items query, second call: source files query
-    let callCount = 0;
+  it('sourceFiles is always empty — q_a_pairs has no source_file column (ID-131 {131.21})', async () => {
     mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => {
-        callCount++;
-        if (callCount <= 1) {
-          resolve({ data: MOCK_ITEMS, error: null });
-        } else {
-          resolve({
-            data: [
-              { source_file: 'file-a.docx' },
-              { source_file: 'file-b.docx' },
-              { source_file: 'file-a.docx' }, // duplicate
-            ],
-            error: null,
-          });
-        }
-      },
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: MOCK_QA_PAIR_ROWS, error: null }),
     );
 
     const { result } = renderHook(() => useLibraryData(DEFAULT_FILTERS), {
@@ -131,15 +112,11 @@ describe('useLibraryData', () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    await waitFor(() => {
-      expect(result.current.sourceFiles.length).toBeGreaterThan(0);
-    });
-
-    // Should deduplicate and sort
-    expect(result.current.sourceFiles).toEqual(['file-a.docx', 'file-b.docx']);
+    // Honest no-op — richer source-document filtering deferred to id-135.
+    expect(result.current.sourceFiles).toEqual([]);
   });
 
-  it('applies domain filter to query', async () => {
+  it('does not filter by primary_domain — q_a_pairs has no such column (ID-131 {131.21})', async () => {
     mockSupabase._chain.then.mockImplementation(
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
@@ -157,9 +134,41 @@ describe('useLibraryData', () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    expect(mockSupabase._chain.eq).toHaveBeenCalledWith(
+    // The domain filter is a no-op against q_a_pairs (no primary_domain
+    // column) — asserting this is NOT sent guards against a 400 from a
+    // filter targeting a non-existent column.
+    expect(mockSupabase._chain.eq).not.toHaveBeenCalledWith(
       'primary_domain',
       'Technical',
+    );
+  });
+
+  it('applies the variant filter using q_a_pairs answer columns', async () => {
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    const filters: LibraryFilters = {
+      ...DEFAULT_FILTERS,
+      variant: 'standard_only',
+    };
+
+    const { result } = renderHook(() => useLibraryData(filters), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(mockSupabase._chain.not).toHaveBeenCalledWith(
+      'answer_standard',
+      'is',
+      null,
+    );
+    expect(mockSupabase._chain.is).toHaveBeenCalledWith(
+      'answer_advanced',
+      null,
     );
   });
 
