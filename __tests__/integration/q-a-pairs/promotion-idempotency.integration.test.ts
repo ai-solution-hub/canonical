@@ -28,6 +28,21 @@
  *   KH_RUN_INTEGRATION=1 bun run test:integration -- \
  *     __tests__/integration/q-a-pairs/promotion-idempotency.integration.test.ts
  *
+ * ID-131.19 M6-adjacent retirement (drop_inline_vector_cols,
+ * 20260706120000_id131_drop_inline_vector_cols.sql): `q_a_pairs.question_embedding`
+ * DROPPED — vector storage moved to the polymorphic `record_embeddings` table
+ * (owner_kind='q_a_pair', owner_id, model). `seedPair`'s "embedded" fixture now
+ * writes record_embeddings directly instead of the inline column.
+ *
+ * KNOWN GAP (flagged, not fixed here — outside this Subtask's migrations
+ * boundary): the `q_a_extractions_promotion_candidates()` SQL function — THE
+ * subject of testStrategy 2 below — still has `p.question_embedding IS NULL`
+ * in its WHERE clause (squash baseline; never redefined). Since that column
+ * is DROPPED, this RPC will error ("column does not exist") against a live DB
+ * with the drop actually applied, until the function is rewritten to check
+ * record_embeddings absence (owner_kind='q_a_pair') instead. This is a
+ * separate SQL-layer fix from lib/q-a-pairs/promote-corpus.ts's parallel fix.
+ *
  * @vitest-environment node
  */
 
@@ -103,7 +118,8 @@ afterEach(async () => {
     return;
   }
   // q_a_extractions first (FK -> q_a_pairs, ON DELETE SET NULL — but delete the
-  // rows we made), then q_a_pairs.
+  // rows we made), then q_a_pairs. record_embeddings carries no FK (polymorphic
+  // owner) — clean explicitly, scoped to the same seeded pair ids.
   if (seededExtractionIds.length > 0) {
     await db.from('q_a_extractions').delete().in('id', seededExtractionIds);
   }
@@ -112,6 +128,11 @@ afterEach(async () => {
       .from('q_a_extractions')
       .delete()
       .in('promoted_to_pair_id', seededPairIds);
+    await db
+      .from('record_embeddings')
+      .delete()
+      .eq('owner_kind', 'q_a_pair')
+      .in('owner_id', seededPairIds);
     await db.from('q_a_pairs').delete().in('id', seededPairIds);
   }
   seededPairIds = [];
@@ -121,10 +142,28 @@ afterEach(async () => {
 // ---------------------------------------------------------------------------
 // Seed helpers.
 // ---------------------------------------------------------------------------
+const EMBEDDING_MODEL = 'text-embedding-3-large';
+
 function makeEmbedding(d0: number): number[] {
   const vec = Array(1024).fill(0) as number[];
   vec[0] = d0;
   return vec;
+}
+
+/**
+ * ID-131.19 M6-adjacent: q_a_pairs.question_embedding DROPPED — vector
+ * storage lives on the polymorphic record_embeddings table.
+ */
+async function insertEmbedding(pairId: string, d0: number): Promise<void> {
+  const { error } = await db.from('record_embeddings').insert({
+    owner_kind: 'q_a_pair',
+    owner_id: pairId,
+    model: EMBEDDING_MODEL,
+    embedding: JSON.stringify(makeEmbedding(d0)),
+  });
+  if (error) {
+    throw new Error(`insertEmbedding(${pairId}) failed: ${error.message}`);
+  }
 }
 
 async function seedPair(opts: { embedded: boolean }): Promise<string> {
@@ -132,9 +171,6 @@ async function seedPair(opts: { embedded: boolean }): Promise<string> {
     question_text: `idem-q-${crypto.randomUUID()}`,
     answer_standard: 'idem-answer',
     publication_status: opts.embedded ? 'published' : 'draft',
-    question_embedding: opts.embedded
-      ? JSON.stringify(makeEmbedding(0.5))
-      : undefined,
     origin_kind: 'extracted_from_corpus',
   };
   const { data, error } = await db
@@ -146,6 +182,9 @@ async function seedPair(opts: { embedded: boolean }): Promise<string> {
     throw new Error(`seedPair failed: ${error?.message ?? 'no data'}`);
   }
   seededPairIds.push(data.id);
+  if (opts.embedded) {
+    await insertEmbedding(data.id, 0.5);
+  }
   return data.id;
 }
 
@@ -254,6 +293,11 @@ describe.skipIf(!RUN_INTEGRATION)(
         invalidated: true,
       });
 
+      // KNOWN GAP — see module docstring: this RPC's SQL body still checks
+      // `question_embedding IS NULL` (dropped column), so this call errors
+      // against a live DB with drop_inline_vector_cols actually applied,
+      // until the function is rewritten onto record_embeddings. Not fixed
+      // here (outside this Subtask's migrations boundary).
       const { data, error } = await db.rpc(
         'q_a_extractions_promotion_candidates',
       );

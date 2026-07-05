@@ -44,6 +44,24 @@
  * Run via:
  *   KH_RUN_INTEGRATION=1 bun run test:integration -- __tests__/integration/q-a-pairs/
  *
+ * ID-131.19 M6-adjacent retirement (drop_inline_vector_cols,
+ * 20260706120000_id131_drop_inline_vector_cols.sql): `q_a_pairs.question_embedding`
+ * DROPPED — vector storage moved to the polymorphic `record_embeddings` table
+ * (owner_kind='q_a_pair', owner_id, model). `seedQaPair`'s `embedding` option now
+ * writes record_embeddings directly instead of the inline column.
+ *
+ * KNOWN GAP (flagged, not fixed here — outside this Subtask's migrations
+ * boundary): every test here first calls `question_match_recompute` to
+ * populate `question_matches` (this suite's own precondition) — that writer
+ * RPC's SQL body still reads `qap.question_embedding` directly (dropped
+ * column; squash baseline, never redefined), so it errors ("column does not
+ * exist") against a live DB with the drop actually applied, until it is
+ * rewritten onto record_embeddings. `question_match_search` itself (the
+ * reader RPC this file's SUBJECT actually tests) has NO question_embedding
+ * reference at all — it only reads STORED scores off `question_matches` — so
+ * once the writer is fixed, this reader's own tests are unaffected. This is a
+ * separate SQL-layer fix from lib/q-a-pairs/promote-corpus.ts's parallel fix.
+ *
  * @vitest-environment node
  */
 
@@ -170,6 +188,27 @@ async function seedFormQuestion(
   return data.id;
 }
 
+const EMBEDDING_MODEL = 'text-embedding-3-large';
+
+/**
+ * ID-131.19 M6-adjacent: q_a_pairs.question_embedding DROPPED — vector
+ * storage lives on the polymorphic record_embeddings table.
+ */
+async function insertEmbedding(
+  pairId: string,
+  embedding: number[],
+): Promise<void> {
+  const { error } = await db.from('record_embeddings').insert({
+    owner_kind: 'q_a_pair',
+    owner_id: pairId,
+    model: EMBEDDING_MODEL,
+    embedding: JSON.stringify(embedding),
+  });
+  if (error) {
+    throw new Error(`insertEmbedding(${pairId}) failed: ${error.message}`);
+  }
+}
+
 async function seedQaPair(opts: {
   questionText: string;
   answerStandard: string;
@@ -182,9 +221,6 @@ async function seedQaPair(opts: {
     question_text: opts.questionText,
     answer_standard: opts.answerStandard,
     publication_status: opts.publicationStatus,
-    question_embedding: opts.embedding
-      ? JSON.stringify(opts.embedding)
-      : undefined,
     scope_tag: opts.scopeTag ?? [],
     anti_scope_tag: opts.antiScopeTag ?? [],
     origin_kind: 'curated_explicit',
@@ -201,6 +237,9 @@ async function seedQaPair(opts: {
   }
 
   seededPairIds.push(data.id);
+  if (opts.embedding) {
+    await insertEmbedding(data.id, opts.embedding);
+  }
   return data.id;
 }
 
@@ -225,6 +264,11 @@ interface RecomputeArgs {
 async function recompute(
   args: RecomputeArgs,
 ): Promise<{ data: number | null; error: { message: string } | null }> {
+  // KNOWN GAP — see module docstring: this writer RPC's SQL body still reads
+  // qap.question_embedding directly (dropped column), so this call errors
+  // against a live DB with drop_inline_vector_cols actually applied, until
+  // the function is rewritten onto record_embeddings. Not fixed here
+  // (outside this Subtask's migrations boundary).
   const { data, error } = await (db as unknown as SupabaseClient).rpc(
     'question_match_recompute',
     args,
@@ -302,6 +346,12 @@ afterEach(async () => {
   }
   if (seededPairIds.length > 0) {
     await db.from('question_matches').delete().in('q_a_pair_id', seededPairIds);
+    // record_embeddings carries no FK (polymorphic owner) — clean explicitly.
+    await db
+      .from('record_embeddings')
+      .delete()
+      .eq('owner_kind', 'q_a_pair')
+      .in('owner_id', seededPairIds);
     await db.from('q_a_pairs').delete().in('id', seededPairIds);
   }
   if (seededQuestionIds.length > 0) {

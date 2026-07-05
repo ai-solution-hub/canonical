@@ -31,6 +31,25 @@
  * Run via:
  *   KH_RUN_INTEGRATION=1 bun run test:integration -- __tests__/integration/q-a-pairs/
  *
+ * ID-131.19 M6-adjacent retirement (drop_inline_vector_cols,
+ * 20260706120000_id131_drop_inline_vector_cols.sql): `q_a_pairs.question_embedding`
+ * DROPPED — vector storage moved to the polymorphic `record_embeddings` table
+ * (owner_kind='q_a_pair', owner_id, model). `seedQaPair`'s `embedding` option now
+ * writes record_embeddings directly instead of the inline column.
+ *
+ * KNOWN GAP (flagged, not fixed here — outside this Subtask's migrations
+ * boundary): the `q_a_search` SQL function (exercised by the "two-step
+ * retrieval Step 1" tests below) still reads `qap.question_embedding` directly
+ * in its body (cosine-distance expression + `WHERE qap.question_embedding IS
+ * NOT NULL`; squash baseline, never redefined). Since that column is DROPPED,
+ * those calls will error ("column does not exist") against a live DB with the
+ * drop actually applied, until the function is rewritten onto
+ * record_embeddings. `q_a_get_verbatim` (Step 2) has NO question_embedding
+ * reference (the whole point of the two-step pattern is that Step 2 excludes
+ * the embedding payload) and the `q_a_pair_history`/CASCADE DELETE tests below
+ * are unaffected — only the q_a_search-dependent tests are blocked. This is a
+ * separate SQL-layer fix from lib/q-a-pairs/promote-corpus.ts's parallel fix.
+ *
  * @vitest-environment node
  */
 
@@ -118,6 +137,27 @@ function makeEmbedding(d0: number, d1: number = 0): number[] {
 // ---------------------------------------------------------------------------
 // Seed helper
 // ---------------------------------------------------------------------------
+const EMBEDDING_MODEL = 'text-embedding-3-large';
+
+/**
+ * ID-131.19 M6-adjacent: q_a_pairs.question_embedding DROPPED — vector
+ * storage lives on the polymorphic record_embeddings table.
+ */
+async function insertEmbedding(
+  pairId: string,
+  embedding: number[],
+): Promise<void> {
+  const { error } = await db.from('record_embeddings').insert({
+    owner_kind: 'q_a_pair',
+    owner_id: pairId,
+    model: EMBEDDING_MODEL,
+    embedding: JSON.stringify(embedding),
+  });
+  if (error) {
+    throw new Error(`insertEmbedding(${pairId}) failed: ${error.message}`);
+  }
+}
+
 async function seedQaPair(opts: {
   questionText: string;
   answerStandard: string;
@@ -130,11 +170,6 @@ async function seedQaPair(opts: {
     question_text: opts.questionText,
     answer_standard: opts.answerStandard,
     publication_status: opts.publicationStatus,
-    // question_embedding is stored as a serialised vector string in the DB.
-    // For INSERT we pass the JSON-stringified array (Supabase type: string | null).
-    question_embedding: opts.embedding
-      ? JSON.stringify(opts.embedding)
-      : undefined,
     scope_tag: opts.scopeTag ?? [],
     origin_kind: 'curated_explicit',
     source_workspace_id: opts.sourceWorkspaceId,
@@ -151,6 +186,9 @@ async function seedQaPair(opts: {
   }
 
   seededPairIds.push(data.id);
+  if (opts.embedding) {
+    await insertEmbedding(data.id, opts.embedding);
+  }
   return data.id;
 }
 
@@ -202,8 +240,9 @@ afterEach(async () => {
   // FK-safe cleanup order per dispatch brief:
   // 1. q_a_pair_history (CASCADE from q_a_pairs.id — also explicit here)
   // 2. q_a_extractions (FK to q_a_pairs — explicit, no cascade on pair DELETE)
-  // 3. q_a_pairs
-  // 4. workspaces (last — q_a_pairs.source_workspace_id FK -> workspaces(id),
+  // 3. record_embeddings (polymorphic owner, no FK — explicit)
+  // 4. q_a_pairs
+  // 5. workspaces (last — q_a_pairs.source_workspace_id FK -> workspaces(id),
   //    so pairs must be gone before their referenced workspace can be deleted).
 
   if (seededPairIds.length > 0) {
@@ -213,6 +252,12 @@ afterEach(async () => {
       .from('q_a_extractions')
       .delete()
       .in('promoted_to_pair_id', seededPairIds);
+
+    await db
+      .from('record_embeddings')
+      .delete()
+      .eq('owner_kind', 'q_a_pair')
+      .in('owner_id', seededPairIds);
 
     await db.from('q_a_pairs').delete().in('id', seededPairIds);
   }
@@ -349,6 +394,11 @@ describe.skipIf(!RUN_INTEGRATION)(
       const queryEmbedding = makeEmbedding(1.0, 0.5);
       const queryText = 'GDPR compliance documentation';
 
+      // KNOWN GAP — see module docstring: q_a_search's SQL body still reads
+      // qap.question_embedding directly (dropped column), so this call
+      // errors against a live DB with drop_inline_vector_cols actually
+      // applied, until the function is rewritten onto record_embeddings.
+      // Not fixed here (outside this Subtask's migrations boundary).
       const { data, error } = await db.rpc('q_a_search', {
         p_query: queryText,
         p_query_embedding: JSON.stringify(queryEmbedding), // CLAUDE.md: must stringify
@@ -487,7 +537,8 @@ describe.skipIf(!RUN_INTEGRATION)(
         answerStandard:
           'Supply chain due diligence requires Tier 1 supplier assessment and risk register.',
         publicationStatus: 'draft',
-        // No embedding on the draft — question_embedding NULL is valid.
+        // No embedding on the draft — no record_embeddings row is fine
+        // (ID-131.19 M6-adjacent: question_embedding moved off q_a_pairs).
       });
 
       // --- Verbatim for published pair ---

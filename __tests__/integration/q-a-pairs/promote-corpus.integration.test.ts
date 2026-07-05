@@ -32,6 +32,26 @@
  * authorised pipeline caller shape; in production the HTTP route passes an
  * authorised cookie-based client).
  *
+ * ID-131.19 M6-adjacent retirement (drop_inline_vector_cols,
+ * 20260706120000_id131_drop_inline_vector_cols.sql): `q_a_pairs.question_embedding`
+ * (inline vector column) was DROPPED — vector storage moved to the polymorphic
+ * `record_embeddings` table (owner_kind='q_a_pair', owner_id, model). Fixture
+ * seeding + "is this pair embedded" assertions below now read/write
+ * `record_embeddings` directly, matching `lib/q-a-pairs/promote-corpus.ts`'s
+ * existing dual-write (record_embeddings upsert alongside the pair UPDATE —
+ * see promote-corpus.ts's own EMB-STORE docstring). NOTE: `lib/q-a-pairs/
+ * promote-corpus.ts` itself is being updated by a PARALLEL fix (to drop its
+ * now-invalid `question_embedding` UPDATE half of that dual-write) — this file
+ * does not touch that module. SEPARATELY FLAGGED (not fixed here, out of
+ * this Subtask's migrations boundary): the `q_a_search` and
+ * `question_match_recompute` SQL functions (supabase/migrations, squash
+ * baseline) still reference `qap.question_embedding` directly in their body
+ * (cosine-distance expression + WHERE filter) and will error
+ * ("column does not exist") against a live DB with the column actually
+ * dropped — Test 7 below (which calls `q_a_search`) cannot pass until that
+ * SQL is fixed, independent of anything in this file or the parallel
+ * promote-corpus.ts fix.
+ *
  * @vitest-environment node
  */
 
@@ -90,6 +110,39 @@ if (RUN_INTEGRATION) {
 let seededPairIds: string[] = [];
 let seededExtractionIds: string[] = [];
 
+// ---------------------------------------------------------------------------
+// record_embeddings helpers (ID-131.19 M6-adjacent: q_a_pairs.question_embedding
+// DROPPED; vector storage lives on the polymorphic record_embeddings table).
+// ---------------------------------------------------------------------------
+const EMBEDDING_MODEL = 'text-embedding-3-large';
+
+async function insertEmbedding(
+  pairId: string,
+  embedding: number[] = Array(1024).fill(0) as number[],
+): Promise<void> {
+  const { error } = await db.from('record_embeddings').insert({
+    owner_kind: 'q_a_pair',
+    owner_id: pairId,
+    model: EMBEDDING_MODEL,
+    embedding: JSON.stringify(embedding),
+  });
+  if (error) {
+    throw new Error(`insertEmbedding(${pairId}) failed: ${error.message}`);
+  }
+}
+
+/** True iff a record_embeddings row exists for this q_a_pair (any is non-null by construction). */
+async function hasEmbedding(pairId: string): Promise<boolean> {
+  const { data } = await db
+    .from('record_embeddings')
+    .select('id')
+    .eq('owner_kind', 'q_a_pair')
+    .eq('owner_id', pairId)
+    .eq('model', EMBEDDING_MODEL)
+    .maybeSingle();
+  return data !== null;
+}
+
 afterEach(async () => {
   if (
     !RUN_INTEGRATION ||
@@ -98,7 +151,8 @@ afterEach(async () => {
     return;
   }
   // FK-safe order: extractions first (FK → q_a_pairs ON DELETE SET NULL),
-  // then pairs.
+  // then pairs. record_embeddings carries no FK (polymorphic owner) — clean
+  // explicitly, scoped to the same seeded pair ids.
   if (seededExtractionIds.length > 0) {
     await db.from('q_a_extractions').delete().in('id', seededExtractionIds);
   }
@@ -109,6 +163,11 @@ afterEach(async () => {
       .from('q_a_extractions')
       .delete()
       .in('promoted_to_pair_id', seededPairIds);
+    await db
+      .from('record_embeddings')
+      .delete()
+      .eq('owner_kind', 'q_a_pair')
+      .in('owner_id', seededPairIds);
     await db.from('q_a_pairs').delete().in('id', seededPairIds);
   }
   seededPairIds = [];
@@ -155,9 +214,6 @@ async function seedPair(opts: { embedded?: boolean } = {}): Promise<string> {
       answer_standard: 'Test pair answer.',
       origin_kind: 'extracted_from_corpus',
       publication_status: opts.embedded ? 'published' : 'draft',
-      question_embedding: opts.embedded
-        ? JSON.stringify(Array(1024).fill(0))
-        : undefined,
     })
     .select('id')
     .single();
@@ -165,6 +221,9 @@ async function seedPair(opts: { embedded?: boolean } = {}): Promise<string> {
     throw new Error(`seedPair failed: ${error?.message ?? 'no data'}`);
   }
   seededPairIds.push(data.id);
+  if (opts.embedded) {
+    await insertEmbedding(data.id);
+  }
   return data.id;
 }
 
@@ -203,16 +262,16 @@ describe.skipIf(!RUN_INTEGRATION)(
         const { data: pair } = await db
           .from('q_a_pairs')
           .select(
-            'origin_kind, publication_status, question_embedding, source_form_response_id, source_question_id, alternate_question_phrasings',
+            'origin_kind, publication_status, source_form_response_id, source_question_id, alternate_question_phrasings',
           )
           .eq('id', ext.promoted_to_pair_id)
           .single();
 
         // INV-4: origin_kind
         expect(pair?.origin_kind).toBe('extracted_from_corpus');
-        // {59.23}: embed fires → pair must be published with non-null embedding
+        // {59.23}: embed fires → pair must be published with a record_embeddings row
         expect(pair?.publication_status).toBe('published');
-        expect(pair?.question_embedding).not.toBeNull();
+        expect(await hasEmbedding(ext.promoted_to_pair_id)).toBe(true);
         // Route-i pairs have no form response lineage
         expect(pair?.source_form_response_id).toBeNull();
         expect(pair?.source_question_id).toBeNull();
@@ -289,14 +348,14 @@ describe.skipIf(!RUN_INTEGRATION)(
         promotedToPairId: existingPairId,
       });
 
-      // The pair should start as draft with null embedding
+      // The pair should start as draft with no record_embeddings row
       const { data: pairBefore } = await db
         .from('q_a_pairs')
-        .select('publication_status, question_embedding')
+        .select('publication_status')
         .eq('id', existingPairId)
         .single();
       expect(pairBefore?.publication_status).toBe('draft');
-      expect(pairBefore?.question_embedding).toBeNull();
+      expect(await hasEmbedding(existingPairId)).toBe(false);
 
       const summary = await promoteCorpusExtractions(db);
 
@@ -311,14 +370,14 @@ describe.skipIf(!RUN_INTEGRATION)(
         .single();
       expect(ext?.promoted_to_pair_id).toBe(existingPairId);
 
-      // The pair must now be published with a non-null embedding (INV-11/INV-12)
+      // The pair must now be published with a record_embeddings row (INV-11/INV-12)
       const { data: pairAfter } = await db
         .from('q_a_pairs')
-        .select('publication_status, question_embedding')
+        .select('publication_status')
         .eq('id', existingPairId)
         .single();
       expect(pairAfter?.publication_status).toBe('published');
-      expect(pairAfter?.question_embedding).not.toBeNull();
+      expect(await hasEmbedding(existingPairId)).toBe(true);
 
       // embed_failed should be 0 for this run (embed succeeded)
       expect(summary.embed_failed).toBe(0);
@@ -432,8 +491,9 @@ describe.skipIf(!RUN_INTEGRATION)(
     // equals summary.promoted - summary.embed_failed.
     //
     // This also verifies q_a_search visibility: the RPC predicate requires
-    //   publication_status='published' AND question_embedding IS NOT NULL
-    // (migration 20260520231524_t6_q_a_search_rpcs.sql:117-118).
+    //   publication_status='published' AND a record_embeddings row exists
+    // (migration 20260520231524_t6_q_a_search_rpcs.sql:117-118; ID-131.19
+    // M6-adjacent: question_embedding moved to record_embeddings).
     // We assert both conditions on the promoted pairs.
     // -----------------------------------------------------------------------
     it('{59.25} INV-23 end-to-end: published-this-run == promoted - embed_failed (cutover gate)', async () => {
@@ -474,20 +534,30 @@ describe.skipIf(!RUN_INTEGRATION)(
 
       // Verify INV-23 equation on our seeded pairs:
       // published-this-run (among our seeded corpus) == pairs that are
-      // now published with non-null embedding (embed succeeded for those pairs)
+      // now published with a record_embeddings row (embed succeeded for those pairs)
       const { data: publishedPairs } = await db
         .from('q_a_pairs')
-        .select('id, publication_status, question_embedding, origin_kind')
+        .select('id, publication_status, origin_kind')
         .in('id', promotedPairIds);
+
+      // ID-131.19 M6-adjacent: question_embedding moved to record_embeddings —
+      // bulk-resolve which of our promoted pairs have a row (owner_kind='q_a_pair').
+      const { data: embeddingRows } = await db
+        .from('record_embeddings')
+        .select('owner_id')
+        .eq('owner_kind', 'q_a_pair')
+        .in('owner_id', promotedPairIds);
+      const embeddedPairIds = new Set(
+        (embeddingRows ?? []).map((r) => r.owner_id),
+      );
 
       const publishedCount = (publishedPairs ?? []).filter(
         (p) =>
-          p.publication_status === 'published' && p.question_embedding !== null,
+          p.publication_status === 'published' && embeddedPairIds.has(p.id),
       ).length;
 
       const failedCount = (publishedPairs ?? []).filter(
-        (p) =>
-          p.publication_status === 'draft' || p.question_embedding === null,
+        (p) => p.publication_status === 'draft' || !embeddedPairIds.has(p.id),
       ).length;
 
       // INV-23: published == promoted - embed_failed (for our seeded subset)
@@ -501,15 +571,15 @@ describe.skipIf(!RUN_INTEGRATION)(
         expect(pair.origin_kind).toBe('extracted_from_corpus');
       }
 
-      // q_a_search visibility: published pairs must have non-null question_embedding
-      // (predicate: publication_status='published' AND question_embedding IS NOT NULL)
+      // q_a_search visibility: published pairs must have a record_embeddings row
+      // (predicate: publication_status='published' AND record_embeddings exists)
       // In a successful embedding run, all published pairs are also searchable.
       if (summary.embed_failed === 0) {
-        // All promoted pairs should be published with non-null embedding
+        // All promoted pairs should be published with a record_embeddings row
         expect(publishedCount).toBe(promotedPairIds.length);
         for (const pair of publishedPairs ?? []) {
           expect(pair.publication_status).toBe('published');
-          expect(pair.question_embedding).not.toBeNull();
+          expect(embeddedPairIds.has(pair.id)).toBe(true);
         }
       }
 
@@ -518,6 +588,15 @@ describe.skipIf(!RUN_INTEGRATION)(
       // cutover gate mechanism — not just predicate-satisfying in the table).
       // A self-match gives high cosine similarity so the pair ranks top.
       // Uses the first successfully published seeded pair.
+      //
+      // KNOWN GAP (flagged, not fixed here — outside this Subtask's migrations
+      // boundary): the `q_a_search` SQL function body still reads
+      // `qap.question_embedding` directly (squash baseline; never redefined).
+      // Since that column was DROPPED by drop_inline_vector_cols, this RPC call
+      // will error ("column does not exist") against a live DB with the drop
+      // actually applied, until the function is rewritten to join
+      // record_embeddings (owner_kind='q_a_pair') instead. External contract
+      // (params/return shape) is unchanged, so no call-site edit is made here.
       if (promotedPairIds.length > 0 && summary.embed_failed === 0) {
         // Fetch the question text for the first promoted pair
         const { data: firstPair } = await db
