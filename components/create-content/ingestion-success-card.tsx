@@ -1,45 +1,27 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import Link from 'next/link';
 import {
   CheckCircle,
   ExternalLink,
   Plus,
   AlertTriangle,
-  Layers,
-  Check,
-  ChevronDown,
   Copy,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 import { toast } from 'sonner';
-
-/** @public */
-export interface LayerSuggestionInfo {
-  suggestedLayer: string;
-  reason: string;
-  confidence: string;
-}
 
 /** @public */
 export interface IngestionSuccessCardProps {
   /**
    * Which landing this card describes. `content` (default) is the historic
-   * content_items landing — title links to /item/<id>, shows the contentType
-   * badge and the layer-suggestion control. `reference` is the ID-110
-   * manual-URL reference_items landing — it omits the contentType badge and
-   * layer controls and surfaces a copyable referenceId, plus (since ID-111.7
-   * shipped the /reference/<id> detail page) a "View reference" link.
+   * content_items landing — title links to /item/<id> and shows the
+   * contentType badge. `reference` is the ID-110 manual-URL reference_items
+   * landing — it omits the contentType badge and surfaces a copyable
+   * referenceId, plus (since ID-111.7 shipped the /reference/<id> detail
+   * page) a "View reference" link.
    */
   kind?: 'content' | 'reference';
   itemId?: string;
@@ -61,8 +43,6 @@ export interface IngestionSuccessCardProps {
     title: string;
     similarity: number;
   }>;
-  /** Layer suggestion from inference, if available */
-  suggestedLayer?: LayerSuggestionInfo;
 }
 
 /**
@@ -70,12 +50,18 @@ export interface IngestionSuccessCardProps {
  *
  * Dispatches on `kind`: the `reference` variant (ID-110 manual-URL imports
  * landing in reference_items) is structurally distinct from the historic
- * `content` variant — it must not render a layer Select, a contentType badge
- * or a /item/<id> link (reference_items have no content_items detail page).
- * It does link to the reference's own detail page (/reference/<id>, shipped
- * under ID-111.7). Splitting the variants keeps the content variant's
- * `useLayerVocabulary` call unconditional and means the reference variant has
- * no vocabulary-context dependency.
+ * `content` variant — it must not render a contentType badge or a
+ * /item/<id> link (reference_items have no content_items detail page). It
+ * does link to the reference's own detail page (/reference/<id>, shipped
+ * under ID-111.7).
+ *
+ * The `content` variant's layer-suggestion affordance (a Select control that
+ * PATCHed `/api/items/:id/metadata`) was removed under ID-139.5:
+ * `app/api/items/` was deleted under ID-131 {131.17} (G-IMS-DELETE) and
+ * `layer` was never re-homed onto `source_documents` — it is the Guides
+ * audience axis (ruling D5,
+ * `specs/id-131-okf-l-records-refactor/TECH.md`), owned by a sibling Guides
+ * Task. Neither variant depends on `useLayerVocabulary` any more.
  */
 export function IngestionSuccessCard(props: IngestionSuccessCardProps) {
   if (props.kind === 'reference') {
@@ -108,8 +94,8 @@ interface ReferenceSuccessCardProps {
  * Renders the title, summary, domain/subtopic badges, warnings, a copyable
  * reference id and — when referenceId is non-empty — a "View reference" link to
  * the /reference/<id> detail page (ID-111.7). Deliberately omits the
- * contentType badge, the layer-suggestion Select and any /item/<id> "view item"
- * link: reference_items have no content_items detail page.
+ * contentType badge and any /item/<id> "view item" link: reference_items
+ * have no content_items detail page.
  */
 function ReferenceSuccessCard({
   referenceId,
@@ -236,14 +222,18 @@ interface ContentSuccessCardProps {
     title: string;
     similarity: number;
   }>;
-  suggestedLayer?: LayerSuggestionInfo;
 }
 
 /**
- * Content variant — historic content_items landing (unchanged behaviour;
- * extracted from the original component so the reference variant can opt out of
- * the layer-vocabulary context). Consumed by url-ingest-form (legacy shape) and
- * upload-tab-content.
+ * Content variant — historic content_items landing. Extracted from the
+ * original component so the reference variant doesn't need a
+ * layer-vocabulary-context dependency. `url-ingest-form.tsx` is the only
+ * current caller of `IngestionSuccessCard` (confirmed via gitnexus_impact,
+ * ID-139.5) and it always renders `kind: 'reference'`; `upload-tab-content.tsx`
+ * stopped consuming this `content` variant under ID-131.24 (G-UPLOAD-GATE).
+ * This branch currently has no live caller — retained rather than deleted
+ * since that's a broader call than this subtask's scope (see ID-139.5
+ * journal for the out-of-scope note).
  */
 function ContentSuccessCard({
   itemId = '',
@@ -253,46 +243,7 @@ function ContentSuccessCard({
   subtopic,
   warnings,
   dedupMatches,
-  suggestedLayer,
 }: ContentSuccessCardProps) {
-  const { layers, getLayerLabel } = useLayerVocabulary();
-
-  const [layerMode, setLayerMode] = useState<'suggest' | 'change' | 'applied'>(
-    'suggest',
-  );
-  const [selectedLayer, setSelectedLayer] = useState(
-    suggestedLayer?.suggestedLayer ?? '',
-  );
-  const [isApplyingLayer, setIsApplyingLayer] = useState(false);
-  const [appliedLayerLabel, setAppliedLayerLabel] = useState('');
-
-  const applyLayer = useCallback(
-    async (layerKey: string) => {
-      setIsApplyingLayer(true);
-      try {
-        const res = await fetch(`/api/items/${itemId}/metadata`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ layer: layerKey }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || 'Failed to update layer');
-        }
-        setAppliedLayerLabel(getLayerLabel(layerKey));
-        setLayerMode('applied');
-        toast.success(`Layer set to ${getLayerLabel(layerKey)}`);
-      } catch (err) {
-        toast.error(
-          err instanceof Error ? err.message : 'Failed to update layer',
-        );
-      } finally {
-        setIsApplyingLayer(false);
-      }
-    },
-    [itemId, getLayerLabel],
-  );
-
   return (
     <div className="rounded-lg border border-status-success/30 bg-status-success/10 p-4">
       <div className="flex items-start gap-3">
@@ -329,96 +280,6 @@ function ContentSuccessCard({
               </Badge>
             )}
           </div>
-
-          {/* Layer suggestion */}
-          {suggestedLayer && (
-            <div
-              className="mt-3 flex flex-wrap items-center gap-2 text-xs"
-              data-testid="layer-suggestion-row"
-            >
-              <Layers className="size-3.5 text-primary" aria-hidden="true" />
-              {layerMode === 'applied' ? (
-                <span className="text-muted-foreground">
-                  Layer:{' '}
-                  <span className="font-medium text-foreground">
-                    {appliedLayerLabel}
-                  </span>
-                </span>
-              ) : layerMode === 'change' ? (
-                <>
-                  <Select
-                    value={selectedLayer}
-                    onValueChange={setSelectedLayer}
-                  >
-                    <SelectTrigger
-                      className="h-7 w-40 text-xs"
-                      aria-label="Select a layer"
-                    >
-                      <SelectValue placeholder="Select layer..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {layers.map((layer) => (
-                        <SelectItem key={layer.key} value={layer.key}>
-                          {layer.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 gap-1 px-2 text-xs"
-                    onClick={() => applyLayer(selectedLayer)}
-                    disabled={isApplyingLayer}
-                    aria-label={`Apply layer: ${getLayerLabel(selectedLayer)}`}
-                  >
-                    <Check className="size-3" aria-hidden="true" />
-                    Apply
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => setLayerMode('suggest')}
-                    disabled={isApplyingLayer}
-                  >
-                    Cancel
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <span className="text-muted-foreground">
-                    Suggested layer:{' '}
-                    <span className="font-medium text-foreground">
-                      {getLayerLabel(suggestedLayer.suggestedLayer)}
-                    </span>
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 gap-1 px-2 text-xs"
-                    onClick={() => applyLayer(suggestedLayer.suggestedLayer)}
-                    disabled={isApplyingLayer}
-                    aria-label={`Accept suggested layer: ${getLayerLabel(suggestedLayer.suggestedLayer)}`}
-                  >
-                    <Check className="size-3" aria-hidden="true" />
-                    Accept
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 gap-1 px-2 text-xs"
-                    onClick={() => setLayerMode('change')}
-                    disabled={isApplyingLayer}
-                    aria-label="Change suggested layer"
-                  >
-                    <ChevronDown className="size-3" aria-hidden="true" />
-                    Change
-                  </Button>
-                </>
-              )}
-            </div>
-          )}
 
           {/* Warnings */}
           {warnings && warnings.length > 0 && (
