@@ -110,9 +110,16 @@ def _mock_client(side_effects: "list[Any]") -> MagicMock:
 
 
 class _FakeHttpResponse:
-    def __init__(self, content: bytes, headers: "dict[str, str] | None" = None) -> None:
+    def __init__(
+        self,
+        content: bytes,
+        headers: "dict[str, str] | None" = None,
+        *,
+        status_code: int = 200,
+    ) -> None:
         self.content = content
         self.headers = headers or {}
+        self.status_code = status_code
 
 
 class _FakeHttpClient:
@@ -397,6 +404,80 @@ class TestWebFetchExecutor:
         assert result["content"] == "Plain-text service description."
         assert http_client.requested_urls == [url]
         assert seen == {reference_item_uri_from_source_url(url)}
+
+    def test_redirect_to_a_non_allowlisted_host_is_refused_and_never_second_requested(
+        self,
+    ) -> None:
+        """SECURITY (post-commit finding, HIGH) — an allowlisted URL that
+        responds 3xx with a `Location` on a NON-allowlisted host must be
+        REFUSED as a soft error, not silently chased there. `_FakeHttpClient`
+        never auto-follows on its own (only `httpx`'s real
+        `follow_redirects` flag would), so the load-bearing proof is that
+        the executor itself never issues a SECOND request for the
+        `Location` target — it stops at the 3xx and returns to the model."""
+        url = f"https://{_ALLOWED_HOST}/services/lms"
+        http_client = _FakeHttpClient(
+            {
+                url: _FakeHttpResponse(
+                    b"",
+                    headers={"Location": f"https://{_OFF_ALLOWLIST_HOST}/evil"},
+                    status_code=302,
+                )
+            }
+        )
+        config = web_pass.GatedCorpusConfig(
+            sources=(web_pass.GatedSource(host=_ALLOWED_HOST, max_depth=5),)
+        )
+        seen: "set[str]" = set()
+        executor = web_pass._build_web_fetch_executor(
+            config, http_client=http_client, seen_gated_anchors=seen
+        )
+
+        async def _exercise() -> Any:
+            return await executor({"url": url})
+
+        result = asyncio.run(_exercise())
+        assert "error" in result
+        assert "redirect" in result["error"]
+        assert "BI-16" in result["error"]
+        assert http_client.requested_urls == [url]  # exactly ONE request — never the Location
+        assert seen == set()  # no anchor minted for a refused fetch
+
+    def test_redirect_to_an_allowlisted_target_is_also_refused_not_auto_followed(
+        self,
+    ) -> None:
+        """A 3xx whose `Location` happens to point at an ALLOWLISTED host
+        is STILL not auto-followed — the loop must re-gate every fetch,
+        including redirect targets that would themselves have passed the
+        gate. The refusal reaches the model as an ordinary soft error; it
+        may then issue a fresh fetch_url call for the Location target
+        itself."""
+        url = f"https://{_ALLOWED_HOST}/old-page"
+        http_client = _FakeHttpClient(
+            {
+                url: _FakeHttpResponse(
+                    b"",
+                    headers={"Location": f"https://{_ALLOWED_HOST}/new-page"},
+                    status_code=301,
+                )
+            }
+        )
+        config = web_pass.GatedCorpusConfig(
+            sources=(web_pass.GatedSource(host=_ALLOWED_HOST, max_depth=5),)
+        )
+        seen: "set[str]" = set()
+        executor = web_pass._build_web_fetch_executor(
+            config, http_client=http_client, seen_gated_anchors=seen
+        )
+
+        async def _exercise() -> Any:
+            return await executor({"url": url})
+
+        result = asyncio.run(_exercise())
+        assert "error" in result
+        assert "redirect" in result["error"]
+        assert http_client.requested_urls == [url]  # never auto-hopped to /new-page
+        assert seen == set()
 
     def test_refused_url_is_never_actually_fetched(self) -> None:
         """Egress-confinement, dynamic proof: a refused URL never reaches

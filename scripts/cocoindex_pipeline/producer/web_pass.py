@@ -55,6 +55,18 @@ reusing `extract.clean_html` for the HTML-content case and
 two `flow.py:_ingest_url_component` (§3765-3812) reuses, layered UNDER the
 net-new BI-16 gate rather than reimplemented.
 
+**No redirect auto-follow (SECURITY — post-commit finding, closed).** The
+remote-route `httpx.AsyncClient` is constructed with `follow_redirects=
+False` — an allowlisted host issuing a 3xx could otherwise redirect to a
+non-allowlisted host or an internal address, and `httpx`'s default
+`follow_redirects=True` would silently chase it there, fetching a URL
+`_check_gate`/`validate_url` never actually cleared (a total BI-16
+bypass). `_fetch_content`'s `_reject_redirect_response` instead turns ANY
+3xx response into a soft-error `tool_result` (`_WebFetchRedirectRefused`,
+`is_error: true`) — the model may fetch the `Location` target itself as an
+ordinary NEW `fetch_url` call, which is then re-gated exactly like any
+other URL, allowlisted or not.
+
 **Reference-concept `type:` (a documented judgement call, mirrors
 `producer/validator.py`'s own flagged spec-tension findings).** BI-4's
 ratified concept-type set is the closed `{topic, product, company,
@@ -345,15 +357,45 @@ def _read_local(url: str, root: Path) -> str:
     raise FileNotFoundError(f"{url!r} not found under the gated-corpus local root")
 
 
+class _WebFetchRedirectRefused(RuntimeError):
+    """Raised when a gated fetch receives a 3xx response — Pass-2 never
+    auto-follows redirects (BI-16 SECURITY finding: an allowlisted host
+    could otherwise 3xx-redirect to a non-allowlisted host or an internal
+    address, and `httpx`'s default `follow_redirects=True` would silently
+    chase it there, bypassing `_check_gate`/`validate_url` entirely for
+    the REAL fetched URL). Caught by `_build_web_fetch_executor` and
+    converted into the SAME soft-error `tool_result` shape as any other
+    `fetch_url` refusal — the model may fetch the `Location` target
+    itself, which then passes through `_check_gate`/`validate_url` like
+    any other `fetch_url` call (never auto-followed, always re-gated)."""
+
+
+def _reject_redirect_response(response: Any) -> None:
+    status_code = getattr(response, "status_code", None)
+    if isinstance(status_code, int) and 300 <= status_code < 400:
+        raise _WebFetchRedirectRefused(
+            "fetch_url refused: server issued a redirect; Pass-2 does not "
+            "follow redirects (BI-16)"
+        )
+
+
 async def _fetch_content(url: str, source: GatedSource, *, http_client: Any) -> str:
     """The two fetch substrates (TECH.md E8 — see module docstring):
     `source.local_root` set → the `_LocalMarkdownFileset` port; otherwise →
     `httpx` + `charset_normalizer` decode, cleaned via `extract.clean_html`
     when the content looks like HTML (mirrors `flow.py`'s
-    `_ingest_url_component` HTML branch, §3794-3812)."""
+    `_ingest_url_component` HTML branch, §3794-3812).
+
+    The remote branch NEVER auto-follows a redirect (the injected/owned
+    `http_client` is constructed with `follow_redirects=False` — see
+    `run_web_pass`) — `_reject_redirect_response` turns a 3xx response
+    into `_WebFetchRedirectRefused` BEFORE any decode, so a redirect never
+    silently substitutes an unexamined URL for the one `_check_gate`/
+    `validate_url` actually cleared."""
     if source.local_root is not None:
         return _read_local(url, source.local_root)
     response = await http_client.get(url)
+    _reject_redirect_response(response)
     raw_bytes = response.content
     best = charset_normalizer.from_bytes(raw_bytes).best()
     text = str(best) if best is not None else raw_bytes.decode("utf-8", errors="replace")
@@ -410,6 +452,8 @@ def _build_web_fetch_executor(
             return {"error": f"fetch_url refused: host for {url!r} is not gated"}
         try:
             content = await _fetch_content(url, source, http_client=http_client)
+        except _WebFetchRedirectRefused as exc:
+            return {"error": str(exc)}
         except (httpx.HTTPError, OSError, ValueError, FileNotFoundError) as exc:
             return {"error": f"fetch_url failed for {url!r}: {exc}"}
         anchor = _mint_gated_anchor(url, seen_gated_anchors)
@@ -701,8 +745,13 @@ async def run_web_pass(
     catalogue_paths.add(key.rel_path)
 
     owns_client = http_client is None
+    # follow_redirects=False (SECURITY, post-commit finding) — an
+    # allowlisted host issuing a 3xx to a non-allowlisted host or an
+    # internal address must NOT be silently chased; `_fetch_content`'s
+    # `_reject_redirect_response` re-gates every redirect as an ordinary
+    # fetch_url call instead (see `_WebFetchRedirectRefused`).
     client: Any = http_client or httpx.AsyncClient(
-        timeout=httpx.Timeout(30.0), follow_redirects=True
+        timeout=httpx.Timeout(30.0), follow_redirects=False
     )
     try:
         tool_executors = _build_tool_executors(
