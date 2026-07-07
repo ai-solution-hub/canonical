@@ -1752,6 +1752,255 @@ class TestPerItemFailureIsolation:
         assert flow_start["status"] == "in_progress"
         assert flow_start.get("item_failures") is None
 
+    def test_retired_content_type_validation_error_is_contained_and_sibling_content_still_lands(
+        self, tmp_path, monkeypatch
+    ):
+        """ID-132.18: S451 {133.13} trimmed the Pydantic `content_type` gate
+        to HARD-reject the 7 retired types (case_study/policy/certification/
+        compliance/methodology/capability/product_description) until ID-132's
+        concept-type routing lands. This proves the INTERIM behaviour: a
+        retired-type classification raises the REAL `pydantic.ValidationError`
+        — exercised via `extraction._classification_adapter.validate_json`,
+        the SAME TypeAdapter `extract_classification` calls in production
+        (extraction.py:1058) — and that error is contained at the SAME
+        `bound_ingest_file` per-item boundary the sibling Stage-2 test above
+        proves. No additional wiring is required: the {80.9} per-item
+        isolation posture already covers this Stage-3 validation-gate path,
+        because `extract_classification` is called (flow.py:2130) INSIDE the
+        `_ingest_content_branch` -> `_ingest_file_body` -> `ingest_file` chain
+        that `bound_ingest_file`'s bare `except Exception` wraps — there is no
+        intervening catch that special-cases `ValidationError` before that
+        boundary.
+        """
+        from scripts.cocoindex_pipeline import extraction
+
+        bad_dir = tmp_path / "bad"
+        bad_dir.mkdir()
+        good_dir = tmp_path / "good"
+        good_dir.mkdir()
+        bad_path = bad_dir / "bad-doc.md"
+        bad_path.write_text("A retired-content-type document body.")
+        good_path = good_dir / "good-doc.md"
+        good_markdown = "# Doc\n\nGood content body."
+        good_path.write_text(good_markdown)
+
+        manifest = {
+            "schema_version": 1,
+            "mappings": [
+                {
+                    "path_prefix": "bad/",
+                    "workspace_id": "33333333-3333-4333-8333-333333333333",
+                    "route": "content",
+                },
+                {
+                    "path_prefix": "good/",
+                    "workspace_id": "44444444-4444-4444-8444-444444444444",
+                    "route": "content",
+                },
+            ],
+        }
+        (tmp_path / ".kh-workspace-map.json").write_text(json.dumps(manifest))
+
+        _bad_markdown = "# Retired-type doc\n\nBody classified as case_study."
+
+        # ── Stage 2 succeeds for BOTH files — this scenario's fault is
+        # Stage 3 (classification), not Stage 2 (binary conversion).
+        async def _convert(file: object) -> str:
+            rel = file.file_path.path.as_posix()  # type: ignore[attr-defined]
+            if rel.startswith("bad/") or "/bad/" in rel:
+                return _bad_markdown
+            return good_markdown
+
+        # ── Stage 3: the bad file's classification exercises the REAL
+        # Pydantic gate with a retired content_type — the actual S451
+        # {133.13} HARD-reject, not a synthetic stand-in exception.
+        async def _classification(content_text: str):
+            if content_text == _bad_markdown:
+                return extraction._classification_adapter.validate_json(
+                    json.dumps(
+                        {
+                            "extraction_kind": "classification",
+                            "content_type": "case_study",
+                            "primary_domain": "compliance",
+                            "classification_confidence": 0.9,
+                        }
+                    )
+                )
+            return {
+                "content_type": "document",
+                "primary_domain": "procurement",
+                "primary_subtopic": "tender_evaluation",
+            }
+
+        async def _qa(content_text: str):
+            return {"qa_pairs": [{"question_text": "Q?", "answer_text": "A."}]}
+
+        async def _entities(content_text: str):
+            return []
+
+        async def _embed(content_text: str) -> list[float]:
+            return [0.0] * 1024
+
+        monkeypatch.setattr(flow, "convert_binary_to_markdown", _convert)
+        monkeypatch.setattr(flow, "extract_classification", _classification)
+        monkeypatch.setattr(flow, "extract_qa_form", _qa)
+        monkeypatch.setattr(flow, "extract_entity_mentions", _entities)
+        monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
+        monkeypatch.setattr(flow, "embed_content_text", _embed)
+
+        targets = {
+            name: self._FakeTarget(name)
+            for name in (
+                "content_items",
+                "q_a_extractions",
+                "source_documents",
+                "entity_mentions",
+                "entity_relationships",
+                "content_chunks",
+                "reference_items",
+                "record_embeddings",
+            )
+        }
+
+        async def _fake_mount_table_target(
+            db_ctx, table_name, schema, *, managed_by
+        ):
+            return targets[table_name]
+
+        monkeypatch.setattr(flow, "mount_table_target", _fake_mount_table_target)
+
+        feed_pairs = [
+            (
+                "bad/bad-doc.md",
+                self._fake_file("bad/bad-doc.md", bad_path),
+            ),
+            ("good/good-doc.md", self._fake_file("good/good-doc.md", good_path)),
+        ]
+
+        items_feed_cls = self._ItemsFeed
+
+        class _FakeWalk:
+            def items(self):
+                return items_feed_cls(list(feed_pairs))
+
+        def _fake_walk_dir(path, *, live, recursive):
+            return _FakeWalk()
+
+        monkeypatch.setattr(flow.localfs, "walk_dir", _fake_walk_dir)
+
+        async def _inline_mount_each(_subpath, fn, items, *extra_args):
+            async for _key, value in items:
+                await fn(value, *extra_args)
+
+            class _Handle:
+                async def ready(self) -> None:
+                    return None
+
+            return _Handle()
+
+        monkeypatch.setattr(flow.coco, "mount_each", _inline_mount_each)
+
+        class _EmptyLedgerPool:
+            async def fetch(self, sql):
+                return []
+
+            def acquire(self):
+                class _Conn:
+                    async def fetchrow(self, sql: str, *args: object) -> dict:
+                        return {
+                            "source_document_id": uuid.uuid5(
+                                uuid.UUID("fbfaf1ff-1ee4-583c-9757-1674465b2ec1"),
+                                f"sd:{args[1]}",
+                            ),
+                            "was_minted": True,
+                        }
+
+                    async def execute(self, sql: str, *args: object) -> str:
+                        return "INSERT 0 1"
+
+                class _Acquire:
+                    async def __aenter__(self) -> "_Conn":
+                        return _Conn()
+
+                    async def __aexit__(self, *exc: object) -> None:
+                        return None
+
+                return _Acquire()
+
+        monkeypatch.setattr(
+            flow.coco, "use_context", lambda key: _EmptyLedgerPool()
+        )
+
+        async def _fake_stage_5(*args, **kwargs):
+            return 0
+
+        monkeypatch.setattr(flow, "_run_stage_5_resolution", _fake_stage_5)
+
+        webhook_calls: list[dict] = []
+
+        async def _capture_webhook(**kwargs):
+            webhook_calls.append(kwargs)
+
+        monkeypatch.setattr(flow, "_emit_pipeline_run_webhook", _capture_webhook)
+
+        stage_error_calls: list[dict] = []
+        real_emit_stage_error = flow._emit_stage_error_log
+
+        def _spy_stage_error(**kwargs):
+            stage_error_calls.append(kwargs)
+            return real_emit_stage_error(**kwargs)
+
+        monkeypatch.setattr(flow, "_emit_stage_error_log", _spy_stage_error)
+
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(tmp_path))
+
+        # ── Drive the REAL app_main — it must NOT raise (containment). ──
+        asyncio.run(flow.app_main())
+
+        # 1. Content rows land: the good file's writes are NOT zeroed by the
+        # sibling bad file's retired-content_type ValidationError.
+        ci_rows = targets["content_items"].rows
+        assert len(ci_rows) == 1, (
+            f"expected exactly the good doc's content_items row; "
+            f"got {len(ci_rows)}"
+        )
+        assert ci_rows[0]["content"] == good_markdown
+
+        # 2. flow_status == 'completed': the retired-type fault is
+        # item-isolated, NOT promoted to a whole-walk failure.
+        assert webhook_calls, "expected webhook emissions"
+        terminal = webhook_calls[-1]
+        assert terminal["status"] == "completed"
+        assert terminal.get("error_class") is None
+        assert terminal.get("error_message") is None
+
+        # 3. The terminal webhook threads the per-branch tally.
+        assert terminal.get("item_failures") == {
+            "content": 1,
+            "url": 0,
+        }
+
+        # 4. The fault is attributed as a real pydantic ValidationError,
+        # mapped via `_classify_stage_exception` to the coarse Inv-25 class.
+        # `bound_ingest_file`'s per-item catch does NOT thread the fine
+        # {61.4} `pydantic_class` detail — `_pydantic_error_detail` is
+        # flow-scope-only (populated only when a ValidationError ABORTS the
+        # whole flow); a contained per-item fault never reaches that path,
+        # so `pipeline_runs.result.error_detail` stays unset here by design
+        # — the item tally (assertion 3) is the interim observability
+        # surface for this class of per-item fault.
+        ingest_item_errors = [
+            c for c in stage_error_calls if c.get("stage") == "ingest_item"
+        ]
+        assert len(ingest_item_errors) == 1
+        assert ingest_item_errors[0]["error_class"] == "extraction_validation_failed"
+        assert "not in canonical taxonomy" in ingest_item_errors[0]["error_message"]
+
+        # 5. The flow-start emission carries NO item_failures (omitted, not 0).
+        flow_start = webhook_calls[0]
+        assert flow_start["status"] == "in_progress"
+        assert flow_start.get("item_failures") is None
+
 
 def _sd_rows_from_pool(pool) -> list[dict]:
     """Reconstruct source_documents rows from the S437 raw-pool UPSERT capture.
