@@ -479,15 +479,21 @@ export interface SubjectBundle {
 }
 
 export interface ActivityBundle {
-  read_marks: Record<string, unknown>[];
+  // read_marks REMOVED (id-138.19): table dropped at ID-131 M6 GO (S450)
+  // alongside content_items — no successor "read" tracking exists post-M6.
   notifications: Record<string, unknown>[];
 }
 
 export interface AuditTrailBundle {
-  content_history: Record<string, unknown>[];
+  // content_history REMOVED (id-138.19): table dropped at ID-131 M6 GO (S450).
+  // Its subject was content_items (also dropped) — no successor row-level
+  // audit trail exists for that entity.
   form_response_history: Record<string, unknown>[];
   form_responses: Record<string, unknown>[];
   form_questions: Record<string, unknown>[];
+  // form_templates ADDED (id-138.19): created_by + outcome_recorded_by are
+  // user-linked but were never bundled (untyped queries — tsc missed the gap).
+  form_templates: Record<string, unknown>[];
   verification_history: Record<string, unknown>[];
   classification_disputes: Record<string, unknown>[];
   feed_flags: Record<string, unknown>[];
@@ -502,16 +508,29 @@ export interface AuditTrailBundle {
   pipeline_runs: Record<string, unknown>[];
   ingestion_quality_log: Record<string, unknown>[];
   governance_config: Record<string, unknown>[];
+  // q_a_pair_history / q_a_pair_dedup_proposals / eval_baselines /
+  // eval_baseline_audit ADDED (id-138.19): surfaced by the post-M6
+  // user-linked-table re-audit — none was previously bundled.
+  q_a_pair_history: Record<string, unknown>[];
+  q_a_pair_dedup_proposals: Record<string, unknown>[];
+  eval_baselines: Record<string, unknown>[];
+  eval_baseline_audit: Record<string, unknown>[];
 }
 
 export interface AttributedContentBundle {
-  content_items: Record<string, unknown>[];
+  // content_items REMOVED (id-138.19): table dropped at ID-131 M6 GO (S450).
+  // record_lifecycle ADDED: confirmed successor of content_items' governance
+  // actor columns (content_owner_id/governance_reviewer_id/verified_by) per
+  // supabase/migrations/20260706100000_id131_facet_mint.sql backfill notes.
+  record_lifecycle: Record<string, unknown>[];
   citations: Record<string, unknown>[];
   feed_prompts: Record<string, unknown>[];
   feed_sources: Record<string, unknown>[];
   coverage_targets: Record<string, unknown>[];
   guides: Record<string, unknown>[];
-  templates: Record<string, unknown>[];
+  // templates REMOVED (id-138.19): queried a table literally named
+  // 'templates', which never existed — pre-existing dead code. The real
+  // referent (content_templates) was dropped at M6 with no successor domain.
   template_completions: Record<string, unknown>[];
   workspaces: Record<string, unknown>[];
   company_profiles: Record<string, unknown>[];
@@ -569,11 +588,10 @@ export async function assembleActivityBundle(
   client: SupabaseClient<any, any, any, any, any>,
   subjectUuid: string,
 ): Promise<ActivityBundle> {
-  const [readMarks, notifications] = await Promise.all([
-    fetchByColumn(client, 'read_marks', 'user_id', subjectUuid),
+  const [notifications] = await Promise.all([
     fetchByColumn(client, 'notifications', 'user_id', subjectUuid),
   ]);
-  return { read_marks: readMarks, notifications };
+  return { notifications };
 }
 
 export async function assembleAuditTrailBundle(
@@ -582,10 +600,10 @@ export async function assembleAuditTrailBundle(
   subjectUuid: string,
 ): Promise<AuditTrailBundle> {
   const [
-    contentHistory,
     procurementRespHistory,
     procurementResponses,
     procurementQuestions,
+    formTemplates,
     verificationHistory,
     classificationDisputes,
     feedFlags,
@@ -600,8 +618,11 @@ export async function assembleAuditTrailBundle(
     pipelineRuns,
     ingestionQualityLog,
     governanceConfig,
+    qaPairHistory,
+    qaPairDedupProposals,
+    evalBaselines,
+    evalBaselineAudit,
   ] = await Promise.all([
-    fetchByColumn(client, 'content_history', 'created_by', subjectUuid),
     fetchByColumn(client, 'form_response_history', 'edited_by', subjectUuid),
     fetchByAnyColumn(
       client,
@@ -613,6 +634,12 @@ export async function assembleAuditTrailBundle(
       client,
       'form_questions',
       ['assigned_to', 'created_by'],
+      subjectUuid,
+    ),
+    fetchByAnyColumn(
+      client,
+      'form_templates',
+      ['created_by', 'outcome_recorded_by'],
       subjectUuid,
     ),
     fetchByColumn(client, 'verification_history', 'performed_by', subjectUuid),
@@ -643,7 +670,7 @@ export async function assembleAuditTrailBundle(
     fetchByAnyColumn(
       client,
       'source_documents',
-      ['archived_by', 'uploaded_by'],
+      ['archived_by', 'uploaded_by', 'updated_by'],
       subjectUuid,
     ),
     fetchByColumn(client, 'taxonomy_domains', 'recommended_by', subjectUuid),
@@ -669,12 +696,21 @@ export async function assembleAuditTrailBundle(
       ['created_by', 'updated_by', 'reviewer_id'],
       subjectUuid,
     ),
+    fetchByColumn(client, 'q_a_pair_history', 'changed_by', subjectUuid),
+    fetchByColumn(
+      client,
+      'q_a_pair_dedup_proposals',
+      'resolved_by',
+      subjectUuid,
+    ),
+    fetchByColumn(client, 'eval_baselines', 'promoted_by', subjectUuid),
+    fetchByColumn(client, 'eval_baseline_audit', 'actor', subjectUuid),
   ]);
   return {
-    content_history: contentHistory,
     form_response_history: procurementRespHistory,
     form_responses: procurementResponses,
     form_questions: procurementQuestions,
+    form_templates: formTemplates,
     verification_history: verificationHistory,
     classification_disputes: classificationDisputes,
     feed_flags: feedFlags,
@@ -689,6 +725,10 @@ export async function assembleAuditTrailBundle(
     pipeline_runs: pipelineRuns,
     ingestion_quality_log: ingestionQualityLog,
     governance_config: governanceConfig,
+    q_a_pair_history: qaPairHistory,
+    q_a_pair_dedup_proposals: qaPairDedupProposals,
+    eval_baselines: evalBaselines,
+    eval_baseline_audit: evalBaselineAudit,
   };
 }
 
@@ -698,28 +738,20 @@ export async function assembleAttributedContentBundle(
   subjectUuid: string,
 ): Promise<AttributedContentBundle> {
   const [
-    contentItems,
+    recordLifecycle,
     citations,
     feedPrompts,
     feedSources,
     coverageTargets,
     guides,
-    templates,
     templateCompletions,
     workspaces,
     companyProfiles,
   ] = await Promise.all([
     fetchByAnyColumn(
       client,
-      'content_items',
-      [
-        'created_by',
-        'updated_by',
-        'archived_by',
-        'verified_by',
-        'governance_reviewer_id',
-        'content_owner_id',
-      ],
+      'record_lifecycle',
+      ['governance_reviewer_id', 'verified_by', 'content_owner_id'],
       subjectUuid,
     ),
     fetchByColumn(client, 'citations', 'created_by', subjectUuid),
@@ -732,7 +764,6 @@ export async function assembleAttributedContentBundle(
       subjectUuid,
     ),
     fetchByColumn(client, 'guides', 'created_by', subjectUuid),
-    fetchByColumn(client, 'templates', 'created_by', subjectUuid),
     fetchByColumn(client, 'template_completions', 'created_by', subjectUuid),
     fetchByAnyColumn(
       client,
@@ -743,13 +774,12 @@ export async function assembleAttributedContentBundle(
     fetchByColumn(client, 'company_profiles', 'created_by', subjectUuid),
   ]);
   return {
-    content_items: contentItems,
+    record_lifecycle: recordLifecycle,
     citations,
     feed_prompts: feedPrompts,
     feed_sources: feedSources,
     coverage_targets: coverageTargets,
     guides,
-    templates,
     template_completions: templateCompletions,
     workspaces,
     company_profiles: companyProfiles,
@@ -782,18 +812,10 @@ export function buildSubjectSummaryCsv(bundle: SubjectBundle): string {
 }
 
 /**
- * Build a per-event CSV of activity (read_marks + notifications).
+ * Build a per-event CSV of activity (notifications).
  */
 export function buildActivitySummaryCsv(activity: ActivityBundle): string {
   const rows: string[][] = [['event_type', 'event_id', 'event_at', 'detail']];
-  for (const r of activity.read_marks) {
-    rows.push([
-      'read_mark',
-      String(r.id ?? ''),
-      String(r.read_at ?? ''),
-      `content_item_id=${String(r.content_item_id ?? '')};source=${String(r.source ?? '')}`,
-    ]);
-  }
   for (const n of activity.notifications) {
     rows.push([
       'notification',
@@ -851,15 +873,17 @@ as required by the UK General Data Protection Regulation (UK GDPR).
 - **\`subject.json\`** — your account record (auth.users), profile
   (user_profiles), assigned role (user_roles), and notification
   preferences (user_notification_prefs).
-- **\`activity.json\`** — your in-app activity: which content items
-  you have marked as read, and which notifications you have received.
+- **\`activity.json\`** — your in-app activity: notifications you have
+  received.
 - **\`audit-trail.json\`** — system audit-trail rows attributing actions
-  to your account: content edits you made, bid responses you drafted /
-  edited / approved, content you verified, classification disputes you
-  raised, feed flags you submitted, etc. _(Article 15 only — omitted
-  from Article 20 portability bundles.)_
-- **\`attributed-content.json\`** — content rows where you are recorded
-  as creator, owner, or reviewer. _(Article 15 only.)_
+  to your account: bid responses and forms you drafted / edited /
+  approved, source documents you verified, Q&A pairs you changed or
+  deduplicated, classification disputes you raised, feed flags you
+  submitted, evaluation baselines you promoted, etc. _(Article 15
+  only — omitted from Article 20 portability bundles.)_
+- **\`attributed-content.json\`** — source documents and Q&A pairs where
+  you are recorded as owner, governance reviewer, or verifier, plus
+  other content rows where you are the creator. _(Article 15 only.)_
 - **\`subject-summary.csv\`** / **\`activity-summary.csv\`** — human-readable
   CSV summaries of the JSON files above. Open in Excel or any
   spreadsheet tool.

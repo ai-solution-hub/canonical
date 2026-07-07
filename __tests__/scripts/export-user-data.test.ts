@@ -5,11 +5,15 @@ import {
   buildActivitySummaryCsv,
   buildReadme,
   buildManifestEntry,
+  assembleActivityBundle,
+  assembleAuditTrailBundle,
+  assembleAttributedContentBundle,
   type AuthUserExport,
   type SubjectBundle,
   type ActivityBundle,
   type BundleManifest,
 } from '../../scripts/export-user-data';
+import { createMockSupabaseTableDispatch } from '../helpers/mock-supabase';
 
 // Test UUID — v4-compliant per CLAUDE.md "Zod UUID validation is strict".
 const VALID_UUID_A = 'a3b1c2d4-1111-4222-8333-444444444444';
@@ -230,16 +234,10 @@ describe('buildSubjectSummaryCsv', () => {
 });
 
 describe('buildActivitySummaryCsv', () => {
-  it('builds CSV with read_marks and notifications', () => {
+  it('builds CSV with notifications', () => {
+    // read_marks REMOVED (id-138.19): table dropped at ID-131 M6 GO (S450) —
+    // see the export-user-data.ts ActivityBundle comment for provenance.
     const activity: ActivityBundle = {
-      read_marks: [
-        {
-          id: 'rm-1',
-          content_item_id: 'ci-1',
-          read_at: '2026-04-20T10:00:00.000Z',
-          source: 'web',
-        },
-      ],
       notifications: [
         {
           id: 'n-1',
@@ -253,14 +251,12 @@ describe('buildActivitySummaryCsv', () => {
     const csv = buildActivitySummaryCsv(activity);
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     expect(csv).toContain('event_type,event_id,event_at,detail');
-    expect(csv).toContain('read_mark,rm-1,');
     expect(csv).toContain('notification,n-1,');
-    expect(csv).toContain('content_item_id=ci-1');
     expect(csv).toContain('type=review_assigned');
   });
 
   it('builds an empty CSV (header-only) when activity is empty', () => {
-    const empty: ActivityBundle = { read_marks: [], notifications: [] };
+    const empty: ActivityBundle = { notifications: [] };
     const csv = buildActivitySummaryCsv(empty);
     expect(csv).toContain('event_type,event_id,event_at,detail');
     // Only header row plus trailing newline.
@@ -344,6 +340,114 @@ describe('buildManifestEntry', () => {
     // £ is 2 bytes in UTF-8
     const entry = buildManifestEntry('a.json', '£');
     expect(entry.size_bytes).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// User-linked-table bundle reconciliation (id-138.19)
+//
+// Pins the exact table set each assemble*Bundle fetches against a live
+// enumeration of user-linked tables/columns re-audited from staging
+// information_schema post ID-131 M6 GO (S450). If a future migration drops
+// or renames one of these tables without updating the export tool, the
+// live query throws (fetchByColumn/fetchByAnyColumn re-throw the Postgrest
+// error) and this suite's expected-table-set assertions fall out of sync
+// with export-user-data.ts — both fail loudly instead of silently omitting
+// a data subject's personal data from a GDPR Article 15 export.
+// ---------------------------------------------------------------------------
+
+describe('user-linked-table bundle reconciliation (id-138.19)', () => {
+  const EXPECTED_ACTIVITY_TABLES = ['notifications'];
+
+  const EXPECTED_AUDIT_TRAIL_TABLES = [
+    'form_response_history',
+    'form_responses',
+    'form_questions',
+    'form_templates',
+    'verification_history',
+    'classification_disputes',
+    'feed_flags',
+    'tag_morphology_drift_flags',
+    'review_assignments',
+    'source_documents',
+    'taxonomy_domains',
+    'taxonomy_subtopics',
+    'taxonomy_sync_state',
+    'change_reports',
+    'processing_queue',
+    'pipeline_runs',
+    'ingestion_quality_log',
+    'governance_config',
+    'q_a_pair_history',
+    'q_a_pair_dedup_proposals',
+    'eval_baselines',
+    'eval_baseline_audit',
+  ];
+
+  const EXPECTED_ATTRIBUTED_CONTENT_TABLES = [
+    'record_lifecycle',
+    'citations',
+    'feed_prompts',
+    'feed_sources',
+    'coverage_targets',
+    'guides',
+    'template_completions',
+    'workspaces',
+    'company_profiles',
+  ];
+
+  it('assembleActivityBundle queries exactly the expected table set post-M6', async () => {
+    const mock = createMockSupabaseTableDispatch();
+    await assembleActivityBundle(mock as never, VALID_UUID_A);
+    const queried = [...new Set(mock.from.mock.calls.map((c) => c[0]))];
+    expect(queried.sort()).toEqual([...EXPECTED_ACTIVITY_TABLES].sort());
+  });
+
+  it('assembleAuditTrailBundle queries exactly the expected table set post-M6', async () => {
+    const mock = createMockSupabaseTableDispatch();
+    await assembleAuditTrailBundle(mock as never, VALID_UUID_A);
+    const queried = [...new Set(mock.from.mock.calls.map((c) => c[0]))];
+    expect(queried.sort()).toEqual([...EXPECTED_AUDIT_TRAIL_TABLES].sort());
+  });
+
+  it('assembleAttributedContentBundle queries exactly the expected table set post-M6', async () => {
+    const mock = createMockSupabaseTableDispatch();
+    await assembleAttributedContentBundle(mock as never, VALID_UUID_A);
+    const queried = [...new Set(mock.from.mock.calls.map((c) => c[0]))];
+    expect(queried.sort()).toEqual(
+      [...EXPECTED_ATTRIBUTED_CONTENT_TABLES].sort(),
+    );
+  });
+
+  it('form_templates fetch checks created_by and outcome_recorded_by (gap-fill: never bundled pre-id-138.19)', async () => {
+    const mock = createMockSupabaseTableDispatch();
+    await assembleAuditTrailBundle(mock as never, VALID_UUID_A);
+    const columns = mock._chains['form_templates'].eq.mock.calls.map(
+      (c) => c[0],
+    );
+    expect(columns).toEqual(['created_by', 'outcome_recorded_by']);
+  });
+
+  it('record_lifecycle fetch checks governance_reviewer_id, verified_by, content_owner_id (content_items successor)', async () => {
+    const mock = createMockSupabaseTableDispatch();
+    await assembleAttributedContentBundle(mock as never, VALID_UUID_A);
+    const columns = mock._chains['record_lifecycle'].eq.mock.calls.map(
+      (c) => c[0],
+    );
+    expect(columns).toEqual([
+      'governance_reviewer_id',
+      'verified_by',
+      'content_owner_id',
+    ]);
+  });
+
+  it('source_documents fetch includes updated_by alongside archived_by and uploaded_by (gap-fill)', async () => {
+    const mock = createMockSupabaseTableDispatch();
+    await assembleAuditTrailBundle(mock as never, VALID_UUID_A);
+    const columns = mock._chains['source_documents'].eq.mock.calls.map(
+      (c) => c[0],
+    );
+    expect(columns).toEqual(['archived_by', 'uploaded_by', 'updated_by']);
   });
 });
 
