@@ -325,33 +325,7 @@ export async function fetchUnifiedDashboardData(
         error: null as { message: string } | null,
       }),
 
-      // 2: Team changes — content_history since last active (others' work).
-      // ID-131.19 S450 Wave 1 Fix 4: content_history + its content_items!inner
-      // join drop at M6 — RETIRED, not re-pointed. Audited replacement
-      // candidates: q_a_pair_history covers ONLY q_a_pairs (no change_type/
-      // domain columns, and content_history's team-changes concept spanned
-      // ALL content types via content_items, not just Q&A); record_lifecycle
-      // is a current-state facet with no per-edit actor/timestamp log. No
-      // logical 1:1 replacement exists — mirrors the sibling recent_activity
-      // stub above (query 1, same GO, same content_items-anchored-feature
-      // reasoning). Stubbed to an always-empty result so the module keeps
-      // compiling with the same `{data, error}` shape the extraction below
-      // expects; the surviving form_response_history-sourced half of
-      // team_changes (query 4 below) is untouched and keeps working.
-      Promise.resolve({
-        data: [] as unknown[],
-        error: null as { message: string } | null,
-      }),
-
-      // 3: User's own recent work — content_history. RETIRED for the same
-      // reason as query 2 above (no logical replacement; surviving
-      // form_response_history half at query 5 below is untouched).
-      Promise.resolve({
-        data: [] as unknown[],
-        error: null as { message: string } | null,
-      }),
-
-      // 4: Procurement response changes by others (team changes)
+      // 2: Procurement response changes by others (team changes)
       supabase
         .from('form_response_history')
         .select(
@@ -362,7 +336,7 @@ export async function fetchUnifiedDashboardData(
         .order('created_at', { ascending: false })
         .limit(20),
 
-      // 5: User's own bid response edits (recent work)
+      // 3: User's own bid response edits (recent work)
       supabase
         .from('form_response_history')
         .select(
@@ -372,7 +346,7 @@ export async function fetchUnifiedDashboardData(
         .order('created_at', { ascending: false })
         .limit(5),
 
-      // 6: Certification expiry — entity_mentions with certification metadata
+      // 4: Certification expiry — entity_mentions with certification metadata
       // containing expiry_date within 90 days. Uses certRelData from Phase 1.
       certRelData && certRelData.length > 0
         ? supabase
@@ -387,7 +361,7 @@ export async function fetchUnifiedDashboardData(
             )
         : Promise.resolve({ data: [], error: null }),
 
-      // 7: Taxonomy-coverage gap (ID-63.12) — count of non-archived
+      // 5: Taxonomy-coverage gap (ID-63.12) — count of non-archived
       // source_documents that landed on the 'unclassified' sentinel
       // established by {63.11} (primary_domain='unclassified' OR
       // primary_subtopic='unclassified'). ID-131 {131.19}: content_items is
@@ -457,18 +431,15 @@ export async function fetchUnifiedDashboardData(
     errors.push('recent_activity query failed');
   }
 
-  // --- team_changes / my_recent_work (queries 2 + 3 are the RETIRED
-  // content_history legs — see the Phase 2 comment above; they always
-  // resolve to `{data: [], error: null}` and can never fail or contribute an
-  // item, so there is nothing to extract from results[2]/results[3]. Both
-  // arrays are seeded here and populated below solely from the surviving
-  // form_response_history legs (queries 4 + 5). ID-131.19 S450 Wave 1 Fix 4. ---
+  // team_changes / my_recent_work are sourced solely from the
+  // form_response_history legs (queries 2 + 3) — the content_history legs
+  // were retired outright above (ID-131.19 S450 Wave 1 Fix 4).
   const team_changes: TeamChange[] = [];
   const my_recent_work: RecentWorkItem[] = [];
 
-  // --- Extract bid response team changes (query 4) ---
-  if (results[4].status === 'fulfilled') {
-    const { data, error } = results[4].value;
+  // --- Extract bid response team changes (query 2) ---
+  if (results[2].status === 'fulfilled') {
+    const { data, error } = results[2].value;
     if (error) {
       errors.push('bid_response team_changes query failed');
     } else if (data) {
@@ -489,9 +460,9 @@ export async function fetchUnifiedDashboardData(
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
 
-  // --- Extract user's own bid response edits (query 5) ---
-  if (results[5].status === 'fulfilled') {
-    const { data, error } = results[5].value;
+  // --- Extract user's own bid response edits (query 3) ---
+  if (results[3].status === 'fulfilled') {
+    const { data, error } = results[3].value;
     if (error) {
       errors.push('bid_response my_recent_work query failed');
     } else if (data) {
@@ -560,10 +531,10 @@ export async function fetchUnifiedDashboardData(
   const { display_name: userDisplayName, has_display_name: hasDisplayName } =
     getUserDisplayName(authUser);
 
-  // --- Extract expiring certification count (query 6) ---
+  // --- Extract expiring certification count (query 4) ---
   let expiring_cert_count = 0;
-  if (results[6].status === 'fulfilled') {
-    const { data, error } = results[6].value;
+  if (results[4].status === 'fulfilled') {
+    const { data, error } = results[4].value;
     if (error) {
       errors.push('expiring_cert_count query failed');
     } else if (data) {
@@ -595,10 +566,10 @@ export async function fetchUnifiedDashboardData(
 
   // Coverage gap count is now included in the attention counts RPC (query 0)
 
-  // --- Extract taxonomy-coverage gap count (query 7) — ID-63.12 ---
+  // --- Extract taxonomy-coverage gap count (query 5) — ID-63.12 ---
   let unclassified_count = 0;
-  if (results[7].status === 'fulfilled') {
-    const { count, error } = results[7].value;
+  if (results[5].status === 'fulfilled') {
+    const { count, error } = results[5].value;
     if (error) {
       errors.push('unclassified_count query failed');
     } else {
