@@ -4,7 +4,8 @@
  * Writes a JSON fixture at scripts/tests/fixtures/taxonomy_snapshot.json
  * containing active domains and subtopics. This snapshot is consumed by:
  *   - TypeScript consistency tests (__tests__/validation/taxonomy-consistency.test.ts)
- *   - Python validation tests (scripts/tests/test_validate_classification.py)
+ *   - Python pipeline tests via scripts/tests/conftest.py (test_cocoindex_extractors.py,
+ *     test_cocoindex_extraction.py, test_cocoindex_prompts.py)
  *
  * Run via: bun run scripts/generate-taxonomy-snapshot.ts
  * Or as part of: bun run sync:taxonomy
