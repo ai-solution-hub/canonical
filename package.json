@@ -52,16 +52,14 @@
     "knip:exports": "knip --no-config-hints --include exports,types",
     "ci:knip-check": "bun run scripts/check-knip-baseline.ts",
     "eval:classification": "bun run scripts/eval-classification.ts",
-    "eval:summarisation": "bun run scripts/eval-summarisation.ts",
     "eval:search": "bun run scripts/eval-search.ts",
     "eval:procurement-drafting": "bun run scripts/eval-procurement-drafting.ts",
     "eval:entity": "bun run scripts/eval-entity-classification.ts",
-    "eval:all": "bun run eval:classification && bun run eval:summarisation && bun run eval:search && bun run eval:procurement-drafting && bun run eval:entity",
+    "eval:all": "bun run eval:classification && bun run eval:search && bun run eval:procurement-drafting && bun run eval:entity",
     "dev:clean": "rm -rf .next && next dev --turbopack",
     "analyze": "ANALYZE=true next build",
     "build:vercel": "bun run generate:skills && bun run generate:content-type-values && bun run generate:client-branding && bun run generate:branding && bun run build:mcp-apps && next build",
     "db:row-count-diff": "bun run scripts/db-row-count-diff.ts",
-    "cleanup:orphaned-content-history": "bun run scripts/cleanup-orphaned-content-history.ts",
     "cleanup:stale-test-artifacts": "bun run scripts/cleanup-stale-test-artifacts.ts"
   },
   "dependencies": {

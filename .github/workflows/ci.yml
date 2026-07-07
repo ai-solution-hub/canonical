@@ -428,14 +428,6 @@ jobs:
           TEST_USER_4_PASSWORD: ${{ secrets.TEST_USER_4_PASSWORD }}
         run: bunx playwright test --project=smoke
 
-      - name: Cleanup orphaned content_history rows (staging)
-        if: always()
-        env:
-          ALLOW_ORPHAN_CONTENT_HISTORY_CLEANUP: "1"
-          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: bun run cleanup:orphaned-content-history
-
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -577,7 +569,6 @@ jobs:
     #                                       schema: publication-status,
     #                                       archive-coverage, review-cadence)
     #   scripts/mcp-eval/**               — eval harness + corpus seeder
-    #   scripts/cleanup-orphaned-content-history.ts — job cleanup step
     #   proxy.ts                          — middleware on the booted server
     #   next.config.ts                    — server build/runtime behaviour
     #   vitest.integration.config.ts      — integration runner config
@@ -649,7 +640,7 @@ jobs:
           CHANGED="$(git diff --name-only "${BEFORE_SHA}" "${AFTER_SHA}")"
           TOTAL="$(printf '%s\n' "${CHANGED}" | grep -c . || true)"
           echo "Full compare ${BEFORE_SHA}..${AFTER_SHA}: ${TOTAL} changed file(s)."
-          MATCHES="$(printf '%s\n' "${CHANGED}" | grep -E '^(__tests__/integration/.*|__tests__/helpers/.*|__tests__/setup\.ts|lib/.*|app/api/.*|types/.*|supabase/.*|scripts/mcp-eval/.*|scripts/cleanup-orphaned-content-history\.ts|proxy\.ts|next\.config\.ts|vitest\.integration\.config\.ts|tsconfig\.json|package\.json|bun\.lock|\.github/workflows/ci\.yml|\.node-version)$' || true)"
+          MATCHES="$(printf '%s\n' "${CHANGED}" | grep -E '^(__tests__/integration/.*|__tests__/helpers/.*|__tests__/setup\.ts|lib/.*|app/api/.*|types/.*|supabase/.*|scripts/mcp-eval/.*|proxy\.ts|next\.config\.ts|vitest\.integration\.config\.ts|tsconfig\.json|package\.json|bun\.lock|\.github/workflows/ci\.yml|\.node-version)$' || true)"
           if [ -n "${MATCHES}" ]; then
             echo "Real-API-relevant changes:"
             printf '%s\n' "${MATCHES}"
@@ -912,14 +903,6 @@ jobs:
             l4) bun run test:mcp-eval:fc $SKIP_FLAGS ;;
             *)  echo "Unknown layer: $LAYER" >&2; exit 1 ;;
           esac
-      - name: Cleanup orphaned content_history rows (staging)
-        if: always()
-        env:
-          ALLOW_ORPHAN_CONTENT_HISTORY_CLEANUP: "1"
-          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: bun run cleanup:orphaned-content-history
-
       - name: Stop MCP server
         if: always()
         run: |
@@ -1077,14 +1060,6 @@ jobs:
         run: |
           SKIP_LINE=$(grep -iE 'Tests?[[:space:]]+.*skipped' /tmp/integration.log 2>/dev/null | tail -1 || true)
           echo "::notice title=Integration coverage (bl-338)::${SKIP_LINE:-no skip summary in log}. Env-gated suites NOT run in CI: cocoindex (sidecar-gated), intelligence-golden-path + q-a-pairs (flags off). ~128 cases gated — see bl-338."
-      - name: Cleanup orphaned content_history rows (staging)
-        if: always()
-        env:
-          ALLOW_ORPHAN_CONTENT_HISTORY_CLEANUP: "1"
-          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: bun run cleanup:orphaned-content-history
-
       - name: Upload integration log on failure
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

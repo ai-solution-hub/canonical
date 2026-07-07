@@ -289,14 +289,6 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
-      - name: Cleanup orphaned content_history rows (staging)
-        if: always()
-        env:
-          ALLOW_ORPHAN_CONTENT_HISTORY_CLEANUP: "1"
-          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: bun run cleanup:orphaned-content-history
-
   # ───────────────────────────────────────────────────────────────────────────
   # merge-reports — stitch the 4 shard blob reports into ONE HTML report.
   # ───────────────────────────────────────────────────────────────────────────
