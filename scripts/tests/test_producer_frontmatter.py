@@ -176,7 +176,10 @@ def test_render_quotes_a_title_containing_a_colon():
 def test_render_timestamp_is_iso8601_not_uk_date_format():
     record = fm.build_concept_frontmatter(**_base_kwargs(timestamp="2026-07-07T09:30:00Z"))
     text = fm.render_concept_frontmatter(record)
-    assert "timestamp: 2026-07-07T09:30:00Z" in text
+    # {132.7} S451 rider fold-in 1: timestamp is now ALWAYS double-quoted
+    # (fix option (a)) so a YAML-1.1 loader never re-parses it as a
+    # datetime — see the quoting-ambiguity tests below.
+    assert 'timestamp: "2026-07-07T09:30:00Z"' in text
     assert "07/07/2026" not in text
 
 
@@ -184,3 +187,83 @@ def test_emit_concept_frontmatter_builds_and_renders_in_one_call():
     text = fm.emit_concept_frontmatter(**_base_kwargs())
     assert text.startswith("---\n")
     assert "title: Encryption at rest" in text
+
+
+# ──────────────────────────────────────────
+# {132.7} S451 rider fold-in 1 — YAML-1.1 type-ambiguity quoting.
+#
+# The reference agent serialises via `yaml.safe_dump`, which quotes any
+# plain scalar that would re-parse as a non-string (bool/null/number/
+# timestamp) on reload. The hand-rolled emitter here previously only quoted
+# on leading special chars / ": " / trailing ":" / " #" — under-quoting a
+# title of "NO" or "99.9", and never quoting `timestamp:` at all. This
+# under-quoting is a silent round-trip type-drift hazard for any strict
+# YAML-1.1 consumer (e.g. PyYAML, which the addendum's reference/any lifted
+# viewer would use). Proof of fidelity: a YAML double-quoted scalar is
+# ALWAYS type `str`, universally, regardless of content (YAML 1.1 + 1.2
+# spec) — so asserting the emitter wraps every ambiguous value in `"..."`
+# is sufficient proof of round-trip type fidelity without needing a
+# `pyyaml` test dependency (not pinned in requirements.txt; {132.7} brief
+# prefers a dependency-free check).
+# ──────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "NO", "no", "No", "yes", "YES", "true", "True", "FALSE", "on", "Off",
+    ],
+)
+def test_needs_quoting_flags_yaml_bool_ambiguous_scalars(value):
+    assert fm._needs_quoting(value) is True
+
+
+@pytest.mark.parametrize("value", ["null", "Null", "NULL", "~"])
+def test_needs_quoting_flags_yaml_null_ambiguous_scalars(value):
+    assert fm._needs_quoting(value) is True
+
+
+@pytest.mark.parametrize("value", ["99.9", "42", "-3.14e10", "0x1A", "1_000"])
+def test_needs_quoting_flags_yaml_number_ambiguous_scalars(value):
+    assert fm._needs_quoting(value) is True
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["2026-07-07T09:30:00Z", "2026-07-07", "2026-07-07 09:30:00"],
+)
+def test_needs_quoting_flags_yaml_timestamp_ambiguous_scalars(value):
+    assert fm._needs_quoting(value) is True
+
+
+@pytest.mark.parametrize(
+    "value", ["Encryption at rest", "security", "case_study", "topic-42x"]
+)
+def test_needs_quoting_leaves_ordinary_strings_unquoted(value):
+    assert fm._needs_quoting(value) is False
+
+
+@pytest.mark.parametrize("value", ["NO", "99.9", "null", "2026-07-07T09:30:00Z"])
+def test_yaml_scalar_wraps_ambiguous_values_in_double_quotes(value):
+    # A double-quoted YAML scalar is ALWAYS str-typed on reload — this is
+    # the round-trip type-fidelity guarantee the {132.7} rider requires.
+    assert fm._yaml_scalar(value) == f'"{value}"'
+
+
+def test_render_quotes_a_title_that_is_yaml_bool_ambiguous():
+    record = fm.build_concept_frontmatter(**_base_kwargs(title="NO"))
+    text = fm.render_concept_frontmatter(record)
+    assert 'title: "NO"' in text
+
+
+def test_render_quotes_a_title_that_is_yaml_number_ambiguous():
+    record = fm.build_concept_frontmatter(**_base_kwargs(title="99.9"))
+    text = fm.render_concept_frontmatter(record)
+    assert 'title: "99.9"' in text
+
+
+def test_render_always_quotes_timestamp_regardless_of_content():
+    """Fix option (a) — ALWAYS quote timestamp, not just when ambiguous."""
+    record = fm.build_concept_frontmatter(**_base_kwargs(timestamp="2026-07-07T09:30:00Z"))
+    text = fm.render_concept_frontmatter(record)
+    assert 'timestamp: "2026-07-07T09:30:00Z"' in text

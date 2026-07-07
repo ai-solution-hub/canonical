@@ -27,10 +27,18 @@ frontmatter shape here is a small, fully-controlled subset — a general YAML
 writer is not warranted. `render_concept_frontmatter` is a plain-scalar /
 double-quoted-scalar emitter sufficient for agent-authored title/description
 strings and our own uri/tag values; it is not a general-purpose YAML encoder.
+
+`_needs_quoting` additionally double-quotes any plain scalar that a YAML-1.1
+loader (e.g. PyYAML) would re-parse as bool/null/number/timestamp instead of
+`str` (a title of `"NO"` or `"99.9"`) — and `timestamp` is ALWAYS
+double-quoted unconditionally, regardless of `_needs_quoting`'s verdict
+({132.7} S451 rider fold-in 1, fix option (a); TECH-ADDENDUM-reference-
+agents.md retro-check on this module).
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Sequence
@@ -42,6 +50,44 @@ from scripts.cocoindex_pipeline.producer.resource_uri import (
 
 # Leading characters that force YAML double-quoting on a plain scalar.
 _YAML_SPECIAL_LEADING_CHARS = set("-?:,[]{}#&*!|>'\"%@`")
+
+# {132.7} S451 rider fold-in 1 — YAML-1.1 type-ambiguity patterns (TECH-
+# ADDENDUM-reference-agents.md retro-check on {132.6}, fix option (a)). A
+# plain (unquoted) scalar matching any of these re-parses as bool/null/
+# number/timestamp — not `str` — under a YAML-1.1 core-schema loader
+# (PyYAML's default resolver; `yaml.safe_dump` quotes these for exactly this
+# reason). Deliberately hand-rolled/regex-based (no `pyyaml` dependency —
+# see module docstring); the patterns approximate PyYAML's own
+# `resolver.py` implicit-resolver regexes closely enough to catch the
+# concrete hazards named in the retro-check (`"NO"`, `"99.9"`, an unquoted
+# ISO timestamp) plus the wider bool/null/int/float/date/timestamp classes.
+_YAML_BOOL_RE = re.compile(
+    r"^(?:y|Y|yes|Yes|YES|n|N|no|No|NO"
+    r"|true|True|TRUE|false|False|FALSE"
+    r"|on|On|ON|off|Off|OFF)$"
+)
+_YAML_NULL_RE = re.compile(r"^(?:~|null|Null|NULL)$")
+_YAML_INT_RE = re.compile(
+    r"^[-+]?(?:0b[0-1_]+|0x[0-9a-fA-F_]+|0o?[0-7_]+|[0-9][0-9_]*)$"
+)
+_YAML_FLOAT_RE = re.compile(
+    r"^[-+]?\.(?:inf|Inf|INF)$"
+    r"|^\.(?:nan|NaN|NAN)$"
+    r"|^[-+]?(?:[0-9][0-9_]*)?\.[0-9_]*(?:[eE][-+]?[0-9]+)?$"
+    r"|^[-+]?[0-9][0-9_]*[eE][-+]?[0-9]+$"
+)
+_YAML_TIMESTAMP_RE = re.compile(
+    r"^[0-9]{4}-[0-9]{2}-[0-9]{2}"
+    r"(?:[Tt ][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]*)?"
+    r"(?:[Zz]|[-+][0-9]{2}:?[0-9]{2})?)?$"
+)
+_YAML_AMBIGUOUS_SCALAR_PATTERNS = (
+    _YAML_BOOL_RE,
+    _YAML_NULL_RE,
+    _YAML_INT_RE,
+    _YAML_FLOAT_RE,
+    _YAML_TIMESTAMP_RE,
+)
 
 
 @dataclass(frozen=True)
@@ -157,14 +203,20 @@ def _needs_quoting(value: str) -> bool:
         return True
     if " #" in value:
         return True
+    if any(pattern.match(value) for pattern in _YAML_AMBIGUOUS_SCALAR_PATTERNS):
+        return True
     return False
+
+
+def _yaml_escape(value: str) -> str:
+    """Escape `value` for embedding inside a YAML double-quoted scalar."""
+    return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
 def _yaml_scalar(value: str) -> str:
     if not _needs_quoting(value):
         return value
-    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-    return f'"{escaped}"'
+    return f'"{_yaml_escape(value)}"'
 
 
 def render_concept_frontmatter(fm: ConceptFrontmatter) -> str:
@@ -174,7 +226,11 @@ def render_concept_frontmatter(fm: ConceptFrontmatter) -> str:
     lines.append(f"type: {_yaml_scalar(fm.type)}")
     lines.append(f"title: {_yaml_scalar(fm.title)}")
     lines.append(f"description: {_yaml_scalar(fm.description)}")
-    lines.append(f"timestamp: {fm.timestamp}")
+    # {132.7} S451 rider fold-in 1, fix option (a): ALWAYS double-quote
+    # timestamp (not merely when `_needs_quoting` fires) — the field is the
+    # one place DR-019 requires strict machine-parseability, so it must
+    # never depend on the ambiguity-pattern heuristic staying exhaustive.
+    lines.append(f'timestamp: "{_yaml_escape(fm.timestamp)}"')
     if fm.resource is not None:
         lines.append(f"resource: {_yaml_scalar(fm.resource)}")
     if fm.tags:
