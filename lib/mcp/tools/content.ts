@@ -908,7 +908,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
     {
       title: 'Update Content Item',
       description:
-        "Edit an existing content item's metadata and content fields. Updates are applied immediately and auto-versioned in content_history. Requires editor or admin role. Updatable fields: title, suggested_title, content, answer_standard, answer_advanced, primary_domain, primary_subtopic, priority, notes, expiry_date, lifecycle_type. Use the kb://taxonomy resource for valid domain and subtopic values.",
+        "Edit an existing content item's metadata and content fields. Updates are applied immediately and in place — no automatic versioning is performed (content_history, which this description used to claim auto-versioned updates, was retired under ID-131 and dropped at M6). Requires editor or admin role. Updatable fields: title, suggested_title, content, answer_standard, answer_advanced, primary_domain, primary_subtopic, expiry_date, lifecycle_type. Use the kb://taxonomy resource for valid domain and subtopic values.",
       inputSchema: {
         id: z
           .string()
