@@ -19,12 +19,13 @@
  * — an empty string would make `url.includes(ref)` guards silently misfire.
  */
 
-function requireRef(name: string): string {
+function requireRef(name: string, hint?: string): string {
   const value = process.env[name];
   if (!value) {
     throw new Error(
       `${name} is not set. Supply it via .env.local (local) or a CI secret. ` +
-        `Project-ref guards cannot run safely without it.`,
+        `Project-ref guards cannot run safely without it.` +
+        (hint ? ` ${hint}` : ''),
     );
   }
   return value;
@@ -36,7 +37,12 @@ export const platformProjectRef = (): string =>
 
 /** Staging project of the client DB an operator is targeting (runtime-supplied). */
 export const stagingProjectRef = (): string =>
-  requireRef('STAGING_PROJECT_REF');
+  requireRef(
+    'STAGING_PROJECT_REF',
+    'Note: this is the CLIENT-staging project, distinct from Platform staging — ' +
+      "if you just want the already-targeted default local/CI DB, .env.local's " +
+      'PLATFORM_PROJECT_REF is the Platform-staging ref and needs no --env flag.',
+  );
 
 /** Production project of the client DB an operator is targeting (runtime-supplied). */
 export const prodProjectRef = (): string => requireRef('PROD_PROJECT_REF');
