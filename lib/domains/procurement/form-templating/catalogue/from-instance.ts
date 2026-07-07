@@ -115,6 +115,12 @@ export interface FieldClassification {
  * Result of the write step. `refused` distinguishes the auth-gate refusal
  * (Inv-24 — write step never ran) from a partial write where some rows were
  * declined at confirmation (Inv-21) or failed to insert.
+ *
+ * `embeddingWriteFailures` is tracked separately from `failed`: a
+ * `record_embeddings` dual-write failure does NOT fail the catalogue row
+ * (the row upsert already succeeded and is not rolled back — visibility, not
+ * transactionality), but it must still be surfaced so the caller can flag it
+ * and re-run to self-heal via `resolveRequirementEmbedding` ({130.24}).
  */
 export interface CatalogueWriteResult {
   refused: boolean;
@@ -123,6 +129,7 @@ export interface CatalogueWriteResult {
   written: number;
   declined: number;
   failed: number;
+  embeddingWriteFailures: number;
   errors: string[];
 }
 
@@ -560,6 +567,7 @@ export async function confirmAndWriteCatalogue(
       written: 0,
       declined: 0,
       failed: 0,
+      embeddingWriteFailures: 0,
       errors: [],
     };
   }
@@ -567,6 +575,7 @@ export async function confirmAndWriteCatalogue(
   let written = 0;
   let declined = 0;
   let failed = 0;
+  let embeddingWriteFailures = 0;
   const errors: string[] = [];
 
   for (let i = 0; i < rows.length; i++) {
@@ -621,6 +630,7 @@ export async function confirmAndWriteCatalogue(
         'record_embeddings.upsert',
       );
       if (!embeddingResult.ok) {
+        embeddingWriteFailures += 1;
         errors.push(embeddingResult.error.message);
         logger.error(
           { err: embeddingResult.error, requirement: row.requirement_text },
@@ -630,5 +640,12 @@ export async function confirmAndWriteCatalogue(
     }
   }
 
-  return { refused: false, written, declined, failed, errors };
+  return {
+    refused: false,
+    written,
+    declined,
+    failed,
+    embeddingWriteFailures,
+    errors,
+  };
 }

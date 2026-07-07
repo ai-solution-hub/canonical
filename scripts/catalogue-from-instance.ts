@@ -250,10 +250,18 @@ async function main(): Promise<void> {
     }
 
     console.log(
-      `\nDONE: ${result.written} written, ${result.declined} declined, ${result.failed} failed.`,
+      `\nDONE: ${result.written} written, ${result.declined} declined, ${result.failed} failed, ` +
+        `${result.embeddingWriteFailures} embedding dual-write failure(s).`,
     );
-    if (result.failed > 0) {
-      for (const err of result.errors) console.error(`  upsert error: ${err}`);
+    if (result.failed > 0 || result.embeddingWriteFailures > 0) {
+      for (const err of result.errors) console.error(`  write error: ${err}`);
+      if (result.embeddingWriteFailures > 0) {
+        console.error(
+          '  Row(s) were written to form_template_requirements but their record_embeddings ' +
+            'dual-write failed. Re-run this script over the same instance to self-heal ' +
+            '(resolveRequirementEmbedding recomputes missing embeddings on the next pass).',
+        );
+      }
       process.exit(1);
     }
   } finally {

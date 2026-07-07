@@ -659,6 +659,7 @@ describe('confirmAndWriteCatalogue — record_embeddings dual-write ({130.24} DR
 
     expect(result.written).toBe(1);
     expect(result.failed).toBe(0);
+    expect(result.embeddingWriteFailures).toBe(1);
     expect(result.errors).toHaveLength(1);
   });
 });
