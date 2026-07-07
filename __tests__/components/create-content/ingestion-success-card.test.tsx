@@ -11,12 +11,12 @@
  * copyable-id-only behaviour and never links to a bare /reference/ (which
  * would 404).
  *
- * The default content variant is asserted unchanged below. It has no live
- * caller as of ID-139.5 -- upload-tab-content.tsx stopped consuming it under
- * ID-131.24 (G-UPLOAD-GATE) and url-ingest-form.tsx (the sole current
- * IngestionSuccessCard caller) always renders kind: 'reference' -- but the
- * behaviour is retained/tested pending a broader dead-code call on the
- * variant itself (out of ID-139.5's scope; see its journal).
+ * The historic content variant (content_items landing) was deleted under
+ * {S452 orphan-cluster} bl-405 Q3: it had zero live callers since ID-139.5
+ * (`upload-tab-content.tsx` stopped consuming it under ID-131.24
+ * G-UPLOAD-GATE, and `url-ingest-form.tsx`, the sole remaining caller,
+ * always renders kind: 'reference') — `IngestionSuccessCard` now always
+ * renders this reference variant.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -208,26 +208,5 @@ describe('IngestionSuccessCard — reference "View reference" link (ID-111.8 —
       // No link may point at /reference/ (bare or with an empty segment).
       expect(href).not.toMatch(/^\/reference(\/|$)/);
     }
-  });
-});
-
-// ID-139.5: this content-variant branch has no live caller (upload-tab-content.tsx
-// stopped consuming it under ID-131.24; url-ingest-form.tsx always renders
-// kind: 'reference') and no longer depends on LayerVocabularyProvider/
-// QueryClientProvider since the dead layer-suggestion affordance (PATCH
-// /api/items/:id/metadata) was removed. Retained/tested as-is pending a
-// broader dead-code call on the variant (out of ID-139.5's scope).
-describe('IngestionSuccessCard — content variant unchanged', () => {
-  it('still renders the contentType badge and a /item/<id> view link', () => {
-    render(
-      <IngestionSuccessCard
-        itemId="item-42"
-        title="An uploaded document"
-        contentType="case_study"
-      />,
-    );
-    expect(screen.getByText('case study')).toBeInTheDocument();
-    const viewLink = screen.getByRole('link', { name: /view item/i });
-    expect(viewLink).toHaveAttribute('href', '/item/item-42');
   });
 });
