@@ -211,7 +211,10 @@ export async function fetchReorientData(
   // --- Extract active procurements with question stats (from shared helper) ---
   const { workspaces: procurementWorkspaces, statsMap } =
     activeProcurementsResult;
-  const bid_summary = buildProcurementSummary(procurementWorkspaces, statsMap);
+  const forms_summary = buildProcurementSummary(
+    procurementWorkspaces,
+    statsMap,
+  );
 
   // --- Extract freshness counts ---
   let staleOrExpired = 0;
@@ -259,7 +262,7 @@ export async function fetchReorientData(
   const urgent: UrgentItem[] = [];
 
   // Overdue or urgent bids
-  for (const bid of bid_summary) {
+  for (const bid of forms_summary) {
     if (bid.urgency === 'overdue') {
       urgent.push({
         type: 'procurement_deadline',
@@ -348,7 +351,7 @@ export async function fetchReorientData(
     urgent,
     team_changes,
     my_recent_work: latestRecentWork,
-    bid_summary,
+    forms_summary,
     counts: {
       unread_notifications: unreadNotifications,
       pending_reviews: pendingReviews,

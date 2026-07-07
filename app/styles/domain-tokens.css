@@ -114,43 +114,43 @@
   --priority-tier-low: var(--stone-500);
   --priority-tier-low-bg: var(--stone-100);
 
-  /* Bid status */
-  --bid-draft: var(--stone-500);
-  --bid-draft-bg: var(--stone-100);
-  --bid-draft-border: var(--stone-300);
-  --bid-draft-dot: var(--stone-500);
-  --bid-discovery: var(--blue-solid);
-  --bid-discovery-bg: var(--blue-tint);
-  --bid-discovery-border: var(--blue-border);
-  --bid-discovery-dot: oklch(0.55 0.12 240);
-  --bid-active: var(--amber-solid);
-  --bid-active-bg: var(--amber-tint);
-  --bid-active-border: var(--amber-border);
-  --bid-active-dot: oklch(0.6 0.14 70);
-  --bid-in-review: oklch(0.55 0.12 290);
-  --bid-in-review-bg: var(--violet-tint);
-  --bid-in-review-border: var(--violet-border);
-  --bid-in-review-dot: oklch(0.55 0.12 290);
-  --bid-export-ready: var(--teal-solid);
-  --bid-export-ready-bg: var(--teal-tint);
-  --bid-export-ready-border: var(--teal-border);
-  --bid-export-ready-dot: oklch(0.55 0.15 195);
-  --bid-submitted: var(--green-solid-deep);
-  --bid-submitted-bg: var(--green-tint);
-  --bid-submitted-border: var(--green-border);
-  --bid-submitted-dot: oklch(0.5 0.15 160);
-  --bid-won: var(--green-solid-deep);
-  --bid-won-bg: var(--green-tint);
-  --bid-won-border: var(--green-border);
-  --bid-lost: var(--red-solid);
-  --bid-lost-bg: var(--red-tint);
-  --bid-lost-border: var(--red-border);
-  --bid-withdrawn: var(--stone-500);
-  --bid-withdrawn-bg: var(--stone-100);
-  --bid-withdrawn-border: var(--stone-300);
-  --bid-overdue: oklch(0.5 0.2 20);
-  --bid-overdue-bg: var(--red-tint);
-  --bid-overdue-border: var(--red-border);
+  /* Form status */
+  --form-draft: var(--stone-500);
+  --form-draft-bg: var(--stone-100);
+  --form-draft-border: var(--stone-300);
+  --form-draft-dot: var(--stone-500);
+  --form-discovery: var(--blue-solid);
+  --form-discovery-bg: var(--blue-tint);
+  --form-discovery-border: var(--blue-border);
+  --form-discovery-dot: oklch(0.55 0.12 240);
+  --form-active: var(--amber-solid);
+  --form-active-bg: var(--amber-tint);
+  --form-active-border: var(--amber-border);
+  --form-active-dot: oklch(0.6 0.14 70);
+  --form-in-review: oklch(0.55 0.12 290);
+  --form-in-review-bg: var(--violet-tint);
+  --form-in-review-border: var(--violet-border);
+  --form-in-review-dot: oklch(0.55 0.12 290);
+  --form-export-ready: var(--teal-solid);
+  --form-export-ready-bg: var(--teal-tint);
+  --form-export-ready-border: var(--teal-border);
+  --form-export-ready-dot: oklch(0.55 0.15 195);
+  --form-submitted: var(--green-solid-deep);
+  --form-submitted-bg: var(--green-tint);
+  --form-submitted-border: var(--green-border);
+  --form-submitted-dot: oklch(0.5 0.15 160);
+  --form-won: var(--green-solid-deep);
+  --form-won-bg: var(--green-tint);
+  --form-won-border: var(--green-border);
+  --form-lost: var(--red-solid);
+  --form-lost-bg: var(--red-tint);
+  --form-lost-border: var(--red-border);
+  --form-withdrawn: var(--stone-500);
+  --form-withdrawn-bg: var(--stone-100);
+  --form-withdrawn-border: var(--stone-300);
+  --form-overdue: oklch(0.5 0.2 20);
+  --form-overdue-bg: var(--red-tint);
+  --form-overdue-border: var(--red-border);
 
   /* Governance */
   --governance-pending: var(--amber-solid);
@@ -328,21 +328,21 @@
   --priority-tier-low: var(--stone-400);
   --priority-tier-low-bg: var(--stone-800);
 
-  /* Bid status (dark) */
-  --bid-draft: var(--stone-400);
-  --bid-draft-bg: var(--stone-800);
-  --bid-draft-border: oklch(0.35 0.014 48);
-  --bid-draft-dot: var(--stone-500);
-  --bid-discovery-dot: oklch(0.6 0.1 240);
-  --bid-active-dot: oklch(0.6 0.12 70);
-  --bid-in-review: oklch(0.7 0.1 290);
-  --bid-in-review-dot: oklch(0.6 0.1 290);
-  --bid-export-ready-dot: oklch(0.55 0.13 195);
-  --bid-submitted-dot: oklch(0.55 0.13 160);
-  --bid-withdrawn: var(--stone-400);
-  --bid-withdrawn-bg: var(--stone-800);
-  --bid-withdrawn-border: oklch(0.35 0.014 48);
-  --bid-overdue: oklch(0.7 0.17 20);
+  /* Form status (dark) */
+  --form-draft: var(--stone-400);
+  --form-draft-bg: var(--stone-800);
+  --form-draft-border: oklch(0.35 0.014 48);
+  --form-draft-dot: var(--stone-500);
+  --form-discovery-dot: oklch(0.6 0.1 240);
+  --form-active-dot: oklch(0.6 0.12 70);
+  --form-in-review: oklch(0.7 0.1 290);
+  --form-in-review-dot: oklch(0.6 0.1 290);
+  --form-export-ready-dot: oklch(0.55 0.13 195);
+  --form-submitted-dot: oklch(0.55 0.13 160);
+  --form-withdrawn: var(--stone-400);
+  --form-withdrawn-bg: var(--stone-800);
+  --form-withdrawn-border: oklch(0.35 0.014 48);
+  --form-overdue: oklch(0.7 0.17 20);
 
   /* Governance (dark) */
   --governance-pending-border: oklch(0.35 0.06 70);
@@ -439,7 +439,7 @@
 
 /* Register domain theme values for Tailwind v4. Concatenated into the same cascade as the
    core @theme block in globals.css via the @import (placed after `@import 'tailwindcss'`),
-   so domain utility class names (bg-bid-won, text-entity-person, bg-domain-security-bg, …)
+   so domain utility class names (bg-form-won, text-entity-person, bg-domain-security-bg, …)
    are byte-identical to the pre-split output (B-2). */
 @theme inline {
   /* Semantic status tokens — Tailwind utility registration */
@@ -477,42 +477,42 @@
   --color-priority-tier-low: var(--priority-tier-low);
   --color-priority-tier-low-bg: var(--priority-tier-low-bg);
 
-  --color-bid-draft: var(--bid-draft);
-  --color-bid-draft-bg: var(--bid-draft-bg);
-  --color-bid-draft-border: var(--bid-draft-border);
-  --color-bid-draft-dot: var(--bid-draft-dot);
-  --color-bid-discovery: var(--bid-discovery);
-  --color-bid-discovery-bg: var(--bid-discovery-bg);
-  --color-bid-discovery-border: var(--bid-discovery-border);
-  --color-bid-discovery-dot: var(--bid-discovery-dot);
-  --color-bid-active: var(--bid-active);
-  --color-bid-active-bg: var(--bid-active-bg);
-  --color-bid-active-border: var(--bid-active-border);
-  --color-bid-active-dot: var(--bid-active-dot);
-  --color-bid-in-review: var(--bid-in-review);
-  --color-bid-in-review-bg: var(--bid-in-review-bg);
-  --color-bid-in-review-border: var(--bid-in-review-border);
-  --color-bid-in-review-dot: var(--bid-in-review-dot);
-  --color-bid-export-ready: var(--bid-export-ready);
-  --color-bid-export-ready-bg: var(--bid-export-ready-bg);
-  --color-bid-export-ready-border: var(--bid-export-ready-border);
-  --color-bid-export-ready-dot: var(--bid-export-ready-dot);
-  --color-bid-submitted: var(--bid-submitted);
-  --color-bid-submitted-bg: var(--bid-submitted-bg);
-  --color-bid-submitted-border: var(--bid-submitted-border);
-  --color-bid-submitted-dot: var(--bid-submitted-dot);
-  --color-bid-won: var(--bid-won);
-  --color-bid-won-bg: var(--bid-won-bg);
-  --color-bid-won-border: var(--bid-won-border);
-  --color-bid-lost: var(--bid-lost);
-  --color-bid-lost-bg: var(--bid-lost-bg);
-  --color-bid-lost-border: var(--bid-lost-border);
-  --color-bid-withdrawn: var(--bid-withdrawn);
-  --color-bid-withdrawn-bg: var(--bid-withdrawn-bg);
-  --color-bid-withdrawn-border: var(--bid-withdrawn-border);
-  --color-bid-overdue: var(--bid-overdue);
-  --color-bid-overdue-bg: var(--bid-overdue-bg);
-  --color-bid-overdue-border: var(--bid-overdue-border);
+  --color-form-draft: var(--form-draft);
+  --color-form-draft-bg: var(--form-draft-bg);
+  --color-form-draft-border: var(--form-draft-border);
+  --color-form-draft-dot: var(--form-draft-dot);
+  --color-form-discovery: var(--form-discovery);
+  --color-form-discovery-bg: var(--form-discovery-bg);
+  --color-form-discovery-border: var(--form-discovery-border);
+  --color-form-discovery-dot: var(--form-discovery-dot);
+  --color-form-active: var(--form-active);
+  --color-form-active-bg: var(--form-active-bg);
+  --color-form-active-border: var(--form-active-border);
+  --color-form-active-dot: var(--form-active-dot);
+  --color-form-in-review: var(--form-in-review);
+  --color-form-in-review-bg: var(--form-in-review-bg);
+  --color-form-in-review-border: var(--form-in-review-border);
+  --color-form-in-review-dot: var(--form-in-review-dot);
+  --color-form-export-ready: var(--form-export-ready);
+  --color-form-export-ready-bg: var(--form-export-ready-bg);
+  --color-form-export-ready-border: var(--form-export-ready-border);
+  --color-form-export-ready-dot: var(--form-export-ready-dot);
+  --color-form-submitted: var(--form-submitted);
+  --color-form-submitted-bg: var(--form-submitted-bg);
+  --color-form-submitted-border: var(--form-submitted-border);
+  --color-form-submitted-dot: var(--form-submitted-dot);
+  --color-form-won: var(--form-won);
+  --color-form-won-bg: var(--form-won-bg);
+  --color-form-won-border: var(--form-won-border);
+  --color-form-lost: var(--form-lost);
+  --color-form-lost-bg: var(--form-lost-bg);
+  --color-form-lost-border: var(--form-lost-border);
+  --color-form-withdrawn: var(--form-withdrawn);
+  --color-form-withdrawn-bg: var(--form-withdrawn-bg);
+  --color-form-withdrawn-border: var(--form-withdrawn-border);
+  --color-form-overdue: var(--form-overdue);
+  --color-form-overdue-bg: var(--form-overdue-bg);
+  --color-form-overdue-border: var(--form-overdue-border);
 
   --color-governance-pending: var(--governance-pending);
   --color-governance-pending-bg: var(--governance-pending-bg);

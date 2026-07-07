@@ -10,7 +10,7 @@ export interface ReorientData {
   /** The user's own recent work for context continuity */
   my_recent_work: RecentWorkItem[];
   /** Active bids with deadline proximity and completion gaps */
-  bid_summary: ProcurementBriefing[];
+  forms_summary: ProcurementBriefing[];
   /** Aggregate counts */
   counts: {
     unread_notifications: number;

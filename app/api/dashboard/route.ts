@@ -48,7 +48,7 @@ const DashboardResponseSchema = z.object({
     stale_content_count: z.number().nullable(),
     expired_content_count: z.number().nullable(),
   }),
-  active_bids: z.array(DashboardActiveBidSummarySchema),
+  active_forms: z.array(DashboardActiveBidSummarySchema),
   freshness_summary: z.object({
     fresh: z.number(),
     aging: z.number(),

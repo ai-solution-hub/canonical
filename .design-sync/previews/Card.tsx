@@ -205,7 +205,7 @@ export function BidCoverageSummary() {
               display: 'inline-flex',
               alignItems: 'center',
               gap: 5,
-              color: 'var(--bid-overdue)',
+              color: 'var(--form-overdue)',
             }}
           >
             <CalendarClock size={14} /> Due in 6 days
@@ -248,7 +248,7 @@ export function BidCoverageSummary() {
           <span
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
-            <Dot color="var(--bid-active)" /> Partial 4
+            <Dot color="var(--form-active)" /> Partial 4
           </span>
           <span
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}

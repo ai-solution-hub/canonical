@@ -234,7 +234,7 @@ export function ReviewFilters({
                   {overdueCount > 0 && (
                     <Badge
                       variant="outline"
-                      className="h-5 min-w-5 border-bid-overdue-border bg-bid-overdue-bg px-1.5 text-[10px] text-bid-overdue"
+                      className="h-5 min-w-5 border-form-overdue-border bg-form-overdue-bg px-1.5 text-[10px] text-form-overdue"
                     >
                       {overdueCount}
                     </Badge>

@@ -50,7 +50,7 @@ function emptySourceData(): AttentionSourceData {
     expired_content_count: 0,
     quality_flag_count: 0,
     unverified_count: 0,
-    active_bids: [],
+    active_forms: [],
     expiring_cert_count: 0,
     expiring_content_date_count: 0,
     unread_notification_count: 0,
@@ -582,7 +582,7 @@ describe('buildAttentionItems', () => {
     expired_content_count: 0,
     quality_flag_count: 0,
     unverified_count: 0,
-    active_bids: [],
+    active_forms: [],
     expiring_cert_count: 0,
     expiring_content_date_count: 0,
     unread_notification_count: 0,
@@ -611,7 +611,7 @@ describe('buildAttentionItems', () => {
   it('includes bid deadline items', () => {
     const data: AttentionSourceData = {
       ...emptyData,
-      active_bids: [
+      active_forms: [
         {
           id: 'bid-1',
           name: 'Overdue Procurement',
@@ -638,7 +638,7 @@ describe('buildAttentionItems', () => {
       expired_content_count: 1,
       quality_flag_count: 1,
       unverified_count: 1,
-      active_bids: [],
+      active_forms: [],
       expiring_cert_count: 1,
       expiring_content_date_count: 1,
       unread_notification_count: 10,
@@ -665,7 +665,7 @@ describe('buildAttentionItems', () => {
       expired_content_count: 1,
       quality_flag_count: 4,
       unverified_count: 10,
-      active_bids: [makeBid({ deadline: urgentDate.toISOString() })],
+      active_forms: [makeBid({ deadline: urgentDate.toISOString() })],
       expiring_cert_count: 1,
       expiring_content_date_count: 2,
       unread_notification_count: 8,
@@ -698,7 +698,7 @@ describe('buildAttentionItems', () => {
       expired_content_count: 0,
       quality_flag_count: 0,
       unverified_count: 1, // medium
-      active_bids: [makeBid({ deadline: urgentDate.toISOString() })], // high
+      active_forms: [makeBid({ deadline: urgentDate.toISOString() })], // high
       expiring_cert_count: 1, // info
       expiring_content_date_count: 0,
       unread_notification_count: 0,
@@ -739,7 +739,7 @@ describe('buildAttentionItems', () => {
     farDate.setDate(farDate.getDate() + 60);
     const data: AttentionSourceData = {
       ...emptySourceData(),
-      active_bids: [
+      active_forms: [
         makeBid({ id: 'bid-1', deadline: null }),
         makeBid({ id: 'bid-2', deadline: farDate.toISOString() }),
       ],

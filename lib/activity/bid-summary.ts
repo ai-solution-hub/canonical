@@ -6,7 +6,7 @@ import type {
 import { getDeadlineUrgency, getDaysUntilDeadline } from '@/lib/dashboard';
 
 /**
- * Build the reorient `bid_summary` from the active-procurement workspaces and
+ * Build the reorient `forms_summary` from the active-procurement workspaces and
  * their question stats (the result of `fetchActiveProcurementWithStats`).
  *
  * Returns a `ProcurementBriefing[]` already sorted by deadline urgency
@@ -19,7 +19,7 @@ export function buildProcurementSummary(
   workspaces: ProcurementWorkspaceRow[],
   statsMap: Map<string, ProcurementQuestionStats>,
 ): ProcurementBriefing[] {
-  const bid_summary: ProcurementBriefing[] = workspaces.map((workspace) => {
+  const forms_summary: ProcurementBriefing[] = workspaces.map((workspace) => {
     const meta = workspace.domain_metadata as Record<string, unknown> | null;
     const stats = statsMap.get(workspace.id);
     const deadline = (meta?.deadline as string) ?? null;
@@ -52,9 +52,9 @@ export function buildProcurementSummary(
     normal: 3,
     unknown: 4,
   };
-  bid_summary.sort(
+  forms_summary.sort(
     (a, b) => (urgencyOrder[a.urgency] ?? 4) - (urgencyOrder[b.urgency] ?? 4),
   );
 
-  return bid_summary;
+  return forms_summary;
 }

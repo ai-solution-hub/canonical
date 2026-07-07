@@ -11,17 +11,17 @@
   --app-card-hover: oklch(0.97 0.008 48);
 
   /* Bid lifecycle colours */
-  --bid-draft: oklch(0.55 0.014 48);
-  --bid-active: oklch(0.55 0.15 250);
-  --bid-submitted: oklch(0.6 0.14 70);
-  --bid-won: oklch(0.55 0.15 160);
-  --bid-lost: oklch(0.5 0.2 20);
+  --form-draft: oklch(0.55 0.014 48);
+  --form-active: oklch(0.55 0.15 250);
+  --form-submitted: oklch(0.6 0.14 70);
+  --form-won: oklch(0.55 0.15 160);
+  --form-lost: oklch(0.5 0.2 20);
 
-  --bid-draft-bg: oklch(0.95 0.005 48);
-  --bid-active-bg: oklch(0.93 0.04 250);
-  --bid-submitted-bg: oklch(0.97 0.02 70);
-  --bid-won-bg: oklch(0.93 0.04 160);
-  --bid-lost-bg: oklch(0.95 0.03 20);
+  --form-draft-bg: oklch(0.95 0.005 48);
+  --form-active-bg: oklch(0.93 0.04 250);
+  --form-submitted-bg: oklch(0.97 0.02 70);
+  --form-won-bg: oklch(0.93 0.04 160);
+  --form-lost-bg: oklch(0.95 0.03 20);
 
   /* Urgency colours */
   --urgency-overdue: oklch(0.5 0.22 25);
@@ -62,11 +62,11 @@
     --app-card: oklch(0.22 0.014 48);
     --app-card-hover: oklch(0.26 0.014 48);
 
-    --bid-draft-bg: oklch(0.22 0.005 48);
-    --bid-active-bg: oklch(0.22 0.04 250);
-    --bid-submitted-bg: oklch(0.22 0.03 70);
-    --bid-won-bg: oklch(0.22 0.04 160);
-    --bid-lost-bg: oklch(0.22 0.03 20);
+    --form-draft-bg: oklch(0.22 0.005 48);
+    --form-active-bg: oklch(0.22 0.04 250);
+    --form-submitted-bg: oklch(0.22 0.03 70);
+    --form-won-bg: oklch(0.22 0.04 160);
+    --form-lost-bg: oklch(0.22 0.03 20);
 
     --urgency-overdue-bg: oklch(0.22 0.04 25);
     --urgency-urgent-bg: oklch(0.22 0.03 25);
@@ -84,11 +84,11 @@
   --app-card: oklch(0.22 0.014 48);
   --app-card-hover: oklch(0.26 0.014 48);
 
-  --bid-draft-bg: oklch(0.22 0.005 48);
-  --bid-active-bg: oklch(0.22 0.04 250);
-  --bid-submitted-bg: oklch(0.22 0.03 70);
-  --bid-won-bg: oklch(0.22 0.04 160);
-  --bid-lost-bg: oklch(0.22 0.03 20);
+  --form-draft-bg: oklch(0.22 0.005 48);
+  --form-active-bg: oklch(0.22 0.04 250);
+  --form-submitted-bg: oklch(0.22 0.03 70);
+  --form-won-bg: oklch(0.22 0.04 160);
+  --form-lost-bg: oklch(0.22 0.03 20);
 
   --urgency-overdue-bg: oklch(0.22 0.04 25);
   --urgency-urgent-bg: oklch(0.22 0.03 25);
@@ -316,28 +316,28 @@ body {
 }
 
 .status-badge--draft {
-  background: var(--bid-draft-bg);
-  color: var(--bid-draft);
+  background: var(--form-draft-bg);
+  color: var(--form-draft);
 }
 
 .status-badge--active {
-  background: var(--bid-active-bg);
-  color: var(--bid-active);
+  background: var(--form-active-bg);
+  color: var(--form-active);
 }
 
 .status-badge--submitted {
-  background: var(--bid-submitted-bg);
-  color: var(--bid-submitted);
+  background: var(--form-submitted-bg);
+  color: var(--form-submitted);
 }
 
 .status-badge--won {
-  background: var(--bid-won-bg);
-  color: var(--bid-won);
+  background: var(--form-won-bg);
+  color: var(--form-won);
 }
 
 .status-badge--lost {
-  background: var(--bid-lost-bg);
-  color: var(--bid-lost);
+  background: var(--form-lost-bg);
+  color: var(--form-lost);
 }
 
 /* Deadline badge */
@@ -623,7 +623,7 @@ body {
 
 /* Status segment colours */
 .breakdown-segment--status-not-started {
-  background: var(--bid-draft);
+  background: var(--form-draft);
 }
 .breakdown-segment--status-ai-drafted {
   background: var(--confidence-partial);
@@ -646,7 +646,7 @@ body {
   background: var(--confidence-none);
 }
 .breakdown-segment--confidence-unmatched {
-  background: var(--bid-draft);
+  background: var(--form-draft);
 }
 
 /* Breakdown legend */
@@ -674,7 +674,7 @@ body {
 
 /* Swatch colours mirror segment colours */
 .breakdown-swatch--status-not-started {
-  background: var(--bid-draft);
+  background: var(--form-draft);
 }
 .breakdown-swatch--status-ai-drafted {
   background: var(--confidence-partial);
@@ -695,7 +695,7 @@ body {
   background: var(--confidence-none);
 }
 .breakdown-swatch--confidence-unmatched {
-  background: var(--bid-draft);
+  background: var(--form-draft);
 }
 
 /* ─────────────────────────────────────────
@@ -771,7 +771,7 @@ body {
 }
 
 .question-status--not-started {
-  color: var(--bid-draft);
+  color: var(--form-draft);
 }
 
 .question-status--ai-drafted {
@@ -810,12 +810,12 @@ body {
 }
 
 .confidence-badge--strong-match {
-  background: var(--bid-won-bg);
+  background: var(--form-won-bg);
   color: var(--confidence-strong);
 }
 
 .confidence-badge--partial-match {
-  background: var(--bid-submitted-bg);
+  background: var(--form-submitted-bg);
   color: var(--confidence-partial);
 }
 
@@ -825,13 +825,13 @@ body {
 }
 
 .confidence-badge--no-content {
-  background: var(--bid-draft-bg);
+  background: var(--form-draft-bg);
   color: var(--confidence-none);
 }
 
 .confidence-badge--unmatched {
-  background: var(--bid-draft-bg);
-  color: var(--bid-draft);
+  background: var(--form-draft-bg);
+  color: var(--form-draft);
 }
 
 /* ─────────────────────────────────────────
@@ -1004,7 +1004,7 @@ body {
 .kb-result-similarity {
   color: var(--confidence-strong);
   border-color: var(--confidence-strong);
-  background: var(--bid-won-bg);
+  background: var(--form-won-bg);
 }
 
 .kb-result-summary {

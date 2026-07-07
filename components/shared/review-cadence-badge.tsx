@@ -99,7 +99,7 @@ export function ReviewCadenceBadge({
         role="img"
         aria-label="Review overdue"
         className={cn(
-          'inline-flex items-center gap-1 rounded border border-bid-overdue-border bg-bid-overdue-bg px-1.5 py-0.5 text-[10px] font-medium text-bid-overdue',
+          'inline-flex items-center gap-1 rounded border border-form-overdue-border bg-form-overdue-bg px-1.5 py-0.5 text-[10px] font-medium text-form-overdue',
           className,
         )}
       >

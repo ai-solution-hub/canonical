@@ -676,7 +676,7 @@ describe('fetchReorientData', () => {
   // Procurement summary with gap_count
   // =========================================================================
 
-  describe('bid_summary', () => {
+  describe('forms_summary', () => {
     it('includes gap_count using needs_sme_count + no_content_count', async () => {
       const mock = setupDefaultMock({
         workspacesData: [
@@ -711,8 +711,8 @@ describe('fetchReorientData', () => {
         'editor',
       );
 
-      expect(result.bid_summary).toHaveLength(1);
-      const bid = result.bid_summary[0];
+      expect(result.forms_summary).toHaveLength(1);
+      const bid = result.forms_summary[0];
       expect(bid.gap_count).toBe(7); // 4 + 3
       expect(bid.total_questions).toBe(20);
       expect(bid.answered_questions).toBe(13); // 8 + 5
@@ -791,11 +791,11 @@ describe('fetchReorientData', () => {
         'editor',
       );
 
-      expect(result.bid_summary).toHaveLength(3);
+      expect(result.forms_summary).toHaveLength(3);
       // Sorted by deadline urgency: overdue first, then urgent, then normal
-      expect(result.bid_summary[0].urgency).toBe('overdue');
-      expect(result.bid_summary[1].urgency).toBe('urgent');
-      expect(result.bid_summary[2].urgency).toBe('normal');
+      expect(result.forms_summary[0].urgency).toBe('overdue');
+      expect(result.forms_summary[1].urgency).toBe('urgent');
+      expect(result.forms_summary[2].urgency).toBe('normal');
     });
 
     it('defaults bid name to "Untitled Procurement" when name is null', async () => {
@@ -819,9 +819,9 @@ describe('fetchReorientData', () => {
         'editor',
       );
 
-      expect(result.bid_summary[0].name).toBe('Untitled Procurement');
-      expect(result.bid_summary[0].status).toBe('draft');
-      expect(result.bid_summary[0].buyer).toBeNull();
+      expect(result.forms_summary[0].name).toBe('Untitled Procurement');
+      expect(result.forms_summary[0].status).toBe('draft');
+      expect(result.forms_summary[0].buyer).toBeNull();
     });
   });
 

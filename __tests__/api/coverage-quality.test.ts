@@ -142,7 +142,7 @@ beforeEach(() => {
       stale_content_count: 0,
       expired_content_count: 0,
     },
-    active_bids: [],
+    active_forms: [],
     freshness_summary: {
       fresh: 10,
       aging: 2,
@@ -328,7 +328,7 @@ describe('GET /api/dashboard', () => {
         stale_content_count: 3,
         expired_content_count: 0,
       },
-      active_bids: [],
+      active_forms: [],
       freshness_summary: {
         fresh: 10,
         aging: 2,
@@ -387,7 +387,7 @@ describe('GET /api/dashboard', () => {
         stale_content_count: null,
         expired_content_count: null,
       },
-      active_bids: [],
+      active_forms: [],
       freshness_summary: {
         fresh: 0,
         ageing: 0,

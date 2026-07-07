@@ -192,13 +192,13 @@ function renderEmpty(message: string) {
 function renderBriefing() {
   if (!briefingData) return;
 
-  const { urgent, team_changes, my_recent_work, bid_summary } = briefingData;
+  const { urgent, team_changes, my_recent_work, forms_summary } = briefingData;
 
   const isEmpty =
     urgent.length === 0 &&
     team_changes.length === 0 &&
     my_recent_work.length === 0 &&
-    bid_summary.length === 0;
+    forms_summary.length === 0;
 
   if (isEmpty && !briefingData.last_active_at) {
     renderEmpty(
@@ -224,8 +224,8 @@ function renderBriefing() {
     container.appendChild(buildTeamChangesSection(team_changes));
   if (my_recent_work.length > 0)
     container.appendChild(buildRecentWorkSection(my_recent_work));
-  if (bid_summary.length > 0)
-    container.appendChild(buildBidSummarySection(bid_summary));
+  if (forms_summary.length > 0)
+    container.appendChild(buildBidSummarySection(forms_summary));
 
   // Placeholder for the detail panel
   const panelDiv = document.createElement('div');

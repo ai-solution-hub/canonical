@@ -227,9 +227,9 @@ export function formatReorientation(data: ReorientData): string {
   }
 
   // Procurement summary
-  if (data.bid_summary.length > 0) {
+  if (data.forms_summary.length > 0) {
     lines.push('## Procurement Summary', '');
-    const displayedBids = data.bid_summary.slice(0, 10);
+    const displayedBids = data.forms_summary.slice(0, 10);
     for (const bid of displayedBids) {
       const progress = formatProgress(
         bid.answered_questions,
@@ -253,9 +253,9 @@ export function formatReorientation(data: ReorientData): string {
       }
       lines.push('');
     }
-    if (data.bid_summary.length > 10) {
+    if (data.forms_summary.length > 10) {
       lines.push(
-        `- ...and ${data.bid_summary.length - 10} more procurements`,
+        `- ...and ${data.forms_summary.length - 10} more procurements`,
         '',
       );
     }

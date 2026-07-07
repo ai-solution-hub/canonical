@@ -37,21 +37,21 @@ export const PROCUREMENT_WORKFLOW_SHORT_LABELS: Record<
   withdrawn: 'Withdrawn',
 };
 
-// Semantic token prefixes for bid state colours (map to --color-bid-* CSS tokens)
+// Semantic token prefixes for bid state colours (map to --color-form-* CSS tokens)
 export const PROCUREMENT_WORKFLOW_COLOURS: Record<
   ProcurementWorkflowState,
   string
 > = {
-  draft: 'bid-draft',
-  questions_extracted: 'bid-discovery',
-  matching: 'bid-discovery',
-  drafting: 'bid-active',
-  in_review: 'bid-in-review',
-  ready_for_export: 'bid-export-ready',
-  submitted: 'bid-submitted',
-  won: 'bid-won',
-  lost: 'bid-lost',
-  withdrawn: 'bid-withdrawn',
+  draft: 'form-draft',
+  questions_extracted: 'form-discovery',
+  matching: 'form-discovery',
+  drafting: 'form-active',
+  in_review: 'form-in-review',
+  ready_for_export: 'form-export-ready',
+  submitted: 'form-submitted',
+  won: 'form-won',
+  lost: 'form-lost',
+  withdrawn: 'form-withdrawn',
 };
 
 const VALID_TRANSITIONS: Record<

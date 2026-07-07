@@ -40,7 +40,7 @@ const mocks = vi.hoisted(() => {
       coverage_gap_count: 5,
       unclassified_count: 2,
     },
-    active_bids: [],
+    active_forms: [],
     user_role: 'admin',
     errors: [],
   };

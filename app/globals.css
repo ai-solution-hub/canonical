@@ -5,7 +5,7 @@
    core token file holds no product-taxonomy token (B-4). MUST be imported AFTER
    `@import 'tailwindcss'` so Tailwind v4 concatenates the imported file's `@theme inline`
    block into the same cascade as the core @theme block below, keeping every domain utility
-   (bg-bid-won, text-entity-person, bg-domain-security-bg, …) byte-identical (B-2). The
+   (bg-form-won, text-entity-person, bg-domain-security-bg, …) byte-identical (B-2). The
    domain file references the F1 ramps/hue primitives defined in :root below — resolution is
    by computed-style cascade at use time, so definition order across files does not matter. */
 @import './styles/domain-tokens.css';

@@ -32,7 +32,7 @@ function makeData(bidCount: number): ReorientData {
     urgent: [],
     team_changes: [],
     my_recent_work: [],
-    bid_summary: Array.from({ length: bidCount }, (_, i) =>
+    forms_summary: Array.from({ length: bidCount }, (_, i) =>
       makeBriefing(i + 1),
     ),
     counts: {

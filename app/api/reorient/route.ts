@@ -70,7 +70,7 @@ const ReorientResponseSchema = z.object({
   urgent: z.array(ReorientUrgentItemSchema),
   team_changes: z.array(ReorientTeamChangeSchema),
   my_recent_work: z.array(ReorientRecentWorkItemSchema),
-  bid_summary: z.array(ReorientProcurementBriefingSchema),
+  forms_summary: z.array(ReorientProcurementBriefingSchema),
   counts: z.object({
     unread_notifications: z.number(),
     pending_reviews: z.number(),

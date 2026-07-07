@@ -157,7 +157,7 @@ async function DashboardContent() {
   // Build attention items from unified source data.
   const allItems = buildAttentionItems({
     ...unified.attention_sources,
-    active_bids: unified.active_bids,
+    active_forms: unified.active_forms,
   });
 
   // Build ReorientData from the unified data for ReorientSection
@@ -170,7 +170,7 @@ async function DashboardContent() {
     urgent: [],
     team_changes: unified.reorient.team_changes,
     my_recent_work: unified.reorient.my_recent_work,
-    bid_summary: unified.reorient.bid_summary,
+    forms_summary: unified.reorient.forms_summary,
     counts: {
       unread_notifications: unified.attention_sources.unread_notification_count,
       pending_reviews: unified.attention_sources.governance_review_count,
@@ -249,7 +249,7 @@ async function DashboardContent() {
           items={allItems}
           userRole={unified.user_role}
         />
-        <ActiveProcurementsSection bids={unified.active_bids} />
+        <ActiveProcurementsSection bids={unified.active_forms} />
       </div>
 
       {/* Content Performance — aggregate win-rate analytics (suppressed when KB empty) */}
@@ -264,7 +264,7 @@ async function DashboardContent() {
         <div className="mt-6">
           <QuickStatsStrip
             freshness={unified.freshness_summary}
-            activeProcurementCount={unified.active_bids.length}
+            activeProcurementCount={unified.active_forms.length}
             unreadNotificationCount={
               unified.attention_sources.unread_notification_count
             }

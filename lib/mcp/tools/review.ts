@@ -160,7 +160,7 @@ export async function registerReviewTools(server: McpServer): Promise<void> {
         );
         const sourceData: AttentionSourceData = {
           ...unified.attention_sources,
-          active_bids: unified.active_bids,
+          active_forms: unified.active_forms,
         };
         const attentionItems = buildAttentionItems(sourceData);
 

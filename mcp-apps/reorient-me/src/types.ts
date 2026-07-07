@@ -5,7 +5,7 @@ export interface ReorientAppData {
   urgent: UrgentItem[];
   team_changes: TeamChange[];
   my_recent_work: RecentWorkItem[];
-  bid_summary: ProcurementBriefing[];
+  forms_summary: ProcurementBriefing[];
   counts: {
     unread_notifications: number;
     pending_reviews: number;

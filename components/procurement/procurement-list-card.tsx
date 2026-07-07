@@ -22,16 +22,16 @@ import type { ProcurementWorkflowState } from '@/types/procurement';
  * Classes must be written out fully for Tailwind's JIT scanner to detect them.
  */
 const STATUS_BORDER_CLASS: Record<ProcurementWorkflowState, string> = {
-  draft: 'border-l-bid-draft-border',
-  questions_extracted: 'border-l-bid-discovery-border',
-  matching: 'border-l-bid-discovery-border',
-  drafting: 'border-l-bid-active-border',
-  in_review: 'border-l-bid-in-review-border',
-  ready_for_export: 'border-l-bid-export-ready-border',
-  submitted: 'border-l-bid-submitted-border',
-  won: 'border-l-bid-won-border',
-  lost: 'border-l-bid-lost-border',
-  withdrawn: 'border-l-bid-withdrawn-border',
+  draft: 'border-l-form-draft-border',
+  questions_extracted: 'border-l-form-discovery-border',
+  matching: 'border-l-form-discovery-border',
+  drafting: 'border-l-form-active-border',
+  in_review: 'border-l-form-in-review-border',
+  ready_for_export: 'border-l-form-export-ready-border',
+  submitted: 'border-l-form-submitted-border',
+  won: 'border-l-form-won-border',
+  lost: 'border-l-form-lost-border',
+  withdrawn: 'border-l-form-withdrawn-border',
 };
 
 interface ProcurementListCardProps {
@@ -93,7 +93,7 @@ export function ProcurementListCard({
       data-testid={`bid-card-${bid.id}`}
       className={cn(
         'group relative rounded-lg border border-l-4 bg-card text-card-foreground shadow-sm transition-all hover:shadow-md hover:bg-accent/50 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',
-        STATUS_BORDER_CLASS[procurementStatus] ?? 'border-l-bid-draft-border',
+        STATUS_BORDER_CLASS[procurementStatus] ?? 'border-l-form-draft-border',
         className,
       )}
     >
@@ -133,7 +133,7 @@ export function ProcurementListCard({
               className={cn(
                 'inline-flex items-center text-xs font-medium',
                 deadlineProximity.isOverdue
-                  ? 'text-bid-overdue'
+                  ? 'text-form-overdue'
                   : 'text-status-warning',
               )}
             >

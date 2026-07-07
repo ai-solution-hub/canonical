@@ -33,21 +33,21 @@ const OUTCOME_OPTIONS: {
     label: 'Won',
     description: 'Procurement was successful',
     icon: Trophy,
-    colourClass: 'text-bid-won',
+    colourClass: 'text-form-won',
   },
   {
     value: 'lost',
     label: 'Lost',
     description: 'Procurement was unsuccessful',
     icon: XCircle,
-    colourClass: 'text-bid-lost',
+    colourClass: 'text-form-lost',
   },
   {
     value: 'withdrawn',
     label: 'Withdrawn',
     description: 'Procurement was withdrawn before decision',
     icon: MinusCircle,
-    colourClass: 'text-bid-withdrawn',
+    colourClass: 'text-form-withdrawn',
   },
 ];
 

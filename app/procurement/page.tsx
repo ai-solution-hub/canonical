@@ -68,7 +68,7 @@ export default function FormsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
-  const { viewMode, setViewMode } = useViewMode('kb-bid-view', 'grid');
+  const { viewMode, setViewMode } = useViewMode('kb-form-view', 'grid');
   const [currentPage, setCurrentPage] = useState(1);
 
   const fetchProcurements = useCallback(async () => {
@@ -372,7 +372,7 @@ function ProcurementListRow({ procurement }: { procurement: Procurement }) {
               className={cn(
                 'inline-flex items-center rounded-full px-1.5 py-0.5 text-xs font-medium',
                 proximity.isOverdue
-                  ? 'bg-bid-overdue-bg text-bid-overdue'
+                  ? 'bg-form-overdue-bg text-form-overdue'
                   : 'bg-status-warning/10 text-status-warning',
               )}
             >

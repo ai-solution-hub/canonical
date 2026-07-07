@@ -367,7 +367,7 @@ function DaysSinceReview({ reviewedAt }: { reviewedAt: string }) {
       data-cadence-state={isOverdue ? 'overdue' : 'ok'}
       className={cn(
         'flex items-center gap-1 text-xs',
-        isOverdue ? 'text-bid-overdue' : 'text-muted-foreground',
+        isOverdue ? 'text-form-overdue' : 'text-muted-foreground',
       )}
     >
       <Clock className="size-3" aria-hidden="true" />

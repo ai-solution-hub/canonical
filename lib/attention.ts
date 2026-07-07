@@ -83,7 +83,7 @@ export interface AttentionSourceData {
   expired_content_count: number;
   quality_flag_count: number;
   unverified_count: number;
-  active_bids: ActiveProcurementSummary[];
+  active_forms: ActiveProcurementSummary[];
   expiring_cert_count: number;
   expiring_content_date_count: number;
   unread_notification_count: number;
@@ -477,7 +477,7 @@ export function buildAttentionItems(
     ),
     ...produceQualityFlagItems(data.quality_flag_count),
     ...produceUnverifiedItems(data.unverified_count),
-    ...produceProcurementDeadlineItems(data.active_bids),
+    ...produceProcurementDeadlineItems(data.active_forms),
     ...produceExpiringCertItems(data.expiring_cert_count),
     ...produceExpiringContentDateItems(data.expiring_content_date_count),
     ...produceUnreadNotificationItems(data.unread_notification_count),

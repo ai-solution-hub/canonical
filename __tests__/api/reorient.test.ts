@@ -62,7 +62,7 @@ function makeReorientResponse() {
     urgent: [],
     team_changes: [],
     my_recent_work: [],
-    bid_summary: [],
+    forms_summary: [],
     counts: {
       unread_notifications: 0,
       pending_reviews: 0,
@@ -152,7 +152,7 @@ describe('GET /api/reorient', () => {
     expect(body).toHaveProperty('urgent');
     expect(body).toHaveProperty('team_changes');
     expect(body).toHaveProperty('my_recent_work');
-    expect(body).toHaveProperty('bid_summary');
+    expect(body).toHaveProperty('forms_summary');
     expect(body).toHaveProperty('counts');
     expect(body).toHaveProperty('generated_at');
     expect(body).toHaveProperty('user_display_name');
@@ -161,7 +161,7 @@ describe('GET /api/reorient', () => {
     expect(Array.isArray(body.urgent)).toBe(true);
     expect(Array.isArray(body.team_changes)).toBe(true);
     expect(Array.isArray(body.my_recent_work)).toBe(true);
-    expect(Array.isArray(body.bid_summary)).toBe(true);
+    expect(Array.isArray(body.forms_summary)).toBe(true);
   });
 
   it('includes Cache-Control: no-store header', async () => {

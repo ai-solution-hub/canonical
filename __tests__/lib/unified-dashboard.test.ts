@@ -299,7 +299,7 @@ describe('fetchUnifiedDashboardData', () => {
     );
 
     expect(result).toHaveProperty('attention_sources');
-    expect(result).toHaveProperty('active_bids');
+    expect(result).toHaveProperty('active_forms');
     expect(result).toHaveProperty('freshness_summary');
     expect(result).toHaveProperty('reorient');
     expect(result).toHaveProperty('recent_activity');
@@ -528,11 +528,11 @@ describe('fetchUnifiedDashboardData', () => {
       'admin',
     );
 
-    expect(result.active_bids.length).toBe(3);
+    expect(result.active_forms.length).toBe(3);
     // Overdue (bid-2) < Urgent (bid-3) < Normal (bid-1)
-    expect(result.active_bids[0].id).toBe('bid-2');
-    expect(result.active_bids[1].id).toBe('bid-3');
-    expect(result.active_bids[2].id).toBe('bid-1');
+    expect(result.active_forms[0].id).toBe('bid-2');
+    expect(result.active_forms[1].id).toBe('bid-3');
+    expect(result.active_forms[2].id).toBe('bid-1');
   });
 
   it('reorient personal data includes display name and last active', async () => {
@@ -732,7 +732,7 @@ describe('fetchUnifiedDashboardData', () => {
     expect(result.reorient.has_display_name).toBe(false);
   });
 
-  it('reorient bid_summary is populated from active procurements data', async () => {
+  it('reorient forms_summary is populated from active procurements data', async () => {
     const statsMap = new Map();
     statsMap.set('bid-x', {
       total_questions: 12,
@@ -767,8 +767,8 @@ describe('fetchUnifiedDashboardData', () => {
       'admin',
     );
 
-    expect(result.reorient.bid_summary.length).toBe(1);
-    const bid = result.reorient.bid_summary[0];
+    expect(result.reorient.forms_summary.length).toBe(1);
+    const bid = result.reorient.forms_summary[0];
     expect(bid.name).toBe('Test Tender');
     expect(bid.buyer).toBe('BigCo');
     expect(bid.total_questions).toBe(12);
@@ -790,11 +790,11 @@ describe('fetchUnifiedDashboardData', () => {
       'admin',
     );
 
-    expect(result.active_bids).toEqual([]);
+    expect(result.active_forms).toEqual([]);
     expect(result.recent_activity).toEqual([]);
     expect(result.reorient.team_changes).toEqual([]);
     expect(result.reorient.my_recent_work).toEqual([]);
-    expect(result.reorient.bid_summary).toEqual([]);
+    expect(result.reorient.forms_summary).toEqual([]);
   });
 
   it('limits my_recent_work to 5 items', async () => {

@@ -127,7 +127,7 @@ export function ReviewCadenceCard({ className }: ReviewCadenceCardProps) {
           {summary.overdue > 0 && (
             <Badge
               variant="outline"
-              className="ml-1 border-bid-overdue-border bg-bid-overdue-bg text-bid-overdue text-[10px]"
+              className="ml-1 border-form-overdue-border bg-form-overdue-bg text-form-overdue text-[10px]"
             >
               {summary.overdue} overdue
             </Badge>
@@ -237,7 +237,7 @@ export function ReviewCadenceCard({ className }: ReviewCadenceCardProps) {
                         <span
                           className={
                             stats.overdue > 0
-                              ? 'font-semibold text-bid-overdue'
+                              ? 'font-semibold text-form-overdue'
                               : ''
                           }
                         >
@@ -271,7 +271,7 @@ export function ReviewCadenceCard({ className }: ReviewCadenceCardProps) {
               {overdue_items.length} overdue{' '}
               {overdue_items.length === 1 ? 'item' : 'items'}
               {overduePercentage > 0 && (
-                <span className="ml-1 text-bid-overdue">
+                <span className="ml-1 text-form-overdue">
                   ({overduePercentage}%)
                 </span>
               )}
@@ -290,7 +290,7 @@ export function ReviewCadenceCard({ className }: ReviewCadenceCardProps) {
                     className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-muted/50"
                   >
                     <AlertTriangle
-                      className="size-3 shrink-0 text-bid-overdue"
+                      className="size-3 shrink-0 text-form-overdue"
                       aria-hidden="true"
                     />
                     <Link
@@ -305,7 +305,7 @@ export function ReviewCadenceCard({ className }: ReviewCadenceCardProps) {
                           Never reviewed
                         </span>
                       ) : (
-                        <span className="text-bid-overdue">
+                        <span className="text-form-overdue">
                           {item.days_since_review}d ago
                         </span>
                       )}
@@ -343,7 +343,7 @@ function MetricCell({
   const valueClasses = cn(
     'text-lg font-semibold tabular-nums',
     highlight === 'warning' && 'text-freshness-stale',
-    highlight === 'danger' && 'text-bid-overdue',
+    highlight === 'danger' && 'text-form-overdue',
   );
 
   return (

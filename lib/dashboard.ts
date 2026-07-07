@@ -30,7 +30,7 @@ export interface DashboardData {
     stale_content_count: number | null;
     expired_content_count: number | null;
   };
-  active_bids: ActiveProcurementSummary[];
+  active_forms: ActiveProcurementSummary[];
   freshness_summary: {
     fresh: number;
     aging: number;
@@ -163,7 +163,7 @@ export function unifiedToDashboardData(
       stale_content_count: src.stale_content_count,
       expired_content_count: src.expired_content_count,
     },
-    active_bids: unified.active_bids,
+    active_forms: unified.active_forms,
     freshness_summary: unified.freshness_summary,
     unread_notification_count: src.unread_notification_count,
     recent_activity: unified.recent_activity,
@@ -201,7 +201,7 @@ export interface UnifiedDashboardData {
   };
 
   /** Active procurements with stats */
-  active_bids: ActiveProcurementSummary[];
+  active_forms: ActiveProcurementSummary[];
 
   /** Freshness summary for QuickStatsStrip */
   freshness_summary: {
@@ -219,7 +219,7 @@ export interface UnifiedDashboardData {
     last_active_at: string | null;
     team_changes: TeamChange[];
     my_recent_work: RecentWorkItem[];
-    bid_summary: ProcurementBriefing[];
+    forms_summary: ProcurementBriefing[];
   };
 
   /** Recent activity feed */
@@ -489,7 +489,7 @@ export async function fetchUnifiedDashboardData(
   // --- Build active procurements (from shared helper — single query) ---
   const { workspaces: procurementWorkspaces, statsMap } =
     activeProcurementsResult;
-  const active_bids: ActiveProcurementSummary[] = procurementWorkspaces.map(
+  const active_forms: ActiveProcurementSummary[] = procurementWorkspaces.map(
     (workspace) => {
       const meta = workspace.domain_metadata as Record<string, unknown> | null;
       const stats = statsMap.get(workspace.id);
@@ -511,7 +511,7 @@ export async function fetchUnifiedDashboardData(
   );
 
   // Sort by deadline urgency (most urgent first)
-  active_bids.sort((a, b) => {
+  active_forms.sort((a, b) => {
     const urgencyOrder: Record<DeadlineUrgency, number> = {
       overdue: 0,
       urgent: 1,
@@ -524,8 +524,11 @@ export async function fetchUnifiedDashboardData(
     return aUrgency - bUrgency;
   });
 
-  // --- Build bid_summary for reorient (from the same bid data) ---
-  const bid_summary = buildProcurementSummary(procurementWorkspaces, statsMap);
+  // --- Build forms_summary for reorient (from the same bid data) ---
+  const forms_summary = buildProcurementSummary(
+    procurementWorkspaces,
+    statsMap,
+  );
 
   // --- Resolve user display name ---
   const { display_name: userDisplayName, has_display_name: hasDisplayName } =
@@ -591,7 +594,7 @@ export async function fetchUnifiedDashboardData(
       unread_notification_count,
       unclassified_count,
     },
-    active_bids,
+    active_forms,
     freshness_summary,
     reorient: {
       user_display_name: userDisplayName,
@@ -600,7 +603,7 @@ export async function fetchUnifiedDashboardData(
       last_active_at: lastActiveAt,
       team_changes,
       my_recent_work: latestRecentWork,
-      bid_summary,
+      forms_summary,
     },
     recent_activity,
     user_role: effectiveRole,

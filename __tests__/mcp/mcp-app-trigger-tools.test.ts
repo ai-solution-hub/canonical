@@ -153,7 +153,7 @@ const baseDashboardData = {
     coverage_gap_count: 0,
     unclassified_count: 0,
   },
-  active_bids: [],
+  active_forms: [],
   recent_activity: [],
   reorient: {
     user_display_name: null,
@@ -162,7 +162,7 @@ const baseDashboardData = {
     last_active_at: null,
     team_changes: [],
     my_recent_work: [],
-    bid_summary: [],
+    forms_summary: [],
   },
   user_role: 'editor',
   errors: [],
@@ -823,7 +823,7 @@ describe('MCP App trigger tools #22-23', () => {
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
         ...baseDashboardData,
-        active_bids: sampleBids,
+        active_forms: sampleBids,
       });
 
       const result = (await handler({}, extra)) as {
@@ -846,12 +846,12 @@ describe('MCP App trigger tools #22-23', () => {
       expect(data.has_more).toBe(false);
     });
 
-    it('maps active_bids to bid list with correct fields', async () => {
+    it('maps active_forms to bid list with correct fields', async () => {
       const handler = mockServer.getHandler('show_procurement_dashboard')!;
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
         ...baseDashboardData,
-        active_bids: sampleBids,
+        active_forms: sampleBids,
       });
 
       const result = (await handler({}, extra)) as {
@@ -881,7 +881,7 @@ describe('MCP App trigger tools #22-23', () => {
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
         ...baseDashboardData,
-        active_bids: [],
+        active_forms: [],
       });
 
       const result = (await handler({}, extra)) as {
@@ -900,7 +900,7 @@ describe('MCP App trigger tools #22-23', () => {
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
         ...baseDashboardData,
-        active_bids: sampleBids,
+        active_forms: sampleBids,
       });
 
       // Mock workspace lookup for focused bid — must also handle form_questions/form_responses
@@ -975,7 +975,7 @@ describe('MCP App trigger tools #22-23', () => {
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
         ...baseDashboardData,
-        active_bids: sampleBids,
+        active_forms: sampleBids,
       });
 
       const result = (await handler({}, extra)) as {
@@ -990,7 +990,7 @@ describe('MCP App trigger tools #22-23', () => {
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
         ...baseDashboardData,
-        active_bids: sampleBids,
+        active_forms: sampleBids,
       });
 
       // Mock workspace lookup returning null
@@ -1018,7 +1018,7 @@ describe('MCP App trigger tools #22-23', () => {
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
         ...baseDashboardData,
-        active_bids: sampleBids,
+        active_forms: sampleBids,
       });
 
       const result = (await handler({}, extra)) as {
@@ -1053,7 +1053,7 @@ describe('MCP App trigger tools #22-23', () => {
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
         ...baseDashboardData,
-        active_bids: [
+        active_forms: [
           {
             id: 'bid-003',
             name: 'Unnamed Procurement',
@@ -1081,7 +1081,7 @@ describe('MCP App trigger tools #22-23', () => {
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
         ...baseDashboardData,
-        active_bids: sampleBids,
+        active_forms: sampleBids,
       });
 
       // Track which tables are queried
@@ -1146,7 +1146,7 @@ describe('MCP App trigger tools #22-23', () => {
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
         ...baseDashboardData,
-        active_bids: sampleBids,
+        active_forms: sampleBids,
       });
 
       const mockChain = {
@@ -1236,7 +1236,7 @@ describe('MCP App trigger tools #22-23', () => {
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
         ...baseDashboardData,
-        active_bids: sampleBids,
+        active_forms: sampleBids,
       });
 
       const mockChain = {
@@ -1325,7 +1325,7 @@ describe('MCP App trigger tools #22-23', () => {
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
         ...baseDashboardData,
-        active_bids: sampleBids,
+        active_forms: sampleBids,
       });
 
       const mockChain = {

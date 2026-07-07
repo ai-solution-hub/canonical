@@ -89,7 +89,7 @@ const baseReorientData = {
     },
   ],
   my_recent_work: [],
-  bid_summary: [],
+  forms_summary: [],
   counts: {
     unread_notifications: 0,
     pending_reviews: 0,

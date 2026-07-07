@@ -500,7 +500,7 @@ export async function registerAppTools(server: McpServer): Promise<void> {
           isAdmin,
           role,
         );
-        const bids = dashData.active_bids as ActiveProcurementSummary[];
+        const bids = dashData.active_forms as ActiveProcurementSummary[];
 
         const result: ProcurementDashboardData = {
           offset: 0,

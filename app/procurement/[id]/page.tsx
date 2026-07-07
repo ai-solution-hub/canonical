@@ -224,7 +224,7 @@ export default function ProcurementDetailPage({
                       className={cn(
                         'ml-1 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
                         proximity.isOverdue
-                          ? 'bg-bid-overdue-bg text-bid-overdue border border-bid-overdue-border'
+                          ? 'bg-form-overdue-bg text-form-overdue border border-form-overdue-border'
                           : 'bg-status-warning/10 text-status-warning',
                       )}
                     >
