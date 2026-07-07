@@ -23,7 +23,6 @@ const APP_ROUTE_PREFLIGHT_PATHS = [
   '/api/analytics/win-rate',
   '/api/certifications',
   '/api/admin/pipeline-runs/recent',
-  '/api/coverage/guides',
 ] as const;
 
 function delay(ms: number): Promise<void> {

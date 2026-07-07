@@ -28,7 +28,6 @@ export interface ClaudePrompt {
     | 'quality'
     | 'freshness'
     | 'procurement'
-    | 'coverage'
     | 'general'
     | 'ingestion'
     | 'compliance';
@@ -85,25 +84,6 @@ export function generateProcurementDeadlinePrompt(
     prompt: `The "${bid.name}" bid deadline is ${deadlineText}. Show me the current progress and help me prioritise a final review of the drafted responses before submission.`,
     description: `Deadline ${deadlineText}`,
     category: 'procurement',
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Coverage gap prompts
-// ---------------------------------------------------------------------------
-
-export function generateCoverageGapPrompt(
-  domain: string,
-  subtopic: string,
-): ClaudePrompt {
-  const formattedDomain = domain.replace(/-/g, ' ');
-  const formattedSubtopic = subtopic.replace(/-/g, ' ');
-
-  return {
-    label: 'Fill this gap',
-    prompt: `We have a content gap in ${formattedDomain} / ${formattedSubtopic}. Search the KB for any related content, then help me draft a new article to fill this gap.`,
-    description: `No content for ${formattedSubtopic}`,
-    category: 'coverage',
   };
 }
 

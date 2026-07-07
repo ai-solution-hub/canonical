@@ -46,7 +46,6 @@ const EXEMPT_ROUTE_PATTERNS = [
   '/api/search/suggestions/', // Simple GET
   '/api/change-reports/latest/', // No params
   '/api/content-owners/stats/', // No user-supplied params
-  '/api/coverage/guides/', // No user-supplied params
   '/api/coverage/templates/list/', // No user-supplied params
   '/api/certifications/', // Simple GET/POST using parseBody
   '/api/freshness/recalculate-all/', // Cron-like endpoint
