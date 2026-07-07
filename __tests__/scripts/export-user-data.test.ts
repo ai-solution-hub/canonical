@@ -445,6 +445,54 @@ describe('user-linked-table bundle reconciliation (id-138.19)', () => {
     expect(subject.roles_granted_by_subject[0]).toEqual(roleRow);
   });
 
+  it("redacts third-party display_name from grantor-side rows but keeps it on the subject's own user_role (id-138.20 fix)", async () => {
+    // Same shared-chain caveat as above: createMockSupabaseTableDispatch
+    // caches ONE chain per table, so BOTH user_roles queries (grantee
+    // user_id, grantor granted_by) resolve to this SAME fixture row —
+    // including its display_name. That asymmetry is exactly what proves the
+    // redaction applies ONLY to the grantor-side output: if user_role kept
+    // display_name while roles_granted_by_subject stripped it from the
+    // identical underlying row, the redaction must be applied at the
+    // roles_granted_by_subject assembly step, not by some upstream query
+    // difference.
+    const roleRowWithName = {
+      id: 'role-1',
+      user_id: VALID_UUID_B,
+      granted_by: VALID_UUID_A,
+      role: 'editor',
+      display_name: 'Third Party Name',
+    };
+    const mock = createMockSupabaseTableDispatch({
+      user_roles: { data: [roleRowWithName], error: null },
+    });
+    const subject = await assembleSubjectBundle(
+      mock as never,
+      VALID_UUID_A,
+      FIXTURE_AUTH_USER,
+    );
+    // Subject's own role row: display_name is the SUBJECT'S OWN name, not
+    // third-party PII — must be kept.
+    expect(subject.user_role).toEqual(roleRowWithName);
+    expect(subject.user_role).toHaveProperty(
+      'display_name',
+      'Third Party Name',
+    );
+    // Grantor-side rows describe roles granted to OTHER users — the
+    // grantee's display_name is third-party PII and must be redacted, per
+    // the bundle's stated "identifying details are redacted" contract.
+    expect(subject.roles_granted_by_subject.length).toBeGreaterThan(0);
+    for (const row of subject.roles_granted_by_subject) {
+      expect(row).not.toHaveProperty('display_name');
+    }
+    // The grant action itself (who/what/when) is fully preserved.
+    expect(subject.roles_granted_by_subject[0]).toEqual({
+      id: 'role-1',
+      user_id: VALID_UUID_B,
+      granted_by: VALID_UUID_A,
+      role: 'editor',
+    });
+  });
+
   it('assembleActivityBundle queries exactly the expected table set post-M6', async () => {
     const mock = createMockSupabaseTableDispatch();
     await assembleActivityBundle(mock as never, VALID_UUID_A);

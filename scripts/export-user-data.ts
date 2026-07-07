@@ -569,6 +569,42 @@ export interface BundleManifest {
 // Bundle assembly
 // ---------------------------------------------------------------------------
 
+/**
+ * Columns on `user_roles` that identify the GRANTEE (a third party, from the
+ * grantor-subject's point of view) rather than describing the grant action
+ * itself. Fixed by id-138.20 quality-review: `fetchByColumn` does
+ * `select('*')`, so a grantor-side row (`granted_by = subjectUuid`) ships
+ * the grantee's full row — including their human `display_name` — unless
+ * stripped here. That breaks this tool's own stated contract (README "What
+ * is NOT in this bundle": "Other users' personal data is excluded ...
+ * their identifying details are redacted"; manifest
+ * `excluded_third_party_pii: true`).
+ *
+ * `user_id` (the grantee's pseudonymous UUID) is deliberately KEPT — it is
+ * consistent with the already-accepted precedent that `granted_by` itself
+ * ships a bare third-party UUID under the same flag. Only human-identifying
+ * columns belong in this denylist. If `user_roles` ever gains another
+ * name/email-shaped column, add it here (one-line change) rather than
+ * widening the redaction ad hoc at the call site.
+ */
+const GRANTOR_ROW_THIRD_PARTY_PII_COLUMNS = ['display_name'] as const;
+
+/**
+ * Redact third-party identifying columns from a grantor-side `user_roles`
+ * row before it is exposed in `roles_granted_by_subject`. See
+ * `GRANTOR_ROW_THIRD_PARTY_PII_COLUMNS` for why `display_name` (and only
+ * that column) is stripped.
+ */
+function redactGrantorRowThirdPartyPii(
+  row: Record<string, unknown>,
+): Record<string, unknown> {
+  const redacted = { ...row };
+  for (const column of GRANTOR_ROW_THIRD_PARTY_PII_COLUMNS) {
+    delete redacted[column];
+  }
+  return redacted;
+}
+
 export async function assembleSubjectBundle(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   client: SupabaseClient<any, any, any, any, any>,
@@ -585,10 +621,19 @@ export async function assembleSubjectBundle(
   );
   return {
     auth_user: authUser,
-    user_profile: profileRows[0] ?? null,
+    // user_role is the SUBJECT'S OWN row (user_id = subjectUuid) — its
+    // display_name is the subject's own name, not third-party PII, so it is
+    // NOT redacted here.
     user_role: roleRows[0] ?? null,
+    user_profile: profileRows[0] ?? null,
     user_notification_prefs: prefsRows[0] ?? null,
-    roles_granted_by_subject: grantedRoleRows,
+    // roles_granted_by_subject rows are GRANTEE-keyed (third-party) — redact
+    // per GRANTOR_ROW_THIRD_PARTY_PII_COLUMNS to honour the bundle's
+    // third-party-redaction contract (README + manifest
+    // excluded_third_party_pii).
+    roles_granted_by_subject: grantedRoleRows.map(
+      redactGrantorRowThirdPartyPii,
+    ),
   };
 }
 
@@ -912,6 +957,8 @@ Per UK GDPR Article 15 §3 and the Data Protection Act 2018 Schedule 2:
   appears in your audit-trail rows (e.g. another user approved a bid
   response you drafted), their identifying details are redacted
   because they have their own UK GDPR rights to control their data.
+  This includes roles you have granted to other users: the grant
+  itself is shown, but the grantee's display name is redacted.
 
 ## Verifying bundle integrity
 
