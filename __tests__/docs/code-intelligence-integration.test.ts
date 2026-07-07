@@ -101,16 +101,10 @@ const REQUIRED_ANCHORS: ReadonlyArray<{
       /(spec's Context|Problem)/,
     ],
   },
-  // 6 — task-executor executor-block
-  {
-    file: '.claude/agents/task-executor.md',
-    anchorKey: 'executor-block',
-    requiredContent: [
-      /gitnexus_impact/,
-      /gitnexus_detect_changes/,
-      /HIGH or CRITICAL/,
-    ],
-  },
+  // 6 — task-executor executor-block: RELOCATED (2026-07-07, commit 183b10e4
+  // "chore: move skills") into shared-discipline.md §Code-intelligence discipline.
+  // task-executor.md now carries a Step-0 pointer instead of the inlined block —
+  // enforced by the standalone assertion in Part 2 below.
   // 7 — task-checker checker-axes
   {
     file: '.claude/agents/task-checker.md',
@@ -234,6 +228,29 @@ describe('code-intelligence integration anchors (ID-23)', () => {
     expect(body).toContain('Scope verified:');
     expect(body).toContain('Pre-commit scope check (manual gate)');
     expect(body).toContain('gitnexus_detect_changes');
+  });
+
+  it('task-executor.md points at shared-discipline.md, which carries the executor code-intel discipline (Inv 3, relocated ex-anchor 6)', async () => {
+    const executorBody = await readFile(r('.claude/agents/task-executor.md'), 'utf8');
+    expect(executorBody).toContain('references/shared-discipline.md');
+
+    const disciplineBody = await readFile(
+      r('.claude/agents/references/shared-discipline.md'),
+      'utf8',
+    );
+    const sectionStart = disciplineBody.indexOf('## Code-intelligence discipline');
+    expect(
+      sectionStart,
+      'shared-discipline.md §Code-intelligence discipline missing — the executor block relocated here in 183b10e4',
+    ).toBeGreaterThan(-1);
+    const nextSection = disciplineBody.indexOf('\n## ', sectionStart + 1);
+    const section = disciplineBody.slice(
+      sectionStart,
+      nextSection === -1 ? undefined : nextSection,
+    );
+    expect(section).toMatch(/gitnexus_impact/);
+    expect(section).toMatch(/gitnexus_detect_changes/);
+    expect(section).toMatch(/HIGH or CRITICAL/);
   });
 
   it('workflow-curator.md contains caller-count pre-grep mentions (Inv 8)', async () => {
