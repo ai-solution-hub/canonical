@@ -281,11 +281,22 @@ async function main(): Promise<void> {
   }
 
   // 4. Optionally fetch summary_data for --full
+  //
+  // ID-139.1 (M6 re-point): content_items was DROPPED
+  // (20260706110000_id131_drops.sql). hybrid_search is a polymorphic
+  // 4-arm UNION (source_document / content_chunk / q_a_pair /
+  // reference_item — 20260702120000_id131_search_rpcs.sql) so `filtered`
+  // ids span multiple owner tables; only source_documents still carries a
+  // `summary_data` JSONB column. Re-pointing onto source_documents is
+  // graceful by construction: ids from the other 3 arms simply find no
+  // matching row here, and the per-result render below already falls back
+  // to the plain `summary` string when no richer summary_data is found
+  // (see the `--full` branch a few dozen lines down).
   const summaryMap: Map<string, SummaryData> = new Map();
   if (full && filtered.length > 0) {
     const ids = filtered.map((r) => r.id);
     const { data: summaryRows, error: summaryError } = await supabase
-      .from('content_items')
+      .from('source_documents')
       .select('id, summary_data')
       .in('id', ids);
 
