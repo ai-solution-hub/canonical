@@ -232,18 +232,16 @@ def test_concept_with_invalid_entity_mention_fails_the_gate():
 
 
 def test_citation_shrink_detection_fires_when_a_citation_is_dropped():
-    previous_body = (
-        "Synthesis.\n\n# Citations\n"
-        f"- {ru.build_source_document_uri(uuid.uuid4())}\n"
-        f"- {ru.build_reference_item_uri(uuid.uuid4())}\n"
-    )
+    kept_uri = ru.build_source_document_uri(uuid.uuid4())
+    dropped_uri = ru.build_reference_item_uri(uuid.uuid4())
+    previous_body = f"Synthesis.\n\n# Citations\n- {kept_uri}\n- {dropped_uri}\n"
     # New draft keeps only the first citation — a shrink.
-    first_line = previous_body.splitlines()[3]
-    new_body = "Synthesis (revised).\n\n# Citations\n" + first_line + "\n"
+    new_body = f"Synthesis (revised).\n\n# Citations\n- {kept_uri}\n"
 
     missing = v.detect_citation_shrink(previous_body=previous_body, new_body=new_body)
-    assert len(missing) == 1
-    assert missing[0] in previous_body
+    # Pin the EXACT dropped URI (not merely "some string from previous_body"
+    # — a substring-containment check would pass for any dropped entry).
+    assert missing == [dropped_uri]
 
 
 def test_citation_shrink_detection_is_clean_when_citations_are_a_superset():
