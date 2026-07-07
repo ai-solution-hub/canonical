@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { test, expect } from '../fixtures';
 import { attachConsoleGate, type ConsoleGate } from '../helpers/console-gate';
 
@@ -5,12 +6,32 @@ import { attachConsoleGate, type ConsoleGate } from '../helpers/console-gate';
  * Flow: Guide Pages
  *
  * Tests the /guide redirect to /coverage?tab=guides and guide detail pages
- * at /guide/[slug]. The guide listing was consolidated into the Coverage
- * dashboard Guides tab (P1-28).
+ * at /guide/[slug].
  *
- * The tests depend on guides existing in the production database.
- * If no guides exist, tests handle the empty state gracefully.
+ * DR-034 (749309a1) retired the Coverage dashboard's Guides tab UI (and the
+ * content_items-era coverage listing it lived in) — CoveragePageTabs now
+ * renders only TemplateCoverageContent, so there is no listing page left to
+ * click a guide link from. The `/guide/[slug]` reader route and its backing
+ * `/api/guides` list endpoint are still live (the guides table itself was
+ * not retired), so the detail-page tests below source a published guide's
+ * slug directly from `/api/guides` instead of navigating a listing UI that
+ * no longer exists.
+ *
+ * The tests depend on guides existing in the database. Empty fixtures fail
+ * honestly here rather than silently passing via an empty-state check —
+ * staging must seed at least one published guide.
  */
+
+/** Fetch the first published guide's slug via the live `/api/guides` list endpoint. */
+async function firstPublishedGuideSlug(page: Page): Promise<string> {
+  const response = await page.request.get('/api/guides');
+  expect(response.ok()).toBe(true);
+  const guides: Array<{ slug: string }> = await response.json();
+  // Hard-expect at least one published guide; staging must seed one for
+  // this test to pass. Empty fixtures should fail honestly here.
+  expect(guides.length).toBeGreaterThan(0);
+  return guides[0].slug;
+}
 
 // ---------------------------------------------------------------------------
 // 1. /guide redirect
@@ -58,28 +79,8 @@ test.describe('Guide detail page', { tag: '@smoke' }, () => {
   test('guide detail page loads with guide name and metadata', async ({
     authenticatedPage: page,
   }) => {
-    // Navigate via coverage tab to find a guide
-    await page.goto('/coverage?tab=guides');
-
-    await expect(
-      page.getByRole('heading', { name: 'Coverage Dashboard' }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Look for guide links in the coverage guides tab
-    const guideLink = page.locator('a[href^="/guide/"]').first();
-    const emptyState = page.getByText('No guides published');
-
-    await expect(guideLink.or(emptyState)).toBeVisible({ timeout: 15000 });
-
-    // Hard-expect a guide link exists; staging must seed at least one published
-    // guide for this test to pass. Empty fixtures should fail honestly here.
-    await expect(guideLink).toBeVisible({ timeout: 2000 });
-
-    // Click the first guide link
-    await guideLink.click();
-
-    // URL matches /guide/[slug]
-    await expect(page).toHaveURL(/\/guide\/[a-z0-9-]+/);
+    const slug = await firstPublishedGuideSlug(page);
+    await page.goto(`/guide/${slug}`);
 
     // Heading with guide name
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible({
@@ -102,22 +103,8 @@ test.describe('Guide detail page', { tag: '@smoke' }, () => {
   test('guide detail shows table of contents when sections exist', async ({
     authenticatedPage: page,
   }) => {
-    await page.goto('/coverage?tab=guides');
-
-    await expect(
-      page.getByRole('heading', { name: 'Coverage Dashboard' }),
-    ).toBeVisible({ timeout: 10000 });
-
-    const guideLink = page.locator('a[href^="/guide/"]').first();
-    const emptyState = page.getByText('No guides published');
-
-    await expect(guideLink.or(emptyState)).toBeVisible({ timeout: 15000 });
-
-    // Hard-expect a guide link exists; staging must seed at least one published
-    // guide for this test to pass.
-    await expect(guideLink).toBeVisible({ timeout: 2000 });
-
-    await guideLink.click();
+    const slug = await firstPublishedGuideSlug(page);
+    await page.goto(`/guide/${slug}`);
 
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible({
       timeout: 10000,
@@ -137,22 +124,8 @@ test.describe('Guide detail page', { tag: '@smoke' }, () => {
   test('guide detail back link navigates to coverage guides tab', async ({
     authenticatedPage: page,
   }) => {
-    await page.goto('/coverage?tab=guides');
-
-    await expect(
-      page.getByRole('heading', { name: 'Coverage Dashboard' }),
-    ).toBeVisible({ timeout: 10000 });
-
-    const guideLink = page.locator('a[href^="/guide/"]').first();
-    const emptyState = page.getByText('No guides published');
-
-    await expect(guideLink.or(emptyState)).toBeVisible({ timeout: 15000 });
-
-    // Hard-expect a guide link exists; staging must seed at least one published
-    // guide for this test to pass.
-    await expect(guideLink).toBeVisible({ timeout: 2000 });
-
-    await guideLink.click();
+    const slug = await firstPublishedGuideSlug(page);
+    await page.goto(`/guide/${slug}`);
 
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible({
       timeout: 10000,
@@ -163,7 +136,8 @@ test.describe('Guide detail page', { tag: '@smoke' }, () => {
     await expect(backLink).toBeVisible();
     await backLink.click();
 
-    // Should navigate to coverage with guides tab
+    // Should navigate to coverage (guides tab param retained in the URL,
+    // though the tab param is UI-inert post-DR-034 — see coverage-tabs.tsx)
     await expect(page).toHaveURL(/\/coverage\?tab=guides/, { timeout: 10000 });
     await expect(
       page.getByRole('heading', { name: 'Coverage Dashboard' }),
