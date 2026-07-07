@@ -1467,7 +1467,6 @@ export type Database = {
           primary_domain: string | null
           primary_subtopic: string | null
           question_number: number | null
-          requirement_embedding: string | null
           requirement_text: string | null
           requirement_type: string | null
           secondary_domain: string | null
@@ -1493,7 +1492,6 @@ export type Database = {
           primary_domain?: string | null
           primary_subtopic?: string | null
           question_number?: number | null
-          requirement_embedding?: string | null
           requirement_text?: string | null
           requirement_type?: string | null
           secondary_domain?: string | null
@@ -1519,7 +1517,6 @@ export type Database = {
           primary_domain?: string | null
           primary_subtopic?: string | null
           question_number?: number | null
-          requirement_embedding?: string | null
           requirement_text?: string | null
           requirement_type?: string | null
           secondary_domain?: string | null
@@ -5525,7 +5522,6 @@ export type Database = {
           primary_domain: string | null
           primary_subtopic: string | null
           question_number: number | null
-          requirement_embedding: string | null
           requirement_text: string
           requirement_type: string
           secondary_domain: string | null
@@ -5551,7 +5547,6 @@ export type Database = {
           primary_domain?: string | null
           primary_subtopic?: string | null
           question_number?: number | null
-          requirement_embedding?: string | null
           requirement_text: string
           requirement_type: string
           secondary_domain?: string | null
@@ -5577,7 +5572,6 @@ export type Database = {
           primary_domain?: string | null
           primary_subtopic?: string | null
           question_number?: number | null
-          requirement_embedding?: string | null
           requirement_text?: string
           requirement_type?: string
           secondary_domain?: string | null
