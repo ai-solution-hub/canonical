@@ -1557,7 +1557,7 @@ class TestPerItemFailureIsolation:
 
         async def _classification(content_text: str):
             return {
-                "content_type": "case_study",
+                "content_type": "document",
                 "primary_domain": "procurement",
                 "primary_subtopic": "tender_evaluation",
             }
@@ -1925,7 +1925,7 @@ class TestUrlPerItemFailureIsolation:
         # ── Stage-3 stubs (classification + embedding). ──
         async def _classification(content_text: str):
             return {
-                "content_type": "case_study",
+                "content_type": "document",
                 "primary_domain": "procurement",
                 "primary_subtopic": "tender_evaluation",
                 "suggested_title": "Suggested",

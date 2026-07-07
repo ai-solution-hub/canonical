@@ -218,7 +218,7 @@ def _patch_extractors(flow, monkeypatch: pytest.MonkeyPatch) -> None:
         return _MARKDOWN
 
     async def _fake_classification(content_text: str):
-        return {"content_type": "case_study", "primary_domain": "procurement"}
+        return {"content_type": "document", "primary_domain": "procurement"}
 
     async def _fake_qa(content_text: str):
         return {"qa_pairs": [{"question_text": "Q?", "answer_text": "A."}]}

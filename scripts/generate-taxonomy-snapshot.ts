@@ -12,7 +12,7 @@
 
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createLooseScriptClient } from '@/scripts/lib/supabase-script-client';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 
 const PROJECT_ROOT = join(import.meta.dir, '..');
 const OUTPUT_PATH = join(
@@ -45,9 +45,7 @@ async function main() {
   }
   const supabaseKey = getEnvVar('SUPABASE_SERVICE_ROLE_KEY');
 
-  // <any>: calls the dead `get_check_constraint_values` rpc (fallback path),
-  // not in the typed schema — intentionally loose (see supabase-script-client.ts).
-  const supabase = createLooseScriptClient(supabaseUrl, supabaseKey);
+  const supabase = createScriptClient(supabaseUrl, supabaseKey);
 
   // Fetch active domains
   const { data: domains, error: domainError } = await supabase
@@ -89,67 +87,59 @@ async function main() {
     process.exit(1);
   }
 
-  // Fetch CHECK constraint values for content_types and platforms
-  const { data: checkConstraints } = await supabase
-    .rpc('get_check_constraint_values', undefined)
-    .then((res) => {
-      if (res.error) return { data: null };
-      return res;
-    });
-
-  // Primary source is the `get_check_constraint_values` RPC, which reads the
-  // live CHECK constraint values from `information_schema` server-side. The
-  // fallback below is a hardcoded mirror used only when the RPC is unavailable.
-  let contentTypes: string[] = [];
-  let platforms: string[] = [];
-  let requirementTypes: string[] = [];
-
-  if (checkConstraints && Array.isArray(checkConstraints)) {
-    for (const row of checkConstraints) {
-      if (row.column_name === 'content_type') contentTypes = row.allowed_values;
-      if (row.column_name === 'platform') platforms = row.allowed_values;
-      if (row.column_name === 'requirement_type')
-        requirementTypes = row.allowed_values;
-    }
-  }
-
-  // If RPC not available, use the known values from schema reference.
-  // ID-133 BI-3 (S451 owner-ratified): source_documents.content_type is no
-  // longer a DB CHECK-enforced column (ID-131 M3 made it nullable, no
-  // CHECK) — this fallback is the enforcement source of truth via
-  // taxonomy_snapshot.json + the Pydantic `_validate_content_type` field
-  // validator. Trimmed to the BI-3 stay-set: q_a_pair migrated out to its
-  // own Layer-5 class (32-q-a-pair.md); case_study/policy/certification/
-  // compliance/methodology/capability/product_description moved to the
-  // L-concept type discriminators (37-concept-type.md).
-  if (contentTypes.length === 0) {
-    contentTypes = [
-      'article',
-      'blog',
-      'pdf',
-      'note',
-      'research',
-      'document',
-      'other',
-    ];
-    console.warn('  Using fallback content_types (RPC not available)');
-  }
-  if (platforms.length === 0) {
-    platforms = ['web', 'email', 'manual', 'upload', 'extraction', 'other'];
-    console.warn('  Using fallback platforms (RPC not available)');
-  }
-  if (requirementTypes.length === 0) {
-    requirementTypes = [
-      'policy',
-      'statement',
-      'evidence',
-      'data',
-      'narrative',
-      'declaration',
-      'reference',
-    ];
-    console.warn('  Using fallback requirement_type (RPC not available)');
-  }
+  // content_type / platform / requirement_type are hardcoded here, not read
+  // live from the DB. There is no RPC that reads CHECK constraint values
+  // server-side — `get_check_constraint_values` was never implemented as a
+  // public function (permanently listed in `MISSING_RPCS`,
+  // scripts/generate-api-views.ts) — so each array below IS the source of
+  // truth, not a fallback:
+  //
+  //   - content_types: ID-133 BI-3 (S451 owner-ratified). No longer a DB
+  //     CHECK-enforced column — ID-131 M3 dropped the CHECK on
+  //     `source_documents.content_type` — so this array, enforced via
+  //     taxonomy_snapshot.json + the Pydantic `_validate_content_type`
+  //     field validator, is the ratified source of truth. Trimmed to the
+  //     BI-3 stay-set: q_a_pair migrated out to its own Layer-5 class
+  //     (32-q-a-pair.md); case_study/policy/certification/compliance/
+  //     methodology/capability/product_description moved to the L-concept
+  //     type discriminators (37-concept-type.md).
+  //   - platforms: mirrors the historical `content_items_platform_check`
+  //     CHECK values. `content_items` (the table that CHECK lived on) was
+  //     dropped in migration 20260706110000_id131_drops.sql (ID-131.19
+  //     M6) — no live table enforces this CHECK today; the value set is
+  //     retained here for continuity, not because a DB constraint exists.
+  //   - requirement_type: mirrors the LIVE
+  //     `form_template_requirements_requirement_type_check` CHECK
+  //     (supabase/migrations/20260617130000_squash_baseline.sql,
+  //     `form_template_requirements` table — not retired) — grepped all
+  //     migrations for a later ALTER on this constraint; none found, so
+  //     the value list below is still byte-exact with the live CHECK.
+  const contentTypes: string[] = [
+    'article',
+    'blog',
+    'pdf',
+    'note',
+    'research',
+    'document',
+    'other',
+  ];
+  const platforms: string[] = [
+    'web',
+    'email',
+    'manual',
+    'upload',
+    'extraction',
+    'other',
+  ];
+  const requirementTypes: string[] = [
+    'policy',
+    'statement',
+    'evidence',
+    'data',
+    'narrative',
+    'declaration',
+    'reference',
+  ];
 
   // Build snapshot
   const snapshot = {
