@@ -141,6 +141,16 @@ class ConceptKey:
                 f"{sorted(CONCEPT_TYPES)} (BI-4 ratified set); a q_a_pair "
                 f"is never a concept (BI-3). Got {self.concept_type!r}."
             )
+        if self.scope_tag is not None and (
+            self.domain is not None or self.subtopic is not None
+        ):
+            raise ValueError(
+                "ConceptKey.scope_tag is mutually exclusive with "
+                "domain/subtopic (BI-8 locator contract, mirrors "
+                "producer/resource_uri.py:build_q_a_pairs_query_uri); got "
+                f"scope_tag={self.scope_tag!r} domain={self.domain!r} "
+                f"subtopic={self.subtopic!r}"
+            )
 
 
 @dataclass

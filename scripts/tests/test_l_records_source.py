@@ -82,6 +82,21 @@ class TestConceptKeyShape:
         with pytest.raises(ValueError, match="rel_path"):
             ConceptKey(rel_path="", concept_type="topic")
 
+    def test_rejects_scope_tag_and_domain_subtopic_both_set(self):
+        """BI-8 locator contract (mirrors
+        `producer/resource_uri.py:build_q_a_pairs_query_uri`, which raises
+        `ValueError` on the same both-set condition): `scope_tag` is
+        mutually exclusive with `domain`/`subtopic` — constructing a
+        `ConceptKey` with both set must not silently pick a branch."""
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            ConceptKey(
+                rel_path="topics/gdpr.md",
+                concept_type="topic",
+                scope_tag="gdpr",
+                domain="security",
+                subtopic="data-protection",
+            )
+
     def test_concept_types_is_the_5_ratified_bi4_set(self):
         assert CONCEPT_TYPES == {
             "topic",
