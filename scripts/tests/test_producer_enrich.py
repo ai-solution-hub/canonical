@@ -169,6 +169,30 @@ def _product_key() -> ConceptKey:
     return ConceptKey(rel_path="products/lms.md", concept_type="product", entity_id="LMS")
 
 
+def _gdpr_key() -> ConceptKey:
+    return ConceptKey(rel_path="topics/gdpr.md", concept_type="topic", scope_tag="gdpr")
+
+
+def _catalogue_with_gdpr(key: ConceptKey) -> "list[ConceptKey]":
+    """A catalogue containing `key` plus a cross-linkable sibling concept
+    (`topics/gdpr.md`) — needed by any end-to-end test whose final envelope
+    cites a BI-9 concept cross-link, since `_validate_citation` now checks
+    catalogue membership (the Checker-fix provenance guard), not just
+    format."""
+    return [key, _gdpr_key()]
+
+
+def _read_concept_raw_tool_turn(key: ConceptKey) -> "_MockMessage":
+    """A `tool_use` turn where the model calls `read_concept_raw` for `key`
+    — the realistic first step (per `PASS1_INSTRUCTION_PROMPT`/`_seed_user_
+    message`) that populates `seen_anchors` BEFORE the model can validly
+    cite a record anchor (the Checker-fix provenance guard)."""
+    tool_use_block = ToolUseBlock(
+        type="tool_use", id="toolu_1", name="read_concept_raw", input={"ref": key.rel_path}
+    )
+    return _MockMessage([tool_use_block], stop_reason="tool_use")
+
+
 def _product_raw() -> ConceptRaw:
     return ConceptRaw(
         source_documents=[{"id": _SD_ID, "filename": "01-company-overview.docx"}],
@@ -204,12 +228,14 @@ class TestZeroWebEgress:
         """Dynamic proof: every `messages.create` call across the whole
         Pass-1 loop is offered exactly the 3-tool set — never a web tool."""
         key = _product_key()
-        source = _FakeSource(catalogue=[key], raw_by_path={key.rel_path: _product_raw()})
+        source = _FakeSource(
+            catalogue=_catalogue_with_gdpr(key), raw_by_path={key.rel_path: _product_raw()}
+        )
         final = _MockMessage(
             [TextBlock(type="text", text=_envelope_json())],
             stop_reason="end_turn",
         )
-        client = _mock_client([final])
+        client = _mock_client([_read_concept_raw_tool_turn(key), final])
 
         async def _exercise():
             with patch(
@@ -245,28 +271,76 @@ def _envelope_json(*, citations: "list[str] | None" = None) -> str:
 
 
 class TestCitationValidationProxy:
-    def test_validate_citation_accepts_per_row_canonical_anchor(self) -> None:
+    def test_validate_citation_accepts_per_row_canonical_anchor_that_was_minted(
+        self,
+    ) -> None:
         uri = build_source_document_uri(_SD_ID)
-        assert enrich._validate_citation(uri) == uri
+        assert (
+            enrich._validate_citation(uri, seen_anchors={uri}, catalogue_paths=set()) == uri
+        )
 
-    def test_validate_citation_accepts_qa_pairs_query_anchor(self) -> None:
+    def test_validate_citation_rejects_well_formed_but_never_minted_canonical_anchor(
+        self,
+    ) -> None:
+        """Checker finding: a well-formed `canonical://source_documents/
+        <uuid>` that was NEVER minted into a `read_concept_raw` tool result
+        this run (a fabricated uuid) is REJECTED — format validity alone is
+        not proof of provenance."""
+        fabricated = build_source_document_uri(str(uuid.uuid4()))
+        with pytest.raises(enrich.Pass1DraftError, match="never minted"):
+            enrich._validate_citation(fabricated, seen_anchors=set(), catalogue_paths=set())
+
+    def test_validate_citation_accepts_qa_pairs_query_anchor_that_was_minted(self) -> None:
         uri = build_q_a_pairs_query_uri(scope_tag="gdpr")
-        assert enrich._validate_citation(uri) == uri
+        assert (
+            enrich._validate_citation(uri, seen_anchors={uri}, catalogue_paths=set()) == uri
+        )
 
-    def test_validate_citation_accepts_concept_cross_link_path(self) -> None:
-        assert enrich._validate_citation("topics/gdpr.md") == "topics/gdpr.md"
+    def test_validate_citation_rejects_qa_pairs_query_anchor_that_was_never_minted(
+        self,
+    ) -> None:
+        uri = build_q_a_pairs_query_uri(scope_tag="never-issued")
+        with pytest.raises(enrich.Pass1DraftError, match="never minted"):
+            enrich._validate_citation(uri, seen_anchors=set(), catalogue_paths=set())
+
+    def test_validate_citation_accepts_concept_cross_link_path_in_catalogue(self) -> None:
+        assert (
+            enrich._validate_citation(
+                "topics/gdpr.md", seen_anchors=set(), catalogue_paths={"topics/gdpr.md"}
+            )
+            == "topics/gdpr.md"
+        )
+
+    def test_validate_citation_rejects_concept_cross_link_path_not_in_catalogue(
+        self,
+    ) -> None:
+        """The BI-9 analogue of the record-anchor provenance check: a
+        well-formed but non-existent (not in this run's `list_concepts`
+        catalogue) concept cross-link path is rejected."""
+        with pytest.raises(enrich.Pass1DraftError, match="catalogue"):
+            enrich._validate_citation(
+                "topics/does-not-exist.md",
+                seen_anchors=set(),
+                catalogue_paths={"topics/gdpr.md"},
+            )
 
     def test_validate_citation_rejects_bare_uuid(self) -> None:
         with pytest.raises(enrich.Pass1DraftError):
-            enrich._validate_citation(str(uuid.uuid4()))
+            enrich._validate_citation(
+                str(uuid.uuid4()), seen_anchors=set(), catalogue_paths=set()
+            )
 
     def test_validate_citation_rejects_malformed_canonical_uri(self) -> None:
         with pytest.raises(enrich.Pass1DraftError):
-            enrich._validate_citation("canonical://q_a_pairs/not-a-valid-form")
+            enrich._validate_citation(
+                "canonical://q_a_pairs/not-a-valid-form",
+                seen_anchors=set(),
+                catalogue_paths=set(),
+            )
 
     def test_validate_citation_rejects_empty_string(self) -> None:
         with pytest.raises(enrich.Pass1DraftError):
-            enrich._validate_citation("")
+            enrich._validate_citation("", seen_anchors=set(), catalogue_paths=set())
 
     def test_parse_response_rejects_empty_citations_array(self) -> None:
         message = _MockMessage(
@@ -274,7 +348,7 @@ class TestCitationValidationProxy:
             stop_reason="end_turn",
         )
         with pytest.raises(enrich.Pass1DraftError, match="citations"):
-            enrich._parse_pass1_response(message)
+            enrich._parse_pass1_response(message, seen_anchors=set(), catalogue_paths=set())
 
     def test_parse_response_rejects_missing_citations_key(self) -> None:
         payload = {
@@ -287,14 +361,29 @@ class TestCitationValidationProxy:
             [TextBlock(type="text", text=json.dumps(payload))], stop_reason="end_turn"
         )
         with pytest.raises(enrich.Pass1DraftError, match="missing required key"):
-            enrich._parse_pass1_response(message)
+            enrich._parse_pass1_response(message, seen_anchors=set(), catalogue_paths=set())
 
     def test_parse_response_rejects_non_json_terminal_text(self) -> None:
         message = _MockMessage(
             [TextBlock(type="text", text="not json at all")], stop_reason="end_turn"
         )
         with pytest.raises(enrich.Pass1DraftError, match="valid JSON"):
-            enrich._parse_pass1_response(message)
+            enrich._parse_pass1_response(message, seen_anchors=set(), catalogue_paths=set())
+
+    def test_parse_response_accepts_citations_that_were_actually_minted(self) -> None:
+        """Positive counterpart to the provenance-rejection tests above: a
+        citation that DOES correspond to `seen_anchors`/`catalogue_paths`
+        membership parses through cleanly (a tool-result-minted anchor still
+        passes)."""
+        uri = build_source_document_uri(_SD_ID)
+        message = _MockMessage(
+            [TextBlock(type="text", text=_envelope_json(citations=[uri, "topics/gdpr.md"]))],
+            stop_reason="end_turn",
+        )
+        envelope = enrich._parse_pass1_response(
+            message, seen_anchors={uri}, catalogue_paths={"topics/gdpr.md"}
+        )
+        assert envelope.citations == (uri, "topics/gdpr.md")
 
     def test_rendered_citations_section_round_trips_through_shared_validator(
         self,
@@ -315,7 +404,8 @@ class TestCitationValidationProxy:
     def test_annotate_raw_with_anchors_mints_valid_per_row_uris(self) -> None:
         key = _product_key()
         raw = _product_raw()
-        annotated = enrich._annotate_raw_with_anchors(key, raw)
+        seen_anchors: "set[str]" = set()
+        annotated = enrich._annotate_raw_with_anchors(key, raw, seen_anchors)
 
         assert annotated["source_documents"][0]["resource"] == build_source_document_uri(
             _SD_ID
@@ -326,15 +416,23 @@ class TestCitationValidationProxy:
         # product concepts carry no scope_tag/domain/subtopic locator -> no
         # BI-8 qa_resource is minted.
         assert "qa_resource" not in annotated
+        # Checker-fix load-bearing property: every minted anchor is
+        # recorded into seen_anchors for later provenance validation.
+        assert seen_anchors == {
+            build_source_document_uri(_SD_ID),
+            build_reference_item_uri(_RI_ID),
+        }
 
     def test_annotate_raw_with_anchors_sets_qa_resource_for_topic_scope_tag(
         self,
     ) -> None:
         key = ConceptKey(rel_path="topics/gdpr.md", concept_type="topic", scope_tag="gdpr")
         raw = ConceptRaw(q_a_pairs=[{"id": "qa-1"}])
-        annotated = enrich._annotate_raw_with_anchors(key, raw)
+        seen_anchors: "set[str]" = set()
+        annotated = enrich._annotate_raw_with_anchors(key, raw, seen_anchors)
 
         assert annotated["qa_resource"] == build_q_a_pairs_query_uri(scope_tag="gdpr")
+        assert build_q_a_pairs_query_uri(scope_tag="gdpr") in seen_anchors
 
     def test_resource_from_raw_prefers_source_documents_over_reference_items(
         self,
@@ -409,7 +507,9 @@ class TestTerminalTextContract:
         across two TextBlocks — enrich_concept must still parse it (fold-in
         3), not merely take the first block."""
         key = _product_key()
-        source = _FakeSource(catalogue=[key], raw_by_path={key.rel_path: _product_raw()})
+        source = _FakeSource(
+            catalogue=_catalogue_with_gdpr(key), raw_by_path={key.rel_path: _product_raw()}
+        )
         envelope = _envelope_json()
         split_at = len(envelope) // 2
         final = _MockMessage(
@@ -419,7 +519,7 @@ class TestTerminalTextContract:
             ],
             stop_reason="end_turn",
         )
-        client = _mock_client([final])
+        client = _mock_client([_read_concept_raw_tool_turn(key), final])
 
         async def _exercise():
             with patch(
@@ -441,11 +541,13 @@ class TestTerminalTextContract:
 class TestEnrichConceptEndToEnd:
     def test_happy_path_drafts_frontmatter_body_and_citations(self) -> None:
         key = _product_key()
-        source = _FakeSource(catalogue=[key], raw_by_path={key.rel_path: _product_raw()})
+        source = _FakeSource(
+            catalogue=_catalogue_with_gdpr(key), raw_by_path={key.rel_path: _product_raw()}
+        )
         final = _MockMessage(
             [TextBlock(type="text", text=_envelope_json())], stop_reason="end_turn"
         )
-        client = _mock_client([final])
+        client = _mock_client([_read_concept_raw_tool_turn(key), final])
 
         async def _exercise():
             with patch(
@@ -475,14 +577,10 @@ class TestEnrichConceptEndToEnd:
         targets that SAME concept, the cached raw is reused rather than a
         second `source.read_concept` round-trip."""
         key = _product_key()
-        source = _FakeSource(catalogue=[key], raw_by_path={key.rel_path: _product_raw()})
-        tool_use_block = ToolUseBlock(
-            type="tool_use",
-            id="toolu_1",
-            name="read_concept_raw",
-            input={"ref": key.rel_path},
+        source = _FakeSource(
+            catalogue=_catalogue_with_gdpr(key), raw_by_path={key.rel_path: _product_raw()}
         )
-        tool_turn = _MockMessage([tool_use_block], stop_reason="tool_use")
+        tool_turn = _read_concept_raw_tool_turn(key)
         final = _MockMessage(
             [TextBlock(type="text", text=_envelope_json())], stop_reason="end_turn"
         )
@@ -505,7 +603,9 @@ class TestEnrichConceptEndToEnd:
         run (unlike a genuine Source-adapter/DB failure, which propagates
         per `run_tool_use_loop`'s posture)."""
         key = _product_key()
-        source = _FakeSource(catalogue=[key], raw_by_path={key.rel_path: _product_raw()})
+        source = _FakeSource(
+            catalogue=_catalogue_with_gdpr(key), raw_by_path={key.rel_path: _product_raw()}
+        )
         bad_tool_use = ToolUseBlock(
             type="tool_use",
             id="toolu_1",
@@ -513,8 +613,13 @@ class TestEnrichConceptEndToEnd:
             input={"ref": "products/does-not-exist.md"},
         )
         tool_turn = _MockMessage([bad_tool_use], stop_reason="tool_use")
+        # A pure BI-9 cross-link citation (no record anchor) — the bad ref
+        # never minted anything into seen_anchors, so the final envelope
+        # deliberately avoids needing one; "topics/gdpr.md" validates via
+        # catalogue membership alone.
         final = _MockMessage(
-            [TextBlock(type="text", text=_envelope_json())], stop_reason="end_turn"
+            [TextBlock(type="text", text=_envelope_json(citations=["topics/gdpr.md"]))],
+            stop_reason="end_turn",
         )
         client = _mock_client([tool_turn, final])
 
@@ -535,16 +640,18 @@ class TestEnrichConceptEndToEnd:
 
     def test_list_concepts_executor_returns_the_prefetched_catalogue(self) -> None:
         key = _product_key()
-        other = ConceptKey(rel_path="topics/gdpr.md", concept_type="topic", scope_tag="gdpr")
         source = _FakeSource(
-            catalogue=[key, other], raw_by_path={key.rel_path: _product_raw()}
+            catalogue=_catalogue_with_gdpr(key), raw_by_path={key.rel_path: _product_raw()}
         )
         list_call = ToolUseBlock(
             type="tool_use", id="toolu_1", name="list_concepts", input={}
         )
         tool_turn = _MockMessage([list_call], stop_reason="tool_use")
+        # list_concepts mints no record anchors — cite a pure BI-9
+        # cross-link (validates via catalogue membership alone).
         final = _MockMessage(
-            [TextBlock(type="text", text=_envelope_json())], stop_reason="end_turn"
+            [TextBlock(type="text", text=_envelope_json(citations=["topics/gdpr.md"]))],
+            stop_reason="end_turn",
         )
         client = _mock_client([tool_turn, final])
 
@@ -581,3 +688,56 @@ class TestEnrichConceptEndToEnd:
 
         with pytest.raises(enrich.Pass1DraftError):
             asyncio.run(_exercise())
+
+    def test_end_to_end_rejects_fabricated_never_issued_anchor(self) -> None:
+        """Checker-fix regression guard, exercised end-to-end: even though
+        the model successfully calls `read_concept_raw` and receives real
+        anchors, if its final `citations` name a DIFFERENT, well-formed but
+        never-minted `canonical://` uri, the whole draft is rejected — a
+        fabricated record anchor is not laundered into a valid draft just
+        because the run also did some real reading."""
+        key = _product_key()
+        source = _FakeSource(
+            catalogue=_catalogue_with_gdpr(key), raw_by_path={key.rel_path: _product_raw()}
+        )
+        fabricated = build_source_document_uri(str(uuid.uuid4()))
+        final = _MockMessage(
+            [TextBlock(type="text", text=_envelope_json(citations=[fabricated]))],
+            stop_reason="end_turn",
+        )
+        client = _mock_client([_read_concept_raw_tool_turn(key), final])
+
+        async def _exercise():
+            with patch(
+                "scripts.cocoindex_pipeline.producer.enrich.anthropic.AsyncAnthropic",
+                return_value=client,
+            ):
+                await enrich.enrich_concept(key, source)
+
+        with pytest.raises(enrich.Pass1DraftError, match="never minted"):
+            asyncio.run(_exercise())
+
+    def test_end_to_end_accepts_anchor_actually_minted_from_read_concept_raw(
+        self,
+    ) -> None:
+        """Positive counterpart: a citation that IS the exact anchor
+        `read_concept_raw` minted for this concept's real backing row is
+        accepted end-to-end (a tool-result-minted anchor still passes)."""
+        key = _product_key()
+        source = _FakeSource(catalogue=[key], raw_by_path={key.rel_path: _product_raw()})
+        minted = build_source_document_uri(_SD_ID)
+        final = _MockMessage(
+            [TextBlock(type="text", text=_envelope_json(citations=[minted]))],
+            stop_reason="end_turn",
+        )
+        client = _mock_client([_read_concept_raw_tool_turn(key), final])
+
+        async def _exercise():
+            with patch(
+                "scripts.cocoindex_pipeline.producer.enrich.anthropic.AsyncAnthropic",
+                return_value=client,
+            ):
+                return await enrich.enrich_concept(key, source)
+
+        draft = asyncio.run(_exercise())
+        assert f"- {minted}" in draft.body

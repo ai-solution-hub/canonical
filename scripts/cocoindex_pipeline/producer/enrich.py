@@ -28,16 +28,23 @@ mechanically checkable property. The testable proxy it enforces instead:
 (a) the terminal JSON's `citations` array must be non-empty for every draft
 (an empty array is a hard `Pass1DraftError` — a concept with zero citations
 is treated as a producer defect, matching BI-17's "an uncited assertion is a
-producer defect" framing), and (b) every entry in that array must resolve
+producer defect" framing), (b) every entry in that array must resolve
 through the `producer/resource_uri.py` builders — either the BI-6/BI-8
-record-anchor form (`producer.validator.is_valid_concept_resource_uri`) or
-the BI-9 concept cross-link path form (`resource_uri.concept_citation_path`,
-which itself rejects a bare uuid or a `canonical://` uri). Anchors are never
-accepted from the model on trust: `read_concept_raw`'s tool result is the
-ONLY place an anchor string enters the conversation (minted here via the
-resource_uri builders from the row ids the Source adapter actually
-returned), so a validated citation is provably traceable to a real row this
-run actually read.
+record-anchor FORM (`producer.validator.is_valid_concept_resource_uri`) or
+the BI-9 concept cross-link path FORM (`resource_uri.concept_citation_path`,
+which itself rejects a bare uuid or a `canonical://` uri), and (c) — the
+PROVENANCE check, not just the format check — a record-anchor citation must
+be a member of `seen_anchors`, the set of anchors THIS RUN actually minted
+into a `read_concept_raw` tool result (`_annotate_raw_with_anchors` adds
+every anchor it mints), and a concept cross-link citation must be a member
+of `catalogue_paths`, the concept catalogue `list_concepts` offers this run.
+A well-formed but never-issued `canonical://source_documents/<random-uuid>`
+therefore FAILS validation even though it satisfies the format check —
+format alone is not proof of provenance. `read_concept_raw`'s tool result is
+the ONLY place a record-anchor string enters the conversation (minted here
+via the resource_uri builders from the row ids the Source adapter actually
+returned, and recorded into `seen_anchors` at mint time), so a validated
+citation is provably traceable to a real row this run actually read.
 
 **Memoisation (BI-18).** `enrich_concept` is `@coco.fn(memo=True)`, keyed on
 `key: ConceptKey` — the SAME frozen-dataclass memo-key shape
@@ -185,21 +192,28 @@ def _with_resource(row: "Mapping[str, Any]", resource: "str | None") -> "dict[st
     return out
 
 
-def _annotate_raw_with_anchors(key: ConceptKey, raw: ConceptRaw) -> "dict[str, Any]":
+def _annotate_raw_with_anchors(
+    key: ConceptKey, raw: ConceptRaw, seen_anchors: "set[str]"
+) -> "dict[str, Any]":
     """The `read_concept_raw` tool result — `raw`'s rows, with every
     `source_documents`/`reference_items` row carrying its BI-6 per-row
     `canonical://` anchor and a top-level `qa_resource` (BI-8) when `key`
     carries a topic locator. This is the ONLY place a `canonical://` anchor
     or a q_a_pairs query anchor enters the conversation — the model copies
-    these verbatim into its `citations` array rather than inventing them
-    (BI-17 traceability)."""
+    these verbatim into its `citations` array rather than inventing them.
+
+    Every anchor minted here is also recorded into `seen_anchors` — the
+    per-run provenance ledger `_validate_citation` checks membership
+    against, so a citation the model COPIES from this tool result validates,
+    but a well-formed, never-issued anchor the model INVENTS does not
+    (BI-17 — format alone is not proof of provenance)."""
     payload: "dict[str, Any]" = {
         "source_documents": [
-            _with_resource(row, build_source_document_uri(row["id"]))
+            _with_resource(row, _mint(build_source_document_uri(row["id"]), seen_anchors))
             for row in raw.source_documents
         ],
         "reference_items": [
-            _with_resource(row, build_reference_item_uri(row["id"]))
+            _with_resource(row, _mint(build_reference_item_uri(row["id"]), seen_anchors))
             for row in raw.reference_items
         ],
         "q_a_pairs": list(raw.q_a_pairs),
@@ -209,8 +223,17 @@ def _annotate_raw_with_anchors(key: ConceptKey, raw: ConceptRaw) -> "dict[str, A
     }
     qa_resource = _qa_pairs_anchor(key)
     if qa_resource is not None:
-        payload["qa_resource"] = qa_resource
+        payload["qa_resource"] = _mint(qa_resource, seen_anchors)
     return payload
+
+
+def _mint(anchor: str, seen_anchors: "set[str]") -> str:
+    """Record `anchor` into the per-run `seen_anchors` provenance ledger and
+    return it unchanged — every `_annotate_raw_with_anchors` mint site routes
+    through this so no anchor can enter a tool result without also being
+    recorded as "actually minted this run" (BI-17)."""
+    seen_anchors.add(anchor)
+    return anchor
 
 
 # ── Tool executors ───────────────────────────────────────────────────────
@@ -221,12 +244,15 @@ def _build_tool_executors(
     source: Source,
     catalogue: "Sequence[ConceptKey]",
     raw_cache: "dict[str, ConceptRaw]",
+    seen_anchors: "set[str]",
 ) -> "dict[str, Any]":
     """The Pass-1 tool-executor map (`producer/agent_loop.py:ToolExecutor`
     shape) — `read_concept_raw`/`sample_rows` wrap the Source adapter (the
     {132.8} wiring TECH §"The Source adapter" reserves for this Subtask);
     `list_concepts` returns the pre-fetched `catalogue` (no extra Source
-    round-trip per call)."""
+    round-trip per call). `seen_anchors` is the shared per-run provenance
+    ledger `_annotate_raw_with_anchors` mints into — passed through so every
+    `read_concept_raw` call records what it actually returned (BI-17)."""
     catalogue_by_path: "dict[str, ConceptKey]" = {ck.rel_path: ck for ck in catalogue}
     catalogue_by_path.setdefault(key.rel_path, key)
 
@@ -244,7 +270,7 @@ def _build_tool_executors(
         if raw is None:
             raw = await source.read_concept(target)
             raw_cache[target.rel_path] = raw
-        return _annotate_raw_with_anchors(target, raw)
+        return _annotate_raw_with_anchors(target, raw, seen_anchors)
 
     async def _sample_rows(tool_input: "Mapping[str, Any]") -> Any:
         ref = tool_input.get("concept")
@@ -297,10 +323,24 @@ def _extract_terminal_text(message: "anthropic.types.Message") -> str:
     return "".join(parts)
 
 
-def _validate_citation(entry: object) -> str:
+def _validate_citation(
+    entry: object, *, seen_anchors: "set[str]", catalogue_paths: "set[str]"
+) -> str:
     """BI-17 proxy: `entry` must resolve through a `producer/resource_uri.py`
-    builder form — either the BI-6/BI-8 record-anchor form or the BI-9
-    concept-path cross-link form. Raises `Pass1DraftError` otherwise."""
+    builder FORM, AND be provably traceable to something this run actually
+    surfaced to the model — not merely well-formed. Raises `Pass1DraftError`
+    otherwise.
+
+    Two forms, two provenance checks:
+      - a BI-6/BI-8 record-anchor `canonical://` uri must ALSO be a member
+        of `seen_anchors` — the anchors `_annotate_raw_with_anchors` actually
+        minted into a `read_concept_raw` tool result this run. A well-formed
+        but never-issued `canonical://source_documents/<random-uuid>` FAILS
+        here even though it passes the format check.
+      - a BI-9 concept cross-link path must ALSO be a member of
+        `catalogue_paths` — the concept catalogue `list_concepts` offers
+        this run. A well-formed but non-existent concept path FAILS here.
+    """
     if not isinstance(entry, str) or not entry.strip():
         raise Pass1DraftError(
             f"enrich_concept: citation entries must be non-empty strings, got {entry!r}"
@@ -311,14 +351,33 @@ def _validate_citation(entry: object) -> str:
                 f"enrich_concept: citation {entry!r} is not a valid "
                 "canonical:// anchor form (BI-6/BI-8)"
             )
+        if entry not in seen_anchors:
+            raise Pass1DraftError(
+                f"enrich_concept: citation {entry!r} was never minted into a "
+                "read_concept_raw tool result this run — a record anchor "
+                "must be copied from an actual tool result, not invented "
+                "(BI-17 provenance)"
+            )
         return entry
     try:
-        return concept_citation_path(entry)
+        path = concept_citation_path(entry)
     except ValueError as exc:
         raise Pass1DraftError(f"enrich_concept: invalid citation {entry!r}: {exc}") from exc
+    if path not in catalogue_paths:
+        raise Pass1DraftError(
+            f"enrich_concept: citation {path!r} is not in the concept "
+            "catalogue offered via list_concepts this run — a cross-link "
+            "must name a real concept, not an invented one (BI-9 provenance)"
+        )
+    return path
 
 
-def _parse_pass1_response(message: "anthropic.types.Message") -> _Pass1Envelope:
+def _parse_pass1_response(
+    message: "anthropic.types.Message",
+    *,
+    seen_anchors: "set[str]",
+    catalogue_paths: "set[str]",
+) -> _Pass1Envelope:
     text = _strip_code_fence(_extract_terminal_text(message))
     try:
         payload = json.loads(text)
@@ -353,7 +412,10 @@ def _parse_pass1_response(message: "anthropic.types.Message") -> _Pass1Envelope:
             "enrich_concept: 'citations' must be a non-empty list (BI-17 — "
             "an uncited assertion is a producer defect)"
         )
-    validated_citations = tuple(_validate_citation(c) for c in citations)
+    validated_citations = tuple(
+        _validate_citation(c, seen_anchors=seen_anchors, catalogue_paths=catalogue_paths)
+        for c in citations
+    )
 
     return _Pass1Envelope(
         title=title,
@@ -423,7 +485,17 @@ async def enrich_concept(
     own_raw = await source.read_concept(key)
     raw_cache: "dict[str, ConceptRaw]" = {key.rel_path: own_raw}
 
-    tool_executors = _build_tool_executors(key, source, catalogue, raw_cache)
+    # BI-17/BI-9 provenance ledgers (Checker finding — format alone is not
+    # proof of provenance): `seen_anchors` accumulates every canonical://
+    # anchor actually minted into a read_concept_raw tool result this run;
+    # `catalogue_paths` is the concept catalogue list_concepts offers this
+    # run. `_validate_citation` requires membership in the relevant set, not
+    # just a well-formed string.
+    seen_anchors: "set[str]" = set()
+    catalogue_paths: "set[str]" = {ck.rel_path for ck in catalogue}
+    catalogue_paths.add(key.rel_path)
+
+    tool_executors = _build_tool_executors(key, source, catalogue, raw_cache, seen_anchors)
 
     messages: "list[MessageParam]" = [
         {"role": "user", "content": _seed_user_message(key)}
@@ -441,7 +513,9 @@ async def enrich_concept(
         model=model,
     )
 
-    envelope = _parse_pass1_response(response)
+    envelope = _parse_pass1_response(
+        response, seen_anchors=seen_anchors, catalogue_paths=catalogue_paths
+    )
     resource = _resource_from_raw(key, raw_cache[key.rel_path])
     frontmatter = build_concept_frontmatter(
         type=key.concept_type,
