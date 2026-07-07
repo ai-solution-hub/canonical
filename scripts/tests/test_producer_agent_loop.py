@@ -48,6 +48,7 @@ from scripts.cocoindex_pipeline.producer.agent_loop import (  # noqa: E402
     PASS1_TOOLS,
     READ_CONCEPT_RAW_TOOL,
     SAMPLE_ROWS_TOOL,
+    WEB_FETCH_TOOL,
     AgentLoopError,
     run_tool_use_loop,
 )
@@ -145,6 +146,19 @@ class TestToolDefinitions:
         schema = SAMPLE_ROWS_TOOL["input_schema"]
         assert schema["type"] == "object"
         assert set(schema["required"]) == {"concept", "n"}
+
+    def test_web_fetch_tool_schema_requires_url(self) -> None:
+        """{132.9} G-PASS2 — the net-new gated-fetch tool. Kept OUT of
+        `PASS1_TOOLS` (Pass-1 makes zero web calls, BI-15) — `{132.9}`
+        `producer/web_pass.py` composes its own Pass-2 tool list."""
+        assert WEB_FETCH_TOOL["name"] == "fetch_url"
+        schema = WEB_FETCH_TOOL["input_schema"]
+        assert schema["type"] == "object"
+        assert schema["required"] == ["url"]
+        assert "url" in schema["properties"]
+
+    def test_web_fetch_tool_is_not_in_pass1_tools(self) -> None:
+        assert WEB_FETCH_TOOL not in PASS1_TOOLS
 
 
 # ============================================================================
@@ -270,6 +284,122 @@ class TestLoopExecutesToolUseAndAppendsToolResultTurn:
 
         with pytest.raises(AgentLoopError, match="sample_rows"):
             asyncio.run(_exercise())
+
+
+# ============================================================================
+# SOFT-ERROR is_error PROPAGATION (S451 rider, {132.9}) — a `{"error": ...}`
+# dict an executor returns (the soft-error convention `producer/enrich.py`'s
+# `_read_concept_raw`/`_sample_rows` and `producer/web_pass.py`'s
+# `fetch_url` already use for a model-recoverable failure) sets Anthropic's
+# `is_error: true` on the constructed `tool_result` block, so the model
+# treats it as retryable (TECH-ADDENDUM-reference-agents.md `{132.5}`
+# retro-check, agent_loop.py:188-229 — the shipped loop surfaced the dict as
+# ordinary JSON text but never set `is_error`).
+# ============================================================================
+
+
+class TestSoftErrorSetsIsErrorOnToolResult:
+    def test_error_dict_result_sets_is_error_true_on_tool_result_block(
+        self,
+    ) -> None:
+        tool_use_block = ToolUseBlock(
+            type="tool_use",
+            id="toolu_1",
+            name="read_concept_raw",
+            input={"ref": "products/does-not-exist.md"},
+        )
+        tool_turn = _MockMessage([tool_use_block], stop_reason="tool_use")
+        final = _MockMessage(
+            [TextBlock(type="text", text="recovered")], stop_reason="end_turn"
+        )
+        client = _mock_client([tool_turn, final])
+        messages = _seed_messages()
+
+        async def _soft_error_executor(_tool_input: Any) -> dict[str, Any]:
+            return {"error": "unknown concept ref"}
+
+        async def _exercise() -> Any:
+            return await run_tool_use_loop(
+                client=client,
+                messages=messages,
+                tools=PASS1_TOOLS,
+                tool_executors={"read_concept_raw": _soft_error_executor},
+                system=[{"type": "text", "text": "system prompt"}],
+                extractor_name="enrich_concept",
+                max_tokens=4096,
+            )
+
+        asyncio.run(_exercise())
+
+        tool_result = messages[2]["content"][0]
+        assert tool_result["is_error"] is True
+        assert "unknown concept ref" in tool_result["content"]
+
+    def test_success_dict_result_does_not_set_is_error(self) -> None:
+        tool_use_block = ToolUseBlock(
+            type="tool_use",
+            id="toolu_1",
+            name="read_concept_raw",
+            input={"ref": "products/lms.md"},
+        )
+        tool_turn = _MockMessage([tool_use_block], stop_reason="tool_use")
+        final = _MockMessage(
+            [TextBlock(type="text", text="grounded body")], stop_reason="end_turn"
+        )
+        client = _mock_client([tool_turn, final])
+        messages = _seed_messages()
+
+        async def _ok_executor(_tool_input: Any) -> dict[str, Any]:
+            return {"rows": ["doc-1"]}
+
+        async def _exercise() -> Any:
+            return await run_tool_use_loop(
+                client=client,
+                messages=messages,
+                tools=PASS1_TOOLS,
+                tool_executors={"read_concept_raw": _ok_executor},
+                system=[{"type": "text", "text": "system prompt"}],
+                extractor_name="enrich_concept",
+                max_tokens=4096,
+            )
+
+        asyncio.run(_exercise())
+
+        tool_result = messages[2]["content"][0]
+        assert "is_error" not in tool_result
+
+    def test_string_result_never_sets_is_error(self) -> None:
+        """A plain-string executor return (not a soft-error dict) is
+        unaffected — `is_error` detection only fires for a `Mapping`
+        carrying an `'error'` key, never a bare string content."""
+        tool_use_block = ToolUseBlock(
+            type="tool_use", id="toolu_1", name="sample_rows", input={"n": 3}
+        )
+        tool_turn = _MockMessage([tool_use_block], stop_reason="tool_use")
+        final = _MockMessage(
+            [TextBlock(type="text", text="done")], stop_reason="end_turn"
+        )
+        client = _mock_client([tool_turn, final])
+        messages = _seed_messages()
+
+        async def _string_executor(_tool_input: Any) -> str:
+            return "error: something went wrong"  # substring 'error' — NOT a dict
+
+        async def _exercise() -> Any:
+            return await run_tool_use_loop(
+                client=client,
+                messages=messages,
+                tools=PASS1_TOOLS,
+                tool_executors={"sample_rows": _string_executor},
+                system=[{"type": "text", "text": "system prompt"}],
+                extractor_name="enrich_concept",
+                max_tokens=4096,
+            )
+
+        asyncio.run(_exercise())
+
+        tool_result = messages[2]["content"][0]
+        assert "is_error" not in tool_result
 
 
 # ============================================================================

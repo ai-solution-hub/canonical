@@ -9,8 +9,12 @@ enrich the client-owned OKF concept bundle. See
 Modules: `resource_uri` (BI-6/7/8/9/10 `canonical://` builder), `frontmatter`
 (BI-12 frontmatter emitter), `validator` (BI-13 concept-frontmatter
 validator gate — `{132.7}` G-VALIDATE), `agent_loop` (Anthropic tool-use
-loop port), `prompts` (Pass-1 instruction prompt — `{132.8}` G-PASS1),
-`enrich` (`enrich_concept` — Pass-1 concept drafting from L-records ONLY,
-`{132.8}` G-PASS1). No barrel re-exports here — import each module directly
-(project convention, `CLAUDE.md` §Conventions).
+loop port + Pass-1/Pass-2 tool schemas — `{132.5}` G-LOOP + `{132.9}`
+G-PASS2's `WEB_FETCH_TOOL`), `prompts` (Pass-1/Pass-2 instruction prompts —
+`{132.8}` G-PASS1 + `{132.9}` G-PASS2), `enrich` (`enrich_concept` —
+Pass-1 concept drafting from L-records ONLY, `{132.8}` G-PASS1), `web_pass`
+(`run_web_pass` — Pass-2 gated enrichment from the client's own
+authoritative sources ONLY via a net-new host-allowlist/depth-limit/
+path-filter gate, `{132.9}` G-PASS2). No barrel re-exports here — import
+each module directly (project convention, `CLAUDE.md` §Conventions).
 """

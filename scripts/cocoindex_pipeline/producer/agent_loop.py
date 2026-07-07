@@ -24,12 +24,36 @@ reimplementing them:
 
 Scope (per the {132.5} brief): the GENERIC loop + the Pass-1 tool SCHEMAS
 only (`READ_CONCEPT_RAW_TOOL`, `SAMPLE_ROWS_TOOL` — the Source-adapter
-tools). `WEB_FETCH_TOOL` belongs to Pass-2 ({132.9} G-PASS2), not here.
-Tool executors are taken as INJECTABLE callables (`ToolExecutor`) — wiring
-this loop's tool names to the real L-records Source-adapter methods
+tools). Tool executors are taken as INJECTABLE callables (`ToolExecutor`) —
+wiring this loop's tool names to the real L-records Source-adapter methods
 (`read_concept_raw` → `LRecordsSource.read_concept`, `sample_rows` →
 `LRecordsSource.sample_rows`) happens in `enrich_concept` ({132.8}), not
 in this module.
+
+**`WEB_FETCH_TOOL` ({132.9} G-PASS2).** The net-new Pass-2 gated-fetch tool
+SCHEMA lives here (alongside the Pass-1 schemas, same `ToolParam`
+empirical-verification posture) — kept OUT of `PASS1_TOOLS` (BI-15: Pass-1
+makes zero web calls) exactly as `LIST_CONCEPTS_TOOL` is; `producer/
+web_pass.py` composes its own Pass-2 tool list `[READ_CONCEPT_RAW_TOOL,
+SAMPLE_ROWS_TOOL, LIST_CONCEPTS_TOOL, WEB_FETCH_TOOL]` at its `run_web_pass`
+call site, mirroring `{132.8}`'s `_PASS1_TOOLS_WITH_CATALOGUE` composition
+pattern. The host-allowlist/depth-limit/path-filter GATE itself is
+`web_pass.py`'s concern, not this module's — this schema only describes the
+tool's shape to the model.
+
+**Soft-error `is_error` propagation (S451 rider, {132.9}).** A tool
+executor's soft-error convention (a `Mapping` result carrying an `'error'`
+key — `producer/enrich.py`'s `_read_concept_raw`/`_sample_rows` unknown-ref
+recovery, and `web_pass.py`'s `fetch_url` host/depth/path-filter refusal)
+now sets Anthropic's `is_error: true` on the constructed `tool_result`
+block, so the model treats it as retryable rather than as an ordinary
+result (TECH-ADDENDUM-reference-agents.md `{132.5}` retro-check,
+agent_loop.py:188-229 — the loop already surfaced the dict as JSON text via
+`_stringify_tool_result` but never set `is_error`, the one gap that finding
+named). A genuine executor EXCEPTION still propagates unchanged (kills the
+loop, per this module's "escalate, don't paper over" posture below) — only
+a `Mapping`-with-`'error'`-key RETURN VALUE is treated as a soft, model-
+recoverable failure.
 """
 
 from __future__ import annotations
@@ -141,6 +165,42 @@ LIST_CONCEPTS_TOOL: ToolParam = {
     },
 }
 
+# {132.9} G-PASS2 — the net-new gated-fetch tool (BI-16). Kept OUT of
+# `PASS1_TOOLS` for the same reason as `LIST_CONCEPTS_TOOL`: Pass-1 makes
+# ZERO web calls (BI-15). `producer/web_pass.py`'s `_check_gate` (host-
+# allowlist + depth-limit + path-filter) refuses any URL outside the
+# client's own gated corpus BEFORE any fetch — the description below tells
+# the model that refusal is a normal, retryable outcome (an `is_error`
+# `tool_result` per the module docstring's soft-error section), not a
+# reason to give up on Pass-2 entirely.
+WEB_FETCH_TOOL: ToolParam = {
+    "name": "fetch_url",
+    "description": (
+        "Fetch a page from the client's OWN gated authoritative-source "
+        "corpus — Pass-2 ONLY, never the open web. The URL's host must be "
+        "on the Pass-2 host-allowlist and its path within the configured "
+        "depth-limit and path-filter; a URL outside the gate is REFUSED "
+        "(retry with a different, in-corpus URL rather than guessing). A "
+        "successful fetch returns the page's distilled text content plus a "
+        "'resource' canonical://reference_items/<uuid> anchor — copy it "
+        "verbatim into your 'citations' array for any fact you draw from "
+        "it; never invent this anchor yourself."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "url": {
+                "type": "string",
+                "description": (
+                    "The absolute http(s) URL to fetch, drawn from the "
+                    "client's own authoritative site-structure corpus."
+                ),
+            },
+        },
+        "required": ["url"],
+    },
+}
+
 
 # ---------------------------------------------------------------------------
 # Injectable tool-executor contract
@@ -173,6 +233,18 @@ def _stringify_tool_result(result: Any) -> str:
     if isinstance(result, str):
         return result
     return json.dumps(result, default=str)
+
+
+def _tool_result_is_error(result: Any) -> bool:
+    """S451 rider — True iff `result` is the soft-error shape a tool
+    executor returns for a MODEL-RECOVERABLE failure: a `Mapping` carrying
+    an `'error'` key. `producer/enrich.py`'s `_read_concept_raw`/
+    `_sample_rows` (unknown ref) and `producer/web_pass.py`'s `fetch_url`
+    (host/depth/path-filter refusal) both already return this shape.
+    Detected on the RAW pre-`_stringify_tool_result` value (a `Mapping`
+    check), not the stringified content — a plain string result (even one
+    that happens to contain the substring "error") never sets `is_error`."""
+    return isinstance(result, Mapping) and "error" in result
 
 
 async def run_tool_use_loop(
@@ -209,14 +281,18 @@ async def run_tool_use_loop(
       4. Otherwise append the assistant `tool_use` turn, execute every
          `tool_use` content block via its registered `tool_executors`
          callable, and append a user turn carrying one `tool_result` block
-         per executed tool call — then repeat.
+         per executed tool call (`is_error: true` set when the executor
+         returned a soft-error `Mapping` — see `_tool_result_is_error`) —
+         then repeat.
 
     Raises `AgentLoopError` if a `tool_use` block names a tool with no
-    registered executor. Tool-executor exceptions propagate (no silent
-    is_error swallowing — matches the KH "escalate, don't paper over"
-    posture; a raised exception here means the {132.8} caller's Source
-    adapter genuinely failed and should not retry as if it were a normal
-    tool_result).
+    registered executor. Tool-executor EXCEPTIONS still propagate (matches
+    the KH "escalate, don't paper over" posture; a raised exception here
+    means the caller's Source adapter / gated fetch genuinely failed in an
+    unrecoverable way and should not retry as if it were a normal
+    tool_result) — only a `Mapping`-with-`'error'`-key RETURN VALUE is
+    treated as a soft, model-recoverable failure and gets `is_error: true`
+    on its `tool_result` block (S451 rider).
     """
     while True:
         resp = await _anthropic_retry(
@@ -246,12 +322,13 @@ async def run_tool_use_loop(
                     f"tool_use block name={block.name!r} (id={block.id})"
                 )
             result = await executor(block.input)
-            tool_results.append(
-                {
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": _stringify_tool_result(result),
-                }
-            )
+            tool_result: ToolResultBlockParam = {
+                "type": "tool_result",
+                "tool_use_id": block.id,
+                "content": _stringify_tool_result(result),
+            }
+            if _tool_result_is_error(result):
+                tool_result["is_error"] = True
+            tool_results.append(tool_result)
 
         messages.append({"role": "user", "content": tool_results})
