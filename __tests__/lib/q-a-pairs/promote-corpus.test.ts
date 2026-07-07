@@ -701,8 +701,14 @@ function makeRetirementCandidate(
         ? overrides.source_document_id
         : UUID_SOURCE_ITEM,
     promoted_to_pair_id: pairId,
-    // Shape returned by PostgREST embed: q_a_pairs!promoted_to_pair_id
-    'q_a_pairs!promoted_to_pair_id': {
+    // Shape returned by PostgREST embed: keyed by the RESOURCE/table name
+    // (`q_a_pairs`) — the `!promoted_to_pair_id` FK-disambiguation hint used
+    // in the select string is NOT part of the response key (no `alias:`
+    // prefix was used). Confirmed empirically against staging (S450
+    // integration-red root cause, {59.24} fix): the prior
+    // `q_a_pairs!promoted_to_pair_id` fixture key matched the SUT's
+    // now-fixed bug rather than real PostgREST wire behaviour.
+    q_a_pairs: {
       id: pairId,
       publication_status: 'published',
     },

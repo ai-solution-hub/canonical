@@ -860,8 +860,14 @@ async function retireSupersededPairs(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (e: any) => ({
             ...e,
-            // Normalise to the same shape as the embed path
-            'q_a_pairs!promoted_to_pair_id': {
+            // Normalise to the same shape as the embed path (bugfix, S450
+            // integration reds): PostgREST keys an embedded resource by the
+            // RESOURCE/table name (`q_a_pairs`), never by the `!fk_hint`
+            // qualifier used in the select string to disambiguate the join —
+            // confirmed empirically against staging (the hint-qualified key
+            // never matched a real response, so Strategy A's filter always
+            // saw `embeddedPair == null` and returned zero candidates).
+            q_a_pairs: {
               id: e.promoted_to_pair_id,
               publication_status: 'published',
             },
@@ -881,7 +887,13 @@ async function retireSupersededPairs(
       candidates = rawRows.filter(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (e: any) => {
-          const embeddedPair = e['q_a_pairs!promoted_to_pair_id'];
+          // Bugfix (S450 integration reds): PostgREST embeds this resource
+          // under the plain table name `q_a_pairs` — the `!promoted_to_pair_id`
+          // hint in the select string disambiguates the FK join but is NOT
+          // part of the response key (there is no `alias:` before the hint).
+          // The prior `e['q_a_pairs!promoted_to_pair_id']` lookup always
+          // returned undefined, so Strategy A never found a candidate.
+          const embeddedPair = e['q_a_pairs'];
           return (
             embeddedPair != null &&
             embeddedPair.publication_status === 'published'
