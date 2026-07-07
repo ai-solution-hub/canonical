@@ -171,6 +171,39 @@ ON CONFLICT (key) DO UPDATE SET
   provenance                   = EXCLUDED.provenance,
   applicable_application_types = EXCLUDED.applicable_application_types;
 
+-- 2·0c. Core procurement_vehicles CV (the three-value durable ontology).
+-- Same squash-fidelity gap as §2·0/§2·0b: the pre-squash seed (sub-task 9.2 of
+-- 20260520120828_t2_combined_pr_intel_shape_b_form_type_split) was FOLDED INTO the
+-- 20260617130000 squash as SCHEMA-only — the squash CREATEd public.procurement_vehicles
+-- but DROPPED its core DATA rows. On a fresh/reset DB or a freshly-provisioned branch
+-- the table is therefore EMPTY, so any FK to procurement_vehicles.key breaks (e.g. the
+-- procurement_vehicle_instances rows in §2·0d below). Re-seed all three client-agnostic
+-- core rows here (provenance 'core', per ontology §118), mirroring the live
+-- Platform/client DBs. DO UPDATE so a stale label/provenance self-corrects on re-seed.
+INSERT INTO public.procurement_vehicles (key, label, provenance)
+VALUES
+  ('framework',           'Framework',                        'core'),
+  ('dps',                 'DPS (Dynamic Purchasing System)', 'core'),
+  ('dynamic_procurement', 'Dynamic Procurement',              'core')
+ON CONFLICT (key) DO UPDATE SET
+  label      = EXCLUDED.label,
+  provenance = EXCLUDED.provenance;
+
+-- 2·0d. Core procurement_vehicle_instances CV (the g_cloud + dos instance pattern).
+-- Same squash-fidelity gap as §2·0c: the pre-squash seed (sub-task 9.3 of the same
+-- migration) was FOLDED INTO the squash as SCHEMA-only, dropping its 2 instance rows.
+-- Re-seed here (provenance 'core', per ontology §119); the vehicle_key FK resolves
+-- because §2·0c above runs first in this same file. DO UPDATE so a stale
+-- label/vehicle_key self-corrects on re-seed.
+INSERT INTO public.procurement_vehicle_instances (key, label, vehicle_key, provenance)
+VALUES
+  ('g_cloud', 'G-Cloud',                                'framework', 'core'),
+  ('dos',     'DOS (Digital Outcomes and Specialists)', 'framework', 'core')
+ON CONFLICT (key) DO UPDATE SET
+  label       = EXCLUDED.label,
+  vehicle_key = EXCLUDED.vehicle_key,
+  provenance  = EXCLUDED.provenance;
+
 -- 2a. Test workspace (required by feed_prompts, feed_sources, and E2E tests)
 -- NB: `workspaces.type` (was 'bid') was DROPPED in 20260520120828
 -- (t2_combined_pr_intel_shape_b_form_type_split) and replaced by a NOT-NULL
