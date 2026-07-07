@@ -398,7 +398,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
     {
       title: 'Create Content Item',
       description:
-        'Create a new content item in the knowledge base. Content should be in markdown format (the canonical storage format). Requires editor or admin role. The item will be automatically embedded for search unless created as a draft. Set publication_status to "draft" to create items that are excluded from search and visible only in the review queue\'s Drafts filter — useful for batch content creation that needs review before going live. Use batch_tag to group related draft items (e.g. "reorient-2026-03"). For provenance, supply one of the typed fields source_url (for URL-derived content), source_file (for file-derived content), or source_document_id (FK to source_documents.id) — see ep2-markdown-ui-ingest-spec.md §7.3 for parity with the markdown UI ingest path. Choose content_type carefully: use q_a_pair for question-answer pairs, case_study for project examples, policy for governance documents, certification for accreditations, capability for service descriptions. Use the kb://taxonomy resource to see valid domain and subtopic values.',
+        'Create a new content item in the knowledge base. Content should be in markdown format (the canonical storage format). Requires editor or admin role. The item will be automatically embedded for search unless created as a draft. Set publication_status to "draft" to create items that are excluded from search and visible only in the review queue\'s Drafts filter — useful for batch content creation that needs review before going live. Use batch_tag to group related draft items (e.g. "reorient-2026-03"). For provenance, supply one of the typed fields source_url (for URL-derived content), source_file (for file-derived content), or source_document_id (FK to source_documents.id) — see ep2-markdown-ui-ingest-spec.md §7.3 for parity with the markdown UI ingest path. Choose content_type carefully — it is a closed 7-value set (article, blog, pdf, note, research, document, other; ID-133 BI-3 stay-set): use article/blog/pdf/research for their literal document forms, note for informal/internal write-ups, document for other structured documents (contracts, reports, specs) that do not fit the other six, and other only when nothing else fits. Q&A pairs, case studies, policies, certifications, compliance/methodology write-ups, capability descriptions, and product descriptions are no longer content_type values on this field — they are captured elsewhere in the ontology (q_a_pair has its own extraction class; the rest are L-concept type discriminators). Use the kb://taxonomy resource to see valid domain and subtopic values.',
       inputSchema: {
         title: z.string().min(1).max(500).describe('Title of the content item'),
         content: z
@@ -406,6 +406,18 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           .min(1)
           .max(500000)
           .describe('The content text in markdown format'),
+        // ID-133 BI-3 (S451 owner-ratified freeze, cd19c500): content_type
+        // is the 7-value source_documents editorial-shape stay-set —
+        // q_a_pair migrated out to its own Layer-5 extraction class;
+        // case_study/policy/certification/compliance/methodology/
+        // capability/product_description moved to the L-concept type
+        // discriminators (37-concept-type.md). Kept in parity with
+        // VALID_CONTENT_TYPES (lib/validation/schemas.ts) by
+        // `__tests__/mcp/create_content_item.test.ts`'s content_type enum
+        // parity coverage — this is the 4th enforcement surface (alongside
+        // lib/validation/schemas.ts, lib/validation/ingest-schemas.ts,
+        // lib/extraction/content-type-detect.ts, lib/taxonomy/taxonomy.ts)
+        // plus scripts/cocoindex_pipeline/prompts.py on the Python side.
         content_type: z
           .enum([
             'article',
@@ -413,15 +425,8 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             'pdf',
             'note',
             'research',
+            'document',
             'other',
-            'q_a_pair',
-            'case_study',
-            'policy',
-            'certification',
-            'compliance',
-            'methodology',
-            'capability',
-            'product_description',
           ])
           .describe('Type of content'),
         primary_domain: z

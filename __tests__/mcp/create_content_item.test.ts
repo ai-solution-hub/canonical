@@ -25,6 +25,7 @@
  *     content-create-dedup.test.ts for the dedup-retirement coverage.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { VALID_CONTENT_TYPES } from '@/lib/validation/schemas';
 import {
   createMockMcpServer,
   type MockToolHandler,
@@ -234,7 +235,7 @@ describe('MCP create_content_item — URL branch routes via reference_ingest', (
       {
         title: 'Source URL Item',
         content: LONG_CONTENT,
-        content_type: 'capability',
+        content_type: 'article',
         source_url: 'https://example.com/docs/page',
       },
       { authInfo: MOCK_AUTH_INFO },
@@ -254,7 +255,7 @@ describe('MCP create_content_item — URL branch routes via reference_ingest', (
       {
         title: 'Source URL Item',
         content: LONG_CONTENT,
-        content_type: 'capability',
+        content_type: 'article',
         source_url: 'https://example.com/docs/page',
       },
       { authInfo: MOCK_AUTH_INFO },
@@ -294,7 +295,7 @@ describe('MCP create_content_item — URL branch routes via reference_ingest', (
       {
         title: 'Source URL Item',
         content: LONG_CONTENT,
-        content_type: 'capability',
+        content_type: 'article',
         source_url: 'https://example.com/docs/page',
       },
       { authInfo: MOCK_AUTH_INFO },
@@ -337,7 +338,7 @@ describe('MCP create_content_item — source-less branch stages a file via stage
       {
         title: 'Source-less Create',
         content: LONG_CONTENT,
-        content_type: 'capability',
+        content_type: 'article',
       },
       { authInfo: MOCK_AUTH_INFO },
     );
@@ -364,7 +365,7 @@ describe('MCP create_content_item — source-less branch stages a file via stage
       {
         title: 'Source-less Create',
         content: LONG_CONTENT,
-        content_type: 'capability',
+        content_type: 'article',
       },
       { authInfo: MOCK_AUTH_INFO },
     );
@@ -391,7 +392,7 @@ describe('MCP create_content_item — source-less branch stages a file via stage
       {
         title: 'Source-less Create',
         content: LONG_CONTENT,
-        content_type: 'capability',
+        content_type: 'article',
       },
       { authInfo: MOCK_AUTH_INFO },
     );
@@ -416,7 +417,7 @@ describe('MCP create_content_item — source-less branch stages a file via stage
       {
         title: 'File Provenance',
         content: LONG_CONTENT,
-        content_type: 'capability',
+        content_type: 'article',
         source_file: 'docs/handbook/section-3.md',
       },
       { authInfo: MOCK_AUTH_INFO },
@@ -455,7 +456,7 @@ describe('MCP create_content_item — preserved cross-cutting semantics', () => 
       {
         title: 'Denied Caller',
         content: LONG_CONTENT,
-        content_type: 'capability',
+        content_type: 'article',
       },
       { authInfo: MOCK_AUTH_INFO },
     );
@@ -476,7 +477,7 @@ describe('MCP create_content_item — preserved cross-cutting semantics', () => 
       {
         title: 'Audit Source-less',
         content: LONG_CONTENT,
-        content_type: 'capability',
+        content_type: 'article',
         batch_tag: 'agent-2026-06',
       },
       { authInfo: MOCK_AUTH_INFO },
@@ -487,5 +488,33 @@ describe('MCP create_content_item — preserved cross-cutting semantics', () => 
     expect(call.pipelineName).toBe('mcp_create_content_item');
     expect(call.status).toBe('completed');
     expect(call.result).toMatchObject({ batch_tag: 'agent-2026-06' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// content_type enum parity (ID-133 BI-3 stay-set) — 4th enforcement surface.
+// content.ts hardcodes its own content_type z.enum (an MCP tool input
+// schema, decoupled from lib/validation/schemas.ts by design) rather than
+// importing VALID_CONTENT_TYPES, which is exactly how it silently drifted
+// to a 14-value list (8 BI-3-retired values, missing `document`) while the
+// other enforcement surfaces (lib/validation/schemas.ts,
+// lib/validation/ingest-schemas.ts, lib/extraction/content-type-detect.ts,
+// lib/taxonomy/taxonomy.ts) + scripts/cocoindex_pipeline/prompts.py stayed
+// correct. This test pins the two lists together so a 4th drift fails CI
+// instead of shipping silently.
+// ---------------------------------------------------------------------------
+describe('MCP create_content_item — content_type enum parity (ID-133 BI-3 stay-set)', () => {
+  it('input schema content_type enum matches the live BI-3 stay-set exactly', async () => {
+    const mockServer = createMockMcpServer();
+    await registerContentTools(mockServer.server);
+    const tool = mockServer.getTool('create_content_item');
+    if (!tool) throw new Error('create_content_item not registered');
+
+    const schema = tool.config.inputSchema as {
+      content_type: { options: string[] };
+    };
+    expect([...schema.content_type.options].sort()).toEqual(
+      [...VALID_CONTENT_TYPES].sort(),
+    );
   });
 });

@@ -171,7 +171,7 @@ describe('MCP create_content_item — dedup retirement (ID-131.15)', () => {
       {
         title: 'New Item',
         content: LONG_CONTENT,
-        content_type: 'capability',
+        content_type: 'article',
       },
       { authInfo: MOCK_AUTH_INFO },
     );
@@ -195,7 +195,7 @@ describe('MCP create_content_item — dedup retirement (ID-131.15)', () => {
       {
         title: 'Admin Legacy Field',
         content: LONG_CONTENT,
-        content_type: 'capability',
+        content_type: 'article',
         skip_dedup: true,
       },
       { authInfo: MOCK_AUTH_INFO },
@@ -216,7 +216,7 @@ describe('MCP create_content_item — dedup retirement (ID-131.15)', () => {
       {
         title: 'Editor Legacy Field',
         content: LONG_CONTENT,
-        content_type: 'capability',
+        content_type: 'article',
         skip_dedup: true,
       },
       { authInfo: MOCK_AUTH_INFO },
