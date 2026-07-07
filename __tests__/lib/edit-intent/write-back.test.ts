@@ -229,6 +229,36 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
     );
   });
 
+  it('bl-401 — an "Object not found" download error (a missing object in an EXISTING bucket) throws as-is, NOT mistaken for the bucket-unavailable idle-mode fallback', async () => {
+    configureResolution(mockSupabase, {
+      storagePath: REL_PATH,
+    });
+    // Distinct from the "Bucket not found" idle-mode-equivalent case above:
+    // the bucket itself exists, but this specific object key is missing — a
+    // genuine cross-store anomaly (isBucketNotFoundError's regex must NOT
+    // match this message).
+    bucket(mockSupabase).download.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'Object not found' },
+    });
+    const applyDbLeg = vi.fn().mockResolvedValue(undefined);
+
+    await expect(
+      writeBackFileFirst({
+        supabase: client(),
+        contentItemId: CONTENT_ITEM_ID,
+        newContent: NEW_BYTES,
+        applyDbLeg,
+      }),
+    ).rejects.not.toThrow(CorpusBucketUnavailableError);
+
+    // The anomaly aborts BEFORE the DB leg — it must NOT be silently
+    // swallowed into the bucket-unavailable DB-only fallback (no PUT, no
+    // DB write, same as any other genuine Storage failure).
+    expect(applyDbLeg).not.toHaveBeenCalled();
+    expect(bucket(mockSupabase).upload).not.toHaveBeenCalled();
+  });
+
   it('PROOF 2 — Storage PUT failure aborts BEFORE the DB write (DB untouched, one failure state)', async () => {
     configureResolution(mockSupabase, {
       storagePath: REL_PATH,
