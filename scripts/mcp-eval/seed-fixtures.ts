@@ -2,15 +2,34 @@
 /**
  * Seed deterministic MCP evaluation Q&A fixtures.
  *
- * These rows are persistent staging fixtures, not per-run test artifacts. They
- * are identified by `metadata.mcp_eval_seed = true` and are intentionally not
- * removed by MCP eval cleanup. The eval matrix consumes them after this script
- * runs once before L1/L3/L4 fan-out.
+ * These rows are persistent staging fixtures, not per-run test artifacts.
+ * They are identified by their fixed, deterministic `id`s
+ * (MCP_EVAL_SEED_ITEMS) and are intentionally not removed by MCP eval
+ * cleanup. The eval matrix consumes them after this script runs once before
+ * L1/L3/L4 fan-out.
+ *
+ * ID-139.1 (M6 re-point): content_items/content_history were dropped
+ * (20260706110000_id131_drops.sql). Fixture storage moves onto the
+ * surviving model — q_a_pairs (question/answer text) + record_embeddings
+ * (polymorphic vector store, owner_kind='q_a_pair') + record_lifecycle
+ * (governance/domain facet) — mirroring the re-point precedents in
+ * lib/domains/procurement/form-templating/template-coverage.ts
+ * (fetchContentForMatching) and lib/q-a-pairs/promote-corpus.ts
+ * (embedAndPublish). q_a_pairs carries no metadata/title/content/keywords/
+ * layer/freshness/lifecycle_type columns — those content_items-era fields
+ * have no home in the new model and are dropped from the write path (the
+ * deterministic seed `id`s are the idempotency key instead of a
+ * metadata.mcp_eval_seed flag); `domain` is the one classification field
+ * record_lifecycle preserves for a q_a_pair (BI-18/19 — subtopic has no
+ * facet equivalent, explicit drift not fabricated). record_lifecycle's
+ * freshness axis (freshness/lifecycle_type/expiry_date/review_cadence_days)
+ * is source_document-only (record_lifecycle_freshness_axis_chk) so is never
+ * written for a q_a_pair owner.
  */
 import { type SupabaseClient } from '@supabase/supabase-js';
 
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
-import type { Database, Json } from '@/supabase/types/database.types';
+import type { Database } from '@/supabase/types/database.types';
 import {
   generateEmbedding,
   getEmbeddingModel,
@@ -22,17 +41,14 @@ import {
   MCP_EVAL_SEED_GUIDE_SECTIONS,
   MCP_EVAL_SEED_GUIDE_SLUG,
   MCP_EVAL_SEED_ITEMS,
-  MCP_EVAL_SEED_METADATA,
-  MCP_EVAL_SEED_METADATA_FLAG,
   MCP_EVAL_SEED_TITLE_PREFIX,
-  MCP_EVAL_SEED_VERSION,
   type McpEvalSeedItem,
 } from './seed-data.js';
 
-interface ExistingSeedRow {
-  id: string;
+/** A previously-seeded record_embeddings row for a q_a_pair owner. */
+interface ExistingEmbeddingRow {
+  owner_id: string;
   embedding: string | number[] | null;
-  metadata: Record<string, unknown> | null;
 }
 
 function getRequiredEnv(name: string): string {
@@ -45,22 +61,6 @@ function getRequiredEnv(name: string): string {
 
 function titleForSeed(item: McpEvalSeedItem): string {
   return `${MCP_EVAL_SEED_TITLE_PREFIX} ${item.question}`;
-}
-
-function contentForSeed(item: McpEvalSeedItem): string {
-  return [
-    `Question: ${item.question}`,
-    '',
-    `Standard answer: ${item.answerStandard}`,
-    '',
-    `Advanced answer: ${item.answerAdvanced ?? item.answerStandard}`,
-    '',
-    `Domains: ${item.primaryDomain}/${item.primarySubtopic}` +
-      (item.secondaryDomain
-        ? `; ${item.secondaryDomain}/${item.secondarySubtopic ?? 'general'}`
-        : ''),
-    `Keywords: ${item.keywords.join(', ')}`,
-  ].join('\n');
 }
 
 function embeddingInputForSeed(item: McpEvalSeedItem): string {
@@ -79,9 +79,17 @@ function embeddingInputForSeed(item: McpEvalSeedItem): string {
     .slice(0, MAX_EMBEDDING_CHARS);
 }
 
-function needsEmbedding(existing: ExistingSeedRow | null): boolean {
-  if (!existing?.embedding) return true;
-  return existing.metadata?.mcp_eval_seed_version !== MCP_EVAL_SEED_VERSION;
+/**
+ * record_embeddings carries no seed-version marker (unlike the retired
+ * content_items.metadata.mcp_eval_seed_version) — the only signal available
+ * post-M6 is presence/absence of a row for this owner+model. A content edit
+ * to MCP_EVAL_SEED_ITEMS therefore now requires deleting the stale
+ * record_embeddings row (or bumping AI_EMBEDDING_MODEL) to force a
+ * regeneration; this is a real, accepted behaviour narrowing versus the
+ * dropped content_items version-comparison — see the module header.
+ */
+function needsEmbedding(existing: ExistingEmbeddingRow | null): boolean {
+  return !existing?.embedding;
 }
 
 async function seedGuideFixture(
@@ -160,20 +168,26 @@ async function main(): Promise<void> {
   console.log(`  ✓ guide:${MCP_EVAL_SEED_GUIDE_SLUG}`);
 
   for (const item of MCP_EVAL_SEED_ITEMS) {
+    // Existence/reuse check moves onto record_embeddings (the sole vector
+    // store post-M6) keyed by (owner_kind, owner_id, model) — see module
+    // header.
     const { data: existing, error: existingError } = await supabase
-      .from('content_items')
-      .select('id, embedding, metadata')
-      .eq('id', item.id)
+      .from('record_embeddings')
+      .select('owner_id, embedding')
+      .eq('owner_kind', 'q_a_pair')
+      .eq('owner_id', item.id)
+      .eq('model', embeddingModel)
       .maybeSingle();
 
     if (existingError) {
       throw new Error(
-        `Failed to inspect existing seed item ${item.key}: ${existingError.message}`,
+        `Failed to inspect existing seed embedding ${item.key}: ${existingError.message}`,
       );
     }
 
-    let embedding = (existing as ExistingSeedRow | null)?.embedding ?? null;
-    if (needsEmbedding(existing as ExistingSeedRow | null)) {
+    let embedding =
+      (existing as ExistingEmbeddingRow | null)?.embedding ?? null;
+    if (needsEmbedding(existing as ExistingEmbeddingRow | null)) {
       embedding = JSON.stringify(
         await generateEmbedding(embeddingInputForSeed(item)),
       );
@@ -184,54 +198,73 @@ async function main(): Promise<void> {
         typeof embedding === 'string' ? embedding : JSON.stringify(embedding);
     }
 
-    const title = titleForSeed(item);
-    const content = contentForSeed(item);
-    const isPresent = (v: string | undefined): v is string => Boolean(v);
-    const metadata: Json = {
-      ...MCP_EVAL_SEED_METADATA,
-      mcp_eval_seed_key: item.key,
-      mcp_eval_seed_role: item.role ?? null,
-      domains: [item.primaryDomain, item.secondaryDomain].filter(isPresent),
-      subtopics: [item.primarySubtopic, item.secondarySubtopic].filter(
-        isPresent,
-      ),
-      keywords: item.keywords,
-    };
-
-    const { error: upsertError } = await supabase.from('content_items').upsert(
+    // q_a_pairs: question/answer text only — no title/content/metadata/
+    // keywords/layer columns survive M6 (see module header).
+    const { error: pairError } = await supabase.from('q_a_pairs').upsert(
       {
         id: item.id,
-        title,
-        suggested_title: title,
-        content,
-        content_type: 'q_a_pair',
-        platform: 'manual',
-        captured_date: '2026-01-01T00:00:00.000Z',
-        metadata,
-        embedding,
-        embedding_model: embeddingModel,
+        question_text: item.question,
         answer_standard: item.answerStandard,
         answer_advanced: item.answerAdvanced ?? item.answerStandard,
-        summary: item.summary,
-        ai_keywords: item.keywords,
-        primary_domain: item.primaryDomain,
-        primary_subtopic: item.primarySubtopic,
-        secondary_domain: item.secondaryDomain ?? null,
-        secondary_subtopic: item.secondarySubtopic ?? null,
-        layer: item.layer,
-        freshness: 'fresh',
-        lifecycle_type: 'evergreen',
+        origin_kind: 'manually_authored',
         publication_status: 'published',
-        governance_review_status: 'approved',
-        archived_at: null,
-        archive_reason: null,
       },
       { onConflict: 'id' },
     );
 
-    if (upsertError) {
+    if (pairError) {
       throw new Error(
-        `Failed to upsert seed item ${item.key}: ${upsertError.message}`,
+        `Failed to upsert seed q_a_pair ${item.key}: ${pairError.message}`,
+      );
+    }
+
+    // record_embeddings: the polymorphic vector store (BI-17/{131.21}
+    // precedent — lib/q-a-pairs/promote-corpus.ts embedAndPublish).
+    const { error: embeddingError } = await supabase
+      .from('record_embeddings')
+      .upsert(
+        {
+          owner_kind: 'q_a_pair',
+          owner_id: item.id,
+          model: embeddingModel,
+          embedding,
+        },
+        { onConflict: 'owner_kind,owner_id,model' },
+      );
+
+    if (embeddingError) {
+      throw new Error(
+        `Failed to upsert seed record_embeddings ${item.key}: ${embeddingError.message}`,
+      );
+    }
+
+    // record_lifecycle: governance/domain facet only — the freshness axis
+    // (freshness/lifecycle_type/expiry_date/review_cadence_days) is
+    // source_document-only (record_lifecycle_freshness_axis_chk) and is
+    // never written for a q_a_pair owner; primary_subtopic/secondary_domain/
+    // secondary_subtopic have no facet equivalent (BI-18/19 explicit drift).
+    // `freshness`/`lifecycle_type` DEFAULT to 'fresh'/'evergreen' at the
+    // column level (a content_items-era default retained on the table) —
+    // MUST be explicitly nulled here or the axis CHECK
+    // (record_lifecycle_freshness_axis_chk) rejects the insert for a
+    // non-source_document owner (confirmed empirically against staging).
+    const { error: lifecycleError } = await supabase
+      .from('record_lifecycle')
+      .upsert(
+        {
+          owner_kind: 'q_a_pair',
+          q_a_pair_id: item.id,
+          domain: item.primaryDomain,
+          governance_review_status: 'approved',
+          freshness: null,
+          lifecycle_type: null,
+        },
+        { onConflict: 'owner_kind,owner_id' },
+      );
+
+    if (lifecycleError) {
+      throw new Error(
+        `Failed to upsert seed record_lifecycle ${item.key}: ${lifecycleError.message}`,
       );
     }
 
@@ -239,14 +272,16 @@ async function main(): Promise<void> {
     console.log(`  ✓ ${item.key}`);
   }
 
+  // Verification re-pointed onto the deterministic seed `id`s (the
+  // idempotency key in the new model — see module header) rather than a
+  // metadata.mcp_eval_seed flag content_items no longer has.
+  const seedIds = MCP_EVAL_SEED_ITEMS.map((seedItem) => seedItem.id);
+
   const { count, error: countError } = await supabase
-    .from('content_items')
+    .from('q_a_pairs')
     .select('id', { count: 'exact', head: true })
-    .contains('metadata', { [MCP_EVAL_SEED_METADATA_FLAG]: true })
-    .eq('content_type', 'q_a_pair')
-    .eq('publication_status', 'published')
-    .not('embedding', 'is', null)
-    .is('archived_at', null);
+    .in('id', seedIds)
+    .eq('publication_status', 'published');
 
   if (countError) {
     throw new Error(`Failed to verify seed count: ${countError.message}`);
@@ -255,6 +290,25 @@ async function main(): Promise<void> {
   if ((count ?? 0) < MCP_EVAL_SEED_ITEMS.length) {
     throw new Error(
       `Expected at least ${MCP_EVAL_SEED_ITEMS.length} seeded Q&A item(s), found ${count ?? 0}`,
+    );
+  }
+
+  const { count: embeddingCount, error: embeddingCountError } = await supabase
+    .from('record_embeddings')
+    .select('id', { count: 'exact', head: true })
+    .eq('owner_kind', 'q_a_pair')
+    .in('owner_id', seedIds)
+    .eq('model', embeddingModel);
+
+  if (embeddingCountError) {
+    throw new Error(
+      `Failed to verify seed embedding count: ${embeddingCountError.message}`,
+    );
+  }
+
+  if ((embeddingCount ?? 0) < MCP_EVAL_SEED_ITEMS.length) {
+    throw new Error(
+      `Expected at least ${MCP_EVAL_SEED_ITEMS.length} seeded Q&A embedding(s), found ${embeddingCount ?? 0}`,
     );
   }
 
