@@ -34,13 +34,16 @@
 --   * BUT the `layer` axis (content_items.layer, matched against
 --     guide_sections.expected_layer — e.g. 'sales_brief'/'bid_detail'/
 --     'company_reference'/'research', see public.layer_vocabulary) has NO
---     successor column on source_documents, q_a_pairs, or reference_items.
---     Verified live: `\d source_documents` / `\d q_a_pairs` /
---     `\d reference_items` on staging (rbwqewalexrzgxtvcqrh) — none carries
---     a per-row layer assignment. This axis was structurally eliminated at
---     M6, not merely relocated — there is nothing to re-point onto without
---     inventing a new per-document layer-assignment data model (a product/
---     schema decision, out of this fix's authority).
+--     successor column on source_documents or q_a_pairs (verified live:
+--     `\d` on staging rbwqewalexrzgxtvcqrh). NOTE (checker correction,
+--     S451): reference_items.layer DOES exist and is live — validated by
+--     trg_validate_reference_items_layer against the same layer_vocabulary.
+--     A PARTIAL re-point (reference-derived content for e.g. 'research'-
+--     layer sections) was NOT evaluated here and may be viable; the
+--     document-side axis (source_documents/q_a_pairs) was structurally
+--     eliminated at M6. Whether to partially re-point onto reference_items,
+--     build a new per-document layer model, or retire the matching feature
+--     is a product/schema decision, out of this fix's authority.
 --   * This mirrors DR-034's binding owner ruling (coverage_retire.sql,
 --     "the content_items-era coverage feature ... is RETIRED, not
 --     re-pointed") and escalation 2b's identical treatment of the sibling
@@ -130,4 +133,4 @@ REVOKE ALL ON FUNCTION "public"."get_guide_content"("p_guide_slug" "text") FROM 
 GRANT ALL ON FUNCTION "public"."get_guide_content"("p_guide_slug" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_guide_content"("p_guide_slug" "text") TO "service_role";
 
-COMMENT ON FUNCTION "public"."get_guide_content"("p_guide_slug" "text") IS 'Fix-Executor (live P0, post-131.19 M6): the content_items LEFT JOIN escaped the M6 drop audit (relation did not exist -> every call errored). Stripped per DR-034''s precedent (get_guide_coverage''s identical guide-content-matching axis was ruled RETIRE, not re-pointed -- no surviving table carries a per-row layer assignment). Return shape (14-column TABLE) and signature unchanged; every content_* column is now NULL -- section_id/section_name/section_description/section_order/expected_layer/subtopic_filter/is_required are unaffected. Restoring per-item content matching (or formally retiring /guide) is an open product/schema decision, routed to the Curator.';
+COMMENT ON FUNCTION "public"."get_guide_content"("p_guide_slug" "text") IS 'Fix-Executor (live P0, post-131.19 M6): the content_items LEFT JOIN escaped the M6 drop audit (relation did not exist -> every call errored). Stripped per DR-034''s precedent (get_guide_coverage''s identical guide-content-matching axis was ruled RETIRE, not re-pointed). The document-side layer axis (source_documents/q_a_pairs) has no successor; reference_items.layer IS live (trigger-validated) but a partial re-point was deliberately not evaluated in this hotfix. Return shape (14-column TABLE) and signature unchanged; every content_* column is now NULL -- section_id/section_name/section_description/section_order/expected_layer/subtopic_filter/is_required are unaffected. Restoring per-item content matching (or formally retiring /guide) is an open product/schema decision, routed to the Curator.';
