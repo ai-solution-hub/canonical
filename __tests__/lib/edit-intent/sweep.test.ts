@@ -5,9 +5,10 @@
  * {138.12} T1 RE-POINT (necessary collateral, TECH §3.3 T1/§2.1 R(a)):
  * `runSweep` calls the SHARED `writeBackFileFirst` primitive, whose file leg
  * PUTs into the `corpus` Storage bucket instead of rewriting a real on-disk
- * file. This test double models the bucket as an in-memory object store
- * (`db.objects`, keyed by `storage_path`) plus a stubbed writer-fence RPC,
- * rather than writing to a real temp directory.
+ * file. `configureSweepDb()` below wires the shared
+ * `createMockSupabaseClient()` double's `storage.from(CORPUS_BUCKET)` bucket
+ * as an in-memory object store (keyed by `storage_path`) rather than writing
+ * to a real temp directory.
  *
  * ID-131 {131.17} G-IMS-DELETE KEEP-list RE-POINT: `sweep.ts` +
  * `write-back.ts` now read/write `source_documents` directly (`content` ->
@@ -15,22 +16,27 @@
  * `contentItemId` — the FORMER two-hop `content_items` -> `source_document_id`
  * FK -> `source_documents.storage_path` indirection collapses to ONE direct
  * read/write, since content_items and source_documents were independent PK
- * spaces pre-repoint. The mock below models a single `source_documents`
- * table (extracted_text + storage_path per id) rather than the former
- * two-table split.
+ * spaces pre-repoint.
  *
  * ID-131 FIX-SLICE (S447, BI-34): `runSweep` no longer INSERTs a
  * `content_history` audit snapshot per match — `content_item_id` has been a
  * dead FK since the M0c debris-wipe (content_items is permanently empty;
  * every insert FK-violated), and content_history itself drops at M6.
  *
- * ID-131.19 S450 Wave 1 Fix 4 (this Subtask): `rollbackSweep` — which still
- * READ `content_history` by `metadata.sweep_id` post-S447 — is REMOVED
- * entirely from `sweep.ts` (0 production callers, confirmed via
- * `gitnexus_impact` + a repo-wide grep; content_history drops at M6). The
- * rollback-specific tests (PROOF 3, PROOF 5, and the `content_history` mock
- * table + `HistoryRow` plumbing they depended on) are removed alongside —
- * there is no `rollbackSweep` left to exercise.
+ * ID-131.19 S450 Wave 1 Fix 4: `rollbackSweep` — which still READ
+ * `content_history` by `metadata.sweep_id` post-S447 — was REMOVED entirely
+ * from `sweep.ts` (0 production callers, confirmed via `gitnexus_impact` + a
+ * repo-wide grep; content_history drops at M6). The rollback-specific tests
+ * (PROOF 3, PROOF 5) were removed alongside — there is no `rollbackSweep`
+ * left to exercise.
+ *
+ * bl-403 (mock-discipline migration, S446 check-138-12 nit): the hand-rolled
+ * `makeDb` Supabase double (pre-existing debt, extended not introduced by
+ * {138.12}) is replaced by the shared `createMockSupabaseClient()` helper
+ * (`__tests__/helpers/mock-supabase.ts`) per test-philosophy's mock
+ * discipline. The `content_history`-never-touched regression guard, formerly
+ * an incidental `from()` throw on any unmodelled table, is now an explicit
+ * assertion (`expect(mockSupabase.from).not.toHaveBeenCalledWith('content_history')`).
  *
  * The testStrategy proofs (re-targeted to Storage, {138.12}; audit-write
  * proof re-targeted again for the content_history retirement, S447):
@@ -39,11 +45,15 @@
  *      write — retired, BI-34);
  *   4. arbitrate()/arbitrateMany() are NEVER called (batched single-actor).
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { runSweep } from '@/lib/edit-intent/sweep';
 import type { SweepMatchInput } from '@/lib/edit-intent/sweep';
 import { CORPUS_BUCKET } from '@/lib/edit-intent/write-back';
+import {
+  createMockSupabaseClient,
+  type MockSupabaseClient,
+} from '@/__tests__/helpers/mock-supabase';
 
 // Spy targets — proves the sweep NEVER calls arbitration (batched single-actor).
 import * as arbitrateModule from '@/lib/edit-intent/arbitrate';
@@ -57,127 +67,74 @@ const ITEM_C = '33333333-3333-4333-8333-333333333333';
 const ACTOR = 'a0000000-0000-4000-8000-000000000099';
 
 /**
- * In-memory supabase stub modelling the table + Storage surface `runSweep`
- * touches: source_documents (extracted_text + storage_path, ID-131 {131.17}
- * — a single row per id, read/written directly by PK; `contentItemId` IS the
- * source_documents id post-repoint, no second-table indirection), the
- * `corpus` Storage bucket (an in-memory object store keyed by storage_path,
- * {138.12} re-point), and the writer-fence RPC (always succeeds —
- * single-actor, no real concurrency to model here). The stub is deliberately
- * small — it only models the exact query shapes the code issues. It
- * DELIBERATELY does not model `content_history` (ID-131.19 S450 Wave 1
- * Fix 4) — `runSweep` never touches it, and `from()`'s catch-all
- * `throw new Error('unexpected table ...')` below is now itself the
- * regression guard against a future edit reintroducing that read/write.
+ * The shape of the storage bucket double `createMockSupabaseClient()` wires
+ * `storage.from()` to resolve to (mirrors `write-back.test.ts`'s local
+ * `MockStorageBucket` — the shared helper's `storage.from` return type is a
+ * bare, un-parameterised Mock, so a local cast is the minimal fix).
  */
-function makeDb(files: Record<string, { rel: string; content: string }>): {
-  client: unknown;
-  liveContent: () => Record<string, string>;
-  objects: Record<string, string>;
-} {
-  // One source_documents row per item — extracted_text (live "content") +
-  // storage_path (the corpus bucket object key), keyed directly by the id
-  // the caller passes as `contentItemId`.
-  const docs: Record<string, { extracted_text: string; storage_path: string }> =
-    {};
-  // The `corpus` bucket's in-memory object store, keyed by storage_path
-  // (the {138.12} object key) — seeded with each match's PRIOR bytes, the
-  // same role the real temp-dir files played pre-re-point.
+interface MockStorageBucket {
+  upload: ReturnType<typeof vi.fn>;
+  download: ReturnType<typeof vi.fn>;
+}
+
+/** The corpus-bucket storage double `mockSupabase.storage.from(CORPUS_BUCKET)` resolves to. */
+function bucket(client: MockSupabaseClient): MockStorageBucket {
+  const from = client.storage.from as unknown as (
+    bucketName: string,
+  ) => MockStorageBucket;
+  return from(CORPUS_BUCKET);
+}
+
+/**
+ * Wire the shared mock to model the exact surface `runSweep` touches:
+ *   - `source_documents.storage_path` resolution
+ *     (`writeBackFileFirst`'s `.select('storage_path').eq('id', id)
+ *     .maybeSingle()`), queued in the SAME order `files` iterates — `runSweep`
+ *     is a sequential for-loop over `matches`, so queuing
+ *     `maybeSingle.mockResolvedValueOnce()` calls by that same order is
+ *     deterministic;
+ *   - the `corpus` Storage bucket as an in-memory object store keyed by
+ *     `storage_path` (download = snapshot, upload = PUT/restore, {138.12}
+ *     re-point);
+ *   - the writer-fence RPC, always succeeding (single-actor sweep, no real
+ *     concurrency to model).
+ *
+ * `source_documents.extracted_text` UPDATEs resolve via the shared chain's
+ * default `.then()` (`{ data: [], error: null }` — falsy `error`, so
+ * `applyDbLeg` never throws); no per-id UPDATE echo is modelled since
+ * `runSweep` never reads `extracted_text` back.
+ */
+function configureSweepDb(
+  client: MockSupabaseClient,
+  files: Record<string, { rel: string; content: string }>,
+): { objects: Record<string, string> } {
   const objects: Record<string, string> = {};
-  for (const [id, f] of Object.entries(files)) {
-    docs[id] = { extracted_text: f.content, storage_path: f.rel };
-    objects[f.rel] = f.content;
+  for (const f of Object.values(files)) objects[f.rel] = f.content;
+
+  for (const f of Object.values(files)) {
+    client._chain.maybeSingle.mockResolvedValueOnce({
+      data: { storage_path: f.rel },
+      error: null,
+    });
   }
 
-  // A tiny PostgREST-shaped builder. Each `.from(table)` returns a builder
-  // whose terminal awaitable resolves the query. We only model the verbs the
-  // production code uses.
-  function from(table: string) {
-    if (table === 'source_documents') {
-      return {
-        select() {
-          return {
-            eq(_col: string, id: string) {
-              return {
-                async maybeSingle() {
-                  const doc = docs[id];
-                  if (!doc) return { data: null, error: null };
-                  return {
-                    data: { storage_path: doc.storage_path },
-                    error: null,
-                  };
-                },
-                async single() {
-                  const doc = docs[id];
-                  if (!doc)
-                    return { data: null, error: { message: 'not found' } };
-                  return {
-                    data: { extracted_text: doc.extracted_text },
-                    error: null,
-                  };
-                },
-              };
-            },
-          };
-        },
-        update(patch: { extracted_text?: string }) {
-          return {
-            async eq(_col: string, id: string) {
-              if (docs[id] && patch.extracted_text !== undefined) {
-                docs[id].extracted_text = patch.extracted_text;
-              }
-              return { error: null };
-            },
-          };
-        },
-      };
+  const storageBucket = bucket(client);
+  storageBucket.download.mockImplementation(async (objectKey: string) => {
+    if (!(objectKey in objects)) {
+      return { data: null, error: { message: 'Object not found' } };
     }
-    // content_history is DELIBERATELY not modelled (ID-131.19 S450 Wave 1
-    // Fix 4) — runSweep never touches it; this throw is the regression
-    // guard against a future edit reintroducing that read/write.
-    throw new Error(`unexpected table ${table}`);
-  }
-
-  // The `corpus` Storage bucket double — an in-memory object store keyed by
-  // storage_path (the {138.12} object key), backing `writeBackFileFirst`'s
-  // Storage leg (download = snapshot, upload = PUT/restore).
-  const storageBucket = {
-    async download(objectKey: string) {
-      if (!(objectKey in objects)) {
-        return { data: null, error: { message: 'Object not found' } };
-      }
-      return { data: new Blob([objects[objectKey]]), error: null };
-    },
-    async upload(objectKey: string, content: string) {
+    return { data: new Blob([objects[objectKey]]), error: null };
+  });
+  storageBucket.upload.mockImplementation(
+    async (objectKey: string, content: string) => {
       objects[objectKey] = content;
       return { data: { path: objectKey }, error: null };
     },
-  };
-  const storage = {
-    from(bucket: string) {
-      if (bucket !== CORPUS_BUCKET) {
-        throw new Error(`unexpected bucket ${bucket}`);
-      }
-      return storageBucket;
-    },
-  };
+  );
 
-  // The writer-fence RPC — always succeeds (single-actor sweep, no real
-  // concurrency to model here); mirrors createMockSupabaseClient()'s default.
-  async function rpc() {
-    return { data: true, error: null };
-  }
+  client.rpc.mockResolvedValue({ data: true, error: null });
 
-  return {
-    client: { from, storage, rpc } as unknown,
-    objects,
-    liveContent: () => {
-      const out: Record<string, string> = {};
-      for (const [id, doc] of Object.entries(docs))
-        out[id] = doc.extracted_text;
-      return out;
-    },
-  };
+  return { objects };
 }
 
 describe('runSweep — UC3 batched single-actor sweep', () => {
@@ -197,6 +154,12 @@ describe('runSweep — UC3 batched single-actor sweep', () => {
     c: '# Charlie\n\nnew-name at the end\n',
   };
 
+  let mockSupabase: MockSupabaseClient;
+
+  beforeEach(() => {
+    mockSupabase = createMockSupabaseClient();
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -209,24 +172,30 @@ describe('runSweep — UC3 batched single-actor sweep', () => {
     ];
   }
 
+  function client(): Parameters<typeof runSweep>[0]['supabase'] {
+    return mockSupabase as unknown as Parameters<
+      typeof runSweep
+    >[0]['supabase'];
+  }
+
   it('PROOF 1+2 — PUTs N objects at storage_path; ALL share one sweep-id; NO content_history audit row written (retired, BI-34)', async () => {
-    const db = makeDb({
+    const { objects } = configureSweepDb(mockSupabase, {
       [ITEM_A]: { rel: REL.a, content: PRIOR.a },
       [ITEM_B]: { rel: REL.b, content: PRIOR.b },
       [ITEM_C]: { rel: REL.c, content: PRIOR.c },
     });
 
     const result = await runSweep({
-      supabase: db.client as never,
+      supabase: client(),
       matches: matches(),
       intent: 'structural',
       actorId: ACTOR,
     });
 
     // Every affected object was rewritten at its EXACT storage_path (object key).
-    expect(db.objects[REL.a]).toBe(NEW.a);
-    expect(db.objects[REL.b]).toBe(NEW.b);
-    expect(db.objects[REL.c]).toBe(NEW.c);
+    expect(objects[REL.a]).toBe(NEW.a);
+    expect(objects[REL.b]).toBe(NEW.b);
+    expect(objects[REL.c]).toBe(NEW.c);
 
     // ONE sweep-id, shared by all three matches.
     expect(result.sweepId).toMatch(
@@ -237,24 +206,24 @@ describe('runSweep — UC3 batched single-actor sweep', () => {
     expect(ids).toEqual([ITEM_A, ITEM_B, ITEM_C].sort());
 
     // ID-131 FIX-SLICE (S447): the per-match content_history audit insert is
-    // retired (dead FK post-M0c debris-wipe) — the mock's `from()` throws on
-    // any table other than source_documents (content_history is
-    // deliberately not modelled, ID-131.19 S450 Wave 1 Fix 4), so this test
-    // completing without throwing IS the proof no history row is attempted.
+    // retired (dead FK post-M0c debris-wipe) — assert directly that `from()`
+    // was never called with 'content_history' (the regression guard against
+    // a future edit reintroducing that read/write).
+    expect(mockSupabase.from).not.toHaveBeenCalledWith('content_history');
   });
 
   it('PROOF 4 — does NOT invoke arbitrate()/arbitrateMany() (batched single-actor)', async () => {
     const arbitrateSpy = vi.spyOn(arbitrateModule, 'arbitrate');
     const arbitrateManySpy = vi.spyOn(arbitrateModule, 'arbitrateMany');
 
-    const db = makeDb({
+    configureSweepDb(mockSupabase, {
       [ITEM_A]: { rel: REL.a, content: PRIOR.a },
       [ITEM_B]: { rel: REL.b, content: PRIOR.b },
       [ITEM_C]: { rel: REL.c, content: PRIOR.c },
     });
 
     await runSweep({
-      supabase: db.client as never,
+      supabase: client(),
       matches: matches(),
       intent: 'data',
       actorId: ACTOR,
@@ -265,17 +234,20 @@ describe('runSweep — UC3 batched single-actor sweep', () => {
   });
 
   it('does not write a content_history row even for a single-match sweep (audit write retired, BI-34)', async () => {
-    const db = makeDb({ [ITEM_A]: { rel: REL.a, content: PRIOR.a } });
+    const { objects } = configureSweepDb(mockSupabase, {
+      [ITEM_A]: { rel: REL.a, content: PRIOR.a },
+    });
 
     const result = await runSweep({
-      supabase: db.client as never,
+      supabase: client(),
       matches: [{ contentItemId: ITEM_A, newContent: NEW.a }],
       intent: 'data',
       actorId: ACTOR,
     });
 
     expect(result.matchCount).toBe(1);
-    expect(db.objects[REL.a]).toBe(NEW.a);
+    expect(objects[REL.a]).toBe(NEW.a);
+    expect(mockSupabase.from).not.toHaveBeenCalledWith('content_history');
   });
 
   // rollbackSweep tests REMOVED (ID-131.19 S450 Wave 1 Fix 4) — the function
