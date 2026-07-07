@@ -46,6 +46,8 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { anonFilteredGrantRoles } from './lib/anon-grant-filter';
+
 // --- config ---------------------------------------------------------------
 
 const DB_URL =
@@ -505,13 +507,7 @@ function emitFunction(o: FnOverload): string {
   // never be anon-reachable). set_config is the sole deliberate anon-EXECUTE
   // exception (INV-20) and is mirrored through as-is. If the (anon-filtered)
   // mirror set is empty, default to the server roles rather than nothing.
-  const mirroredRoles = o.grantRoles.filter(
-    (r) => r !== 'anon' || o.name === 'set_config',
-  );
-  const roles =
-    mirroredRoles.length > 0
-      ? mirroredRoles
-      : (['authenticated', 'service_role'] as Role[]);
+  const roles = anonFilteredGrantRoles(o.name, o.grantRoles);
 
   const sigForCreate = `api.${o.name}(${o.argsCreate})`;
   const sigForGrant = `api.${o.name}(${o.identityArgs})`;
