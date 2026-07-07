@@ -79,7 +79,7 @@ class _FixtureDoc:
 
 
 _FIXTURE_CORPUS = [
-    _FixtureDoc("markdown/Phew-Bid-Library-2026-v4_4.md"),
+    _FixtureDoc("markdown/example-co-Bid-Library-2026-v4_4.md"),
     _FixtureDoc("procurement/tender-evaluation-guide.md"),
     _FixtureDoc("nested/dir/onboarding-transcript.md"),
 ]
