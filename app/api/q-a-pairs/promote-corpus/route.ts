@@ -60,6 +60,15 @@ const PromoteCorpusResponseSchema = z.object({
       reason: z.enum(['embed_failed', 'sidecar_failed']),
     }),
   ),
+  // ID-138 {138.17} (DR-026 propose-surfacing half): published-pair re-walk
+  // diffs — never auto-mutated, surfaced here for human review.
+  proposed: z.number(),
+  proposals: z.array(
+    z.object({
+      extractionId: z.string(),
+      pairId: z.string(),
+    }),
+  ),
 });
 
 export const POST = defineRoute(

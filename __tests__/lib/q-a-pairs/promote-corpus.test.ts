@@ -429,12 +429,19 @@ describe('promoteCorpusExtractions — {59.23} embed-decouple + self-heal (OQ-3)
     // ID-131.19 (M6): the {59.31} re-promote's stored-question-text pre-read
     // (+ mark-stale rider) is RETIRED — repromoteCarriedFields no longer
     // calls `.single()` at all, so there is no read to mock here.
-    // then #1: {59.31} carried-only UPDATE → 1 row
+    // {138.17}: DR-026 gate pre-read — the linked pair is still draft, so
+    // the self-heal repromote path proceeds unchanged.
+    // then #1: publication_status SELECT → 'draft'
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ publication_status: 'draft' }], error: null }),
+    );
+    // then #2: {59.31} carried-only UPDATE → 1 row
     supabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: [{ id: UUID_EXISTING_PAIR }], error: null }),
     );
-    // then #2: embed UPDATE on the EXISTING pair → 1 row affected (publish)
+    // then #3: embed UPDATE on the EXISTING pair → 1 row affected (publish)
     supabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: [{ id: UUID_EXISTING_PAIR }], error: null }),
@@ -597,6 +604,12 @@ describe('promoteCorpusExtractions — {59.23} embed-decouple + self-heal (OQ-3)
     // Row C (self-heal): ID-131.19 (M6) retired the {59.31} re-promote's
     // stored-question-text pre-read — repromoteCarriedFields no longer calls
     // `.single()`, so there is no third single() mock to register here.
+    // {138.17}: DR-026 gate pre-read — Row C's linked pair is still draft.
+    // Row C: publication_status SELECT → 'draft'
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ publication_status: 'draft' }], error: null }),
+    );
     // Row C: carried-only UPDATE → 1 row
     supabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
@@ -1259,13 +1272,19 @@ describe('promoteCorpusExtractions — {59.29} corpus provenance-link leg (link-
     // Self-heal path: NO INSERT, NO CAS, NO provenance-link emit (the re-promote
     // branch does not re-link). {59.31}: a carried re-sync UPDATE precedes the
     // embed. ID-131.19 (M6): the stored-question-text pre-read is retired, so
-    // there is no `.single()` call to mock on this path any more.
-    // then #1: carried-only UPDATE → 1 row
+    // there is no `.single()` call to mock on this path any more. {138.17}:
+    // the DR-026 gate pre-read finds the pair still draft.
+    // then #1: publication_status SELECT → 'draft'
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ publication_status: 'draft' }], error: null }),
+    );
+    // then #2: carried-only UPDATE → 1 row
     supabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: [{ id: UUID_EXISTING_PAIR }], error: null }),
     );
-    // then #2: embed UPDATE → 1 row (publish)
+    // then #3: embed UPDATE → 1 row (publish)
     supabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: [{ id: UUID_EXISTING_PAIR }], error: null }),
@@ -1388,12 +1407,18 @@ describe('promoteCorpusExtractions — {59.31} re-walk carried-only re-promote',
 
     supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
 
-    // then #1: carried-only UPDATE → 1 row
+    // {138.17}: DR-026 gate pre-read — pair still draft.
+    // then #1: publication_status SELECT → 'draft'
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ publication_status: 'draft' }], error: null }),
+    );
+    // then #2: carried-only UPDATE → 1 row
     supabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: [{ id: UUID_EXISTING_PAIR }], error: null }),
     );
-    // then #2: embed UPDATE (publish) → 1 row
+    // then #3: embed UPDATE (publish) → 1 row
     supabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: [{ id: UUID_EXISTING_PAIR }], error: null }),
@@ -1435,12 +1460,18 @@ describe('promoteCorpusExtractions — {59.31} re-walk carried-only re-promote',
 
     supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
 
-    // then #1: carried-only UPDATE → 1 row
+    // {138.17}: DR-026 gate pre-read — pair still draft.
+    // then #1: publication_status SELECT → 'draft'
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ publication_status: 'draft' }], error: null }),
+    );
+    // then #2: carried-only UPDATE → 1 row
     supabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: [{ id: UUID_EXISTING_PAIR }], error: null }),
     );
-    // then #2: embed UPDATE (re-embed + publish) → 1 row
+    // then #3: embed UPDATE (re-embed + publish) → 1 row
     supabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: [{ id: UUID_EXISTING_PAIR }], error: null }),
@@ -1482,7 +1513,14 @@ describe('promoteCorpusExtractions — {59.31} re-walk carried-only re-promote',
 
     supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
 
-    // then #1: carried UPDATE → 0 rows (silent no-op)
+    // {138.17}: DR-026 gate pre-read — pair still draft, proceed to the
+    // carried re-sync (which then 0-row no-ops, below).
+    // then #1: publication_status SELECT → 'draft'
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ publication_status: 'draft' }], error: null }),
+    );
+    // then #2: carried UPDATE → 0 rows (silent no-op)
     supabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
@@ -1519,6 +1557,11 @@ describe('promoteCorpusExtractions — {59.31} re-walk carried-only re-promote',
 
     supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
 
+    // {138.17}: DR-026 gate pre-read — pair still draft.
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ publication_status: 'draft' }], error: null }),
+    );
     supabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: [{ id: UUID_EXISTING_PAIR }], error: null }),
@@ -1590,13 +1633,19 @@ describe('promoteCorpusExtractions — {59.31} re-walk carried-only re-promote',
     );
 
     // Relinked row: ID-131.19 (M6) retired the stored-question-text pre-read
-    // — no `.single()` mock needed on this path any more.
-    // Relinked: then #3 carried UPDATE → 1 row
+    // — no `.single()` mock needed on this path any more. {138.17}: the
+    // DR-026 gate pre-read finds the relinked pair still draft.
+    // Relinked: then #3 publication_status SELECT → 'draft'
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ publication_status: 'draft' }], error: null }),
+    );
+    // Relinked: then #4 carried UPDATE → 1 row
     supabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: [{ id: UUID_EXISTING_PAIR }], error: null }),
     );
-    // Relinked: then #4 embed UPDATE (publish) → 1 row
+    // Relinked: then #5 embed UPDATE (publish) → 1 row
     supabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: [{ id: UUID_EXISTING_PAIR }], error: null }),
@@ -1620,6 +1669,184 @@ describe('promoteCorpusExtractions — {59.31} re-walk carried-only re-promote',
     for (const key of NOT_CARRIED_KEYS) {
       expect(carried!).not.toHaveProperty(key);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test suite — {138.17} published-pair re-walk diff surfaces as a proposal
+// (DR-026 propose-surfacing half).
+//
+// The eligibility RPC (widened by 20260707140000_id138_promotion_candidates_
+// published_diff.sql) now ALSO re-selects an extraction linked to an
+// ALREADY-PUBLISHED pair when a re-walk changed its carried fields. This
+// slice proves the TS-side DR-026 gate: promoteCorpusExtractions reads the
+// linked pair's publication_status BEFORE any write, and when it reads
+// 'published' the extraction is routed into the non-mutating `proposed`
+// bucket — repromoteCarriedFields / embedAndPublish are NEVER invoked, no
+// UPDATE is issued against the pair, and generateEmbedding is never called.
+// ---------------------------------------------------------------------------
+describe('promoteCorpusExtractions — {138.17} published-pair re-walk diff (DR-026 propose-surfacing half)', () => {
+  let supabase: MockSupabaseClient;
+
+  beforeEach(() => {
+    supabase = createMockSupabaseClient();
+    vi.clearAllMocks();
+    mockGenerateEmbedding.mockResolvedValue(STUB_EMBEDDING);
+  });
+
+  it('a re-walked extraction linked to a PUBLISHED pair surfaces as a proposal — no mutation, no embed attempt', async () => {
+    const extraction = makeExtraction({
+      id: UUID_A,
+      promoted_to_pair_id: UUID_EXISTING_PAIR,
+      extracted_question_text:
+        'What is the NEW procurement threshold (re-walked)?',
+    });
+
+    supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
+
+    // DR-026 gate pre-read: the linked pair is already published.
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ publication_status: 'published' }], error: null }),
+    );
+
+    const result: PromotionSummary = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
+
+    expect(result.considered).toBe(1);
+    expect(result.proposed).toBe(1);
+    expect(result.proposals).toContainEqual({
+      extractionId: UUID_A,
+      pairId: UUID_EXISTING_PAIR,
+    });
+
+    // NEVER counted as a promotion attempt — the row never reaches the embed
+    // step, so INV-23 (published-this-run == promoted - embed_failed) is
+    // unaffected by proposals.
+    expect(result.promoted).toBe(0);
+    expect(result.embed_failed).toBe(0);
+    expect(result.failures).toHaveLength(0);
+
+    // DR-026: never auto-mutated — no UPDATE against q_a_pairs, no embed.
+    expect(supabase._chain.update).not.toHaveBeenCalled();
+    expect(supabase._chain.insert).not.toHaveBeenCalled();
+    expect(mockGenerateEmbedding).not.toHaveBeenCalled();
+  });
+
+  it('mixed batch: a published-pair proposal does not block a fresh unlinked extraction from promoting (INV-23 holds)', async () => {
+    const fresh = makeExtraction({
+      id: UUID_A,
+      extracted_question_text: 'Fresh question?',
+      extracted_answer_text: 'Fresh answer.',
+    });
+    const publishedDiff = makeExtraction({
+      id: UUID_B,
+      promoted_to_pair_id: UUID_EXISTING_PAIR,
+      extracted_question_text: 'Re-walked question (published pair)?',
+      extracted_answer_text: 'Re-walked answer.',
+    });
+
+    supabase.rpc.mockResolvedValueOnce({
+      data: [fresh, publishedDiff],
+      error: null,
+    });
+
+    // Fresh row: INSERT → new pair, CAS wins, provenance link, embed publish.
+    supabase._chain.single.mockResolvedValueOnce({
+      data: { id: UUID_NEW_PAIR },
+      error: null,
+    });
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: fresh.id }], error: null }),
+    );
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: UUID_NEW_PAIR }], error: null }),
+    );
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: UUID_NEW_PAIR }], error: null }),
+    );
+
+    // publishedDiff row: DR-026 gate pre-read → published, routed to proposals.
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ publication_status: 'published' }], error: null }),
+    );
+
+    const result: PromotionSummary = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
+
+    expect(result.considered).toBe(2);
+    expect(result.promoted).toBe(1); // fresh only
+    expect(result.embed_failed).toBe(0);
+    expect(result.proposed).toBe(1); // publishedDiff only
+    expect(result.proposals).toContainEqual({
+      extractionId: UUID_B,
+      pairId: UUID_EXISTING_PAIR,
+    });
+    // INV-23: published-this-run == promoted - embed_failed = 1 - 0 = 1
+    expect(result.promoted - result.embed_failed).toBe(1);
+  });
+
+  it('an unreadable linked-pair status (query error) is a soft failure — no mutation, self-heals next run', async () => {
+    const extraction = makeExtraction({
+      id: UUID_A,
+      promoted_to_pair_id: UUID_EXISTING_PAIR,
+    });
+
+    supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
+
+    // DR-026 gate pre-read errors — fail-safe: do not proceed to a write.
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: null,
+          error: { message: 'connection reset', code: 'ECONNRESET' },
+        }),
+    );
+
+    const result: PromotionSummary = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
+
+    expect(result.embed_failed).toBe(1);
+    expect(result.promoted).toBe(0);
+    expect(result.proposed).toBe(0);
+    expect(result.failures).toContainEqual({
+      extractionId: UUID_A,
+      newPairId: UUID_EXISTING_PAIR,
+      reason: 'embed_failed',
+    });
+    expect(supabase._chain.update).not.toHaveBeenCalled();
+    expect(mockGenerateEmbedding).not.toHaveBeenCalled();
+  });
+
+  it('a linked pair that no longer exists (0-row status read) is a soft failure — no mutation', async () => {
+    const extraction = makeExtraction({
+      id: UUID_A,
+      promoted_to_pair_id: UUID_EXISTING_PAIR,
+    });
+
+    supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
+
+    // DR-026 gate pre-read → 0 rows (pair vanished).
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    const result: PromotionSummary = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
+
+    expect(result.embed_failed).toBe(1);
+    expect(result.proposed).toBe(0);
+    expect(result.promoted).toBe(0);
+    expect(supabase._chain.update).not.toHaveBeenCalled();
+    expect(mockGenerateEmbedding).not.toHaveBeenCalled();
   });
 });
 

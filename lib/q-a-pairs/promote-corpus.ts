@@ -19,9 +19,20 @@
  *                   applied). record_embeddings is now the sole store;
  *                   embedAndPublish's inline UPDATE carries publication_status
  *                   only. See that function + repromoteCarriedFields' header
- *                   comments for the retired mark-stale rider and the
- *                   separately-broken eligibility RPC (escalated, not fixed
- *                   here — out of this Subtask's file-ownership boundary).
+ *                   comments for the retired mark-stale rider.
+ * ID-138 {138.17} — promotion-candidates re-selection (DR-026 propose-
+ *                   surfacing half): the eligibility RPC
+ *                   (q_a_extractions_promotion_candidates,
+ *                   20260707140000_id138_promotion_candidates_published_diff.sql)
+ *                   now ALSO re-selects an extraction linked to an
+ *                   already-PUBLISHED pair when a re-walk changed its carried
+ *                   fields. This function routes such a row into a NEW
+ *                   non-mutating `proposed` bucket (never repromoteCarriedFields
+ *                   / embedAndPublish) — see the per-extraction loop below and
+ *                   repromoteCarriedFields' header comment. DR-026: a promoted/
+ *                   curated (published) pair is NEVER auto-mutated; human
+ *                   review at the knowledge-admission gate is the LAUNCH
+ *                   posture (id-138 TECH.md §2.4).
  *
  * Spec: specs/id-59-concurrent-edit-intent-arbitration/TECH-qa-corpus-promotion.md
  *       R1 steps 1, 2, 3, 4, 5, 6, 7.
@@ -45,10 +56,9 @@
  *
  * OQ-3 decouple: the extraction→pair LINK (CAS) is NOT conditional on
  * embedding success. If embedding fails, the pair stays draft — which
- * q_a_search correctly excludes (INV-11). The eligibility RPC (SEPARATELY
- * broken post-M6 — see the ID-131.19 header note above) was intended to
- * re-select linked-but-unembedded pairs next run → self-healing. The batch
- * NEVER aborts for one embedding failure (INV-10).
+ * q_a_search correctly excludes (INV-11). The eligibility RPC re-selects
+ * linked-but-unembedded pairs next run → self-healing. The batch NEVER
+ * aborts for one embedding failure (INV-10).
  *
  * INV-12 invariant (pre-M6): `publication_status='published'` was ONLY set
  * in the same UPDATE that set `question_embedding`. ID-131.19 (M6): the
@@ -125,12 +135,30 @@ interface PromotionFailureRecord {
 }
 
 /**
+ * ID-138 {138.17} (DR-026 propose-surfacing half): a re-walked extraction
+ * whose carried fields differ from its linked pair, where the pair is
+ * ALREADY PUBLISHED. The eligibility RPC re-selects it (see the widened
+ * predicate, 20260707140000_id138_promotion_candidates_published_diff.sql),
+ * but the pair is NEVER auto-mutated (DR-026) — this record is the proposal
+ * surface: a human reviews it at the knowledge-admission gate, no write is
+ * issued against the pair by this run.
+ */
+interface ProposedDiffRecord {
+  extractionId: string;
+  /** The PUBLISHED pair the extraction's re-walked text now differs from. */
+  pairId: string;
+}
+
+/**
  * Structured summary returned by promoteCorpusExtractions (R1 step 7).
  *
  * {59.22}: considered, promoted, skipped, already_promoted.
  * {59.23}: embed_failed added; pass_through retired (self-heal rows now flow
  *          into embed accounting — promoted++ + embed_failed++ on failure).
  * {59.24}: retired, retired_no_replacement added.
+ * {138.17}: proposed, proposals added (published-pair re-walk diffs — DR-026
+ *          propose-surfacing half; never counted in promoted/embed_failed,
+ *          since the row never reaches the embed step, INV-23 unaffected).
  *
  * INV-23: published-this-run == promoted - embed_failed is an invariant
  * of this function for any single run.
@@ -186,6 +214,20 @@ export interface PromotionSummary {
    * the pair, and the reason. Replaces the old embed-failure-only operator log.
    */
   failures: PromotionFailureRecord[];
+  /**
+   * ID-138 {138.17} (DR-026 propose-surfacing half): count of re-walked
+   * extractions linked to an ALREADY-PUBLISHED pair whose carried fields
+   * differ from it. NEVER counted in `promoted`/`embed_failed` — the row is
+   * routed here BEFORE the embed step, and no write is issued against the
+   * pair (DR-026: a promoted/curated record is never auto-mutated).
+   */
+  proposed: number;
+  /**
+   * One record per proposed (published-pair, un-applied) diff — see
+   * `proposed`. Human review at the knowledge-admission gate is the LAUNCH
+   * posture (id-138 TECH.md §2.4); no auto-apply path exists.
+   */
+  proposals: ProposedDiffRecord[];
 }
 
 // ---------------------------------------------------------------------------
@@ -281,9 +323,12 @@ export async function promoteCorpusExtractions(
   let already_promoted = 0;
   let embed_failed = 0;
   let sidecar_failed = 0;
+  // {138.17} DR-026 propose-surfacing half — see ProposedDiffRecord.
+  let proposed = 0;
   const skipped: SkipRecord[] = [];
   // INV-11 / bl-323: unified per-extraction failure log (embed OR sidecar).
   const failures: PromotionFailureRecord[] = [];
+  const proposals: ProposedDiffRecord[] = [];
 
   // -------------------------------------------------------------------------
   // Per-extraction loop
@@ -300,10 +345,12 @@ export async function promoteCorpusExtractions(
     //   - {59.31} re-promote: re-sync the CARRIED set from the (re-walked)
     //     extraction onto the existing pair, restricted to the carried fields
     //     so the NOT-CARRIED lifecycle set is NEVER touched (INV-9, the S233
-    //     gate). On a question_text change the embedding is NULL'd in the SAME
-    //     carried UPDATE (the explicit, documented INV-10 mark-stale exception)
-    //     so q_a_search has no published+stale-vector window — the pair re-
-    //     embeds on the very next step via the existing self-heal embed path.
+    //     gate). The pair re-embeds on the very next step via the existing
+    //     self-heal embed path.
+    //   - {138.17} published-pair diff: a linked pair that is ALREADY
+    //     published is NEVER re-synced/re-embedded here — see the DR-026 gate
+    //     immediately below, which routes it into the non-mutating `proposed`
+    //     bucket before reaching the self-heal/re-promote code.
     //
     // The pair already exists and is already linked — skip INSERT + CAS
     // (INV-3: re-promotion NEVER mints a duplicate; the promoted_to_pair_id
@@ -311,6 +358,51 @@ export async function promoteCorpusExtractions(
     // -----------------------------------------------------------------------
     if (extraction.promoted_to_pair_id !== null) {
       const existingPairId: string = extraction.promoted_to_pair_id;
+
+      // -----------------------------------------------------------------------
+      // {138.17} DR-026 gate — read the linked pair's CURRENT publication_
+      // status BEFORE any write. The widened eligibility RPC (see
+      // 20260707140000_id138_promotion_candidates_published_diff.sql) now
+      // ALSO re-selects a linked extraction whose pair is already PUBLISHED
+      // when a re-walk changed the carried text. A promoted/curated
+      // (published) pair is NEVER auto-mutated (DR-026) — route it into the
+      // non-mutating `proposed` bucket instead of the self-heal repromote
+      // path below, which remains reserved for still-draft pairs.
+      //
+      // Fail-safe on an unconfirmed status (query error, or the pair row is
+      // gone): do NOT attempt a write against a pair we can't positively
+      // confirm is still draft — treat exactly like the existing 0-row
+      // carried-UPDATE soft-failure (self-heals next run, no throw).
+      // -----------------------------------------------------------------------
+      const pairStatusResult = await client
+        .from('q_a_pairs')
+        .select('publication_status')
+        .eq('id', existingPairId);
+
+      const pairStatusError = pairStatusResult?.error ?? null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pairStatusRows: any[] = pairStatusResult?.data ?? [];
+
+      if (pairStatusError || pairStatusRows.length === 0) {
+        embed_failed++;
+        failures.push({
+          extractionId,
+          newPairId: existingPairId,
+          reason: 'embed_failed',
+        });
+        continue;
+      }
+
+      const linkedPairStatus: string | null =
+        pairStatusRows[0]?.publication_status ?? null;
+
+      if (linkedPairStatus === 'published') {
+        // Published-pair re-walk diff: surface as a proposal, NEVER mutate.
+        proposed++;
+        proposals.push({ extractionId, pairId: existingPairId });
+        continue;
+      }
+
       // Re-promotion attempt counts as a promotion attempt this run (INV-23).
       promoted++;
 
@@ -530,6 +622,8 @@ export async function promoteCorpusExtractions(
     retired_no_replacement,
     sidecar_failed,
     failures,
+    proposed,
+    proposals,
   };
 }
 
@@ -626,18 +720,18 @@ async function emitCorpusSidecar(
 // Mark-stale (INV-10, OQ-25-2) — RETIRED at M6 (ID-131.19, S450 GO tail):
 // q_a_pairs.question_embedding was DROPPED (20260706120000_id131_drop_
 // inline_vector_cols.sql); this helper no longer has an inline column to
-// NULL on a question-text change. No re-point performed: hybrid_search's
-// eligibility RPC (public.q_a_extractions_promotion_candidates, defined in
-// 20260617130000_squash_baseline.sql) STILL predicates on
-// `p.question_embedding IS NULL` at the SQL level — a pre-existing,
-// separate, DB-level defect this Subtask's file-ownership boundary does not
-// cover (a SQL migration is out of scope here). Escalated to the
-// Orchestrator/Curator: until that RPC is fixed to check record_embeddings
-// absence instead, NEITHER a NULL-column rider NOR a record_embeddings
-// DELETE would re-enter the self-healing loop the original comment
-// described — so no substitute mark-stale write is added here; a stale
-// embedding is a stricter regression than doing nothing until the RPC is
-// repaired.
+// NULL on a question-text change. No re-point performed and no substitute
+// mark-stale write was added — this function is now UNREACHABLE for a
+// published pair (see the {138.17} DR-026 gate in the caller loop above,
+// which routes a published-linked diff into the non-mutating `proposed`
+// bucket BEFORE this function is ever invoked). It only ever runs against a
+// still-draft pair, where "the embedding hasn't published yet" already
+// means there is no live vector to go stale — a NULL rider would have been
+// a no-op there in any case. The RPC's eligibility predicate is fixed
+// (20260706170000_id131_qa_fns_record_embeddings_repoint.sql re-pointed it
+// onto record_embeddings; 20260707140000_id138_promotion_candidates_
+// published_diff.sql then widened it to ALSO re-select published-pair
+// diffs) — this is no longer an escalated gap.
 //
 // Carried fields re-synced are exactly those the extraction carries:
 //   question_text  ← extracted_question_text   (NOT NULL on both)
@@ -1031,9 +1125,9 @@ async function retireSupersededPairs(
 //   - q_a_search correctly excludes it (INV-11 satisfied).
 //   - onFail() is called (caller increments embed_failed).
 //   - The loop CONTINUES — no batch abort (INV-10).
-//   - The eligibility RPC is SEPARATELY broken post-M6 (still predicates on
-//     the dropped question_embedding column — escalated, not fixed here; a
-//     SQL migration is out of this Subtask's file-ownership boundary).
+//   - The eligibility RPC re-selects the still-unembedded pair next run
+//     (self-healing) — see the RPC's header comment in
+//     20260707140000_id138_promotion_candidates_published_diff.sql.
 // ---------------------------------------------------------------------------
 async function embedAndPublish(
   client: SupabaseClientLike,

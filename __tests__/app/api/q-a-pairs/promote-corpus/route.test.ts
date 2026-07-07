@@ -78,6 +78,10 @@ const STUB_SUMMARY = {
   retired_no_replacement: 0,
   sidecar_failed: 0,
   failures: [],
+  // ID-138 {138.17}: published-pair re-walk diffs (DR-026 propose-surfacing
+  // half) — never auto-mutated, surfaced for human review.
+  proposed: 0,
+  proposals: [],
 };
 
 function makeRequest() {
