@@ -660,6 +660,128 @@ class TestParseReferenceConcept:
 
 
 # ============================================================================
+# SECURITY — the http_client injection seam must not reopen the
+# redirect-bypass class (Checker finding, post-commit; dormant today, no
+# production caller injects http_client yet — {132.10} will wire one).
+# ============================================================================
+
+
+class _ExplodingSource:
+    """A `Source` double whose every method raises — proves a caller-
+    supplied redirect-following `http_client` is rejected BEFORE any
+    other work happens (not merely rejected eventually)."""
+
+    async def list_concepts(self) -> "list[ConceptKey]":
+        raise AssertionError(
+            "list_concepts must never be called — the redirect-following "
+            "http_client check must run first"
+        )
+
+    async def read_concept(self, key: ConceptKey) -> ConceptRaw:  # pragma: no cover
+        raise AssertionError("read_concept must never be called")
+
+    async def sample_rows(self, key: ConceptKey, n: int) -> "list[dict]":  # pragma: no cover
+        raise AssertionError("sample_rows must never be called")
+
+    async def find(self, query: str) -> "list[ConceptKey]":  # pragma: no cover
+        raise AssertionError("find must never be called")
+
+
+class TestRejectRedirectFollowingHttpClient:
+    def test_injected_httpx_client_with_follow_redirects_true_raises_before_any_fetch(
+        self,
+    ) -> None:
+        key = _product_key()
+        draft = _product_draft(key)
+        gated_corpus = web_pass.GatedCorpusConfig(sources=())
+        redirect_following_client = httpx.AsyncClient(follow_redirects=True)
+
+        async def _exercise() -> Any:
+            return await web_pass.run_web_pass(
+                draft,
+                key,
+                _ExplodingSource(),
+                gated_corpus,
+                http_client=redirect_following_client,
+            )
+
+        try:
+            with pytest.raises(web_pass.Pass2EnrichError, match="follow_redirects=False"):
+                asyncio.run(_exercise())
+        finally:
+            asyncio.run(redirect_following_client.aclose())
+
+    def test_injected_client_with_follow_redirects_false_is_accepted(self) -> None:
+        """The rejection is specific to redirect-following, not to real
+        `httpx.AsyncClient` instances in general."""
+        key = _product_key()
+        source = _FakeSource(catalogue=[key], raw_by_path={key.rel_path: _product_raw()})
+        draft = _product_draft(key)
+        gated_corpus = web_pass.GatedCorpusConfig(sources=())
+        safe_client = httpx.AsyncClient(follow_redirects=False)
+
+        final = _MockMessage(
+            [
+                TextBlock(
+                    type="text",
+                    text=_pass2_envelope_json(citations=[build_source_document_uri(_SD_ID)]),
+                )
+            ],
+            stop_reason="end_turn",
+        )
+        anthropic_client = _mock_client([final])
+
+        async def _exercise() -> Any:
+            with patch(
+                "scripts.cocoindex_pipeline.producer.web_pass.anthropic.AsyncAnthropic",
+                return_value=anthropic_client,
+            ):
+                return await web_pass.run_web_pass(
+                    draft, key, source, gated_corpus, http_client=safe_client
+                )
+
+        try:
+            result = asyncio.run(_exercise())
+        finally:
+            asyncio.run(safe_client.aclose())
+
+        assert result.concept.key == key
+
+    def test_a_fake_client_without_follow_redirects_attribute_is_accepted(self) -> None:
+        """`_FakeHttpClient` (this file's own test double) never models
+        `follow_redirects` at all — `getattr`'s default makes it pass, the
+        pragmatic outcome for test fakes with no real transport."""
+        key = _product_key()
+        source = _FakeSource(catalogue=[key], raw_by_path={key.rel_path: _product_raw()})
+        draft = _product_draft(key)
+        gated_corpus = web_pass.GatedCorpusConfig(sources=())
+        fake_client = _FakeHttpClient({})
+
+        final = _MockMessage(
+            [
+                TextBlock(
+                    type="text",
+                    text=_pass2_envelope_json(citations=[build_source_document_uri(_SD_ID)]),
+                )
+            ],
+            stop_reason="end_turn",
+        )
+        anthropic_client = _mock_client([final])
+
+        async def _exercise() -> Any:
+            with patch(
+                "scripts.cocoindex_pipeline.producer.web_pass.anthropic.AsyncAnthropic",
+                return_value=anthropic_client,
+            ):
+                return await web_pass.run_web_pass(
+                    draft, key, source, gated_corpus, http_client=fake_client
+                )
+
+        result = asyncio.run(_exercise())
+        assert result.concept.key == key
+
+
+# ============================================================================
 # run_web_pass — end to end
 # ============================================================================
 

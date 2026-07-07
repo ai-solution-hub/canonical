@@ -65,7 +65,15 @@ bypass). `_fetch_content`'s `_reject_redirect_response` instead turns ANY
 3xx response into a soft-error `tool_result` (`_WebFetchRedirectRefused`,
 `is_error: true`) — the model may fetch the `Location` target itself as an
 ordinary NEW `fetch_url` call, which is then re-gated exactly like any
-other URL, allowlisted or not.
+other URL, allowlisted or not. `run_web_pass`'s `http_client` injection
+seam is ALSO guarded (`_reject_redirect_following_client`, checked
+eagerly, before any work) — a caller-supplied client with
+`follow_redirects` enabled would auto-follow INSIDE `httpx` itself, so
+`_reject_redirect_response` would only ever observe the final hop and the
+gate would never re-examine the URL actually landed on; `run_web_pass`
+refuses loudly (`Pass2EnrichError`) rather than silently accepting such a
+client. Dormant today (no production caller injects `http_client` yet —
+`{132.10}` will wire one), closed pre-emptively.
 
 **Reference-concept `type:` (a documented judgement call, mirrors
 `producer/validator.py`'s own flagged spec-tension findings).** BI-4's
@@ -705,6 +713,35 @@ def _seed_user_message(key: ConceptKey, draft: ConceptDraft) -> str:
     )
 
 
+def _reject_redirect_following_client(http_client: Any) -> None:
+    """SECURITY (Checker finding, post-commit) — `run_web_pass`'s `http_
+    client` injection seam must not reopen the redirect-bypass class
+    `_reject_redirect_response` closes: a caller-supplied client with
+    redirect-following enabled would auto-follow a 3xx INSIDE `httpx`
+    itself, so `_fetch_content` would only ever see the final hop's
+    status — `_check_gate`/`validate_url` never re-examine the URL httpx
+    actually landed on.
+
+    `getattr(http_client, "follow_redirects", False)` is deliberately the
+    WHOLE check — no `isinstance(http_client, httpx.AsyncClient)` branch.
+    A real `httpx.AsyncClient` ALWAYS exposes `follow_redirects` (`True`
+    or `False`, never absent), so this fails closed for every real client
+    with redirect-following enabled, regardless of subclassing. A test
+    fake that doesn't model the attribute at all (the common case in this
+    module's own test suite) has nothing to fail closed ON — `getattr`'s
+    default makes it pass, which is the pragmatic, intended outcome (a
+    fake has no actual httpx transport to auto-follow with).
+    """
+    if http_client is not None and getattr(http_client, "follow_redirects", False):
+        raise Pass2EnrichError(
+            "run_web_pass: injected http_client must set "
+            "follow_redirects=False (BI-16 egress gate) — a client that "
+            "auto-follows redirects lets an allowlisted host silently "
+            "redirect to a non-allowlisted host or an internal address, "
+            "bypassing _check_gate/validate_url for the real fetched URL"
+        )
+
+
 # ── run_web_pass ───────────────────────────────────────────────────────────
 
 
@@ -735,8 +772,15 @@ async def run_web_pass(
     `http_client`, when `None`, is a fresh `httpx.AsyncClient` this call
     owns and closes; pass an injected fake in tests to avoid real network
     calls (mirrors `enrich_concept`'s `anthropic.AsyncAnthropic` injection
-    pattern via `patch`).
+    pattern via `patch`). **A caller-supplied `http_client` MUST NOT have
+    redirect-following enabled** (BI-16 — see `_reject_redirect_following_
+    client`): an injected `httpx.AsyncClient(follow_redirects=True)` would
+    silently chase a 3xx to a non-allowlisted host or an internal address
+    INSIDE `httpx` itself, so `_fetch_content`'s `_reject_redirect_
+    response` would only ever observe the FINAL hop's status — the gate
+    never re-checks the followed URL. Checked eagerly, before any work.
     """
+    _reject_redirect_following_client(http_client)
     catalogue = await source.list_concepts()
     raw_cache: "dict[str, ConceptRaw]" = {}
     seen_record_anchors: "set[str]" = set()
