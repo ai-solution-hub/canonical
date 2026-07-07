@@ -799,6 +799,14 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           destPath,
           titlePrefix: '',
           contentType: 'text/markdown',
+          // bl-402: DI the authed, checkMcpRole-gated MCP client (least
+          // privilege) rather than letting stageAndWalk fall back to an
+          // internally-created service-role client — mirrors the
+          // in-boundary `app/api/ingest/folder-drop/route.ts` precedent
+          // (`supabase: auth.supabase`), per the folder-drop.ts module
+          // header's own "OPTIONAL input field for exactly this reason"
+          // note.
+          supabase,
         });
 
         // S205 WP-A2 / AC2.3 — record the run on the success path (service-role
@@ -817,19 +825,24 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           result: buildRunResult('materialising_via_pipeline'),
         });
 
+        // bl-402: stageAndWalk's M2 resolver mints the source_documents
+        // identity SYNCHRONOUSLY (content_hash-first) — surface the real
+        // `sourceDocumentId` instead of the stale "no id yet" copy. Only the
+        // linked content item still depends on the later ingest walk.
         const created: CreatedItem = {
-          id: dropResult.sourceFile,
+          id: dropResult.sourceDocumentId,
           title: args.title,
           content_type: args.content_type,
         };
-        const materialisingNote = `\n\n**Status:** Materialising via the canonical pipeline — the content was staged to the source-binding folder as \`${dropResult.destPath}\` and will become queryable once the ingest walk completes. Poll \`content_items\` by \`source_file = "${dropResult.sourceFile}"\` to confirm.`;
+        const materialisingNote = `\n\n**Status:** Source document admitted synchronously as \`${dropResult.sourceDocumentId}\` (staged to \`${dropResult.destPath}\`). The linked content item still materialises via the canonical ingest walk — poll by \`source_file = "${dropResult.sourceFile}"\` to confirm it has landed.`;
         const markdown =
           formatCreatedItem(created) + materialisingNote + dedupNote;
         return {
           content: [{ type: 'text' as const, text: markdown }],
           structuredContent: toStructuredContent({
-            // No synchronous content_items row id — the pipeline mints it.
-            id: null,
+            // The source_documents row (and its id) exists synchronously;
+            // only the linked content item is still pipeline-pending.
+            id: dropResult.sourceDocumentId,
             title: args.title,
             content_type: args.content_type,
             status: 'materialising_via_pipeline',
@@ -837,7 +850,11 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             source_file: dropResult.sourceFile,
             dest_path: dropResult.destPath,
             source_url: null,
-            source_document_id: args.source_document_id ?? null,
+            // Prefer the caller-supplied provenance FK (an existing,
+            // different source_documents row this item is derived from);
+            // fall back to the just-minted identity of the staged file.
+            source_document_id:
+              args.source_document_id ?? dropResult.sourceDocumentId,
             dedup_status: dedupStamp.dedup_status,
             suspected_duplicate_of: dedupStamp.suspected_duplicate_of ?? null,
           }),

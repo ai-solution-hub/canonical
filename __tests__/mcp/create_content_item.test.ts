@@ -11,11 +11,14 @@
  *     seam app/api/ingest/url/route.ts uses. No direct content_items.insert.
  *   - Source-less branch (no source_url) writes the markdown `content` arg AS A
  *     FILE into the cocoindex source-binding folder via `stageAndWalk`
- *     (lib/upload/folder-drop.ts — the same primitive folder-drop {56.12} uses);
- *     the pipeline then re-derives source_documents(storage_path)+content_items.
- *     No direct content_items.insert; the response carries the source_file
- *     correlation key + a "materialising via pipeline" (eventually-consistent)
- *     status, NOT a synchronous row id.
+ *     (lib/upload/folder-drop.ts — the same primitive folder-drop {56.12} uses),
+ *     DI'd with the authed, checkMcpRole-gated MCP client (bl-402); the
+ *     pipeline then re-derives content_items linkage from the
+ *     synchronously-minted source_documents(storage_path) row. No direct
+ *     content_items.insert; the response surfaces the real
+ *     `sourceDocumentId` (known synchronously) + the source_file correlation
+ *     key + a "materialising via pipeline" status for the still-pending
+ *     linked content item (bl-402).
  *   - Auth (editor+) and recordPipelineRun audit semantics are preserved.
  *     The on-ingest dedup pre-check (checkExactDuplicate) was retired under
  *     ID-131.15 (G-DEDUP legacy dedup-family retirement, S446) — see
@@ -86,6 +89,7 @@ const mocks = vi.hoisted(() => {
       destPath: 'agent-create/some-title.md',
       stageRequestId: 'req-123',
       sourceFile: 'some-title.md',
+      sourceDocumentId: 'sd900000-0000-4000-8000-000000000001',
     }),
   };
 });
@@ -323,6 +327,7 @@ describe('MCP create_content_item — source-less branch stages a file via stage
       destPath: 'agent-create/source-less-create.md',
       stageRequestId: 'req-123',
       sourceFile: 'source-less-create.md',
+      sourceDocumentId: 'sd200000-0000-4000-8000-000000000001',
     });
     createTool = await buildCreateTool();
   });
@@ -345,6 +350,13 @@ describe('MCP create_content_item — source-less branch stages a file via stage
       'reference_ingest',
       expect.anything(),
     );
+    // bl-402: the authed, checkMcpRole-gated MCP client is DI'd into
+    // stageAndWalk (least privilege) rather than left to fall back to an
+    // internally-created service-role client.
+    const stageInput = mocks.stageAndWalk.mock.calls[0][0] as {
+      supabase?: unknown;
+    };
+    expect(stageInput.supabase).toBe(mocks.mockSupabaseClient);
   });
 
   it('stages UTF-8 bytes of the content under an agent-create/ markdown file', async () => {
@@ -374,7 +386,7 @@ describe('MCP create_content_item — source-less branch stages a file via stage
     expect(input.contentType).toBe('text/markdown');
   });
 
-  it('returns the source_file correlation key + an eventually-consistent status (no synchronous row id)', async () => {
+  it('surfaces the synchronously-minted sourceDocumentId + the source_file correlation key (bl-402)', async () => {
     const result = await createTool(
       {
         title: 'Source-less Create',
@@ -387,9 +399,15 @@ describe('MCP create_content_item — source-less branch stages a file via stage
     expect(result.isError).toBeFalsy();
     // The correlation key the caller polls on (mirrors folder-drop status).
     expect(result.structuredContent.source_file).toBe('source-less-create.md');
-    // No synchronous content_items row id — the pipeline materialises it.
-    expect(result.structuredContent.id ?? null).toBeNull();
-    // The status communicates eventual consistency.
+    // bl-402: stageAndWalk's M2 resolver mints the source_documents identity
+    // SYNCHRONOUSLY — surfaced as `id` (no more stale `null`).
+    expect(result.structuredContent.id).toBe(
+      'sd200000-0000-4000-8000-000000000001',
+    );
+    expect(result.structuredContent.source_document_id).toBe(
+      'sd200000-0000-4000-8000-000000000001',
+    );
+    // The linked content item still materialises via the ingest walk.
     expect(String(result.structuredContent.status)).toMatch(/materiali/i);
   });
 
@@ -425,6 +443,7 @@ describe('MCP create_content_item — preserved cross-cutting semantics', () => 
       destPath: 'agent-create/preserved.md',
       stageRequestId: 'req-123',
       sourceFile: 'preserved.md',
+      sourceDocumentId: 'sd300000-0000-4000-8000-000000000001',
     });
     createTool = await buildCreateTool();
   });

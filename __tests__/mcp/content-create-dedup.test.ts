@@ -62,6 +62,7 @@ const mocks = vi.hoisted(() => {
       destPath: 'agent-create/new-item.md',
       stageRequestId: 'req-123',
       sourceFile: 'new-item.md',
+      sourceDocumentId: 'sd400000-0000-4000-8000-000000000001',
     }),
   };
 });
@@ -153,6 +154,7 @@ describe('MCP create_content_item — dedup retirement (ID-131.15)', () => {
       destPath: 'agent-create/new-item.md',
       stageRequestId: 'req-123',
       sourceFile: 'new-item.md',
+      sourceDocumentId: 'sd400000-0000-4000-8000-000000000001',
     });
   });
 
