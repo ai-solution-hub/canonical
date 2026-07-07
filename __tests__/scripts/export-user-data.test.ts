@@ -5,6 +5,7 @@ import {
   buildActivitySummaryCsv,
   buildReadme,
   buildManifestEntry,
+  assembleSubjectBundle,
   assembleActivityBundle,
   assembleAuditTrailBundle,
   assembleAttributedContentBundle,
@@ -195,6 +196,7 @@ const FIXTURE_SUBJECT_BUNDLE: SubjectBundle = {
     email_review_assigned: true,
     auto_generate_change_reports: false,
   },
+  roles_granted_by_subject: [],
 };
 
 describe('buildSubjectSummaryCsv', () => {
@@ -214,6 +216,7 @@ describe('buildSubjectSummaryCsv', () => {
       user_profile: null,
       user_role: null,
       user_notification_prefs: null,
+      roles_granted_by_subject: [],
     };
     const csv = buildSubjectSummaryCsv(minimal);
     expect(csv).toContain('user_profile.full_name,');
@@ -357,6 +360,12 @@ describe('buildManifestEntry', () => {
 // ---------------------------------------------------------------------------
 
 describe('user-linked-table bundle reconciliation (id-138.19)', () => {
+  const EXPECTED_SUBJECT_TABLES = [
+    'user_profiles',
+    'user_roles',
+    'user_notification_prefs',
+  ];
+
   const EXPECTED_ACTIVITY_TABLES = ['notifications'];
 
   const EXPECTED_AUDIT_TRAIL_TABLES = [
@@ -395,6 +404,46 @@ describe('user-linked-table bundle reconciliation (id-138.19)', () => {
     'workspaces',
     'company_profiles',
   ];
+
+  it('assembleSubjectBundle queries exactly the expected table set (id-138.20: grantor-side roles)', async () => {
+    const mock = createMockSupabaseTableDispatch();
+    await assembleSubjectBundle(mock as never, VALID_UUID_A, FIXTURE_AUTH_USER);
+    // user_roles is queried twice (grantee user_id, grantor granted_by) but
+    // de-dupes to a single entry via the Set — Promise.all preserves order.
+    const queried = [...new Set(mock.from.mock.calls.map((c) => c[0]))];
+    expect(queried.sort()).toEqual([...EXPECTED_SUBJECT_TABLES].sort());
+  });
+
+  it('user_roles fetch checks user_id (grantee, own role) then granted_by (grantor, roles granted to others)', async () => {
+    const mock = createMockSupabaseTableDispatch();
+    await assembleSubjectBundle(mock as never, VALID_UUID_A, FIXTURE_AUTH_USER);
+    const columns = mock._chains['user_roles'].eq.mock.calls.map((c) => c[0]);
+    expect(columns).toEqual(['user_id', 'granted_by']);
+  });
+
+  it('populates both grantee-side user_role and grantor-side roles_granted_by_subject (id-138.20)', async () => {
+    // createMockSupabaseTableDispatch caches ONE chain per table name, so
+    // both user_roles queries (user_id and granted_by) resolve to the SAME
+    // configured fixture row — we can only assert presence, not that the
+    // grantee and grantor data differ.
+    const roleRow = {
+      id: 'role-1',
+      user_id: VALID_UUID_A,
+      granted_by: VALID_UUID_B,
+      role: 'editor',
+    };
+    const mock = createMockSupabaseTableDispatch({
+      user_roles: { data: [roleRow], error: null },
+    });
+    const subject = await assembleSubjectBundle(
+      mock as never,
+      VALID_UUID_A,
+      FIXTURE_AUTH_USER,
+    );
+    expect(subject.user_role).not.toBeNull();
+    expect(subject.roles_granted_by_subject.length).toBeGreaterThan(0);
+    expect(subject.roles_granted_by_subject[0]).toEqual(roleRow);
+  });
 
   it('assembleActivityBundle queries exactly the expected table set post-M6', async () => {
     const mock = createMockSupabaseTableDispatch();

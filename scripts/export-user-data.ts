@@ -476,6 +476,11 @@ export interface SubjectBundle {
   user_profile: Record<string, unknown> | null;
   user_role: Record<string, unknown> | null;
   user_notification_prefs: Record<string, unknown> | null;
+  // roles_granted_by_subject ADDED (id-138.20): grantor-side user_roles rows
+  // (granted_by = subjectUuid) — distinct from the grantee-side user_role
+  // above (user_id = subjectUuid). A subject may grant many roles, hence
+  // an array rather than a single-row-or-null field.
+  roles_granted_by_subject: Record<string, unknown>[];
 }
 
 export interface ActivityBundle {
@@ -570,16 +575,20 @@ export async function assembleSubjectBundle(
   subjectUuid: string,
   authUser: AuthUserExport,
 ): Promise<SubjectBundle> {
-  const [profileRows, roleRows, prefsRows] = await Promise.all([
-    fetchByColumn(client, 'user_profiles', 'id', subjectUuid),
-    fetchByColumn(client, 'user_roles', 'user_id', subjectUuid),
-    fetchByColumn(client, 'user_notification_prefs', 'user_id', subjectUuid),
-  ]);
+  const [profileRows, roleRows, prefsRows, grantedRoleRows] = await Promise.all(
+    [
+      fetchByColumn(client, 'user_profiles', 'id', subjectUuid),
+      fetchByColumn(client, 'user_roles', 'user_id', subjectUuid),
+      fetchByColumn(client, 'user_notification_prefs', 'user_id', subjectUuid),
+      fetchByColumn(client, 'user_roles', 'granted_by', subjectUuid),
+    ],
+  );
   return {
     auth_user: authUser,
     user_profile: profileRows[0] ?? null,
     user_role: roleRows[0] ?? null,
     user_notification_prefs: prefsRows[0] ?? null,
+    roles_granted_by_subject: grantedRoleRows,
   };
 }
 
@@ -871,8 +880,9 @@ as required by the UK General Data Protection Regulation (UK GDPR).
 ### Files in this bundle
 
 - **\`subject.json\`** — your account record (auth.users), profile
-  (user_profiles), assigned role (user_roles), and notification
-  preferences (user_notification_prefs).
+  (user_profiles), assigned role (user_roles), notification
+  preferences (user_notification_prefs), and any roles you have
+  granted to other users (user_roles rows where you are the grantor).
 - **\`activity.json\`** — your in-app activity: notifications you have
   received.
 - **\`audit-trail.json\`** — system audit-trail rows attributing actions
