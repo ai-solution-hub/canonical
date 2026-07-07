@@ -9,6 +9,8 @@ enrich the client-owned OKF concept bundle. See
 Modules: `resource_uri` (BI-6/7/8/9/10 `canonical://` builder), `frontmatter`
 (BI-12 frontmatter emitter), `validator` (BI-13 concept-frontmatter
 validator gate — `{132.7}` G-VALIDATE), `agent_loop` (Anthropic tool-use
-loop port). No barrel re-exports here — import each module directly
+loop port), `prompts` (Pass-1 instruction prompt — `{132.8}` G-PASS1),
+`enrich` (`enrich_concept` — Pass-1 concept drafting from L-records ONLY,
+`{132.8}` G-PASS1). No barrel re-exports here — import each module directly
 (project convention, `CLAUDE.md` §Conventions).
 """

@@ -115,6 +115,32 @@ SAMPLE_ROWS_TOOL: ToolParam = {
 # SAMPLE_ROWS_TOOL, ...]   # Pass-2 adds WEB_FETCH_TOOL`).
 PASS1_TOOLS: list[ToolParam] = [READ_CONCEPT_RAW_TOOL, SAMPLE_ROWS_TOOL]
 
+# S451 rider fold-in 2 (TECH-ADDENDUM-reference-agents.md, `{132.5}` retro-
+# check finding at agent_loop.py:116) — the reference's `build_bq_agent`
+# registers a THIRD tool, `list_concepts`, used for cross-linking
+# (`reference_instruction.md` workflow step 4, "weave cross-links" = BI-9
+# concept→concept citation by path). Kept OUT of `PASS1_TOOLS` itself
+# (a load-bearing constant a sibling test pins exactly to the two
+# Source-adapter tools) — `{132.8}` `producer/enrich.py` composes its own
+# tool list `[*PASS1_TOOLS, LIST_CONCEPTS_TOOL]` at the `enrich_concept`
+# call site instead.
+LIST_CONCEPTS_TOOL: ToolParam = {
+    "name": "list_concepts",
+    "description": (
+        "List every concept in the bundle's catalogue — its bundle rel_path "
+        "and concept type. Use this to find concepts to cross-link: where "
+        "this concept is clearly related to another one in the catalogue, "
+        "cite the target concept's bundle rel_path (e.g. 'products/lms.md') "
+        "as a BI-9 concept-to-concept citation — never a canonical:// uri "
+        "and never a bare database id for a concept cross-link."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+    },
+}
+
 
 # ---------------------------------------------------------------------------
 # Injectable tool-executor contract
