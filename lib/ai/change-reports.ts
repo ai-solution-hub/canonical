@@ -214,6 +214,12 @@ export async function generateChangeReport(
     )
     .gte('captured_date', periodStartISO)
     .lte('captured_date', periodEndISO)
+    // BL-406 (S450 follow-up to BL-398): exclude archived AND tombstoned
+    // (admission_status='tombstoned', GDPR erasure, ID-138 {138.5} DR-023)
+    // source_documents from the digest — mirrors the established idiom in
+    // app/api/review/queue/route.ts.
+    .is('archived_at', null)
+    .neq('admission_status', 'tombstoned')
     .order('captured_date', { ascending: false });
 
   // Apply domain filter
@@ -561,11 +567,16 @@ export async function generateChangeReport(
     // recalc had an updated_at to read) is the consistent re-point — and
     // arguably MORE correct than the old content_history-row count, which
     // double-counted an item edited multiple times in the period.
+    // BL-406: same tombstone/archived_at exclusion as the digest fetch above
+    // — a tombstoned or archived source_document must not count towards the
+    // "items modified" governance figure.
     const { count: modifiedCount } = await supabase
       .from('source_documents')
       .select('*', { count: 'exact', head: true })
       .gte('updated_at', periodStartISO)
-      .lte('updated_at', periodEndISO);
+      .lte('updated_at', periodEndISO)
+      .is('archived_at', null)
+      .neq('admission_status', 'tombstoned');
 
     // Count verified items in period. ID-131 {131.19}: verified_at now lives
     // on the record_lifecycle facet (governance axis, BI-20).

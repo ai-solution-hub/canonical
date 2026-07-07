@@ -419,3 +419,32 @@ describe('governance summary — items_modified re-point (ID-131.19 S450 Wave 1 
     expect(gteCalls).toContain('updated_at');
   });
 });
+
+// ---------------------------------------------------------------------------
+// BL-406 (S450 follow-up to BL-398) — tombstone + archived_at filters
+// ---------------------------------------------------------------------------
+
+describe('tombstone + archived_at filters (BL-406)', () => {
+  it('excludes archived and tombstoned source_documents from the digest fetch and the governance modifiedCount query', async () => {
+    await generateChangeReport({
+      supabase: mockSupabase as unknown as SupabaseClient<Database>,
+      periodDays: 7,
+      digestType: 'weekly',
+      userId: 'test-user-id',
+    });
+
+    // Two source_documents queries in this function need the filter: the
+    // digest item fetch (line ~210) and the governance modifiedCount count
+    // (line ~570) — both must exclude archived AND tombstoned rows,
+    // mirroring the idiom already established in
+    // app/api/review/queue/route.ts (BL-398, S450).
+    const isArchivedCalls = mockSupabase._chain.is.mock.calls.filter(
+      (c) => c[0] === 'archived_at' && c[1] === null,
+    );
+    const neqTombstonedCalls = mockSupabase._chain.neq.mock.calls.filter(
+      (c) => c[0] === 'admission_status' && c[1] === 'tombstoned',
+    );
+    expect(isArchivedCalls.length).toBeGreaterThanOrEqual(2);
+    expect(neqTombstonedCalls.length).toBeGreaterThanOrEqual(2);
+  });
+});

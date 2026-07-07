@@ -133,7 +133,11 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
                 .from('source_documents')
                 .select('id')
                 .in('id', ownedSdIds)
-                .is('archived_at', null),
+                .is('archived_at', null)
+                // BL-406: also exclude tombstoned (GDPR erasure, ID-138
+                // {138.5} DR-023) source_documents — archived_at alone
+                // misses a tombstoned-but-not-archived row.
+                .neq('admission_status', 'tombstoned'),
               'mcp.dashboard.owned_items.active_source_documents',
             );
             for (const sd of activeSds as Array<{ id: string | null }>) {
