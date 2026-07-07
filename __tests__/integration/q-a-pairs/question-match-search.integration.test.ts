@@ -33,8 +33,9 @@
  * CLAUDE.md gotchas applied:
  *   * Embedding vector: JSON.stringify(embeddingArray) for RPC vector params.
  *   * Service-role client: bypasses RLS for test setup/teardown.
- *   * FK-safe cleanup order: question_matches → q_a_pairs → form_questions →
- *     workspaces.
+ *   * FK-safe cleanup order: q_a_pairs → form_questions → workspaces;
+ *     question_matches CASCADE-deletes from both parents (no explicit delete
+ *     needed — see the ID-57.7 fix note above).
  *   * Hard assertions only — no conditional if-visible patterns.
  *   * KH_RUN_INTEGRATION guard: describe.skipIf so non-integration runs skip.
  *   * .select() on mutating queries prevents the HTTP 204 sandbox hang.
@@ -63,6 +64,28 @@
  * reference at all — it only reads STORED scores off `question_matches` — so
  * it was never affected by the writer's bug either way. Separate from
  * lib/q-a-pairs/promote-corpus.ts's parallel fix.
+ *
+ * FIXED (ID-57.7 policy-vs-test resolution): `question_matches` is
+ * deliberately classified INTERNAL_ONLY_TABLES by check-api-view-coverage.ts
+ * — no `api.question_matches` view exists BY POLICY (RPC-only access
+ * surface). Confirmed empirically: `api.question_matches` 404s
+ * ("Could not find the table"), and a PostgREST request with
+ * `Accept-Profile: public` 406s ("Only the following schemas are exposed:
+ * api") — the ID-115 schema-isolation cutover (20260623) makes `public`
+ * UNREACHABLE via PostgREST/supabase-js entirely, not just unexposed for
+ * this one table. No production caller reads `question_matches` directly
+ * (grep across app/lib/components/hooks/scripts + ast-dataflow
+ * string-literal-uses: zero hits outside these two integration test files
+ * and the policy classification itself). This suite's TEST BODIES already
+ * read exclusively through `search()` (question_match_search) — only the
+ * `beforeAll` preflight and `afterEach` cleanup touched
+ * `.from('question_matches')` directly (which 404s under the api-routed
+ * `DB_OPTION` client); both are re-pointed below. `afterEach` no longer
+ * issues a belt-and-braces `question_matches` delete — the `q_a_pairs`/
+ * `form_questions` deletes already CASCADE
+ * (`question_matches_form_question_id_fkey` / `_q_a_pair_id_fkey` are both
+ * `ON DELETE CASCADE`, confirmed in the squash baseline), so cleanup is
+ * unaffected.
  *
  * @vitest-environment node
  */
@@ -332,20 +355,18 @@ async function materialise(
 }
 
 // ---------------------------------------------------------------------------
-// Cleanup — FK-safe order: question_matches → q_a_pairs → form_questions →
-// workspaces.
+// Cleanup — FK-safe order: q_a_pairs → form_questions → workspaces.
+// question_matches rows CASCADE-delete from both parents
+// (question_matches_form_question_id_fkey / _q_a_pair_id_fkey are both
+// ON DELETE CASCADE — squash baseline), so no explicit question_matches
+// delete is needed. (ID-57.7 fix: an explicit `.from('question_matches')`
+// delete would 404 anyway — INTERNAL_ONLY_TABLES, no api view — see module
+// docstring.)
 // ---------------------------------------------------------------------------
 afterEach(async () => {
   if (!RUN_INTEGRATION) return;
 
-  if (seededQuestionIds.length > 0) {
-    await db
-      .from('question_matches')
-      .delete()
-      .in('form_question_id', seededQuestionIds);
-  }
   if (seededPairIds.length > 0) {
-    await db.from('question_matches').delete().in('q_a_pair_id', seededPairIds);
     // record_embeddings carries no FK (polymorphic owner) — clean explicitly.
     await db
       .from('record_embeddings')
@@ -374,7 +395,15 @@ describe.skipIf(!RUN_INTEGRATION)(
   'ID-57 {57.7} — question_match_search reader RPC',
   () => {
     beforeAll(async () => {
-      const { error } = await db.from('question_matches').select('id').limit(1);
+      // ID-57.7 fix: preflight through the reader RPC (the sanctioned access
+      // surface), not `.from('question_matches')` (404s — INTERNAL_ONLY_TABLES,
+      // no api view). A well-formed but non-existent form_question_id must
+      // return an empty list, not an error (C5) — proves the RPC + underlying
+      // table both exist and the {57.7} migration is applied.
+      const { error } = await search({
+        p_form_question_id: '00000000-0000-4000-8000-000000000000',
+        p_limit: 1,
+      });
       if (error) {
         throw new Error(
           `Staging DB connection check failed: ${error.message}. ` +

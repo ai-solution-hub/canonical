@@ -3,16 +3,20 @@
  * writer RPC (live scoring + population writer).
  *
  * Scope: specs/id-57-question-matches-retrieval/{PRODUCT,TECH}.md §E (writer).
+ * Reads are through the `question_match_search` reader RPC — see the ID-57.7
+ * fix note below for why (question_matches is INTERNAL_ONLY_TABLES; no api
+ * view exists by policy).
  * Exercises:
  *   1. recompute materialises ranked candidate rows into question_matches with
- *      BOTH per-method scores + matched_at + the caller-supplied question_kind,
- *      and RETURNS the materialised row count (PRODUCT E1/E2; A5).
+ *      BOTH per-method scores + the caller-supplied question_kind, and
+ *      RETURNS the materialised row count (PRODUCT E1/E2; A5).
  *   2. corpus eligibility filters (PRODUCT B5/B6): non-overlapping scope,
  *      anti-scope overlap, non-'published', and NULL question_embedding pairs
  *      are excluded from the materialised candidate set.
  *   3. idempotent re-compute: a second recompute call leaves NO duplicate edge
- *      (the A6 UNIQUE (form_question_id, q_a_pair_id) holds) and REFRESHES
- *      matched_at on the surviving row (PRODUCT E2/E3; ON CONFLICT upsert).
+ *      (the A6 UNIQUE (form_question_id, q_a_pair_id) holds) and the stored
+ *      score reflects the LATEST scoring, not a stale value (PRODUCT E2/E3;
+ *      ON CONFLICT upsert).
  *   4. stored score fidelity (PRODUCT D1/D2/D3): embedding_score ≈
  *      1.0 - cosine_distance; fulltext_score = ts_rank(.,2), and a query with
  *      no lexical overlap yields a stored fulltext_score of 0 (not null).
@@ -29,9 +33,9 @@
  *   * Embedding vector: JSON.stringify(embeddingArray) for RPC vector params,
  *     NOT a raw array.
  *   * Service-role client: bypasses RLS for test setup/teardown.
- *   * FK-safe cleanup order: question_matches → q_a_pairs → form_questions →
- *     workspaces (question_matches FKs cascade-delete from both parents, but we
- *     delete the edge rows explicitly first as belt-and-braces).
+ *   * FK-safe cleanup order: q_a_pairs → form_questions → workspaces;
+ *     question_matches CASCADE-deletes from both parents (no explicit delete
+ *     needed — see the ID-57.7 fix note below).
  *   * Hard assertions only — no conditional if-visible patterns.
  *   * KH_RUN_INTEGRATION guard: describe.skipIf so non-integration runs skip.
  *   * .select() on mutating queries prevents the HTTP 204 sandbox hang.
@@ -60,6 +64,33 @@
  * — AUTHORED, NOT YET APPLIED (owner-gated GO-sequence apply); this suite
  * passes once that migration lands on the live DB. Separate from
  * lib/q-a-pairs/promote-corpus.ts's parallel fix.
+ *
+ * FIXED (ID-57.7 policy-vs-test resolution): `question_matches` is
+ * deliberately classified INTERNAL_ONLY_TABLES by check-api-view-coverage.ts
+ * — no `api.question_matches` view exists BY POLICY (RPC-only access
+ * surface). Confirmed empirically: `api.question_matches` 404s
+ * ("Could not find the table"), and a PostgREST request with
+ * `Accept-Profile: public` 406s ("Only the following schemas are exposed:
+ * api") — the ID-115 schema-isolation cutover (20260623) makes `public`
+ * UNREACHABLE via PostgREST/supabase-js entirely, not just unexposed for
+ * this one table. No production caller reads `question_matches` directly
+ * (grep across app/lib/components/hooks/scripts + ast-dataflow
+ * string-literal-uses: zero hits outside these two integration test files
+ * and the policy classification itself) — the reader RPC
+ * `question_match_search` IS the designed read surface. This suite now
+ * reads materialised rows through that RPC instead of
+ * `.from('question_matches')` (which silently 404s under the api-routed
+ * `DB_OPTION` client). One PRODUCT invariant (E3's `matched_at` bookkeeping
+ * column) is not independently observable through the RPC surface — the
+ * reader never returns `matched_at` — so Test 3 now proves "last-scored-
+ * visible" by asserting the STORED score changes (not merely persists) after
+ * a second recompute with a different query embedding, which is the
+ * stronger, contract-visible form of the same invariant. `afterEach` no
+ * longer issues a belt-and-braces `question_matches` delete (it 404s the
+ * same way) — the `q_a_pairs`/`form_questions` deletes already CASCADE
+ * (`question_matches_form_question_id_fkey` / `_q_a_pair_id_fkey` are both
+ * `ON DELETE CASCADE`, confirmed in the squash baseline), so cleanup is
+ * unaffected.
  *
  * @vitest-environment node
  */
@@ -295,38 +326,52 @@ async function recompute(
 }
 
 // ---------------------------------------------------------------------------
-// Read materialised candidate edges for a form-question.
+// Read materialised candidate edges through the sanctioned reader RPC — see
+// module docstring (ID-57.7 fix): `question_matches` is INTERNAL_ONLY_TABLES
+// (no api view by policy), so direct `.from('question_matches')` 404s under
+// the api-routed client. `question_match_search` is the designed read
+// surface; it returns STORED per-method scores with zero re-scoring, so the
+// values read here are the same numbers the writer materialised.
 // ---------------------------------------------------------------------------
-async function readMatches(formQuestionId: string) {
-  const { data, error } = await db
-    .from('question_matches')
-    .select(
-      'id, form_question_id, q_a_pair_id, question_kind, embedding_score, fulltext_score, matched_at',
-    )
-    .eq('form_question_id', formQuestionId);
+interface SearchRow {
+  q_a_pair_id: string;
+  question_text_preview: string;
+  answer_standard_preview: string;
+  embedding_score: number | null;
+  fulltext_score: number | null;
+  scope_tag: string[] | null;
+  publication_status: string;
+}
 
-  if (error) {
-    throw new Error(`readMatches(${formQuestionId}) failed: ${error.message}`);
-  }
-  return data ?? [];
+interface SearchArgs {
+  p_form_question_id: string;
+  p_question_kind?: string | null;
+  p_limit?: number;
+}
+
+async function search(
+  args: SearchArgs,
+): Promise<{ data: SearchRow[] | null; error: { message: string } | null }> {
+  const { data, error } = await (db as unknown as SupabaseClient).rpc(
+    'question_match_search',
+    args,
+  );
+  return { data: data as SearchRow[] | null, error };
 }
 
 // ---------------------------------------------------------------------------
-// Cleanup — FK-safe order: question_matches → q_a_pairs → form_questions →
-// workspaces. question_matches cascade-deletes from both parents, but we delete
-// edge rows explicitly first (defensive).
+// Cleanup — FK-safe order: q_a_pairs → form_questions → workspaces.
+// question_matches rows CASCADE-delete from both parents
+// (question_matches_form_question_id_fkey / _q_a_pair_id_fkey are both
+// ON DELETE CASCADE — squash baseline), so no explicit question_matches
+// delete is needed. (ID-57.7 fix: an explicit `.from('question_matches')`
+// delete would 404 anyway — INTERNAL_ONLY_TABLES, no api view — see module
+// docstring.)
 // ---------------------------------------------------------------------------
 afterEach(async () => {
   if (!RUN_INTEGRATION) return;
 
-  if (seededQuestionIds.length > 0) {
-    await db
-      .from('question_matches')
-      .delete()
-      .in('form_question_id', seededQuestionIds);
-  }
   if (seededPairIds.length > 0) {
-    await db.from('question_matches').delete().in('q_a_pair_id', seededPairIds);
     // record_embeddings carries no FK (polymorphic owner) — clean explicitly.
     await db
       .from('record_embeddings')
@@ -355,7 +400,15 @@ describe.skipIf(!RUN_INTEGRATION)(
   'ID-57 {57.6} — question_match_recompute writer RPC',
   () => {
     beforeAll(async () => {
-      const { error } = await db.from('question_matches').select('id').limit(1);
+      // ID-57.7 fix: preflight through the reader RPC (the sanctioned access
+      // surface), not `.from('question_matches')` (404s — INTERNAL_ONLY_TABLES,
+      // no api view). A well-formed but non-existent form_question_id must
+      // return an empty list, not an error (C5) — proves the RPC + underlying
+      // table both exist and the {57.7} migration is applied.
+      const { error } = await search({
+        p_form_question_id: '00000000-0000-4000-8000-000000000000',
+        p_limit: 1,
+      });
       if (error) {
         throw new Error(
           `Staging DB connection check failed: ${error.message}. ` +
@@ -366,10 +419,10 @@ describe.skipIf(!RUN_INTEGRATION)(
     });
 
     // -------------------------------------------------------------------------
-    // Test 1: recompute materialises ranked rows with both scores + kind +
-    // matched_at, and returns the count (PRODUCT E1/E2; A5).
+    // Test 1: recompute materialises ranked rows with both scores + kind,
+    // and returns the count (PRODUCT E1/E2; A5).
     // -------------------------------------------------------------------------
-    it('materialises ranked candidate rows with both scores, question_kind, matched_at; returns count', async () => {
+    it('materialises ranked candidate rows with both scores and question_kind stored; returns count', async () => {
       const workspaceId = await seedWorkspace('ID-57.6 recompute workspace');
       const formQuestionId = await seedFormQuestion(
         workspaceId,
@@ -417,14 +470,22 @@ describe.skipIf(!RUN_INTEGRATION)(
       // E2: returns the count of materialised rows.
       expect(count).toBe(2);
 
-      const matches = await readMatches(formQuestionId);
-      expect(matches.length, 'two candidate edges materialised').toBe(2);
+      // Read the materialised edges back through the reader RPC — the
+      // sanctioned access surface (ID-57.7 fix; see module docstring).
+      // A4 (question_kind stored verbatim): filtering by 'bid' returns both
+      // pairs, proving the caller-supplied kind was persisted as 'bid'.
+      const { data: matches, error: searchError } = await search({
+        p_form_question_id: formQuestionId,
+        p_question_kind: 'bid',
+      });
+      expect(searchError, `search failed: ${searchError?.message}`).toBeNull();
+      expect(matches!.length, 'two candidate edges materialised').toBe(2);
 
-      const byPair = new Map(matches.map((m) => [m.q_a_pair_id, m]));
+      const byPair = new Map(matches!.map((m) => [m.q_a_pair_id, m]));
       expect(byPair.has(pairAId)).toBe(true);
       expect(byPair.has(pairBId)).toBe(true);
 
-      for (const m of matches) {
+      for (const m of matches!) {
         // A5: at least one score present; here both methods produce a score.
         expect(typeof m.embedding_score, 'embedding_score is a number').toBe(
           'number',
@@ -435,10 +496,6 @@ describe.skipIf(!RUN_INTEGRATION)(
           'number',
         );
         expect(m.fulltext_score).toBeGreaterThanOrEqual(0);
-        // Caller-supplied question_kind is stored verbatim (A4).
-        expect(m.question_kind).toBe('bid');
-        // matched_at is set.
-        expect(m.matched_at).toBeDefined();
       }
 
       // Pair A (closest embedding) outscores pair B on the embedding axis.
@@ -527,8 +584,12 @@ describe.skipIf(!RUN_INTEGRATION)(
       // Only the single eligible pair is materialised.
       expect(count).toBe(1);
 
-      const matches = await readMatches(formQuestionId);
-      const materialisedPairIds = matches.map((m) => m.q_a_pair_id);
+      // Read back through the reader RPC (ID-57.7 fix; see module docstring).
+      const { data: matches, error: searchError } = await search({
+        p_form_question_id: formQuestionId,
+      });
+      expect(searchError, `search failed: ${searchError?.message}`).toBeNull();
+      const materialisedPairIds = matches!.map((m) => m.q_a_pair_id);
       expect(materialisedPairIds).toEqual([eligibleId]);
       expect(materialisedPairIds).not.toContain(nonOverlapId);
       expect(materialisedPairIds).not.toContain(antiScopeId);
@@ -538,67 +599,95 @@ describe.skipIf(!RUN_INTEGRATION)(
 
     // -------------------------------------------------------------------------
     // Test 3: idempotent re-compute — no duplicate edge (A6 UNIQUE holds) and
-    // matched_at is refreshed (PRODUCT E2/E3; ON CONFLICT upsert).
+    // the row is last-scored-visible, i.e. genuinely refreshed rather than
+    // stale (PRODUCT E2/E3; ON CONFLICT upsert).
+    //
+    // ID-57.7 fix (see module docstring): E3's `matched_at` bookkeeping column
+    // is not returned by `question_match_search` (the sanctioned reader), so
+    // it is not independently observable through the RPC contract. This test
+    // instead proves "last-scored-visible" the contract-visible way: a second
+    // recompute with a MATERIALLY DIFFERENT query embedding must change the
+    // STORED embedding_score visible via search — if the row were stale
+    // (not refreshed), the first score would persist. This is the stronger
+    // form of the same invariant: it proves the *content* reflects the last
+    // scoring, not just that a timestamp column advanced.
     // -------------------------------------------------------------------------
-    it('re-compute leaves no duplicate edge and refreshes matched_at', async () => {
+    it('re-compute leaves no duplicate edge and the stored score reflects the latest scoring', async () => {
       const workspaceId = await seedWorkspace('ID-57.6 idempotency workspace');
       const formQuestionId = await seedFormQuestion(
         workspaceId,
         'What is our data residency policy?',
       );
 
-      const embedding = makeEmbedding(1.0, 0.0);
+      const pairEmbedding = makeEmbedding(1.0, 0.0);
       const pairId = await seedQaPair({
         questionText: 'What is our data residency policy?',
         answerStandard: 'Data is held within UK/EU regions per contract.',
         publicationStatus: 'published',
-        embedding,
+        embedding: pairEmbedding,
         scopeTag: ['procurement'],
       });
 
-      const rpcArgs = {
+      const baseArgs = {
         p_form_question_id: formQuestionId,
-        p_query: 'data residency UK EU',
-        p_query_embedding: JSON.stringify(makeEmbedding(1.0, 0.0)),
         p_question_kind: 'bid',
         p_scope_tag: ['procurement'],
         p_anti_scope_tag: [],
         p_limit: 20,
       };
 
-      const first = await recompute(rpcArgs);
+      // First recompute: query embedding close to the pair → high embedding_score.
+      const first = await recompute({
+        ...baseArgs,
+        p_query: 'data residency UK EU',
+        p_query_embedding: JSON.stringify(makeEmbedding(1.0, 0.0)),
+      });
       expect(
         first.error,
         `first recompute: ${first.error?.message}`,
       ).toBeNull();
       expect(first.data).toBe(1);
 
-      const afterFirst = await readMatches(formQuestionId);
-      expect(afterFirst.length).toBe(1);
-      const firstMatchedAt = afterFirst[0].matched_at;
-      expect(afterFirst[0].q_a_pair_id).toBe(pairId);
+      const afterFirst = await search({ p_form_question_id: formQuestionId });
+      expect(afterFirst.error).toBeNull();
+      expect(afterFirst.data!.length).toBe(1);
+      expect(afterFirst.data![0].q_a_pair_id).toBe(pairId);
+      const firstEmbeddingScore = afterFirst.data![0].embedding_score!;
 
-      // Brief delay so the refreshed matched_at is strictly later.
-      await new Promise((r) => setTimeout(r, 1100));
-
-      const second = await recompute(rpcArgs);
+      // Second recompute: query embedding ORTHOGONAL to the pair (dot product
+      // 0 → cosine_distance 1 → embedding_score 0, the valid lower boundary)
+      // — materially lower than the first, without going negative (an
+      // ANTI-PARALLEL query, e.g. makeEmbedding(-1.0, 0.0), drives
+      // cosine_distance to 2 and embedding_score to -1.0, which violates the
+      // table's own `embedding_score_range_chk` [0,1] CHECK — confirmed live
+      // against staging; flagged out-of-scope, not fixed here). If the
+      // upsert left the row stale, the reader would still surface the first
+      // (high) score.
+      const second = await recompute({
+        ...baseArgs,
+        p_query: 'unrelated procurement terminology',
+        p_query_embedding: JSON.stringify(makeEmbedding(0.0, 1.0)),
+      });
       expect(
         second.error,
         `second recompute: ${second.error?.message}`,
       ).toBeNull();
       expect(second.data).toBe(1);
 
-      const afterSecond = await readMatches(formQuestionId);
+      const afterSecond = await search({ p_form_question_id: formQuestionId });
+      expect(afterSecond.error).toBeNull();
       // A6 UNIQUE holds — still exactly one edge for (form_question, pair).
       expect(
-        afterSecond.length,
+        afterSecond.data!.length,
         'no duplicate edge after re-compute (UNIQUE holds)',
       ).toBe(1);
-      // matched_at refreshed by the ON CONFLICT upsert.
+      expect(afterSecond.data![0].q_a_pair_id).toBe(pairId);
+      // Last-scored-visible: the stored score reflects the SECOND scoring,
+      // not a stale first value.
       expect(
-        new Date(afterSecond[0].matched_at).getTime(),
-        'matched_at refreshed on re-compute',
-      ).toBeGreaterThan(new Date(firstMatchedAt).getTime());
+        afterSecond.data![0].embedding_score,
+        'stored score reflects the latest scoring, not a stale value',
+      ).toBeLessThan(firstEmbeddingScore);
     }, 60_000);
 
     // -------------------------------------------------------------------------
@@ -640,9 +729,15 @@ describe.skipIf(!RUN_INTEGRATION)(
       expect(error, `recompute failed: ${error?.message}`).toBeNull();
       expect(count).toBe(1);
 
-      const matches = await readMatches(formQuestionId);
-      expect(matches.length).toBe(1);
-      const m = matches[0];
+      // Read back through the reader RPC (ID-57.7 fix; see module docstring)
+      // — it returns the STORED scores verbatim, so the values asserted here
+      // are the same numbers the writer materialised.
+      const { data: matches, error: searchError } = await search({
+        p_form_question_id: formQuestionId,
+      });
+      expect(searchError, `search failed: ${searchError?.message}`).toBeNull();
+      expect(matches!.length).toBe(1);
+      const m = matches![0];
       expect(m.q_a_pair_id).toBe(pairId);
 
       // D1/D2: embedding_score ≈ 1.0 - cosine_distance (stored numeric(5,4),
