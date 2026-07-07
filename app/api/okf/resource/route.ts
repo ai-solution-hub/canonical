@@ -28,6 +28,9 @@ import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { parseCanonicalResourceUri } from '@/lib/okf/parse-canonical-uri';
 import { tryQuery } from '@/lib/supabase/safe';
+import { parseSearchParams } from '@/lib/validation';
+
+const resourceQuerySchema = z.object({ uri: z.string().min(1) });
 
 export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
   try {
@@ -35,13 +38,12 @@ export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
     if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
-    const uri = request.nextUrl.searchParams.get('uri');
-    if (!uri) {
-      return NextResponse.json(
-        { error: 'uri query param is required' },
-        { status: 400 },
-      );
-    }
+    const parsedQuery = parseSearchParams(
+      resourceQuerySchema,
+      request.nextUrl.searchParams,
+    );
+    if (!parsedQuery.success) return parsedQuery.response;
+    const { uri } = parsedQuery.data;
 
     const ref = parseCanonicalResourceUri(uri);
     if (!ref) {
