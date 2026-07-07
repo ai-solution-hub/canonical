@@ -531,6 +531,58 @@ describe('GET /api/procurement/[id]', () => {
     expect(body.warnings).toBeUndefined();
   });
 
+  it('surfaces residual reference_number/estimated_value/notes off domain_metadata (no form home, {130.21})', async () => {
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        ...MOCK_WORKSPACE,
+        domain_metadata: {
+          reference_number: 'REF-123',
+          estimated_value: '£50,000',
+          notes: 'Follow up with the buyer next week.',
+          // Deprecated engagement keys must NOT leak through even if still
+          // present on a legacy row.
+          status: 'draft',
+          deadline: '2020-01-01T00:00:00Z',
+        },
+      },
+      error: null,
+    });
+    // No roll-up row / no forms yet -> defaults.
+
+    const req = createTestRequest(`/api/procurement/${VALID_UUID}`);
+    const res = await getBid(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.reference_number).toBe('REF-123');
+    expect(body.estimated_value).toBe('£50,000');
+    expect(body.notes).toBe('Follow up with the buyer next week.');
+    // Still no nested domain_metadata leak — the deprecated engagement keys
+    // stay hidden (split-brain guard).
+    expect(body).not.toHaveProperty('domain_metadata');
+    expect(body.status).toBeUndefined();
+  });
+
+  it('returns null residual fields when domain_metadata is absent', async () => {
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: MOCK_WORKSPACE,
+      error: null,
+    });
+
+    const req = createTestRequest(`/api/procurement/${VALID_UUID}`);
+    const res = await getBid(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.reference_number).toBeNull();
+    expect(body.estimated_value).toBeNull();
+    expect(body.notes).toBeNull();
+  });
+
   it('returns a null roll-up + empty forms for a brand-new umbrella', async () => {
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: MOCK_WORKSPACE,
@@ -850,6 +902,66 @@ describe('PATCH /api/procurement/[id]', () => {
     });
     expect(formUpdateArg).not.toHaveProperty('domain_metadata');
     expect(formUpdateArg).not.toHaveProperty('status');
+  });
+
+  it('honours a caller-supplied submission_date on the submitted transition instead of the server clock (T-B9, {130.21})', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const CALLER_SUBMISSION_DATE = '2026-05-01T09:30:00.000Z';
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { ...MOCK_WORKSPACE, domain_metadata: {} },
+      error: null,
+    });
+    let thenCallCount = 0;
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) {
+          // form fetch (current state ready_for_export -> submitted is valid)
+          return resolve({
+            data: [
+              {
+                id: FORM_ID,
+                form_type: 'bid',
+                workflow_state: 'ready_for_export',
+              },
+            ],
+            error: null,
+          });
+        }
+        if (thenCallCount === 2) {
+          return resolve({
+            data: [
+              {
+                ...MOCK_FORM,
+                workflow_state: 'submitted',
+                submission_date: CALLER_SUBMISSION_DATE,
+              },
+            ],
+            error: null,
+          });
+        }
+        return resolve({ data: [], error: null });
+      },
+    );
+
+    const req = createTestRequest(`/api/procurement/${VALID_UUID}`, {
+      method: 'PATCH',
+      body: { status: 'submitted', submission_date: CALLER_SUBMISSION_DATE },
+    });
+    const res = await PATCH(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.workflow_state).toBe('submitted');
+
+    // The form UPDATE carries the CALLER's submission_date, not a
+    // server-stamped `now()` value.
+    const formUpdateArg = mockSupabase._chain.update.mock.calls[0][0];
+    expect(formUpdateArg.submission_date).toBe(CALLER_SUBMISSION_DATE);
   });
 });
 

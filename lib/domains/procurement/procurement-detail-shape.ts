@@ -64,6 +64,14 @@ export interface ProcurementDetailResponse {
   status?: ProcurementWorkflowState | null;
   /** @deprecated pre-{130.11} engagement metadata — moved to the form. */
   domain_metadata?: ProcurementMetadata | null;
+  /**
+   * RESIDUAL workspace-level tender facts with no per-form home ({130.21}
+   * wave-3 follow-up) — flattened onto the GET response, not nested under
+   * `domain_metadata`.
+   */
+  reference_number?: string | null;
+  estimated_value?: string | null;
+  notes?: string | null;
 }
 
 /**
@@ -112,10 +120,14 @@ export function deriveProcurementStatus(
  * (B-7). When the new shape is absent, the deprecated `domain_metadata` is
  * returned verbatim (graceful-migration read).
  *
- * NOTE: `reference_number` / `estimated_value` / `notes` were residual
- * `domain_metadata`-only fields with no form home; the {130.11} GET no longer
- * surfaces them, so they derive as `null` here (a known degradation, tracked
- * for follow-up). Returns `null` when there is no data.
+ * NOTE: `reference_number` / `estimated_value` / `notes` are residual
+ * workspace-level fields with no per-form home (B-1 — a single opportunity
+ * fact doesn't belong to any one of the umbrella's many forms); the {130.11}
+ * GET re-anchor stopped surfacing them entirely, silently hiding data PATCH
+ * still persisted. {130.21} re-wired GET to flatten them from
+ * `domain_metadata` onto the response top-level (never nested, so the
+ * deprecated engagement keys inside `domain_metadata` stay hidden) — read
+ * them off the new shape here too. Returns `null` when there is no data.
  */
 export function deriveProcurementMetadata(
   data: unknown,
@@ -137,8 +149,8 @@ export function deriveProcurementMetadata(
     buyer: primary.issuing_organisation ?? '',
     status: deriveProcurementStatus(detail) ?? 'draft',
     deadline: primary.deadline ?? detail.rollup?.nearest_deadline ?? null,
-    reference_number: null,
-    estimated_value: null,
+    reference_number: detail.reference_number ?? null,
+    estimated_value: detail.estimated_value ?? null,
     tender_source: null,
     tender_document_ids: tenderDocuments.map((doc) => doc.path),
     submission_date: primary.submission_date ?? null,
@@ -147,7 +159,7 @@ export function deriveProcurementMetadata(
         ? outcome
         : null,
     outcome_notes: primary.outcome_notes ?? null,
-    notes: null,
+    notes: detail.notes ?? null,
     outcome_recorded_at: primary.outcome_recorded_at ?? undefined,
     outcome_recorded_by: primary.outcome_recorded_by ?? undefined,
   };

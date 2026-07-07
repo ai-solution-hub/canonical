@@ -67,7 +67,7 @@ export const GET = defineRoute(
         supabase
           .from('workspaces')
           .select(
-            'id, name, description, is_archived, created_by, created_at, updated_at, updated_by, application_types!inner(key)',
+            'id, name, description, domain_metadata, is_archived, created_by, created_at, updated_at, updated_by, application_types!inner(key)',
           )
           .eq('id', id)
           .eq('application_types.key', 'procurement')
@@ -86,8 +86,41 @@ export const GET = defineRoute(
       }
 
       // Strip the joined projection — callers expect flat workspace fields.
-      const { application_types: _appTypes, ...workspace } =
-        workspaceResult.data;
+      // `domain_metadata` is stripped here too and re-surfaced below as the
+      // flattened RESIDUAL fields only — the deprecated engagement keys inside
+      // it ({status, outcome, deadline, ...}) are NEVER echoed back (T-B1).
+      const {
+        application_types: _appTypes,
+        domain_metadata,
+        ...workspace
+      } = workspaceResult.data;
+
+      // RESIDUAL fields (reference_number / estimated_value / notes, {130.21}
+      // wave-3 follow-up): these are workspace-level tender facts with no
+      // per-form home under ID-130's form-centric model (B-1 — the umbrella
+      // holds MANY forms, so a single opportunity-level reference/value/note
+      // does not belong to any one of them). PATCH already persists them onto
+      // `domain_metadata` (route below); the {130.11} re-anchor stopped GET
+      // from surfacing them at all, silently hiding data the caller wrote.
+      // Surface them flattened (not as a nested `domain_metadata` object —
+      // the deprecated engagement keys stay hidden) so the Details card can
+      // render them again.
+      const residualMetadata = domain_metadata as Record<
+        string,
+        unknown
+      > | null;
+      const reference_number =
+        typeof residualMetadata?.reference_number === 'string'
+          ? residualMetadata.reference_number
+          : null;
+      const estimated_value =
+        typeof residualMetadata?.estimated_value === 'string'
+          ? residualMetadata.estimated_value
+          : null;
+      const notes =
+        typeof residualMetadata?.notes === 'string'
+          ? residualMetadata.notes
+          : null;
 
       // Composite view: the roll-up, child-form list, question stats and tender
       // documents are independent enrichments of the umbrella detail page. A
@@ -199,6 +232,9 @@ export const GET = defineRoute(
 
       const responseBody: Record<string, unknown> = {
         ...workspace,
+        reference_number,
+        estimated_value,
+        notes,
         rollup,
         forms,
         question_stats: questionStats,

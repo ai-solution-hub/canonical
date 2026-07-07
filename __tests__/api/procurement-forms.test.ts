@@ -142,6 +142,29 @@ describe('POST /api/procurement/[id]/forms', () => {
     const res = await POST(req, { params: createTestParams({ id: WS_ID }) });
     expect(res.status).toBe(401);
   });
+
+  it('returns 409 when a silent RLS-blocked insert reports no error but zero rows ({130.21})', async () => {
+    configureRole(mockSupabase, 'editor');
+    // workspace verify
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: WS_ID },
+      error: null,
+    });
+    // insert().select() awaited -> RLS silently drops the row: no error, but
+    // an empty array (the REST insert "succeeds" with nothing returned).
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    const req = createTestRequest(`/api/procurement/${WS_ID}/forms`, {
+      method: 'POST',
+      body: { form_type: 'itt' },
+    });
+    const res = await POST(req, { params: createTestParams({ id: WS_ID }) });
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toBe('Form could not be created');
+  });
 });
 
 describe('PATCH /api/procurement/[id]/forms', () => {

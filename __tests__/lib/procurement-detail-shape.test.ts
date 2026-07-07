@@ -124,6 +124,25 @@ describe('procurement-detail-shape', () => {
       expect(won?.outcome).toBe('won');
     });
 
+    it('surfaces the flattened residual fields (reference_number/estimated_value/notes, {130.21})', () => {
+      const meta = deriveProcurementMetadata({
+        ...NEW_SHAPE,
+        reference_number: 'REF-123',
+        estimated_value: '£50,000',
+        notes: 'Follow up next week.',
+      });
+      expect(meta?.reference_number).toBe('REF-123');
+      expect(meta?.estimated_value).toBe('£50,000');
+      expect(meta?.notes).toBe('Follow up next week.');
+    });
+
+    it('defaults the residual fields to null when absent from the response', () => {
+      const meta = deriveProcurementMetadata(NEW_SHAPE);
+      expect(meta?.reference_number).toBeNull();
+      expect(meta?.estimated_value).toBeNull();
+      expect(meta?.notes).toBeNull();
+    });
+
     it('returns the legacy domain_metadata verbatim when no forms present', () => {
       const legacy = deriveProcurementMetadata({
         id: 'x',

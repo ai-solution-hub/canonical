@@ -545,7 +545,11 @@ function buildBidSummarySection(bids: ProcurementBriefing[]): HTMLElement {
     card.className = 'card bid-card';
 
     const badgeClass = `badge badge--${bid.urgency}`;
-    let urgencyText = bid.urgency;
+    // Widened to `string` — the display text below diverges from the
+    // `urgency` union's own labels ('Overdue', 'Due today', 'N days left'),
+    // so it can't stay narrowed to that type (tsc TS2820/TS2322; esbuild
+    // doesn't type-check so this was masked until `tsc` ran directly).
+    let urgencyText: string = bid.urgency;
     if (bid.days_until_deadline !== null) {
       if (bid.days_until_deadline < 0) urgencyText = 'Overdue';
       else if (bid.days_until_deadline === 0) urgencyText = 'Due today';
