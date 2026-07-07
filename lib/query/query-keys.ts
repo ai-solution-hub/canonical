@@ -457,4 +457,19 @@ export const queryKeys = {
     /** Aggregate cost over all `ai_call_events` rows (T17 / B-INV-17). */
     costAggregate: ['eval', 'cost-aggregate'] as const,
   },
+
+  // ---------------------------------------------------------------------------
+  // OKF concept-bundle viewer (ID-132 {132.14} G-VIEWER — lift-and-shift)
+  // ---------------------------------------------------------------------------
+  // One key backs the whole bundle envelope (graph + nav + log) — the addendum's
+  // "one fetch; the bundle fits one context window" design (BI-24). The domain
+  // hooks (`useBundleGraph`/`useBundleNav`/`useBundleLog`, hooks/okf/use-bundle.ts)
+  // all share this queryKey with a per-hook `select`, so TanStack Query
+  // dedupes the fetch across the three call sites.
+  okf: {
+    all: ['okf'] as const,
+    bundle: (bundleId: string) => ['okf', 'bundle', bundleId] as const,
+    /** Secondary resource-resolution lane (a `resource:` pointer click). */
+    resource: (uri: string) => ['okf', 'resource', uri] as const,
+  },
 } as const;

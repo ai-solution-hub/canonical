@@ -32,6 +32,19 @@
   --hue-relevance-medium: 70;
   --hue-relevance-low: 55;
   --hue-relevance-irrelevant: 20;
+  /* OKF concept-type badge hues (ID-132 {132.14} G-VIEWER — <ConceptGraph>
+     node fill + <ConceptDetail> type chip). Reframe A: replaces the
+     reference viewer's hardcoded `_TYPE_PALETTE` hex map with semantic
+     tokens, re-keyed onto OUR concept types (distinct token family from
+     `--hue-entity-*`, which classifies named entities, not OKF concepts). */
+  --hue-okf-concept-topic: 210;
+  --hue-okf-concept-product: 170;
+  --hue-okf-concept-company: 245;
+  --hue-okf-concept-certification: 160;
+  --hue-okf-concept-case_study: 15;
+  --hue-okf-concept-metric: 100;
+  --hue-okf-concept-dataset: 280;
+  --hue-okf-concept-playbook: 330;
 
   /* Knowledge Hub domain colours — badge backgrounds (light) */
   --domain-security-bg: oklch(0.93 0.04 var(--hue-domain-security));
@@ -219,6 +232,35 @@
   --entity-product-bg: oklch(0.93 0.04 var(--hue-entity-product));
   --entity-product-text: oklch(0.35 0.12 var(--hue-entity-product));
 
+  /* OKF concept-type badge colours (light) — ID-132 {132.14} G-VIEWER */
+  --okf-concept-topic-bg: oklch(0.93 0.04 var(--hue-okf-concept-topic));
+  --okf-concept-topic-text: oklch(0.35 0.12 var(--hue-okf-concept-topic));
+  --okf-concept-product-bg: oklch(0.93 0.04 var(--hue-okf-concept-product));
+  --okf-concept-product-text: oklch(0.35 0.12 var(--hue-okf-concept-product));
+  --okf-concept-company-bg: oklch(0.93 0.04 var(--hue-okf-concept-company));
+  --okf-concept-company-text: oklch(0.35 0.12 var(--hue-okf-concept-company));
+  --okf-concept-certification-bg: oklch(
+    0.93 0.04 var(--hue-okf-concept-certification)
+  );
+  --okf-concept-certification-text: oklch(
+    0.35 0.12 var(--hue-okf-concept-certification)
+  );
+  --okf-concept-case_study-bg: oklch(
+    0.93 0.04 var(--hue-okf-concept-case_study)
+  );
+  --okf-concept-case_study-text: oklch(
+    0.35 0.14 var(--hue-okf-concept-case_study)
+  );
+  --okf-concept-metric-bg: oklch(0.93 0.04 var(--hue-okf-concept-metric));
+  --okf-concept-metric-text: oklch(0.4 0.12 var(--hue-okf-concept-metric));
+  --okf-concept-dataset-bg: oklch(0.93 0.04 var(--hue-okf-concept-dataset));
+  --okf-concept-dataset-text: oklch(0.35 0.12 var(--hue-okf-concept-dataset));
+  --okf-concept-playbook-bg: oklch(0.93 0.04 var(--hue-okf-concept-playbook));
+  --okf-concept-playbook-text: oklch(0.35 0.12 var(--hue-okf-concept-playbook));
+  /* Fallback for an unmapped/"Unknown" concept type. */
+  --okf-concept-default-bg: var(--stone-100);
+  --okf-concept-default-text: var(--stone-500);
+
   /* Relevance score (article review) */
   --relevance-high: oklch(0.93 0.04 var(--hue-relevance-high));
   --relevance-high-text: oklch(0.35 0.12 var(--hue-relevance-high));
@@ -333,6 +375,34 @@
   --entity-sector-text: oklch(0.82 0.1 var(--hue-entity-sector));
   --entity-product-bg: oklch(0.25 0.06 var(--hue-entity-product));
   --entity-product-text: oklch(0.8 0.1 var(--hue-entity-product));
+
+  /* OKF concept-type badge colours (dark) — ID-132 {132.14} G-VIEWER */
+  --okf-concept-topic-bg: oklch(0.25 0.06 var(--hue-okf-concept-topic));
+  --okf-concept-topic-text: oklch(0.8 0.1 var(--hue-okf-concept-topic));
+  --okf-concept-product-bg: oklch(0.25 0.06 var(--hue-okf-concept-product));
+  --okf-concept-product-text: oklch(0.8 0.1 var(--hue-okf-concept-product));
+  --okf-concept-company-bg: oklch(0.25 0.06 var(--hue-okf-concept-company));
+  --okf-concept-company-text: oklch(0.8 0.1 var(--hue-okf-concept-company));
+  --okf-concept-certification-bg: oklch(
+    0.25 0.06 var(--hue-okf-concept-certification)
+  );
+  --okf-concept-certification-text: oklch(
+    0.8 0.1 var(--hue-okf-concept-certification)
+  );
+  --okf-concept-case_study-bg: oklch(
+    0.25 0.06 var(--hue-okf-concept-case_study)
+  );
+  --okf-concept-case_study-text: oklch(
+    0.8 0.12 var(--hue-okf-concept-case_study)
+  );
+  --okf-concept-metric-bg: oklch(0.25 0.04 var(--hue-okf-concept-metric));
+  --okf-concept-metric-text: oklch(0.82 0.1 var(--hue-okf-concept-metric));
+  --okf-concept-dataset-bg: oklch(0.25 0.06 var(--hue-okf-concept-dataset));
+  --okf-concept-dataset-text: oklch(0.8 0.1 var(--hue-okf-concept-dataset));
+  --okf-concept-playbook-bg: oklch(0.25 0.06 var(--hue-okf-concept-playbook));
+  --okf-concept-playbook-text: oklch(0.8 0.1 var(--hue-okf-concept-playbook));
+  --okf-concept-default-bg: var(--stone-800);
+  --okf-concept-default-text: var(--stone-400);
 
   /* Relevance score (dark) */
   --relevance-high: oklch(0.25 0.06 var(--hue-relevance-high));
@@ -502,6 +572,25 @@
   --color-entity-sector-text: var(--entity-sector-text);
   --color-entity-product-bg: var(--entity-product-bg);
   --color-entity-product-text: var(--entity-product-text);
+
+  --color-okf-concept-topic-bg: var(--okf-concept-topic-bg);
+  --color-okf-concept-topic-text: var(--okf-concept-topic-text);
+  --color-okf-concept-product-bg: var(--okf-concept-product-bg);
+  --color-okf-concept-product-text: var(--okf-concept-product-text);
+  --color-okf-concept-company-bg: var(--okf-concept-company-bg);
+  --color-okf-concept-company-text: var(--okf-concept-company-text);
+  --color-okf-concept-certification-bg: var(--okf-concept-certification-bg);
+  --color-okf-concept-certification-text: var(--okf-concept-certification-text);
+  --color-okf-concept-case_study-bg: var(--okf-concept-case_study-bg);
+  --color-okf-concept-case_study-text: var(--okf-concept-case_study-text);
+  --color-okf-concept-metric-bg: var(--okf-concept-metric-bg);
+  --color-okf-concept-metric-text: var(--okf-concept-metric-text);
+  --color-okf-concept-dataset-bg: var(--okf-concept-dataset-bg);
+  --color-okf-concept-dataset-text: var(--okf-concept-dataset-text);
+  --color-okf-concept-playbook-bg: var(--okf-concept-playbook-bg);
+  --color-okf-concept-playbook-text: var(--okf-concept-playbook-text);
+  --color-okf-concept-default-bg: var(--okf-concept-default-bg);
+  --color-okf-concept-default-text: var(--okf-concept-default-text);
 
   --color-relevance-high: var(--relevance-high);
   --color-relevance-high-text: var(--relevance-high-text);
