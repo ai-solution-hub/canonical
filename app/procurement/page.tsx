@@ -68,7 +68,7 @@ export default function FormsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
-  const { viewMode, setViewMode } = useViewMode('kb-form-view', 'grid');
+  const { viewMode, setViewMode } = useViewMode('kb-bid-view', 'grid');
   const [currentPage, setCurrentPage] = useState(1);
 
   const fetchProcurements = useCallback(async () => {
