@@ -39,22 +39,30 @@ const FIXTURE_TITLE = '[E2E-PUB-REVIEW-FIXTURE] Awaiting publication test row';
 test.describe('Review page — awaiting-publication tab (S31 W3)', () => {
   test.afterEach(async () => {
     // Spec §10.2 — reset the row to the deterministic starting state.
-    // Update-by-title rather than reading a seeded id back into the test
+    // Update-by-filename rather than reading a seeded id back into the test
     // (the seed runs once per CI job, not per test). The .select('id')
     // chain forces a 200 + row response so the COMMIT is fully visible
     // before control returns (mirrors the test-data-fixture pattern).
-    // ID-131.19 M6 retirement: content_items DROPPED at M6. The fixture
-    // this row is seeded from (scripts/seed-e2e-users.ts
-    // seedPublicationReviewFixture(), content_type='q_a_pair') needs a
-    // companion re-point onto `q_a_pairs` — flagged as an out-of-scope
-    // production finding for this Subtask (the seeding script is out of
-    // the tests/e2e/helpers file-ownership boundary). This reset targets
-    // the honest destination that fixture will need once re-pointed.
+    // ID-139.1 (M6 re-point): content_items DROPPED at M6
+    // (20260706110000_id131_drops.sql). The fixture this row is seeded
+    // from (scripts/seed-e2e-users.ts seedPublicationReviewFixture()) is
+    // re-pointed onto `source_documents` — NOT `q_a_pairs` — because that
+    // is what the tab's production consumers actually read/write: the
+    // "Awaiting publication" query (app/api/review/queue/route.ts
+    // handlePublicationReviewQuery) selects exclusively from
+    // source_documents, and the Approve action
+    // (app/api/review/publication-bulk-action/route.ts) writes
+    // publication_status back onto source_documents (see also the
+    // already-working analogous fixture in
+    // publication-bulk-action.e2e.spec.ts, which seeds source_documents
+    // for the same tab). `filename` is the match key — this fixture has
+    // no suggested_title, and the rendered title is
+    // `suggested_title ?? filename` (mapToReviewQueueItem).
     const supabase = createServiceClient();
     await supabase
-      .from('q_a_pairs')
+      .from('source_documents')
       .update({ publication_status: 'in_review' })
-      .eq('question_text', FIXTURE_TITLE)
+      .eq('filename', FIXTURE_TITLE)
       .select('id')
       .throwOnError();
   });

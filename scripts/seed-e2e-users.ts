@@ -306,13 +306,27 @@ async function verifyPipelineUserShape(
 
 // ── Publication-review fixture (S31 W3 OPS-46) ──────────────────────────────
 //
-// One deterministic content_items row at publication_status='in_review'
+// One deterministic source_documents row at publication_status='in_review'
 // that the e2e/tests/review-publication-tab.spec.ts spec asserts against.
 //
 // Spec contract: docs/specs/review-page-tabs-refactor-spec.md §10.1.
 //
+// ID-139.1 (M6 re-point): content_items was DROPPED
+// (20260706110000_id131_drops.sql). This fixture moves onto
+// `source_documents` — NOT `q_a_pairs` — because that is what the tab's
+// production consumers actually read/write: the "Awaiting publication"
+// query (app/api/review/queue/route.ts handlePublicationReviewQuery)
+// selects exclusively from source_documents, and the Approve action
+// (app/api/review/publication-bulk-action/route.ts) writes
+// publication_status back onto source_documents. The rendered row title is
+// `suggested_title ?? filename` (mapToReviewQueueItem) — this fixture has
+// no suggested_title, so `filename` IS the deterministic match/display key,
+// mirroring the already-working analogous fixture in
+// e2e/tests/publication-bulk-action.e2e.spec.ts (seedInReviewSourceDocuments)
+// for the SAME tab.
+//
 // Idempotency rules (verbatim from spec §10.1):
-//   1. Look up the row by its deterministic title.
+//   1. Look up the row by its deterministic filename.
 //   2. If found, return the existing id WITHOUT updating the mutable
 //      `publication_status` column — re-seeding mid-test would race the
 //      Approve+toast assertion.
@@ -321,16 +335,13 @@ async function verifyPipelineUserShape(
 //
 // The afterEach reset in the test file (spec §10.2) is the SINGLE owner
 // of the publication_status column for this row; this seeder defers to it.
-//
-// `content_text_hash` is `GENERATED ALWAYS` per CLAUDE.md gotcha — omit
-// from the payload (PG computes it from `content`).
 
 const PUBLICATION_REVIEW_FIXTURE_TITLE =
   '[E2E-PUB-REVIEW-FIXTURE] Awaiting publication test row';
 
 /**
  * Seed (or verify) the single deterministic publication-review fixture
- * content_items row used by e2e/tests/review-publication-tab.spec.ts.
+ * source_documents row used by e2e/tests/review-publication-tab.spec.ts.
  *
  * Idempotent — re-runs are no-ops + return the existing row's id without
  * touching mutable columns. See spec §10.1 for the full contract.
@@ -341,11 +352,11 @@ const PUBLICATION_REVIEW_FIXTURE_TITLE =
 export async function seedPublicationReviewFixture(
   client: SupabaseServiceClient,
 ): Promise<{ id: string; action: 'created' | 'already-exists' }> {
-  // Step 1: lookup by deterministic title.
+  // Step 1: lookup by deterministic filename.
   const { data: existing, error: lookupErr } = await client
-    .from('content_items')
+    .from('source_documents')
     .select('id')
-    .eq('title', PUBLICATION_REVIEW_FIXTURE_TITLE)
+    .eq('filename', PUBLICATION_REVIEW_FIXTURE_TITLE)
     .maybeSingle();
 
   if (lookupErr) {
@@ -361,22 +372,28 @@ export async function seedPublicationReviewFixture(
     return { id: existing.id, action: 'already-exists' };
   }
 
-  // Step 3: INSERT with publication_status='in_review'.
+  // Step 3: INSERT with publication_status='in_review'. content_hash/
+  // file_size/mime_type/storage_path are NOT NULL on source_documents
+  // (no upstream file — filled with synthetic-fixture placeholders,
+  // mirroring the publication-bulk-action.e2e.spec.ts precedent).
   const { data: created, error: insertErr } = await client
-    .from('content_items')
+    .from('source_documents')
     .insert({
-      title: PUBLICATION_REVIEW_FIXTURE_TITLE,
+      filename: PUBLICATION_REVIEW_FIXTURE_TITLE,
       content_type: 'q_a_pair',
       primary_domain: 'Technical Capability',
       summary:
         'E2E fixture row — exercises the awaiting-publication tab Approve + visibility-gating flow.',
-      content:
+      extracted_text:
         'Q: E2E fixture question?\nA: This is the E2E fixture row used by review-publication-tab.spec.ts.',
-      platform: 'manual',
       publication_status: 'in_review',
-      // governance_review_status intentionally null — publication-review
-      // tab is orthogonal to governance state per spec §6 / §7.
-      // content_text_hash is GENERATED ALWAYS — do NOT pass it.
+      mime_type: 'text/plain',
+      file_size: 1,
+      content_hash: 'e2e-pub-review-fixture',
+      storage_path: 'test-fixtures/e2e-pub-review-fixture.txt',
+      // governance_review_status intentionally omitted (record_lifecycle
+      // facet, unpopulated) — publication-review tab is orthogonal to
+      // governance state per spec §6 / §7.
     })
     .select('id')
     .single();
@@ -801,7 +818,7 @@ async function main(): Promise<void> {
   console.log('\n→ Seeding publication-review fixture (S31 W3 OPS-46)…');
   if (dryRun) {
     console.log(
-      '  (dry-run — would seed [E2E-PUB-REVIEW-FIXTURE] content_items row if missing)',
+      '  (dry-run — would seed [E2E-PUB-REVIEW-FIXTURE] source_documents row if missing)',
     );
   } else if (checkOnly) {
     // --check: read-only verification. Row presence is enough — the
@@ -809,9 +826,9 @@ async function main(): Promise<void> {
     // afterEach (spec §10.2), so any of in_review/published/draft is
     // an acceptable mid-test state.
     const { data, error } = await supabase
-      .from('content_items')
+      .from('source_documents')
       .select('id, publication_status')
-      .eq('title', '[E2E-PUB-REVIEW-FIXTURE] Awaiting publication test row')
+      .eq('filename', '[E2E-PUB-REVIEW-FIXTURE] Awaiting publication test row')
       .maybeSingle();
     if (error) {
       console.error(
