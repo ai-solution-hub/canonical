@@ -30,6 +30,7 @@ import { buildBundleGraph } from '@/lib/okf/bundle-graph';
 import { parseBundleNav } from '@/lib/okf/parse-index';
 import { parseBundleLog } from '@/lib/okf/parse-log';
 import { resolveOkfBundleRoot } from '@/lib/okf/resolve-bundle-root';
+import type { OkfBundleEnvelope } from '@/lib/query/okf';
 
 type RouteContext = { params: Promise<{ bundleId: string }> };
 
@@ -38,7 +39,10 @@ const LOG_FILE = 'log.md';
 
 export const GET = defineRoute(
   z.unknown(),
-  async (_request: NextRequest, context: RouteContext) => {
+  async (
+    _request: NextRequest,
+    context: RouteContext,
+  ): Promise<NextResponse<OkfBundleEnvelope> | NextResponse> => {
     try {
       const auth = await getAuthorisedClient();
       if (!auth.success) return authFailureResponse(auth);

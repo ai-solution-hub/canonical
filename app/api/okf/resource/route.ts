@@ -29,96 +29,102 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseCanonicalResourceUri } from '@/lib/okf/parse-canonical-uri';
 import { tryQuery } from '@/lib/supabase/safe';
 import { parseSearchParams } from '@/lib/validation';
+import type { OkfResourceResult } from '@/lib/query/okf';
 
 const resourceQuerySchema = z.object({ uri: z.string().min(1) });
 
-export const GET = defineRoute(z.unknown(), async (request: NextRequest) => {
-  try {
-    const auth = await getAuthorisedClient();
-    if (!auth.success) return authFailureResponse(auth);
-    const { supabase } = auth;
+export const GET = defineRoute(
+  z.unknown(),
+  async (
+    request: NextRequest,
+  ): Promise<NextResponse<OkfResourceResult> | NextResponse> => {
+    try {
+      const auth = await getAuthorisedClient();
+      if (!auth.success) return authFailureResponse(auth);
+      const { supabase } = auth;
 
-    const parsedQuery = parseSearchParams(
-      resourceQuerySchema,
-      request.nextUrl.searchParams,
-    );
-    if (!parsedQuery.success) return parsedQuery.response;
-    const { uri } = parsedQuery.data;
+      const parsedQuery = parseSearchParams(
+        resourceQuerySchema,
+        request.nextUrl.searchParams,
+      );
+      if (!parsedQuery.success) return parsedQuery.response;
+      const { uri } = parsedQuery.data;
 
-    const ref = parseCanonicalResourceUri(uri);
-    if (!ref) {
+      const ref = parseCanonicalResourceUri(uri);
+      if (!ref) {
+        return NextResponse.json(
+          { error: 'Unrecognised canonical:// resource uri' },
+          { status: 400 },
+        );
+      }
+
+      if (ref.table === 'source_documents' || ref.table === 'reference_items') {
+        const result = await tryQuery(
+          supabase.from(ref.table).select('*').eq('id', ref.id).maybeSingle(),
+          `okf.resource.${ref.table}`,
+        );
+        if (!result.ok) {
+          return NextResponse.json(
+            {
+              error: safeErrorMessage(
+                result.error,
+                'Failed to resolve resource pointer',
+              ),
+            },
+            { status: 500 },
+          );
+        }
+        if (!result.data) {
+          return NextResponse.json(
+            { error: 'Resource not found' },
+            { status: 404 },
+          );
+        }
+        return NextResponse.json({ table: ref.table, record: result.data });
+      }
+
+      // q_a_pairs — a filtered LIST, never a row (BI-8).
+      if ('scopeTag' in ref) {
+        const result = await tryQuery(
+          supabase
+            .from('q_a_pairs')
+            .select('*')
+            .contains('scope_tag', [ref.scopeTag]),
+          'okf.resource.q_a_pairs.scope_tag',
+        );
+        if (!result.ok) {
+          return NextResponse.json(
+            {
+              error: safeErrorMessage(
+                result.error,
+                'Failed to resolve q_a_pairs resource pointer',
+              ),
+            },
+            { status: 500 },
+          );
+        }
+        return NextResponse.json({
+          table: 'q_a_pairs',
+          records: result.data ?? [],
+        });
+      }
+
+      // domain+subtopic form: q_a_pairs carries no domain/subtopic column
+      // directly (checked against the live schema at implementation time) —
+      // deliberately unresolved rather than silently mis-filtering. See the
+      // Executor's discrepancy report.
       return NextResponse.json(
-        { error: 'Unrecognised canonical:// resource uri' },
-        { status: 400 },
+        {
+          error:
+            'canonical://q_a_pairs?domain=&subtopic= resolution is not yet implemented',
+        },
+        { status: 501 },
+      );
+    } catch (err) {
+      return NextResponse.json(
+        { error: safeErrorMessage(err, 'Failed to resolve resource pointer') },
+        { status: 500 },
       );
     }
-
-    if (ref.table === 'source_documents' || ref.table === 'reference_items') {
-      const result = await tryQuery(
-        supabase.from(ref.table).select('*').eq('id', ref.id).maybeSingle(),
-        `okf.resource.${ref.table}`,
-      );
-      if (!result.ok) {
-        return NextResponse.json(
-          {
-            error: safeErrorMessage(
-              result.error,
-              'Failed to resolve resource pointer',
-            ),
-          },
-          { status: 500 },
-        );
-      }
-      if (!result.data) {
-        return NextResponse.json(
-          { error: 'Resource not found' },
-          { status: 404 },
-        );
-      }
-      return NextResponse.json({ table: ref.table, record: result.data });
-    }
-
-    // q_a_pairs — a filtered LIST, never a row (BI-8).
-    if ('scopeTag' in ref) {
-      const result = await tryQuery(
-        supabase
-          .from('q_a_pairs')
-          .select('*')
-          .contains('scope_tag', [ref.scopeTag]),
-        'okf.resource.q_a_pairs.scope_tag',
-      );
-      if (!result.ok) {
-        return NextResponse.json(
-          {
-            error: safeErrorMessage(
-              result.error,
-              'Failed to resolve q_a_pairs resource pointer',
-            ),
-          },
-          { status: 500 },
-        );
-      }
-      return NextResponse.json({
-        table: 'q_a_pairs',
-        records: result.data ?? [],
-      });
-    }
-
-    // domain+subtopic form: q_a_pairs carries no domain/subtopic column
-    // directly (checked against the live schema at implementation time) —
-    // deliberately unresolved rather than silently mis-filtering. See the
-    // Executor's discrepancy report.
-    return NextResponse.json(
-      {
-        error:
-          'canonical://q_a_pairs?domain=&subtopic= resolution is not yet implemented',
-      },
-      { status: 501 },
-    );
-  } catch (err) {
-    return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to resolve resource pointer') },
-      { status: 500 },
-    );
-  }
-});
+  },
+);
