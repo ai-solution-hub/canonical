@@ -474,9 +474,19 @@ export function computeTemplateCoverage(
 
 type SupabaseClientTyped = SupabaseClient<Database>;
 
+/** The record_embeddings model column value written by the pipeline (BI-17). */
+const EMBEDDING_MODEL = 'text-embedding-3-large';
+
 /**
  * Fetch template requirements for a given template.
  * Defaults to `is_current = true` unless a specific version is provided.
+ *
+ * {130.24} DR-036: `requirement_embedding` no longer lives inline on
+ * `form_template_requirements` (column dropped) — the vector is hydrated from
+ * the polymorphic `record_embeddings` store (`owner_kind =
+ * 'form_template_requirement'`), mirroring `fetchContentForMatching`'s
+ * q_a_pair/reference_item pattern below (same EMBEDDING_MODEL constant,
+ * same owner_id-keyed Map merge).
  */
 export async function fetchTemplateRequirements(
   supabase: SupabaseClientTyped,
@@ -487,7 +497,7 @@ export async function fetchTemplateRequirements(
   let query = supabase
     .from('form_template_requirements')
     .select(
-      'id, template_name, template_version, template_type, section_ref, section_name, question_number, requirement_text, description, requirement_type, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, matching_keywords, matching_guidance, requirement_embedding, is_mandatory, sector_applicability, word_limit_guidance, display_order',
+      'id, template_name, template_version, template_type, section_ref, section_name, question_number, requirement_text, description, requirement_type, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, matching_keywords, matching_guidance, is_mandatory, sector_applicability, word_limit_guidance, display_order',
     )
     .eq('template_name', templateName)
     .order('display_order');
@@ -504,8 +514,39 @@ export async function fetchTemplateRequirements(
     throw new Error(`Failed to fetch template requirements: ${error.message}`);
   }
 
-  // Parse embedding strings back to number arrays
-  return (data ?? []).map((row) => ({
+  const rows = data ?? [];
+
+  // {130.24} DR-036: hydrate requirement_embedding from record_embeddings,
+  // keyed by owner_id (the requirement row's id).
+  const embeddingById = new Map<string, number[] | null>();
+  if (rows.length > 0) {
+    const embeddingsResult = await supabase
+      .from('record_embeddings')
+      .select('owner_id, embedding')
+      .eq('owner_kind', 'form_template_requirement')
+      .in(
+        'owner_id',
+        rows.map((row) => row.id),
+      )
+      .eq('model', EMBEDDING_MODEL);
+
+    if (embeddingsResult.error) {
+      throw new Error(
+        `Failed to fetch record_embeddings for template requirements: ${embeddingsResult.error.message}`,
+      );
+    }
+
+    for (const row of embeddingsResult.data ?? []) {
+      const embedding = row.embedding
+        ? typeof row.embedding === 'string'
+          ? JSON.parse(row.embedding)
+          : row.embedding
+        : null;
+      embeddingById.set(row.owner_id, embedding);
+    }
+  }
+
+  return rows.map((row) => ({
     id: row.id,
     template_name: row.template_name,
     template_version: row.template_version,
@@ -522,20 +563,13 @@ export async function fetchTemplateRequirements(
     secondary_subtopic: row.secondary_subtopic,
     matching_keywords: row.matching_keywords,
     matching_guidance: row.matching_guidance,
-    requirement_embedding: row.requirement_embedding
-      ? typeof row.requirement_embedding === 'string'
-        ? JSON.parse(row.requirement_embedding)
-        : row.requirement_embedding
-      : null,
+    requirement_embedding: embeddingById.get(row.id) ?? null,
     is_mandatory: row.is_mandatory,
     sector_applicability: row.sector_applicability,
     word_limit_guidance: row.word_limit_guidance,
     display_order: row.display_order,
   }));
 }
-
-/** The record_embeddings model column value written by the pipeline (BI-17). */
-const EMBEDDING_MODEL = 'text-embedding-3-large';
 
 /**
  * Fetch content for template-requirement matching.

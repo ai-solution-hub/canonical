@@ -56,7 +56,6 @@ interface TemplateRequirement {
 }
 
 interface InsertRow extends TemplateRequirement {
-  requirement_embedding?: string; // JSON.stringify'd vector
   is_current: boolean;
 }
 
@@ -94,8 +93,14 @@ function parseCliArgs(): {
 const TEMPLATE_NAME = 'Standard Selection Questionnaire';
 const TEMPLATE_VERSION = 'PPN 03/24';
 const TEMPLATE_TYPE = 'sq';
+// {130.24} DR-036: also the record_embeddings.model value this script writes
+// for owner_kind='form_template_requirement' — one literal serves both the
+// OpenAI API call and the store's model column (mirrors the catalogue
+// pipeline's EMBEDDING_MODEL convention — lib/domains/procurement/
+// form-templating/catalogue/from-instance.ts).
 const EMBEDDING_MODEL = 'text-embedding-3-large';
 const EMBEDDING_DIMENSIONS = 1024;
+const RECORD_EMBEDDINGS_OWNER_KIND = 'form_template_requirement';
 
 // ── Requirement definitions ────────────────────────────────────────────────
 //
@@ -2181,8 +2186,20 @@ async function main(): Promise<void> {
   }
 
   // ── Generate embeddings ──
+  //
+  // {130.24} DR-036: requirement_embedding is no longer an inline column on
+  // form_template_requirements — the vector is dual-written into the
+  // polymorphic record_embeddings store (owner_kind=
+  // 'form_template_requirement') after the row insert, keyed by the
+  // inserted row's id. Tracked here by the natural key
+  // (section_ref, question_number) — unique within this single-template
+  // seed run — rather than by array index, since a multi-row INSERT's
+  // RETURNING order is not a contractual guarantee.
 
   const rows: InsertRow[] = [];
+  const embeddingByNaturalKey = new Map<string, string>();
+  const naturalKey = (r: { section_ref: string; question_number: number }) =>
+    `${r.section_ref}::${r.question_number}`;
 
   if (!skipEmbeddings) {
     console.log('Generating embeddings for all 66 requirements...');
@@ -2201,9 +2218,9 @@ async function main(): Promise<void> {
 
       try {
         const embedding = await generateEmbedding(input);
+        embeddingByNaturalKey.set(naturalKey(req), JSON.stringify(embedding));
         rows.push({
           ...req,
-          requirement_embedding: JSON.stringify(embedding),
           is_current: true,
         });
         console.log(' done');
@@ -2241,13 +2258,18 @@ async function main(): Promise<void> {
   // Insert in batches of 10 to avoid payload size limits
   const BATCH_SIZE = 10;
   let inserted = 0;
+  let embeddingsWritten = 0;
 
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
     const batch = rows.slice(i, i + BATCH_SIZE);
     // Post-T2: `template_requirements` renamed to `form_template_requirements`.
-    const { error: insertError } = await supabase
+    // `.select(...)` reads the inserted ids back (+ the natural-key columns,
+    // to avoid relying on RETURNING preserving VALUES-list order) for the
+    // record_embeddings dual-write below.
+    const { data: insertedRows, error: insertError } = await supabase
       .from('form_template_requirements')
-      .insert(batch);
+      .insert(batch)
+      .select('id, section_ref, question_number');
 
     if (insertError) {
       console.error(
@@ -2266,6 +2288,45 @@ async function main(): Promise<void> {
     console.log(
       `  Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${inserted}/${rows.length} inserted`,
     );
+
+    if (!skipEmbeddings && insertedRows && insertedRows.length > 0) {
+      const embeddingRows = insertedRows
+        .map((row) => {
+          const embedding = embeddingByNaturalKey.get(
+            naturalKey({
+              section_ref: row.section_ref,
+              question_number: row.question_number ?? -1,
+            }),
+          );
+          return embedding
+            ? {
+                owner_kind: RECORD_EMBEDDINGS_OWNER_KIND,
+                owner_id: row.id,
+                model: EMBEDDING_MODEL,
+                embedding,
+              }
+            : null;
+        })
+        .filter((r): r is NonNullable<typeof r> => r !== null);
+
+      if (embeddingRows.length > 0) {
+        const { error: embeddingError } = await supabase
+          .from('record_embeddings')
+          .upsert(embeddingRows, { onConflict: 'owner_kind,owner_id,model' });
+
+        if (embeddingError) {
+          console.error(
+            `ERROR writing record_embeddings for batch ${Math.floor(i / BATCH_SIZE) + 1}:`,
+            embeddingError.message,
+          );
+          console.error(
+            '  Rows were inserted into form_template_requirements but their embeddings were NOT written.',
+          );
+          process.exit(1);
+        }
+        embeddingsWritten += embeddingRows.length;
+      }
+    }
   }
 
   console.log('');
@@ -2273,7 +2334,7 @@ async function main(): Promise<void> {
   console.log(`  SUCCESS: ${inserted} requirements catalogued`);
   console.log(`  Template: ${TEMPLATE_NAME} (${TEMPLATE_VERSION})`);
   console.log(
-    `  Embeddings: ${skipEmbeddings ? 'not generated' : 'generated and stored'}`,
+    `  Embeddings: ${skipEmbeddings ? 'not generated' : `generated and stored (${embeddingsWritten} record_embeddings rows)`}`,
   );
   console.log('═══════════════════════════════════════════════════════════');
 }

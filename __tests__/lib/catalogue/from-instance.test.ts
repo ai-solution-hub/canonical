@@ -1,5 +1,5 @@
 /**
- * Path C — catalogue-from-instance behaviour tests (ID-52.14).
+ * Path C — catalogue-from-instance behaviour tests (ID-52.14; {130.24} DR-036).
  *
  * Covers the two load-bearing invariants:
  * - Inv-21: the catalogue is authored through a human-confirmed step — no row
@@ -9,9 +9,14 @@
  *   written.
  *
  * Plus the Inv-22 read shape and Inv-23 (no workspace_id) on the produced row,
- * and the classify step parsing behaviour. Anthropic is mocked at the SDK
- * boundary; Supabase via the shared `createMockSupabaseClient()` helper, per
- * `docs/reference/test-philosophy.md` (behaviour-not-implementation).
+ * the classify step parsing behaviour, and ({130.24} DR-036) the embedding
+ * dual-write into the polymorphic `record_embeddings` store — the
+ * `requirement_embedding` column was dropped from `form_template_requirements`
+ * in favour of `record_embeddings(owner_kind='form_template_requirement')`,
+ * mirroring the company_profile EMB-STORE precedent. Anthropic is mocked at
+ * the SDK boundary; Supabase via the shared `createMockSupabaseClient()`
+ * helper, per `docs/reference/test-philosophy.md`
+ * (behaviour-not-implementation).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type Anthropic from '@anthropic-ai/sdk';
@@ -25,7 +30,7 @@ import {
   DEFAULT_TEMPLATE_VERSION,
   type FormTemplateField,
   type FieldClassification,
-  type CatalogueRowInsert,
+  type CatalogueCandidate,
 } from '@/lib/domains/procurement/form-templating/catalogue/from-instance';
 import { createMockSupabaseClient } from '@/__tests__/helpers/mock-supabase';
 
@@ -86,9 +91,9 @@ function makeClassification(
   };
 }
 
-function makeRow(
-  overrides: Partial<CatalogueRowInsert> = {},
-): CatalogueRowInsert {
+function makeCandidate(
+  overrides: Partial<Parameters<typeof buildCatalogueRow>[0]> = {},
+): CatalogueCandidate {
   return buildCatalogueRow({
     field: makeField(),
     classification: makeClassification(),
@@ -128,7 +133,7 @@ describe('confirmAndWriteCatalogue — auth gate (Inv-24)', () => {
 
     const result = await confirmAndWriteCatalogue({
       supabase: supabase as never,
-      rows: [makeRow()],
+      rows: [makeCandidate()],
       confirmRow,
       // Viewer is not in ['admin','editor'] → forbidden.
       getAuthorised: async () => ({ success: false, reason: 'forbidden' }),
@@ -148,7 +153,7 @@ describe('confirmAndWriteCatalogue — auth gate (Inv-24)', () => {
 
     const result = await confirmAndWriteCatalogue({
       supabase: supabase as never,
-      rows: [makeRow()],
+      rows: [makeCandidate()],
       confirmRow: vi.fn().mockResolvedValue(true),
       getAuthorised: async () => ({
         success: false,
@@ -164,11 +169,14 @@ describe('confirmAndWriteCatalogue — auth gate (Inv-24)', () => {
 
   it('allows the write step for an authorised editor', async () => {
     const supabase = createMockSupabaseClient();
-    supabase._chain.upsert.mockResolvedValueOnce({ data: null, error: null });
+    supabase._chain.single.mockResolvedValueOnce({
+      data: { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' },
+      error: null,
+    });
 
     const result = await confirmAndWriteCatalogue({
       supabase: supabase as never,
-      rows: [makeRow()],
+      rows: [makeCandidate()],
       confirmRow: vi.fn().mockResolvedValue(true),
       getAuthorised: async () => authorised('editor'),
     });
@@ -186,7 +194,7 @@ describe('confirmAndWriteCatalogue — confirmation gate (Inv-21)', () => {
 
     const result = await confirmAndWriteCatalogue({
       supabase: supabase as never,
-      rows: [makeRow(), makeRow()],
+      rows: [makeCandidate(), makeCandidate()],
       confirmRow: async () => false, // human declines every row
       getAuthorised: async () => authorised('admin'),
     });
@@ -199,11 +207,14 @@ describe('confirmAndWriteCatalogue — confirmation gate (Inv-21)', () => {
 
   it('writes only the rows the caller confirms (per-row gate)', async () => {
     const supabase = createMockSupabaseClient();
-    supabase._chain.upsert.mockResolvedValue({ data: null, error: null });
+    supabase._chain.single.mockResolvedValue({
+      data: { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' },
+      error: null,
+    });
 
     const result = await confirmAndWriteCatalogue({
       supabase: supabase as never,
-      rows: [makeRow(), makeRow(), makeRow()],
+      rows: [makeCandidate(), makeCandidate(), makeCandidate()],
       // Confirm only the middle row.
       confirmRow: async (_row, index) => index === 1,
       getAuthorised: async () => authorised('editor'),
@@ -216,7 +227,7 @@ describe('confirmAndWriteCatalogue — confirmation gate (Inv-21)', () => {
 
   it('records a failed write without aborting the remaining confirmed rows', async () => {
     const supabase = createMockSupabaseClient();
-    supabase._chain.upsert
+    supabase._chain.single
       .mockResolvedValueOnce({
         data: null,
         error: {
@@ -224,11 +235,14 @@ describe('confirmAndWriteCatalogue — confirmation gate (Inv-21)', () => {
           code: '42501',
         },
       })
-      .mockResolvedValueOnce({ data: null, error: null });
+      .mockResolvedValueOnce({
+        data: { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' },
+        error: null,
+      });
 
     const result = await confirmAndWriteCatalogue({
       supabase: supabase as never,
-      rows: [makeRow(), makeRow()],
+      rows: [makeCandidate(), makeCandidate()],
       confirmRow: async () => true,
       getAuthorised: async () => authorised('admin'),
     });
@@ -243,7 +257,7 @@ describe('confirmAndWriteCatalogue — confirmation gate (Inv-21)', () => {
 
 describe('buildCatalogueRow — read shape (Inv-22) and global scope (Inv-23)', () => {
   it('carries the matching fields T10 reads', () => {
-    const row = buildCatalogueRow({
+    const candidate = buildCatalogueRow({
       field: makeField({ is_mandatory: true, section_name: 'Insurance' }),
       classification: makeClassification({
         requirement_type: 'evidence',
@@ -255,16 +269,21 @@ describe('buildCatalogueRow — read shape (Inv-22) and global scope (Inv-23)', 
       templateType: 'itt',
     });
 
-    expect(row.requirement_type).toBe('evidence');
-    expect(row.matching_keywords).toEqual(['insurance', 'public liability']);
-    expect(row.matching_guidance).toBe('Match against insurance certificates.');
-    expect(row.is_mandatory).toBe(true);
-    expect(row.section_name).toBe('Insurance');
-    expect(row.template_type).toBe('itt');
+    expect(candidate.row.requirement_type).toBe('evidence');
+    expect(candidate.row.matching_keywords).toEqual([
+      'insurance',
+      'public liability',
+    ]);
+    expect(candidate.row.matching_guidance).toBe(
+      'Match against insurance certificates.',
+    );
+    expect(candidate.row.is_mandatory).toBe(true);
+    expect(candidate.row.section_name).toBe('Insurance');
+    expect(candidate.row.template_type).toBe('itt');
   });
 
-  it('serialises the embedding via JSON.stringify for the Supabase vector param', () => {
-    const row = buildCatalogueRow({
+  it('carries the embedding alongside the row rather than inline on it ({130.24} DR-036)', () => {
+    const candidate = buildCatalogueRow({
       field: makeField(),
       classification: makeClassification(),
       embedding: [0.1, 0.2, 0.3],
@@ -272,12 +291,15 @@ describe('buildCatalogueRow — read shape (Inv-22) and global scope (Inv-23)', 
       templateType: 'itt',
     });
 
-    expect(row.requirement_embedding).toBe(JSON.stringify([0.1, 0.2, 0.3]));
+    expect(candidate.embedding).toEqual([0.1, 0.2, 0.3]);
+    // The row itself carries no requirement_embedding — the column was
+    // dropped in favour of the record_embeddings dual-write.
+    expect('requirement_embedding' in candidate.row).toBe(false);
   });
 
   it('never carries a workspace_id (the catalogue is global)', () => {
-    const row = makeRow();
-    expect('workspace_id' in row).toBe(false);
+    const candidate = makeCandidate();
+    expect('workspace_id' in candidate.row).toBe(false);
   });
 });
 
@@ -286,12 +308,15 @@ describe('buildCatalogueRow — read shape (Inv-22) and global scope (Inv-23)', 
 describe('confirmAndWriteCatalogue — idempotent re-run (ID-52.22)', () => {
   it('writes via UPSERT on the natural key so a re-catalogue run is a no-op, not a duplicate-key failure', async () => {
     const supabase = createMockSupabaseClient();
-    supabase._chain.upsert.mockResolvedValue({ data: null, error: null });
-    const rows = [makeRow(), makeRow()];
+    supabase._chain.single.mockResolvedValue({
+      data: { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' },
+      error: null,
+    });
+    const candidates = [makeCandidate(), makeCandidate()];
 
     const result = await confirmAndWriteCatalogue({
       supabase: supabase as never,
-      rows,
+      rows: candidates,
       confirmRow: async () => true,
       getAuthorised: async () => authorised('admin'),
     });
@@ -301,10 +326,12 @@ describe('confirmAndWriteCatalogue — idempotent re-run (ID-52.22)', () => {
     // The write verb is upsert — a re-run over identical rows UPDATEs in
     // place (zero net new rows) instead of raising 23505 on the constraint.
     expect(supabase._chain.insert).not.toHaveBeenCalled();
+    // Both candidates default embedding: null, so no record_embeddings write
+    // — exactly one upsert per row.
     expect(supabase._chain.upsert).toHaveBeenCalledTimes(2);
     // Conflict target = the four natural-key columns of the live
     // form_template_requirements_unique_section constraint, exactly.
-    expect(supabase._chain.upsert).toHaveBeenCalledWith(rows[0], {
+    expect(supabase._chain.upsert).toHaveBeenCalledWith(candidates[0].row, {
       onConflict: 'template_name,template_version,section_ref,question_number',
       ignoreDuplicates: false,
     });
@@ -313,13 +340,13 @@ describe('confirmAndWriteCatalogue — idempotent re-run (ID-52.22)', () => {
 
 describe('buildCatalogueRow — non-NULL template_version sentinel (ID-52.22)', () => {
   it('defaults template_version to the sentinel so the natural key has no NULL member', () => {
-    const row = makeRow();
-    expect(row.template_version).toBe(DEFAULT_TEMPLATE_VERSION);
-    expect(row.template_version).toBe('v1');
+    const candidate = makeCandidate();
+    expect(candidate.row.template_version).toBe(DEFAULT_TEMPLATE_VERSION);
+    expect(candidate.row.template_version).toBe('v1');
   });
 
   it('never emits a NULL template_version, even when explicitly passed null', () => {
-    const row = buildCatalogueRow({
+    const candidate = buildCatalogueRow({
       field: makeField(),
       classification: makeClassification(),
       embedding: null,
@@ -327,13 +354,13 @@ describe('buildCatalogueRow — non-NULL template_version sentinel (ID-52.22)', 
       templateType: 'itt',
       templateVersion: null,
     });
-    expect(row.template_version).toBe('v1');
-    expect(typeof row.template_version).toBe('string');
-    expect(row.template_version).not.toHaveLength(0);
+    expect(candidate.row.template_version).toBe('v1');
+    expect(typeof candidate.row.template_version).toBe('string');
+    expect(candidate.row.template_version).not.toHaveLength(0);
   });
 
   it('honours an explicit template version override', () => {
-    const row = buildCatalogueRow({
+    const candidate = buildCatalogueRow({
       field: makeField(),
       classification: makeClassification(),
       embedding: null,
@@ -341,25 +368,43 @@ describe('buildCatalogueRow — non-NULL template_version sentinel (ID-52.22)', 
       templateType: 'itt',
       templateVersion: '2026-rev-a',
     });
-    expect(row.template_version).toBe('2026-rev-a');
+    expect(candidate.row.template_version).toBe('2026-rev-a');
   });
 });
 
-describe('resolveRequirementEmbedding — recompute on text change only (ID-52.22)', () => {
+describe('resolveRequirementEmbedding — recompute on text change only (ID-52.22; {130.24} DR-036)', () => {
   const STORED_EMBEDDING = [0.1, 0.2, 0.3];
+  const EXISTING_ROW_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
-  /** Stub the natural-key pre-read to return one existing catalogue row. */
+  /**
+   * Stub the two-step pre-read ({130.24} DR-036 — the vector no longer lives
+   * inline on form_template_requirements): (1) the natural-key lookup on
+   * form_template_requirements resolving `{id, requirement_text}`, then (2)
+   * — only reached when the text matches — the record_embeddings lookup by
+   * `(owner_kind, owner_id, model)` resolving the stored embedding (or a
+   * null row when there is none).
+   */
   function stubExistingRow(
     supabase: ReturnType<typeof createMockSupabaseClient>,
     existing: {
       requirement_text: string;
-      requirement_embedding: string | null;
+      storedEmbedding: string | null;
     },
   ) {
-    supabase._chain.maybeSingle.mockResolvedValueOnce({
-      data: existing,
-      error: null,
-    });
+    supabase._chain.maybeSingle
+      .mockResolvedValueOnce({
+        data: {
+          id: EXISTING_ROW_ID,
+          requirement_text: existing.requirement_text,
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: existing.storedEmbedding
+          ? { embedding: existing.storedEmbedding }
+          : null,
+        error: null,
+      });
   }
 
   it('reuses the stored embedding when the requirement text is unchanged (no embed call)', async () => {
@@ -367,7 +412,7 @@ describe('resolveRequirementEmbedding — recompute on text change only (ID-52.2
     const field = makeField();
     stubExistingRow(supabase, {
       requirement_text: field.question_text ?? '',
-      requirement_embedding: JSON.stringify(STORED_EMBEDDING),
+      storedEmbedding: JSON.stringify(STORED_EMBEDDING),
     });
     const embedFn = vi.fn().mockResolvedValue([9, 9, 9]);
 
@@ -382,6 +427,15 @@ describe('resolveRequirementEmbedding — recompute on text change only (ID-52.2
     expect(embedFn).not.toHaveBeenCalled();
     expect(resolved.reused).toBe(true);
     expect(resolved.embedding).toEqual(STORED_EMBEDDING);
+    expect(supabase.from).toHaveBeenCalledWith('record_embeddings');
+    expect(supabase._chain.eq).toHaveBeenCalledWith(
+      'owner_kind',
+      'form_template_requirement',
+    );
+    expect(supabase._chain.eq).toHaveBeenCalledWith(
+      'owner_id',
+      EXISTING_ROW_ID,
+    );
   });
 
   it('recomputes the embedding when the requirement text changed', async () => {
@@ -389,7 +443,7 @@ describe('resolveRequirementEmbedding — recompute on text change only (ID-52.2
     const field = makeField();
     stubExistingRow(supabase, {
       requirement_text: 'An earlier wording of this question.',
-      requirement_embedding: JSON.stringify(STORED_EMBEDDING),
+      storedEmbedding: JSON.stringify(STORED_EMBEDDING),
     });
     const embedFn = vi.fn().mockResolvedValue([0.4, 0.5, 0.6]);
 
@@ -432,7 +486,7 @@ describe('resolveRequirementEmbedding — recompute on text change only (ID-52.2
     const field = makeField();
     stubExistingRow(supabase, {
       requirement_text: field.question_text ?? '',
-      requirement_embedding: null,
+      storedEmbedding: null,
     });
     const embedFn = vi.fn().mockResolvedValue([1, 2, 3]);
 
@@ -448,14 +502,17 @@ describe('resolveRequirementEmbedding — recompute on text change only (ID-52.2
     expect(resolved.reused).toBe(false);
   });
 
-  it('an unchanged-text re-run still UPSERTs the row so other changed fields update', async () => {
+  it('an unchanged-text re-run still UPSERTs the row so other changed fields update, and re-writes the reused embedding to record_embeddings', async () => {
     const supabase = createMockSupabaseClient();
     const field = makeField();
     stubExistingRow(supabase, {
       requirement_text: field.question_text ?? '',
-      requirement_embedding: JSON.stringify(STORED_EMBEDDING),
+      storedEmbedding: JSON.stringify(STORED_EMBEDDING),
     });
-    supabase._chain.upsert.mockResolvedValueOnce({ data: null, error: null });
+    supabase._chain.single.mockResolvedValueOnce({
+      data: { id: EXISTING_ROW_ID },
+      error: null,
+    });
     const embedFn = vi.fn();
 
     const resolved = await resolveRequirementEmbedding({
@@ -465,7 +522,7 @@ describe('resolveRequirementEmbedding — recompute on text change only (ID-52.2
       embedText: 'unchanged',
       embedFn,
     });
-    const row = buildCatalogueRow({
+    const candidate = buildCatalogueRow({
       field,
       classification: makeClassification({
         matching_guidance: 'Revised guidance from the re-run.',
@@ -476,7 +533,7 @@ describe('resolveRequirementEmbedding — recompute on text change only (ID-52.2
     });
     const result = await confirmAndWriteCatalogue({
       supabase: supabase as never,
-      rows: [row],
+      rows: [candidate],
       confirmRow: async () => true,
       getAuthorised: async () => authorised('editor'),
     });
@@ -486,13 +543,123 @@ describe('resolveRequirementEmbedding — recompute on text change only (ID-52.2
     expect(supabase._chain.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         matching_guidance: 'Revised guidance from the re-run.',
-        requirement_embedding: JSON.stringify(STORED_EMBEDDING),
       }),
       expect.objectContaining({
         onConflict:
           'template_name,template_version,section_ref,question_number',
       }),
     );
+    // The reused vector is dual-written into record_embeddings, keyed by the
+    // upserted row's id and JSON-serialised ({130.24} DR-036).
+    expect(supabase._chain.upsert).toHaveBeenCalledWith(
+      {
+        owner_kind: 'form_template_requirement',
+        owner_id: EXISTING_ROW_ID,
+        model: 'text-embedding-3-large',
+        embedding: JSON.stringify(STORED_EMBEDDING),
+      },
+      { onConflict: 'owner_kind,owner_id,model' },
+    );
+  });
+});
+
+// ── {130.24} DR-036: record_embeddings dual-write ────────────────────────────
+
+describe('confirmAndWriteCatalogue — record_embeddings dual-write ({130.24} DR-036)', () => {
+  it('dual-writes a non-null embedding into record_embeddings keyed by the upserted row id', async () => {
+    const supabase = createMockSupabaseClient();
+    const rowId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    supabase._chain.single.mockResolvedValueOnce({
+      data: { id: rowId },
+      error: null,
+    });
+
+    const candidate = buildCatalogueRow({
+      field: makeField(),
+      classification: makeClassification(),
+      embedding: [0.1, 0.2, 0.3],
+      templateName: 'Acme ITT 2026',
+      templateType: 'itt',
+    });
+
+    const result = await confirmAndWriteCatalogue({
+      supabase: supabase as never,
+      rows: [candidate],
+      confirmRow: async () => true,
+      getAuthorised: async () => authorised('editor'),
+    });
+
+    expect(result.written).toBe(1);
+    expect(supabase.from).toHaveBeenCalledWith('record_embeddings');
+    expect(supabase._chain.upsert).toHaveBeenCalledWith(
+      {
+        owner_kind: 'form_template_requirement',
+        owner_id: rowId,
+        model: 'text-embedding-3-large',
+        embedding: JSON.stringify([0.1, 0.2, 0.3]),
+      },
+      { onConflict: 'owner_kind,owner_id,model' },
+    );
+  });
+
+  it('skips the record_embeddings write when the candidate has no embedding', async () => {
+    const supabase = createMockSupabaseClient();
+    supabase._chain.single.mockResolvedValueOnce({
+      data: { id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' },
+      error: null,
+    });
+
+    const result = await confirmAndWriteCatalogue({
+      supabase: supabase as never,
+      rows: [makeCandidate()], // default embedding: null
+      confirmRow: async () => true,
+      getAuthorised: async () => authorised('editor'),
+    });
+
+    expect(result.written).toBe(1);
+    expect(supabase.from).not.toHaveBeenCalledWith('record_embeddings');
+  });
+
+  it('records a dual-write failure without marking the row itself failed', async () => {
+    const supabase = createMockSupabaseClient();
+    const rowId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+    supabase._chain.single.mockResolvedValueOnce({
+      data: { id: rowId },
+      error: null,
+    });
+    // The row-upsert path terminates on `.single()` (mocked above); the
+    // record_embeddings upsert is awaited directly via the chain's implicit
+    // `then` — override its NEXT (and only, in this test) invocation to fail.
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: null,
+          error: {
+            message: 'permission denied for table record_embeddings',
+            code: '42501',
+          },
+          count: null,
+        }),
+    );
+
+    const candidate = buildCatalogueRow({
+      field: makeField(),
+      classification: makeClassification(),
+      embedding: [0.1, 0.2, 0.3],
+      templateName: 'Acme ITT 2026',
+      templateType: 'itt',
+    });
+
+    const result = await confirmAndWriteCatalogue({
+      supabase: supabase as never,
+      rows: [candidate],
+      confirmRow: async () => true,
+      getAuthorised: async () => authorised('editor'),
+    });
+
+    expect(result.written).toBe(1);
+    expect(result.failed).toBe(0);
+    expect(result.errors).toHaveLength(1);
   });
 });
 

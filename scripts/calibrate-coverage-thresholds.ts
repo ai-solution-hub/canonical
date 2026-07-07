@@ -99,6 +99,13 @@ function assertEnvFlag(env: string, url: string | undefined): void {
 
 // ── Data fetching (standalone, no Next.js path aliases) ──
 
+/**
+ * The record_embeddings model column value ({130.24} DR-036 — mirrors the
+ * template-coverage engine's own EMBEDDING_MODEL constant, and the
+ * catalogue's — lib/domains/procurement/form-templating/catalogue/from-instance.ts).
+ */
+const REQUIREMENT_EMBEDDING_MODEL = 'text-embedding-3-large';
+
 async function fetchRequirements(
   supabase: SupabaseClient<Database>,
   templateName: string,
@@ -107,7 +114,7 @@ async function fetchRequirements(
   const { data, error } = await supabase
     .from('form_template_requirements')
     .select(
-      'id, template_name, template_version, template_type, section_ref, section_name, question_number, requirement_text, description, requirement_type, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, matching_keywords, matching_guidance, requirement_embedding, is_mandatory, sector_applicability, word_limit_guidance, display_order',
+      'id, template_name, template_version, template_type, section_ref, section_name, question_number, requirement_text, description, requirement_type, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, matching_keywords, matching_guidance, is_mandatory, sector_applicability, word_limit_guidance, display_order',
     )
     .eq('template_name', templateName)
     .eq('is_current', true)
@@ -115,7 +122,43 @@ async function fetchRequirements(
 
   if (error) throw new Error(`Failed to fetch requirements: ${error.message}`);
 
-  return (data ?? []).map((row: Record<string, unknown>) => ({
+  const rows = data ?? [];
+
+  // {130.24} DR-036: requirement_embedding was dropped from
+  // form_template_requirements — hydrate it from the polymorphic
+  // record_embeddings store (owner_kind='form_template_requirement'),
+  // keyed by owner_id (the requirement row's id). Mirrors
+  // lib/domains/procurement/form-templating/template-coverage.ts's
+  // fetchTemplateRequirements.
+  const embeddingById = new Map<string, number[] | null>();
+  if (rows.length > 0) {
+    const { data: embeddingRows, error: embeddingError } = await supabase
+      .from('record_embeddings')
+      .select('owner_id, embedding')
+      .eq('owner_kind', 'form_template_requirement')
+      .in(
+        'owner_id',
+        rows.map((row) => row.id),
+      )
+      .eq('model', REQUIREMENT_EMBEDDING_MODEL);
+
+    if (embeddingError) {
+      throw new Error(
+        `Failed to fetch record_embeddings for requirements: ${embeddingError.message}`,
+      );
+    }
+
+    for (const row of embeddingRows ?? []) {
+      const embedding = row.embedding
+        ? typeof row.embedding === 'string'
+          ? JSON.parse(row.embedding)
+          : row.embedding
+        : null;
+      embeddingById.set(row.owner_id, embedding);
+    }
+  }
+
+  return rows.map((row: Record<string, unknown>) => ({
     id: row.id as string,
     template_name: row.template_name as string,
     template_version: row.template_version as string | null,
@@ -132,11 +175,7 @@ async function fetchRequirements(
     secondary_subtopic: row.secondary_subtopic as string | null,
     matching_keywords: row.matching_keywords as string[] | null,
     matching_guidance: row.matching_guidance as string | null,
-    requirement_embedding: row.requirement_embedding
-      ? typeof row.requirement_embedding === 'string'
-        ? JSON.parse(row.requirement_embedding as string)
-        : (row.requirement_embedding as number[])
-      : null,
+    requirement_embedding: embeddingById.get(row.id as string) ?? null,
     is_mandatory: row.is_mandatory as boolean | null,
     sector_applicability: row.sector_applicability as string[] | null,
     word_limit_guidance: row.word_limit_guidance as number | null,

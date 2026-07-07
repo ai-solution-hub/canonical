@@ -16,6 +16,12 @@
  * - Inv-22: each catalogue row carries the read shape T10 consumes
  *   (`requirement_type`, `matching_keywords`, `matching_guidance`,
  *   `requirement_embedding`, `is_mandatory`, `section_name`, `template_type`).
+ *   {130.24} DR-036: the embedding itself no longer lives inline on the row —
+ *   it is dual-written into the polymorphic `record_embeddings` store
+ *   (`owner_kind = 'form_template_requirement'`) alongside the row upsert,
+ *   and T10 (`fetchTemplateRequirements`) hydrates it back from there. The
+ *   READ shape Inv-22 describes is unchanged; only the storage location
+ *   moved (mirrors the company_profile EMB-STORE precedent).
  * - Inv-23: catalogue rows have NO `workspace_id` — they are global.
  * - Inv-24: the write step is gated to admin/editor via
  *   `getAuthorisedClient(['admin', 'editor'])`; unauthorised callers are
@@ -40,9 +46,22 @@ import { logger } from '@/lib/logger';
 /** Anthropic classification model — same as the pipeline (extraction.py). */
 const CLASSIFY_MODEL = 'claude-opus-4-6';
 
-/** Embedding config — same as pipeline Stage-4 / catalogue-standard-sq.ts. */
+/**
+ * Embedding config — same as pipeline Stage-4 / catalogue-standard-sq.ts.
+ * {130.24} DR-036: also the `record_embeddings.model` value this module
+ * reads/writes for `owner_kind = 'form_template_requirement'` — a single
+ * literal serves both the OpenAI API call and the store's model column,
+ * mirroring the `COMPANY_PROFILE_EMBEDDING_MODEL` precedent
+ * (lib/intelligence/pipeline.ts).
+ */
 const EMBEDDING_MODEL = 'text-embedding-3-large';
 const EMBEDDING_DIMENSIONS = 1024;
+
+/**
+ * The `record_embeddings.owner_kind` value for this catalogue ({130.24}
+ * DR-036 — `record_embeddings_owner_kind_chk` widened to include it).
+ */
+const RECORD_EMBEDDINGS_OWNER_KIND = 'form_template_requirement';
 
 /**
  * Non-NULL `template_version` sentinel ({52.22} design §2.2). The natural key
@@ -290,7 +309,7 @@ export async function generateRequirementEmbedding(
   return data.data[0].embedding;
 }
 
-// ── Conditional embedding recompute ({52.22} design §3.2) ───────────────────
+// ── Conditional embedding recompute ({52.22} design §3.2; {130.24} DR-036) ──
 
 /** Outcome of the conditional embedding resolution for one candidate row. */
 export interface ResolvedEmbedding {
@@ -307,9 +326,11 @@ export interface ResolvedEmbedding {
  * `(template_name, template_version, section_ref, question_number)`. If a row
  * exists and its `requirement_text` equals the candidate text (the
  * deterministic, human-authored change signal — NOT the LLM-derived
- * keyword-augmented embed input), the stored vector is reused and the OpenAI
- * call is skipped. Otherwise (no row, changed text, unusable stored vector,
- * or a failed pre-read) the embedding is recomputed via `embedFn`.
+ * keyword-augmented embed input), the stored vector for that row's `id` is
+ * looked up in `record_embeddings` ({130.24} DR-036 — the vector no longer
+ * lives inline on `form_template_requirements`) and reused, skipping the
+ * OpenAI call. Otherwise (no row, changed text, no/unusable stored vector, or
+ * a failed pre-read) the embedding is recomputed via `embedFn`.
  *
  * The natural-key derivation mirrors `buildCatalogueRow` exactly
  * (`section_ref` = `section_name ?? 'General'`, `question_number` =
@@ -332,11 +353,11 @@ export async function resolveRequirementEmbedding(args: {
 
   const existing = await tryQuery<Pick<
     Tables<'form_template_requirements'>,
-    'requirement_text' | 'requirement_embedding'
+    'id' | 'requirement_text'
   > | null>(
     supabase
       .from('form_template_requirements')
-      .select('requirement_text, requirement_embedding')
+      .select('id, requirement_text')
       .eq('template_name', templateName)
       .eq('template_version', args.templateVersion ?? DEFAULT_TEMPLATE_VERSION)
       .eq('section_ref', field.section_name ?? 'General')
@@ -354,20 +375,44 @@ export async function resolveRequirementEmbedding(args: {
     );
   } else if (
     existing.data &&
-    existing.data.requirement_text === candidateText &&
-    typeof existing.data.requirement_embedding === 'string'
+    existing.data.requirement_text === candidateText
   ) {
-    try {
-      const parsed = JSON.parse(existing.data.requirement_embedding) as unknown;
-      if (
-        Array.isArray(parsed) &&
-        parsed.length > 0 &&
-        parsed.every((v): v is number => typeof v === 'number')
-      ) {
-        return { embedding: parsed, reused: true };
+    // {130.24} DR-036: the vector lives in record_embeddings, keyed by the
+    // existing row's id — a second read, not a join (record_embeddings has
+    // no FK to any owner table; the M1b polymorphic idiom is deliberately
+    // FK-less — see 20260628190001_id131_record_embeddings_store.sql).
+    const stored = await tryQuery<Pick<
+      Tables<'record_embeddings'>,
+      'embedding'
+    > | null>(
+      supabase
+        .from('record_embeddings')
+        .select('embedding')
+        .eq('owner_kind', RECORD_EMBEDDINGS_OWNER_KIND)
+        .eq('owner_id', existing.data.id)
+        .eq('model', EMBEDDING_MODEL)
+        .maybeSingle(),
+      'record_embeddings.byFormTemplateRequirement',
+    );
+
+    if (!stored.ok) {
+      logger.warn(
+        { err: stored.error, requirement: candidateText },
+        '[catalogue:from-instance] record_embeddings pre-read failed — recomputing embedding',
+      );
+    } else if (stored.data && typeof stored.data.embedding === 'string') {
+      try {
+        const parsed = JSON.parse(stored.data.embedding) as unknown;
+        if (
+          Array.isArray(parsed) &&
+          parsed.length > 0 &&
+          parsed.every((v): v is number => typeof v === 'number')
+        ) {
+          return { embedding: parsed, reused: true };
+        }
+      } catch {
+        // Unparsable stored vector — fall through to recompute.
       }
-    } catch {
-      // Unparsable stored vector — fall through to recompute.
     }
   }
 
@@ -377,10 +422,25 @@ export async function resolveRequirementEmbedding(args: {
 // ── Build the catalogue row (Inv-22 read shape; Inv-23 no workspace_id) ─────
 
 /**
+ * A candidate catalogue row bundled with its resolved embedding ({130.24}
+ * DR-036). The row alone is the `form_template_requirements` insert/upsert
+ * shape (no `requirement_embedding` column — dropped); `embedding` is
+ * dual-written into `record_embeddings` by `confirmAndWriteCatalogue` after
+ * the row write succeeds, keyed by the row's `id`.
+ */
+export interface CatalogueCandidate {
+  row: CatalogueRowInsert;
+  embedding: number[] | null;
+}
+
+/**
  * Assemble the `form_template_requirements` insert row from a classified
- * instance field. Carries the Inv-22 read shape and — by construction — NO
- * `workspace_id` (Inv-23: the catalogue is global). The vector is serialised
- * via `JSON.stringify` per CLAUDE.md before it reaches the Supabase param.
+ * instance field, bundled with its resolved embedding. Carries the Inv-22
+ * read shape and — by construction — NO `workspace_id` (Inv-23: the
+ * catalogue is global). {130.24} DR-036: `embedding` is no longer inlined on
+ * the row (the column was dropped in favour of `record_embeddings`) — it
+ * travels alongside the row in the returned `CatalogueCandidate` so
+ * `confirmAndWriteCatalogue` can dual-write it after the row upsert.
  */
 export function buildCatalogueRow(args: {
   field: FormTemplateField;
@@ -389,27 +449,29 @@ export function buildCatalogueRow(args: {
   templateName: string;
   templateType: string;
   templateVersion?: string | null;
-}): CatalogueRowInsert {
+}): CatalogueCandidate {
   const { field, classification, embedding, templateName, templateType } = args;
   return {
-    template_name: templateName,
-    template_type: templateType,
-    // Never NULL — a NULL key member defeats the natural-key ON CONFLICT
-    // ({52.22} design §2.2; NULLS DISTINCT semantics on the constraint).
-    template_version: args.templateVersion ?? DEFAULT_TEMPLATE_VERSION,
-    section_ref: field.section_name ?? 'General',
-    section_name: field.section_name ?? 'General',
-    question_number: field.sequence,
-    requirement_text: field.question_text ?? '',
-    description: null,
-    requirement_type: classification.requirement_type,
-    matching_keywords: classification.matching_keywords,
-    matching_guidance: classification.matching_guidance,
-    is_mandatory: field.is_mandatory ?? false,
-    word_limit_guidance: field.word_limit ?? null,
-    requirement_embedding: embedding ? JSON.stringify(embedding) : null,
-    display_order: field.sequence,
-    is_current: true,
+    row: {
+      template_name: templateName,
+      template_type: templateType,
+      // Never NULL — a NULL key member defeats the natural-key ON CONFLICT
+      // ({52.22} design §2.2; NULLS DISTINCT semantics on the constraint).
+      template_version: args.templateVersion ?? DEFAULT_TEMPLATE_VERSION,
+      section_ref: field.section_name ?? 'General',
+      section_name: field.section_name ?? 'General',
+      question_number: field.sequence,
+      requirement_text: field.question_text ?? '',
+      description: null,
+      requirement_type: classification.requirement_type,
+      matching_keywords: classification.matching_keywords,
+      matching_guidance: classification.matching_guidance,
+      is_mandatory: field.is_mandatory ?? false,
+      word_limit_guidance: field.word_limit ?? null,
+      display_order: field.sequence,
+      is_current: true,
+    },
+    embedding,
   };
 }
 
@@ -451,7 +513,7 @@ async function ensureAuthorisedForWrite(
 
 export interface ConfirmAndWriteArgs {
   supabase: SupabaseClient<Database>;
-  rows: CatalogueRowInsert[];
+  rows: CatalogueCandidate[];
   /**
    * Per-row confirmation. Returns `true` to write the row. No row is written
    * unless this returns `true` (Inv-21). The CLI wires this to a stdin y/n
@@ -472,6 +534,17 @@ export interface ConfirmAndWriteArgs {
  * (no silent Supabase failures; idempotent re-runs per {52.22}). Each write
  * is its own statement; a failed row is recorded and the remaining rows
  * continue.
+ *
+ * {130.24} DR-036: on a successful row upsert, the row's `id` is read back
+ * (`.select('id')`) and — when the candidate carries a non-null embedding —
+ * dual-written into `record_embeddings` (`owner_kind =
+ * 'form_template_requirement'`, `model = EMBEDDING_MODEL`), upserted on the
+ * M1b UNIQUE `(owner_kind, owner_id, model)` so a re-catalogue run replaces
+ * the prior vector rather than duplicating it. A failed embedding write does
+ * NOT fail the row (the row itself already wrote successfully) — it is
+ * logged and folded into `errors` so the operator sees the discrepancy,
+ * mirroring the q_a_pair dual-write's best-effort failure posture
+ * (lib/q-a-pairs/promote-corpus.ts `embedAndPublish`).
  */
 export async function confirmAndWriteCatalogue(
   args: ConfirmAndWriteArgs,
@@ -497,7 +570,8 @@ export async function confirmAndWriteCatalogue(
   const errors: string[] = [];
 
   for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
+    const candidate = rows[i];
+    const { row, embedding } = candidate;
     const confirmed = await confirmRow(row, i);
     if (!confirmed) {
       declined += 1;
@@ -509,11 +583,17 @@ export async function confirmAndWriteCatalogue(
     // raising 23505. The existing row's `id` is preserved, so the
     // `form_questions.template_requirement_id` FK survives re-cataloguing;
     // `created_at` is not in the row, so the DB default only fires on INSERT.
+    // `.select('id')` reads the row id back for the record_embeddings
+    // dual-write below ({130.24} DR-036).
     const upsertResult = await tryQuery(
-      supabase.from('form_template_requirements').upsert(row, {
-        onConflict: CATALOGUE_CONFLICT_TARGET,
-        ignoreDuplicates: false,
-      }),
+      supabase
+        .from('form_template_requirements')
+        .upsert(row, {
+          onConflict: CATALOGUE_CONFLICT_TARGET,
+          ignoreDuplicates: false,
+        })
+        .select('id')
+        .single(),
       'form_template_requirements.upsert',
     );
     if (!upsertResult.ok) {
@@ -526,6 +606,28 @@ export async function confirmAndWriteCatalogue(
       continue;
     }
     written += 1;
+
+    if (embedding) {
+      const embeddingResult = await tryQuery(
+        supabase.from('record_embeddings').upsert(
+          {
+            owner_kind: RECORD_EMBEDDINGS_OWNER_KIND,
+            owner_id: upsertResult.data.id,
+            model: EMBEDDING_MODEL,
+            embedding: JSON.stringify(embedding),
+          },
+          { onConflict: 'owner_kind,owner_id,model' },
+        ),
+        'record_embeddings.upsert',
+      );
+      if (!embeddingResult.ok) {
+        errors.push(embeddingResult.error.message);
+        logger.error(
+          { err: embeddingResult.error, requirement: row.requirement_text },
+          '[catalogue:from-instance] record_embeddings dual-write failed — row was written, embedding was not',
+        );
+      }
+    }
   }
 
   return { refused: false, written, declined, failed, errors };

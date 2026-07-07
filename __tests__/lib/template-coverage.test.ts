@@ -2,10 +2,11 @@
  * Tests for the template-driven KB completeness matching engine.
  *
  * Covers: constants, cosineSimilarity, matchRequirement, computeTemplateCoverage,
- * and (post-{131.16} re-point) fetchContentForMatching's Supabase call shape
- * via the shared `createMockSupabaseTableDispatch` mock. `fetchTemplateRequirements`
- * / `listAvailableTemplates` remain untested here — narrower fixed-shape reads
- * against `form_template_requirements` with no re-pointing behaviour to verify.
+ * (post-{131.16} re-point) fetchContentForMatching's Supabase call shape, and
+ * ({130.24} DR-036) fetchTemplateRequirements' record_embeddings hydration —
+ * all via the shared `createMockSupabaseTableDispatch` mock. `listAvailableTemplates`
+ * remains untested here — a narrower fixed-shape read with no re-pointing
+ * behaviour to verify.
  */
 import { describe, it, expect } from 'vitest';
 import {
@@ -17,6 +18,7 @@ import {
   matchRequirement,
   computeTemplateCoverage,
   fetchContentForMatching,
+  fetchTemplateRequirements,
 } from '@/lib/domains/procurement/form-templating/template-coverage';
 import type {
   TemplateRequirement,
@@ -618,5 +620,155 @@ describe('fetchContentForMatching', () => {
     await expect(fetchContentForMatching(dispatch as any)).rejects.toThrow(
       /Failed to fetch q_a_pairs for matching/,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fetchTemplateRequirements — record_embeddings hydration ({130.24} DR-036).
+// Verifies requirement_embedding is hydrated from the polymorphic
+// record_embeddings store (owner_kind='form_template_requirement'), not the
+// (now-dropped) inline column, mirroring fetchContentForMatching's pattern.
+// ---------------------------------------------------------------------------
+
+describe('fetchTemplateRequirements', () => {
+  it('hydrates requirement_embedding from record_embeddings, keyed by row id', async () => {
+    const dispatch = createMockSupabaseTableDispatch({
+      form_template_requirements: {
+        data: [
+          {
+            id: 'req-1',
+            template_name: 'Standard SQ',
+            template_version: 'PPN 03/24',
+            template_type: 'sq',
+            section_ref: 'Part 1',
+            section_name: 'General',
+            question_number: 1,
+            requirement_text: 'Describe your safety policy.',
+            description: null,
+            requirement_type: 'policy',
+            primary_domain: 'compliance',
+            primary_subtopic: 'health-and-safety',
+            secondary_domain: null,
+            secondary_subtopic: null,
+            matching_keywords: ['safety'],
+            matching_guidance: null,
+            is_mandatory: true,
+            sector_applicability: null,
+            word_limit_guidance: null,
+            display_order: 1,
+          },
+          {
+            id: 'req-2',
+            template_name: 'Standard SQ',
+            template_version: 'PPN 03/24',
+            template_type: 'sq',
+            section_ref: 'Part 1',
+            section_name: 'General',
+            question_number: 2,
+            requirement_text: 'Company registration number.',
+            description: null,
+            requirement_type: 'data',
+            primary_domain: null,
+            primary_subtopic: null,
+            secondary_domain: null,
+            secondary_subtopic: null,
+            matching_keywords: [],
+            matching_guidance: null,
+            is_mandatory: true,
+            sector_applicability: null,
+            word_limit_guidance: null,
+            display_order: 2,
+          },
+        ],
+        error: null,
+      },
+      record_embeddings: {
+        // Stored as a JSON string on one row, a parsed array on the other —
+        // fetchTemplateRequirements must handle both (mirrors the
+        // pgvector string-or-array duality fetchContentForMatching handles).
+        data: [{ owner_id: 'req-1', embedding: '[0.1,0.2,0.3]' }],
+        error: null,
+      },
+    });
+
+    const result = await fetchTemplateRequirements(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mock dispatch client requires flexible typing
+      dispatch as any,
+      'Standard SQ',
+    );
+
+    expect(result).toHaveLength(2);
+    const req1 = result.find((r) => r.id === 'req-1');
+    expect(req1?.requirement_embedding).toEqual([0.1, 0.2, 0.3]);
+    // req-2 has no record_embeddings row — hydrates to null, not an error.
+    const req2 = result.find((r) => r.id === 'req-2');
+    expect(req2?.requirement_embedding).toBeNull();
+
+    expect(dispatch.from).toHaveBeenCalledWith('record_embeddings');
+    expect(dispatch._chains.record_embeddings.eq).toHaveBeenCalledWith(
+      'owner_kind',
+      'form_template_requirement',
+    );
+    expect(dispatch._chains.record_embeddings.in).toHaveBeenCalledWith(
+      'owner_id',
+      ['req-1', 'req-2'],
+    );
+    expect(dispatch._chains.record_embeddings.eq).toHaveBeenCalledWith(
+      'model',
+      'text-embedding-3-large',
+    );
+  });
+
+  it('skips the record_embeddings fetch when the template has no requirements', async () => {
+    const dispatch = createMockSupabaseTableDispatch({
+      form_template_requirements: { data: [], error: null },
+    });
+
+    const result = await fetchTemplateRequirements(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mock dispatch client requires flexible typing
+      dispatch as any,
+      'Empty Template',
+    );
+
+    expect(result).toEqual([]);
+    expect(dispatch.from).not.toHaveBeenCalledWith('record_embeddings');
+  });
+
+  it('throws a descriptive error when the record_embeddings query fails', async () => {
+    const dispatch = createMockSupabaseTableDispatch({
+      form_template_requirements: {
+        data: [
+          {
+            id: 'req-1',
+            template_name: 'Standard SQ',
+            template_version: 'PPN 03/24',
+            template_type: 'sq',
+            section_ref: 'Part 1',
+            section_name: 'General',
+            question_number: 1,
+            requirement_text: 'Describe your safety policy.',
+            description: null,
+            requirement_type: 'policy',
+            primary_domain: null,
+            primary_subtopic: null,
+            secondary_domain: null,
+            secondary_subtopic: null,
+            matching_keywords: [],
+            matching_guidance: null,
+            is_mandatory: true,
+            sector_applicability: null,
+            word_limit_guidance: null,
+            display_order: 1,
+          },
+        ],
+        error: null,
+      },
+      record_embeddings: { data: null, error: { message: 'connection reset' } },
+    });
+
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mock dispatch client requires flexible typing
+      fetchTemplateRequirements(dispatch as any, 'Standard SQ'),
+    ).rejects.toThrow(/Failed to fetch record_embeddings/);
   });
 });

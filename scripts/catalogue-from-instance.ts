@@ -36,6 +36,7 @@ import {
   buildCatalogueRow,
   confirmAndWriteCatalogue,
   type CatalogueRowInsert,
+  type CatalogueCandidate,
 } from '@/lib/domains/procurement/form-templating/catalogue/from-instance';
 
 loadEnv();
@@ -188,7 +189,7 @@ async function main(): Promise<void> {
   // catalogue already holds a row for this natural key with unchanged
   // requirement text, the stored vector is reused (no OpenAI call); the row
   // is still UPSERTed so other changed fields update.
-  const rows: CatalogueRowInsert[] = [];
+  const candidates: CatalogueCandidate[] = [];
   let reusedEmbeddings = 0;
   for (const field of fields) {
     const classification = await classifyField(anthropic, field);
@@ -200,7 +201,7 @@ async function main(): Promise<void> {
       embedText,
     });
     if (resolved.reused) reusedEmbeddings += 1;
-    rows.push(
+    candidates.push(
       buildCatalogueRow({
         field,
         classification,
@@ -219,10 +220,10 @@ async function main(): Promise<void> {
   // ── Preview mode — no write (Inv-21) ──
   if (!confirm) {
     console.log(
-      `\nPREVIEW (no --confirm): ${rows.length} candidate rows. Nothing written.\n`,
+      `\nPREVIEW (no --confirm): ${candidates.length} candidate rows. Nothing written.\n`,
     );
-    for (let i = 0; i < rows.length; i++) {
-      const r = rows[i];
+    for (let i = 0; i < candidates.length; i++) {
+      const r = candidates[i].row;
       console.log(
         `  [${i + 1}] ${r.requirement_type} — ${r.requirement_text.slice(0, 80)}`,
       );
@@ -236,7 +237,7 @@ async function main(): Promise<void> {
   try {
     const result = await confirmAndWriteCatalogue({
       supabase,
-      rows,
+      rows: candidates,
       confirmRow: confirmer.confirm,
     });
 
