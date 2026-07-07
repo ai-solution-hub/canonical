@@ -1,6 +1,6 @@
 """Private cocoindex-API façade — single insulation layer for the pipeline.
 
-cocoindex 1.0.3 exposes the symbols this pipeline depends on OUTSIDE its
+cocoindex 1.0.7 exposes the symbols this pipeline depends on OUTSIDE its
 documented top-level surface: ``'ops' not in dir(cocoindex)``, and connectors /
 connectorkits / resources live in sub-packages that the top-level package does
 not re-export. A version bump that reshuffles ``ops.*`` / ``connectors.*`` would
@@ -8,9 +8,9 @@ otherwise be a scatter-edit across five pipeline modules. This module
 concentrates every off-surface import into ONE place so a future bump is a
 one-file fix.
 
-Pinned version: ``cocoindex==1.0.3`` (see ``requirements.txt`` and the
+Pinned version: ``cocoindex==1.0.7`` (see ``requirements.txt`` and the
 version-pin assertion in ``scripts/tests/test_coco_api_facade.py``, which gates
-upgrades). The twelve re-exported symbols and their real 1.0.3 sources are
+upgrades). The twelve re-exported symbols and their real 1.0.7 sources are
 listed in ``_SYMBOL_SOURCES`` below.
 
 WHY LAZY (PEP 562 module ``__getattr__``)
