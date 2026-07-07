@@ -1,0 +1,80 @@
+# ID-61.14 — DR-035 `api`/`public` anon-EXECUTE + coverage-drift guard.
+#
+# Wires `bun scripts/check-api-view-coverage.ts` (INV-3/4/10/16/20 — the
+# check-api-view-coverage.ts header has the full list) into a recurring
+# CI/staging lane. The gate existed since ID-115.10 but was ad-hoc/local-only
+# (`supabase db reset` + manual run) until {131.19} S450 ran it live against
+# staging for the first time and found the anon-EXECUTE posture had drifted on
+# both schemas ({61.14} DR-035 fixed the drift + added the born-locked
+# mechanism — this workflow is the "never silently regress again" half).
+#
+# Triggers (mirrors supabase-advisors.yml's pattern):
+#   - schedule: nightly cron 03:00 UTC catches drift introduced via Studio,
+#     out-of-band psql, or a hand-authored migration that skipped review.
+#   - push to staging/main when a migration or either guard script changes —
+#     paths-filter gated so unrelated pushes don't burn a DB connection.
+#   - workflow_dispatch for ad-hoc re-runs.
+#
+# Required secret (Staging-scoped, per docs/runbooks/github-environments.md):
+#   - STAGING_SUPABASE_DB_URL (existing; also used by schema-parity.yml)
+#
+# Runtime budget: <=5 min wall-clock. Six catalog-only SELECTs via psql; no
+# DB writes, no compute on the Supabase side.
+
+name: API view coverage
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  push:
+    branches: [main, staging]
+    paths:
+      - "supabase/migrations/**"
+      - ".github/workflows/api-view-coverage.yml"
+      - "scripts/check-api-view-coverage.ts"
+      - "scripts/generate-api-views.ts"
+  workflow_dispatch:
+
+concurrency:
+  group: api-view-coverage-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    name: INV-16/INV-3/INV-10/INV-20 posture guard (staging)
+    runs-on: ubuntu-latest
+    environment: Staging
+    timeout-minutes: 5
+    env:
+      SUPABASE_DB_URL: ${{ secrets.STAGING_SUPABASE_DB_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.0
+        with:
+          fetch-depth: 1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client-17
+
+      - name: Run api-view coverage + anon-EXECUTE guard
+        run: |
+          if [ -z "${SUPABASE_DB_URL:-}" ]; then
+            echo "Missing STAGING_SUPABASE_DB_URL in the Staging GitHub environment." >&2
+            exit 2
+          fi
+          bun scripts/check-api-view-coverage.ts

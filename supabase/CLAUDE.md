@@ -26,3 +26,28 @@
   stay typed against `public` — see `lib/supabase/schema.ts`); `api` is generated
   for the drift check + docs. Never edit `database.types.ts` manually. JSONB
   domain overrides: `supabase/types/database-overrides.ts`.
+- **Born-locked functions (DR-035, {61.14}):** every function in `public`/`api` is
+  born with ZERO PUBLIC/anon EXECUTE — enforced by an event trigger
+  (`dr035_born_locked_functions`, `20260707190500_id61_dr035_default_privileges.sql`),
+  not by per-migration REVOKE discipline (that discipline demonstrably regressed
+  S410→S450 within days: 34 `api` + 68 `public` fns drifted back to anon-callable
+  because Supabase's platform bootstrap grants `EXECUTE` to `anon` by default for
+  every `public` fn `postgres` creates). You do **not** need to hand-write a
+  `REVOKE EXECUTE ... FROM PUBLIC, anon` after `CREATE FUNCTION` — the trigger does
+  it automatically. Only `set_config` is exempt (INV-20 — PostgREST's RLS GUC
+  setter, the sole intended anon entrypoint); if you author a function that
+  genuinely needs anon EXECUTE, that is almost certainly a product-level decision,
+  not a migration-authoring default — escalate rather than working around the
+  trigger. `ALTER DEFAULT PRIVILEGES ... REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC`
+  does **not** suppress this on its own (verified empirically on staging, {61.14}
+  — REVOKEing a grant that was never explicitly present in the default-ACL row is
+  a no-op; `anon`'s inherited PUBLIC access survives) — the event trigger is the
+  load-bearing mechanism, default privileges are defense-in-depth only. If you
+  add a NEW app role that creates functions in migrations (currently only
+  `postgres` does), extend the trigger's `schema_name IN ('public', 'api')` scope
+  check, not a fresh default-privileges statement. `generate-api-views.ts`'s
+  `emitFunction()` also filters `anon` out of its mirrored-grant list (except
+  `set_config`) so a drifted base-fn ACL can never re-propagate onto an `api`
+  wrapper on regen. Gate: `bun scripts/check-api-view-coverage.ts` (INV-20) — wired
+  into `.github/workflows/api-view-coverage.yml` (nightly + migration-path-filtered
+  push, staging-scoped), no longer ad-hoc/local-only.

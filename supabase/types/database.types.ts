@@ -3698,74 +3698,40 @@ export type Database = {
           user_id: string
         }[]
       }
-      hybrid_search:
-        | {
-            Args: {
-              include_superseded?: boolean
-              limit_count?: number
-              query_embedding: string
-              query_text?: string
-              similarity_threshold?: number
-              visibility_filter?: string
-            }
-            Returns: {
-              ai_keywords: string[]
-              author_name: string
-              captured_date: string
-              classification_confidence: number
-              content_type: string
-              created_by: string
-              id: string
-              metadata: Json
-              platform: string
-              primary_domain: string
-              primary_subtopic: string
-              priority: string
-              similarity: number
-              snippet: string
-              source_domain: string
-              suggested_title: string
-              summary: string
-              thumbnail_url: string
-              title: string
-              verified_at: string
-              verified_by: string
-            }[]
-          }
-        | {
-            Args: {
-              application_type?: string
-              include_superseded?: boolean
-              limit_count?: number
-              query_embedding: string
-              query_text?: string
-              similarity_threshold?: number
-              visibility_filter?: string
-            }
-            Returns: {
-              ai_keywords: string[]
-              author_name: string
-              captured_date: string
-              classification_confidence: number
-              content_type: string
-              created_by: string
-              id: string
-              metadata: Json
-              platform: string
-              primary_domain: string
-              primary_subtopic: string
-              priority: string
-              similarity: number
-              snippet: string
-              source_domain: string
-              suggested_title: string
-              summary: string
-              thumbnail_url: string
-              title: string
-              verified_at: string
-              verified_by: string
-            }[]
-          }
+      hybrid_search: {
+        Args: {
+          application_type?: string
+          include_superseded?: boolean
+          limit_count?: number
+          query_embedding: string
+          query_text?: string
+          similarity_threshold?: number
+          visibility_filter?: string
+        }
+        Returns: {
+          ai_keywords: string[]
+          author_name: string
+          captured_date: string
+          classification_confidence: number
+          content_type: string
+          created_by: string
+          id: string
+          metadata: Json
+          platform: string
+          primary_domain: string
+          primary_subtopic: string
+          priority: string
+          similarity: number
+          snippet: string
+          source_domain: string
+          suggested_title: string
+          summary: string
+          thumbnail_url: string
+          title: string
+          verified_at: string
+          verified_by: string
+        }[]
+      }
       list_public_tables: { Args: never; Returns: string[] }
       merge_entities: {
         Args: {

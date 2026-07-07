@@ -497,11 +497,20 @@ function emitFunction(o: FnOverload): string {
     ? `SELECT * FROM public.${o.name}(${callArgs})`
     : `SELECT public.${o.name}(${callArgs})`;
 
-  // Mirror the public original's grants; if the original somehow granted no
-  // app role (unexpected), default to the server roles rather than nothing.
+  // Mirror the public original's grants — EXCEPT anon (DR-035 {61.14}: api
+  // wrappers must be BORN-LOCKED regardless of base-fn drift; the S450 GO
+  // caught this generator bug live — a drifted anon EXECUTE grant on
+  // public.q_a_extractions_promotion_candidates silently propagated onto the
+  // api wrapper on regen, reopening a function the product call says must
+  // never be anon-reachable). set_config is the sole deliberate anon-EXECUTE
+  // exception (INV-20) and is mirrored through as-is. If the (anon-filtered)
+  // mirror set is empty, default to the server roles rather than nothing.
+  const mirroredRoles = o.grantRoles.filter(
+    (r) => r !== 'anon' || o.name === 'set_config',
+  );
   const roles =
-    o.grantRoles.length > 0
-      ? o.grantRoles
+    mirroredRoles.length > 0
+      ? mirroredRoles
       : (['authenticated', 'service_role'] as Role[]);
 
   const sigForCreate = `api.${o.name}(${o.argsCreate})`;
