@@ -347,10 +347,11 @@ export async function promoteCorpusExtractions(
     //     so the NOT-CARRIED lifecycle set is NEVER touched (INV-9, the S233
     //     gate). The pair re-embeds on the very next step via the existing
     //     self-heal embed path.
-    //   - {138.17} published-pair diff: a linked pair that is ALREADY
-    //     published is NEVER re-synced/re-embedded here — see the DR-026 gate
-    //     immediately below, which routes it into the non-mutating `proposed`
-    //     bucket before reaching the self-heal/re-promote code.
+    //   - {138.17} curated-pair diff: a linked pair that is NOT still draft
+    //     (in_review / published / archived) is NEVER re-synced/re-embedded
+    //     here — see the DR-026 gate immediately below, which routes it into
+    //     the non-mutating `proposed` bucket before reaching the
+    //     self-heal/re-promote code.
     //
     // The pair already exists and is already linked — skip INSERT + CAS
     // (INV-3: re-promotion NEVER mints a duplicate; the promoted_to_pair_id
@@ -364,10 +365,11 @@ export async function promoteCorpusExtractions(
       // status BEFORE any write. The widened eligibility RPC (see
       // 20260707140000_id138_promotion_candidates_published_diff.sql) now
       // ALSO re-selects a linked extraction whose pair is already PUBLISHED
-      // when a re-walk changed the carried text. A promoted/curated
-      // (published) pair is NEVER auto-mutated (DR-026) — route it into the
-      // non-mutating `proposed` bucket instead of the self-heal repromote
-      // path below, which remains reserved for still-draft pairs.
+      // when a re-walk changed the carried text. A curated pair — anything
+      // that is NOT still draft (in_review / published / archived) — is
+      // NEVER auto-mutated (DR-026) — route it into the non-mutating
+      // `proposed` bucket instead of the self-heal repromote path below,
+      // which remains reserved for still-draft pairs.
       //
       // Fail-safe on an unconfirmed status (query error, or the pair row is
       // gone): do NOT attempt a write against a pair we can't positively
@@ -396,8 +398,10 @@ export async function promoteCorpusExtractions(
       const linkedPairStatus: string | null =
         pairStatusRows[0]?.publication_status ?? null;
 
-      if (linkedPairStatus === 'published') {
-        // Published-pair re-walk diff: surface as a proposal, NEVER mutate.
+      if (linkedPairStatus !== 'draft') {
+        // Curated (non-draft) pair re-walk diff: surface as a proposal,
+        // NEVER mutate. Covers 'in_review' / 'published' / 'archived', plus
+        // the defence-in-depth case of a null/unrecognised status value.
         proposed++;
         proposals.push({ extractionId, pairId: existingPairId });
         continue;

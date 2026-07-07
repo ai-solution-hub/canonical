@@ -1734,6 +1734,46 @@ describe('promoteCorpusExtractions — {138.17} published-pair re-walk diff (DR-
     expect(mockGenerateEmbedding).not.toHaveBeenCalled();
   });
 
+  it('a re-walked extraction linked to an ARCHIVED pair surfaces as a proposal — no mutation, no embed attempt', async () => {
+    const extraction = makeExtraction({
+      id: UUID_A,
+      promoted_to_pair_id: UUID_EXISTING_PAIR,
+      extracted_question_text:
+        'What is the NEW procurement threshold (re-walked)?',
+    });
+
+    supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
+
+    // DR-026 gate pre-read: the linked pair is archived (curated, not draft).
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ publication_status: 'archived' }], error: null }),
+    );
+
+    const result: PromotionSummary = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
+
+    expect(result.considered).toBe(1);
+    expect(result.proposed).toBe(1);
+    expect(result.proposals).toContainEqual({
+      extractionId: UUID_A,
+      pairId: UUID_EXISTING_PAIR,
+    });
+
+    // NEVER counted as a promotion attempt — the row never reaches the embed
+    // step, so INV-23 (published-this-run == promoted - embed_failed) is
+    // unaffected by proposals.
+    expect(result.promoted).toBe(0);
+    expect(result.embed_failed).toBe(0);
+    expect(result.failures).toHaveLength(0);
+
+    // DR-026: never auto-mutated — no UPDATE against q_a_pairs, no embed.
+    expect(supabase._chain.update).not.toHaveBeenCalled();
+    expect(supabase._chain.insert).not.toHaveBeenCalled();
+    expect(mockGenerateEmbedding).not.toHaveBeenCalled();
+  });
+
   it('mixed batch: a published-pair proposal does not block a fresh unlinked extraction from promoting (INV-23 holds)', async () => {
     const fresh = makeExtraction({
       id: UUID_A,
