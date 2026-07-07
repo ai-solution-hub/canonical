@@ -139,7 +139,7 @@ def _classification_json() -> str:
     return json.dumps(
         {
             "extraction_kind": "classification",
-            "content_type": "policy",
+            "content_type": "document",
             "primary_domain": "compliance",
             "classification_confidence": 0.92,
             "secondary_classifications": ["governance"],
@@ -316,7 +316,7 @@ class TestRetryOnTransient503:
 
         result = asyncio.run(_exercise())
         assert isinstance(result, ClassificationExtraction)
-        assert result.content_type == "policy"
+        assert result.content_type == "document"
         assert counter.get() == 1
         # Verify the SDK was called twice (1 fail + 1 success)
         assert mock_client.messages.stream.call_count == 2

@@ -108,7 +108,7 @@ class TestClassificationVariant:
         payload = {
             **base_fields_json,
             "extraction_kind": "classification",
-            "content_type": "policy",
+            "content_type": "document",
             "primary_domain": "compliance",
             "classification_confidence": 0.92,
             "secondary_classifications": ["governance"],
@@ -117,7 +117,7 @@ class TestClassificationVariant:
         ta = TypeAdapter(ExtractionOutput)
         parsed = ta.validate_json(json.dumps(payload))
         assert isinstance(parsed, ClassificationExtraction)
-        assert parsed.content_type == "policy"
+        assert parsed.content_type == "document"
         assert parsed.primary_domain == "compliance"
         # bl-220: ExtractionOutput is the stamp-FREE core union — no op_id field.
         assert not hasattr(parsed, "op_id")
@@ -150,7 +150,7 @@ class TestClassificationVariant:
         `primary_subtopic` snake_case identifier alongside `primary_domain`."""
         extraction = ClassificationExtraction(
             **base_fields,
-            content_type="policy",
+            content_type="document",
             primary_domain="compliance",
             primary_subtopic="data_protection",
             classification_confidence=0.88,
@@ -179,7 +179,7 @@ class TestClassificationVariant:
         payload = {
             **base_fields_json,
             "extraction_kind": "classification",
-            "content_type": "policy",
+            "content_type": "document",
             "primary_domain": "compliance",
             "primary_subtopic": "information_governance",
             "classification_confidence": 0.9,
@@ -1100,15 +1100,27 @@ class TestContentTypeParity:
         snapshot_types = set(taxonomy_from_snapshot["content_types"])
         assert _VALID_CONTENT_TYPES == snapshot_types
 
-    def test_snapshot_has_15_values(
-        self, taxonomy_from_snapshot: dict
-    ) -> None:
+    def test_snapshot_has_7_values(self, taxonomy_from_snapshot: dict) -> None:
         """Sanity guard — the snapshot is non-empty + reasonable size.
 
-        If the snapshot drops to <10 or grows past 50 something has gone
-        wrong (the canonical list is hand-curated and stable)."""
+        ID-133 BI-3 (S451 owner-ratified freeze) trimmed the canonical
+        content_type list from 15 to 7 (the source_documents-editorial-shape
+        stay-set: article/blog/pdf/note/research/document/other) — q_a_pair
+        migrated out to its own Layer-5 class and the concept-type
+        discriminators (case_study/policy/certification/compliance/
+        methodology/capability/product_description) moved to the L-concept
+        ontology (37-concept-type.md). If the snapshot drops to <5 or grows
+        past 20 something has gone wrong (the canonical list is
+        hand-curated and stable)."""
         n = len(taxonomy_from_snapshot["content_types"])
-        assert 10 <= n <= 50
+        assert 5 <= n <= 20
+
+    def test_q_a_pair_absent_from_snapshot(
+        self, taxonomy_from_snapshot: dict
+    ) -> None:
+        """q_a_pair migrated out to its own Layer-5 class (32-q-a-pair.md)
+        — must not reappear in the trimmed content_type snapshot."""
+        assert "q_a_pair" not in taxonomy_from_snapshot["content_types"]
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -1194,7 +1206,7 @@ class TestOutOfTaxonomySoftWarn:
             extraction = _build_classification_under_counter(
                 counter,
                 base_fields,
-                content_type="policy",
+                content_type="document",
                 primary_domain="not_a_real_domain",
                 classification_confidence=0.8,
             )
@@ -1216,7 +1228,7 @@ class TestOutOfTaxonomySoftWarn:
             extraction = _build_classification_under_counter(
                 counter,
                 base_fields,
-                content_type="policy",
+                content_type="document",
                 primary_domain="security",
                 primary_subtopic="not_a_real_subtopic",
                 classification_confidence=0.8,
@@ -1238,7 +1250,7 @@ class TestOutOfTaxonomySoftWarn:
         extraction = _build_classification_under_counter(
             counter,
             base_fields,
-            content_type="policy",
+            content_type="document",
             primary_domain="security",
             classification_confidence=0.8,
             secondary_classifications=["security", "not_a_real_domain"],
@@ -1262,7 +1274,7 @@ class TestOutOfTaxonomySoftWarn:
             extraction = _build_classification_under_counter(
                 counter,
                 base_fields,
-                content_type="policy",
+                content_type="document",
                 primary_domain="security",
                 primary_subtopic="functionality",
                 classification_confidence=0.9,
@@ -1282,7 +1294,7 @@ class TestOutOfTaxonomySoftWarn:
         is never rejected."""
         extraction = ClassificationExtraction(
             **base_fields,
-            content_type="policy",
+            content_type="document",
             primary_domain="not_a_real_domain",
             classification_confidence=0.7,
         )
@@ -1354,7 +1366,7 @@ class TestEnforcementSemanticsInvariant:
             extraction = _build_classification_under_counter(
                 counter,
                 base_fields,
-                content_type="policy",
+                content_type="document",
                 primary_domain="not_a_real_domain",
                 classification_confidence=0.8,
             )
@@ -1397,7 +1409,7 @@ class TestLLMOutputOmitsStampedFields:
         # extracted_at.
         payload = {
             "extraction_kind": "classification",
-            "content_type": "policy",
+            "content_type": "document",
             "primary_domain": "compliance",
             "classification_confidence": 0.92,
             "secondary_classifications": ["governance"],
@@ -1405,7 +1417,7 @@ class TestLLMOutputOmitsStampedFields:
         }
         parsed = _classification_adapter.validate_json(json.dumps(payload))
         assert isinstance(parsed, ClassificationExtraction)
-        assert parsed.content_type == "policy"
+        assert parsed.content_type == "document"
         # bl-220: the core carries NO stamp fields (stamped post-memo).
         assert not hasattr(parsed, "op_id")
         assert not hasattr(parsed, "source_document_id")
@@ -1479,7 +1491,7 @@ class TestMemoHitSerdeRoundTrip:
 
     def test_classification_core_survives_memo_hit_roundtrip(self) -> None:
         core = ClassificationExtraction(
-            content_type="policy",
+            content_type="document",
             primary_domain="compliance",
             classification_confidence=0.9,
             rationale="A policy doc.",
@@ -1487,7 +1499,7 @@ class TestMemoHitSerdeRoundTrip:
         # Must NOT raise — this is the bl-220 fix.
         restored = self._memo_hit_roundtrip(ClassificationExtraction, core)
         assert isinstance(restored, ClassificationExtraction)
-        assert restored.content_type == "policy"
+        assert restored.content_type == "document"
         assert restored.extraction_kind == "classification"
 
     def test_qa_form_core_survives_memo_hit_roundtrip(self) -> None:
@@ -1536,7 +1548,7 @@ class TestMemoHitSerdeRoundTrip:
             (
                 ClassificationExtractionStamped,
                 {
-                    "content_type": "policy",
+                    "content_type": "document",
                     "primary_domain": "compliance",
                     "classification_confidence": 0.9,
                 },

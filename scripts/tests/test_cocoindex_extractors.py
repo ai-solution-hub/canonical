@@ -178,7 +178,7 @@ def _make_mock_client(
 # LLM-output JSON these extractors validate.
 
 
-def _classification_json(content_type: str = "policy") -> str:
+def _classification_json(content_type: str = "document") -> str:
     """Return a well-formed classification extraction JSON payload."""
     return json.dumps(
         {
@@ -291,7 +291,7 @@ class TestExtractClassification:
 
     def test_happy_path_returns_validated_classification_extraction(self):
         """Well-formed JSON response → typed ClassificationExtraction object."""
-        mock_client = _make_mock_client(_classification_json("policy"))
+        mock_client = _make_mock_client(_classification_json("document"))
         with patch(
             "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
@@ -300,7 +300,7 @@ class TestExtractClassification:
                 extract_classification("Test document content text.")
             )
         assert isinstance(result, ClassificationExtraction)
-        assert result.content_type == "policy"
+        assert result.content_type == "document"
         assert result.primary_domain == "compliance"
         assert result.classification_confidence == pytest.approx(0.92)
         # bl-220 / ID-74: the memo extractor returns the STAMP-FREE core, so the
@@ -733,14 +733,14 @@ class TestExtractorsTolerateFencedResponse:
         return f"```json\n{payload}\n```"
 
     def test_classification_tolerates_fenced_response(self):
-        mock_client = _make_mock_client(self._fence(_classification_json("policy")))
+        mock_client = _make_mock_client(self._fence(_classification_json("document")))
         with patch(
             "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
             result = asyncio.run(extract_classification("doc text"))
         assert isinstance(result, ClassificationExtraction)
-        assert result.content_type == "policy"
+        assert result.content_type == "document"
 
     def test_qa_form_tolerates_fenced_response(self):
         mock_client = _make_mock_client(self._fence(_qa_form_json()))
@@ -1002,7 +1002,7 @@ class TestStreamingForLargeMaxTokens:
         all route through `messages.stream(...)` and never touch the
         non-streaming `messages.create(...)`."""
         for runner, payload in (
-            (extract_classification, _classification_json("policy")),
+            (extract_classification, _classification_json("document")),
             (extract_qa_form, _qa_form_json()),
             (extract_entity_mentions, _entity_mentions_json()),
         ):

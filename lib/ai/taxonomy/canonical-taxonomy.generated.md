@@ -37,8 +37,6 @@ Regulatory compliance, industry standards, certifications, and audit processes.
 - `health-and-safety`: Health and safety policy, risk assessments, incident reporting, RIDDOR, CDM regulations
 - `environmental`: Carbon reduction plan, net zero targets, environmental policy, ISO 14001, sustainability, PPN 06/20
 - `modern-slavery`: Modern slavery statement, supply chain due diligence, forced labour prevention, PPN 02/23
-- `equalities`: Equalities Act 2010, written equalities statement, equal opportunities policy, diversity and inclusion
-- `safeguarding`: Safeguarding policy, DBS checks, vulnerable persons, duty of care, child protection
 
 **Key signal:** Content about proving adherence to external requirements —
 standards bodies, regulators, auditors. The focus is on the obligation or
@@ -93,8 +91,6 @@ Company information, financial standing, insurance, references, and staffing.
 - `references`: Client references, case studies, testimonials, similar contract experience
 - `staffing`: Team structure, key personnel, CVs, recruitment and retention
 - `supply-chain`: Supply chain management, prompt payment, subcontractor oversight, PPN 02/23
-- `financial-standing`: Turnover thresholds, credit checks, bankruptcy declarations, financial statements, accounts
-- `methodology`: Method statements, service delivery approach, working arrangements, key steps, efficiencies, risk mitigation
 
 **Key signal:** Content about the organisation itself — who you are, your track
 record, your people, and your financial health. Answers the question "Tell us
@@ -133,94 +129,6 @@ Project delivery approach, project management, quality assurance, and delivery f
 **Key signal:** Content about HOW you work — your processes, governance, and
 quality practices. Answers the question "What is your approach to delivering
 projects?"
-
----
-
-#### 8. SAFEGUARDING-CHILD-PROTECTION
-
-Safeguarding children and young people — KCSIE, DBS, SCR, DSL roles, safer recruitment, and child protection policies.
-
----
-
-#### 9. SAFEGUARDING-ADULTS
-
-Adult safeguarding — SAB statutory duties, Making Safeguarding Personal, Care Act compliance, and vulnerable adult protection.
-
----
-
-#### 10. MULTI-ACADEMY-TRUSTS
-
-MAT governance, central services, school improvement, trust-wide compliance, and multi-site safeguarding.
-
----
-
-#### 11. EDUCATION
-
-Education sector — schools, colleges, universities, Ofsted, DfE requirements, and education technology.
-
----
-
-#### 12. PRODUCTS-SERVICES
-
-{CLIENT_ORGANISATION_NAME} Design product portfolio — LMS, Websites, Advanced Audits, and associated services.
-
----
-
-#### 13. LEGISLATION-POLICY
-
-
-**Subtopics:**
-
-- `kcsie`: KCSIE statutory guidance, safeguarding requirements for schools and colleges
-- `education-act-dfe`: Education Act provisions, DfE policy updates, statutory instruments
-- `health-social-care-legislation`: Health and Social Care Act, CQC regulations, care standards legislation
-- `gdpr-data-protection`: GDPR compliance, Data Protection Act 2018, ICO guidance and enforcement
-- `funding-policy`: Education funding formulae, ESFA allocations, grant conditions, pupil premium
-- `safeguarding-guidance`: Safeguarding statutory guidance, Working Together, local safeguarding partnerships
-- `cpd-requirements`: Continuing professional development requirements, training standards, competency frameworks
-
-**Key signal:** Content about laws, statutory guidance, regulatory policy
-updates, and legislative instruments. The substance is about WHAT THE LAW
-SAYS or HOW POLICY IS CHANGING, not about how an organisation complies.
-Answers the question "What does the legislation/guidance require?"
-
----
-
-#### 14. MARKET-INTELLIGENCE
-
-
-**Subtopics:**
-
-- `competitor-products`: Competitor product launches, service offerings, feature comparisons
-- `competitor-market-activity`: Competitor contract wins, partnerships, market positioning
-- `competitor-leadership`: Competitor leadership changes, strategic announcements, organisational restructuring
-- `market-trends`: Sector market trends, growth areas, emerging technologies, spending patterns
-- `procurement-activity`: Public sector procurement notices, framework opportunities, tender activity
-
-**Key signal:** Content about competitors, market trends, procurement
-activity, and commercial landscape. The substance is about the EXTERNAL
-MARKET, not about the organisation's own capabilities or products.
-Answers the question "What is happening in our market?"
-
----
-
-#### 15. SECTOR-NEWS
-
-
-**Subtopics:**
-
-- `mat-leadership`: Multi-academy trust CEO appointments, board changes, leadership announcements
-- `mat-restructuring`: MAT mergers, trust splits, school transfers between trusts
-- `mat-audits-ofsted`: Ofsted inspection outcomes for MATs, ESFA financial audits, trust reviews
-- `education-sector-audits`: School inspections, college reviews, university quality assessments
-- `health-sector-audits`: CQC inspections, NHS trust reviews, health provider quality assessments
-- `local-authority-inspections`: Local authority SEND inspections, children's services reviews, social care assessments
-- `safeguarding-practice`: Safeguarding practice reviews, serious case reviews, SCR learning updates
-
-**Key signal:** Content about sector events, leadership changes, inspections,
-audits, and organisational restructuring in target sectors. The substance is
-about WHAT IS HAPPENING in a sector, not about the organisation itself.
-Answers the question "What is happening in the sectors we serve?"
 
 ---
 <!-- TAXONOMY_END -->

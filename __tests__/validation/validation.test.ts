@@ -67,22 +67,23 @@ describe('EDITABLE_FIELDS set', () => {
 });
 
 describe('constant arrays', () => {
-  it('VALID_CONTENT_TYPES should contain 15 KB types', () => {
-    expect(VALID_CONTENT_TYPES).toHaveLength(15);
+  // ID-133 BI-3 (S451 owner-ratified freeze): content_type trimmed from 15 to
+  // the 7-value source_documents editorial-shape stay-set. q_a_pair migrated
+  // out to its own Layer-5 class (32-q-a-pair.md); case_study/policy/
+  // certification/compliance/methodology/capability/product_description
+  // moved to the L-concept type discriminators (37-concept-type.md).
+  it('VALID_CONTENT_TYPES should contain 7 KB types (BI-3 stay-set)', () => {
+    expect(VALID_CONTENT_TYPES).toHaveLength(7);
   });
 
   it('VALID_CONTENT_TYPES should include key types', () => {
     expect(VALID_CONTENT_TYPES).toContain('article');
+    expect(VALID_CONTENT_TYPES).toContain('blog');
     expect(VALID_CONTENT_TYPES).toContain('pdf');
+    expect(VALID_CONTENT_TYPES).toContain('note');
+    expect(VALID_CONTENT_TYPES).toContain('research');
+    expect(VALID_CONTENT_TYPES).toContain('document');
     expect(VALID_CONTENT_TYPES).toContain('other');
-    expect(VALID_CONTENT_TYPES).toContain('q_a_pair');
-    expect(VALID_CONTENT_TYPES).toContain('case_study');
-    expect(VALID_CONTENT_TYPES).toContain('policy');
-    expect(VALID_CONTENT_TYPES).toContain('certification');
-    expect(VALID_CONTENT_TYPES).toContain('compliance');
-    expect(VALID_CONTENT_TYPES).toContain('methodology');
-    expect(VALID_CONTENT_TYPES).toContain('capability');
-    expect(VALID_CONTENT_TYPES).toContain('product_description');
   });
 
   it('VALID_CONTENT_TYPES should not include removed IMS types', () => {
@@ -95,6 +96,19 @@ describe('constant arrays', () => {
     expect(VALID_CONTENT_TYPES).not.toContain('bookmark');
     expect(VALID_CONTENT_TYPES).not.toContain('comment');
     expect(VALID_CONTENT_TYPES).not.toContain('course');
+  });
+
+  it('VALID_CONTENT_TYPES should not include the BI-3 migrated-out values (ID-133 BI-3)', () => {
+    // q_a_pair -> own Layer-5 class; the rest -> L-concept type
+    // discriminators (37-concept-type.md).
+    expect(VALID_CONTENT_TYPES).not.toContain('q_a_pair');
+    expect(VALID_CONTENT_TYPES).not.toContain('case_study');
+    expect(VALID_CONTENT_TYPES).not.toContain('policy');
+    expect(VALID_CONTENT_TYPES).not.toContain('certification');
+    expect(VALID_CONTENT_TYPES).not.toContain('compliance');
+    expect(VALID_CONTENT_TYPES).not.toContain('methodology');
+    expect(VALID_CONTENT_TYPES).not.toContain('capability');
+    expect(VALID_CONTENT_TYPES).not.toContain('product_description');
   });
 
   it('VALID_PLATFORMS should contain 6 platforms', () => {

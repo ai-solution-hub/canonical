@@ -366,7 +366,7 @@ def _classification_json() -> str:
     return json.dumps(
         {
             "extraction_kind": "classification",
-            "content_type": "policy",
+            "content_type": "document",
             "primary_domain": "compliance",
             "classification_confidence": 0.92,
             "secondary_classifications": ["governance"],

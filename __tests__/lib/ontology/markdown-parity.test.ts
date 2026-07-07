@@ -123,11 +123,25 @@ describe('Ontology Baseline Parity', () => {
   describe.skipIf(!snapshot)(
     'live DB CHECK parity (via taxonomy_snapshot.json)',
     () => {
-      it('content_items.content_type lists exactly 15 values matching the live DB CHECK', () => {
+      it('source_documents.content_type lists exactly the BI-3 stay-set (7 values) matching the taxonomy snapshot', () => {
+        // ID-133 BI-3 (S451 owner-ratified freeze): content_type was
+        // re-homed off content_items onto source_documents by ID-131 M3
+        // (nullable, no DB CHECK — enforcement is the Pydantic
+        // `_validate_content_type` field validator reading this same
+        // snapshot) and trimmed 3 ways: q_a_pair migrated out to its own
+        // Layer-5 class (32-q-a-pair.md); case_study/policy/certification/
+        // compliance/methodology/capability/product_description moved to
+        // the L-concept type discriminators (37-concept-type.md); the
+        // remaining 7 stay as source_documents.content_type.
         const md = [...CONTENT_TYPE_VALUES].sort();
         const db = [...(snapshot!.content_types ?? [])].sort();
         expect(md).toEqual(db);
-        expect(CONTENT_TYPE_VALUES).toHaveLength(15);
+        expect(CONTENT_TYPE_VALUES).toHaveLength(7);
+      });
+
+      it('q_a_pair is ABSENT from the trimmed content_type set (migrated out to its own Layer-5 class)', () => {
+        expect(CONTENT_TYPE_VALUES).not.toContain('q_a_pair');
+        expect(snapshot!.content_types ?? []).not.toContain('q_a_pair');
       });
 
       it('every frozen CV with editable_via=database_migration matches the live DB CHECK both ways', () => {

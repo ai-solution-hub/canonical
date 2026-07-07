@@ -45,6 +45,17 @@ References:
 from __future__ import annotations
 
 
+# ID-133 BI-3 (S451 owner-ratified freeze): content_type FIELD CONSTRAINTS
+# below trimmed from 15 to the 7-value stay-set — kept in exact bidirectional
+# parity with the snapshot-backed `_VALID_CONTENT_TYPES`
+# (scripts/cocoindex_pipeline/extraction.py) by
+# `TestPromptsEnumeratesEnums.test_classification_enumerates_content_types`
+# in scripts/tests/test_cocoindex_prompts.py. q_a_pair migrated out to its
+# own Layer-5 class; case_study/policy/certification/compliance/methodology/
+# capability/product_description moved to the L-concept type discriminators
+# (37-concept-type.md) — routing raw classification output into those
+# concept types is NOT built by this change (carried forward, not encoded
+# here).
 CLASSIFICATION_PROMPT = """You are extracting structured classification metadata from a document for an enterprise knowledge base. Read the document content carefully and produce a single JSON object describing how the document should be classified.
 
 OUTPUT FORMAT
@@ -65,7 +76,7 @@ FIELD CONSTRAINTS
 
 - extraction_kind: MUST be the exact string "classification".
 - content_type: MUST be ONE of the following canonical values:
-  article, blog, pdf, note, research, other, q_a_pair, case_study, policy, certification, compliance, methodology, capability, product_description, document.
+  article, blog, pdf, note, research, document, other.
 - primary_domain: a short snake_case identifier of the document's primary domain (e.g. security, compliance, implementation, support, corporate, product_feature, methodology).
 - primary_subtopic: a short snake_case identifier of the document's primary subtopic WITHIN that domain (e.g. data_protection, access_control, incident_response, supplier_onboarding, tender_evaluation). Use null when no single subtopic is clearly primary.
 - suggested_title: a concise, human-readable title for the document in Title Case (e.g. "G-Cloud 13 Framework Agreement", "Information Security Policy"). Prefer the document's own title or main heading when present; otherwise synthesise a faithful short title (max ~80 characters) from the content. Use null only when no meaningful title can be derived.
@@ -75,8 +86,6 @@ FIELD CONSTRAINTS
 
 GUIDANCE
 
-- Choose `q_a_pair` only when the document is structured as discrete question-and-answer pairs (e.g. an interview transcript, an FAQ).
-- Choose `case_study` for narrative engagement write-ups; `methodology` for process descriptions; `policy` for governance documents; `capability` for skill or service descriptions.
 - Choose `other` only when none of the canonical values fit. Do NOT invent new values.
 - Use UK English (organise, behaviour, colour) in the rationale.
 

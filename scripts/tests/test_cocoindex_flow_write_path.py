@@ -2385,7 +2385,7 @@ class TestStampExtractionBaseWiredIntoIngest:
 
         async def _fake_classification(content_text: str):
             return ClassificationExtraction(
-                content_type="case_study",
+                content_type="document",
                 primary_domain="procurement",
                 primary_subtopic="tender_evaluation",
                 classification_confidence=0.9,

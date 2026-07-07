@@ -42,53 +42,13 @@
           "provenance": "core"
         },
         {
-          "key": "other",
-          "label": "Other",
-          "provenance": "core"
-        },
-        {
-          "key": "q_a_pair",
-          "label": "Q&A Pair",
-          "provenance": "core"
-        },
-        {
-          "key": "case_study",
-          "label": "Case Study",
-          "provenance": "core"
-        },
-        {
-          "key": "policy",
-          "label": "Policy",
-          "provenance": "core"
-        },
-        {
-          "key": "certification",
-          "label": "Certification",
-          "provenance": "core"
-        },
-        {
-          "key": "compliance",
-          "label": "Compliance",
-          "provenance": "core"
-        },
-        {
-          "key": "methodology",
-          "label": "Methodology",
-          "provenance": "core"
-        },
-        {
-          "key": "capability",
-          "label": "Capability",
-          "provenance": "core"
-        },
-        {
-          "key": "product_description",
-          "label": "Product Description",
-          "provenance": "core"
-        },
-        {
           "key": "document",
           "label": "Document",
+          "provenance": "core"
+        },
+        {
+          "key": "other",
+          "label": "Other",
           "provenance": "core"
         }
       ]

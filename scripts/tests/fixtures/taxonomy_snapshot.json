@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-29T17:20:40.513Z",
+  "generated_at": "2026-07-07T14:45:24.859Z",
   "domains": [
     {
       "id": "17d9f23f-1c4f-4d6d-b9c3-f37c178a547e",
@@ -49,96 +49,16 @@
       "display_order": 7,
       "colour": "methodology",
       "provenance": "baseline"
-    },
-    {
-      "id": "52eb10ea-eaa6-433d-9c56-d573240b5cf8",
-      "name": "safeguarding-child-protection",
-      "display_order": 8,
-      "colour": "security",
-      "provenance": "client"
-    },
-    {
-      "id": "7ced99c1-cc93-4074-a4fb-d3c6f30b817b",
-      "name": "safeguarding-adults",
-      "display_order": 9,
-      "colour": "compliance",
-      "provenance": "client"
-    },
-    {
-      "id": "9da13d3a-5ccb-4363-adc0-ce32dc442423",
-      "name": "multi-academy-trusts",
-      "display_order": 10,
-      "colour": "implementation",
-      "provenance": "client"
-    },
-    {
-      "id": "e6be270b-5ee4-4b5a-ab51-3627fbed2372",
-      "name": "education",
-      "display_order": 11,
-      "colour": "methodology",
-      "provenance": "client"
-    },
-    {
-      "id": "406054e3-8e00-46e2-9bff-038b9daff1b9",
-      "name": "products-services",
-      "display_order": 12,
-      "colour": "product",
-      "provenance": "client"
-    },
-    {
-      "id": "5e792735-8ce9-4b45-901b-44aaeb79bd9e",
-      "name": "legislation-policy",
-      "display_order": 13,
-      "colour": null,
-      "provenance": "client"
-    },
-    {
-      "id": "dee601a0-7c43-4470-acea-da0cbfc1601c",
-      "name": "market-intelligence",
-      "display_order": 14,
-      "colour": null,
-      "provenance": "client"
-    },
-    {
-      "id": "43326cbe-bbe3-47f5-a70e-df314bfa966d",
-      "name": "sector-news",
-      "display_order": 15,
-      "colour": null,
-      "provenance": "client"
     }
   ],
   "subtopics": [
     {
-      "id": "de5d47f0-6f59-4d13-9cb3-a9561230bfc0",
-      "domain_id": "609bbcc4-ea14-4d74-b53d-d074ddce19a4",
-      "name": "functionality",
+      "id": "de0bd12e-607c-43e2-bfa3-e372096ff66e",
+      "domain_id": "17d9f23f-1c4f-4d6d-b9c3-f37c178a547e",
+      "name": "data-protection",
       "display_order": 1,
       "provenance": "baseline",
-      "description": "Core product features, capabilities, modules, feature descriptions"
-    },
-    {
-      "id": "ff5e3789-fc77-4904-9fde-ed26392fc224",
-      "domain_id": "7ea9e1ca-0a99-48e4-8a38-0aff9b910e7b",
-      "name": "deployment",
-      "display_order": 1,
-      "provenance": "baseline",
-      "description": "Solution rollout, environment setup, go-live planning, deployment processes"
-    },
-    {
-      "id": "c3fa88b4-b98c-448f-85ff-e6b6ac44e4e1",
-      "domain_id": "2cf9db4f-fa8d-4c7b-97ce-c3ce6f966f1b",
-      "name": "company-info",
-      "display_order": 1,
-      "provenance": "baseline",
-      "description": "Company overview, history, mission, organisational structure"
-    },
-    {
-      "id": "451b58a4-c34e-4926-b897-5149f819594a",
-      "domain_id": "047b2b0f-59a1-4242-bbc8-b912c57d29aa",
-      "name": "approach",
-      "display_order": 1,
-      "provenance": "baseline",
-      "description": "Delivery methodology, project approach, ways of working, agile/waterfall"
+      "description": "GDPR, data handling, privacy policies, data retention and disposal"
     },
     {
       "id": "5a9fef89-13a0-4512-84d1-0aacd31707aa",
@@ -149,6 +69,14 @@
       "description": "Industry standards compliance, best practice frameworks, governance requirements"
     },
     {
+      "id": "ff5e3789-fc77-4904-9fde-ed26392fc224",
+      "domain_id": "7ea9e1ca-0a99-48e4-8a38-0aff9b910e7b",
+      "name": "deployment",
+      "display_order": 1,
+      "provenance": "baseline",
+      "description": "Solution rollout, environment setup, go-live planning, deployment processes"
+    },
+    {
       "id": "e07d008f-f7b8-43d6-9190-2a2f4b52cbbe",
       "domain_id": "d234988f-f548-4ea6-afbd-3aa7969674bd",
       "name": "sla",
@@ -157,20 +85,36 @@
       "description": "Service level agreements, uptime guarantees, response times, performance targets"
     },
     {
-      "id": "de0bd12e-607c-43e2-bfa3-e372096ff66e",
-      "domain_id": "17d9f23f-1c4f-4d6d-b9c3-f37c178a547e",
-      "name": "data-protection",
+      "id": "c3fa88b4-b98c-448f-85ff-e6b6ac44e4e1",
+      "domain_id": "2cf9db4f-fa8d-4c7b-97ce-c3ce6f966f1b",
+      "name": "company-info",
       "display_order": 1,
       "provenance": "baseline",
-      "description": "GDPR, data handling, privacy policies, data retention and disposal"
+      "description": "Company overview, history, mission, organisational structure"
     },
     {
-      "id": "cf09c33d-f7a3-4cd3-884c-867745b882ad",
-      "domain_id": "17d9f23f-1c4f-4d6d-b9c3-f37c178a547e",
-      "name": "cyber-security",
+      "id": "de5d47f0-6f59-4d13-9cb3-a9561230bfc0",
+      "domain_id": "609bbcc4-ea14-4d74-b53d-d074ddce19a4",
+      "name": "functionality",
+      "display_order": 1,
+      "provenance": "baseline",
+      "description": "Core product features, capabilities, modules, feature descriptions"
+    },
+    {
+      "id": "451b58a4-c34e-4926-b897-5149f819594a",
+      "domain_id": "047b2b0f-59a1-4242-bbc8-b912c57d29aa",
+      "name": "approach",
+      "display_order": 1,
+      "provenance": "baseline",
+      "description": "Delivery methodology, project approach, ways of working, agile/waterfall"
+    },
+    {
+      "id": "b7486e15-de9b-4e85-9e01-ed1d0ba0df53",
+      "domain_id": "8d6c0b63-f77c-4021-a54b-15c07fa04420",
+      "name": "regulatory",
       "display_order": 2,
       "provenance": "baseline",
-      "description": "Threat detection, vulnerability management, penetration testing, security monitoring"
+      "description": "Legal and regulatory requirements, sector-specific regulations, compliance obligations"
     },
     {
       "id": "14f33f1e-c69b-4ffe-a6d5-841cdecdd8a0",
@@ -181,12 +125,12 @@
       "description": "Data migration, system transition, legacy replacement, cutover planning"
     },
     {
-      "id": "b7486e15-de9b-4e85-9e01-ed1d0ba0df53",
-      "domain_id": "8d6c0b63-f77c-4021-a54b-15c07fa04420",
-      "name": "regulatory",
+      "id": "bd79809d-2e72-4e34-8165-4876a5d28fbc",
+      "domain_id": "d234988f-f548-4ea6-afbd-3aa7969674bd",
+      "name": "helpdesk",
       "display_order": 2,
       "provenance": "baseline",
-      "description": "Legal and regulatory requirements, sector-specific regulations, compliance obligations"
+      "description": "Support desk operations, ticket management, escalation procedures, user support"
     },
     {
       "id": "4ec4990d-135a-4cd3-b582-c41ce4b644d2",
@@ -205,12 +149,12 @@
       "description": "Technical architecture, infrastructure, hosting, technology stack"
     },
     {
-      "id": "bd79809d-2e72-4e34-8165-4876a5d28fbc",
-      "domain_id": "d234988f-f548-4ea6-afbd-3aa7969674bd",
-      "name": "helpdesk",
+      "id": "cf09c33d-f7a3-4cd3-884c-867745b882ad",
+      "domain_id": "17d9f23f-1c4f-4d6d-b9c3-f37c178a547e",
+      "name": "cyber-security",
       "display_order": 2,
       "provenance": "baseline",
-      "description": "Support desk operations, ticket management, escalation procedures, user support"
+      "description": "Threat detection, vulnerability management, penetration testing, security monitoring"
     },
     {
       "id": "338e233d-a056-4267-b50d-304ea9aa90b8",
@@ -219,22 +163,6 @@
       "display_order": 3,
       "provenance": "baseline",
       "description": "Data encryption at rest and in transit, key management, cryptographic standards"
-    },
-    {
-      "id": "67f2614a-cbbf-404c-b89d-3be456f182c0",
-      "domain_id": "609bbcc4-ea14-4d74-b53d-d074ddce19a4",
-      "name": "reporting",
-      "display_order": 3,
-      "provenance": "baseline",
-      "description": "Reporting capabilities, dashboards, analytics, management information"
-    },
-    {
-      "id": "944db61d-3ed2-4938-8381-a00b4c71c5ca",
-      "domain_id": "047b2b0f-59a1-4242-bbc8-b912c57d29aa",
-      "name": "quality",
-      "display_order": 3,
-      "provenance": "baseline",
-      "description": "Quality assurance, testing strategy, acceptance criteria, continuous improvement"
     },
     {
       "id": "1aa59827-104c-4434-9b09-767e214cda18",
@@ -253,14 +181,6 @@
       "description": "Scheduled maintenance, patching, updates, system health monitoring"
     },
     {
-      "id": "5ad3bdc7-f536-4559-9934-baacd028a36b",
-      "domain_id": "7ea9e1ca-0a99-48e4-8a38-0aff9b910e7b",
-      "name": "onboarding",
-      "display_order": 3,
-      "provenance": "baseline",
-      "description": "Client onboarding, user training, adoption support, change management"
-    },
-    {
       "id": "b367636e-a9d1-453c-9801-7aa1cc1b6488",
       "domain_id": "8d6c0b63-f77c-4021-a54b-15c07fa04420",
       "name": "audit",
@@ -269,12 +189,28 @@
       "description": "Audit processes, evidence gathering, compliance reporting, third-party audits"
     },
     {
-      "id": "9c5f4c1c-a509-41bd-a734-c24fb69dc875",
-      "domain_id": "047b2b0f-59a1-4242-bbc8-b912c57d29aa",
-      "name": "delivery",
-      "display_order": 4,
+      "id": "67f2614a-cbbf-404c-b89d-3be456f182c0",
+      "domain_id": "609bbcc4-ea14-4d74-b53d-d074ddce19a4",
+      "name": "reporting",
+      "display_order": 3,
       "provenance": "baseline",
-      "description": "Delivery timelines, phased rollout, resource planning, capacity management"
+      "description": "Reporting capabilities, dashboards, analytics, management information"
+    },
+    {
+      "id": "944db61d-3ed2-4938-8381-a00b4c71c5ca",
+      "domain_id": "047b2b0f-59a1-4242-bbc8-b912c57d29aa",
+      "name": "quality",
+      "display_order": 3,
+      "provenance": "baseline",
+      "description": "Quality assurance, testing strategy, acceptance criteria, continuous improvement"
+    },
+    {
+      "id": "5ad3bdc7-f536-4559-9934-baacd028a36b",
+      "domain_id": "7ea9e1ca-0a99-48e4-8a38-0aff9b910e7b",
+      "name": "onboarding",
+      "display_order": 3,
+      "provenance": "baseline",
+      "description": "Client onboarding, user training, adoption support, change management"
     },
     {
       "id": "69583689-3a44-46ba-a9a3-b009043858e5",
@@ -285,28 +221,28 @@
       "description": "User experience, accessibility, interface design, ease of use"
     },
     {
-      "id": "844b1177-4da2-40b6-bd13-83b14c4456d0",
-      "domain_id": "17d9f23f-1c4f-4d6d-b9c3-f37c178a547e",
-      "name": "access-control",
-      "display_order": 4,
-      "provenance": "baseline",
-      "description": "Authentication, authorisation, role-based access, multi-factor authentication"
-    },
-    {
-      "id": "00e6192a-c6d0-4fe8-9c3a-bf89b48f0776",
-      "domain_id": "8d6c0b63-f77c-4021-a54b-15c07fa04420",
-      "name": "certification",
-      "display_order": 4,
-      "provenance": "baseline",
-      "description": "Professional certifications, organisational accreditations, quality marks"
-    },
-    {
       "id": "d9c2678f-074b-4680-ba71-516246cfe6f2",
       "domain_id": "7ea9e1ca-0a99-48e4-8a38-0aff9b910e7b",
       "name": "integration",
       "display_order": 4,
       "provenance": "baseline",
       "description": "API integration, third-party systems, data exchange, interoperability"
+    },
+    {
+      "id": "9c5f4c1c-a509-41bd-a734-c24fb69dc875",
+      "domain_id": "047b2b0f-59a1-4242-bbc8-b912c57d29aa",
+      "name": "delivery",
+      "display_order": 4,
+      "provenance": "baseline",
+      "description": "Delivery timelines, phased rollout, resource planning, capacity management"
+    },
+    {
+      "id": "844b1177-4da2-40b6-bd13-83b14c4456d0",
+      "domain_id": "17d9f23f-1c4f-4d6d-b9c3-f37c178a547e",
+      "name": "access-control",
+      "display_order": 4,
+      "provenance": "baseline",
+      "description": "Authentication, authorisation, role-based access, multi-factor authentication"
     },
     {
       "id": "5665e422-c718-47f6-a3f7-b0f7a7eeca02",
@@ -325,20 +261,12 @@
       "description": "Client references, case studies, testimonials, similar contract experience"
     },
     {
-      "id": "48baad22-24bd-4434-a492-27bacf94bd70",
+      "id": "00e6192a-c6d0-4fe8-9c3a-bf89b48f0776",
       "domain_id": "8d6c0b63-f77c-4021-a54b-15c07fa04420",
-      "name": "health-and-safety",
-      "display_order": 5,
+      "name": "certification",
+      "display_order": 4,
       "provenance": "baseline",
-      "description": "Health and safety policy, risk assessments, incident reporting, RIDDOR, CDM regulations"
-    },
-    {
-      "id": "d40979c1-ec77-4d2b-aca0-b8be8c748c06",
-      "domain_id": "17d9f23f-1c4f-4d6d-b9c3-f37c178a547e",
-      "name": "iso-27001",
-      "display_order": 5,
-      "provenance": "baseline",
-      "description": "ISO 27001 certification, ISMS, security management framework compliance"
+      "description": "Professional certifications, organisational accreditations, quality marks"
     },
     {
       "id": "4256a5bc-9103-425c-88b0-3a7f7c894de1",
@@ -349,12 +277,20 @@
       "description": "Team structure, key personnel, CVs, recruitment and retention"
     },
     {
-      "id": "ae221eeb-52e1-4a9e-b2a9-3a1664c75909",
-      "domain_id": "2cf9db4f-fa8d-4c7b-97ce-c3ce6f966f1b",
-      "name": "supply-chain",
-      "display_order": 6,
+      "id": "d40979c1-ec77-4d2b-aca0-b8be8c748c06",
+      "domain_id": "17d9f23f-1c4f-4d6d-b9c3-f37c178a547e",
+      "name": "iso-27001",
+      "display_order": 5,
       "provenance": "baseline",
-      "description": "Supply chain management, prompt payment, subcontractor oversight, PPN 02/23"
+      "description": "ISO 27001 certification, ISMS, security management framework compliance"
+    },
+    {
+      "id": "48baad22-24bd-4434-a492-27bacf94bd70",
+      "domain_id": "8d6c0b63-f77c-4021-a54b-15c07fa04420",
+      "name": "health-and-safety",
+      "display_order": 5,
+      "provenance": "baseline",
+      "description": "Health and safety policy, risk assessments, incident reporting, RIDDOR, CDM regulations"
     },
     {
       "id": "e2ab8b62-e838-4e4b-b6ab-466a411fcd3b",
@@ -365,12 +301,12 @@
       "description": "Carbon reduction plan, net zero targets, environmental policy, ISO 14001, sustainability, PPN 06/20"
     },
     {
-      "id": "6f93e007-adc6-44f6-a90c-2af65b6ce381",
+      "id": "ae221eeb-52e1-4a9e-b2a9-3a1664c75909",
       "domain_id": "2cf9db4f-fa8d-4c7b-97ce-c3ce6f966f1b",
-      "name": "financial-standing",
-      "display_order": 7,
-      "provenance": "recommended",
-      "description": "Turnover thresholds, credit checks, bankruptcy declarations, financial statements, accounts"
+      "name": "supply-chain",
+      "display_order": 6,
+      "provenance": "baseline",
+      "description": "Supply chain management, prompt payment, subcontractor oversight, PPN 02/23"
     },
     {
       "id": "d3318f02-34f4-4d3f-b923-e94d9bbf4e64",
@@ -379,182 +315,6 @@
       "display_order": 7,
       "provenance": "baseline",
       "description": "Modern slavery statement, supply chain due diligence, forced labour prevention, PPN 02/23"
-    },
-    {
-      "id": "75ef8a5b-a4b2-4bbe-bc00-80dd9d71d5d3",
-      "domain_id": "8d6c0b63-f77c-4021-a54b-15c07fa04420",
-      "name": "equalities",
-      "display_order": 8,
-      "provenance": "recommended",
-      "description": "Equalities Act 2010, written equalities statement, equal opportunities policy, diversity and inclusion"
-    },
-    {
-      "id": "1ff1603e-4220-44d2-bd28-b745b370e599",
-      "domain_id": "8d6c0b63-f77c-4021-a54b-15c07fa04420",
-      "name": "safeguarding",
-      "display_order": 9,
-      "provenance": "recommended",
-      "description": "Safeguarding policy, DBS checks, vulnerable persons, duty of care, child protection"
-    },
-    {
-      "id": "8d0a674d-ae86-4dea-9746-e4456bc0cd73",
-      "domain_id": "2cf9db4f-fa8d-4c7b-97ce-c3ce6f966f1b",
-      "name": "methodology",
-      "display_order": 9,
-      "provenance": "recommended",
-      "description": "Method statements, service delivery approach, working arrangements, key steps, efficiencies, risk mitigation"
-    },
-    {
-      "id": "5decb72b-20fb-4c56-8526-3fac940ca7ad",
-      "domain_id": "dee601a0-7c43-4470-acea-da0cbfc1601c",
-      "name": "competitor-products",
-      "display_order": 10,
-      "provenance": "client",
-      "description": "Competitor product launches, service offerings, feature comparisons"
-    },
-    {
-      "id": "e1ac3afe-9b32-4200-a78d-f113d6c61f91",
-      "domain_id": "5e792735-8ce9-4b45-901b-44aaeb79bd9e",
-      "name": "kcsie",
-      "display_order": 10,
-      "provenance": "client",
-      "description": "KCSIE statutory guidance, safeguarding requirements for schools and colleges"
-    },
-    {
-      "id": "02d18662-6a8b-4f40-af72-379fca735654",
-      "domain_id": "43326cbe-bbe3-47f5-a70e-df314bfa966d",
-      "name": "mat-leadership",
-      "display_order": 10,
-      "provenance": "client",
-      "description": "Multi-academy trust CEO appointments, board changes, leadership announcements"
-    },
-    {
-      "id": "e07f9839-1777-4a24-919d-a1023d68d66d",
-      "domain_id": "dee601a0-7c43-4470-acea-da0cbfc1601c",
-      "name": "competitor-market-activity",
-      "display_order": 20,
-      "provenance": "client",
-      "description": "Competitor contract wins, partnerships, market positioning"
-    },
-    {
-      "id": "18042e30-aa04-4ec1-9ce0-a2938449a4be",
-      "domain_id": "43326cbe-bbe3-47f5-a70e-df314bfa966d",
-      "name": "mat-restructuring",
-      "display_order": 20,
-      "provenance": "client",
-      "description": "MAT mergers, trust splits, school transfers between trusts"
-    },
-    {
-      "id": "4aa353f9-3675-434a-bc76-d087df977463",
-      "domain_id": "5e792735-8ce9-4b45-901b-44aaeb79bd9e",
-      "name": "education-act-dfe",
-      "display_order": 20,
-      "provenance": "client",
-      "description": "Education Act provisions, DfE policy updates, statutory instruments"
-    },
-    {
-      "id": "527b9f35-e010-4e29-983d-631938b62e13",
-      "domain_id": "5e792735-8ce9-4b45-901b-44aaeb79bd9e",
-      "name": "health-social-care-legislation",
-      "display_order": 30,
-      "provenance": "client",
-      "description": "Health and Social Care Act, CQC regulations, care standards legislation"
-    },
-    {
-      "id": "816c858a-7bd1-4379-97b3-00636827cf6c",
-      "domain_id": "43326cbe-bbe3-47f5-a70e-df314bfa966d",
-      "name": "mat-audits-ofsted",
-      "display_order": 30,
-      "provenance": "client",
-      "description": "Ofsted inspection outcomes for MATs, ESFA financial audits, trust reviews"
-    },
-    {
-      "id": "4006633c-bb85-4e8a-acc6-e049408449d1",
-      "domain_id": "dee601a0-7c43-4470-acea-da0cbfc1601c",
-      "name": "competitor-leadership",
-      "display_order": 30,
-      "provenance": "client",
-      "description": "Competitor leadership changes, strategic announcements, organisational restructuring"
-    },
-    {
-      "id": "734a4151-755d-4f19-a65e-c3b6313eb3f3",
-      "domain_id": "dee601a0-7c43-4470-acea-da0cbfc1601c",
-      "name": "market-trends",
-      "display_order": 40,
-      "provenance": "client",
-      "description": "Sector market trends, growth areas, emerging technologies, spending patterns"
-    },
-    {
-      "id": "468225bd-36f0-43b5-bb29-d78b3fcd3a4e",
-      "domain_id": "43326cbe-bbe3-47f5-a70e-df314bfa966d",
-      "name": "education-sector-audits",
-      "display_order": 40,
-      "provenance": "client",
-      "description": "School inspections, college reviews, university quality assessments"
-    },
-    {
-      "id": "8019bd80-9d44-4574-a407-0bc8b6f87e3b",
-      "domain_id": "5e792735-8ce9-4b45-901b-44aaeb79bd9e",
-      "name": "gdpr-data-protection",
-      "display_order": 40,
-      "provenance": "client",
-      "description": "GDPR compliance, Data Protection Act 2018, ICO guidance and enforcement"
-    },
-    {
-      "id": "c75516a0-a66e-4134-94c9-2a1219cc1f83",
-      "domain_id": "43326cbe-bbe3-47f5-a70e-df314bfa966d",
-      "name": "health-sector-audits",
-      "display_order": 50,
-      "provenance": "client",
-      "description": "CQC inspections, NHS trust reviews, health provider quality assessments"
-    },
-    {
-      "id": "8afe5bca-5bc5-4564-8adc-a3633eeb271f",
-      "domain_id": "dee601a0-7c43-4470-acea-da0cbfc1601c",
-      "name": "procurement-activity",
-      "display_order": 50,
-      "provenance": "client",
-      "description": "Public sector procurement notices, framework opportunities, tender activity"
-    },
-    {
-      "id": "8b87ed2d-6455-4659-9f13-c476cc09cf34",
-      "domain_id": "5e792735-8ce9-4b45-901b-44aaeb79bd9e",
-      "name": "funding-policy",
-      "display_order": 50,
-      "provenance": "client",
-      "description": "Education funding formulae, ESFA allocations, grant conditions, pupil premium"
-    },
-    {
-      "id": "ecc6dc05-f02d-4ffe-8d72-6e813021244e",
-      "domain_id": "5e792735-8ce9-4b45-901b-44aaeb79bd9e",
-      "name": "safeguarding-guidance",
-      "display_order": 60,
-      "provenance": "client",
-      "description": "Safeguarding statutory guidance, Working Together, local safeguarding partnerships"
-    },
-    {
-      "id": "77c5b733-d108-4828-a653-57787efafe81",
-      "domain_id": "43326cbe-bbe3-47f5-a70e-df314bfa966d",
-      "name": "local-authority-inspections",
-      "display_order": 60,
-      "provenance": "client",
-      "description": "Local authority SEND inspections, children's services reviews, social care assessments"
-    },
-    {
-      "id": "05d758ab-c590-4eae-93ad-3bdb619af0f1",
-      "domain_id": "43326cbe-bbe3-47f5-a70e-df314bfa966d",
-      "name": "safeguarding-practice",
-      "display_order": 70,
-      "provenance": "client",
-      "description": "Safeguarding practice reviews, serious case reviews, SCR learning updates"
-    },
-    {
-      "id": "2698e31c-144f-4149-9190-737c31a9ebff",
-      "domain_id": "5e792735-8ce9-4b45-901b-44aaeb79bd9e",
-      "name": "cpd-requirements",
-      "display_order": 70,
-      "provenance": "client",
-      "description": "Continuing professional development requirements, training standards, competency frameworks"
     }
   ],
   "content_types": [
@@ -563,16 +323,8 @@
     "pdf",
     "note",
     "research",
-    "other",
-    "q_a_pair",
-    "case_study",
-    "policy",
-    "certification",
-    "compliance",
-    "methodology",
-    "capability",
-    "product_description",
-    "document"
+    "document",
+    "other"
   ],
   "platforms": [
     "web",
@@ -606,7 +358,7 @@
     },
     {
       "key": "psq",
-      "label": "Selection Questionnaire (SQ/PSQ)"
+      "label": "SQ/PSQ (Selection Questionnaire)"
     },
     {
       "key": "questionnaire",

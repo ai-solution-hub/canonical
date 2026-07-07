@@ -113,7 +113,15 @@ async function main() {
     }
   }
 
-  // If RPC not available, use the known values from schema reference
+  // If RPC not available, use the known values from schema reference.
+  // ID-133 BI-3 (S451 owner-ratified): source_documents.content_type is no
+  // longer a DB CHECK-enforced column (ID-131 M3 made it nullable, no
+  // CHECK) — this fallback is the enforcement source of truth via
+  // taxonomy_snapshot.json + the Pydantic `_validate_content_type` field
+  // validator. Trimmed to the BI-3 stay-set: q_a_pair migrated out to its
+  // own Layer-5 class (32-q-a-pair.md); case_study/policy/certification/
+  // compliance/methodology/capability/product_description moved to the
+  // L-concept type discriminators (37-concept-type.md).
   if (contentTypes.length === 0) {
     contentTypes = [
       'article',
@@ -121,16 +129,8 @@ async function main() {
       'pdf',
       'note',
       'research',
-      'other',
-      'q_a_pair',
-      'case_study',
-      'policy',
-      'certification',
-      'compliance',
-      'methodology',
-      'capability',
-      'product_description',
       'document',
+      'other',
     ];
     console.warn('  Using fallback content_types (RPC not available)');
   }
