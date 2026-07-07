@@ -24,10 +24,10 @@ loadScriptEnv(import.meta.url);
 
 import {
   computeTemplateCoverage,
+  fetchContentForMatching,
   SIMILARITY_STRONG_THRESHOLD,
   SIMILARITY_PARTIAL_THRESHOLD,
   type TemplateRequirement,
-  type ContentItemForMatching,
   type RequirementType,
 } from '../lib/domains/procurement/form-templating/template-coverage';
 
@@ -98,6 +98,11 @@ function assertEnvFlag(env: string, url: string | undefined): void {
 }
 
 // ── Data fetching (standalone, no Next.js path aliases) ──
+//
+// {130.25}: content-side fetch is no longer local — it re-uses the engine's
+// own `fetchContentForMatching` (q_a_pairs + reference_items +
+// record_embeddings hydration, already re-pointed off the dropped
+// content_items table by {131.16}) instead of duplicating that logic here.
 
 /**
  * The record_embeddings model column value ({130.24} DR-036 — mirrors the
@@ -183,37 +188,6 @@ async function fetchRequirements(
   }));
 }
 
-async function fetchContent(
-  supabase: SupabaseClient<Database>,
-): Promise<ContentItemForMatching[]> {
-  const { data, error } = await supabase
-    .from('content_items')
-    .select(
-      'id, content, brief, detail, title, suggested_title, primary_domain, primary_subtopic, content_type, ai_keywords, embedding',
-    )
-    .is('archived_at', null);
-
-  if (error) throw new Error(`Failed to fetch content: ${error.message}`);
-
-  return (data ?? []).map((row: Record<string, unknown>) => ({
-    id: row.id as string,
-    content: row.content as string,
-    brief: row.brief as string | null,
-    detail: row.detail as string | null,
-    title: row.title as string,
-    suggested_title: row.suggested_title as string | null,
-    primary_domain: row.primary_domain as string | null,
-    primary_subtopic: row.primary_subtopic as string | null,
-    content_type: row.content_type as string,
-    ai_keywords: row.ai_keywords as string[] | null,
-    embedding: row.embedding
-      ? typeof row.embedding === 'string'
-        ? JSON.parse(row.embedding as string)
-        : (row.embedding as number[])
-      : null,
-  }));
-}
-
 // ── Main ──
 
 async function main() {
@@ -252,11 +226,9 @@ async function main() {
   }
   console.log(`  → ${requirements.length} requirements loaded`);
 
-  console.log('Fetching content items...');
-  const content = await fetchContent(supabase);
-  console.log(
-    `  → ${content.length} content items loaded (excluding archived)\n`,
-  );
+  console.log('Fetching content (q_a_pairs + reference_items)...');
+  const content = await fetchContentForMatching(supabase);
+  console.log(`  → ${content.length} content items loaded\n`);
 
   // Check embedding coverage
   const reqWithEmbeddings = requirements.filter(
