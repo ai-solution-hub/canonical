@@ -254,8 +254,16 @@ export interface SyntheticQuestion {
  * workspaces → ~30 rows, matching the {130.8} ~30-row backfill scale. Drawn from
  * `seed-procurement-test-data.ts`'s fixture set (Economic/Financial,
  * Technical/Professional, Health & Safety, Data Protection sections). Keyed to
- * `workspace_id` ONLY — the current schema has no `form_template_id` column
- * ({130.8} T-B4 adds it later).
+ * `workspace_id` ONLY, `form_template_id` DELIBERATELY left NULL — the column
+ * exists ({130.5} spine), but this corpus exists to validate the {130.8}
+ * migration's OWN mint-and-rekey steps (STEP 9a/9b), which only do anything
+ * observable against workspaces whose questions are NOT yet keyed. Leaving
+ * these rows un-keyed mirrors the live pre-backfill state the migration was
+ * written to fix. (Post-{130.8}, the *live* write paths stamp
+ * `form_template_id` at creation time per {130.27}
+ * (`lib/domains/procurement/resolve-form-template.ts`) — this fixture stays
+ * un-keyed on purpose and must NOT be "fixed" to call that resolver, or it
+ * stops exercising the migration's re-key step.)
  */
 export const SYNTHETIC_QUESTIONS: ReadonlyArray<SyntheticQuestion> = [
   {

@@ -24,6 +24,7 @@ import {
   createLooseScriptClient,
 } from '@/scripts/lib/supabase-script-client';
 import { prodProjectRef, stagingProjectRef } from '@/scripts/lib/project-refs';
+import { resolveOrMintFormTemplateId } from '@/lib/domains/procurement/resolve-form-template';
 import { parseArgs } from 'util';
 import { createInterface } from 'readline';
 import path from 'path';
@@ -596,6 +597,26 @@ async function main() {
   console.log('2. Creating questions...');
   const questionIds: string[] = [];
 
+  // {130.27} — resolve (or mint) the test bid's canonical form_template id
+  // once, so this seeder's questions do not NULL-drift form_template_id the
+  // same way the live extraction/manual-add paths used to. No user context
+  // here (script, not a request) — created_by is left null on a mint.
+  let formTemplateId: string | null = null;
+  if (!dryRun && procurementId) {
+    formTemplateId = await resolveOrMintFormTemplateId(
+      supabase,
+      procurementId,
+      {
+        name: TEST_BID_NAME,
+        filename: 'seed-procurement-test-data.pdf',
+        storagePath: `app-created/${procurementId}/seed-procurement-test-data`,
+        fileSize: 0,
+        mimeType: 'application/pdf',
+        createdBy: null,
+      },
+    );
+  }
+
   for (const q of TEST_QUESTIONS) {
     console.log(
       `   [${q.section_name}] Q${q.question_sequence}: ${q.question_text.substring(0, 60)}...`,
@@ -606,6 +627,7 @@ async function main() {
         .from('form_questions')
         .insert({
           workspace_id: procurementId,
+          form_template_id: formTemplateId,
           section_name: q.section_name,
           section_sequence: q.section_sequence,
           question_text: q.question_text,

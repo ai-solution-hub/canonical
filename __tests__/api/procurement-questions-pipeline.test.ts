@@ -75,6 +75,18 @@ vi.mock('mammoth', () => ({
   },
 }));
 
+// {130.27} — mock the form_template_id resolver at the module boundary (see
+// __tests__/lib/procurement/resolve-form-template.test.ts for its own
+// isolated coverage). Keeps every existing Supabase `.then()`/`.single()`
+// call-count sequence in this file unchanged.
+const RESOLVED_FORM_TEMPLATE_ID = '00000000-0000-4000-8000-0000000000ff';
+const { mockResolveOrMintFormTemplateId } = vi.hoisted(() => ({
+  mockResolveOrMintFormTemplateId: vi.fn(),
+}));
+vi.mock('@/lib/domains/procurement/resolve-form-template', () => ({
+  resolveOrMintFormTemplateId: mockResolveOrMintFormTemplateId,
+}));
+
 // Suppress console.error/warn noise
 vi.spyOn(console, 'error').mockImplementation(() => {});
 vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -100,6 +112,9 @@ const QUESTION_UUID = '00000000-0000-4000-8000-000000000020';
 
 function resetMocks() {
   vi.clearAllMocks();
+
+  mockResolveOrMintFormTemplateId.mockReset();
+  mockResolveOrMintFormTemplateId.mockResolvedValue(RESOLVED_FORM_TEMPLATE_ID);
 
   // Reset terminators to clear any leaked mockResolvedValueOnce queues
   mockSupabase._chain.single.mockReset();
@@ -410,6 +425,10 @@ describe('POST /api/bids/:id/questions', () => {
     const json = await res.json();
     expect(json.question_text).toBe('What is your methodology?');
     expect(json.id).toBe(QUESTION_UUID);
+
+    // {130.27} — the insert is stamped with the resolved form_template_id.
+    const insertArg = mockSupabase._chain.insert.mock.calls[0][0];
+    expect(insertArg.form_template_id).toBe(RESOLVED_FORM_TEMPLATE_ID);
   });
 
   it('returns 201 on successful batch question creation', async () => {
@@ -448,6 +467,13 @@ describe('POST /api/bids/:id/questions', () => {
     const json = await res.json();
     expect(json.questions).toHaveLength(2);
     expect(json.count).toBe(2);
+
+    // {130.27} — every row in the batch insert is stamped.
+    const insertArg = mockSupabase._chain.insert.mock.calls[0][0];
+    const rows = Array.isArray(insertArg) ? insertArg : [insertArg];
+    for (const row of rows) {
+      expect(row.form_template_id).toBe(RESOLVED_FORM_TEMPLATE_ID);
+    }
   });
 });
 
@@ -638,6 +664,19 @@ describe('POST /api/bids/:id/questions/extract', () => {
     expect(json.questions).toHaveLength(1);
 
     expect(mockExtractPDFQuestions).toHaveBeenCalled();
+
+    // {130.27} — the extraction upsert is stamped with the resolved
+    // form_template_id (the NULL-drift fix's primary creation site).
+    expect(mockResolveOrMintFormTemplateId).toHaveBeenCalledWith(
+      mockSupabase,
+      BID_UUID,
+      expect.objectContaining({ createdBy: 'test-user-id' }),
+    );
+    const upsertArg = mockSupabase._chain.upsert.mock.calls[0][0];
+    const rows = Array.isArray(upsertArg) ? upsertArg : [upsertArg];
+    for (const row of rows) {
+      expect(row.form_template_id).toBe(RESOLVED_FORM_TEMPLATE_ID);
+    }
   });
 
   it('skips duplicate questions already existing for the bid', async () => {

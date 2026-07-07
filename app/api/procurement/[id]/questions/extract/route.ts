@@ -16,6 +16,7 @@ import {
   type ProcurementWorkflowState,
 } from '@/lib/domains/procurement/procurement-workflow';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { resolveOrMintFormTemplateId } from '@/lib/domains/procurement/resolve-form-template';
 import { sb } from '@/lib/supabase/safe';
 import { parseBody } from '@/lib/validation';
 import { QuestionExtractBodySchema } from '@/lib/validation/schemas';
@@ -70,7 +71,7 @@ export const POST = defineRoute(
       // Post-T2: discriminator via application_types JOIN.
       const { data: bid, error: procurementError } = await supabase
         .from('workspaces')
-        .select('id, application_types!inner(key)')
+        .select('id, name, application_types!inner(key)')
         .eq('id', id)
         .eq('application_types.key', 'procurement')
         .single();
@@ -192,12 +193,34 @@ export const POST = defineRoute(
           });
         }
 
+        // {130.27} — resolve (or mint) this workspace's canonical form_template
+        // id and stamp it on every inserted row. Without this, extraction-created
+        // rows keep form_template_id NULL and are silently dropped by the
+        // win-rate RPCs' and outcome route's INNER JOIN on form_template_id (the
+        // NULL-drift bug {130.27} fixes). The real downloaded document gives a
+        // genuine filename/size/mime_type for the mint-on-demand case, better
+        // data than the {130.8} migration's placeholder mint.
+        const documentFilename =
+          document_path.split('/').pop() ?? document_path;
+        const formTemplateId = await resolveOrMintFormTemplateId(supabase, id, {
+          name: bid.name || documentFilename,
+          filename: documentFilename,
+          storagePath: document_path,
+          fileSize: fileData.size,
+          mimeType:
+            format === 'docx'
+              ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+              : 'application/pdf',
+          createdBy: user.id,
+        });
+
         // Post-T2: `form_questions.workspace_id` → `workspace_id`. The unique index
         // backing this onConflict was renamed in the migration too
         // (form_questions_project_question_unique → form_questions_workspace_question_unique)
         // but PostgREST resolves `onConflict` by column list, not constraint name.
         const inserts = newQuestions.map((q) => ({
           workspace_id: id,
+          form_template_id: formTemplateId,
           section_name: q.section_name,
           section_sequence: q.section_sequence,
           question_text: q.question_text,

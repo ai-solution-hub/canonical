@@ -8,6 +8,7 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { resolveOrMintFormTemplateId } from '@/lib/domains/procurement/resolve-form-template';
 import { sb } from '@/lib/supabase/safe';
 import { parseBody } from '@/lib/validation';
 import { QuestionCreateBodySchema } from '@/lib/validation/schemas';
@@ -259,11 +260,26 @@ export const POST = defineRoute(
       const { section_name, question_text, word_limit, evaluation_weight } =
         parsed.data;
 
+      // {130.27} — resolve (or mint) this workspace's canonical form_template
+      // id so a manually-added question is not NULL-drifted out of the
+      // win-rate/outcome INNER JOINs. No document backs a manual add, so a
+      // mint (when needed) uses the same docless convention as
+      // `forms/route.ts`'s "add a form" action.
+      const formTemplateId = await resolveOrMintFormTemplateId(supabase, id, {
+        name: 'Untitled form',
+        filename: 'app-created-form.pdf',
+        storagePath: `app-created/${id}/${crypto.randomUUID()}`,
+        fileSize: 0,
+        mimeType: 'application/pdf',
+        createdBy: user.id,
+      });
+
       // Post-T2: `form_questions.workspace_id` → `workspace_id` on insert + select.
       const { data: created, error: insertError } = await supabase
         .from('form_questions')
         .insert({
           workspace_id: id,
+          form_template_id: formTemplateId,
           section_name: section_name ?? null,
           question_text,
           question_sequence: nextSequence,
@@ -302,9 +318,26 @@ async function handleBatchInsert(
   userId: string,
   questions: z.infer<typeof BatchQuestionCreateSchema>['questions'],
 ) {
+  // {130.27} — resolve (or mint) this workspace's canonical form_template id
+  // once for the whole batch (see the single-insert POST handler above for
+  // the full rationale).
+  const formTemplateId = await resolveOrMintFormTemplateId(
+    supabase,
+    procurementId,
+    {
+      name: 'Untitled form',
+      filename: 'app-created-form.pdf',
+      storagePath: `app-created/${procurementId}/${crypto.randomUUID()}`,
+      fileSize: 0,
+      mimeType: 'application/pdf',
+      createdBy: userId,
+    },
+  );
+
   // Post-T2: `form_questions.workspace_id` → `workspace_id` on batch insert + select.
   const rows = questions.map((q) => ({
     workspace_id: procurementId,
+    form_template_id: formTemplateId,
     section_name: q.section_name ?? null,
     section_sequence: q.section_sequence ?? 0,
     question_sequence: q.question_sequence ?? 0,

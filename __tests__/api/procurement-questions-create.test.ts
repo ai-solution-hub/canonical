@@ -27,6 +27,19 @@ vi.mock('@/lib/supabase/server', () => ({
   createServiceClient: vi.fn(() => mockSupabase),
 }));
 
+// {130.27} — mock the form_template_id resolver at the module boundary so
+// these route tests don't need to know its internal SELECT/INSERT mechanics
+// (that is covered in isolation by
+// __tests__/lib/procurement/resolve-form-template.test.ts). Every test below
+// gets a fixed resolved id unless overridden.
+const RESOLVED_FORM_TEMPLATE_ID = '00000000-0000-4000-8000-0000000000ff';
+const { mockResolveOrMintFormTemplateId } = vi.hoisted(() => ({
+  mockResolveOrMintFormTemplateId: vi.fn(),
+}));
+vi.mock('@/lib/domains/procurement/resolve-form-template', () => ({
+  resolveOrMintFormTemplateId: mockResolveOrMintFormTemplateId,
+}));
+
 vi.mock('next/headers', () => ({
   cookies: vi.fn().mockResolvedValue({
     getAll: () => [],
@@ -58,6 +71,9 @@ function resetMocks() {
   // `mockResolvedValueOnce` queue. We `mockReset()` terminal methods to
   // drop their queues so leftover once-mocks don't leak into the next test.
   vi.clearAllMocks();
+
+  mockResolveOrMintFormTemplateId.mockReset();
+  mockResolveOrMintFormTemplateId.mockResolvedValue(RESOLVED_FORM_TEMPLATE_ID);
 
   mockSupabase.auth.getUser.mockReset();
   mockSupabase.auth.getUser.mockResolvedValue({
@@ -297,6 +313,17 @@ describe('Procurement Questions Create API', () => {
     expect(body.workspace_id).toBe(BID_UUID);
     expect(body.question_text).toBe('What is your approach?');
     expect(body.created_by).toBe('test-user-id');
+
+    // {130.27} — the insert is stamped with the resolved form_template_id
+    // (the NULL-drift fix: without this, the row would be silently dropped
+    // from the win-rate RPCs' and outcome route's INNER JOIN).
+    expect(mockResolveOrMintFormTemplateId).toHaveBeenCalledWith(
+      mockSupabase,
+      BID_UUID,
+      expect.objectContaining({ createdBy: 'test-user-id' }),
+    );
+    const insertArg = mockSupabase._chain.insert.mock.calls[0][0];
+    expect(insertArg.form_template_id).toBe(RESOLVED_FORM_TEMPLATE_ID);
   });
 
   // =========================================================================
@@ -358,6 +385,13 @@ describe('Procurement Questions Create API', () => {
     const body = await response.json();
     expect(body.questions).toHaveLength(2);
     expect(body.count).toBe(2);
+
+    // {130.27} — every row in the batch insert is stamped.
+    const insertArg = mockSupabase._chain.insert.mock.calls[0][0];
+    const rows = Array.isArray(insertArg) ? insertArg : [insertArg];
+    for (const row of rows) {
+      expect(row.form_template_id).toBe(RESOLVED_FORM_TEMPLATE_ID);
+    }
   });
 
   it('verifies questions are inserted with correct workspace_id', async () => {
@@ -406,6 +440,9 @@ describe('Procurement Questions Create API', () => {
     const rows = Array.isArray(insertArg) ? insertArg : [insertArg];
     for (const row of rows) {
       expect(row.workspace_id).toBe(BID_UUID);
+      // {130.27} — form_template_id must never be left NULL/undefined on a
+      // creation path.
+      expect(row.form_template_id).toBe(RESOLVED_FORM_TEMPLATE_ID);
     }
   });
 
