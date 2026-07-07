@@ -96,15 +96,6 @@ export interface SummaryData {
   tokens_used?: number;
 }
 
-/** Transcript chapter from metadata */
-export interface TranscriptChapter {
-  title: string;
-  word_count: number;
-  start_seconds: number;
-  end_seconds: number;
-  text?: string;
-}
-
 /** AI-generated transcript segment */
 export interface TranscriptSegment {
   id: string;
@@ -150,85 +141,6 @@ export interface SearchResult extends Omit<ContentListItem, 'user_tags'> {
   similarity: number;
   snippet?: string | null;
   user_tags?: ContentListItem['user_tags'];
-}
-
-/**
- * Polymorphic search-result shape returned by the ID-131.11 (G-SEARCH) grain-
- * aware `hybrid_search` UNION over the typed L-records substrate
- * (source_documents / content_chunks → source_document / q_a_pairs /
- * reference_items). The 8 value-path fields mirror the MCP `SearchResult`
- * mapping (`id, title, suggested_title, summary, content_type, primary_domain,
- * primary_subtopic, similarity`); `owner_kind` identifies the record class
- * (equal to `content_type` on the RPC rows).
- *
- * Distinct from `SearchResult` above, which still extends the content_items-
- * shaped `ContentListItem`. Migrating the ~6 UI consumers off `SearchResult`
- * onto this polymorphic shape — and the eventual removal of `SearchResult` — is
- * owned by ID-131.17 (G-IMS-DELETE) + ID-131.21 (G-MANUAL-QA); this type is
- * introduced ahead of that coordinated change.
- */
-export interface PolymorphicSearchResult {
-  id: string;
-  title: string | null;
-  suggested_title: string | null;
-  summary: string | null;
-  content_type: string | null;
-  primary_domain: string | null;
-  primary_subtopic: string | null;
-  owner_kind: string;
-  similarity: number;
-  snippet?: string | null;
-}
-
-/** Workspace (from workspaces table) */
-export interface Workspace {
-  id: string;
-  name: string;
-  description: string | null;
-  color: string;
-  icon: string;
-  type: string;
-  status: string;
-  domain_metadata: Record<string, unknown> | null;
-  created_by: string | null;
-  updated_by: string | null;
-  is_archived: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-/** Filter state (URL-driven) */
-export interface BrowseFilters {
-  domain?: string[]; // multi-select
-  subtopic?: string; // single (scoped to one domain)
-  content_type?: string[]; // multi-select
-  platform?: string[]; // multi-select
-  author?: string[]; // multi-select, pipe-delimited in URL
-  date_from?: string;
-  date_to?: string;
-  keywords?: string[];
-  starred?: boolean;
-  priority?: string[];
-  workspace?: string; // workspace UUID
-  user_tags?: string[]; // user tag strings
-  freshness?: string[]; // multi-select: fresh, aging, stale, expired
-  layer?: string; // single layer filter from CLIENT_CONFIG vocabulary
-  entity?: string; // entity canonical name — filter to items mentioning this entity
-  entity_type?: string; // entity type filter — organisation, certification, etc.
-  quality_issues?: boolean; // filter to items with open quality flags
-  include_drafts?: boolean; // include draft items (excluded by default)
-  include_qa?: boolean; // include Q&A pairs (excluded by default — they live in /library)
-  owner?: string; // 'me' | 'unowned' | UUID — filter by content owner
-  review_status?: string; // verified | unverified | flagged — governance review status filter
-  source?: string; // metadata->>source JSONB path filter (e.g. 'intelligence_pipeline')
-  sort?:
-    | 'captured_date'
-    | 'classification_confidence'
-    | 'primary_domain'
-    | 'freshness'
-    | 'quality_score'
-    | 'relevance';
-  order?: 'asc' | 'desc';
 }
 
 // CONTENT_LIST_COLUMNS / CONTENT_DETAIL_COLUMNS RETIRED (ID-131.19, M6, S450

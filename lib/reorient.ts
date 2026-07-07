@@ -75,39 +75,21 @@ export async function fetchReorientData(
   // Current time for notification expiry filter (separate from sinceDate which is last-active lookback)
   const nowIso = new Date().toISOString();
 
-  // Run remaining queries in parallel (active procurements via shared helper)
+  // Run remaining queries in parallel (active procurements via shared helper).
+  // ID-131.19 S450 Wave 1 Fix 4: this array used to carry two leading
+  // content_history-backed legs (team changes / recent work). content_history
+  // drops at M6 with no logical replacement (audited: q_a_pair_history covers
+  // only q_a_pairs; record_lifecycle has no per-edit actor/timestamp log —
+  // mirrors lib/dashboard.ts's identical reasoning for its recent_activity
+  // stub). Those legs are retired outright rather than stubbed — team_changes
+  // and my_recent_work are now sourced solely from the surviving
+  // form_response_history queries below.
   const [results, activeProcurementsResult] = await Promise.all([
     Promise.allSettled([
-      // 0: Team changes since last active. ID-131.19 S450 Wave 1 Fix 4:
-      // content_history + its content_items!inner join drop at M6 — RETIRED,
-      // not re-pointed. Audited replacement candidates: q_a_pair_history
-      // covers ONLY q_a_pairs (no change_type/domain columns, and
-      // content_history's team-changes concept spanned ALL content types via
-      // content_items, not just Q&A); record_lifecycle is a current-state
-      // facet with no per-edit actor/timestamp log. No logical 1:1
-      // replacement exists — mirrors lib/dashboard.ts's identical
-      // content_items-anchored-feature reasoning for its sibling
-      // recent_activity stub (same GO). Stubbed to an always-empty result
-      // so the module keeps compiling with the same `{data, error}` shape
-      // the extraction below expects; the surviving form_response_history
-      // half of team_changes (query 6 below) is untouched.
-      Promise.resolve({
-        data: [] as unknown[],
-        error: null as { message: string } | null,
-      }),
-
-      // 1: User's own recent work. RETIRED for the same reason as query 0
-      // above (no logical replacement; surviving form_response_history half
-      // at query 7 below is untouched).
-      Promise.resolve({
-        data: [] as unknown[],
-        error: null as { message: string } | null,
-      }),
-
-      // 2: Expired content count
+      // 0: Expired content count
       supabase.rpc('get_freshness_breakdown'),
 
-      // 3: Governance reviews pending (editor/admin only). ID-131 {131.19}
+      // 1: Governance reviews pending (editor/admin only). ID-131 {131.19}
       // G-GOV-FACET: content_items is dying — governance_review_status now
       // lives on the record_lifecycle facet.
       role === 'viewer'
@@ -117,12 +99,12 @@ export async function fetchReorientData(
             .select('*', { count: 'exact', head: true })
             .eq('governance_review_status', 'pending'),
 
-      // 4: Quality flags count (admin only). ID-131 {131.19}: the
+      // 2: Quality flags count (admin only). ID-131 {131.19}: the
       // get_items_with_quality_flags RPC drops at M6 (content_items dies
       // wholesale) — replaced with a facet-based distinct-source-document
       // count over ingestion_quality_log (source_document_id-keyed since
       // {131.13} G-GOV-FACET-B), mirroring get_review_breakdown_stats'
-      // 'flagged' branch. Module contract (results[4].data as an array whose
+      // 'flagged' branch. Module contract (results[2].data as an array whose
       // .length is the flag count) preserved below.
       isAdmin
         ? supabase
@@ -138,7 +120,7 @@ export async function fetchReorientData(
             }))
         : Promise.resolve({ data: [], error: null }),
 
-      // 5: Unread notifications (aligned with /api/notifications filters)
+      // 3: Unread notifications (aligned with /api/notifications filters)
       supabase
         .from('notifications')
         .select('*', { count: 'exact', head: true })
@@ -147,7 +129,7 @@ export async function fetchReorientData(
         .is('read_at', null)
         .or(`expires_at.is.null,expires_at.gt.${nowIso}`),
 
-      // 6: Procurement response changes by others (team changes)
+      // 4: Procurement response changes by others (team changes)
       supabase
         .from('form_response_history')
         .select(
@@ -158,7 +140,7 @@ export async function fetchReorientData(
         .order('created_at', { ascending: false })
         .limit(20),
 
-      // 7: User's own bid response edits (recent work)
+      // 5: User's own bid response edits (recent work)
       supabase
         .from('form_response_history')
         .select(
@@ -171,17 +153,14 @@ export async function fetchReorientData(
     fetchActiveProcurementWithStats(supabase),
   ]);
 
-  // --- team_changes / my_recent_work: query 0/1 are the RETIRED
-  // content_history legs (see the comment above) — they always resolve to
-  // `{data: [], error: null}` and can never fail or contribute an item, so
-  // there is nothing to extract from results[0]/results[1]. Both arrays are
-  // seeded here and populated below solely from the surviving
-  // form_response_history legs (queries 6 + 7). ID-131.19 S450 Wave 1 Fix 4. ---
+  // team_changes / my_recent_work are sourced solely from the
+  // form_response_history legs (queries 4 + 5) — the content_history legs
+  // were retired outright above (ID-131.19 S450 Wave 1 Fix 4).
   const team_changes: TeamChange[] = [];
 
   // --- Extract bid response team changes ---
-  if (results[6].status === 'fulfilled') {
-    const { data, error } = results[6].value;
+  if (results[4].status === 'fulfilled') {
+    const { data, error } = results[4].value;
     if (error) {
       errors.push('bid_response team_changes query failed');
     } else if (data) {
@@ -205,8 +184,8 @@ export async function fetchReorientData(
   const my_recent_work: RecentWorkItem[] = [];
 
   // --- Extract user's own bid response edits ---
-  if (results[7].status === 'fulfilled') {
-    const { data, error } = results[7].value;
+  if (results[5].status === 'fulfilled') {
+    const { data, error } = results[5].value;
     if (error) {
       errors.push('bid_response my_recent_work query failed');
     } else if (data) {
@@ -236,8 +215,8 @@ export async function fetchReorientData(
 
   // --- Extract freshness counts ---
   let staleOrExpired = 0;
-  if (results[2].status === 'fulfilled') {
-    const { data, error } = results[2].value;
+  if (results[0].status === 'fulfilled') {
+    const { data, error } = results[0].value;
     if (error) {
       errors.push('freshness query failed');
     } else if (data) {
@@ -251,8 +230,8 @@ export async function fetchReorientData(
 
   // --- Extract pending reviews count ---
   let pendingReviews = 0;
-  if (results[3].status === 'fulfilled') {
-    const r = results[3].value as { count?: number | null; error?: unknown };
+  if (results[1].status === 'fulfilled') {
+    const r = results[1].value as { count?: number | null; error?: unknown };
     if (!r.error) {
       pendingReviews = r.count ?? 0;
     }
@@ -260,8 +239,8 @@ export async function fetchReorientData(
 
   // --- Extract quality flags count (distinct items with unresolved flags) ---
   let qualityFlags = 0;
-  if (results[4].status === 'fulfilled') {
-    const r = results[4].value as { data?: unknown[] | null; error?: unknown };
+  if (results[2].status === 'fulfilled') {
+    const r = results[2].value as { data?: unknown[] | null; error?: unknown };
     if (!r.error) {
       qualityFlags = Array.isArray(r.data) ? r.data.length : 0;
     }
@@ -269,8 +248,8 @@ export async function fetchReorientData(
 
   // --- Extract unread notifications count ---
   let unreadNotifications = 0;
-  if (results[5].status === 'fulfilled') {
-    const r = results[5].value as { count?: number | null; error?: unknown };
+  if (results[3].status === 'fulfilled') {
+    const r = results[3].value as { count?: number | null; error?: unknown };
     if (!r.error) {
       unreadNotifications = r.count ?? 0;
     }
