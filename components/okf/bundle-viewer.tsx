@@ -28,11 +28,15 @@ import {
   useBundleLog,
   useBundleNav,
 } from '@/hooks/okf/use-bundle';
-import type { OkfBundleGraphNode } from '@/lib/query/okf';
+import type { OkfBundleGraphNode, OkfBundleLogEntry } from '@/lib/query/okf';
 
 interface BundleViewerProps {
   bundleId: string;
 }
+
+// Stable empty-array default — an inline `logQuery.data ?? []` would create
+// a new reference every render (components/CLAUDE.md).
+const EMPTY_LOG_ENTRIES: OkfBundleLogEntry[] = [];
 
 export function BundleViewer({ bundleId }: BundleViewerProps) {
   const graphQuery = useBundleGraph(bundleId);
@@ -69,6 +73,11 @@ export function BundleViewer({ bundleId }: BundleViewerProps) {
 
   const body =
     graph && selectedConceptId ? (graph.bodies[selectedConceptId] ?? '') : '';
+
+  const logEntries = useMemo(
+    () => logQuery.data ?? EMPTY_LOG_ENTRIES,
+    [logQuery.data],
+  );
 
   if (graphQuery.isLoading) {
     return (
@@ -126,7 +135,7 @@ export function BundleViewer({ bundleId }: BundleViewerProps) {
           />
         </TabsContent>
         <TabsContent value="history" className="min-h-0 flex-1">
-          <BundleLog entries={logQuery.data ?? []} className="h-full" />
+          <BundleLog entries={logEntries} className="h-full" />
         </TabsContent>
       </Tabs>
     </div>

@@ -14,7 +14,10 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import cytoscape, { type Core, type ElementDefinition } from 'cytoscape';
-import { resolveConceptTypeColor } from '@/lib/okf/concept-type-tokens';
+import {
+  resolveConceptTypeColor,
+  resolveGraphChromeColors,
+} from '@/lib/okf/concept-type-tokens';
 import { cn } from '@/lib/utils';
 import type { OkfBundleGraphEdge, OkfBundleGraphNode } from '@/lib/query/okf';
 
@@ -27,9 +30,13 @@ const LAYOUTS = [
 ] as const;
 type LayoutName = (typeof LAYOUTS)[number];
 
-const FALLBACK_NODE_COLOR = '#94a3b8';
-const SELECTED_BORDER_COLOR = '#f59e0b';
-const EDGE_COLOR = '#cbd5e1';
+// Last-resort literals for when the `--okf-graph-*` custom properties can't
+// be read (SSR, or a test environment that never loaded
+// `app/styles/domain-tokens.css`) — mirror those tokens' light-mode :root
+// values so the un-themed fallback still reads as the same colour family.
+const FALLBACK_NODE_COLOR = 'oklch(0.65 0.012 48)'; // --okf-graph-node-fallback
+const SELECTED_BORDER_COLOR = 'oklch(0.6 0.14 70)'; // --okf-graph-selected-border
+const EDGE_COLOR = 'oklch(0.82 0.014 48)'; // --okf-graph-edge
 
 interface ConceptGraphProps {
   nodes: OkfBundleGraphNode[];
@@ -44,10 +51,14 @@ function toElements(
   nodes: OkfBundleGraphNode[],
   edges: OkfBundleGraphEdge[],
 ): ElementDefinition[] {
+  const chrome = resolveGraphChromeColors();
   const nodeElements: ElementDefinition[] = nodes.map((n) => ({
     data: {
       ...n.data,
-      color: resolveConceptTypeColor(n.data.type)?.bg ?? FALLBACK_NODE_COLOR,
+      color:
+        resolveConceptTypeColor(n.data.type)?.bg ??
+        chrome?.fallbackNode ??
+        FALLBACK_NODE_COLOR,
     },
   }));
   const edgeElements: ElementDefinition[] = edges.map((e) => ({
@@ -85,6 +96,9 @@ export function ConceptGraph({
   // Mount / rebuild the Cytoscape instance when the element set changes.
   useEffect(() => {
     if (!containerRef.current) return;
+    const chrome = resolveGraphChromeColors();
+    const selectedBorderColor = chrome?.selectedBorder ?? SELECTED_BORDER_COLOR;
+    const edgeColor = chrome?.edge ?? EDGE_COLOR;
     const cy = cytoscape({
       container: containerRef.current,
       elements,
@@ -103,14 +117,14 @@ export function ConceptGraph({
         },
         {
           selector: 'node:selected',
-          style: { 'border-width': 3, 'border-color': SELECTED_BORDER_COLOR },
+          style: { 'border-width': 3, 'border-color': selectedBorderColor },
         },
         {
           selector: 'edge',
           style: {
             width: 1.5,
-            'line-color': EDGE_COLOR,
-            'target-arrow-color': EDGE_COLOR,
+            'line-color': edgeColor,
+            'target-arrow-color': edgeColor,
             'target-arrow-shape': 'triangle',
             'curve-style': 'bezier',
           },

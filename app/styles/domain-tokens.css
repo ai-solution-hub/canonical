@@ -261,6 +261,15 @@
   --okf-concept-default-bg: var(--stone-100);
   --okf-concept-default-text: var(--stone-500);
 
+  /* OKF concept graph chrome (light) — <ConceptGraph> Cytoscape canvas:
+     fallback node fill (when a type's colour can't be resolved), the
+     selected-node border, and the edge line. Distinct from the per-type
+     --okf-concept-*-bg/text family above (badge/node colours) — these style
+     the graph canvas itself, not a concept type ({132.14} Checker F1). */
+  --okf-graph-node-fallback: var(--stone-400);
+  --okf-graph-selected-border: var(--amber-solid);
+  --okf-graph-edge: var(--stone-300);
+
   /* Relevance score (article review) */
   --relevance-high: oklch(0.93 0.04 var(--hue-relevance-high));
   --relevance-high-text: oklch(0.35 0.12 var(--hue-relevance-high));
@@ -403,6 +412,11 @@
   --okf-concept-playbook-text: oklch(0.8 0.1 var(--hue-okf-concept-playbook));
   --okf-concept-default-bg: var(--stone-800);
   --okf-concept-default-text: var(--stone-400);
+
+  /* OKF concept graph chrome (dark) */
+  --okf-graph-node-fallback: var(--stone-300);
+  --okf-graph-selected-border: var(--amber-solid);
+  --okf-graph-edge: var(--stone-400);
 
   /* Relevance score (dark) */
   --relevance-high: oklch(0.25 0.06 var(--hue-relevance-high));
@@ -591,6 +605,10 @@
   --color-okf-concept-playbook-text: var(--okf-concept-playbook-text);
   --color-okf-concept-default-bg: var(--okf-concept-default-bg);
   --color-okf-concept-default-text: var(--okf-concept-default-text);
+
+  --color-okf-graph-node-fallback: var(--okf-graph-node-fallback);
+  --color-okf-graph-selected-border: var(--okf-graph-selected-border);
+  --color-okf-graph-edge: var(--okf-graph-edge);
 
   --color-relevance-high: var(--relevance-high);
   --color-relevance-high-text: var(--relevance-high-text);

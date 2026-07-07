@@ -72,3 +72,46 @@ export function resolveConceptTypeColor(
   if (!bg || !text) return null;
   return { bg, text };
 }
+
+/**
+ * CSS custom-property names for the concept graph's non-per-type chrome —
+ * fallback node fill, selected-node border, edge line (`--okf-graph-*`,
+ * `app/styles/domain-tokens.css`). Distinct from `ConceptTypeTokenVars`
+ * (per-type badge/node colours): these style the `<ConceptGraph>` Cytoscape
+ * canvas itself, not a concept type.
+ */
+export interface GraphChromeTokenVars {
+  fallbackNode: string;
+  selectedBorder: string;
+  edge: string;
+}
+
+const GRAPH_CHROME_VARS: GraphChromeTokenVars = {
+  fallbackNode: '--okf-graph-node-fallback',
+  selectedBorder: '--okf-graph-selected-border',
+  edge: '--okf-graph-edge',
+};
+
+/**
+ * Resolve the concept graph's chrome colours to concrete CSS colour strings
+ * via the same `getComputedStyle()` read as `resolveConceptTypeColor` —
+ * Cytoscape's canvas renderer needs a real colour string, not a `var()`
+ * reference. Returns `null` outside a browser, or when any of the three
+ * custom properties is not defined (e.g. SSR, or a test environment that
+ * never loaded `domain-tokens.css`) — callers fall back to a default.
+ */
+export function resolveGraphChromeColors(): GraphChromeTokenVars | null {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return null;
+  }
+  const styles = getComputedStyle(document.documentElement);
+  const fallbackNode = styles
+    .getPropertyValue(GRAPH_CHROME_VARS.fallbackNode)
+    .trim();
+  const selectedBorder = styles
+    .getPropertyValue(GRAPH_CHROME_VARS.selectedBorder)
+    .trim();
+  const edge = styles.getPropertyValue(GRAPH_CHROME_VARS.edge).trim();
+  if (!fallbackNode || !selectedBorder || !edge) return null;
+  return { fallbackNode, selectedBorder, edge };
+}

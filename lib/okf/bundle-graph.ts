@@ -22,6 +22,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { logger } from '@/lib/logger';
 import { parseOkfDocument, OkfDocumentError } from '@/lib/okf/okf-document';
 
 const INDEX_NAME = 'index.md';
@@ -154,7 +155,11 @@ function walkConcepts(bundleRoot: string): Concept[] {
     let text: string;
     try {
       text = fs.readFileSync(filePath, 'utf-8');
-    } catch {
+    } catch (err) {
+      logger.warn(
+        { err, op: 'bundle-graph.walk-concepts.read-failed', filePath },
+        `walkConcepts: skipping unreadable file ${filePath}`,
+      );
       continue;
     }
 
