@@ -70,7 +70,7 @@ Working directory: `{cwd}` ({branch}).
 ## READ FIRST
 
 - `${KH_PRIVATE_DOCS_DIR}/src/content/docs/themes/canonical-pipeline/reference/v1-completion-sequence.md` — the forward map.
-- Ledger slice-reads only: `bun scripts/ledger-cli.ts show task <id>` (record; add `--full` for verbatim), `journal <id>.<subId>` (journal thread — a bare `show` stubs it on large tasks). Diary: `mempalace_diary_read agent=claude last_n=3`.
+- Ledger slice-reads only: `bun scripts/ledger-cli.ts show task <id>` (record; add `--full` for verbatim), `journal <id>.<subId>` (journal thread — a bare `show` stubs it on large tasks). Diary: `mempalace_diary_read agent=claude last_n=2`.
 - {Additional context documents - if required}
 
 ## Next-session focus
