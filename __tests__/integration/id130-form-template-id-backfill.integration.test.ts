@@ -18,7 +18,16 @@
  * `questions/extract/route.ts` and `questions/route.ts`) is covered by the
  * mocked route-level unit tests in `__tests__/api/procurement-questions-*.test.ts`
  * and the dedicated
- * `__tests__/lib/domains/procurement/resolve-form-template.test.ts`.
+ * `__tests__/lib/procurement/resolve-form-template.test.ts`.
+ *
+ * Also covers Checker Finding 1 remediation: the STEP 3
+ * `resolve_or_mint_form_template_id` RPC (workspace-scoped
+ * `pg_advisory_xact_lock`) that replaced the app resolver's plain
+ * SELECT-then-INSERT — see the "race-safety" describe block below for the
+ * concurrent-mint regression test. This is the only layer that can actually
+ * exercise the Postgres advisory lock (a mocked unit test cannot observe
+ * real concurrency), which is why it lives here rather than in the unit
+ * suite.
  *
  * Run post-staging-apply: `bun run test:integration -- id130-form-template-id-backfill`
  * (skips cleanly without live DB credentials — see `hasRealLiveDbCredentials()`).
@@ -295,5 +304,94 @@ describe('ID-130.27 — form_template_id recurrence-guard trigger + win-rate/out
     expect(Number(row.total_citations)).toBe(1);
     expect(Number(row.winning_citations)).toBe(1);
     expect(Number(row.win_rate)).toBe(1);
+  });
+});
+
+describe('ID-130.27 Checker Finding 1 remediation — resolve_or_mint_form_template_id race-safety', () => {
+  it('N concurrent resolve-or-mint calls against a FRESH zero-form workspace mint exactly ONE form_templates row and all callers agree on its id', async () => {
+    if (skip) return;
+
+    const { data: appType, error: appErr } = await db
+      .from('application_types')
+      .select('id')
+      .eq('key', 'procurement')
+      .maybeSingle();
+    if (appErr) throw new Error(`application_types lookup: ${appErr.message}`);
+    if (!appType)
+      throw new Error('no procurement application_type row available');
+
+    // A DELIBERATELY fresh workspace with ZERO form_templates rows -- the
+    // exact precondition the Finding-1 race requires (two racing callers
+    // both observing "no existing form" before this fix).
+    const raceWorkspaceId = await createWorkspace(
+      appType.id,
+      'race-safety fresh workspace',
+    );
+
+    const CONCURRENCY = 8;
+    const calls = Array.from({ length: CONCURRENCY }, (_, i) =>
+      db.rpc('resolve_or_mint_form_template_id', {
+        p_workspace_id: raceWorkspaceId,
+        p_name: 'Untitled form',
+        p_filename: 'app-created-form.pdf',
+        p_storage_path: `app-created/${raceWorkspaceId}/race-${i}`,
+        p_file_size: 0,
+        p_mime_type: 'application/pdf',
+        p_created_by: null,
+      }),
+    );
+
+    const results = await Promise.all(calls);
+
+    for (const r of results) {
+      expect(r.error).toBeNull();
+    }
+    const ids = results.map((r) => r.data as string);
+    // Every concurrent caller must resolve to the SAME minted id -- if the
+    // pre-fix race were still present, this would observe >=2 distinct ids
+    // (each racing caller minting its own row).
+    expect(new Set(ids).size).toBe(1);
+    seeded.formTemplateIds.push(ids[0]);
+
+    const { data: forms, error: formsErr } = await db
+      .from('form_templates')
+      .select('id')
+      .eq('workspace_id', raceWorkspaceId);
+    expect(formsErr).toBeNull();
+    // Exactly one form_templates row exists for the workspace post-race --
+    // the Finding-1 fragmentation bug would leave >=2.
+    expect(forms).toHaveLength(1);
+    expect(forms![0].id).toBe(ids[0]);
+  }, 30_000);
+
+  it('resolves (does not re-mint) when a form_templates row already exists for the workspace', async () => {
+    if (skip) return;
+
+    // The shared multi-form workspace from beforeAll already carries form A
+    // (earliest) + form B (later) -- resolving against it must return form A
+    // and must NOT create a third row.
+    const { count: beforeCount } = await db
+      .from('form_templates')
+      .select('id', { count: 'exact', head: true })
+      .eq('workspace_id', workspaceId);
+
+    const { data, error } = await db.rpc('resolve_or_mint_form_template_id', {
+      p_workspace_id: workspaceId,
+      p_name: 'Untitled form',
+      p_filename: 'app-created-form.pdf',
+      p_storage_path: `app-created/${workspaceId}/should-not-be-used`,
+      p_file_size: 0,
+      p_mime_type: 'application/pdf',
+      p_created_by: null,
+    });
+
+    expect(error).toBeNull();
+    expect(data).toBe(formAId);
+
+    const { count: afterCount } = await db
+      .from('form_templates')
+      .select('id', { count: 'exact', head: true })
+      .eq('workspace_id', workspaceId);
+    expect(afterCount).toBe(beforeCount);
   });
 });

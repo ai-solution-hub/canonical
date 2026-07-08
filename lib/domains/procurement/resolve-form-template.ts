@@ -39,10 +39,42 @@
  * mint used, so a later won/lost outcome record passes the
  * `form_templates_outcome_form_type_check` trigger without requiring a
  * separate type-picker step).
+ *
+ * **Race-safety (Checker Finding 1 remediation).** This used to be a plain
+ * client-side SELECT-then-INSERT: two concurrent calls against the SAME
+ * zero-form workspace could both pass the "no existing row" check and both
+ * mint (there is no UNIQUE constraint on `form_templates.workspace_id` —
+ * multi-form-per-workspace is a live feature, so adding one would be a
+ * regression, not a fix). The entire resolve-or-mint decision now runs
+ * inside ONE atomic `public.resolve_or_mint_form_template_id` Postgres
+ * function (`supabase/migrations/20260708120000_id130_form_template_id_backfill_guard.sql`
+ * STEP 3), guarded by a workspace-scoped `pg_advisory_xact_lock` so two
+ * racing callers serialize against each other instead of both minting. See
+ * that migration's STEP 3 header comment for why this is a SEPARATE function
+ * rather than an enhancement to the STEP 2 `form_questions_resolve_form_template_id`
+ * trigger (short version: the trigger firing on EVERY insert would silently
+ * break `scripts/seed-synthetic-corpus.ts`'s deliberate zero-form-workspace
+ * test fixture) and for the RLS-privilege check confirming this introduces
+ * no new permission surface (SECURITY INVOKER — same role/RLS exposure the
+ * client-side SELECT-then-INSERT already had).
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { sb } from '@/lib/supabase/safe';
 import type { Database } from '@/supabase/types/database.types';
+
+// TYPE ESCAPE (deliberate, temporary — same precedent as
+// lib/corpus/writer-fence.ts's `UntypedRpcClient`): the RPC this file calls
+// (`resolve_or_mint_form_template_id`, public + api wrapper) is authored in
+// 20260708120000_id130_form_template_id_backfill_guard.sql STEP 3 but NOT YET
+// in the generated `database.types.ts` — this Subtask's worktree has no DB
+// access to apply the migration or regen types (a types-regen is flagged as
+// a follow-up intent). `SupabaseClient<any>` is the standard escape for
+// calling a not-yet-generated RPC surface, confined to the single `.rpc()`
+// call site below. DELETE this escape (call `.rpc()` directly on the typed
+// client) once the coordinated apply + `supabase gen types` regenerates
+// `Database['public']['Functions']['resolve_or_mint_form_template_id']`.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type UntypedRpcClient = SupabaseClient<any>;
 
 /** Fields needed to mint a `form_templates` row when a workspace has none. */
 export interface FormTemplateMintDefaults {
@@ -62,7 +94,11 @@ export interface FormTemplateMintDefaults {
 
 /**
  * Resolve the workspace's canonical `form_templates` id, minting one on
- * demand (see module doc) when the workspace has none yet.
+ * demand (see module doc) when the workspace has none yet. Race-safe: the
+ * whole resolve-or-mint decision runs atomically inside the
+ * `resolve_or_mint_form_template_id` Postgres function (workspace-scoped
+ * `pg_advisory_xact_lock`), so two concurrent calls against a zero-form
+ * workspace cannot both mint.
  *
  * Throws `SupabaseError` (via `sb()`) on any read/write failure — callers are
  * expected to be Next.js route handlers with a top-level try/catch that
@@ -73,35 +109,17 @@ export async function resolveOrMintFormTemplateId(
   workspaceId: string,
   mint: FormTemplateMintDefaults,
 ): Promise<string> {
-  const existing = await sb<Array<{ id: string }>>(
-    supabase
-      .from('form_templates')
-      .select('id')
-      .eq('workspace_id', workspaceId)
-      .order('created_at', { ascending: true })
-      .limit(1),
-    'procurement.formTemplates.resolveForWorkspace',
+  const rpcClient = supabase as unknown as UntypedRpcClient;
+  return sb<string>(
+    rpcClient.rpc('resolve_or_mint_form_template_id', {
+      p_workspace_id: workspaceId,
+      p_name: mint.name,
+      p_filename: mint.filename,
+      p_storage_path: mint.storagePath,
+      p_file_size: mint.fileSize,
+      p_mime_type: mint.mimeType,
+      p_created_by: mint.createdBy,
+    }),
+    'procurement.formTemplates.resolveOrMintForWorkspace',
   );
-  const first = existing[0];
-  if (first) return first.id;
-
-  const minted = await sb<{ id: string }>(
-    supabase
-      .from('form_templates')
-      .insert({
-        workspace_id: workspaceId,
-        name: mint.name,
-        filename: mint.filename,
-        storage_path: mint.storagePath,
-        file_size: mint.fileSize,
-        mime_type: mint.mimeType,
-        form_type: 'bid',
-        ingest_source: 'app_upload',
-        created_by: mint.createdBy,
-      })
-      .select('id')
-      .single(),
-    'procurement.formTemplates.mintForWorkspace',
-  );
-  return minted.id;
 }

@@ -228,7 +228,15 @@ export const POST = defineRoute(
       // Try batch format first (from QuestionReview component)
       const batchParsed = parseBody(BatchQuestionCreateSchema, raw);
       if (batchParsed.success) {
-        return handleBatchInsert(
+        // Finding 2 ({130.27} Checker remediation): MUST await here, not just
+        // `return`. handleBatchInsert() is async and can throw (e.g. from
+        // resolveOrMintFormTemplateId()'s RPC call) — `return
+        // handleBatchInsert(...)` without awaiting exits this try block
+        // before the promise settles, so a later rejection would NOT be
+        // caught by this function's own catch below and would surface as an
+        // unstructured 500 instead of the `{ error: safeErrorMessage(...) }`
+        // shape every other failure path here returns.
+        return await handleBatchInsert(
           supabase,
           id,
           user.id,
