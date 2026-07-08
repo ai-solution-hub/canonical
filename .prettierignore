@@ -69,6 +69,13 @@ lib/mcp/plugin-bundle.ts
 # minimal-diff write tests.
 __tests__/fixtures/ledger/
 
+# Byte-exact round-trip fixtures (ID-132 {132.10} S451 rider) — generated
+# VERBATIM from producer/bundle_writer.py's own regenerate_indexes()/
+# render_log_entry() output; Prettier's proseWrap/printWidth re-wraps the
+# prose and normalises `*` bullets to `-`, silently diverging from the
+# writer's real output and breaking the {132.10} round-trip Vitest tests.
+__tests__/fixtures/okf/
+
 # Deploy infrastructure YAML — Prettier's printWidth:80 wraps long image strings
 # and YAML scalar values in ways that break docker-compose parsing.
 deploy/

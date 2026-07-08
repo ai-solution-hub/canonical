@@ -8,5 +8,4 @@
 - Changed (1): company/overview.md
 - Removed (1): topics/retired-topic.md
 - Moved (1): topics/old-name.md -> topics/new-name.md
-- WARNING orphaned anchors (1):
-  canonical://reference_items/22222222-2222-4222-8222-222222222222
+- WARNING orphaned anchors (1): canonical://reference_items/22222222-2222-4222-8222-222222222222
