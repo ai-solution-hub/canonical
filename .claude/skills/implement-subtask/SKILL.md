@@ -63,7 +63,9 @@ Obtain the Subtask directly via `bun scripts/ledger-cli.ts get task <N>.<M>`
 `subtasks[]`; still a slice read, never a wholesale load of the multi-MB
 ledger). Read the `details` markdown field in full —
 **this is your primary input**, more authoritative than the dispatch
-message itself.
+message itself. The appended `<info added on …>` journal blocks may
+record course-corrections that supersede the preamble brief — read
+them too; the latest block wins.
 
 Then read the spec-slice the `details` references. Use Read with a
 section anchor (e.g. `#step-3-commit`) only when the slice is small;
@@ -80,6 +82,14 @@ sections. Read additionally:
 
 Move the Subtask status `pending → in_progress` (per §6.3 + B12). This
 is the only state transition you may set — the Checker owns `done`.
+
+**Worktree-dispatch variant:** when you are dispatched into a worktree
+(Agent-tool `isolation: "worktree"` or cmux), ledger writes are FORBIDDEN
+in-branch — do NOT run the status move or the Step 5 `append-journal`
+yourself. Return the status transition and the journal text as INTENTS in
+your Step 6 report; the Orchestrator applies both via `ledger-cli.ts` on
+MAIN. (Canonical rule: workflow-orchestration SKILL.md → Ledger
+field-discipline.)
 
 ### Step 2 — Test-first
 

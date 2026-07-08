@@ -122,6 +122,9 @@ The orchestrator will tell you which track branch.
 ### Step 2 — Read the Subtask brief (`details` field)
 
 Read the Subtask's `details` field in full from the brief the orchestrator passed you.
+The appended `<info added on …>` journal blocks may record course-corrections that
+supersede the original preamble brief — read them too (they arrive inline via the
+`get task <N>.<M>` you already ran; the latest block wins).
 Then read the spec slice it references.
 
 ### Step 3 — Plan the slice
@@ -193,7 +196,9 @@ TESTS RUN:
   - bun run test path/to/changed.test.ts — PASS
 JOURNAL INTENT:
 What shipped: one-paragraph summary of the change.
-Commit: {short-sha} (full SHA: {full-sha}).
+Commit: {short-sha} (full SHA: {full-sha} — obtain via `git rev-parse HEAD`, NEVER
+reconstruct or approximate a full SHA from memory; fabricated SHAs have broken
+orchestrator cherry-picks).
 Spec slice: PRODUCT.md §X.Y (and/or TECH.md §X.Y) — the section the brief referenced.
 In-flight discoveries (if any):
   - [observation the Checker should know about — out-of-scope artefacts noted but not fixed]

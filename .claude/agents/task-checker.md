@@ -291,6 +291,14 @@ Read the spec section(s) referenced in `details`. Read `testStrategy`. Read the
 thread via `bun scripts/ledger-cli.ts journal <N>.<M>` (a bare `show` stubs those
 blocks on large tasks), which also resolves any compaction archive-pointers.
 
+**Intent-queue awareness (worktree dispatches).** When the Executor ran in a
+worktree (Agent-tool or cmux dispatch), ledger writes are FORBIDDEN in-branch:
+the Executor returns its journal as an intent and the Orchestrator applies it
+on MAIN later. A missing in-ledger journal block for the commit under audit is
+therefore EXPECTED mid-wave — audit the journal INTENT in the Executor's final
+report instead, and do NOT file a missing-journal finding against a
+worktree-dispatched Subtask.
+
 **Step 1b — Empirical-grounding pre-check**
 
 If the spec or Subtask `details` cite external-library APIs (cocoindex / anthropic /
