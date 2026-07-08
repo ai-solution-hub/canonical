@@ -2,7 +2,10 @@
  * LibraryContent Component Tests
  *
  * Tests the Q&A Library page content — header, search, filters,
- * loading/empty states, bulk actions, and tag dialog.
+ * loading/empty states, and bulk selection. ID-139 {139.9}: the Tag,
+ * Assign-to-workspace, Re-classify and Delete dialogs/handlers were
+ * retired (dead /api/items/* affordances) — Verify is the only
+ * surviving bulk action.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -45,32 +48,15 @@ const {
     selectedIds: new Set<string>(),
     bulkOperating: false,
     bulkProgress: { current: 0, total: 0, label: '' },
-    tagDialogOpen: false,
-    setTagDialogOpen: vi.fn(),
-    tagInput: '',
-    setTagInput: vi.fn(),
-    assignDialogOpen: false,
-    setAssignDialogOpen: vi.fn(),
-    workspaces: [] as Array<{ id: string; name: string; type: string }>,
-    workspacesLoading: false,
-    selectedWorkspaceId: '',
-    setSelectedWorkspaceId: vi.fn(),
     toggleSelect: vi.fn(),
     toggleSelectAll: vi.fn(),
     clearSelection: vi.fn(),
-    handleBulkReclassify: vi.fn(),
-    handleBulkTagOpen: vi.fn(),
-    handleBulkAssignOpen: vi.fn(),
     handleBulkVerify: vi.fn(),
-    handleBulkDelete: vi.fn(),
-    handleBulkTagConfirm: vi.fn(),
-    handleBulkAssignConfirm: vi.fn(),
   },
   mockUserRole: {
     role: 'editor' as string | null,
     loading: false,
     canEdit: true,
-    canAdmin: false,
   },
   mockLibraryData: {
     items: [] as unknown[],
@@ -260,15 +246,11 @@ describe('LibraryContent', () => {
     mockActiveCount.value = 0;
     mockGroupBy.value = 'none';
     mockBulk.selectedIds = new Set();
-    mockBulk.tagDialogOpen = false;
-    mockBulk.tagInput = '';
-    mockBulk.assignDialogOpen = false;
     mockLibraryData.items = [];
     mockLibraryData.isLoading = false;
     mockLibraryData.sourceFiles = [];
     mockUserRole.role = 'editor';
     mockUserRole.canEdit = true;
-    mockUserRole.canAdmin = false;
   });
 
   afterEach(() => {
@@ -394,17 +376,6 @@ describe('LibraryContent', () => {
     await waitFor(() => {
       expect(screen.getByTestId('bulk-toolbar')).toBeInTheDocument();
       expect(screen.getByText('Bulk: 1')).toBeInTheDocument();
-    });
-  });
-
-  it('tag dialog opens with correct selected count', async () => {
-    mockBulk.selectedIds = new Set(['qa-1', 'qa-2', 'qa-3']);
-    mockBulk.tagDialogOpen = true;
-    mockLibraryData.items = [createQAItem({ id: 'qa-1' })];
-
-    renderLibraryContent();
-    await waitFor(() => {
-      expect(screen.getByText('Add tags to 3 items')).toBeInTheDocument();
     });
   });
 

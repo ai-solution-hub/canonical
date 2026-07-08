@@ -6,9 +6,6 @@ import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import {
   Search,
   Filter,
-  Loader2,
-  Tag,
-  FolderPlus,
   SlidersHorizontal,
   BookOpen,
   ArrowRight,
@@ -23,14 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import {
   Popover,
   PopoverContent,
@@ -133,7 +122,7 @@ export function LibraryContent() {
     setGroupBy,
   } = useLibraryFilters();
   const { domains } = useTaxonomy();
-  const { canAdmin, canEdit } = useUserRole();
+  const { canEdit } = useUserRole();
 
   // Data fetching via TanStack Query
   const { items, isLoading, sourceFiles } = useLibraryData(filters);
@@ -494,14 +483,9 @@ export function LibraryContent() {
             items.filter((i) => bulk.selectedIds.has(i.id) && !i.verified_at)
               .length
           }
-          isAdmin={canAdmin}
           bulkOperating={bulk.bulkOperating}
           bulkProgress={bulk.bulkProgress}
-          onBulkReclassify={bulk.handleBulkReclassify}
-          onBulkTag={bulk.handleBulkTagOpen}
-          onBulkAssign={bulk.handleBulkAssignOpen}
           onBulkVerify={bulk.handleBulkVerify}
-          onBulkDelete={bulk.handleBulkDelete}
           onClearSelection={bulk.clearSelection}
         />
 
@@ -618,112 +602,6 @@ export function LibraryContent() {
           />
         )}
       </div>
-
-      {/* Tag dialog */}
-      <Dialog open={bulk.tagDialogOpen} onOpenChange={bulk.setTagDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              Add tags to {bulk.selectedIds.size} item
-              {bulk.selectedIds.size !== 1 ? 's' : ''}
-            </DialogTitle>
-            <DialogDescription>
-              Enter comma-separated tags. They will be merged with any existing
-              tags on each item.
-            </DialogDescription>
-          </DialogHeader>
-          <Input
-            placeholder="e.g. important, needs-review, client-facing"
-            value={bulk.tagInput}
-            onChange={(e) => bulk.setTagInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                bulk.handleBulkTagConfirm();
-              }
-            }}
-            aria-label="Tags (comma-separated)"
-          />
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => bulk.setTagDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={bulk.handleBulkTagConfirm}
-              disabled={!bulk.tagInput.trim()}
-            >
-              <Tag className="mr-1.5 size-3.5" />
-              Apply tags
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Assign to workspace dialog */}
-      <Dialog
-        open={bulk.assignDialogOpen}
-        onOpenChange={bulk.setAssignDialogOpen}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              Assign {bulk.selectedIds.size} item
-              {bulk.selectedIds.size !== 1 ? 's' : ''} to workspace
-            </DialogTitle>
-            <DialogDescription>
-              Select a workspace to assign the selected Q&A pairs to.
-            </DialogDescription>
-          </DialogHeader>
-          {bulk.workspacesLoading ? (
-            <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" />
-              Loading workspaces...
-            </div>
-          ) : (
-            <Select
-              value={bulk.selectedWorkspaceId}
-              onValueChange={bulk.setSelectedWorkspaceId}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select a workspace" />
-              </SelectTrigger>
-              <SelectContent>
-                {bulk.workspaces.map((ws) => (
-                  <SelectItem key={ws.id} value={ws.id}>
-                    {ws.name}
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      ({ws.type})
-                    </span>
-                  </SelectItem>
-                ))}
-                {bulk.workspaces.length === 0 && (
-                  <SelectItem value="__none__" disabled>
-                    No workspaces found
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-          )}
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => bulk.setAssignDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={bulk.handleBulkAssignConfirm}
-              disabled={!bulk.selectedWorkspaceId || bulk.workspacesLoading}
-            >
-              <FolderPlus className="mr-1.5 size-3.5" />
-              Assign
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </section>
   );
 }

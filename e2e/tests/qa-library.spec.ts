@@ -699,7 +699,7 @@ test.describe('Q&A Library page', () => {
     await expect(page.locator('[data-qa-row]').first()).toBeVisible();
   });
 
-  test('viewer sees selection checkboxes but not the admin bulk-delete action', async ({
+  test('viewer sees selection checkboxes and the bulk-action toolbar', async ({
     viewerPage: page,
     workerData,
   }) => {
@@ -716,13 +716,15 @@ test.describe('Q&A Library page', () => {
 
     // Ratified contract (test-philosophy.md §2.1): selection UI is NOT
     // role-gated — viewers DO see the select-all header checkbox
-    // (app/library/library-content.tsx:515-526, rendered on
+    // (app/library/library-content.tsx, rendered on
     // `!isLoading && items.length > 0`, aria-label "Select all Q&A pairs")
-    // and the per-row checkboxes (components/qa/qa-row.tsx:74-79, rendered
-    // whenever `onToggleSelect` is passed — library-content.tsx:606,617 pass
-    // it unconditionally — aria-label `Select "<title>"`). Only the bulk
-    // DELETE action is admin-gated
-    // (components/browse/bulk-action-toolbar.tsx:123 `{isAdmin && …}`).
+    // and the per-row checkboxes (components/qa/qa-row.tsx, rendered
+    // whenever `onToggleSelect` is passed — library-content.tsx passes it
+    // unconditionally — aria-label `Select "<title>"`). ID-139 {139.9}
+    // retired the admin-gated bulk Delete action (it hit the deleted
+    // `/api/items/*` tree, ID-131 {131.17}) along with Reclassify/Tag/Assign
+    // — the bulk-action toolbar (components/browse/bulk-action-toolbar.tsx)
+    // now exposes only Verify, which is NOT role-gated.
 
     // 1. Viewer DOES see the select-all header checkbox.
     const selectAll = page.getByLabel(/select all/i);
@@ -733,12 +735,10 @@ test.describe('Q&A Library page', () => {
     await expect(firstRow).toBeVisible();
     await expect(firstRow.getByLabel(/^Select "/)).toBeVisible();
 
-    // 3. Selecting rows reveals the bulk-action toolbar ("N selected"), but the
-    //    admin-only Delete control must NEVER render for a viewer.
+    // 3. Selecting rows reveals the bulk-action toolbar ("N selected") with
+    //    the (non-role-gated) Verify action visible to the viewer.
     await selectAll.click();
     await expect(page.getByText(/\d+ selected/)).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: /delete/i }),
-    ).not.toBeVisible();
+    await expect(page.getByRole('button', { name: /verify/i })).toBeVisible();
   });
 });
