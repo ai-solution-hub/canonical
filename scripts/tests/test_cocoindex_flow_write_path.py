@@ -2065,15 +2065,27 @@ def _make_manifest(
 
 # ── ID-69 — canonical cross-workspace association ingest invariants ───────────
 #
+# BL-408 (audit note): `content_item_workspaces` — and `content_items` itself —
+# were dropped from the schema at M6 (ID-131.19, migration
+# 20260706110000_id131_drops.sql); the cross-referenced
+# `__tests__/api/items/workspaces-contract.test.ts` no longer exists either.
+# The tests below never queried the real table — `junction` is a plain Python
+# `set[tuple[...]]` fixture, not a DB round-trip — so they remain valid as
+# pure identity/shape unit tests of flow.py's `declare_row` behaviour
+# (BI-1/2/6/8 below); nothing here asserts against a live table. Left in
+# place (not deleted) because the identity-stability invariant (BI-6) they
+# pin is still architecturally relevant to whatever ingest-side association
+# mechanism eventually replaces the junction table.
+#
 # v1 ships NO ingest-side junction writer (the resolver is single-valued on this
-# branch; the multi-workspace carrier is deferred to v1.1). These tests pin the
-# ingest-side PRECONDITIONS that make the operator-side association contract
-# (`__tests__/api/items/workspaces-contract.test.ts`) safe to reuse unchanged:
+# branch; the multi-workspace carrier is deferred to v1.1). These tests pinned the
+# ingest-side PRECONDITIONS that made the (now-removed) operator-side association
+# contract safe to reuse unchanged:
 #
 #   BI-1 — the canonical `content_items` row has NO intrinsic workspace; a record
 #          with zero junction rows is still complete.
 #   BI-2 — workspace association is NEVER written to `source_documents` (its
-#          declared row carries no `workspace_id`); association rides
+#          declared row carries no `workspace_id`); association rode
 #          `content_item_workspaces` only.
 #   BI-6 — a changed-bytes re-ingest re-stamps the SAME `content_item_id` via the
 #          deterministic `uuid5` identity, declaring the parent row as an UPSERT
@@ -2082,11 +2094,14 @@ def _make_manifest(
 #   BI-8 — association is explicit (operator/manifest), never inferred from
 #          folder layout or LLM classification.
 #
-# Reference (verified S291, NOT modified by these tests): flow.py identity
-# `content_item_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"ci:{rel_path}")` (:1335);
-# `content_items` declare (:1361, no workspace key); `source_documents` declare
-# (:1342, no workspace key); FK `content_item_workspaces.content_item_id ->
-# content_items.id ON DELETE CASCADE` (migration :5361); composite PK :4318.
+# Reference (verified S291, NOT modified by these tests; `content_items` and
+# `content_item_workspaces` line refs below are HISTORICAL — both tables are
+# now dropped, see BL-408 note above): flow.py identity `content_item_id =
+# uuid.uuid5(_KH_PIPELINE_DOC_NS, f"ci:{rel_path}")` (:1335); `content_items`
+# declare (:1361, no workspace key); `source_documents` declare (:1342, no
+# workspace key); FK `content_item_workspaces.content_item_id ->
+# content_items.id ON DELETE CASCADE` (migration :5361, squash baseline);
+# composite PK :4318.
 
 
 def _stub_canonical_extractors(
