@@ -1251,7 +1251,7 @@ export type Database = {
           response_text: string | null
           response_text_advanced: string | null
           review_status: string | null
-          source_content_ids: string[] | null
+          source_record_ids: string[] | null
           version: number | null
         }
         Insert: {
@@ -1264,7 +1264,7 @@ export type Database = {
           response_text?: string | null
           response_text_advanced?: string | null
           review_status?: string | null
-          source_content_ids?: string[] | null
+          source_record_ids?: string[] | null
           version?: number | null
         }
         Update: {
@@ -1277,7 +1277,7 @@ export type Database = {
           response_text?: string | null
           response_text_advanced?: string | null
           review_status?: string | null
-          source_content_ids?: string[] | null
+          source_record_ids?: string[] | null
           version?: number | null
         }
         Relationships: [
@@ -5327,7 +5327,7 @@ export type Database = {
           response_text: string | null
           response_text_advanced: string | null
           review_status: string
-          source_content_ids: string[] | null
+          source_record_ids: string[] | null
           version: number
         }
         Insert: {
@@ -5340,7 +5340,7 @@ export type Database = {
           response_text?: string | null
           response_text_advanced?: string | null
           review_status: string
-          source_content_ids?: string[] | null
+          source_record_ids?: string[] | null
           version: number
         }
         Update: {
@@ -5353,7 +5353,7 @@ export type Database = {
           response_text?: string | null
           response_text_advanced?: string | null
           review_status?: string
-          source_content_ids?: string[] | null
+          source_record_ids?: string[] | null
           version?: number
         }
         Relationships: [

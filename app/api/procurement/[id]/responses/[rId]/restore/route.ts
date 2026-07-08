@@ -98,11 +98,10 @@ export const POST = defineRoute(
           response_text: historyRow.response_text,
           response_text_advanced: historyRow.response_text_advanced,
           metadata: historyRow.metadata,
-          // form_response_history keeps its OWN column name unrenamed
-          // ({130.28} scoped the rename to form_questions/form_responses only)
-          // — the value comes from the history row, the key targets the
-          // renamed form_responses column.
-          source_record_ids: historyRow.source_content_ids,
+          // {130.30}: form_response_history.source_content_ids renamed to
+          // source_record_ids (same-class rename as {130.28}'s
+          // form_responses column) — both sides now use the honest name.
+          source_record_ids: historyRow.source_record_ids,
           review_status: 'edited',
           last_edited_by: user.id,
           updated_at: new Date().toISOString(),
