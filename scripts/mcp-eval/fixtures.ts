@@ -394,6 +394,27 @@ const EVAL_CONTENT =
   'This is a temporary item created by the MCP evaluation harness. It tests write tool functionality and will be deleted at the end of the test run.';
 const DEFAULT_STALE_EVAL_ITEM_MIN_AGE_MINUTES = 60;
 
+/**
+ * {139.6} residual fix (S453 CI-red, run 28941755897): `filename` /
+ * `content_hash` / `file_size` / `mime_type` / `storage_path` are NOT NULL
+ * with no column default on `public.source_documents` (baseline
+ * 20260617130000_squash_baseline.sql). The `api`-schema view's generated
+ * Insert type marks every column optional/nullable (view columns always
+ * type as nullable regardless of the underlying table's constraints), which
+ * let the prior insert (title/content/content_type/captured_date only)
+ * typecheck but fail the NOT NULL constraint at runtime. `filename` is
+ * derived deterministically from EVAL_TITLE (single source of truth); the
+ * rest are synthetic-fixture placeholders, mirroring the documented
+ * precedent in scripts/seed-e2e-users.ts's publication-review fixture
+ * (no upstream file exists to derive real values from).
+ */
+const EVAL_FILENAME = `${EVAL_TITLE.toLowerCase()
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-+|-+$/g, '')}.txt`;
+const EVAL_CONTENT_HASH = 'mcp-eval-protocol-compliance-fixture';
+const EVAL_MIME_TYPE = 'text/plain';
+const EVAL_STORAGE_PATH = `mcp-eval-fixtures/${EVAL_FILENAME}`;
+
 export interface EvalItem {
   id: string;
   title: string;
@@ -424,6 +445,12 @@ export async function createEvalItem(
       extracted_text: EVAL_CONTENT,
       content_type: 'note',
       captured_date: new Date().toISOString(),
+      // NOT NULL, no default (see the comment on EVAL_FILENAME above).
+      filename: EVAL_FILENAME,
+      content_hash: EVAL_CONTENT_HASH,
+      file_size: Buffer.byteLength(EVAL_CONTENT, 'utf8'),
+      mime_type: EVAL_MIME_TYPE,
+      storage_path: EVAL_STORAGE_PATH,
     })
     .select('id, suggested_title')
     .single();
