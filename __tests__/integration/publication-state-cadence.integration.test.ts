@@ -183,18 +183,25 @@ async function seedOverdueItem({
     );
   }
 
+  // upsert (not insert): trg_record_lifecycle_mint_source_document
+  // (20260706100000_id131_facet_mint.sql) forward-mints a default
+  // record_lifecycle row on every source_documents INSERT above, so a plain
+  // insert here collides with the auto-minted row on the
+  // record_lifecycle_owner_kind_owner_id_key unique constraint.
   const { data: lifecycle, error: lifecycleError } = await serviceClient
     .from('record_lifecycle')
-    .insert({
-      owner_kind: 'source_document',
-      owner_id: sourceDoc.id,
-      source_document_id: sourceDoc.id,
-      next_review_date: PAST_REVIEW_DATE,
-      review_cadence_days: REVIEW_CADENCE_DAYS,
-      governance_review_status: 'approved',
-      content_owner_id: TEST_USER_1_ID,
-      domain: `${RUN_PREFIX} ${seedSlug}`,
-    })
+    .upsert(
+      {
+        owner_kind: 'source_document',
+        source_document_id: sourceDoc.id,
+        next_review_date: PAST_REVIEW_DATE,
+        review_cadence_days: REVIEW_CADENCE_DAYS,
+        governance_review_status: 'approved',
+        content_owner_id: TEST_USER_1_ID,
+        domain: `${RUN_PREFIX} ${seedSlug}`,
+      },
+      { onConflict: 'owner_kind,owner_id' },
+    )
     .select('governance_review_status')
     .single();
 

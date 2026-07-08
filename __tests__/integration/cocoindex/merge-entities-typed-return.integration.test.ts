@@ -23,8 +23,10 @@
  *      duplicate row is gone. The counts AGREEING with the real row deltas is
  *      what proves the UPDATE×3 + DELETE ran atomically inside the RPC.
  *
- * Fixture (single synthetic content_item per group — entity_mentions has no FK
- * to content_items, so a random UUID needs no parent row):
+ * Fixture (single synthetic source_documents parent per group — ID-131
+ * migration 20260628200000_id131_extract_reparent.sql added
+ * entity_mentions_source_document_id_fkey onto source_documents, so CI_1/CI_2
+ * parent rows are seeded below before the entity_mentions insert):
  *   - mention SRC_A #1: canonical SRC_A, raw type 'organisation',  CI #1
  *   - mention SRC_A #2: canonical SRC_A, raw type 'certification', CI #1
  *       (different RAW type avoids the (canonical_name, entity_type,
@@ -77,8 +79,10 @@ const MERGED_TYPE = 'framework';
 // name is in this set, so a partial-merge failure still leaves nothing behind.
 const ALL_NAMES = [SRC_A, SRC_B, TARGET];
 
-// Two synthetic content_item ids. No FK to content_items exists on
-// entity_mentions.source_document_id, so these need no parent rows.
+// Two synthetic source_documents parent ids. Since ID-131
+// (20260628200000_id131_extract_reparent.sql) entity_mentions.source_document_id
+// carries entity_mentions_source_document_id_fkey → source_documents(id), so
+// each of these needs a real parent row (seeded in the test body below).
 const CI_1 = crypto.randomUUID();
 const CI_2 = crypto.randomUUID();
 
@@ -96,6 +100,10 @@ async function cleanup(): Promise<void> {
     .from('entity_relationships')
     .delete()
     .in('target_entity', ALL_NAMES);
+  // Parent source_documents rows seeded for the entity_mentions FK (ID-131).
+  // ON DELETE CASCADE would also sweep any remaining entity_mentions, but the
+  // canonical_name delete above already handles that path.
+  await client.from('source_documents').delete().in('id', [CI_1, CI_2]);
 }
 
 afterAll(async () => {
@@ -113,6 +121,30 @@ describe.skipIf(!ENABLED)(
       await cleanup();
 
       // ---- Seed the fixture --------------------------------------------
+      // Parent source_documents rows for CI_1/CI_2 — required by
+      // entity_mentions_source_document_id_fkey (ID-131,
+      // 20260628200000_id131_extract_reparent.sql) before the entity_mentions
+      // insert below can succeed.
+      const { error: sdErr } = await client.from('source_documents').insert([
+        {
+          id: CI_1,
+          filename: `${TOKEN}-ci-1`,
+          mime_type: 'text/plain',
+          file_size: 1,
+          content_hash: `${TOKEN}-ci-1`,
+          storage_path: `test-fixtures/${TOKEN}/ci-1.txt`,
+        },
+        {
+          id: CI_2,
+          filename: `${TOKEN}-ci-2`,
+          mime_type: 'text/plain',
+          file_size: 1,
+          content_hash: `${TOKEN}-ci-2`,
+          storage_path: `test-fixtures/${TOKEN}/ci-2.txt`,
+        },
+      ]);
+      expect(sdErr).toBeNull();
+
       const { error: mErr } = await client.from('entity_mentions').insert([
         {
           source_document_id: CI_1,

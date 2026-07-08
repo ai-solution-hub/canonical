@@ -216,23 +216,30 @@ describeIfEnv(
       const itemId = seededDoc!.id;
       createdItemIds.push(itemId);
 
+      // upsert (not insert): trg_record_lifecycle_mint_source_document
+      // (20260706100000_id131_facet_mint.sql) forward-mints a default
+      // record_lifecycle row on every source_documents INSERT above, so a
+      // plain insert here collides with the auto-minted row on the
+      // record_lifecycle_owner_kind_owner_id_key unique constraint.
       const { error: seedLifecycleError } = await serviceClient
         .from('record_lifecycle')
-        .insert({
-          owner_kind: 'source_document',
-          owner_id: itemId,
-          source_document_id: itemId,
-          next_review_date: PAST_REVIEW_DATE,
-          review_cadence_days: REVIEW_CADENCE_DAYS,
-          governance_review_status: 'approved',
-          content_owner_id: TEST_USER_1_ID,
-          verified_at: null,
-          domain: `${RUN_PREFIX} ${seedSlug}`,
-        });
+        .upsert(
+          {
+            owner_kind: 'source_document',
+            source_document_id: itemId,
+            next_review_date: PAST_REVIEW_DATE,
+            review_cadence_days: REVIEW_CADENCE_DAYS,
+            governance_review_status: 'approved',
+            content_owner_id: TEST_USER_1_ID,
+            verified_at: null,
+            domain: `${RUN_PREFIX} ${seedSlug}`,
+          },
+          { onConflict: 'owner_kind,owner_id' },
+        );
 
       expect(
         seedLifecycleError,
-        'seed record_lifecycle insert must succeed',
+        'seed record_lifecycle upsert must succeed',
       ).toBeNull();
 
       // Pin "today" for the renewal assertion — the cron computes
@@ -288,7 +295,13 @@ describeIfEnv(
       expect(postFlipItem!.governance_review_due).not.toBeNull();
       // next_review_date should still be the past date — the cron flip does
       // not advance it (renewal is the approve handler's job).
-      expect(postFlipItem!.next_review_date).toBe(PAST_REVIEW_DATE);
+      // next_review_date is `timestamp with time zone` (not `date`), so
+      // PostgREST round-trips it as a full ISO timestamp — compare the
+      // date-only prefix, matching the slice(0, 10) idiom used below for the
+      // post-approve drift check.
+      expect(postFlipItem!.next_review_date?.slice(0, 10)).toBe(
+        PAST_REVIEW_DATE,
+      );
 
       // ── Step 3: Notification row exists for the test item ─────────────
       const { data: notifications, error: notifFetchErr } = await serviceClient
