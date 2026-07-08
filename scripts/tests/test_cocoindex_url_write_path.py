@@ -645,6 +645,7 @@ class TestUrlPdfRoute:
 
     def test_head_sniff_detects_pdf_content_type_and_failure_assumes_html(
         self,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """D-12: extensionless URL ⇒ httpx HEAD content-type sniff; a HEAD
         failure assumes HTML and lets the in-process extractor try."""
@@ -681,20 +682,24 @@ class TestUrlPdfRoute:
         url = "https://example.com/download?id=42"
 
         # application/pdf (with charset noise) ⇒ PDF route.
-        flow.httpx.AsyncClient = _client_factory(
-            response=_FakeResponse("application/pdf; charset=binary")
+        monkeypatch.setattr(
+            flow.httpx,
+            "AsyncClient",
+            _client_factory(response=_FakeResponse("application/pdf; charset=binary")),
         )
         assert asyncio.run(flow._url_is_pdf(url)) is True
 
         # text/html ⇒ not PDF.
-        flow.httpx.AsyncClient = _client_factory(
-            response=_FakeResponse("text/html; charset=utf-8")
+        monkeypatch.setattr(
+            flow.httpx,
+            "AsyncClient",
+            _client_factory(response=_FakeResponse("text/html; charset=utf-8")),
         )
         assert asyncio.run(flow._url_is_pdf(url)) is False
 
         # HEAD failure ⇒ assume HTML, let the in-process extractor try (D-12).
-        flow.httpx.AsyncClient = _client_factory(
-            error=httpx.ConnectError("boom")
+        monkeypatch.setattr(
+            flow.httpx, "AsyncClient", _client_factory(error=httpx.ConnectError("boom"))
         )
         assert asyncio.run(flow._url_is_pdf(url)) is False
 
