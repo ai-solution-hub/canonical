@@ -128,14 +128,33 @@ interface CandidateRunRow {
 
 export type GateId = 'G1' | 'G2' | 'G3' | 'G4' | 'G5' | 'G6' | 'G7' | 'E';
 
-export interface GateResult {
+/** A hard (G1–G7) gate result — `pass` gates the run's exit code. */
+export interface HardGateResult {
   readonly id: GateId;
   readonly label: string;
-  /** For `E`, always `true` — informational gates never fail the run. */
   readonly pass: boolean;
-  readonly informational?: boolean;
+  readonly informational?: false;
   readonly detail: string;
 }
+
+/**
+ * An informational (E) gate result — never gates the run's exit code.
+ * `pass: true` is a literal type here (not just a convention): an
+ * informational gate that "fails" is a contradiction in terms, so the
+ * discriminated union makes constructing `{ informational: true, pass:
+ * false, ... }` a compile error instead of a runtime-only invariant
+ * (BL-416 — was previously comment-documented only: "For `E`, always
+ * `true` — informational gates never fail the run").
+ */
+export interface InformationalGateResult {
+  readonly id: GateId;
+  readonly label: string;
+  readonly pass: true;
+  readonly informational: true;
+  readonly detail: string;
+}
+
+export type GateResult = HardGateResult | InformationalGateResult;
 
 // ── Pure helpers (DB-free — unit-testable) ──────────────────────────────────
 
