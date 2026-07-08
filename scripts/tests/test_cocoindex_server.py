@@ -12,7 +12,9 @@ bl-221 (boot-decouple — boot enters the lifespan, never walks):
     background daemon thread, and NO walking `update_blocking(...)` runs at
     boot (mock + assert thread spawn + inverted boot guard, bl-221 G1).
   - POST /walk runs the on-demand `update_blocking(live=False)` corpus walk
-    behind a CRON_SECRET bearer + single-flight lock (TestWalkRoute).
+    behind a CRON_SECRET bearer + single-flight lock (TestWalkRoute), and
+    (as of {127.17} / S436 D1) the SAME `/extract` rate-limit guard
+    (TestWalkRateLimit).
 
 Test philosophy: every test asserts real behaviour. The HTTP `/health`
 path is exercised by invoking the registered route handler IN-PROCESS via
@@ -1321,6 +1323,23 @@ def _fake_pull_sync_stack(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+@pytest.fixture(autouse=True)
+def _reset_shared_rate_limit_state() -> None:
+    """Every test in this file starts (and ends) with a fresh rate-limit
+    window ({127.17}). `_rate_limit_allows` is a single process-global
+    counter shared between `/extract` and `/walk` — without this reset,
+    counts accumulated by earlier tests in this file (or by
+    `test_cocoindex_extract_endpoint.py`'s `/extract` tests, when collected
+    in the same pytest session/process) could push an UNRELATED `/walk` test
+    over budget and produce a spurious 429.
+    """
+    from scripts.cocoindex_pipeline import server as server_mod
+
+    server_mod.reset_rate_limit_state()
+    yield
+    server_mod.reset_rate_limit_state()
+
+
 class TestWalkRouteTable:
     """`POST /walk` is registered on the same `build_app()` app and does not
     displace /health or /stage."""
@@ -1756,6 +1775,74 @@ def _wait_for_lock_release(server_mod: object, timeout: float = 2.0) -> None:
     deadline = time.monotonic() + timeout
     while server_mod.walk_in_progress() and time.monotonic() < deadline:
         time.sleep(0.01)
+
+
+class TestWalkRateLimit:
+    """{127.17} / S436 D1 hardening — `/walk` reuses the SAME fixed-window
+    `_rate_limit_allows` guard `/extract` uses (see the module comment above
+    it), checked right after auth and before the idle-source / single-flight
+    checks."""
+
+    def test_walk_429_when_rate_limit_exceeded(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A burst of `/walk` requests beyond the window budget gets a named
+        429 — never a silent hang or an unbounded pile of walk threads."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_walk_state()
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+        # A budget of 1 makes the burst deterministic without 120 real calls.
+        monkeypatch.setattr(server_mod, "_RATE_LIMIT_MAX_REQUESTS", 1)
+
+        flow = _patched_walk_app()
+        with patch.object(
+            flow.KH_PIPELINE_APP, "update_blocking", return_value=None
+        ):
+            # First /walk consumes the sole budget slot → 202 (accepted).
+            status1, _ = asyncio.run(_exercise_walk(aiohttp_app))
+            assert status1 == 202
+            _wait_for_lock_release(server_mod)
+
+            # Second /walk within the SAME window is over budget → 429, with
+            # a named reason identifying rate limiting (not a bare/opaque
+            # error), BEFORE the idle-source check or single-flight guard is
+            # ever reached.
+            status2, body2 = asyncio.run(_exercise_walk(aiohttp_app))
+        assert status2 == 429
+        assert "rate limit" in body2["error"].lower()
+        # Rejection at the rate-limit gate must not touch the single-flight
+        # lock or spawn a second walk thread.
+        assert not server_mod.walk_in_progress()
+
+    def test_walk_503_when_cron_secret_unset_even_if_rate_limited(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The fail-closed 503-on-unset-secret check runs BEFORE the
+        rate-limit guard, so an exhausted budget must not mask the secret
+        misconfiguration behind a 429."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_walk_state()
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.delenv("CRON_SECRET", raising=False)
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+        # Exhaust the rate-limit budget up front.
+        monkeypatch.setattr(server_mod, "_RATE_LIMIT_MAX_REQUESTS", 0)
+
+        status, _ = asyncio.run(_exercise_walk(aiohttp_app, bearer=None))
+        assert status == 503
+        assert not server_mod.walk_in_progress()
 
 
 # ──────────────────────────────────────────────────────────────────────────

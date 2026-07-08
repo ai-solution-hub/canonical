@@ -155,7 +155,8 @@ def reset_walk_state() -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────────
-# /extract rate-limit state ({112.6} Property 3 — best-effort hardening)
+# Shared rate-limit state ({112.6} Property 3 — best-effort hardening;
+# extended to /walk by {127.17} / S436 D1 board ratification)
 # ──────────────────────────────────────────────────────────────────────────
 #
 # `POST /extract` becomes Traefik-reachable (unlike the compose-internal /stage),
@@ -166,6 +167,12 @@ def reset_walk_state() -> None:
 # deliberately minimal fixed-window counter — NOT heavy infra. It is a
 # defence-in-depth backstop on top of the bearer gate (the only authorised caller
 # is the KH app itself), bounding accidental floods, not a multi-tenant quota.
+#
+# `POST /walk` ({127.17}) reuses this SAME guard rather than a second
+# mechanism: one process-global window is deliberately shared across both
+# Traefik-reachable routes — this is a single-tenant backend pipeline
+# sidecar (one authorised caller, the KH app itself), not a multi-user
+# service needing per-route quotas.
 #
 # A single process-global window suffices: this is a single-tenant backend
 # pipeline sidecar, not a multi-user service. The counter resets every
@@ -184,12 +191,14 @@ _rate_limit_count = 0
 
 
 def _rate_limit_allows() -> bool:
-    """Return True if a fresh `/extract` request is within the per-window budget.
+    """Return True if a fresh `/extract` OR `/walk` request is within the
+    shared per-window budget (see module comment above).
 
-    Minimal fixed-window guard (see module comment above): on the first call of
-    a new window it resets the counter; within a window it increments and
-    rejects once `_RATE_LIMIT_MAX_REQUESTS` is exceeded. Best-effort, process-
-    local — a flood backstop layered on the bearer gate, not a precise quota.
+    Minimal fixed-window guard: on the first call of a new window it resets
+    the counter; within a window it increments and rejects once
+    `_RATE_LIMIT_MAX_REQUESTS` is exceeded. Best-effort, process-local — a
+    flood backstop layered on each route's own bearer gate, not a precise
+    per-route quota.
     """
     global _rate_limit_window_start, _rate_limit_count
     now = time.monotonic()
@@ -204,7 +213,8 @@ def _rate_limit_allows() -> bool:
 
 
 def reset_rate_limit_state() -> None:
-    """Reset the `/extract` rate-limit window — test-only clean-slate helper."""
+    """Reset the shared `/extract` + `/walk` rate-limit window — test-only
+    clean-slate helper."""
     global _rate_limit_window_start, _rate_limit_count
     with _RATE_LIMIT_LOCK:
         _rate_limit_window_start = 0.0
@@ -750,6 +760,13 @@ async def _walk_handler(request: web.Request) -> web.Response:
     missing/wrong bearer → 401. If CRON_SECRET is unset in the environment the
     route fails closed (503) rather than allowing an unauthenticated walk.
 
+    Rate limit (S436 D1 hardening — {127.17}): reuses the SAME minimal
+    fixed-window guard `/extract` uses (`_rate_limit_allows`, see the module
+    comment above it) rather than inventing a second mechanism, so both
+    Traefik-reachable routes behave consistently under flood. Over-budget →
+    429 with a named reason, checked right after auth and BEFORE the
+    idle-source check / single-flight guard so a flood cannot spend either.
+
     Single-flight (G4): a module-level `threading.Lock` acquired non-blocking.
     If a walk is already in flight → 409, never a second concurrent walk burning
     Anthropic in parallel. The lock is released by the worker thread's `finally`
@@ -765,13 +782,14 @@ async def _walk_handler(request: web.Request) -> web.Response:
     Inv-5) — friendlier for an operator who expected a corpus, and it avoids
     spending the single-flight slot on a guaranteed no-op walk.
 
-    Behaviour: validate bearer + source → acquire the single-flight guard →
-    spawn a daemon worker thread running `_run_walk` (P5 pull-sync under the
-    {138.9} writer fence, THEN one-shot `update_blocking(live=False,
-    full_reprocess=…)` — see `_run_walk` / `_pull_sync_then_walk`) → return
-    202 Accepted + `requestId` immediately (the walk runs async; completion is
-    observed via the pipeline_runs webhook). Does NOT touch
-    `worker_is_healthy()` — a /walk request cannot flip /health to 503.
+    Behaviour: validate bearer → rate-limit guard → validate source → acquire
+    the single-flight guard → spawn a daemon worker thread running `_run_walk`
+    (P5 pull-sync under the {138.9} writer fence, THEN one-shot
+    `update_blocking(live=False, full_reprocess=…)` — see `_run_walk` /
+    `_pull_sync_then_walk`) → return 202 Accepted + `requestId` immediately
+    (the walk runs async; completion is observed via the pipeline_runs
+    webhook). Does NOT touch `worker_is_healthy()` — a /walk request cannot
+    flip /health to 503.
     """
     # (1) Auth — bearer must match CRON_SECRET. Fail closed if the secret is
     #     unset (never allow an unauthenticated walk).
@@ -788,7 +806,16 @@ async def _walk_handler(request: web.Request) -> web.Response:
             {"error": "missing or invalid bearer token"}, status=401
         )
 
-    # (2) Idle-source loud-reject (Inv-5) — a walk with no corpus is a named 400,
+    # (2) Rate-limit guard (S436 D1 — {127.17}) — reuses the SAME `/extract`
+    #     fixed-window budget (`_rate_limit_allows`), a flood backstop layered
+    #     on the bearer gate. Over-budget → a named 429, before the
+    #     idle-source check or the single-flight slot is touched.
+    if not _rate_limit_allows():
+        return web.json_response(
+            {"error": "rate limit exceeded — retry later"}, status=429
+        )
+
+    # (3) Idle-source loud-reject (Inv-5) — a walk with no corpus is a named 400,
     #     not a silent no-op that consumes the single-flight slot.
     source_path = os.environ.get("COCOINDEX_SOURCE_PATH")
     if not source_path:
@@ -802,14 +829,14 @@ async def _walk_handler(request: web.Request) -> web.Response:
             status=400,
         )
 
-    # (3) Single-flight guard (G4) — non-blocking acquire; a held lock means a
+    # (4) Single-flight guard (G4) — non-blocking acquire; a held lock means a
     #     walk is already running → 409.
     if not _WALK_IN_FLIGHT.acquire(blocking=False):
         return web.json_response(
             {"error": "walk already in progress"}, status=409
         )
 
-    # (4) Parse the optional full_reprocess flag, then spawn the walk worker.
+    # (5) Parse the optional full_reprocess flag, then spawn the walk worker.
     #     If anything below raises before the thread starts, release the lock so
     #     it is not wedged by a handler-side failure.
     try:
