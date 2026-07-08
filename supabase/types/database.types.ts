@@ -3931,6 +3931,18 @@ export type Database = {
           title: string
         }[]
       }
+      resolve_or_mint_form_template_id: {
+        Args: {
+          p_created_by: string
+          p_file_size: number
+          p_filename: string
+          p_mime_type: string
+          p_name: string
+          p_storage_path: string
+          p_workspace_id: string
+        }
+        Returns: string
+      }
       resolve_or_mint_source_identity: {
         Args: {
           p_content_hash: string
@@ -8382,6 +8394,18 @@ export type Database = {
           summary_preview: string
           title: string
         }[]
+      }
+      resolve_or_mint_form_template_id: {
+        Args: {
+          p_created_by: string
+          p_file_size: number
+          p_filename: string
+          p_mime_type: string
+          p_name: string
+          p_storage_path: string
+          p_workspace_id: string
+        }
+        Returns: string
       }
       resolve_or_mint_source_identity: {
         Args: {
