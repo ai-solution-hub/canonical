@@ -120,7 +120,7 @@ export async function createTestResponse(
   void prefix;
   const supabase = createServiceClient();
   const { data } = await supabase
-    .from('bid_responses')
+    .from('form_responses')
     .insert({
       question_id: questionId,
       response_text: 'Test bid response created by E2E data factory.',
@@ -153,10 +153,10 @@ export async function createExportReadyBid(prefix: string): Promise<{
 
   // Create 2 questions
   const { data: qs } = await supabase
-    .from('bid_questions')
+    .from('form_questions')
     .insert([
       {
-        project_id: procurementId,
+        workspace_id: procurementId,
         section_name: 'Technical',
         section_sequence: 1,
         question_sequence: 1,
@@ -164,7 +164,7 @@ export async function createExportReadyBid(prefix: string): Promise<{
         word_limit: 500,
       },
       {
-        project_id: procurementId,
+        workspace_id: procurementId,
         section_name: 'Experience',
         section_sequence: 2,
         question_sequence: 1,
@@ -186,7 +186,7 @@ export async function createExportReadyBid(prefix: string): Promise<{
   }));
 
   const { data: resps } = await supabase
-    .from('bid_responses')
+    .from('form_responses')
     .insert(responseInserts)
     .select('id')
     .throwOnError();
@@ -255,7 +255,7 @@ export async function createBidWithQuestions(
   const procurementId = await createTestBid(prefix, overrides);
 
   const questions = Array.from({ length: questionCount }, (_, i) => ({
-    project_id: procurementId,
+    workspace_id: procurementId,
     section_name: `Section ${i + 1}`,
     section_sequence: i + 1,
     question_sequence: 1,
@@ -264,7 +264,7 @@ export async function createBidWithQuestions(
   }));
 
   const { data: qs } = await supabase
-    .from('bid_questions')
+    .from('form_questions')
     .insert(questions)
     .select('id')
     .throwOnError();
