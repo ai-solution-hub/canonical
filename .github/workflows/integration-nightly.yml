@@ -1,0 +1,162 @@
+# ID-128.4 — Nightly Supabase+AI integration lane (folds bl-338).
+#
+# The PR-blocking `integration` job in ci.yml runs `bun run test:integration`
+# WITHOUT `KH_RUN_INTEGRATION` / `INTEGRATION_INTELLIGENCE`, so ~52 gated cases
+# (intelligence-golden-path + q-a-pairs — real Anthropic/OpenAI calls) never
+# execute in CI (bl-338; see ci.yml integration job env-block comment + S403
+# coverage audit gap 3, MED). This lane sets both flags and runs the SAME
+# `vitest.integration.config.ts` suite on a daily off-peak schedule so those
+# cases execute somewhere automated, off the PR critical path.
+#
+# NOT PR-blocking — scheduled + manual only (no `pull_request` trigger). The
+# `ci.yml` integration job is UNCHANGED — this is an additive lane, not a
+# flag flip on the existing gate (cost-zero on PRs preserved).
+#
+# cocoindex integration (~40 files, COCOINDEX_* sidecar-gated) is OUT of
+# scope here — tracked separately as the nightly cocoindex lane (128.3,
+# folds bl-341/bl-227/bl-195). This lane does not set any COCOINDEX_* var, so
+# those suites remain skipped here too.
+#
+# Cadence: cron (nightly) AND workflow_dispatch (both, per Liam) — each run
+# incurs real Anthropic/OpenAI spend (~52 cases), so cadence is deliberately
+# once/day rather than per-push. workflow_dispatch exists for on-demand
+# triage reruns without waiting for the next scheduled window.
+#
+# Concurrency: shares the `integration-staging-integration` group with the
+# PR-blocking `integration` job in ci.yml (see ci.yml line ~948) — both
+# write real rows into the SAME staging Supabase project/tables
+# (intelligence-golden-path fixtures, q_a_pairs), so they must be serialised,
+# not run concurrently. Queue (no cancel) so a manual dispatch never clobbers
+# an in-flight scheduled or PR-triggered run.
+#
+# Budget: no per-run cost cap beyond the existing gated-suite scope (~52
+# cases, same real-API cost profile as a single enabled PR integration run
+# would have) — a fixed daily cadence bounds total spend to ~1x/day. Revisit
+# with a narrower `--reporter`/case subset if nightly spend proves material.
+#
+# Required secrets / vars (Staging environment scope — per
+# docs/runbooks/github-environments.md §2): identical to the `integration`
+# job in ci.yml (staging Supabase URL/keys + server-boot secrets +
+# TEST_USER_{1,2,3} credentials). No new secrets — existing CI creds suffice
+# (no sidecar needed, unlike cocoindex/128.3).
+#
+# Workflow-injection mitigation: all github context + secret values arrive
+# via the job-level `env:` block, never inline ${{ }} in run: steps (mirrors
+# ci.yml integration + eval-nightly + e2e-nightly).
+
+name: Integration nightly
+
+on:
+  schedule:
+    # Daily at 05:00 UTC — staggered after supabase-advisors (02:00),
+    # eval-nightly/staging-reference-refresh (03:00), and e2e-nightly (04:00)
+    # to avoid contention on the shared CI Supabase project.
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+
+concurrency:
+  # Shared with the PR-blocking `integration` job (ci.yml) — see header.
+  group: integration-staging-integration
+  cancel-in-progress: false
+
+jobs:
+  integration:
+    name: Integration nightly — Supabase+AI gated cases (bl-338)
+    runs-on: ubuntu-latest
+    # Staging-scoped: TEST_USER_{1,2,3}_* + staging Supabase secrets only
+    # exist on Staging env scope (per docs/runbooks/github-environments.md
+    # §2). Case-sensitive — must exactly match `Staging`.
+    environment: Staging
+    # Generous vs the PR job's 25min ceiling: this run exercises the ~52
+    # gated cases IN ADDITION to the ~30 already-ungated integration files
+    # (both flags widen the suite, not replace it), with real Anthropic/
+    # OpenAI latency on top.
+    timeout-minutes: 45
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: "1.3.4"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run integration tests (gated cases enabled)
+        env:
+          # Mirror the ci.yml `integration` job env block exactly, plus the
+          # two gate flags below.
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Server-side secrets the integration runner boots with
+          # (lib/env-server.ts validates at module load — every Zod-required
+          # field must be set or the first test import throws before any
+          # `it()` runs).
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          # AI keys (ANTHROPIC + OPENAI) — required for module-load imports
+          # AND now exercised for real by the gated cases below.
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # CRON_SECRET — review-cadence-lifecycle.integration.test.ts asserts
+          # cron-route Bearer-token gate.
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          # Mirror to NEXT_PUBLIC_* for the client schema (auth-session.ts
+          # sign-in path uses these).
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
+            ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+          NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
+          AI_EMBEDDING_MODEL: ${{ vars.AI_EMBEDDING_MODEL }}
+          AI_EMBEDDING_DIMS: ${{ vars.AI_EMBEDDING_DIMS }}
+          # Test-user credentials — pre-seeded into staging by
+          # scripts/seed-e2e-users.ts (per docs/runbooks/staging-refresh.md
+          # §4). 3 personas: TEST_USER_1 admin, TEST_USER_2 editor,
+          # TEST_USER_3 viewer.
+          TEST_USER_1_EMAIL: ${{ vars.TEST_USER_1_EMAIL }}
+          TEST_USER_1_PASSWORD: ${{ secrets.TEST_USER_1_PASSWORD }}
+          TEST_USER_2_EMAIL: ${{ vars.TEST_USER_2_EMAIL }}
+          TEST_USER_2_PASSWORD: ${{ secrets.TEST_USER_2_PASSWORD }}
+          TEST_USER_3_EMAIL: ${{ vars.TEST_USER_3_EMAIL }}
+          TEST_USER_3_PASSWORD: ${{ secrets.TEST_USER_3_PASSWORD }}
+          # The two gate flags this lane exists to flip on (bl-338). No
+          # COCOINDEX_* here — cocoindex suites stay skipped (128.3 scope).
+          KH_RUN_INTEGRATION: "1"
+          INTEGRATION_INTELLIGENCE: "1"
+        # `tee` so the log appears live in the GH Actions step UI as it
+        # streams, not just post-failure. `set -o pipefail` ensures the
+        # pipeline returns the test runner's exit code, not tee's.
+        run: |
+          set -o pipefail
+          bun run test:integration 2>&1 | tee /tmp/integration-nightly.log
+
+      - name: Coverage notice (bl-338)
+        # Visibility: confirms the previously PR-gated-off cases actually ran
+        # in THIS lane. Non-fatal (always(), separate step) so it never
+        # affects the gate.
+        if: always()
+        run: |
+          SKIP_LINE=$(grep -iE 'Tests?[[:space:]]+.*skipped' /tmp/integration-nightly.log 2>/dev/null | tail -1 || true)
+          echo "::notice title=Integration nightly coverage (bl-338)::${SKIP_LINE:-no skip summary in log}. KH_RUN_INTEGRATION=1 + INTEGRATION_INTELLIGENCE=1 — the ~52 gated Supabase+AI cases (intelligence-golden-path + q-a-pairs) ran in this lane. cocoindex integration (~40 files, COCOINDEX_* sidecar-gated) still NOT run here — tracked separately (128.3)."
+
+      - name: Upload integration log on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: integration-nightly-log-${{ github.run_id }}
+          path: /tmp/integration-nightly.log
+          retention-days: 14
+          if-no-files-found: ignore
