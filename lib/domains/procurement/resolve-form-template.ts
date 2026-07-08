@@ -62,20 +62,6 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { sb } from '@/lib/supabase/safe';
 import type { Database } from '@/supabase/types/database.types';
 
-// TYPE ESCAPE (deliberate, temporary — same precedent as
-// lib/corpus/writer-fence.ts's `UntypedRpcClient`): the RPC this file calls
-// (`resolve_or_mint_form_template_id`, public + api wrapper) is authored in
-// 20260708120000_id130_form_template_id_backfill_guard.sql STEP 3 but NOT YET
-// in the generated `database.types.ts` — this Subtask's worktree has no DB
-// access to apply the migration or regen types (a types-regen is flagged as
-// a follow-up intent). `SupabaseClient<any>` is the standard escape for
-// calling a not-yet-generated RPC surface, confined to the single `.rpc()`
-// call site below. DELETE this escape (call `.rpc()` directly on the typed
-// client) once the coordinated apply + `supabase gen types` regenerates
-// `Database['public']['Functions']['resolve_or_mint_form_template_id']`.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type UntypedRpcClient = SupabaseClient<any>;
-
 /** Fields needed to mint a `form_templates` row when a workspace has none. */
 export interface FormTemplateMintDefaults {
   /** `form_templates.name` (NOT NULL). */
@@ -109,17 +95,26 @@ export async function resolveOrMintFormTemplateId(
   workspaceId: string,
   mint: FormTemplateMintDefaults,
 ): Promise<string> {
-  const rpcClient = supabase as unknown as UntypedRpcClient;
+  // The generated RPC Args type marks `p_created_by` as required `string`
+  // even though the underlying `form_templates.created_by` column is
+  // NULLable (script/system mints pass `null`) — same generated-type quirk
+  // `lib/upload/folder-drop.ts`'s `resolve_or_mint_source_identity` call
+  // casts around (B-25 precedent): the RPC body inserts straight into a
+  // nullable column, so this cast is safe (DB is source of truth).
+  const rpcArgs = {
+    p_workspace_id: workspaceId,
+    p_name: mint.name,
+    p_filename: mint.filename,
+    p_storage_path: mint.storagePath,
+    p_file_size: mint.fileSize,
+    p_mime_type: mint.mimeType,
+    p_created_by: mint.createdBy,
+  };
   return sb<string>(
-    rpcClient.rpc('resolve_or_mint_form_template_id', {
-      p_workspace_id: workspaceId,
-      p_name: mint.name,
-      p_filename: mint.filename,
-      p_storage_path: mint.storagePath,
-      p_file_size: mint.fileSize,
-      p_mime_type: mint.mimeType,
-      p_created_by: mint.createdBy,
-    }),
+    supabase.rpc(
+      'resolve_or_mint_form_template_id',
+      rpcArgs as unknown as Database['public']['Functions']['resolve_or_mint_form_template_id']['Args'],
+    ),
     'procurement.formTemplates.resolveOrMintForWorkspace',
   );
 }

@@ -16,27 +16,12 @@ import {
 } from '@/lib/validation/schemas';
 import { tryQuery } from '@/lib/supabase/safe';
 import type { Database } from '@/supabase/types/database.types';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
 type WorkspaceUpdate = Database['public']['Tables']['workspaces']['Update'];
 type FormTemplateUpdate =
   Database['public']['Tables']['form_templates']['Update'];
-
-// TYPE ESCAPE (deliberate, temporary — same precedent as
-// lib/domains/procurement/resolve-form-template.ts's `UntypedRpcClient`): the
-// `get_procurement_rollup` RPC (public + api wrapper) is authored in
-// supabase/migrations/20260708140000_id130_procurement_rollup_api_rpc.sql but not
-// yet in the generated `database.types.ts` — this Subtask's worktree has no DB
-// access to apply the migration or regen types (a types-regen is flagged as a
-// follow-up intent). `SupabaseClient<any>` is the standard escape for calling a
-// not-yet-generated RPC surface, confined to the single `.rpc()` call site below.
-// DELETE this escape (call `.rpc()` directly on the typed client) once the
-// coordinated apply + `supabase gen types` regenerates
-// `Database['api']['Functions']['get_procurement_rollup']`.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type UntypedRpcClient = SupabaseClient<any>;
 
 export const maxDuration = 30;
 
@@ -157,8 +142,6 @@ export const GET = defineRoute(
       // 20260708140000_id130_procurement_rollup_api_rpc.sql) is the sanctioned
       // read path — RLS still applies (SECURITY INVOKER), only the transport
       // changes from a base-table select to an RPC call.
-      //
-      // `UntypedRpcClient` escape — see the file-header comment above.
       let rollup: Pick<
         Database['public']['Tables']['procurement_workspaces']['Row'],
         | 'nearest_deadline'
@@ -166,7 +149,6 @@ export const GET = defineRoute(
         | 'counts_toward_win_rate'
         | 'rollup_updated_at'
       > | null = null;
-      const rollupRpcClient = supabase as unknown as UntypedRpcClient;
       const rollupResult = await tryQuery<
         Array<
           Pick<
@@ -178,7 +160,7 @@ export const GET = defineRoute(
           >
         >
       >(
-        rollupRpcClient.rpc('get_procurement_rollup', {
+        supabase.rpc('get_procurement_rollup', {
           p_workspace_id: id,
         }),
         'procurement.detail.rollup',
