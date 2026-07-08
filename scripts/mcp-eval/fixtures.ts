@@ -12,7 +12,6 @@ import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import { loadScriptEnv } from '@/scripts/lib/load-script-env';
 import {
   MCP_EVAL_SEED_ITEMS,
-  MCP_EVAL_SEED_METADATA_FLAG,
   MCP_EVAL_SEED_ROLE_SIMILARITY_SOURCE,
 } from './seed-data.js';
 
@@ -264,14 +263,6 @@ export interface KnownUUIDs {
   procurementResponseId: string | null;
 }
 
-function isMcpEvalSeedMetadata(metadata: unknown): boolean {
-  return (
-    typeof metadata === 'object' &&
-    metadata !== null &&
-    (metadata as Record<string, unknown>)[MCP_EVAL_SEED_METADATA_FLAG] === true
-  );
-}
-
 /**
  * ID-130.23 B2 (S451 CI-red, {139.6} file-ownership) — re-pointed off the
  * DROPPED `content_items` table (20260706110000_id131_drops.sql, M6). The old
@@ -409,28 +400,32 @@ export interface EvalItem {
 }
 
 /**
- * Creates a dedicated eval content item via the Supabase client (not MCP).
- * This ensures the item exists before testing MCP write tools against it.
+ * {139.6} (S453, {139.6} file-ownership) — re-pointed off the DROPPED
+ * `content_items`/`content_history` tables (20260706110000_id131_drops.sql,
+ * M6) onto `source_documents`, mirroring getKnownUUIDs above. Write tools
+ * exercised against this item (update_content_item, delete_content_item,
+ * assign, classify_content, etc.) resolve a plain id against
+ * `source_documents` first (lib/mcp/tools/content.ts ownerKind resolution),
+ * so a source_documents row is the correct target. `title`/`content` have no
+ * source_documents column — `suggested_title`/`extracted_text` are the M6
+ * successors (BI-11); `platform` has no successor and is dropped from the
+ * write (no MCP write tool or read path depends on it).
  */
 export async function createEvalItem(
   supabase: SupabaseClient,
 ): Promise<EvalItem> {
-  // Clean up any leftover eval items from previous runs. Use the shared
-  // lifecycle helper so content_history is deleted before content_items; a raw
-  // parent delete leaves ON DELETE SET NULL history orphans in staging.
+  // Clean up any leftover eval items from previous runs.
   await cleanupStaleEvalItems(supabase);
 
   const { data, error } = await supabase
-    .from('content_items')
+    .from('source_documents')
     .insert({
-      title: EVAL_TITLE,
       suggested_title: EVAL_TITLE,
-      content: EVAL_CONTENT,
+      extracted_text: EVAL_CONTENT,
       content_type: 'note',
-      platform: 'manual',
       captured_date: new Date().toISOString(),
     })
-    .select('id, title')
+    .select('id, suggested_title')
     .single();
 
   if (error || !data) {
@@ -439,26 +434,38 @@ export async function createEvalItem(
     );
   }
 
-  return { id: data.id, title: data.title ?? EVAL_TITLE };
+  return { id: data.id, title: data.suggested_title ?? EVAL_TITLE };
 }
 
 /**
- * Deletes the eval content item and any related data.
+ * Deletes the eval source_documents row and any related data.
+ *
+ * `citations.cited_source_document_id` and `record_lifecycle.source_document_id`
+ * both cascade on source_documents delete (ON DELETE CASCADE — 20260628191703
+ * / 20260628190000), so the explicit citations delete below is defensive, not
+ * load-bearing. `content_history` was dropped at M6 with no successor
+ * audit-trail table (BI-34, per lib/mcp/tools/governance.ts and content.ts's
+ * retired-write comments) — there is nothing left to clean up there.
  */
 export async function deleteEvalItem(
   supabase: SupabaseClient,
   id: string,
 ): Promise<void> {
-  // Delete citations referencing the eval item
-  await supabase.from('citations').delete().eq('cited_content_item_id', id);
-  // Delete content history
-  await supabase.from('content_history').delete().eq('content_item_id', id);
-  // Delete the item itself
-  await supabase.from('content_items').delete().eq('id', id);
+  // Delete citations referencing the eval item.
+  await supabase.from('citations').delete().eq('cited_source_document_id', id);
+  // Delete the item itself.
+  await supabase.from('source_documents').delete().eq('id', id);
 }
 
 /**
  * Cleans up any eval items left over from previous runs.
+ *
+ * The deterministic MCP eval seed fixtures live entirely in `q_a_pairs`
+ * post-M6 (seed-fixtures.ts) under the `[MCP-SEED]` title prefix — distinct
+ * from this function's `source_documents` scan and `[MCP-EVAL]` prefix, so
+ * there is no seed row to protect here (the old metadata-flag exclusion this
+ * function used against `content_items` no longer has anything to guard
+ * against; `source_documents` has no `metadata` column).
  */
 export async function cleanupStaleEvalItems(
   supabase: SupabaseClient,
@@ -476,15 +483,13 @@ export async function cleanupStaleEvalItems(
     Date.now() - safeMinAgeMinutes * 60_000,
   ).toISOString();
   const { data } = await supabase
-    .from('content_items')
-    .select('id, metadata, created_at')
-    .like('title', '[MCP-EVAL]%')
+    .from('source_documents')
+    .select('id')
+    .like('suggested_title', '[MCP-EVAL]%')
     .lt('created_at', cutoffIso);
 
   if (!data || data.length === 0) return 0;
-  const staleItems = (
-    data as Array<{ id: string; metadata: unknown; created_at: string | null }>
-  ).filter((item) => !isMcpEvalSeedMetadata(item.metadata));
+  const staleItems = data as Array<{ id: string }>;
 
   for (const item of staleItems) {
     await deleteEvalItem(supabase, item.id);
