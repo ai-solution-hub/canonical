@@ -3687,6 +3687,15 @@ export type Database = {
           keyword: string
         }[]
       }
+      get_procurement_rollup: {
+        Args: { p_workspace_id: string }
+        Returns: {
+          counts_toward_win_rate: boolean
+          nearest_deadline: string
+          overall_outcome: string
+          rollup_updated_at: string
+        }[]
+      }
       get_review_breakdown_stats: { Args: never; Returns: Json }
       get_user_display_names: {
         Args: { user_ids: string[] }
@@ -8105,6 +8114,15 @@ export type Database = {
         Returns: {
           item_count: number
           keyword: string
+        }[]
+      }
+      get_procurement_rollup: {
+        Args: { p_workspace_id: string }
+        Returns: {
+          counts_toward_win_rate: boolean
+          nearest_deadline: string
+          overall_outcome: string
+          rollup_updated_at: string
         }[]
       }
       get_review_breakdown_stats: { Args: never; Returns: Json }
