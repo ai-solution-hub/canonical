@@ -1,0 +1,109 @@
+# ID-128.5 — Nightly unconditional pytest drift insurance.
+#
+# ci.yml's `quality-precheck` job runs `python3 -m pytest scripts/tests/` but
+# gates it behind a `paths-filter` (scripts/**/*.py, requirements.txt,
+# scripts/tests/**) — intentional for PR speed (avoids a ~3-4 min pip-install
+# + pytest tax on every unrelated PR). That gate has a blind spot: an
+# app-side change that alters a pipeline contract (e.g. a taxonomy shape, a
+# Supabase column the pipeline reads) won't touch scripts/** and so won't
+# trigger the gated job, even though it could silently break the pipeline.
+# This lane closes that gap by running the SAME pytest command
+# unconditionally on a nightly schedule. NOT PR-blocking — failures surface
+# here, not on unrelated PRs.
+#
+# KNOWN environment note: local sandboxed runs show failures confined to
+# scripts/tests/oq/ — a local sandbox EPERM artifact (heredoc restriction),
+# NOT a real regression; see scripts/CLAUDE.md "Two known full-suite
+# baseline deltas". A real CI runner (this lane, and the gated ci.yml job)
+# has no such sandbox restriction and runs oq/ clean. Do not attempt to
+# "fix" or exclude oq/ here to hide that local-only artifact.
+#
+# Cadence: staggered after supabase-advisors (02:00), eval-nightly /
+# staging-reference-refresh (03:00), e2e-nightly (04:00), integration-nightly
+# (05:00), and cocoindex-nightly (06:00) — 07:00 UTC avoids contention on the
+# shared Staging Supabase project.
+#
+# Required secrets / vars (Staging environment scope — per
+# docs/runbooks/github-environments.md §2), mirrored from ci.yml's gated
+# pytest step (kb_pipeline.config calls load_dotenv(.env.local) at import;
+# in CI the file is absent so vars must come from process env):
+#   Secrets:
+#     SUPABASE_SERVICE_ROLE_KEY, SUPABASE_PUBLISHABLE_KEY, ANTHROPIC_API_KEY,
+#     OPENAI_API_KEY
+#   Vars:
+#     SUPABASE_URL, AI_SUMMARY_MODEL, AI_EMBEDDING_MODEL, AI_EMBEDDING_DIMS,
+#     CLASSIFICATION_BATCH_SIZE
+#
+# Workflow-injection mitigation: all secret/var values arrive via the
+# job-level `env:` block, never inline ${{ }} in run: steps (mirrors
+# eval-nightly.yml / cocoindex-nightly.yml / onprem-deploy.yml).
+
+name: Pytest nightly
+
+on:
+  schedule:
+    # Daily at 07:00 UTC — see cadence note above.
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+concurrency:
+  # One nightly run at a time — no cancellation (queue instead) so a manual
+  # dispatch never clobbers an in-flight scheduled run.
+  group: pytest-nightly
+  cancel-in-progress: false
+
+jobs:
+  pytest:
+    name: Pytest — scripts/tests/ (unconditional)
+    runs-on: ubuntu-latest
+    # Staging-scoped: kb_pipeline.config reads SUPABASE_URL / keys at import
+    # time. Case-sensitive — must exactly match `Staging`
+    # (docs/runbooks/github-environments.md §2).
+    environment: Staging
+    # ci.yml's combined lint+build+pytest budget is 15 min with pytest alone
+    # observed at ~3-4 min (pip install ~2m36s worst case); this job runs
+    # ONLY the Python setup + pytest steps, so 15 min is generous headroom.
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install pandoc
+        # ID-85.1 — the B1 production image ships pandoc and local dev
+        # machines have it, but ubuntu-latest runners do not. Without it,
+        # docx_cell_to_markdown.py falls back to tag stripping and the
+        # conversion tests in test_docx_cell_to_markdown.py fail. Installing
+        # pandoc keeps those tests exercising REAL conversion (production
+        # parity) rather than skipping via @requires_pandoc.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pandoc
+
+      - name: Test (pytest — unconditional, no paths-filter)
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
+            ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AI_SUMMARY_MODEL: ${{ vars.AI_SUMMARY_MODEL }}
+          AI_EMBEDDING_MODEL: ${{ vars.AI_EMBEDDING_MODEL }}
+          AI_EMBEDDING_DIMS: ${{ vars.AI_EMBEDDING_DIMS }}
+          CLASSIFICATION_BATCH_SIZE: ${{ vars.CLASSIFICATION_BATCH_SIZE }}
+        run: python3 -m pytest scripts/tests/
