@@ -394,10 +394,18 @@ class TestUrlLandingDeclaresEvidencePair:
         assert ri_row["primary_domain"] == "procurement"
         assert ri_row["primary_subtopic"] == "tender_evaluation"
         assert ri_row["layer"] == "research"
-        assert len(ri_row["embedding"]) == 1024
         assert ri_row["source_document_id"] == sd_row["id"]
         assert ri_row["ingestion_source"] == "rss_feed"
         assert ri_row["op_id"] == run_op_id
+
+        # ID-127.24 (DR-036): reference_items.embedding was DROPPED from the
+        # live schema (20260706120000_id131_drop_inline_vector_cols.sql) —
+        # record_embeddings is the sole source of truth for this vector now
+        # (see test_reference_item_embedding_is_dual_written_to_record_embeddings).
+        assert "embedding" not in ri_row, (
+            "reference_items.embedding was dropped (DR-036) — the pipeline "
+            "must not declare it any more"
+        )
 
         # D-10: content_type is DISCARDED — references carry no content_type.
         assert "content_type" not in ri_row, (
@@ -455,7 +463,9 @@ class TestUrlLandingDeclaresEvidencePair:
         # same id the inline reference_items row carries (re-land idempotency).
         assert re_row["owner_id"] == ri_row["id"]
         assert re_row["model"] == flow.EMBEDDING_MODEL
-        assert re_row["embedding"] == ri_row["embedding"]
+        # ID-127.24 (DR-036): reference_items.embedding is DROPPED — ri_row no
+        # longer carries an "embedding" key to compare against.
+        # record_embeddings is the SOLE source of truth for this vector.
         assert len(re_row["embedding"]) == 1024
         # No synthetic id / no per-run op_id in the record_embeddings payload.
         assert set(re_row) == {"owner_kind", "owner_id", "model", "embedding"}

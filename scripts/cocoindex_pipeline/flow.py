@@ -1290,10 +1290,14 @@ SOURCE_DOCUMENTS_SCHEMA = TableSchema(
 # per the existing convention (explicit writes would duplicate the default /
 # fight the updated_at trigger). `id` is PIPELINE-MINTED
 # uuid5(_KH_PIPELINE_DOC_NS, "ri:"+normalised URL) — deliberately no DB
-# default (BI-2 idempotency under a stable PK). `embedding` reuses the
-# pgvector text-literal encoder. UNIQUE(source_url) in M1 enforces one
-# reference per URL (BI-2/BI-8); NO workspace column exists (BI-7
-# RATIFIED-DO-NOT-BUILD).
+# default (BI-2 idempotency under a stable PK). UNIQUE(source_url) in M1
+# enforces one reference per URL (BI-2/BI-8); NO workspace column exists
+# (BI-7 RATIFIED-DO-NOT-BUILD).
+# ID-127.24 (DR-036): `embedding` REMOVED — 20260706120000_id131_drop_
+# inline_vector_cols.sql dropped reference_items.embedding from the live
+# schema (both envs). record_embeddings (owner_kind='reference_item') is the
+# sole source of truth for this vector now — see `_declare_record_embedding`
+# at the `ri_target.declare_row` call site below.
 REFERENCE_ITEMS_SCHEMA = TableSchema(
     columns={
         "id": ColumnDef(type="uuid", nullable=False),
@@ -1310,12 +1314,6 @@ REFERENCE_ITEMS_SCHEMA = TableSchema(
         # v1 constant 'research' (D-10) — trigger-validated against
         # layer_vocabulary in M1.
         "layer": ColumnDef(type="text", nullable=True),
-        # Whole-record embedding — NO chunk table (BI-17, OQ-75-4 ratified).
-        "embedding": ColumnDef(
-            type="vector(1024)",
-            nullable=True,
-            encoder=_encode_pgvector,
-        ),
         # Provenance chain integrity (BI-15) — RESTRICT FK in M1.
         "source_document_id": ColumnDef(type="uuid", nullable=False),
         # Acquisition route — CV 13 semantics (BI-9 / D-11): 'rss_feed' v1.
@@ -3911,7 +3909,10 @@ async def _ingest_url_body(
             "primary_domain": _field(classification, "primary_domain"),
             "primary_subtopic": _field(classification, "primary_subtopic"),
             "layer": "research",  # v1 constant (D-10)
-            "embedding": embedding,
+            # ID-127.24 (DR-036): "embedding" REMOVED from this row dict — the
+            # column was dropped from reference_items (20260706120000). The
+            # `embedding` local var (computed above) now feeds ONLY the
+            # record_embeddings dual-write below.
             "source_document_id": source_document_id,
             "ingestion_source": item.ingestion_source,
             "op_id": op_id,
@@ -3920,11 +3921,13 @@ async def _ingest_url_body(
         }
     )
     _bump("postgres_upsert")  # Inv-17: reference_items row upsert
-    # ID-131 {131.11}: dual-write the reference item's vector to the polymorphic
-    # record_embeddings store keyed on the reference item's OWN uuid5 PK
-    # (`ri:{url}`) so a re-land UPSERTs. No-op when re_target is None (the
-    # in-task unit callers). The inline reference_items.embedding write above
-    # stays until a sibling slice drops the column.
+    # ID-131 {131.11} / ID-127.24 (DR-036): dual-write the reference item's
+    # vector to the polymorphic record_embeddings store keyed on the
+    # reference item's OWN uuid5 PK (`ri:{url}`) so a re-land UPSERTs. No-op
+    # when re_target is None (the in-task unit callers). record_embeddings is
+    # now the SOLE write target for this vector — the inline
+    # reference_items.embedding write was retired by this Subtask (the column
+    # itself was already dropped by 20260706120000).
     _declare_record_embedding(
         re_target,
         owner_kind="reference_item",
