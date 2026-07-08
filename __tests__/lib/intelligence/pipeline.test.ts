@@ -1557,6 +1557,42 @@ describe('runPipeline — cocoindex walk nudge (ID-75 WP-E, D-3)', () => {
     );
   });
 
+  it('ID-127.18 (S436 D1): prefers the dedicated PIPELINE_TRIGGER_SECRET bearer over the legacy CRON_SECRET when both are set', async () => {
+    vi.stubEnv('PIPELINE_TRIGGER_SECRET', 'new-pipeline-trigger-secret');
+    await primePassedArticleMocks();
+    const { supabase } = buildRunPipelineMock(NUDGE_MOCK_OPTIONS);
+
+    const result = await runPipeline(supabase);
+
+    expect(result.totalArticlesPassed).toBe(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://cocoindex-worker.example.com/walk',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { Authorization: 'Bearer new-pipeline-trigger-secret' },
+        signal: expect.any(AbortSignal),
+      }),
+    );
+  });
+
+  it('ID-127.18: DUAL-ACCEPT — falls back to the legacy CRON_SECRET bearer when PIPELINE_TRIGGER_SECRET is unset (pre-rollout)', async () => {
+    vi.stubEnv('PIPELINE_TRIGGER_SECRET', '');
+    await primePassedArticleMocks();
+    const { supabase } = buildRunPipelineMock(NUDGE_MOCK_OPTIONS);
+
+    const result = await runPipeline(supabase);
+
+    expect(result.totalArticlesPassed).toBe(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://cocoindex-worker.example.com/walk',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { Authorization: 'Bearer test-cron-secret' },
+        signal: expect.any(AbortSignal),
+      }),
+    );
+  });
+
   it('never fires the nudge when no articles pass', async () => {
     const { pollFeed } = await import('@/lib/intelligence/feed-poller');
     vi.mocked(pollFeed).mockResolvedValue({
@@ -1591,7 +1627,8 @@ describe('runPipeline — cocoindex walk nudge (ID-75 WP-E, D-3)', () => {
     );
   });
 
-  it('skips the nudge with a structured log when CRON_SECRET is unset and the worker URL is set', async () => {
+  it('ID-127.18: skips the nudge with a structured log when BOTH PIPELINE_TRIGGER_SECRET and CRON_SECRET are unset', async () => {
+    vi.stubEnv('PIPELINE_TRIGGER_SECRET', '');
     vi.stubEnv('CRON_SECRET', '');
     loggerMocks.warn.mockClear();
     await primePassedArticleMocks();
@@ -1605,7 +1642,7 @@ describe('runPipeline — cocoindex walk nudge (ID-75 WP-E, D-3)', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(loggerMocks.warn).toHaveBeenCalledWith(
       expect.objectContaining({ articlesPassed: 1 }),
-      expect.stringContaining('CRON_SECRET unset'),
+      expect.stringContaining('PIPELINE_TRIGGER_SECRET/CRON_SECRET unset'),
     );
   });
 

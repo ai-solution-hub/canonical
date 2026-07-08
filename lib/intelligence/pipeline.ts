@@ -546,18 +546,24 @@ function nudgeCocoindexWalk(articlesPassed: number): void {
     return;
   }
 
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) {
+  // ID-127.18 (S436 D1): prefer the dedicated PIPELINE_TRIGGER_SECRET once
+  // the env rollout has set it; fall back to the legacy shared CRON_SECRET
+  // so the nudge keeps firing before every pipeline Coolify app + Vercel
+  // deployment has the new secret. server.py's /walk auth dual-accepts
+  // both during the transition, so either value authenticates.
+  const pipelineTriggerSecret =
+    process.env.PIPELINE_TRIGGER_SECRET || process.env.CRON_SECRET;
+  if (!pipelineTriggerSecret) {
     logger.warn(
       { articlesPassed },
-      '[Pipeline] CRON_SECRET unset — skipping walk nudge; passed articles will be picked up by the next scheduled walk',
+      '[Pipeline] PIPELINE_TRIGGER_SECRET/CRON_SECRET unset — skipping walk nudge; passed articles will be picked up by the next scheduled walk',
     );
     return;
   }
 
   void fetch(`${workerUrl}/walk`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${cronSecret}` },
+    headers: { Authorization: `Bearer ${pipelineTriggerSecret}` },
     signal: AbortSignal.timeout(COCOINDEX_NUDGE_TIMEOUT_MS),
   })
     .then((res) => {

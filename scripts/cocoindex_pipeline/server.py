@@ -754,11 +754,15 @@ async def _walk_handler(request: web.Request) -> web.Response:
     set" as the walk signal. Boot no longer walks (ID-83.1); this route is the
     only path that runs a corpus pass.
 
-    Auth (bl-221): `Authorization: Bearer <CRON_SECRET>`. Reuses the CRON_SECRET
-    already present in both compose files and read outbound by
-    `flow._emit_pipeline_run_webhook` — here it is the inbound gate. A
-    missing/wrong bearer → 401. If CRON_SECRET is unset in the environment the
-    route fails closed (503) rather than allowing an unauthenticated walk.
+    Auth (bl-221; ID-127.18 / S436 D1 dual-accept): `Authorization: Bearer
+    <secret>`, accepting EITHER the dedicated `PIPELINE_TRIGGER_SECRET` OR
+    the legacy shared `CRON_SECRET` — a rotation-safe window so this route
+    keeps authenticating before every pipeline Coolify app + Vercel
+    deployment has the new secret set. `CRON_SECRET` is also read outbound
+    by `flow._emit_pipeline_run_webhook`; here BOTH env vars are the inbound
+    gate. A missing/wrong bearer → 401. If NEITHER secret is set in the
+    environment the route fails closed (503) rather than allowing an
+    unauthenticated walk.
 
     Rate limit (S436 D1 hardening — {127.17}): reuses the SAME minimal
     fixed-window guard `/extract` uses (`_rate_limit_allows`, see the module
@@ -791,17 +795,29 @@ async def _walk_handler(request: web.Request) -> web.Response:
     webhook). Does NOT touch `worker_is_healthy()` — a /walk request cannot
     flip /health to 503.
     """
-    # (1) Auth — bearer must match CRON_SECRET. Fail closed if the secret is
-    #     unset (never allow an unauthenticated walk).
+    # (1) Auth — bearer must match the dedicated PIPELINE_TRIGGER_SECRET OR
+    #     the legacy shared CRON_SECRET (ID-127.18 dual-accept rotation
+    #     window). Fail closed if BOTH are unset (never allow an
+    #     unauthenticated walk).
+    pipeline_trigger_secret = os.environ.get("PIPELINE_TRIGGER_SECRET")
     cron_secret = os.environ.get("CRON_SECRET")
-    if not cron_secret:
+    if not pipeline_trigger_secret and not cron_secret:
         return web.json_response(
-            {"error": "CRON_SECRET is unset — /walk auth unavailable"},
+            {
+                "error": (
+                    "PIPELINE_TRIGGER_SECRET and CRON_SECRET are both unset "
+                    "— /walk auth unavailable"
+                )
+            },
             status=503,
         )
     auth_header = request.headers.get("Authorization", "")
-    expected = f"Bearer {cron_secret}"
-    if auth_header != expected:
+    accepted_bearers = {
+        f"Bearer {secret}"
+        for secret in (pipeline_trigger_secret, cron_secret)
+        if secret
+    }
+    if auth_header not in accepted_bearers:
         return web.json_response(
             {"error": "missing or invalid bearer token"}, status=401
         )

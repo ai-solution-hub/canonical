@@ -6,19 +6,21 @@
  * twice per flow invocation: `status='in_progress'` at flow start, then one
  * of the three terminal statuses at flow end.
  *
- * Auth: `Authorization: Bearer <CRON_SECRET>` (T-OQ2). Inv-18 discipline:
+ * Auth: `Authorization: Bearer <PIPELINE_TRIGGER_SECRET>` (ID-127.18, S436 D1
+ * — dedicated pipeline-sidecar-boundary secret, dual-accepting the legacy
+ * shared `CRON_SECRET` during the rotation window; T-OQ2). Inv-18 discipline:
  * this route is the ONLY path the sidecar uses to land `pipeline_runs` rows
  * (delegates to `recordPipelineRun`, never a raw `.insert`).
  *
  * Proxy: `/api/internal/*` falls under the existing `/api/` bypass in
- * `proxy.ts`; auth is enforced by `verifyCronAuth` below.
+ * `proxy.ts`; auth is enforced by `verifyPipelineTriggerAuth` below.
  *
  * Reference: docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §P-7.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { verifyCronAuth } from '@/lib/cron-auth';
+import { verifyPipelineTriggerAuth } from '@/lib/cron-auth';
 import { createServiceClient } from '@/lib/supabase/server';
 import { recordPipelineRun } from '@/lib/pipeline/record-run';
 import { PipelineErrorClassSchema } from '@/lib/pipeline/error-classes';
@@ -168,7 +170,7 @@ const BodySchema = z.object({
 });
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  if (!verifyCronAuth(request)) {
+  if (!verifyPipelineTriggerAuth(request)) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   }
 

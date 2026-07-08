@@ -6,14 +6,18 @@
  * Option α (sidecar webhook callback).
  *
  * Acceptance (per testStrategy):
- *   - POST with valid `Authorization: Bearer <CRON_SECRET>` writes a
- *     `pipeline_runs` row via `recordPipelineRun()`.
- *   - POST with bad or missing CRON_SECRET returns 401.
+ *   - POST with valid `Authorization: Bearer <PIPELINE_TRIGGER_SECRET>` (or,
+ *     during the ID-127.18 dual-accept rollout window, the legacy shared
+ *     `CRON_SECRET`) writes a `pipeline_runs` row via `recordPipelineRun()`.
+ *   - POST with a bearer matching neither secret, or with both unset,
+ *     returns 401.
  *   - `stageCounts` field lands in `pipeline_runs.result` JSON.
  *
  * Auth pattern: mirrors `/api/cron/*` — bare `Authorization: Bearer <secret>`
- * check via `verifyCronAuth()`. No `getAuthorisedClient()` here; the cron
- * secret IS the auth boundary (T-OQ2 ratified S252).
+ * check, but via the DEDICATED `verifyPipelineTriggerAuth()` (ID-127.18,
+ * S436 D1 — splits the pipeline-sidecar boundary off `verifyCronAuth`'s
+ * Vercel-cron-only secret). No `getAuthorisedClient()` here; the secret IS
+ * the auth boundary (T-OQ2 ratified S252).
  *
  * Inv-18 discipline: this route is the ONLY path through which the cocoindex
  * sidecar lands `pipeline_runs` rows. The route MUST call
@@ -35,12 +39,12 @@ vi.mock('@/lib/supabase/server', () => ({
   createServiceClient: vi.fn(() => mockSupabase),
 }));
 
-const { mockVerifyCronAuth } = vi.hoisted(() => ({
-  mockVerifyCronAuth: vi.fn(),
+const { mockVerifyPipelineTriggerAuth } = vi.hoisted(() => ({
+  mockVerifyPipelineTriggerAuth: vi.fn(),
 }));
 
 vi.mock('@/lib/cron-auth', () => ({
-  verifyCronAuth: mockVerifyCronAuth,
+  verifyPipelineTriggerAuth: mockVerifyPipelineTriggerAuth,
 }));
 
 const { mockRecordPipelineRun } = vi.hoisted(() => ({
@@ -138,8 +142,8 @@ function buildRequest(
   } = {},
 ): Request {
   if (overrides.omitAuth) {
-    // verifyCronAuth() checks the `authorization` header; omit it entirely
-    // to exercise the missing-header branch.
+    // verifyPipelineTriggerAuth() checks the `authorization` header; omit it
+    // entirely to exercise the missing-header branch.
     return new Request(`http://localhost:3000${ROUTE_PATH}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -156,7 +160,7 @@ function buildRequest(
 
 function resetMocks() {
   vi.clearAllMocks();
-  mockVerifyCronAuth.mockReturnValue(true);
+  mockVerifyPipelineTriggerAuth.mockReturnValue(true);
   mockRecordPipelineRun.mockResolvedValue(undefined);
 }
 
@@ -168,7 +172,7 @@ describe('POST /api/internal/pipeline-runs/record — auth', () => {
   beforeEach(resetMocks);
 
   it('returns 401 when cron auth fails (wrong secret)', async () => {
-    mockVerifyCronAuth.mockReturnValue(false);
+    mockVerifyPipelineTriggerAuth.mockReturnValue(false);
 
     const res = await POST(buildRequest({ secret: 'wrong-secret' }) as never);
     expect(res.status).toBe(401);
@@ -178,21 +182,21 @@ describe('POST /api/internal/pipeline-runs/record — auth', () => {
   });
 
   it('returns 401 when authorization header is missing entirely', async () => {
-    mockVerifyCronAuth.mockReturnValue(false);
+    mockVerifyPipelineTriggerAuth.mockReturnValue(false);
 
     const res = await POST(buildRequest({ omitAuth: true }) as never);
     expect(res.status).toBe(401);
   });
 
   it('does NOT call recordPipelineRun when auth fails', async () => {
-    mockVerifyCronAuth.mockReturnValue(false);
+    mockVerifyPipelineTriggerAuth.mockReturnValue(false);
 
     await POST(buildRequest({ secret: 'wrong-secret' }) as never);
     expect(mockRecordPipelineRun).not.toHaveBeenCalled();
   });
 
   it('accepts the request when cron auth succeeds', async () => {
-    mockVerifyCronAuth.mockReturnValue(true);
+    mockVerifyPipelineTriggerAuth.mockReturnValue(true);
 
     const res = await POST(buildRequest() as never);
     expect(res.status).toBe(200);

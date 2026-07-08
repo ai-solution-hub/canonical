@@ -21,7 +21,11 @@ vi.mock('@/lib/logger', () => ({
   applyRequestContextToSentry: vi.fn(),
 }));
 
-import { verifyCronAuth, getUsersByRole } from '@/lib/cron-auth';
+import {
+  verifyCronAuth,
+  verifyPipelineTriggerAuth,
+  getUsersByRole,
+} from '@/lib/cron-auth';
 
 describe('verifyCronAuth', () => {
   const originalEnv = process.env;
@@ -77,6 +81,92 @@ describe('verifyCronAuth', () => {
       headers: { authorization: 'Basic test-secret-123' },
     });
     expect(verifyCronAuth(request)).toBe(false);
+  });
+});
+
+describe('verifyPipelineTriggerAuth', () => {
+  // ID-127.18 (S436 D1) — dedicated pipeline-trigger secret with a
+  // rotation-safe dual-accept window against the legacy shared CRON_SECRET.
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+    loggerMocks.error.mockClear();
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it('returns true when header matches the dedicated PIPELINE_TRIGGER_SECRET', () => {
+    process.env.PIPELINE_TRIGGER_SECRET = 'new-pipeline-secret';
+    delete process.env.CRON_SECRET;
+    const request = new Request(
+      'http://localhost/api/internal/pipeline-runs/record',
+      {
+        headers: { authorization: 'Bearer new-pipeline-secret' },
+      },
+    );
+    expect(verifyPipelineTriggerAuth(request)).toBe(true);
+  });
+
+  it('DUAL-ACCEPT: returns true when header matches the legacy shared CRON_SECRET', () => {
+    process.env.PIPELINE_TRIGGER_SECRET = 'new-pipeline-secret';
+    process.env.CRON_SECRET = 'legacy-shared-secret';
+    const request = new Request(
+      'http://localhost/api/internal/pipeline-runs/record',
+      {
+        headers: { authorization: 'Bearer legacy-shared-secret' },
+      },
+    );
+    expect(verifyPipelineTriggerAuth(request)).toBe(true);
+  });
+
+  it('DUAL-ACCEPT: accepts the legacy CRON_SECRET even when PIPELINE_TRIGGER_SECRET is unset (pre-rollout)', () => {
+    delete process.env.PIPELINE_TRIGGER_SECRET;
+    process.env.CRON_SECRET = 'legacy-shared-secret';
+    const request = new Request(
+      'http://localhost/api/internal/pipeline-runs/record',
+      {
+        headers: { authorization: 'Bearer legacy-shared-secret' },
+      },
+    );
+    expect(verifyPipelineTriggerAuth(request)).toBe(true);
+  });
+
+  it('rejects a bearer that matches neither secret', () => {
+    process.env.PIPELINE_TRIGGER_SECRET = 'new-pipeline-secret';
+    process.env.CRON_SECRET = 'legacy-shared-secret';
+    const request = new Request(
+      'http://localhost/api/internal/pipeline-runs/record',
+      {
+        headers: { authorization: 'Bearer some-other-value' },
+      },
+    );
+    expect(verifyPipelineTriggerAuth(request)).toBe(false);
+  });
+
+  it('fails closed (returns false) when BOTH secrets are unset', () => {
+    delete process.env.PIPELINE_TRIGGER_SECRET;
+    delete process.env.CRON_SECRET;
+    const request = new Request(
+      'http://localhost/api/internal/pipeline-runs/record',
+      {
+        headers: { authorization: 'Bearer anything' },
+      },
+    );
+    expect(verifyPipelineTriggerAuth(request)).toBe(false);
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      'PIPELINE_TRIGGER_SECRET and CRON_SECRET environment variables both unset',
+    );
+  });
+
+  it('returns false when no authorization header is provided', () => {
+    process.env.PIPELINE_TRIGGER_SECRET = 'new-pipeline-secret';
+    const request = new Request(
+      'http://localhost/api/internal/pipeline-runs/record',
+    );
+    expect(verifyPipelineTriggerAuth(request)).toBe(false);
   });
 });
 
