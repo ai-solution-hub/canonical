@@ -153,10 +153,10 @@ test.describe('Procurement export -- download triggers', () => {
     } finally {
       const supabase = createServiceClient();
       if (responseIds.length > 0) {
-        await supabase.from('bid_responses').delete().in('id', responseIds);
+        await supabase.from('form_responses').delete().in('id', responseIds);
       }
       if (questionIds.length > 0) {
-        await supabase.from('bid_questions').delete().in('id', questionIds);
+        await supabase.from('form_questions').delete().in('id', questionIds);
       }
       await supabase.from('workspaces').delete().eq('id', procurementId);
     }
@@ -199,10 +199,10 @@ test.describe('Procurement export -- download triggers', () => {
     } finally {
       const supabase = createServiceClient();
       if (responseIds.length > 0) {
-        await supabase.from('bid_responses').delete().in('id', responseIds);
+        await supabase.from('form_responses').delete().in('id', responseIds);
       }
       if (questionIds.length > 0) {
-        await supabase.from('bid_questions').delete().in('id', questionIds);
+        await supabase.from('form_questions').delete().in('id', questionIds);
       }
       await supabase.from('workspaces').delete().eq('id', procurementId);
     }

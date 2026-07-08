@@ -1,19 +1,23 @@
 /**
  * WP2 Phase 1 spec — 8.0.7 bid draft-stream happy path
  *
- * VERIFIED AGAINST PRODUCTION (Phase 2 adversarial review):
- *   - `bid_response_history` table EXISTS with `response_text`,
- *     `response_text_advanced`, and `version` columns (verified at
- *     `supabase/types/database.types.ts:92-130`). Spec table name is
- *     correct.
+ * VERIFIED AGAINST PRODUCTION (Phase 2 adversarial review; table names
+ * corrected {128.12} — the pre-rename bid-prefixed response/response-history
+ * tables were renamed to `form_responses`/`form_response_history` under
+ * migration 20260609185728, squashed into 20260617130000_squash_baseline.sql):
+ *   - `form_response_history` table EXISTS with `response_text`,
+ *     `response_text_advanced`, and `version` columns (verified against
+ *     the `form_response_history` Row type in
+ *     `supabase/types/database.types.ts`). Spec table name is correct
+ *     (post-rename).
  *   - The bid session route `/procurement/[id]/session` exists at
  *     `app/bid/[id]/session/page.tsx`.
  *   - Draft-stream endpoint exists at
  *     `app/api/bids/[id]/responses/draft-stream/route.ts`.
  *   - Restore endpoint exists at
  *     `app/api/bids/[id]/responses/[rId]/restore/route.ts` and updates
- *     `bid_responses` (a DB trigger snapshots the previous version into
- *     `bid_response_history` with the next version number — confirmed
+ *     `form_responses` (a DB trigger snapshots the previous version into
+ *     `form_response_history` with the next version number — confirmed
  *     forward-only revert).
  *
  * USER FLOW:
@@ -22,7 +26,7 @@
  *      already advances the bid to the `drafting` state, so the editor
  *      view is reachable.
  *   2. `beforeEach`: defensive service-key delete of any pre-existing
- *      `bid_responses` AND `bid_response_history` rows for the chosen
+ *      `form_responses` AND `form_response_history` rows for the chosen
  *      question id, so each test starts from a known empty state.
  *   3. As admin (authenticatedPage), navigate to `/procurement/<procurementId>/session`.
  *   4. Locate the question card for `questionIds[0]`.
@@ -34,9 +38,9 @@
  *      stream endpoint to FINISH. NOT a fixed timeout.
  *   8. Wait for the editor textarea / rich text region for that question
  *      to contain non-empty content.
- *   9. Service-key query `bid_responses` for the question id and capture
+ *   9. Service-key query `form_responses` for the question id and capture
  *      `response_text`, `version`, and `id`. Then service-key query
- *      `bid_response_history` for the same `response_id`.
+ *      `form_response_history` for the same `response_id`.
  *
  * ASSERTIONS (each must be verifiable from browser state OR DB state — no
  * trivial "element exists" checks; every assertion must map to a failure mode;
@@ -45,7 +49,7 @@
  *     the stream (chunk count >= 1 AND total streamed bytes > 0). Phase 3
  *     implementer accumulates chunks via the `response` listener.
  *   - The SSE response completed with HTTP status 200 (NOT 500 mid-stream).
- *   - `bid_responses` row exists for the question id with non-empty
+ *   - `form_responses` row exists for the question id with non-empty
  *     `response_text` AND `version === 1` (or whatever the production
  *     code's initial version value is — Phase 3 verifies; the assertion
  *     must be exact equality, NOT `version >= 1`, so a regression that
@@ -55,7 +59,7 @@
  *     applies trimming/normalisation, Phase 3 normalises both sides
  *     before comparing). Proves the stream output and the persisted
  *     content are the same payload, not two divergent paths.
- *   - The `bid_response_history` query for this `response_id` returns
+ *   - The `form_response_history` query for this `response_id` returns
  *     either zero rows (if the trigger only snapshots on UPDATE, not
  *     INSERT) OR one row with `version === 1`. Phase 3 must inspect the
  *     trigger definition in `supabase/migrations/` and pin the expected
@@ -86,15 +90,15 @@
  *   write operation; admin is the canonical happy path.
  *
  * CLEANUP:
- *   afterEach: service-key delete of any `bid_responses` and
- *   `bid_response_history` rows for the targeted question id. The
+ *   afterEach: service-key delete of any `form_responses` and
+ *   `form_response_history` rows for the targeted question id. The
  *   worker bid itself is owned by the worker fixture and not deleted
  *   here.
  *
  * EXPLICIT FORBIDDEN PATTERNS (Phase 3 implementer must NOT do these):
  *   - DO NOT mock the SSE endpoint or the Anthropic streaming client.
  *     The whole point is to exercise the real stream + real persistence.
- *   - DO NOT pre-seed a `bid_responses` row in `beforeEach` — that
+ *   - DO NOT pre-seed a `form_responses` row in `beforeEach` — that
  *     would make the "row exists" assertion trivially true (Attack 2).
  *     The defensive delete in `beforeEach` is required; the seed is
  *     forbidden.
@@ -113,9 +117,9 @@
  *
  * VERIFIED AGAINST PRODUCTION (Phase 2 adversarial review):
  *   - Restore route at `app/api/bids/[id]/responses/[rId]/restore/route.ts`
- *     UPDATEs `bid_responses` with the historical row's `response_text`
+ *     UPDATEs `form_responses` with the historical row's `response_text`
  *     and `response_text_advanced`. The DB trigger then snapshots the
- *     pre-update version into `bid_response_history`. This is a
+ *     pre-update version into `form_response_history`. This is a
  *     forward-only revert: restoring v1 over v2 produces a v3 row and
  *     preserves v2 in history.
  *   - Regenerate route at
@@ -124,7 +128,7 @@
  *
  * USER FLOW:
  *   1. Pre-condition: 8.0.7 happy path has run (or is reproduced inline
- *      in `beforeEach`) — there is a `bid_responses` v1 row for
+ *      in `beforeEach`) — there is a `form_responses` v1 row for
  *      `questionIds[0]` with known content. Capture v1 text as
  *      `originalText` AND v1 numeric `version` AND the response `id` via
  *      service-key query BEFORE any UI action. Direct service-key seed
@@ -135,14 +139,14 @@
  *   4. Wait for the SSE stream to complete (same `waitForResponse`
  *      pattern as 8.0.7).
  *   5. Capture the new editor text as `regeneratedText`.
- *   6. Service-key query `bid_responses` and `bid_response_history`,
+ *   6. Service-key query `form_responses` and `form_response_history`,
  *     capture the new active version and the snapshot row(s).
  *   7. Open the version history drawer / panel for that response.
  *   8. Click "Restore" on the v1 entry.
  *   9. Wait for the restore API call to complete (`waitForResponse` on
  *      `/api/procurement/<id>/responses/<rId>/restore`).
  *   10. Read the editor text again as `restoredText`.
- *   11. Service-key query `bid_responses` AND `bid_response_history`
+ *   11. Service-key query `form_responses` AND `form_response_history`
  *       again to capture the post-restore state.
  *
  * ASSERTIONS (each must be verifiable from browser state OR DB state — no
@@ -150,31 +154,31 @@
  * NO conditional skips):
  *   - After regenerate: `regeneratedText !== originalText` (proves the
  *     regenerate actually produced new content; not a no-op caching bug).
- *   - After regenerate: a NEW row exists in `bid_response_history` with
+ *   - After regenerate: a NEW row exists in `form_response_history` with
  *     `version === 1` whose `response_text` equals `originalText` (string
  *     equality — proves history is a real snapshot of the original, not
  *     a stub).
- *   - After regenerate: `bid_responses.version` is now 2 (or whatever
+ *   - After regenerate: `form_responses.version` is now 2 (or whatever
  *     the next version value is per the production trigger — Phase 3
  *     pins exact equality, NOT `> 1`).
- *   - After regenerate: `bid_responses.response_text === regeneratedText`
+ *   - After regenerate: `form_responses.response_text === regeneratedText`
  *     (UI and DB agree; not two divergent paths).
  *   - After restore: `restoredText === originalText` in the editor
  *     (string equality after the same normalisation as 8.0.7).
- *   - After restore: `bid_responses.response_text === originalText`
+ *   - After restore: `form_responses.response_text === originalText`
  *     in DB (proves restore wrote back to the live row, not just to
  *     client state).
- *   - After restore: `bid_responses.version` has incremented again (e.g.
+ *   - After restore: `form_responses.version` has incremented again (e.g.
  *     to v3) so that the regenerated v2 is itself preserved in history —
  *     restore is forward-only, not a destructive rollback.
- *   - After restore: `bid_response_history` contains BOTH v1 (with
+ *   - After restore: `form_response_history` contains BOTH v1 (with
  *     `originalText`) AND v2 (with `regeneratedText`). Phase 3 asserts
  *     a row count of >= 2 AND asserts the v2 row's `response_text`
  *     equals `regeneratedText` (string equality).
  *
  * FIXTURE DATA (pre-seeded before test runs):
  *   - Same `workerData.procurementId` + `workerData.questionIds[0]` as 8.0.7.
- *   - `beforeEach`: direct service-key insert into `bid_responses`
+ *   - `beforeEach`: direct service-key insert into `form_responses`
  *     with deterministic `response_text` (the `originalText` value),
  *     `version = 1`, and the question id. NO history row needs to be
  *     manually inserted — the regenerate UPDATE will trigger the
@@ -182,9 +186,9 @@
  *
  * EXPECTED FAILURE MODES (production-code breakages this test must catch —
  * each must map to >= 1 assertion above):
- *   - Regenerate overwrites the `bid_responses` row WITHOUT triggering
+ *   - Regenerate overwrites the `form_responses` row WITHOUT triggering
  *     a history snapshot (e.g. trigger disabled or bypassed) → caught
- *     by `bid_response_history` row + content equality assertions.
+ *     by `form_response_history` row + content equality assertions.
  *   - Regenerate is a no-op and returns the same text → caught by
  *     `regeneratedText !== originalText` assertion.
  *   - Restore button is wired to a no-op handler (UI updates client
@@ -206,14 +210,14 @@
  *   restore are write operations; admin is the canonical path.
  *
  * CLEANUP:
- *   afterEach: service-key delete of all `bid_responses` and
- *   `bid_response_history` rows for the targeted question id, restoring
+ *   afterEach: service-key delete of all `form_responses` and
+ *   `form_response_history` rows for the targeted question id, restoring
  *   the empty state for the next test. Worker bid is preserved.
  *
  * EXPLICIT FORBIDDEN PATTERNS (Phase 3 implementer must NOT do these):
  *   - DO NOT mock `/api/procurement/.../regenerate` or `/api/procurement/.../restore`.
  *     The DB trigger behaviour is the load-bearing thing being tested.
- *   - DO NOT seed `bid_response_history` directly in `beforeEach`. The
+ *   - DO NOT seed `form_response_history` directly in `beforeEach`. The
  *     history rows MUST be produced by real UPDATEs through the route
  *     handlers — otherwise the test passes against a broken trigger.
  *   - DO NOT replace `regeneratedText !== originalText` with
@@ -270,13 +274,16 @@ async function clearResponsesForQuestion(questionId: string): Promise<void> {
   // Resolve any response ids first (so we can clear history rows that
   // would otherwise be orphaned by ON DELETE CASCADE — belt and braces).
   const { data: existing } = await supabase
-    .from('bid_responses')
+    .from('form_responses')
     .select('id')
     .eq('question_id', questionId);
   const ids = (existing ?? []).map((r: { id: string }) => r.id);
   if (ids.length > 0) {
-    await supabase.from('bid_response_history').delete().in('response_id', ids);
-    await supabase.from('bid_responses').delete().in('id', ids);
+    await supabase
+      .from('form_response_history')
+      .delete()
+      .in('response_id', ids);
+    await supabase.from('form_responses').delete().in('id', ids);
   }
 }
 
@@ -286,7 +293,7 @@ async function clearResponsesForQuestion(questionId: string): Promise<void> {
 
 test.describe('Procurement draft-stream happy path (8.0.7)', () => {
   test.beforeEach(async ({ workerData }) => {
-    // Defensive: ensure questionIds[0] starts with NO bid_responses and NO
+    // Defensive: ensure questionIds[0] starts with NO form_responses and NO
     // history rows. The worker fixture seeds responses for questions[0..1];
     // we delete them here so the test exercises the create-from-empty path
     // through draft-stream.
@@ -379,7 +386,7 @@ test.describe('Procurement draft-stream happy path (8.0.7)', () => {
       .first();
     await expect(editor).toBeVisible({ timeout: 15000 });
 
-    // 6. Poll bid_responses until a row exists AND has a done-state
+    // 6. Poll form_responses until a row exists AND has a done-state
     //    response_text (the stream writes via upsert on `done`). The SSE
     //    body() resolved above, so this should be immediate — but poll
     //    defensively for up to 10s in case of DB lag.
@@ -392,7 +399,7 @@ test.describe('Procurement draft-stream happy path (8.0.7)', () => {
       .poll(
         async () => {
           const { data } = await supabase
-            .from('bid_responses')
+            .from('form_responses')
             .select('id, response_text, version')
             .eq('question_id', questionId);
           if (
@@ -405,7 +412,7 @@ test.describe('Procurement draft-stream happy path (8.0.7)', () => {
           }
           return 'waiting';
         },
-        { timeout: 15000, message: 'bid_responses row must be written' },
+        { timeout: 15000, message: 'form_responses row must be written' },
       )
       .toBe('ready');
     expect(responseRow, 'responseRow set by poll').not.toBeNull();
@@ -448,12 +455,12 @@ test.describe('Procurement draft-stream happy path (8.0.7)', () => {
       )
       .toBe('ok');
 
-    // ASSERTION: bid_response_history has EXACTLY 0 rows for this response.
+    // ASSERTION: form_response_history has EXACTLY 0 rows for this response.
     // The trigger only snapshots on UPDATE (verified at
     // supabase/migrations/...security_performance_fixes.sql:2197 — the
     // snapshot function is wired BEFORE UPDATE only, not BEFORE INSERT).
     const { count: historyCount, error: histErr } = await supabase
-      .from('bid_response_history')
+      .from('form_response_history')
       .select('*', { count: 'exact', head: true })
       .eq('response_id', row.id);
     if (histErr) throw histErr;
@@ -469,7 +476,7 @@ test.describe('Procurement draft-stream happy path (8.0.7)', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('Procurement regenerate + restore (8.0.8)', () => {
-  // Deterministic original text seeded directly into bid_responses.
+  // Deterministic original text seeded directly into form_responses.
   // Phrased so a re-draft against matched content WILL produce a different
   // string (catches the no-op regenerate failure mode).
   const ORIGINAL_TEXT =
@@ -482,7 +489,7 @@ test.describe('Procurement regenerate + restore (8.0.8)', () => {
     // worker bid's matched_content_ids (or empty) — regenerate route
     // re-fetches the question's matched content.
     await supabase
-      .from('bid_responses')
+      .from('form_responses')
       .insert({
         question_id: workerData.questionIds[0],
         response_text: ORIGINAL_TEXT,
@@ -513,7 +520,7 @@ test.describe('Procurement regenerate + restore (8.0.8)', () => {
 
     // Capture original state from DB.
     const { data: seedRows, error: seedErr } = await supabase
-      .from('bid_responses')
+      .from('form_responses')
       .select('id, response_text, version')
       .eq('question_id', questionId);
     if (seedErr) throw seedErr;
@@ -573,7 +580,7 @@ test.describe('Procurement regenerate + restore (8.0.8)', () => {
       .poll(
         async () => {
           const { data } = await supabase
-            .from('bid_responses')
+            .from('form_responses')
             .select('version')
             .eq('id', responseId)
             .single();
@@ -615,7 +622,7 @@ test.describe('Procurement regenerate + restore (8.0.8)', () => {
 
     // Refetch DB state.
     const { data: postRegenRows, error: prErr } = await supabase
-      .from('bid_responses')
+      .from('form_responses')
       .select('id, response_text, version')
       .eq('id', responseId)
       .single();
@@ -637,7 +644,7 @@ test.describe('Procurement regenerate + restore (8.0.8)', () => {
 
     // ASSERTION: history has exactly one row, version=1, content=originalText
     const { data: hist1, error: h1Err } = await supabase
-      .from('bid_response_history')
+      .from('form_response_history')
       .select('version, response_text')
       .eq('response_id', responseId)
       .order('version', { ascending: true });
@@ -704,7 +711,7 @@ test.describe('Procurement regenerate + restore (8.0.8)', () => {
 
     // Refetch DB.
     const { data: postRestoreRow, error: prrErr } = await supabase
-      .from('bid_responses')
+      .from('form_responses')
       .select('id, response_text, version')
       .eq('id', responseId)
       .single();
@@ -722,7 +729,7 @@ test.describe('Procurement regenerate + restore (8.0.8)', () => {
     // carrying the regenerated text (proves the snapshot of the
     // pre-restore state actually persisted — work was preserved).
     const { data: hist2, error: h2Err } = await supabase
-      .from('bid_response_history')
+      .from('form_response_history')
       .select('version, response_text')
       .eq('response_id', responseId)
       .order('version', { ascending: true });

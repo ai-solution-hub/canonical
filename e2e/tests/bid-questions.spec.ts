@@ -354,9 +354,9 @@ test.describe('Procurement add question dialog', () => {
       // Clean up the created question via API
       const supabase = createServiceClient();
       await supabase
-        .from('bid_questions')
+        .from('form_questions')
         .delete()
-        .eq('project_id', workerData.procurementId)
+        .eq('workspace_id', workerData.procurementId)
         .like('question_text', `%${uniqueText}%`);
     }
   });
