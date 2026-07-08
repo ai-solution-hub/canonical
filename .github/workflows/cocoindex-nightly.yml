@@ -1,0 +1,417 @@
+# ID-128.3 — Nightly cocoindex integration lane (folds bl-341; absorbs
+# bl-227 + bl-195 as substrate).
+#
+# ~76 cases across ~40-42 files under __tests__/integration/cocoindex/ +
+# form-extraction{,-rls}.integration.test.ts skip in CI today because
+# COCOINDEX_STAGING_URL / COCOINDEX_FIXTURE_STAGING_URL / COCOINDEX_SOURCE_PATH
+# are unset everywhere except the on-prem B1 operator hook
+# (deploy/onprem/verify/live-verify.sh, READ-ONLY reference for this lane —
+# see S403-coverage-audit.md gap (2) HIGH). This lane provisions the same
+# three env vars in an ephemeral GH-Actions-hosted sidecar so those cases
+# execute somewhere automated, off the PR critical path.
+#
+# THIS PASS IS INFRA STAND-UP ONLY (scoped per the ID-128.3 dispatch brief).
+# Explicitly NOT attempted here (tracked as separate follow-up slices, NOT
+# silently dropped):
+#   - The 9 bl-227 stub re-enablements (sidecar-cold-start,
+#     sidecar-mime-coverage, sidecar-version-metadata, stage-topology,
+#     latency-budget, audit-log-shipping, extract-memoisation,
+#     memo-hit-pipeline-run, stage-5-failure-non-destructive) — the
+#     `--exclude` list below is copied VERBATIM from live-verify.sh's current
+#     Vitest step (READ-ONLY; this workflow does not edit that script) and
+#     must be shrunk in BOTH places, one stub at a time, as each lands. There
+#     is no shared source of truth for this list today (follow-up: extract to
+#     a checked-in file both scripts source).
+#   - server.py `_stage_handler`'s missing `?failStage5=` directive (gates
+#     stage-5-failure-non-destructive).
+#   - The v1.1 `audit_log` table (gates audit-log-shipping).
+#   - The bl-195 items_created no-op assertion (blocked on a no-op
+#     run-correlation mechanism; C-31 already carries the load).
+#
+# Sidecar provisioning: this lane BUILDS the cocoindex image locally via the
+# SAME Cloud Native Buildpacks recipe onprem-deploy.yml uses (pruned context =
+# scripts/ + requirements.lock, builder gcr.io/buildpacks/builder:google-22,
+# GOOGLE_ENTRYPOINT=python3 -m scripts.cocoindex_pipeline.server) but WITHOUT
+# `--publish` / `--cache-image` — those are registry-backed (onprem-deploy.yml
+# comment: "requires --publish; there is no persistent local volume across
+# runners") and this lane has no need to publish anywhere. Dropping --publish
+# makes `pack build` load the image straight into the runner's local Docker
+# daemon, which is exactly what `docker run` below needs. Trade-off: no
+# cross-run build-cache, so every nightly run pays the ~9-min cold dependency
+# build onprem-deploy.yml's comment documents (Docling + cocoindex Rust wheel
+# + ML layer) — acceptable for an off-peak, non-blocking, once-nightly lane;
+# a registry-backed --cache-image is a follow-up if the cold build proves a
+# problem. This ALSO decouples the lane from onprem-deploy.yml's per-commit
+# ghcr.io publish cadence — there is no ":latest" tag (only content-addressed
+# "sha-<sha>" tags, see onprem-deploy.yml env.TAG), so a checked-out commit
+# with no pipeline-relevant diff since the last push may have no matching
+# ghcr.io tag at all; building fresh here sidesteps that resolution problem
+# entirely.
+#
+# Corpus: reuses the EXISTING docs/testing/test-data fixture corpus (the same
+# one live-verify.sh docker-cp's onto B1) — no new fixture dir added this
+# pass. Seeded into the sidecar container the same way live-verify.sh does
+# (docker cp into <app-dir>/docs/testing), then staged into the watched corpus
+# path via `python3 -m scripts.cocoindex_pipeline.verify_driver --fixtures
+# templates` (loopback POST /stage inside the container) and ingested via a
+# bearer-gated POST /walk — the exact stage -> walk -> assert sequence
+# live-verify.sh documents (ID-62 / bl-221).
+#
+# Postgres: the sidecar's OWN write target is COCOINDEX_DB_DSN, a fully-formed
+# Supabase pooler DSN (postgresql://postgres.<ref>:<password>@aws-<n>-
+# <region>.pooler.supabase.com:5432/postgres) — flow.py._resolve_db_dsn()
+# deliberately REFUSES to reconstruct this from SUPABASE_URL (see
+# docs/audits/cocoindex-state-db-connection-crash-2026-05-26.md — a prior
+# NXDOMAIN incident from exactly that reconstruction). This lane points
+# COCOINDEX_DB_DSN at the SAME Staging Supabase project SUPABASE_URL /
+# SUPABASE_SERVICE_ROLE_KEY already target below — the Vitest poll layer
+# (__tests__/integration/cocoindex/_helpers/fixture-staging.ts,
+# createLiveServiceClient()) talks PostgREST via the Supabase JS client, which
+# only a real Supabase project can serve (a bare `postgres:16` service
+# container has no PostgREST in front of it), so a standalone throwaway
+# Postgres is NOT provisioned here. No separate "fixture-staging" service
+# exists either — `/stage` is a route on the SAME sidecar server.py exposes
+# `/health` and `/walk` on (empirically confirmed by reading server.py +
+# live-verify.sh, which sets COCOINDEX_FIXTURE_STAGING_URL to the identical
+# value as COCOINDEX_STAGING_URL) — both nightly env vars below point at the
+# one running container.
+#
+# OPEN QUESTION / KNOWN GAP (not resolvable from this worktree): COCOINDEX_DB_DSN
+# does NOT appear in the documented Staging environment secret list
+# (docs/runbooks/github-environments.md §3.1) — it needs to be minted
+# (Staging-scoped Supabase pooler connection string + password) and added as a
+# Staging-environment secret before this lane can go green end-to-end. Until
+# then, expect the container to fail its first Postgres write (flow.py raises
+# loudly rather than silently degrading) — the Vitest step below is
+# `continue-on-error: true` (explicitly permitted by the dispatch brief "while
+# iterating") so the workflow still completes and uploads diagnostic logs
+# rather than hard-failing the whole job on infra that isn't provisioned yet.
+#
+# Required secrets / vars (Staging environment scope — per
+# docs/runbooks/github-environments.md §3.1), all already provisioned EXCEPT
+# COCOINDEX_DB_DSN (see OPEN QUESTION above):
+#   Secrets:
+#     SUPABASE_SERVICE_ROLE_KEY, SUPABASE_PUBLISHABLE_KEY, POSTGRES_PASSWORD,
+#     ANTHROPIC_API_KEY, OPENAI_API_KEY, CRON_SECRET,
+#     TEST_USER_{1,2,3}_PASSWORD, COCOINDEX_DB_DSN (NEW — see above)
+#   Vars:
+#     SUPABASE_URL, NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_CLIENT_ID,
+#     AI_EMBEDDING_MODEL, AI_EMBEDDING_DIMS, TEST_USER_{1,2,3}_EMAIL
+#
+# Workflow-injection mitigation: all github context + secret values arrive via
+# the job-level `env:` block, never inline ${{ }} in run: steps (mirrors
+# eval-nightly.yml / integration-nightly.yml / onprem-deploy.yml).
+#
+# Spec: S403-coverage-audit.md gap (2) HIGH.
+
+name: Cocoindex nightly
+
+on:
+  schedule:
+    # Daily at 06:00 UTC — staggered after supabase-advisors (02:00),
+    # eval-nightly/staging-reference-refresh (03:00), e2e-nightly (04:00), and
+    # integration-nightly (05:00) to avoid contention on the shared CI
+    # Supabase project (this lane writes to the SAME Staging project).
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  # Shares no group with the other nightly lanes (different write surface —
+  # cocoindex-owned tables under test-fixture-prefixed rows) but still queues
+  # against itself so a manual dispatch never clobbers an in-flight scheduled
+  # run.
+  group: cocoindex-nightly
+  cancel-in-progress: false
+
+jobs:
+  cocoindex:
+    name: Cocoindex nightly — sidecar + fixture corpus (ID-128.3, folds bl-341)
+    runs-on: ubuntu-latest
+    # Staging-scoped: this lane writes into the Staging Supabase project
+    # (test-fixture-prefixed rows, cleaned up by the test layer's
+    # dropFixture/dropFormFixture). Case-sensitive — must exactly match
+    # `Staging` (docs/runbooks/github-environments.md §2).
+    environment: Staging
+    # Generous: cold buildpacks build (~9min, no cross-run cache — see header)
+    # + stage/walk + up to ~76 sequential (fileParallelism: false) Vitest
+    # cases, several of which poll up to 120s for a row to land.
+    timeout-minutes: 90
+    permissions:
+      contents: read
+
+    env:
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
+        ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+      NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
+      AI_EMBEDDING_MODEL: ${{ vars.AI_EMBEDDING_MODEL }}
+      AI_EMBEDDING_DIMS: ${{ vars.AI_EMBEDDING_DIMS }}
+      TEST_USER_1_EMAIL: ${{ vars.TEST_USER_1_EMAIL }}
+      TEST_USER_1_PASSWORD: ${{ secrets.TEST_USER_1_PASSWORD }}
+      TEST_USER_2_EMAIL: ${{ vars.TEST_USER_2_EMAIL }}
+      TEST_USER_2_PASSWORD: ${{ secrets.TEST_USER_2_PASSWORD }}
+      TEST_USER_3_EMAIL: ${{ vars.TEST_USER_3_EMAIL }}
+      TEST_USER_3_PASSWORD: ${{ secrets.TEST_USER_3_PASSWORD }}
+      # The sidecar's OWN Postgres write target — see the Postgres section of
+      # the header comment. NOT yet provisioned (OPEN QUESTION above); the
+      # container will fail its first write until this secret is minted.
+      COCOINDEX_DB_DSN: ${{ secrets.COCOINDEX_DB_DSN }}
+      # Sidecar container + Vitest wiring (this job's local topology, not
+      # secrets — literal here is fine).
+      COCOINDEX_IMAGE_TAG: "kh-cocoindex-pipeline:nightly-${{ github.run_id }}"
+      COCOINDEX_PORT: "8080"
+      COCOINDEX_APP_DIR: "/workspace"
+      COCOINDEX_CONTAINER_SOURCE_PATH: "/cocoindex-state/corpus"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: "1.3.4"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Setup the Cloud Native Buildpacks `pack` CLI
+        uses: buildpacks/github-actions/setup-pack@8fe5c9d7f5a3fa22d4b7cc7d50ba8ebd7eddf414 # v5.12.3 (pinned, matches onprem-deploy.yml)
+
+      - name: Build cocoindex sidecar image (local — no publish, see header)
+        # Pruned context mirrors onprem-deploy.yml's IMAGE HYGIENE step
+        # exactly: scripts/ + requirements.lock (renamed requirements.txt,
+        # the LOCKED transitive closure, {127.22}/S438) — nothing else, so
+        # the image never carries the Next.js app / docs / .claude / tests.
+        # No --publish / --cache-image (registry-backed, not needed here —
+        # see header) — `pack build` without --publish loads straight into
+        # this runner's local Docker daemon for the `docker run` step below.
+        run: |
+          set -euo pipefail
+          CTX="$(mktemp -d)"
+          cp -R scripts "${CTX}/scripts"
+          cp requirements.lock "${CTX}/requirements.txt"
+          echo "Pruned build context:"; ls -A "${CTX}"
+          pack build "${COCOINDEX_IMAGE_TAG}" \
+            --path "${CTX}" \
+            --builder gcr.io/buildpacks/builder:google-22 \
+            --env "GOOGLE_ENTRYPOINT=python3 -m scripts.cocoindex_pipeline.server" \
+            --env "GOOGLE_RUNTIME=python" \
+            --env "GOOGLE_PYTHON_VERSION=3.13.13"
+          echo "Built ${COCOINDEX_IMAGE_TAG} (local daemon only, not pushed)"
+
+      - name: Prepare host-side corpus bind-mount dir
+        # The bind-mount source dir on the RUNNER — the handful of tests that
+        # write directly against COCOINDEX_SOURCE_PATH (not via the /stage
+        # HTTP route) need a HOST-visible path; the container sees the SAME
+        # underlying files at COCOINDEX_CONTAINER_SOURCE_PATH via the bind
+        # mount below.
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/cocoindex-corpus"
+          echo "COCOINDEX_HOST_SOURCE_PATH=${RUNNER_TEMP}/cocoindex-corpus" >> "$GITHUB_ENV"
+
+      - name: Run cocoindex sidecar container
+        # Publishes the sidecar port to the host (unlike the B1 Coolify
+        # deployment, which publishes no host port) — a GH Actions runner is
+        # single-tenant for this job, so a direct host curl/fetch against
+        # localhost:8080 is simplest for both the health probe and the
+        # Vitest run below.
+        run: |
+          set -euo pipefail
+          docker run -d --name cocoindex-sidecar \
+            -p "${COCOINDEX_PORT}:${COCOINDEX_PORT}" \
+            -e "PORT=${COCOINDEX_PORT}" \
+            -e "COCOINDEX_SOURCE_PATH=${COCOINDEX_CONTAINER_SOURCE_PATH}" \
+            -e "COCOINDEX_DB_DSN=${COCOINDEX_DB_DSN}" \
+            -e "SUPABASE_URL=${SUPABASE_URL}" \
+            -e "SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}" \
+            -e "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}" \
+            -e "OPENAI_API_KEY=${OPENAI_API_KEY}" \
+            -e "CRON_SECRET=${CRON_SECRET}" \
+            -v "${COCOINDEX_HOST_SOURCE_PATH}:${COCOINDEX_CONTAINER_SOURCE_PATH}" \
+            "${COCOINDEX_IMAGE_TAG}"
+
+      - name: Health-check the sidecar (GET /health)
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -m 5 \
+              "http://localhost:${COCOINDEX_PORT}/health" || echo "000")
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "Sidecar healthy after ${i}s"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "Sidecar failed to become healthy within 30s (last HTTP code: ${HTTP_CODE})" >&2
+              docker logs cocoindex-sidecar >&2 || true
+              exit 1
+            fi
+            sleep 1
+          done
+
+      - name: Seed fixture corpus into the container (docker cp)
+        # Mirrors live-verify.sh step 0b exactly: the buildpack image ships
+        # ONLY scripts/ + requirements.txt, so the committed
+        # docs/testing/test-data corpus verify_driver reads from must be
+        # copied in. `/.` copies CONTENTS (idempotent on re-run).
+        run: |
+          set -euo pipefail
+          docker exec cocoindex-sidecar mkdir -p "${COCOINDEX_APP_DIR}/docs/testing"
+          docker cp "docs/testing/." "cocoindex-sidecar:${COCOINDEX_APP_DIR}/docs/testing"
+
+      - name: Stage fixture set (verify_driver, loopback POST /stage)
+        # A non-zero driver exit fails HERE, before /walk and before Vitest —
+        # mirrors live-verify.sh step 1 / ID-62 {62.9}. The buildpack image's
+        # exec PATH omits the buildpack layers (a bare `python3` 127s), so
+        # every docker exec below injects the same env live-verify.sh does.
+        run: |
+          set -euo pipefail
+          docker exec \
+            -e PYTHONUSERBASE=/layers/google.python.pip/pip \
+            -e PATH=/layers/google.python.pip/pip/bin:/layers/google.python.runtime/python/bin:/usr/bin:/bin \
+            cocoindex-sidecar \
+            python3 -m scripts.cocoindex_pipeline.verify_driver --fixtures templates
+
+      - name:
+          Trigger corpus walk (bearer-gated POST /walk) and wait for completion
+        # Port is published to the host, so a plain host-side curl suffices
+        # (no docker-exec-python3-urllib indirection needed, unlike
+        # live-verify.sh's unpublished-port B1 topology).
+        run: |
+          set -euo pipefail
+          WALK_LOG_SINCE="$(date -u +%Y-%m-%dT%H:%M:%S)"
+          WALK_RESPONSE="$(curl -s -X POST -H "Authorization: Bearer ${CRON_SECRET}" \
+            "http://localhost:${COCOINDEX_PORT}/walk")"
+          echo "walk response: ${WALK_RESPONSE}"
+          REQUEST_ID="$(printf '%s' "$WALK_RESPONSE" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("requestId",""))' 2>/dev/null || true)"
+          if [ -z "$REQUEST_ID" ]; then
+            echo "no requestId in /walk response (see error above)" >&2
+            exit 1
+          fi
+          echo "COCOINDEX_WALK_LOG_SINCE=${WALK_LOG_SINCE}" >> "$GITHUB_ENV"
+
+          DEADLINE=$(( $(date +%s) + 900 ))
+          while true; do
+            WALK_LINES="$(docker logs --since "$WALK_LOG_SINCE" cocoindex-sidecar 2>&1 | grep -F "requestId=${REQUEST_ID}" || true)"
+            if printf '%s' "$WALK_LINES" | grep -q "/walk completed"; then
+              echo "walk completed (requestId=${REQUEST_ID})"
+              break
+            fi
+            if printf '%s' "$WALK_LINES" | grep -q "update_blocking failed"; then
+              echo "walk FAILED (requestId=${REQUEST_ID}) — see docker logs" >&2
+              docker logs cocoindex-sidecar >&2 || true
+              exit 1
+            fi
+            if [ "$(date +%s)" -ge "$DEADLINE" ]; then
+              echo "walk did not complete within 900s (requestId=${REQUEST_ID})" >&2
+              exit 1
+            fi
+            sleep 10
+          done
+
+      - name: Start walk pump (background)
+        # Tier-1/Tier-2 files stage their OWN fixtures in beforeAll DURING the
+        # Vitest run (under ID-83/bl-221 nothing walks those stages unless we
+        # keep issuing /walk) — mirrors live-verify.sh step 5. Each pass is
+        # incremental; unchanged files memo-hit and burn nothing.
+        run: |
+          set -euo pipefail
+          (
+            while true; do
+              sleep 30
+              curl -s -o /dev/null -X POST -H "Authorization: Bearer ${CRON_SECRET}" \
+                "http://localhost:${COCOINDEX_PORT}/walk" || true
+            done
+          ) &
+          echo $! > "${RUNNER_TEMP}/walk-pump.pid"
+
+      - name: Run cocoindex Vitest go-live tier
+        # File selection + --exclude list copied VERBATIM from live-verify.sh
+        # (READ-ONLY reference — see header). Keep both lists in sync as
+        # bl-227 stubs land; this file does not edit live-verify.sh.
+        id: cocoindex_vitest
+        env:
+          COCOINDEX_STAGING_URL: "http://localhost:8080"
+          COCOINDEX_FIXTURE_STAGING_URL: "http://localhost:8080"
+          COCOINDEX_SOURCE_PATH: ${{ env.COCOINDEX_HOST_SOURCE_PATH }}
+        run: |
+          set -o pipefail
+          bun x vitest run --config vitest.integration.config.ts \
+            __tests__/integration/cocoindex \
+            form-extraction \
+            --exclude '**/sidecar-cold-start.integration.test.ts' \
+            --exclude '**/sidecar-mime-coverage.integration.test.ts' \
+            --exclude '**/sidecar-version-metadata.integration.test.ts' \
+            --exclude '**/stage-topology.integration.test.ts' \
+            --exclude '**/latency-budget.integration.test.ts' \
+            --exclude '**/audit-log-shipping.integration.test.ts' \
+            --exclude '**/extract-memoisation.integration.test.ts' \
+            --exclude '**/memo-hit-pipeline-run.integration.test.ts' \
+            --exclude '**/stage-5-failure-non-destructive.integration.test.ts' \
+            2>&1 | tee /tmp/cocoindex-nightly.log
+        # continue-on-error explicitly permitted by the ID-128.3 dispatch
+        # brief "while iterating" — COCOINDEX_DB_DSN is not provisioned yet
+        # (see header OPEN QUESTION), so a hard-fail here would just re-flag
+        # the same known gap every night rather than surfacing new
+        # regressions once the secret lands.
+        continue-on-error: true
+
+      - name: Log runner verdict
+        if: always()
+        env:
+          COCOINDEX_OUTCOME: ${{ steps.cocoindex_vitest.outcome }}
+        run: |
+          set -euo pipefail
+          if [ "$COCOINDEX_OUTCOME" = "success" ]; then
+            echo "Cocoindex nightly: all non-excluded cases passed."
+          else
+            echo "Cocoindex nightly: non-zero exit — see /tmp/cocoindex-nightly.log and the uploaded artefact."
+            echo "Known gap while COCOINDEX_DB_DSN is unprovisioned: see this workflow's header comment."
+          fi
+          echo "Outcome: $COCOINDEX_OUTCOME"
+
+      - name: Stop walk pump
+        if: always()
+        run: |
+          if [ -f "${RUNNER_TEMP}/walk-pump.pid" ]; then
+            kill "$(cat "${RUNNER_TEMP}/walk-pump.pid")" 2>/dev/null || true
+          fi
+
+      - name: Dump sidecar container logs (always — primary diagnostic)
+        if: always()
+        run:
+          docker logs cocoindex-sidecar > /tmp/cocoindex-sidecar.log 2>&1 ||
+          true
+
+      - name: Stop + remove sidecar container
+        if: always()
+        run: |
+          docker stop cocoindex-sidecar >/dev/null 2>&1 || true
+          docker rm cocoindex-sidecar >/dev/null 2>&1 || true
+
+      - name: Upload logs (nightly run artefact)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cocoindex-nightly-logs-${{ github.run_id }}
+          path: |
+            /tmp/cocoindex-nightly.log
+            /tmp/cocoindex-sidecar.log
+          retention-days: 14
+          if-no-files-found: ignore
