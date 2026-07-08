@@ -55,7 +55,7 @@ export const POST = defineRoute(
       // Fetch existing response
       const { data: existing, error: fetchError } = await supabase
         .from('form_responses')
-        .select('id, question_id, source_content_ids')
+        .select('id, question_id, source_record_ids')
         .eq('id', rId)
         .single();
 
@@ -84,7 +84,7 @@ export const POST = defineRoute(
       }
 
       // Fetch matched content (post-{131.16} BI-29: q_a_pairs + reference_items).
-      const matchedIds = existing.source_content_ids ?? [];
+      const matchedIds = existing.source_record_ids ?? [];
       let matchedContent: DraftableContent[] = [];
 
       if (matchedIds.length > 0) {
@@ -133,7 +133,7 @@ export const POST = defineRoute(
         .from('form_responses')
         .update({
           response_text: draftResult.response_text,
-          source_content_ids: draftResult.source_content_ids,
+          source_record_ids: draftResult.source_record_ids,
           metadata: draftResult.metadata as unknown as Json,
           review_status: 'ai_drafted',
           last_edited_by: user.id,

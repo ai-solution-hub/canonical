@@ -86,7 +86,7 @@ const RESPONSE_IDS = [
 
 const DRAFT_RESULT = {
   response_text: 'Drafted response text.',
-  source_content_ids: ['c1c1c1c1-1111-4111-8111-111111111111'],
+  source_record_ids: ['c1c1c1c1-1111-4111-8111-111111111111'],
   citations: [],
   analysis: {
     primary_topic: 'Test',
@@ -107,7 +107,7 @@ function makeQuestion(
   id: string,
   overrides: Partial<{
     confidence_posture: string | null;
-    matched_content_ids: string[] | null;
+    matched_record_ids: string[] | null;
   }> = {},
 ) {
   return {
@@ -116,7 +116,7 @@ function makeQuestion(
     word_limit: 200,
     section_name: 'Section 1',
     confidence_posture: overrides.confidence_posture ?? 'strong',
-    matched_content_ids: overrides.matched_content_ids ?? [
+    matched_record_ids: overrides.matched_record_ids ?? [
       'c1c1c1c1-1111-4111-8111-111111111111',
     ],
   };
@@ -181,7 +181,7 @@ interface SupabaseScenario {
   /** Existing form_responses rows with `.in('question_id', ...)` */
   existing: { question_id: string }[];
   /** Per-content-items batch result. Returned for every question's
-   *  matched_content_ids lookup. */
+   *  matched_record_ids lookup. */
   contentItems: {
     id: string;
     suggested_title: string;
@@ -228,7 +228,7 @@ function configureSupabase(
     resolve({ data: scenario.existing, error: null }),
   );
 
-  // 4. Per-question fan-out. For each question with matched_content_ids
+  // 4. Per-question fan-out. For each question with matched_record_ids
   //    we need:
   //    a. content_items.select(...).in(...) → .then resolve
   //    b. form_responses.upsert(...).select('id').single() → resolve
@@ -334,7 +334,7 @@ describe('runFormDraftAllJob — form_draft_all handler (§5.4.1)', () => {
       expect(mockRunDraftingPipeline).toHaveBeenCalledTimes(5);
     });
 
-    it('upsert payload: review_status=ai_drafted, drafted_by=PIPELINE_SYSTEM_USER_ID, source_content_ids carried through', async () => {
+    it('upsert payload: review_status=ai_drafted, drafted_by=PIPELINE_SYSTEM_USER_ID, source_record_ids carried through', async () => {
       const questions = [makeQuestion(QUESTION_IDS[0])];
       configureSupabase(mockSupabase, {
         bid: {
@@ -370,9 +370,7 @@ describe('runFormDraftAllJob — form_draft_all handler (§5.4.1)', () => {
       expect(payload.question_id).toBe(QUESTION_IDS[0]);
       expect(payload.review_status).toBe('ai_drafted');
       expect(payload.drafted_by).toBe(PIPELINE_SYSTEM_USER_ID);
-      expect(payload.source_content_ids).toEqual(
-        DRAFT_RESULT.source_content_ids,
-      );
+      expect(payload.source_record_ids).toEqual(DRAFT_RESULT.source_record_ids);
       expect(payload.response_text).toBe(DRAFT_RESULT.response_text);
       expect(payload.overall_score).toBe(85);
       // onConflict on question_id (§4.4 step 4 verbatim from route.ts L218-233).

@@ -57,7 +57,7 @@ export const PATCH = defineRoute(
         .eq('id', qId)
         .eq('workspace_id', id)
         .select(
-          'id, workspace_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, matched_content_ids, assigned_to, created_by, created_at, updated_at',
+          'id, workspace_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, matched_record_ids, assigned_to, created_by, created_at, updated_at',
         )
         .single();
 

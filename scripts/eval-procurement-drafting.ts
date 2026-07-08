@@ -88,7 +88,7 @@ interface DbResponse {
   id: string;
   question_id: string;
   response_text: string;
-  source_content_ids: string[] | null;
+  source_record_ids: string[] | null;
   metadata: Record<string, unknown> | null;
 }
 
@@ -148,13 +148,13 @@ async function fetchProcurementResponses(
 ): Promise<Map<string, DbResponse>> {
   // The gold standard uses synthetic question_ids (eval-bid-NNN), not real UUIDs.
   // Fetch matching question IDs from form_responses joined with form_questions.
-  // bl-215: the column is `source_content_ids` (not the dropped `cited_items`),
+  // bl-215: the column is `source_record_ids` (not the dropped `cited_items`),
   // and a real query error MUST surface (no silent `return new Map()` swallow) —
   // otherwise the eval DB path is dead and citation coverage is computed against
   // an always-empty set.
   const { data, error } = await supabase
     .from('form_responses')
-    .select('id, question_id, response_text, source_content_ids, metadata')
+    .select('id, question_id, response_text, source_record_ids, metadata')
     .in('question_id', questionIds);
 
   if (error) {
@@ -232,7 +232,7 @@ function scoreItem(gold: GoldItem, db: DbResponse | undefined): ItemScore {
   }
 
   // Citation coverage: cited items / expected items
-  const citedItems = db.source_content_ids ?? [];
+  const citedItems = db.source_record_ids ?? [];
   const expectedItems = gold.expected_kb_items_used;
   const citedSet = new Set(citedItems);
   const matchedCitations = expectedItems.filter((id) =>

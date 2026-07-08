@@ -4,7 +4,7 @@ import { fetchMatchedContentForDrafting } from '@/lib/domains/procurement/draft-
 
 /**
  * {131.16} BI-29: `fetchMatchedContentForDrafting` resolves
- * `matched_content_ids`/`source_content_ids` into full drafting content from
+ * `matched_record_ids`/`source_record_ids` into full drafting content from
  * q_a_pairs (primary) + reference_items (optional) — the retired
  * content_items table is never queried, and source_documents is never a
  * match source (provenance-only — D2/E5).

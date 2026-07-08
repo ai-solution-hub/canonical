@@ -618,8 +618,8 @@ describe('Procurement Drafting Pipeline', () => {
     it('maps source content IDs correctly', async () => {
       const result = await runDraftingPipeline(testQuestion, testContent);
 
-      expect(result.source_content_ids).toEqual(['c-001', 'c-002']);
-      expect(result.metadata.citations_data!.source_content_ids).toEqual([
+      expect(result.source_record_ids).toEqual(['c-001', 'c-002']);
+      expect(result.metadata.citations_data!.source_record_ids).toEqual([
         'c-001',
         'c-002',
       ]);
@@ -671,7 +671,7 @@ describe('Procurement Drafting Pipeline', () => {
 
       const result = await runDraftingPipeline(testQuestion, []);
 
-      expect(result.source_content_ids).toEqual([]);
+      expect(result.source_record_ids).toEqual([]);
       expect(result.citations).toHaveLength(0);
     });
   });

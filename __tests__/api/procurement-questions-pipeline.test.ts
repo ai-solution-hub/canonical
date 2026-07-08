@@ -257,7 +257,7 @@ describe('GET /api/bids/:id/questions', () => {
         word_limit: 500,
         evaluation_weight: 20,
         confidence_posture: 'strong',
-        matched_content_ids: [VALID_UUID],
+        matched_record_ids: [VALID_UUID],
         status: null,
         has_variants: false,
         assigned_to: null,
@@ -631,7 +631,7 @@ describe('POST /api/bids/:id/questions/extract', () => {
                 word_limit: 500,
                 evaluation_weight: 20,
                 confidence_posture: null,
-                matched_content_ids: null,
+                matched_record_ids: null,
                 assigned_to: null,
                 created_by: 'test-user-id',
                 created_at: '2026-01-01T00:00:00Z',
@@ -935,7 +935,7 @@ describe('POST /api/bids/:id/questions/match', () => {
     expect(json.results).toHaveLength(1);
     expect(json.results[0].question_id).toBe(QUESTION_UUID);
     expect(json.results[0].confidence_posture).toBe('strong');
-    expect(json.results[0].matched_content_ids).toContain(VALID_UUID);
+    expect(json.results[0].matched_record_ids).toContain(VALID_UUID);
 
     expect(mockGenerateSearchQueries).toHaveBeenCalledWith(
       'What is your approach?',

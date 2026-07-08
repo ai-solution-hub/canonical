@@ -68,7 +68,7 @@ function makeQuestion(
     word_limit: 500,
     evaluation_weight: null,
     confidence_posture: null,
-    matched_content_ids: null,
+    matched_record_ids: null,
     status: 'not_started',
     has_variants: false,
     assigned_to: null,

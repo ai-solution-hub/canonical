@@ -174,7 +174,7 @@ async function createTestBid(opts: {
         section_sequence: 1,
         question_sequence: i + 1,
         confidence_posture: 'strong',
-        matched_content_ids: [],
+        matched_record_ids: [],
       })
       .select('id')
       .single();

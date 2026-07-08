@@ -32,7 +32,7 @@ import type { Database, Json } from '@/supabase/types/database.types';
 /**
  * The `form_questions` columns the drafting step reads. Mirrors the `select`
  * both callers issue (`id, question_text, word_limit, section_name,
- * confidence_posture, matched_content_ids`).
+ * confidence_posture, matched_record_ids`).
  */
 export interface DraftableQuestionRow {
   id: string;
@@ -40,7 +40,7 @@ export interface DraftableQuestionRow {
   word_limit: number | null;
   section_name: string | null;
   confidence_posture: string | null;
-  matched_content_ids: string[] | null;
+  matched_record_ids: string[] | null;
 }
 
 /**
@@ -67,7 +67,7 @@ export type DraftOutcome =
     };
 
 /**
- * Resolve `form_questions.matched_content_ids` / `form_responses.source_content_ids`
+ * Resolve `form_questions.matched_record_ids` / `form_responses.source_record_ids`
  * (uuid[]) into full drafting content.
  *
  * Post-{131.16} (BI-29/30/31): those arrays now carry q_a_pair (primary) and
@@ -175,7 +175,7 @@ export async function draftSingleQuestion(
   modelTier: 'analysis' | 'drafting',
 ): Promise<DraftOutcome> {
   // Fetch matched content for this question.
-  const matchedIds = question.matched_content_ids ?? [];
+  const matchedIds = question.matched_record_ids ?? [];
   let matchedContent: DraftableContent[] = [];
   if (matchedIds.length > 0) {
     try {
@@ -217,7 +217,7 @@ export async function draftSingleQuestion(
       {
         question_id: question.id,
         response_text: draftResult.response_text,
-        source_content_ids: draftResult.source_content_ids,
+        source_record_ids: draftResult.source_record_ids,
         metadata: draftResult.metadata as unknown as Json,
         review_status: 'ai_drafted',
         drafted_by: PIPELINE_SYSTEM_USER_ID,

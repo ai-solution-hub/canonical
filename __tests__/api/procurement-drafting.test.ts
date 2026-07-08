@@ -126,7 +126,7 @@ const INVALID_UUID = 'not-a-uuid';
 
 const MOCK_DRAFT_RESULT = {
   response_text: 'Drafted response text',
-  source_content_ids: [VALID_UUID_2],
+  source_record_ids: [VALID_UUID_2],
   citations: [{ source_id: VALID_UUID_2, text: 'cited text' }],
   metadata: {
     quality_data: { overall_score: 85 },
@@ -403,7 +403,7 @@ describe('POST /api/bids/:id/responses/draft', () => {
               word_limit: 200,
               section_name: 'Section 1',
               confidence_posture: 'no_content',
-              matched_content_ids: [],
+              matched_record_ids: [],
             },
           ],
           error: null,
@@ -445,7 +445,7 @@ describe('POST /api/bids/:id/responses/draft', () => {
               word_limit: 200,
               section_name: 'Section 1',
               confidence_posture: 'strong',
-              matched_content_ids: [],
+              matched_record_ids: [],
             },
           ],
           error: null,
@@ -493,7 +493,7 @@ describe('POST /api/bids/:id/responses/draft', () => {
               word_limit: 200,
               section_name: 'Section 1',
               confidence_posture: 'strong',
-              matched_content_ids: [],
+              matched_record_ids: [],
             },
           ],
           error: null,
@@ -549,7 +549,7 @@ describe('POST /api/bids/:id/responses/draft', () => {
               word_limit: 200,
               section_name: 'Section 1',
               confidence_posture: 'strong',
-              matched_content_ids: [],
+              matched_record_ids: [],
             },
           ],
           error: null,
@@ -777,7 +777,7 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
         word_limit: 500,
         section_name: 'Method',
         confidence_posture: 'balanced',
-        matched_content_ids: [ITEM_CITED, ITEM_UNCITED],
+        matched_record_ids: [ITEM_CITED, ITEM_UNCITED],
       },
       error: null,
     });
@@ -962,7 +962,7 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
         word_limit: 500,
         section_name: 'Method',
         confidence_posture: 'balanced',
-        matched_content_ids: [ITEM_CITED],
+        matched_record_ids: [ITEM_CITED],
       },
       error: null,
     });
@@ -1507,7 +1507,7 @@ describe('POST /api/bids/:id/responses/estimate', () => {
               id: VALID_UUID_2,
               question_text: 'Test question',
               confidence_posture: 'strong',
-              matched_content_ids: [],
+              matched_record_ids: [],
             },
           ],
           error: null,
@@ -1618,7 +1618,7 @@ describe('POST /api/bids/:id/responses/:rId/regenerate', () => {
 
     // Response exists
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID_2, question_id: 'q-id', source_content_ids: [] },
+      data: { id: VALID_UUID_2, question_id: 'q-id', source_record_ids: [] },
       error: null,
     });
 
@@ -1645,7 +1645,7 @@ describe('POST /api/bids/:id/responses/:rId/regenerate', () => {
 
     // Response exists
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID_2, question_id: 'q-id', source_content_ids: [] },
+      data: { id: VALID_UUID_2, question_id: 'q-id', source_record_ids: [] },
       error: null,
     });
 
@@ -1833,7 +1833,7 @@ describe('POST /api/bids/:id/responses/:rId/restore', () => {
         response_text: 'Old version text',
         response_text_advanced: null,
         metadata: {},
-        source_content_ids: [],
+        source_record_ids: [],
       },
       error: null,
     });

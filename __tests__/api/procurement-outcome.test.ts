@@ -421,10 +421,10 @@ describe('POST /api/bids/:id/outcome', () => {
     expect(json.kb_candidates[0].question_id).toBe(QUESTION_ID);
     expect(json.kb_candidates[0].question_text).toBe('Describe your approach');
     // BL-395: recommendation is always 'new_entry' now — 'update_existing'
-    // had no consumer, and the source_content_ids-driven computation that
+    // had no consumer, and the source_record_ids-driven computation that
     // used to pick it has been removed as dead code.
     expect(json.kb_candidates[0].recommendation).toBe('new_entry');
-    expect(json.kb_candidates[0]).not.toHaveProperty('source_content_ids');
+    expect(json.kb_candidates[0]).not.toHaveProperty('source_record_ids');
   });
 
   it('returns 500 when the form update fails', async () => {

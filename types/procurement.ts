@@ -103,7 +103,7 @@ export interface ProcurementQuestion {
   word_limit: number | null;
   evaluation_weight: number | null;
   confidence_posture: ConfidencePosture | null;
-  matched_content_ids: string[] | null;
+  matched_record_ids: string[] | null;
   status: QuestionStatus;
   has_variants: boolean;
   assigned_to: string | null;
@@ -187,7 +187,7 @@ export interface KBCandidate {
   question_text: string;
   response_text: string | null;
   // BL-395: 'update_existing' retired (post-{131.28} HYBRID RETIRE) — the
-  // route always recommends 'new_entry'; source_content_ids-driven detection
+  // route always recommends 'new_entry'; source_record_ids-driven detection
   // was dead compute and has been removed with it.
   recommendation: 'new_entry' | 'skip';
 }

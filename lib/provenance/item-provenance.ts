@@ -158,7 +158,7 @@ export async function getItemProvenance(
   );
 
   // 4. Fetch bid responses that reference this content item (newest 3 + total count)
-  // source_content_ids is a text[] column — use @> (contains) operator
+  // source_record_ids is a text[] column — use @> (contains) operator
   const [recentDraftsResult, countResponse] = await Promise.all([
     sb(
       supabase
@@ -170,7 +170,7 @@ export async function getItemProvenance(
           updated_at,
           form_questions!inner(workspace_id, question_text)`,
         )
-        .contains('source_content_ids', [itemId])
+        .contains('source_record_ids', [itemId])
         .order('updated_at', { ascending: false })
         .limit(3),
       'provenance.item.recentDrafts',
@@ -179,7 +179,7 @@ export async function getItemProvenance(
     supabase
       .from('form_responses')
       .select('id', { count: 'exact', head: true })
-      .contains('source_content_ids', [itemId]),
+      .contains('source_record_ids', [itemId]),
   ]);
 
   // The count query is a raw response (not wrapped by sb(), which discards

@@ -201,7 +201,7 @@ export const POST = defineRoute(
       // always 'new_entry' now. 'update_existing' had no live consumer — the
       // KB integration review dialog already collapses any 'update_existing'
       // it receives onto 'new_entry' (see kb-integration-review.tsx's
-      // normaliseAction) — so the source_content_ids-driven branch that used
+      // normaliseAction) — so the source_record_ids-driven branch that used
       // to compute it was dead weight and has been removed.
       let kbCandidates: Array<{
         question_id: string;

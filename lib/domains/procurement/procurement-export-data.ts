@@ -83,7 +83,7 @@ export async function fetchProcurementExportData(
         response_text_advanced,
         review_status,
         metadata,
-        source_content_ids
+        source_record_ids
       )
     `,
     )

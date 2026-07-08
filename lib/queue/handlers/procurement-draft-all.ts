@@ -173,7 +173,7 @@ export async function runFormDraftAllJob(
   const { data: questions, error: questionsError } = await supabase
     .from('form_questions')
     .select(
-      'id, question_text, word_limit, section_name, confidence_posture, matched_content_ids',
+      'id, question_text, word_limit, section_name, confidence_posture, matched_record_ids',
     )
     .eq('workspace_id', form_id)
     .order('section_sequence', { ascending: true })

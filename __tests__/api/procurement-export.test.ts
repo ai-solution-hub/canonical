@@ -162,7 +162,7 @@ function configureBidWithQuestions(procurementName = 'Test Procurement') {
               response_text_advanced: null,
               review_status: 'approved',
               metadata: {},
-              source_content_ids: [],
+              source_record_ids: [],
             },
           },
         ],

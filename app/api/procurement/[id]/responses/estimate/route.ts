@@ -81,7 +81,7 @@ export const POST = defineRoute(
       // Post-T2: `form_questions.workspace_id` → `workspace_id`.
       const { data: questions, error: questionsError } = await supabase
         .from('form_questions')
-        .select('id, question_text, confidence_posture, matched_content_ids')
+        .select('id, question_text, confidence_posture, matched_record_ids')
         .eq('workspace_id', id)
         .order('section_sequence', { ascending: true })
         .order('question_sequence', { ascending: true });
@@ -161,7 +161,7 @@ export const POST = defineRoute(
       // Collect all unique content IDs across eligible questions
       const allContentIds = new Set<string>();
       for (const q of eligible) {
-        const ids = q.matched_content_ids ?? [];
+        const ids = q.matched_record_ids ?? [];
         for (const cid of ids) {
           allContentIds.add(cid);
         }
@@ -201,7 +201,7 @@ export const POST = defineRoute(
 
       // Build estimation input
       const estimationInput = eligible.map((q) => {
-        const matchedIds = q.matched_content_ids ?? [];
+        const matchedIds = q.matched_record_ids ?? [];
         let contentTokens = 0;
         for (const cid of matchedIds) {
           contentTokens += contentLengths.get(cid) ?? 0;

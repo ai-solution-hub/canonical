@@ -101,7 +101,7 @@ export const POST = defineRoute(
       const { data: question, error: qError } = await supabase
         .from('form_questions')
         .select(
-          'id, question_text, word_limit, section_name, confidence_posture, matched_content_ids',
+          'id, question_text, word_limit, section_name, confidence_posture, matched_record_ids',
         )
         .eq('id', question_id)
         .eq('workspace_id', id)
@@ -117,7 +117,7 @@ export const POST = defineRoute(
       // Fetch matched content (post-{131.16} BI-29: q_a_pairs + reference_items;
       // `content_type` on each item doubles as the cited_kind discriminator
       // for the citations writer below).
-      const matchedIds = question.matched_content_ids ?? [];
+      const matchedIds = question.matched_record_ids ?? [];
       let matchedContent: DraftableContent[] = [];
       // ID-58 R1 (re-pointed {131.16}): neither q_a_pairs nor reference_items
       // carries an inline `version` column, so the cited version is the
@@ -274,7 +274,7 @@ export const POST = defineRoute(
             const responseMetadata: ProcurementResponseMetadata = {
               citations_data: {
                 citations: pass2Result.citations,
-                source_content_ids: matchedContent.map((c) => c.id),
+                source_record_ids: matchedContent.map((c) => c.id),
               },
               quality_data: qualityData,
               ai_metadata: {
@@ -296,7 +296,7 @@ export const POST = defineRoute(
                 {
                   question_id: question.id,
                   response_text: pass2Result.responseText,
-                  source_content_ids: matchedContent.map((c) => c.id),
+                  source_record_ids: matchedContent.map((c) => c.id),
                   metadata: responseMetadata as unknown as Json,
                   review_status: 'ai_drafted',
                   drafted_by: PIPELINE_SYSTEM_USER_ID,

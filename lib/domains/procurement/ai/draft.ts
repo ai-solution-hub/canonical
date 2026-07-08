@@ -63,7 +63,7 @@ export interface DraftableContent extends CitationSourceItem {
 export interface DraftResult {
   response_text: string;
   citations: CitationEntry[];
-  source_content_ids: string[];
+  source_record_ids: string[];
   analysis: QuestionAnalysis;
   metadata: ProcurementResponseMetadata;
   total_tokens: number;
@@ -571,7 +571,7 @@ export async function runDraftingPipeline(
   const metadata: ProcurementResponseMetadata = {
     citations_data: {
       citations,
-      source_content_ids: matchedContent.map((c) => c.id),
+      source_record_ids: matchedContent.map((c) => c.id),
     },
     quality_data: qualityData,
     ai_metadata: {
@@ -589,7 +589,7 @@ export async function runDraftingPipeline(
   return {
     response_text: responseText,
     citations,
-    source_content_ids: matchedContent.map((c) => c.id),
+    source_record_ids: matchedContent.map((c) => c.id),
     analysis,
     metadata,
     total_tokens: totalTokens,

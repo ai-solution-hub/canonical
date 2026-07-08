@@ -949,7 +949,7 @@ export const ResponseUpdateBodySchema = z.object({
     .enum(['draft', 'ai_drafted', 'edited', 'approved', 'needs_review'])
     .optional(),
   change_reason: z.string().max(500).optional(),
-  source_content_ids: z.array(z.string().uuid()).max(100).optional(),
+  source_record_ids: z.array(z.string().uuid()).max(100).optional(),
 });
 
 /** Zod schema for AI-extracted tender metadata (runtime validation) */

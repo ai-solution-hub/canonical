@@ -130,7 +130,7 @@ export function useFormResponseActions({
     }) => {
       return mutationFetchJson(
         `/api/procurement/${procurementId}/responses/${responseId}`,
-        { source_content_ids: sourceContentIds },
+        { source_record_ids: sourceContentIds },
         { method: 'PATCH' },
       );
     },
@@ -141,7 +141,7 @@ export function useFormResponseActions({
     onError: (err) => {
       // Non-blocking — content was already inserted
       console.error(
-        'Failed to update source_content_ids for provenance tracking:',
+        'Failed to update source_record_ids for provenance tracking:',
         err,
       );
     },

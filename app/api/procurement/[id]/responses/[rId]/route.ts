@@ -53,7 +53,7 @@ export const GET = defineRoute(
       const { data: response, error: responseError } = await supabase
         .from('form_responses')
         .select(
-          'id, question_id, response_text, response_text_advanced, source_content_ids, metadata, review_status, version, drafted_by, last_edited_by, approved_by, created_at, updated_at, overall_score',
+          'id, question_id, response_text, response_text_advanced, source_record_ids, metadata, review_status, version, drafted_by, last_edited_by, approved_by, created_at, updated_at, overall_score',
         )
         .eq('id', rId)
         .single();
@@ -88,7 +88,7 @@ export const GET = defineRoute(
       const qualityCheck = meta.quality_data ?? null;
 
       // Fetch source content summaries if there are source IDs. Post-{131.16}
-      // (BI-29): source_content_ids now carries q_a_pair (primary) and
+      // (BI-29): source_record_ids now carries q_a_pair (primary) and
       // reference_item (optional) ids — never the retired content_items ids,
       // and never source_document ids (SD is provenance-only, not a match
       // source — TECH.md D2/E5). q_a_pairs carry no primary_domain/
@@ -104,11 +104,8 @@ export const GET = defineRoute(
         summary: string | null;
       }> = [];
 
-      if (
-        response.source_content_ids &&
-        response.source_content_ids.length > 0
-      ) {
-        const sourceIds = response.source_content_ids;
+      if (response.source_record_ids && response.source_record_ids.length > 0) {
+        const sourceIds = response.source_record_ids;
         const [qaRows, riRows] = await Promise.all([
           sb(
             supabase
@@ -227,7 +224,7 @@ export const PATCH = defineRoute(
         response_text_advanced,
         review_status,
         change_reason,
-        source_content_ids,
+        source_record_ids,
       } = parsed.data;
 
       // Verify the response exists and belongs to this bid
@@ -272,8 +269,8 @@ export const PATCH = defineRoute(
       if (response_text_advanced !== undefined)
         updates.response_text_advanced = response_text_advanced;
       if (review_status !== undefined) updates.review_status = review_status;
-      if (source_content_ids !== undefined)
-        updates.source_content_ids = source_content_ids;
+      if (source_record_ids !== undefined)
+        updates.source_record_ids = source_record_ids;
 
       // Set approved_by when status changes to approved
       if (review_status === 'approved') {

@@ -27,7 +27,7 @@ interface QuestionMatchResult {
   question_id: string;
   question_text: string;
   confidence_posture: string;
-  matched_content_ids: string[];
+  matched_record_ids: string[];
   top_matches: MatchResult[];
 }
 
@@ -169,7 +169,7 @@ export const POST = defineRoute(
           .from('form_questions')
           .update({
             confidence_posture: posture,
-            matched_content_ids: matchedIds,
+            matched_record_ids: matchedIds,
           })
           .eq('id', question.id)
           .eq('workspace_id', id);
@@ -178,7 +178,7 @@ export const POST = defineRoute(
           question_id: question.id,
           question_text: question.question_text,
           confidence_posture: posture,
-          matched_content_ids: matchedIds,
+          matched_record_ids: matchedIds,
           top_matches: topMatches,
         };
       }
@@ -208,7 +208,7 @@ export const POST = defineRoute(
               question_id: question.id,
               question_text: question.question_text,
               confidence_posture: 'no_content',
-              matched_content_ids: [],
+              matched_record_ids: [],
               top_matches: [],
             });
           }

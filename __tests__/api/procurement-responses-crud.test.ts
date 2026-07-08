@@ -163,7 +163,7 @@ describe('GET /api/bids/:id/responses/:rId', () => {
         question_id: QUESTION_ID,
         response_text: '<p>Answer</p>',
         response_text_advanced: null,
-        source_content_ids: [],
+        source_record_ids: [],
         metadata: null,
         review_status: 'draft',
         version: 1,
@@ -200,7 +200,7 @@ describe('GET /api/bids/:id/responses/:rId', () => {
         question_id: QUESTION_ID,
         response_text: '<p>Our approach is...</p>',
         response_text_advanced: null,
-        source_content_ids: [],
+        source_record_ids: [],
         metadata: {},
         review_status: 'ai_drafted',
         version: 1,
@@ -280,7 +280,7 @@ describe('GET /api/bids/:id/responses/:rId', () => {
         question_id: QUESTION_ID,
         response_text: '<p>ISO 27001 compliant systems</p>',
         response_text_advanced: null,
-        source_content_ids: [],
+        source_record_ids: [],
         metadata,
         review_status: 'edited',
         version: 2,
@@ -320,7 +320,7 @@ describe('GET /api/bids/:id/responses/:rId', () => {
     expect(json.quality_check.word_count).toBe(120);
   });
 
-  it('returns source content items when source_content_ids present', async () => {
+  it('returns source content items when source_record_ids present', async () => {
     const sourceId = '00000000-0000-4000-8000-000000000099';
 
     // First .single() — response with source IDs
@@ -330,7 +330,7 @@ describe('GET /api/bids/:id/responses/:rId', () => {
         question_id: QUESTION_ID,
         response_text: '<p>Answer</p>',
         response_text_advanced: null,
-        source_content_ids: [sourceId],
+        source_record_ids: [sourceId],
         metadata: {},
         review_status: 'draft',
         version: 1,

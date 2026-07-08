@@ -39,7 +39,7 @@ describe('QuestionRow', () => {
       word_limit: null,
       evaluation_weight: null,
       confidence_posture: null,
-      matched_content_ids: null,
+      matched_record_ids: null,
       status: 'not_started',
       has_variants: false,
       assigned_to: null,

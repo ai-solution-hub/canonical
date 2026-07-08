@@ -123,7 +123,7 @@ function mockQuestionsResponse(questions: unknown[] = []) {
               updated_at: '2026-01-01',
               workspace_id: 'bid-1',
               evaluation_weight: null,
-              matched_content_ids: null,
+              matched_record_ids: null,
               response: { id: 'r-1', review_status: 'draft', word_count: 50 },
             },
             {
@@ -142,7 +142,7 @@ function mockQuestionsResponse(questions: unknown[] = []) {
               updated_at: '2026-01-01',
               workspace_id: 'bid-1',
               evaluation_weight: null,
-              matched_content_ids: null,
+              matched_record_ids: null,
               response: null,
             },
           ],
@@ -1018,7 +1018,7 @@ describe('useStreamCoordination', () => {
           updated_at: '2026-01-01',
           workspace_id: 'bid-1',
           evaluation_weight: null,
-          matched_content_ids: null,
+          matched_record_ids: null,
           response: { id: 'r-1', review_status: 'draft', word_count: 50 },
         },
         {
@@ -1037,7 +1037,7 @@ describe('useStreamCoordination', () => {
           updated_at: '2026-01-01',
           workspace_id: 'bid-1',
           evaluation_weight: null,
-          matched_content_ids: null,
+          matched_record_ids: null,
           response: { id: 'r-2', review_status: 'draft', word_count: 80 },
         },
       ];

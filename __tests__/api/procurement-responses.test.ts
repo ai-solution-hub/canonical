@@ -202,7 +202,7 @@ describe('Procurement Responses API', () => {
           question_id: QUESTION_UUID,
           response_text: 'Test response',
           response_text_advanced: null,
-          source_content_ids: [],
+          source_record_ids: [],
           metadata: {},
           review_status: 'draft',
           version: 1,

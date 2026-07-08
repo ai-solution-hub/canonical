@@ -17,7 +17,7 @@ export interface CitationEntry {
 /** Citation data from the drafting pipeline (intra-file: ProcurementResponseMetadata.citations_data) */
 interface CitationsData {
   citations: CitationEntry[];
-  source_content_ids: string[];
+  source_record_ids: string[];
 }
 
 /** Quality issue from deterministic or AI checks */
