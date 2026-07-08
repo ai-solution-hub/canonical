@@ -459,14 +459,18 @@ describe('GET /api/procurement/[id]', () => {
   });
 
   it('returns 200 with the roll-up, child-form list, stats, and documents (not domain_metadata)', async () => {
-    // Workspace identity (single) -> roll-up (maybeSingle) -> forms (awaited
-    // list -> .then) -> stats (rpc) -> storage.
+    // Workspace identity (single) -> roll-up (rpc, ID-130 {130.29} — the
+    // api-exposed get_procurement_rollup RPC, NOT a `.from('procurement_workspaces')`
+    // select, which has no api.* view and 404s) -> forms (awaited list -> .then)
+    // -> stats (rpc) -> storage. Both roll-up and stats resolve through the SAME
+    // `mockSupabase.rpc` mock, so the two `mockResolvedValueOnce` calls below are
+    // consumed IN CALL ORDER: roll-up first, stats second.
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: MOCK_WORKSPACE,
       error: null,
     });
-    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-      data: MOCK_ROLLUP,
+    mockSupabase.rpc.mockResolvedValueOnce({
+      data: [MOCK_ROLLUP],
       error: null,
     });
     mockSupabase._chain.then.mockImplementationOnce(
@@ -510,8 +514,16 @@ describe('GET /api/procurement/[id]', () => {
     // The umbrella read surface no longer leaks the deprecated domain_metadata.
     expect(body).not.toHaveProperty('domain_metadata');
 
-    // Roll-up read off procurement_workspaces.
+    // Roll-up read via the sanctioned api-exposed RPC (ID-130 {130.29}) — NOT a
+    // bare `.from('procurement_workspaces')` select, which has no api.* view and
+    // 404s through the api-schema-routed client.
     expect(body.rollup).toEqual(MOCK_ROLLUP);
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('get_procurement_rollup', {
+      p_workspace_id: VALID_UUID,
+    });
+    expect(mockSupabase.from).not.toHaveBeenCalledWith(
+      'procurement_workspaces',
+    );
 
     // Child-form list read off form_templates.
     expect(body.forms).toHaveLength(1);
@@ -588,9 +600,10 @@ describe('GET /api/procurement/[id]', () => {
       data: MOCK_WORKSPACE,
       error: null,
     });
-    // No roll-up row yet -> maybeSingle returns null (default).
-    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-      data: null,
+    // No roll-up row yet -> the RPC (RETURNS TABLE) resolves an empty row set,
+    // not an error (ID-130 {130.29}: the read path is now `.rpc()`, not `.maybeSingle()`).
+    mockSupabase.rpc.mockResolvedValueOnce({
+      data: [],
       error: null,
     });
     // No forms yet -> empty list (default .then).
@@ -608,6 +621,66 @@ describe('GET /api/procurement/[id]', () => {
     expect(body.warnings).toBeUndefined();
   });
 
+  it('surfaces a warning (never a silent null) when the rollup read errors — the class of regression {130.29} fixes', async () => {
+    // ID-130 {130.29}: before this fix, the rollup was read via a bare
+    // `.from('procurement_workspaces').select(...)` through the api-schema-routed
+    // client — that table has NO api.* view (INTERNAL_ONLY by design), so the
+    // request 404d on EVERY call. The prior mocked-client unit test suite could
+    // never catch this because it mocked the client wholesale and always resolved
+    // MOCK_ROLLUP, regardless of what the route actually called. This test asserts
+    // TWO things a 404 regression would break: (a) the route reads the roll-up via
+    // the sanctioned `get_procurement_rollup` RPC, never a direct
+    // `.from('procurement_workspaces')` select; (b) an errored read (simulating the
+    // real PostgREST "relation/function not found in schema cache" shape) surfaces
+    // through the warnings[] envelope instead of silently rendering rollup: null
+    // with no signal.
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: MOCK_WORKSPACE,
+      error: null,
+    });
+    mockSupabase.rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        message:
+          'Could not find the function public.get_procurement_rollup(p_workspace_id) in the schema cache',
+        code: 'PGRST202',
+      },
+    });
+
+    const storageBucket = {
+      list: vi.fn().mockResolvedValue({ data: [], error: null }),
+      upload: vi.fn(),
+      download: vi.fn(),
+      remove: vi.fn(),
+      getPublicUrl: vi.fn(),
+    };
+    mockSupabase.storage.from.mockReturnValue(storageBucket);
+
+    const req = createTestRequest(`/api/procurement/${VALID_UUID}`);
+    const res = await getBid(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
+
+    // Partial-response envelope (H2/H1) — a rollup-read failure must not 500 the
+    // whole detail page.
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.rollup).toBeNull();
+    expect(Array.isArray(body.warnings)).toBe(true);
+    expect(
+      body.warnings.some((w: string) => /Roll-up could not be loaded/.test(w)),
+    ).toBe(true);
+
+    // Schema-level guard: the read path targets the api-exposed RPC surface, not a
+    // base-table select with no api.* view (the exact 404 this Subtask fixes).
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('get_procurement_rollup', {
+      p_workspace_id: VALID_UUID,
+    });
+    expect(mockSupabase.from).not.toHaveBeenCalledWith(
+      'procurement_workspaces',
+    );
+  });
+
   it('returns 200 with warnings[] when stats RPC fails (partial response)', async () => {
     // S152A WP4: H2 was flipped from fail-fast to partial-response. Procurement
     // detail is a composite view (overview, questions, drafting, outcome,
@@ -617,10 +690,14 @@ describe('GET /api/procurement/[id]', () => {
       error: null,
     });
 
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'stats rpc unavailable', code: 'XX000' },
-    });
+    // Roll-up (rpc call #1) succeeds — this test isolates the STATS rpc failure.
+    // Both calls share `mockSupabase.rpc`, so ordering is load-bearing.
+    mockSupabase.rpc
+      .mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: 'stats rpc unavailable', code: 'XX000' },
+      });
 
     const storageBucket = {
       list: vi.fn().mockResolvedValue({ data: [], error: null }),
@@ -655,10 +732,14 @@ describe('GET /api/procurement/[id]', () => {
       error: null,
     });
 
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: [{ total: 10, answered: 7, approved: 3 }],
-      error: null,
-    });
+    // Roll-up (rpc call #1) succeeds; stats (rpc call #2) succeeds — this test
+    // isolates the STORAGE failure. Both rpc calls share `mockSupabase.rpc`.
+    mockSupabase.rpc
+      .mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValueOnce({
+        data: [{ total: 10, answered: 7, approved: 3 }],
+        error: null,
+      });
 
     const storageBucket = {
       list: vi.fn().mockResolvedValue({

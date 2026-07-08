@@ -16,12 +16,27 @@ import {
 } from '@/lib/validation/schemas';
 import { tryQuery } from '@/lib/supabase/safe';
 import type { Database } from '@/supabase/types/database.types';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
 type WorkspaceUpdate = Database['public']['Tables']['workspaces']['Update'];
 type FormTemplateUpdate =
   Database['public']['Tables']['form_templates']['Update'];
+
+// TYPE ESCAPE (deliberate, temporary — same precedent as
+// lib/domains/procurement/resolve-form-template.ts's `UntypedRpcClient`): the
+// `get_procurement_rollup` RPC (public + api wrapper) is authored in
+// supabase/migrations/20260708140000_id130_procurement_rollup_api_rpc.sql but not
+// yet in the generated `database.types.ts` — this Subtask's worktree has no DB
+// access to apply the migration or regen types (a types-regen is flagged as a
+// follow-up intent). `SupabaseClient<any>` is the standard escape for calling a
+// not-yet-generated RPC surface, confined to the single `.rpc()` call site below.
+// DELETE this escape (call `.rpc()` directly on the typed client) once the
+// coordinated apply + `supabase gen types` regenerates
+// `Database['api']['Functions']['get_procurement_rollup']`.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type UntypedRpcClient = SupabaseClient<any>;
 
 export const maxDuration = 30;
 
@@ -131,7 +146,19 @@ export const GET = defineRoute(
       const warnings: string[] = [];
 
       // Materialised roll-up (procurement_workspaces). May not exist yet for a
-      // brand-new umbrella — `.maybeSingle()` returns null in that case.
+      // brand-new umbrella — the RPC returns zero rows in that case.
+      //
+      // ID-130 {130.29} — `procurement_workspaces` has NO api.* view
+      // (INTERNAL_ONLY by design; see 20260625140000_id130_winrate.sql's header),
+      // so a direct `.from('procurement_workspaces').select(...)` 404s on every
+      // request through the api-schema-routed client (lib/supabase/schema.ts
+      // DB_OPTION). `api.get_procurement_rollup` (thin SECURITY INVOKER wrapper
+      // over `public.get_procurement_rollup`, added in
+      // 20260708140000_id130_procurement_rollup_api_rpc.sql) is the sanctioned
+      // read path — RLS still applies (SECURITY INVOKER), only the transport
+      // changes from a base-table select to an RPC call.
+      //
+      // `UntypedRpcClient` escape — see the file-header comment above.
       let rollup: Pick<
         Database['public']['Tables']['procurement_workspaces']['Row'],
         | 'nearest_deadline'
@@ -139,14 +166,21 @@ export const GET = defineRoute(
         | 'counts_toward_win_rate'
         | 'rollup_updated_at'
       > | null = null;
-      const rollupResult = await tryQuery(
-        supabase
-          .from('procurement_workspaces')
-          .select(
-            'nearest_deadline, overall_outcome, counts_toward_win_rate, rollup_updated_at',
-          )
-          .eq('workspace_id', id)
-          .maybeSingle(),
+      const rollupRpcClient = supabase as unknown as UntypedRpcClient;
+      const rollupResult = await tryQuery<
+        Array<
+          Pick<
+            Database['public']['Tables']['procurement_workspaces']['Row'],
+            | 'nearest_deadline'
+            | 'overall_outcome'
+            | 'counts_toward_win_rate'
+            | 'rollup_updated_at'
+          >
+        >
+      >(
+        rollupRpcClient.rpc('get_procurement_rollup', {
+          p_workspace_id: id,
+        }),
         'procurement.detail.rollup',
       );
       if (!rollupResult.ok) {
@@ -159,7 +193,10 @@ export const GET = defineRoute(
             safeErrorMessage(rollupResult.error, 'rollup query failed'),
         );
       } else {
-        rollup = rollupResult.data;
+        // The RPC (RETURNS TABLE) resolves to a row set, not a single object —
+        // zero rows is the expected "no rollup yet" case (a brand-new umbrella),
+        // not a warning.
+        rollup = rollupResult.data?.[0] ?? null;
       }
 
       // Child forms list (the engagement forms held by this umbrella).
