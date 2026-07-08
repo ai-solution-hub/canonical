@@ -844,8 +844,13 @@ async def _emit_pipeline_run_webhook(
     route is the ONLY path used to land `pipeline_runs` rows (Inv-18
     discipline guard).
 
-    Auth: `Authorization: Bearer <CRON_SECRET>` (T-OQ2; secret mounted via
-    Cloud Run Secret Manager).
+    Auth: `Authorization: Bearer <secret>` (ID-127.18, S436 D1 dual-accept):
+    prefers the dedicated `PIPELINE_TRIGGER_SECRET`, falling back to the
+    legacy shared `CRON_SECRET` during the rotation window — mirrors
+    `nudgeCocoindexWalk` (`lib/intelligence/pipeline.ts`) and the TS
+    `nudgeCorpusRewalk` sends (`write-back.ts` / `folder-drop.ts`). The
+    receiving Vercel route dual-accepts both via `verifyPipelineTriggerAuth`
+    (`lib/cron-auth.ts`). Secret mounted via Cloud Run Secret Manager.
 
     Best-effort: missing env vars or HTTP errors are logged but DO NOT
     raise — the pipeline keeps running even if the webhook is unreachable.
@@ -857,15 +862,23 @@ async def _emit_pipeline_run_webhook(
 
     Env vars (set by Cloud Run Service manifest):
       PIPELINE_RUN_WEBHOOK_URL — full URL of the Vercel route.
-      CRON_SECRET              — shared bearer secret.
+      PIPELINE_TRIGGER_SECRET  — dedicated bearer secret (preferred).
+      CRON_SECRET               — legacy shared bearer secret (fallback).
     """
     url = os.environ.get("PIPELINE_RUN_WEBHOOK_URL")
-    secret = os.environ.get("CRON_SECRET")
+    # ID-127.18 (S436 D1): prefer the dedicated PIPELINE_TRIGGER_SECRET once
+    # the env rollout has set it; fall back to the legacy shared CRON_SECRET
+    # so the webhook keeps firing before every pipeline Coolify app + Vercel
+    # deployment has the new secret.
+    secret = os.environ.get("PIPELINE_TRIGGER_SECRET") or os.environ.get(
+        "CRON_SECRET"
+    )
     if not url or not secret:
         _logger.warning(
-            "PIPELINE_RUN_WEBHOOK_URL or CRON_SECRET not set — skipping "
-            "pipeline-run webhook emission (op_id=%s status=%s). "
-            "Per-row structured logs via _emit_upsert_log() are unaffected.",
+            "PIPELINE_RUN_WEBHOOK_URL or PIPELINE_TRIGGER_SECRET/CRON_SECRET "
+            "not set — skipping pipeline-run webhook emission (op_id=%s "
+            "status=%s). Per-row structured logs via _emit_upsert_log() are "
+            "unaffected.",
             op_id,
             status,
         )

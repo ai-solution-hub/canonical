@@ -146,7 +146,8 @@ const REWALK_NUDGE_TIMEOUT_MS = 5_000;
  * `nudgeCocoindexWalk` (`lib/intelligence/pipeline.ts:539`, ID-75 WP-E D-3)
  * verbatim in shape — reimplemented locally rather than imported/exported
  * from `pipeline.ts`, which sits outside this Subtask's file-ownership
- * boundary. Same env-var gate (`COCOINDEX_WORKER_URL` + `CRON_SECRET`), same
+ * boundary. Same env-var gate (`COCOINDEX_WORKER_URL` + dual-accept
+ * `PIPELINE_TRIGGER_SECRET`/`CRON_SECRET`, ID-127.18 S436 D1), same
  * non-fatal fire-and-forget contract: a skipped or failed nudge is a DELAY,
  * never a loss — the standing scheduled walk (and, once {138.14} lands,
  * pull-sync) bounds the latency. NEVER called on the compensating-restore
@@ -161,18 +162,25 @@ function nudgeCorpusRewalk(objectKey: string): void {
     );
     return;
   }
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) {
+  // ID-127.18 (S436 D1): prefer the dedicated PIPELINE_TRIGGER_SECRET once
+  // the env rollout has set it; fall back to the legacy shared CRON_SECRET
+  // so the nudge keeps firing before every pipeline Coolify app + Vercel
+  // deployment has the new secret. server.py's /walk auth dual-accepts
+  // both during the transition, so either value authenticates (mirrors
+  // lib/intelligence/pipeline.ts's nudgeCocoindexWalk verbatim).
+  const pipelineTriggerSecret =
+    process.env.PIPELINE_TRIGGER_SECRET || process.env.CRON_SECRET;
+  if (!pipelineTriggerSecret) {
     logger.warn(
       { objectKey },
-      '[write-back] CRON_SECRET unset — skipping re-walk nudge; the edit will be picked up by the next scheduled walk.',
+      '[write-back] PIPELINE_TRIGGER_SECRET/CRON_SECRET unset — skipping re-walk nudge; the edit will be picked up by the next scheduled walk.',
     );
     return;
   }
 
   void fetch(`${workerUrl}/walk`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${cronSecret}` },
+    headers: { Authorization: `Bearer ${pipelineTriggerSecret}` },
     signal: AbortSignal.timeout(REWALK_NUDGE_TIMEOUT_MS),
   })
     .then((res) => {

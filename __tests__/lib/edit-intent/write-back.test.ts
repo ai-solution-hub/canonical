@@ -155,11 +155,13 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
     // Never let the fire-and-forget re-walk nudge attempt a real network
     // call in tests that don't explicitly configure it.
     delete process.env.COCOINDEX_WORKER_URL;
+    delete process.env.PIPELINE_TRIGGER_SECRET;
     delete process.env.CRON_SECRET;
   });
 
   afterEach(() => {
     delete process.env.COCOINDEX_WORKER_URL;
+    delete process.env.PIPELINE_TRIGGER_SECRET;
     delete process.env.CRON_SECRET;
     vi.restoreAllMocks();
   });
@@ -441,6 +443,105 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
       );
     });
 
+    it('ID-127.18 (S436 D1): prefers the dedicated PIPELINE_TRIGGER_SECRET bearer over the legacy CRON_SECRET when both are set', async () => {
+      process.env.COCOINDEX_WORKER_URL = 'https://worker.example.test';
+      process.env.PIPELINE_TRIGGER_SECRET = 'new-pipeline-trigger-secret';
+      process.env.CRON_SECRET = 'test-cron-secret';
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue({ ok: true, status: 202 } as Response);
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      configureResolution(mockSupabase, {
+        storagePath: REL_PATH,
+      });
+      const applyDbLeg = vi.fn().mockResolvedValue(undefined);
+
+      await writeBackFileFirst({
+        supabase: client(),
+        contentItemId: CONTENT_ITEM_ID,
+        newContent: NEW_BYTES,
+        applyDbLeg,
+      });
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://worker.example.test/walk',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { Authorization: 'Bearer new-pipeline-trigger-secret' },
+        }),
+      );
+
+      delete process.env.PIPELINE_TRIGGER_SECRET;
+    });
+
+    it('ID-127.18: DUAL-ACCEPT — falls back to the legacy CRON_SECRET bearer when PIPELINE_TRIGGER_SECRET is unset (pre-rollout)', async () => {
+      process.env.COCOINDEX_WORKER_URL = 'https://worker.example.test';
+      delete process.env.PIPELINE_TRIGGER_SECRET;
+      process.env.CRON_SECRET = 'test-cron-secret';
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue({ ok: true, status: 202 } as Response);
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      configureResolution(mockSupabase, {
+        storagePath: REL_PATH,
+      });
+      const applyDbLeg = vi.fn().mockResolvedValue(undefined);
+
+      await writeBackFileFirst({
+        supabase: client(),
+        contentItemId: CONTENT_ITEM_ID,
+        newContent: NEW_BYTES,
+        applyDbLeg,
+      });
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://worker.example.test/walk',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { Authorization: 'Bearer test-cron-secret' },
+        }),
+      );
+    });
+
+    it('ID-127.18: skips the nudge with a structured log naming both env vars when BOTH PIPELINE_TRIGGER_SECRET and CRON_SECRET are unset', async () => {
+      process.env.COCOINDEX_WORKER_URL = 'https://worker.example.test';
+      delete process.env.PIPELINE_TRIGGER_SECRET;
+      delete process.env.CRON_SECRET;
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue({ ok: true, status: 202 } as Response);
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      configureResolution(mockSupabase, {
+        storagePath: REL_PATH,
+      });
+      const applyDbLeg = vi.fn().mockResolvedValue(undefined);
+
+      await writeBackFileFirst({
+        supabase: client(),
+        contentItemId: CONTENT_ITEM_ID,
+        newContent: NEW_BYTES,
+        applyDbLeg,
+      });
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(loggerMocks.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ objectKey: REL_PATH }),
+        expect.stringContaining('PIPELINE_TRIGGER_SECRET/CRON_SECRET unset'),
+      );
+    });
+
     it('does NOT nudge on the DB-failure/restore path (a reverted edit must not trigger a walk)', async () => {
       process.env.COCOINDEX_WORKER_URL = 'https://worker.example.test';
       process.env.CRON_SECRET = 'test-cron-secret';
@@ -503,11 +604,13 @@ describe('writeNewCorpusObject — {138.12} T4 no-prior-object mint (q_a-pairs M
       error: null,
     });
     delete process.env.COCOINDEX_WORKER_URL;
+    delete process.env.PIPELINE_TRIGGER_SECRET;
     delete process.env.CRON_SECRET;
   });
 
   afterEach(() => {
     delete process.env.COCOINDEX_WORKER_URL;
+    delete process.env.PIPELINE_TRIGGER_SECRET;
     delete process.env.CRON_SECRET;
     vi.restoreAllMocks();
   });

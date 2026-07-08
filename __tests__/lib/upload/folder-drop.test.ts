@@ -366,4 +366,100 @@ describe('stageAndWalk', () => {
       expect.anything(),
     );
   });
+
+  describe('re-walk nudge (mirrors write-back.ts nudgeCorpusRewalk; ID-127.18 S436 D1 dual-accept)', () => {
+    afterEach(() => {
+      delete process.env.COCOINDEX_WORKER_URL;
+      delete process.env.PIPELINE_TRIGGER_SECRET;
+      delete process.env.CRON_SECRET;
+    });
+
+    it('fires a POST to {COCOINDEX_WORKER_URL}/walk on the happy path when configured', async () => {
+      process.env.COCOINDEX_WORKER_URL = 'https://worker.example.test';
+      process.env.CRON_SECRET = 'test-cron-secret';
+      fetchMock.mockResolvedValueOnce({ ok: true, status: 202 } as Response);
+
+      await stageAndWalk({ ...input, supabase: asClient() });
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://worker.example.test/walk',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { Authorization: 'Bearer test-cron-secret' },
+        }),
+      );
+    });
+
+    it('ID-127.18: prefers the dedicated PIPELINE_TRIGGER_SECRET bearer over the legacy CRON_SECRET when both are set', async () => {
+      process.env.COCOINDEX_WORKER_URL = 'https://worker.example.test';
+      process.env.PIPELINE_TRIGGER_SECRET = 'new-pipeline-trigger-secret';
+      process.env.CRON_SECRET = 'test-cron-secret';
+      fetchMock.mockResolvedValueOnce({ ok: true, status: 202 } as Response);
+
+      await stageAndWalk({ ...input, supabase: asClient() });
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://worker.example.test/walk',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { Authorization: 'Bearer new-pipeline-trigger-secret' },
+        }),
+      );
+    });
+
+    it('ID-127.18: DUAL-ACCEPT — falls back to the legacy CRON_SECRET bearer when PIPELINE_TRIGGER_SECRET is unset (pre-rollout)', async () => {
+      process.env.COCOINDEX_WORKER_URL = 'https://worker.example.test';
+      delete process.env.PIPELINE_TRIGGER_SECRET;
+      process.env.CRON_SECRET = 'test-cron-secret';
+      fetchMock.mockResolvedValueOnce({ ok: true, status: 202 } as Response);
+
+      await stageAndWalk({ ...input, supabase: asClient() });
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://worker.example.test/walk',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { Authorization: 'Bearer test-cron-secret' },
+        }),
+      );
+    });
+
+    it('ID-127.18: skips the nudge with a structured log naming both env vars when BOTH PIPELINE_TRIGGER_SECRET and CRON_SECRET are unset', async () => {
+      process.env.COCOINDEX_WORKER_URL = 'https://worker.example.test';
+      delete process.env.PIPELINE_TRIGGER_SECRET;
+      delete process.env.CRON_SECRET;
+
+      await stageAndWalk({ ...input, supabase: asClient() });
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(loggerMocks.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ objectKey: input.destPath }),
+        expect.stringContaining('PIPELINE_TRIGGER_SECRET/CRON_SECRET unset'),
+      );
+    });
+
+    it('skips gracefully (no throw) when COCOINDEX_WORKER_URL is unset', async () => {
+      delete process.env.COCOINDEX_WORKER_URL;
+
+      const result = await stageAndWalk({ ...input, supabase: asClient() });
+
+      expect(result.sourceDocumentId).toBe(SOURCE_DOCUMENT_ID);
+      expect(loggerMocks.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ objectKey: input.destPath }),
+        expect.stringContaining('COCOINDEX_WORKER_URL unset'),
+      );
+    });
+  });
 });
