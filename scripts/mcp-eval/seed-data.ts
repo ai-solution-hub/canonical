@@ -1,6 +1,6 @@
 export const MCP_EVAL_SEED_TITLE_PREFIX = '[MCP-SEED]';
 export const MCP_EVAL_SEED_VERSION = 1;
-export const MCP_EVAL_SEED_METADATA_FLAG = 'mcp_eval_seed';
+const MCP_EVAL_SEED_METADATA_FLAG = 'mcp_eval_seed';
 export const MCP_EVAL_SEED_ROLE_SIMILARITY_SOURCE = 'similarity_source';
 export const MCP_EVAL_SEED_GUIDE_ID = '2f1d83c0-8b43-4b9a-94d9-f0f8a7e00201';
 export const MCP_EVAL_SEED_GUIDE_SLUG = 'mcp-eval-guide';
