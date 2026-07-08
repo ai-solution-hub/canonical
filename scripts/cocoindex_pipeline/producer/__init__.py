@@ -15,6 +15,10 @@ G-PASS2's `WEB_FETCH_TOOL`), `prompts` (Pass-1/Pass-2 instruction prompts —
 Pass-1 concept drafting from L-records ONLY, `{132.8}` G-PASS1), `web_pass`
 (`run_web_pass` — Pass-2 gated enrichment from the client's own
 authoritative sources ONLY via a net-new host-allowlist/depth-limit/
-path-filter gate, `{132.9}` G-PASS2). No barrel re-exports here — import
-each module directly (project convention, `CLAUDE.md` §Conventions).
+path-filter gate, `{132.9}` G-PASS2), `bundle_writer` (`declare_concept` —
+the BI-13-gated `declare_file` write call site — plus `regenerate_indexes`
+(`index.md` progressive-disclosure nav), the `log.md` append-only run
+appender, and the DR-027 ontology artefact writer, `{132.10}` G-BUNDLE). No
+barrel re-exports here — import each module directly (project convention,
+`CLAUDE.md` §Conventions).
 """

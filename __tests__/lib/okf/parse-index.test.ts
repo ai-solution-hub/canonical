@@ -1,7 +1,72 @@
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 import { parseBundleNav } from '@/lib/okf/parse-index';
 
+// ID-132 {132.10} G-BUNDLE round-trip (S451 rider, BINDING): the fixture
+// below is emitted VERBATIM by `producer/bundle_writer.py`'s own
+// `regenerate_indexes` — proving the writer's output structurally parses
+// (never falls through to the graceful type-grouping fallback), not just
+// that hand-authored text in this file happens to match the regex. A
+// format drift between the writer and this parser would degrade
+// `<BundleNav>` SILENTLY (both parsers have a graceful fallback) — this
+// test is the guard against that. De-identified: generic placeholder
+// theme/concept names, never the real first-client corpus.
+const REPO_ROOT = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  '..',
+);
+const FIXTURE_PATH = resolve(
+  REPO_ROOT,
+  '__tests__/fixtures/okf/bundle-writer-index.md',
+);
+
 describe('parseBundleNav', () => {
+  it('parses the {132.10} bundle_writer.regenerate_indexes() fixture with full structure (no fallback)', () => {
+    const text = readFileSync(FIXTURE_PATH, 'utf8');
+
+    const themes = parseBundleNav(text);
+
+    expect(themes).toHaveLength(3);
+    expect(themes.map((t) => t.heading)).toEqual([
+      'Company Overview',
+      'Security and Compliance',
+      'Products',
+    ]);
+    expect(themes.every((t) => t.level === 2)).toBe(true);
+
+    const security = themes[1];
+    expect(security.concepts).toHaveLength(2);
+    expect(security.concepts[0]).toMatchObject({
+      title: 'Data Encryption',
+      path: 'topics/encryption',
+      description: 'Encryption at rest and in transit.',
+    });
+    expect(security.children).toHaveLength(1);
+    expect(security.children[0]).toMatchObject({
+      heading: 'Certifications',
+      level: 3,
+      concepts: [
+        {
+          title: 'ISO 27001',
+          path: 'certifications/iso-27001',
+          description: 'Information security management certification.',
+        },
+      ],
+    });
+
+    // Every theme carries at least one concept somewhere in its subtree —
+    // proof this parsed as STRUCTURED nav, not an empty/fallback shape.
+    for (const theme of themes) {
+      const total =
+        theme.concepts.length +
+        theme.children.reduce((sum, child) => sum + child.concepts.length, 0);
+      expect(total).toBeGreaterThan(0);
+    }
+  });
   it('parses ## theme headings with concept bullets into a nav tree', () => {
     const text = [
       '## Pricing',
