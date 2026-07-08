@@ -83,6 +83,14 @@ def _require_disposable_dsn() -> str:
             "(STAGING_PROJECT_REF) — these cross-run integration tests MUST NOT "
             "run against shared staging (ID-81 TECH §5). Use a disposable DB."
         )
+    platform_staging_ref = os.getenv("PLATFORM_PROJECT_REF")
+    if platform_staging_ref and platform_staging_ref in dsn:
+        raise RuntimeError(
+            "KH_STAGE5_INTEGRATION_DSN points at the PLATFORM STAGING branch "
+            "(PLATFORM_PROJECT_REF) — these cross-run integration tests MUST NOT "
+            "run against shared staging (ID-81 TECH §5 / ID-127 staging cutover). "
+            "Use a disposable DB."
+        )
     return dsn
 
 
