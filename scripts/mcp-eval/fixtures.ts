@@ -258,13 +258,10 @@ export async function getAuthToken(): Promise<{
 
 export interface KnownUUIDs {
   contentItemId: string;
+  qaPairId: string;
   procurementId: string | null;
   questionId: string | null;
   procurementResponseId: string | null;
-}
-interface SeedContentItemRow {
-  id: string;
-  metadata: Record<string, unknown> | null;
 }
 
 function isMcpEvalSeedMetadata(metadata: unknown): boolean {
@@ -275,47 +272,82 @@ function isMcpEvalSeedMetadata(metadata: unknown): boolean {
   );
 }
 
-function getMcpEvalSeedRole(metadata: unknown): string | null {
-  if (!isMcpEvalSeedMetadata(metadata)) return null;
-  const role = (metadata as Record<string, unknown>).mcp_eval_seed_role;
-  return typeof role === 'string' ? role : null;
-}
-
+/**
+ * ID-130.23 B2 (S451 CI-red, {139.6} file-ownership) — re-pointed off the
+ * DROPPED `content_items` table (20260706110000_id131_drops.sql, M6). The old
+ * query filtered `content_items` by a `metadata.mcp_eval_seed` flag; q_a_pairs
+ * carries no metadata/role column post-M6 (seed-fixtures.ts module header), so
+ * the deterministic seed `id`s from MCP_EVAL_SEED_ITEMS are now the only
+ * correlation available for picking the `similarity_source`-role row.
+ *
+ * Two distinct ids are now needed where one (`contentItemId`) served both
+ * before: the `get` tool (FC-20/21/22, response-quality TE-03) resolves
+ * strictly against `source_documents` (lib/mcp/tools/content.ts — no
+ * q_a_pairs fallback), while `find`'s `similar_to`, `find_duplicates`, and
+ * `get_content_effectiveness` all resolve against a `record_embeddings`/
+ * `q_a_pairs` owner id (lib/mcp/tools/search.ts findSimilarItemsImpl;
+ * lib/mcp/tools/procurement.ts get_content_win_rate). `contentItemId` keeps
+ * its name (least call-site churn: it still feeds the `get`-family checks)
+ * but is now sourced from `source_documents`, not `content_items`.
+ */
 export async function getKnownUUIDs(
   supabase: SupabaseClient,
 ): Promise<KnownUUIDs> {
-  // Get a deterministic seeded Q&A item with an embedding. The MCP eval seed
-  // job runs once before L1/L3/L4 fan-out; missing rows are a real setup error,
-  // not a graceful skip, because otherwise eval jobs appear green while testing
-  // no search/Q&A behaviour.
-  const { data: seedItems, error: seedError } = await supabase
-    .from('content_items')
-    .select('id, metadata')
-    .eq('content_type', 'q_a_pair')
-    .eq('publication_status', 'published')
-    .contains('metadata', { [MCP_EVAL_SEED_METADATA_FLAG]: true })
-    .not('embedding', 'is', null)
+  // The `get` tool needs a live, non-archived source_documents row. No
+  // deterministic seed row exists for source_documents (the MCP eval seed job
+  // only writes q_a_pairs — seed-fixtures.ts), so pick the oldest surviving
+  // row for run-to-run stability. Missing rows are a real setup error (empty
+  // eval DB), not a graceful skip.
+  const { data: sourceDoc, error: sourceDocError } = await supabase
+    .from('source_documents')
+    .select('id')
     .is('archived_at', null)
-    .order('title', { ascending: true });
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
 
-  if (seedError) {
+  if (sourceDocError) {
     throw new Error(
-      `Failed to query MCP eval seed Q&A items: ${seedError.message}`,
+      `Failed to query a known source_documents row: ${sourceDocError.message}`,
+    );
+  }
+  if (!sourceDoc) {
+    throw new Error(
+      '\n[MCP eval setup failed] no non-archived source_documents rows found.\n' +
+        '  The `get` tool (FC-20/21/22) needs at least one live source_documents row.\n',
     );
   }
 
-  const seededRows = (seedItems ?? []) as SeedContentItemRow[];
-  const contentItem =
-    seededRows.find(
-      (row) =>
-        getMcpEvalSeedRole(row.metadata) ===
-        MCP_EVAL_SEED_ROLE_SIMILARITY_SOURCE,
-    ) ?? seededRows[0];
-
-  if (!contentItem) {
+  // Get the deterministic seeded Q&A item with an embedding (role:
+  // similarity_source). The MCP eval seed job runs once before L1/L3/L4
+  // fan-out; a missing row is a real setup error, not a graceful skip,
+  // because otherwise eval jobs appear green while testing no search/Q&A
+  // behaviour.
+  const similarityItem = MCP_EVAL_SEED_ITEMS.find(
+    (item) => item.role === MCP_EVAL_SEED_ROLE_SIMILARITY_SOURCE,
+  );
+  if (!similarityItem) {
     throw new Error(
-      '\n[MCP eval setup failed] no seeded Q&A content_items with embeddings found.\n' +
-        `  Expected: ${MCP_EVAL_SEED_ITEMS.length} published q_a_pair rows with metadata.${MCP_EVAL_SEED_METADATA_FLAG}=true.\n` +
+      'MCP_EVAL_SEED_ITEMS has no similarity_source role item — check seed-data.ts',
+    );
+  }
+
+  const { data: qaPair, error: qaPairError } = await supabase
+    .from('q_a_pairs')
+    .select('id')
+    .eq('id', similarityItem.id)
+    .eq('publication_status', 'published')
+    .maybeSingle();
+
+  if (qaPairError) {
+    throw new Error(
+      `Failed to query seeded q_a_pairs row: ${qaPairError.message}`,
+    );
+  }
+  if (!qaPair) {
+    throw new Error(
+      '\n[MCP eval setup failed] seeded q_a_pair not found ' +
+        `(id ${similarityItem.id}).\n` +
         '  Action: run `bun run seed:mcp-eval` against the target Supabase environment before MCP eval L1/L3/L4.\n',
     );
   }
@@ -354,7 +386,8 @@ export async function getKnownUUIDs(
   }
 
   return {
-    contentItemId: contentItem.id,
+    contentItemId: sourceDoc.id,
+    qaPairId: qaPair.id,
     procurementId: bid?.id ?? null,
     questionId,
     procurementResponseId,
@@ -503,13 +536,18 @@ export function getMinimalArgs(
     case 'get_entity_relationships':
       return { entity_type: 'certification' };
     case 'get_content_effectiveness':
-      return { content_item_id: knownUUIDs.contentItemId };
+      // Resolves against q_a_pairs via get_content_win_rate's p_q_a_pair_id
+      // (ID-131.10/BI-26 re-anchor) — needs qaPairId, not contentItemId
+      // (source_documents).
+      return { content_item_id: knownUUIDs.qaPairId };
     case 'find_duplicates':
       // ID-71.10 part 2 — single-item admin dedup, requires `id`. The
       // `scope: 'all'` whole-KB batch scan branch was retired under
       // ID-131.15 (G-DEDUP legacy dedup-family retirement, S446) — the
-      // find_duplicate_pairs RPC it depended on was dropped.
-      return { id: knownUUIDs.contentItemId };
+      // find_duplicate_pairs RPC it depended on was dropped. Resolves via
+      // record_embeddings.owner_id (search.ts findSimilarItemsImpl) — needs
+      // qaPairId, not contentItemId (source_documents).
+      return { id: knownUUIDs.qaPairId };
     case 'show_coverage_matrix':
       return {};
     case 'show_procurement_dashboard':

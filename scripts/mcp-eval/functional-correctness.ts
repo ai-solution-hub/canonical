@@ -22,6 +22,7 @@ import {
   type KnownUUIDs,
   type EvalItem,
 } from './fixtures.js';
+import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import {
   HEADLESS_COMPLETE_SET,
   HEADLESS_COMPLETE_OUTCOMES,
@@ -282,6 +283,27 @@ function extractUUID(text: string): string | null {
     /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
   );
   return match ? match[0] : null;
+}
+
+/**
+ * Service-role client for FC-60/65 reference-layer verification + cleanup.
+ * `reference_items` is write-policy-free by design (ID-75 BI-16 — all writes
+ * route through the `reference_ingest` SECURITY DEFINER RPC), so no RLS
+ * policy permits a normal authenticated client to DELETE it. Mirrors the
+ * `createScriptClient` + SUPABASE_SERVICE_ROLE_KEY idiom already used by
+ * scripts/mcp-eval/seed-fixtures.ts.
+ */
+function getReferenceCleanupClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceRoleKey) {
+    throw new Error(
+      'Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY (required for FC-60/65 reference_items verification/cleanup)',
+    );
+  }
+  return createScriptClient(url, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -581,11 +603,13 @@ async function runSearchToolChecks(
   }
 
   // FC-07: find with similar_to (ID-71.7 — collapsed from find_similar_items)
-  // — check descending similarity scores for a known content item UUID
+  // — check descending similarity scores for a known content item UUID.
+  // Resolves via record_embeddings.owner_id (search.ts findSimilarItemsImpl)
+  // — needs qaPairId, not contentItemId (source_documents; ID-130.23 B2).
   {
     const result = await callTool(
       'find',
-      { similar_to: knownUUIDs.contentItemId },
+      { similar_to: knownUUIDs.qaPairId },
       accessToken,
     );
     if (result.errorMessage) {
@@ -1452,11 +1476,13 @@ async function runCoverageQualityChecks(
 
   // FC-44: find_duplicates — single-item admin dedup (requires `id`; the
   // whole-KB `scope: 'all'` batch scan was retired under ID-131.15, G-DEDUP
-  // legacy dedup-family retirement, S446). Check for duplicate-related keywords.
+  // legacy dedup-family retirement, S446). Check for duplicate-related
+  // keywords. Resolves via record_embeddings.owner_id — needs qaPairId, not
+  // contentItemId (source_documents; ID-130.23 B2).
   {
     const result = await callTool(
       'find_duplicates',
-      { id: knownUUIDs.contentItemId },
+      { id: knownUUIDs.qaPairId },
       accessToken,
     );
     if (result.errorMessage) {
@@ -1563,11 +1589,14 @@ async function runEntityToolChecks(
     }
   }
 
-  // FC-51: get_content_effectiveness with known item — keyword check
+  // FC-51: get_content_effectiveness with known item — keyword check.
+  // Resolves via get_content_win_rate's p_q_a_pair_id (ID-131.10/BI-26
+  // re-anchor) — needs qaPairId, not contentItemId (source_documents;
+  // ID-130.23 B2).
   {
     const result = await callTool(
       'get_content_effectiveness',
-      { content_item_id: knownUUIDs.contentItemId },
+      { content_item_id: knownUUIDs.qaPairId },
       accessToken,
     );
     if (result.errorMessage) {
@@ -1634,30 +1663,31 @@ async function runWriteToolChecks(
 ): Promise<void> {
   console.log('\nWrite Tools');
 
-  // Track items created for cleanup
-  const createdItemIds: string[] = [];
+  // Track reference-layer rows created for cleanup (FC-60/65 — see below).
+  const createdReferenceIds: string[] = [];
+  // FC-60/65 land via the reference_ingest sync path, which is write-policy-
+  // free on reference_items (ID-75 BI-16) — a service-role client is required
+  // for both response verification and cleanup (see getReferenceCleanupClient).
+  const referenceCleanupClient = getReferenceCleanupClient();
 
-  // FC-60: create_content_item — INFRA-SKIP when COCOINDEX_WORKER_URL is unset.
-  // The source-less folder-drop create path needs the cocoindex worker (unset in
-  // CI). The S422 decouple via the synchronous reference_ingest (source_url)
-  // branch hit a live source_documents unique-constraint on re-runs (the fixed
-  // eval content/url is not idempotent), so FC-60/65 revert to the infra-skip;
-  // re-runnable create/delete coverage is backlogged.
-  if (!process.env.COCOINDEX_WORKER_URL) {
-    record(
-      'Write Tools',
-      'FC-60',
-      'create_content_item',
-      'SKIP',
-      'COCOINDEX_WORKER_URL unset — create path unavailable; infra-skipped (re-runnable coverage backlogged)',
-    );
-  } else {
+  // FC-60: create_content_item via the reference_ingest sync path (the
+  // source_url branch) — restored per ID-130.23. reference_ingest (RPC,
+  // supabase/migrations/20260619130100_id112_reference_ingest_derive_method.sql)
+  // derives deterministic uuid5 PKs from source_url ALONE, so a per-run-unique
+  // source_url mints a fresh source_documents/reference_items pair every run
+  // — no source_documents unique-constraint collision on re-run. The
+  // worker-backed source-less folder-drop create path remains BLOCKED on the
+  // ingest-cross-network-contract (D1-D9 / Option C, owned by the canonical
+  // main parallel track) and stays out of scope here.
+  {
+    const fc60SourceUrl = `https://mcp-eval.internal/fc-60/${crypto.randomUUID()}`;
     const result = await callTool(
       'create_content_item',
       {
         title: '[MCP-EVAL] FC-60 functional correctness test',
         content: 'Temporary item for functional correctness evaluation.',
         content_type: 'note',
+        source_url: fc60SourceUrl,
         governance_review_status: 'draft',
       },
       accessToken,
@@ -1682,28 +1712,24 @@ async function runWriteToolChecks(
     } else {
       const createdId = extractUUID(result.text);
       if (createdId) {
-        createdItemIds.push(createdId);
-        // Verify the created item exists by fetching it
-        const verifyResult = await callTool(
-          'get',
-          { id: createdId },
-          accessToken,
-        );
-        if (!verifyResult.isError && verifyResult.text.includes('FC-60')) {
+        createdReferenceIds.push(createdId);
+        // Verify by reading the reference_items row directly. reference_ingest
+        // returns reference_id (not a content_items id — content_items was
+        // DROPped at M6; see the "Stored as: reference (evidence layer)" note
+        // in the tool response), and the `get` tool reads source_documents,
+        // not reference_items, so it cannot verify this row.
+        const refCheck = await referenceCleanupClient
+          .from('reference_items')
+          .select('id, source_url')
+          .eq('id', createdId)
+          .maybeSingle();
+        if (refCheck.data?.source_url === fc60SourceUrl) {
           record(
             'Write Tools',
             'FC-60',
             'create_content_item',
             'PASS',
-            `Created and verified item ${createdId.slice(0, 8)}...`,
-          );
-        } else if (!verifyResult.isError && verifyResult.charCount > 50) {
-          record(
-            'Write Tools',
-            'FC-60',
-            'create_content_item',
-            'PASS',
-            `Created item ${createdId.slice(0, 8)}... (title check lenient)`,
+            `Created and verified reference ${createdId.slice(0, 8)}...`,
           );
         } else {
           record(
@@ -1711,31 +1737,17 @@ async function runWriteToolChecks(
             'FC-60',
             'create_content_item',
             'FAIL',
-            `Created item ${createdId.slice(0, 8)}... but verification failed`,
+            `Created item ${createdId.slice(0, 8)}... but reference_items verification failed`,
           );
         }
       } else {
-        // No UUID in response — may still have succeeded
-        if (
-          result.text.toLowerCase().includes('created') ||
-          result.charCount > 50
-        ) {
-          record(
-            'Write Tools',
-            'FC-60',
-            'create_content_item',
-            'PASS',
-            `Item created (UUID not extracted from response)`,
-          );
-        } else {
-          record(
-            'Write Tools',
-            'FC-60',
-            'create_content_item',
-            'FAIL',
-            'No UUID found in create response',
-          );
-        }
+        record(
+          'Write Tools',
+          'FC-60',
+          'create_content_item',
+          'FAIL',
+          'No UUID found in create response',
+        );
       }
     }
   }
@@ -2100,31 +2112,29 @@ async function runWriteToolChecks(
     }
   }
 
-  // FC-65: delete_content_item — INFRA-SKIP when COCOINDEX_WORKER_URL is unset
-  // (needs FC-60's create path; see the FC-60 note on the reverted
-  // reference_ingest decouple).
-  if (!process.env.COCOINDEX_WORKER_URL) {
-    record(
-      'Write Tools',
-      'FC-65',
-      'delete_content_item',
-      'SKIP',
-      'COCOINDEX_WORKER_URL unset — cannot create the delete-test item; infra-skipped (re-runnable coverage backlogged)',
-    );
-  } else {
+  // FC-65: delete_content_item on a FC-65-owned reference_ingest row (own
+  // source_url nonce — idempotent for the same reason as FC-60 above).
+  // delete_content_item's owner-resolution (lib/mcp/tools/governance.ts)
+  // reads source_documents (or q_a_pairs) by id — never reference_items —
+  // so we pass reference_ingest's source_document_id (the evidence-pair's
+  // source_documents row, landed atomically alongside reference_items),
+  // NOT the reference_id create_content_item returns to the caller.
+  {
+    const fc65SourceUrl = `https://mcp-eval.internal/fc-65/${crypto.randomUUID()}`;
     const createResult = await callTool(
       'create_content_item',
       {
         title: '[MCP-EVAL] FC-65 delete test',
         content: 'Temporary item for delete_content_item test.',
         content_type: 'note',
+        source_url: fc65SourceUrl,
         governance_review_status: 'draft',
       },
       accessToken,
     );
 
-    const newItemId = extractUUID(createResult.text);
-    if (createResult.errorMessage || !newItemId) {
+    const referenceId = extractUUID(createResult.text);
+    if (createResult.errorMessage || !referenceId) {
       record(
         'Write Tools',
         'FC-65',
@@ -2133,55 +2143,71 @@ async function runWriteToolChecks(
         `Could not create test item: ${createResult.errorMessage ?? 'no UUID in response'}`,
       );
     } else {
-      createdItemIds.push(newItemId); // track for cleanup
-      const result = await callTool(
-        'delete_content_item',
-        {
-          id: newItemId,
-          mode: 'archive',
-          reason: 'MCP-EVAL FC-65',
-        },
-        accessToken,
-      );
-
-      if (result.errorMessage) {
+      createdReferenceIds.push(referenceId); // track for cleanup
+      const refRow = await referenceCleanupClient
+        .from('reference_items')
+        .select('source_document_id')
+        .eq('id', referenceId)
+        .maybeSingle();
+      const sourceDocumentId = refRow.data?.source_document_id;
+      if (!sourceDocumentId) {
         record(
           'Write Tools',
           'FC-65',
           'delete_content_item',
           'FAIL',
-          result.errorMessage,
+          `Could not resolve source_document_id for reference ${referenceId.slice(0, 8)}...`,
         );
       } else {
-        const textLower = result.text.toLowerCase();
-        const hasKeyword =
-          textLower.includes('archived') ||
-          textLower.includes('deleted') ||
-          textLower.includes('removed');
-        if (hasKeyword) {
-          record(
-            'Write Tools',
-            'FC-65',
-            'delete_content_item',
-            'PASS',
-            `Item archived with keywords (${result.charCount} chars)`,
-          );
-        } else if (!result.isError && result.charCount > 0) {
-          record(
-            'Write Tools',
-            'FC-65',
-            'delete_content_item',
-            'PASS',
-            `Delete response (${result.charCount} chars)`,
-          );
-        } else {
+        const result = await callTool(
+          'delete_content_item',
+          {
+            id: sourceDocumentId,
+            mode: 'archive',
+            reason: 'MCP-EVAL FC-65',
+          },
+          accessToken,
+        );
+
+        if (result.errorMessage) {
           record(
             'Write Tools',
             'FC-65',
             'delete_content_item',
             'FAIL',
-            `Unexpected response: ${result.text.slice(0, 100)}`,
+            result.errorMessage,
           );
+        } else {
+          const textLower = result.text.toLowerCase();
+          const hasKeyword =
+            textLower.includes('archived') ||
+            textLower.includes('deleted') ||
+            textLower.includes('removed');
+          if (hasKeyword) {
+            record(
+              'Write Tools',
+              'FC-65',
+              'delete_content_item',
+              'PASS',
+              `Item archived with keywords (${result.charCount} chars)`,
+            );
+          } else if (!result.isError && result.charCount > 0) {
+            record(
+              'Write Tools',
+              'FC-65',
+              'delete_content_item',
+              'PASS',
+              `Delete response (${result.charCount} chars)`,
+            );
+          } else {
+            record(
+              'Write Tools',
+              'FC-65',
+              'delete_content_item',
+              'FAIL',
+              `Unexpected response: ${result.text.slice(0, 100)}`,
+            );
+          }
         }
       }
     }
@@ -2257,27 +2283,35 @@ async function runWriteToolChecks(
     );
   }
 
-  // Clean up created items
-  if (createdItemIds.length > 0) {
-    const { supabase } = await getAuthToken();
-    for (const id of createdItemIds) {
+  // Clean up reference-layer rows created by FC-60/65 (reference_items +
+  // source_documents — NOT content_items/citations/content_history, which
+  // were DROPped at M6 and are no longer part of this create path).
+  // reference_items_source_document_id_fkey is ON DELETE RESTRICT, so
+  // reference_items must be deleted before source_documents.
+  if (createdReferenceIds.length > 0) {
+    for (const id of createdReferenceIds) {
       try {
-        await supabase
-          .from('citations')
+        const { data: refRow } = await referenceCleanupClient
+          .from('reference_items')
+          .select('source_document_id')
+          .eq('id', id)
+          .maybeSingle();
+        await referenceCleanupClient
+          .from('reference_items')
           .delete()
-          .eq('cited_kind', 'content_item')
-          .eq('cited_content_item_id', id);
-        await supabase
-          .from('content_history')
-          .delete()
-          .eq('content_item_id', id);
-        await supabase.from('content_items').delete().eq('id', id);
+          .eq('id', id);
+        if (refRow?.source_document_id) {
+          await referenceCleanupClient
+            .from('source_documents')
+            .delete()
+            .eq('id', refRow.source_document_id);
+        }
       } catch {
         // Best effort cleanup
       }
     }
     console.log(
-      `  Cleaned up ${createdItemIds.length} item(s) created by write tool tests`,
+      `  Cleaned up ${createdReferenceIds.length} reference row(s) created by write tool tests`,
     );
   }
 }
