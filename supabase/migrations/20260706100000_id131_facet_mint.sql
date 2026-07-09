@@ -56,9 +56,9 @@
 -- Idempotent + re-runnable: CREATE OR REPLACE FUNCTION, DROP TRIGGER IF EXISTS
 -- before CREATE TRIGGER, ON CONFLICT DO NOTHING on every INSERT.
 --
--- AUTHORED, NOT APPLIED — owner-gated apply in the {131.19} GO sequence (after
--- 20260704221000_id131_drop_ims_fns, before the M6 content_items DROP). No
--- `supabase db push`, no MCP apply, no types regen in this Subtask.
+-- APPLIED — landed via the owner-gated {131.19} GO sequence (after
+-- 20260704221000_id131_drop_ims_fns, before the M6 content_items DROP). Confirmed
+-- live on staging: the forward-mint trigger fires (observed via a 23505 collision).
 
 -- ============================================================================
 -- STEP 1 — backfill: one record_lifecycle row per existing source_documents row.
