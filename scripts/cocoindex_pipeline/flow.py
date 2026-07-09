@@ -172,6 +172,12 @@ from scripts.cocoindex_pipeline.stage_5 import _run_stage_5_resolution
 # flow-side type (`_FlowStageCounter`) under TYPE_CHECKING only, so there is no
 # runtime import cycle.
 from scripts.cocoindex_pipeline.qa_dedup_proposer import _run_qa_dedup_proposer
+
+# ID-132 {132.16} G-TRIGGER. Producer post-walk chaining post-pass — imported
+# at module top: `producer/trigger.py` deliberately does NOT import
+# `cocoindex` (or any producer module that does) at its own module scope, so
+# this import introduces no new transitive cocoindex dependency here.
+from scripts.cocoindex_pipeline.producer.trigger import trigger_producer_post_walk
 # ────────────────────────────────────────────────────────────────────────────
 
 _logger = logging.getLogger(__name__)
@@ -3990,6 +3996,31 @@ async def _ingest_url_body(
         )
 
 
+# ── ID-132 {132.16} G-TRIGGER: producer post-walk chaining ──────────────────
+# S436 D4 ratification: a successful ingest walk that touched (created or
+# updated) one or more `source_documents` rows chains ONE concept-producer
+# run; a walk that touched none is a no-op (delta-only, v3 §7.2 —
+# `producer/trigger.py`'s own module docstring justifies the in-server hook
+# point over the pipeline-runs webhook chain). `_upsert_source_document`
+# (the SINGLE shared UPSERT helper both ingest branches call) always writes
+# `op_id=run_op_id` onto every source_documents row it touches — so the
+# `op_id`-scoped SELECT below is the precise, already-available delta signal
+# and requires NO new instrumentation inside `_upsert_source_document` /
+# `ingest_file` / `_ingest_content_branch` / `_ingest_qa_sidecar_branch` /
+# `ingest_once` (all untouched by {132.16}).
+async def _fetch_source_document_deltas(
+    pool: Any, op_id: "uuid.UUID"
+) -> "list[Any]":
+    """Return the `source_documents` rows this walk (`op_id`) touched —
+    the producer-trigger delta signal. Empty ⇒ nothing for the producer to
+    react to this walk (no-op, per `producer.trigger.trigger_producer_post_
+    walk`'s own delta gate)."""
+    return await pool.fetch(
+        "SELECT id, logical_path FROM public.source_documents WHERE op_id = $1",
+        op_id,
+    )
+
+
 # ── Main pipeline function ───────────────────────────────────────────────────
 
 
@@ -4581,6 +4612,29 @@ async def app_main() -> None:
             # "walk ran, zero per-item faults" (omitted only at flow start).
             item_failures=flow_item_failure_counter.tally(),
         )
+
+        # ID-132 {132.16} G-TRIGGER: producer post-walk chaining. Gated on a
+        # CLEAN completion — a failed walk's source_documents deltas may be
+        # partial/inconsistent, so a failed `flow_status` never chains a
+        # producer run. `_fetch_source_document_deltas` reads back the rows
+        # THIS walk's `_upsert_source_document` calls stamped with
+        # `op_id=run_op_id` (see that helper's own comment) — the precise
+        # delta signal `producer.trigger.trigger_producer_post_walk` gates
+        # on (empty ⇒ no-op, per v3 §7.2 delta-only). CONTAINED like the
+        # qa_dedup_proposer post-pass above: a producer-chain fault must
+        # never fail the ingest walk itself — the walk already landed.
+        if flow_status == "completed":
+            try:
+                source_document_deltas = await _fetch_source_document_deltas(
+                    coco.use_context(DB_CTX), run_op_id
+                )
+                await trigger_producer_post_walk(run_op_id, source_document_deltas)
+            except Exception as exc:  # noqa: BLE001 — best-effort post-pass
+                _logger.warning(
+                    "cocoindex.producer_trigger.failed op_id=%s: %s",
+                    run_op_id,
+                    exc,
+                )
 
 
 # ── Env-scope DB pool provisioning (28.22) ───────────────────────────────────
