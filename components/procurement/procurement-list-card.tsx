@@ -90,7 +90,7 @@ export function ProcurementListCard({
 
   return (
     <div
-      data-testid={`bid-card-${bid.id}`}
+      data-testid={`procurement-card-${bid.id}`}
       className={cn(
         'group relative rounded-lg border border-l-4 bg-card text-card-foreground shadow-sm transition-all hover:shadow-md hover:bg-accent/50 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',
         STATUS_BORDER_CLASS[procurementStatus] ?? 'border-l-form-draft-border',

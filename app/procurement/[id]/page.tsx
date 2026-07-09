@@ -372,9 +372,9 @@ export default function ProcurementDetailPage({
             <button
               key={tab.id}
               role="tab"
-              id={`bid-tab-${tab.id}`}
+              id={`procurement-tab-${tab.id}`}
               aria-selected={activeTab === tab.id}
-              aria-controls="bid-tabpanel"
+              aria-controls="procurement-tabpanel"
               tabIndex={activeTab === tab.id ? 0 : -1}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
@@ -407,8 +407,8 @@ export default function ProcurementDetailPage({
       <div
         className="mt-6"
         role="tabpanel"
-        id="bid-tabpanel"
-        aria-labelledby={`bid-tab-${activeTab}`}
+        id="procurement-tabpanel"
+        aria-labelledby={`procurement-tab-${activeTab}`}
       >
         {activeTab === 'overview' && (
           <OverviewTab

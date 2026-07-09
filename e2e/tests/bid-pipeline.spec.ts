@@ -125,7 +125,9 @@ test.describe('Procurement list page', () => {
 
     // Wait for bid cards to load. Scope to the card root (data-testid)
     // because the ProcurementWorkflowBadge is a sibling of the <Link>, not inside it.
-    const bidCard = page.getByTestId(`bid-card-${workerData.procurementId}`);
+    const bidCard = page.getByTestId(
+      `procurement-card-${workerData.procurementId}`,
+    );
     await expect(bidCard).toBeVisible({ timeout: 10000 });
 
     // Procurement name (with prefix)
@@ -564,7 +566,9 @@ test.describe('Procurement mobile layout', () => {
 
     await page.goto('/procurement');
 
-    const bidCard = page.getByTestId(`bid-card-${workerData.procurementId}`);
+    const bidCard = page.getByTestId(
+      `procurement-card-${workerData.procurementId}`,
+    );
     await expect(bidCard).toBeVisible({ timeout: 10000 });
 
     // On mobile, the grid should be single column (no sm:grid-cols-2).

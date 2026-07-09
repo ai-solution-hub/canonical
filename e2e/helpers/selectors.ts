@@ -60,12 +60,14 @@ export const selectors = {
   },
 
   /** Procurement pages */
-  bid: {
-    bidList: '[data-testid="bid-list"]',
-    bidCard: '[data-testid="bid-card"]',
-    newBidButton: 'button:has-text("New Procurement")',
-    procurementName: '[data-testid="bid-name"]',
-    procurementStatus: '[data-testid="bid-status"]',
+  procurement: {
+    // bidList/procurementName/procurementStatus (formerly [data-testid="bid-list"
+    // /"bid-name"/"bid-status"]) removed — reconciled against ground truth for
+    // {61.12}: no producer for these testids exists anywhere in components/app
+    // (this selectors.ts file has zero importers, so they were orphaned dead
+    // strings, not a live lockstep pair).
+    procurementCard: '[data-testid^="procurement-card-"]',
+    newProcurementButton: 'button:has-text("New Procurement")',
     questionsTab: '[data-testid="questions-tab"], button:has-text("Questions")',
     responsesTab: '[data-testid="responses-tab"], button:has-text("Responses")',
     documentsTab: '[data-testid="documents-tab"], button:has-text("Documents")',
