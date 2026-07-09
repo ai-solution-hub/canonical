@@ -91,4 +91,56 @@ describe('parseConceptFrontmatter', () => {
       parseConceptFrontmatter(conceptMarkdown(badResource)),
     ).toThrow();
   });
+
+  it('accepts a concept with no resource: field at all (BI-12: resource is required only "where one exists")', () => {
+    const resourceAbsent = WELL_FORMED_FRONTMATTER.split('\n')
+      .filter((line) => !line.startsWith('resource:'))
+      .join('\n');
+
+    const parsed = parseConceptFrontmatter(conceptMarkdown(resourceAbsent));
+
+    expect(parsed.resource).toBeUndefined();
+    expect(parsed).toMatchObject({
+      type: 'topic',
+      title: 'Photovoltaic Panels',
+      tags: ['renewable-energy', 'hardware'],
+    });
+  });
+
+  it('accepts a BI-8 query-form canonical://q_a_pairs?scope_tag=<tag> resource (never a row uuid for the q_a_pairs corpus)', () => {
+    const queryFormResource = WELL_FORMED_FRONTMATTER.replace(
+      `resource: "canonical://q_a_pairs/${VALID_UUID}"`,
+      'resource: "canonical://q_a_pairs?scope_tag=solar-metrics"',
+    );
+
+    const parsed = parseConceptFrontmatter(conceptMarkdown(queryFormResource));
+
+    expect(parsed.resource).toBe(
+      'canonical://q_a_pairs?scope_tag=solar-metrics',
+    );
+  });
+
+  it('accepts a BI-8 query-form canonical://q_a_pairs?domain=&subtopic= resource', () => {
+    const queryFormResource = WELL_FORMED_FRONTMATTER.replace(
+      `resource: "canonical://q_a_pairs/${VALID_UUID}"`,
+      'resource: "canonical://q_a_pairs?domain=energy&subtopic=solar"',
+    );
+
+    const parsed = parseConceptFrontmatter(conceptMarkdown(queryFormResource));
+
+    expect(parsed.resource).toBe(
+      'canonical://q_a_pairs?domain=energy&subtopic=solar',
+    );
+  });
+
+  it('still rejects a malformed resource URI resembling the query form on a non-canonical scheme', () => {
+    const badResource = WELL_FORMED_FRONTMATTER.replace(
+      `resource: "canonical://q_a_pairs/${VALID_UUID}"`,
+      'resource: "not-canonical://q_a_pairs?scope_tag=solar"',
+    );
+
+    expect(() =>
+      parseConceptFrontmatter(conceptMarkdown(badResource)),
+    ).toThrow();
+  });
 });
