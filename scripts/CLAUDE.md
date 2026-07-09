@@ -11,7 +11,8 @@
 - **`classifyContent` userId must be a UUID:** use the pipeline service account UUID
   (`a0000000-0000-4000-8000-000000000001`), never literal strings.
 - Tests: `python3 -m pytest scripts/tests/`; deps: `pip install -r requirements.txt`.
-- **Two known full-suite baseline deltas (environmental, NOT regressions — do not
-  re-adjudicate):** (a) sandboxed runs skip more (`oq/*` heredoc EPERM); (b) unsandboxed
-  runs fail the 2 memo-fingerprint CASE-A tests (stale probe-stub taxonomy, bl-417).
-  A green sandboxed run ≈ 1531 passed / 14 skipped as of 2026-07-08.
+- **Known full-suite baseline delta (environmental, NOT a regression — do not
+  re-adjudicate):** sandboxed runs skip more (`oq/*` heredoc EPERM; memo-fingerprint
+  probes skip when the Rust engine can't boot). A green sandboxed run ≈ 1531 passed /
+  14 skipped as of 2026-07-08. (The former delta (b) — 2 memo-fingerprint CASE-A
+  failures from stale probe-stub taxonomy — was fixed S455, bl-417.)
