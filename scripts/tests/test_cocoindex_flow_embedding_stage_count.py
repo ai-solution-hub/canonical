@@ -18,11 +18,13 @@ bump — the whole-document embedding write it modelled is RETIRED, not re-point
 (`content_items` and its `embedding` column are dropped entirely; no other
 content-branch target gained one). The counter SUBSTRATE (SLICE 1) and the
 `app_main` threading/folding wiring (SLICE 3) are UNCHANGED and still live —
-`embed_content_text` (and its counter bump) still fires on the per-chunk path
-(`cc_target` supplied) and the reference_item/URL branch (`_ingest_url_body`),
-neither of which this file's minimal (qa, sd, em)-only `ingest_file` calls
-reach. SLICE 2 now guards the NEGATIVE: a minimal content ingest must NOT bump
-`stage_counts["embedding"]`.
+but the embedding stage counter itself currently bumps ONLY on the
+reference_item/URL branch (`_ingest_url_body`, flow.py:3827). The per-chunk
+path computes embeddings (`embed_content_text`, flow.py:2302) but does NOT
+bump `stage_counts["embedding"]` — it bumps only `stage_counts["chunking"]`
+(flow.py:2346). Neither path is exercised by this file's minimal
+(qa, sd, em)-only `ingest_file` calls. SLICE 2 now guards the NEGATIVE: a
+minimal content ingest must NOT bump `stage_counts["embedding"]`.
 
 WHAT THIS PROVES (ID-49.4 — Inv-17 embedding counter):
   - `flow_context.bind_stage_counter` / `current_stage_counter` form a
@@ -30,8 +32,10 @@ WHAT THIS PROVES (ID-49.4 — Inv-17 embedding counter):
     hazard guarded in flow_context.py applies equally here).
   - `ingest_file`'s content branch, called WITHOUT a `cc_target` (no
     chunking), does NOT bump the embedding stage counter — the
-    document-level embedding write is retired (DR-034); the counter is fed
-    exclusively by the per-chunk and reference_item/URL paths now.
+    document-level embedding write is retired (DR-034); the counter
+    currently bumps ONLY on the reference_item/URL branch
+    (`_ingest_url_body`, flow.py:3827) — the per-chunk path computes
+    embeddings but bumps `stage_counts["chunking"]`, not `["embedding"]`.
   - `app_main` source binds the stage counter around `mount_each` and folds
     its value into `stage_counts["embedding"]` before the flow-end webhook
     emit — verified by source-inspection (the cocoindex Rust engine cannot
@@ -346,10 +350,14 @@ class TestIngestFileEmbeddingCounterRetiredForContentBranch:
     """{127.25} DR-034: `ingest_file`'s content branch, called with only the
     minimal (qa, sd, em) target set (no `cc_target`), no longer produces or
     declares any document-level embedding — so it must NOT bump the
-    'embedding' stage counter either. The bump moved exclusively to the
-    per-chunk path (`cc_target` supplied) and the reference_item/URL branch;
-    neither is exercised here. Was `TestIngestFileBumpsEmbeddingCounter`
-    (proved a bump of exactly 1 per ingest) before the retirement."""
+    'embedding' stage counter either. The embedding stage counter currently
+    bumps ONLY on the reference_item/URL branch (`_ingest_url_body`,
+    flow.py:3827); the per-chunk path computes embeddings
+    (`embed_content_text`, flow.py:2302) but does not bump
+    `stage_counts["embedding"]` — only `stage_counts["chunking"]`
+    (flow.py:2346). Neither path is exercised here. Was
+    `TestIngestFileBumpsEmbeddingCounter` (proved a bump of exactly 1 per
+    ingest) before the retirement."""
 
     def test_one_ingest_does_not_bump_embedding_counter(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
