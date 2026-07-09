@@ -141,7 +141,9 @@ class TestSourceProtocolConformance:
 # ── list_concepts(): the 5-type set (BI-4/BI-5) ─────────────────────────
 
 
-def _five_type_pool(*, company_exists: bool = True) -> FakePool:
+def _five_type_pool(
+    *, company_exists: bool = True, won_bids: "list[dict] | None" = None
+) -> FakePool:
     pool = FakePool()
     pool.when(
         "SELECT DISTINCT unnest(scope_tag)",
@@ -168,6 +170,11 @@ def _five_type_pool(*, company_exists: bool = True) -> FakePool:
     pool.when(
         "SELECT DISTINCT em.canonical_name FROM entity_mentions em",
         [{"canonical_name": "Acme Corp"}],
+    )
+    pool.when(
+        # won-bid case_study enumeration grain (S443 amendment / BI-4 / DR-029)
+        "ft.outcome = 'won'",
+        [] if won_bids is None else won_bids,
     )
     return pool
 
@@ -458,6 +465,253 @@ class TestReadConceptCaseStudy:
         assert raw.record_lifecycle == []
         assert raw.entity_mentions == []
         assert raw.entity_relationships == []
+
+
+# ── case_study won-bid grain (S443 amendment / DR-029 / {132.21}) ───────
+
+
+def _won_bid_only_pool(won_bids: "list[dict]") -> FakePool:
+    """A corpus whose ONLY concept evidence is won procurement workspaces —
+    every other enumeration query returns empty, so `list_concepts()` yields
+    exactly the won-bid case_study grain."""
+    pool = FakePool()
+    pool.when("SELECT DISTINCT unnest(scope_tag)", [])
+    pool.when("SELECT DISTINCT sd.primary_domain AS domain", [])
+    pool.when(
+        "SELECT DISTINCT canonical_name FROM entity_mentions WHERE entity_type = $1", []
+    )
+    pool.when("LIMIT 1", [])
+    pool.when("SELECT DISTINCT em.canonical_name FROM entity_mentions em", [])
+    pool.when("ft.outcome = 'won'", won_bids)
+    return pool
+
+
+class TestConceptKeyWonBidLocator:
+    """The won-bid grain adds a `workspace_id` locator to `ConceptKey` — a
+    case_study-only field (the workspace whose won bid seeds the case study)."""
+
+    def test_workspace_id_is_allowed_on_a_case_study_key(self):
+        key = ConceptKey(
+            rel_path="case-studies/transport-for-london.md",
+            concept_type="case_study",
+            entity_id="Transport for London",
+            workspace_id="ws-1",
+        )
+        assert key.workspace_id == "ws-1"
+
+    def test_workspace_id_is_rejected_on_a_non_case_study_key(self):
+        with pytest.raises(ValueError, match="workspace_id"):
+            ConceptKey(
+                rel_path="topics/gdpr.md",
+                concept_type="topic",
+                scope_tag="gdpr",
+                workspace_id="ws-1",
+            )
+
+
+class TestListConceptsWonBidCaseStudy:
+    """A won procurement workspace (`application_types.key='procurement'` with a
+    `form_templates.outcome='won'` form) is a first-class case_study source
+    (TECH G-SOURCE amendment). The ConceptKey carries workspace id + buyer."""
+
+    def test_won_procurement_workspace_yields_exactly_one_case_study_for_the_buyer(self):
+        pool = _won_bid_only_pool(
+            [{"workspace_id": "ws-1", "buyer": "Transport for London"}]
+        )
+        src = LRecordsSource(pool)
+
+        keys = _run(src.list_concepts())
+
+        case_studies = [k for k in keys if k.concept_type == "case_study"]
+        assert len(case_studies) == 1
+        key = case_studies[0]
+        assert key.entity_id == "Transport for London"
+        assert key.workspace_id == "ws-1"
+        assert key.rel_path == "case-studies/transport-for-london.md"
+
+    def test_won_bid_grain_extends_rather_than_replaces_the_named_client_grain(self):
+        # The named-client (Acme Corp) grain AND the won-bid (TfL) grain both
+        # contribute case_study concepts — the won-bid source is additive.
+        pool = _five_type_pool(
+            won_bids=[{"workspace_id": "ws-1", "buyer": "Transport for London"}]
+        )
+        src = LRecordsSource(pool)
+
+        case_studies = [
+            k for k in _run(src.list_concepts()) if k.concept_type == "case_study"
+        ]
+
+        assert {k.entity_id for k in case_studies} == {"Acme Corp", "Transport for London"}
+        tfl = next(k for k in case_studies if k.workspace_id == "ws-1")
+        assert tfl.entity_id == "Transport for London"
+        acme = next(k for k in case_studies if k.entity_id == "Acme Corp")
+        assert acme.workspace_id is None  # named-client grain carries no workspace locator
+
+    def test_dedupes_multiple_won_workspaces_for_the_same_buyer(self):
+        # ORDER BY buyer, workspace_id → the earliest workspace wins
+        # deterministically (one case study per buyer, BI-2 identity).
+        pool = _won_bid_only_pool(
+            [
+                {"workspace_id": "ws-1", "buyer": "Transport for London"},
+                {"workspace_id": "ws-9", "buyer": "Transport for London"},
+            ]
+        )
+        src = LRecordsSource(pool)
+
+        case_studies = [
+            k for k in _run(src.list_concepts()) if k.concept_type == "case_study"
+        ]
+
+        assert len(case_studies) == 1
+        assert case_studies[0].workspace_id == "ws-1"
+
+    def test_no_won_bids_yields_no_won_bid_case_study(self):
+        src = LRecordsSource(_won_bid_only_pool([]))
+
+        assert _run(src.list_concepts()) == []
+
+    def test_find_matches_a_won_bid_buyer_case_insensitively(self):
+        src = LRecordsSource(
+            _five_type_pool(
+                won_bids=[{"workspace_id": "ws-1", "buyer": "Transport for London"}]
+            )
+        )
+
+        hits = _run(src.find("transport"))
+
+        assert [k.rel_path for k in hits] == ["case-studies/transport-for-london.md"]
+
+
+class TestReadConceptWonBidCaseStudy:
+    """won-bid grain read (TECH G-SOURCE amendment): the workspace row (buyer
+    identity via `domain_metadata`) + won-bid-provenance `q_a_pairs`
+    (`origin_kind='derived_from_form_response'`, `source_workspace_id`) + the
+    won `form_templates` row (`outcome_notes`). NOT the named-clients
+    source_documents/reference_items grain."""
+
+    def _pool(self) -> FakePool:
+        pool = FakePool()
+        pool.when(
+            "FROM workspaces WHERE id = $1",
+            [
+                {
+                    "id": "ws-1",
+                    "name": "TfL cloud tender",
+                    "domain_metadata": {"buyer": "Transport for London"},
+                }
+            ],
+            arg_matcher=lambda args: args == ("ws-1",),
+        )
+        pool.when(
+            "source_workspace_id = $1 AND origin_kind",
+            [
+                {
+                    "id": "qa-won-1",
+                    "question_text": "Describe your SOC.",
+                    "origin_kind": "derived_from_form_response",
+                    "source_workspace_id": "ws-1",
+                    "publication_status": "published",
+                }
+            ],
+            arg_matcher=lambda args: args == ("ws-1",),
+        )
+        pool.when(
+            "FROM form_templates WHERE workspace_id = $1",
+            [
+                {
+                    "id": "ft-1",
+                    "workspace_id": "ws-1",
+                    "outcome": "won",
+                    "outcome_notes": "Won on methodology + price.",
+                }
+            ],
+            arg_matcher=lambda args: args == ("ws-1",),
+        )
+        return pool
+
+    def _key(self) -> ConceptKey:
+        return ConceptKey(
+            rel_path="case-studies/transport-for-london.md",
+            concept_type="case_study",
+            entity_id="Transport for London",
+            workspace_id="ws-1",
+        )
+
+    def test_surfaces_workspace_won_qa_pairs_and_outcome_notes(self):
+        src = LRecordsSource(self._pool())
+
+        raw = _run(src.read_concept(self._key()))
+
+        assert [r["id"] for r in raw.workspaces] == ["ws-1"]
+        assert raw.workspaces[0]["domain_metadata"] == {"buyer": "Transport for London"}
+        assert [r["id"] for r in raw.q_a_pairs] == ["qa-won-1"]
+        assert [r["outcome_notes"] for r in raw.form_templates] == [
+            "Won on methodology + price."
+        ]
+
+    def test_leaves_the_named_client_anchor_buckets_empty(self):
+        # BI-9/BI-3: the won-bid grain anchors its q_a_pairs via the BI-8 query
+        # form downstream, never as source_documents/reference_items rows, and
+        # never a q_a_pair master uuid. The adapter leaves those buckets empty.
+        src = LRecordsSource(self._pool())
+
+        raw = _run(src.read_concept(self._key()))
+
+        assert raw.source_documents == []
+        assert raw.reference_items == []
+        assert raw.record_lifecycle == []
+        assert raw.entity_mentions == []
+        assert raw.entity_relationships == []
+
+    def test_case_study_without_workspace_locator_still_reads_the_named_client_grain(self):
+        # The won-bid grain is additive: a case_study key with NO workspace_id
+        # still routes to the named-clients source_documents grain unchanged.
+        pool = FakePool()
+        pool.when(
+            "filename ILIKE ANY($1::text[])",
+            [{"id": "sd-clients", "filename": "04-named-clients-and-case-studies.md"}],
+            arg_matcher=lambda args: args == (["%named-client%"],),
+        )
+        pool.when(
+            "source_document_id = ANY($1::uuid[]) OR scope_tag @> ARRAY[$2]::text[]",
+            [{"id": "qa-acme-1", "source_document_id": "sd-clients"}],
+        )
+        pool.when("FROM reference_items", [{"id": "ri-acme-1"}])
+        key = ConceptKey(
+            rel_path="case-studies/acme-corp.md",
+            concept_type="case_study",
+            entity_id="Acme Corp",
+        )
+        src = LRecordsSource(pool)
+
+        raw = _run(src.read_concept(key))
+
+        assert [r["id"] for r in raw.source_documents] == ["sd-clients"]
+        assert raw.workspaces == []
+        assert raw.form_templates == []
+
+
+class TestSampleRowsWonBidCaseStudy:
+    def test_won_bid_sample_uses_the_source_workspace_id_query_with_limit(self):
+        pool = FakePool()
+        pool.when(
+            "source_workspace_id = $1 AND origin_kind",
+            [{"id": "qa-won-1"}, {"id": "qa-won-2"}],
+        )
+        src = LRecordsSource(pool)
+        key = ConceptKey(
+            rel_path="case-studies/transport-for-london.md",
+            concept_type="case_study",
+            entity_id="Transport for London",
+            workspace_id="ws-1",
+        )
+
+        rows = _run(src.sample_rows(key, 2))
+
+        assert rows == [{"id": "qa-won-1"}, {"id": "qa-won-2"}]
+        query, args = pool.calls[-1]
+        assert query.rstrip().endswith("LIMIT $2")
+        assert args == ("ws-1", 2)
 
 
 # ── sample_rows(): bounded sample for the Pass-1 prompt window ─────────
