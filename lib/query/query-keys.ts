@@ -500,5 +500,17 @@ export const queryKeys = {
       kind: CorpusKind | undefined,
       filters: CorpusSearchFilters,
     ) => ['corpus-search', query, kind ?? 'all', filters] as const,
+    /**
+     * Ontology-grounded related-records rail (ID-135 {135.20}) — keyed by the
+     * anchor record's own `kind` + `id` so ONE namespace serves any of the
+     * three corpus kinds. Primary host today: Surface B's source_document
+     * detail page ({135.18}); a follow-on may mount the same rail on Surface
+     * A's result expansion ({135.9}) without a new key shape. Consumes the
+     * id-131/id-133 ontology-grounded RPC once shipped — MOCKED
+     * (component-local, `components/corpus-search/corpus-related-records.tsx`)
+     * today.
+     */
+    relatedRecords: (recordId: string, recordKind: CorpusKind) =>
+      ['corpus-search', 'related-records', recordKind, recordId] as const,
   },
 } as const;

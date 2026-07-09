@@ -1,15 +1,23 @@
 /**
  * SourceDocumentDetailClient + SourceDocumentDetailError — id-135 {135.18}
- * (TECH §3 BI-22/BI-30/BI-31, §4). Composes the four Surface-B sections
+ * (TECH §3 BI-22/BI-30/BI-31, §4). Composes the five Surface-B sections
  * (`SourceDocumentProvenance`, `DocumentVersionList`, `DocumentCitationsPanel`,
- * `DerivedPairsList`) behind their real implementations — only the shared
+ * `DerivedPairsList`, `CorpusRelatedRecords` — {135.20}) behind their real
+ * implementations — only the shared
  * `useDocumentVersions`/`useDocumentCitations`/`useDerivedPairs` I/O seam is
  * mocked (mirroring each section's own test suite), so this file proves the
- * REAL composition: all four sections render for a valid document, one
+ * REAL composition: all five sections render for a valid document, one
  * section's independent-query failure shows its own localised error+retry
  * without taking down its siblings (BI-30), and no
  * edit/delete/version-mutation affordance appears anywhere on the page
  * (BI-31).
+ *
+ * `CorpusRelatedRecords` ({135.20}) is mocked here to a lightweight stub —
+ * its own internal wiring (the id-131/id-133 MOCKED fetcher, empty/loading/
+ * error states) is proven in its own test suite
+ * (`__tests__/components/corpus-search/corpus-related-records.test.tsx`);
+ * this file only proves it is MOUNTED and threaded with the right
+ * `recordId`/`recordKind` anchor props.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -34,6 +42,7 @@ const {
   mockRefetchVersions,
   mockRefetchCitations,
   mockRefetchDerivedPairs,
+  mockCorpusRelatedRecords,
 } = vi.hoisted(() => ({
   mockUseDocumentVersions: vi.fn(),
   mockUseDocumentCitations: vi.fn(),
@@ -41,12 +50,23 @@ const {
   mockRefetchVersions: vi.fn(),
   mockRefetchCitations: vi.fn(),
   mockRefetchDerivedPairs: vi.fn(),
+  mockCorpusRelatedRecords: vi.fn(),
 }));
 
 vi.mock('@/hooks/source-document-detail/use-source-document-detail', () => ({
   useDocumentVersions: (id: string) => mockUseDocumentVersions(id),
   useDocumentCitations: (id: string) => mockUseDocumentCitations(id),
   useDerivedPairs: (id: string) => mockUseDerivedPairs(id),
+}));
+
+// {135.20}: stubbed here — this file only proves the mount + prop-threading;
+// `CorpusRelatedRecords`'s own I/O (the id-131/id-133 MOCKED fetcher) is
+// proven in its own test suite (see file-level doc comment above).
+vi.mock('@/components/corpus-search/corpus-related-records', () => ({
+  CorpusRelatedRecords: (props: { recordId: string; recordKind: string }) => {
+    mockCorpusRelatedRecords(props);
+    return <div data-testid="related-records-stub" />;
+  },
 }));
 
 vi.mock('next/link', () => ({
@@ -229,6 +249,7 @@ describe('SourceDocumentDetailClient', () => {
     mockRefetchVersions.mockReset();
     mockRefetchCitations.mockReset();
     mockRefetchDerivedPairs.mockReset();
+    mockCorpusRelatedRecords.mockReset();
 
     settledVersions();
     settledCitations();
@@ -251,7 +272,7 @@ describe('SourceDocumentDetailClient', () => {
     ).toBeInTheDocument();
   });
 
-  it('composes all four Surface-B sections for a valid document (BI-22)', () => {
+  it('composes all five Surface-B sections for a valid document (BI-22)', () => {
     render(
       <SourceDocumentDetailClient
         documentId={DOCUMENT_ID}
@@ -271,6 +292,23 @@ describe('SourceDocumentDetailClient', () => {
     expect(
       screen.getByRole('heading', { name: 'Derived answers' }),
     ).toBeInTheDocument();
+    expect(screen.getByTestId('related-records-stub')).toBeInTheDocument();
+  });
+
+  it('mounts the ontology-grounded related-records rail, anchored on this document (BI-22, {135.20})', () => {
+    render(
+      <SourceDocumentDetailClient
+        documentId={DOCUMENT_ID}
+        sourceDocument={makeSourceDocument()}
+      />,
+    );
+
+    expect(mockCorpusRelatedRecords).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recordId: DOCUMENT_ID,
+        recordKind: 'document',
+      }),
+    );
   });
 
   it('threads documentId into every per-section hook', () => {

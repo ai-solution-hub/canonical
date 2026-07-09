@@ -7,20 +7,23 @@ import { SourceDocumentProvenance } from '@/components/source-document-detail/so
 import { DocumentVersionList } from '@/components/source-document-detail/document-version-list';
 import { DocumentCitationsPanel } from '@/components/source-document-detail/document-citations-panel';
 import { DerivedPairsList } from '@/components/source-document-detail/derived-pairs-list';
+import { CorpusRelatedRecords } from '@/components/corpus-search/corpus-related-records';
 import type { Tables } from '@/supabase/types/database.types';
 
 /**
  * SourceDocumentDetailClient — id-135 {135.18} Surface B detail shell
  * (TECH §3 BI-22/BI-24/BI-25/BI-27/BI-28/BI-30/BI-31, §4).
  *
- * Composes the four Surface-B sections: `SourceDocumentProvenance` (BI-24)
+ * Composes the five Surface-B sections: `SourceDocumentProvenance` (BI-24)
  * renders straight off the SAME server-read row this component receives —
- * no separate fetch — while the other three are self-fetching, INDEPENDENT
+ * no separate fetch — while the other four are self-fetching, INDEPENDENT
  * TanStack queries (BI-30): `DocumentVersionList` (BI-25/26),
- * `DocumentCitationsPanel` (BI-27), `DerivedPairsList` (BI-28). Each of
- * those three owns its own query and its own localised error+retry (the
- * shared `SectionErrorState`, {135.18} convergence pass) — a failure in one
- * never fails this shell or its siblings.
+ * `DocumentCitationsPanel` (BI-27), `DerivedPairsList` (BI-28),
+ * `CorpusRelatedRecords` ({135.20} — the ontology-grounded related-records
+ * rail, mounted here as the §9-DROPPED `find_related_items` REPLACEMENT).
+ * Each of those four owns its own query and its own localised error+retry
+ * (the shared `SectionErrorState`, {135.18} convergence pass) — a failure in
+ * one never fails this shell or its siblings.
  *
  * BI-22: no top-nav slot (that is a site-header/nav decision, out of this
  * component's scope) — the in-page "Back to search" link is the only
@@ -64,6 +67,7 @@ export function SourceDocumentDetailClient({
         <DocumentVersionList documentId={documentId} />
         <DocumentCitationsPanel documentId={documentId} />
         <DerivedPairsList documentId={documentId} />
+        <CorpusRelatedRecords recordId={documentId} recordKind="document" />
       </div>
     </article>
   );
