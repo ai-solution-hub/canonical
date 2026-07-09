@@ -205,13 +205,25 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         const { data: sdRows } = await supabase
           .from('source_documents')
           .insert(
-            sdShapeEntries.map(({ shape }) => ({
+            sdShapeEntries.map(({ shape, index }) => ({
               filename: `${prefix} ${shape.title}`,
               primary_domain: shape.primary_domain,
               summary: shape.summary,
               content_type: shape.content_type,
               source_url: shape.source_url ?? null,
               status: 'processed',
+              // {128.14} Class 3 (S457 nightly diagnosis): source_documents
+              // has 4 NOT-NULL no-default columns this insert omitted,
+              // throwing on every worker's seed setup. Mirrors the
+              // established e2e placeholder convention
+              // (scripts/seed-e2e-users.ts seedPublicationReviewFixture,
+              // publication-bulk-action.e2e.spec.ts) — fixed mime_type/
+              // file_size placeholder; content_hash/storage_path scoped by
+              // prefix+index so concurrent workers/rows never collide.
+              mime_type: 'text/plain',
+              file_size: 1,
+              content_hash: `${prefix}-sd-${index}`,
+              storage_path: `test-fixtures/${prefix}/sd-${index}.txt`,
             })),
           )
           .select('id')
@@ -560,7 +572,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       // spec asserts on it — si-*.spec.ts / intelligence-workflow.spec.ts
       // only consume `intelligenceWorkspaceId`/`intelligenceFeedSourceId`).
       const passedArticleShapes = articleShapes.filter((a) => a.passed);
-      const intelSourceDocuments = passedArticleShapes.map((shape) => ({
+      const intelSourceDocuments = passedArticleShapes.map((shape, i) => ({
         filename: `${prefix} ${shape.title}`,
         content_type: 'article',
         primary_domain: 'Market Intelligence',
@@ -568,6 +580,15 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         source_url: shape.external_url,
         workspace_id: intelligenceWorkspaceId,
         status: 'processed',
+        // {128.14} Class 3 — same NOT-NULL fix as the sdShapeEntries insert
+        // above (this is a SECOND, separate source_documents insert site
+        // that hit the identical missing-columns crash). `intel-` namespace
+        // keeps content_hash/storage_path distinct from that batch's `sd-`
+        // namespace for the same worker prefix.
+        mime_type: 'text/plain',
+        file_size: 1,
+        content_hash: `${prefix}-intel-${i}`,
+        storage_path: `test-fixtures/${prefix}/intel-${i}.txt`,
       }));
 
       const { data: intelItems } = await supabase
