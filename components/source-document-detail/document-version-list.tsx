@@ -1,16 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import {
-  AlertCircle,
-  CheckCircle2,
-  GitCompare,
-  Calendar,
-  FileText,
-} from 'lucide-react';
+import { CheckCircle2, GitCompare, Calendar, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { formatDateUK } from '@/lib/format';
+import { SectionErrorState } from '@/components/source-document-detail/section-error-state';
 import {
   useDocumentVersions,
   type DocumentVersionRow,
@@ -25,7 +19,9 @@ import {
  * `DocumentCitationsPanel` {135.16} / `DerivedPairsList` {135.17} siblings
  * use, so `{135.18}` can compose all three sections uniformly by
  * `documentId` and each renders its own loading skeleton / localised
- * non-technical error + retry without failing the wider detail page.
+ * non-technical error + retry without failing the wider detail page. The
+ * error/retry chrome itself is the shared `SectionErrorState` ({135.18}
+ * convergence pass) — only the skeleton/data rendering stays per-component.
  *
  * HARD RULE (id-135 reuse-revisit, S430): no net-new version/diff component,
  * no `UnifiedDiffContainer` composed inline — each non-current row links out
@@ -57,7 +53,11 @@ export function DocumentVersionList({ documentId }: DocumentVersionListProps) {
       {isLoading ? (
         <VersionsSkeleton />
       ) : isError ? (
-        <VersionsErrorState onRetry={() => refetch()} />
+        <SectionErrorState
+          heading="Couldn't load version history"
+          message="Something went wrong while loading version history. This is usually temporary."
+          onRetry={() => refetch()}
+        />
       ) : (
         <VersionRows versions={data?.versions ?? EMPTY_VERSIONS} />
       )}
@@ -145,27 +145,6 @@ function VersionsSkeleton() {
           className="h-14 w-full animate-pulse rounded-lg bg-accent"
         />
       ))}
-    </div>
-  );
-}
-
-function VersionsErrorState({ onRetry }: { onRetry: () => void }) {
-  return (
-    <div
-      role="alert"
-      className="flex flex-col items-center justify-center rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-center"
-    >
-      <AlertCircle className="size-8 text-destructive/70" aria-hidden="true" />
-      <h3 className="mt-3 text-sm font-medium text-foreground">
-        Couldn&apos;t load version history
-      </h3>
-      <p className="mt-1 max-w-md text-xs text-muted-foreground">
-        Something went wrong while loading version history. This is usually
-        temporary.
-      </p>
-      <Button variant="outline" size="sm" onClick={onRetry} className="mt-3">
-        Try again
-      </Button>
     </div>
   );
 }

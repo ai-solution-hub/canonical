@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { CircleHelp, Loader2 } from 'lucide-react';
+import { SectionErrorState } from '@/components/source-document-detail/section-error-state';
 import {
   useDerivedPairs,
   type DerivedPair,
@@ -30,7 +31,10 @@ import {
  *
  * BI-30 (independent per-section queries): this is its own TanStack query
  * (`useDerivedPairs`) with its own loading/error/retry UI — a failure here
- * never fails the rest of the Surface-B detail page.
+ * never fails the rest of the Surface-B detail page. The error/retry chrome
+ * is the shared `SectionErrorState` ({135.18} convergence pass, previously a
+ * bespoke inline block here — the visible copy is preserved, only the
+ * markup converges).
  *
  * No published answers → a clear empty state (BI-28), never an error.
  */
@@ -61,18 +65,12 @@ export function DerivedPairsList({ documentId }: DerivedPairsListProps) {
           />
         </div>
       ) : isError ? (
-        <div className="flex flex-col items-center gap-2 py-6 text-center">
-          <p className="text-sm text-muted-foreground">
-            Couldn&apos;t load the derived answers. Please try again.
-          </p>
-          <button
-            type="button"
-            onClick={() => refetch()}
-            className="text-sm font-medium text-primary underline underline-offset-2 hover:text-primary/80"
-          >
-            Retry
-          </button>
-        </div>
+        <SectionErrorState
+          heading="Couldn't load the derived answers"
+          message="Something went wrong while loading the derived answers. This is usually temporary."
+          retryLabel="Retry"
+          onRetry={() => refetch()}
+        />
       ) : pairs.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-6 text-center">
           <CircleHelp

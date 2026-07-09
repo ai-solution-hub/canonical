@@ -1,15 +1,8 @@
 'use client';
 
-import {
-  AlertCircle,
-  BookOpen,
-  FileQuestion,
-  FileStack,
-  Inbox,
-  Tag,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { BookOpen, FileQuestion, FileStack, Inbox, Tag } from 'lucide-react';
 import { formatDateUK } from '@/lib/format';
+import { SectionErrorState } from '@/components/source-document-detail/section-error-state';
 import {
   useDocumentCitations,
   type CitationSummary,
@@ -30,7 +23,8 @@ import {
  * dependency) — that renders a CLEAR "no citations yet" empty state, never
  * an error (BI-27). Own independent TanStack query (BI-30): loading renders
  * a skeleton, a fetch failure renders its own localised non-technical error
- * + retry, without failing the wider Surface B detail page.
+ * + retry (the shared `SectionErrorState`, {135.18} convergence pass),
+ * without failing the wider Surface B detail page.
  */
 
 const KIND_ORDER: readonly CitationTargetKind[] = [
@@ -69,7 +63,11 @@ export function DocumentCitationsPanel({
       {isLoading ? (
         <CitationsSkeleton />
       ) : isError ? (
-        <CitationsErrorState onRetry={() => refetch()} />
+        <SectionErrorState
+          heading="Couldn't load citations"
+          message="Something went wrong while loading citations. This is usually temporary."
+          onRetry={() => refetch()}
+        />
       ) : (
         <CitationsGroupedList citations={data?.citations} />
       )}
@@ -156,26 +154,6 @@ function CitationsEmptyState() {
         Nothing has cited this document yet. Citations will appear here as other
         records reference it.
       </p>
-    </div>
-  );
-}
-
-function CitationsErrorState({ onRetry }: { onRetry: () => void }) {
-  return (
-    <div
-      role="alert"
-      className="flex flex-col items-center justify-center rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-center"
-    >
-      <AlertCircle className="size-8 text-destructive/70" aria-hidden="true" />
-      <h3 className="mt-3 text-sm font-medium text-foreground">
-        Couldn&apos;t load citations
-      </h3>
-      <p className="mt-1 max-w-md text-xs text-muted-foreground">
-        Something went wrong while loading citations. This is usually temporary.
-      </p>
-      <Button variant="outline" size="sm" onClick={onRetry} className="mt-3">
-        Try again
-      </Button>
     </div>
   );
 }
