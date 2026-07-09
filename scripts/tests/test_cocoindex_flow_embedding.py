@@ -1,24 +1,36 @@
 """Stage-4 embedding write-path proof (ID-49.2).
 
+{127.25}/{127.26} DR-034/DR-036 UPDATE: the whole-document embedding write this
+file originally proved is RETIRED, not re-pointed. `content_items` (and its
+`embedding` column) was dropped entirely ({127.25}); no other content-branch
+target (`source_documents`/`q_a_extractions`/`entity_mentions`) gained a
+document-level embedding column. `embed_content_text` now runs ONLY (a) per
+CHUNK inside `_ingest_content_branch`'s chunking block (`cc_target` supplied —
+covered by the chunking test suite) and (b) in the reference_item/URL branch
+(`_ingest_url_body`). `TestIngestFileEmbedding` below now guards the NEGATIVE:
+a minimal (qa, sd, em)-only `ingest_file` call — no `cc_target` — must NOT
+compute or declare any document-level embedding. The `TestEmbedContentTextTruncation`
+suite below is UNCHANGED — it exercises `embed_content_text` directly (the
+seam itself, not `ingest_file`'s wiring), which is unaffected by the retirement.
+
 Proves the Stage-4 embedding wiring inside ``ingest_file`` WITHOUT the cocoindex
 Rust engine, a real DB, or a live OpenAI call. The suite stubs cocoindex exactly
 like ``test_cocoindex_flow_write_path.py`` (the sibling whose ``_FakeTarget`` /
 ``_FakeFile`` harness this mirrors), and injects a fake embedder via the
 ``flow.embed_content_text`` seam so no network is touched.
 
-WHAT THIS PROVES (ID-49.2 — Stage-4 embedding):
-  - ``ingest_file`` computes an embedding for ``content_text`` and passes a
-    NON-None, length-1024 numeric vector into ``ci_target.declare_row``'s
-    ``embedding`` field (replacing the ``embedding=None`` stub).
-  - The embedding is sourced from ``flow.embed_content_text(content_text)`` — the
-    production seam that wraps ``LiteLLMEmbedder("text-embedding-3-large",
-    dimensions=1024).embed(...)``. Tests inject a fake here.
+WHAT THIS PROVES NOW (ID-49.2 historical / {127.26} re-baseline):
+  - ``ingest_file``, called with no ``cc_target`` (the content branch's
+    minimal shape), never invokes ``embed_content_text`` — the document-level
+    embedding stage is gone (DR-034).
   - ``ingest_file`` does NOT call ``declare_vector_index`` on any target. The
-    pgvector HNSW cosine index on ``content_items.embedding`` is migration-owned
-    (``idx_content_items_embedding`` in the pre-squash migration), and the
-    cocoindex ``declare_vector_index`` route would issue out-of-band ``CREATE
-    INDEX`` DDL that bypasses ``managed_by=ManagedBy.USER`` — see the ID-49.2
-    journal OQ. Stage-4 declares the embedding VALUE only, never index DDL.
+    pgvector HNSW cosine index (where one exists, e.g. on `content_chunks`) is
+    migration-owned, and the cocoindex ``declare_vector_index`` route would
+    issue out-of-band ``CREATE INDEX`` DDL that bypasses
+    ``managed_by=ManagedBy.USER`` — see the ID-49.2 journal OQ. Stage-4 (where
+    it still runs, per-chunk) declares the embedding VALUE only, never index DDL.
+  - ``embed_content_text`` itself remains an awaitable ``(content_text) ->
+    list[float]`` seam (still called per-chunk and by the URL branch).
 
 WHAT THIS DOES NOT PROVE (ID-49.6 integration domain):
   - A real OpenAI ``text-embedding-3-large`` call returning a genuine 1024-dim
@@ -233,17 +245,21 @@ def _patch_extractors(flow, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
 
 
-def _exercise_ingest(flow, fake_file, ci, qa, sd, em, run_op_id) -> None:
+def _exercise_ingest(flow, fake_file, qa, sd, em, run_op_id) -> None:
     """Drive a single ``ingest_file`` invocation under a ``bind_flow_meta``.
 
-    Per ID-53.10 §P-4 the ``em_target`` is the fourth extra arg expected by
-    ``ingest_file`` (declare_row body for entity_mentions ships at {53.11}).
+    {127.25} DR-034: the ``ci_target`` (content_items) positional was REMOVED
+    from ``ingest_file`` when the content_items table was dropped — the
+    per-doc target set is now (qa, sd, em) plus the defaulted cc/er/re
+    trailing positionals (mirrors the fix already applied to
+    test_cocoindex_flow_write_path.py). Per ID-53.10 §P-4 ``em_target`` is
+    the third extra arg.
     """
     from scripts.cocoindex_pipeline.flow_context import bind_flow_meta  # noqa: PLC0415
 
     async def _run() -> None:
         async with bind_flow_meta(op_id=run_op_id):
-            await flow.ingest_file(fake_file, ci, qa, sd, em, None, None)
+            await flow.ingest_file(fake_file, qa, sd, em, None, None)
 
     asyncio.run(_run())
 
@@ -252,19 +268,30 @@ def _exercise_ingest(flow, fake_file, ci, qa, sd, em, run_op_id) -> None:
 
 
 class TestIngestFileEmbedding:
-    """ingest_file computes a 1024-vector and declares it on content_items."""
+    """{127.25} DR-034/DR-036: the whole-document embedding write this class
+    originally proved is RETIRED, not re-pointed — `content_items` (and its
+    `embedding` column) is dropped entirely, and no other content-branch
+    target gained a document-level embedding column. `embed_content_text` is
+    now exercised ONLY per-chunk (`cc_target` supplied — chunking test suite)
+    and by the reference_item/URL branch, NEITHER of which this file's
+    minimal (qa, sd, em) target call reaches. These tests now guard the
+    NEGATIVE: `ingest_file`'s content branch, called without a `cc_target`,
+    must not compute or declare any document-level embedding."""
 
-    def test_ingest_file_declares_1024_length_embedding(
+    def test_ingest_file_does_not_call_embed_content_text_without_chunking(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        """{127.25} DR-034: no whole-document embedding call remains in the
+        content branch. `embed_content_text` is called ONLY inside the
+        chunking block (per-chunk), which is skipped when `cc_target` is
+        None — so a minimal (qa, sd, em)-only ingest must never invoke it."""
         flow = _flow_module()
         _patch_extractors(flow, monkeypatch)
 
-        captured: dict[str, object] = {}
+        calls: list[str] = []
 
         async def _fake_embed(content_text: str) -> list[float]:
-            captured["content_text"] = content_text
-            # Deterministic, non-uniform 1024-length numeric vector.
+            calls.append(content_text)
             return [round((i % 7) * 0.013 - 0.04, 6) for i in range(1024)]
 
         monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
@@ -273,23 +300,19 @@ class TestIngestFileEmbedding:
         src.write_text(_MARKDOWN)
         fake_file = _FakeFile(src)
 
-        ci = _FakeTarget("content_items")
         qa = _FakeTarget("q_a_extractions")
         sd = _FakeTarget("source_documents")
         em = _FakeTarget("entity_mentions")
         run_op_id = uuid.uuid4()
 
-        _exercise_ingest(flow, fake_file, ci, qa, sd, em, run_op_id)
+        _exercise_ingest(flow, fake_file, qa, sd, em, run_op_id)
 
-        assert len(ci.rows) == 1, "expected one content_items row"
-        embedding = ci.rows[0]["embedding"]
-        assert embedding is not None, "embedding must NOT be the None stub"
-        assert len(embedding) == 1024, "embedding must be a length-1024 vector"
-        assert all(isinstance(v, (int, float)) for v in embedding), (
-            "embedding entries must be numeric"
+        assert calls == [], (
+            "embed_content_text must NOT be called by the content branch when "
+            "no cc_target is supplied — the document-level embedding write is "
+            "retired (DR-034); only per-chunk embedding (cc_target supplied) "
+            "and the reference_item/URL branch call it."
         )
-        # The embedder was fed the converted content_text (Stage 2 output).
-        assert captured["content_text"] == _MARKDOWN
 
     def test_ingest_file_does_not_declare_vector_index(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -311,19 +334,19 @@ class TestIngestFileEmbedding:
         src.write_text(_MARKDOWN)
         fake_file = _FakeFile(src)
 
-        ci = _FakeTarget("content_items")
         qa = _FakeTarget("q_a_extractions")
         sd = _FakeTarget("source_documents")
         em = _FakeTarget("entity_mentions")
 
-        _exercise_ingest(flow, fake_file, ci, qa, sd, em, uuid.uuid4())
+        _exercise_ingest(flow, fake_file, qa, sd, em, uuid.uuid4())
 
-        assert ci.vector_indexes == [], (
-            "ingest_file must NOT declare a vector index — the HNSW cosine index "
-            "is migration-owned (idx_content_items_embedding)"
+        assert qa.vector_indexes == [], (
+            "ingest_file must NOT declare a vector index — any HNSW cosine "
+            "index (e.g. on content_chunks) is migration-owned, never "
+            "declared here"
         )
-        assert qa.vector_indexes == []
         assert sd.vector_indexes == []
+        assert em.vector_indexes == []
 
     def test_embed_content_text_seam_is_exposed(self) -> None:
         """flow exposes an awaitable embed_content_text(content_text) seam."""

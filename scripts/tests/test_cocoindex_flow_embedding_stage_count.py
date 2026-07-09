@@ -12,15 +12,26 @@ counter that `ingest_file` increments when `embed_content_text` produces a
 vector, read back by `app_main` at webhook-emit so `stage_counts["embedding"]`
 surfaces truthfully.
 
+{127.25}/{127.26} DR-034/DR-036 UPDATE: SLICE 2 (`TestIngestFileBumpsEmbeddingCounter`,
+renamed `TestIngestFileEmbeddingCounterRetiredForContentBranch`) no longer proves a
+bump — the whole-document embedding write it modelled is RETIRED, not re-pointed
+(`content_items` and its `embedding` column are dropped entirely; no other
+content-branch target gained one). The counter SUBSTRATE (SLICE 1) and the
+`app_main` threading/folding wiring (SLICE 3) are UNCHANGED and still live —
+`embed_content_text` (and its counter bump) still fires on the per-chunk path
+(`cc_target` supplied) and the reference_item/URL branch (`_ingest_url_body`),
+neither of which this file's minimal (qa, sd, em)-only `ingest_file` calls
+reach. SLICE 2 now guards the NEGATIVE: a minimal content ingest must NOT bump
+`stage_counts["embedding"]`.
+
 WHAT THIS PROVES (ID-49.4 — Inv-17 embedding counter):
   - `flow_context.bind_stage_counter` / `current_stage_counter` form a
     bind/read pair sharing one ContextVar identity (the dual-import-path
     hazard guarded in flow_context.py applies equally here).
-  - `ingest_file` bumps the bound embedding stage counter exactly once per
-    successful embedding (the row it declares carries a real vector).
-  - When NO counter is bound (unit tests outside the binding), `ingest_file`
-    still declares the embedding row — only the observability bump is
-    skipped (graceful degradation, same contract as the retry counter).
+  - `ingest_file`'s content branch, called WITHOUT a `cc_target` (no
+    chunking), does NOT bump the embedding stage counter — the
+    document-level embedding write is retired (DR-034); the counter is fed
+    exclusively by the per-chunk and reference_item/URL paths now.
   - `app_main` source binds the stage counter around `mount_each` and folds
     its value into `stage_counts["embedding"]` before the flow-end webhook
     emit — verified by source-inspection (the cocoindex Rust engine cannot
@@ -258,10 +269,11 @@ def _patch_pipeline(flow, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
 
-def _make_targets() -> tuple[_FakeTarget, _FakeTarget, _FakeTarget, _FakeTarget]:
-    """Per ID-53.10 §P-4 the per-doc target set is 4 (ci, qa, sd, em)."""
+def _make_targets() -> tuple[_FakeTarget, _FakeTarget, _FakeTarget]:
+    """{127.25} DR-034: `content_items` was dropped and `ci_target` removed
+    from `ingest_file`'s signature — the per-doc target set is now 3
+    (qa, sd, em); was 4 (ci, qa, sd, em) per ID-53.10 §P-4."""
     return (
-        _FakeTarget("content_items"),
         _FakeTarget("q_a_extractions"),
         _FakeTarget("source_documents"),
         _FakeTarget("entity_mentions"),
@@ -330,11 +342,16 @@ class TestStageCounterBindingSubstrate:
 # ============================================================================
 
 
-class TestIngestFileBumpsEmbeddingCounter:
-    """ingest_file increments the bound stage counter for 'embedding' exactly
-    once when it produces a vector — the Inv-17 closure behaviour."""
+class TestIngestFileEmbeddingCounterRetiredForContentBranch:
+    """{127.25} DR-034: `ingest_file`'s content branch, called with only the
+    minimal (qa, sd, em) target set (no `cc_target`), no longer produces or
+    declares any document-level embedding — so it must NOT bump the
+    'embedding' stage counter either. The bump moved exclusively to the
+    per-chunk path (`cc_target` supplied) and the reference_item/URL branch;
+    neither is exercised here. Was `TestIngestFileBumpsEmbeddingCounter`
+    (proved a bump of exactly 1 per ingest) before the retirement."""
 
-    def test_one_ingest_bumps_embedding_counter_once(
+    def test_one_ingest_does_not_bump_embedding_counter(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         flow = _flow_module()
@@ -351,31 +368,30 @@ class TestIngestFileBumpsEmbeddingCounter:
         src = tmp_path / "doc-embed-count.md"
         src.write_text(_MARKDOWN)
         fake_file = _FakeFile(src)
-        ci, qa, sd, em = _make_targets()
+        qa, sd, em = _make_targets()
         counter = flow._FlowStageCounter()
 
         async def _run() -> None:
             async with bind_flow_meta(op_id=uuid.uuid4()):
                 async with bind_stage_counter(counter):
-                    await flow.ingest_file(fake_file, ci, qa, sd, em, None, None)
+                    await flow.ingest_file(fake_file, qa, sd, em, None, None)
 
         asyncio.run(_run())
 
-        # The row landed with a real embedding (Stage 4 ran).
-        assert ci.rows[0]["embedding"] is not None
-        # ...and the embedding stage counter reflects exactly that one embedding.
-        assert counter.get("embedding") == 1, (
-            f"ingest_file must bump stage_counts['embedding'] exactly once per "
-            f"embedding produced; got {counter.get('embedding')}. Without this "
-            f"bump, stage_counts['embedding'] stays permanently 0 (the Inv-17 gap)."
+        assert counter.get("embedding") == 0, (
+            f"{{127.25}} DR-034: ingest_file's content branch (no cc_target) "
+            f"must NOT bump stage_counts['embedding'] — the document-level "
+            f"embedding write is retired; got {counter.get('embedding')}. A "
+            f"non-zero count here means the retired write was silently "
+            f"reintroduced."
         )
 
-    def test_two_ingests_accumulate_embedding_counter(
+    def test_two_ingests_still_leave_embedding_counter_at_zero(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Two separate ingest_file passes inside one binding scope accumulate
-        the embedding counter to 2 — models the per-item fan-out under one
-        flow-scope binding."""
+        """Two separate ingest_file passes inside one binding scope still
+        leave the embedding counter at 0 — the per-item fan-out no longer
+        touches 'embedding' at all for the content branch."""
         flow = _flow_module()
         _patch_pipeline(flow, monkeypatch)
         from scripts.cocoindex_pipeline.flow_context import (  # noqa: PLC0415
@@ -391,35 +407,39 @@ class TestIngestFileBumpsEmbeddingCounter:
                     for name in ("a.md", "b.md"):
                         src = tmp_path / name
                         src.write_text(_MARKDOWN + f"\n\n{name}")
-                        ci, qa, sd, em = _make_targets()
-                        await flow.ingest_file(_FakeFile(src), ci, qa, sd, em, None, None)
+                        qa, sd, em = _make_targets()
+                        await flow.ingest_file(_FakeFile(src), qa, sd, em, None, None)
 
         asyncio.run(_run())
-        assert counter.get("embedding") == 2
+        assert counter.get("embedding") == 0
 
-    def test_no_binding_still_declares_embedding(
+    def test_no_binding_still_ingests_without_embedding_stage(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Without bind_stage_counter, ingest_file still declares the embedding
-        row — only the observability bump is skipped (graceful degradation,
-        same contract as the retry counter)."""
+        """Without bind_stage_counter, ingest_file still completes cleanly.
+        The content branch's document-level embedding write is retired
+        (DR-034), so there is no embedding-specific graceful-degradation
+        behaviour left to prove — this guards that omitting the binding
+        does not raise, and that no spurious rows land on qa/em."""
         flow = _flow_module()
         _patch_pipeline(flow, monkeypatch)
         from scripts.cocoindex_pipeline.flow_context import bind_flow_meta  # noqa: PLC0415
 
         src = tmp_path / "doc-no-binding.md"
         src.write_text(_MARKDOWN)
-        ci, qa, sd, em = _make_targets()
+        qa, sd, em = _make_targets()
 
         async def _run() -> None:
             # Deliberately NO bind_stage_counter — ingest_file must cope.
             async with bind_flow_meta(op_id=uuid.uuid4()):
-                await flow.ingest_file(_FakeFile(src), ci, qa, sd, em, None, None)
+                await flow.ingest_file(_FakeFile(src), qa, sd, em, None, None)
 
         asyncio.run(_run())
-        assert ci.rows[0]["embedding"] is not None, (
-            "embedding row must still be declared when no counter is bound"
-        )
+        # _patch_pipeline's fake qa_form/entities extractors return empty
+        # collections, so nothing lands on either target — this also
+        # confirms ingest_file did not raise.
+        assert qa.rows == []
+        assert em.rows == []
 
 
 # ============================================================================
