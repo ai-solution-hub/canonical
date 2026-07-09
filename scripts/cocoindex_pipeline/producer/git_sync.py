@@ -564,6 +564,7 @@ def sync_bundle(
     commit_message: "str | None" = None,
     timestamp: "str | None" = None,
     stage_only: bool = False,
+    source_workspace_ids: "Mapping[str, str] | None" = None,
 ) -> SyncResult:
     """The per-run G-GITSYNC orchestration (BI-14/18/19/22/27): 3-way
     reconcile + augmentation-guard EVERY managed path, apply what is safe,
@@ -587,6 +588,20 @@ def sync_bundle(
     changed paths but makes NO commit — the ONE gated commit is deferred to
     the publish gate (`producer/publish.py`, which calls this with the default
     `stage_only=False`), not made per-run. `result.staged` reflects the mode.
+
+    `source_workspace_ids` (S443 amendment, BI-28 / {132.22}
+    G-BIDOUTCOME-PROPOSAL) is an optional `concept_path -> workspace_id`
+    provenance map: for each managed path present in it, the emitted
+    `ProposedChange` is stamped with that `source_workspace_id`, so the
+    accept/edit/reject review UI can attribute a bid-outcome-seeded (won-bid
+    `case_study`) draft to the procurement `workspaces.id` that seeded it (the
+    id originates on the won-bid concept's `ConceptKey.workspace_id`,
+    {132.21}). This extends the {132.24} substrate BY VALUE — no schema change;
+    a path absent from the map keeps the per-entry `None` default. The caller
+    (the {132.16}/{132.23} flow assembly) builds this map from the run's
+    `ConceptKey`s; when omitted, every entry is unstamped, exactly as the
+    ordinary Pass-1/Pass-2 producer flow (and every pre-{132.22} caller)
+    expects.
 
     Every run — staged or committing — also returns `captured_overrides` (the
     field-level human edits captured from any human-edit conflict, for the
@@ -647,12 +662,18 @@ def sync_bundle(
     captured_overrides = tuple(
         override for d in decisions for override in d.captured
     )
+    # BI-28 / {132.22}: stamp the per-entry `source_workspace_id` provenance
+    # for bid-outcome-seeded (won-bid case_study) concepts from the supplied
+    # `concept_path -> workspace_id` map — a value-set on the {132.24} slot, not
+    # a schema change; a path absent from the map keeps the `None` default.
+    workspace_provenance = source_workspace_ids or {}
     proposed_changes = tuple(
         ProposedChange(
             concept_path=d.rel_path,
             change_kind=_change_kind(d),
             field_changes=_field_changes(d),
             dropped_citations=d.dropped_citations,
+            source_workspace_id=workspace_provenance.get(d.rel_path),
         )
         for d in decisions
     )
