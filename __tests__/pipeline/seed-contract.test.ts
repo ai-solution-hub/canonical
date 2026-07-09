@@ -57,7 +57,14 @@ const KH_CONCEPT_NS = 'fd4ba596-2223-591b-b25c-1046022aced5';
 const CITEABLE_SEED_PREFIXES = ['sd', 'ri', 'qa'] as const;
 
 /** Internal-only seeds — present in flow.py but NOT citeable. */
-const EXCLUDED_INTERNAL_SEED_PREFIXES = ['ci', 'chunk'] as const;
+const EXCLUDED_INTERNAL_SEED_PREFIXES = ['chunk'] as const;
+
+/**
+ * Retired seeds — formerly internal, now structurally ABSENT from flow.py.
+ * ci: died with the content_items mount removal ({127.25}, DR-034); its
+ * reappearance would mean the retired table write is being re-introduced.
+ */
+const RETIRED_SEED_PREFIXES = ['ci'] as const;
 
 /**
  * Matches an actual `uuid.uuid5(_KH_PIPELINE_DOC_NS, f"<prefix>:...")` seed
@@ -115,7 +122,7 @@ describe('SEED-CONTRACT freeze (BI-7)', () => {
     expect(flowSource).not.toContain('f"qa:{rel_path}:{idx}"');
   });
 
-  it('excludes the internal ci: and chunk: seeds from the citeable contract', () => {
+  it('excludes the internal chunk: seed from the citeable contract', () => {
     const citeable = new Set<string>(CITEABLE_SEED_PREFIXES);
     for (const prefix of EXCLUDED_INTERNAL_SEED_PREFIXES) {
       // Not a member of the citeable set...
@@ -125,6 +132,20 @@ describe('SEED-CONTRACT freeze (BI-7)', () => {
         seedCallSite(prefix).test(flowSource),
         `expected the internal "${prefix}:" seed to still exist in flow.py`,
       ).toBe(true);
+    }
+  });
+
+  it('keeps retired seeds structurally absent from flow.py ({127.25}, DR-034)', () => {
+    const citeable = new Set<string>(CITEABLE_SEED_PREFIXES);
+    for (const prefix of RETIRED_SEED_PREFIXES) {
+      expect(citeable.has(prefix)).toBe(false);
+      // The ci: seed was minted solely for the content_items row write; the
+      // mount is deleted. A reappearing call-site means the retired write path
+      // is coming back — fail loudly.
+      expect(
+        seedCallSite(prefix).test(flowSource),
+        `retired "${prefix}:" seed has reappeared in flow.py`,
+      ).toBe(false);
     }
   });
 
