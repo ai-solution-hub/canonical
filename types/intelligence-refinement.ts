@@ -104,7 +104,7 @@ export interface RescoringPreviewResponse {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Resolution type enum — matches the DB `feed_flags.resolution_type` CHECK. */
-export type FlagResolutionType = 'addressed' | 'dismissed';
+type FlagResolutionType = 'addressed' | 'dismissed';
 
 /**
  * Request body for `POST /api/intelligence/workspaces/:id/flags/resolve`.

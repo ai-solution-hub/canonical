@@ -162,5 +162,3 @@ export const UmbrellasSchema = z
     umbrellas: z.array(UmbrellaEntrySchema),
   })
   .strict();
-
-export type Umbrellas = z.infer<typeof UmbrellasSchema>;
