@@ -145,6 +145,15 @@ services:
       PIPELINE_RUN_WEBHOOK_URL: ${PIPELINE_RUN_WEBHOOK_URL}
       CRON_SECRET: ${CRON_SECRET}
 
+      # --- Pipeline-trigger secret (ID-127.18, S436 D1 hardening#3) ---
+      # Dedicated pipeline<->app boundary secret for doors 1/2/4 (/walk verify,
+      # pipeline-runs/record verify, outbound walk-nudge). ROTATION-SAFE
+      # DUAL-ACCEPT window: verifyPipelineTriggerAuth() / _walk_handler accept
+      # EITHER this OR the legacy shared CRON_SECRET until retire-shared lands
+      # (see lib/cron-auth.ts). Unset resolves to empty — safe additive default,
+      # dual-accept falls back to CRON_SECRET. Value injected by Coolify.
+      PIPELINE_TRIGGER_SECRET: ${PIPELINE_TRIGGER_SECRET:-}
+
       # --- /extract pure-cleaner bearer ({112.6}) ---
       # DEDICATED bearer for the Traefik-reachable POST /extract route — a
       # SEPARATE secret from CRON_SECRET (different blast radius: CRON_SECRET
