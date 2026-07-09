@@ -89,7 +89,19 @@ export default async function RootLayout({
             </ClientFeaturesProvider>
           </QueryProvider>
         </ThemeProvider>
-        <Analytics />
+        {/* Vercel Web Analytics injects a <script src="/_vercel/insights/
+            script.js"> unconditionally whenever NODE_ENV === 'production'
+            (which `next start` always sets), regardless of whether the app
+            is actually served by Vercel's edge network. On real Vercel
+            deploys, Vercel's platform intercepts /_vercel/* before it
+            reaches this app. Under a non-Vercel `next start` (local dev,
+            CI e2e-nightly/e2e-smoke, self-hosted), that request falls
+            through to proxy.ts, which redirects the unauthenticated,
+            non-public path to /login (200 text/html) — and the browser
+            then throws trying to execute that HTML as JS ("Unexpected
+            token '<'", ID-128.13). Gate on Vercel's own runtime/build-time
+            signal so the beacon is only ever requested where it resolves. */}
+        {process.env.VERCEL === '1' && <Analytics />}
       </body>
     </html>
   );
