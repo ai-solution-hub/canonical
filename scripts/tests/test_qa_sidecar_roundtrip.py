@@ -248,8 +248,8 @@ def _drive_ingest(
     registry: dict | None = None,
     monkeypatch: pytest.MonkeyPatch | None = None,
 ) -> dict:
-    """Drive one real ``ingest_file`` with all seven targets recording. The
-    qa_sidecar branch only writes sd + qa; the other five targets are asserted
+    """Drive one real ``ingest_file`` with the four live targets recording. The
+    qa_sidecar branch only writes sd + qa; the other two (em/cc) are asserted
     empty (the INV-5 structural guarantee carries through the round-trip).
 
     ID-138 {138.10}: the sd anchor now lands via the off-engine raw-pool
@@ -259,6 +259,15 @@ def _drive_ingest(
     walk (the mint formula is deterministic on rel_path, so a re-walk of the same
     path is stable regardless). ``out["sd"]`` reads back from the raw-pool
     capture via ``_SdView``.
+
+    {127.25} DR-034: `ci_target`/`content_items` is REMOVED entirely (the
+    table is dropped both envs). The `ft`/`ftf` (`form_templates`/
+    `form_template_fields`) fake targets were ALSO already dead here — ID-136
+    retired those parameters from `ingest_file`'s real signature before this
+    Subtask; they were silently landing in the (unused, by the qa_sidecar
+    fork) `cc_target`/`er_target` positional slots, which is why removing them
+    is a no-op for this route's behaviour. `cc_target` is now correctly wired
+    to the 4th positional (was previously mislabeled/misrouted).
     """
     from scripts.cocoindex_pipeline.flow_context import (
         bind_flow_meta,
@@ -275,12 +284,9 @@ def _drive_ingest(
         flow.coco.use_context = lambda key: pool  # type: ignore[attr-defined]
 
     targets = {
-        "ci": _FakeTarget("content_items"),
         "qa": _FakeTarget("q_a_extractions"),
         "sd": _FakeTarget("source_documents"),
         "em": _FakeTarget("entity_mentions"),
-        "ft": _FakeTarget("form_templates"),
-        "ftf": _FakeTarget("form_template_fields"),
         "cc": _FakeTarget("content_chunks"),
     }
     run_op_id = uuid.uuid4()
@@ -290,12 +296,9 @@ def _drive_ingest(
             async with bind_workspace_manifest(manifest):
                 await flow.ingest_file(
                     fake_file,
-                    targets["ci"],
                     targets["qa"],
                     targets["sd"],
                     targets["em"],
-                    targets["ft"],
-                    targets["ftf"],
                     targets["cc"],
                 )
 
@@ -387,8 +390,10 @@ class TestQaSidecarNTimeFixpoint:
         )
 
         # ── INV-5 carried through the fixpoint: ZERO content rows every run. ──
+        # (content_items itself is REMOVED {127.25} DR-034 — no `ci` target
+        # exists to check; the invariant now covers the two surviving content-
+        # class targets, cc/em.)
         for out, _ in runs:
-            assert out["ci"].rows == [], "ZERO content_items every re-walk (INV-5)"
             assert out["cc"].rows == [], "ZERO content_chunks every re-walk (INV-5)"
             assert out["em"].rows == [], "ZERO entity_mentions every re-walk (INV-5)"
             for qa_row in out["qa"].rows:

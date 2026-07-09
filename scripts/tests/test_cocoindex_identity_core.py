@@ -7,9 +7,10 @@ resolves the STORED identity by `content_hash` first:
 
   - **Same bytes at a NEW rel_path** → the resolver returns the SAME
     `source_document_id`; `logical_path` tracks the new path; the derived rows
-    (`ci:` / `qa:`) are NOT re-minted (their PKs are keyed on the stored
+    (`qa:`) are NOT re-minted (their PKs are keyed on the stored
     `source_document_id`, not `rel_path`), so a rename does not re-mint the
-    derived graph — TECH.md §2.2 R(id).
+    derived graph — TECH.md §2.2 R(id). ({127.25} DR-034: the `ci:`
+    (content_items) derived seed is retired — the table is dropped both envs.)
   - **A genuinely new content_hash** → a NEW identity (a different document is a
     different source_document_id).
   - **`_upsert_source_document` freezes `storage_path`** (the R(a) SEED-CONTRACT
@@ -230,7 +231,6 @@ def _walk(
     pool = _ResolverPool(registry)
     monkeypatch.setattr(flow.coco, "use_context", lambda key: pool)
 
-    ci = _FakeTarget("content_items")
     qa = _FakeTarget("q_a_extractions")
     sd = _FakeTarget("source_documents")
     em = _FakeTarget("entity_mentions")
@@ -238,12 +238,13 @@ def _walk(
     async def _exercise() -> None:
         async with bind_flow_meta(op_id=uuid.uuid4()):
             # cc_target=None → chunk stage skipped (chunk re-key is proven in
-            # test_cocoindex_chunking.py); this suite proves the sd/ci/qa core.
-            await flow.ingest_file(_FakeFile(rel_path, data=data), ci, qa, sd, em, None, None)
+            # test_cocoindex_chunking.py); this suite proves the sd/qa core.
+            # {127.25} DR-034: ci_target/content_items is REMOVED entirely —
+            # the table is dropped both envs.
+            await flow.ingest_file(_FakeFile(rel_path, data=data), qa, sd, em, None, None)
 
     asyncio.run(_exercise())
     return {
-        "ci": ci.rows,
         "qa": qa.rows,
         "sd_insert": _sd_insert_args(pool.conn),
         "sd_sql": _sd_upsert_sql(pool.conn),
@@ -286,8 +287,16 @@ class TestAdmissionMintedIdentity:
     def test_derived_seeds_rekey_onto_stored_source_document_id(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """`ci:` / `qa:` PKs are keyed on the STORED source_document_id, not
-        rel_path — so a rename does NOT re-mint the derived rows."""
+        """`qa:` PKs are keyed on the STORED source_document_id, not
+        rel_path — so a rename does NOT re-mint the derived rows.
+
+        {127.25} DR-034: the `ci:` (content_items) derived seed is RETIRED —
+        the table is dropped both envs and flow.py no longer computes a
+        `content_item_id` at all (the formula is dead code, not merely
+        unwritten). The invariant this test proves — derived-row PKs re-key
+        onto the STORED source_document_id, not the mutable rel_path — is
+        re-expressed against the surviving `qa:` derived-row class only.
+        """
         flow = _flow_module()
         registry: dict = {}
         same_bytes = b"derived-graph stability under a rename"
@@ -297,27 +306,22 @@ class TestAdmissionMintedIdentity:
 
         sd_id = first["sd_insert"]["id"]
 
-        # ci PK is uuid5("ci:"+<source_document_id>), NOT the legacy uuid5("ci:"+rel_path).
-        assert first["ci"][0]["id"] == uuid.uuid5(_NS, f"ci:{sd_id}")
-        assert first["ci"][0]["id"] != uuid.uuid5(_NS, "ci:corpus/a.md"), (
-            "ci seed must re-key onto source_document_id, not rel_path (R(id)/R(e))"
-        )
-        # qa PKs likewise re-key onto the stored id, per pair index.
+        # qa PK is uuid5("qa:"+<source_document_id>+":"+idx), NOT the legacy
+        # uuid5("qa:"+rel_path+...).
         assert [r["id"] for r in first["qa"]] == [
             uuid.uuid5(_NS, f"qa:{sd_id}:0"),
             uuid.uuid5(_NS, f"qa:{sd_id}:1"),
         ]
+        assert first["qa"][0]["id"] != uuid.uuid5(_NS, "qa:corpus/a.md:0"), (
+            "qa seed must re-key onto source_document_id, not rel_path (R(id)/R(e))"
+        )
 
         # A rename → identical derived PKs (NOT re-minted), because the seed is
         # the stable id, not the path.
-        assert renamed["ci"][0]["id"] == first["ci"][0]["id"], (
-            "a rename must NOT re-mint the content_items row"
-        )
         assert [r["id"] for r in renamed["qa"]] == [r["id"] for r in first["qa"]], (
             "a rename must NOT re-mint the q_a_extractions rows"
         )
         # The re-keyed rows still FK the resolved source id.
-        assert first["ci"][0]["source_document_id"] == sd_id
         assert first["qa"][0]["source_document_id"] == sd_id
 
     def test_new_content_hash_mints_new_identity(
@@ -336,7 +340,9 @@ class TestAdmissionMintedIdentity:
             "a new content_hash must mint a NEW source_document_id"
         )
         # Derived rows of the two documents are disjoint (no cross-contamination).
-        assert doc_x["ci"][0]["id"] != doc_y["ci"][0]["id"]
+        # {127.25} DR-034: re-pointed from the retired `ci:` seed onto the
+        # surviving `qa:` derived-row class.
+        assert doc_x["qa"][0]["id"] != doc_y["qa"][0]["id"]
 
 
 # ── R(id)/R(a): _upsert_source_document freeze + no-clobber contract ─────────

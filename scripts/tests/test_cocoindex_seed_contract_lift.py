@@ -21,8 +21,9 @@ SEED-CONTRACT formulas under test (byte-for-byte against
   - `sd:{rel_path}`                          admission-time mint ONLY
     (flow.py:1994 provisional-log-id comment + the {138.6} SQL resolver's
     byte-identical formula, `20260703160100_id138_admission_identity_fn.sql:70-71`)
-  - `ci:{source_document_id}`                registry-keyed since {138.10}
-    (flow.py:2174)
+  - `ci:{source_document_id}`                RETIRED {127.25} DR-034 — was
+    registry-keyed since {138.10} (flow.py:2174); content_items is dropped
+    both envs and flow.py no longer computes this seed at all
   - `chunk:{source_document_id}:{position}`   registry-keyed (flow.py:2349, 3503)
   - `qa:{source_document_id}:{idx}`           registry-keyed (flow.py:2395, 3529)
   - `ri:{url}`                                URL-ingest identity (flow.py:3870)
@@ -68,12 +69,15 @@ def _lift_object_key(storage_path: str) -> str:
 class _FixtureDoc:
     """A pre-existing (pre-lift) admitted `source_documents` row, minted
     BEFORE this test runs via the REAL SEED-CONTRACT formula — stands in for
-    a row already sitting in the corpus prior to the bucket migration."""
+    a row already sitting in the corpus prior to the bucket migration.
+
+    {127.25} DR-034: the `content_item_id` (`ci:{source_document_id}`) field
+    is RETIRED — content_items is dropped both envs and flow.py no longer
+    computes that seed at all (dead formula, not merely unwritten)."""
 
     def __init__(self, rel_path: str) -> None:
         self.storage_path = rel_path  # frozen admission-time key (R(a))
         self.source_document_id = uuid.uuid5(_NS, f"sd:{rel_path}")
-        self.content_item_id = uuid.uuid5(_NS, f"ci:{self.source_document_id}")
         self.chunk_id_0 = uuid.uuid5(_NS, f"chunk:{self.source_document_id}:0")
         self.qa_id_0 = uuid.uuid5(_NS, f"qa:{self.source_document_id}:0")
 
@@ -138,10 +142,11 @@ class TestIdentityNeutralCorpusLift:
 
     @pytest.mark.parametrize("doc", _FIXTURE_CORPUS, ids=lambda d: d.storage_path)
     def test_derived_seeds_unchanged_across_lift(self, doc: _FixtureDoc) -> None:
-        """`ci:`/`chunk:`/`qa:` are registry-keyed on `source_document_id`
+        """`chunk:`/`qa:` are registry-keyed on `source_document_id`
         ({138.10}), which the lift never touches — invariant BY CONSTRUCTION.
-        Recompute + assert equality against the fixture for concreteness."""
-        assert uuid.uuid5(_NS, f"ci:{doc.source_document_id}") == doc.content_item_id
+        Recompute + assert equality against the fixture for concreteness.
+        ({127.25} DR-034: `ci:` dropped — content_items is retired, its seed
+        formula no longer exists in flow.py.)"""
         assert uuid.uuid5(_NS, f"chunk:{doc.source_document_id}:0") == doc.chunk_id_0
         assert uuid.uuid5(_NS, f"qa:{doc.source_document_id}:0") == doc.qa_id_0
 
@@ -311,7 +316,16 @@ def _stub_seams(flow, monkeypatch: pytest.MonkeyPatch, *, markdown: str) -> None
 
 def _walk(flow, registry: dict, rel_path: str, data: bytes, monkeypatch: pytest.MonkeyPatch) -> dict:
     """Drive one real `flow.ingest_file` content-branch walk against the
-    {138.6} resolver double, exactly as the production walk calls it."""
+    {138.6} resolver double, exactly as the production walk calls it.
+
+    {127.25} DR-034: `ci_target`/`content_items` is REMOVED entirely (the
+    table is dropped both envs) — the call below drops the corresponding
+    positional arg so `qa`/`sd`/`em` land in their CORRECT target slots
+    (pre-fix, the extra `ci` arg silently shifted every target one slot to
+    the right — a masked bug: `qa.rows` was empty and `pre_lift["qa"]`'s
+    downstream assertion was vacuously comparing `[] == []`, while the real
+    q_a_extractions rows landed in what the caller mislabelled `ci.rows`).
+    """
     import asyncio
 
     from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
@@ -321,18 +335,16 @@ def _walk(flow, registry: dict, rel_path: str, data: bytes, monkeypatch: pytest.
     pool = _ResolverPool(registry)
     monkeypatch.setattr(flow.coco, "use_context", lambda key: pool)
 
-    ci = _FakeTarget("content_items")
     qa = _FakeTarget("q_a_extractions")
     sd = _FakeTarget("source_documents")
     em = _FakeTarget("entity_mentions")
 
     async def _exercise() -> None:
         async with bind_flow_meta(op_id=uuid.uuid4()):
-            await flow.ingest_file(_FakeFile(rel_path, data=data), ci, qa, sd, em, None, None)
+            await flow.ingest_file(_FakeFile(rel_path, data=data), qa, sd, em, None, None)
 
     asyncio.run(_exercise())
     return {
-        "ci": ci.rows,
         "qa": qa.rows,
         "sd_insert": _sd_insert_args(pool.conn),
         "resolved": pool.conn.resolved,
@@ -375,8 +387,15 @@ class TestIdentityNeutralLiftAgainstRealWalk:
         assert post_lift["sd_insert"]["id"] == pre_lift["sd_insert"]["id"], (
             "the lift must not change source_document_id"
         )
-        assert post_lift["ci"][0]["id"] == pre_lift["ci"][0]["id"], (
-            "the lift must not re-mint the content_items row"
+        # {127.25} DR-034: content_items is REMOVED (dropped both envs) — the
+        # former "the lift must not re-mint the content_items row" check is
+        # structurally impossible now. The q_a_extractions check below is the
+        # surviving derived-row-stability proof (and — with the `_walk` arg-
+        # shift fix above — now genuinely exercises real declared rows rather
+        # than comparing two empty lists).
+        assert len(pre_lift["qa"]) > 0, (
+            "sanity: the QA extraction must actually declare rows for this "
+            "assertion to prove anything"
         )
         assert [r["id"] for r in post_lift["qa"]] == [r["id"] for r in pre_lift["qa"]], (
             "the lift must not re-mint the q_a_extractions rows"

@@ -12,16 +12,18 @@ and (2) proves it with a regression test.
 
 ── AUDIT (per-target table; this Subtask's deliverable #1) ──────────────────
 
-Eight ``mount_table_target(DB_CTX, "<table>", ..., managed_by=ManagedBy.USER)``
-calls exist in `app_main` (`flow.py:3593-3665`), fanned out across TWO
-`mount_each` calls: the content/localfs walk (`flow.py:3755-3763`, 7 targets:
-ci/qa/sd/em/cc/er/re) and the URL-ledger walk (`flow.py:3826-3831`, 3 targets:
-ri/sd/re). `q_a_pairs` has **no** `mount_table_target` call anywhere in
-`flow.py` — it is not an engine-managed table at all.
+{127.25} DR-034 update: `ci_target`/`content_items` is REMOVED entirely — the
+table is dropped both envs. Seven ``mount_table_target(DB_CTX, "<table>", ...,
+managed_by=ManagedBy.USER)`` calls now exist in `app_main`, fanned out across
+TWO `mount_each` calls: the content/localfs walk (6 targets: qa/sd/em/cc/er/re)
+and the URL-ledger walk (3 targets: ri/sd/re). `q_a_pairs` has **no**
+`mount_table_target` call anywhere in `flow.py` — it is not an engine-managed
+table at all. (The row below documenting the now-removed `ci_target` is kept
+for audit provenance — it was NEVER a `q_a_pairs` toucher either.)
 
 | target      | table                  | write site (flow.py)          | staging-only? | touches q_a_pairs? |
 |-------------|------------------------|--------------------------------|---------------|---------------------|
-| `ci_target` | `content_items`        | `ci_target.declare_row` :2277   | yes           | no                  |
+| `ci_target` | `content_items`        | REMOVED {127.25} DR-034 — table dropped both envs; was `ci_target.declare_row` :2277 | n/a (historical) | no |
 | `qa_target` | `q_a_extractions`      | `qa_target.declare_row` :2390 (content branch), :2711 (`__qa__/` sidecar branch) | yes (staging for the promotion path) | no — PK is `qa:{source_document_id}:{idx}` ({138.10} P3), independently re-keyed from any `q_a_pairs` id, which is minted at promotion time (`promote-corpus.ts:376-388`) |
 | `sd_target` | `source_documents`     | mounted (:3605-3610) but **never declared** on the content/URL routes — the parent row is taken OFF-ENGINE via the raw-pool `_upsert_source_document` (:2922-3134) since S437/S438; `sd_target` survives on call signatures only for legacy-arity compatibility | yes (register, off-engine) | no — and the `ON CONFLICT (id) DO UPDATE` explicitly OMITS `admission_status`/`retention_class`/`origin_type`/`storage_path` from its SET list (:3074-3105) so a re-walk cannot resurrect a tombstoned or curated row (R(d)/DR-026, verbatim in the source comment at :2936-2938) |
 | `em_target` | `entity_mentions`      | `em_target.declare_row` :2503   | yes           | no                  |
@@ -243,7 +245,6 @@ def _wire_pool(flow: object, monkeypatch: pytest.MonkeyPatch) -> "_FakePool":
 # a "golden literal" pin in the same spirit as TestInv19QaDeclareSnapshot in
 # test_cocoindex_flow_write_path.py.
 _EXPECTED_ENGINE_TARGET_TABLES = {
-    "content_items",
     "q_a_extractions",
     "source_documents",
     "entity_mentions",
@@ -390,7 +391,6 @@ class TestWalkNeverMutatesPromotedQaPair:
         fake_file = _FakeFormFile(cls._REL_PATH, src)
 
         targets = {
-            "ci": _FakeTarget("content_items"),
             "qa": _FakeTarget("q_a_extractions"),
             "sd": _FakeTarget("source_documents"),
             "em": _FakeTarget("entity_mentions"),
@@ -402,7 +402,6 @@ class TestWalkNeverMutatesPromotedQaPair:
             async with bind_flow_meta(op_id=op_id):
                 await flow.ingest_file(
                     fake_file,
-                    targets["ci"],
                     targets["qa"],
                     targets["sd"],
                     targets["em"],
@@ -490,8 +489,9 @@ class TestWalkNeverMutatesPromotedQaPair:
                 f"promotion-owned keys, found: {forbidden_present}"
             )
 
-        # sd/ci/em stay unaffected by the differing qa content — the row
-        # keys are governed by the same source_document_id identity.
+        # sd/em stay unaffected by the differing qa content — the row keys
+        # are governed by the same source_document_id identity. (content_items
+        # is dropped entirely, {127.25} DR-034 — there is no `ci` to check.)
         assert out_1["sd"].rows == [] and out_2["sd"].rows == [], (
             "source_documents no longer flows through sd_target.declare_row "
             "on the content branch (S437/S438 raw-pool move) — both should "
