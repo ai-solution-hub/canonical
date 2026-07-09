@@ -20,6 +20,16 @@ import {
 
 const VALID_UUID = '11111111-1111-1111-1111-111111111111';
 
+/**
+ * The well-formed per-row anchor resource line. BI-6: the per-row uuid form is
+ * admissible ONLY for `source_documents | reference_items` — never `q_a_pairs`
+ * (its opaque, re-minting `gen_random_uuid()` PK is cited via the BI-8 query
+ * form instead, mirroring `producer/validator.py`'s allowlist). Named so the
+ * reject/query-form tests below swap it out by reference rather than repeating a
+ * brittle string literal that must stay in lock-step with the fixture.
+ */
+const WELL_FORMED_RESOURCE_LINE = `resource: "canonical://source_documents/${VALID_UUID}"`;
+
 /** Wrap a YAML frontmatter block into full concept `.md` text. */
 function conceptMarkdown(frontmatterYaml: string, body = 'Body text.'): string {
   return `---\n${frontmatterYaml}\n---\n\n${body}\n`;
@@ -30,7 +40,7 @@ const WELL_FORMED_FRONTMATTER = [
   'title: Photovoltaic Panels',
   'description: A concept describing photovoltaic panel technology.',
   'timestamp: "2026-07-05T00:00:00.000Z"',
-  `resource: "canonical://q_a_pairs/${VALID_UUID}"`,
+  WELL_FORMED_RESOURCE_LINE,
   'tags:',
   '  - renewable-energy',
   '  - hardware',
@@ -47,7 +57,7 @@ describe('parseConceptFrontmatter', () => {
       title: 'Photovoltaic Panels',
       description: 'A concept describing photovoltaic panel technology.',
       timestamp: '2026-07-05T00:00:00.000Z',
-      resource: `canonical://q_a_pairs/${VALID_UUID}`,
+      resource: `canonical://source_documents/${VALID_UUID}`,
       tags: ['renewable-energy', 'hardware'],
     });
   });
@@ -83,13 +93,37 @@ describe('parseConceptFrontmatter', () => {
 
   it('rejects a concept whose resource: URI does not match canonical://<table>/<uuid>', () => {
     const badResource = WELL_FORMED_FRONTMATTER.replace(
-      `resource: "canonical://q_a_pairs/${VALID_UUID}"`,
+      WELL_FORMED_RESOURCE_LINE,
       'resource: "not-a-canonical-uri"',
     );
 
     expect(() =>
       parseConceptFrontmatter(conceptMarkdown(badResource)),
     ).toThrow();
+  });
+
+  it('rejects a q_a_pairs per-row uuid resource (BI-6 parity with validator.py: q_a_pairs is never cited in the per-row form, only the BI-8 query form)', () => {
+    const qaPerRowResource = WELL_FORMED_FRONTMATTER.replace(
+      WELL_FORMED_RESOURCE_LINE,
+      `resource: "canonical://q_a_pairs/${VALID_UUID}"`,
+    );
+
+    expect(() =>
+      parseConceptFrontmatter(conceptMarkdown(qaPerRowResource)),
+    ).toThrow();
+  });
+
+  it('accepts a reference_items per-row uuid resource (BI-6: the second per-row-admissible table)', () => {
+    const referenceItemsResource = WELL_FORMED_FRONTMATTER.replace(
+      WELL_FORMED_RESOURCE_LINE,
+      `resource: "canonical://reference_items/${VALID_UUID}"`,
+    );
+
+    const parsed = parseConceptFrontmatter(
+      conceptMarkdown(referenceItemsResource),
+    );
+
+    expect(parsed.resource).toBe(`canonical://reference_items/${VALID_UUID}`);
   });
 
   it('accepts a concept with no resource: field at all (BI-12: resource is required only "where one exists")', () => {
@@ -109,7 +143,7 @@ describe('parseConceptFrontmatter', () => {
 
   it('accepts a BI-8 query-form canonical://q_a_pairs?scope_tag=<tag> resource (never a row uuid for the q_a_pairs corpus)', () => {
     const queryFormResource = WELL_FORMED_FRONTMATTER.replace(
-      `resource: "canonical://q_a_pairs/${VALID_UUID}"`,
+      WELL_FORMED_RESOURCE_LINE,
       'resource: "canonical://q_a_pairs?scope_tag=solar-metrics"',
     );
 
@@ -122,7 +156,7 @@ describe('parseConceptFrontmatter', () => {
 
   it('accepts a BI-8 query-form canonical://q_a_pairs?domain=&subtopic= resource', () => {
     const queryFormResource = WELL_FORMED_FRONTMATTER.replace(
-      `resource: "canonical://q_a_pairs/${VALID_UUID}"`,
+      WELL_FORMED_RESOURCE_LINE,
       'resource: "canonical://q_a_pairs?domain=energy&subtopic=solar"',
     );
 
@@ -135,7 +169,7 @@ describe('parseConceptFrontmatter', () => {
 
   it('still rejects a malformed resource URI resembling the query form on a non-canonical scheme', () => {
     const badResource = WELL_FORMED_FRONTMATTER.replace(
-      `resource: "canonical://q_a_pairs/${VALID_UUID}"`,
+      WELL_FORMED_RESOURCE_LINE,
       'resource: "not-canonical://q_a_pairs?scope_tag=solar"',
     );
 
