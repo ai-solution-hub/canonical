@@ -1,9 +1,9 @@
 """Local-dev entrypoint: `python3 -m scripts.cocoindex_pipeline`.
 
 Boots the canonical pipeline by running `KH_PIPELINE_APP.update_blocking(
-live=True)` until SIGTERM. The Cloud Run Service uses `server.py` instead
-(HTTP wrapper for the /health probe); this file is preserved for local
-invocations that do not need it.
+live=True)` until SIGTERM. The Coolify-deployed container uses `server.py`
+instead (HTTP wrapper for the /health probe); this file is preserved for
+local invocations that do not need it.
 
 Boot wiring (ID-49.1): the entrypoint runs the App via
 `KH_PIPELINE_APP.update_blocking(live=True)`, NOT the bare

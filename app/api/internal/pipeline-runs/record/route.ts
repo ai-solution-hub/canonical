@@ -1,7 +1,7 @@
 /**
  * POST /api/internal/pipeline-runs/record — recordPipelineRun() webhook bridge.
  *
- * Bridges the cocoindex Python sidecar (Cloud Run Service) to the TS-side
+ * Bridges the cocoindex Python sidecar (Coolify-deployed pipeline app) to the TS-side
  * `recordPipelineRun()` helper per TECH.md §P-7 Option α. The sidecar emits
  * twice per flow invocation: `status='in_progress'` at flow start, then one
  * of the three terminal statuses at flow end.

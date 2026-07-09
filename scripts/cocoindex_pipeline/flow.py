@@ -194,10 +194,16 @@ def _emit_upsert_log(
     row_id: uuid.UUID | str,
     operation: Literal["INSERT", "UPDATE"],
 ) -> None:
-    """Emit one Cloud-Run-parseable structured log per Postgres UPSERT.
+    """Emit one structured JSON log line per Postgres UPSERT (stdout).
 
-    Inv-13 audit-observability substrate (Cloud Run picks up JSON log
-    lines into `jsonPayload` automatically). Contract shape:
+    Inv-13 audit-observability substrate: the JSON line is written to
+    stdout, where the Coolify/docker container log stream picks it up
+    (this pipeline runs as an on-prem Coolify container, not Cloud Run —
+    Cloud Run is fully retired, S298). Pipeline-run staleness is
+    monitored separately by the datapath-watch Vercel cron
+    (`app/api/cron/datapath-watch`, every 15 min, `detectStalls`), which
+    reads `pipeline_runs` DB rows rather than this stdout stream. Contract
+    shape:
 
       {"event": "cocoindex.upsert", "op_id": "<uuid>", "table": "<name>",
        "row_id": "<uuid>", "operation": "INSERT" | "UPDATE"}
