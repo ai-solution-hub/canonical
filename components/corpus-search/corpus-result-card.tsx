@@ -99,8 +99,12 @@ export const CorpusResultCard = memo(function CorpusResultCard({
           <KindIcon className="size-3 shrink-0" aria-hidden="true" />
           {kindLabel}
         </Badge>
-        {domainBadges.map((value) => (
-          <Badge key={value} variant="secondary" className="text-[10px]">
+        {domainBadges.map((value, index) => (
+          <Badge
+            key={`${value}-${index}`}
+            variant="secondary"
+            className="text-[10px]"
+          >
             {value}
           </Badge>
         ))}

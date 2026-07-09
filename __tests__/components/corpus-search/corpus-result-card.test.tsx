@@ -133,6 +133,30 @@ describe('CorpusResultCard', () => {
       expect(screen.queryByText('health-and-safety')).not.toBeInTheDocument();
       expect(screen.queryByText('policy')).not.toBeInTheDocument();
     });
+
+    it('renders both domain badges without a React duplicate-key warning when primaryDomain equals primarySubtopic', () => {
+      const consoleErrorSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {});
+
+      render(
+        <CorpusResultCard
+          result={makeDocument({
+            primaryDomain: 'unclassified',
+            primarySubtopic: 'unclassified',
+          })}
+        />,
+      );
+
+      expect(screen.getAllByText('unclassified')).toHaveLength(2);
+
+      const duplicateKeyWarning = consoleErrorSpy.mock.calls.some((call) =>
+        String(call[0]).includes('two children with the same key'),
+      );
+      expect(duplicateKeyWarning).toBe(false);
+
+      consoleErrorSpy.mockRestore();
+    });
   });
 
   describe('reference kind', () => {
