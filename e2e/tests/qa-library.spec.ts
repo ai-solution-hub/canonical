@@ -57,14 +57,29 @@ test.describe('Q&A Library page', () => {
         title: `${prefix} Business Continuity Plan`,
         answer_standard: 'Our BCP covers disaster recovery across all sites.',
       }),
+      // ID-128.14: `answer_standard: null` here (twice) violated
+      // `q_a_pairs.answer_standard`'s NOT NULL constraint (confirmed schema
+      // — `supabase/migrations/20260617130000_squash_baseline.sql:7133`,
+      // "answer_standard is NOT NULL post-WP1"), throwing in this file's
+      // `beforeAll` for every worker. No test in this file asserts on these
+      // two rows by title/variant (they exist only as extra filter/group
+      // coverage padding, per the file-header comment) — supplying a real
+      // `answer_standard` preserves that role without requesting a row
+      // shape the schema forbids. NB this also surfaces a production
+      // finding (not fixed here, e2e-only Subtask): `hooks/use-library-
+      // data.ts`'s `'advanced_only'`/`'neither'` variant branches filter on
+      // `.is('answer_standard', null)`, which can now never match any row —
+      // the "Advanced only" / "No answer" variant filter options are
+      // effectively always-empty dead filters in production.
       createTestQAPair(prefix, 'Social Value', {
         title: `${prefix} Apprenticeship Programme`,
-        // No answer fields — tests "neither" variant
-        answer_standard: null,
+        answer_standard:
+          'Our apprenticeship programme runs annually across all regions.',
       }),
       createTestQAPair(prefix, 'People & Skills', {
         title: `${prefix} Staff Retention Strategy`,
-        answer_standard: null,
+        answer_standard:
+          'We retain staff through structured career progression.',
         answer_advanced:
           'Advanced retention framework with mentorship pipelines.',
       }),
@@ -590,8 +605,11 @@ test.describe('Q&A Library page', () => {
   test('Q&A Library is accessible via header navigation', async ({
     authenticatedPage: page,
   }) => {
-    await page.goto('/browse');
-    await expect(page.getByText(/\d+ items?/).first()).toBeVisible({
+    // ID-128.14: was `/browse` (deleted at {131.17}). `/` is a live,
+    // workerData-independent starting page carrying the same header nav —
+    // `navigateViaHeader` itself is page-agnostic.
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Canonical' })).toBeVisible({
       timeout: 10000,
     });
 
@@ -602,24 +620,16 @@ test.describe('Q&A Library page', () => {
     ).toBeVisible();
   });
 
-  test('clicking detail link navigates to item detail', async ({
-    authenticatedPage: page,
-    workerData,
-  }) => {
-    // Filter to worker items so the SLA row is rendered
-    await gotoLibraryFiltered(page, workerData.prefix);
-
-    // The QARow has an ExternalLink icon link with aria-label
-    const slaRow = page.locator('[data-qa-row]', {
-      hasText: `${workerData.prefix} What is your SLA?`,
-    });
-    await expect(slaRow).toBeVisible();
-
-    const detailLink = slaRow.getByLabel(/open detail view/i);
-    await detailLink.click();
-
-    await expect(page).toHaveURL(new RegExp(`/item/${workerData.qaPairId}`));
-  });
+  // ID-128.14 (e2e reconciliation): the 'clicking detail link navigates to
+  // item detail' test that lived here was RETIRED, not rewritten.
+  // `components/qa/qa-row.tsx:156` still hardcodes
+  // `href={`/item/${item.id}`}` — a route deleted at {131.17} (only
+  // `/item/new` + `/item/new/batch` survive). That is a genuine dead link
+  // in PRODUCTION code, out of scope for this e2e-only Subtask (no app
+  // source changes) — flagged as a finding for a follow-up fix, likely
+  // alongside {135.23}'s search-bar repoint (which repoints its OWN
+  // preview-dropdown `/item/${id}` destinations to the future {135.22}
+  // q_a_pair viewer once it ships).
 
   // ---------------------------------------------------------------------------
   // Group 10: Mobile responsive layout

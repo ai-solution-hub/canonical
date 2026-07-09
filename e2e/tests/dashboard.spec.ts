@@ -96,10 +96,12 @@ test.describe('Dashboard -- attention and bids sections', () => {
       timeout: 10000,
     });
 
-    // ActiveBidsSection has aria-label="Active bids"
+    // ID-128.14: `ActiveProcurementsSection` (renamed from ActiveBidsSection
+    // at id-61 {61.3} / S248 WP2 T4) carries aria-label="Active procurements"
+    // — this locator was stale, never updated after that historical rename.
     // Use .first() in case Suspense re-render creates a transient duplicate
     const bidsSection = page
-      .locator('section[aria-label="Active bids"]')
+      .locator('section[aria-label="Active procurements"]')
       .first();
     await expect(bidsSection).toBeVisible({ timeout: 15000 });
 
@@ -124,7 +126,7 @@ test.describe('Dashboard -- attention and bids sections', () => {
 
     // Wait for Active Bids section
     const bidsSection = page
-      .locator('section[aria-label="Active bids"]')
+      .locator('section[aria-label="Active procurements"]')
       .first();
     await expect(bidsSection).toBeVisible({ timeout: 15000 });
 
@@ -151,7 +153,7 @@ test.describe('Dashboard -- content health stats', () => {
 
     // Wait for dashboard to load (Active Bids as proxy for Suspense resolution)
     const bidsSection = page
-      .locator('section[aria-label="Active bids"]')
+      .locator('section[aria-label="Active procurements"]')
       .first();
     await expect(bidsSection).toBeVisible({ timeout: 15000 });
 
@@ -340,7 +342,7 @@ test.describe('Dashboard -- mobile layout', () => {
 
     // Active Bids section should be visible (stacked, not side-by-side)
     const bidsSection = page
-      .locator('section[aria-label="Active bids"]')
+      .locator('section[aria-label="Active procurements"]')
       .first();
     await expect(bidsSection).toBeVisible({ timeout: 15000 });
   });
@@ -382,7 +384,7 @@ test.describe('Dashboard -- partial-failure warnings banner', () => {
     // assertion runs against the fully-hydrated dashboard, not the skeleton
     // tree (where the banner would also legitimately be absent).
     await expect(
-      page.locator('section[aria-label="Active bids"]').first(),
+      page.locator('section[aria-label="Active procurements"]').first(),
     ).toBeVisible({ timeout: 15000 });
 
     // The banner uses role="status" + the aria-labelledby heading defined

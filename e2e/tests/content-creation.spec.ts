@@ -157,34 +157,16 @@ test.describe('Content creation -- tab deep-linking and routing', () => {
   });
 });
 
-test.describe('Content creation -- Browse Upload affordance', () => {
-  test('Browse Upload button navigates to /item/new?tab=upload', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.goto('/browse');
-
-    // Wait for the browse page to load
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible({
-      timeout: 10000,
-    });
-
-    // Find the Upload button/link in the header
-    const uploadLink = page.getByRole('link', { name: /upload/i });
-    await expect(uploadLink).toBeVisible({ timeout: 5000 });
-
-    // Click it
-    await uploadLink.click();
-
-    // Should navigate to /item/new?tab=upload
-    await expect(page).toHaveURL(/\/item\/new\?tab=upload/, {
-      timeout: 10000,
-    });
-
-    // Upload tab should be active
-    const uploadTab = page.getByRole('tab', { name: /Upload file/i });
-    await expect(uploadTab).toHaveAttribute('aria-selected', 'true');
-  });
-});
+// ID-128.14 (e2e reconciliation): the "Browse Upload affordance" describe
+// block that lived here was RETIRED, not rewritten. It asserted a
+// `page.getByRole('link', { name: /upload/i })` on `/browse` (deleted at
+// {131.17}) navigating to `/item/new?tab=upload`. Confirmed via
+// `components/shell/site-header.tsx` NAV_LINKS: there is no "Upload" nav
+// affordance anywhere in production today (Search/Q&A Library/Coverage/
+// Workspaces/Change Reports/Intelligence/Review only) — the behaviour has
+// no live successor entry point to rewrite against. Direct `?tab=upload`
+// deep-linking is already covered by the "deep-linking and routing" block
+// above.
 
 // ---------------------------------------------------------------------------
 // 3. Mobile

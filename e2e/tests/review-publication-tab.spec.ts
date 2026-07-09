@@ -134,11 +134,16 @@ test.describe('Review page — awaiting-publication tab (S31 W3)', () => {
 
     // ── Step 7: navigate to default search and assert row is now ────
     //          visible in published results
-    // Visibility-gating cross-check per spec §10 — published items
-    // appear in /browse default search. We use a query that matches the
-    // fixture's deterministic title prefix.
+    // Visibility-gating cross-check per spec §10 — published items appear
+    // in default search. We use a query that matches the fixture's
+    // deterministic title prefix. ID-128.14: was `/browse?q=` (deleted at
+    // {131.17}) — `/search` (Surface A, {135.9}) is the live successor;
+    // its `/api/search` route calls the SAME `hybrid_search` RPC with the
+    // default `visibility_filter='default'`, which gates the
+    // `source_documents` arm on `publication_status = 'published'` —
+    // identical gating semantics to the retired /browse check.
     await page.goto(
-      `/browse?q=${encodeURIComponent('E2E-PUB-REVIEW-FIXTURE')}`,
+      `/search?q=${encodeURIComponent('E2E-PUB-REVIEW-FIXTURE')}`,
     );
 
     // The row's title contains the prefix — assert it renders as a
