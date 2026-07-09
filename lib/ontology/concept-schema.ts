@@ -58,12 +58,21 @@ export const CONCEPT_TYPE_VALUES = [
 ] as const;
 
 /**
- * `resource:` must be a `canonical://<table>/<uuid>` URI (scheme owned by
- * ID-132). `<table>` is a lowercase snake_case table name; `<uuid>` is a
+ * `resource:`, in its per-row anchor form, must be a
+ * `canonical://<table>/<uuid>` URI (scheme owned by ID-132). `<table>` is
+ * restricted to `source_documents | reference_items` — the two tables whose
+ * per-row uuid is a durable, citeable anchor. `q_a_pairs` is DELIBERATELY
+ * excluded from the per-row form (its `gen_random_uuid()` PK is opaque and
+ * re-minting, BI-6/BI-7); it is cited only via the BI-8 query form
+ * (`CANONICAL_QUERY_RESOURCE_URI_PATTERN` below). This mirrors the
+ * authoritative Python allowlist in `producer/validator.py`
+ * (`^canonical://(?:source_documents|reference_items)/…`) so the TS schema and
+ * the pipeline validator enforce the same per-row table set. `<uuid>` is a
  * 36-character UUID-shaped string (hex digits + hyphens — matches any UUID
  * version, not v4-only).
  */
-const CANONICAL_RESOURCE_URI_PATTERN = /^canonical:\/\/[a-z_]+\/[0-9a-f-]{36}$/;
+const CANONICAL_RESOURCE_URI_PATTERN =
+  /^canonical:\/\/(?:source_documents|reference_items)\/[0-9a-f-]{36}$/;
 
 /**
  * BI-8: the `q_a_pairs` table/query resource form — `producer/

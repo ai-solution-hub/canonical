@@ -101,28 +101,19 @@ class TestIdentityNeutralCorpusLift:
             "invalidate the whole suite"
         )
 
-    def test_concept_ns_matches_pipeline(self) -> None:
-        """ID-132 {132.11} G-EMBED / BI-26: `_KH_CONCEPT_NS` (flow.py:1683) is
-        a SECOND frozen SEED-CONTRACT namespace, added for the OKF concept
-        producer's `record_embeddings(owner_kind='concept')` embedding key
-        (`owner_id = uuid5(_KH_CONCEPT_NS, concept_rel_path)`). It MUST NOT
-        change after the first OKF bundle publish (BI-20/BI-21) — a drift
-        here silently orphans the bundle vector index, exactly the hazard
-        `test_ns_matches_pipeline` above guards for `_KH_PIPELINE_DOC_NS`.
-        Pinned two ways: against the frozen literal (independent of any
-        recomputation) AND against its derivation formula
-        `uuid5(_KH_PIPELINE_DOC_NS, "concept")` (flow.py:1681 comment)."""
-        flow = _flow_module()
-        _CONCEPT_NS = uuid.UUID("fd4ba596-2223-591b-b25c-1046022aced5")
-        assert flow._KH_CONCEPT_NS == _CONCEPT_NS, (
-            "_KH_CONCEPT_NS must match the frozen literal byte-for-byte — a "
-            "silent drift here would orphan every concept's bundle vector "
-            "index entry after first publish (BI-20/BI-21/BI-26)"
-        )
-        assert flow._KH_CONCEPT_NS == uuid.uuid5(flow._KH_PIPELINE_DOC_NS, "concept"), (
-            "_KH_CONCEPT_NS must equal uuid5(_KH_PIPELINE_DOC_NS, 'concept') — "
-            "its documented derivation formula (flow.py:1681)"
-        )
+    # NOTE ({132.25}): the former `test_concept_ns_matches_pipeline` freeze
+    # assertion for `_KH_CONCEPT_NS` was REMOVED as a redundant duplicate. The
+    # concept-embedding namespace is already frozen in two live homes: the
+    # authoritative TS freeze test `__tests__/pipeline/seed-contract.test.ts`
+    # (reads flow.py as TEXT and asserts the exact
+    # `_KH_CONCEPT_NS = uuid.UUID("fd4ba596-…")` literal — catches Python-side
+    # drift; BI-21's publish gate `producer/publish.py` checks THAT test's CI
+    # status), and the Python-side `scripts/tests/test_producer_embed.py`, which
+    # pins `flow._KH_CONCEPT_NS` via the uuid5 oracle (`embed.concept_owner_id`
+    # lazily imports it) plus a disproof-by-construction. No Python-only path can
+    # drift `_KH_CONCEPT_NS` past both guards, and this file's remit is the
+    # ID-138 corpus-lift identity-neutrality proof — the concept NS is unrelated
+    # to a bucket lift.
 
     @pytest.mark.parametrize("doc", _FIXTURE_CORPUS, ids=lambda d: d.storage_path)
     def test_lift_preserves_object_key_verbatim(self, doc: _FixtureDoc) -> None:
