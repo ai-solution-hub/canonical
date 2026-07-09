@@ -85,7 +85,7 @@ Dates use `formatDateUK` (DD/MM/YYYY).
 
 ## MCP Apps
 
-Four apps in `mcp-apps/`: `coverage-matrix`, `bid-dashboard`, `reorient-me`,
+Four apps in `mcp-apps/`: `coverage-matrix`, `form-dashboard`, `reorient-me`,
 `intelligence-feed`.
 
 Each app is a Vite single-file build. Build pipeline: `bun run build:mcp-apps` builds all
