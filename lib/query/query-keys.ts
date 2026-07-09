@@ -1,3 +1,5 @@
+import type { CorpusKind, CorpusSearchFilters } from '@/types/corpus-search';
+
 /**
  * Centralised query key factory for TanStack Query.
  *
@@ -161,6 +163,18 @@ export const queryKeys = {
     history: (documentId: string) =>
       ['source-documents', 'history', documentId] as const,
     sourceFiles: ['source-documents', 'source-files'] as const,
+    // Surface B source_document detail page (ID-135 {135.5}, TECH §4) —
+    // added here (not on Surface B's own subtask) to centralise every
+    // query-keys.ts edit for both id-135 surfaces in one subtask and avoid
+    // a shared-file cherry-pick conflict with {135.13}.
+    detail: (documentId: string) =>
+      ['source-documents', 'detail', documentId] as const,
+    versions: (documentId: string) =>
+      ['source-documents', 'versions', documentId] as const,
+    citations: (documentId: string) =>
+      ['source-documents', 'citations', documentId] as const,
+    derivedPairs: (documentId: string) =>
+      ['source-documents', 'derived-pairs', documentId] as const,
   },
 
   // Workspaces
@@ -471,5 +485,20 @@ export const queryKeys = {
     bundle: (bundleId: string) => ['okf', 'bundle', bundleId] as const,
     /** Secondary resource-resolution lane (a `resource:` pointer click). */
     resource: (uri: string) => ['okf', 'resource', uri] as const,
+  },
+
+  // ---------------------------------------------------------------------------
+  // Corpus search / browse (ID-135 {135.5} Surface A, TECH §4/§5) — polymorphic
+  // multi-grain (answer/document/reference) search, URL-driven (BI-9). `kind`
+  // narrows the ALL-grain default (BI-10) to one CorpusKind (BI-15); `undefined`
+  // represents the default ALL scope.
+  // ---------------------------------------------------------------------------
+  corpusSearch: {
+    all: ['corpus-search'] as const,
+    search: (
+      query: string,
+      kind: CorpusKind | undefined,
+      filters: CorpusSearchFilters,
+    ) => ['corpus-search', query, kind ?? 'all', filters] as const,
   },
 } as const;
