@@ -168,20 +168,47 @@ describe('CorpusFilterControls', () => {
     expect(mockPush).toHaveBeenCalledWith('/search?subtopic=invoicing');
   });
 
-  it('pushes ?dateFrom when the from-date is set', () => {
+  // TECH §4 mandates the canonical URL param list `?q, ?domain, ?subtopic,
+  // ?source, ?from, ?to` — the date-range keys are `from`/`to`, NOT
+  // `dateFrom`/`dateTo` (that pair names the CorpusSearchFilters object
+  // fields, not the URL keys). The {135.6} useCorpusSearch hook reads
+  // `from`/`to` off the URL — these assertions lock the cross-component
+  // contract so a param-key drift here fails fast instead of silently
+  // no-op'ing date filtering in production.
+  it('pushes ?from (not ?dateFrom) when the from-date is set', () => {
     render(<CorpusFilterControls />);
     fireEvent.change(screen.getByLabelText(/date from/i), {
       target: { value: '2026-01-01' },
     });
-    expect(mockPush).toHaveBeenCalledWith('/search?dateFrom=2026-01-01');
+    expect(mockPush).toHaveBeenCalledWith('/search?from=2026-01-01');
   });
 
-  it('pushes ?dateTo when the to-date is set', () => {
+  it('pushes ?to (not ?dateTo) when the to-date is set', () => {
     render(<CorpusFilterControls />);
     fireEvent.change(screen.getByLabelText(/date to/i), {
       target: { value: '2026-02-01' },
     });
-    expect(mockPush).toHaveBeenCalledWith('/search?dateTo=2026-02-01');
+    expect(mockPush).toHaveBeenCalledWith('/search?to=2026-02-01');
+  });
+
+  it('reads the initial date-range values off ?from/?to (URL-driven)', () => {
+    navState.search = 'from=2026-01-01&to=2026-02-01';
+    render(<CorpusFilterControls />);
+    expect(screen.getByLabelText(/date from/i)).toHaveValue('2026-01-01');
+    expect(screen.getByLabelText(/date to/i)).toHaveValue('2026-02-01');
+  });
+
+  it('clearing all filters removes ?from/?to (not ?dateFrom/?dateTo)', () => {
+    navState.search = 'q=x&from=2026-01-01&to=2026-02-01';
+    render(<CorpusFilterControls />);
+    fireEvent.click(screen.getByRole('button', { name: /clear filters/i }));
+    const [url] = mockPush.mock.calls[0];
+    const params = new URLSearchParams(String(url).split('?')[1]);
+    expect(params.has('from')).toBe(false);
+    expect(params.has('to')).toBe(false);
+    expect(params.has('dateFrom')).toBe(false);
+    expect(params.has('dateTo')).toBe(false);
+    expect(params.get('q')).toBe('x');
   });
 
   it('preserves active query/kind params when a filter is set', () => {
@@ -206,7 +233,7 @@ describe('CorpusFilterControls', () => {
 
   it('clearing all filters removes every filter param but preserves q/kind', () => {
     navState.search =
-      'q=x&kind=document&domain=finance&subtopic=invoicing&dateFrom=2026-01-01&dateTo=2026-02-01';
+      'q=x&kind=document&domain=finance&subtopic=invoicing&from=2026-01-01&to=2026-02-01';
     render(<CorpusFilterControls />);
     fireEvent.click(screen.getByRole('button', { name: /clear filters/i }));
     expect(mockPush).toHaveBeenCalledWith('/search?q=x&kind=document');

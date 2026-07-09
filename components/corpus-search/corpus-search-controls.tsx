@@ -195,11 +195,18 @@ export function CorpusFilterControls() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  // Date-range URL keys are `from`/`to` (TECH §4 canonical param list:
+  // `?q, ?domain, ?subtopic, ?source, ?from, ?to`) — DELIBERATELY not
+  // `dateFrom`/`dateTo`, even though the CorpusSearchFilters object fields
+  // (and the {135.6} useCorpusSearch hook's parsed filter shape) ARE named
+  // dateFrom/dateTo. This is the one place field name and URL key diverge;
+  // pushFilter below (keyed by CorpusSearchFilters field name) is safe for
+  // domain/subtopic ONLY because their field name equals their URL key.
   const filters: CorpusSearchFilters = {
     domain: searchParams.get('domain') ?? undefined,
     subtopic: searchParams.get('subtopic') ?? undefined,
-    dateFrom: searchParams.get('dateFrom') ?? undefined,
-    dateTo: searchParams.get('dateTo') ?? undefined,
+    dateFrom: searchParams.get('from') ?? undefined,
+    dateTo: searchParams.get('to') ?? undefined,
   };
 
   const activeFilterCount = [
@@ -216,12 +223,23 @@ export function CorpusFilterControls() {
     router.push(qs ? `${pathname}?${qs}` : pathname);
   };
 
+  // Dedicated writer for the date range — the URL key ('from'/'to') differs
+  // from the CorpusSearchFilters field name (dateFrom/dateTo), so it cannot
+  // reuse `pushFilter`'s field-name-as-URL-key shortcut.
+  const pushDate = (urlKey: 'from' | 'to', next: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next) params.set(urlKey, next);
+    else params.delete(urlKey);
+    const qs = params.toString();
+    router.push(qs ? `${pathname}?${qs}` : pathname);
+  };
+
   const clearFilters = () => {
     const params = new URLSearchParams(searchParams.toString());
     params.delete('domain');
     params.delete('subtopic');
-    params.delete('dateFrom');
-    params.delete('dateTo');
+    params.delete('from');
+    params.delete('to');
     const qs = params.toString();
     router.push(qs ? `${pathname}?${qs}` : pathname);
   };
@@ -273,7 +291,7 @@ export function CorpusFilterControls() {
           id="corpus-filter-from"
           type="date"
           value={filters.dateFrom ?? ''}
-          onChange={(e) => pushFilter('dateFrom', e.target.value)}
+          onChange={(e) => pushDate('from', e.target.value)}
           className={controlClass}
         />
       </div>
@@ -289,7 +307,7 @@ export function CorpusFilterControls() {
           id="corpus-filter-to"
           type="date"
           value={filters.dateTo ?? ''}
-          onChange={(e) => pushFilter('dateTo', e.target.value)}
+          onChange={(e) => pushDate('to', e.target.value)}
           className={controlClass}
         />
       </div>
