@@ -1451,7 +1451,8 @@ class TestPerItemFailureIsolation:
     file, good content file] through a faithful inline `mount_each`
     stand-in:
 
-      - content rows still land (ci target receives the good doc's row),
+      - content rows still land (cc target receives the good doc's chunk row
+        — {127.25} DR-034 re-pointed this proof off content_items, dropped),
       - flow_status == 'completed' (per-item faults never flip it),
       - the terminal webhook threads
         item_failures == {'content': 1, 'url': 0},
@@ -1581,10 +1582,13 @@ class TestPerItemFailureIsolation:
         # ── Recording targets (no real Postgres). ──
         # reference_items joined the Stage-6 prep block at {75.11} (the URL
         # source's write target) — app_main mounts it on every walk.
+        # {127.25} DR-034: content_items is DROPPED from this tuple — the
+        # table no longer exists and app_main no longer mounts it (the closed
+        # 7-table `mount_table_target(DB_CTX, ...)` set per flow.py's own
+        # {138.16}/{127.25} comment).
         targets = {
             name: self._FakeTarget(name)
             for name in (
-                "content_items",
                 "q_a_extractions",
                 "source_documents",
                 "entity_mentions",
@@ -1712,13 +1716,17 @@ class TestPerItemFailureIsolation:
         asyncio.run(flow.app_main())
 
         # 1. Content rows land: the good file's writes are NOT zeroed by the
-        # sibling bad file's fault (the bl-224 inversion).
-        ci_rows = targets["content_items"].rows
-        assert len(ci_rows) == 1, (
-            f"expected exactly the good doc's content_items row; "
-            f"got {len(ci_rows)}"
+        # sibling bad file's fault (the bl-224 inversion). {127.25} DR-034:
+        # content_items no longer exists — content_chunks (still mounted;
+        # RecursiveSplitter budget-chunks the short body into exactly one
+        # chunk row) carries the actual body text, proving specifically the
+        # GOOD doc's content landed (not merely SOME row).
+        cc_rows = targets["content_chunks"].rows
+        assert len(cc_rows) == 1, (
+            f"expected exactly the good doc's content_chunks row; "
+            f"got {len(cc_rows)}"
         )
-        assert ci_rows[0]["content"] == good_markdown
+        assert cc_rows[0]["content"] == good_markdown
 
         # 2. flow_status == 'completed': per-item faults never flip the
         # terminal status ('failed' is reserved for walk-wide faults).
@@ -1848,10 +1856,11 @@ class TestPerItemFailureIsolation:
         monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
         monkeypatch.setattr(flow, "embed_content_text", _embed)
 
+        # {127.25} DR-034: content_items is DROPPED from this tuple — the
+        # table no longer exists and app_main no longer mounts it.
         targets = {
             name: self._FakeTarget(name)
             for name in (
-                "content_items",
                 "q_a_extractions",
                 "source_documents",
                 "entity_mentions",
@@ -1958,13 +1967,15 @@ class TestPerItemFailureIsolation:
         asyncio.run(flow.app_main())
 
         # 1. Content rows land: the good file's writes are NOT zeroed by the
-        # sibling bad file's retired-content_type ValidationError.
-        ci_rows = targets["content_items"].rows
-        assert len(ci_rows) == 1, (
-            f"expected exactly the good doc's content_items row; "
-            f"got {len(ci_rows)}"
+        # sibling bad file's retired-content_type ValidationError. {127.25}
+        # DR-034: content_items no longer exists — content_chunks carries the
+        # actual body text, proving specifically the GOOD doc's content landed.
+        cc_rows = targets["content_chunks"].rows
+        assert len(cc_rows) == 1, (
+            f"expected exactly the good doc's content_chunks row; "
+            f"got {len(cc_rows)}"
         )
-        assert ci_rows[0]["content"] == good_markdown
+        assert cc_rows[0]["content"] == good_markdown
 
         # 2. flow_status == 'completed': the retired-type fault is
         # item-isolated, NOT promoted to a whole-walk failure.
@@ -2217,11 +2228,11 @@ class TestUrlPerItemFailureIsolation:
             flow.asyncpg, "PostgresError", _PostgresError, raising=False
         )
 
-        # ── Recording targets. ──
+        # ── Recording targets. {127.25} DR-034: content_items is DROPPED —
+        # the table no longer exists and app_main no longer mounts it. ──
         targets = {
             name: self._FakeTarget(name)
             for name in (
-                "content_items",
                 "q_a_extractions",
                 "source_documents",
                 "entity_mentions",

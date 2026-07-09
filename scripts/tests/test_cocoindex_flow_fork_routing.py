@@ -244,13 +244,18 @@ class _SdTarget:
 
 def _drive_ingest(flow: object, fake_file: object, *, manifest: object) -> dict:
     """Drive one real ``ingest_file`` under bind_flow_meta +
-    bind_workspace_manifest, with the five targets recording (including
-    content_chunks — the fork's zero-content proof covers cc too).
+    bind_workspace_manifest, with the four targets recording. {127.25}
+    DR-034: content_items no longer exists (table dropped both envs) — the
+    fork's content-vs-sidecar discriminator is now content_chunks (``cc``),
+    which the qa_sidecar branch structurally never touches (its signature
+    carries no cc_target — see ``_ingest_qa_sidecar_branch``).
 
     ID-136 (forms-route retirement, T8): ``ft_target``/``ftf_target`` were
-    dropped from ``ingest_file``'s positional signature — ``cc_target`` is
-    now the 6th positional (``er_target``/``re_target`` stay defaulted None,
-    the documented "5-/6-arg legacy caller" shape)."""
+    dropped from ``ingest_file``'s positional signature. {127.25} (DR-034)
+    dropped ``ci_target`` too — the 6-arg shape is now
+    (file, qa, sd, em, cc, er, re) with ``cc_target`` the 5th positional
+    (``er_target``/``re_target`` stay defaulted None, the documented
+    "4-/5-arg legacy caller" shape)."""
     from scripts.cocoindex_pipeline.flow_context import (
         bind_flow_meta,
         bind_workspace_manifest,
@@ -263,7 +268,6 @@ def _drive_ingest(flow: object, fake_file: object, *, manifest: object) -> dict:
     flow.coco.use_context = lambda key: pool  # type: ignore[attr-defined]
 
     targets = {
-        "ci": _FakeTarget("content_items"),
         "qa": _FakeTarget("q_a_extractions"),
         "sd": _SdTarget(pool),
         "em": _FakeTarget("entity_mentions"),
@@ -276,7 +280,6 @@ def _drive_ingest(flow: object, fake_file: object, *, manifest: object) -> dict:
             async with bind_workspace_manifest(manifest):
                 await flow.ingest_file(
                     fake_file,
-                    targets["ci"],
                     targets["qa"],
                     targets["sd"],
                     targets["em"],
@@ -320,8 +323,10 @@ class TestContentRouteWritesContentTargetsOnly:
         out = _drive_ingest(flow, fake_file, manifest=manifest)
 
         # Content rows landed (bl-219: unmapped is benign for file content).
-        assert len(out["ci"].rows) == 1
+        # {127.25} DR-034: content_items is gone — content_chunks is the
+        # content-branch discriminator (qa_sidecar never touches cc_target).
         assert len(out["sd"].rows) == 1
+        assert len(out["cc"].rows) == 1
         # Exactly one benign soft-warn; NO workspace_resolution stage error.
         assert len(warns) == 1
         assert [e for e in emitted if e.get("stage") == "workspace_resolution"] == []
@@ -341,8 +346,10 @@ class TestContentRouteWritesContentTargetsOnly:
 
         out = _drive_ingest(flow, fake_file, manifest=manifest)
 
-        assert len(out["ci"].rows) == 1
+        # {127.25} DR-034: content_items is gone — content_chunks is the
+        # content-branch discriminator (qa_sidecar never touches cc_target).
         assert len(out["sd"].rows) == 1
+        assert len(out["cc"].rows) == 1
         # The content branch performed its Stage-2 conversion + LLM passes.
         assert calls["convert"] == 1
         assert calls["classification"] == 1
@@ -388,7 +395,8 @@ class TestAmbiguousResolutionAtForkIsLoudZeroRows:
 
         out = _drive_ingest(flow, fake_file, manifest=manifest)
 
-        for key in ("ci", "qa", "sd", "em", "cc"):
+        # {127.25} DR-034: content_items dropped from the target tuple entirely.
+        for key in ("qa", "sd", "em", "cc"):
             assert out[key].rows == [], (
                 f"an ambiguous resolution must produce ZERO "
                 f"{out[key].table_name} rows — the fork fails the file before "
@@ -447,19 +455,21 @@ class TestIdempotencyAcrossBothBranches:
         # Two genuinely distinct runs.
         assert out_a["op_id"] != out_b["op_id"]
 
-        # Identical deterministic PKs across runs. Hard-coded uuid5 oracles over
+        # Identical deterministic PKs across runs. Hard-coded uuid5 oracle over
         # _KH_PIPELINE_DOC_NS ("fbfaf1ff-1ee4-583c-9757-1674465b2ec1") for the
-        # pinned rel_path "acme/stable-doc.md" — frozen literals (not re-derived
-        # from flow) so a namespace/seed drift fails loudly while the cross-run
-        # idempotency (id_a == id_b) is still proven.
-        # ID-138 {138.10} P3: sd keeps the sd:{rel} mint formula; ci/qa/chunk
-        # re-key onto the STORED source_document_id (`ci:{sd_id}` etc.), NOT
-        # rel_path — recomputed literals below (sd_id = f63d0349…).
+        # pinned rel_path "acme/stable-doc.md" — a frozen literal (not
+        # re-derived from flow) so a namespace/seed drift fails loudly while
+        # the cross-run idempotency (id_a == id_b) is still proven.
+        # ID-138 {138.10} P3: sd keeps the sd:{rel} mint formula; qa/chunk
+        # re-key onto the STORED source_document_id (`qa:{sd_id}` etc.), NOT
+        # rel_path. {127.25} DR-034: content_items (the former `ci:{sd_id}`
+        # oracle) is gone — the content_chunks PK-stability proof below
+        # (chunk_ids_a == chunk_ids_b) now carries that idempotency guarantee
+        # for the content branch.
         expected_pk = {
             "sd": uuid.UUID("f63d0349-1b7a-5d56-869d-e1c403155c2e"),  # sd:{rel}
-            "ci": uuid.UUID("1ff6a413-dede-5f4b-a00e-9889745b7e88"),  # ci:{sd_id}
         }
-        for key in ("sd", "ci"):
+        for key in ("sd",):
             assert len(out_a[key].rows) == 1 and len(out_b[key].rows) == 1
             id_a = out_a[key].rows[0]["id"]
             id_b = out_b[key].rows[0]["id"]
@@ -548,9 +558,10 @@ class TestRouteLessManifestBackwardCompat:
         out = _drive_ingest(flow, fake_file, manifest=manifest)
 
         # The content branch ran end-to-end: content rows landed, and the
-        # Stage-2 conversion + LLM passes executed (row 8).
-        assert len(out["ci"].rows) == 1
+        # Stage-2 conversion + LLM passes executed (row 8). {127.25} DR-034:
+        # content_items is gone — content_chunks is the discriminator.
         assert len(out["sd"].rows) == 1
+        assert len(out["cc"].rows) == 1
         assert calls["convert"] == 1
         assert calls["classification"] == 1
 
@@ -559,9 +570,10 @@ class TestQaSidecarRouteWritesSidecarTargetsOnly:
     """ID-59 {59.26} (TECH-qa-sidecar P1): a `__qa__/` file on the
     ``route:"qa_sidecar"`` prefix mints ONE source_documents row (the INV-8
     linkage anchor) + N q_a_extractions rows (``source_document_id IS
-    NULL``) — and ZERO content_items / content_chunks / entity_mentions
-    (PRODUCT INV-5). A sibling ``content``-route file on the SAME walk still
-    mints content_items (the branches are mutually exclusive)."""
+    NULL``) — and ZERO content_chunks / entity_mentions (PRODUCT INV-5;
+    {127.25} DR-034: content_items no longer exists to be zero of). A
+    sibling ``content``-route file on the SAME walk still mints content rows
+    (the branches are mutually exclusive)."""
 
     def test_qa_sidecar_mints_sd_and_qa_only_zero_content_rows(
         self, monkeypatch: pytest.MonkeyPatch
@@ -601,8 +613,11 @@ class TestQaSidecarRouteWritesSidecarTargetsOnly:
         assert sd_row["storage_path"] == rel_path
         assert sd_row["mime_type"] == "text/markdown"
 
-        # ── INV-5: ZERO content_items / content_chunks / entity_mentions. ─────
-        assert out["ci"].rows == [], "qa_sidecar mints ZERO content_items (INV-5)"
+        # ── INV-5: ZERO content_chunks / entity_mentions. content_items no
+        # longer exists at all ({127.25} DR-034) — its own "zero rows" proof
+        # is now structural (no ci_target parameter anywhere in the ingest
+        # call graph; see TestContentItemsIsStructurallyAbsent in
+        # test_cocoindex_flow_write_path.py), not a per-test row-count check. ─
         assert out["cc"].rows == [], "qa_sidecar mints ZERO content_chunks (INV-5)"
         assert out["em"].rows == [], "qa_sidecar mints ZERO entity_mentions (INV-5)"
 
@@ -639,10 +654,11 @@ class TestQaSidecarRouteWritesSidecarTargetsOnly:
     def test_walk_with_qa_sidecar_and_content_sibling_routes_each_branch(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A walk over `__qa__/foo.md` + `bar.md`: `bar.md` mints content_items
-        (existing content path), `__qa__/foo.md` mints ZERO content_items but
-        ONE source_documents + N q_a_extractions. Proves the third branch does
-        not regress the content branch on the same manifest."""
+        """A walk over `__qa__/foo.md` + `bar.md`: `bar.md` mints content rows
+        (existing content path — {127.25} DR-034: content_chunks, since
+        content_items no longer exists), `__qa__/foo.md` mints ZERO content
+        rows but ONE source_documents + N q_a_extractions. Proves the third
+        branch does not regress the content branch on the same manifest."""
         flow = _flow_module()
 
         async def _one_pair_qa(content_text: str):
@@ -669,24 +685,25 @@ class TestQaSidecarRouteWritesSidecarTargetsOnly:
             ],
         )
 
-        # ── Content sibling: docs/bar.md → content branch mints content_items. ─
+        # ── Content sibling: docs/bar.md → content branch mints content_chunks. ─
         calls_content = _observe_path_a_seams(flow, monkeypatch)
         monkeypatch.setattr(flow, "extract_qa_form", _one_pair_qa)
         out_content = _drive_ingest(
             flow, _FakeFile("docs/bar.md", data=b"# Bar\n\nbody"), manifest=manifest
         )
-        assert len(out_content["ci"].rows) == 1, "docs/bar.md mints content_items"
+        # {127.25} DR-034: content_items is gone — content_chunks is the
+        # content-branch discriminator.
+        assert len(out_content["cc"].rows) == 1, "docs/bar.md mints content_chunks"
         assert len(out_content["sd"].rows) == 1
         assert calls_content["classification"] == 1, "content branch ran for bar.md"
 
-        # ── Sidecar: __qa__/foo.md → ZERO content_items, ONE sd + N qa. ───────
+        # ── Sidecar: __qa__/foo.md → ZERO content rows, ONE sd + N qa. ────────
         calls_qa = _observe_path_a_seams(flow, monkeypatch)
         monkeypatch.setattr(flow, "extract_qa_form", _one_pair_qa)
         out_qa = _drive_ingest(
             flow, _FakeFile("__qa__/foo.md", data=b"# QA\n\nbody"), manifest=manifest
         )
-        assert out_qa["ci"].rows == [], "__qa__/foo.md mints ZERO content_items"
-        assert out_qa["cc"].rows == []
+        assert out_qa["cc"].rows == [], "__qa__/foo.md mints ZERO content_chunks"
         assert out_qa["em"].rows == []
         assert len(out_qa["sd"].rows) == 1, "__qa__/foo.md mints ONE source_documents"
         assert len(out_qa["qa"].rows) == 1
@@ -745,7 +762,10 @@ class TestQaSidecarRouteWritesSidecarTargetsOnly:
 
         # It fell through to the content branch (junk-content hazard realised),
         # but LOUDLY: a qa_sidecar_route_missing warning was emitted.
-        assert len(out["ci"].rows) == 1, "the mis-wired sidecar lands as content"
+        # {127.25} DR-034: content_items is gone — content_chunks is the
+        # content-branch discriminator.
+        assert len(out["sd"].rows) == 1, "the mis-wired sidecar lands as content"
+        assert len(out["cc"].rows) == 1, "the mis-wired sidecar lands as content"
         belt = [w for w in warnings if "qa_sidecar_route_missing" in w]
         assert belt, (
             "a __qa__/ path resolving to content must emit a loud "
