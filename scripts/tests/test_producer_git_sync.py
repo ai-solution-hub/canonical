@@ -82,16 +82,18 @@ class TestOneCommitPerRun:
         assert _commit_count(repo) == 2
         assert second.commit_sha != first.commit_sha
 
-    def test_a_fully_no_op_second_run_still_produces_a_new_commit(
+    def test_a_fully_no_op_second_run_creates_no_new_commit(
         self, repo: Path
     ) -> None:
-        """BI-19 is unconditional — even when nothing changed at all (same
-        content, no findings), a run still commits (`--allow-empty`)."""
+        """BI-18: a genuinely no-op run — same content, no findings — makes
+        NO new commit. BI-19's "one commit per run" bounds a CHANGING run
+        to exactly one commit; it does not mandate a commit when nothing
+        changed at all."""
         first = sync_bundle(repo, {"topic-a.md": "draft one\n"})
         second = sync_bundle(repo, {"topic-a.md": "draft one\n"})
 
-        assert _commit_count(repo) == 2
-        assert second.commit_sha != first.commit_sha
+        assert _commit_count(repo) == 1
+        assert second.commit_sha == first.commit_sha
         assert second.applied == ()
         assert second.unchanged == ("topic-a.md",)
 

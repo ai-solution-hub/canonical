@@ -6,9 +6,10 @@ human-edit reconciliation" (BI-14/BI-18/BI-19/BI-22) + PRODUCT.md BI-27:
 
     A git writer OUTSIDE cocoindex stages the bundle working tree and
     commits to the CLIENT-OWNED PRIVATE repository — one commit per
-    producer run (BI-19, ratified; unconditional — even a fully no-op
-    run still commits, `--allow-empty`), with point-in-time rollback via
-    git history. This is a discrete POST-FLOW stage, NEVER a cocoindex
+    producer run THAT CHANGES SOMETHING (BI-19: at most one commit per
+    run), with point-in-time rollback via git history. A genuinely no-op
+    run — every managed path resolves "unchanged" — makes NO new commit
+    (BI-18). This is a discrete POST-FLOW stage, NEVER a cocoindex
     target — preserves the "no out-of-band side effects in the flow"
     property (this module has ZERO `cocoindex` import, unlike every
     sibling `producer/*.py` module).
@@ -70,13 +71,16 @@ THIRD of three call sites sharing ONE detection implementation (`{132.7}`
 validator owns detection; `{132.9}` web_pass and this module are the two
 enforcement sites), never three divergent re-implementations.
 
-**One commit per run (BI-19, unconditional).** `sync_bundle` always
-commits — `git commit --allow-empty` — even when nothing was staged
-(a genuinely no-op run). The commit uses an explicit `-c user.name=
-... -c user.email=...` identity so this module works against a fresh
-repo with no git identity configured (the client-owned repo's own
-provisioning — S453, out of THIS Subtask's scope — may or may not set
-one).
+**One commit per run, at most (BI-19); a no-op run makes no commit
+(BI-18).** `sync_bundle` commits — `git commit --allow-empty` — only
+when this run applied or removed at least one managed path. When every
+managed path resolves "unchanged" (a genuinely no-op run — the same
+content already committed at HEAD), no new commit is made and the
+current HEAD sha is returned unchanged. The commit (when one is made)
+uses an explicit `-c user.name=... -c user.email=...` identity so this
+module works against a fresh repo with no git identity configured (the
+client-owned repo's own provisioning — S453, out of THIS Subtask's
+scope — may or may not set one).
 
 **Guard-hook note.** Every git invocation in this module targets the
 CALLER-SUPPLIED `repo_path` — the client-owned bundle repo, a SEPARATE
@@ -293,7 +297,9 @@ def sync_bundle(
 ) -> SyncResult:
     """The per-run G-GITSYNC orchestration (BI-14/18/19/22/27): 3-way
     reconcile + augmentation-guard EVERY managed path, apply what is safe,
-    then ALWAYS commit — one commit per producer run.
+    then commit when anything changed — one commit per producer run, at
+    most (BI-19). A genuinely no-op run (every managed path resolves
+    "unchanged") makes no new commit (BI-18).
 
     `new_output` maps managed rel_path -> this run's desired content.
     `removed_paths` names managed rel_paths this run wants GONE (no
@@ -306,8 +312,10 @@ def sync_bundle(
     manifest for this run. Any path NOT in the managed keyset (e.g. a human
     `notes/` file) is never read, written, or deleted by this function.
 
-    Returns a `SyncResult` — `commit_sha` is always set (this function
-    always commits, `--allow-empty` covers the fully-no-op case).
+    Returns a `SyncResult` — `commit_sha` is always set: either the sha of
+    a new commit (this run applied and/or removed at least one managed
+    path), or the unchanged current HEAD sha (a genuinely no-op run,
+    BI-18 — no new commit is made).
     """
     managed = (
         frozenset(managed_keyset)
@@ -354,19 +362,31 @@ def sync_bundle(
     for rel_path in (*applied, *removed):
         _run_git(repo_path, "add", "--", rel_path)
 
-    message = commit_message or f"okf producer git-sync ({timestamp or _now_iso()})"
-    _run_git(
-        repo_path,
-        "-c",
-        f"user.name={_COMMITTER_NAME}",
-        "-c",
-        f"user.email={_COMMITTER_EMAIL}",
-        "commit",
-        "--allow-empty",
-        "-m",
-        message,
+    head_before = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo_path, capture_output=True, text=True
     )
-    commit_sha = _run_git(repo_path, "rev-parse", "HEAD").stdout.strip()
+    has_prior_commit = head_before.returncode == 0
+
+    if not applied and not removed and has_prior_commit:
+        # BI-18: a genuinely no-op run (nothing applied or removed) makes
+        # NO new commit — the prior HEAD sha is returned unchanged. BI-19's
+        # "one commit per run" bounds a CHANGING run to exactly one commit;
+        # it does not mandate a commit when nothing changed at all.
+        commit_sha = head_before.stdout.strip()
+    else:
+        message = commit_message or f"okf producer git-sync ({timestamp or _now_iso()})"
+        _run_git(
+            repo_path,
+            "-c",
+            f"user.name={_COMMITTER_NAME}",
+            "-c",
+            f"user.email={_COMMITTER_EMAIL}",
+            "commit",
+            "--allow-empty",
+            "-m",
+            message,
+        )
+        commit_sha = _run_git(repo_path, "rev-parse", "HEAD").stdout.strip()
 
     return SyncResult(
         commit_sha=commit_sha,
