@@ -608,3 +608,66 @@ class TestEmitPipelineRunWebhookItemFailures:
             "forms": 3,
             "content": 1,
         }
+
+
+class TestEmitPipelineRunWebhookMemoHeals:
+    """`memo_heals` payload contract (ID-127.33, S457 self-healing-memo).
+
+    The per-extractor memo-self-heal tally (`{'classification': n, ...}`)
+    rides the terminal emission as camelCase `memoHeals`, omit-when-None —
+    mirroring the `itemFailures` / `taxonomyMisses` pattern exactly. Burn
+    observability (per-heal LLM cost) is the explicit owner guardrail from
+    the S457 ratification.
+    """
+
+    URL = "https://kh.example.org/api/internal/pipeline-runs/record"
+    SECRET = "test-cron-secret"
+
+    def setup_method(self):
+        _StubSession.reset()
+
+    def _emit(self, **kwargs):
+        env = {
+            "PIPELINE_RUN_WEBHOOK_URL": self.URL,
+            "CRON_SECRET": self.SECRET,
+        }
+        defaults = {
+            "op_id": uuid.UUID("11111111-1111-4111-8111-111111111111"),
+            "status": "completed",
+            "stage_counts": flow._empty_stage_counts(),
+            "items_processed": 2,
+            "items_created": [],
+        }
+        defaults.update(kwargs)
+        with patch.dict(os.environ, env, clear=True):
+            asyncio.run(flow._emit_pipeline_run_webhook(**defaults))
+
+    def test_payload_includes_memo_heals_when_set(self):
+        self._emit(memo_heals={"classification": 3, "qa_form": 0})
+        assert _StubSession.last_json is not None
+        assert _StubSession.last_json["memoHeals"] == {
+            "classification": 3,
+            "qa_form": 0,
+        }
+
+    def test_payload_includes_all_zero_tally_verbatim(self):
+        # A clean walk still threads an all-zero map at flow end —
+        # meaningful ("walk ran, zero memo self-heals") and distinguishable
+        # from the field being omitted (flow-start emission).
+        self._emit(memo_heals={})
+        assert _StubSession.last_json is not None
+        assert _StubSession.last_json["memoHeals"] == {}
+
+    def test_payload_omits_memo_heals_when_unset(self):
+        self._emit()
+        assert _StubSession.last_json is not None
+        assert "memoHeals" not in _StubSession.last_json
+
+    def test_payload_rides_alongside_item_failures_without_clobbering(self):
+        self._emit(
+            item_failures={"content": 0, "url": 0},
+            memo_heals={"classification": 1},
+        )
+        assert _StubSession.last_json is not None
+        assert _StubSession.last_json["itemFailures"] == {"content": 0, "url": 0}
+        assert _StubSession.last_json["memoHeals"] == {"classification": 1}

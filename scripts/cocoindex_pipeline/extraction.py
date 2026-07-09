@@ -26,7 +26,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Annotated, Literal, Union
+from typing import Annotated, Any, Literal, Union
 from uuid import UUID
 
 import anthropic
@@ -64,6 +64,54 @@ from tenacity import (
     stop_after_attempt,
     wait_exponential,
 )
+
+# ID-127.33 (S457 self-healing-memo ratification): `DeserializationError` has
+# no public re-export anywhere in `cocoindex` (verified against the pinned
+# `cocoindex[postgres]==1.0.7` — `requirements.txt` — top-level `dir(cocoindex)`
+# does not list it, and there is no `cocoindex.serde` module). It is raised by
+# `cocoindex._internal.serde.make_deserialize_fn` and surfaces through
+# `AsyncFunction.__call__`'s memo-HIT branch
+# (`guard.cached_value.get(self._resolved_return_deserializer)`,
+# `_internal/function.py:1291-1294`) whenever a stored LMDB memo payload no
+# longer validates against the CURRENT extraction schema (S456/S457: 3 corpus
+# items stuck replaying a pre-2026-07-07 `ClassificationExtraction` shape).
+#
+# Resolved LAZILY (function-local, inside `extract_with_memo_self_heal`) —
+# NOT at module import time. Several sibling test files
+# (`test_cocoindex_app_main_retry_wiring.py` and others per their own
+# docstrings) replace the top-level `cocoindex` module with a bare
+# `MagicMock` in `sys.modules` for the duration of the `flow`/`extraction`
+# import (no `cocoindex._internal` submodule on the stub), so a module-level
+# `from cocoindex._internal.serde import DeserializationError` broke import
+# collection under that stub with `ModuleNotFoundError: 'cocoindex' is not a
+# package`. The lazy resolver degrades to `_NeverRaisedSentinel` (a private
+# Exception subclass no real code path ever raises) when unresolvable, so the
+# self-heal branch simply never triggers under a stubbed cocoindex — matching
+# every other extractor call in a stubbed test (no memo-related failure is
+# possible there anyway). This is a private-internal import — pinned to the
+# exact installed version; a future `cocoindex` bump that moves/renames this
+# exception needs to re-verify `_resolve_coco_deserialization_error` below.
+
+
+class _NeverRaisedSentinel(Exception):
+    """Fallback for `_resolve_coco_deserialization_error` when the real
+    `cocoindex._internal.serde.DeserializationError` cannot be imported
+    (stubbed `cocoindex` in unit tests) — never actually raised."""
+
+
+def _resolve_coco_deserialization_error() -> type[BaseException]:
+    """Best-effort resolve `cocoindex._internal.serde.DeserializationError`.
+
+    See the module comment above for why this is lazy + best-effort rather
+    than a module-level import.
+    """
+    try:
+        from cocoindex._internal.serde import (  # type: ignore[import-untyped]
+            DeserializationError,
+        )
+    except Exception:
+        return _NeverRaisedSentinel
+    return DeserializationError
 
 
 # Production Anthropic model — single source of truth for the 3 extractors
@@ -1143,3 +1191,135 @@ async def extract_relationships(
     )
     response_text = _strip_code_fence(response.content[0].text)
     return _relationships_adapter.validate_json(response_text)
+
+
+# ── Self-healing memo (ID-127.33, S457 owner ratification) ─────────────────
+#
+# S456/S457 evidence: 3 staging corpus items (`content_chunks` stuck 5/8)
+# fail every re-walk with `DeserializationError` on `ClassificationExtraction`
+# — their LMDB memo entry holds a pre-2026-07-07 taxonomy-era payload that no
+# longer validates against the current core shape. Incremental re-walks do
+# NOT self-heal (confirmed: a second walk hits the identical stale entry);
+# targeted memo invalidation is infeasible ({66.14}: no supported tool opens
+# the cocoindex-bundled LMDB); a full `fullReprocess=true` re-walk OOM-crashed
+# on staging's compose memory limit during docling re-conversion (unrelated
+# to this fix, but ruled out the "just force it" option).
+#
+# Owner ratification (S457, ID-127.33): a memo-HIT deserialize failure must
+# degrade to RE-EXTRACTION, never an item failure — "self-healing memo".
+# Scope is narrowed DELIBERATELY to `DeserializationError` only:
+# network/LLM failures (`_RETRYABLE_ANTHROPIC_EXCEPTIONS`, a validation
+# failure on a FRESH LLM response) keep their existing failure semantics
+# unchanged — this fallback fires ONLY when the stored bytes themselves
+# don't deserialize.
+#
+# Mechanism: `extract_classification` (etc.) are NOT touched — their AST
+# body must stay byte-for-byte identical, because `_compute_logic_fingerprint`
+# (`cocoindex/_internal/function.py:596`) folds the function's canonicalised
+# AST (module + qualname + body, docstring-stripped) into the memo
+# fingerprint. Any edit to their source — even a no-op refactor into a
+# shared helper — would change that fingerprint and bust EVERY previously
+# memoised entry across the WHOLE corpus on the next walk (exactly the
+# uncontrolled, non-targeted re-burn the owner rejected options (a)/(b)
+# over). Instead, the fallback reaches `AsyncFunction._orig_async_fn` — the
+# raw, undecorated coroutine cocoindex stores alongside the memo wrapper —
+# to re-run the SAME extraction logic with NO memo lookup at all (empirically
+# verified: `_orig_async_fn` is a plain instance attribute set in
+# `AsyncFunction.__init__`, unrelated to the logic-fingerprint AST hash).
+#
+# Limitation (surfaced honestly, not swept under the rug): this fallback does
+# NOT overwrite the stale LMDB entry — cocoindex exposes no public API to
+# force a memo-store write outside its own reserve/execute/resolve guard
+# dance (`AsyncFunction.__call__`, private `core.FnCallMemoGuard`). So a
+# document whose memo entry is stale will re-trigger this fallback (and pay
+# one fresh LLM call per affected extractor) on EVERY subsequent walk until
+# its content changes or the corpus item is re-ingested — a small, bounded,
+# now-OBSERVABLE cost (via the heal count below) rather than the previous
+# outcome of an outright item failure.
+def _bypass_memo_extractor(memoized_fn: Any) -> Any:
+    """Return the raw, un-memoised coroutine function backing *memoized_fn*.
+
+    `memoized_fn` must be one of this module's `@coco.fn(memo=True)`
+    extractors (an `AsyncFunction` instance). Reads the private
+    `_orig_async_fn` slot — see the module-level rationale comment above this
+    section for why this is the only safe bypass that doesn't disturb the
+    memo fingerprint of the decorated function itself.
+    """
+    raw_fn = getattr(memoized_fn, "_orig_async_fn", None)
+    if raw_fn is None:
+        raise RuntimeError(
+            f"{memoized_fn!r}: expected a cocoindex AsyncFunction exposing "
+            "_orig_async_fn (cocoindex==1.0.7 internal shape) — the memo "
+            "self-heal bypass cannot locate the underlying coroutine."
+        )
+    return raw_fn
+
+
+async def extract_with_memo_self_heal(
+    memoized_fn: Any,
+    content_text: str,
+    *,
+    extractor_name: str,
+    rel_path: str,
+) -> Any:
+    """Call a `@coco.fn(memo=True)` Path-A extractor with the ID-127.33
+    self-healing-memo fallback.
+
+    PUBLIC (no leading underscore) and DELIBERATELY generic — `memoized_fn`
+    is a caller-supplied reference, not one of this module's own globals.
+    `flow.py`'s call sites pass THEIR OWN module-global (`extract_classification`
+    etc., imported unchanged from this module) rather than a fixed reference
+    resolved here — this is load-bearing: dozens of existing flow-level tests
+    (`test_cocoindex_flow_write_path.py` and siblings) do
+    `monkeypatch.setattr(flow, "extract_classification", fake)` to stub the
+    LLM call, relying on `flow.py`'s per-item bodies re-reading that
+    module-global at call time. If this helper closed over a fixed extractor
+    reference instead of accepting one as an argument, those monkeypatches
+    would go silently unobserved and the REAL (un-mocked) extractor would run
+    in unit tests. Accepting `memoized_fn` as a parameter keeps the existing
+    patch surface intact: a patched fake is just a plain async callable here,
+    never raises `DeserializationError`, so the fallback path below never
+    triggers in any test that doesn't explicitly ask for it.
+
+    Happy path: delegates straight to `memoized_fn(content_text)` — a valid
+    memo entry (or a genuine cache-miss) behaves EXACTLY as before this
+    change, memo-hit included (no spurious re-extraction).
+
+    Fallback path: `DeserializationError` from the memo-HIT deserialize
+    (resolved lazily via `_resolve_coco_deserialization_error` — see that
+    function's docstring for why) is the ONLY exception narrowed onto here
+    (scope discipline — network/LLM errors are untouched). On catch: log one
+    loud structured line (rel_path + error class + "stale memo,
+    re-extracting"), bump the per-flow memo-heal counter (best-effort —
+    silently skipped when no counter is bound, mirroring the retry/
+    taxonomy-miss counters' graceful degradation), then re-run the SAME
+    extraction via the raw undecorated coroutine (`_bypass_memo_extractor`)
+    so the item succeeds this walk.
+    """
+    try:
+        return await memoized_fn(content_text)
+    except _resolve_coco_deserialization_error() as exc:
+        _logger.warning(
+            json.dumps(
+                {
+                    "event": "cocoindex.memo_self_heal.stale_memo_reextracting",
+                    "extractor": extractor_name,
+                    "rel_path": rel_path,
+                    "error_class": type(exc).__name__,
+                    "detail": (
+                        "stale memo, re-extracting (ID-127.33 self-healing "
+                        "memo — memo-HIT deserialize failed against the "
+                        "current extraction schema)"
+                    ),
+                }
+            )
+        )
+
+        from scripts.cocoindex_pipeline import flow_context as flow_context_module
+
+        counter = flow_context_module.current_memo_heal_counter()
+        if counter is not None:
+            counter.record(extractor=extractor_name)
+
+        raw_fn = _bypass_memo_extractor(memoized_fn)
+        return await raw_fn(content_text)

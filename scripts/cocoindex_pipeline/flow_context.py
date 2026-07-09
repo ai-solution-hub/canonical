@@ -298,3 +298,63 @@ async def bind_taxonomy_miss_counter(
 def current_taxonomy_miss_counter() -> TaxonomyMissCounter | None:
     """Return the currently-bound taxonomy-miss counter, or None if no binding."""
     return _taxonomy_miss_counter_var.get()
+
+
+# Memo-heal-counter binding (ID-127.33 — self-healing memo, S457 ratification).
+#
+# `extraction.py`'s `extract_with_memo_self_heal` wrapper bumps a flow-scope
+# counter each time a `@coco.fn(memo=True)` Path-A extractor's memo-HIT
+# deserialize raises `cocoindex._internal.serde.DeserializationError` (a
+# stale LMDB payload replayed against the current extraction schema — S456/
+# S457 evidence: 3 corpus items stuck on `ClassificationExtraction`) and the
+# wrapper falls back to a fresh, un-memoised extraction so the item still
+# succeeds instead of failing outright. Routing it through `flow_context`
+# (rather than a direct `extraction.py -> flow.py` import) mirrors the retry
+# / taxonomy-miss counters exactly: same daemon-thread rebind discipline
+# (ID-66.19 — `ingest_file` / `ingest_url` re-bind this ContextVar locally on
+# the `_LoopRunner` worker thread), same graceful-degradation contract (the
+# wrapper simply skips `.record()` when `current_memo_heal_counter()` is
+# None — e.g. `ingest_once` callers that never bind one).
+#
+# Keyed by `extractor` (one of `'classification'` / `'qa_form'` /
+# `'entity_mentions'` / `'relationships'`) so the flow-end webhook can break
+# the tally down per extractor — burn observability is the explicit owner
+# guardrail from the S457 ratification journal.
+
+
+class MemoHealCounter(Protocol):
+    """Structural type any per-flow memo-heal counter must satisfy.
+
+    `_FlowMemoHealCounter` in `flow.py` is the production implementation;
+    tests supply lightweight stand-ins.
+    """
+
+    def record(self, *, extractor: str) -> None: ...
+    def get(self, *, extractor: str) -> int: ...
+    def tally(self) -> dict[str, int]: ...
+
+
+_memo_heal_counter_var: contextvars.ContextVar[MemoHealCounter | None] = (
+    contextvars.ContextVar("_kh_flow_memo_heal_counter_var", default=None)
+)
+
+
+@asynccontextmanager
+async def bind_memo_heal_counter(
+    counter: MemoHealCounter,
+) -> AsyncIterator[MemoHealCounter]:
+    """Bind a memo-heal counter for the duration of the wrapped async block.
+
+    Token-based reset on exit — safe against nesting + exceptions, mirroring
+    `bind_retry_counter` / `bind_taxonomy_miss_counter`.
+    """
+    token = _memo_heal_counter_var.set(counter)
+    try:
+        yield counter
+    finally:
+        _memo_heal_counter_var.reset(token)
+
+
+def current_memo_heal_counter() -> MemoHealCounter | None:
+    """Return the currently-bound memo-heal counter, or None if no binding active."""
+    return _memo_heal_counter_var.get()

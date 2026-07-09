@@ -117,6 +117,7 @@ from scripts.cocoindex_pipeline.extraction import (
     extract_entity_mentions,
     extract_qa_form,
     extract_relationships,
+    extract_with_memo_self_heal,
     stamp_extraction_base,
 )
 from scripts.cocoindex_pipeline.holder_rule import (
@@ -707,6 +708,39 @@ class _FlowItemFailureCounter:
         return dict(self._counts)
 
 
+# ── Memo-heal-counter substrate (ID-127.33 — S457 self-healing-memo) ────────
+
+
+class _FlowMemoHealCounter:
+    """Per-flow per-extractor memo-self-heal tally (ID-127.33, S457).
+
+    `.record(extractor=...)` is called from `extraction.py`'s
+    `extract_with_memo_self_heal` each time a `@coco.fn(memo=True)` Path-A
+    extractor's memo-HIT deserialize raises `DeserializationError` and the
+    wrapper falls back to a fresh (un-memoised) extraction so the item still
+    succeeds. `.tally()` is read at flow end and threaded into the pipeline-
+    run webhook as `memoHeals` (`{'classification': n, ...}`) — burn
+    observability is the explicit owner guardrail from the S457 ratification.
+
+    Instances are per-flow — one per `app_main()` invocation, no shared
+    state. Thread-safety is not required: cocoindex @coco.fn execution is
+    sequential per content row. Mirrors `_FlowRetryCounter` /
+    `_FlowTaxonomyMissCounter`.
+    """
+
+    def __init__(self) -> None:
+        self._counts: dict[str, int] = {}
+
+    def record(self, *, extractor: str) -> None:
+        self._counts[extractor] = self._counts.get(extractor, 0) + 1
+
+    def get(self, *, extractor: str) -> int:
+        return self._counts.get(extractor, 0)
+
+    def tally(self) -> dict[str, int]:
+        return dict(self._counts)
+
+
 def _item_failure_branch(manifest: Any, file: Any, source_path: Any) -> str:
     """Attribute a contained per-item fault to the `'content'` branch.
 
@@ -840,6 +874,7 @@ async def _emit_pipeline_run_webhook(
     retry_count: int | None = None,
     taxonomy_misses: dict[str, int] | None = None,
     item_failures: dict[str, int] | None = None,
+    memo_heals: dict[str, int] | None = None,
     pipeline_name: str = KH_CANONICAL_PIPELINE_NAME,
 ) -> None:
     """POST a pipeline-run rollup to the Vercel webhook.
@@ -925,6 +960,16 @@ async def _emit_pipeline_run_webhook(
     # Rides ALONGSIDE errorDetail/taxonomyMisses (ID-61.4) — never clobbers.
     if item_failures is not None:
         payload["itemFailures"] = item_failures
+    # ID-127.33 (S457 self-healing-memo ratification): per-extractor tally of
+    # memo-HIT deserialize failures that fell back to a fresh (un-memoised)
+    # extraction — `{'classification': n, ...}`. `None` omits the field
+    # entirely (flow-start emission); the terminal emission always threads
+    # the tally, so an all-zero map at flow end means "walk ran, zero memo
+    # self-heals". Rides ALONGSIDE itemFailures/taxonomyMisses — never
+    # clobbers. Burn observability is the explicit owner guardrail: each
+    # heal costs one fresh LLM call, and this is the surfaced signal.
+    if memo_heals is not None:
+        payload["memoHeals"] = memo_heals
 
     headers = {
         "Authorization": f"Bearer {secret}",
@@ -1707,6 +1752,7 @@ async def ingest_file(
     flow_stage_counter: Any = None,
     flow_retry_counter: Any = None,
     flow_taxonomy_miss_counter: Any = None,
+    flow_memo_heal_counter: Any = None,
     flow_workspace_manifest: Any = None,
     flow_source_path: Any = None,
 ) -> None:
@@ -1761,12 +1807,12 @@ async def ingest_file(
     chaining, which is fictional in 1.0.3), and each row lands via
     `TableTarget.declare_row(row=...)` (Stage 6).
 
-    `op_id` is a PLAIN ROW FIELD. ID-66.19 threads it (and the four per-flow
+    `op_id` is a PLAIN ROW FIELD. ID-66.19 threads it (and the per-flow
     counters + the workspace manifest) as EXPLICIT keyword args
     (`flow_op_id` / `flow_stage_counter` / `flow_retry_counter` /
-    `flow_taxonomy_miss_counter` / `flow_workspace_manifest` /
-    `flow_source_path`) bound onto the component via a named closure in
-    `app_main`, NOT via `contextvars`
+    `flow_taxonomy_miss_counter` / `flow_memo_heal_counter` (ID-127.33) /
+    `flow_workspace_manifest` / `flow_source_path`) bound onto the component
+    via a named closure in `app_main`, NOT via `contextvars`
     propagation. cocoindex 1.0.3 runs this per-item component on its OWN
     `_LoopRunner` daemon thread (a separate event loop), which does NOT copy the
     binder task's `ContextVar` snapshot across the dispatch boundary — so reads
@@ -1779,14 +1825,14 @@ async def ingest_file(
     via the ContextVar fallback below.
 
     CAVEAT (ID-66.19): `extraction.py`'s `stamp_extraction_base` + the
-    retry / taxonomy-miss recorders read `current_flow_meta()` /
-    `current_retry_counter()` / `current_taxonomy_miss_counter()` INSIDE the
-    per-item extractor calls, which run on the SAME daemon thread as this body.
-    So once the explicit args arrive we RE-BIND those three ContextVars LOCALLY
-    around the body (Option A moves the BIND POINT from `app_main`'s wrong thread
-    into this correct thread). `stage_counter` / `workspace_manifest` are read
-    directly from the passed args (only this body reads them), so they need no
-    re-bind.
+    retry / taxonomy-miss / memo-heal recorders read `current_flow_meta()` /
+    `current_retry_counter()` / `current_taxonomy_miss_counter()` /
+    `current_memo_heal_counter()` INSIDE the per-item extractor calls, which
+    run on the SAME daemon thread as this body. So once the explicit args
+    arrive we RE-BIND those ContextVars LOCALLY around the body (Option A
+    moves the BIND POINT from `app_main`'s wrong thread into this correct
+    thread). `stage_counter` / `workspace_manifest` are read directly from
+    the passed args (only this body reads them), so they need no re-bind.
 
     `content_text_hash` is OMITTED (GENERATED ALWAYS column). `embedding` is now
     a real text-embedding-3-large vector(1024) computed from content_text via
@@ -1870,8 +1916,16 @@ async def ingest_file(
         rebind_taxonomy = flow_context_module.bind_taxonomy_miss_counter(
             flow_taxonomy_miss_counter
         )
+    # ID-127.33 (S457): same daemon-thread rebind discipline as retry /
+    # taxonomy-miss above — `extraction.py`'s `extract_with_memo_self_heal`
+    # reads `current_memo_heal_counter()` in-task, on this same thread.
+    rebind_memo_heal: Any = contextlib.nullcontext()
+    if flow_memo_heal_counter is not None:
+        rebind_memo_heal = flow_context_module.bind_memo_heal_counter(
+            flow_memo_heal_counter
+        )
 
-    async with rebind_meta, rebind_retry, rebind_taxonomy:
+    async with rebind_meta, rebind_retry, rebind_taxonomy, rebind_memo_heal:
         await _ingest_file_body(
             file,
             qa_target,
@@ -2114,18 +2168,44 @@ async def _ingest_content_branch(
     provenance = await extract_source_provenance(file)
 
     # ── Stage 3: Path A extraction (direct anthropic inside @coco.fn) ───────
-    classification = await extract_classification(content_text)
-    qa_form = await extract_qa_form(content_text)
+    # ID-127.33 (S457): each extractor call is wrapped by
+    # `extract_with_memo_self_heal` — a memo-HIT deserialize failure (stale
+    # LMDB payload vs the current extraction schema) degrades to a fresh
+    # re-extraction instead of failing the item. The bare `extract_*` names
+    # are passed IN (not re-imported inside the helper) so existing
+    # `monkeypatch.setattr(flow, "extract_classification", fake)` test stubs
+    # keep working unchanged — see extraction.py's
+    # `extract_with_memo_self_heal` docstring for why this call shape is
+    # load-bearing.
+    classification = await extract_with_memo_self_heal(
+        extract_classification,
+        content_text,
+        extractor_name="classification",
+        rel_path=rel_path,
+    )
+    qa_form = await extract_with_memo_self_heal(
+        extract_qa_form, content_text, extractor_name="qa_form", rel_path=rel_path
+    )
     # entity_mentions extraction runs here for memo coverage. The extracted
     # mentions are declared into `em_target` in the Stage-6 declare-rows block
     # below (AFTER content_item_id / rel_path are computed) — ID-53.11 §P-3.
-    entity_mentions = await extract_entity_mentions(content_text)
+    entity_mentions = await extract_with_memo_self_heal(
+        extract_entity_mentions,
+        content_text,
+        extractor_name="entity_mentions",
+        rel_path=rel_path,
+    )
     # ID-101 §{101.7}: relationship extraction runs here for memo coverage. The
     # raw triples are consumed directly by the Stage-6 declare loop below (NO
     # ExtractionOutput-union membership, NO stamped variant — {101.6} returns
     # stamp-free `RelationshipExtraction` cores, canonicalisation + persistence
     # happen at THIS write site, mirroring extract_entity_mentions usage).
-    relationships = await extract_relationships(content_text)
+    relationships = await extract_with_memo_self_heal(
+        extract_relationships,
+        content_text,
+        extractor_name="relationships",
+        rel_path=rel_path,
+    )
     # Inv-17: four Path-A LLM extraction passes ran for this content row
     # (classification + qa_form + entity_mentions + relationships) — mirrors the
     # per-pass semantic of `_record_extraction_success` (ID-28.16): +1 per pass.
@@ -2684,7 +2764,12 @@ async def _ingest_qa_sidecar_branch(
     # ── Inner extraction tier (INV-6): the UNCHANGED `extract_qa_form`. ──────
     # Content-hash-keyed @coco.fn(memo=True) — a metadata-only touch hits memo
     # and the LLM is not re-called. Identical extractor the content path calls.
-    qa_form = await extract_qa_form(content_text)
+    # ID-127.33 (S457): via `extract_with_memo_self_heal` (see the content
+    # branch's identical note) — a memo-HIT deserialize failure re-extracts
+    # instead of failing this item.
+    qa_form = await extract_with_memo_self_heal(
+        extract_qa_form, content_text, extractor_name="qa_form", rel_path=rel_path
+    )
     _bump("llm_extraction")  # Inv-17: one Q&A extraction pass for this sidecar
 
     # ── q_a_extractions declare loop (`:2196-2228` analogue) with the ONE
@@ -3418,10 +3503,32 @@ async def ingest_once(
     """
     content_text = await convert_binary_to_markdown(file)
     provenance = await extract_source_provenance(file)
-    classification = await extract_classification(content_text)
-    qa_form = await extract_qa_form(content_text)
-    entity_mentions = await extract_entity_mentions(content_text)
-    relationships = await extract_relationships(content_text)
+    # ID-127.33 (S457): via `extract_with_memo_self_heal` — no
+    # `flow_memo_heal_counter` is bound on this off-`mount_each` P4 path, so
+    # `.record()` is a graceful no-op (mirrors the retry/taxonomy-miss
+    # counters' existing degradation contract here); the re-extraction
+    # fallback + loud log still fire.
+    classification = await extract_with_memo_self_heal(
+        extract_classification,
+        content_text,
+        extractor_name="classification",
+        rel_path=rel_path,
+    )
+    qa_form = await extract_with_memo_self_heal(
+        extract_qa_form, content_text, extractor_name="qa_form", rel_path=rel_path
+    )
+    entity_mentions = await extract_with_memo_self_heal(
+        extract_entity_mentions,
+        content_text,
+        extractor_name="entity_mentions",
+        rel_path=rel_path,
+    )
+    relationships = await extract_with_memo_self_heal(
+        extract_relationships,
+        content_text,
+        extractor_name="relationships",
+        rel_path=rel_path,
+    )
 
     content_fingerprint = (await file.content_fingerprint()).hex()
     _filename = file.file_path.path.name
@@ -3643,6 +3750,7 @@ async def ingest_url(
     flow_stage_counter: Any = None,
     flow_retry_counter: Any = None,
     flow_taxonomy_miss_counter: Any = None,
+    flow_memo_heal_counter: Any = None,
 ) -> None:
     """Ingest ONE passed URL: fetch → extract → declare the sd+ri pair.
 
@@ -3702,8 +3810,15 @@ async def ingest_url(
         rebind_taxonomy = flow_context_module.bind_taxonomy_miss_counter(
             flow_taxonomy_miss_counter
         )
+    # ID-127.33 (S457): same daemon-thread rebind discipline as retry /
+    # taxonomy-miss above.
+    rebind_memo_heal: Any = contextlib.nullcontext()
+    if flow_memo_heal_counter is not None:
+        rebind_memo_heal = flow_context_module.bind_memo_heal_counter(
+            flow_memo_heal_counter
+        )
 
-    async with rebind_meta, rebind_retry, rebind_taxonomy:
+    async with rebind_meta, rebind_retry, rebind_taxonomy, rebind_memo_heal:
         await _ingest_url_body(
             item,
             ri_target,
@@ -3848,7 +3963,15 @@ async def _ingest_url_body(
     # ── Step 3: classification + embedding ───────────────────────────────────
     # content_type output is DISCARDED (D-10 — references carry no
     # content_type; the closed enum is preserved, BI-22 corollary 1).
-    classification = await extract_classification(markdown)
+    # ID-127.33 (S457): via `extract_with_memo_self_heal` (see
+    # `_ingest_content_branch`'s identical note) — `item.url` stands in for
+    # `rel_path` on this URL-sourced branch (there is no file rel_path here).
+    classification = await extract_with_memo_self_heal(
+        extract_classification,
+        markdown,
+        extractor_name="classification",
+        rel_path=item.url,
+    )
     _bump("llm_extraction")
     embedding = await embed_content_text(markdown)
     _bump("embedding")
@@ -4060,6 +4183,13 @@ async def app_main() -> None:
     # (`{'content': m, 'url': k}`) is threaded into the terminal webhook
     # emit. Per-item faults never flip `flow_status` (OQ-80.2-C).
     flow_item_failure_counter = _FlowItemFailureCounter()
+    # ID-127.33 (S457 self-healing-memo): counter is bound via
+    # `bind_memo_heal_counter` below so `extraction.py`'s
+    # `extract_with_memo_self_heal` records each memo-HIT deserialize
+    # failure that fell back to a fresh (un-memoised) extraction; its
+    # per-extractor tally is threaded into the terminal webhook emit as
+    # `memoHeals` — burn observability is the explicit owner guardrail.
+    flow_memo_heal_counter = _FlowMemoHealCounter()
 
     # ── Load the folder→workspace manifest ONCE at flow start (TECH §2.1) ──
     # The manifest lives at the root of the ingest source folder. A missing /
@@ -4258,6 +4388,7 @@ async def app_main() -> None:
                     flow_stage_counter=flow_stage_counter,
                     flow_retry_counter=flow_retry_counter,
                     flow_taxonomy_miss_counter=flow_taxonomy_miss_counter,
+                    flow_memo_heal_counter=flow_memo_heal_counter,
                     flow_workspace_manifest=workspace_manifest,
                     flow_source_path=source_path,
                 )
@@ -4329,6 +4460,7 @@ async def app_main() -> None:
                     flow_stage_counter=flow_stage_counter,
                     flow_retry_counter=flow_retry_counter,
                     flow_taxonomy_miss_counter=flow_taxonomy_miss_counter,
+                    flow_memo_heal_counter=flow_memo_heal_counter,
                 )
             except Exception as exc:  # noqa: BLE001 — per-item containment
                 flow_item_failure_counter.increment("url")
@@ -4587,6 +4719,11 @@ async def app_main() -> None:
             # faults. Always threaded at flow end — an all-zero map means
             # "walk ran, zero per-item faults" (omitted only at flow start).
             item_failures=flow_item_failure_counter.tally(),
+            # ID-127.33 (S457 self-healing-memo): per-extractor tally of
+            # memo-HIT deserialize failures that fell back to a fresh
+            # extraction. Always threaded at flow end — an all-zero map means
+            # "walk ran, zero memo self-heals" (omitted only at flow start).
+            memo_heals=flow_memo_heal_counter.tally(),
         )
 
         # ID-132 {132.16} G-TRIGGER: producer post-walk chaining. Gated on a
