@@ -157,16 +157,22 @@ class _FakeMessage:
         self.stop_reason = "end_turn"
 
 
-# Valid stub payloads: content_type/form_type must pass the canonical-taxonomy
-# validators ("policy" / "bid" are baseline snapshot values); entity mentions
-# return an empty list (valid, and keeps the probe off the per-mention paths).
+# Valid stub payloads: content_type/form_type/primary_domain are sourced live
+# from the canonical-taxonomy sets the REAL extractors validate against
+# (extraction._VALID_* — loaded from taxonomy_snapshot.json at import), so a
+# future taxonomy change cannot re-stale these stubs (bl-417). `sorted(...)[0]`
+# is an arbitrary-but-deterministic in-taxonomy pick; entity mentions return an
+# empty list (valid, and keeps the probe off the per-mention paths).
+_CONTENT_TYPE = sorted(extraction._VALID_CONTENT_TYPES)[0]
+_FORM_TYPE = sorted(extraction._VALID_FORM_TYPES)[0]
+_PRIMARY_DOMAIN = sorted(extraction._VALID_DOMAINS)[0]
 _CLS = json.dumps({
-    "extraction_kind": "classification", "content_type": "policy",
-    "primary_domain": "compliance", "classification_confidence": 0.9,
+    "extraction_kind": "classification", "content_type": _CONTENT_TYPE,
+    "primary_domain": _PRIMARY_DOMAIN, "classification_confidence": 0.9,
 })
 _QA = json.dumps({
     "extraction_kind": "q_a_form",
-    "form_metadata": {"form_type": "bid", "form_format": "md"},
+    "form_metadata": {"form_type": _FORM_TYPE, "form_format": "md"},
     "qa_pairs": [],
 })
 
