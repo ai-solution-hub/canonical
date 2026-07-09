@@ -219,17 +219,32 @@ describe('useCorpusSearch — default ALL-grain search', () => {
 // ---------------------------------------------------------------------------
 
 describe('useCorpusSearch — kind narrow', () => {
-  it('passes ?kind as the request narrow param and produces a distinct query key', async () => {
+  it('changing the kind narrow issues a new request under a distinct cache key', async () => {
     navState.search = 'q=foo&kind=answer';
     mockFetchJson.mockResolvedValue({
       results: [makeRow({ content_type: 'q_a_pair' })],
     });
 
-    const { result } = renderCorpusSearch();
+    const { result, rerender } = renderCorpusSearch();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     expect(result.current.kind).toBe('answer');
-    expect(requestBody().kind).toBe('answer');
+    expect(mockFetchJson).toHaveBeenCalledTimes(1);
+    expect(requestBody(0).kind).toBe('answer');
+
+    // Change ONLY the kind narrow (q + filters unchanged). A distinct query
+    // key must cache-MISS and fire a second request — proves the
+    // changed-params side of BI-9/BI-15, not just that ?kind is read once.
+    navState.search = 'q=foo&kind=document';
+    mockFetchJson.mockResolvedValue({
+      results: [makeRow({ content_type: 'guidance' })],
+    });
+    rerender();
+
+    await waitFor(() => expect(mockFetchJson).toHaveBeenCalledTimes(2));
+    expect(result.current.kind).toBe('document');
+    expect(requestBody(1).kind).toBe('document');
+    expect(requestBody(1)).not.toEqual(requestBody(0));
   });
 
   it('narrows the merged list client-side even though hybrid_search cannot narrow server-side yet', async () => {
@@ -391,7 +406,7 @@ describe('useCorpusSearch — query submission + URL state', () => {
     expect(second.result.current.items).toHaveLength(1);
   });
 
-  it('passes an AbortSignal through to fetchJson (BI-17 supersession)', async () => {
+  it('the in-flight search request carries an abort signal (BI-17 supersession)', async () => {
     navState.search = 'q=foo';
     mockFetchJson.mockResolvedValue({ results: [] });
 

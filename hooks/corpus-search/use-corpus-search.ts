@@ -75,7 +75,12 @@ interface RawCorpusSearchRow {
    * confirmed literals as `document`, which is correct under both readings.
    */
   content_type: string;
-  /** BI-3/BI-11: read for kind-derivation input only — NEVER surfaced. */
+  /**
+   * BI-3: modelled for non-exposure auditability only — NEVER surfaced on
+   * `CorpusSearchResult`. Not read by `resolveCorpusKind`/
+   * `toCorpusSearchResult` below (kind derivation reads `content_type`
+   * only); present here so a future accidental read is a visible diff.
+   */
   similarity: number;
 }
 
