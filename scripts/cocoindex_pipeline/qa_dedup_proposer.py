@@ -9,21 +9,28 @@ per-file component, RESEARCH caveat (a)).
 
 WHAT IT DOES (PRODUCT INV-1..INV-21):
 - CANDIDATE READ (INV-2/6/7): a single service-role read of the WHOLE published,
-  embedding-bearing, non-superseded `q_a_pairs` population. The read is
-  deliberately NOT scoped by `source_workspace_id` — this is the 2nd named
-  "confined widening" after Stage-5's ID-80.14 op_id exception. The deployment
-  is one Supabase DB per client, so the DATABASE is the tenant boundary; reading
+  embedding-bearing, non-superseded `q_a_pairs` population — "embedding-bearing"
+  is now a `record_embeddings` (owner_kind='q_a_pair') join, not an inline
+  column (ID-127.32 / DR-036: `q_a_pairs.question_embedding` was DROPPED live by
+  20260706120000_id131_drop_inline_vector_cols.sql). The read is deliberately
+  NOT scoped by `source_workspace_id` — this is the 2nd named "confined
+  widening" after Stage-5's ID-80.14 op_id exception. The deployment is one
+  Supabase DB per client, so the DATABASE is the tenant boundary; reading
   across the client's workspaces AND forms is the INTRA-tenant dedup axis (the
   S391 framing correction — workspace != tenant). The same question surfacing in
   different forms of one application (PQQ vs ITT) is the primary driver.
 - SIMILARITY (INV-3/21): the candidate pairs are produced by a SQL self-join
-  `q_a_pairs a JOIN q_a_pairs b ON a.id < b.id` using
-  `1.0 - (a.question_embedding <=> b.question_embedding)` — the SAME pgvector
-  cosine expression `q_a_search` uses (squash_baseline.sql:4282) — NOT an
+  `q_a_pairs a JOIN q_a_pairs b ON a.id < b.id`, each side additionally joined
+  to `record_embeddings` (owner_kind='q_a_pair'), using
+  `1.0 - (re_a.embedding <=> re_b.embedding)` — the SAME re-pointed pgvector
+  cosine expression `q_a_search` uses
+  (20260706170000_id131_qa_fns_record_embeddings_repoint.sql, which re-pointed
+  `q_a_search`/`question_match_recompute`/
+  `q_a_extractions_promotion_candidates` off the same dropped column) — NOT an
   in-Python recompute. The threshold filter lives in SQL too. The set is
   identical regardless of any vector index (INV-21): there is no HNSW/ivfflat
-  index on `question_embedding` at v1, so this is a brute-force scan like
-  Stage-5, but the candidate SET is index-independent.
+  index on `record_embeddings.embedding` at v1, so this is a brute-force scan
+  like Stage-5, but the candidate SET is index-independent.
 - THRESHOLD (INV-19/20): `QA_DEDUP_COSINE_THRESHOLD`, ONE definition, env-
   overridable, v1 default 0.92 (precision-first). Calibrate vs the live
   distribution as a pre-enable journal gate (NOT a code change).
@@ -55,8 +62,15 @@ References:
 - TECH.md (id-120) §P-2 (proposer body), §P-3 (attach point).
 - PRODUCT.md (id-120) — INV-1..INV-23.
 - `scripts/cocoindex_pipeline/stage_5.py` — the post-pass scaffold this mirrors.
-- `supabase/migrations/20260617130000_squash_baseline.sql:4282` — the q_a_search
-  cosine expression this re-uses.
+- `supabase/migrations/20260706170000_id131_qa_fns_record_embeddings_repoint.sql`
+  — the record_embeddings (owner_kind='q_a_pair') re-point idiom this module's
+  candidate-read query mirrors (ID-127.32 / DR-036); q_a_search's cosine
+  expression there is itself the re-point of the original
+  `20260617130000_squash_baseline.sql:4282` expression this module used to
+  re-use directly.
+- `supabase/migrations/20260706120000_id131_drop_inline_vector_cols.sql` — DROPs
+  `q_a_pairs.question_embedding` (live-applied; {127.30} op_id 641943d2 walk
+  empirically hit the resulting UndefinedColumnError before this Subtask).
 - `supabase/migrations/20260623124556_id120_qa_pair_dedup_proposals.sql` — the
   proposal-store table this writes ({120.5}).
 """
@@ -77,6 +91,17 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 _logger = logging.getLogger(__name__)
+
+
+# ID-127.32 (DR-036): the record_embeddings model discriminator, duplicated
+# (not imported) from flow.py's `EMBEDDING_MODEL` — the module docstring above
+# explains the deliberate runtime import-cycle avoidance (flow.py imports this
+# module at top, so this module cannot import flow.py symbols at runtime).
+# Mirrors the same inlined-literal idiom
+# `20260706170000_id131_qa_fns_record_embeddings_repoint.sql` uses for its
+# `embedding_model CONSTANT text := 'text-embedding-3-large'` PL/pgSQL
+# declarations. Keep in sync with flow.EMBEDDING_MODEL by hand.
+_EMBEDDING_MODEL = "text-embedding-3-large"
 
 
 # ── Threshold (INV-19/20) ─────────────────────────────────────────────────────
@@ -136,9 +161,20 @@ async def _select_candidate_pairs(
     INV-6/8) and self-joins it on `a.id < b.id` to produce exactly-2-distinct-row
     candidate pairs (INV-7: never self, chains decompose into separate pairwise
     proposals). Similarity is the pgvector cosine expression
-    `1.0 - (a.question_embedding <=> b.question_embedding)` (squash_baseline.sql:4282)
-    computed in SQL, filtered to `>= threshold` — NOT an in-Python recompute, so
-    the candidate set is identical regardless of any vector index (INV-21).
+    `1.0 - (re_a.embedding <=> re_b.embedding)` computed in SQL, filtered to
+    `>= threshold` — NOT an in-Python recompute, so the candidate set is
+    identical regardless of any vector index (INV-21).
+
+    ID-127.32 (DR-036): `q_a_pairs.question_embedding` was DROPPED live
+    (20260706120000_id131_drop_inline_vector_cols.sql) — the vector now reads
+    from `record_embeddings` (owner_kind='q_a_pair') via an INNER JOIN per
+    side (`re_a`/`re_b`), mirroring the exact re-point idiom
+    `20260706170000_id131_qa_fns_record_embeddings_repoint.sql` applied to
+    `q_a_search`/`question_match_recompute`. The join doubles as the former
+    `a.question_embedding IS NOT NULL` eligibility filter (a row only survives
+    when a matching record_embeddings row exists); `re_a.embedding IS NOT NULL`
+    /`re_b.embedding IS NOT NULL` in the WHERE clause is kept as a defensive
+    belt-and-braces check, matching the precedent migration's own idiom.
 
     Each returned record carries both sides' survivor-decision inputs
     (publication_status, updated_at), provenance snapshot columns
@@ -151,7 +187,7 @@ async def _select_candidate_pairs(
         SELECT
             a.id                       AS pair_a_id,
             b.id                       AS pair_b_id,
-            (1.0 - (a.question_embedding <=> b.question_embedding))::numeric(5,4)
+            (1.0 - (re_a.embedding <=> re_b.embedding))::numeric(5,4)
                                        AS similarity_score,
             a.question_text            AS pair_a_question_text,
             b.question_text            AS pair_b_question_text,
@@ -164,17 +200,27 @@ async def _select_candidate_pairs(
             a.source_form_response_id  AS pair_a_source_form_response_id,
             b.source_form_response_id  AS pair_b_source_form_response_id
         FROM public.q_a_pairs a
+        -- ID-127.32 (DR-036): eligibility filter (was
+        -- `a.question_embedding IS NOT NULL`) — an INNER JOIN only produces a
+        -- row when a matching record_embeddings row exists, mirroring
+        -- q_a_search's re-pointed idiom
+        -- (20260706170000_id131_qa_fns_record_embeddings_repoint.sql).
+        JOIN public.record_embeddings re_a
+          ON re_a.owner_kind = 'q_a_pair' AND re_a.owner_id = a.id AND re_a.model = $2
         JOIN public.q_a_pairs b
           ON a.id < b.id
+        JOIN public.record_embeddings re_b
+          ON re_b.owner_kind = 'q_a_pair' AND re_b.owner_id = b.id AND re_b.model = $2
         WHERE a.publication_status = 'published'
           AND b.publication_status = 'published'
-          AND a.question_embedding IS NOT NULL
-          AND b.question_embedding IS NOT NULL
+          AND re_a.embedding IS NOT NULL
+          AND re_b.embedding IS NOT NULL
           AND a.superseded_by IS NULL
           AND b.superseded_by IS NULL
-          AND (1.0 - (a.question_embedding <=> b.question_embedding)) >= $1
+          AND (1.0 - (re_a.embedding <=> re_b.embedding)) >= $1
         """,
         threshold,
+        _EMBEDDING_MODEL,
     )
 
 

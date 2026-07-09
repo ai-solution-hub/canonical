@@ -1394,16 +1394,26 @@ CHUNK_MIN_SIZE_BYTES = 1000
 
 # `content_chunks` row-level UPSERT target schema (PRODUCT C-13). Only the
 # columns the pipeline writes are declared — mirrors the other TableSchema
-# declarations' style and reuses `_encode_pgvector` for the embedding vector. The
-# heading-derived columns (`heading_text` / `heading_level` / `heading_path` /
-# `parent_chunk_id`) plus the auto columns (`created_at` / `updated_at`) are
-# DELIBERATELY ABSENT: under RecursiveSplitter's budget-driven split no
-# heading-derived value exists to stamp (PRODUCT C-13 + [GAP-CMI-004]
-# disposition (a) — keep-nullable until {56.14}/{56.15}). Omitting them from
-# the schema + the row dict means the 3 nullable columns resolve to NULL and
-# `heading_path` resolves to its DB default `'{}'::text[]` (NOT NULL). This is
-# the same OMIT mechanism the schemas above use for `content_text_hash`
-# (GENERATED ALWAYS) and the entity_mentions PG-defaulted columns.
+# declarations' style. The heading-derived columns (`heading_text` /
+# `heading_level` / `heading_path` / `parent_chunk_id`) plus the auto columns
+# (`created_at` / `updated_at`) are DELIBERATELY ABSENT: under
+# RecursiveSplitter's budget-driven split no heading-derived value exists to
+# stamp (PRODUCT C-13 + [GAP-CMI-004] disposition (a) — keep-nullable until
+# {56.14}/{56.15}). Omitting them from the schema + the row dict means the 3
+# nullable columns resolve to NULL and `heading_path` resolves to its DB
+# default `'{}'::text[]` (NOT NULL). This is the same OMIT mechanism the
+# schemas above use for `content_text_hash` (GENERATED ALWAYS) and the
+# entity_mentions PG-defaulted columns.
+#
+# ID-127.32 (DR-036): `embedding` REMOVED — 20260706120000_id131_drop_
+# inline_vector_cols.sql dropped content_chunks.embedding from the live
+# schema (APPLIED to staging; {127.30} op_id 641943d2 walk empirically hit
+# UndefinedColumnError content_chunks.embedding, proving the drop is live
+# while this dual-write was still declaring the dead column). This was the
+# DEAD half of an already-completed dual-write, not a re-point: per-chunk
+# embeddings ALREADY land on record_embeddings (owner_kind='content_chunk')
+# via `_declare_record_embedding` below (ID-131 {131.11}) — that write is
+# UNCHANGED and stays the sole embedding home for chunks.
 CONTENT_CHUNKS_SCHEMA = TableSchema(
     columns={
         "id": ColumnDef(type="uuid", nullable=False),
@@ -1418,11 +1428,6 @@ CONTENT_CHUNKS_SCHEMA = TableSchema(
         "position": ColumnDef(type="integer", nullable=False),
         "char_count": ColumnDef(type="integer", nullable=False),
         "word_count": ColumnDef(type="integer", nullable=False),
-        "embedding": ColumnDef(
-            type="vector(1024)",
-            nullable=True,
-            encoder=_encode_pgvector,
-        ),
         "op_id": ColumnDef(type="uuid", nullable=True),  # stamped per-flow ({56.6})
     },
     primary_key=("id",),
@@ -1477,13 +1482,15 @@ def _declare_record_embedding(
 ) -> None:
     """Declare ONE polymorphic `record_embeddings` row (ID-131 {131.11}).
 
-    The record-embeddings dual-write seam: the SAME vector the caller writes to
-    its inline `embedding` column is ALSO declared here, keyed on the owning
-    typed record via `(owner_kind, owner_id, model)`. `owner_id` MUST be the
-    typed record's OWN deterministic PK so a re-ingest UPSERTs the same row
-    (the M1b UNIQUE arbitrates via the composite primary_key). `model` is the
-    shared `EMBEDDING_MODEL` constant — never a literal — so the read side can
-    filter by model without a magic string.
+    record_embeddings is the SOLE embedding home for both current callers
+    (`content_chunk` — ID-127.32/DR-036 removed the inline content_chunks.
+    embedding dual-write; `reference_item` — ID-127.24/DR-036 removed the
+    inline reference_items.embedding dual-write). The row is keyed on the
+    owning typed record via `(owner_kind, owner_id, model)`. `owner_id` MUST
+    be the typed record's OWN deterministic PK so a re-ingest UPSERTs the same
+    row (the M1b UNIQUE arbitrates via the composite primary_key). `model` is
+    the shared `EMBEDDING_MODEL` constant — never a literal — so the read side
+    can filter by model without a magic string.
 
     Guarded on `re_target is not None`: the 7-/8-/9-arg legacy + unit-test
     callers pass `re_target=None` (mirroring the `cc_target`/`er_target` guards)
@@ -2318,20 +2325,27 @@ async def _ingest_content_branch(
                     "position": position,
                     "char_count": len(chunk.text),
                     "word_count": len(chunk.text.split()),
-                    "embedding": chunk_embedding,
                     "op_id": op_id,
                     # heading_text / heading_level / heading_path /
                     # parent_chunk_id OMITTED ([GAP-CMI-004] disposition (a),
                     # PRODUCT C-13): budget split preserves no semantic heading
                     # boundary. → NULL for the 3 nullable cols; heading_path →
                     # DB default '{}'. Kept nullable until {56.14}/{56.15}.
+                    #
+                    # ID-127.32 (DR-036): `embedding` REMOVED from this row —
+                    # content_chunks.embedding was DROPPED live (20260706120000_
+                    # id131_drop_inline_vector_cols.sql); this was the dead half
+                    # of an already-completed dual-write. `chunk_embedding` is
+                    # still computed above and flows ONLY to the
+                    # `_declare_record_embedding` call below.
                 }
             )
-            # ID-131 {131.11}: dual-write the chunk's vector to the polymorphic
-            # record_embeddings store keyed on the chunk's OWN PK. No-op when
-            # re_target is None (7-/8-/9-arg legacy callers). The inline
-            # content_chunks.embedding write above stays until a sibling slice
-            # drops the column — record_embeddings is the new source of truth.
+            # ID-131 {131.11}: the chunk's vector lands on the polymorphic
+            # record_embeddings store keyed on the chunk's OWN PK — the SOLE
+            # embedding home for chunks now (ID-127.32 / DR-036 dropped the
+            # inline content_chunks.embedding column this used to dual-write
+            # alongside). No-op when re_target is None (7-/8-/9-arg legacy
+            # callers).
             _declare_record_embedding(
                 re_target,
                 owner_kind="content_chunk",

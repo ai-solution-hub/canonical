@@ -37,6 +37,7 @@ C-30, C-31; docs/reference/test-philosophy.md (behaviour-not-implementation).
 from __future__ import annotations
 
 import asyncio
+import inspect
 import math
 import sys
 import uuid
@@ -373,8 +374,17 @@ class TestChunkingStageWritePath:
             assert isinstance(row["content"], str)
             assert row["char_count"] == len(row["content"])
             assert row["word_count"] == len(row["content"].split())
-            # C-30: embedding is a length-1024 vector.
-            assert len(row["embedding"]) == 1024
+            # ID-127.32 (DR-036): content_chunks.embedding was DROPPED live
+            # (20260706120000_id131_drop_inline_vector_cols.sql) — this was the
+            # dead half of an already-completed dual-write (record_embeddings,
+            # owner_kind='content_chunk', is the sole embedding home; asserted
+            # in TestChunkRecordEmbeddingsWrite below). The chunk row must NOT
+            # carry an "embedding" key any more.
+            assert "embedding" not in row, (
+                "content_chunks row must NOT declare 'embedding' — the column "
+                "was dropped from the live DB (DR-036); record_embeddings is "
+                "the sole embedding home for chunks"
+            )
             # Stable deterministic PK (chunk: uuid5) so re-ingest UPSERTs.
             # ID-138 {138.10} P3: the chunk PK re-keys onto the STORED
             # source_document_id (`chunk:{sd_id}:{position}`), NOT `chunk:{rel_path}`
@@ -501,9 +511,12 @@ class TestChunkingStageWritePath:
 
 
 class TestChunkRecordEmbeddingsWrite:
-    """ID-131 {131.11}: each chunk's embedding is ALSO written to the
-    polymorphic `record_embeddings` store (owner_kind='content_chunk'), keyed
-    on the chunk's OWN deterministic PK so a re-ingest UPSERTs (S429 F3 fold-in).
+    """ID-131 {131.11}: each chunk's embedding is written to the polymorphic
+    `record_embeddings` store (owner_kind='content_chunk'), keyed on the
+    chunk's OWN deterministic PK so a re-ingest UPSERTs (S429 F3 fold-in).
+    ID-127.32 (DR-036) removed the inline `content_chunks.embedding` dual-write
+    this used to ride alongside (the column was dropped from the live DB) —
+    record_embeddings is now the SOLE embedding home for chunks.
     """
 
     def test_each_chunk_declares_a_record_embeddings_row(
@@ -545,8 +558,12 @@ class TestChunkRecordEmbeddingsWrite:
             )
             # model is the shared embedding-model constant (not a literal).
             assert re_row["model"] == flow.EMBEDDING_MODEL
-            # the embedding vector is the SAME length-1024 vector.
-            assert re_row["embedding"] == cc_row["embedding"]
+            # the embedding vector is the fixed length-1024 vector the stubbed
+            # embedder (`_fake_embed`) returns — cc_row no longer carries an
+            # "embedding" key to cross-check against (ID-127.32/DR-036 removed
+            # the inline content_chunks.embedding dual-write; record_embeddings
+            # is the sole write target now).
+            assert re_row["embedding"] == [0.0] * 1024
             assert len(re_row["embedding"]) == 1024
             # the row carries ONLY the record_embeddings natural key + vector —
             # no synthetic `id` (PG-defaulted) and no per-run op_id (which would
@@ -566,3 +583,118 @@ class TestChunkRecordEmbeddingsWrite:
         # re_target omitted → defaults None.
         _ingest_with_cc(flow, _FakeFile(src), cc_target=cc, monkeypatch=monkeypatch)
         assert len(cc.rows) > 0, "chunk rows still land without a re_target"
+
+
+# ── ID-127.32 (DR-036) regression guard: CONTENT_CHUNKS_SCHEMA vs live DB ─────
+
+
+class TestContentChunksSchemaMatchesLiveDbColumns:
+    """CONTENT_CHUNKS_SCHEMA must never declare a column the live DB does not
+    have — the exact class of bug this Subtask fixes (the schema + the
+    declare_row both still carried a dropped `embedding` column, which killed
+    every chunk write in production with UndefinedColumnError; {127.30}
+    journal, op_id 641943d2 staging walk).
+
+    Because `TableSchema` / `ColumnDef` are MagicMock stubs in this test
+    environment (booting the real cocoindex Rust engine is not viable in unit
+    tests), we cannot introspect a `.columns` dict on the assigned value — it
+    is itself a MagicMock. Source-inspection is the established pattern for
+    this class of assertion (mirrors
+    ``test_cocoindex_flow_entity_mentions_target.py::
+    TestEntityMentionsSchemaDeclaration``).
+
+    The "live DB column set" below is a FROZEN LITERAL transcribed from the
+    migration chain — NOT re-derived from the pipeline's own schema — so a
+    re-introduced dead column (or any column the DB does not actually have)
+    is caught, not laundered:
+      - supabase/migrations/20260617130000_squash_baseline.sql:5621-5636
+        (original CREATE TABLE content_chunks).
+      - supabase/migrations/20260628200000_id131_extract_reparent.sql
+        (content_item_id RENAMEd to source_document_id, {131.8} M2).
+      - supabase/migrations/20260706120000_id131_drop_inline_vector_cols.sql
+        (DROP COLUMN embedding — APPLIED to staging; ID-127.32/DR-036).
+    """
+
+    # The pipeline deliberately declares only the columns it WRITES
+    # (CONTENT_CHUNKS_SCHEMA's own module comment) — heading_text /
+    # heading_level / heading_path / parent_chunk_id / created_at / updated_at
+    # are OMITTED (DB default / NULL), not absent from the live table. So the
+    # correct assertion is SUBSET, not set-equality.
+    _LIVE_DB_COLUMNS = frozenset(
+        {
+            "id",
+            "source_document_id",
+            "heading_text",
+            "heading_level",
+            "heading_path",
+            "content",
+            "position",
+            "parent_chunk_id",
+            "char_count",
+            "word_count",
+            "created_at",
+            "updated_at",
+            "op_id",
+        }
+    )
+
+    def _schema_declaration_block(self, flow: object) -> str:
+        source = inspect.getsource(flow)
+        marker = "CONTENT_CHUNKS_SCHEMA = TableSchema("
+        start = source.find(marker)
+        assert start != -1, (
+            "flow.py must declare CONTENT_CHUNKS_SCHEMA via the canonical "
+            "TableSchema(columns=..., primary_key=...) call"
+        )
+        # The declaration is short — slice forward 900 chars to cover the
+        # full multi-line literal (mirrors the entity_mentions precedent's
+        # 800-char slice; content_chunks has one extra column).
+        return source[start : start + 900]
+
+    def test_declared_columns_are_a_subset_of_the_live_db_columns(self) -> None:
+        flow = _flow_module()
+        block = self._schema_declaration_block(flow)
+        declared = {
+            col
+            for col in self._LIVE_DB_COLUMNS | {"embedding", "content_item_id"}
+            if f'"{col}"' in block
+        }
+        assert declared <= self._LIVE_DB_COLUMNS, (
+            f"CONTENT_CHUNKS_SCHEMA declares columns absent from the live DB: "
+            f"{declared - self._LIVE_DB_COLUMNS}"
+        )
+
+    def test_embedding_column_is_not_declared(self) -> None:
+        """DR-036 direct regression guard: `embedding` was DROPPED from the
+        live `content_chunks` table (20260706120000_id131_drop_inline_vector_
+        cols.sql, APPLIED to staging) — record_embeddings
+        (owner_kind='content_chunk') is the sole embedding home now. Declaring
+        it here again would reproduce the exact UndefinedColumnError the
+        {127.30} staging walk hit."""
+        flow = _flow_module()
+        block = self._schema_declaration_block(flow)
+        assert '"embedding"' not in block, (
+            "CONTENT_CHUNKS_SCHEMA must NOT declare 'embedding' — the column "
+            "was dropped from the live DB (DR-036); record_embeddings is the "
+            "sole embedding home for chunks"
+        )
+
+    def test_required_write_columns_are_declared(self) -> None:
+        """The 7 columns `_ingest_content_branch`'s chunk `declare_row` call
+        actually writes must all be present (a false-negative subset check
+        would otherwise pass trivially on an empty declaration)."""
+        flow = _flow_module()
+        block = self._schema_declaration_block(flow)
+        for col in (
+            "id",
+            "source_document_id",
+            "content",
+            "position",
+            "char_count",
+            "word_count",
+            "op_id",
+        ):
+            assert f'"{col}"' in block, (
+                f"CONTENT_CHUNKS_SCHEMA must declare {col!r} — it is a "
+                "column the chunk declare_row call writes"
+            )

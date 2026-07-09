@@ -10,11 +10,13 @@ changed; a cross-workspace + cross-form fixture proposes correctly; and a
 raised proposer error maps to ``qa_dedup_proposer_failed`` at the flow attach
 WITHOUT aborting the walk.
 
-The proposer computes similarity in SQL (a self-join + pgvector cosine), so the
-fake asyncpg pool below MODELS that SQL in Python over an in-memory q_a_pairs
-corpus + a per-pair similarity oracle — exercising the production WHERE-clause
-filters (publication_status / question_embedding / superseded_by / threshold)
-honestly, not stubbing them away. The proposals store is an in-memory table
+The proposer computes similarity in SQL (a self-join + two INNER JOINs onto
+record_embeddings + pgvector cosine — ID-127.32/DR-036 re-pointed off the
+dropped `q_a_pairs.question_embedding` column), so the fake asyncpg pool below
+MODELS that SQL in Python over an in-memory q_a_pairs corpus + a per-pair
+similarity oracle — exercising the production WHERE-clause filters
+(publication_status / record_embeddings-join eligibility / superseded_by /
+threshold) honestly, not stubbing them away. The proposals store is an in-memory table
 enforcing ``UNIQUE(pair_a_id, pair_b_id)`` so ``ON CONFLICT DO NOTHING`` is a
 TRUE idempotency assertion (a second run produces no duplicate pending row).
 
@@ -152,9 +154,11 @@ class _FakePool:
     ``corpus`` is the in-memory ``q_a_pairs`` population; ``similarity`` is a
     per-unordered-pair cosine oracle (default 0.0 for unspecified pairs). The
     self-join SELECT is modelled in Python applying the EXACT production
-    WHERE-clause predicates (publication_status='published', question_embedding
-    IS NOT NULL, superseded_by IS NULL, similarity >= threshold) over
-    ``a.id < b.id`` ordered pairs — so the filters are genuinely exercised.
+    WHERE-clause predicates (publication_status='published',
+    record_embeddings-join eligibility [``has_embedding`` models "a matching
+    record_embeddings(owner_kind='q_a_pair') row exists", ID-127.32/DR-036],
+    superseded_by IS NULL, similarity >= threshold) over ``a.id < b.id``
+    ordered pairs — so the filters are genuinely exercised.
     """
 
     def __init__(
