@@ -43,7 +43,17 @@ this a runtime invariant, not just a convention: constructing a
 | `product`        | distinct `entity_mentions.canonical_name` where `entity_type='product'` | `source_documents` (filename/logical_path match) + product-scoped `q_a_pairs` + `reference_items` |
 | `company`        | singleton, iff a company-overview/team-structure `source_documents` row exists | `source_documents` (company-overview, team-structure) + `reference_items` + the company `entity_mentions` graph |
 | `certification`  | distinct `entity_mentions.canonical_name` where `entity_type='certification'` | `source_documents` (compliance) + `reference_items` + the certification's own `entity_mentions` (by canonical_name, across all docs — external evidence) |
-| `case_study`     | distinct named-client `entity_mentions.canonical_name` (`entity_type='organisation'`) mentioned in the named-clients doc | `source_documents` (named-clients) + supporting `q_a_pairs` + `reference_items` |
+| `case_study`     | distinct named-client `entity_mentions.canonical_name` (`entity_type='organisation'`) mentioned in the named-clients doc, PLUS one per BUYER of a `won` procurement bid (S443 amendment / DR-029) | named-clients grain: `source_documents` (named-clients) + supporting `q_a_pairs` + `reference_items`. won-bid grain (`key.workspace_id` set): the `workspaces` row (buyer identity via `domain_metadata`) + `derived_from_form_response` `q_a_pairs` (by `source_workspace_id`, published-only) + the won `form_templates` (`outcome_notes`) |
+
+**Won-bid case_study grain (S443 amendment / DR-029).** A `won` procurement
+workspace is a first-class case_study source. Enumeration joins `workspaces`
+→ `application_types` (`key='procurement'`) → `form_templates`
+(`outcome='won'`); the ConceptKey carries `workspace_id` + `entity_id`=buyer.
+This grain is READ-ONLY against the `derived_from_form_response` q_a_pair
+write path ({131.28}, `b89ae76a`) — it never writes q_a_pairs or
+content_items. Buyer = the won form's `issuing_organisation` (the live
+engagement field post-{130.11}), with `domain_metadata` surfaced verbatim in
+the read per the TECH grid.
 
 **Owner-discretion filename patterns.** `company`/`certification`/
 `case_study` source_documents are located by filename/logical_path
@@ -127,7 +137,18 @@ class ConceptKey:
     """`product`/`certification`/`case_study` locator: the entity's
     `entity_mentions.canonical_name` (or, for `product`, the filename-match
     token) identifying which single entity this concept represents. Unused
-    (`None`) for `topic` and the singleton `company` type."""
+    (`None`) for `topic` and the singleton `company` type. For the won-bid
+    `case_study` grain it carries the buyer identity (the won form's
+    `issuing_organisation`)."""
+
+    workspace_id: "str | None" = None
+    """`case_study` won-bid grain locator ONLY (S443 amendment / DR-029): the
+    procurement `workspaces.id` whose `won` bid seeds this case study. Set for
+    the won-bid case_study source, `None` for the named-clients case_study
+    source and every other type. Its presence is what routes `read_concept` to
+    the won-bid join (workspace `domain_metadata` + `derived_from_form_response`
+    q_a_pairs + won `form_templates.outcome_notes`) instead of the
+    named-clients source_documents grain."""
 
     def __post_init__(self) -> None:
         if not self.rel_path:
@@ -151,6 +172,12 @@ class ConceptKey:
                 f"scope_tag={self.scope_tag!r} domain={self.domain!r} "
                 f"subtopic={self.subtopic!r}"
             )
+        if self.workspace_id is not None and self.concept_type != "case_study":
+            raise ValueError(
+                "ConceptKey.workspace_id is the won-bid case_study locator "
+                "(S443 amendment); it may only be set when "
+                f"concept_type == 'case_study' (got {self.concept_type!r})"
+            )
 
 
 @dataclass
@@ -162,6 +189,10 @@ class ConceptRaw:
     `record_lifecycle`/`entity_relationships`; `company`/`certification`
     never populate `q_a_pairs`/`record_lifecycle`/`entity_relationships`).
 
+    `workspaces`/`form_templates` are populated ONLY by the won-bid
+    `case_study` grain (S443 amendment / DR-029) — every named-clients /
+    topic / product / company / certification read leaves them empty.
+
     Never frozen (unlike `ConceptKey`): this is a per-call return value, not
     a cocoindex memo key.
     """
@@ -172,6 +203,8 @@ class ConceptRaw:
     record_lifecycle: "list[Mapping[str, Any]]" = field(default_factory=list)
     entity_mentions: "list[Mapping[str, Any]]" = field(default_factory=list)
     entity_relationships: "list[Mapping[str, Any]]" = field(default_factory=list)
+    workspaces: "list[Mapping[str, Any]]" = field(default_factory=list)
+    form_templates: "list[Mapping[str, Any]]" = field(default_factory=list)
 
 
 @runtime_checkable
@@ -320,6 +353,59 @@ _SQL_DISTINCT_CASE_STUDY_ENTITIES = (
     "ORDER BY 1"
 )
 
+# ── won-bid case_study grain (S443 amendment / DR-029 / TECH G-SOURCE
+# amendment). A `won` procurement workspace is a first-class case_study
+# source. Enumeration: procurement workspaces with a `won` form; buyer =
+# the won form's `issuing_organisation` (the live per-form engagement field
+# post-{130.11}; `workspaces.domain_metadata` engagement facts were
+# relocated to `form_templates` there), falling back to the workspace name.
+# The read (`_read_won_bid_case_study`) still surfaces `domain_metadata`
+# verbatim per the TECH grid's "buyer identity (`domain_metadata`)". ────────
+_SQL_WON_BID_CASE_STUDIES = (
+    "SELECT DISTINCT w.id AS workspace_id, "
+    "COALESCE(ft.issuing_organisation, w.name) AS buyer "
+    "FROM workspaces w "
+    "JOIN application_types apt ON apt.id = w.application_type_id "
+    "JOIN form_templates ft ON ft.workspace_id = w.id "
+    "WHERE apt.key = 'procurement' AND ft.outcome = 'won' "
+    "AND COALESCE(ft.issuing_organisation, w.name) IS NOT NULL "
+    "ORDER BY 2, 1"
+)
+
+_WORKSPACE_COLUMNS = (
+    "id, name, description, application_type_id, domain_metadata, status, "
+    "is_archived, created_at, updated_at"
+)
+
+_SQL_WORKSPACE_BY_ID = (
+    f"SELECT {_WORKSPACE_COLUMNS} FROM workspaces WHERE id = $1"
+)
+
+# Won-bid-provenance q_a_pairs (the {131.28} write path, origin_kind
+# 'derived_from_form_response'), surfaced only once PROMOTED (published)
+# through the DR-025 knowledge-admission gate — the same published-only read
+# posture the topic/product grains take. Provenance columns
+# (source_workspace_id/source_form_response_id/source_question_id) are
+# carried so downstream (BI-28 proposal shaping) keeps won-bid lineage.
+_QA_WON_COLUMNS = (
+    f"{_QA_COLUMNS}, source_workspace_id, source_form_response_id, "
+    "source_question_id"
+)
+
+_SQL_WON_BID_QA_BY_WORKSPACE = (
+    f"SELECT {_QA_WON_COLUMNS} FROM q_a_pairs "
+    "WHERE source_workspace_id = $1 "
+    "AND origin_kind = 'derived_from_form_response' "
+    "AND publication_status = 'published' ORDER BY id"
+)
+
+_SQL_WON_FORM_TEMPLATES_BY_WORKSPACE = (
+    "SELECT id, workspace_id, name, form_type, outcome, outcome_notes, "
+    "outcome_recorded_at, outcome_recorded_by, issuing_organisation, "
+    "created_at, updated_at FROM form_templates "
+    "WHERE workspace_id = $1 AND outcome = 'won' ORDER BY id"
+)
+
 _SLUG_INVALID_RE = re.compile(r"[^a-z0-9]+")
 
 
@@ -374,6 +460,7 @@ class LRecordsSource:
         keys.extend(await self._list_company_concepts())
         keys.extend(await self._list_certification_concepts())
         keys.extend(await self._list_case_study_concepts())
+        keys.extend(await self._list_won_bid_case_study_concepts())
         return keys
 
     async def _list_topic_concepts(self) -> "list[ConceptKey]":
@@ -444,6 +531,31 @@ class LRecordsSource:
             for row in rows
         ]
 
+    async def _list_won_bid_case_study_concepts(self) -> "list[ConceptKey]":
+        """The won-bid case_study source (S443 amendment / DR-029): one
+        case_study per BUYER of a won procurement bid. The rows arrive ordered
+        by (buyer, workspace_id), so deduping by buyer keeps the earliest
+        workspace deterministically — a single case study per buyer (BI-2),
+        even when a buyer has multiple won workspaces. Additive to the
+        named-clients grain above."""
+        rows = await self._pool.fetch(_SQL_WON_BID_CASE_STUDIES)
+        keys: "list[ConceptKey]" = []
+        seen_buyers: "set[str]" = set()
+        for row in rows:
+            buyer = row["buyer"]
+            if buyer in seen_buyers:
+                continue
+            seen_buyers.add(buyer)
+            keys.append(
+                ConceptKey(
+                    rel_path=f"case-studies/{_slugify(buyer)}.md",
+                    concept_type="case_study",
+                    entity_id=buyer,
+                    workspace_id=row["workspace_id"],
+                )
+            )
+        return keys
+
     # ── read_concept (abstract, base.py) ────────────────────────────────
 
     async def read_concept(self, key: ConceptKey) -> ConceptRaw:
@@ -460,6 +572,8 @@ class LRecordsSource:
         if key.concept_type == "certification":
             return await self._read_certification(key)
         if key.concept_type == "case_study":
+            if key.workspace_id is not None:
+                return await self._read_won_bid_case_study(key)
             return await self._read_case_study(key)
         raise ValueError(
             f"unsupported concept_type {key.concept_type!r}"
@@ -604,6 +718,30 @@ class LRecordsSource:
             source_documents=sd_rows, q_a_pairs=qa_rows, reference_items=ri_rows
         )
 
+    async def _read_won_bid_case_study(self, key: ConceptKey) -> ConceptRaw:
+        """The won-bid case_study grain read (S443 amendment / DR-029, TECH
+        G-SOURCE amendment): the workspace row (buyer identity via
+        `domain_metadata`) + won-bid-provenance `q_a_pairs` (the {131.28}
+        `derived_from_form_response` write path, once promoted/published
+        through the DR-025 admission gate, keyed by `source_workspace_id`) +
+        the won `form_templates` row (`outcome_notes`).
+
+        Read-only against the won-bid write path — this method writes nothing.
+        Anchors (BI-9): the q_a_pairs land in the `q_a_pairs` bucket (anchored
+        downstream via the BI-8 `canonical://q_a_pairs?…` query form, NEVER a
+        q_a_pair master uuid — BI-3); `source_documents`/`reference_items`
+        stay empty for this grain (no named-clients doc backs a won bid)."""
+        ws_rows = await self._pool.fetch(_SQL_WORKSPACE_BY_ID, key.workspace_id)
+        qa_rows = await self._pool.fetch(
+            _SQL_WON_BID_QA_BY_WORKSPACE, key.workspace_id
+        )
+        ft_rows = await self._pool.fetch(
+            _SQL_WON_FORM_TEMPLATES_BY_WORKSPACE, key.workspace_id
+        )
+        return ConceptRaw(
+            workspaces=ws_rows, q_a_pairs=qa_rows, form_templates=ft_rows
+        )
+
     # ── sample_rows (concrete helper, base.py) ──────────────────────────
 
     async def sample_rows(self, key: ConceptKey, n: int) -> "list[Mapping[str, Any]]":
@@ -616,6 +754,11 @@ class LRecordsSource:
             return []
         if key.concept_type == "topic":
             return await self._topic_qa_rows(key, limit=n)
+        if key.concept_type == "case_study" and key.workspace_id is not None:
+            # won-bid grain: sample the won-bid-provenance q_a_pairs directly
+            # by source_workspace_id (no named-clients source_documents exist).
+            sql = f"{_SQL_WON_BID_QA_BY_WORKSPACE} LIMIT $2"
+            return await self._pool.fetch(sql, key.workspace_id, n)
         if key.concept_type in ("product", "case_study"):
             sd_rows = await self._source_documents_for_key(key)
             sd_ids = [row["id"] for row in sd_rows]
