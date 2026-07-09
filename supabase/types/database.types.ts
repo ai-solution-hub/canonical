@@ -3577,6 +3577,24 @@ export type Database = {
           unverified_count: number
         }[]
       }
+      get_document_version_chain: {
+        Args: { p_document_id: string }
+        Returns: {
+          content_hash: string
+          content_item_count: number
+          created_at: string
+          file_size: number
+          filename: string
+          id: string
+          mime_type: string
+          original_filename: string
+          parent_id: string
+          status: string
+          storage_path: string
+          uploaded_by: string
+          version: number
+        }[]
+      }
       get_due_feed_sources: {
         Args: { max_sources?: number }
         Returns: Database["public"]["Tables"]["feed_sources"]["Row"][]
