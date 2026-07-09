@@ -3122,14 +3122,16 @@ async def _upsert_source_document(
 # survives-the-engine treatment for: `content_chunks`, `record_embeddings`,
 # `entity_mentions`, `entity_relationships`, `q_a_extractions`. NOT ONE call
 # below touches `mount_table_target` or `.declare_row` — the {138.16} closed
-# 8-table `mount_table_target(DB_CTX, ...)` set (`content_items`, `q_a_
-# extractions`, `source_documents`, `entity_mentions`, `entity_relationships`,
+# set (originally 8 tables incl. `content_items`; {127.25} DR-034 dropped
+# `content_items` — the table itself is gone both envs — leaving the closed
+# 7-table `mount_table_target(DB_CTX, ...)` set: `q_a_extractions`,
+# `source_documents`, `entity_mentions`, `entity_relationships`,
 # `content_chunks`, `reference_items`, `record_embeddings`) is UNCHANGED by
-# this Subtask — no 9th engine target is added. `content_items` is
-# DELIBERATELY not written by this path: it is absent from the §2.5 per-class
-# table entirely (a staging-only class this Task does not extend a durability
-# guarantee to) and the dispatch brief's write-list (chunks/embeddings/
-# entities/relationships/extractions) omits it too.
+# this Subtask — no 8th engine target is added. `content_items` was
+# DELIBERATELY not written by this path even before {127.25}: it was absent
+# from the §2.5 per-class table entirely (a staging-only class this Task does
+# not extend a durability guarantee to) and the dispatch brief's write-list
+# (chunks/embeddings/entities/relationships/extractions) omitted it too.
 #
 # `retention_class="ingest_once"` is HARD-CODED at both write sites below
 # (the `_resolve_source_identity` mint call AND the `_upsert_source_document`
@@ -4330,17 +4332,24 @@ async def app_main() -> None:
         await url_handle.ready()
 
         # ── Stage 4: embedding (vector(1024)) — LANDED (ID-49.2) ───────────
-        # `ingest_file` now computes a text-embedding-3-large vector(1024) from
-        # content_text and declares it on content_items (see embed_content_text
-        # + the Stage-4 block in ingest_file). The pgvector HNSW cosine index is
-        # NOT declared here: it is migration-owned (idx_content_items_embedding,
-        # pre-squash reconciliation migration). cocoindex's
-        # `TableTarget.declare_vector_index(...)` would issue out-of-band CREATE
-        # INDEX DDL via a vector_index attachment that is NOT gated by
-        # managed_by=USER (the USER gate only suppresses table/column DDL) — that
-        # conflicts with the "DDL via Supabase CLI migrations only" rule and the
-        # row-only target contract, so the declaration route is deliberately
-        # avoided. See the ID-49.2 journal OQ.
+        # `ingest_file` computes a text-embedding-3-large vector(1024) PER CHUNK
+        # (RecursiveSplitter loop) and dual-writes it to the polymorphic
+        # `record_embeddings` store (owner_kind='content_chunk', ID-131
+        # {131.11}) via `_declare_record_embedding` — see embed_content_text +
+        # the chunking block in `_ingest_content_branch`. The former
+        # whole-document embedding (computed once per item, declared onto
+        # content_items) was REMOVED {127.25} (DR-034/DR-036): content_items is
+        # dropped both envs and no live consumer read a document-level
+        # embedding (per-chunk embeddings are the search substrate). The
+        # pgvector HNSW cosine index is NOT declared here: it is
+        # migration-owned (per-owner_kind partial indexes on
+        # `record_embeddings`, e.g. `idx_record_embeddings_content_chunk`,
+        # M1b). cocoindex's `TableTarget.declare_vector_index(...)` would issue
+        # out-of-band CREATE INDEX DDL via a vector_index attachment that is
+        # NOT gated by managed_by=USER (the USER gate only suppresses
+        # table/column DDL) — that conflicts with the "DDL via Supabase CLI
+        # migrations only" rule and the row-only target contract, so the
+        # declaration route is deliberately avoided. See the ID-49.2 journal OQ.
 
         # ── Stage 5: entity resolution — flow-scope post-fan-out (ID-53) ──
         # Op-scope cross-document canonicalisation. Reads the run's
