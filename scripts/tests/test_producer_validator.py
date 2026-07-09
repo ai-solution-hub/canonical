@@ -283,3 +283,88 @@ def test_check_concept_accepts_a_concept_frontmatter_instance():
     record = fm.build_concept_frontmatter(**_valid_frontmatter())
     errors = v.check_concept(record, body=_VALID_BODY)
     assert errors == []
+
+
+# ──────────────────────────────────────────
+# S443 Amendment / DR-029 — bid-outcome facet-tag re-entry (BI-4 ruling):
+# `policy`/`capability` enter as recognised facet TAGS on `topic` concepts;
+# the retired `methodology` type aliases onto the existing `playbook` facet
+# (no separate tag). The enumerated `type:` set is UNCHANGED — these are
+# tags, not types. `tags:` stays an OPEN list (BI-12) — the registry is the
+# recognised vocabulary, not a rejection allowlist.
+# ──────────────────────────────────────────
+
+
+def test_recognised_facet_tags_include_the_new_bid_outcome_facets():
+    # S443/DR-029 registers `policy` and `capability` as recognised facets.
+    assert "policy" in v.RECOGNISED_FACET_TAGS
+    assert "capability" in v.RECOGNISED_FACET_TAGS
+
+
+def test_recognised_facet_tags_carry_the_pre_existing_bi4_facets():
+    # The BI-4 tag-carried facets already ratified before S443.
+    assert {"metric", "dataset", "playbook"} <= v.RECOGNISED_FACET_TAGS
+
+
+def test_methodology_is_not_a_recognised_facet_tag_only_an_alias():
+    # "document methodology≡playbook; NO separate tag" — methodology folds
+    # onto playbook, it is never its own recognised facet tag.
+    assert "methodology" not in v.RECOGNISED_FACET_TAGS
+
+
+def test_recognised_facet_tags_are_disjoint_from_the_concept_type_set():
+    # Facets are TAGS, never enumerated types (BI-4).
+    assert v.RECOGNISED_FACET_TAGS.isdisjoint(v.ALLOWED_CONCEPT_TYPES)
+
+
+def test_methodology_tag_canonicalises_to_the_playbook_facet():
+    # S443: `methodology` ≡ the existing `playbook` facet.
+    assert v.canonical_facet_tag("methodology") == "playbook"
+
+
+@pytest.mark.parametrize("tag", ["policy", "capability", "playbook", "metric", "dataset"])
+def test_recognised_facet_tags_canonicalise_to_themselves(tag):
+    assert v.canonical_facet_tag(tag) == tag
+
+
+def test_non_facet_tags_pass_through_canonicalisation_unchanged():
+    # `tags:` is OPEN (BI-12) — an arbitrary domain tag is not rewritten.
+    assert v.canonical_facet_tag("encryption") == "encryption"
+
+
+def test_normalise_facet_tags_folds_methodology_onto_playbook_and_dedupes():
+    # methodology→playbook, order-preserving, and the fold collapses onto an
+    # existing playbook entry rather than duplicating it.
+    assert v.normalise_facet_tags(
+        ["methodology", "policy", "playbook", "security"]
+    ) == ("playbook", "policy", "security")
+
+
+def test_normalise_facet_tags_leaves_an_already_canonical_list_untouched():
+    assert v.normalise_facet_tags(["policy", "capability"]) == ("policy", "capability")
+
+
+@pytest.mark.parametrize("facet_name", ["methodology", "policy", "capability"])
+def test_bid_outcome_facet_names_are_rejected_as_concept_types(facet_name):
+    # No new enumerated type: methodology/policy/capability must NOT pass the
+    # BI-4 type-membership gate — they are facet tags, not types.
+    errors = v.check_concept(_valid_frontmatter(type=facet_name), body=_VALID_BODY)
+    assert any("type" in err.lower() for err in errors)
+
+
+@pytest.mark.parametrize("facet_tag", ["policy", "capability", "methodology"])
+def test_topic_concept_tagged_with_a_bid_outcome_facet_passes_the_gate(facet_tag):
+    # A topic concept carrying a bid-outcome facet tag validates cleanly —
+    # the enumerated type stays `topic`; the facet rides in `tags:`.
+    errors = v.check_concept(
+        _valid_frontmatter(type="topic", tags=["security", facet_tag]),
+        body=_VALID_BODY,
+    )
+    assert errors == []
+
+
+def test_concept_type_set_is_unchanged_by_the_s443_amendment():
+    # Regression guard: the S443 facet-tag re-entry adds NO enumerated type.
+    assert v.ALLOWED_CONCEPT_TYPES == frozenset(
+        {"topic", "product", "company", "certification", "case_study"}
+    )
