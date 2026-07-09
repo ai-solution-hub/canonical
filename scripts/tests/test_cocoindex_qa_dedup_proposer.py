@@ -178,6 +178,11 @@ class _FakePool:
     async def fetch(self, query: str, *args: object) -> list[dict]:
         if "FROM public.q_a_pairs a" in query:
             threshold = float(args[0])  # type: ignore[arg-type]
+            # $2 is the record_embeddings model filter — a wrong literal or a
+            # swapped parameter order must fail here, not silently no-op.
+            assert args[1] == "text-embedding-3-large", (
+                f"candidate-pair query bound wrong embedding model: {args[1]!r}"
+            )
             # Eligible population (the candidate-read WHERE clause).
             eligible = [
                 p
