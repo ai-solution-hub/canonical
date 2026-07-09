@@ -17,6 +17,7 @@ De-identified throughout: no client name appears anywhere below.
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -33,6 +34,11 @@ from scripts.cocoindex_pipeline.producer.git_sync import (  # noqa: E402
     LOG_FILENAME,
     AugmentationGuardRefusal,
     HumanEditConflict,
+    ProducerOverride,
+    ProposedChange,
+    capture_overrides,
+    proposed_change_set,
+    reapply_overrides,
     sync_bundle,
 )
 
@@ -45,7 +51,14 @@ def _git(repo_path: Path, *args: str) -> str:
 
 
 def _commit_count(repo_path: Path) -> int:
-    return len(_git(repo_path, "log", "--oneline").splitlines())
+    # A repo with no commits yet makes `git log` exit non-zero — that is zero
+    # commits, not an error (a STAGING run legitimately leaves HEAD unborn).
+    result = subprocess.run(
+        ["git", "log", "--oneline"], cwd=repo_path, capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        return 0
+    return len(result.stdout.splitlines())
 
 
 @pytest.fixture()
@@ -272,3 +285,342 @@ class TestRemoval:
         assert result.human_edit_conflicts == (HumanEditConflict("topic-a.md"),)
         assert result.removed == ()
         assert (repo / "topic-a.md").read_text(encoding="utf-8") == "HUMAN EDIT\n"
+
+
+# ── S436 amendment (BI-27/DR-016) — human edits are producer OVERRIDES ───
+#
+# The S436 amendment upgrades the 3-way reconcile from "flag divergence,
+# leave file in place" to "flag → capture-as-override → re-apply", adds a
+# STAGING landing (the one gated commit happens at the publish gate, not
+# per-run), and emits a machine-readable per-run proposed-change set (DR-013
+# shape) the follow-on accept/edit/reject review UI binds to.
+
+
+def _okf_doc(
+    *,
+    title: str,
+    description: str,
+    body: str,
+    citations: "tuple[str, ...]",
+) -> str:
+    """A realistic OKF concept doc — YAML frontmatter (BI-12 required keys) +
+    a distilled-synthesis body preamble + a `# Citations` section — so the
+    field-level override machinery is exercised against representative
+    producer output, not toy strings."""
+    lines = [
+        "---",
+        "type: topic",
+        f"title: {title}",
+        f"description: {description}",
+        "timestamp: 2026-07-09T00:00:00Z",
+        "resource: canonical://source_documents/11111111-1111-4111-8111-111111111111",
+        "tags: [pipeline, ingest]",
+        "---",
+        body,
+        "",
+        "# Citations",
+    ]
+    lines.extend(f"- {c}" for c in citations)
+    return "\n".join(lines) + "\n"
+
+
+class TestOverrideCapture:
+    def test_capture_keys_a_changed_frontmatter_field_by_concept_path_and_field(
+        self,
+    ) -> None:
+        baseline = _okf_doc(
+            title="Ingest",
+            description="Producer description",
+            body="Producer synthesis.",
+            citations=("canonical://source_documents/aaa",),
+        )
+        edited = _okf_doc(
+            title="Ingest",
+            description="Human-refined description",
+            body="Producer synthesis.",
+            citations=("canonical://source_documents/aaa",),
+        )
+
+        overrides = capture_overrides("topic-a.md", baseline=baseline, edited=edited)
+
+        assert (
+            ProducerOverride("topic-a.md", "frontmatter:description", "Human-refined description")
+            in overrides
+        )
+        # An unchanged field is NEVER captured — capture is a field-level delta.
+        assert all(o.field != "frontmatter:title" for o in overrides)
+
+    def test_capture_keys_a_rewritten_body_section(self) -> None:
+        baseline = _okf_doc(
+            title="Ingest",
+            description="D",
+            body="Producer synthesis.",
+            citations=("canonical://source_documents/aaa",),
+        )
+        edited = _okf_doc(
+            title="Ingest",
+            description="D",
+            body="Human-rewritten synthesis with more nuance.",
+            citations=("canonical://source_documents/aaa",),
+        )
+
+        overrides = capture_overrides("topic-a.md", baseline=baseline, edited=edited)
+
+        assert {o.field for o in overrides} == {"body"}
+
+    def test_sync_bundle_captures_a_human_edit_conflict_as_a_producer_override(
+        self, repo: Path
+    ) -> None:
+        baseline = _okf_doc(
+            title="Ingest",
+            description="Producer description",
+            body="Producer synthesis.",
+            citations=("canonical://source_documents/aaa",),
+        )
+        sync_bundle(repo, {"topic-a.md": baseline, LOG_FILENAME: ""})
+
+        human = _okf_doc(
+            title="Ingest",
+            description="Human-approved description",
+            body="Producer synthesis.",
+            citations=("canonical://source_documents/aaa",),
+        )
+        (repo / "topic-a.md").write_text(human, encoding="utf-8")
+
+        result = sync_bundle(
+            repo,
+            {
+                "topic-a.md": _okf_doc(
+                    title="Ingest",
+                    description="Producer description v2",
+                    body="Producer synthesis, expanded.",
+                    citations=("canonical://source_documents/aaa",),
+                ),
+                LOG_FILENAME: "",
+            },
+        )
+
+        captured = {(o.concept_path, o.field): o.value for o in result.captured_overrides}
+        assert ("topic-a.md", "frontmatter:description") in captured
+        assert captured[("topic-a.md", "frontmatter:description")] == "Human-approved description"
+
+
+class TestReapplyOverrides:
+    def test_a_frontmatter_override_is_folded_onto_the_fresh_draft(self) -> None:
+        override = ProducerOverride(
+            "topic-a.md", "frontmatter:description", "Human-approved description"
+        )
+        fresh = _okf_doc(
+            title="Ingest",
+            description="Producer regenerated description",
+            body="Fresh producer synthesis.",
+            citations=("canonical://source_documents/aaa",),
+        )
+
+        folded = reapply_overrides({"topic-a.md": fresh}, [override])
+
+        # The human's field survives on the fresh draft...
+        assert "description: Human-approved description" in folded["topic-a.md"]
+        assert "Producer regenerated description" not in folded["topic-a.md"]
+        # ...while the producer's own fresh body is kept.
+        assert "Fresh producer synthesis." in folded["topic-a.md"]
+
+    def test_a_human_section_the_fresh_draft_no_longer_emits_is_reapplied_not_dropped(
+        self,
+    ) -> None:
+        override = ProducerOverride(
+            "topic-a.md", "## Operator note", "Bespoke human operator guidance.\n"
+        )
+        fresh = _okf_doc(
+            title="Ingest",
+            description="D",
+            body="Fresh.",
+            citations=("canonical://source_documents/aaa",),
+        )
+        assert "Operator note" not in fresh  # the producer draft never regenerates it
+
+        folded = reapply_overrides({"topic-a.md": fresh}, [override])
+
+        assert "## Operator note" in folded["topic-a.md"]
+        assert "Bespoke human operator guidance." in folded["topic-a.md"]
+
+    def test_reapply_leaves_unrelated_concepts_untouched(self) -> None:
+        override = ProducerOverride("topic-a.md", "frontmatter:title", "Renamed by a human")
+        drafts = {
+            "topic-a.md": _okf_doc(
+                title="Original",
+                description="D",
+                body="B",
+                citations=("canonical://source_documents/aaa",),
+            ),
+            "topic-b.md": "an unrelated concept\n",
+        }
+
+        folded = reapply_overrides(drafts, [override])
+
+        assert folded["topic-b.md"] == "an unrelated concept\n"
+        assert "title: Renamed by a human" in folded["topic-a.md"]
+
+
+class TestFullOverrideCycle:
+    def test_an_approved_human_edit_is_captured_then_reapplied_on_the_next_draft(
+        self, repo: Path
+    ) -> None:
+        """The headline BI-27 loop: an approved human edit is captured as a
+        producer override (keyed by concept_path + field), then RE-APPLIED on
+        the next fresh draft — never dropped."""
+        v1 = _okf_doc(
+            title="Ingest",
+            description="Producer description",
+            body="Producer synthesis.",
+            citations=("canonical://source_documents/aaa",),
+        )
+        sync_bundle(repo, {"topic-a.md": v1, LOG_FILENAME: ""})
+
+        # A human refines the description directly on disk.
+        human = _okf_doc(
+            title="Ingest",
+            description="Human-approved description",
+            body="Producer synthesis.",
+            citations=("canonical://source_documents/aaa",),
+        )
+        (repo / "topic-a.md").write_text(human, encoding="utf-8")
+
+        # A fresh producer run flags + captures the human's field-level override.
+        v2_fresh = _okf_doc(
+            title="Ingest",
+            description="Producer description regenerated",
+            body="Producer synthesis, expanded.",
+            citations=("canonical://source_documents/aaa",),
+        )
+        run2 = sync_bundle(repo, {"topic-a.md": v2_fresh, LOG_FILENAME: ""})
+        approved = [o for o in run2.captured_overrides if o.concept_path == "topic-a.md"]
+        assert any(
+            o.field == "frontmatter:description" and o.value == "Human-approved description"
+            for o in approved
+        )
+
+        # The reviewer approves; the NEXT producer run folds the override onto
+        # its brand-new draft.
+        v3_fresh = _okf_doc(
+            title="Ingest",
+            description="Producer description regenerated again",
+            body="Producer synthesis, expanded again.",
+            citations=("canonical://source_documents/aaa",),
+        )
+        folded = reapply_overrides({"topic-a.md": v3_fresh}, approved)
+
+        # The human's approved edit is RE-APPLIED, never dropped...
+        assert "description: Human-approved description" in folded["topic-a.md"]
+        # ...and the producer's fresh body still lands.
+        assert "Producer synthesis, expanded again." in folded["topic-a.md"]
+
+
+class TestStagingLanding:
+    def test_a_staged_run_applies_to_the_working_tree_but_makes_no_commit(
+        self, repo: Path
+    ) -> None:
+        result = sync_bundle(repo, {"topic-a.md": "draft one\n"}, stage_only=True)
+
+        assert result.staged is True
+        assert _commit_count(repo) == 0  # the ONE gated commit is deferred to publish
+        # The content landed in the working tree...
+        assert (repo / "topic-a.md").read_text(encoding="utf-8") == "draft one\n"
+        # ...and is staged in the index, ready for the later gated commit.
+        staged_paths = _git(repo, "diff", "--cached", "--name-only").splitlines()
+        assert "topic-a.md" in staged_paths
+
+    def test_a_default_run_still_commits_per_run(self, repo: Path) -> None:
+        """Backward-compat guard: the publish path (default stage_only=False)
+        is unchanged — one commit per changing run."""
+        result = sync_bundle(repo, {"topic-a.md": "draft one\n"})
+
+        assert result.staged is False
+        assert _commit_count(repo) == 1
+
+    def test_a_staged_run_still_emits_its_proposed_change_set(self, repo: Path) -> None:
+        result = sync_bundle(repo, {"topic-a.md": "draft one\n"}, stage_only=True)
+
+        assert any(c.concept_path == "topic-a.md" for c in result.proposed_changes)
+
+
+class TestProposedChangeSet:
+    def test_every_run_emits_a_json_serialisable_proposed_change_set(
+        self, repo: Path
+    ) -> None:
+        result = sync_bundle(repo, {"topic-a.md": "draft one\n"}, stage_only=True)
+
+        payload = proposed_change_set(result)
+        encoded = json.dumps(payload)  # the review UI (DR-013 shape) binds to it
+
+        assert "topic-a.md" in encoded
+        assert any(c["concept_path"] == "topic-a.md" for c in payload["changes"])
+
+    def test_a_first_write_is_reported_as_an_add(self, repo: Path) -> None:
+        result = sync_bundle(repo, {"topic-a.md": "draft one\n"}, stage_only=True)
+
+        change = next(c for c in result.proposed_changes if c.concept_path == "topic-a.md")
+        assert change.change_kind == "add"
+
+    def test_a_content_change_is_reported_as_a_modify_with_field_changes(
+        self, repo: Path
+    ) -> None:
+        v1 = _okf_doc(
+            title="Ingest",
+            description="Old description",
+            body="Body one.",
+            citations=("canonical://source_documents/aaa",),
+        )
+        sync_bundle(repo, {"topic-a.md": v1})
+        v2 = _okf_doc(
+            title="Ingest",
+            description="New description",
+            body="Body one.",
+            citations=("canonical://source_documents/aaa",),
+        )
+
+        result = sync_bundle(repo, {"topic-a.md": v2})
+
+        change = next(c for c in result.proposed_changes if c.concept_path == "topic-a.md")
+        assert change.change_kind == "modify"
+        assert "frontmatter:description" in {fc.field for fc in change.field_changes}
+
+    def test_each_entry_reserves_a_per_entry_provenance_slot_defaulting_to_none(
+        self, repo: Path
+    ) -> None:
+        """{132.22} G-BIDOUTCOME-PROPOSAL stamps `source_workspace_id` onto
+        won-bid DRAFT proposals; this substrate reserves the per-entry slot so
+        that extension is a value-set, not a schema change."""
+        result = sync_bundle(repo, {"topic-a.md": "draft one\n"}, stage_only=True)
+
+        change = next(c for c in result.proposed_changes if c.concept_path == "topic-a.md")
+        assert change.source_workspace_id is None
+        assert "source_workspace_id" in proposed_change_set(result)["changes"][0]
+
+    def test_a_human_edit_conflict_is_reported_as_such_in_the_change_set(
+        self, repo: Path
+    ) -> None:
+        sync_bundle(repo, {"topic-a.md": "producer one\n", LOG_FILENAME: ""})
+        (repo / "topic-a.md").write_text("human edit\n", encoding="utf-8")
+
+        result = sync_bundle(repo, {"topic-a.md": "producer two\n", LOG_FILENAME: ""})
+
+        change = next(c for c in result.proposed_changes if c.concept_path == "topic-a.md")
+        assert change.change_kind == "human_edit_conflict"
+
+    def test_an_augmentation_refusal_is_reported_as_such_in_the_change_set(
+        self, repo: Path
+    ) -> None:
+        original = _citation_body(
+            "canonical://source_documents/11111111-1111-4111-8111-111111111111",
+            "canonical://reference_items/22222222-2222-4222-8222-222222222222",
+        )
+        sync_bundle(repo, {"topic-a.md": original})
+        shrinking = _citation_body(
+            "canonical://source_documents/11111111-1111-4111-8111-111111111111",
+        )
+
+        result = sync_bundle(repo, {"topic-a.md": shrinking})
+
+        change = next(c for c in result.proposed_changes if c.concept_path == "topic-a.md")
+        assert change.change_kind == "augmentation_refused"
