@@ -61,20 +61,22 @@ producer's OWN declared content for that concept changes (the exact
 BI-22 clobber hazard TECH names {132.12} to solve; cocoindex's engine
 provides no help detecting it).
 
-**Full flow wiring deferred ({132.13}).** `write_bundle`/`declare_concept`
-are plain orchestration functions, NOT `@coco.fn`-decorated components —
-BI-18's delta-only property already falls out of (a) `enrich_concept`/
-`run_web_pass`'s OWN `@coco.fn(memo=True)` upstream (a concept whose
-backing records are unchanged never re-executes, so `write_bundle`
-receives the IDENTICAL `ConceptDraft` and calls `declare_file` with
-byte-identical content, which the ENGINE'S OWN fingerprint reconcile then
-no-ops) and (b) `declare_file`'s own per-path lineage (verified above) —
-so this module needs no memoisation of its own. Composing
-`LRecordsSource.list_concepts()` → `mount_each(enrich_concept, ...)` →
-`write_bundle(...)` into ONE cocoindex flow definition (the `producer`
-command entry point) is EXPLICITLY {132.13}'s job, mirroring `{132.8}`/
-`{132.9}`'s own identical deferral of write-target/mount wiring to this
-Subtask.
+**Full flow wiring composed in `producer/flow_def.py` ({132.23}).**
+`write_bundle`/`declare_concept` are plain orchestration functions, NOT
+`@coco.fn`-decorated components — BI-18's delta-only property already falls
+out of (a) `enrich_concept`/`run_web_pass`'s OWN `@coco.fn(memo=True)`
+upstream (a concept whose backing records are unchanged never re-executes,
+so `write_bundle` receives the IDENTICAL `ConceptDraft` and calls
+`declare_file` with byte-identical content, which the ENGINE'S OWN
+fingerprint reconcile then no-ops) and (b) `declare_file`'s own per-path
+lineage (verified above) — so this module needs no memoisation of its own.
+Composing `LRecordsSource.list_concepts()` → `enrich_concept` (Pass-1) →
+`write_bundle(...)` → embed → git-sync/publish-gate into ONE producer entry
+point was originally deferred to {132.13} (`producer/publish.py`), which
+DISCLAIMED it to the parent Task; {132.23} G-FLOWDEF finally owns and closes
+that composition in `producer/flow_def.run_producer_flow` — mirroring `{132.8}`/
+`{132.9}`'s own deferral of write-target/mount wiring, now likewise resolved
+by the composition layer rather than by this module.
 
 **Collection safety.** Like `producer/enrich.py` / `producer/web_pass.py`,
 this module transitively requires `cocoindex` at import time — both for

@@ -30,22 +30,20 @@ producer runs") — it calls the SAME `entry_point` unconditionally,
 bypassing both the delta gate and the reentrancy guard, so an operator can
 always force a run. The post-walk hook is ADDITIVE, never a replacement.
 
-**No full producer flow exists yet (Task-level gap, not this Subtask's
-job).** As of {132.16}, no Subtask has assembled
-`LRecordsSource.list_concepts()` -> `mount_each(enrich_concept, ...)` ->
-`write_bundle(...)` into one cocoindex flow (`producer/bundle_writer.py`'s
-own docstring calls that "{132.13}'s job"; the CURRENT {132.13} is
-G-PUBLISH-GATE / `producer/publish.py`, so the actual owner of that
-full-flow assembly is unclear — flagged back to the Orchestrator).
-`default_producer_entry_point` below is a deliberately MINIMAL stand-in
-composing ONLY the already-landed pieces (`LRecordsSource`, Pass-1
-`enrich_concept`, `bundle_writer.write_bundle`) as a plain async call
-chain — NOT a cocoindex flow_def/mount_each. It does not embed (id 11:
-`producer/embed.py`), does not git-sync (id 12: `producer/git_sync.py`),
-and does not run Pass-2 web enrichment or the first-publish gate (id 13:
-`producer/publish.py`). Those Subtasks are expected to EXTEND or SUPERSEDE
-this composition — `entry_point` is an explicit injection seam for exactly
-that.
+**The full producer flow is composed in `producer/flow_def.py` ({132.23}
+G-FLOWDEF).** {132.16} shipped `default_producer_entry_point` as a
+deliberately MINIMAL Pass-1-only stand-in and left `entry_point` as an
+injection seam for exactly this. {132.23} closed the gap: the FULL chain —
+`LRecordsSource.list_concepts()` -> `enrich_concept` (Pass-1) -> optional
+`run_web_pass` (Pass-2) -> `write_bundle(...)` -> `declare_concept_embedding`
+(embed) -> `publish_bundle` / `git_sync.sync_bundle` (publish-gate) — now
+lives in `producer/flow_def.run_producer_flow`, and
+`default_producer_entry_point` below DELEGATES to it (superseding the
+Pass-1-only stand-in). `flow_def.py` preserves both this module's
+disciplines: the OKF_BUNDLE_DIR idle-mode safety gate, and the
+collection-safety / lazy-function-local-import property (it imports no
+`cocoindex` at module scope, so `trigger.py` and the dispatch-logic unit
+tests stay importable with no cocoindex stub).
 
 **Idle-mode safety (mirrors `app_main`'s `COCOINDEX_SOURCE_PATH` gate,
 flow.py ~line 4008).** `default_producer_entry_point` no-ops whenever
@@ -68,7 +66,6 @@ actually invoked with a configured `OKF_BUNDLE_DIR`.
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Sequence
 
@@ -78,82 +75,44 @@ _logger = logging.getLogger(__name__)
 # shape the caller supplies — flow.py's `_fetch_source_document_deltas`
 # returns a list of asyncpg `Record`-like mappings) and does the (partial or
 # full) producer run. Returns whatever the concrete entry point returns
-# (e.g. bundle_writer.RunSummary) — callers that only care about "did it
-# fire" should read `trigger_producer_post_walk`'s own bool return instead.
+# (`flow_def.ProducerRunReport` for the default full-flow entry point) — or
+# `None` in idle mode; callers that only care about "did it fire" should read
+# `trigger_producer_post_walk`'s own bool return instead.
 ProducerEntryPoint = Callable[[Sequence[Any]], Awaitable[Any]]
 
 
 async def default_producer_entry_point(
-    deltas: Sequence[Any], *, pool: Any = None, bundle_dir: "str | Path | None" = None
+    deltas: Sequence[Any],
+    *,
+    pool: Any = None,
+    bundle_dir: "str | Path | None" = None,
+    **flow_kwargs: Any,
 ) -> Any | None:
-    """Minimal real composition of the ALREADY-LANDED producer pieces —
-    Pass-1 only, no embeddings/git-sync/publish-gate (see module
-    docstring). Idle-mode no-op unless `OKF_BUNDLE_DIR` (or the explicit
-    `bundle_dir` override) resolves to an existing directory AND a `pool`
-    is supplied (the Source adapter's asyncpg-pool-shaped dependency).
+    """The default producer entry point — the FULL producer flow (G-FLOWDEF).
+
+    Delegates to `producer/flow_def.run_producer_flow`, which composes the
+    ALREADY-LANDED pieces (`LRecordsSource.list_concepts()` -> `enrich_concept`
+    Pass-1 -> optional `run_web_pass` Pass-2 -> `write_bundle` -> embed ->
+    publish-gate/git-sync) into ONE chain — superseding {132.16}'s Pass-1-only
+    stand-in ({132.23}). Idle-mode no-op (returns `None`) unless `OKF_BUNDLE_DIR`
+    (or the explicit `bundle_dir` override) resolves to an existing directory
+    AND a `pool` is supplied. Extra `flow_kwargs` (`re_target`, `repo_path`,
+    `status_source`, `embedder`, `gated_corpus`, ...) are the downstream-stage
+    injection seams `run_producer_flow` documents — each gates its own stage,
+    so the default call (`entry_point(deltas)` from flow.py, no kwargs) stays a
+    safe Pass-1+write-only run until an operator wires the rest.
+
+    The `run_producer_flow` import is function-local (`flow_def.py` is itself
+    collection-safe, but keeping it lazy preserves trigger.py's own
+    zero-module-scope-dependency property its dispatch-logic unit tests rely on).
     """
-    bundle_dir_str = str(bundle_dir) if bundle_dir is not None else os.environ.get(
-        "OKF_BUNDLE_DIR", ""
+    from scripts.cocoindex_pipeline.producer.flow_def import (  # noqa: PLC0415
+        run_producer_flow,
     )
-    if not bundle_dir_str:
-        _logger.info(
-            "OKF_BUNDLE_DIR not set — concept producer running in idle mode. "
-            "Set OKF_BUNDLE_DIR to the client-owned bundle checkout to enable "
-            "chained producer runs."
-        )
-        return None
 
-    resolved_bundle_dir = Path(bundle_dir_str)
-    if not resolved_bundle_dir.is_dir():
-        _logger.info(
-            "OKF_BUNDLE_DIR folder missing — concept producer running in idle "
-            "mode. path=%s",
-            resolved_bundle_dir,
-        )
-        return None
-
-    if pool is None:
-        _logger.warning(
-            "default_producer_entry_point called with a configured "
-            "OKF_BUNDLE_DIR but no `pool` — cannot run the Source adapter, "
-            "skipping this chained run."
-        )
-        return None
-
-    # Lazy imports — see the module docstring's Collection-safety note.
-    from scripts.cocoindex_pipeline.producer.bundle_writer import write_bundle
-    from scripts.cocoindex_pipeline.producer.enrich import enrich_concept
-    from scripts.cocoindex_pipeline.sources.l_records import LRecordsSource
-
-    source = LRecordsSource(pool)
-    concepts = await source.list_concepts()
-
-    drafts = []
-    failures: "list[tuple[str, str]]" = []
-    for key in concepts:
-        try:
-            drafts.append(await enrich_concept(key, source))
-        except Exception as exc:  # noqa: BLE001 — per-concept containment
-            # Mirrors flow.py's bound_ingest_file posture: one concept's
-            # Pass-1 fault must not abort the whole chained run.
-            failures.append((key.rel_path, str(exc)))
-            _logger.warning(
-                "producer trigger: Pass-1 drafting failed for concept "
-                "%s — %s",
-                key.rel_path,
-                exc,
-            )
-
-    summary = write_bundle(resolved_bundle_dir, drafts)
-    if failures:
-        _logger.warning(
-            "producer trigger: %d/%d concepts failed Pass-1 drafting this "
-            "chained run: %s",
-            len(failures),
-            len(concepts),
-            failures,
-        )
-    return summary
+    return await run_producer_flow(
+        deltas, pool=pool, bundle_dir=bundle_dir, **flow_kwargs
+    )
 
 
 # Reentrancy guard (module-level default) — the "no double-fire" contract:

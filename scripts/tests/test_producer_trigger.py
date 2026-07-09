@@ -7,26 +7,24 @@ the hook is a no-op when nothing changed (delta-only, v3 §7.2).
 
 `trigger.py` deliberately does not import `cocoindex` at module scope (see
 its own docstring) — these dispatch-logic tests import it directly, no
-`stubbed_sys_modules` needed. Only `TestDefaultProducerEntryPointSmoke`
-exercises the lazily-imported real composition, and stubs `cocoindex` for
-that one scenario, mirroring `test_producer_enrich.py`'s pattern.
+`stubbed_sys_modules` needed. `default_producer_entry_point` now DELEGATES
+to `producer/flow_def.run_producer_flow` ({132.23}); its idle-mode gate and
+delegation are exercised here (both hit `flow_def`'s early idle return / a
+patched spy, so neither triggers a lazy cocoindex import). The FULL composed
+flow's behaviour is tested in `test_producer_flow_def.py`.
 """
 
 from __future__ import annotations
 
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
-
-from conftest import stubbed_sys_modules  # noqa: E402
 
 from scripts.cocoindex_pipeline.producer import trigger  # noqa: E402
 
@@ -230,136 +228,69 @@ class TestDefaultEntryPointIdleMode:
 
 
 # ============================================================================
-# default_producer_entry_point — real composition smoke test (stubbed
-# cocoindex, fake pool; mirrors test_producer_enrich.py's stub pattern)
+# default_producer_entry_point — delegates to flow_def.run_producer_flow
+# ({132.23} superseded {132.16}'s Pass-1-only stand-in). The FULL composed
+# flow's behaviour is tested in test_producer_flow_def.py; here we prove only
+# that the trigger's default entry point forwards to it, deltas + kwargs intact.
 # ============================================================================
 
 
-def _make_coco_stub() -> MagicMock:
-    stub = MagicMock(name="cocoindex")
-
-    def _fn_decorator(**_kwargs: object):
-        def _wrap(func: object) -> object:
-            return func
-
-        return _wrap
-
-    stub.fn = _fn_decorator
-    return stub
-
-
-def _coco_stubs() -> dict:
-    """`bundle_writer.py` imports `_coco_api.localfs` at module scope
-    (which lazily resolves `cocoindex.connectors.localfs`) — mirrors
-    `test_producer_bundle_writer.py`'s stub set. This smoke test patches
-    `bundle_writer.write_bundle` wholesale, so `declare_file` is never
-    actually called — the stub only needs to make the import succeed."""
-    return {
-        "cocoindex": _make_coco_stub(),
-        "cocoindex.connectors.localfs": MagicMock(name="cocoindex.connectors.localfs"),
-    }
-
-
-class TestDefaultProducerEntryPointSmoke:
-    def test_composes_source_enrich_and_write_bundle(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+class TestDefaultEntryPointDelegatesToFlowDef:
+    def test_forwards_deltas_and_kwargs_to_run_producer_flow(
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Proves the wiring — NOT enrich_concept/write_bundle's own
-        behaviour (that's {132.8}/{132.10}'s test suites' job). Patches
-        the three lazily-imported symbols and asserts they were called
-        with the right arguments in the right order."""
-        with stubbed_sys_modules(_coco_stubs()):
-            from scripts.cocoindex_pipeline.producer import (
-                bundle_writer,
-                enrich,
-            )
-            from scripts.cocoindex_pipeline.sources import l_records
+        # flow_def.py imports no cocoindex at module scope, so it is
+        # importable here with no stub; patching run_producer_flow means no
+        # lazy composed-module import is triggered at all.
+        from scripts.cocoindex_pipeline.producer import flow_def
 
-        fake_key = object()
-        fake_draft = object()
+        calls: "list[Any]" = []
 
-        class _FakeSource:
-            def __init__(self, pool: Any) -> None:
-                self.pool = pool
+        async def _spy(deltas: Any, **kwargs: Any) -> str:
+            calls.append((deltas, kwargs))
+            return "report"
 
-            async def list_concepts(self):
-                return [fake_key]
-
-        enrich_calls: "list[Any]" = []
-
-        async def _fake_enrich_concept(key: Any, source: Any) -> Any:
-            enrich_calls.append((key, source))
-            return fake_draft
-
-        write_bundle_calls: "list[Any]" = []
-
-        def _fake_write_bundle(bundle_dir: Path, drafts: Any) -> str:
-            write_bundle_calls.append((bundle_dir, list(drafts)))
-            return "run-summary"
-
-        monkeypatch.setattr(l_records, "LRecordsSource", _FakeSource)
-        monkeypatch.setattr(enrich, "enrich_concept", _fake_enrich_concept)
-        monkeypatch.setattr(bundle_writer, "write_bundle", _fake_write_bundle)
-
-        fake_pool = object()
+        monkeypatch.setattr(flow_def, "run_producer_flow", _spy)
 
         import asyncio
 
         result = asyncio.run(
             trigger.default_producer_entry_point(
-                [{"id": "sd-1"}], pool=fake_pool, bundle_dir=tmp_path
+                [{"id": "sd-1"}],
+                pool="POOL",
+                bundle_dir="BUNDLE",
+                re_target="RE_TARGET",
+                repo_path="REPO",
+                status_source="STATUS",
             )
         )
 
-        assert result == "run-summary"
-        assert enrich_calls == [(fake_key, enrich_calls[0][1])]
-        assert enrich_calls[0][1].pool is fake_pool
-        assert write_bundle_calls == [(tmp_path, [fake_draft])]
+        assert result == "report"
+        assert len(calls) == 1
+        deltas, kwargs = calls[0]
+        assert deltas == [{"id": "sd-1"}]
+        assert kwargs["pool"] == "POOL"
+        assert kwargs["bundle_dir"] == "BUNDLE"
+        # Downstream-stage injection seams pass straight through.
+        assert kwargs["re_target"] == "RE_TARGET"
+        assert kwargs["repo_path"] == "REPO"
+        assert kwargs["status_source"] == "STATUS"
 
-    def test_one_bad_concept_does_not_abort_the_run(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        with stubbed_sys_modules(_coco_stubs()):
-            from scripts.cocoindex_pipeline.producer import (
-                bundle_writer,
-                enrich,
-            )
-            from scripts.cocoindex_pipeline.sources import l_records
+    def test_default_entry_point_is_the_trigger_and_manual_run_default(self) -> None:
+        """Both dispatch surfaces default to the (now full-flow) entry point —
+        so a real post-walk chain / manual run exercises the composed flow, not
+        a Pass-1-only stand-in."""
+        import inspect
 
-        good_key = SimpleNamespace(rel_path="topics/good.md")
-        bad_key = SimpleNamespace(rel_path="topics/bad.md")
-
-        class _FakeSource:
-            def __init__(self, pool: Any) -> None:
-                self.pool = pool
-
-            async def list_concepts(self):
-                return [bad_key, good_key]
-
-        async def _fake_enrich_concept(key: Any, _source: Any) -> Any:
-            if key is bad_key:
-                raise RuntimeError("boom")
-            return "good-draft"
-
-        write_bundle_calls: "list[Any]" = []
-
-        def _fake_write_bundle(bundle_dir: Path, drafts: Any) -> str:
-            write_bundle_calls.append(list(drafts))
-            return "run-summary"
-
-        monkeypatch.setattr(l_records, "LRecordsSource", _FakeSource)
-        monkeypatch.setattr(enrich, "enrich_concept", _fake_enrich_concept)
-        monkeypatch.setattr(bundle_writer, "write_bundle", _fake_write_bundle)
-
-        import asyncio
-
-        result = asyncio.run(
-            trigger.default_producer_entry_point(
-                [{"id": "sd-1"}], pool=object(), bundle_dir=tmp_path
-            )
+        assert (
+            inspect.signature(trigger.trigger_producer_post_walk)
+            .parameters["entry_point"]
+            .default
+            is trigger.default_producer_entry_point
         )
-
-        assert result == "run-summary"
-        assert write_bundle_calls == [["good-draft"]], (
-            "the bad concept must be skipped, not abort the whole run"
+        assert (
+            inspect.signature(trigger.run_producer_now)
+            .parameters["entry_point"]
+            .default
+            is trigger.default_producer_entry_point
         )
