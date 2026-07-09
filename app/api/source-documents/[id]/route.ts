@@ -4,17 +4,45 @@ import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
 import { tryQuery } from '@/lib/supabase/safe';
 import { createServiceClient } from '@/lib/supabase/server';
+import type { Tables } from '@/supabase/types/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
 export const maxDuration = 30;
+
+/**
+ * The slice of this route's response that
+ * `hooks/source-document-detail/use-source-document-detail.ts`'s
+ * `useDerivedPairs` reads (id-135 {135.13} BI-28) — declared here (the route
+ * handler) and imported by the hook, per the type-drift-detect conformance
+ * convention (response types live at the route, hooks import from the route
+ * — never the reverse; see `app/api/review/history/route.ts` /
+ * `ReviewHistoryEntry` for the precedent pair). The full response is the
+ * `source_documents` row (DR-012's `q_a_pairs`-sourced `derived_pairs`
+ * replaces the retired `content_items` field) — this slice is the narrow
+ * subset one consumer needs, not the whole contract.
+ */
+export interface SourceDocumentDetailDerivedPairsSlice {
+  derived_pairs?: {
+    id: string;
+    question_text: string;
+    answer_standard: string;
+    publication_status: string;
+    created_at: string;
+  }[];
+}
 
 export const GET = defineRoute(
   z.unknown(),
   async (
     _request: NextRequest,
     { params }: { params: Promise<{ id: string }> },
-  ) => {
+  ): Promise<
+    | NextResponse<
+        Tables<'source_documents'> & SourceDocumentDetailDerivedPairsSlice
+      >
+    | NextResponse
+  > => {
     try {
       const authResult = await getAuthenticatedClient();
       if (!authResult.success) return authFailureResponse(authResult);

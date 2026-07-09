@@ -45,9 +45,9 @@ const CITATION_TARGET_KINDS = [
   'concept',
 ] as const;
 
-type CitationTargetKind = (typeof CITATION_TARGET_KINDS)[number];
+export type CitationTargetKind = (typeof CITATION_TARGET_KINDS)[number];
 
-interface CitationSummary {
+export interface CitationSummary {
   id: string;
   cited_kind: Database['public']['Enums']['cited_target_kind'];
   citing_kind: Database['public']['Enums']['citing_entity_kind'];
@@ -60,7 +60,21 @@ interface CitationSummary {
   created_at: string;
 }
 
-type CitationsByKind = Record<CitationTargetKind, CitationSummary[]>;
+export type CitationsByKind = Record<CitationTargetKind, CitationSummary[]>;
+
+/**
+ * Response envelope from this route (id-135 {135.12}/{135.13} BI-27) —
+ * declared here (the route handler) and imported by
+ * `hooks/source-document-detail/use-source-document-detail.ts`'s
+ * `useDocumentCitations`, per the type-drift-detect conformance convention
+ * (response types live at the route, hooks import from the route — never the
+ * reverse; see `app/api/review/history/route.ts` / `ReviewHistoryEntry` for
+ * the precedent pair).
+ */
+export interface DocumentCitationsResponse {
+  document_id: string;
+  citations: CitationsByKind;
+}
 
 function emptyCitationsByKind(): CitationsByKind {
   return {
@@ -92,7 +106,7 @@ export const GET = defineRoute(
   async (
     _request: NextRequest,
     { params }: { params: Promise<{ id: string }> },
-  ) => {
+  ): Promise<NextResponse<DocumentCitationsResponse> | NextResponse> => {
     try {
       const authResult = await getAuthenticatedClient();
       if (!authResult.success) return authFailureResponse(authResult);

@@ -20,22 +20,35 @@
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
 import { fetchJson } from '@/lib/query/fetchers';
-import type { Database } from '@/supabase/types/database.types';
+import type {
+  DocumentVersionRow,
+  DocumentVersionsResponse,
+} from '@/app/api/source-documents/[id]/versions/route';
+import type {
+  CitationTargetKind,
+  CitationSummary,
+  CitationsByKind,
+  DocumentCitationsResponse,
+} from '@/app/api/source-documents/[id]/citations/route';
+import type { SourceDocumentDetailDerivedPairsSlice } from '@/app/api/source-documents/[id]/route';
+
+// Re-exported for existing consumers (`DocumentVersionList`,
+// `DocumentCitationsPanel`, their tests) that import these wire types from
+// this hook module rather than the route files directly — the route files
+// are the canonical declaration site (type-drift-detect conformance
+// convention), this hook is a pass-through re-export, never the reverse.
+export type {
+  DocumentVersionRow,
+  DocumentVersionsResponse,
+  CitationTargetKind,
+  CitationSummary,
+  CitationsByKind,
+  DocumentCitationsResponse,
+};
 
 // ---------------------------------------------------------------------------
 // useDocumentVersions (BI-25)
 // ---------------------------------------------------------------------------
-
-/** One row of the `get_document_version_chain` RPC (shipped return shape). */
-export type DocumentVersionRow =
-  Database['public']['Functions']['get_document_version_chain']['Returns'][number];
-
-/** Response envelope from GET `/api/source-documents/[id]/versions`. */
-export interface DocumentVersionsResponse {
-  document_id: string;
-  total_versions: number;
-  versions: DocumentVersionRow[];
-}
 
 /** The version chain (BI-25) — `DocumentVersionList`'s data source. */
 export function useDocumentVersions(id: string) {
@@ -52,36 +65,6 @@ export function useDocumentVersions(id: string) {
 // ---------------------------------------------------------------------------
 // useDocumentCitations (BI-27)
 // ---------------------------------------------------------------------------
-
-/** The id-131 BI-23 CITE-EXT `cited_target_kind` surviving 4 target kinds. */
-export type CitationTargetKind =
-  | 'q_a_pair'
-  | 'reference_item'
-  | 'source_document'
-  | 'concept';
-
-/** One citation row, mirroring the `citations` route's `CitationSummary`. */
-export interface CitationSummary {
-  id: string;
-  cited_kind: Database['public']['Enums']['cited_target_kind'];
-  citing_kind: Database['public']['Enums']['citing_entity_kind'];
-  citation_type: string;
-  cited_text: string | null;
-  cited_q_a_pair_id: string | null;
-  cited_reference_item_id: string | null;
-  cited_source_document_id: string | null;
-  cited_concept_path: string | null;
-  created_at: string;
-}
-
-/** The 4 always-present buckets grouped by `cited_kind`. */
-export type CitationsByKind = Record<CitationTargetKind, CitationSummary[]>;
-
-/** Response envelope from GET `/api/source-documents/[id]/citations`. */
-export interface DocumentCitationsResponse {
-  document_id: string;
-  citations: CitationsByKind;
-}
 
 /** The grouped-by-kind citations envelope (BI-27) — `DocumentCitationsPanel`'s data source. */
 export function useDocumentCitations(id: string) {
@@ -106,11 +89,6 @@ export interface DerivedPair {
   answer_standard: string;
   publication_status: string;
   created_at: string;
-}
-
-/** The slice of the `[id]` route response this hook reads. */
-interface SourceDocumentDetailDerivedPairsSlice {
-  derived_pairs?: DerivedPair[];
 }
 
 /** Stable empty default (components/CLAUDE.md — never hand a fresh `[]`). */

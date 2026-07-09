@@ -2,17 +2,37 @@ import { defineRoute } from '@/lib/api/define-route';
 import { authFailureResponse, getAuthenticatedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { createServiceClient } from '@/lib/supabase/server';
+import type { Database } from '@/supabase/types/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
 export const maxDuration = 30;
+
+/** One row of the `get_document_version_chain` RPC (shipped return shape). */
+export type DocumentVersionRow =
+  Database['public']['Functions']['get_document_version_chain']['Returns'][number];
+
+/**
+ * Response envelope from this route (id-135 {135.13} BI-25) — declared here
+ * (the route handler) and imported by
+ * `hooks/source-document-detail/use-source-document-detail.ts`'s
+ * `useDocumentVersions`, per the type-drift-detect conformance convention
+ * (response types live at the route, hooks import from the route — never the
+ * reverse; see `app/api/review/history/route.ts` / `ReviewHistoryEntry` for
+ * the precedent pair).
+ */
+export interface DocumentVersionsResponse {
+  document_id: string;
+  total_versions: number;
+  versions: DocumentVersionRow[];
+}
 
 export const GET = defineRoute(
   z.unknown(),
   async (
     _request: NextRequest,
     { params }: { params: Promise<{ id: string }> },
-  ) => {
+  ): Promise<NextResponse<DocumentVersionsResponse> | NextResponse> => {
     try {
       const authResult = await getAuthenticatedClient();
       if (!authResult.success) return authFailureResponse(authResult);
