@@ -7,6 +7,7 @@ import {
   Briefcase,
   Library,
   Menu,
+  Search,
   Settings,
   ShieldCheck,
   BarChart3,
@@ -31,6 +32,17 @@ import { BrandLogo } from '@/components/shell/brand-logo';
 import { BRANDING } from '@/lib/client-config';
 
 const NAV_LINKS = [
+  // ID-135.10 (BI-21): corpus search/browse entry, role-uniform (requiresEdit:
+  // false) per the ratified id-118 "Knowledge" zone (DR-041, id-118 PRODUCT
+  // BI-4/BI-6) — Search leads Answers (/library). NAV_LINKS is still flat
+  // (no zone-grouping machinery yet); id-118 will regroup this into an
+  // explicit Knowledge zone alongside Answers/External sources/Concepts.
+  {
+    href: '/search',
+    label: 'Search',
+    icon: Search,
+    requiresEdit: false,
+  },
   {
     href: '/library',
     label: 'Q&A Library',

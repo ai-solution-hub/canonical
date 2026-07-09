@@ -271,6 +271,33 @@ describe('SiteHeader', () => {
     );
   });
 
+  // ── ID-135.10: /search (Surface A) in NAV_LINKS ──
+
+  it('/search (Search) is present in NAV_LINKS with requiresEdit: false', () => {
+    // Knowledge-zone entries are role-uniform (BI-2/BI-21); even viewers see it
+    mockUserRole.role = 'viewer';
+    mockUserRole.canEdit = false;
+    mockUserRole.loading = false;
+    render(<SiteHeader />);
+
+    const nav = screen.getByLabelText('Main navigation');
+    const searchLink = within(nav).getByText('Search');
+    expect(searchLink).toBeInTheDocument();
+    expect(searchLink.closest('a')).toHaveAttribute('href', '/search');
+  });
+
+  it('shows active state on the Search link when on /search', () => {
+    mockPathname.value = '/search';
+    render(<SiteHeader />);
+
+    const nav = screen.getByLabelText('Main navigation');
+    const searchLink = within(nav).getByText('Search').closest('a');
+    expect(searchLink).toHaveAttribute('aria-current', 'page');
+
+    const libraryLinks = screen.getAllByText('Q&A Library');
+    expect(libraryLinks[0].closest('a')).not.toHaveAttribute('aria-current');
+  });
+
   it('no longer exposes a direct "Claude" link in the header or drawer', async () => {
     // The header previously had a ghost button with a link to claude.ai/new
     // and the mobile drawer had an "Open Claude" row. Both were removed as
