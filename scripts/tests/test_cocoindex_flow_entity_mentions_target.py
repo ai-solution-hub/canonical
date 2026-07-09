@@ -2,9 +2,10 @@
 TableTarget mount in app_main (Stage-5 entity-resolution write substrate).
 
 Per PRODUCT.md Inv-6 and TECH.md §P-4: ``app_main`` must mount an
-``em_target`` ``TableTarget`` adjacent to the existing three
-(``ci_target``, ``qa_target``, ``sd_target``) and pass it positionally to
-``coco.mount_each`` so the per-doc ``ingest_file`` component receives it.
+``em_target`` ``TableTarget`` adjacent to the existing two
+(``qa_target``, ``sd_target`` — ``ci_target`` was dropped {127.25} DR-034)
+and pass it positionally to ``coco.mount_each`` so the per-doc
+``ingest_file`` component receives it.
 ``ENTITY_MENTIONS_SCHEMA`` declares the subset of ``entity_mentions``
 columns the per-item phase writes; the PG-defaulted columns
 (``created_at``, ``entity_type_override``, ``normalisation_version``) are
@@ -18,10 +19,10 @@ without touching ``app_main`` wiring. Verified here by:
      per-item-write columns, and primary_key=(``id``,) — the PG-defaulted
      columns must NOT be declared.
 
-  2. ``ingest_file`` signature accepts ``em_target`` as the fourth extra
-     arg (5 total params: file, ci, qa, sd, em). The leading param is the
-     File item VALUE — there is NO phantom ``rel_path`` (ID-28.21 blocker
-     regression guard, extended).
+  2. ``ingest_file`` signature accepts ``em_target`` as the third extra
+     arg (4 total params: file, qa, sd, em — {127.25} dropped ``ci``). The
+     leading param is the File item VALUE — there is NO phantom
+     ``rel_path`` (ID-28.21 blocker regression guard, extended).
 
   3. ``app_main`` source contains the ``em_target = await
      mount_table_target(..., 'entity_mentions', ENTITY_MENTIONS_SCHEMA,
@@ -153,7 +154,7 @@ class TestEntityMentionsSchemaDeclaration:
 class TestIngestFileAcceptsEmTarget:
     """``ingest_file`` accepts ``em_target`` so ``mount_each`` arity matches."""
 
-    def test_ingest_file_signature_has_7_params(self) -> None:
+    def test_ingest_file_signature_has_6_params(self) -> None:
         flow = _flow_module()
         # ID-66.19 appended keyword-only run-context params (flow_op_id + 4
         # counters + manifest) after a bare `*` so app_main can thread them via
@@ -188,19 +189,24 @@ class TestIngestFileAcceptsEmTarget:
         # ID-136 {136.5} retired the Path-B forms write surface entirely and
         # removed the `ft_target`/`ftf_target` positionals, dropping the
         # arity from ten back to eight: (file, ci, qa, sd, em, cc, er, re).
-        assert len(params) == 8, (
+        # {127.25} (DR-034) dropped `ci_target` (the content_items mount was
+        # retired — the table is gone both envs), dropping the arity from
+        # eight to seven: (file, qa, sd, em, cc, er, re).
+        assert len(params) == 7, (
             "ingest_file positional params must be exactly "
-            "(file, ci, qa, sd, em, cc, er, re); "
+            "(file, qa, sd, em, cc, er, re); "
             f"got {params}"
         )
 
-    def test_em_target_is_the_fourth_extra_arg(self) -> None:
-        """``em_target`` is the FOURTH extra arg (index 4) — pinned by position so
+    def test_em_target_is_the_third_extra_arg(self) -> None:
+        """``em_target`` is the THIRD extra arg (index 3) — pinned by position so
         the {53.11} declare_row body can refer to it without ambiguity. ID-52.12
         had chained the form targets (ft_target / ftf_target) after it as the
         fifth + sixth extra args, but ID-136 {136.5} retired the Path-B forms
-        write surface and removed both, so ``cc_target`` now directly follows
-        ``em_target`` as the fifth extra arg (defaulted None)."""
+        write surface and removed both. {127.25} (DR-034) then dropped
+        ``ci_target`` (the leading extra arg), so ``em_target`` moved from the
+        fourth extra arg to the third, and ``cc_target`` now directly follows
+        it as the fourth extra arg (defaulted None)."""
         flow = _flow_module()
         # ID-66.19: inspect the POSITIONAL slice (keyword-only run-context params
         # follow a bare `*`).
@@ -214,18 +220,18 @@ class TestIngestFileAcceptsEmTarget:
                 inspect.Parameter.POSITIONAL_OR_KEYWORD,
             )
         ]
-        assert params[4] == "em_target", (
-            f"the fourth extra arg of ingest_file must be named 'em_target'; "
+        assert params[3] == "em_target", (
+            f"the third extra arg of ingest_file must be named 'em_target'; "
             f"got params={params}"
         )
-        assert params[5:] == [
+        assert params[4:] == [
             "cc_target",
             "er_target",
             "re_target",
         ], (
-            f"the fifth..seventh extra args must be cc_target, er_target, "
-            f"re_target (positional order; ID-136 removed ft_target/ftf_target); "
-            f"got params={params}"
+            f"the fourth..sixth extra args must be cc_target, er_target, "
+            f"re_target (positional order; ID-136 removed ft_target/ftf_target; "
+            f"{{127.25}} removed ci_target); got params={params}"
         )
 
 

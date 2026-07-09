@@ -1182,38 +1182,6 @@ def _encode_pgvector(value: list[float]) -> str:
 # TableSchema (explicit insert/update rejected with SQLSTATE 428C9 per
 # CLAUDE.md gotcha). PG auto-computes via md5(normalised content).
 
-CONTENT_ITEMS_SCHEMA = TableSchema(
-    columns={
-        "id": ColumnDef(type="uuid", nullable=False),
-        # ID-64.10 (S296): the canonical body column in prod is `content` (NOT
-        # NULL), NOT `content_text` — the pipeline was coded against an assumed
-        # schema; the live UndefinedColumnError surfaced once extraction reached
-        # the write. Rename only — the value is the Stage-2 markdown body.
-        "content": ColumnDef(type="text", nullable=False),
-        # ID-64.10 (S296): title + content_type are NOT NULL in prod and were
-        # never written. title = classifier suggested_title ?? filename-stem;
-        # content_type = the taxonomy-validated classifier value (both written
-        # in ci_target.declare_row below).
-        "title": ColumnDef(type="text", nullable=False),
-        "content_type": ColumnDef(type="text", nullable=False),
-        "embedding": ColumnDef(
-            type="vector(1024)",
-            nullable=True,
-            encoder=_encode_pgvector,
-        ),
-        "op_id": ColumnDef(type="uuid", nullable=True),  # stamped per-flow (28.9)
-        "source_document_id": ColumnDef(type="uuid", nullable=True),
-        # ID-63.7 (OQ-63-9): persist the classifier's domain + subtopic. The
-        # live content_items columns already exist nullable (database.types.ts
-        # content_items Row) — NO migration here; the NOT-NULL + 'unclassified'
-        # sentinel tightening is the separate {63.11} migration.
-        "primary_domain": ColumnDef(type="text", nullable=True),
-        "primary_subtopic": ColumnDef(type="text", nullable=True),
-        # content_text_hash GENERATED ALWAYS — OMITTED per CLAUDE.md gotcha
-    },
-    primary_key=("id",),
-)
-
 Q_A_EXTRACTIONS_SCHEMA = TableSchema(
     columns={
         "id": ColumnDef(type="uuid", nullable=False),
@@ -1425,8 +1393,8 @@ CHUNK_OVERLAP_BYTES = 200
 CHUNK_MIN_SIZE_BYTES = 1000
 
 # `content_chunks` row-level UPSERT target schema (PRODUCT C-13). Only the
-# columns the pipeline writes are declared — mirrors the CONTENT_ITEMS_SCHEMA
-# style and reuses `_encode_pgvector` for the embedding vector. The
+# columns the pipeline writes are declared — mirrors the other TableSchema
+# declarations' style and reuses `_encode_pgvector` for the embedding vector. The
 # heading-derived columns (`heading_text` / `heading_level` / `heading_path` /
 # `parent_chunk_id`) plus the auto columns (`created_at` / `updated_at`) are
 # DELIBERATELY ABSENT: under RecursiveSplitter's budget-driven split no
@@ -1721,7 +1689,6 @@ def _to_source_relative(path: Path, source_path: Any) -> str:
 @coco.fn(memo=True)
 async def ingest_file(
     file: "coco.resources.file.FileLike",  # type: ignore[name-defined]
-    ci_target: Any,
     qa_target: Any,
     sd_target: Any,
     em_target: Any,
@@ -1757,11 +1724,11 @@ async def ingest_file(
     `ingest_source='app_upload'`).
 
     `cc_target` (ID-56.8) is the `content_chunks` chunk-row UPSERT target. It is
-    a DEFAULTED 6th positional (defaults to None; ID-136 shifted this down from
-    8th once `ft_target`/`ftf_target` were removed) so the 5-arg legacy callers
-    stay valid: when None, the budget-driven chunking block is skipped entirely.
-    When supplied, the chunking block runs AFTER the parent `content_items`
-    declare (FK safety + memo cascade) and declares one `content_chunks` row per
+    a DEFAULTED 5th positional (defaults to None; {127.25} DR-034 shifted this
+    down again once `ci_target` was removed) so the 4-arg legacy callers stay
+    valid: when None, the budget-driven chunking block is skipped entirely.
+    When supplied, the chunking block runs AFTER the parent `source_documents`
+    upsert (FK safety + memo cascade) and declares one `content_chunks` row per
     RecursiveSplitter chunk (PRODUCT C-10..C-13).
 
     `er_target` (ID-101 §{101.7}) is the `entity_relationships` row-level UPSERT
@@ -1900,7 +1867,6 @@ async def ingest_file(
     async with rebind_meta, rebind_retry, rebind_taxonomy:
         await _ingest_file_body(
             file,
-            ci_target,
             qa_target,
             sd_target,
             em_target,
@@ -1917,7 +1883,6 @@ async def ingest_file(
 
 async def _ingest_file_body(
     file: "coco.resources.file.FileLike",  # type: ignore[name-defined]
-    ci_target: Any,
     qa_target: Any,
     sd_target: Any,
     em_target: Any,
@@ -2089,7 +2054,6 @@ async def _ingest_file_body(
     await _ingest_content_branch(
         file,
         rel_path,
-        ci_target,
         qa_target,
         sd_target,
         em_target,
@@ -2104,7 +2068,6 @@ async def _ingest_file_body(
 async def _ingest_content_branch(
     file: "coco.resources.file.FileLike",  # type: ignore[name-defined]
     rel_path: str,
-    ci_target: Any,
     qa_target: Any,
     sd_target: Any,
     em_target: Any,
@@ -2186,9 +2149,11 @@ async def _ingest_content_branch(
     )
     # Derived-row PKs re-key onto the STORED `source_document_id` (registry-keyed),
     # NOT `rel_path` — a rename must not re-mint the derived graph (R(id)/R(e),
-    # {138.10} P3). `ci:`/`chunk:`/`qa:` keep their type prefix (namespace
+    # {138.10} P3). `chunk:`/`qa:` keep their type prefix (namespace
     # separation) but the natural key is now the stable identity, not the path.
-    content_item_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"ci:{source_document_id}")
+    # (content_item_id — the former `ci:{source_document_id}` derived PK — was
+    # REMOVED here: it fed only the now-deleted content_items declare_row below;
+    # {127.25} DR-034 retirement.)
 
     # ── Inv-5 [RATIFIED-S241]: stamp the outer-tier flow metadata onto each
     # extraction object ({66.16} stamp-wiring). PRODUCT Inv-5 mandates that every
@@ -2229,12 +2194,10 @@ async def _ingest_content_branch(
     # `or "other"` is a defensive floor for the plain-dict write-path test stubs.
     # ID-131 {131.22} (G-PRODUCER-CLASS): hoisted a second time — now ABOVE the
     # `_upsert_source_document` call (was previously hoisted to just above the
-    # ci_target declare, {64.10}/S296) because content_type is now PRIMARILY a
-    # source_documents write; content_items keeps the SAME value (see the
-    # ci_target declare below) only because content_items.content_type is
-    # NOT NULL with NO DEFAULT (squash_baseline.sql — no migration in this
-    # subtask relaxes it), so ci_target still needs a value even though the
-    # classification family write moved off it.
+    # content_items declare, {64.10}/S296) because content_type is now
+    # PRIMARILY a source_documents write; the content_items table (and its
+    # own NOT-NULL-no-default content_type column) was DROPPED entirely
+    # ({127.25}, DR-034) — content_type now has exactly one write site.
     content_type = _field(classification, "content_type") or "other"
     await _upsert_source_document(
         source_document_id=source_document_id,
@@ -2262,8 +2225,8 @@ async def _ingest_content_branch(
         # path populates it (passthrough leaves it None).
         extraction_method=provenance.extraction_method,
         # ID-131 {131.22} (G-PRODUCER-CLASS): classification family, re-homed
-        # off content_items (ci_target.declare_row below no longer carries
-        # primary_domain/primary_subtopic). Only the fields the Path-A
+        # off content_items (the content_items table is dropped — DR-034/
+        # {127.25}). Only the fields the Path-A
         # `ClassificationExtraction` model (extraction.py) actually returns
         # are threaded through — secondary_domain/secondary_subtopic/
         # ai_keywords/summary/captured_date/summary_data have no Path-A
@@ -2287,47 +2250,27 @@ async def _ingest_content_branch(
     _bump("postgres_upsert")  # Inv-17: source_documents row upsert
 
     # ── Stage 4: embedding (text-embedding-3-large → vector(1024), ID-49.2) ──
-    # Computed imperatively from the Stage-2 content_text (see embed_content_text
-    # docstring). content_text_hash OMITTED (GENERATED ALWAYS); the pgvector
-    # text-literal encoding is applied by the `embedding` ColumnDef encoder.
-    embedding = await embed_content_text(content_text)
-    ci_target.declare_row(
-        row={
-            "id": content_item_id,
-            # ID-64.10 (S296): `content` is the prod body column (rename from the
-            # non-existent `content_text`).
-            "content": content_text,
-            # ID-64.10 (S296): title (NOT NULL) — classifier suggested_title with
-            # a filename-stem fallback (decided S296); content_type (NOT NULL,
-            # NO DEFAULT — see the {131.22} comment above the sd upsert call).
-            "title": _field(classification, "suggested_title")
-            or file.file_path.path.stem,
-            "content_type": content_type,
-            "embedding": embedding,
-            "source_document_id": source_document_id,
-            "op_id": op_id,
-            # ID-131 {131.22} (G-PRODUCER-CLASS): primary_domain / primary_subtopic
-            # REMOVED from this declare_row — the classification family now lands
-            # on source_documents (via `_upsert_source_document` above), not here
-            # (supersedes the {63.7}/OQ-63-9 content_items write). Omitting the
-            # keys (rather than writing None) lets content_items' own
-            # DEFAULT 'unclassified' apply (squash_baseline.sql), matching the
-            # cc_target heading_* omission precedent elsewhere in this file.
-        }
-    )
-    _bump("postgres_upsert")  # Inv-17: content_items row upsert
-    # Inv-17: one embedding vector produced for this content row (the gap
-    # inherited from ID-49.2 — the counter was initialised to 0 and never
-    # incremented; ID-49.4 closed it for embedding, ID-55.2 generalises the
-    # substrate to the remaining stages via `_bump`).
-    _bump("embedding")
+    # {127.25} DR-034/DR-036: the whole-document embedding + its content_items
+    # declare_row write are REMOVED. Empirically verified (2026-07-09): no live
+    # consumer reads a document-level (non-chunk) embedding — hybrid_search's
+    # source_documents arm is explicitly text-only/no-vector (comment at
+    # supabase/migrations/20260702120000_id131_search_rpcs.sql:116, function
+    # COMMENT "text-only, no vector — BI-29"); flow.py never wrote
+    # record_embeddings(owner_kind='source_document') either (only
+    # 'content_chunk' / 'reference_item'). Per-CHUNK embeddings (below) are the
+    # search substrate and are UNAFFECTED — they still land on record_embeddings
+    # via `_declare_record_embedding(re_target, owner_kind='content_chunk', ...)`.
+    # DR-034 (S449): the content_items-era coverage feature is RETIRED, not
+    # re-pointed — re-adding a document-level embedding sink is a deliberate
+    # future feature (a DR-036 owner_kind='source_document' migration), not a
+    # migration re-point folded into this deletion.
 
     # ── ID-56.8: chunking stage (RecursiveSplitter → content_chunks) ─────────
-    # Runs AFTER the parent content_items declare so the FK is satisfiable and
+    # Runs AFTER the parent source_documents upsert so the FK is satisfiable and
     # the memo cascade is correct (TECH §2.7): chunking lives inside this same
     # @coco.fn(memo=True) body, so an unchanged-bytes re-ingest skips the whole
     # ingest_file component → no re-chunk, op_id retained (PRODUCT C-31). Gated
-    # on `cc_target is not None` so the 7-arg legacy callers skip it.
+    # on `cc_target is not None` so the 6-arg legacy callers skip it.
     # Variant-B byte budgets (Liam-ratified {56.5}); min_chunk_size passed
     # EXPLICITLY though it equals the chunk_size/2 default. RecursiveSplitter is
     # the cocoindex-native splitter (cocoindex.functions.SplitRecursively is
@@ -2340,7 +2283,7 @@ async def _ingest_content_branch(
         # `cocoindex` parent as a bare MagicMock (not a package), so a module-top
         # `from cocoindex.ops.text import RecursiveSplitter` would raise
         # ModuleNotFoundError under those stubs. Importing inside the chunking
-        # block (only reached when a real cc_target is supplied) keeps the 7-arg
+        # block (only reached when a real cc_target is supplied) keeps the 6-arg
         # legacy callers — which pass cc_target=None and never enter here —
         # import-clean, mirroring the function-local flow_context import used
         # above.
@@ -3019,8 +2962,8 @@ async def _upsert_source_document(
     engine-managed `sd_target` and writes it here on the SAME env-scope DB_CTX
     pool `_backlink_feed_articles` uses, but SYNCHRONOUSLY in-component
     (autocommit) BEFORE the engine-declared children that follow (the URL
-    route's `ri_target.declare_row`; the localfs route's `ci_target` /
-    `cc_target` / `em_target` / `er_target` declares). Two intended
+    route's `ri_target.declare_row`; the localfs route's `cc_target` /
+    `em_target` / `er_target` declares). Two intended
     consequences (as originally reasoned for the URL path — S437):
 
       1. the sd parent is COMMITTED before the engine flushes the ri child, so
@@ -3055,8 +2998,8 @@ async def _upsert_source_document(
     domain/primary_subtopic/content_type/suggested_title/classification_
     confidence/classification_reasoning/classified_at, + the not-yet-sourced
     secondary_domain/secondary_subtopic/ai_keywords/summary/captured_date/
-    summary_data) is now written HERE instead of onto `ci_target` — the
-    producer that used to declare it onto content_items. `primary_domain` /
+    summary_data) is now written HERE instead of onto the (now-dropped)
+    content_items table. `primary_domain` /
     `primary_subtopic` guard with `or "unclassified"` below: both columns are
     NOT NULL WITH DEFAULT 'unclassified' on source_documents, and an explicit
     SQL NULL (an unguarded None) would violate NOT NULL where cocoindex's
@@ -4141,17 +4084,15 @@ async def app_main() -> None:
     flow_error_detail: dict[str, str] | None = None
 
     try:
-        # ── Stage 6 prep: mount the 3 row-level targets (managed_by=USER) ──
+        # ── Stage 6 prep: mount the row-level targets (managed_by=USER) ──
         # mount_table_target reads the asyncpg pool env-scope from DB_CTX
         # (provided by `kh_pipeline_lifespan` via EnvironmentBuilder.provide —
         # 28.22). managed_by=ManagedBy.USER: cocoindex writes rows only, never
         # DDL. KH migrations own the schema.
-        ci_target = await mount_table_target(
-            DB_CTX,
-            "content_items",
-            CONTENT_ITEMS_SCHEMA,
-            managed_by=ManagedBy.USER,
-        )
+        # {127.25} DR-034: the content_items mount (ci_target) is REMOVED —
+        # the table is dropped both envs; see the closed mount-set contract
+        # test (test_cocoindex_ingest_once.py::
+        # test_mount_table_target_closed_set_unchanged_by_this_subtask).
         qa_target = await mount_table_target(
             DB_CTX,
             "q_a_extractions",
@@ -4312,7 +4253,6 @@ async def app_main() -> None:
             coco.component_subpath("ingest_file"),
             bound_ingest_file,
             source.items(),
-            ci_target,
             qa_target,
             sd_target,
             em_target,

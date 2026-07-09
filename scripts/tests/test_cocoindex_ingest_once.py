@@ -11,14 +11,16 @@ WHAT THIS PROVES:
 
 STRUCTURAL (`TestIngestOnceIsStructurallyOffEngine`):
   - `ingest_once`'s signature carries no engine `TableTarget` parameter at all
-    (no `ci_target`/`qa_target`/`sd_target`/`em_target`/`cc_target`/
-    `er_target`/`re_target`/`ri_target`) — there is no argument position
+    (no `qa_target`/`sd_target`/`em_target`/`cc_target`/
+    `er_target`/`re_target`/`ri_target` — `ci_target` no longer exists
+    anywhere in flow.py, {127.25} DR-034) — there is no argument position
     through which cocoindex's per-item bookkeeping could ever observe it.
   - `ingest_once`'s source never calls `.declare_row(` — every write is a raw
     `DB_CTX` pool statement.
-  - The closed 8-table `mount_table_target(DB_CTX, "<table>", ...)` set
-    (pinned identically to the {138.16} audit) is UNCHANGED by this
-    Subtask — no 9th engine target was added to carry `ingest_once` rows.
+  - The closed 7-table `mount_table_target(DB_CTX, "<table>", ...)` set
+    (pinned identically to the {138.16} audit, minus `content_items` which
+    {127.25} dropped) is UNCHANGED by this Subtask — no 8th engine target was
+    added to carry `ingest_once` rows.
 
 BEHAVIOURAL (`TestIngestOnceWritesDerivedRowsOffEngine`):
   - `ingest_once` writes `content_chunks` / `record_embeddings` /
@@ -68,10 +70,10 @@ _FLOW_SOURCE_PATH = (
     Path(__file__).resolve().parent.parent / "cocoindex_pipeline" / "flow.py"
 )
 
-# The exact 8 tables mounted at flow.py:3593-3665 (transcribed identically
-# from the {138.16} audit's pinned literal) — this Subtask must NOT add a 9th.
+# The exact 7 tables mounted at flow.py:3593-3665 (transcribed from the
+# {138.16} audit's pinned literal, minus `content_items` — dropped {127.25}
+# DR-034) — this Subtask must NOT add an 8th.
 _EXPECTED_ENGINE_TARGET_TABLES = {
-    "content_items",
     "q_a_extractions",
     "source_documents",
     "entity_mentions",
@@ -303,7 +305,6 @@ class TestIngestOnceIsStructurallyOffEngine:
         flow = _flow_module()
         params = list(inspect.signature(flow.ingest_once).parameters)
         engine_target_names = {
-            "ci_target",
             "qa_target",
             "sd_target",
             "em_target",
@@ -342,7 +343,7 @@ class TestIngestOnceIsStructurallyOffEngine:
         )
         assert mounted_tables == _EXPECTED_ENGINE_TARGET_TABLES, (
             "the engine-managed mount_table_target set changed — {138.11} "
-            "must NOT add a 9th engine target; ingest_once writes off-engine "
+            "must NOT add an 8th engine target; ingest_once writes off-engine "
             "raw-pool rows instead (R(e) mechanism (i))"
         )
 
@@ -644,7 +645,6 @@ class TestIngestOnceSurvivesWhereEngineRowsWouldBeCleaned:
         monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
         monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
-        ci = _FakeTarget("content_items")
         qa = _FakeTarget("q_a_extractions")
         sd = _FakeTarget("source_documents")
         em = _FakeTarget("entity_mentions")
@@ -659,7 +659,7 @@ class TestIngestOnceSurvivesWhereEngineRowsWouldBeCleaned:
 
         async def _run_walk() -> None:
             async with bind_flow_meta(op_id=walk_op_id):
-                await flow.ingest_file(walk_file, ci, qa, sd, em, cc, er, re_)
+                await flow.ingest_file(walk_file, qa, sd, em, cc, er, re_)
 
         asyncio.run(_run_walk())
 
@@ -682,7 +682,7 @@ class TestIngestOnceSurvivesWhereEngineRowsWouldBeCleaned:
         # ── Assertion (2): the ingest_once source NEVER appears on any
         # engine FakeTarget — declare_row is the only surface orphan-cleanup
         # / full_reprocess can act on, and it is structurally absent here. ──
-        for target in (ci, qa, sd, em, cc, er, re_):
+        for target in (qa, sd, em, cc, er, re_):
             for row in target.rows:
                 assert row.get("source_document_id") != once_source_id, (
                     f"{target.table_name} must never carry the ingest_once "
