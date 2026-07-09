@@ -13,6 +13,6 @@
 - Tests: `python3 -m pytest scripts/tests/`; deps: `pip install -r requirements.txt`.
 - **Known full-suite baseline delta (environmental, NOT a regression — do not
   re-adjudicate):** sandboxed runs skip more (`oq/*` heredoc EPERM; memo-fingerprint
-  probes skip when the Rust engine can't boot). A green sandboxed run ≈ 1531 passed /
-  14 skipped as of 2026-07-08. (The former delta (b) — 2 memo-fingerprint CASE-A
+  probes skip when the Rust engine can't boot). A green sandboxed run ≈ 1620 passed /
+  14 skipped as of 2026-07-09 (post the {127.25}–{127.29} content_items-removal wave). (The former delta (b) — 2 memo-fingerprint CASE-A
   failures from stale probe-stub taxonomy — was fixed S455, bl-417.)
