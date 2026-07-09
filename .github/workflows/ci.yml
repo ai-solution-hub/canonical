@@ -376,6 +376,16 @@ jobs:
             bun install --frozen-lockfile
           fi
 
+      - name: Cache Next.js build cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4
+        with:
+          path: .next/cache
+          key:
+            ${{ runner.os }}-nextjs-${{ hashFiles('bun.lock') }}-${{
+            hashFiles('**/*.ts', '**/*.tsx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('bun.lock') }}-
+
       - name: Install Playwright browsers (chromium only)
         # Smoke project uses Desktop Chrome only (per playwright.config.ts).
         # `--with-deps` installs the Linux system libraries the GH-hosted
@@ -389,8 +399,52 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: bun run cleanup:stale-test-artifacts
 
+      - name: Build (Next.js prod)
+        # id-128 {128.11}: migrate smoke onto the same build-once + `next
+        # start` path the nightly lane uses ({128.6}/{128.7}) — no
+        # next-dev compile-on-first-hit under load. Single job here (no
+        # shard matrix), so the build is consumed directly by the next
+        # step in the same workspace — no cross-job artifact upload/
+        # download is needed (that machinery in e2e-nightly.yml exists
+        # only to hand the build off to 4 parallel shard jobs).
+        # ★ LOAD-BEARING: NEXT_PUBLIC_E2E (and every NEXT_PUBLIC_*) is
+        # client-inlined (lib/env-client.ts) and BAKED AT BUILD TIME, not
+        # at `next start`. It MUST be set in THIS step's env, or the
+        # served bundle lacks E2E test-mode and specs flake. Env block
+        # mirrors e2e-nightly.yml's "Build (Next.js prod)" step.
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          # Production stores bare names; mirror to NEXT_PUBLIC_* for the client schema.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
+            ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+          NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
+          # ★ Bakes E2E test mode into the served bundle (see note above).
+          NEXT_PUBLIC_E2E: "true"
+          # VERCEL_GIT_COMMIT_SHA is Vercel-only; substitute github.sha so the Sentry release tag resolves.
+          VERCEL_GIT_COMMIT_SHA: ${{ github.sha }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          AI_SUMMARY_MODEL: ${{ vars.AI_SUMMARY_MODEL }}
+          AI_EMBEDDING_MODEL: ${{ vars.AI_EMBEDDING_MODEL }}
+          AI_EMBEDDING_DIMS: ${{ vars.AI_EMBEDDING_DIMS }}
+          CLASSIFICATION_BATCH_SIZE: ${{ vars.CLASSIFICATION_BATCH_SIZE }}
+        run: bun run build
+
       - name: Run Playwright smoke
         env:
+          # id-128 {128.11}: serve the prebuilt app via `next start` (routes
+          # precompiled by the step above) instead of `bun dev`.
+          PLAYWRIGHT_WEB_SERVER_CMD: "bun run start"
           # Staging Supabase connection — env scope resolves these from the
           # `Staging` GH environment.
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
