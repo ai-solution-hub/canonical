@@ -14,17 +14,22 @@ surfaces truthfully.
 
 {127.25}/{127.26} DR-034/DR-036 UPDATE: SLICE 2 (`TestIngestFileBumpsEmbeddingCounter`,
 renamed `TestIngestFileEmbeddingCounterRetiredForContentBranch`) no longer proves a
-bump — the whole-document embedding write it modelled is RETIRED, not re-pointed
-(`content_items` and its `embedding` column are dropped entirely; no other
-content-branch target gained one). The counter SUBSTRATE (SLICE 1) and the
-`app_main` threading/folding wiring (SLICE 3) are UNCHANGED and still live —
-but the embedding stage counter itself currently bumps ONLY on the
-reference_item/URL branch (`_ingest_url_body`, flow.py:3827). The per-chunk
-path computes embeddings (`embed_content_text`, flow.py:2302) but does NOT
-bump `stage_counts["embedding"]` — it bumps only `stage_counts["chunking"]`
-(flow.py:2346). Neither path is exercised by this file's minimal
-(qa, sd, em)-only `ingest_file` calls. SLICE 2 now guards the NEGATIVE: a
-minimal content ingest must NOT bump `stage_counts["embedding"]`.
+bump for the MINIMAL (no `cc_target`) content call — the whole-document embedding
+write it modelled is RETIRED, not re-pointed (`content_items` and its `embedding`
+column are dropped entirely; no other content-branch target gained one). The
+counter SUBSTRATE (SLICE 1) and the `app_main` threading/folding wiring (SLICE 3)
+are UNCHANGED and still live. SLICE 2 guards the NEGATIVE for the no-chunking
+call: a minimal content ingest (no `cc_target`) must NOT bump
+`stage_counts["embedding"]`.
+
+{127.31} Inv-17 UPDATE: the gap SLICE 2's docstring used to describe — "the
+embedding stage counter bumps ONLY on the reference_item/URL branch" — is now
+CLOSED. SLICE 2b (`TestIngestFileBumpsEmbeddingCounterPerChunk`) proves the
+content branch's per-chunk path (`cc_target` + `re_target` supplied, flow.py's
+`_ingest_content_branch`) bumps `stage_counts["embedding"]` once per chunk whose
+embedding is actually written to `record_embeddings` — matching the per-chunk
+WRITE count, mirroring the pre-existing `stage_counts["chunking"]` bump
+(flow.py:2360) at the same call site.
 
 WHAT THIS PROVES (ID-49.4 — Inv-17 embedding counter):
   - `flow_context.bind_stage_counter` / `current_stage_counter` form a
@@ -32,10 +37,12 @@ WHAT THIS PROVES (ID-49.4 — Inv-17 embedding counter):
     hazard guarded in flow_context.py applies equally here).
   - `ingest_file`'s content branch, called WITHOUT a `cc_target` (no
     chunking), does NOT bump the embedding stage counter — the
-    document-level embedding write is retired (DR-034); the counter
-    currently bumps ONLY on the reference_item/URL branch
-    (`_ingest_url_body`, flow.py:3827) — the per-chunk path computes
-    embeddings but bumps `stage_counts["chunking"]`, not `["embedding"]`.
+    document-level embedding write is retired (DR-034).
+  - `ingest_file`'s content branch, called WITH a `cc_target` + `re_target`
+    (chunking + polymorphic embedding write active), bumps
+    `stage_counts["embedding"]` once per chunk whose embedding is declared to
+    `record_embeddings` — closing the {127.31} Inv-17 gap alongside the
+    pre-existing `_ingest_url_body` (`flow.py:3841`) bump.
   - `app_main` source binds the stage counter around `mount_each` and folds
     its value into `stage_counts["embedding"]` before the flow-end webhook
     emit — verified by source-inspection (the cocoindex Rust engine cannot
@@ -348,16 +355,13 @@ class TestStageCounterBindingSubstrate:
 
 class TestIngestFileEmbeddingCounterRetiredForContentBranch:
     """{127.25} DR-034: `ingest_file`'s content branch, called with only the
-    minimal (qa, sd, em) target set (no `cc_target`), no longer produces or
-    declares any document-level embedding — so it must NOT bump the
-    'embedding' stage counter either. The embedding stage counter currently
-    bumps ONLY on the reference_item/URL branch (`_ingest_url_body`,
-    flow.py:3827); the per-chunk path computes embeddings
-    (`embed_content_text`, flow.py:2302) but does not bump
-    `stage_counts["embedding"]` — only `stage_counts["chunking"]`
-    (flow.py:2346). Neither path is exercised here. Was
-    `TestIngestFileBumpsEmbeddingCounter` (proved a bump of exactly 1 per
-    ingest) before the retirement."""
+    minimal (qa, sd, em) target set (no `cc_target`, no chunking), no longer
+    produces or declares any document-level embedding — so it must NOT bump
+    the 'embedding' stage counter either. This class only exercises the
+    NO-CHUNKING call shape; see `TestIngestFileBumpsEmbeddingCounterPerChunk`
+    (SLICE 2b, below) for the WITH-chunking shape, which DOES bump
+    'embedding' as of {127.31}. Was `TestIngestFileBumpsEmbeddingCounter`
+    (proved a bump of exactly 1 per ingest) before the DR-034 retirement."""
 
     def test_one_ingest_does_not_bump_embedding_counter(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -448,6 +452,132 @@ class TestIngestFileEmbeddingCounterRetiredForContentBranch:
         # confirms ingest_file did not raise.
         assert qa.rows == []
         assert em.rows == []
+
+
+# ============================================================================
+# SLICE 2b ({127.31}): the content branch's per-chunk path DOES bump
+# 'embedding' once per chunk whose embedding is actually written
+# ============================================================================
+
+
+# A ~5000-byte sample (mirrors test_cocoindex_chunking.py's oracle) — long
+# enough that the REAL `RecursiveSplitter` (flow.py's `cocoindex.ops.text` is
+# NOT stubbed in this file's `_flow_module()`, so the genuine splitter runs)
+# produces more than one chunk under the CHUNK_SIZE_BYTES=2000 /
+# CHUNK_MIN_SIZE_BYTES=1000 budget (flow.py:1391-1393).
+_CLAUSE = (
+    "The supplier shall provide quarterly performance reports detailing the "
+    "service levels achieved against the agreed key performance indicators, "
+    "and shall notify the contracting authority promptly of any anticipated "
+    "shortfall. "
+)
+_LONG_SAMPLE = (_CLAUSE * 18).strip() + "\n"
+
+
+def _patch_pipeline_with_long_sample(
+    flow: object, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Same as `_patch_pipeline`, but `convert_binary_to_markdown` returns the
+    multi-chunk `_LONG_SAMPLE` instead of the short single-chunk `_MARKDOWN` —
+    needed to exercise the chunking loop more than once per ingest."""
+    _patch_pipeline(flow, monkeypatch)
+
+    async def _fake_convert_long(file: object) -> str:
+        return _LONG_SAMPLE
+
+    monkeypatch.setattr(flow, "convert_binary_to_markdown", _fake_convert_long)
+
+
+class TestIngestFileBumpsEmbeddingCounterPerChunk:
+    """{127.31} Inv-17 fix: `ingest_file`'s content branch, called WITH a
+    `cc_target` (chunking active) AND a `re_target` (the polymorphic
+    `record_embeddings` write target), bumps `stage_counts["embedding"]` once
+    per chunk whose embedding is declared — closing the gap
+    `TestIngestFileEmbeddingCounterRetiredForContentBranch` (SLICE 2, above)
+    still correctly guards for the no-`cc_target` call shape."""
+
+    def test_multi_chunk_ingest_bumps_embedding_once_per_declared_chunk(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        flow = _flow_module()
+        _patch_pipeline_with_long_sample(flow, monkeypatch)
+        from scripts.cocoindex_pipeline.flow_context import (  # noqa: PLC0415
+            bind_flow_meta,
+            bind_stage_counter,
+        )
+
+        src = tmp_path / "doc-multi-chunk.md"
+        src.write_text(_LONG_SAMPLE)
+        fake_file = _FakeFile(src)
+        qa, sd, em = _make_targets()
+        cc = _FakeTarget("content_chunks")
+        re_target = _FakeTarget("record_embeddings")
+        counter = flow._FlowStageCounter()
+
+        async def _run() -> None:
+            async with bind_flow_meta(op_id=uuid.uuid4()):
+                async with bind_stage_counter(counter):
+                    await flow.ingest_file(
+                        fake_file, qa, sd, em, cc, None, re_target
+                    )
+
+        asyncio.run(_run())
+
+        assert len(cc.rows) >= 2, (
+            "the ~5000-byte sample must split into >1 chunk under the "
+            f"2000/1000-byte budget to exercise the loop more than once; got "
+            f"{len(cc.rows)} chunk row(s) — the fixture no longer forces a "
+            f"multi-chunk split."
+        )
+        assert counter.get("embedding") == len(cc.rows), (
+            f"{{127.31}} Inv-17: stage_counts['embedding'] must match the "
+            f"per-chunk record_embeddings WRITE count exactly — got "
+            f"counter={counter.get('embedding')} vs {len(cc.rows)} declared "
+            f"content_chunks row(s). A mismatch means the embedding bump and "
+            f"the chunk declare_row loop have come out of step."
+        )
+        assert len(re_target.rows) == counter.get("embedding"), (
+            "every bumped embedding count must correspond to one real "
+            "record_embeddings declare_row — the counter must never over- "
+            "or under-report the actual write count."
+        )
+
+    def test_cc_target_without_re_target_leaves_embedding_at_zero(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`_declare_record_embedding` no-ops when `re_target` is None (the
+        7-arg legacy / chunk-shape-only callers) — the {127.31} bump is
+        guarded on the SAME condition, so chunks still land on `cc_target`
+        but `stage_counts['embedding']` must stay at 0 (no embedding was
+        actually WRITTEN anywhere)."""
+        flow = _flow_module()
+        _patch_pipeline_with_long_sample(flow, monkeypatch)
+        from scripts.cocoindex_pipeline.flow_context import (  # noqa: PLC0415
+            bind_flow_meta,
+            bind_stage_counter,
+        )
+
+        src = tmp_path / "doc-cc-only.md"
+        src.write_text(_LONG_SAMPLE)
+        fake_file = _FakeFile(src)
+        qa, sd, em = _make_targets()
+        cc = _FakeTarget("content_chunks")
+        counter = flow._FlowStageCounter()
+
+        async def _run() -> None:
+            async with bind_flow_meta(op_id=uuid.uuid4()):
+                async with bind_stage_counter(counter):
+                    # re_target omitted → defaults to None.
+                    await flow.ingest_file(fake_file, qa, sd, em, cc, None)
+
+        asyncio.run(_run())
+
+        assert len(cc.rows) >= 2, "chunk rows still land without a re_target"
+        assert counter.get("embedding") == 0, (
+            "no record_embeddings row was declared (re_target=None), so "
+            f"stage_counts['embedding'] must stay 0; got "
+            f"{counter.get('embedding')}."
+        )
 
 
 # ============================================================================

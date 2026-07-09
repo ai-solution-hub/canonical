@@ -2352,6 +2352,19 @@ async def _ingest_content_branch(
                 owner_id=chunk_id,
                 embedding=chunk_embedding,
             )
+            # {127.31} Inv-17 fix: bump the SAME embedding stage counter
+            # `_ingest_url_body` already bumps (flow.py:3841 — the
+            # reference_item/URL branch) — the content branch never bumped it,
+            # so production telemetry reported `stage_counts['embedding'] == 0`
+            # for every chunked-content walk despite genuine per-chunk
+            # embedding writes landing on `record_embeddings` above. Guarded on
+            # `re_target is not None` — the SAME condition
+            # `_declare_record_embedding` itself no-ops on (7-/8-/9-arg legacy +
+            # unit-test callers that omit `re_target`) — so the counter tracks
+            # the per-chunk WRITE count, not the mere per-chunk embed
+            # computation.
+            if re_target is not None:
+                _bump("embedding")
             # Inv-11 (ID-56.8): one content_chunks row declared for this item.
             # `_bump` is the local helper (no-op when no stage counter bound),
             # matching the surrounding embedding/postgres_upsert bumps — the
