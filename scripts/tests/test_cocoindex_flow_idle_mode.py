@@ -146,7 +146,8 @@ class TestFlowModuleIdleLoad:
         path ({66.16} stamp-wiring closed the long-standing 28.12 WP4 gap).
         `ingest_file` now stamps each extraction object (classification /
         qa_form / each entity_mention) with the flow op_id + the row's
-        content_item_id via `_stamp_if_model`, satisfying PRODUCT Inv-5
+        source_document_id (renamed from content_item_id well before
+        {127.25}) via `_stamp_if_model`, satisfying PRODUCT Inv-5
         [RATIFIED-S241]. The invocation contract is proved in
         test_cocoindex_flow_write_path.py::TestStampExtractionBaseWiredIntoIngest;
         this guard only pins that the symbol stays exposed + callable."""

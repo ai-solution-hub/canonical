@@ -29,8 +29,11 @@ THE BI-7 CONTRACT CODIFIED HERE (TECH.md §BI-7 + Testing table)
       NO ``manifest_missing`` abort — ``app_main`` loads the manifest
       UNCONDITIONALLY at flow start (flow.py app_main manifest block).
   (b) A content file under a NON-forms prefix routes to ``'content'`` and lands
-      WORKSPACE-AGNOSTIC: ``content_items`` carries NO ``workspace_id`` (BI-7 —
-      "workspace_ids NEVER written"; ID-69 BI-1).
+      WORKSPACE-AGNOSTIC: ``source_documents`` carries NO ``workspace_id``
+      (BI-7 — "workspace_ids NEVER written"; ID-69 BI-1). {127.25} DR-034:
+      ``content_items`` is the RETIRED per-document identity — the table is
+      dropped both envs and this guarantee now lives on ``source_documents``,
+      the sole remaining stable per-document record.
   (c) ID-136 (forms-route retirement, DR-014): the corpus-walk forms route is
       RETIRED — ``RouteKind`` no longer admits ``"forms"``, so a manifest
       tagging a prefix ``route:"forms"`` now fails LOUDLY at load
@@ -234,16 +237,19 @@ def _sd_rows_from_pool(pool: object) -> list[dict]:
 
 
 def _target_set() -> dict[str, _FakeTarget]:
-    """The full mount-target set ``app_main`` requests (all eight tables).
+    """The full mount-target set ``app_main`` requests (all seven tables).
 
     ID-136 (forms-route retirement, T8): ``form_templates`` /
     ``form_template_fields`` are no longer mounted by the corpus walk — the
     ``ft_target``/``ftf_target`` mounts were removed along with the forms
-    branch."""
+    branch. {127.25} DR-034: ``content_items`` is likewise no longer
+    mounted — the table is dropped both envs and the ``ci_target`` mount was
+    deleted from ``app_main``; the closed engine-managed set is now the same
+    7 tables ``test_cocoindex_ingest_once.py``'s
+    ``_EXPECTED_ENGINE_TARGET_TABLES`` pins."""
     return {
         name: _FakeTarget(name)
         for name in (
-            "content_items",
             "q_a_extractions",
             "source_documents",
             "entity_mentions",
@@ -460,36 +466,38 @@ class TestManifestPresentContentCorpusIngests:
             walked_files=[("doc-one.md", source_dir / "doc-one.md")],
         )
 
-        ci = targets["content_items"]
-        # S438: the sd row lands via the raw-pool UPSERT, not the
-        # `source_documents` _FakeTarget — reconstruct it from the pool capture.
+        # S438: the sd row lands via the raw-pool UPSERT, not an engine
+        # `_FakeTarget` — reconstruct it from the pool capture. {127.25}
+        # DR-034: content_items is RETIRED (table dropped both envs, no
+        # `ci_target` mount exists any more) — source_documents is now the
+        # sole stable per-document record this test proves against.
         sd_rows = _sd_rows_from_pool(targets["_sd_pool"])  # type: ignore[arg-type]
         resolve_calls = targets["_resolve_calls"]  # type: ignore[index]
 
-        # (a) NO manifest_missing abort: the run completed and a content_items
-        # row landed (app_main loaded the manifest unconditionally and proceeded).
+        # (a) NO manifest_missing abort: the run completed and a
+        # source_documents row landed (app_main loaded the manifest
+        # unconditionally and proceeded).
         terminal = webhooks[-1]
         assert terminal["status"] == "completed", (
             "a content corpus WITH a root manifest must ingest to completion — "
             "no manifest_missing abort (app_main loads the manifest "
             "unconditionally at flow start)"
         )
-        assert len(ci.rows) == 1, "the content .md must land exactly one content_items row"
-        assert len(sd_rows) == 1
+        assert len(sd_rows) == 1, "the content .md must land exactly one source_documents row"
 
         # The deployed entrypoint resolved the rel_path against the loaded
         # manifest (the fork ran on the worker thread).
         assert "doc-one.md" in resolve_calls
 
-        # (b) BI-7 workspace-agnostic content layer: content_items carries NO
-        # workspace_id (ID-69 BI-1 — "workspace_ids NEVER written").
-        assert "workspace_id" not in ci.rows[0], (
-            "content_items must NOT carry a workspace_id — the content record "
-            "layer is workspace-AGNOSTIC (BI-7 / ID-69 BI-1)"
+        # (b) BI-7 workspace-agnostic content layer: source_documents carries
+        # NO workspace_id (ID-69 BI-1 — "workspace_ids NEVER written").
+        assert "workspace_id" not in sd_rows[0], (
+            "source_documents must NOT carry a workspace_id — the content "
+            "record layer is workspace-AGNOSTIC (BI-7 / ID-69 BI-1)"
         )
         # And the op_id is correctly stamped (the row landed through the real
         # deployed flow, not a None-op_id worker-thread failure).
-        assert ci.rows[0]["op_id"] == run_op_id
+        assert sd_rows[0]["op_id"] == run_op_id
 
     def test_unmapped_content_prefix_still_routes_content_and_workspace_agnostic(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -518,12 +526,14 @@ class TestManifestPresentContentCorpusIngests:
             walked_files=[("unmapped/doc.md", nested / "doc.md")],
         )
 
-        ci = targets["content_items"]
         # Unmapped is benign for file content (bl-219): the row lands on the
         # content branch with NO workspace_id, and the run completes.
+        # {127.25} DR-034: content_items is retired — source_documents (via
+        # the S438 raw-pool capture) is the sole remaining per-document record.
+        sd_rows = _sd_rows_from_pool(targets["_sd_pool"])  # type: ignore[arg-type]
         assert webhooks[-1]["status"] == "completed"
-        assert len(ci.rows) == 1, "an unmapped content path still lands content rows"
-        assert "workspace_id" not in ci.rows[0], (
+        assert len(sd_rows) == 1, "an unmapped content path still lands content rows"
+        assert "workspace_id" not in sd_rows[0], (
             "an unmapped content file lands workspace-agnostic (BI-7 (b))"
         )
 
@@ -556,39 +566,31 @@ class TestReingestMintsIdenticalIdentities:
         # Two genuinely distinct runs (distinct op_id).
         assert op_id_a != op_id_b, "each app_main run mints a fresh op_id"
 
-        # The content_items + source_documents PKs are the stable uuid5(rel_path)
-        # across runs — a re-walk UPSERTs the SAME row rather than inserting a
-        # duplicate. The expected PK is the deployed flow's own seed
-        # (uuid5 over _KH_PIPELINE_DOC_NS), recomputed here as the oracle.
+        # The source_documents PK is the stable uuid5(rel_path) across runs —
+        # a re-walk UPSERTs the SAME row rather than inserting a duplicate.
+        # The expected PK is the deployed flow's own seed (uuid5 over
+        # _KH_PIPELINE_DOC_NS), recomputed here as the oracle. {127.25}
+        # DR-034: content_items is RETIRED (no ci_target mount exists) —
+        # source_documents is now the sole per-document identity this test
+        # proves stability on.
         ns = flow._KH_PIPELINE_DOC_NS
         # S438: source_documents no longer lands on its `_FakeTarget` — read it
         # back from the raw-pool UPSERT capture instead (mirrors the URL route,
         # S437).
-        rows_by_table = {
-            "content_items": (targets_a["content_items"].rows, targets_b["content_items"].rows),
-            "source_documents": (
-                _sd_rows_from_pool(targets_a["_sd_pool"]),  # type: ignore[arg-type]
-                _sd_rows_from_pool(targets_b["_sd_pool"]),  # type: ignore[arg-type]
-            ),
-        }
-        # ID-138 {138.10} P3: source_documents keeps the sd:{rel_path} mint
-        # formula; content_items re-keys onto the STORED source_document_id
-        # (`ci:{sd_id}`), NOT `ci:{rel_path}` — a rename no longer re-mints it.
-        _sd_id = uuid.uuid5(ns, "sd:stable.md")
-        for table, seed in (("content_items", f"ci:{_sd_id}"),
-                            ("source_documents", "sd:stable.md")):
-            rows_a, rows_b = rows_by_table[table]
-            assert len(rows_a) == 1 and len(rows_b) == 1
-            expected_pk = uuid.uuid5(ns, seed)
-            assert rows_a[0]["id"] == rows_b[0]["id"] == expected_pk, (
-                f"{table} PK must be the stable uuid5({seed!r}) across re-ingest "
-                "(BI-7 (d) — deterministic identity, no duplication)"
-            )
+        sd_rows_a = _sd_rows_from_pool(targets_a["_sd_pool"])  # type: ignore[arg-type]
+        sd_rows_b = _sd_rows_from_pool(targets_b["_sd_pool"])  # type: ignore[arg-type]
+        assert len(sd_rows_a) == 1 and len(sd_rows_b) == 1
+        expected_pk = uuid.uuid5(ns, "sd:stable.md")
+        assert sd_rows_a[0]["id"] == sd_rows_b[0]["id"] == expected_pk, (
+            "source_documents PK must be the stable uuid5('sd:stable.md') "
+            "across re-ingest (BI-7 (d) — deterministic identity, no "
+            "duplication)"
+        )
 
         # The op_id row field is the per-RUN stamp (differs per run); the PK
         # identity does NOT (it is path-derived, not run-derived).
-        assert targets_a["content_items"].rows[0]["op_id"] == op_id_a
-        assert targets_b["content_items"].rows[0]["op_id"] == op_id_b
+        assert sd_rows_a[0]["op_id"] == op_id_a
+        assert sd_rows_b[0]["op_id"] == op_id_b
 
 
 class TestAbsentManifestAbortsManifestMissing:

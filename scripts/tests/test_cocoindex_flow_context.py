@@ -67,9 +67,11 @@ class TestFlowRunMeta:
         assert meta.source_document_id == source_document_id
 
     def test_source_document_id_is_optional(self) -> None:
-        """Flow start emits before any content_items row exists; the
-        per-row stamper provides source_document_id at extractor-invocation
-        time. The payload must accept None for the pre-row state."""
+        """Flow start emits before any per-document row exists (a
+        source_documents row, since {127.25} DR-034 — content_items is
+        dropped both envs and never the target here); the per-row stamper
+        provides source_document_id at extractor-invocation time. The
+        payload must accept None for the pre-row state."""
         from scripts.cocoindex_pipeline.flow_context import FlowRunMeta
 
         op_id = uuid4()

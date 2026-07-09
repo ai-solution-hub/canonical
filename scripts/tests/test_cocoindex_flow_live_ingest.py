@@ -530,7 +530,6 @@ class TestLiveIngestAcrossDaemonThreadBoundary:
         _write_workspace_manifest(source_dir, "", workspace_id)
 
         targets = {
-            "content_items": _FakeTarget("content_items"),
             "q_a_extractions": _FakeTarget("q_a_extractions"),
             "source_documents": _FakeTarget("source_documents"),
             "entity_mentions": _FakeTarget("entity_mentions"),
@@ -548,28 +547,25 @@ class TestLiveIngestAcrossDaemonThreadBoundary:
             flow, source_dir, targets, monkeypatch
         )
 
-        ci = targets["content_items"]
         sd = targets["source_documents"]
         resolve_calls = targets["_resolve_calls"]  # type: ignore[index]
 
-        # (a) A content_items row landed with the CORRECT op_id — NOT None, and
-        # equal to the run's op_id. On current main: 0 rows (ingest_file raised
-        # RuntimeError on the worker thread because current_flow_meta() was None).
-        assert len(ci.rows) == 1, (
-            "expected exactly one content_items row to land in live mode; "
-            f"got {len(ci.rows)} (current main: ingest_file raised on the worker "
-            "thread because current_flow_meta() returned None across the "
-            "daemon-thread dispatch boundary)"
+        # (a) {127.25} DR-034: content_items is RETIRED — structurally
+        # absent, never re-pointed (the table is dropped both envs and no
+        # ci_target mount exists in app_main any more). The row-landed-with
+        # -op_id proof this leg used to make now lives on source_documents
+        # (the sole remaining stable per-document identity): a row landed
+        # with the CORRECT op_id — NOT None, and equal to the run's op_id.
+        # On current main (pre-{66.19} fix): 0 rows (ingest_file raised
+        # RuntimeError on the worker thread because current_flow_meta() was
+        # None).
+        assert len(sd.rows) == 1 and sd.rows[0]["op_id"] == run_op_id, (
+            "expected exactly one source_documents row landed with the run's "
+            f"op_id in live mode; got {len(sd.rows)} rows (current main: "
+            "ingest_file raised on the worker thread because "
+            "current_flow_meta() returned None across the daemon-thread "
+            "dispatch boundary)"
         )
-        assert ci.rows[0]["op_id"] is not None, (
-            "content_items row op_id must not be None — it must carry the run op_id"
-        )
-        assert ci.rows[0]["op_id"] == run_op_id, (
-            "content_items row op_id must equal the run's op_id (threaded across "
-            "the daemon-thread boundary via the explicit-arg fix, not read from a "
-            "ContextVar that does not propagate)"
-        )
-        assert len(sd.rows) == 1 and sd.rows[0]["op_id"] == run_op_id
 
         # (b) The ID-80.8 fork's workspace resolution RAN on the worker thread
         # — proven by resolve_route being called with the .md rel_path (only
@@ -582,22 +578,33 @@ class TestLiveIngestAcrossDaemonThreadBoundary:
         )
 
         # (c) NON-ZERO stage_counts — the third leg of the {66.19} testStrategy.
-        # ingest_file's _bump("source_walk") / _bump("embedding") run on the
+        # ingest_file's _bump("source_walk") / _bump("chunking") run on the
         # worker thread; a non-zero count on the SAME counter instance app_main
         # constructed proves the stage_counter crossed the daemon-thread boundary
         # via the functools.partial fix. On current main the counter rode the
         # broken ContextVar path (like op_id) and stayed 0 — _run's stage_counter
         # was None there, so every _bump was skipped by the "is not None" guard.
+        #
+        # {127.25} DR-034 re-point: this leg used to probe `_bump("embedding")`
+        # — the whole-document embedding stage. That stage (and its bump) was
+        # DELETED alongside the content_items mount (flow.py's Stage-4 comment:
+        # "the content_items-era coverage feature is RETIRED, not re-pointed");
+        # per-CHUNK embeddings are unaffected and still bump `"chunking"` once
+        # per chunk (flow.py `_bump("chunking")` inside the `cc_target is not
+        # None` chunking block), so this leg now probes THAT late-pipeline
+        # stage instead — same daemon-thread-boundary regression guard, on a
+        # bump call site that still exists.
         assert stage_counter.get("source_walk") >= 1, (
             "stage_counts['source_walk'] must be non-zero — the per-item "
             "_bump('source_walk') must reach the flow-scope counter across the "
             "daemon-thread boundary; on current main it stays 0 (counter None on "
             "the worker thread, like op_id)"
         )
-        assert stage_counter.get("embedding") >= 1, (
-            "stage_counts['embedding'] must be non-zero — the per-item "
-            "_bump('embedding') after the Stage-4 vector must reach the "
-            "flow-scope counter across the daemon-thread boundary"
+        assert stage_counter.get("chunking") >= 1, (
+            "stage_counts['chunking'] must be non-zero — the per-chunk "
+            "_bump('chunking') (late in the per-item pipeline, after Stage-4 "
+            "chunk embedding) must reach the flow-scope counter across the "
+            "daemon-thread boundary"
         )
 
     def test_extraction_reads_rebound_flow_meta_on_worker_thread(
@@ -629,7 +636,8 @@ class TestLiveIngestAcrossDaemonThreadBoundary:
             return {"content_type": "case_study"}
 
         targets = {
-            "content_items": _FakeTarget("content_items"),
+            # {127.25} DR-034: no "content_items" key — the table is dropped
+            # both envs and app_main no longer mounts a ci_target.
             "q_a_extractions": _FakeTarget("q_a_extractions"),
             "source_documents": _FakeTarget("source_documents"),
             "entity_mentions": _FakeTarget("entity_mentions"),

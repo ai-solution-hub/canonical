@@ -105,8 +105,10 @@ def _require_disposable_dsn() -> str:
 # That isolates the Stage-5 cross-run seeding behaviour (the only thing ID-81
 # touches) while exercising the REAL resolver dependencies: OpenAI embeddings
 # (`KhEntityEmbedder`) + the Anthropic pair-resolver (`KhPairResolver`) + live
-# pg_trgm. `entity_mentions` carries NO foreign key to `content_items` (verified
-# against the live schema), so seeded rows need no parent content_items row.
+# pg_trgm. `entity_mentions` carries NO foreign key to `source_documents`
+# (verified against the live schema — {127.25} DR-034: content_items, the
+# original table named here, is dropped both envs), so seeded rows need no
+# parent row.
 #
 # Realistic near-match fixtures (NOT the spec's literal "eir 2004" example, whose
 # embedding cosine ~0.49 is BELOW the 0.7 faiss threshold so it would never chain):
