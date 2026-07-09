@@ -616,7 +616,8 @@ class TestQaSidecarRouteWritesSidecarTargetsOnly:
         # ── INV-5: ZERO content_chunks / entity_mentions. content_items no
         # longer exists at all ({127.25} DR-034) — its own "zero rows" proof
         # is now structural (no ci_target parameter anywhere in the ingest
-        # call graph; see TestContentItemsIsStructurallyAbsent in
+        # call graph; see test_content_items_is_structurally_absent on
+        # TestCanonicalRecordHasNoIntrinsicWorkspace in
         # test_cocoindex_flow_write_path.py), not a per-test row-count check. ─
         assert out["cc"].rows == [], "qa_sidecar mints ZERO content_chunks (INV-5)"
         assert out["em"].rows == [], "qa_sidecar mints ZERO entity_mentions (INV-5)"
