@@ -844,4 +844,43 @@ describe('POST /api/internal/pipeline-runs/record — itemFailures (80.2 §B.4 O
     const result = call.result as Record<string, unknown>;
     expect(result).not.toHaveProperty('item_failures');
   });
+
+  it('accepts a two-key {content, url} tally with no forms key (ID-136 forms-route retirement, ID-127.18 fix)', async () => {
+    // Post-ID-136 (DR-014) the sidecar's _FlowItemFailureCounter no longer
+    // initialises a 'forms' branch (scripts/cocoindex_pipeline/flow.py) —
+    // every terminal emission now carries {'content': m, 'url': k} only.
+    // The route previously 400'd every completion webhook on this shape
+    // (forms was strictly required), sticking pipeline_runs rows at
+    // in_progress forever (S456 {127.30} live finding).
+    const res = await POST(
+      buildRequest({
+        body: makePayload({
+          itemFailures: { content: 1, url: 0 },
+        }),
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    const result = call.result as Record<string, unknown>;
+    expect(result.item_failures).toEqual({ content: 1, url: 0 });
+  });
+
+  it('still accepts a legacy three-key {forms, content, url} tally (dual-accept during sidecar rollout)', async () => {
+    // Old sidecar images (pre-136) may still be in flight during the
+    // deploy window — the forms key, when present, is accepted (and
+    // validated like its siblings) rather than rejected outright.
+    const res = await POST(
+      buildRequest({
+        body: makePayload({
+          itemFailures: { forms: 1, content: 0, url: 0 },
+        }),
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    const result = call.result as Record<string, unknown>;
+    expect(result.item_failures).toEqual({ forms: 1, content: 0, url: 0 });
+  });
 });

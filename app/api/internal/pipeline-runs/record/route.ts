@@ -159,10 +159,22 @@ const BodySchema = z.object({
    * of the pipeline (VPS), so a required `url` would 400 the whole run
    * recording during the align/deploy window — a worse failure than the
    * key-strip this fixes.
+   *
+   * ID-136 (DR-014, forms-route retirement) / ID-127.18 fix (S456 {127.30}
+   * live finding): `_FlowItemFailureCounter.__init__` in
+   * `scripts/cocoindex_pipeline/flow.py` no longer seeds a `'forms'` key —
+   * every post-136 terminal emission carries `{'content': m, 'url': k}`
+   * only, so `forms` moved from required to optional here for the same
+   * independent-deploy-window reason as `url` above (this route otherwise
+   * 400'd EVERY completion webhook, sticking `pipeline_runs` rows at
+   * `in_progress` forever). Left admissible (not removed) so an in-flight
+   * pre-136 sidecar image is still accepted during the rollout window;
+   * nothing downstream reads `item_failures.forms` (grep-verified across
+   * `lib/`, `app/`, `components/`, `hooks/`).
    */
   itemFailures: z
     .object({
-      forms: z.number().int().nonnegative(),
+      forms: z.number().int().nonnegative().optional(),
       content: z.number().int().nonnegative(),
       url: z.number().int().nonnegative().optional(),
     })
