@@ -68,8 +68,6 @@ const clientSchema = z.object({
     .url('NEXT_PUBLIC_SENTRY_DSN must be a valid URL')
     .optional()
     .or(z.literal('')),
-  /** E2E flag — disables CopilotKit during Playwright runs. */
-  NEXT_PUBLIC_E2E: z.enum(['true', 'false']).optional().or(z.literal('')),
 });
 
 export type ClientEnv = z.infer<typeof clientSchema>;
@@ -111,7 +109,6 @@ function parseClientEnv(): ClientEnv {
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_CLIENT_ID: process.env.NEXT_PUBLIC_CLIENT_ID,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
-    NEXT_PUBLIC_E2E: process.env.NEXT_PUBLIC_E2E,
   });
   if (!result.success) {
     throw new Error(

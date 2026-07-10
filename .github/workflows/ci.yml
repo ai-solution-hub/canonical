@@ -407,11 +407,11 @@ jobs:
         # step in the same workspace — no cross-job artifact upload/
         # download is needed (that machinery in e2e-nightly.yml exists
         # only to hand the build off to 4 parallel shard jobs).
-        # ★ LOAD-BEARING: NEXT_PUBLIC_E2E (and every NEXT_PUBLIC_*) is
-        # client-inlined (lib/env-client.ts) and BAKED AT BUILD TIME, not
-        # at `next start`. It MUST be set in THIS step's env, or the
-        # served bundle lacks E2E test-mode and specs flake. Env block
-        # mirrors e2e-nightly.yml's "Build (Next.js prod)" step.
+        # ★ LOAD-BEARING: every NEXT_PUBLIC_* var is client-inlined
+        # (lib/env-client.ts) and BAKED AT BUILD TIME, not at `next
+        # start`. Each MUST be set in THIS step's env, or the served
+        # bundle carries stale/missing values. Env block mirrors
+        # e2e-nightly.yml's "Build (Next.js prod)" step.
         env:
           NODE_OPTIONS: --max-old-space-size=4096
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -427,8 +427,6 @@ jobs:
             ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
           NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
-          # ★ Bakes E2E test mode into the served bundle (see note above).
-          NEXT_PUBLIC_E2E: "true"
           # VERCEL_GIT_COMMIT_SHA is Vercel-only; substitute github.sha so the Sentry release tag resolves.
           VERCEL_GIT_COMMIT_SHA: ${{ github.sha }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
