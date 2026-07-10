@@ -1,17 +1,16 @@
 /**
  * Static shape check for supabase/migrations/20260706100000_id131_facet_mint.sql
- * (ID-131.38 FACET-MINT). This is a SQL-only migration — not applied by this
- * Subtask (owner-gated apply lands later in the {131.19} GO sequence) — so
- * there is no live DB to assert behaviour against yet. This test instead pins
- * the migration file's textual shape: both backfills exist with the BI-19
- * reference_item exclusion documented, both forward-mint triggers exist with
- * ON CONFLICT DO NOTHING, and reference_items is never targeted by an INSERT.
+ * (ID-131.38 FACET-MINT). Confirmed applied and live on staging (a 23505
+ * collision proved the forward-mint trigger fires) via the owner-gated
+ * {131.19} GO sequence. This test pins the migration file's textual shape:
+ * both backfills exist with the BI-19 reference_item exclusion documented,
+ * both forward-mint triggers exist with ON CONFLICT DO NOTHING, and
+ * reference_items is never targeted by an INSERT.
  *
  * Cheap and deliberately non-exhaustive: it is a regression guard against the
  * migration file being edited (e.g. by a later Subtask) in a way that drops
  * one of the two owner_kinds or the idempotency guard, not a substitute for
- * the real post-apply verification (gov review returns 200, not 409) that
- * happens once the migration is actually applied.
+ * a fresh post-apply verification pass.
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'fs';
@@ -118,8 +117,9 @@ describe('20260706100000_id131_facet_mint.sql', () => {
     );
   });
 
-  it('marks the migration as authored-but-not-applied, owner-gated for the {131.19} GO sequence', () => {
-    expect(sql).toMatch(/AUTHORED, NOT APPLIED/);
+  it('marks the migration as applied, landed via the {131.19} GO sequence', () => {
+    expect(sql).toMatch(/APPLIED/);
+    expect(sql).not.toMatch(/AUTHORED, NOT APPLIED/);
     expect(sql).toMatch(/131\.19/);
   });
 });
