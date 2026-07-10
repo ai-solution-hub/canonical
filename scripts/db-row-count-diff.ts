@@ -11,20 +11,37 @@
  *     feedback_supabase_branch_data_empty.md — staging branches start empty
  *     and must be populated separately from schema migrations)
  *
- * Modelled on `scripts/verify-user-profiles-parity.ts` (env-flag pattern,
- * service-role client init, exit-code conventions).
+ * **Mechanism (ID-143.1 — S459 owner-ratified):** the Supabase Management
+ * API's read-only query endpoint —
+ * `POST /v1/projects/{ref}/database/query/read-only` — executed as the
+ * least-privilege `supabase_read_only_user` via a `SUPABASE_ACCESS_TOKEN`
+ * PAT. This replaced a PostgREST-based approach (`supabase-js` `.from()` /
+ * `.rpc()`) that broke after ID-115 unexposed the `public` schema from the
+ * Data API: the script must count EVERY public base table, including the
+ * ~10 INTERNAL_ONLY_TABLES with no `api.*` view, so re-pointing at `api`
+ * views could never cover it — the counting leg needs a mechanism that sees
+ * `public` directly. Pattern lifted from `scripts/run-supabase-advisors.ts`
+ * / the retired `scripts/check-revoke-guard.ts` (direct `fetch()` + Bearer
+ * PAT, no `supabase-js`; Bun 204-hang gotcha).
+ *
+ * Beta-endpoint caveats encoded here:
+ *   - 429 responses are retried with linear backoff (`runManagementQuery`).
+ *   - every entity reference in a query sent to the endpoint is
+ *     schema-qualified (`pg_catalog.pg_tables`, `public."<table>"`) — the
+ *     endpoint has no PostgREST-style schema-exposure notion, so an
+ *     unqualified name would resolve against an unspecified search_path.
+ *   - table names are validated against a plain-identifier allowlist
+ *     (`assertSafeTableIdentifier`) before being interpolated into SQL,
+ *     since they are schema-qualified by string concatenation, not a
+ *     parameterised query (the Management API query endpoint has no bind
+ *     parameters).
  *
  * **Environment variables required:**
- *   For each side (source, target) the script picks up the URL + service-role
- *   key from one of:
- *     - SOURCE_SUPABASE_URL / SOURCE_SUPABASE_SERVICE_ROLE_KEY
- *     - TARGET_SUPABASE_URL / TARGET_SUPABASE_SERVICE_ROLE_KEY
- *   When the side flag is `prod` or `staging`, you may instead set:
- *     - PROD_SUPABASE_URL / PROD_SUPABASE_SERVICE_ROLE_KEY
- *     - STAGING_SUPABASE_URL / STAGING_SUPABASE_SERVICE_ROLE_KEY
- *   When ONE side resolves to the URL in NEXT_PUBLIC_SUPABASE_URL /
- *   SUPABASE_URL with SUPABASE_SERVICE_ROLE_KEY, those defaults are used as
- *   the last-resort fallback.
+ *   - `SUPABASE_ACCESS_TOKEN` — Management API PAT (shared by both sides).
+ *   - Project refs per side, resolved via `scripts/lib/project-refs.ts`
+ *     (`--env`-flag conventions): `source`/`target` of `prod` maps to
+ *     `PROD_PROJECT_REF`, `staging` maps to `STAGING_PROJECT_REF`. Refs are
+ *     runtime-only — never hardcoded in committed source.
  *
  * **Usage:**
  *   bun run scripts/db-row-count-diff.ts                          # default prod→staging
@@ -34,12 +51,14 @@
  *   bun run scripts/db-row-count-diff.ts --output-dir=/tmp/diff
  *
  * **Auto-inventory dependency:**
- *   When `--tables=...` is omitted, the script invokes RPC
- *   `public.list_public_tables()` (returns `setof text` of public-schema
- *   tablenames excluding partitions and views). If that RPC is missing, the
- *   script exits with EXIT_QUERY_FAILED and a hint to apply the migration
- *   that ships it. Operators can pass `--tables=<csv>` as a workaround until
- *   the RPC is live.
+ *   When `--tables=...` is omitted, the script queries
+ *   `pg_catalog.pg_tables` on the source side for every `public` base table
+ *   whose name does not start with `_` (mirrors the retired
+ *   `public.list_public_tables()` RPC's filter — kept for continuity, not
+ *   because the RPC is still reachable: `supabase_read_only_user` has no
+ *   EXECUTE grant on it, confirmed empirically against the endpoint).
+ *   Operators can pass `--tables=<csv>` as a workaround if the inventory
+ *   query fails.
  *
  * **Allowlist:**
  *   `scripts/db-row-count-diff-allowlist.json` keyed by table name. Two value
@@ -51,7 +70,7 @@
  * **Exit codes:**
  *   0  no drift OR all drift covered by allowlist
  *   1  out-of-allowlist drift (operator action required)
- *   2  query failure — probe could not run (RPC missing, network, etc.)
+ *   2  query failure — probe could not run (missing token/ref, network, etc.)
  *
  * **Outputs:**
  *   - stdout markdown table summarising per-table delta
@@ -59,8 +78,6 @@
  *     to `--output-dir` (default: cwd) for CI consumption
  */
 
-import { type SupabaseClient } from '@supabase/supabase-js';
-import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import { prodProjectRef, stagingProjectRef } from '@/scripts/lib/project-refs';
 import fs from 'fs';
 import path from 'path';
@@ -74,8 +91,13 @@ export const EXIT_OK = 0;
 export const EXIT_DRIFT = 1;
 export const EXIT_QUERY_FAILED = 2;
 
-/** Cap on parallel `count(*)` queries — Supabase rate-limit guard. */
-const MAX_PARALLEL_COUNT_QUERIES = 10;
+/**
+ * Cap on parallel Management API count queries per side — Beta-endpoint
+ * rate-limit guard. Lower than the old PostgREST count-query cap since the
+ * Management API's rate limit is materially tighter (journal 143.1 caveat);
+ * combined with `runManagementQuery`'s own 429 retry/backoff.
+ */
+const MAX_PARALLEL_MANAGEMENT_QUERIES = 5;
 
 /** Default allowlist path (relative to scripts/). */
 const DEFAULT_ALLOWLIST_PATH = path.join(
@@ -94,7 +116,7 @@ export interface CliArgs {
   source: Side;
   /** Target DB role — defaults to 'staging'. */
   target: Side;
-  /** Optional explicit table list (csv). When null, auto-discover via RPC. */
+  /** Optional explicit table list (csv). When null, auto-discover via query. */
   tables: string[] | null;
   /** Allowlist JSON path. */
   allowlistPath: string;
@@ -480,8 +502,8 @@ export interface JsonSidecar {
   generatedAt: string;
   source: Side;
   target: Side;
-  sourceUrl: string;
-  targetUrl: string;
+  sourceRef: string;
+  targetRef: string;
   summary: DiffSummary;
   rows: DiffRow[];
 }
@@ -491,16 +513,16 @@ export function buildJsonSidecar(args: {
   rows: DiffRow[];
   source: Side;
   target: Side;
-  sourceUrl: string;
-  targetUrl: string;
+  sourceRef: string;
+  targetRef: string;
   generatedAt?: string;
 }): JsonSidecar {
   return {
     generatedAt: args.generatedAt ?? new Date().toISOString(),
     source: args.source,
     target: args.target,
-    sourceUrl: args.sourceUrl,
-    targetUrl: args.targetUrl,
+    sourceRef: args.sourceRef,
+    targetRef: args.targetRef,
     summary: summariseDiff(args.rows),
     rows: args.rows,
   };
@@ -548,80 +570,176 @@ function loadEnv(): void {
 }
 
 /**
- * Resolve the (URL, service-role key) pair for a given side.
- *
- * Lookup order, by side:
- *   1. SOURCE_*  / TARGET_*  (side-specific)
- *   2. PROD_*    / STAGING_* (role-specific)
- *   3. NEXT_PUBLIC_SUPABASE_URL/SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
- *      — used as last-resort default when its project ref matches the side.
+ * Resolve the Supabase project ref for a given side, per
+ * `scripts/lib/project-refs.ts` conventions: `prod` → `PROD_PROJECT_REF`,
+ * `staging` → `STAGING_PROJECT_REF`. Refs are runtime-only (never hardcoded
+ * in committed source) — the underlying getters throw a fail-loud error if
+ * the env var is unset.
  */
-export function resolveCredentials(
-  side: Side,
-  whichSlot: 'source' | 'target',
-  env: Record<string, string | undefined> = process.env,
-): { url: string | null; key: string | null } {
-  const slotPrefix = whichSlot.toUpperCase(); // SOURCE | TARGET
-  const slotUrl = env[`${slotPrefix}_SUPABASE_URL`];
-  const slotKey = env[`${slotPrefix}_SUPABASE_SERVICE_ROLE_KEY`];
-  if (slotUrl && slotKey) return { url: slotUrl, key: slotKey };
-
-  const rolePrefix = side.toUpperCase(); // PROD | STAGING
-  const roleUrl = env[`${rolePrefix}_SUPABASE_URL`];
-  const roleKey = env[`${rolePrefix}_SUPABASE_SERVICE_ROLE_KEY`];
-  if (roleUrl && roleKey) return { url: roleUrl, key: roleKey };
-
-  const fallbackUrl = env.NEXT_PUBLIC_SUPABASE_URL ?? env.SUPABASE_URL ?? null;
-  const fallbackKey = env.SUPABASE_SERVICE_ROLE_KEY ?? null;
-  if (fallbackUrl && fallbackKey) {
-    const expectedRef =
-      side === 'prod' ? prodProjectRef() : stagingProjectRef();
-    if (fallbackUrl.includes(expectedRef)) {
-      return { url: fallbackUrl, key: fallbackKey };
-    }
-  }
-
-  return { url: null, key: null };
+export function resolveProjectRef(side: Side): string {
+  return side === 'prod' ? prodProjectRef() : stagingProjectRef();
 }
 
 // ---------------------------------------------------------------------------
-// Live DB calls (thin wrappers, mocked at test time)
+// Supabase Management API (read-only query endpoint)
 // ---------------------------------------------------------------------------
 
-/**
- * Subset of the Supabase client shape we use. We type as `SupabaseClient`
- * directly here; tests cast their mocks via `as unknown as SupabaseClient`
- * (matching the `scripts/export-user-data.ts` precedent).
- */
-type SimpleSupabaseClient = SupabaseClient;
+const MANAGEMENT_API_BASE = 'https://api.supabase.com/v1';
+
+export class ManagementApiError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ManagementApiError';
+  }
+}
+
+/** Bounded-retry tuning for Management API 429s (Beta-endpoint rate limit). */
+export interface ManagementApiRetryOptions {
+  /** Total attempts including the first (default 5). */
+  attempts: number;
+  /** Base backoff in ms; wait = backoffMs * attempt (linear). Default 1000. */
+  backoffMs: number;
+  /** Sleep seam — overridden in tests to avoid real waits. */
+  sleep: (ms: number) => Promise<void>;
+}
+
+const DEFAULT_MANAGEMENT_API_RETRY: ManagementApiRetryOptions = {
+  attempts: 5,
+  backoffMs: 1000,
+  sleep: (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
+};
+
+export interface ManagementQueryOptions {
+  /** Injectable for tests; defaults to the global fetch. */
+  fetchImpl?: typeof fetch;
+  /** Injectable for tests; defaults to DEFAULT_MANAGEMENT_API_RETRY. */
+  retry?: Partial<ManagementApiRetryOptions>;
+}
 
 /**
- * Auto-discover the public-table inventory by calling RPC
- * `list_public_tables()`. Returns the table names sorted alphabetically.
+ * Run one read-only SQL statement against a project via the Supabase
+ * Management API's read-only query endpoint (executes as
+ * `supabase_read_only_user` — least-privilege; no service-role key or
+ * DB-password secret required beyond the PAT). Beta endpoint: 429
+ * responses are retried with linear backoff before throwing.
  *
- * This RPC must be present in the project schema. If missing, throws — the
- * caller maps the throw to EXIT_QUERY_FAILED with a hint to apply the
- * migration shipping the RPC.
+ * Callers MUST schema-qualify every entity reference in `sql` — unlike
+ * PostgREST, this endpoint has no schema-exposure allowlist, but an
+ * unqualified name still resolves against an unspecified connection
+ * search_path, so qualification is the only way to pin the target schema.
+ */
+export async function runManagementQuery(
+  ref: string,
+  token: string,
+  sql: string,
+  options: ManagementQueryOptions = {},
+): Promise<unknown[]> {
+  const f = options.fetchImpl ?? fetch;
+  const retry: ManagementApiRetryOptions = {
+    ...DEFAULT_MANAGEMENT_API_RETRY,
+    ...options.retry,
+  };
+  const attempts = Math.max(1, retry.attempts);
+  const url = `${MANAGEMENT_API_BASE}/projects/${ref}/database/query/read-only`;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const res = await f(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query: sql }),
+    });
+
+    if (res.status === 429) {
+      const body = await res.text();
+      if (attempt < attempts) {
+        await retry.sleep(retry.backoffMs * attempt);
+        continue;
+      }
+      throw new ManagementApiError(
+        `Management API POST /database/query/read-only rate-limited (429) ` +
+          `for ${ref} after ${attempts} attempt(s): ${body.slice(0, 300)}`,
+      );
+    }
+
+    if (!res.ok) {
+      const body = await res.text();
+      throw new ManagementApiError(
+        `Management API POST /database/query/read-only failed for ${ref}: ` +
+          `HTTP ${res.status} — ${body.slice(0, 500)}`,
+      );
+    }
+
+    const json = await res.json();
+    if (!Array.isArray(json)) {
+      throw new ManagementApiError(
+        `Management API POST /database/query/read-only returned a ` +
+          `non-array payload for ${ref}: ${JSON.stringify(json).slice(0, 200)}`,
+      );
+    }
+    return json;
+  }
+  // Unreachable — the loop above always returns or throws.
+  throw new ManagementApiError(
+    `Management API query exhausted retries for ${ref} with no result.`,
+  );
+}
+
+const SAFE_TABLE_IDENTIFIER_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+/**
+ * Guard against building unsafe SQL from a table name. Every count(*) query
+ * interpolates `table` directly into a schema-qualified `public."<table>"`
+ * reference (the Management API query endpoint has no bind parameters), so
+ * a name must be a plain SQL identifier — no quotes, whitespace, or
+ * statement-terminating characters.
+ */
+export function assertSafeTableIdentifier(table: string): void {
+  if (!SAFE_TABLE_IDENTIFIER_RE.test(table)) {
+    throw new Error(
+      `db-row-count-diff: unsafe table identifier '${table}' — expected to ` +
+        `match ${SAFE_TABLE_IDENTIFIER_RE}.`,
+    );
+  }
+}
+
+/**
+ * Auto-discover the public-table inventory via the Management API read-only
+ * query endpoint, querying `pg_catalog.pg_tables` directly. Mirrors the
+ * retired `public.list_public_tables()` RPC's filter (every `public` base
+ * table excluding leading-underscore helpers, e.g. `_backup_*`, `_test_*`)
+ * for continuity — NOT by calling that RPC, which `supabase_read_only_user`
+ * cannot execute (confirmed empirically: permission denied). Reading the
+ * catalog directly also means this surfaces the ~10 INTERNAL_ONLY_TABLES
+ * that have no `api.*` view (ID-115 posture), which a PostgREST-routed call
+ * could never see.
  */
 export async function fetchTableInventory(
-  client: SimpleSupabaseClient,
+  ref: string,
+  token: string,
+  options: ManagementQueryOptions = {},
 ): Promise<string[]> {
-  const { data, error } = await client.rpc('list_public_tables');
-  if (error) {
+  const sql =
+    'SELECT tablename::text AS tablename FROM pg_catalog.pg_tables ' +
+    "WHERE schemaname = 'public' " +
+    "AND tablename NOT LIKE E'\\\\_%' ESCAPE E'\\\\' " +
+    'ORDER BY tablename;';
+
+  let rows: unknown[];
+  try {
+    rows = await runManagementQuery(ref, token, sql, options);
+  } catch (err) {
     throw new Error(
-      `RPC list_public_tables() failed: ${error.message ?? String(error)}. ` +
-        `Either apply the migration that ships the RPC or pass --tables=<csv>.`,
+      `public-table inventory query failed: ` +
+        `${err instanceof Error ? err.message : String(err)}. ` +
+        `Pass --tables=<csv> as a workaround.`,
     );
   }
-  if (!Array.isArray(data)) {
-    throw new Error(
-      `RPC list_public_tables() returned non-array: ${JSON.stringify(data)}`,
-    );
-  }
-  // Coerce; accept rows of {tablename: string} or plain strings.
-  const names = data
+
+  const names = rows
     .map((row: unknown) => {
-      if (typeof row === 'string') return row;
       if (
         row !== null &&
         typeof row === 'object' &&
@@ -638,44 +756,68 @@ export async function fetchTableInventory(
 
 /** Count rows in a single table. Used by countAllTables (which throttles). */
 export async function countOneTable(
-  client: SimpleSupabaseClient,
+  ref: string,
+  token: string,
   table: string,
+  options: ManagementQueryOptions = {},
 ): Promise<number | null> {
-  const { count, error } = await client
-    .from(table)
-    .select('*', { count: 'exact', head: true });
-  if (error) {
-    // Postgres relation-not-found
-    if ((error as { code?: string }).code === '42P01') {
+  assertSafeTableIdentifier(table);
+  const sql = `SELECT count(*) AS count FROM public."${table}";`;
+  try {
+    const rows = await runManagementQuery(ref, token, sql, options);
+    const row = rows[0] as Record<string, unknown> | undefined;
+    const raw = row?.count;
+    const n =
+      typeof raw === 'number'
+        ? raw
+        : typeof raw === 'string'
+          ? Number(raw)
+          : NaN;
+    if (!Number.isFinite(n)) {
+      throw new Error(
+        `count(*) FROM public.${table} returned an unexpected shape: ${JSON.stringify(row)}`,
+      );
+    }
+    return n;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    // Postgres relation-not-found (42P01), surfaced via the Management
+    // API's error body text (empirically confirmed shape: `"...ERROR:
+    // 42P01: relation \"public.x\" does not exist..."`).
+    if (/42P01/.test(message) || /does not exist/i.test(message)) {
       return null;
     }
-    throw new Error(
-      `count(*) FROM ${table} failed: ${error.message ?? String(error)}`,
-    );
+    throw new Error(`count(*) FROM public.${table} failed: ${message}`);
   }
-  return count ?? 0;
+}
+
+export interface CountAllTablesOptions extends ManagementQueryOptions {
+  /** Cap on parallel in-flight count queries (default: MAX_PARALLEL_MANAGEMENT_QUERIES). */
+  maxParallel?: number;
 }
 
 /**
- * Count rows in every named table on the given client, capped at
- * MAX_PARALLEL_COUNT_QUERIES concurrent queries to stay friendly with
- * Supabase's REST rate limit. Returns one entry per input table; entries
- * for missing tables have count === null.
+ * Count rows in every named table on the given project ref, capped at
+ * `maxParallel` concurrent Management API queries to stay within the Beta
+ * endpoint's rate limit. Returns one entry per input table; entries for
+ * missing tables have count === null.
  *
- * Exported for unit tests that mock SimpleSupabaseClient.
+ * Exported for unit tests that mock the `fetchImpl` seam.
  */
 export async function countAllTables(
-  client: SimpleSupabaseClient,
+  ref: string,
+  token: string,
   tables: string[],
-  maxParallel = MAX_PARALLEL_COUNT_QUERIES,
+  options: CountAllTablesOptions = {},
 ): Promise<Array<{ table: string; count: number | null }>> {
+  const maxParallel = options.maxParallel ?? MAX_PARALLEL_MANAGEMENT_QUERIES;
   const results: Array<{ table: string; count: number | null }> = [];
   for (let i = 0; i < tables.length; i += maxParallel) {
     const batch = tables.slice(i, i + maxParallel);
     const batchResults = await Promise.all(
       batch.map(async (t) => ({
         table: t,
-        count: await countOneTable(client, t),
+        count: await countOneTable(ref, token, t, options),
       })),
     );
     results.push(...batchResults);
@@ -696,7 +838,7 @@ Usage:
 Options:
   --source=prod|staging      Source DB (default: prod)
   --target=prod|staging      Target DB (default: staging)
-  --tables=A,B,C             Explicit table list (CSV); skips RPC inventory
+  --tables=A,B,C             Explicit table list (CSV); skips inventory query
   --allowlist=<path>         Allowlist JSON path (default: scripts/db-row-count-diff-allowlist.json)
   --output-dir=<dir>         Output dir for JSON sidecar (default: cwd)
   -h, --help                 Show this help
@@ -704,14 +846,13 @@ Options:
 Exit codes:
   0  no drift OR all drift covered by allowlist
   1  out-of-allowlist drift
-  2  query failure (missing RPC, network error, missing env vars)
+  2  query failure (missing token/ref, network error, missing env vars)
 
-Environment variables (each side):
-  SOURCE_SUPABASE_URL / SOURCE_SUPABASE_SERVICE_ROLE_KEY
-  TARGET_SUPABASE_URL / TARGET_SUPABASE_SERVICE_ROLE_KEY
-  …or PROD_*/STAGING_* equivalents,
-  …or NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (fallback,
-     ref-matched against the requested side).
+Environment variables:
+  SUPABASE_ACCESS_TOKEN   Supabase Management API PAT (shared by both sides)
+  PROD_PROJECT_REF        Project ref used when a side resolves to 'prod'
+  STAGING_PROJECT_REF     Project ref used when a side resolves to 'staging'
+  (see scripts/lib/project-refs.ts for the full resolution contract)
 `.trim();
 
 async function main(args: CliArgs): Promise<number> {
@@ -724,64 +865,26 @@ async function main(args: CliArgs): Promise<number> {
     return EXIT_QUERY_FAILED;
   }
 
-  // Resolve creds for both sides.
-  const sourceCreds = resolveCredentials(args.source, 'source');
-  const targetCreds = resolveCredentials(args.target, 'target');
-  if (!sourceCreds.url || !sourceCreds.key) {
+  const accessToken = process.env.SUPABASE_ACCESS_TOKEN?.trim();
+  if (!accessToken) {
     console.error(
-      `db-row-count-diff: missing source (${args.source}) Supabase URL/service-role key.\n` +
-        `Set SOURCE_SUPABASE_URL/SOURCE_SUPABASE_SERVICE_ROLE_KEY or ${args.source.toUpperCase()}_SUPABASE_URL/_SERVICE_ROLE_KEY.`,
-    );
-    return EXIT_QUERY_FAILED;
-  }
-  if (!targetCreds.url || !targetCreds.key) {
-    console.error(
-      `db-row-count-diff: missing target (${args.target}) Supabase URL/service-role key.\n` +
-        `Set TARGET_SUPABASE_URL/TARGET_SUPABASE_SERVICE_ROLE_KEY or ${args.target.toUpperCase()}_SUPABASE_URL/_SERVICE_ROLE_KEY.`,
+      'db-row-count-diff: missing SUPABASE_ACCESS_TOKEN (Supabase Management ' +
+        'API PAT). Set it in .env.local or export it before running.',
     );
     return EXIT_QUERY_FAILED;
   }
 
-  // Defensive ref assertion.
-  if (args.source === 'prod' && !sourceCreds.url.includes(prodProjectRef())) {
+  let sourceRef: string;
+  let targetRef: string;
+  try {
+    sourceRef = resolveProjectRef(args.source);
+    targetRef = resolveProjectRef(args.target);
+  } catch (err) {
     console.error(
-      `db-row-count-diff: --source=prod but URL does not include '${prodProjectRef()}'.`,
+      `db-row-count-diff: ${err instanceof Error ? err.message : String(err)}`,
     );
     return EXIT_QUERY_FAILED;
   }
-  if (
-    args.source === 'staging' &&
-    !sourceCreds.url.includes(stagingProjectRef())
-  ) {
-    console.error(
-      `db-row-count-diff: --source=staging but URL does not include '${stagingProjectRef()}'.`,
-    );
-    return EXIT_QUERY_FAILED;
-  }
-  if (args.target === 'prod' && !targetCreds.url.includes(prodProjectRef())) {
-    console.error(
-      `db-row-count-diff: --target=prod but URL does not include '${prodProjectRef()}'.`,
-    );
-    return EXIT_QUERY_FAILED;
-  }
-  if (
-    args.target === 'staging' &&
-    !targetCreds.url.includes(stagingProjectRef())
-  ) {
-    console.error(
-      `db-row-count-diff: --target=staging but URL does not include '${stagingProjectRef()}'.`,
-    );
-    return EXIT_QUERY_FAILED;
-  }
-
-  const sourceClient = createScriptClient(sourceCreds.url, sourceCreds.key, {
-    db: { schema: 'public' },
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const targetClient = createScriptClient(targetCreds.url, targetCreds.key, {
-    db: { schema: 'public' },
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
 
   // Resolve allowlist.
   const { allowlist, error: allowlistErr } = loadAllowlist(args.allowlistPath);
@@ -794,7 +897,7 @@ async function main(args: CliArgs): Promise<number> {
   let tables = args.tables;
   if (!tables) {
     try {
-      tables = await fetchTableInventory(sourceClient);
+      tables = await fetchTableInventory(sourceRef, accessToken);
     } catch (err) {
       console.error(
         `db-row-count-diff: ${err instanceof Error ? err.message : String(err)}`,
@@ -810,14 +913,15 @@ async function main(args: CliArgs): Promise<number> {
 
   // Count both sides in parallel-batched mode.
   console.error(
-    `db-row-count-diff: counting ${tables.length} table(s) on ${args.source} and ${args.target}…`,
+    `db-row-count-diff: counting ${tables.length} table(s) on ` +
+      `${args.source} (${sourceRef}) and ${args.target} (${targetRef})…`,
   );
   let sourceCounts: Array<{ table: string; count: number | null }>;
   let targetCounts: Array<{ table: string; count: number | null }>;
   try {
     [sourceCounts, targetCounts] = await Promise.all([
-      countAllTables(sourceClient, tables),
-      countAllTables(targetClient, tables),
+      countAllTables(sourceRef, accessToken, tables),
+      countAllTables(targetRef, accessToken, tables),
     ]);
   } catch (err) {
     console.error(
@@ -844,8 +948,8 @@ async function main(args: CliArgs): Promise<number> {
     rows,
     source: args.source,
     target: args.target,
-    sourceUrl: sourceCreds.url,
-    targetUrl: targetCreds.url,
+    sourceRef,
+    targetRef,
     generatedAt,
   });
   const sidecarPath = path.join(args.outputDir, sidecarFilename(generatedAt));

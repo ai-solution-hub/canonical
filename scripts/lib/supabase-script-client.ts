@@ -19,16 +19,16 @@
  * same cast seam the app factories use (see `lib/supabase/schema.ts` for why we
  * route to `api` at runtime but stay typed against `public`).
  *
- * ── Opting a script out (DDL / cutover / non-surface tooling) ──
- * A script that must speak to `public` directly — e.g. it enumerates *every*
- * public base table including ones with no `api` view, runs raw DDL, or reads
- * `information_schema` / `pg_catalog` — passes an explicit `public` schema,
- * which wins over the `api` default:
- *
- *   const supabase = createScriptClient(url, key, { db: { schema: 'public' } });
- *
- * (`scripts/db-row-count-diff.ts` is the canonical opt-out: it counts rows of
- * every public table via `list_public_tables`, many of which are unexposed.)
+ * A script that must speak to `public` directly (raw DDL, `information_schema`
+ * / `pg_catalog` reads, or anything else PostgREST cannot reach) is NOT this
+ * wrapper's job to route around: `db.schema: 'public'` still overrides the
+ * `api` default mechanically (see `apiOptions` below), but a script that needs
+ * to see every base table including ones with no `api` view — including the
+ * INTERNAL_ONLY_TABLES that PostgREST never exposes — should use the
+ * Supabase Management API's read-only query endpoint instead (direct SQL via
+ * `fetch()` + PAT; see `scripts/db-row-count-diff.ts` / ID-143.1 for the
+ * pattern). That endpoint sees `public` unconditionally and needs no
+ * `supabase-js` client at all.
  */
 import {
   createClient,
@@ -46,8 +46,9 @@ const apiOptions = (options: SupabaseClientOptions<'public'>) => ({
  * Create a script-side Supabase client routed to the `api` schema at runtime
  * (typed against `Database` via the `DB_OPTION` seam — same posture the app
  * factories use). Any caller-supplied options pass through; a caller-supplied
- * `db.schema` overrides the `api` default (the documented `.schema('public')`
- * escape hatch for DDL-adjacent scripts, e.g. `db-row-count-diff.ts`).
+ * `db.schema` overrides the `api` default, but see the module doc-comment
+ * above for why a script needing full unfiltered `public` visibility should
+ * reach for the Management API pattern instead of this override.
  */
 export function createScriptClient(
   url: string,

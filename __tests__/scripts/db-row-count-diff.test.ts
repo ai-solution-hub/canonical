@@ -1,7 +1,7 @@
 /**
  * Vitest unit tests for `scripts/db-row-count-diff.ts`.
  *
- * Covers (per WP-G3.5 acceptance criteria):
+ * Covers (per WP-G3.5 acceptance criteria + ID-143.1 Management API re-point):
  *   - parseCliArgs: happy + sad path; --source/--target/--tables/--allowlist
  *   - parseAllowlist + loadAllowlist: empty / non-empty / malformed
  *   - computeDiff: zero delta, expected-empty, within-allowlist,
@@ -9,12 +9,15 @@
  *   - summariseDiff: counter aggregation
  *   - renderMarkdown: header + body + status sort order
  *   - buildJsonSidecar + sidecarFilename: shape + filename safety
- *   - resolveCredentials: SOURCE_/TARGET_, PROD_/STAGING_, fallback chain
- *   - fetchTableInventory + countAllTables: live-DB calls mocked via the
- *     shared `createMockSupabaseClient()` helper
+ *   - resolveProjectRef: prod → PROD_PROJECT_REF, staging → STAGING_PROJECT_REF
+ *   - runManagementQuery: success, 429 retry/backoff + exhaustion, non-ok,
+ *     non-array payload (fetchImpl mocked — no real network)
+ *   - assertSafeTableIdentifier: accepts plain identifiers, rejects
+ *     anything that could break out of the interpolated SQL
+ *   - fetchTableInventory + countOneTable + countAllTables: Management API
+ *     calls mocked via an injected `fetchImpl`
  */
 import { describe, it, expect, vi } from 'vitest';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   parseCliArgs,
   parseAllowlist,
@@ -24,7 +27,9 @@ import {
   renderMarkdown,
   buildJsonSidecar,
   sidecarFilename,
-  resolveCredentials,
+  resolveProjectRef,
+  runManagementQuery,
+  assertSafeTableIdentifier,
   fetchTableInventory,
   countOneTable,
   countAllTables,
@@ -34,10 +39,37 @@ import {
   type RowCount,
   type DiffRow,
 } from '../../scripts/db-row-count-diff';
-import { createMockSupabaseClient } from '../helpers/mock-supabase';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+
+// ---------------------------------------------------------------------------
+// Fetch-mock helpers (Management API responses)
+// ---------------------------------------------------------------------------
+
+/** A Response-shaped stub carrying only the fields db-row-count-diff.ts reads. */
+type FakeResponse = Pick<Response, 'ok' | 'status' | 'json' | 'text'>;
+
+function jsonResponse(status: number, body: unknown): FakeResponse {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+    text: async () => JSON.stringify(body),
+  };
+}
+
+function textErrorResponse(status: number, bodyText: string): FakeResponse {
+  return {
+    ok: false,
+    status,
+    json: async () => JSON.parse(bodyText),
+    text: async () => bodyText,
+  };
+}
+
+/** No-wait retry options — tests never sleep for real. */
+const NO_WAIT_RETRY = { sleep: async () => {} };
 
 // ---------------------------------------------------------------------------
 // parseCliArgs
@@ -410,16 +442,16 @@ describe('buildJsonSidecar', () => {
       rows,
       source: 'prod',
       target: 'staging',
-      sourceUrl: 'https://prod.example/',
-      targetUrl: 'https://staging.example/',
+      sourceRef: 'prod-ref-000',
+      targetRef: 'staging-ref-000',
       generatedAt: '2026-04-29T12:00:00.000Z',
     });
     expect(sidecar).toEqual({
       generatedAt: '2026-04-29T12:00:00.000Z',
       source: 'prod',
       target: 'staging',
-      sourceUrl: 'https://prod.example/',
-      targetUrl: 'https://staging.example/',
+      sourceRef: 'prod-ref-000',
+      targetRef: 'staging-ref-000',
       summary: {
         matched: 1,
         expectedEmpty: 0,
@@ -436,8 +468,8 @@ describe('buildJsonSidecar', () => {
       rows: [],
       source: 'prod',
       target: 'staging',
-      sourceUrl: '',
-      targetUrl: '',
+      sourceRef: '',
+      targetRef: '',
     });
     expect(sidecar.generatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
@@ -459,223 +491,316 @@ describe('sidecarFilename', () => {
 });
 
 // ---------------------------------------------------------------------------
-// resolveCredentials
+// resolveProjectRef
 // ---------------------------------------------------------------------------
 
-describe('resolveCredentials', () => {
-  it('prefers SOURCE_/TARGET_ slot variables', () => {
-    const env = {
-      SOURCE_SUPABASE_URL: 'https://src.example/',
-      SOURCE_SUPABASE_SERVICE_ROLE_KEY: 'src-key',
-      PROD_SUPABASE_URL: 'https://prod.example/',
-      PROD_SUPABASE_SERVICE_ROLE_KEY: 'prod-key',
-    };
-    expect(resolveCredentials('prod', 'source', env)).toEqual({
-      url: 'https://src.example/',
-      key: 'src-key',
-    });
+describe('resolveProjectRef', () => {
+  it('resolves prod via PROD_PROJECT_REF', () => {
+    const prev = process.env.PROD_PROJECT_REF;
+    process.env.PROD_PROJECT_REF = 'prod-ref-abc';
+    try {
+      expect(resolveProjectRef('prod')).toBe('prod-ref-abc');
+    } finally {
+      if (prev === undefined) delete process.env.PROD_PROJECT_REF;
+      else process.env.PROD_PROJECT_REF = prev;
+    }
   });
 
-  it('falls back to PROD_/STAGING_ when slot variables are missing', () => {
-    const env = {
-      PROD_SUPABASE_URL: 'https://prod.example/',
-      PROD_SUPABASE_SERVICE_ROLE_KEY: 'prod-key',
-    };
-    expect(resolveCredentials('prod', 'source', env)).toEqual({
-      url: 'https://prod.example/',
-      key: 'prod-key',
-    });
+  it('resolves staging via STAGING_PROJECT_REF', () => {
+    const prev = process.env.STAGING_PROJECT_REF;
+    process.env.STAGING_PROJECT_REF = 'staging-ref-xyz';
+    try {
+      expect(resolveProjectRef('staging')).toBe('staging-ref-xyz');
+    } finally {
+      if (prev === undefined) delete process.env.STAGING_PROJECT_REF;
+      else process.env.STAGING_PROJECT_REF = prev;
+    }
   });
 
-  it('uses SUPABASE_URL fallback when ref matches', () => {
-    const env = {
-      NEXT_PUBLIC_SUPABASE_URL: 'https://exampleprodref000000.supabase.co',
-      SUPABASE_SERVICE_ROLE_KEY: 'k',
-    };
-    expect(resolveCredentials('prod', 'source', env)).toEqual({
-      url: 'https://exampleprodref000000.supabase.co',
-      key: 'k',
-    });
-  });
-
-  it('does NOT use SUPABASE_URL fallback when ref mismatches', () => {
-    // A URL whose project ref does NOT match the requested side's expected ref:
-    // a synthetic placeholder ref suffices (the specific value is irrelevant —
-    // the assertion is that a non-matching ref yields null/null).
-    const env = {
-      NEXT_PUBLIC_SUPABASE_URL: 'https://exampleprojectref000.supabase.co',
-      SUPABASE_SERVICE_ROLE_KEY: 'k',
-    };
-    expect(resolveCredentials('staging', 'source', env)).toEqual({
-      url: null,
-      key: null,
-    });
-  });
-
-  it('returns nulls when nothing matches', () => {
-    expect(resolveCredentials('prod', 'source', {})).toEqual({
-      url: null,
-      key: null,
-    });
+  it('throws a fail-loud error when the ref env var is unset', () => {
+    const prev = process.env.PROD_PROJECT_REF;
+    delete process.env.PROD_PROJECT_REF;
+    try {
+      expect(() => resolveProjectRef('prod')).toThrow(/PROD_PROJECT_REF/);
+    } finally {
+      if (prev !== undefined) process.env.PROD_PROJECT_REF = prev;
+    }
   });
 });
 
 // ---------------------------------------------------------------------------
-// fetchTableInventory (mocked via createMockSupabaseClient)
+// runManagementQuery (fetchImpl mocked)
+// ---------------------------------------------------------------------------
+
+describe('runManagementQuery', () => {
+  it('returns the parsed row array on success', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(201, [{ tablename: 'users' }]));
+    const rows = await runManagementQuery('ref1', 'tok', 'SELECT 1;', {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    expect(rows).toEqual([{ tablename: 'users' }]);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://api.supabase.com/v1/projects/ref1/database/query/read-only',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ Authorization: 'Bearer tok' }),
+        body: JSON.stringify({ query: 'SELECT 1;' }),
+      }),
+    );
+  });
+
+  it('retries after a 429 and succeeds on the next attempt', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(textErrorResponse(429, 'rate limited'))
+      .mockResolvedValueOnce(jsonResponse(201, [{ count: 1 }]));
+    const rows = await runManagementQuery('ref1', 'tok', 'SELECT 1;', {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      retry: { ...NO_WAIT_RETRY, attempts: 3, backoffMs: 1 },
+    });
+    expect(rows).toEqual([{ count: 1 }]);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('throws once 429 retries are exhausted', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(textErrorResponse(429, 'still rate limited'));
+    await expect(
+      runManagementQuery('ref1', 'tok', 'SELECT 1;', {
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+        retry: { ...NO_WAIT_RETRY, attempts: 2, backoffMs: 1 },
+      }),
+    ).rejects.toThrow(/rate-limited \(429\)/);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('throws with the response body on a non-429 error status', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(textErrorResponse(400, 'bad sql'));
+    await expect(
+      runManagementQuery('ref1', 'tok', 'SELECT 1;', {
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      }),
+    ).rejects.toThrow(/HTTP 400.*bad sql/s);
+  });
+
+  it('throws when the payload is not an array', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(201, { not: 'an array' }));
+    await expect(
+      runManagementQuery('ref1', 'tok', 'SELECT 1;', {
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      }),
+    ).rejects.toThrow(/non-array payload/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// assertSafeTableIdentifier
+// ---------------------------------------------------------------------------
+
+describe('assertSafeTableIdentifier', () => {
+  it('accepts plain snake_case identifiers', () => {
+    expect(() => assertSafeTableIdentifier('content_items')).not.toThrow();
+    expect(() =>
+      assertSafeTableIdentifier('_leading_underscore'),
+    ).not.toThrow();
+  });
+
+  it('rejects identifiers containing quotes or SQL-breaking characters', () => {
+    expect(() => assertSafeTableIdentifier('x"; DROP TABLE y; --')).toThrow(
+      /unsafe table identifier/,
+    );
+    expect(() => assertSafeTableIdentifier('has space')).toThrow(
+      /unsafe table identifier/,
+    );
+    expect(() => assertSafeTableIdentifier('')).toThrow(
+      /unsafe table identifier/,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fetchTableInventory (fetchImpl mocked)
 // ---------------------------------------------------------------------------
 
 describe('fetchTableInventory', () => {
-  it('returns sorted unique table names from string-array RPC result', async () => {
-    const mock = createMockSupabaseClient();
-    mock.rpc.mockResolvedValueOnce({
-      data: ['users', 'content_items', 'users'],
-      error: null,
+  it('returns sorted unique table names from the inventory query', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(201, [
+          { tablename: 'users' },
+          { tablename: 'content_items' },
+          { tablename: 'users' },
+        ]),
+      );
+    const tables = await fetchTableInventory('ref1', 'tok', {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
     });
-    const tables = await fetchTableInventory(mock as unknown as SupabaseClient);
     expect(tables).toEqual(['content_items', 'users']);
   });
 
-  it('returns sorted unique table names from object-array RPC result', async () => {
-    const mock = createMockSupabaseClient();
-    mock.rpc.mockResolvedValueOnce({
-      data: [{ tablename: 'b_table' }, { tablename: 'a_table' }],
-      error: null,
+  it('sends a schema-qualified pg_catalog query', async () => {
+    const fetchImpl = vi.fn().mockResolvedValueOnce(jsonResponse(201, []));
+    await fetchTableInventory('ref1', 'tok', {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
     });
-    const tables = await fetchTableInventory(mock as unknown as SupabaseClient);
-    expect(tables).toEqual(['a_table', 'b_table']);
+    const [, init] = fetchImpl.mock.calls[0];
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body.query).toContain('pg_catalog.pg_tables');
+    expect(body.query).toContain("schemaname = 'public'");
   });
 
-  it('throws when RPC errors with hint to apply migration', async () => {
-    const mock = createMockSupabaseClient();
-    mock.rpc.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'function does not exist' },
-    });
+  it('throws with a --tables workaround hint when the inventory query fails', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(textErrorResponse(400, 'permission denied'));
     await expect(
-      fetchTableInventory(mock as unknown as SupabaseClient),
-    ).rejects.toThrow(/apply the migration|--tables=/);
-  });
-
-  it('throws when RPC returns non-array data', async () => {
-    const mock = createMockSupabaseClient();
-    mock.rpc.mockResolvedValueOnce({ data: 'not-an-array', error: null });
-    await expect(
-      fetchTableInventory(mock as unknown as SupabaseClient),
-    ).rejects.toThrow(/non-array/);
+      fetchTableInventory('ref1', 'tok', {
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      }),
+    ).rejects.toThrow(/--tables=/);
   });
 });
 
 // ---------------------------------------------------------------------------
-// countOneTable (mocked, direct)
+// countOneTable (fetchImpl mocked)
 // ---------------------------------------------------------------------------
 
 describe('countOneTable', () => {
-  it('returns count on success', async () => {
-    const mock = createMockSupabaseClient();
-    mock._chain.then = vi.fn((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null, count: 7 }),
-    ) as typeof mock._chain.then;
-    expect(await countOneTable(mock as unknown as SupabaseClient, 't')).toBe(7);
+  it('returns the row count on success', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(201, [{ count: 7 }]));
+    const count = await countOneTable('ref1', 'tok', 't', {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    expect(count).toBe(7);
+  });
+
+  it('coerces a string-serialised count (bigint precision) to a number', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(201, [{ count: '42' }]));
+    const count = await countOneTable('ref1', 'tok', 't', {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    expect(count).toBe(42);
   });
 
   it('returns null on relation-not-found (42P01)', async () => {
-    const mock = createMockSupabaseClient();
-    mock._chain.then = vi.fn((resolve: (v: unknown) => void) =>
-      resolve({
-        data: null,
-        error: { code: '42P01', message: 'relation gone' },
-        count: null,
-      }),
-    ) as typeof mock._chain.then;
-    expect(
-      await countOneTable(mock as unknown as SupabaseClient, 'gone'),
-    ).toBeNull();
+    const fetchImpl = vi.fn().mockResolvedValueOnce(
+      textErrorResponse(
+        400,
+        JSON.stringify({
+          message:
+            'Failed to run sql query: ERROR:  42P01: relation "public.gone" does not exist',
+        }),
+      ),
+    );
+    const count = await countOneTable('ref1', 'tok', 'gone', {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    expect(count).toBeNull();
   });
 
-  it('throws on other PG errors', async () => {
-    const mock = createMockSupabaseClient();
-    mock._chain.then = vi.fn((resolve: (v: unknown) => void) =>
-      resolve({
-        data: null,
-        error: { code: '42501', message: 'permission denied' },
-        count: null,
-      }),
-    ) as typeof mock._chain.then;
+  it('throws on other Postgres errors', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        textErrorResponse(
+          400,
+          JSON.stringify({ message: 'ERROR: 42501: permission denied' }),
+        ),
+      );
     await expect(
-      countOneTable(mock as unknown as SupabaseClient, 't'),
+      countOneTable('ref1', 'tok', 't', {
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      }),
     ).rejects.toThrow(/permission denied/);
+  });
+
+  it('rejects an unsafe table identifier before making a network call', async () => {
+    const fetchImpl = vi.fn();
+    await expect(
+      countOneTable('ref1', 'tok', 'x"; DROP TABLE y; --', {
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      }),
+    ).rejects.toThrow(/unsafe table identifier/);
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });
 
 // ---------------------------------------------------------------------------
-// countAllTables (mocked)
+// countAllTables (fetchImpl mocked)
 // ---------------------------------------------------------------------------
 
 describe('countAllTables', () => {
-  it('returns count for each table', async () => {
-    const mock = createMockSupabaseClient();
-    // Each .from(...).select(..., { count, head: true }) returns the chain;
-    // the chain is awaitable and resolves to { count, data, error }.
-    mock._chain.then = vi.fn((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null, count: 42 }),
-    ) as typeof mock._chain.then;
-    const out = await countAllTables(
-      mock as unknown as SupabaseClient,
-      ['t1', 't2'],
-      5,
-    );
+  it('returns a count for each table', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(201, [{ count: 42 }]));
+    const out = await countAllTables('ref1', 'tok', ['t1', 't2'], {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      maxParallel: 5,
+    });
     expect(out).toEqual([
       { table: 't1', count: 42 },
       { table: 't2', count: 42 },
     ]);
   });
 
-  it('returns null count when relation does not exist (42P01)', async () => {
-    const mock = createMockSupabaseClient();
-    mock._chain.then = vi.fn((resolve: (v: unknown) => void) =>
-      resolve({
-        data: null,
-        error: { code: '42P01', message: 'no relation' },
-        count: null,
-      }),
-    ) as typeof mock._chain.then;
-    const out = await countAllTables(
-      mock as unknown as SupabaseClient,
-      ['gone'],
-      5,
-    );
+  it('returns null count when a table is missing on this side (42P01)', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        textErrorResponse(
+          400,
+          JSON.stringify({ message: 'ERROR: 42P01: relation gone' }),
+        ),
+      );
+    const out = await countAllTables('ref1', 'tok', ['gone'], {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      maxParallel: 5,
+    });
     expect(out).toEqual([{ table: 'gone', count: null }]);
   });
 
   it('throws on non-relation-not-found errors', async () => {
-    const mock = createMockSupabaseClient();
-    mock._chain.then = vi.fn((resolve: (v: unknown) => void) =>
-      resolve({
-        data: null,
-        error: { code: 'XX000', message: 'boom' },
-        count: null,
-      }),
-    ) as typeof mock._chain.then;
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        textErrorResponse(400, JSON.stringify({ message: 'boom' })),
+      );
     await expect(
-      countAllTables(mock as unknown as SupabaseClient, ['t1'], 5),
+      countAllTables('ref1', 'tok', ['t1'], {
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+        maxParallel: 5,
+      }),
     ).rejects.toThrow(/boom/);
   });
 
   it('respects the maxParallel cap', async () => {
-    const mock = createMockSupabaseClient();
     let inFlight = 0;
     let maxObservedInFlight = 0;
-    mock._chain.then = vi.fn((resolve: (v: unknown) => void) => {
+    const fetchImpl = vi.fn(async () => {
       inFlight++;
       maxObservedInFlight = Math.max(maxObservedInFlight, inFlight);
-      // Yield then resolve so a batch can build up.
-      Promise.resolve().then(() => {
-        inFlight--;
-        resolve({ data: null, error: null, count: 1 });
-      });
-    }) as typeof mock._chain.then;
+      await Promise.resolve();
+      inFlight--;
+      return jsonResponse(201, [{ count: 1 }]);
+    });
     const tables = Array.from({ length: 25 }, (_, i) => `t${i}`);
-    await countAllTables(mock as unknown as SupabaseClient, tables, 4);
+    await countAllTables('ref1', 'tok', tables, {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      maxParallel: 4,
+    });
     expect(maxObservedInFlight).toBeLessThanOrEqual(4);
   });
 });
