@@ -257,7 +257,11 @@ test.describe('Review page — queue state', () => {
       timeout: 10000,
     });
 
-    // Use responsive helper — opens hamburger on mobile, clicks directly on desktop
+    // Use responsive helper — opens hamburger on mobile; on desktop
+    // (post-{118.7} zone disclosures) it opens the Governance zone's
+    // DropdownMenu first, then selects the 'Review' menuitem. The label
+    // itself is unchanged (BI-17), so no call-site edit was needed here —
+    // reviewed as part of the {118.9} navigateViaHeader rewrite.
     await navigateViaHeader(page, 'Review');
 
     await expect(page).toHaveURL(/\/review/);

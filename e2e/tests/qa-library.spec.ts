@@ -613,7 +613,11 @@ test.describe('Q&A Library page', () => {
       timeout: 10000,
     });
 
-    await navigateViaHeader(page, 'Q&A Library');
+    // ID-118.9: BI-17 ratified label for the /library leaf (Knowledge zone)
+    // is now "Answers", not "Q&A Library" — the page's own <h1> heading is
+    // separate app content, out of scope for this e2e-only Subtask, and
+    // still reads "Q&A Library" (see the heading assertion below).
+    await navigateViaHeader(page, 'Answers');
     await expect(page).toHaveURL(/\/library/);
     await expect(
       page.getByRole('heading', { name: 'Q&A Library' }),

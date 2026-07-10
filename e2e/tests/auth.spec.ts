@@ -1,6 +1,10 @@
 import { test as baseTest, expect } from '@playwright/test';
 import { test as authTest } from '../fixtures';
-import { getVisibleNavLinks, isMobileViewport } from '../helpers/responsive';
+import {
+  getVisibleNavLinks,
+  isMobileViewport,
+  navigateViaHeader,
+} from '../helpers/responsive';
 import { hideDevOverlays } from '../helpers/dev-overlays';
 import { attachConsoleGate, type ConsoleGate } from '../helpers/console-gate';
 
@@ -194,19 +198,9 @@ authTest.describe('Authentication — authenticated session', () => {
   );
 
   authTest(
-    'navigation header is visible with all expected links',
+    'Settings button is visible in the header',
     async ({ authenticatedPage: page }) => {
       await page.goto('/');
-
-      // Use the responsive helper to get the correct nav element
-      const nav = await getVisibleNavLinks(page);
-
-      await expect(nav.getByRole('link', { name: 'Browse' })).toBeVisible();
-      await expect(
-        nav.getByRole('link', { name: 'Q&A Library' }),
-      ).toBeVisible();
-      await expect(nav.getByRole('link', { name: 'Coverage' })).toBeVisible();
-      await expect(nav.getByRole('link', { name: 'Workspaces' })).toBeVisible();
 
       // On mobile, close the hamburger menu before checking the Settings button
       // which lives in the header behind the overlay
@@ -228,6 +222,109 @@ authTest.describe('Authentication — authenticated session', () => {
       ).toBeVisible();
     },
   );
+
+  // ID-118.9 (DR-021-routed stale-test rewrite): the previous
+  // 'navigation header is visible with all expected links' test asserted
+  // Browse/Q&A Library/Coverage/Workspaces literals against a flat nav-link
+  // structure. Browse never existed in NAV_ZONES (the /search leaf is
+  // labelled "Search", BI-16/BI-17) and Workspaces was retired — so that
+  // set was already stale before the {118.6}-{118.8} three-zone rework
+  // landed. Replaced with zone-header + per-role reachability coverage
+  // against the current NAV_ZONES membership (BI-2, BI-17, BI-20, BI-21).
+  authTest.describe('Navigation header — zone disclosures (DR-041)', () => {
+    // BI-2: the three ratified zone headers, present regardless of role
+    // (each zone retains at least one visible entry for every role below).
+    const ZONE_HEADERS = ['Applications', 'Knowledge', 'Governance'];
+
+    authTest(
+      'editor: all three zone headers are visible and every retained destination is reachable',
+      async ({ editorPage: page }) => {
+        const nav = await getVisibleNavLinks(page);
+        for (const header of ZONE_HEADERS) {
+          await expect(nav.getByText(header)).toBeVisible();
+        }
+
+        // canEdit=true, canAdmin=false for editor: every entry is reachable
+        // except the reserved Concepts leaf (BI-8 — no landing route yet)
+        // and the admin-only Provenance leaf (BI-21).
+        const destinations: Array<{ label: string; hrefPattern: RegExp }> = [
+          { label: 'Search', hrefPattern: /\/search/ },
+          { label: 'Answers', hrefPattern: /\/library/ },
+          { label: 'External sources', hrefPattern: /\/reference/ },
+          { label: 'Procurement', hrefPattern: /\/procurement/ },
+          { label: 'Intelligence', hrefPattern: /\/intelligence/ },
+          { label: 'Review', hrefPattern: /\/review/ },
+          { label: 'Coverage', hrefPattern: /\/coverage/ },
+          { label: 'Change reports', hrefPattern: /\/change-reports/ },
+          { label: 'Activity', hrefPattern: /\/activity/ },
+        ];
+
+        for (const { label, hrefPattern } of destinations) {
+          await navigateViaHeader(page, label);
+          await expect(page).toHaveURL(hrefPattern, { timeout: 10000 });
+          // Reset to home between destinations so each zone starts closed
+          // and the next navigateViaHeader call finds a clean disclosure.
+          await page.goto('/');
+          await expect(
+            page.getByRole('navigation', { name: 'Main navigation' }).first(),
+          ).toBeVisible({ timeout: 10000 });
+        }
+      },
+    );
+
+    authTest(
+      'viewer: Knowledge entries stay visible (BI-20), edit/admin entries are hidden (BI-21)',
+      async ({ viewerPage: page }) => {
+        const nav = await getVisibleNavLinks(page);
+
+        // Every zone still renders a header for a viewer — each zone keeps
+        // at least one 'all'-visibility entry (Procurement; Search/Answers/
+        // External sources; Change reports/Activity).
+        for (const header of ZONE_HEADERS) {
+          await expect(nav.getByText(header)).toBeVisible();
+        }
+
+        // BI-20: every non-reserved Knowledge entry stays reachable for a
+        // viewer (Concepts is excluded — reserved, BI-8).
+        for (const label of ['Search', 'Answers', 'External sources']) {
+          await navigateViaHeader(page, label);
+          await page.goto('/');
+          await expect(
+            page.getByRole('navigation', { name: 'Main navigation' }).first(),
+          ).toBeVisible({ timeout: 10000 });
+        }
+
+        // BI-21: edit-gated entries are hidden entirely for a viewer (not
+        // merely disabled) — Intelligence (Applications), Review + Coverage
+        // (Governance). Re-derive the correct scope per viewport since the
+        // resets above return the mobile hamburger to its closed state.
+        if (isMobileViewport(page)) {
+          await page
+            .getByRole('button', { name: 'Open navigation menu' })
+            .click();
+          const mobileNav = page.getByRole('navigation', {
+            name: 'Mobile navigation',
+          });
+          await expect(mobileNav).toBeVisible();
+          for (const label of ['Intelligence', 'Review', 'Coverage']) {
+            await expect(
+              mobileNav.getByRole('link', { name: label }),
+            ).not.toBeVisible();
+          }
+        } else {
+          // DropdownMenuContent is portalled — these role='menuitem'
+          // elements are absent from the DOM entirely for a viewer
+          // (isEntryVisible filters them out before render), so no
+          // zone needs to be opened for this negative assertion to hold.
+          for (const label of ['Intelligence', 'Review', 'Coverage']) {
+            await expect(
+              page.getByRole('menuitem', { name: label }),
+            ).not.toBeVisible();
+          }
+        }
+      },
+    );
+  });
 
   authTest(
     'can sign out via the header button and cannot re-enter protected pages',

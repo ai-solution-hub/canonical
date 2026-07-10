@@ -1,4 +1,5 @@
 import { type Page, expect } from '@playwright/test';
+import { NAV_ZONES, findZoneForHref } from '@/components/shell/nav-config';
 
 /**
  * The sm breakpoint (640px). Below this, the hamburger menu is shown
@@ -24,9 +25,29 @@ export function isMobileViewport(
 }
 
 /**
+ * Resolve the NAV_ZONES zone that owns a leaf by its accessible label,
+ * via the leaf's href + the {118.6} findZoneForHref lookup (single
+ * source of truth — no separate label->zone table to drift out of sync).
+ */
+function findZoneForLabel(label: string) {
+  for (const zone of NAV_ZONES) {
+    const entry = zone.entries.find((e) => e.label === label);
+    if (entry) return findZoneForHref(entry.href);
+  }
+  return undefined;
+}
+
+/**
  * Navigate to a page using the site header navigation.
- * On mobile (< 640px), opens the hamburger menu first.
- * On desktop, clicks the nav link directly.
+ * On mobile (< 640px), opens the hamburger menu first; the mobile drawer
+ * still renders plain links (unaffected by the {118.7} desktop disclosure
+ * rework).
+ * On desktop, the three zones (Applications/Knowledge/Governance) are Radix
+ * DropdownMenu disclosures (DR-041 C1): leaves are `role="menuitem"`, not
+ * `role="link"`, and only exist in the DOM once their owning zone's trigger
+ * is opened (DropdownMenuContent is portalled, so it is queried at the page
+ * level rather than scoped to the `<nav>` element). Open the target leaf's
+ * zone first, then select the leaf by its accessible name.
  */
 export async function navigateViaHeader(
   page: Page,
@@ -43,8 +64,15 @@ export async function navigateViaHeader(
     // Click the link inside the mobile nav
     await mobileNav.getByRole('link', { name: linkName }).click();
   } else {
+    const zone = findZoneForLabel(linkName);
+    if (!zone) {
+      throw new Error(
+        `navigateViaHeader: no NAV_ZONES entry with label "${linkName}"`,
+      );
+    }
     const mainNav = page.getByRole('navigation', { name: 'Main navigation' });
-    await mainNav.getByRole('link', { name: linkName }).click();
+    await mainNav.getByRole('button', { name: zone.header }).click();
+    await page.getByRole('menuitem', { name: linkName }).click();
   }
 }
 
