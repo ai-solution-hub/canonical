@@ -39,12 +39,30 @@ export interface NavEntry {
 
 export type NavZoneId = 'applications' | 'knowledge' | 'governance';
 
-export interface NavZone {
-  id: NavZoneId;
-  /** BI-2 exact zone header strings, shown verbatim on every surface. */
-  header: 'Applications' | 'Knowledge' | 'Governance';
-  entries: readonly NavEntry[];
-}
+/**
+ * BI-2 exact zone header strings, keyed by zone id — the single place the
+ * id/header pairing is declared.
+ */
+type NavZoneHeaderMap = {
+  applications: 'Applications';
+  knowledge: 'Knowledge';
+  governance: 'Governance';
+};
+
+/**
+ * Discriminated union keyed by `NavZoneId` (id-118.11 fold-in): each member's
+ * `header` is tied to its `id` via `NavZoneHeaderMap`, so a mispaired literal
+ * (e.g. `id: 'applications'` with `header: 'Governance'`) is a compile error
+ * rather than relying solely on the table-driven nav-config.test.ts anchor.
+ * Zero behaviour change — NAV_ZONES values are untouched (TECH C0).
+ */
+export type NavZone = {
+  [Id in NavZoneId]: {
+    id: Id;
+    header: NavZoneHeaderMap[Id];
+    entries: readonly NavEntry[];
+  };
+}[NavZoneId];
 
 /**
  * Ratified membership (order per BI-4/BI-9/BI-11; labels per BI-17; gating

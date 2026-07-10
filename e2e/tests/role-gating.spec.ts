@@ -41,10 +41,23 @@ test.describe('Viewer role restrictions', { tag: '@smoke' }, () => {
         mobileNav.getByRole('link', { name: 'Review' }),
       ).not.toBeVisible();
     } else {
+      // Desktop zone entries render inside a portalled Radix DropdownMenu
+      // (role=menu/menuitem) appended outside the <nav>'s DOM subtree — the
+      // disclosure must be OPENED first, otherwise a mainNav-scoped
+      // link-role query matches nothing and passes vacuously regardless of
+      // whether Review is actually gated.
       const mainNav = page.getByRole('navigation', { name: 'Main navigation' });
-      // Viewer should not see Review link (requires editor+ role)
+      const governanceTrigger = mainNav.getByRole('button', {
+        name: 'Governance',
+      });
+      await expect(governanceTrigger).toBeVisible();
+      await governanceTrigger.click();
+      await expect(page.getByRole('menu')).toBeVisible();
+
+      // Viewer should not see the Review menuitem (requires editor+ role).
+      // Queried at page level since the disclosure content is portalled.
       await expect(
-        mainNav.getByRole('link', { name: 'Review' }),
+        page.getByRole('menuitem', { name: 'Review' }),
       ).not.toBeVisible();
     }
   });
