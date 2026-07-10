@@ -11,20 +11,46 @@
 # desktop-only).
 #
 # ── Topology (id-128 restructure, PLAN.md) ──────────────────────────────────
+#   provision-branch — {128.10}: creates a FRESH, single-use Supabase branch off
+#                   PLATFORM_PROJECT_REF for this run only (sweep-then-create,
+#                   wait for migrations + `supabase/seed.sql` to replay, seed
+#                   E2E users). The nightly's DB target for every other job.
 #   build         — ONE Next.js PRODUCTION build (next start serves precompiled
 #                   routes — no `next dev` compile-on-first-hit, which produced
 #                   run #9's page.goto-timeout storm under --workers=3; {128.6}).
 #                   Ships `.next` as an artifact + runs the staging preflight.
+#                   Targets the ephemeral branch (NEXT_PUBLIC_* is baked at
+#                   build time, so the branch must exist before this runs).
 #   e2e-shard     — a 4-way `--shard` matrix (workers=2 each), each downloads the
 #                   build artifact, serves it via `next start`, emits a `blob`
 #                   report. ~50min single-runner → ~18min wall, no single timeout
 #                   ({128.7}). Seed prefix is shard-aware so shards don't collide.
 #   merge-reports — stitches the 4 blob reports into ONE aggregated HTML report
 #                   (the triage artefact). Lane pass/fail = AND of the shards.
+#   teardown-branch — {128.10}: `always()` deletes this run's ephemeral branch —
+#                   idempotent (a branch already gone is success, not failure),
+#                   so it never itself fails an otherwise-green run.
+#
+# ── {128.10} Ephemeral Supabase branch per run ──────────────────────────────
+# Cost RATIFIED by owner (S455): ~$2-10/mo incremental (Micro compute
+# $0.01344/hr, branching compute excluded from the $10 credits + spend cap —
+# see `.user-scratch/s454-recovery/id-128.10-ephemeral-branch-cost-time.md`).
+# A fresh branch has NO ambient data by construction, so this nightly no
+# longer shares the `integration-staging-e2e` concurrency group / mutable
+# staging project with PR-blocking CI — cross-track DDL churn on staging can
+# no longer break this lane. Orphan-teardown risk (a leaked branch bills
+# indefinitely) is closed by TWO independent guards, both in
+# `scripts/e2e-ephemeral-branch.ts`: the `always()` delete below, AND a sweep
+# step that runs FIRST every nightly and deletes any `e2e-nightly-*` branch
+# older than 6h regardless of why it survived (crashed run, cancelled
+# workflow, a teardown bug) — a leak cannot outlive one sweep cycle.
 #
 # Required secrets / vars (Staging environment scope — per
 # docs/runbooks/github-environments.md §2): identical to the `e2e-smoke` job in
-# ci.yml (staging Supabase URL/keys + server-boot secrets + TEST_USER_1/2/3/4).
+# ci.yml (staging Supabase URL/keys + server-boot secrets + TEST_USER_1/2/3/4),
+# plus SUPABASE_ACCESS_TOKEN (Management API PAT — also used by
+# supabase-advisors.yml / ci.yml's supabase-types-parity job) for the branch
+# lifecycle calls.
 #
 # Workflow-injection mitigation: all github context + secret values arrive via
 # the step-level `env:` block, never inline ${{ }} in run: steps (mirrors
@@ -54,10 +80,13 @@ on:
         default: ""
 
 concurrency:
-  # Share the cross-PR serialisation group with e2e-smoke + integration so only
-  # one job touches the shared staging Supabase project at a time. Queue (do not
-  # cancel) so a manual dispatch never clobbers an in-flight scheduled run.
-  group: integration-staging-e2e
+  # {128.10}: own group, NOT `integration-staging-e2e` — each run gets its own
+  # ephemeral Supabase branch, so this lane no longer needs to serialise
+  # against e2e-smoke/integration's shared mutable staging project. Still
+  # serialises against ITSELF (two overlapping nightly-shaped runs must not
+  # race each other's branch create/delete). Queue (do not cancel) so a
+  # manual dispatch never clobbers an in-flight scheduled run.
+  group: e2e-nightly-ephemeral
   cancel-in-progress: false
 
 # PLATFORM_PROJECT_REF — this repo's own dev/CI Supabase project, the only
@@ -69,10 +98,95 @@ env:
 
 jobs:
   # ───────────────────────────────────────────────────────────────────────────
+  # provision-branch — {128.10}: sweep orphans, create this run's ephemeral
+  # Supabase branch, wait for migrations + seed.sql, seed E2E users. Every
+  # other job in this workflow targets the branch this job creates.
+  # ───────────────────────────────────────────────────────────────────────────
+  provision-branch:
+    name: Provision ephemeral Supabase branch
+    runs-on: ubuntu-latest
+    environment: Staging
+    # Cost/time analysis estimate: create(~5m) + migrate(~3-5m) + seed(~2m) ≈
+    # 10-12m. 20m leaves headroom for the sweep step + a slow migration apply.
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      branch-ref: ${{ steps.create.outputs.branch-ref }}
+      branch-url: ${{ steps.create.outputs.branch-url }}
+      publishable-key: ${{ steps.keys.outputs.publishable-key }}
+      service-role-key: ${{ steps.keys.outputs.service-role-key }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: "1.3.4"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Sweep orphaned ephemeral branches (>6h old)
+        # Runs FIRST, every nightly, regardless of how this run was triggered —
+        # the orphan-teardown guard (key implementation risk, {128.10}): a
+        # branch that survived a crashed/cancelled prior run cannot outlive
+        # this sweep + one more nightly cycle.
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: bun run scripts/e2e-ephemeral-branch.ts sweep
+
+      - name: Create this run's ephemeral branch
+        id: create
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          RUN_ID: ${{ github.run_id }}
+        run: bun run scripts/e2e-ephemeral-branch.ts create --run-id="$RUN_ID"
+
+      - name: Fetch branch API keys
+        id: keys
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          BRANCH_REF: ${{ steps.create.outputs.branch-ref }}
+        run:
+          bun run scripts/e2e-ephemeral-branch.ts keys
+          --branch-ref="$BRANCH_REF"
+
+      - name: Wait for branch schema + seed.sql readiness
+        # Polls the branch's own PostgREST endpoint for `application_types`
+        # (seeded once by supabase/seed.sql immediately after migrations
+        # replay) rather than an undocumented branch-status enum — see
+        # scripts/e2e-ephemeral-branch.ts header for the full rationale.
+        env:
+          BRANCH_SERVICE_ROLE_KEY: ${{ steps.keys.outputs.service-role-key }}
+          BRANCH_URL: ${{ steps.create.outputs.branch-url }}
+        run:
+          bun run scripts/e2e-ephemeral-branch.ts wait-ready
+          --branch-url="$BRANCH_URL"
+
+      - name: Seed E2E users on the branch
+        # application_types / taxonomy / governance reference data is already
+        # seeded automatically by supabase/seed.sql (previous step verified
+        # this) — this only needs to provision auth.users + user_roles, which
+        # seed.sql explicitly defers to this script (§5 of its contract).
+        env:
+          SUPABASE_URL: ${{ steps.create.outputs.branch-url }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ steps.keys.outputs.service-role-key }}
+          TEST_USER_1_PASSWORD: ${{ secrets.TEST_USER_1_PASSWORD }}
+          TEST_USER_2_PASSWORD: ${{ secrets.TEST_USER_2_PASSWORD }}
+          TEST_USER_3_PASSWORD: ${{ secrets.TEST_USER_3_PASSWORD }}
+          TEST_USER_4_PASSWORD: ${{ secrets.TEST_USER_4_PASSWORD }}
+        run: bun run seed:e2e-users
+
+  # ───────────────────────────────────────────────────────────────────────────
   # build — ONE production build, shared by every shard ({128.6} + {128.7}).
   # ───────────────────────────────────────────────────────────────────────────
   build:
     name: Build (Next.js prod) + staging preflight
+    needs: [provision-branch]
     runs-on: ubuntu-latest
     environment: Staging
     timeout-minutes: 20
@@ -107,34 +221,36 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Cleanup stale test artifacts (staging preflight)
-        # Run ONCE here (not per shard) before the matrix fans out.
-        env:
-          ALLOW_STALE_TEST_ARTIFACT_CLEANUP: "1"
-          TEST_ARTIFACT_CLEANUP_MIN_AGE_MINUTES: "120"
-          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: bun run cleanup:stale-test-artifacts
+      # {128.10}: the prior "Cleanup stale test artifacts (staging preflight)"
+      # step is REMOVED — it existed to clean up leftover test data on the
+      # SHARED, persistent staging project between runs. A freshly-provisioned
+      # ephemeral branch has NO ambient data by construction, so the step is
+      # inapplicable now that this lane targets provision-branch's branch.
 
       - name: Build (Next.js prod)
         # ★ LOAD-BEARING: every NEXT_PUBLIC_* var is client-inlined
         # (lib/env-client.ts) and BAKED AT BUILD TIME, not at `next
         # start`. It MUST be set in THIS step's env, or the served bundle
         # carries stale/missing values. Env block mirrors ci.yml's
-        # "Build (Next.js)" step.
+        # "Build (Next.js)" step. {128.10}: Supabase values now come from
+        # provision-branch's ephemeral branch outputs, not the static staging
+        # project — this build must happen AFTER the branch exists.
         env:
           NODE_OPTIONS: --max-old-space-size=4096
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY:
+            ${{ needs.provision-branch.outputs.service-role-key }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_URL: ${{ needs.provision-branch.outputs.branch-url }}
+          SUPABASE_PUBLISHABLE_KEY:
+            ${{ needs.provision-branch.outputs.publishable-key }}
           # Production stores bare names; mirror to NEXT_PUBLIC_* for the client schema.
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL:
+            ${{ needs.provision-branch.outputs.branch-url }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
-            ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+            ${{ needs.provision-branch.outputs.publishable-key }}
           NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
           NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
           # VERCEL_GIT_COMMIT_SHA is Vercel-only; substitute github.sha so the Sentry release tag resolves.
@@ -164,7 +280,7 @@ jobs:
   # ───────────────────────────────────────────────────────────────────────────
   e2e-shard:
     name: E2E shard ${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
-    needs: [build]
+    needs: [build, provision-branch]
     runs-on: ubuntu-latest
     environment: Staging
     # Generous per-shard cap: a healthy shard runs ~1/4 of the suite in well
@@ -230,24 +346,29 @@ jobs:
           # timeout. Smoke/local leave these unset → CI defaults (5 / 12 min).
           PW_MAX_FAILURES: "4"
           PW_GLOBAL_TIMEOUT_MS: "1080000"
-          # Staging Supabase connection — env scope resolves these from the
-          # `Staging` GH environment. `next start` reads the server vars at boot.
-          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # {128.10}: Supabase connection points at THIS RUN's ephemeral
+          # branch (provision-branch's outputs), not the shared staging
+          # project. `next start` reads the server vars at boot.
+          SUPABASE_URL: ${{ needs.provision-branch.outputs.branch-url }}
+          SUPABASE_PUBLISHABLE_KEY:
+            ${{ needs.provision-branch.outputs.publishable-key }}
+          SUPABASE_SERVICE_ROLE_KEY:
+            ${{ needs.provision-branch.outputs.service-role-key }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL:
+            ${{ needs.provision-branch.outputs.branch-url }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
-            ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+            ${{ needs.provision-branch.outputs.publishable-key }}
           NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
           NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
           AI_EMBEDDING_MODEL: ${{ vars.AI_EMBEDDING_MODEL }}
           AI_EMBEDDING_DIMS: ${{ vars.AI_EMBEDDING_DIMS }}
-          # Test-user credentials — pre-seeded into staging by
-          # scripts/seed-e2e-users.ts (per docs/runbooks/staging-refresh.md §4).
+          # Test-user credentials — seeded onto THIS RUN's ephemeral branch by
+          # provision-branch's "Seed E2E users on the branch" step ({128.10}),
+          # not pre-seeded staging state.
           TEST_USER_1_EMAIL: ${{ vars.TEST_USER_1_EMAIL }}
           TEST_USER_1_PASSWORD: ${{ secrets.TEST_USER_1_PASSWORD }}
           TEST_USER_2_EMAIL: ${{ vars.TEST_USER_2_EMAIL }}
@@ -334,3 +455,45 @@ jobs:
           path: playwright-report/
           retention-days: 14
           if-no-files-found: ignore
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # teardown-branch — {128.10}: ALWAYS delete this run's ephemeral branch, even
+  # if provision-branch partially failed or e2e-shard failed/was cancelled.
+  # This is the primary orphan-teardown guard (the sweep step in
+  # provision-branch is the backstop for whenever this itself doesn't run —
+  # e.g. the whole workflow got force-cancelled before any job started).
+  # ───────────────────────────────────────────────────────────────────────────
+  teardown-branch:
+    name: Delete ephemeral Supabase branch
+    needs: [provision-branch, e2e-shard]
+    if: always()
+    runs-on: ubuntu-latest
+    environment: Staging
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: "1.3.4"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Delete this run's ephemeral branch
+        # Idempotent — a branch already gone (404) is success, not failure
+        # (scripts/e2e-ephemeral-branch.ts `deleteBranch`). If
+        # provision-branch never got far enough to create a branch,
+        # `branch-ref` is empty and the script no-ops cleanly.
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          BRANCH_REF: ${{ needs.provision-branch.outputs.branch-ref }}
+        run:
+          bun run scripts/e2e-ephemeral-branch.ts delete
+          --branch-ref="$BRANCH_REF"
