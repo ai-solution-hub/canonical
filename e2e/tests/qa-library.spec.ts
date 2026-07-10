@@ -65,12 +65,14 @@ test.describe('Q&A Library page', () => {
       // two rows by title/variant (they exist only as extra filter/group
       // coverage padding, per the file-header comment) — supplying a real
       // `answer_standard` preserves that role without requesting a row
-      // shape the schema forbids. NB this also surfaces a production
-      // finding (not fixed here, e2e-only Subtask): `hooks/use-library-
-      // data.ts`'s `'advanced_only'`/`'neither'` variant branches filter on
-      // `.is('answer_standard', null)`, which can now never match any row —
-      // the "Advanced only" / "No answer" variant filter options are
-      // effectively always-empty dead filters in production.
+      // shape the schema forbids. The dead-filter finding this uncovered
+      // (`hooks/use-library-data.ts`'s `'advanced_only'`/`'neither'` variant
+      // branches filtered on `.is('answer_standard', null)`, which could
+      // never match any row) was FIXED at bl-434: the "Advanced only" /
+      // "No answer" variant options were removed from the UI/hook/type, and
+      // the two surviving options were relabelled with owner-ratified copy
+      // ("Standard + Advanced" -> "Has advanced answer", "Standard only" ->
+      // "No advanced answer"; see the 'variant filter shows options' test).
       createTestQAPair(prefix, 'Social Value', {
         title: `${prefix} Apprenticeship Programme`,
         answer_standard:
@@ -422,21 +424,30 @@ test.describe('Q&A Library page', () => {
       .filter({ hasText: 'All variants' });
     await variantTrigger.click();
 
-    // Verify all variant options exist
+    // bl-434 retired the "Advanced only" / "No answer" options — their
+    // `.is('answer_standard', null)` filter branches were always-empty dead
+    // filters (q_a_pairs.answer_standard is NOT NULL, so no row could ever
+    // match) — and relabelled the two surviving options with owner-ratified
+    // copy ("Standard + Advanced" -> "Has advanced answer", "Standard only"
+    // -> "No advanced answer"). Variant keys ('both'/'standard_only')
+    // themselves are unchanged.
+    await expect(
+      page.locator('[role="option"]').filter({ hasText: 'All variants' }),
+    ).toBeVisible();
     await expect(
       page
         .locator('[role="option"]')
-        .filter({ hasText: 'Standard + Advanced' }),
+        .filter({ hasText: 'Has advanced answer' }),
     ).toBeVisible();
     await expect(
-      page.locator('[role="option"]').filter({ hasText: 'Standard only' }),
+      page.locator('[role="option"]').filter({ hasText: 'No advanced answer' }),
     ).toBeVisible();
     await expect(
       page.locator('[role="option"]').filter({ hasText: 'Advanced only' }),
-    ).toBeVisible();
+    ).not.toBeVisible();
     await expect(
       page.locator('[role="option"]').filter({ hasText: 'No answer' }),
-    ).toBeVisible();
+    ).not.toBeVisible();
   });
 
   test('grouping by domain creates collapsible groups', async ({
