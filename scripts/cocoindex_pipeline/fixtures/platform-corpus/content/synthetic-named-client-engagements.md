@@ -4,7 +4,7 @@
 
 These case studies are synthetic reference content for pipeline seam testing. They
 describe engagements between the fictional supplier Ridgeway Commercial Services Ltd and
-three fictional UK public-sector buyers. No real company, client, or contract information
+four fictional UK public-sector buyers. No real company, client, or contract information
 is represented; every organisation named below is invented.
 
 ## Wyndale Metropolitan Borough Council — managed office supplies and furniture refresh
@@ -40,3 +40,17 @@ sustainability commitments. Local delivery consolidation reduced vehicle movemen
 school by an estimated forty per cent in the first two terms of the contract, and the
 trust's business managers now use the StockSense Ordering Portal directly for
 classroom-level ordering within delegated budgets.
+
+## Northgate Borough Council — managed office supplies and furniture refresh
+
+In 2025, Ridgeway Commercial Services Ltd won an open tender run by Northgate Borough
+Council for a two-year managed office-supplies and furniture-refresh contract spanning the
+council's twelve administrative sites. The award followed a competitive evaluation in
+which the council's category team weighed technical quality, delivery reliability, and
+social value alongside price. Ridgeway's ISO 9001:2015 certification and its transparent
+monthly reporting through the StockSense Ordering Portal were cited as decisive factors,
+alongside the GreenCycle Furniture Programme's take-back commitment for the
+furniture-refresh element of the contract. Next-day delivery performance for core
+stationery and consumables held above 98 per cent across the engagement's first year, and
+Ridgeway's designated account manager was in place within five working days of contract
+award.

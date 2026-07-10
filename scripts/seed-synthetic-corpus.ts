@@ -337,17 +337,28 @@ export const SYNTHETIC_QUESTIONS: ReadonlyArray<SyntheticQuestion> = [
 // (`scripts/cocoindex_pipeline/fixtures/platform-corpus/content/synthetic-
 // named-client-engagements.md` et al.) so the won-bid case_study buyer is
 // cross-referenced against the named-clients case_study grain — both trace
-// back to the same invented organisation, Wyndale Metropolitan Borough
-// Council. No real company or client is represented anywhere below (BI-3).
+// back to the same invented organisation, Northgate Borough Council. This is
+// ALSO the pre-existing `domain_metadata.buyer` on workspace #1 (`Synthetic —
+// First-Client Open Tender (won)`, {130.8} SYNTHETIC_WORKSPACES row 1) — the
+// won-bid case_study concept read (`l_records.py:721-743`) bundles that
+// workspace row + these q_a_pairs + the won form_templates row into ONE
+// concept, so the buyer name must agree across all three (fix ID-132.30
+// checker finding: the row 1 buyer was already 'Northgate Borough Council'
+// before this fixture existed; the won-bid content is realigned to it here
+// rather than the reverse, since row 1 predates this fixture and is live in
+// staging). No real company or client is represented anywhere below (BI-3).
 
 /**
- * The buyer of the won bid — reuses the fictional buyer named in
- * `synthetic-named-client-engagements.md`'s Wyndale case study, which
- * narrates the SAME "open tender" award this workspace/form_templates pair
- * represents (workspace #1: `Synthetic — First-Client Open Tender (won)`).
+ * The buyer of the won bid — MUST match workspace #1's pre-existing
+ * `domain_metadata.buyer` ('Northgate Borough Council', `SYNTHETIC_WORKSPACES[0]`
+ * above) since the won-bid case_study concept read bundles both into one
+ * concept. Also reused as the fictional buyer named in
+ * `synthetic-named-client-engagements.md`'s Northgate Borough Council case
+ * study, which narrates the SAME "open tender" award this
+ * workspace/form_templates pair represents (workspace #1: `Synthetic —
+ * First-Client Open Tender (won)`).
  */
-export const WON_BID_BUYER_ORGANISATION =
-  'Wyndale Metropolitan Borough Council';
+export const WON_BID_BUYER_ORGANISATION = 'Northgate Borough Council';
 
 export interface WonBidFormTemplateSeed {
   readonly name: string;
@@ -378,12 +389,12 @@ export interface WonBidFormTemplateSeed {
  * JSONB engagement facts) so the two records agree.
  */
 export const WON_BID_FORM_TEMPLATE: WonBidFormTemplateSeed = {
-  name: 'Synthetic — Wyndale Open Tender Award (won)',
+  name: 'Synthetic — Northgate Open Tender Award (won)',
   description:
     SYNTHETIC_WORKSPACE_DESCRIPTION +
     ' Won-bid form_templates row (ID-132.30 G-CORPUS-ENRICH).',
-  filename: 'synthetic-wyndale-open-tender-award.pdf',
-  storagePath: 'synthetic/won-bid/synthetic-wyndale-open-tender-award.pdf',
+  filename: 'synthetic-northgate-open-tender-award.pdf',
+  storagePath: 'synthetic/won-bid/synthetic-northgate-open-tender-award.pdf',
   fileSize: 248_000,
   mimeType: 'application/pdf',
   status: 'completed',
@@ -468,31 +479,31 @@ export interface WonBidQAPairSeed {
  * response'` + `source_workspace_id` set — the won-bid `case_study` grain's
  * ONLY reachable path (`_SQL_WON_BID_QA_BY_WORKSPACE`,
  * `scripts/cocoindex_pipeline/sources/l_records.py:395-400`). Content
- * narrates the SAME Wyndale open-tender award as
+ * narrates the SAME Northgate open-tender award as
  * `synthetic-named-client-engagements.md`.
  */
 export const SYNTHETIC_WON_BID_QA_PAIRS: ReadonlyArray<WonBidQAPairSeed> = [
   {
     question_text:
-      'What was the outcome of the Wyndale Metropolitan Borough Council open tender for managed office supplies?',
+      'What was the outcome of the Northgate Borough Council open tender for managed office supplies?',
     answer_standard:
-      "Ridgeway Commercial Services Ltd was awarded the two-year open tender for managed office supplies and a furniture-refresh programme across Wyndale Metropolitan Borough Council's twelve administrative sites.",
+      "Ridgeway Commercial Services Ltd was awarded the two-year open tender for managed office supplies and a furniture-refresh programme across Northgate Borough Council's twelve administrative sites.",
   },
   {
     question_text:
-      'What furniture take-back commitment did Ridgeway offer in the Wyndale open tender response?',
+      'What furniture take-back commitment did Ridgeway offer in the Northgate open tender response?',
     answer_standard:
       'Ridgeway committed to the GreenCycle Furniture Programme, diverting end-of-life furniture from landfill through refurbishment and resale or responsible recycling, with a certificate of diversion issued per collection.',
   },
   {
     question_text:
-      'What delivery performance did Ridgeway commit to in the Wyndale open tender response?',
+      'What delivery performance did Ridgeway commit to in the Northgate open tender response?',
     answer_standard:
       'Ridgeway committed to next-day delivery for core stationery and consumables, reported monthly against agreed key performance indicators; performance held above 98 per cent in the first twelve months.',
   },
   {
     question_text:
-      'Which certification did Ridgeway cite as evidence of quality management in the Wyndale open tender response?',
+      'Which certification did Ridgeway cite as evidence of quality management in the Northgate open tender response?',
     answer_standard:
       "Ridgeway cited its ISO 9001:2015 quality-management certification, which the council's category team noted as a key factor in the award decision alongside transparent monthly reporting.",
   },
