@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  bl-372 hermetic platform-feed seed fixture (feed half).
+
+  Served externally via raw.githubusercontent.com — reachable by the Coolify
+  pipeline container the same way any real RSS/Atom feed URL is, so
+  lib/intelligence/feed-poller.ts's pollFeed() (rss-parser) can parse it for
+  real on a live poll. Replaces the rotted live gov.uk .atom URL previously
+  in scripts/seed-platform-feed.ts's FEED_SOURCE_SEED (bl-372).
+
+  The single <entry>'s <link href> intentionally matches
+  FEED_ARTICLE_SEED.externalUrl exactly, so a real poll of this feed
+  discovers the SAME article the seed already inserts directly — no
+  duplicate/divergent feed_articles row.
+
+  DO NOT MOVE OR RENAME this file without updating the raw.githubusercontent
+  URL baked into scripts/seed-platform-feed.ts's FEED_SOURCE_SEED constant.
+-->
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Platform synthetic feed — UK procurement policy (hermetic fixture, bl-372)</title>
+  <entry>
+    <id>tag:canonical.internal,2026:platform-feed-seed/procurement-frameworks-guide</id>
+    <updated>2026-06-01T09:00:00+00:00</updated>
+    <link rel="alternate" type="text/html" href="https://raw.githubusercontent.com/ai-solution-hub/canonical/main/scripts/fixtures/platform-feed-seed-article.html"/>
+    <title>UK SMB Procurement Frameworks: A Practical Guide</title>
+    <summary type="html">&lt;p&gt;A practical guide to UK public-sector procurement frameworks for small and medium-sized suppliers.&lt;/p&gt;</summary>
+    <category term="Procurement"/>
+  </entry>
+</feed>

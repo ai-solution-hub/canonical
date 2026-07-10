@@ -121,6 +121,29 @@ describe('requireFeedWorkspaceId — the BI-8 workspace is a prerequisite', () =
   });
 });
 
+describe('hermetic seed URLs (bl-372) — no live third-party domain', () => {
+  const ALLOWED_HOST = 'raw.githubusercontent.com';
+
+  it('FEED_SOURCE_SEED.url is served from the hermetic fixture host', () => {
+    expect(new URL(FEED_SOURCE_SEED.url).hostname).toBe(ALLOWED_HOST);
+    expect(FEED_SOURCE_SEED.url).toContain(
+      'scripts/fixtures/platform-feed-seed-feed.atom',
+    );
+  });
+
+  it('FEED_ARTICLE_SEED.externalUrl is served from the hermetic fixture host', () => {
+    expect(new URL(FEED_ARTICLE_SEED.externalUrl).hostname).toBe(ALLOWED_HOST);
+    expect(FEED_ARTICLE_SEED.externalUrl).toContain(
+      'scripts/fixtures/platform-feed-seed-article.html',
+    );
+  });
+
+  it('neither seed URL points at gov.uk (the URL that rotted twice)', () => {
+    expect(FEED_SOURCE_SEED.url).not.toContain('gov.uk');
+    expect(FEED_ARTICLE_SEED.externalUrl).not.toContain('gov.uk');
+  });
+});
+
 describe('seedFeed — seeds the feed slice in FK order', () => {
   it('inserts feed_sources before feed_articles', async () => {
     const { client, recorded } = makeClient(freshSeedTables());

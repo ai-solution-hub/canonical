@@ -18,9 +18,16 @@
  * workspace is absent — it never creates a workspace (that is the BI-8 seed's
  * job, which must run first).
  *
- * **Real public URL.** The article uses a stable, real public URL so the
- * `/extract` clean (`extract.clean_html` → `trafilatura.extract`) yields real
- * content. `extraction_method = 'fetch'` (an allowed value of the
+ * **Hermetic synthetic fixture (bl-372).** The live gov.uk URLs previously
+ * seeded here rotted twice (S415, then again post-S415) — a third-party site
+ * this repo does not control. Both constants now point at fixture files
+ * this repo OWNS (`scripts/fixtures/platform-feed-seed-*`), served externally
+ * via `raw.githubusercontent.com` (a stable, hermetic host reachable from the
+ * Coolify pipeline container, requiring no new public route / no Vercel
+ * Deployment Protection bypass — see bl-372 resolution notes). This keeps
+ * the S415-recommended "real HTTP fetch → trafilatura clean → real content"
+ * walk-proof coverage without depending on a URL we don't own.
+ * `extraction_method = 'fetch'` (an allowed value of the
  * `feed_articles_extraction_method_check` constraint) marks the intended
  * fetch-then-clean path.
  *
@@ -62,23 +69,30 @@ import {
  */
 export const FEED_WORKSPACE_NAME = 'Platform — Procurement';
 
-/** The seed feed_sources row. `url` is the stable idempotency key per workspace. */
+/**
+ * The seed feed_sources row. `url` is the stable idempotency key per
+ * workspace — points at the hermetic Atom fixture
+ * `scripts/fixtures/platform-feed-seed-feed.atom` (bl-372; see file header
+ * comment there before moving/renaming it).
+ */
 export const FEED_SOURCE_SEED = {
   name: 'Platform synthetic feed (UK procurement policy)',
-  url: 'https://www.gov.uk/government/publications/the-procurement-act-2023-short-guide.atom',
+  url: 'https://raw.githubusercontent.com/ai-solution-hub/canonical/main/scripts/fixtures/platform-feed-seed-feed.atom',
   sourceType: 'rss' as const,
 } as const;
 
 /**
- * The seed feed_articles row. A REAL public URL so a later `/extract` produces
- * real cleaned content. `passed = true` so `FeedUrlSource` enumerates it.
+ * The seed feed_articles row. Points at the hermetic HTML fixture
+ * `scripts/fixtures/platform-feed-seed-article.html` (bl-372) so a later
+ * `/extract` produces real cleaned content without depending on a
+ * third-party URL. `passed = true` so `FeedUrlSource` enumerates it.
  * `extraction_method = 'fetch'` is an allowed value of the
  * `feed_articles_extraction_method_check` constraint.
  */
 export const FEED_ARTICLE_SEED = {
   externalUrl:
-    'https://www.gov.uk/government/publications/the-procurement-act-2023-short-guide',
-  title: 'The Procurement Act 2023: a short guide',
+    'https://raw.githubusercontent.com/ai-solution-hub/canonical/main/scripts/fixtures/platform-feed-seed-article.html',
+  title: 'UK SMB Procurement Frameworks: A Practical Guide',
   extractionMethod: 'fetch' as const,
 } as const;
 
