@@ -6,26 +6,21 @@ import { BRANDING } from '@/lib/client-config';
 import { useTheme } from 'next-themes';
 import { AnimatePresence, motion } from 'motion/react';
 import { Command } from 'cmdk';
-import {
-  Home,
-  Search,
-  Sun,
-  Moon,
-  Keyboard,
-  BookOpen,
-  Briefcase,
-  FolderOpen,
-  ShieldCheck,
-  Settings,
-} from 'lucide-react';
+import { Home, Search, Sun, Moon, Keyboard, Settings } from 'lucide-react';
 import { useUserRole } from '@/hooks/use-user-role';
+import { NAV_ZONES, isEntryVisible } from '@/components/shell/nav-config';
+
+const GROUP_HEADING_CLASS =
+  '[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground';
+const ITEM_CLASS =
+  'flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent';
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const router = useRouter();
   const { theme, setTheme } = useTheme();
-  const { canAdmin } = useUserRole();
+  const { canEdit, canAdmin } = useUserRole();
   const dialogRef = useRef<HTMLDivElement>(null);
 
   // Cmd+K listener
@@ -126,183 +121,158 @@ export function CommandPalette() {
                   No results found.
                 </Command.Empty>
 
-                {/* Navigation */}
-                <Command.Group
-                  heading="Navigation"
-                  className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground"
+                {/* Home — utility, not a zone member (BI-12) */}
+                <Command.Item
+                  value="Home dashboard"
+                  onSelect={() => runCommand(() => router.push('/'))}
+                  className={ITEM_CLASS}
                 >
-                  <Command.Item
-                    value="Home dashboard"
-                    onSelect={() => runCommand(() => router.push('/'))}
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
+                  <Home className="size-4 text-muted-foreground" />
+                  Home
+                </Command.Item>
+
+                {/* Applications / Knowledge / Governance — generated from
+                    NAV_ZONES so the palette stays in lockstep with the
+                    desktop bar + mobile drawer (BI-18/BI-19). */}
+                {NAV_ZONES.map((zone) => (
+                  <Command.Group
+                    key={zone.id}
+                    heading={zone.header}
+                    className={GROUP_HEADING_CLASS}
                   >
-                    <Home className="size-4 text-muted-foreground" />
-                    Home
-                  </Command.Item>
-                  <Command.Item
-                    value="Review content verification"
-                    onSelect={() => runCommand(() => router.push('/review'))}
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
-                  >
-                    <ShieldCheck className="size-4 text-muted-foreground" />
-                    Review
-                  </Command.Item>
-                  <Command.Item
-                    value="Workspaces manage collections"
-                    onSelect={() =>
-                      runCommand(() => router.push('/workspaces'))
-                    }
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
-                  >
-                    <FolderOpen className="size-4 text-muted-foreground" />
-                    Workspaces
-                  </Command.Item>
-                  <Command.Item
-                    value="Bids tender management"
-                    onSelect={() =>
-                      runCommand(() => router.push('/procurement'))
-                    }
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
-                  >
-                    <Briefcase className="size-4 text-muted-foreground" />
-                    Bids
-                  </Command.Item>
-                  <Command.Item
-                    value="Change reports summary"
-                    onSelect={() =>
-                      runCommand(() => router.push('/change-reports'))
-                    }
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
-                  >
-                    <BookOpen className="size-4 text-muted-foreground" />
-                    Change Reports
-                  </Command.Item>
-                  <Command.Item
-                    value="Settings preferences profile"
-                    onSelect={() =>
-                      runCommand(() => router.push('/settings?section=profile'))
-                    }
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
-                  >
-                    <Settings className="size-4 text-muted-foreground" />
-                    Settings
-                  </Command.Item>
-                  {canAdmin && (
-                    <>
-                      <Command.Item
-                        value="Settings taxonomy domains subtopics"
-                        onSelect={() =>
-                          runCommand(() =>
-                            router.push('/settings?section=taxonomy'),
-                          )
-                        }
-                        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
-                      >
-                        <Settings className="size-4 text-muted-foreground" />
-                        Settings &rsaquo; Categories
-                      </Command.Item>
-                      <Command.Item
-                        value="Settings team users members"
-                        onSelect={() =>
-                          runCommand(() =>
-                            router.push('/settings?section=team'),
-                          )
-                        }
-                        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
-                      >
-                        <Settings className="size-4 text-muted-foreground" />
-                        Settings &rsaquo; Team
-                      </Command.Item>
-                      <Command.Item
-                        value="Settings governance review posture"
-                        onSelect={() =>
-                          runCommand(() =>
-                            router.push('/settings?section=governance'),
-                          )
-                        }
-                        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
-                      >
-                        <Settings className="size-4 text-muted-foreground" />
-                        Settings &rsaquo; Quality Review
-                      </Command.Item>
-                      <Command.Item
-                        value="Settings tags keywords"
-                        onSelect={() =>
-                          runCommand(() =>
-                            router.push('/settings?section=tags'),
-                          )
-                        }
-                        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
-                      >
-                        <Settings className="size-4 text-muted-foreground" />
-                        Settings &rsaquo; Tags
-                      </Command.Item>
-                      <Command.Item
-                        value="Settings layers depth levels"
-                        onSelect={() =>
-                          runCommand(() =>
-                            router.push('/settings?section=layers'),
-                          )
-                        }
-                        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
-                      >
-                        <Settings className="size-4 text-muted-foreground" />
-                        Settings &rsaquo; Depth Levels
-                      </Command.Item>
-                      <Command.Item
-                        value="Settings entities organisations people"
-                        onSelect={() =>
-                          runCommand(() =>
-                            router.push('/settings?section=entities'),
-                          )
-                        }
-                        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
-                      >
-                        <Settings className="size-4 text-muted-foreground" />
-                        Settings &rsaquo; Organisations &amp; People
-                      </Command.Item>
-                      <Command.Item
-                        value="Settings guides reading paths"
-                        onSelect={() =>
-                          runCommand(() =>
-                            router.push('/settings?section=guides'),
-                          )
-                        }
-                        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
-                      >
-                        <Settings className="size-4 text-muted-foreground" />
-                        Settings &rsaquo; Guides
-                      </Command.Item>
-                      <Command.Item
-                        value="Settings integrations connections claude mcp"
-                        onSelect={() =>
-                          runCommand(() =>
-                            router.push('/settings?section=integrations'),
-                          )
-                        }
-                        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
-                      >
-                        <Settings className="size-4 text-muted-foreground" />
-                        Settings &rsaquo; Integrations
-                      </Command.Item>
-                      <Command.Item
-                        value="Provenance audit log activity"
-                        onSelect={() =>
-                          runCommand(() => router.push('/provenance?tab=audit'))
-                        }
-                        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
-                      >
-                        <Settings className="size-4 text-muted-foreground" />
-                        Provenance &rsaquo; Audit
-                      </Command.Item>
-                    </>
-                  )}
-                </Command.Group>
+                    {zone.entries
+                      .filter((entry) => !entry.reserved)
+                      .filter((entry) =>
+                        isEntryVisible(entry.visibility, { canEdit, canAdmin }),
+                      )
+                      .map((entry) => (
+                        <Command.Item
+                          key={entry.href}
+                          value={entry.keywords ?? entry.label}
+                          onSelect={() =>
+                            runCommand(() => router.push(entry.href))
+                          }
+                          className={ITEM_CLASS}
+                        >
+                          <entry.icon className="size-4 text-muted-foreground" />
+                          {entry.label}
+                        </Command.Item>
+                      ))}
+                  </Command.Group>
+                ))}
+
+                {/* Settings — utility, not a zone member (BI-14) */}
+                <Command.Item
+                  value="Settings preferences profile"
+                  onSelect={() =>
+                    runCommand(() => router.push('/settings?section=profile'))
+                  }
+                  className={ITEM_CLASS}
+                >
+                  <Settings className="size-4 text-muted-foreground" />
+                  Settings
+                </Command.Item>
+                {canAdmin && (
+                  <>
+                    <Command.Item
+                      value="Settings taxonomy domains subtopics"
+                      onSelect={() =>
+                        runCommand(() =>
+                          router.push('/settings?section=taxonomy'),
+                        )
+                      }
+                      className={ITEM_CLASS}
+                    >
+                      <Settings className="size-4 text-muted-foreground" />
+                      Settings &rsaquo; Categories
+                    </Command.Item>
+                    <Command.Item
+                      value="Settings team users members"
+                      onSelect={() =>
+                        runCommand(() => router.push('/settings?section=team'))
+                      }
+                      className={ITEM_CLASS}
+                    >
+                      <Settings className="size-4 text-muted-foreground" />
+                      Settings &rsaquo; Team
+                    </Command.Item>
+                    <Command.Item
+                      value="Settings governance review posture"
+                      onSelect={() =>
+                        runCommand(() =>
+                          router.push('/settings?section=governance'),
+                        )
+                      }
+                      className={ITEM_CLASS}
+                    >
+                      <Settings className="size-4 text-muted-foreground" />
+                      Settings &rsaquo; Quality Review
+                    </Command.Item>
+                    <Command.Item
+                      value="Settings tags keywords"
+                      onSelect={() =>
+                        runCommand(() => router.push('/settings?section=tags'))
+                      }
+                      className={ITEM_CLASS}
+                    >
+                      <Settings className="size-4 text-muted-foreground" />
+                      Settings &rsaquo; Tags
+                    </Command.Item>
+                    <Command.Item
+                      value="Settings layers depth levels"
+                      onSelect={() =>
+                        runCommand(() =>
+                          router.push('/settings?section=layers'),
+                        )
+                      }
+                      className={ITEM_CLASS}
+                    >
+                      <Settings className="size-4 text-muted-foreground" />
+                      Settings &rsaquo; Depth Levels
+                    </Command.Item>
+                    <Command.Item
+                      value="Settings entities organisations people"
+                      onSelect={() =>
+                        runCommand(() =>
+                          router.push('/settings?section=entities'),
+                        )
+                      }
+                      className={ITEM_CLASS}
+                    >
+                      <Settings className="size-4 text-muted-foreground" />
+                      Settings &rsaquo; Organisations &amp; People
+                    </Command.Item>
+                    <Command.Item
+                      value="Settings guides reading paths"
+                      onSelect={() =>
+                        runCommand(() =>
+                          router.push('/settings?section=guides'),
+                        )
+                      }
+                      className={ITEM_CLASS}
+                    >
+                      <Settings className="size-4 text-muted-foreground" />
+                      Settings &rsaquo; Guides
+                    </Command.Item>
+                    <Command.Item
+                      value="Settings integrations connections claude mcp"
+                      onSelect={() =>
+                        runCommand(() =>
+                          router.push('/settings?section=integrations'),
+                        )
+                      }
+                      className={ITEM_CLASS}
+                    >
+                      <Settings className="size-4 text-muted-foreground" />
+                      Settings &rsaquo; Integrations
+                    </Command.Item>
+                  </>
+                )}
 
                 {/* Actions */}
                 <Command.Group
                   heading="Actions"
-                  className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground"
+                  className={GROUP_HEADING_CLASS}
                 >
                   <Command.Item
                     value="Toggle theme"
@@ -311,7 +281,7 @@ export function CommandPalette() {
                         setTheme(theme === 'dark' ? 'light' : 'dark'),
                       )
                     }
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
+                    className={ITEM_CLASS}
                   >
                     {theme === 'dark' ? (
                       <Sun className="size-4 text-muted-foreground" />
@@ -329,7 +299,7 @@ export function CommandPalette() {
                         );
                       })
                     }
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
+                    className={ITEM_CLASS}
                   >
                     <Keyboard className="size-4 text-muted-foreground" />
                     Keyboard shortcuts
