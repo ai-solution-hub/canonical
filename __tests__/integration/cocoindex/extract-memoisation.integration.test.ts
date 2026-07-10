@@ -57,8 +57,8 @@
  *   Test fixture must hold all four components constant to assert memo hit.
  *
  * Env-gate: same as 28.14 siblings — COCOINDEX_STAGING_URL +
- * ANTHROPIC_API_KEY + live Supabase. 100% skip locally pending S258+ Cloud
- * Run staging Secret Manager unblock.
+ * ANTHROPIC_API_KEY + live Supabase. Skips cleanly locally when unwired;
+ * wired end-to-end (fixture staging + memo-hit re-stage) as of ID-128.3.
  *
  * References:
  *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-21.
@@ -76,6 +76,7 @@ import {
   createLiveServiceClient,
   hasLiveDbCredentials,
 } from '../helpers/supabase-client';
+import { pollContentItemsFor, stageFixture } from './_helpers/fixture-staging';
 
 // ---------------------------------------------------------------------------
 // Env-gate — same logical AND as Inv-20 sibling (28.14 cohort).
@@ -91,21 +92,31 @@ const ENABLED = HAS_STAGING_URL && HAS_ANTHROPIC_KEY && HAS_LIVE_DB;
 // Per-file unique prefix.
 // ---------------------------------------------------------------------------
 
-const _TEST_PREFIX = `[28.14-INV21-${Date.now()}-${Math.random().toString(36).slice(2, 8)}]`;
+const TEST_PREFIX = `[28.14-INV21-${Date.now()}-${Math.random().toString(36).slice(2, 8)}]`;
 const seededContentIds: string[] = [];
 
+// The Q&A-form-shaped fixture other landed cocoindex integration tests use
+// to exercise `extract_qa_form` (e.g. op-id-round-trip, idempotency-memo-hit)
+// is `docs/testing/test-data/templates/csp-checklist/...xlsx` — that
+// directory does NOT exist in this checkout (repo-wide search + `git log
+// --all` both come up empty; verified while landing this stub — flagged as
+// an out-of-scope finding, NOT fixed here). This test instead uses the ITT
+// evaluation-matrix xlsx, a form-shaped spreadsheet expected to classify
+// similarly; if it does not yield `q_a_extractions` rows, the fixture choice
+// (not the memo-hit contract below) is the thing to revisit.
+const FIXTURE_PATH =
+  'docs/testing/test-data/templates/itt-services-efa/evaluation-matrix-itt-vol8.xlsx';
+const DEST_PATH = `inv-21/${TEST_PREFIX}.xlsx`;
+
 // ---------------------------------------------------------------------------
-// Polling helpers — wait for the cocoindex fs-watch loop to observe the
-// dropped fixture and complete the flow run. The TECH §P-9 canonical helper
-// `pollContentItemsFor(key, timeoutMs)` is deferred to 28.18 alongside the
-// corpus-drop helper; this file's body documents the contract the helper
-// will satisfy.
+// Polling — wait for the cocoindex fs-watch loop to observe the dropped
+// fixture and complete the flow run.
 //
 // The 120s timeout below mirrors the integration suite default in
 // `vitest.integration.config.ts` (line 34: `testTimeout: 120_000`).
 // ---------------------------------------------------------------------------
 
-const _POLL_TIMEOUT_MS = 120_000;
+const POLL_TIMEOUT_MS = 120_000;
 
 // ---------------------------------------------------------------------------
 // Lifecycle.
@@ -113,19 +124,20 @@ const _POLL_TIMEOUT_MS = 120_000;
 
 beforeAll(async () => {
   if (!ENABLED) return;
-  // FUTURE (deferred to 28.18 alongside `pollContentItemsFor` helper):
-  // Pass 1: drop a single fixture with a deterministic content_text body
-  // into the pinned corpus path. Wait for the flow run to complete and
-  // q_a_extractions / entity_mentions rows to land. Capture the row IDs
-  // + a content-hash digest of the rows for byte-identity comparison.
-  //
-  //   const fixtureRoot = process.env.COCOINDEX_SOURCE_PATH!;
-  //   await dropFixture(fixtureRoot, 'q_a_form-memo-test', {
-  //     content: DETERMINISTIC_QA_BODY,
-  //     title: `${_TEST_PREFIX} memoisation test`,
-  //   });
-  //   await pollContentItemsFor(_TEST_PREFIX, _POLL_TIMEOUT_MS);
-}, 30_000);
+  // Pass 1: drop the fixture, then wait for the flow run to complete and the
+  // source_documents row to land — the `it` bodies below query
+  // seededContentIds directly (unlike this directory's simpler ilike-prefix
+  // idiom), so the row MUST be resolved before any `it` runs.
+  await stageFixture({
+    fixturePath: FIXTURE_PATH,
+    destPath: DEST_PATH,
+    titlePrefix: TEST_PREFIX,
+  });
+  const items = await pollContentItemsFor(TEST_PREFIX, {
+    timeoutMs: POLL_TIMEOUT_MS,
+  });
+  for (const r of items) seededContentIds.push(r.id);
+}, POLL_TIMEOUT_MS + 30_000);
 
 afterAll(async () => {
   if (!ENABLED) return;
@@ -179,17 +191,22 @@ describe.skipIf(!ENABLED)(
           .sort((a, b) => (a.id as string).localeCompare(b.id as string)),
       );
 
-      // FUTURE (28.18): re-drop the SAME fixture content into the corpus
-      // path (modifying mtime triggers fs-watch, but the content-hash is
-      // unchanged so cocoindex's content-hash-keyed memo cache hits). Wait
-      // for the second flow run to complete.
-      //
-      //   await retouchFixture(fixtureRoot, 'q_a_form-memo-test');
-      //   await pollContentItemsFor(TEST_PREFIX, POLL_TIMEOUT_MS);
-      //
-      // The flow run lands a NEW pipeline_runs row (every flow run
-      // produces an Inv-16 pipeline_runs row), but the extractor body
-      // does NOT execute (memo hit) so no new q_a_extractions rows land.
+      // Re-drop the SAME fixture content into the corpus path (same
+      // destPath + same bytes — modifying mtime triggers fs-watch, but the
+      // content-hash is unchanged so cocoindex's content-hash-keyed memo
+      // cache hits; mirrors chunking.integration.test.ts's proven C-31
+      // re-stage idiom). Then give the walk pump a polling-cadence window to
+      // observe-and-skip (mirrors memo-hit-pipeline-run's
+      // POLL_CYCLE_WAIT_MS) before re-reading. The flow run lands a NEW
+      // pipeline_runs row (every flow run produces an Inv-16 pipeline_runs
+      // row), but the extractor body does NOT execute (memo hit) so no new
+      // q_a_extractions rows land.
+      await stageFixture({
+        fixturePath: FIXTURE_PATH,
+        destPath: DEST_PATH,
+        titlePrefix: TEST_PREFIX,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 15_000));
 
       // STRATEGY C — row-delta is zero.
       const { data: pass2Rows, error: pass2Error } = await client
@@ -225,7 +242,7 @@ describe.skipIf(!ENABLED)(
           .sort((a, b) => (a.id as string).localeCompare(b.id as string)),
       );
       expect(pass2Signature).toBe(pass1Signature);
-    });
+    }, 60_000);
 
     it('entity_mentions row count unchanged after re-ingest of identical content', async () => {
       // Same strategy applied to entity_mentions table. The

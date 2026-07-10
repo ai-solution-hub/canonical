@@ -59,6 +59,7 @@ import {
   createLiveServiceClient,
   hasLiveDbCredentials,
 } from '../helpers/supabase-client';
+import { stageFixture } from './_helpers/fixture-staging';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
@@ -91,10 +92,17 @@ const TOTAL_BUDGET_MS = COLD_START_BUDGET_MS + POLL_GRACE_MS;
 
 beforeAll(async () => {
   if (!ENABLED) return;
-  // FUTURE: stage a PDF fixture via the fixture-staging endpoint.
-  // The PDF MIME is the canonical Docling-using extractor (markdown
-  // direct ingest doesn't exercise Docling and would silently pass the
-  // assertion).
+  // Stage a PDF fixture via the fixture-staging endpoint. The PDF MIME is
+  // the canonical Docling-using extractor (markdown direct ingest doesn't
+  // exercise Docling and would silently pass the assertion). Fire-and-forget
+  // (matches the idiom every other cocoindex integration test in this
+  // directory uses) — the `it` body below polls for the landed row itself.
+  await stageFixture({
+    fixturePath:
+      'docs/testing/test-data/templates/sq-standard-selection-questionnaire/standard-selection-questionnaire-ppn-03-24.pdf',
+    destPath: `inv-10/${TEST_PREFIX}.pdf`,
+    titlePrefix: TEST_PREFIX,
+  });
 }, 30_000);
 
 afterAll(async () => {

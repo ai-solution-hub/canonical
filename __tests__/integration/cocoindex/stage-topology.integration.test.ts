@@ -49,6 +49,7 @@ import {
   createLiveServiceClient,
   hasLiveDbCredentials,
 } from '../helpers/supabase-client';
+import { stageFixture } from './_helpers/fixture-staging';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
@@ -80,7 +81,15 @@ const CANONICAL_STAGES = [
 
 beforeAll(async () => {
   if (!ENABLED) return;
-  // FUTURE: drop a markdown fixture and wait for ingest to complete.
+  // Drop a markdown fixture. The long-form fixture exercises the chunking
+  // stage with >1 chunk row (not required by the assertion — a nonneg int
+  // count is all Inv-17 checks — but gives the seven-stage rollup something
+  // real to count).
+  await stageFixture({
+    fixturePath: '__tests__/fixtures/cocoindex-chunking/long-terms.md',
+    destPath: `inv-3/${TEST_PREFIX}.md`,
+    titlePrefix: TEST_PREFIX,
+  });
 }, 30_000);
 
 afterAll(async () => {

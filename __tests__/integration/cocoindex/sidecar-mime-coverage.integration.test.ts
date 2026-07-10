@@ -44,6 +44,7 @@ import {
   createLiveServiceClient,
   hasLiveDbCredentials,
 } from '../helpers/supabase-client';
+import { stageFixture } from './_helpers/fixture-staging';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
@@ -58,22 +59,55 @@ const seededContentIds: string[] = [];
 
 const POLL_TIMEOUT_MS = 180_000;
 
-// MIME-set-to-fixture map. The fixture files are deferred to the
-// fixture-staging endpoint substrate; this file documents the FUTURE
-// contract. HTML is excluded — it is not a file-corpus MIME (ID-75 WP-D /
-// ID-112.7); HTML lands via the URL source instead.
+// MIME-set-to-fixture map. HTML is excluded — it is not a file-corpus MIME
+// (ID-75 WP-D / ID-112.7); HTML lands via the URL source instead. Each
+// fixture below is a real, checked-in file already proven to ingest via
+// other enabled cocoindex integration tests in this directory.
 type MimeKind = 'pdf' | 'docx' | 'xlsx' | 'markdown';
 
-const MIME_SET: { kind: MimeKind; fileSuffix: string }[] = [
-  { kind: 'markdown', fileSuffix: '.md' },
-  { kind: 'pdf', fileSuffix: '.pdf' },
-  { kind: 'docx', fileSuffix: '.docx' },
-  { kind: 'xlsx', fileSuffix: '.xlsx' },
-];
+const MIME_SET: { kind: MimeKind; fileSuffix: string; fixturePath: string }[] =
+  [
+    {
+      kind: 'markdown',
+      fileSuffix: '.md',
+      fixturePath: '__tests__/fixtures/cocoindex-chunking/short-clause.md',
+    },
+    {
+      kind: 'pdf',
+      fileSuffix: '.pdf',
+      fixturePath:
+        'docs/testing/test-data/templates/sq-standard-selection-questionnaire/standard-selection-questionnaire-ppn-03-24.pdf',
+    },
+    {
+      kind: 'docx',
+      fileSuffix: '.docx',
+      fixturePath:
+        'docs/testing/test-data/templates/rfp-british-council/annex_2_supplier_response.docx',
+    },
+    {
+      kind: 'xlsx',
+      fileSuffix: '.xlsx',
+      fixturePath:
+        'docs/testing/test-data/templates/rfp-british-council/annex_3_pricing_approach.xlsx',
+    },
+  ];
 
 beforeAll(async () => {
   if (!ENABLED) return;
-  // FUTURE: drop one fixture per MIME kind via the fixture-staging endpoint.
+  // Drop one fixture per MIME kind via the fixture-staging endpoint.
+  // Fire-and-forget (each `it` below polls for its own row) — the dest
+  // filename embeds `${TEST_PREFIX}-${mime.kind}` so each MIME's poll
+  // (`ilike filename '${TEST_PREFIX}-${mime.kind}%'`) matches only its own
+  // fixture.
+  await Promise.all(
+    MIME_SET.map((mime) =>
+      stageFixture({
+        fixturePath: mime.fixturePath,
+        destPath: `inv-7/${TEST_PREFIX}-${mime.kind}${mime.fileSuffix}`,
+        titlePrefix: TEST_PREFIX,
+      }),
+    ),
+  );
 }, 30_000);
 
 afterAll(async () => {

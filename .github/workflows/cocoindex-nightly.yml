@@ -10,23 +10,45 @@
 # three env vars in an ephemeral GH-Actions-hosted sidecar so those cases
 # execute somewhere automated, off the PR critical path.
 #
-# THIS PASS IS INFRA STAND-UP ONLY (scoped per the ID-128.3 dispatch brief).
-# Explicitly NOT attempted here (tracked as separate follow-up slices, NOT
-# silently dropped):
-#   - The 9 bl-227 stub re-enablements (sidecar-cold-start,
-#     sidecar-mime-coverage, sidecar-version-metadata, stage-topology,
-#     latency-budget, audit-log-shipping, extract-memoisation,
-#     memo-hit-pipeline-run, stage-5-failure-non-destructive) — the
-#     `--exclude` list below is copied VERBATIM from live-verify.sh's current
-#     Vitest step (READ-ONLY; this workflow does not edit that script) and
-#     must be shrunk in BOTH places, one stub at a time, as each lands. There
-#     is no shared source of truth for this list today (follow-up: extract to
-#     a checked-in file both scripts source).
-#   - server.py `_stage_handler`'s missing `?failStage5=` directive (gates
-#     stage-5-failure-non-destructive).
-#   - The v1.1 `audit_log` table (gates audit-log-shipping).
-#   - The bl-195 items_created no-op assertion (blocked on a no-op
-#     run-correlation mechanism; C-31 already carries the load).
+# ID-128.3 second pass (this commit): wired COCOINDEX_DB_DSN to the existing
+# STAGING_SUPABASE_DB_URL secret (no new secret minted — operator OQ
+# ratified this: the DSN value equals the *_SUPABASE_DB_URL value per env)
+# and dropped the Vitest step's continue-on-error guard — the lane is a real
+# gate now, not a soft-fail placeholder.
+#
+# 8 of the 9 bl-227 stubs landed this pass (sidecar-cold-start,
+# sidecar-mime-coverage, sidecar-version-metadata, stage-topology,
+# latency-budget, audit-log-shipping, extract-memoisation,
+# memo-hit-pipeline-run) — their beforeAll hooks previously contained only
+# `FUTURE:` prose with no actual fixture-staging call; each now calls
+# `stageFixture(...)` against a real checked-in fixture so the test's
+# existing poll/assert body has something to observe. The bl-195
+# items_created no-op assertion is absorbed by memo-hit-pipeline-run's
+# landed Inv-15/16 coverage (row-count-delta + audit_log-silence checks) —
+# C-31 already carries that correlation load, so no separate items_created
+# assertion was added (see that test file's docblock).
+#
+# Remaining exclusion (still NOT attempted, tracked as follow-up, NOT
+# silently dropped): stage-5-failure-non-destructive. Its beforeAll already
+# calls the real `injectStage5Failure` helper, but the helper's
+# `?failStage5=<mode>` directive is NOT understood by server.py's
+# `_stage_handler` today — landing it needs a scoped, concurrency-safe
+# design (the naive "clear the credential env var" approach the helper's
+# docblock describes would clobber every OTHER concurrently-processed
+# fixture's Stage-5 pass in this shared, single-process sidecar, since
+# `update_blocking()` processes the whole watched corpus per invocation, not
+# one file at a time) — deliberately out of scope for a "keep the diff
+# MINIMAL" pass, and doubly so with a parallel id-132 session possibly
+# touching pipeline files concurrently. The `--exclude` list below is
+# copied VERBATIM from live-verify.sh's current Vitest step (READ-ONLY;
+# this workflow does not edit that script) — live-verify.sh's OWN list
+# still excludes all 9 and is a tracked residual (not touched this pass;
+# outside this file's ownership boundary).
+#
+# The v1.1 `audit_log` table remains unbuilt — audit-log-shipping and
+# memo-hit-pipeline-run both probe for the table's existence and skip their
+# v1.1 sub-assertion cleanly (`PGRST`-class error → early return) when it's
+# absent, so landing both tests does NOT require building the table.
 #
 # Sidecar provisioning: this lane BUILDS the cocoindex image locally via the
 # SAME Cloud Native Buildpacks recipe onprem-deploy.yml uses (pruned context =
@@ -76,24 +98,21 @@
 # value as COCOINDEX_STAGING_URL) — both nightly env vars below point at the
 # one running container.
 #
-# OPEN QUESTION / KNOWN GAP (not resolvable from this worktree): COCOINDEX_DB_DSN
-# does NOT appear in the documented Staging environment secret list
-# (docs/runbooks/github-environments.md §3.1) — it needs to be minted
-# (Staging-scoped Supabase pooler connection string + password) and added as a
-# Staging-environment secret before this lane can go green end-to-end. Until
-# then, expect the container to fail its first Postgres write (flow.py raises
-# loudly rather than silently degrading) — the Vitest step below is
-# `continue-on-error: true` (explicitly permitted by the dispatch brief "while
-# iterating") so the workflow still completes and uploads diagnostic logs
-# rather than hard-failing the whole job on infra that isn't provisioned yet.
+# RESOLVED (was OPEN QUESTION / KNOWN GAP): COCOINDEX_DB_DSN does not need a
+# separately-minted secret. Operator OQ ratified (S455 pickup): the GitHub
+# Staging environment already carries STAGING_SUPABASE_DB_URL (also used by
+# api-view-coverage.yml / schema-parity.yml), and COCOINDEX_DB_DSN's value
+# equals that per-env DSN — so this lane sources it from the SAME existing
+# secret rather than minting a new one. The Vitest step below no longer
+# carries `continue-on-error` — the lane is a real gate now.
 #
 # Required secrets / vars (Staging environment scope — per
-# docs/runbooks/github-environments.md §3.1), all already provisioned EXCEPT
-# COCOINDEX_DB_DSN (see OPEN QUESTION above):
+# docs/runbooks/github-environments.md §3.1), all already provisioned:
 #   Secrets:
 #     SUPABASE_SERVICE_ROLE_KEY, SUPABASE_PUBLISHABLE_KEY, POSTGRES_PASSWORD,
 #     ANTHROPIC_API_KEY, OPENAI_API_KEY, CRON_SECRET,
-#     TEST_USER_{1,2,3}_PASSWORD, COCOINDEX_DB_DSN (NEW — see above)
+#     TEST_USER_{1,2,3}_PASSWORD, STAGING_SUPABASE_DB_URL (sources
+#     COCOINDEX_DB_DSN below — no new secret)
 #   Vars:
 #     SUPABASE_URL, NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_CLIENT_ID,
 #     AI_EMBEDDING_MODEL, AI_EMBEDDING_DIMS, TEST_USER_{1,2,3}_EMAIL
@@ -161,9 +180,11 @@ jobs:
       TEST_USER_3_EMAIL: ${{ vars.TEST_USER_3_EMAIL }}
       TEST_USER_3_PASSWORD: ${{ secrets.TEST_USER_3_PASSWORD }}
       # The sidecar's OWN Postgres write target — see the Postgres section of
-      # the header comment. NOT yet provisioned (OPEN QUESTION above); the
-      # container will fail its first write until this secret is minted.
-      COCOINDEX_DB_DSN: ${{ secrets.COCOINDEX_DB_DSN }}
+      # the header comment. Sources the SAME Staging pooler DSN
+      # api-view-coverage.yml / schema-parity.yml already use as
+      # STAGING_SUPABASE_DB_URL — no separately-minted COCOINDEX_DB_DSN
+      # secret (operator OQ ratified, S455 pickup).
+      COCOINDEX_DB_DSN: ${{ secrets.STAGING_SUPABASE_DB_URL }}
       # Sidecar container + Vitest wiring (this job's local topology, not
       # secrets — literal here is fine).
       COCOINDEX_IMAGE_TAG: "kh-cocoindex-pipeline:nightly-${{ github.run_id }}"
@@ -343,8 +364,12 @@ jobs:
 
       - name: Run cocoindex Vitest go-live tier
         # File selection + --exclude list copied VERBATIM from live-verify.sh
-        # (READ-ONLY reference — see header). Keep both lists in sync as
-        # bl-227 stubs land; this file does not edit live-verify.sh.
+        # (READ-ONLY reference — see header), MODULO the 8 bl-227 stubs
+        # landed this pass (ID-128.3 second pass) — live-verify.sh's own list
+        # still excludes all 9 (tracked residual, out of this file's
+        # ownership). Only stage-5-failure-non-destructive remains excluded
+        # here (see header — needs a scoped server.py directive not yet
+        # built).
         id: cocoindex_vitest
         env:
           COCOINDEX_STAGING_URL: "http://localhost:8080"
@@ -355,22 +380,8 @@ jobs:
           bun x vitest run --config vitest.integration.config.ts \
             __tests__/integration/cocoindex \
             form-extraction \
-            --exclude '**/sidecar-cold-start.integration.test.ts' \
-            --exclude '**/sidecar-mime-coverage.integration.test.ts' \
-            --exclude '**/sidecar-version-metadata.integration.test.ts' \
-            --exclude '**/stage-topology.integration.test.ts' \
-            --exclude '**/latency-budget.integration.test.ts' \
-            --exclude '**/audit-log-shipping.integration.test.ts' \
-            --exclude '**/extract-memoisation.integration.test.ts' \
-            --exclude '**/memo-hit-pipeline-run.integration.test.ts' \
             --exclude '**/stage-5-failure-non-destructive.integration.test.ts' \
             2>&1 | tee /tmp/cocoindex-nightly.log
-        # continue-on-error explicitly permitted by the ID-128.3 dispatch
-        # brief "while iterating" — COCOINDEX_DB_DSN is not provisioned yet
-        # (see header OPEN QUESTION), so a hard-fail here would just re-flag
-        # the same known gap every night rather than surfacing new
-        # regressions once the secret lands.
-        continue-on-error: true
 
       - name: Log runner verdict
         if: always()
@@ -382,7 +393,6 @@ jobs:
             echo "Cocoindex nightly: all non-excluded cases passed."
           else
             echo "Cocoindex nightly: non-zero exit — see /tmp/cocoindex-nightly.log and the uploaded artefact."
-            echo "Known gap while COCOINDEX_DB_DSN is unprovisioned: see this workflow's header comment."
           fi
           echo "Outcome: $COCOINDEX_OUTCOME"
 

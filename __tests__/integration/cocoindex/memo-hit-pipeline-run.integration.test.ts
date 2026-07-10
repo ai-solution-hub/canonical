@@ -56,6 +56,7 @@ import {
   createLiveServiceClient,
   hasLiveDbCredentials,
 } from '../helpers/supabase-client';
+import { stageFixture } from './_helpers/fixture-staging';
 import { KH_CANONICAL_PIPELINE_NAME } from './test-helpers';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
@@ -75,6 +76,13 @@ const POLL_CYCLE_WAIT_MS = 15_000;
 
 beforeAll(async () => {
   if (!ENABLED) return;
+  // First ingest — the walk pump's subsequent poll cycles on this UNCHANGED
+  // file are what exercise the Inv-16 memo-hit +1-row assertion below.
+  await stageFixture({
+    fixturePath: '__tests__/fixtures/cocoindex-chunking/short-clause.md',
+    destPath: `inv-15-16/${TEST_PREFIX}.md`,
+    titlePrefix: TEST_PREFIX,
+  });
 }, 30_000);
 
 afterAll(async () => {

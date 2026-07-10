@@ -47,6 +47,7 @@ import {
   createLiveServiceClient,
   hasLiveDbCredentials,
 } from '../helpers/supabase-client';
+import { stageFixture } from './_helpers/fixture-staging';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
@@ -75,6 +76,15 @@ const EXTRACTOR_ID_KEYS = [
 
 beforeAll(async () => {
   if (!ENABLED) return;
+  // The extractor-identification metadata is stamped by the webhook bridge
+  // at flow-end regardless of MIME (container-level fields, not
+  // Docling-specific) — markdown direct ingest is the fastest path to a
+  // successful run.
+  await stageFixture({
+    fixturePath: '__tests__/fixtures/cocoindex-chunking/short-clause.md',
+    destPath: `inv-8/${TEST_PREFIX}.md`,
+    titlePrefix: TEST_PREFIX,
+  });
 }, 30_000);
 
 afterAll(async () => {

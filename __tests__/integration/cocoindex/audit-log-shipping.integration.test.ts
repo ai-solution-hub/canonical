@@ -61,6 +61,7 @@ import {
   createLiveServiceClient,
   hasLiveDbCredentials,
 } from '../helpers/supabase-client';
+import { stageFixture } from './_helpers/fixture-staging';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
@@ -77,6 +78,13 @@ const POLL_TIMEOUT_MS = 120_000;
 
 beforeAll(async () => {
   if (!ENABLED) return;
+  // v1 substrate only needs a pipeline-driven row with a resolvable op_id —
+  // any fixture works; markdown is the fastest path.
+  await stageFixture({
+    fixturePath: '__tests__/fixtures/cocoindex-chunking/short-clause.md',
+    destPath: `inv-13/${TEST_PREFIX}.md`,
+    titlePrefix: TEST_PREFIX,
+  });
 }, 30_000);
 
 afterAll(async () => {
