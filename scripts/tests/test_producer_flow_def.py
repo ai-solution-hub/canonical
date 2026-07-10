@@ -525,11 +525,12 @@ class TestBI28StagingProvenance:
             {won_bid_draft.key: won_bid_draft, ordinary_draft.key: ordinary_draft},
         )
 
+        re_target = _FakeRecordEmbeddingsTarget()
         report = asyncio.run(
             env.flow_def.run_producer_flow(
-                [{"id": "sd-1"}],
                 pool=object(),
                 bundle_dir=bundle_dir,
+                re_target=re_target,
                 repo_path=repo,
                 embedder=_fake_embedder,
             )
@@ -539,18 +540,108 @@ class TestBI28StagingProvenance:
         assert _commit_count(repo) == 0
         assert report.committed is False
         assert report.sync_result.staged is True
-        assert (repo / "case-studies/acme-corp.md").is_file()
+        # {132.29}: a won-bid case_study draft's PHYSICAL write path is
+        # redirected into a `won-bid/` sibling directory, distinct from its
+        # identity rel_path — this is what actually lands in the client-owned
+        # repo (bundle_writer.bundle_write_path's redirect rule).
+        assert (repo / "case-studies/won-bid/acme-corp.md").is_file()
+        assert not (repo / "case-studies/acme-corp.md").exists()
+
+        # BI-25/26 ({132.29} checker-FAIL regression): the won-bid concept
+        # still gets its embedding row — an identity-rel_path-keyed lookup
+        # would silently miss it, since write_bundle's RunSummary reports the
+        # PHYSICAL (redirected) path, not the identity rel_path.
+        assert len(re_target.rows) == 2
+        assert sorted(report.embedded) == [
+            "case-studies/won-bid/acme-corp.md",
+            "topics/alpha.md",
+        ]
 
         # The proposed_change_set's won-bid entry carries source_workspace_id
-        # (BI-28); an ordinary entry keeps the None default.
+        # (BI-28), keyed by the PHYSICAL (redirected) path — an identity-keyed
+        # provenance map would never match a redirected won-bid entry here.
         assert report.proposed_change_set is not None
         changes = {
             c["concept_path"]: c for c in report.proposed_change_set["changes"]
         }
-        assert changes["case-studies/acme-corp.md"]["source_workspace_id"] == (
+        assert changes["case-studies/won-bid/acme-corp.md"]["source_workspace_id"] == (
             "22222222-2222-4222-8222-222222222222"
         )
         assert changes["topics/alpha.md"]["source_workspace_id"] is None
+
+    def test_same_slug_collision_embeds_the_correct_bodies_and_provenance(
+        self, env, bundle_dir: Path, repo: Path
+    ) -> None:
+        """{132.29} regression: a named-client and a won-bid `case_study`
+        concept sharing the IDENTICAL identity `rel_path` (the cross-grain
+        slug collision bundle_writer's `won-bid/` redirect exists to solve)
+        must each get their OWN embedding row with the CORRECT body — an
+        identity-rel_path-keyed embed lookup would collide both concepts onto
+        the SAME `record_embeddings` natural key (BI-26's `concept_owner_id`
+        is a pure hash of whatever string it is given) and could let the
+        second `declare_row` silently clobber the first with the wrong body.
+        Only the won-bid entry's `proposed_change_set` row may carry
+        `source_workspace_id` (BI-28)."""
+        named_client_draft = env.build_draft(
+            "case-studies/acme-corp.md",
+            title="Acme Corp (named client)",
+            concept_type="case_study",
+        )
+        won_bid_draft = env.build_draft(
+            "case-studies/acme-corp.md",
+            title="Acme Corp (won-bid outcome)",
+            concept_type="case_study",
+            workspace_id="33333333-3333-4333-8333-333333333333",
+        )
+        _wire_source(
+            env,
+            {
+                named_client_draft.key: named_client_draft,
+                won_bid_draft.key: won_bid_draft,
+            },
+        )
+
+        re_target = _FakeRecordEmbeddingsTarget()
+        report = asyncio.run(
+            env.flow_def.run_producer_flow(
+                pool=object(),
+                bundle_dir=bundle_dir,
+                re_target=re_target,
+                repo_path=repo,
+                embedder=_fake_embedder,
+            )
+        )
+
+        # Both grains land at DISTINCT physical paths (bundle_writer's own
+        # {132.29} redirect) despite sharing one identity rel_path — no
+        # ValueError collision, and no on-disk clobber.
+        assert (repo / "case-studies/acme-corp.md").is_file()
+        assert (repo / "case-studies/won-bid/acme-corp.md").is_file()
+        assert "named client" in (repo / "case-studies/acme-corp.md").read_text(
+            encoding="utf-8"
+        )
+        assert "won-bid outcome" in (
+            repo / "case-studies/won-bid/acme-corp.md"
+        ).read_text(encoding="utf-8")
+
+        # BI-25/26: TWO distinct embedding rows — not one clobbering the
+        # other via a shared identity-rel_path owner_id.
+        assert len(re_target.rows) == 2
+        assert sorted(report.embedded) == [
+            "case-studies/acme-corp.md",
+            "case-studies/won-bid/acme-corp.md",
+        ]
+
+        # BI-28: only the won-bid entry's proposed_change_set row carries
+        # source_workspace_id; the named-client entry keeps the None default.
+        assert report.proposed_change_set is not None
+        changes = {
+            c["concept_path"]: c for c in report.proposed_change_set["changes"]
+        }
+        assert changes["case-studies/acme-corp.md"]["source_workspace_id"] is None
+        assert changes["case-studies/won-bid/acme-corp.md"]["source_workspace_id"] == (
+            "33333333-3333-4333-8333-333333333333"
+        )
 
 
 # ── {132.27}: the reapply_overrides seam ──────────────────────────────────

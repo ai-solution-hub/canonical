@@ -83,6 +83,21 @@ Two more pieces wire in at this same seam:
   `list_concepts()` enumerated, so a won-bid entry in the emitted
   `proposed_change_set` carries its `source_workspace_id` (BI-28: "never an
   automatic bundle write ... gated by human accept/edit/reject review").
+
+**Physical-vs-identity key reconciliation (ID-132 {132.29} fix-forward).**
+`write_bundle`'s `RunSummary.added`/`.changed` report the PHYSICAL bundle
+write path (`bundle_writer.bundle_write_path`) — which redirects a won-bid
+`case_study` draft into a `case-studies/won-bid/<slug>.md` sibling
+directory, distinct from its identity `rel_path` (`ConceptKey.rel_path`,
+BI-2/DR-016). Both the G-EMBED lookup below and the BI-28 provenance map
+key on that SAME physical path (via `bundle_write_path`/`bundle_write_
+path_for_key`) — never the identity `rel_path` — so a won-bid entry
+resolves correctly instead of silently missing (the {132.29} checker-FAIL
+this fixes): identity-keyed lookups against a physical-path-keyed summary
+always miss for a redirected concept, and in the cross-grain same-slug
+collision case (a named-client and a won-bid `case_study` sharing one
+identity `rel_path`) an identity-keyed embed lookup can additionally
+resolve to the WRONG draft's body.
 """
 
 from __future__ import annotations
@@ -220,8 +235,8 @@ async def _draft_concepts(
 
 async def _embed_written_concepts(
     re_target: Any,
-    drafts_by_rel_path: "dict[str, Any]",
-    changed_rel_paths: "Sequence[str]",
+    drafts_by_write_path: "dict[str, Any]",
+    changed_write_paths: "Sequence[str]",
     *,
     embedder: Embedder,
 ) -> "tuple[str, ...]":
@@ -230,19 +245,51 @@ async def _embed_written_concepts(
     (delta-only — an unchanged concept keeps its existing UPSERTed row from a
     prior run; a no-op run embeds nothing). Embeds the distilled `body` (stable
     across runs when the backing records are unchanged — the frontmatter's
-    per-run timestamp is deliberately excluded)."""
+    per-run timestamp is deliberately excluded).
+
+    `drafts_by_write_path`/`changed_write_paths` are keyed by the PHYSICAL
+    bundle write path (`bundle_writer.bundle_write_path`) — `RunSummary.
+    added`/`.changed` report physical paths (ID-132 {132.29}: a won-bid
+    `case_study` draft's physical path is redirected away from its identity
+    `rel_path`), so the lookup here MUST match on that same key, and
+    `declare_concept_embedding`'s own `rel_path` argument is ALSO the
+    physical path here — not the draft's identity `rel_path`. This matters
+    for the {132.29} cross-grain same-slug collision case: a named-client
+    and a won-bid `case_study` concept can share one identity `rel_path`
+    while resolving to two DISTINCT physical write paths (bundle_writer's
+    own pre-write collision guard enforces this); embedding by the shared
+    identity would collide both concepts onto the SAME `record_embeddings`
+    natural key (BI-26's `concept_owner_id` is a pure hash of whatever
+    string it is given) and let the second `declare_row` silently clobber
+    the first. Embedding by the (already collision-free) physical path
+    keeps them distinct, mirroring how they are already kept distinct
+    on-disk.
+
+    A `changed_write_paths` entry with no matching draft is an internal
+    invariant violation — every physical path `write_bundle` reports as
+    added/changed was, by construction, resolved from a draft in THIS same
+    run — so this raises loudly rather than silently skipping the concept
+    (BI-25/26 requires an embedding row for every added/changed concept;
+    the {132.29} checker-FAIL this fixes was exactly a silent `continue`
+    here)."""
     from scripts.cocoindex_pipeline.producer.embed import (  # noqa: PLC0415
         declare_concept_embedding,
     )
 
     embedded: "list[str]" = []
-    for rel_path in changed_rel_paths:
-        draft = drafts_by_rel_path.get(rel_path)
+    for write_path in changed_write_paths:
+        draft = drafts_by_write_path.get(write_path)
         if draft is None:
-            continue
+            raise RuntimeError(
+                "producer flow G-EMBED: no draft found for bundle write "
+                f"path {write_path!r} reported as added/changed — BI-25/26 "
+                "requires an embedding row for every added/changed concept; "
+                "a lookup miss here is a bundle-write/embed key mismatch, "
+                "never a silently-skippable condition (ID-132 {132.29})."
+            )
         embedding = await embedder(draft.body)
-        declare_concept_embedding(re_target, rel_path=rel_path, embedding=embedding)
-        embedded.append(rel_path)
+        declare_concept_embedding(re_target, rel_path=write_path, embedding=embedding)
+        embedded.append(write_path)
     return tuple(embedded)
 
 
@@ -304,6 +351,8 @@ async def run_producer_flow(
 
     # Lazy imports — see the module docstring's Collection-safety note.
     from scripts.cocoindex_pipeline.producer.bundle_writer import (  # noqa: PLC0415
+        bundle_write_path,
+        bundle_write_path_for_key,
         write_bundle,
     )
     from scripts.cocoindex_pipeline.producer.enrich import (  # noqa: PLC0415
@@ -346,11 +395,13 @@ async def run_producer_flow(
     # G-EMBED — one record_embeddings row per added/changed concept (delta-only).
     embedded: "tuple[str, ...]" = ()
     if re_target is not None:
-        drafts_by_rel_path = {_rel_path_of(d): d for d in (*drafts, *reference_drafts)}
+        drafts_by_write_path = {
+            bundle_write_path(d): d for d in (*drafts, *reference_drafts)
+        }
         resolved_embedder = embedder or _default_embedder()
         embedded = await _embed_written_concepts(
             re_target,
-            drafts_by_rel_path,
+            drafts_by_write_path,
             (*summary.added, *summary.changed),
             embedder=resolved_embedder,
         )
@@ -387,13 +438,18 @@ async def run_producer_flow(
         new_output = reapply_overrides(new_output, overrides)
 
     # BI-28 provenance ({132.21}/{132.22}): concept_path -> workspace_id, from
-    # every won-bid case_study ConceptKey this run enumerated. A path absent
-    # from the map keeps ProposedChange.source_workspace_id at its None
-    # default (the ordinary Pass-1/Pass-2 producer flow).
+    # every won-bid case_study ConceptKey this run enumerated. Keyed by the
+    # PHYSICAL bundle write path (bundle_write_path_for_key) — NOT the
+    # identity key.rel_path — because `sync_bundle`'s `proposed_changes` are
+    # built from `new_output` (this run's on-disk bundle contents, i.e.
+    # physical paths); an identity-keyed map here would never match a
+    # redirected won-bid entry (ID-132 {132.29} checker-FAIL remediation). A
+    # path absent from the map keeps ProposedChange.source_workspace_id at
+    # its None default (the ordinary Pass-1/Pass-2 producer flow).
     source_workspace_ids = {
-        key.rel_path: key.workspace_id
+        bundle_write_path_for_key(key): key.workspace_id
         for key in concepts
-        if getattr(key, "workspace_id", None) is not None
+        if key.workspace_id is not None
     }
 
     sync_result = sync_bundle(

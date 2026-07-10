@@ -74,7 +74,7 @@ file: BI-28 requires the won-bid grain to stay a distinct human-reviewable
 accept/edit/reject PROPOSAL, never silently blended into an already-
 published named-client page, and two independently-sourced `ConceptDraft`s
 (different provenance, frontmatter, body) have no principled "whose content
-wins" answer. Chosen instead: `_bundle_write_path` redirects every won-bid
+wins" answer. Chosen instead: `bundle_write_path` redirects every won-bid
 `case_study` draft's PHYSICAL write target into a `won-bid/` sibling
 directory (`case-studies/won-bid/<slug>.md`) — the draft's identity
 `rel_path` (`ConceptKey.rel_path`, the memo key and the DR-016 human-
@@ -90,6 +90,22 @@ structurally non-collidable. `write_bundle` additionally guards the general
 case defense-in-depth: ANY two drafts whose write paths coincide in one run
 (this scenario, or any future one) raise `ValueError` before either is
 written, rather than the second silently clobbering the first.
+
+**Physical-vs-identity key reconciliation (ID-132 {132.29} fix-forward,
+post-checker-FAIL).** `bundle_write_path` is PUBLIC (not `_`-prefixed) for
+exactly one reason: `producer/flow_def.py` composes `write_bundle`'s
+`RunSummary.added`/`.changed` (PHYSICAL write paths) with its own
+embed/BI-28-provenance steps, which — before this fix — re-derived a
+lookup key via IDENTITY `rel_path` alone, silently missing every won-bid
+`case_study` entry (a dict keyed by identity never matches a summary
+reported by physical path) and, in the cross-grain same-slug collision
+case, risking one concept's embedding clobbering the other's under a
+shared identity key. `bundle_write_path`/`bundle_write_path_for_key` are
+the single source of truth for the redirect rule (`_won_bid_case_study_
+redirect`) so `flow_def.py` can key its own lookups on the IDENTICAL
+physical path this module already used to decide where each draft
+actually landed, rather than re-implementing (and risking drifting from)
+the redirect rule a second time.
 
 **Full flow wiring composed in `producer/flow_def.py` ({132.23}).**
 `write_bundle`/`declare_concept` are plain orchestration functions, NOT
@@ -166,7 +182,26 @@ def _rel_path_of(draft: Any) -> str:
     return draft.key.rel_path
 
 
-def _bundle_write_path(draft: Any) -> str:
+def _won_bid_case_study_redirect(
+    rel_path: str, *, concept_type: "str | None", workspace_id: "str | None"
+) -> str:
+    """The shared {132.29} redirect rule: a won-bid `case_study` concept's
+    identity `rel_path` (`case-studies/<slug>.md`) redirects into a distinct
+    `won-bid/` sibling directory (`case-studies/won-bid/<slug>.md`) so it
+    can never collide with a same-slug named-client `case_study` concept's
+    own bundle path; every other concept is returned unredirected. Single
+    source of truth for both `bundle_write_path` (keyed off a drafted
+    concept) and `bundle_write_path_for_key` (keyed off a bare `ConceptKey`,
+    for callers — `flow_def.py`'s BI-28 provenance map — that enumerate
+    keys before any concept has been drafted).
+    """
+    if concept_type != "case_study" or workspace_id is None:
+        return rel_path
+    path = PurePosixPath(rel_path)
+    return str(path.parent / "won-bid" / path.name)
+
+
+def bundle_write_path(draft: Any) -> str:
     """The PHYSICAL bundle path `declare_concept` writes `draft` to —
     ordinarily identical to `_rel_path_of(draft)` (the concept's identity /
     cocoindex memo key, BI-2), EXCEPT for the won-bid `case_study` grain
@@ -178,17 +213,34 @@ def _bundle_write_path(draft: Any) -> str:
     shape (never imports `sources.l_records.ConceptKey`, mirroring
     `_rel_path_of`'s own duck-typing) — `ReferenceConceptDraft` has no
     `.key` and is therefore always left unredirected.
+
+    PUBLIC (not `_`-prefixed): `flow_def.py` consumes this directly so its
+    own embed-step lookup and BI-28 provenance map key on the SAME physical
+    path `write_bundle`'s `RunSummary.added`/`.changed` already report,
+    instead of re-deriving (and risking drift from) the redirect rule a
+    second time (ID-132 {132.29} checker-FAIL remediation).
     """
     rel_path = _rel_path_of(draft)
     key = getattr(draft, "key", None)
-    is_won_bid_case_study = (
-        getattr(key, "concept_type", None) == "case_study"
-        and getattr(key, "workspace_id", None) is not None
+    return _won_bid_case_study_redirect(
+        rel_path,
+        concept_type=getattr(key, "concept_type", None),
+        workspace_id=getattr(key, "workspace_id", None),
     )
-    if not is_won_bid_case_study:
-        return rel_path
-    path = PurePosixPath(rel_path)
-    return str(path.parent / "won-bid" / path.name)
+
+
+def bundle_write_path_for_key(key: Any) -> str:
+    """`bundle_write_path`'s counterpart for callers that only have a bare
+    `ConceptKey` (not a drafted concept) in scope — `flow_def.py`'s BI-28
+    provenance map is built from `LRecordsSource.list_concepts()`'s full
+    enumerated keyset, before any concept has been drafted. Applies the
+    SAME redirect rule (`_won_bid_case_study_redirect`) directly to
+    `key.rel_path`."""
+    return _won_bid_case_study_redirect(
+        key.rel_path,
+        concept_type=getattr(key, "concept_type", None),
+        workspace_id=getattr(key, "workspace_id", None),
+    )
 
 
 def _read_existing(path: Path) -> "str | None":
@@ -235,12 +287,12 @@ def declare_concept(
     rest of the bundle.
 
     `ConceptWriteResult.rel_path` is the draft's PHYSICAL bundle write path
-    (`_bundle_write_path`) — identical to the draft's identity `rel_path`
+    (`bundle_write_path`) — identical to the draft's identity `rel_path`
     for every concept EXCEPT the won-bid `case_study` grain, which is
     redirected into `case-studies/won-bid/<slug>.md` to avoid the {132.29}
     cross-grain slug collision (see module docstring).
     """
-    rel_path = _bundle_write_path(draft)
+    rel_path = bundle_write_path(draft)
     frontmatter: ConceptFrontmatter = draft.frontmatter
     body: str = draft.body
     errors = check_concept(
@@ -592,7 +644,7 @@ def write_bundle(
     the diff further.
 
     Raises `ValueError` if two drafts in this run resolve to the same
-    PHYSICAL write path (`_bundle_write_path`) — e.g. a won-bid `case_study`
+    PHYSICAL write path (`bundle_write_path`) — e.g. a won-bid `case_study`
     concept redirected by ID-132 {132.29} would otherwise still collide
     with another same-slug draft. Fails loudly before either write happens
     rather than letting the second `declare_file` call silently overwrite
@@ -620,7 +672,7 @@ def write_bundle(
     # rather than leaving a half-written bundle.
     seen_write_paths: "set[str]" = set()
     for draft in all_drafts:
-        write_path = _bundle_write_path(draft)
+        write_path = bundle_write_path(draft)
         if write_path in seen_write_paths:
             raise ValueError(
                 f"bundle write-path collision: more than one concept draft "
