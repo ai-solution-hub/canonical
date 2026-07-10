@@ -55,22 +55,6 @@ import type { Database } from '@/supabase/types/database.types';
 import { sb } from '@/lib/supabase/safe';
 import { logger } from '@/lib/logger';
 
-// TYPE ESCAPE (deliberate, temporary — mirrors the precedent set by the
-// {138.6}/{138.7} integration tests, e.g.
-// __tests__/integration/id138-erasure-cascade.integration.test.ts): the two
-// RPCs this file calls are authored
-// (20260704120000_id138_writer_fence_lease.sql) but NOT YET in the
-// generated `database.types.ts` — apply is an owner-gated coordinated GO,
-// and FR-003 forbids regenerating/reading that generated file from this
-// Subtask. `SupabaseClient<any>` is the standard escape for calling a
-// not-yet-generated RPC surface, confined to the two `.rpc()` call sites
-// below — the PUBLIC functions in this file still accept/return the
-// properly-typed `SupabaseClient<Database>`. DELETE this escape (call
-// `.rpc()` directly on the typed client) once the coordinated GO
-// regenerates types.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type UntypedRpcClient = SupabaseClient<any>;
-
 /**
  * Thrown by `withWriterFence` when the fence could not be acquired (busy —
  * another writer holds it). Distinguish from a `SupabaseError` (RPC
@@ -113,11 +97,10 @@ export async function acquireWriterFence(
   holder?: string,
   ttlSeconds?: number,
 ): Promise<boolean> {
-  const rpcClient = supabase as unknown as UntypedRpcClient;
   return sb<boolean>(
-    rpcClient.rpc('corpus_writer_fence_lease_acquire', {
+    supabase.rpc('corpus_writer_fence_lease_acquire', {
       p_holder_token: holderToken,
-      p_holder: holder ?? null,
+      p_holder: holder,
       ...(ttlSeconds === undefined ? {} : { p_ttl_seconds: ttlSeconds }),
     }),
     'corpus_writer_fence_lease_acquire',
@@ -138,11 +121,10 @@ export async function releaseWriterFence(
   holderToken: string,
   holder?: string,
 ): Promise<boolean> {
-  const rpcClient = supabase as unknown as UntypedRpcClient;
   return sb<boolean>(
-    rpcClient.rpc('corpus_writer_fence_lease_release', {
+    supabase.rpc('corpus_writer_fence_lease_release', {
       p_holder_token: holderToken,
-      p_holder: holder ?? null,
+      p_holder: holder,
     }),
     'corpus_writer_fence_lease_release',
   );

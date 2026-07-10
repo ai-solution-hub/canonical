@@ -95,14 +95,14 @@ describe('writer-fence (ID-138 {138.9} REDESIGN — lease mechanism)', () => {
       expect(acquired).toBe(false);
     });
 
-    it('passes null for an omitted holder label', async () => {
+    it('passes undefined for an omitted holder label (server DEFAULT applies)', async () => {
       mockClient.rpc.mockResolvedValueOnce({ data: true, error: null });
 
       await acquireWriterFence(client(), 'token-c');
 
       expect(mockClient.rpc).toHaveBeenCalledWith(
         'corpus_writer_fence_lease_acquire',
-        { p_holder_token: 'token-c', p_holder: null },
+        { p_holder_token: 'token-c', p_holder: undefined },
       );
     });
 
