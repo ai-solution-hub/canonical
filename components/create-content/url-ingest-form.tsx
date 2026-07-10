@@ -276,7 +276,11 @@ export function UrlIngestForm({ onSuggestManual }: UrlIngestFormProps = {}) {
                 This URL is already in the knowledge base
               </p>
               <Link
-                href={`/item/${existingItem.id}`}
+                // ID-135.26: existingItem.id is a reference_items id
+                // (app/api/ingest/url/route.ts's idempotency check reads
+                // reference_items — manual URL ingests land there per
+                // {110.6}, never content_items/q_a_pairs).
+                href={`/reference/${existingItem.id}`}
                 className="mt-1 block text-sm text-primary hover:underline"
               >
                 {existingItem.title} — View existing item

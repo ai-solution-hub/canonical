@@ -208,7 +208,7 @@ describe('ContentLibraryResult', () => {
     );
   });
 
-  it('view button opens item page', async () => {
+  it('view button opens the document detail page for a document-grain result', async () => {
     const user = userEvent.setup();
     const mockOpen = vi.fn();
     vi.stubGlobal('open', mockOpen);
@@ -219,7 +219,46 @@ describe('ContentLibraryResult', () => {
 
     await user.click(screen.getByRole('button', { name: /view/i }));
 
-    expect(mockOpen).toHaveBeenCalledWith('/item/item-1', '_blank');
+    // Default fixture content_type is 'article' — document-grain, ID-135.26.
+    expect(mockOpen).toHaveBeenCalledWith('/documents/item-1', '_blank');
+  });
+
+  it('view button opens the library page for a q_a_pair-grain result (ID-135.26)', async () => {
+    const user = userEvent.setup();
+    const mockOpen = vi.fn();
+    vi.stubGlobal('open', mockOpen);
+
+    render(
+      <ContentLibraryResult
+        result={createResult({
+          content_type: 'q_a_pair',
+          content: 'The answer',
+          metadata: { question: 'Q?' },
+        })}
+        onCopy={mockOnCopy}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /view/i }));
+
+    expect(mockOpen).toHaveBeenCalledWith('/library/item-1', '_blank');
+  });
+
+  it('view button opens the reference page for a reference_item-grain result (ID-135.26)', async () => {
+    const user = userEvent.setup();
+    const mockOpen = vi.fn();
+    vi.stubGlobal('open', mockOpen);
+
+    render(
+      <ContentLibraryResult
+        result={createResult({ content_type: 'reference_item' })}
+        onCopy={mockOnCopy}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /view/i }));
+
+    expect(mockOpen).toHaveBeenCalledWith('/reference/item-1', '_blank');
   });
 
   it('shows source document for Q&A pairs', () => {

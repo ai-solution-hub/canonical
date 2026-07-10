@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ExternalLink, Loader2, Newspaper } from 'lucide-react';
+import { Loader2, Newspaper } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { FreshnessBadge } from '@/components/shared/freshness-badge';
 
@@ -42,9 +42,19 @@ interface GuideResearchFeedProps {
 // Research item card
 // ---------------------------------------------------------------------------
 
+// ID-135.26: neither source feeding this card resolves to a live grain
+// today. `ContentItem.content_id` comes from the same `get_guide_content` RPC
+// as GuideSection (fixed post-{131.19} by
+// 20260707210000_fix_get_guide_content_content_items_residue.sql to
+// hardcode content_id to NULL forever — content_items has no successor), so
+// `existingItems` is always []. `SearchResult` comes from this component's
+// own `fetch('/api/search?...')` GET below, but `/api/search`
+// (app/api/search/route.ts) only exports POST — that request always 405s
+// and is swallowed by the catch, so `additionalItems` is also always [].
+// With no reachable id source, the "view" affordance is removed rather than
+// repointed at a route it would 404 against.
 function ResearchCard({ item }: { item: ContentItem | SearchResult }) {
   // Normalise between ContentItem and SearchResult shapes
-  const id = 'content_id' in item ? item.content_id : item.id;
   const title = 'content_title' in item ? item.content_title : item.title;
   const brief = 'content_brief' in item ? item.content_brief : item.brief;
   const freshness =
@@ -57,16 +67,13 @@ function ResearchCard({ item }: { item: ContentItem | SearchResult }) {
       : item.captured_date;
 
   return (
-    <Link
-      href={`/item/${id}`}
-      className="group flex items-start gap-3 rounded-md border bg-card p-3 transition-colors hover:border-foreground/20 hover:bg-accent/30"
-    >
+    <div className="flex items-start gap-3 rounded-md border bg-card p-3">
       <Newspaper
         className="mt-0.5 size-4 shrink-0 text-muted-foreground"
         aria-hidden="true"
       />
       <div className="min-w-0 flex-1">
-        <h4 className="text-sm font-medium text-foreground group-hover:underline line-clamp-1">
+        <h4 className="text-sm font-medium text-foreground line-clamp-1">
           {title}
         </h4>
         {brief && (
@@ -87,11 +94,7 @@ function ResearchCard({ item }: { item: ContentItem | SearchResult }) {
           )}
         </div>
       </div>
-      <ExternalLink
-        className="mt-1 size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
-        aria-hidden="true"
-      />
-    </Link>
+    </div>
   );
 }
 

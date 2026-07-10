@@ -171,8 +171,11 @@ function CertificationRow({
     cert.expiry_status === 'expiring_soon' || cert.expiry_status === 'expired';
   // Navigate to the first content item for renewal context
   const renewalItemId = cert.content_items?.[0]?.id;
+  // ID-135.26: content_items[].id is a source_documents id
+  // (app/api/certifications/route.ts re-points evidence-link ids onto
+  // source_documents post-{131.19} — content_items is dead grain).
   const itemLink = cert.content_items?.[0]?.id
-    ? `/item/${cert.content_items[0].id}`
+    ? `/documents/${cert.content_items[0].id}`
     : null;
 
   const cardContent = (
@@ -216,7 +219,7 @@ function CertificationRow({
               asChild
             >
               <Link
-                href={`/item/${renewalItemId}`}
+                href={`/documents/${renewalItemId}`}
                 aria-label={`Review ${cert.canonical_name}`}
                 onClick={(e) => e.stopPropagation()}
               >
@@ -285,8 +288,11 @@ function RegistrationRow({
   const needsRenewal =
     reg.expiry_status === 'expiring_soon' || reg.expiry_status === 'expired';
   const renewalItemId = reg.content_items?.[0]?.id;
+  // ID-135.26: content_items[].id is a source_documents id
+  // (app/api/certifications/route.ts re-points evidence-link ids onto
+  // source_documents post-{131.19} — content_items is dead grain).
   const itemLink = reg.content_items?.[0]?.id
-    ? `/item/${reg.content_items[0].id}`
+    ? `/documents/${reg.content_items[0].id}`
     : null;
 
   const cardContent = (
@@ -320,7 +326,7 @@ function RegistrationRow({
               asChild
             >
               <Link
-                href={`/item/${renewalItemId}`}
+                href={`/documents/${renewalItemId}`}
                 aria-label={`Review ${reg.canonical_name}`}
                 onClick={(e) => e.stopPropagation()}
               >

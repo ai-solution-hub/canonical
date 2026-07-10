@@ -61,7 +61,10 @@ describe('PublicationReviewActionBar', () => {
       name: /open this item in the editor/i,
     });
     expect(editorLink).toBeInTheDocument();
-    expect(editorLink).toHaveAttribute('href', `/item/${ITEM_ID}`);
+    // ID-135.26: itemId is a source_documents id (this queue is entirely
+    // source_documents-backed) — re-pointed off the deleted `/item/[id]`
+    // ({131.17}) onto /documents/[id].
+    expect(editorLink).toHaveAttribute('href', `/documents/${ITEM_ID}`);
   });
 
   it('Approve & publish triggers POST /api/review/publication-bulk-action with action="approve" (AC g, ID-131 B3-ext re-point)', async () => {

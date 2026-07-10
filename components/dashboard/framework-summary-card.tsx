@@ -88,8 +88,11 @@ function FrameworkRow({
     framework.expiry_status === 'expiring_soon' ||
     framework.expiry_status === 'expired';
   const renewalItemId = framework.content_items?.[0]?.id;
+  // ID-135.26: content_items[].id is a source_documents id
+  // (app/api/certifications/route.ts re-points evidence-link ids onto
+  // source_documents post-{131.19} — content_items is dead grain).
   const itemLink = framework.content_items?.[0]?.id
-    ? `/item/${framework.content_items[0].id}`
+    ? `/documents/${framework.content_items[0].id}`
     : null;
 
   const cardContent = (
@@ -121,7 +124,7 @@ function FrameworkRow({
               asChild
             >
               <Link
-                href={`/item/${renewalItemId}`}
+                href={`/documents/${renewalItemId}`}
                 aria-label={`View ${framework.canonical_name} for renewal`}
                 onClick={(e) => e.stopPropagation()}
               >

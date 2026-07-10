@@ -271,9 +271,24 @@ export function useFormResponseActions({
   );
 
   // ── Citation click ──
-  const handleCitationClick = useCallback((contentId: string) => {
-    window.open(`/item/${contentId}`, '_blank');
-  }, []);
+  // ID-135.26: contentId is a citation source_id, resolvable to exactly one
+  // of two grains — GET /api/procurement/[id]/responses/[rId] builds
+  // `response.source_content` from ONLY q_a_pairs (content_type:'q_a_pair')
+  // and reference_items (content_type:'reference_item'); source_document ids
+  // are never included there (SD is provenance-only, not a match source —
+  // see that route's own comment). Look the citation's kind up in
+  // `response.source_content` rather than guessing from the bare id.
+  const handleCitationClick = useCallback(
+    (contentId: string) => {
+      const source = response?.source_content?.find((s) => s.id === contentId);
+      const href =
+        source?.content_type === 'reference_item'
+          ? `/reference/${contentId}`
+          : `/library/${contentId}`;
+      window.open(href, '_blank');
+    },
+    [response],
+  );
 
   // ── Derived loading state ──
   const actionLoading = responseMutation.isPending;

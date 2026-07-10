@@ -32,6 +32,30 @@ function extractQAParts(
   return { question, answer };
 }
 
+/**
+ * View-result destination, keyed by `content_type` (ID-135.26). `result`
+ * comes from `useSearch()` -> `POST /api/search`, which returns raw
+ * `hybrid_search` rows verbatim (untyped, per app/api/search/route.ts) — the
+ * same RPC `useCorpusSearch` reads (hooks/corpus-search/use-corpus-search.ts).
+ * `content_type` carries the owner_kind literal ('q_a_pair' |
+ * 'content_chunk' | 'reference_item') for those three arms, or the
+ * document's own taxonomy content_type (e.g. 'guidance') for the
+ * source_documents arm — mirrors `previewResultHref`
+ * (components/browse/search-bar.tsx) / `destinationHref`
+ * (components/corpus-search/corpus-result-card.tsx). Only 'q_a_pair' is
+ * genuinely q_a_pair-grain; everything else re-homes to its owning surface.
+ */
+function resultHref(result: SearchResult): string {
+  switch (result.content_type) {
+    case 'reference_item':
+      return `/reference/${result.id}`;
+    case 'q_a_pair':
+      return `/library/${result.id}`;
+    default:
+      return `/documents/${result.id}`;
+  }
+}
+
 export function ContentLibraryResult({
   result,
   onCopy,
@@ -74,7 +98,7 @@ export function ContentLibraryResult({
   };
 
   const handleView = () => {
-    window.open(`/item/${result.id}`, '_blank');
+    window.open(resultHref(result), '_blank');
   };
 
   // --- Q&A PAIR RESULT ---

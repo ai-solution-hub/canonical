@@ -121,14 +121,14 @@ describe('ChangeReportDomainSection', () => {
     expect(screen.getByText('compliance')).toBeInTheDocument();
   });
 
-  it('renders top items as links', () => {
+  it('renders top items as links to their /documents/[id] source_document surface (ID-135.26)', () => {
     render(<ChangeReportDomainSection domainSummary={makeDomainSummary()} />);
 
     const firstLink = screen.getByRole('link', { name: /First Item/i });
-    expect(firstLink).toHaveAttribute('href', '/item/item-1');
+    expect(firstLink).toHaveAttribute('href', '/documents/item-1');
 
     const secondLink = screen.getByRole('link', { name: /Second Item/i });
-    expect(secondLink).toHaveAttribute('href', '/item/item-2');
+    expect(secondLink).toHaveAttribute('href', '/documents/item-2');
   });
 
   it('renders "Review these items" link pointing to review page with domain filter', () => {

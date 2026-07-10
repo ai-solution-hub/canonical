@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo } from 'react';
-import Link from 'next/link';
 import { Activity, AlertTriangle, Pencil, RotateCcw } from 'lucide-react';
 import { isToday, isYesterday, parseISO, startOfWeek } from 'date-fns';
 import { formatRelativeDate } from '@/lib/format';
@@ -299,11 +298,19 @@ export function DashboardActivityFeed({
                   : 'border-l-border';
 
               return (
-                <Link
+                // ID-135.26: group.representative.entity_id is a
+                // content_items-era id. The sole data source
+                // (get_grouped_activity_feed) was DROPPED at M6
+                // (20260706110000_id131_drops.sql) — lib/dashboard.ts and
+                // app/api/activity/route.ts both stub `recent_activity`/
+                // `activities` to always [], so this card is unreachable in
+                // production. No live grain exists to link to, so the link
+                // is removed rather than repointed at a route it would 404
+                // against.
+                <div
                   key={group.key}
-                  href={`/item/${group.representative.entity_id}`}
                   role="article"
-                  className={`group flex items-start gap-3 rounded-lg border border-border ${accentBorderClass} border-l-2 bg-card p-3 transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+                  className={`group flex items-start gap-3 rounded-lg border border-border ${accentBorderClass} border-l-2 bg-card p-3`}
                 >
                   <Icon
                     className={`mt-0.5 size-4 shrink-0 ${iconClass}`}
@@ -334,7 +341,7 @@ export function DashboardActivityFeed({
                       )}
                     </p>
                   </div>
-                </Link>
+                </div>
               );
             })}
           </div>

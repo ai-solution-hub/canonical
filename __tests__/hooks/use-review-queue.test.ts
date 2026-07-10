@@ -901,7 +901,7 @@ describe('useReviewQueue', () => {
       expect(mockSessionReturn.setShowFlagInput).not.toHaveBeenCalled();
     });
 
-    it('handleEdit opens item in new tab', () => {
+    it('handleEdit opens the /documents/[id] source_document surface in a new tab (ID-135.26)', () => {
       const items = [makeQueueItem({ id: 'edit1' })];
       setupLoadedState(items);
 
@@ -915,7 +915,7 @@ describe('useReviewQueue', () => {
         result.current.handleEdit();
       });
 
-      expect(openSpy).toHaveBeenCalledWith('/item/edit1', '_blank');
+      expect(openSpy).toHaveBeenCalledWith('/documents/edit1', '_blank');
       openSpy.mockRestore();
     });
 

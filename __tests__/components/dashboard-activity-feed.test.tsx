@@ -522,14 +522,21 @@ describe('DashboardActivityFeed', () => {
   // =========================================================================
 
   describe('links', () => {
-    it('links to /item/:entity_id', () => {
+    it('does not link entity_id to a route (ID-135.26 — dead content_items-era grain)', () => {
+      // get_grouped_activity_feed was DROPPED at M6 (20260706110000_id131_
+      // drops.sql); lib/dashboard.ts stubs recent_activity to always [] in
+      // production, but this component-level test still exercises the
+      // (unreachable-in-prod) rendering path directly with a non-empty
+      // fixture — entity_id here is content_items-era, dead grain, so the
+      // article renders WITHOUT a navigable link.
       const items: ActivityItem[] = [
         makeActivityItem({ entity_id: 'item-42' }),
       ];
 
       render(<DashboardActivityFeed activities={items} />);
-      const link = screen.getByRole('article').closest('a');
-      expect(link).toHaveAttribute('href', '/item/item-42');
+      const article = screen.getByRole('article');
+      expect(article.closest('a')).toBeNull();
+      expect(article.tagName).toBe('DIV');
     });
   });
 });

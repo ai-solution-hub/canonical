@@ -68,7 +68,11 @@ export function ChangeReportDomainSection({
             {domainSummary.top_items.map((item) => (
               <li key={item.id}>
                 <Link
-                  href={`/item/${item.id}`}
+                  // ID-135.26: item.id is a source_documents id — the
+                  // change-report digest generator (lib/ai/change-reports.ts)
+                  // is entirely source_documents-backed post-{131.19}
+                  // (content_items is dead grain, no successor).
+                  href={`/documents/${item.id}`}
                   className="group flex items-start gap-2 rounded-lg p-2 transition-colors hover:bg-background/60"
                 >
                   <ContentTypeIcon

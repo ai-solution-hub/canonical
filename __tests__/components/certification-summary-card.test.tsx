@@ -474,11 +474,14 @@ describe('CertificationSummaryCard', () => {
       />,
     );
 
-    // When content_items exist, the entire card is a link to the first item
+    // When content_items exist, the entire card is a link to the first item.
+    // ID-135.26: content_item ids are source_documents ids (re-pointed post-
+    // {131.19}) — the card links to /documents/[id], not the deleted
+    // /item/[id].
     const cardLinks = screen.getAllByRole('listitem');
     const certCard = cardLinks[0];
     expect(certCard.tagName).toBe('A');
-    expect(certCard).toHaveAttribute('href', '/item/ci-1');
+    expect(certCard).toHaveAttribute('href', '/documents/ci-1');
   });
 
   it('calls onEditEntity when certification has no content items', () => {

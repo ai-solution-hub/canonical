@@ -292,6 +292,35 @@ describe('UrlIngestForm', () => {
     expect(screen.getByText(/importing/i)).toBeInTheDocument();
   });
 
+  it('links the "already in the knowledge base" warning to /reference/[id] (ID-135.26)', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        url_already_exists: true,
+        existing_item: { id: 'ri-existing-1', title: 'Existing Reference' },
+      }),
+    });
+
+    render(<UrlIngestForm />);
+
+    const input = screen.getByLabelText(/web page url/i);
+
+    await act(async () => {
+      fireEvent.change(input, {
+        target: { value: 'https://example.com/article' },
+      });
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /import/i }));
+    });
+
+    const link = await screen.findByRole('link', {
+      name: /existing reference/i,
+    });
+    expect(link).toHaveAttribute('href', '/reference/ri-existing-1');
+  });
+
   it('maps the reduced reference response onto the reference variant', async () => {
     const successResponse = {
       id: 'ri-new-123',

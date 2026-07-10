@@ -1,7 +1,5 @@
 'use client';
 
-import Link from 'next/link';
-import { ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { FreshnessBadge } from '@/components/shared/freshness-badge';
 import { GuideSectionEmpty } from './guide-section-empty';
@@ -47,19 +45,20 @@ interface GuideSectionProps {
 
 function ContentItemCard({ item }: { item: ContentItem }) {
   const { getLayerLabel } = useLayerVocabulary();
+  // ID-135.26: `item.content_id` is a content_items-era id. The backing RPC
+  // (get_guide_content, fixed post-{131.19} M6 by
+  // 20260707210000_fix_get_guide_content_content_items_residue.sql) now
+  // hardcodes content_id to NULL forever — content_items was dropped with no
+  // successor carrying a per-row `layer` assignment, so this array is always
+  // empty in production (route.ts only pushes a row when content_id is
+  // truthy). No live grain exists to link to, so the "view item" affordance
+  // is removed rather than repointed at a route it would 404 against.
   return (
-    <Link
-      href={`/item/${item.content_id}`}
-      className="group block rounded-md border bg-card p-3 transition-colors hover:border-foreground/20 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-    >
+    <div className="block rounded-md border bg-card p-3">
       <div className="flex items-start justify-between gap-2">
-        <h4 className="text-sm font-medium text-foreground group-hover:underline line-clamp-2">
+        <h4 className="text-sm font-medium text-foreground line-clamp-2">
           {item.content_title}
         </h4>
-        <ExternalLink
-          className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
-          aria-hidden="true"
-        />
       </div>
 
       {item.content_brief && (
@@ -83,7 +82,7 @@ function ContentItemCard({ item }: { item: ContentItem }) {
           </span>
         )}
       </div>
-    </Link>
+    </div>
   );
 }
 

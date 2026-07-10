@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import Link from 'next/link';
 import {
   Edit3,
   RotateCcw,
@@ -316,14 +315,14 @@ export function ActivityFeed({
                       activity.user_id.slice(0, 8)}
                   </span>
                 )}
-                {activity.entity_id && (
-                  <Link
-                    href={`/item/${activity.entity_id}`}
-                    className="underline-offset-2 hover:underline"
-                  >
-                    View item
-                  </Link>
-                )}
+                {/* ID-135.26: activity.entity_id is a content_items-era id.
+                    /api/activity (app/api/activity/route.ts) always returns
+                    activities: [] — get_grouped_activity_feed was DROPPED at
+                    M6 (20260706110000_id131_drops.sql) with no
+                    facet/typed-record replacement — so this branch is
+                    unreachable in production. No live grain exists to link
+                    to, so the "View item" link is removed rather than
+                    repointed at a route it would 404 against. */}
               </div>
             </div>
           </div>

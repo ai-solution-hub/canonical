@@ -185,4 +185,29 @@ describe('EntityDetailPanel — holder placeholder (59)', () => {
       expect(screen.getByLabelText(/supplier name/i)).toBeInTheDocument();
     });
   });
+
+  it('links a content item to its /documents/[id] source_document surface (ID-135.26)', () => {
+    mockUseEntityDetail.mockReturnValue(
+      makeEntityDetail(
+        {},
+        {
+          content_items: [
+            { id: 'sd-1', title: 'Policy PDF', content_type: 'policy' },
+          ],
+          content_item_count: 1,
+        },
+      ),
+    );
+
+    render(
+      <EntityDetailPanel
+        canonicalName="iso 27001"
+        open={true}
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    const link = screen.getByRole('link', { name: /policy pdf/i });
+    expect(link).toHaveAttribute('href', '/documents/sd-1');
+  });
 });

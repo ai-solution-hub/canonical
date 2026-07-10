@@ -784,7 +784,11 @@ export function EntityDetailPanel({
                   {detail.content_items.map((item) => (
                     <li key={item.id}>
                       <Link
-                        href={`/item/${item.id}`}
+                        // ID-135.26: item.id is a source_documents id
+                        // (app/api/entities/[canonical_name]/route.ts
+                        // re-points evidence-link ids onto source_documents
+                        // post-{131.19} — content_items is dead grain).
+                        href={`/documents/${item.id}`}
                         className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent"
                       >
                         <FileText

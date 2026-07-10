@@ -177,7 +177,11 @@ export function useReviewQueue(
 
   const handleEdit = useCallback(() => {
     if (!nav.currentItem) return;
-    window.open(`/item/${nav.currentItem.id}`, '_blank');
+    // ID-135.26: nav.currentItem.id is a source_documents id — /api/review/
+    // queue (app/api/review/queue/route.ts) is entirely source_documents-
+    // backed post-{131.19}. Re-homed to /documents/[id] (the live
+    // read-only detail surface); content_items/`/item/[id]` no longer exist.
+    window.open(`/documents/${nav.currentItem.id}`, '_blank');
   }, [nav.currentItem]);
 
   // -------------------------------------------------------------------------

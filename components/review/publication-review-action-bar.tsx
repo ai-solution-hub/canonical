@@ -23,9 +23,13 @@ import { queryKeys } from '@/lib/query/query-keys';
  *     `{ ids: [itemId], action: 'approve' }` (single-item call)
  *   - Return to draft     → POST /api/review/publication-bulk-action body
  *     `{ ids: [itemId], action: 'return_to_draft' }`
- *   - Open in editor      → <Link href="/item/[id]"> (NOT router.push, so
- *     middle-click / cmd-click open in a new tab as users expect, per
- *     spec §7 + AC (i)).
+ *   - Open in editor      → <Link href="/documents/[id]"> (NOT router.push,
+ *     so middle-click / cmd-click open in a new tab as users expect, per
+ *     spec §7 + AC (i)). ID-135.26: re-pointed off the deleted `/item/[id]`
+ *     ({131.17}) — itemId is a source_documents id, and /documents/[id] is
+ *     the live (read-only) detail surface for that grain. Whether a genuine
+ *     editing surface should exist for in-review source_documents is an
+ *     open product question, flagged separately — not decided here.
  *
  * ID-131 endgame B3-ext (S447): re-pointed off the doomed
  * `PATCH /api/items/[id]` route onto the same
@@ -182,9 +186,14 @@ export function PublicationReviewActionBar({
         className="min-h-[44px] gap-2"
       >
         {/* Next.js Link (NOT router.push) so middle-click / cmd-click
-            opens in a new tab. Spec §7 + AC (i). */}
+            opens in a new tab. Spec §7 + AC (i).
+            ID-135.26: itemId is a source_documents id (this queue is
+            entirely source_documents-backed post-{131.19} — see
+            app/api/review/queue/route.ts's in_review branch). Re-homed to
+            /documents/[id] (the live source_document detail surface);
+            content_items/`/item/[id]` no longer exist. */}
         <Link
-          href={`/item/${itemId}`}
+          href={`/documents/${itemId}`}
           aria-label="Open this item in the editor"
         >
           <Pencil className="size-4" aria-hidden="true" />
