@@ -303,12 +303,12 @@ test.describe('Procurement creation form', () => {
     await expect(nextButton).toBeDisabled();
 
     // Fill only name — still disabled
-    await dialog.locator('#wizard-bid-name').fill('Test Procurement');
+    await dialog.locator('#wizard-procurement-name').fill('Test Procurement');
     await expect(createWithoutDocButton).toBeDisabled();
     await expect(nextButton).toBeDisabled();
 
     // Fill buyer too — now both enabled
-    await dialog.locator('#wizard-bid-buyer').fill('Test Buyer');
+    await dialog.locator('#wizard-procurement-buyer').fill('Test Buyer');
     await expect(createWithoutDocButton).toBeEnabled();
     await expect(nextButton).toBeEnabled();
   });
@@ -668,14 +668,14 @@ test.describe('Procurement create happy path submit (8.0.3)', () => {
     // 3. Fill required fields. NOTE: the in-use dialog is the
     //    `ProcurementCreationWizard` (3-step), NOT the older `BidCreationForm`.
     //    Phase 2 verified the wrong component. The wizard renders inputs
-    //    with `wizard-bid-name` / `wizard-bid-buyer` ids and submits the
-    //    create-only path via the "Create Without Document" link button.
-    //    See components/bid/bid-creation-wizard.tsx (handleCreateBid with
-    //    advanceToUpload=false, which still POSTs /api/bids and navigates).
-    const nameInput = dialog.locator('#wizard-bid-name');
+    //    with `wizard-procurement-name` / `wizard-procurement-buyer` ids and
+    //    submits the create-only path via the "Create Without Document" link
+    //    button. See components/bid/bid-creation-wizard.tsx (handleCreateBid
+    //    with advanceToUpload=false, which still POSTs /api/bids and navigates).
+    const nameInput = dialog.locator('#wizard-procurement-name');
     await nameInput.waitFor({ state: 'visible', timeout: 10000 });
     await nameInput.fill(uniqueName);
-    const buyerInput = dialog.locator('#wizard-bid-buyer');
+    const buyerInput = dialog.locator('#wizard-procurement-buyer');
     await buyerInput.waitFor({ state: 'visible' });
     await buyerInput.fill(buyerName);
 

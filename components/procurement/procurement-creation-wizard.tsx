@@ -248,11 +248,11 @@ export function ProcurementCreationWizard({
             className="space-y-4"
           >
             <div className="space-y-1.5">
-              <Label htmlFor="wizard-bid-name">
+              <Label htmlFor="wizard-procurement-name">
                 Procurement Name <span className="text-destructive">*</span>
               </Label>
               <Input
-                id="wizard-bid-name"
+                id="wizard-procurement-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. NHS Trust ITT 2026"
@@ -264,12 +264,12 @@ export function ProcurementCreationWizard({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="wizard-bid-buyer">
+              <Label htmlFor="wizard-procurement-buyer">
                 Buyer / Issuing Organisation{' '}
                 <span className="text-destructive">*</span>
               </Label>
               <Input
-                id="wizard-bid-buyer"
+                id="wizard-procurement-buyer"
                 value={buyer}
                 onChange={(e) => setBuyer(e.target.value)}
                 placeholder="e.g. NHS Digital"
@@ -280,9 +280,11 @@ export function ProcurementCreationWizard({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="wizard-bid-deadline">Submission Deadline</Label>
+              <Label htmlFor="wizard-procurement-deadline">
+                Submission Deadline
+              </Label>
               <Input
-                id="wizard-bid-deadline"
+                id="wizard-procurement-deadline"
                 type="date"
                 value={deadline}
                 onChange={(e) => setDeadline(e.target.value)}
@@ -291,9 +293,11 @@ export function ProcurementCreationWizard({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="wizard-bid-reference">Reference Number</Label>
+              <Label htmlFor="wizard-procurement-reference">
+                Reference Number
+              </Label>
               <Input
-                id="wizard-bid-reference"
+                id="wizard-procurement-reference"
                 value={referenceNumber}
                 onChange={(e) => setReferenceNumber(e.target.value)}
                 placeholder="e.g. ITT-2026-042"
@@ -303,9 +307,9 @@ export function ProcurementCreationWizard({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="wizard-bid-value">Estimated Value</Label>
+              <Label htmlFor="wizard-procurement-value">Estimated Value</Label>
               <Input
-                id="wizard-bid-value"
+                id="wizard-procurement-value"
                 value={estimatedValue}
                 onChange={(e) => setEstimatedValue(e.target.value)}
                 placeholder="e.g. £50,000"
@@ -315,9 +319,9 @@ export function ProcurementCreationWizard({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="wizard-bid-notes">Notes</Label>
+              <Label htmlFor="wizard-procurement-notes">Notes</Label>
               <Textarea
-                id="wizard-bid-notes"
+                id="wizard-procurement-notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Any additional notes about this bid"
