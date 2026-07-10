@@ -1,18 +1,17 @@
 /**
  * Static shape check for
  * supabase/migrations/20260706104000_id131_coverage_retire.sql
- * (ID-131.19 fix-Executor escalation 2 + 2b, DR-034 owner ruling). This is a
- * SQL-only migration — not applied by this Subtask (owner-gated apply lands
- * later in the {131.19} GO sequence) — so there is no live DB to assert
- * behaviour against yet. This test instead pins the migration file's
- * textual shape: all three RPCs (`get_coverage_matrix`, `get_coverage_summary`,
- * `get_guide_coverage`) are dropped in both schemas with the correct
- * signature, and the authored-but-not-applied marker is present.
+ * (ID-131.19 fix-Executor escalation 2 + 2b, DR-034 owner ruling). Confirmed
+ * applied and live on platform staging (version 20260706104000 is in the
+ * applied-migrations list) via the owner-gated {131.19} GO sequence. This
+ * test pins the migration file's textual shape: all three RPCs
+ * (`get_coverage_matrix`, `get_coverage_summary`, `get_guide_coverage`) are
+ * dropped in both schemas with the correct signature, and the applied-status
+ * marker is present.
  *
  * Cheap and deliberately non-exhaustive: a regression guard against the
  * migration file being edited in a way that drops the wrong signature, not
- * a substitute for the real post-apply verification that happens once the
- * {131.19} GO applies this migration for real.
+ * a substitute for a fresh post-apply verification pass.
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'fs';
@@ -70,8 +69,9 @@ describe('20260706104000_id131_coverage_retire.sql', () => {
     expect(sql).toMatch(/DR-034/);
   });
 
-  it('marks the migration as authored-but-not-applied, owner-gated for the {131.19} GO sequence', () => {
-    expect(sql).toMatch(/AUTHORED, NOT APPLIED/);
+  it('marks the migration as applied, landed via the {131.19} GO sequence', () => {
+    expect(sql).toMatch(/APPLIED/);
+    expect(sql).not.toMatch(/AUTHORED, NOT APPLIED/);
     expect(sql).toMatch(/131\.19/);
   });
 });

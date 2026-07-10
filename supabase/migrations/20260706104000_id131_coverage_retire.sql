@@ -1,16 +1,16 @@
 -- ID-131.19 fix-Executor escalation 2 + 2b (S450 Wave 1) — coverage_retire:
 -- drop the 3 content_items-shaped coverage RPCs per DR-034 (owner ruling).
 --
--- AUTHORED, NOT APPLIED — owner-gated apply in the {131.19} GO sequence,
--- AFTER facet-mint (20260706100000) and BEFORE/ALONGSIDE M6
+-- APPLIED — landed via the owner-gated {131.19} GO sequence, AFTER
+-- facet-mint (20260706100000) and BEFORE M6
 -- (20260706110000_id131_drops.sql, which drops the `content_items` table
--- itself). No `supabase db push`, no MCP apply, no types regen in this
--- Subtask. Sequencing note: dropping these three functions has no ordering
--- dependency on the M6 content_items drop (a `LANGUAGE sql` function body is
--- not catalog-bound to the tables it queries the way a view is — DROP
--- FUNCTION never fails and DROP TABLE never fails because of this file
--- either way), but the {131.19} GO applies this one first per the owner's
--- sequencing note in the dispatch brief.
+-- itself). Confirmed live on platform staging (version 20260706104000 is in
+-- the applied-migrations list). Sequencing note: dropping these three
+-- functions had no ordering dependency on the M6 content_items drop (a
+-- `LANGUAGE sql` function body is not catalog-bound to the tables it queries
+-- the way a view is — DROP FUNCTION never fails and DROP TABLE never fails
+-- because of this file either way), but the {131.19} GO applied this one
+-- first per the owner's sequencing note in the dispatch brief.
 --
 -- ============================================================================
 -- WHY — DR-034 (owner ruling, binding, cited verbatim from the fix-Executor
