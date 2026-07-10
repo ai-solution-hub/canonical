@@ -168,8 +168,22 @@ export function isEntryVisible(
 }
 
 /**
- * Mirrors the existing site-header.tsx:114-120 active-leaf rule: an exact
- * match, or a nested path one level (or more) below the leaf's href.
+ * The render filter shared by every nav surface (BI-18/BI-19 lockstep): an
+ * entry renders only when it is not a reserved slot (BI-8) and its
+ * visibility admits the caller's role (BI-20/BI-21).
+ */
+export function visibleZoneEntries(
+  zone: NavZone,
+  role: { canEdit: boolean; canAdmin: boolean },
+): NavEntry[] {
+  return zone.entries.filter(
+    (entry) => !entry.reserved && isEntryVisible(entry.visibility, role),
+  );
+}
+
+/**
+ * Active-leaf rule (BI-23): an exact match, or a nested path one level (or
+ * more) below the leaf's href.
  */
 export function isEntryActive(href: string, pathname: string | null): boolean {
   return pathname === href || (pathname?.startsWith(href + '/') ?? false);
@@ -181,9 +195,9 @@ export function isZoneActive(zone: NavZone, pathname: string | null): boolean {
 }
 
 /**
- * Leaf href -> owning zone lookup, so callers (e.g. the {118.9} e2e harness)
- * can resolve a leaf's zone without threading a zone argument through the
- * call site.
+ * Leaf href -> owning zone lookup, so a caller can resolve a leaf's zone
+ * without threading a zone argument through the call site. Exact href match
+ * only — nested subpaths do not resolve.
  */
 export function findZoneForHref(href: string): NavZone | undefined {
   return NAV_ZONES.find((zone) =>

@@ -30,10 +30,9 @@ export function isMobileViewport(
  * of sync with {118.6}'s NAV_ZONES membership).
  */
 function findZoneForLabel(label: string) {
-  for (const zone of NAV_ZONES) {
-    if (zone.entries.some((e) => e.label === label)) return zone;
-  }
-  return undefined;
+  return NAV_ZONES.find((zone) =>
+    zone.entries.some((entry) => entry.label === label),
+  );
 }
 
 /**

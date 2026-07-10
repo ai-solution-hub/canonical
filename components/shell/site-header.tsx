@@ -28,7 +28,7 @@ import { BrandLogo } from '@/components/shell/brand-logo';
 import { BRANDING } from '@/lib/client-config';
 import {
   NAV_ZONES,
-  isEntryVisible,
+  visibleZoneEntries,
   isEntryActive,
   isZoneActive,
 } from '@/components/shell/nav-config';
@@ -67,11 +67,10 @@ export function SiteHeader() {
 
         <div className="hidden items-center gap-1 sm:flex">
           {NAV_ZONES.map((zone) => {
-            const visibleEntries = zone.entries.filter(
-              (entry) =>
-                !entry.reserved &&
-                isEntryVisible(entry.visibility, { canEdit, canAdmin }),
-            );
+            const visibleEntries = visibleZoneEntries(zone, {
+              canEdit,
+              canAdmin,
+            });
             if (visibleEntries.length === 0) return null;
             const zoneActive = isZoneActive(zone, pathname);
             return (
@@ -171,11 +170,10 @@ export function SiteHeader() {
               Home
             </Link>
             {NAV_ZONES.map((zone) => {
-              const visibleEntries = zone.entries.filter(
-                (entry) =>
-                  !entry.reserved &&
-                  isEntryVisible(entry.visibility, { canEdit, canAdmin }),
-              );
+              const visibleEntries = visibleZoneEntries(zone, {
+                canEdit,
+                canAdmin,
+              });
               if (visibleEntries.length === 0) return null;
               return (
                 <div key={zone.id} className="mt-2 first:mt-0">

@@ -8,7 +8,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Command } from 'cmdk';
 import { Home, Search, Sun, Moon, Keyboard, Settings } from 'lucide-react';
 import { useUserRole } from '@/hooks/use-user-role';
-import { NAV_ZONES, isEntryVisible } from '@/components/shell/nav-config';
+import { NAV_ZONES, visibleZoneEntries } from '@/components/shell/nav-config';
 
 const GROUP_HEADING_CLASS =
   '[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground';
@@ -140,12 +140,8 @@ export function CommandPalette() {
                     heading={zone.header}
                     className={GROUP_HEADING_CLASS}
                   >
-                    {zone.entries
-                      .filter((entry) => !entry.reserved)
-                      .filter((entry) =>
-                        isEntryVisible(entry.visibility, { canEdit, canAdmin }),
-                      )
-                      .map((entry) => (
+                    {visibleZoneEntries(zone, { canEdit, canAdmin }).map(
+                      (entry) => (
                         <Command.Item
                           key={entry.href}
                           value={entry.keywords ?? entry.label}
@@ -157,7 +153,8 @@ export function CommandPalette() {
                           <entry.icon className="size-4 text-muted-foreground" />
                           {entry.label}
                         </Command.Item>
-                      ))}
+                      ),
+                    )}
                   </Command.Group>
                 ))}
 
