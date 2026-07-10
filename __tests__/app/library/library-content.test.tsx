@@ -331,11 +331,14 @@ describe('LibraryContent', () => {
     const trigger = await screen.findByLabelText('Filter by variant');
     await user.click(trigger);
 
+    // bl-434 / S460: surviving options carry axis-framed copy — "Has
+    // advanced answer" ('both') / "No advanced answer" ('standard_only') —
+    // the real predicate on `answer_advanced`, not tier-framed labels.
     expect(
-      await screen.findByRole('option', { name: 'Standard only' }),
+      await screen.findByRole('option', { name: 'No advanced answer' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('option', { name: 'Standard + Advanced' }),
+      screen.getByRole('option', { name: 'Has advanced answer' }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole('option', { name: 'Advanced only' }),

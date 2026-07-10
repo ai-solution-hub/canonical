@@ -364,9 +364,9 @@ export function LibraryContent() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All variants</SelectItem>
-                      <SelectItem value="both">Standard + Advanced</SelectItem>
+                      <SelectItem value="both">Has advanced answer</SelectItem>
                       <SelectItem value="standard_only">
-                        Standard only
+                        No advanced answer
                       </SelectItem>
                     </SelectContent>
                   </Select>
