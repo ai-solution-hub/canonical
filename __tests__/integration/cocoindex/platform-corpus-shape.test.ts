@@ -42,13 +42,24 @@ const CORPUS_ROOT = resolve(
 
 const MANIFEST_TEMPLATE = '.kh-workspace-map.json.example';
 
-// The authoritative tree per TECH §2.1 — exactly these 6 entries, no more.
+// The authoritative tree per TECH §2.1 — exactly these 11 entries, no more.
 // (forms/procurement/ retired under DR-014 — ID-136 forms-route retirement.)
+// The five ID-132.30 G-CORPUS-ENRICH additions are ALL .md, ALL carrying the
+// synthetic- token, and satisfy the L-records grain-mechanics map's filename
+// gates (`scripts/cocoindex_pipeline/sources/l_records.py:94-99`):
+// %named-client% (case_study), %company-overview% / %team-structure%
+// (company), %compliance% (certification); the product catalogue has no
+// filename gate (product concepts enumerate off `entity_mentions` directly).
 const EXPECTED_ENTRIES = [
   MANIFEST_TEMPLATE,
   'content/synthetic-methodology.md',
   'content/synthetic-capability-statement.pdf',
   'content/synthetic-sector-intel.docx',
+  'content/synthetic-named-client-engagements.md',
+  'content/synthetic-company-overview.md',
+  'content/synthetic-team-structure.md',
+  'content/synthetic-compliance-certifications.md',
+  'content/synthetic-product-catalogue.md',
   'qa/synthetic-qa-pairs.md',
   'edge/synthetic-sparse-edge.md',
 ] as const;
@@ -86,7 +97,7 @@ const manifest = JSON.parse(
 
 describe('Platform seam-coverage corpus — vendored tree shape (TECH §2.1/§2.2/§7)', () => {
   describe('tree completeness (§2.1)', () => {
-    it('contains exactly the 6 expected entries — no more, no less', () => {
+    it('contains exactly the 11 expected entries — no more, no less', () => {
       expect(actualEntries).toEqual([...EXPECTED_ENTRIES].sort());
     });
 
@@ -147,6 +158,18 @@ describe('Platform seam-coverage corpus — vendored tree shape (TECH §2.1/§2.
     it('a qa/ Q&A-shaped md and an edge/ md exist', () => {
       expect(has('qa/synthetic-qa-pairs.md')).toBe(true);
       expect(has('edge/synthetic-sparse-edge.md')).toBe(true);
+    });
+
+    it('the ID-132.30 G-CORPUS-ENRICH grain-bearing files exist and hit every filename gate', () => {
+      // %named-client% — case_study grain (l_records.py _CASE_STUDY_FILENAME_PATTERNS).
+      expect(has('content/synthetic-named-client-engagements.md')).toBe(true);
+      // %company-overview% / %team-structure% — company grain (_COMPANY_FILENAME_PATTERNS).
+      expect(has('content/synthetic-company-overview.md')).toBe(true);
+      expect(has('content/synthetic-team-structure.md')).toBe(true);
+      // %compliance% — certification grain (_CERTIFICATION_FILENAME_PATTERNS).
+      expect(has('content/synthetic-compliance-certifications.md')).toBe(true);
+      // product grain enumerates off entity_mentions directly — no filename gate.
+      expect(has('content/synthetic-product-catalogue.md')).toBe(true);
     });
 
     it('the reserved __qa__/ prefix is absent (RATIFY-2)', () => {
