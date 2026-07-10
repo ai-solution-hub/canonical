@@ -105,7 +105,7 @@ describe('SearchBar', () => {
     const input = screen.getByRole('combobox');
     await user.type(input, 'knowledge base');
     await user.keyboard('{Enter}');
-    expect(mockPush).toHaveBeenCalledWith('/browse?q=knowledge%20base');
+    expect(mockPush).toHaveBeenCalledWith('/search?q=knowledge%20base');
   });
 
   it('does not navigate on empty query submit', async () => {
@@ -157,7 +157,7 @@ describe('SearchBar', () => {
     const input = screen.getByRole('combobox');
     await user.type(input, '  trimmed search  ');
     await user.keyboard('{Enter}');
-    expect(mockPush).toHaveBeenCalledWith('/browse?q=trimmed%20search');
+    expect(mockPush).toHaveBeenCalledWith('/search?q=trimmed%20search');
   });
 
   // ---------------------------------------------------------------------------
@@ -284,17 +284,22 @@ describe('SearchBar', () => {
   // Preview dropdown tests (P1-30 Phase 3)
   // ---------------------------------------------------------------------------
   describe('preview dropdown (inline variant)', () => {
+    // Real `/api/search/preview` grain (ID-135.23): the route merges three
+    // record kinds behind `content_type` — q_a_pair, source_document,
+    // reference_item — each with its own live detail route. Fixtures use
+    // the real content_types (not the pre-refactor 'article'/'policy'
+    // taxonomy) so the per-kind destination mapping is exercised for real.
     const MOCK_PREVIEW_RESULTS = [
       {
         id: 'item-001',
         title: 'Risk Assessment Guide',
-        content_type: 'article',
+        content_type: 'q_a_pair',
         primary_domain: 'Corporate',
       },
       {
         id: 'item-002',
         title: 'Risk Management Policy',
-        content_type: 'policy',
+        content_type: 'source_document',
         primary_domain: 'Technical',
       },
     ];
@@ -366,7 +371,7 @@ describe('SearchBar', () => {
       expect(screen.queryByText('Popular topics')).toBeNull();
     });
 
-    it('renders preview results as <a> elements with correct href', async () => {
+    it('renders preview results as <a> elements pointed at the live per-kind detail route', async () => {
       mockPreviewFetch();
       const user = userEvent.setup();
       renderSearchBar({ variant: 'inline' });
@@ -379,14 +384,41 @@ describe('SearchBar', () => {
         },
         { timeout: 2000 },
       );
-      // Check that results are <a> tags with correct hrefs
+      // q_a_pair result → the {135.22} viewer; source_document result →
+      // the documents detail page. Neither the dead /browse nor /item/
+      // routes.
       const link1 = screen.getByText('Risk Assessment Guide').closest('a');
       expect(link1).not.toBeNull();
-      expect(link1).toHaveAttribute('href', '/item/item-001');
+      expect(link1).toHaveAttribute('href', '/library/item-001');
 
       const link2 = screen.getByText('Risk Management Policy').closest('a');
       expect(link2).not.toBeNull();
-      expect(link2).toHaveAttribute('href', '/item/item-002');
+      expect(link2).toHaveAttribute('href', '/documents/item-002');
+    });
+
+    it('renders a reference_item preview result pointed at /reference/{id}', async () => {
+      mockPreviewFetch([
+        {
+          id: 'item-003',
+          title: 'ISO 27001 Certificate',
+          content_type: 'reference_item',
+          primary_domain: 'Compliance',
+        },
+      ]);
+      const user = userEvent.setup();
+      renderSearchBar({ variant: 'inline' });
+      const input = screen.getByRole('combobox');
+      await user.click(input);
+      await user.type(input, 'iso 27001');
+      await waitFor(
+        () => {
+          expect(screen.getByText('ISO 27001 Certificate')).toBeInTheDocument();
+        },
+        { timeout: 2000 },
+      );
+      const link = screen.getByText('ISO 27001 Certificate').closest('a');
+      expect(link).not.toBeNull();
+      expect(link).toHaveAttribute('href', '/reference/item-003');
     });
 
     it('has aria-live="polite" on the preview region', async () => {
@@ -454,7 +486,7 @@ describe('SearchBar', () => {
       expect(onSearch).toHaveBeenCalledWith('risk assess');
     });
 
-    it('clicking a preview result navigates to /item/{id}', async () => {
+    it('clicking a q_a_pair preview result navigates to the /library viewer', async () => {
       mockPreviewFetch();
       const user = userEvent.setup();
       renderSearchBar({ variant: 'inline' });
@@ -468,7 +500,26 @@ describe('SearchBar', () => {
         { timeout: 2000 },
       );
       await user.click(screen.getByText('Risk Assessment Guide'));
-      expect(mockPush).toHaveBeenCalledWith('/item/item-001');
+      expect(mockPush).toHaveBeenCalledWith('/library/item-001');
+    });
+
+    it('clicking a source_document preview result navigates to /documents/{id}', async () => {
+      mockPreviewFetch();
+      const user = userEvent.setup();
+      renderSearchBar({ variant: 'inline' });
+      const input = screen.getByRole('combobox');
+      await user.click(input);
+      await user.type(input, 'risk assess');
+      await waitFor(
+        () => {
+          expect(
+            screen.getByText('Risk Management Policy'),
+          ).toBeInTheDocument();
+        },
+        { timeout: 2000 },
+      );
+      await user.click(screen.getByText('Risk Management Policy'));
+      expect(mockPush).toHaveBeenCalledWith('/documents/item-002');
     });
 
     it('does not show preview for compact variant', async () => {
@@ -516,7 +567,7 @@ describe('SearchBar', () => {
       const activeDescendant = input.getAttribute('aria-activedescendant');
       expect(activeDescendant).not.toBeNull();
       // The activeDescendant should point at an option associated with the
-      // first preview result — its <a> has href="/item/item-001" so the
+      // first preview result — its <a> has href="/library/item-001" so the
       // option id encodes the item id.
       const firstPreviewLink = screen
         .getByText('Risk Assessment Guide')

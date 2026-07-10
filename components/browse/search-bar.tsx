@@ -37,6 +37,29 @@ type DropdownItem =
   | { type: 'see-all' }
   | { type: 'suggestion'; value: string };
 
+/**
+ * Preview-result destination, keyed by `content_type` (ID-135.23). The
+ * `/api/search/preview` route (app/api/search/preview/route.ts) merges
+ * three record grains behind one `content_type` discriminator — each has
+ * its own live detail route, so a single `/item/${id}` (deleted at
+ * {131.17}) or a blind repoint onto one route is wrong for the other two
+ * kinds. Mirrors `destinationHref` in
+ * components/corpus-search/corpus-result-card.tsx (kind → route). Any
+ * unrecognised `content_type` falls back to the q_a_pair viewer — the API
+ * route today only ever emits the three grains handled below.
+ */
+function previewResultHref(result: PreviewResult): string {
+  switch (result.content_type) {
+    case 'source_document':
+      return `/documents/${result.id}`;
+    case 'reference_item':
+      return `/reference/${result.id}`;
+    case 'q_a_pair':
+    default:
+      return `/library/${result.id}`;
+  }
+}
+
 export function SearchBar({
   variant = 'compact',
   defaultValue = '',
@@ -168,7 +191,7 @@ export function SearchBar({
       addRecentSearch(trimmed);
       setShowRecent(false);
       setActiveIndex(-1);
-      router.push(`/browse?q=${encodeURIComponent(trimmed)}`);
+      router.push(`/search?q=${encodeURIComponent(trimmed)}`);
     }
   }
 
@@ -180,7 +203,7 @@ export function SearchBar({
     if (variant === 'inline') {
       onSearch?.(search);
     } else {
-      router.push(`/browse?q=${encodeURIComponent(search)}`);
+      router.push(`/search?q=${encodeURIComponent(search)}`);
     }
   }
 
@@ -194,7 +217,7 @@ export function SearchBar({
     if (variant === 'inline') {
       onSearch?.(trimmed);
     } else {
-      router.push(`/browse?q=${encodeURIComponent(trimmed)}`);
+      router.push(`/search?q=${encodeURIComponent(trimmed)}`);
     }
   }
 
@@ -206,10 +229,11 @@ export function SearchBar({
         handleSelectRecent(item.value);
         break;
       case 'preview':
-        // Navigate to item detail — use router.push for SPA nav
+        // Navigate to the result's per-kind detail route — use
+        // router.push for SPA nav.
         setShowRecent(false);
         setActiveIndex(-1);
-        router.push(`/item/${item.result.id}`);
+        router.push(previewResultHref(item.result));
         break;
       case 'see-all':
         handleSeeAllResults();
@@ -344,7 +368,7 @@ export function SearchBar({
                       <a
                         key={`preview-${result.id}`}
                         id={`search-option-${idx}`}
-                        href={`/item/${result.id}`}
+                        href={previewResultHref(result)}
                         role="option"
                         tabIndex={-1}
                         aria-selected={activeIndex === idx}
@@ -352,7 +376,7 @@ export function SearchBar({
                           e.preventDefault();
                           setShowRecent(false);
                           setActiveIndex(-1);
-                          router.push(`/item/${result.id}`);
+                          router.push(previewResultHref(result));
                         }}
                         onMouseEnter={() => setActiveIndex(idx)}
                         className={`flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-foreground transition-colors ${
