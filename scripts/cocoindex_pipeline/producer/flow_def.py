@@ -303,7 +303,6 @@ def _default_embedder() -> Embedder:
 
 
 async def run_producer_flow(
-    deltas: "Sequence[Any]" = (),
     *,
     pool: Any = None,
     bundle_dir: "str | Path | None" = None,

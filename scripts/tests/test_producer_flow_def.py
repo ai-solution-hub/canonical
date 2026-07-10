@@ -242,7 +242,6 @@ class TestFullRun:
         re_target = _FakeRecordEmbeddingsTarget()
         report = asyncio.run(
             env.flow_def.run_producer_flow(
-                [{"id": "sd-1"}],
                 pool=object(),
                 bundle_dir=bundle_dir,
                 re_target=re_target,
@@ -294,19 +293,19 @@ class TestIdleMode:
         self, env, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.delenv("OKF_BUNDLE_DIR", raising=False)
-        result = asyncio.run(env.flow_def.run_producer_flow([{"id": "sd-1"}], pool=object()))
+        result = asyncio.run(env.flow_def.run_producer_flow(pool=object()))
         assert result is None
 
     def test_idle_when_bundle_dir_missing_folder(
         self, env, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         monkeypatch.setenv("OKF_BUNDLE_DIR", str(tmp_path / "does-not-exist"))
-        result = asyncio.run(env.flow_def.run_producer_flow([{"id": "sd-1"}], pool=object()))
+        result = asyncio.run(env.flow_def.run_producer_flow(pool=object()))
         assert result is None
 
     def test_idle_when_no_pool(self, env, bundle_dir: Path) -> None:
         result = asyncio.run(
-            env.flow_def.run_producer_flow([{"id": "sd-1"}], bundle_dir=bundle_dir, pool=None)
+            env.flow_def.run_producer_flow(bundle_dir=bundle_dir, pool=None)
         )
         assert result is None
 
@@ -327,7 +326,6 @@ class TestNoOpLogOnlyRuling:
         def run() -> Any:
             return asyncio.run(
                 env.flow_def.run_producer_flow(
-                    [{"id": "sd-1"}],
                     pool=object(),
                     bundle_dir=bundle_dir,
                     re_target=_FakeRecordEmbeddingsTarget(),
@@ -365,7 +363,6 @@ class TestDegradation:
         re_target = _FakeRecordEmbeddingsTarget()
         report = asyncio.run(
             env.flow_def.run_producer_flow(
-                [{"id": "sd-1"}],
                 pool=object(),
                 bundle_dir=bundle_dir,
                 re_target=re_target,
@@ -386,7 +383,6 @@ class TestDegradation:
 
         report = asyncio.run(
             env.flow_def.run_producer_flow(
-                [{"id": "sd-1"}],
                 pool=object(),
                 bundle_dir=bundle_dir,
             )
@@ -407,7 +403,6 @@ class TestDegradation:
 
         report = asyncio.run(
             env.flow_def.run_producer_flow(
-                [{"id": "sd-1"}],
                 pool=object(),
                 bundle_dir=bundle_dir,
                 repo_path=repo,
@@ -450,7 +445,6 @@ class TestContainment:
         re_target = _FakeRecordEmbeddingsTarget()
         report = asyncio.run(
             env.flow_def.run_producer_flow(
-                [{"id": "sd-1"}],
                 pool=object(),
                 bundle_dir=bundle_dir,
                 re_target=re_target,
@@ -491,7 +485,6 @@ class TestPass2Optional:
 
         report = asyncio.run(
             env.flow_def.run_producer_flow(
-                [{"id": "sd-1"}],
                 pool=object(),
                 bundle_dir=bundle_dir,
                 gated_corpus=object(),
@@ -664,7 +657,6 @@ class TestOverrideReapply:
 
         report = asyncio.run(
             env.flow_def.run_producer_flow(
-                [{"id": "sd-1"}],
                 pool=object(),
                 bundle_dir=bundle_dir,
                 repo_path=repo,

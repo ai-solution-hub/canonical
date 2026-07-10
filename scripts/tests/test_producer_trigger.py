@@ -231,12 +231,16 @@ class TestDefaultEntryPointIdleMode:
 # default_producer_entry_point — delegates to flow_def.run_producer_flow
 # ({132.23} superseded {132.16}'s Pass-1-only stand-in). The FULL composed
 # flow's behaviour is tested in test_producer_flow_def.py; here we prove only
-# that the trigger's default entry point forwards to it, deltas + kwargs intact.
+# that the trigger's default entry point forwards kwargs intact — and, per
+# the {132.27} PASS_WITH_NOTES remediation ({132.29} fix-forward), does NOT
+# forward `deltas` (a dead `run_producer_flow` param since {132.23}, removed
+# here; `deltas` is consumed by the dispatch layer — trigger_producer_
+# post_walk's delta gate / run_producer_now — only).
 # ============================================================================
 
 
 class TestDefaultEntryPointDelegatesToFlowDef:
-    def test_forwards_deltas_and_kwargs_to_run_producer_flow(
+    def test_forwards_kwargs_to_run_producer_flow_without_deltas(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         # flow_def.py imports no cocoindex at module scope, so it is
@@ -244,10 +248,10 @@ class TestDefaultEntryPointDelegatesToFlowDef:
         # lazy composed-module import is triggered at all.
         from scripts.cocoindex_pipeline.producer import flow_def
 
-        calls: "list[Any]" = []
+        calls: "list[dict[str, Any]]" = []
 
-        async def _spy(deltas: Any, **kwargs: Any) -> str:
-            calls.append((deltas, kwargs))
+        async def _spy(**kwargs: Any) -> str:
+            calls.append(kwargs)
             return "report"
 
         monkeypatch.setattr(flow_def, "run_producer_flow", _spy)
@@ -261,20 +265,22 @@ class TestDefaultEntryPointDelegatesToFlowDef:
                 bundle_dir="BUNDLE",
                 re_target="RE_TARGET",
                 repo_path="REPO",
-                status_source="STATUS",
+                overrides=("OVERRIDE",),
             )
         )
 
         assert result == "report"
         assert len(calls) == 1
-        deltas, kwargs = calls[0]
-        assert deltas == [{"id": "sd-1"}]
+        kwargs = calls[0]
+        # `deltas` is the trigger dispatch layer's own concern — never
+        # forwarded into `run_producer_flow` (it has no such parameter).
+        assert "deltas" not in kwargs
         assert kwargs["pool"] == "POOL"
         assert kwargs["bundle_dir"] == "BUNDLE"
         # Downstream-stage injection seams pass straight through.
         assert kwargs["re_target"] == "RE_TARGET"
         assert kwargs["repo_path"] == "REPO"
-        assert kwargs["status_source"] == "STATUS"
+        assert kwargs["overrides"] == ("OVERRIDE",)
 
     def test_default_entry_point_is_the_trigger_and_manual_run_default(self) -> None:
         """Both dispatch surfaces default to the (now full-flow) entry point —

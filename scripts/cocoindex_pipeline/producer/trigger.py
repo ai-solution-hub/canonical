@@ -97,10 +97,17 @@ async def default_producer_entry_point(
     stand-in ({132.23}). Idle-mode no-op (returns `None`) unless `OKF_BUNDLE_DIR`
     (or the explicit `bundle_dir` override) resolves to an existing directory
     AND a `pool` is supplied. Extra `flow_kwargs` (`re_target`, `repo_path`,
-    `status_source`, `embedder`, `gated_corpus`, ...) are the downstream-stage
+    `overrides`, `embedder`, `gated_corpus`, ...) are the downstream-stage
     injection seams `run_producer_flow` documents — each gates its own stage,
     so the default call (`entry_point(deltas)` from flow.py, no kwargs) stays a
     safe Pass-1+write-only run until an operator wires the rest.
+
+    `deltas` is consumed by THIS dispatch layer only (the post-walk delta
+    gate / reentrancy guard in `trigger_producer_post_walk`, and the manual
+    `run_producer_now` bypass) — `run_producer_flow` itself has no `deltas`
+    parameter (dead since {132.23}; removed as a {132.27} PASS_WITH_NOTES
+    remediation, ID-132 {132.29} fix-forward), so it is never forwarded
+    downstream.
 
     The `run_producer_flow` import is function-local (`flow_def.py` is itself
     collection-safe, but keeping it lazy preserves trigger.py's own
@@ -110,9 +117,7 @@ async def default_producer_entry_point(
         run_producer_flow,
     )
 
-    return await run_producer_flow(
-        deltas, pool=pool, bundle_dir=bundle_dir, **flow_kwargs
-    )
+    return await run_producer_flow(pool=pool, bundle_dir=bundle_dir, **flow_kwargs)
 
 
 # Reentrancy guard (module-level default) — the "no double-fire" contract:
