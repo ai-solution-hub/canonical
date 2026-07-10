@@ -2,8 +2,8 @@
 #
 # The docs operators (docubot + the five docs skills + their drivers and shape
 # tests) live in the PRIVATE knowledge-hub-docs-site repo. This workflow is the
-# ONLY public-side remnant of that lane: on every merged PR to staging (the
-# staging-first integration target — feature PRs land here first) it mints a
+# ONLY public-side remnant of that lane: on every merged PR to main or staging
+# it mints a
 # GitHub App installation token (knowledge-hub-integration — installed on both
 # repos with repo-level APP_ID / APP_PRIVATE_KEY secrets) and fires a
 # repository_dispatch into the private repo, where docubot.yml consumes the
@@ -17,7 +17,12 @@ name: docs dispatch — notify the docs-site repo on PR merge
 on:
   pull_request:
     types: [closed]
-    branches: [staging]
+    # [main, staging]: PR #100 repointed this to staging-only on the assumption
+    # feature PRs would merge staging-first — but zero PRs have ever closed
+    # against staging (deploy-only branch, synced by direct push), so the
+    # dispatch went structurally dead 26/06. Additive so it still fires if a
+    # staging-first PR flow is ever adopted. (bl-437 leg 2, S460)
+    branches: [main, staging]
 
 jobs:
   dispatch:
