@@ -438,6 +438,99 @@ def test_write_bundle_no_op_rerun_produces_no_op_diff(tmp_path: Path) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────
+# case_study cross-grain slug collision (ID-132 {132.29}) — a buyer that is
+# BOTH a named-client entity and a won-bid issuing_organisation slugs
+# identically in sources/l_records.py (READ-ONLY, correct: the two
+# ConceptKeys differ by workspace_id and therefore memoise separately —
+# this is purely a bundle PHYSICAL-write-target clash).
+# ─────────────────────────────────────────────────────────────────────────
+
+
+def _case_study_draft(
+    rel_path: str,
+    *,
+    title: str,
+    entity_id: "str | None" = None,
+    workspace_id: "str | None" = None,
+) -> ConceptDraft:
+    key = ConceptKey(
+        rel_path=rel_path,
+        concept_type="case_study",
+        entity_id=entity_id,
+        workspace_id=workspace_id,
+    )
+    body = (
+        f"A distilled synthesis about {title}.\n\n"
+        "# Citations\n"
+        f"- {build_source_document_uri(_SAMPLE_UUID)}\n"
+    )
+    return ConceptDraft(
+        key=key,
+        frontmatter=_fm(
+            type="case_study",
+            title=title,
+            description=f"{title} case study.",
+            resource=build_source_document_uri(_SAMPLE_UUID),
+        ),
+        body=body,
+    )
+
+
+def test_named_client_and_won_bid_same_slug_reconcile_without_overwrite(
+    tmp_path: Path,
+) -> None:
+    # Same buyer -> same slugified rel_path from BOTH grains (the {132.29}
+    # collision scenario) — l_records.py's Source adapter is correct; the
+    # collision is purely a bundle-write-target clash bundle_writer must
+    # resolve.
+    named_client = _case_study_draft(
+        "case-studies/acme-ltd.md", title="Acme Ltd (named client)", entity_id="Acme Ltd"
+    )
+    won_bid = _case_study_draft(
+        "case-studies/acme-ltd.md",
+        title="Acme Ltd (won-bid outcome)",
+        entity_id="Acme Ltd",
+        workspace_id=_SAMPLE_UUID,
+    )
+
+    summary = bundle_writer.write_bundle(tmp_path, [named_client, won_bid])
+
+    # Both concepts land — neither silently clobbers the other.
+    assert len(summary.added) == 2
+    named_client_path = tmp_path / "case-studies/acme-ltd.md"
+    won_bid_path = tmp_path / "case-studies/won-bid/acme-ltd.md"
+    assert named_client_path.exists()
+    assert won_bid_path.exists()
+    assert named_client_path != won_bid_path
+    assert "named client" in named_client_path.read_text(encoding="utf-8")
+    assert "won-bid outcome" in won_bid_path.read_text(encoding="utf-8")
+
+    # The reported bundle paths reflect the actual (redirected) write
+    # targets — index.md/log.md never point at a path that wasn't written.
+    assert set(summary.added) == {"case-studies/acme-ltd.md", "case-studies/won-bid/acme-ltd.md"}
+
+    index_text = (tmp_path / "index.md").read_text(encoding="utf-8")
+    assert "case-studies/acme-ltd.md" in index_text
+    assert "case-studies/won-bid/acme-ltd.md" in index_text
+
+
+def test_write_bundle_raises_on_duplicate_write_path_instead_of_overwriting(
+    tmp_path: Path,
+) -> None:
+    # Defense-in-depth, general case: ANY two drafts resolving to the same
+    # physical bundle path in one run must fail loudly, never silently
+    # overwrite — not only the named-client/won-bid case_study scenario.
+    first = _draft("topics/dup.md", title="First")
+    second = _draft("topics/dup.md", title="Second")
+
+    with pytest.raises(ValueError, match="collision"):
+        bundle_writer.write_bundle(tmp_path, [first, second])
+
+    # Refusing to write means NEITHER draft's content landed.
+    assert not (tmp_path / "topics/dup.md").exists()
+
+
+# ─────────────────────────────────────────────────────────────────────────
 # DR-027 ontology artefact
 # ─────────────────────────────────────────────────────────────────────────
 

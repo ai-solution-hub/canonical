@@ -61,6 +61,36 @@ producer's OWN declared content for that concept changes (the exact
 BI-22 clobber hazard TECH names {132.12} to solve; cocoindex's engine
 provides no help detecting it).
 
+**Cross-grain `case_study` slug collision (ID-132 {132.29}).** A buyer that
+is BOTH a named-client entity (`sources/l_records.py:_list_case_study_
+concepts`) AND a won-bid `issuing_organisation` (`_list_won_bid_case_study_
+concepts`, S443 amendment/DR-029) slugs identically — both grains build the
+SAME identity `rel_path` `case-studies/<slug>.md`. The Source adapter is
+CORRECT here (READ-ONLY, not touched by this fix): the two `ConceptKey`s
+differ by `workspace_id` and therefore memoise as distinct cocoindex cache
+entries — the collision is purely a bundle PHYSICAL-write-target clash, not
+an identity/memo-key clash. Rejected merging the two drafts into one bundle
+file: BI-28 requires the won-bid grain to stay a distinct human-reviewable
+accept/edit/reject PROPOSAL, never silently blended into an already-
+published named-client page, and two independently-sourced `ConceptDraft`s
+(different provenance, frontmatter, body) have no principled "whose content
+wins" answer. Chosen instead: `_bundle_write_path` redirects every won-bid
+`case_study` draft's PHYSICAL write target into a `won-bid/` sibling
+directory (`case-studies/won-bid/<slug>.md`) — the draft's identity
+`rel_path` (`ConceptKey.rel_path`, the memo key and the DR-016 human-
+override key for every OTHER concept type) is untouched; only WHERE this
+module's own `declare_file` call lands changes, so the named-client grain's
+existing bundle path — and therefore its DR-016 override-keying — is
+completely unaffected (zero behaviour change for the common, non-colliding
+case). `canonical://` pointer stability is likewise unaffected: those URIs
+address DB rows by id (TECH §resource_uri), never a bundle rel_path, so
+redirecting a won-bid concept's on-disk location cannot invalidate one.
+Different path SHAPE (not merely different content) makes the two grains
+structurally non-collidable. `write_bundle` additionally guards the general
+case defense-in-depth: ANY two drafts whose write paths coincide in one run
+(this scenario, or any future one) raise `ValueError` before either is
+written, rather than the second silently clobbering the first.
+
 **Full flow wiring composed in `producer/flow_def.py` ({132.23}).**
 `write_bundle`/`declare_concept` are plain orchestration functions, NOT
 `@coco.fn`-decorated components — BI-18's delta-only property already falls
@@ -93,7 +123,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from typing import Any, Literal, Mapping, Sequence
 
@@ -134,6 +164,31 @@ def _rel_path_of(draft: Any) -> str:
     if isinstance(rel_path, str):
         return rel_path
     return draft.key.rel_path
+
+
+def _bundle_write_path(draft: Any) -> str:
+    """The PHYSICAL bundle path `declare_concept` writes `draft` to —
+    ordinarily identical to `_rel_path_of(draft)` (the concept's identity /
+    cocoindex memo key, BI-2), EXCEPT for the won-bid `case_study` grain
+    (S443 amendment/DR-029, `ConceptKey.workspace_id` set), which this
+    module redirects into a distinct `won-bid/` sibling directory so it can
+    never collide with a same-slug named-client `case_study` concept
+    sharing the identical identity `rel_path` (ID-132 {132.29} — see this
+    module's docstring for the full rationale). Duck-typed on `draft.key`'s
+    shape (never imports `sources.l_records.ConceptKey`, mirroring
+    `_rel_path_of`'s own duck-typing) — `ReferenceConceptDraft` has no
+    `.key` and is therefore always left unredirected.
+    """
+    rel_path = _rel_path_of(draft)
+    key = getattr(draft, "key", None)
+    is_won_bid_case_study = (
+        getattr(key, "concept_type", None) == "case_study"
+        and getattr(key, "workspace_id", None) is not None
+    )
+    if not is_won_bid_case_study:
+        return rel_path
+    path = PurePosixPath(rel_path)
+    return str(path.parent / "won-bid" / path.name)
 
 
 def _read_existing(path: Path) -> "str | None":
@@ -178,8 +233,14 @@ def declare_concept(
     concept must not abort the whole bundle run; the caller (`write_bundle`)
     aggregates failures into the `log.md` run summary and keeps writing the
     rest of the bundle.
+
+    `ConceptWriteResult.rel_path` is the draft's PHYSICAL bundle write path
+    (`_bundle_write_path`) — identical to the draft's identity `rel_path`
+    for every concept EXCEPT the won-bid `case_study` grain, which is
+    redirected into `case-studies/won-bid/<slug>.md` to avoid the {132.29}
+    cross-grain slug collision (see module docstring).
     """
-    rel_path = _rel_path_of(draft)
+    rel_path = _bundle_write_path(draft)
     frontmatter: ConceptFrontmatter = draft.frontmatter
     body: str = draft.body
     errors = check_concept(
@@ -529,6 +590,13 @@ def write_bundle(
     `bundle_dir`'s own on-disk contents — the returned `RunSummary` is the
     caller's (e.g. `{132.12}`'s git-sync writer) hook to persist/consume
     the diff further.
+
+    Raises `ValueError` if two drafts in this run resolve to the same
+    PHYSICAL write path (`_bundle_write_path`) — e.g. a won-bid `case_study`
+    concept redirected by ID-132 {132.29} would otherwise still collide
+    with another same-slug draft. Fails loudly before either write happens
+    rather than letting the second `declare_file` call silently overwrite
+    the first.
     """
     previous_paths = _existing_concept_paths(bundle_dir)
     moved_from = set(moved)
@@ -540,6 +608,28 @@ def write_bundle(
     failures: "list[tuple[str, tuple[str, ...]]]" = []
 
     all_drafts: "list[Any]" = [*drafts, *reference_drafts]
+
+    # Collision pre-pass (ID-132 {132.29}): resolve every draft's PHYSICAL
+    # write path BEFORE any `declare_file` call happens this run. Detecting
+    # a duplicate only once the loop below reaches it would be too late —
+    # the FIRST draft would already be on disk by the time the SECOND
+    # draft's collision is noticed, defeating "no silent overwrite" (the
+    # first draft's content would still have been clobbered on the very
+    # next run once the second draft's write lands). Failing before any
+    # write in this run touches the filesystem keeps the run all-or-nothing
+    # rather than leaving a half-written bundle.
+    seen_write_paths: "set[str]" = set()
+    for draft in all_drafts:
+        write_path = _bundle_write_path(draft)
+        if write_path in seen_write_paths:
+            raise ValueError(
+                f"bundle write-path collision: more than one concept draft "
+                f"resolves to bundle path {write_path!r} in this run — "
+                "refusing to silently overwrite one with the other "
+                "(ID-132 {132.29})"
+            )
+        seen_write_paths.add(write_path)
+
     for draft in all_drafts:
         result = declare_concept(bundle_dir, draft)
         if not result.written:
