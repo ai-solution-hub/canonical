@@ -1,19 +1,23 @@
 /**
- * useCorpusSearch — polymorphic multi-grain search hook tests (ID-135 {135.6}).
+ * useCorpusSearch — polymorphic multi-grain search hook tests (ID-135 {135.6},
+ * read-boundary rewrite ID-144 {144.7}).
  *
  * Behaviour-first (test-philosophy.md): drives the REAL hook, mocking only the
  * I/O + routing seams: `@/lib/query/fetchers` `fetchJson` (the {131.11}
  * `/api/search` endpoint — MOCKED per the {135.6} brief; the live typed
  * response is a Task-level dependency on {131.11}/{131.19}, never hit here)
  * and `next/navigation` (URL <-> state). The mapping layer (read boundary),
- * the kind-narrow client-side filter, the limit-raising pagination (AAT-1
- * fallback), and the URL writers all run unmocked.
+ * the limit-raising pagination (AAT-1 fallback), and the URL writers all run
+ * unmocked. The kind-narrow is no longer client-filtered as of id-144 — the
+ * server (`hybrid_search` `filter_kind`) narrows authoritatively (TECH §2.3/2.4).
  *
  * `makeRow` fixtures conform to the verified `hybrid_search` RPC row shape
- * (`supabase/migrations/20260702120000_id131_search_rpcs.sql`) — the closest
- * available fixture for "the ACTUAL /api/search emit" per AAT-2.
+ * (`supabase/migrations/20260710221255_id144_hybrid_search_projection_filters.sql`,
+ * 24 columns) — the closest available fixture for "the ACTUAL /api/search
+ * emit" per AAT-2.
  *
- * Spec: TECH §3 BI-9/BI-10/BI-11/BI-15/BI-17/BI-20, §5; PRODUCT.md BI-9…BI-20.
+ * Spec: TECH §3 BI-9/BI-10/BI-11/BI-15/BI-17/BI-20, §5; PRODUCT.md BI-9…BI-20;
+ * id-144 TECH §2.3 (owner_kind routing + scope_tag/source_url mapping).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
@@ -60,6 +64,14 @@ function makeRow(overrides: Record<string, unknown> = {}) {
     primary_subtopic: 'tendering',
     content_type: 'q_a_pair',
     similarity: 0.87,
+    // id-144 {144.7}: owner_kind is now the routing key (resolveCorpusKind
+    // reads this, never content_type) — default matches the default
+    // content_type above so callers that only vary other fields keep the
+    // same grain. scope_tag/source_url default to the real RPC NULL for the
+    // q_a_pair/document arms; tests that need a populated value override it.
+    owner_kind: 'q_a_pair',
+    scope_tag: null,
+    source_url: null,
     ...overrides,
   };
 }
@@ -121,6 +133,7 @@ describe('useCorpusSearch — default ALL-grain search', () => {
       results: [
         makeRow({
           content_type: 'q_a_pair',
+          owner_kind: 'q_a_pair',
           title: 'What is the VAT threshold?',
           summary: 'The VAT threshold is £90,000.',
         }),
@@ -142,11 +155,37 @@ describe('useCorpusSearch — default ALL-grain search', () => {
     expect(item).not.toHaveProperty('score');
   });
 
+  it('surfaces a populated scope_tag onto the answer variant (id-144, no longer defaulted to [])', async () => {
+    navState.search = 'q=foo';
+    mockFetchJson.mockResolvedValue({
+      results: [
+        makeRow({
+          content_type: 'q_a_pair',
+          owner_kind: 'q_a_pair',
+          scope_tag: ['england', 'wales'],
+        }),
+      ],
+    });
+
+    const { result } = renderCorpusSearch();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    const item = result.current.items[0];
+    expect(item.kind).toBe('answer');
+    if (item.kind === 'answer') {
+      expect(item.scopeTags).toEqual(['england', 'wales']);
+    }
+  });
+
   it('maps a reference_item row to the reference variant', async () => {
     navState.search = 'q=foo';
     mockFetchJson.mockResolvedValue({
       results: [
-        makeRow({ content_type: 'reference_item', title: 'GOV.UK guidance' }),
+        makeRow({
+          content_type: 'reference_item',
+          owner_kind: 'reference_item',
+          title: 'GOV.UK guidance',
+        }),
       ],
     });
 
@@ -157,12 +196,35 @@ describe('useCorpusSearch — default ALL-grain search', () => {
     expect(result.current.items[0].title).toBe('GOV.UK guidance');
   });
 
-  it('maps a source_documents-arm row (non-owner_kind content_type) to document, preferring suggested_title', async () => {
+  it('surfaces a populated source_url onto the reference variant (id-144, no longer defaulted to null)', async () => {
     navState.search = 'q=foo';
     mockFetchJson.mockResolvedValue({
       results: [
         makeRow({
-          content_type: 'guidance', // sd.content_type taxonomy value, NOT 'source_document'
+          content_type: 'reference_item',
+          owner_kind: 'reference_item',
+          source_url: 'https://www.gov.uk/guidance/procurement',
+        }),
+      ],
+    });
+
+    const { result } = renderCorpusSearch();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    const item = result.current.items[0];
+    expect(item.kind).toBe('reference');
+    if (item.kind === 'reference') {
+      expect(item.sourceUrl).toBe('https://www.gov.uk/guidance/procurement');
+    }
+  });
+
+  it("maps a source_document owner_kind row to document, preferring suggested_title (content_type carries the SD's own taxonomy value)", async () => {
+    navState.search = 'q=foo';
+    mockFetchJson.mockResolvedValue({
+      results: [
+        makeRow({
+          content_type: 'guidance', // sd.content_type taxonomy value — decorative only, NOT read for routing
+          owner_kind: 'source_document',
           title: 'raw-filename.pdf',
           suggested_title: 'Procurement Guidance 2026',
           summary: 'Guidance summary text.',
@@ -181,10 +243,32 @@ describe('useCorpusSearch — default ALL-grain search', () => {
     }
   });
 
-  it('maps a content_chunk row (collapsed grain) to document, never its own kind (BI-12)', async () => {
+  it('maps a content_chunk owner_kind row (collapsed grain) to document, never its own kind (BI-12)', async () => {
     navState.search = 'q=foo';
     mockFetchJson.mockResolvedValue({
-      results: [makeRow({ content_type: 'content_chunk' })],
+      results: [
+        makeRow({ content_type: 'content_chunk', owner_kind: 'content_chunk' }),
+      ],
+    });
+
+    const { result } = renderCorpusSearch();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.items[0].kind).toBe('document');
+  });
+
+  it('routes on owner_kind rather than content_type (id-144 §2.3 — owner_kind is now the honest routing key)', async () => {
+    navState.search = 'q=foo';
+    mockFetchJson.mockResolvedValue({
+      results: [
+        makeRow({
+          // Decoy: content_type looks like a reference_item hit, but
+          // owner_kind (the real routing column since id-144) says
+          // source_document — the mapping MUST follow owner_kind.
+          content_type: 'reference_item',
+          owner_kind: 'source_document',
+        }),
+      ],
     });
 
     const { result } = renderCorpusSearch();
@@ -197,9 +281,21 @@ describe('useCorpusSearch — default ALL-grain search', () => {
     navState.search = 'q=foo';
     mockFetchJson.mockResolvedValue({
       results: [
-        makeRow({ content_type: 'reference_item', title: 'Third' }),
-        makeRow({ content_type: 'q_a_pair', title: 'First' }),
-        makeRow({ content_type: 'guidance', title: 'Second' }),
+        makeRow({
+          content_type: 'reference_item',
+          owner_kind: 'reference_item',
+          title: 'Third',
+        }),
+        makeRow({
+          content_type: 'q_a_pair',
+          owner_kind: 'q_a_pair',
+          title: 'First',
+        }),
+        makeRow({
+          content_type: 'guidance',
+          owner_kind: 'source_document',
+          title: 'Second',
+        }),
       ],
     });
 
@@ -222,7 +318,7 @@ describe('useCorpusSearch — kind narrow', () => {
   it('changing the kind narrow issues a new request under a distinct cache key', async () => {
     navState.search = 'q=foo&kind=answer';
     mockFetchJson.mockResolvedValue({
-      results: [makeRow({ content_type: 'q_a_pair' })],
+      results: [makeRow({ content_type: 'q_a_pair', owner_kind: 'q_a_pair' })],
     });
 
     const { result, rerender } = renderCorpusSearch();
@@ -237,7 +333,9 @@ describe('useCorpusSearch — kind narrow', () => {
     // changed-params side of BI-9/BI-15, not just that ?kind is read once.
     navState.search = 'q=foo&kind=document';
     mockFetchJson.mockResolvedValue({
-      results: [makeRow({ content_type: 'guidance' })],
+      results: [
+        makeRow({ content_type: 'guidance', owner_kind: 'source_document' }),
+      ],
     });
     rerender();
 
@@ -247,29 +345,52 @@ describe('useCorpusSearch — kind narrow', () => {
     expect(requestBody(1)).not.toEqual(requestBody(0));
   });
 
-  it('narrows the merged list client-side even though hybrid_search cannot narrow server-side yet', async () => {
+  it('does not filter mismatched-kind rows client-side (id-144: server narrows authoritatively via filter_kind)', async () => {
     navState.search = 'q=foo&kind=answer';
+    // Pre-narrowed-by-server shape would only ever return matching rows, but
+    // this mock deliberately returns a mixed batch to prove the hook itself
+    // performs NO client-side narrowing any more — the removed :257 `.filter`
+    // is what previously caused the OBS-4 pagination corruption.
     mockFetchJson.mockResolvedValue({
       results: [
-        makeRow({ content_type: 'q_a_pair', title: 'Answer hit' }),
-        makeRow({ content_type: 'reference_item', title: 'Reference hit' }),
-        makeRow({ content_type: 'guidance', title: 'Document hit' }),
+        makeRow({
+          content_type: 'q_a_pair',
+          owner_kind: 'q_a_pair',
+          title: 'Answer hit',
+        }),
+        makeRow({
+          content_type: 'reference_item',
+          owner_kind: 'reference_item',
+          title: 'Reference hit',
+        }),
+        makeRow({
+          content_type: 'guidance',
+          owner_kind: 'source_document',
+          title: 'Document hit',
+        }),
       ],
     });
 
     const { result } = renderCorpusSearch();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    expect(result.current.items).toHaveLength(1);
-    expect(result.current.items[0].title).toBe('Answer hit');
+    expect(result.current.items).toHaveLength(3);
+    expect(result.current.items.map((i) => i.title)).toEqual([
+      'Answer hit',
+      'Reference hit',
+      'Document hit',
+    ]);
   });
 
   it('ignores an invalid ?kind value (falls back to ALL grains)', async () => {
     navState.search = 'q=foo&kind=bogus';
     mockFetchJson.mockResolvedValue({
       results: [
-        makeRow({ content_type: 'q_a_pair' }),
-        makeRow({ content_type: 'reference_item' }),
+        makeRow({ content_type: 'q_a_pair', owner_kind: 'q_a_pair' }),
+        makeRow({
+          content_type: 'reference_item',
+          owner_kind: 'reference_item',
+        }),
       ],
     });
 
