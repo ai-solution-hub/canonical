@@ -1,12 +1,26 @@
-"""Tests for producer/flow_def.py — ID-132 {132.23} G-FLOWDEF: the FULL
-producer flow composed as ONE entry point.
+"""Tests for producer/flow_def.py — ID-132 {132.23} G-FLOWDEF (the FULL
+producer flow composed as ONE entry point) + {132.27} G-FLOW-STAGING-WIRE
+(the STAGING + BI-28 provenance-map wiring).
 
 Per the {132.23} testStrategy: a full producer run over a Source fixture
-writes concept files (BI-11), one record_embeddings row per concept
-(BI-26), and exactly ONE gated git commit (BI-21 green) via the ONE composed
-flow_def — not the trigger.py Pass-1-only stand-in. Idle mode (unset
-OKF_BUNDLE_DIR) still no-ops. Owner ruling (S456): a log.md-only diff is a
-no-op — no commit.
+writes concept files (BI-11) and one record_embeddings row per concept
+(BI-26) via the ONE composed flow_def — not the trigger.py Pass-1-only
+stand-in. Idle mode (unset OKF_BUNDLE_DIR) still no-ops. Owner ruling (S456):
+a log.md-only diff is a no-op — no repo mutation at all, not even staging.
+
+Per the {132.27} testStrategy (S436 amendment, BI-27/DR-016): the final
+publish step now calls `git_sync.sync_bundle(..., stage_only=True)`
+DIRECTLY — every non-no-op run applies + `git add`s the client-owned repo's
+working tree but makes NO commit; the ONE gated commit is deferred to the
+separate, human-triggered `publish.publish_bundle`/`producer publish` action
+(unchanged, exercised in `test_producer_publish.py`). Two more pieces wire in
+at the same seam: an injected `overrides` seam folds approved
+`git_sync.ProducerOverride`s onto the staged output via
+`git_sync.reapply_overrides`; and a `concept_path -> workspace_id` BI-28
+provenance map, built here from every won-bid `case_study` ConceptKey this
+run enumerated, stamps `source_workspace_id` onto the emitted
+`proposed_change_set`. `status_source`/BI-21 gating is no longer this
+module's concern — it now lives solely in `producer/publish.py`.
 
 `flow_def.py` deliberately imports NO `cocoindex` at module scope (collection
 safety), but its lazily-imported composed pieces (`enrich`, `bundle_writer`,
@@ -86,18 +100,6 @@ async def _fake_embedder(_text: str) -> "list[float]":
     return list(_EMBEDDING)
 
 
-def _green_status() -> Any:
-    from scripts.cocoindex_pipeline.producer.publish import SeedContractCheckResult
-
-    return SeedContractCheckResult(is_green=True, detail="test-green")
-
-
-def _red_status() -> Any:
-    from scripts.cocoindex_pipeline.producer.publish import SeedContractCheckResult
-
-    return SeedContractCheckResult(is_green=False, detail="test-red")
-
-
 # ── Fixtures ────────────────────────────────────────────────────────────
 
 
@@ -124,10 +126,25 @@ def env(monkeypatch: pytest.MonkeyPatch):
 
         monkeypatch.setattr(bundle_writer, "localfs", _SideEffectLocalfs())
 
-        def build_draft(rel_path: str, *, title: str = "Alpha") -> Any:
-            key = l_records.ConceptKey(
-                rel_path=rel_path, concept_type="topic", scope_tag=rel_path
-            )
+        def build_draft(
+            rel_path: str,
+            *,
+            title: str = "Alpha",
+            concept_type: str = "topic",
+            entity_id: "str | None" = None,
+            workspace_id: "str | None" = None,
+        ) -> Any:
+            key_kwargs: "dict[str, Any]" = {
+                "rel_path": rel_path,
+                "concept_type": concept_type,
+            }
+            if concept_type == "topic":
+                key_kwargs["scope_tag"] = rel_path
+            else:
+                key_kwargs["entity_id"] = entity_id or title
+                if workspace_id is not None:
+                    key_kwargs["workspace_id"] = workspace_id
+            key = l_records.ConceptKey(**key_kwargs)
             resource = resource_uri.build_source_document_uri(_SAMPLE_UUID)
             body = (
                 f"A distilled synthesis about {title}.\n\n"
@@ -135,7 +152,7 @@ def env(monkeypatch: pytest.MonkeyPatch):
                 f"- {resource}\n"
             )
             frontmatter_obj = frontmatter.build_concept_frontmatter(
-                type="topic",
+                type=concept_type,
                 title=title,
                 description="Desc",
                 timestamp="2026-07-08T00:00:00Z",
@@ -203,11 +220,12 @@ def bundle_dir(tmp_path: Path) -> Path:
     return d
 
 
-# ── The G-FLOWDEF testStrategy: full run writes files, embeds, one commit ──
+# ── The G-FLOWDEF testStrategy: full run writes files + embeds ───────────
+# ── The {132.27} testStrategy: the same run lands STAGING, no commit ─────
 
 
 class TestFullRun:
-    def test_writes_files_embeds_one_row_per_concept_and_one_commit(
+    def test_writes_files_embeds_and_stages_without_committing(
         self, env, bundle_dir: Path, repo: Path
     ) -> None:
         # Build three concepts keyed by their ConceptKey.
@@ -229,7 +247,6 @@ class TestFullRun:
                 bundle_dir=bundle_dir,
                 re_target=re_target,
                 repo_path=repo,
-                status_source=_green_status,
                 embedder=_fake_embedder,
             )
         )
@@ -251,12 +268,22 @@ class TestFullRun:
             "topics/gamma.md",
         ]
 
-        # BI-21 green: exactly ONE gated git commit.
-        assert _commit_count(repo) == 1
-        assert report.committed is True
-        assert report.sync_result.commit_sha == _git(repo, "rev-parse", "HEAD").strip()
-        # The concept files landed in the client-owned repo, not just the work dir.
+        # {132.27}: STAGING, not a per-run commit — the ONE gated commit is
+        # deferred to the separate publish.py/producer-publish action.
+        assert _commit_count(repo) == 0
+        assert report.committed is False
+        assert report.sync_result.staged is True
+        # The concept files landed in the client-owned repo's working tree...
         assert (repo / "topics/alpha.md").is_file()
+        # ...and are staged in the index, ready for the later gated commit.
+        staged_paths = _git(repo, "diff", "--cached", "--name-only").splitlines()
+        assert "topics/alpha.md" in staged_paths
+
+        # The machine-readable proposed_change_set (DR-013 shape) is emitted.
+        assert report.proposed_change_set is not None
+        assert report.proposed_change_set["staged"] is True
+        changed_paths = {c["concept_path"] for c in report.proposed_change_set["changes"]}
+        assert "topics/alpha.md" in changed_paths
 
 
 # ── Idle-mode safety (preserved from {132.16}) ──────────────────────────
@@ -288,7 +315,7 @@ class TestIdleMode:
 
 
 class TestNoOpLogOnlyRuling:
-    def test_second_identical_run_makes_no_new_commit(
+    def test_second_identical_run_skips_staging_too(
         self, env, bundle_dir: Path, repo: Path
     ) -> None:
         drafts_by_key = {}
@@ -305,23 +332,24 @@ class TestNoOpLogOnlyRuling:
                     bundle_dir=bundle_dir,
                     re_target=_FakeRecordEmbeddingsTarget(),
                     repo_path=repo,
-                    status_source=_green_status,
                     embedder=_fake_embedder,
                     timestamp="2026-07-08T00:00:00Z",
                 )
             )
 
         first = run()
-        assert first.committed is True
-        assert _commit_count(repo) == 1
+        assert first.committed is False
+        assert first.sync_result.staged is True
+        assert _commit_count(repo) == 0
 
         second = run()
         # Every concept byte-identical → RunSummary.is_no_op → the ONLY diff
-        # would be log.md's new stamp → no commit (S456).
+        # would be log.md's new stamp → the flow skips even staging (S456).
         assert second.summary.is_no_op is True
         assert second.committed is False
         assert second.sync_result is None
-        assert _commit_count(repo) == 1
+        assert second.proposed_change_set is None
+        assert _commit_count(repo) == 0
 
 
 # ── Per-stage degradation through injection seams ───────────────────────
@@ -366,27 +394,30 @@ class TestDegradation:
         assert (bundle_dir / "topics/alpha.md").is_file()
         assert report.embedded == ()
 
-    def test_red_status_aborts_publish_with_no_commit(
+    def test_stages_regardless_of_seed_contract_status(
         self, env, bundle_dir: Path, repo: Path
     ) -> None:
-        from scripts.cocoindex_pipeline.producer.publish import PublishAbortedError
-
+        """{132.27}: BI-21 gating is no longer this module's concern — it
+        moved entirely to `publish.py`'s own `publish_bundle`/`producer
+        publish` action (see `test_producer_publish.py`). A run always lands
+        STAGING here, whatever the ID-131 seed-contract freeze test's CI
+        status is; the flow no longer accepts (or needs) a `status_source`."""
         draft = env.build_draft("topics/alpha.md", title="Alpha")
         _wire_source(env, {draft.key: draft})
 
-        with pytest.raises(PublishAbortedError):
-            asyncio.run(
-                env.flow_def.run_producer_flow(
-                    [{"id": "sd-1"}],
-                    pool=object(),
-                    bundle_dir=bundle_dir,
-                    repo_path=repo,
-                    status_source=_red_status,
-                    embedder=_fake_embedder,
-                )
+        report = asyncio.run(
+            env.flow_def.run_producer_flow(
+                [{"id": "sd-1"}],
+                pool=object(),
+                bundle_dir=bundle_dir,
+                repo_path=repo,
+                embedder=_fake_embedder,
             )
-        # BI-21 hard gate: a red gate leaves the client-owned repo untouched.
+        )
+
+        assert report.sync_result.staged is True
         assert _commit_count(repo) == 0
+        assert (repo / "topics/alpha.md").is_file()
 
 
 # ── One bad concept is contained (mirrors {132.16}'s stand-in posture) ───
@@ -424,15 +455,16 @@ class TestContainment:
                 bundle_dir=bundle_dir,
                 re_target=re_target,
                 repo_path=repo,
-                status_source=_green_status,
                 embedder=_fake_embedder,
             )
         )
 
         assert (bundle_dir / "topics/good.md").is_file()
         assert not (bundle_dir / "topics/bad.md").exists()
-        assert report.committed is True
-        assert _commit_count(repo) == 1
+        assert report.committed is False
+        assert report.sync_result.staged is True
+        assert (repo / "topics/good.md").is_file()
+        assert _commit_count(repo) == 0
 
 
 # ── Optional Pass-2 web enrichment composes {132.9} run_web_pass ─────────
@@ -469,3 +501,92 @@ class TestPass2Optional:
         assert report.pass2_ran is True
         assert report.reference_paths == ("references/iso-27001.md",)
         assert (bundle_dir / "references/iso-27001.md").is_file()
+
+
+# ── {132.27} G-FLOW-STAGING-WIRE: the headline testStrategy ──────────────
+# "a full run over a won-bid Source fixture lands STAGING (no per-run
+# commit) and emits a proposed_change_set whose won-bid entries carry
+# source_workspace_id."
+
+
+class TestBI28StagingProvenance:
+    def test_a_won_bid_run_lands_staging_and_stamps_source_workspace_id(
+        self, env, bundle_dir: Path, repo: Path
+    ) -> None:
+        won_bid_draft = env.build_draft(
+            "case-studies/acme-corp.md",
+            title="Acme Corp",
+            concept_type="case_study",
+            workspace_id="22222222-2222-4222-8222-222222222222",
+        )
+        ordinary_draft = env.build_draft("topics/alpha.md", title="Alpha")
+        _wire_source(
+            env,
+            {won_bid_draft.key: won_bid_draft, ordinary_draft.key: ordinary_draft},
+        )
+
+        report = asyncio.run(
+            env.flow_def.run_producer_flow(
+                [{"id": "sd-1"}],
+                pool=object(),
+                bundle_dir=bundle_dir,
+                repo_path=repo,
+                embedder=_fake_embedder,
+            )
+        )
+
+        # STAGING, no per-run commit (testStrategy).
+        assert _commit_count(repo) == 0
+        assert report.committed is False
+        assert report.sync_result.staged is True
+        assert (repo / "case-studies/acme-corp.md").is_file()
+
+        # The proposed_change_set's won-bid entry carries source_workspace_id
+        # (BI-28); an ordinary entry keeps the None default.
+        assert report.proposed_change_set is not None
+        changes = {
+            c["concept_path"]: c for c in report.proposed_change_set["changes"]
+        }
+        assert changes["case-studies/acme-corp.md"]["source_workspace_id"] == (
+            "22222222-2222-4222-8222-222222222222"
+        )
+        assert changes["topics/alpha.md"]["source_workspace_id"] is None
+
+
+# ── {132.27}: the reapply_overrides seam ──────────────────────────────────
+
+
+class TestOverrideReapply:
+    def test_an_injected_override_is_folded_onto_the_staged_output(
+        self, env, bundle_dir: Path, repo: Path
+    ) -> None:
+        from scripts.cocoindex_pipeline.producer.git_sync import ProducerOverride
+
+        draft = env.build_draft("topics/alpha.md", title="Alpha")
+        _wire_source(env, {draft.key: draft})
+
+        override = ProducerOverride(
+            concept_path="topics/alpha.md",
+            field="frontmatter:description",
+            value="Human-approved description",
+        )
+
+        report = asyncio.run(
+            env.flow_def.run_producer_flow(
+                [{"id": "sd-1"}],
+                pool=object(),
+                bundle_dir=bundle_dir,
+                repo_path=repo,
+                embedder=_fake_embedder,
+                overrides=[override],
+            )
+        )
+
+        assert report.sync_result.staged is True
+        staged_content = (repo / "topics/alpha.md").read_text(encoding="utf-8")
+        assert "description: Human-approved description" in staged_content
+        # The producer's own fresh draft in bundle_dir is untouched by the
+        # override — reapply_overrides folds it onto the STAGED repo output
+        # only, never the local bundle_dir working copy.
+        bundle_content = (bundle_dir / "topics/alpha.md").read_text(encoding="utf-8")
+        assert "description: Desc" in bundle_content

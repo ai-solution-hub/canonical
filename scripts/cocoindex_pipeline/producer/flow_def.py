@@ -1,22 +1,23 @@
 """The FULL producer flow, composed as ONE entry point — ID-132 {132.23}
-G-FLOWDEF, the Task's own defining "2-pass producer" deliverable.
+G-FLOWDEF, the Task's own defining "2-pass producer" deliverable, extended by
+{132.27} G-FLOW-STAGING-WIRE with the STAGING + BI-28 provenance composition.
 
 This module is the single place the already-landed producer pieces are
 composed into one runnable chain (the `producer` command entry point):
 
-    LRecordsSource.list_concepts()              # {132.4} G-SOURCE
-      -> enrich_concept(key, source)            # {132.8} G-PASS1  (mount_each grain)
-      -> [run_web_pass(...) if gated_corpus]    # {132.9} G-PASS2  (optional)
-      -> write_bundle(bundle_dir, drafts, ...)  # {132.10} G-BUNDLE
-      -> declare_concept_embedding(re_target)   # {132.11} G-EMBED
-      -> publish_bundle(repo_path, ...)         # {132.13} G-PUBLISH-GATE
-           -> git_sync.sync_bundle(...)         # {132.12} G-GITSYNC
+    LRecordsSource.list_concepts()                 # {132.4} G-SOURCE
+      -> enrich_concept(key, source)               # {132.8} G-PASS1  (mount_each grain)
+      -> [run_web_pass(...) if gated_corpus]       # {132.9} G-PASS2  (optional)
+      -> write_bundle(bundle_dir, drafts, ...)     # {132.10} G-BUNDLE
+      -> declare_concept_embedding(re_target)      # {132.11} G-EMBED
+      -> git_sync.reapply_overrides(...)           # {132.24}/{132.27} BI-27 fold-in
+      -> git_sync.sync_bundle(..., stage_only=True) # {132.24}/{132.27} G-GITSYNC STAGING
 
 Until {132.23} nothing in the codebase actually ran this chain end-to-end —
 `bundle_writer.py`'s docstring named {132.13} as the owner, {132.13}
 (`publish.py`) disclaimed it to the parent Task, and `trigger.py`'s
-`default_producer_entry_point` was a Pass-1-only stand-in ({132.16}). This
-module closes that gap; `default_producer_entry_point` now delegates here.
+`default_producer_entry_point` was a Pass-1-only stand-in ({132.16}). {132.23}
+closed that gap; `default_producer_entry_point` now delegates here.
 
 **Collection safety (mirrors `trigger.py`).** This module must NOT import
 `cocoindex` — nor any producer module that transitively does
@@ -36,21 +37,52 @@ into `app_main` spends no Anthropic/OpenAI tokens and touches no filesystem
 or git repo until an operator deliberately configures the bundle location.
 Each downstream stage degrades independently through its own injection seam:
 no `re_target` -> no embedding write (mirrors `flow._declare_record_embedding`'s
-guard); no `repo_path` -> no git commit; no `gated_corpus` -> Pass-2 skipped.
+guard); no `repo_path` -> no git staging; no `gated_corpus` -> Pass-2 skipped.
 
-**Owner ruling (S456, {132.23}): a log.md-only diff is a no-op — no commit.**
-`bundle_writer.append_log_entry` stamps a freshly-timestamped `## <ISO-8601>`
-block into `log.md` on EVERY run (BI-11's unconditional log stamp), so a run
-where every concept file is byte-identical to the last publish would still
-present a changed `log.md` to `git_sync.sync_bundle` and force a spurious
-commit (the tension `publish.py`'s docstring surfaces). This module encodes
-the owner ruling at the COMPOSITION layer — the only layer inside this
-Subtask's file-ownership boundary (`git_sync.py`/`publish.py` are out of
-scope): when `write_bundle`'s `RunSummary.is_no_op` is True (no concept-level
-add/change/remove/move/finding), the ONLY diff is the new `log.md` stamp, so
-the publish/commit step is SKIPPED. The BI-11 stamp still lands in the bundle
-working tree and is carried into the NEXT real commit; it just never mints a
-commit of its own.
+**Owner ruling (S456, {132.23}): a log.md-only diff is a no-op — no repo
+mutation at all.** `bundle_writer.append_log_entry` stamps a freshly-
+timestamped `## <ISO-8601>` block into `log.md` on EVERY run (BI-11's
+unconditional log stamp), so a run where every concept file is byte-identical
+to the last publish would still present a changed `log.md` to
+`git_sync.sync_bundle`. This module encodes the owner ruling at the
+COMPOSITION layer — the only layer inside this Subtask's file-ownership
+boundary (`git_sync.py`/`publish.py` are out of scope): when `write_bundle`'s
+`RunSummary.is_no_op` is True (no concept-level add/change/remove/move/
+finding), the ONLY diff is the new `log.md` stamp, so the staging step is
+SKIPPED entirely. The BI-11 stamp still lands in the bundle working tree and
+is carried into the NEXT real run; it just never stages a spurious diff of
+its own.
+
+**STAGING, not a per-run commit (S436 amendment BI-27/DR-016; {132.27}
+G-FLOW-STAGING-WIRE).** Per PRODUCT.md's S436 amendment, "runs land in a
+STAGING state; the one-commit-per-run publish happens after the review/
+publish gate." This module calls `git_sync.sync_bundle(..., stage_only=True)`
+DIRECTLY for the per-run reconcile (apply + `git add`, no commit) —
+superseding the {132.23}-era `publish.publish_bundle` call (BI-21 hard gate +
+immediate commit). The BI-21 HARD GATE and the actual one-time commit now
+live SOLELY in `producer/publish.py`'s own `publish_bundle`/`producer
+publish` CLI — a SEPARATE, human-triggered action run after the accept/edit/
+reject review, never chained automatically from this per-run flow.
+`status_source`/`_default_status_source` (the {132.13}-era BI-21 injection
+seam) are accordingly REMOVED from this module — BI-21 gating is entirely
+`publish.py`'s concern now.
+
+Two more pieces wire in at this same seam:
+
+- **`overrides` (BI-27, DR-016).** Approved `git_sync.ProducerOverride`s,
+  folded onto this run's bundle output via `git_sync.reapply_overrides`
+  BEFORE it is staged into the client-owned repo — an approved human edit is
+  never dropped by a fresh regeneration. Defaults to `()`; PERSISTING which
+  overrides are "approved" across runs is a separate, not-yet-built concern
+  (the follow-on accept/edit/reject review surface, DR-013 shape) — this
+  seam accepts whatever the caller supplies, exactly like every other
+  injection seam in this module.
+- **BI-28 provenance map ({132.21}/{132.22}).** `git_sync.sync_bundle`'s
+  `source_workspace_ids` — a `concept_path -> workspace_id` map — is built
+  HERE from every won-bid `case_study` `ConceptKey.workspace_id` this run's
+  `list_concepts()` enumerated, so a won-bid entry in the emitted
+  `proposed_change_set` carries its `source_workspace_id` (BI-28: "never an
+  automatic bundle write ... gated by human accept/edit/reject review").
 """
 
 from __future__ import annotations
@@ -63,27 +95,21 @@ from typing import Any, Awaitable, Callable, Sequence
 
 _logger = logging.getLogger(__name__)
 
-# The default status-file env var the BI-21 publish gate reads when no
-# explicit `status_source` is injected — fail-closed (an unset var or a
-# missing/unparseable file reads as RED, per `publish.read_status_file`).
-OKF_SEED_CONTRACT_STATUS_FILE_ENV = "OKF_SEED_CONTRACT_STATUS_FILE"
-
 # An embedder takes a concept's text and returns its 1024-d vector — the
 # `flow.embed_content_text` shape. Injected in tests to avoid a real OpenAI
 # call; defaults to `flow.embed_content_text` (lazy) for a live run.
 Embedder = Callable[[str], Awaitable[Sequence[float]]]
-
-# A BI-21 status source — the zero-arg callable `publish.publish_bundle`
-# gates on (`() -> SeedContractCheckResult`). Injected green/red in tests.
-StatusSource = Callable[[], Any]
 
 
 @dataclass(frozen=True)
 class ProducerRunReport:
     """One full-producer run's outcome — the composition's own report, distinct
     from any single stage's result. `summary` is the `bundle_writer.RunSummary`;
-    `sync_result` is the `git_sync.SyncResult` (or `None` when the publish step
-    was skipped: no `repo_path`, or a log.md-only no-op run)."""
+    `sync_result` is the `git_sync.SyncResult` (or `None` when the staging step
+    was skipped: no `repo_path`, or a log.md-only no-op run).
+    `proposed_change_set` is `git_sync.proposed_change_set(sync_result)`'s
+    JSON-serialisable DR-013-shaped payload (BI-27/DR-016; `None` alongside
+    `sync_result is None`)."""
 
     ran: bool = True
     summary: Any = None
@@ -92,6 +118,10 @@ class ProducerRunReport:
     pass2_ran: bool = False
     sync_result: Any = None
     committed: bool = False
+    """Always `False` since {132.27} — STAGING never commits; the real
+    one-time commit happens at the separate `publish.py` publish gate. Kept
+    (rather than removed) so the report's shape stays stable for callers."""
+    proposed_change_set: "dict[str, object] | None" = None
 
 
 def _rel_path_of(draft: Any) -> str:
@@ -216,20 +246,6 @@ async def _embed_written_concepts(
     return tuple(embedded)
 
 
-def _default_status_source() -> StatusSource:
-    """The fail-closed BI-21 status source used when no `status_source` is
-    injected: reads the JSON status artefact at `OKF_SEED_CONTRACT_STATUS_FILE`
-    via `publish.read_status_file` (an unset var / missing / unparseable file
-    reads as RED — the gate never opens on an indeterminate status)."""
-    from scripts.cocoindex_pipeline.producer.publish import (  # noqa: PLC0415
-        read_status_file,
-    )
-
-    status_path_str = os.environ.get(OKF_SEED_CONTRACT_STATUS_FILE_ENV, "")
-    status_path = Path(status_path_str) if status_path_str else None
-    return lambda: read_status_file(status_path)
-
-
 def _default_embedder() -> Embedder:
     """The live embedder — `flow.embed_content_text` (lazy: `flow.py` eagerly
     imports cocoindex/asyncpg/aiohttp/httpx at module scope, so importing it at
@@ -246,14 +262,15 @@ async def run_producer_flow(
     bundle_dir: "str | Path | None" = None,
     re_target: Any = None,
     repo_path: "str | Path | None" = None,
-    status_source: "StatusSource | None" = None,
+    overrides: "Sequence[Any]" = (),
     embedder: "Embedder | None" = None,
     gated_corpus: Any = None,
     http_client: Any = None,
     theme_config: "Sequence[tuple[str, Sequence[str]]]" = (),
     timestamp: "str | None" = None,
 ) -> "ProducerRunReport | None":
-    """Compose + run the FULL producer flow as ONE entry point (G-FLOWDEF).
+    """Compose + run the FULL producer flow as ONE entry point (G-FLOWDEF +
+    {132.27} G-FLOW-STAGING-WIRE).
 
     Idle no-op (returns `None`) unless `bundle_dir`/`OKF_BUNDLE_DIR` resolves
     to an existing directory AND a `pool` is supplied. Otherwise:
@@ -266,9 +283,14 @@ async def run_producer_flow(
          ontology artefact.
       4. `declare_concept_embedding(...)` for each added/changed concept when a
          `re_target` is supplied (skipped otherwise — BI-25/26).
-      5. `publish_bundle(repo_path, ...)` — BI-21 hard gate then the ONE gated
-         `git_sync.sync_bundle` commit — when a `repo_path` is supplied AND the
-         run is not a log.md-only no-op (owner ruling S456). Skipped otherwise.
+      5. `git_sync.reapply_overrides(...)` folds any injected `overrides` onto
+         this run's bundle output, then `git_sync.sync_bundle(...,
+         stage_only=True, source_workspace_ids=...)` — STAGING (apply +
+         `git add`, no commit; BI-28 provenance stamped from every won-bid
+         `ConceptKey.workspace_id`) — when a `repo_path` is supplied AND the
+         run is not a log.md-only no-op (owner ruling S456). Skipped
+         otherwise. The ONE gated commit is a SEPARATE, later action
+         (`publish.publish_bundle`/`producer publish`), never made here.
     """
     resolved_bundle_dir = _resolve_bundle_dir(bundle_dir)
     if resolved_bundle_dir is None:
@@ -340,28 +362,47 @@ async def run_producer_flow(
         pass2_ran=pass2_ran,
     )
 
-    # G-PUBLISH-GATE + G-GITSYNC — the ONE gated commit. Owner ruling S456: a
-    # log.md-only no-op run (RunSummary.is_no_op) must NOT commit; the BI-11
-    # stamp rides into the next real commit instead.
+    # {132.27} G-GITSYNC STAGING — apply + `git add`, no commit. Owner ruling
+    # S456: a log.md-only no-op run (RunSummary.is_no_op) must NOT stage
+    # anything; the BI-11 stamp rides into the next real run instead.
     if repo_path is None:
         return report
     if summary.is_no_op:
         _logger.info(
-            "producer flow: no-op run (log.md-only diff) — no commit (S456)."
+            "producer flow: no-op run (log.md-only diff) — nothing staged (S456)."
         )
         return report
 
-    from scripts.cocoindex_pipeline.producer.publish import (  # noqa: PLC0415
-        publish_bundle,
+    from scripts.cocoindex_pipeline.producer.git_sync import (  # noqa: PLC0415
+        proposed_change_set as _proposed_change_set,
+        reapply_overrides,
+        sync_bundle,
     )
 
     new_output = _read_bundle_dir(resolved_bundle_dir)
-    sync_result = publish_bundle(
+    if overrides:
+        # BI-27/DR-016: fold approved human-edit overrides onto this run's
+        # fresh output BEFORE it is staged — an approved edit is never
+        # dropped by a fresh regeneration.
+        new_output = reapply_overrides(new_output, overrides)
+
+    # BI-28 provenance ({132.21}/{132.22}): concept_path -> workspace_id, from
+    # every won-bid case_study ConceptKey this run enumerated. A path absent
+    # from the map keeps ProposedChange.source_workspace_id at its None
+    # default (the ordinary Pass-1/Pass-2 producer flow).
+    source_workspace_ids = {
+        key.rel_path: key.workspace_id
+        for key in concepts
+        if getattr(key, "workspace_id", None) is not None
+    }
+
+    sync_result = sync_bundle(
         Path(repo_path),
         new_output,
-        status_source=status_source or _default_status_source(),
         removed_paths=summary.removed,
         timestamp=timestamp,
+        stage_only=True,
+        source_workspace_ids=source_workspace_ids or None,
     )
     return ProducerRunReport(
         summary=summary,
@@ -369,5 +410,6 @@ async def run_producer_flow(
         reference_paths=report.reference_paths,
         pass2_ran=pass2_ran,
         sync_result=sync_result,
-        committed=bool(sync_result.applied or sync_result.removed),
+        committed=False,
+        proposed_change_set=_proposed_change_set(sync_result, run_timestamp=timestamp),
     )
