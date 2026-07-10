@@ -252,4 +252,134 @@ describe('useLibraryBulkActions', () => {
     // Selection is cleared after operation
     expect(result.current.selectedIds.size).toBe(0);
   });
+
+  // -------------------------------------------------------------------------
+  // Bulk assign-to-workspace (ID-135 {135.22} S449 addendum rehome — the
+  // post-M6 grain is q_a_pairs.source_workspace_id, a single nullable FK, so
+  // this PATCHes app/api/q-a-pairs/[id]/workspace rather than a many-to-many
+  // junction route)
+  // -------------------------------------------------------------------------
+
+  it('handleBulkAssignOpen fetches /api/workspaces and opens the assign dialog', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => [
+        { id: 'ws-1', name: 'Procurement', type: 'kb_section' },
+        { id: 'ws-2', name: 'Sales', type: 'kb_section' },
+      ],
+    });
+    const { result } = renderHook(
+      () => useLibraryBulkActions(defaultParams()),
+      hookWrapper(),
+    );
+
+    await act(async () => {
+      await result.current.handleBulkAssignOpen();
+    });
+
+    expect(mockFetch).toHaveBeenCalledWith('/api/workspaces');
+    expect(result.current.assignDialogOpen).toBe(true);
+    expect(result.current.workspaces).toEqual([
+      { id: 'ws-1', name: 'Procurement', type: 'kb_section' },
+      { id: 'ws-2', name: 'Sales', type: 'kb_section' },
+    ]);
+    expect(result.current.workspacesLoading).toBe(false);
+  });
+
+  it('handleBulkAssignConfirm PATCHes app/api/q-a-pairs/:id/workspace for each selected item', async () => {
+    mockFetch.mockResolvedValue({ ok: true });
+    const { result } = renderHook(
+      () => useLibraryBulkActions(defaultParams()),
+      hookWrapper(),
+    );
+
+    act(() => {
+      result.current.toggleSelect('a1');
+    });
+    act(() => {
+      result.current.setSelectedWorkspaceId('ws-1');
+    });
+
+    await act(async () => {
+      await result.current.handleBulkAssignConfirm();
+    });
+
+    expect(mockFetch).toHaveBeenCalledWith('/api/q-a-pairs/a1/workspace', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source_workspace_id: 'ws-1' }),
+    });
+    expect(result.current.assignDialogOpen).toBe(false);
+    expect(toast.success).toHaveBeenCalledWith(
+      'Assigned 1 item to a workspace',
+    );
+  });
+
+  it('handleBulkAssignConfirm rejects with no workspace selected', async () => {
+    const { result } = renderHook(
+      () => useLibraryBulkActions(defaultParams()),
+      hookWrapper(),
+    );
+
+    act(() => {
+      result.current.toggleSelect('a1');
+    });
+
+    await act(async () => {
+      await result.current.handleBulkAssignConfirm();
+    });
+
+    expect(toast.error).toHaveBeenCalledWith('Select a workspace');
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // Bulk delete (ID-135 {135.22} — hard DELETE against q_a_pairs, admin only
+  // at the route; the route itself enforces the role gate)
+  // -------------------------------------------------------------------------
+
+  it('handleBulkDelete calls DELETE app/api/q-a-pairs/:id for each selected item', async () => {
+    mockFetch.mockResolvedValue({ ok: true });
+    const { result } = renderHook(
+      () => useLibraryBulkActions(defaultParams()),
+      hookWrapper(),
+    );
+
+    act(() => {
+      result.current.toggleSelect('a1');
+    });
+    act(() => {
+      result.current.toggleSelect('a2');
+    });
+
+    await act(async () => {
+      await result.current.handleBulkDelete();
+    });
+
+    expect(mockFetch).toHaveBeenCalledWith('/api/q-a-pairs/a1', {
+      method: 'DELETE',
+    });
+    expect(mockFetch).toHaveBeenCalledWith('/api/q-a-pairs/a2', {
+      method: 'DELETE',
+    });
+    expect(toast.success).toHaveBeenCalledWith('Deleted 2 items');
+  });
+
+  // -------------------------------------------------------------------------
+  // Retired affordances stay retired (ID-139 {139.9} / bl-405 precedent —
+  // Reclassify/Tag have no valid backing model on q_a_pairs: no domain/
+  // subtopic classification columns and no free-tag column exist; scope_tag/
+  // anti_scope_tag are a distinct ontology-matching concern, not a
+  // repurposable user-tag field)
+  // -------------------------------------------------------------------------
+
+  it('does not resurrect handleBulkReclassify or handleBulkTagConfirm', () => {
+    const { result } = renderHook(
+      () => useLibraryBulkActions(defaultParams()),
+      hookWrapper(),
+    );
+
+    expect('handleBulkReclassify' in result.current).toBe(false);
+    expect('handleBulkTagConfirm' in result.current).toBe(false);
+  });
 });

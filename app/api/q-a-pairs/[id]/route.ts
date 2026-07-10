@@ -422,3 +422,58 @@ export const PATCH = defineRoute(
     }
   },
 );
+
+/**
+ * ID-135 {135.22} — /library bulk-delete rehome (admin only, mirroring the
+ * pre-M6 `/api/items/[id]` DELETE's admin-only comment). Hard delete: every
+ * FK referencing `q_a_pairs.id` (q_a_pair_history, q_a_pair_dedup_proposals,
+ * question_matches, citations, record_lifecycle) is `ON DELETE CASCADE` or
+ * `ON DELETE SET NULL` (verified against the live schema), so this is
+ * DB-safe and matches the old route's hard-delete semantics (never a
+ * soft-archive). `record_embeddings` has no FK to `q_a_pairs` (by design —
+ * see that table's own comment) and is reconciled by the existing orphan
+ * reaper, not by this route.
+ *
+ * `.select('id')` + an affected-row-count check is the only way to detect a
+ * 0-row DELETE match (not a Postgres error) — mirrors the PATCH handler
+ * above's affected-row assertion for the same reason.
+ */
+export const DELETE = defineRoute(
+  z.unknown(),
+  async (_request: NextRequest, context: RouteContext) => {
+    try {
+      const { id } = await context.params;
+
+      const auth = await getAuthorisedClient(['admin']);
+      if (!auth.success) return authFailureResponse(auth);
+      const { supabase } = auth;
+
+      const { data, error } = await supabase
+        .from('q_a_pairs')
+        .delete()
+        .eq('id', id)
+        .select('id');
+
+      if (error) {
+        return NextResponse.json(
+          { error: safeErrorMessage(error, 'Failed to delete Q&A pair') },
+          { status: 500 },
+        );
+      }
+
+      if (!data || data.length === 0) {
+        return NextResponse.json(
+          { error: 'Q&A pair not found' },
+          { status: 404 },
+        );
+      }
+
+      return NextResponse.json({ success: true });
+    } catch (err) {
+      return NextResponse.json(
+        { error: safeErrorMessage(err, 'Failed to delete Q&A pair') },
+        { status: 500 },
+      );
+    }
+  },
+);
