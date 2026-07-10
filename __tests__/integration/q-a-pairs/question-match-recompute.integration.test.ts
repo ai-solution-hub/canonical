@@ -20,6 +20,9 @@
  *   4. stored score fidelity (PRODUCT D1/D2/D3): embedding_score ≈
  *      1.0 - cosine_distance; fulltext_score = ts_rank(.,2), and a query with
  *      no lexical overlap yields a stored fulltext_score of 0 (not null).
+ *   5. ID-57.9 regression: an anti-parallel query embedding (cosine_distance
+ *      2) no longer violates question_matches_embedding_score_range_chk —
+ *      the recompute succeeds and the stored embedding_score clamps to 0.
  *
  * Sources of truth:
  *   * specs/id-57-question-matches-retrieval/TECH.md §E (writer DDL + scoring)
@@ -28,6 +31,8 @@
  *   * Migration 20260613191008_id57_question_matches_table.sql (table shape +
  *     A6 UNIQUE + score range CHECKs)
  *   * Migration 20260615165758_id57_question_match_rpcs.sql (writer RPC)
+ *   * Migration 20260709234230_id57_clamp_question_match_embedding_score.sql
+ *     (ID-57.9 embedding_score clamp — author-only, not yet applied)
  *
  * CLAUDE.md gotchas applied:
  *   * Embedding vector: JSON.stringify(embeddingArray) for RPC vector params,
@@ -658,11 +663,14 @@ describe.skipIf(!RUN_INTEGRATION)(
       // 0 → cosine_distance 1 → embedding_score 0, the valid lower boundary)
       // — materially lower than the first, without going negative (an
       // ANTI-PARALLEL query, e.g. makeEmbedding(-1.0, 0.0), drives
-      // cosine_distance to 2 and embedding_score to -1.0, which violates the
-      // table's own `embedding_score_range_chk` [0,1] CHECK — confirmed live
-      // against staging; flagged out-of-scope, not fixed here). If the
-      // upsert left the row stale, the reader would still surface the first
-      // (high) score.
+      // cosine_distance to 2 and would raw-compute embedding_score to -1.0,
+      // which would violate the table's own `embedding_score_range_chk`
+      // [0,1] CHECK — confirmed live against staging; FIXED at ID-57.9 via a
+      // GREATEST(0, LEAST(1, ...)) clamp in
+      // 20260709234230_id57_clamp_question_match_embedding_score.sql,
+      // exercised directly by the anti-parallel-embedding test below). If
+      // the upsert left the row stale, the reader would still surface the
+      // first (high) score.
       const second = await recompute({
         ...baseArgs,
         p_query: 'unrelated procurement terminology',
@@ -748,6 +756,76 @@ describe.skipIf(!RUN_INTEGRATION)(
 
       // D3: no lexical overlap → stored fulltext_score is 0, not null.
       expect(m.fulltext_score, 'no-term-match fulltext_score is 0').toBe(0);
+    }, 60_000);
+
+    // -------------------------------------------------------------------------
+    // Test 5 (ID-57.9 regression): an ANTI-PARALLEL query embedding drives
+    // cosine_distance to 2, so the raw (1.0 - cosine_distance) expression
+    // would be -1.0 — outside the [0,1] range enforced by
+    // question_matches_embedding_score_range_chk. Pre-fix this crashed the
+    // RPC with a raw Postgres constraint-violation error instead of
+    // degrading (see supabase/migrations/20260709234230_id57_clamp_
+    // question_match_embedding_score.sql). Post-fix, the
+    // GREATEST(0, LEAST(1, ...)) clamp means the RPC succeeds and the stored
+    // embedding_score reads back as 0 (the clamped floor), never -1.0 and
+    // never an error.
+    // -------------------------------------------------------------------------
+    it('clamps embedding_score to 0 for an anti-parallel query embedding instead of violating the range CHECK (ID-57.9)', async () => {
+      const workspaceId = await seedWorkspace(
+        'ID-57.9 anti-parallel clamp workspace',
+      );
+      const formQuestionId = await seedFormQuestion(
+        workspaceId,
+        'Anti-parallel clamp probe.',
+      );
+
+      const pairEmbedding = makeEmbedding(1.0, 0.0);
+      const pairId = await seedQaPair({
+        questionText: 'Anti-parallel clamp probe pair.',
+        answerStandard: 'Anti-parallel clamp probe answer.',
+        publicationStatus: 'published',
+        embedding: pairEmbedding,
+        scopeTag: ['procurement'],
+      });
+
+      // Anti-parallel to the pair's embedding: dot product -1 →
+      // cosine_distance 2 → raw (1.0 - distance) = -1.0, which would violate
+      // question_matches_embedding_score_range_chk pre-fix.
+      const antiParallelEmbedding = makeEmbedding(-1.0, 0.0);
+      expect(
+        cosineDistance(pairEmbedding, antiParallelEmbedding),
+        'sanity: anti-parallel vectors are cosine_distance 2 (test fixture assumption)',
+      ).toBeCloseTo(2, 5);
+
+      const { data: count, error } = await recompute({
+        p_form_question_id: formQuestionId,
+        p_query: 'anti-parallel clamp probe',
+        p_query_embedding: JSON.stringify(antiParallelEmbedding),
+        p_question_kind: 'bid',
+        p_scope_tag: ['procurement'],
+        p_anti_scope_tag: [],
+        p_limit: 20,
+      });
+
+      // ID-57.9: must NOT error — pre-fix this violated
+      // question_matches_embedding_score_range_chk with a raw Postgres error.
+      expect(
+        error,
+        `recompute must not error on an anti-parallel embedding post-clamp: ${error?.message}`,
+      ).toBeNull();
+      expect(count).toBe(1);
+
+      const { data: matches, error: searchError } = await search({
+        p_form_question_id: formQuestionId,
+      });
+      expect(searchError, `search failed: ${searchError?.message}`).toBeNull();
+      expect(matches!.length).toBe(1);
+      expect(matches![0].q_a_pair_id).toBe(pairId);
+      // Clamped to the [0,1] floor, not the raw -1.0.
+      expect(
+        matches![0].embedding_score,
+        'anti-parallel embedding_score clamps to 0, not -1.0',
+      ).toBe(0);
     }, 60_000);
   },
 );
