@@ -3,17 +3,7 @@
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useState } from 'react';
-import {
-  Briefcase,
-  Library,
-  Menu,
-  Search,
-  Settings,
-  ShieldCheck,
-  BarChart3,
-  Newspaper,
-  FileBarChart,
-} from 'lucide-react';
+import { Menu, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SearchBar } from '@/components/browse/search-bar';
 import {
@@ -23,6 +13,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 import { ThemeSettings } from '@/components/shell/theme-settings';
 import { SignOutButton } from '@/components/shell/sign-out-button';
 import { Separator } from '@/components/ui/separator';
@@ -30,51 +26,12 @@ import { useUserRole } from '@/hooks/use-user-role';
 import { cn } from '@/lib/utils';
 import { BrandLogo } from '@/components/shell/brand-logo';
 import { BRANDING } from '@/lib/client-config';
-
-const NAV_LINKS = [
-  // ID-135.10 (BI-21): corpus search/browse entry, role-uniform (requiresEdit:
-  // false) per the ratified id-118 "Knowledge" zone (DR-041, id-118 PRODUCT
-  // BI-4/BI-6) — Search leads Answers (/library). NAV_LINKS is still flat
-  // (no zone-grouping machinery yet); id-118 will regroup this into an
-  // explicit Knowledge zone alongside Answers/External sources/Concepts.
-  {
-    href: '/search',
-    label: 'Search',
-    icon: Search,
-    requiresEdit: false,
-  },
-  {
-    href: '/library',
-    label: 'Q&A Library',
-    icon: Library,
-    requiresEdit: false,
-  },
-  {
-    href: '/coverage',
-    label: 'Coverage',
-    icon: BarChart3,
-    requiresEdit: true,
-  },
-  {
-    href: '/workspaces',
-    label: 'Workspaces',
-    icon: Briefcase,
-    requiresEdit: false,
-  },
-  {
-    href: '/change-reports',
-    label: 'Change Reports',
-    icon: FileBarChart,
-    requiresEdit: false,
-  },
-  {
-    href: '/intelligence',
-    label: 'Intelligence',
-    icon: Newspaper,
-    requiresEdit: true,
-  },
-  { href: '/review', label: 'Review', icon: ShieldCheck, requiresEdit: true },
-] as const;
+import {
+  NAV_ZONES,
+  isEntryVisible,
+  isEntryActive,
+  isZoneActive,
+} from '@/components/shell/nav-config';
 
 const SETTINGS_LINK = { href: '/settings', label: 'Settings', icon: Settings };
 
@@ -82,7 +39,7 @@ export function SiteHeader() {
   const router = useRouter();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { canEdit, loading: roleLoading } = useUserRole();
+  const { canEdit, canAdmin } = useUserRole();
 
   return (
     <header className="sticky top-0 z-40 border-b bg-white shadow-[0_1px_3px_oklch(0.18_0.014_48/0.06)] dark:bg-background dark:shadow-[0_1px_3px_oklch(0.18_0.014_48/0.2)]">
@@ -109,29 +66,54 @@ export function SiteHeader() {
         </Link>
 
         <div className="hidden items-center gap-1 sm:flex">
-          {NAV_LINKS.map(({ href, label, icon: Icon, requiresEdit }) => {
-            if (requiresEdit && !roleLoading && !canEdit) return null;
-            const isActive =
-              pathname === href || pathname?.startsWith(href + '/');
+          {NAV_ZONES.map((zone) => {
+            const visibleEntries = zone.entries.filter(
+              (entry) =>
+                !entry.reserved &&
+                isEntryVisible(entry.visibility, { canEdit, canAdmin }),
+            );
+            if (visibleEntries.length === 0) return null;
+            const zoneActive = isZoneActive(zone, pathname);
             return (
-              <Link
-                key={href}
-                href={href}
-                aria-current={isActive ? 'page' : undefined}
-                className={cn(
-                  'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm transition-colors',
-                  isActive
-                    ? 'font-semibold text-foreground'
-                    : 'text-muted-foreground hover:text-foreground',
-                  requiresEdit &&
-                    roleLoading &&
-                    'pointer-events-none opacity-50',
-                )}
-                tabIndex={requiresEdit && roleLoading ? -1 : undefined}
-              >
-                {Icon && <Icon className="size-3.5" />}
-                {label}
-              </Link>
+              <DropdownMenu key={zone.id}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={cn(
+                      'gap-1.5 text-sm',
+                      zoneActive
+                        ? 'font-semibold text-foreground underline underline-offset-4'
+                        : 'text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    {zone.header}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {visibleEntries.map((entry) => {
+                    const isActive = isEntryActive(entry.href, pathname);
+                    const Icon = entry.icon;
+                    return (
+                      <DropdownMenuItem key={entry.href} asChild>
+                        <Link
+                          href={entry.href}
+                          aria-current={isActive ? 'page' : undefined}
+                          className={cn(
+                            'flex items-center gap-2',
+                            isActive
+                              ? 'font-semibold text-foreground'
+                              : 'text-muted-foreground',
+                          )}
+                        >
+                          <Icon className="size-3.5" />
+                          {entry.label}
+                        </Link>
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
             );
           })}
         </div>
@@ -188,30 +170,40 @@ export function SiteHeader() {
             >
               Home
             </Link>
-            {NAV_LINKS.map(({ href, label, icon: Icon, requiresEdit }) => {
-              if (requiresEdit && !roleLoading && !canEdit) return null;
-              const isActive =
-                pathname === href || pathname?.startsWith(href + '/');
+            {NAV_ZONES.map((zone) => {
+              const visibleEntries = zone.entries.filter(
+                (entry) =>
+                  !entry.reserved &&
+                  isEntryVisible(entry.visibility, { canEdit, canAdmin }),
+              );
+              if (visibleEntries.length === 0) return null;
               return (
-                <Link
-                  key={href}
-                  href={href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  aria-current={isActive ? 'page' : undefined}
-                  className={cn(
-                    'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent',
-                    isActive
-                      ? 'bg-accent text-foreground'
-                      : 'text-muted-foreground',
-                    requiresEdit &&
-                      roleLoading &&
-                      'pointer-events-none opacity-50',
-                  )}
-                  tabIndex={requiresEdit && roleLoading ? -1 : undefined}
-                >
-                  {Icon && <Icon className="size-4" />}
-                  {label}
-                </Link>
+                <div key={zone.id} className="mt-2 first:mt-0">
+                  <p className="px-3 pb-1 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+                    {zone.header}
+                  </p>
+                  {visibleEntries.map((entry) => {
+                    const isActive = isEntryActive(entry.href, pathname);
+                    const Icon = entry.icon;
+                    return (
+                      <Link
+                        key={entry.href}
+                        href={entry.href}
+                        onClick={() => setMobileMenuOpen(false)}
+                        aria-current={isActive ? 'page' : undefined}
+                        className={cn(
+                          'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent',
+                          isActive
+                            ? 'bg-accent text-foreground'
+                            : 'text-muted-foreground',
+                        )}
+                      >
+                        <Icon className="size-4" />
+                        {entry.label}
+                      </Link>
+                    );
+                  })}
+                </div>
               );
             })}
             <Separator className="my-1" />

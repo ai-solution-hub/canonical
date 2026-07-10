@@ -1,8 +1,10 @@
 /**
  * SiteHeader Component Tests
  *
- * Tests the SiteHeader component — navigation links, mobile menu,
- * role-gated items, active state, and settings/search controls.
+ * Tests the SiteHeader component against the id-118 three-zone nav IA
+ * (DR-041): desktop zone disclosures (DropdownMenu), mobile labelled zone
+ * sections, role gating (BI-20/BI-21), active-state + a11y (BI-23/24/25),
+ * and non-regression of the persistent search box / settings / sign-out.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -74,8 +76,30 @@ vi.mock('@/components/shell/sign-out-button', () => ({
 import { SiteHeader } from '@/components/shell/site-header';
 
 // ---------------------------------------------------------------------------
-// Tests
+// Helpers
 // ---------------------------------------------------------------------------
+
+const LEGACY_LABELS = ['Workspaces', 'Bids', 'Browse', 'Q&A Library'];
+
+/**
+ * Radix DropdownMenu.Content renders into a portal and is unmounted until
+ * the trigger is activated (jsdom applies no CSS, so `hidden`/breakpoint
+ * classes are meaningless — the portal element is the ground truth). Click
+ * the named zone trigger in the desktop nav and return its content portal.
+ */
+async function openDesktopZone(
+  user: ReturnType<typeof userEvent.setup>,
+  zoneHeader: 'Applications' | 'Knowledge' | 'Governance',
+): Promise<HTMLElement> {
+  const nav = screen.getByLabelText('Main navigation');
+  const trigger = within(nav).getByRole('button', { name: zoneHeader });
+  await user.click(trigger);
+  const content = document.querySelector('[data-slot="dropdown-menu-content"]');
+  if (!content) {
+    throw new Error(`Dropdown content not found for zone "${zoneHeader}"`);
+  }
+  return content as HTMLElement;
+}
 
 describe('SiteHeader', () => {
   beforeEach(() => {
@@ -94,123 +118,236 @@ describe('SiteHeader', () => {
     expect(homeLink.closest('a')).toHaveAttribute('href', '/');
   });
 
-  it('renders all main navigation links for an editor', () => {
+  // ── id-118 (DR-041): three zone headers on the desktop bar ──
+
+  it('renders exactly the three ratified zone headers on the desktop bar', () => {
     render(<SiteHeader />);
-    // Desktop nav contains these links (one instance each in desktop nav)
-    expect(screen.getAllByText('Q&A Library').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('Coverage').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('Workspaces').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('Change Reports').length).toBeGreaterThanOrEqual(
-      1,
-    );
-    expect(screen.getAllByText('Review').length).toBeGreaterThanOrEqual(1);
+    const nav = screen.getByLabelText('Main navigation');
+    expect(
+      within(nav).getByRole('button', { name: 'Applications' }),
+    ).toBeInTheDocument();
+    expect(
+      within(nav).getByRole('button', { name: 'Knowledge' }),
+    ).toBeInTheDocument();
+    expect(
+      within(nav).getByRole('button', { name: 'Governance' }),
+    ).toBeInTheDocument();
   });
 
-  it('links navigate to correct paths', () => {
+  it('never renders legacy IMS-era labels (BI-16)', () => {
     render(<SiteHeader />);
-    const libraryLinks = screen.getAllByText('Q&A Library');
-    expect(libraryLinks[0].closest('a')).toHaveAttribute('href', '/library');
+    for (const label of LEGACY_LABELS) {
+      expect(screen.queryByText(label)).not.toBeInTheDocument();
+    }
+  });
 
-    const coverageLinks = screen.getAllByText('Coverage');
-    expect(coverageLinks[0].closest('a')).toHaveAttribute('href', '/coverage');
+  it('lists the Applications zone members for an editor', async () => {
+    const user = userEvent.setup();
+    render(<SiteHeader />);
+    const content = await openDesktopZone(user, 'Applications');
+    expect(within(content).getByText('Procurement')).toBeInTheDocument();
+    expect(within(content).getByText('Intelligence')).toBeInTheDocument();
+  });
 
-    const workspacesLinks = screen.getAllByText('Workspaces');
-    expect(workspacesLinks[0].closest('a')).toHaveAttribute(
+  it('lists the Knowledge zone members and never lists the reserved Concepts entry (BI-8)', async () => {
+    const user = userEvent.setup();
+    render(<SiteHeader />);
+    const content = await openDesktopZone(user, 'Knowledge');
+    expect(within(content).getByText('Search')).toBeInTheDocument();
+    expect(within(content).getByText('Answers')).toBeInTheDocument();
+    expect(within(content).getByText('External sources')).toBeInTheDocument();
+    expect(within(content).queryByText('Concepts')).not.toBeInTheDocument();
+  });
+
+  it('routes Search to /search and External sources to /reference', async () => {
+    const user = userEvent.setup();
+    render(<SiteHeader />);
+    const content = await openDesktopZone(user, 'Knowledge');
+    expect(within(content).getByText('Search').closest('a')).toHaveAttribute(
       'href',
-      '/workspaces',
+      '/search',
     );
-
-    const reviewLinks = screen.getAllByText('Review');
-    expect(reviewLinks[0].closest('a')).toHaveAttribute('href', '/review');
+    expect(
+      within(content).getByText('External sources').closest('a'),
+    ).toHaveAttribute('href', '/reference');
   });
 
-  it('shows correct active state for the current path', () => {
+  it('lists the Governance zone members for an editor (Provenance excluded — admin only)', async () => {
+    const user = userEvent.setup();
+    render(<SiteHeader />);
+    const content = await openDesktopZone(user, 'Governance');
+    expect(within(content).getByText('Review')).toBeInTheDocument();
+    expect(within(content).getByText('Coverage')).toBeInTheDocument();
+    expect(within(content).getByText('Change reports')).toBeInTheDocument();
+    expect(within(content).getByText('Activity')).toBeInTheDocument();
+    expect(within(content).queryByText('Provenance')).not.toBeInTheDocument();
+  });
+
+  it('shows Provenance in the Governance zone for an admin', async () => {
+    const user = userEvent.setup();
+    mockUserRole.role = 'admin';
+    mockUserRole.canEdit = true;
+    mockUserRole.canAdmin = true;
+    render(<SiteHeader />);
+    const content = await openDesktopZone(user, 'Governance');
+    expect(within(content).getByText('Provenance')).toBeInTheDocument();
+  });
+
+  // ── BI-20: Knowledge zone is role-uniform ──
+
+  it('shows the full Knowledge zone to a viewer (BI-20 role-uniform)', async () => {
+    const user = userEvent.setup();
+    mockUserRole.role = 'viewer';
+    mockUserRole.canEdit = false;
+    mockUserRole.canAdmin = false;
+    render(<SiteHeader />);
+    const content = await openDesktopZone(user, 'Knowledge');
+    expect(within(content).getByText('Search')).toBeInTheDocument();
+    expect(within(content).getByText('Answers')).toBeInTheDocument();
+    expect(within(content).getByText('External sources')).toBeInTheDocument();
+  });
+
+  // ── BI-21: existing per-entry gating preserved elsewhere ──
+
+  it('hides edit-gated Applications entries for a viewer, keeps role-uniform ones', async () => {
+    const user = userEvent.setup();
+    mockUserRole.role = 'viewer';
+    mockUserRole.canEdit = false;
+    mockUserRole.canAdmin = false;
+    render(<SiteHeader />);
+
+    const appsContent = await openDesktopZone(user, 'Applications');
+    expect(within(appsContent).getByText('Procurement')).toBeInTheDocument();
+    expect(
+      within(appsContent).queryByText('Intelligence'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('hides edit-gated Governance entries for a viewer, keeps role-uniform ones', async () => {
+    const user = userEvent.setup();
+    mockUserRole.role = 'viewer';
+    mockUserRole.canEdit = false;
+    mockUserRole.canAdmin = false;
+    render(<SiteHeader />);
+
+    const govContent = await openDesktopZone(user, 'Governance');
+    expect(within(govContent).getByText('Change reports')).toBeInTheDocument();
+    expect(within(govContent).getByText('Activity')).toBeInTheDocument();
+    expect(within(govContent).queryByText('Review')).not.toBeInTheDocument();
+    expect(within(govContent).queryByText('Coverage')).not.toBeInTheDocument();
+    expect(
+      within(govContent).queryByText('Provenance'),
+    ).not.toBeInTheDocument();
+  });
+
+  // ── BI-23/BI-24: active leaf + zone affordance ──
+
+  it('marks the active leaf with aria-current and its zone header with a non-colour affordance', async () => {
+    const user = userEvent.setup();
     mockPathname.value = '/library';
     render(<SiteHeader />);
-    // The desktop Q&A Library link should have aria-current="page"
-    const libraryLinks = screen.getAllByText('Q&A Library');
-    const desktopLibrary = libraryLinks[0].closest('a');
-    expect(desktopLibrary).toHaveAttribute('aria-current', 'page');
 
-    // Other links should NOT have aria-current
-    const coverageLinks = screen.getAllByText('Coverage');
-    const desktopCoverage = coverageLinks[0].closest('a');
-    expect(desktopCoverage).not.toHaveAttribute('aria-current');
+    const nav = screen.getByLabelText('Main navigation');
+    const knowledgeTrigger = within(nav).getByRole('button', {
+      name: 'Knowledge',
+    });
+    expect(knowledgeTrigger).toHaveClass('underline');
+    expect(knowledgeTrigger).toHaveClass('font-semibold');
+
+    const appsTrigger = within(nav).getByRole('button', {
+      name: 'Applications',
+    });
+    expect(appsTrigger).not.toHaveClass('underline');
+
+    const content = await openDesktopZone(user, 'Knowledge');
+    expect(within(content).getByText('Answers').closest('a')).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(
+      within(content).getByText('External sources').closest('a'),
+    ).not.toHaveAttribute('aria-current');
   });
 
-  it('matches active state for sub-paths', () => {
+  it('matches active state for nested sub-paths', async () => {
+    const user = userEvent.setup();
     mockPathname.value = '/library/some-category';
     render(<SiteHeader />);
-    const libraryLinks = screen.getAllByText('Q&A Library');
-    const desktopLibrary = libraryLinks[0].closest('a');
-    expect(desktopLibrary).toHaveAttribute('aria-current', 'page');
+    const content = await openDesktopZone(user, 'Knowledge');
+    expect(within(content).getByText('Answers').closest('a')).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
   });
 
-  it('hides Review link for viewers (non-editors)', () => {
-    mockUserRole.role = 'viewer';
-    mockUserRole.canEdit = false;
-    mockUserRole.canAdmin = false;
-    mockUserRole.loading = false;
-    render(<SiteHeader />);
-
-    // Review requires edit permission; it should be hidden for viewers
-    // Desktop nav should not show Review
-    const nav = screen.getByLabelText('Main navigation');
-    expect(within(nav).queryByText('Review')).not.toBeInTheDocument();
-  });
-
-  it('shows Review link for editors', () => {
-    mockUserRole.role = 'editor';
-    mockUserRole.canEdit = true;
-    mockUserRole.loading = false;
-    render(<SiteHeader />);
-
-    const nav = screen.getByLabelText('Main navigation');
-    expect(within(nav).getByText('Review')).toBeInTheDocument();
-  });
-
-  // ── P1-11: /coverage requiresEdit gating ──
-
-  it('hides Coverage link for viewers (P1-11)', () => {
-    mockUserRole.role = 'viewer';
-    mockUserRole.canEdit = false;
-    mockUserRole.canAdmin = false;
-    mockUserRole.loading = false;
-    render(<SiteHeader />);
-
-    const nav = screen.getByLabelText('Main navigation');
-    expect(within(nav).queryByText('Coverage')).not.toBeInTheDocument();
-  });
-
-  it('shows Coverage link for editors (P1-11)', () => {
-    mockUserRole.role = 'editor';
-    mockUserRole.canEdit = true;
-    mockUserRole.canAdmin = false;
-    mockUserRole.loading = false;
-    render(<SiteHeader />);
-
-    const nav = screen.getByLabelText('Main navigation');
-    expect(within(nav).getByText('Coverage')).toBeInTheDocument();
-  });
+  // ── mobile drawer: labelled always-expanded zone sections (BI-26) ──
 
   it('renders mobile menu button', () => {
     render(<SiteHeader />);
     expect(screen.getByLabelText('Open navigation menu')).toBeInTheDocument();
   });
 
-  it('opens mobile menu on click and shows mobile navigation', async () => {
+  it('opens mobile menu and shows Home at top, zone sections, and Settings/Sign-out at the foot', async () => {
     const user = userEvent.setup();
     render(<SiteHeader />);
 
     const menuButton = screen.getByLabelText('Open navigation menu');
     await user.click(menuButton);
 
-    // Mobile nav should now be visible with a "Home" link
     const mobileNav = screen.getByLabelText('Mobile navigation');
     expect(mobileNav).toBeInTheDocument();
     expect(within(mobileNav).getByText('Home')).toBeInTheDocument();
+    expect(within(mobileNav).getByText('Applications')).toBeInTheDocument();
+    expect(within(mobileNav).getByText('Knowledge')).toBeInTheDocument();
+    expect(within(mobileNav).getByText('Governance')).toBeInTheDocument();
     expect(within(mobileNav).getByText('Settings')).toBeInTheDocument();
+    expect(
+      within(mobileNav).getByTestId('sign-out-button-mobile'),
+    ).toBeInTheDocument();
   });
+
+  it('lists zone members always-expanded (no disclosure) in the mobile drawer', async () => {
+    const user = userEvent.setup();
+    render(<SiteHeader />);
+    await user.click(screen.getByLabelText('Open navigation menu'));
+    const mobileNav = screen.getByLabelText('Mobile navigation');
+
+    expect(within(mobileNav).getByText('Procurement')).toBeInTheDocument();
+    expect(within(mobileNav).getByText('Search')).toBeInTheDocument();
+    expect(within(mobileNav).getByText('Answers')).toBeInTheDocument();
+    expect(within(mobileNav).getByText('External sources')).toBeInTheDocument();
+    expect(within(mobileNav).getByText('Change reports')).toBeInTheDocument();
+  });
+
+  it('never renders legacy IMS-era labels in the mobile drawer', async () => {
+    const user = userEvent.setup();
+    render(<SiteHeader />);
+    await user.click(screen.getByLabelText('Open navigation menu'));
+    const mobileNav = screen.getByLabelText('Mobile navigation');
+    for (const label of LEGACY_LABELS) {
+      expect(within(mobileNav).queryByText(label)).not.toBeInTheDocument();
+    }
+  });
+
+  it('hides edit/admin-gated entries from the mobile drawer for a viewer', async () => {
+    const user = userEvent.setup();
+    mockUserRole.role = 'viewer';
+    mockUserRole.canEdit = false;
+    mockUserRole.canAdmin = false;
+    render(<SiteHeader />);
+    await user.click(screen.getByLabelText('Open navigation menu'));
+    const mobileNav = screen.getByLabelText('Mobile navigation');
+
+    expect(
+      within(mobileNav).queryByText('Intelligence'),
+    ).not.toBeInTheDocument();
+    expect(within(mobileNav).queryByText('Review')).not.toBeInTheDocument();
+    expect(within(mobileNav).queryByText('Coverage')).not.toBeInTheDocument();
+    expect(within(mobileNav).queryByText('Provenance')).not.toBeInTheDocument();
+    expect(within(mobileNav).getByText('Change reports')).toBeInTheDocument();
+  });
+
+  // ── Settings / search / sign-out non-regression ──
 
   it('renders settings button that navigates to /settings', async () => {
     const user = userEvent.setup();
@@ -253,51 +390,6 @@ describe('SiteHeader', () => {
     ).toBeInTheDocument();
   });
 
-  // ── D-61: /digest in NAV_LINKS ──
-
-  it('/digest (Change Reports) is present in NAV_LINKS with requiresEdit: false', () => {
-    // Even viewers should see the Change Reports link
-    mockUserRole.role = 'viewer';
-    mockUserRole.canEdit = false;
-    mockUserRole.loading = false;
-    render(<SiteHeader />);
-
-    const nav = screen.getByLabelText('Main navigation');
-    const changeReportsLink = within(nav).getByText('Change Reports');
-    expect(changeReportsLink).toBeInTheDocument();
-    expect(changeReportsLink.closest('a')).toHaveAttribute(
-      'href',
-      '/change-reports',
-    );
-  });
-
-  // ── ID-135.10: /search (Surface A) in NAV_LINKS ──
-
-  it('/search (Search) is present in NAV_LINKS with requiresEdit: false', () => {
-    // Knowledge-zone entries are role-uniform (BI-2/BI-21); even viewers see it
-    mockUserRole.role = 'viewer';
-    mockUserRole.canEdit = false;
-    mockUserRole.loading = false;
-    render(<SiteHeader />);
-
-    const nav = screen.getByLabelText('Main navigation');
-    const searchLink = within(nav).getByText('Search');
-    expect(searchLink).toBeInTheDocument();
-    expect(searchLink.closest('a')).toHaveAttribute('href', '/search');
-  });
-
-  it('shows active state on the Search link when on /search', () => {
-    mockPathname.value = '/search';
-    render(<SiteHeader />);
-
-    const nav = screen.getByLabelText('Main navigation');
-    const searchLink = within(nav).getByText('Search').closest('a');
-    expect(searchLink).toHaveAttribute('aria-current', 'page');
-
-    const libraryLinks = screen.getAllByText('Q&A Library');
-    expect(libraryLinks[0].closest('a')).not.toHaveAttribute('aria-current');
-  });
-
   it('no longer exposes a direct "Claude" link in the header or drawer', async () => {
     // The header previously had a ghost button with a link to claude.ai/new
     // and the mobile drawer had an "Open Claude" row. Both were removed as
@@ -314,5 +406,33 @@ describe('SiteHeader', () => {
     const menuButton = screen.getByLabelText('Open navigation menu');
     await user.click(menuButton);
     expect(screen.queryByText('Open Claude')).not.toBeInTheDocument();
+  });
+
+  // ── ID-135.10 (kept green per TECH §C6): /search in the Knowledge zone ──
+
+  it('/search (Search) is present in the Knowledge zone, visible to a viewer', async () => {
+    const user = userEvent.setup();
+    mockUserRole.role = 'viewer';
+    mockUserRole.canEdit = false;
+    mockUserRole.loading = false;
+    render(<SiteHeader />);
+
+    const content = await openDesktopZone(user, 'Knowledge');
+    const searchLink = within(content).getByText('Search');
+    expect(searchLink).toBeInTheDocument();
+    expect(searchLink.closest('a')).toHaveAttribute('href', '/search');
+  });
+
+  it('shows active state on the Search link when on /search', async () => {
+    const user = userEvent.setup();
+    mockPathname.value = '/search';
+    render(<SiteHeader />);
+
+    const content = await openDesktopZone(user, 'Knowledge');
+    const searchLink = within(content).getByText('Search').closest('a');
+    expect(searchLink).toHaveAttribute('aria-current', 'page');
+
+    const answersLink = within(content).getByText('Answers').closest('a');
+    expect(answersLink).not.toHaveAttribute('aria-current');
   });
 });
