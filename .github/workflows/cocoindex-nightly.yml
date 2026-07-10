@@ -121,6 +121,23 @@
 # the job-level `env:` block, never inline ${{ }} in run: steps (mirrors
 # eval-nightly.yml / integration-nightly.yml / onprem-deploy.yml).
 #
+# ID-128.3 walk-deadline calibration (this pass): live run 29126187575's
+# sidecar log showed the FIRST `/walk` request lost the {138.9} writer-fence
+# race almost immediately ("pull-sync fence busy — pass skipped, no walk
+# ran", ~1s after the POST) — another writer held the lease on the SHARED
+# Staging Supabase project at that instant. The trigger step then sat idle
+# for the rest of its 900s budget waiting on log lines (`/walk completed` /
+# `update_blocking failed`) that could never appear for a request whose pass
+# had already been skipped — server.py's own docstring anticipates exactly
+# this ("A later /walk signal can retry"), so the trigger step below now
+# re-POSTs `/walk` (fresh requestId) whenever it observes a fence-busy skip
+# for its current requestId, instead of waiting on a dead request. The
+# overall completion deadline is also raised 900s -> 1800s (owner-ratified)
+# as a safety net for a genuinely slow cold-docling walk once the fence is
+# actually acquired. The fixture corpus (docs/testing/test-data, ~1.5MB / 8
+# files) is already minimal — trimming it further would not address the
+# fence-busy failure mode observed, so it is left as-is this pass.
+#
 # Spec: S403-coverage-audit.md gap (2) HIGH.
 
 name: Cocoindex nightly
@@ -326,24 +343,36 @@ jobs:
         # Port is published to the host, so a plain host-side curl suffices
         # (no docker-exec-python3-urllib indirection needed, unlike
         # live-verify.sh's unpublished-port B1 topology).
+        #
+        # ID-128.3 calibration (this pass, see header): retries on a
+        # fence-busy skip instead of waiting on a dead requestId, and the
+        # overall deadline is 1800s (was 900s).
         run: |
           set -euo pipefail
-          WALK_LOG_SINCE="$(date -u +%Y-%m-%dT%H:%M:%S)"
-          WALK_RESPONSE="$(curl -s -X POST -H "Authorization: Bearer ${CRON_SECRET}" \
-            "http://localhost:${COCOINDEX_PORT}/walk")"
-          echo "walk response: ${WALK_RESPONSE}"
-          REQUEST_ID="$(printf '%s' "$WALK_RESPONSE" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("requestId",""))' 2>/dev/null || true)"
-          if [ -z "$REQUEST_ID" ]; then
-            echo "no requestId in /walk response (see error above)" >&2
-            exit 1
-          fi
-          echo "COCOINDEX_WALK_LOG_SINCE=${WALK_LOG_SINCE}" >> "$GITHUB_ENV"
+          WALK_OVERALL_START=$(date +%s)
+          WALK_STEP_SINCE="$(date -u +%Y-%m-%dT%H:%M:%S)"
+          echo "COCOINDEX_WALK_LOG_SINCE=${WALK_STEP_SINCE}" >> "$GITHUB_ENV"
+          DEADLINE=$(( WALK_OVERALL_START + 1800 ))
+          FENCE_RETRIES=0
 
-          DEADLINE=$(( $(date +%s) + 900 ))
+          trigger_walk() {
+            WALK_LOG_SINCE="$(date -u +%Y-%m-%dT%H:%M:%S)"
+            WALK_RESPONSE="$(curl -s -X POST -H "Authorization: Bearer ${CRON_SECRET}" \
+              "http://localhost:${COCOINDEX_PORT}/walk")"
+            echo "walk response: ${WALK_RESPONSE}"
+            REQUEST_ID="$(printf '%s' "$WALK_RESPONSE" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("requestId",""))' 2>/dev/null || true)"
+            if [ -z "$REQUEST_ID" ]; then
+              echo "no requestId in /walk response (see error above)" >&2
+              exit 1
+            fi
+          }
+
+          trigger_walk
           while true; do
             WALK_LINES="$(docker logs --since "$WALK_LOG_SINCE" cocoindex-sidecar 2>&1 | grep -F "requestId=${REQUEST_ID}" || true)"
             if printf '%s' "$WALK_LINES" | grep -q "/walk completed"; then
-              echo "walk completed (requestId=${REQUEST_ID})"
+              WALK_ELAPSED=$(( $(date +%s) - WALK_OVERALL_START ))
+              echo "walk completed (requestId=${REQUEST_ID}) after ${WALK_ELAPSED}s overall (fence-busy retries=${FENCE_RETRIES})"
               break
             fi
             if printf '%s' "$WALK_LINES" | grep -q "update_blocking failed"; then
@@ -351,8 +380,16 @@ jobs:
               docker logs cocoindex-sidecar >&2 || true
               exit 1
             fi
+            if printf '%s' "$WALK_LINES" | grep -q "fence busy"; then
+              FENCE_RETRIES=$((FENCE_RETRIES + 1))
+              echo "walk pass skipped (requestId=${REQUEST_ID}) — writer-fence busy (another writer holds the {138.9} lease); re-issuing /walk (retry ${FENCE_RETRIES})"
+              sleep 5
+              trigger_walk
+              continue
+            fi
             if [ "$(date +%s)" -ge "$DEADLINE" ]; then
-              echo "walk did not complete within 900s (requestId=${REQUEST_ID})" >&2
+              WALK_ELAPSED=$(( $(date +%s) - WALK_OVERALL_START ))
+              echo "walk did not complete within ${WALK_ELAPSED}s (deadline 1800s, requestId=${REQUEST_ID}, fence-busy retries=${FENCE_RETRIES})" >&2
               exit 1
             fi
             sleep 10
