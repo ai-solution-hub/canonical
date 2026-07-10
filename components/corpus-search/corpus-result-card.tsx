@@ -50,10 +50,10 @@ const KIND_META: Record<CorpusKind, { label: string; Icon: LucideIcon }> = {
 function destinationHref(result: CorpusSearchResult): string {
   switch (result.kind) {
     case 'answer':
-      // {135.19} S438 reconcile (D7): single-pair read/edit at /library
-      // awaits the id-71 q_a_pair-viewer rebind — the link destination
-      // itself is not conditional on that.
-      return '/library';
+      // ID-135 {135.22}: single-pair read/edit viewer shipped at
+      // /library/[id] (S440 owner ruling reassigned this from the
+      // id-71 family referenced in the {135.19} S438 note — closes NO-1).
+      return `/library/${result.id}`;
     case 'document':
       return `/documents/${result.id}`;
     case 'reference':

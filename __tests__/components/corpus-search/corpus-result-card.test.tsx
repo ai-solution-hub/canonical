@@ -90,9 +90,12 @@ describe('CorpusResultCard', () => {
       expect(screen.getByText('ppe')).toBeInTheDocument();
     });
 
-    it('links to /library', () => {
+    it('links to /library/[id] (ID-135 {135.22} single-pair viewer)', () => {
       render(<CorpusResultCard result={makeAnswer()} />);
-      expect(screen.getByRole('link')).toHaveAttribute('href', '/library');
+      expect(screen.getByRole('link')).toHaveAttribute(
+        'href',
+        '/library/33333333-3333-4333-8333-333333333333',
+      );
     });
   });
 

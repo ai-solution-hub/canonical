@@ -24,10 +24,9 @@ import {
  * ("surfaces only published pairs as returned by the route") for the
  * server-side enforcement proof.
  *
- * Each entry links to `/library` (single-pair read target) — plain
- * `/library`, no query param — matching the `answer`-kind destination
- * convention `CorpusResultCard` established ({135.7}), pending the id-71
- * q_a_pair-viewer rebind (see that component's `destinationHref` comment).
+ * Each entry links to `/library/[id]` (ID-135 {135.22} single-pair viewer),
+ * matching the `answer`-kind destination convention `CorpusResultCard`
+ * established ({135.7}; see that component's `destinationHref`).
  *
  * BI-30 (independent per-section queries): this is its own TanStack query
  * (`useDerivedPairs`) with its own loading/error/retry UI — a failure here
@@ -86,7 +85,7 @@ export function DerivedPairsList({ documentId }: DerivedPairsListProps) {
           {pairs.map((pair) => (
             <li key={pair.id}>
               <Link
-                href="/library"
+                href={`/library/${pair.id}`}
                 prefetch={false}
                 className="group flex items-start gap-2 rounded-md border border-border p-2.5 text-sm transition-colors hover:border-primary/30 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >

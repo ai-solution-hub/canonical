@@ -89,6 +89,14 @@ describe('QARow', () => {
     ).toBeInTheDocument();
   });
 
+  it('links the detail-view affordance to the /library/[id] single-pair viewer (ID-135 {135.22})', () => {
+    const item = createQAItem({ id: 'qa-1' });
+    render(<QARow item={item} />);
+    expect(
+      screen.getByRole('link', { name: /open detail view/i }),
+    ).toHaveAttribute('href', '/library/qa-1');
+  });
+
   it('shows source file from direct column', () => {
     const item = createQAItem({
       source_file: 'bid-answers-2026.docx',

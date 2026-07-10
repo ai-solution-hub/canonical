@@ -82,7 +82,7 @@ describe('RelatedRecordsRail', () => {
     );
     expect(
       screen.getByText('What is VAT registration?').closest('a'),
-    ).toHaveAttribute('href', '/library');
+    ).toHaveAttribute('href', '/library/ans-1');
     expect(
       screen.getByText('GOV.UK — VAT guidance').closest('a'),
     ).toHaveAttribute('href', '/reference/ref-1');

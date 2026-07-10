@@ -59,7 +59,7 @@ beforeEach(() => {
 });
 
 describe('DerivedPairsList', () => {
-  it('renders each published derived pair, linking to /library', () => {
+  it('renders each published derived pair, linking to its /library/[id] viewer', () => {
     mockQueryState({
       data: [
         makePair({ id: 'qa-1', question_text: 'What is the policy?' }),
@@ -71,11 +71,12 @@ describe('DerivedPairsList', () => {
 
     const links = screen.getAllByRole('link');
     expect(links).toHaveLength(2);
-    for (const link of links) {
-      expect(link).toHaveAttribute('href', '/library');
-    }
-    expect(screen.getByText('What is the policy?')).toBeInTheDocument();
-    expect(screen.getByText('How long is the term?')).toBeInTheDocument();
+    expect(
+      screen.getByText('What is the policy?').closest('a'),
+    ).toHaveAttribute('href', '/library/qa-1');
+    expect(
+      screen.getByText('How long is the term?').closest('a'),
+    ).toHaveAttribute('href', '/library/qa-2');
   });
 
   it('renders every pair the hook returns without dropping any — proves no client-side publication filter exists (BI-28)', () => {

@@ -76,9 +76,9 @@ const RELATED_KIND_META: Record<
 function destinationHref(record: RelatedRecord): string {
   switch (record.kind) {
     case 'answer':
-      // Mirrors CorpusResultCard's answer destination (pending the id-71
-      // q_a_pair-viewer rebind) — plain `/library`, no query param.
-      return '/library';
+      // Mirrors CorpusResultCard's answer destination — the ID-135
+      // {135.22} /library/[id] single-pair viewer.
+      return `/library/${record.id}`;
     case 'document':
       return `/documents/${record.id}`;
     case 'reference':

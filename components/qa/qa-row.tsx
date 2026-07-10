@@ -153,7 +153,7 @@ export function QARow({ item, selected, onToggleSelect }: QARowProps) {
           </Button>
         )}
         <Link
-          href={`/item/${item.id}`}
+          href={`/library/${item.id}`}
           className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground"
           aria-label={`Open detail view for "${item.title}"`}
         >
