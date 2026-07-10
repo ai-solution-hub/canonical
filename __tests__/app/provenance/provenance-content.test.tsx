@@ -138,11 +138,13 @@ describe('ProvenanceContent', () => {
   // -------------------------------------------------------------------------
 
   describe('default tab', () => {
-    it('redirects to per-item when no tab param is present', () => {
+    it('redirects to pipeline-health when no tab param is present', () => {
+      // id-118.12 (OQ-118-A option C, S460): bare /provenance no longer
+      // lands on the per-item tab's empty UUID lookup form.
       setSearchParams('');
       render(<ProvenanceContent />);
       expect(mockRouter.replace).toHaveBeenCalledWith(
-        '/provenance?tab=per-item',
+        '/provenance?tab=pipeline-health',
         { scroll: false },
       );
     });
@@ -172,11 +174,11 @@ describe('ProvenanceContent', () => {
   // -------------------------------------------------------------------------
 
   describe('invalid tab handling', () => {
-    it('redirects to per-item when tab param is invalid', () => {
+    it('redirects to pipeline-health when tab param is invalid', () => {
       setSearchParams('tab=foo');
       render(<ProvenanceContent />);
       expect(mockRouter.replace).toHaveBeenCalledWith(
-        '/provenance?tab=per-item',
+        '/provenance?tab=pipeline-health',
         { scroll: false },
       );
     });

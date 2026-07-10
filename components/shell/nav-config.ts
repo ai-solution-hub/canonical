@@ -148,12 +148,16 @@ export const NAV_ZONES: readonly NavZone[] = [
       },
       {
         href: '/activity',
-        // OQ-T1 (S457 owner ruling): /activity is homeless today with no
-        // current gate — all-authenticated is a no-op encoding, not a
-        // behaviour change.
+        // OQ-118-A sibling finding (id-118.12, S460): the S457 "homeless,
+        // no current gate" assumption no longer holds — /activity now
+        // redirects to /provenance?tab=audit, whose whole page is
+        // canAdmin-gated (matches the Settings system-group convention:
+        // Team / Quality Review / Provenance are all admin-only). Flipped
+        // to admin so the nav entry does not silently promise access the
+        // destination denies (BI-21 no silent audience change).
         label: 'Activity',
         icon: Activity,
-        visibility: 'all',
+        visibility: 'admin',
       },
       {
         href: '/provenance',

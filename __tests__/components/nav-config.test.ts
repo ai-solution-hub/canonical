@@ -46,7 +46,7 @@ describe('NAV_ZONES membership', () => {
     ['governance', 'Review', '/review', 'edit'],
     ['governance', 'Coverage', '/coverage', 'edit'],
     ['governance', 'Change reports', '/change-reports', 'all'],
-    ['governance', 'Activity', '/activity', 'all'],
+    ['governance', 'Activity', '/activity', 'admin'],
     ['governance', 'Provenance', '/provenance', 'admin'],
   ] as const)(
     'encodes %s zone entry %s (%s) with visibility %s',
@@ -119,8 +119,10 @@ describe('isEntryVisible role-gating (BI-20/BI-21)', () => {
     const hiddenForViewer = governanceZone.entries.filter(
       (entry) => !isEntryVisible(entry.visibility, viewer),
     );
+    // id-118.12: /activity flipped to admin (its destination, /provenance,
+    // is admin-gated), joining /coverage, /provenance, /review.
     expect(hiddenForViewer.map((e) => e.href).sort()).toEqual(
-      ['/coverage', '/provenance', '/review'].sort(),
+      ['/activity', '/coverage', '/provenance', '/review'].sort(),
     );
   });
 });

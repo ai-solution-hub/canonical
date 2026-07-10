@@ -172,18 +172,20 @@ describe('SiteHeader', () => {
     ).toHaveAttribute('href', '/reference');
   });
 
-  it('lists the Governance zone members for an editor (Provenance excluded — admin only)', async () => {
+  it('lists the Governance zone members for an editor (Provenance and Activity excluded — admin only)', async () => {
     const user = userEvent.setup();
     render(<SiteHeader />);
     const content = await openDesktopZone(user, 'Governance');
     expect(within(content).getByText('Review')).toBeInTheDocument();
     expect(within(content).getByText('Coverage')).toBeInTheDocument();
     expect(within(content).getByText('Change reports')).toBeInTheDocument();
-    expect(within(content).getByText('Activity')).toBeInTheDocument();
+    // id-118.12: Activity is now admin-gated (its destination, /provenance,
+    // is admin-gated) — no longer visible to an editor.
+    expect(within(content).queryByText('Activity')).not.toBeInTheDocument();
     expect(within(content).queryByText('Provenance')).not.toBeInTheDocument();
   });
 
-  it('shows Provenance in the Governance zone for an admin', async () => {
+  it('shows Provenance and Activity in the Governance zone for an admin', async () => {
     const user = userEvent.setup();
     mockUserRole.role = 'admin';
     mockUserRole.canEdit = true;
@@ -191,6 +193,7 @@ describe('SiteHeader', () => {
     render(<SiteHeader />);
     const content = await openDesktopZone(user, 'Governance');
     expect(within(content).getByText('Provenance')).toBeInTheDocument();
+    expect(within(content).getByText('Activity')).toBeInTheDocument();
   });
 
   // ── BI-20: Knowledge zone is role-uniform ──
@@ -223,7 +226,7 @@ describe('SiteHeader', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('hides edit-gated Governance entries for a viewer, keeps role-uniform ones', async () => {
+  it('hides edit/admin-gated Governance entries for a viewer, keeps role-uniform ones', async () => {
     const user = userEvent.setup();
     mockUserRole.role = 'viewer';
     mockUserRole.canEdit = false;
@@ -232,7 +235,7 @@ describe('SiteHeader', () => {
 
     const govContent = await openDesktopZone(user, 'Governance');
     expect(within(govContent).getByText('Change reports')).toBeInTheDocument();
-    expect(within(govContent).getByText('Activity')).toBeInTheDocument();
+    expect(within(govContent).queryByText('Activity')).not.toBeInTheDocument();
     expect(within(govContent).queryByText('Review')).not.toBeInTheDocument();
     expect(within(govContent).queryByText('Coverage')).not.toBeInTheDocument();
     expect(
@@ -262,7 +265,7 @@ describe('SiteHeader', () => {
 
     const govContent = await openDesktopZone(user, 'Governance');
     expect(within(govContent).getByText('Change reports')).toBeInTheDocument();
-    expect(within(govContent).getByText('Activity')).toBeInTheDocument();
+    expect(within(govContent).queryByText('Activity')).not.toBeInTheDocument();
     expect(within(govContent).queryByText('Review')).not.toBeInTheDocument();
     expect(within(govContent).queryByText('Coverage')).not.toBeInTheDocument();
     expect(
@@ -280,6 +283,7 @@ describe('SiteHeader', () => {
     expect(within(mobileNav).queryByText('Review')).not.toBeInTheDocument();
     expect(within(mobileNav).queryByText('Coverage')).not.toBeInTheDocument();
     expect(within(mobileNav).queryByText('Provenance')).not.toBeInTheDocument();
+    expect(within(mobileNav).queryByText('Activity')).not.toBeInTheDocument();
   });
 
   // ── BI-23/BI-24: active leaf + zone affordance ──

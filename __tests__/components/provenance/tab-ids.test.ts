@@ -20,7 +20,9 @@ describe('PROVENANCE_TABS', () => {
   it('has exactly one default tab', () => {
     const defaults = PROVENANCE_TABS.filter((t) => t.default);
     expect(defaults).toHaveLength(1);
-    expect(defaults[0].id).toBe('per-item');
+    // id-118.12 (OQ-118-A option C, S460): pipeline-health, not per-item's
+    // empty UUID lookup form, is the bare-/provenance default.
+    expect(defaults[0].id).toBe('pipeline-health');
   });
 
   it('marks cost and disputes as stubs', () => {

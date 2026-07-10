@@ -246,7 +246,9 @@ authTest.describe('Authentication — authenticated session', () => {
 
         // canEdit=true, canAdmin=false for editor: every entry is reachable
         // except the reserved Concepts leaf (BI-8 — no landing route yet)
-        // and the admin-only Provenance leaf (BI-21).
+        // and the admin-only Provenance and Activity leaves (id-118.12:
+        // Activity's destination, /provenance, is admin-gated, so the nav
+        // entry was flipped to admin — BI-21).
         const destinations: Array<{ label: string; hrefPattern: RegExp }> = [
           { label: 'Search', hrefPattern: /\/search/ },
           { label: 'Answers', hrefPattern: /\/library/ },
@@ -256,7 +258,6 @@ authTest.describe('Authentication — authenticated session', () => {
           { label: 'Review', hrefPattern: /\/review/ },
           { label: 'Coverage', hrefPattern: /\/coverage/ },
           { label: 'Change reports', hrefPattern: /\/change-reports/ },
-          { label: 'Activity', hrefPattern: /\/activity/ },
         ];
 
         for (const { label, hrefPattern } of destinations) {
@@ -279,7 +280,7 @@ authTest.describe('Authentication — authenticated session', () => {
 
         // Every zone still renders a header for a viewer — each zone keeps
         // at least one 'all'-visibility entry (Procurement; Search/Answers/
-        // External sources; Change reports/Activity).
+        // External sources; Change reports).
         for (const header of ZONE_HEADERS) {
           await expect(nav.getByText(header)).toBeVisible();
         }
