@@ -14,6 +14,7 @@ import {
   isEntryVisible,
   isEntryActive,
   isZoneActive,
+  findZoneForHref,
   type NavVisibility,
 } from '@/components/shell/nav-config';
 
@@ -67,6 +68,21 @@ describe('NAV_ZONES membership', () => {
     const reserved = ALL_ENTRIES.filter((e) => e.reserved);
     expect(reserved.map((e) => e.href)).toEqual(['/okf']);
   });
+
+  it.each([
+    ['applications', ['/procurement', '/intelligence']],
+    ['knowledge', ['/search', '/library', '/reference', '/okf']],
+    [
+      'governance',
+      ['/review', '/coverage', '/change-reports', '/activity', '/provenance'],
+    ],
+  ] as const)(
+    'orders the %s zone entries exactly as ratified (BI-4/9/11)',
+    (zoneId, expectedHrefOrder) => {
+      const zone = NAV_ZONES.find((z) => z.id === zoneId)!;
+      expect(zone.entries.map((e) => e.href)).toEqual(expectedHrefOrder);
+    },
+  );
 });
 
 describe('isEntryVisible role-gating (BI-20/BI-21)', () => {
@@ -147,5 +163,22 @@ describe('isEntryActive / isZoneActive path predicates (BI-23/BI-24)', () => {
     for (const zone of NAV_ZONES) {
       expect(isZoneActive(zone, '/documents/abc-123')).toBe(false);
     }
+  });
+});
+
+describe('findZoneForHref leaf-to-zone lookup', () => {
+  it('resolves an entry leaf href to its owning zone', () => {
+    expect(findZoneForHref('/reference')?.id).toBe('knowledge');
+    expect(findZoneForHref('/review')?.id).toBe('governance');
+    expect(findZoneForHref('/procurement')?.id).toBe('applications');
+  });
+
+  it('does not resolve a nested subpath — the lookup matches on exact href only', () => {
+    expect(findZoneForHref('/reference/abc-123')).toBeUndefined();
+  });
+
+  it('returns undefined for an href that is not in the nav config', () => {
+    expect(findZoneForHref('/documents/abc-123')).toBeUndefined();
+    expect(findZoneForHref('/unknown-route')).toBeUndefined();
   });
 });
