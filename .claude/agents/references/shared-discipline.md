@@ -35,7 +35,9 @@ is unrunnable in agent worktrees — they inherit no `.gitnexus` index ("last in
 never"); use `git diff --name-only` as the authoritative scope-containment fallback.
 `gitnexus_impact` (primary-tree symbol index) stays reliable. (b) pytest MUST run from the
 worktree CWD — main-repo-CWD invocations resolve `scripts.*` to the MAIN tree's modules
-(namespace-package hazard; spurious results against stale code).
+(namespace-package hazard; spurious results against stale code). (c) `git stash` is banned
+anywhere in the shared multi-worktree dispatch topology (DR-039) — commit, or leave the
+tree as-is and report.
 
 **Planner — pre-spec-write orientation** (mandatory for `{N.1}`–`{N.4}`):
 

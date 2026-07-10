@@ -191,6 +191,8 @@ KH "Worktree isolation rules" from CLAUDE.md apply unchanged:
   advances before the worker finishes, the worker is implicitly stale (this
   is normal — the orchestrator decides whether to rebase or accept the
   divergence at merge time).
+- No `git stash` anywhere in the dispatch topology — parent or worker (DR-039).
+  Commit, or leave the tree as-is and report.
 
 ### Ledger writes — clash-free protocol
 

@@ -75,7 +75,8 @@ is reachable directly via `bun scripts/ledger-cli.ts get task <N>.<M>`):
   `test-driven-development`, and for multi-file slices `incremental-implementation`.
 - **Commit via `commit-commands` only.** Executors commit per Subtask using
   `commit-commands`. Never end a dispatch with
-  uncommitted work in the worktree. Merges are the Orchestrator's responsibility, not yours.
+  uncommitted work in the worktree. Never `git stash` in a dispatch worktree (DR-039) —
+  commit, or leave the tree as-is and report. Merges are the Orchestrator's responsibility, not yours.
 - **Never write the ledger in-branch — return intents.** All ledger writes route through
   `bun scripts/ledger-cli.ts` on the MAIN checkout only; you RETURN ledger-write intents
   (status flips, journal text, item creates) in your report — never write, stage, or
