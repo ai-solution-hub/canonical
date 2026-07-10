@@ -35,8 +35,11 @@ Reference: docs/reference/task-list.json → ID-127 → Subtask 33
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -526,3 +529,156 @@ class TestBindMemoHealCounter:
         assert results["classification"].tally() == {"classification": 1}
         assert results["qa_form"].tally() == {"qa_form": 1}
         assert results["classification"] is not results["qa_form"]
+
+
+# ============================================================================
+# S460 owner-ratified burn valve — `extract_classification` version=1 bump
+# scoping proof (ID-127.33)
+# ============================================================================
+
+
+# ── S460 fingerprint-scope probe (runs in a SUBPROCESS) ────────────────────
+#
+# Mirrors the ID-75.16 / bl-239 precedent (`test_url_source_engine_consumption.py`,
+# `test_file_branch_memo_fingerprint.py`): a fresh subprocess importing
+# `scripts.cocoindex_pipeline.extraction` under a REAL, never-stubbed
+# `cocoindex` is the only reliable way to inspect actual `@coco.fn` decoration
+# state in this suite. In-process inspection is NOT reliable here — several
+# sibling test files (see `test_cocoindex_adapters.py`'s "cross-contamination
+# culprit" comment) import `extraction`/`flow` while `cocoindex` is swapped
+# for a stub via `conftest.stubbed_sys_modules`; that context manager restores
+# `sys.modules['cocoindex']` on exit but the ALREADY-cached
+# `scripts.cocoindex_pipeline.extraction` module (and its module-global
+# names, e.g. `extract_classification`) stays decorated against the
+# now-gone stub for the rest of the shared pytest process — observed
+# empirically as both a missing `_logic_fp` attribute (identity-passthrough
+# stub) AND, after an `importlib.reload()` attempt, an
+# `ImportError: module ... not in sys.modules` (some sibling file's cleanup
+# drops the cache entry entirely). A subprocess sidesteps the whole class of
+# hazard: it gets a fresh interpreter with no other test file's residue.
+_FINGERPRINT_SCOPE_PROBE_SRC = """
+import json, sys
+sys.path.insert(0, sys.argv[1])
+
+from scripts.cocoindex_pipeline import extraction
+from cocoindex._internal.function import _compute_logic_fingerprint
+
+
+def _fp_hex(fp):
+    return None if fp is None else fp.as_bytes().hex()
+
+
+raw_classification = extraction.extract_classification._orig_async_fn
+ast_only_fp = _compute_logic_fingerprint(raw_classification, version=None)
+version_bumped_fp = _compute_logic_fingerprint(raw_classification, version=1)
+
+result = {
+    "classification_logic_fp": _fp_hex(extraction.extract_classification._logic_fp),
+    "classification_ast_only_fp": _fp_hex(ast_only_fp),
+    "classification_version_bumped_fp": _fp_hex(version_bumped_fp),
+    "siblings": {},
+}
+for name in ("extract_qa_form", "extract_entity_mentions", "extract_relationships"):
+    fn = getattr(extraction, name)
+    raw_fn = fn._orig_async_fn
+    expected = _compute_logic_fingerprint(raw_fn, version=None)
+    result["siblings"][name] = {
+        "logic_fp": _fp_hex(fn._logic_fp),
+        "ast_only_fp": _fp_hex(expected),
+    }
+
+print(json.dumps(result))
+"""
+
+_FINGERPRINT_SCOPE_PROBE_CACHE: dict | None = None
+
+
+def _run_fingerprint_scope_probe() -> dict:
+    global _FINGERPRINT_SCOPE_PROBE_CACHE
+    if _FINGERPRINT_SCOPE_PROBE_CACHE is not None:
+        return _FINGERPRINT_SCOPE_PROBE_CACHE
+
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".py", prefix="s460-fp-scope-probe-", delete=False
+    ) as fh:
+        fh.write(_FINGERPRINT_SCOPE_PROBE_SRC)
+        script_path = fh.name
+
+    proc = subprocess.run(
+        [sys.executable, script_path, str(_REPO_ROOT)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        cwd=_REPO_ROOT,
+    )
+    assert proc.returncode == 0, (
+        f"fingerprint-scope probe subprocess failed (exit {proc.returncode}):\n"
+        f"{proc.stderr}"
+    )
+    result = json.loads(proc.stdout.strip().splitlines()[-1])
+    _FINGERPRINT_SCOPE_PROBE_CACHE = result
+    return result
+
+
+class TestClassificationMemoFingerprintBump:
+    """`extract_classification`'s `@coco.fn(memo=True, version=1)` bump is a
+    ONE-TIME, owner-ratified (S460) purge of the stale pre-2026-07-07
+    `ClassificationExtraction` memo shape (S456/S457/S459 evidence) — see the
+    prominent comment at the decorator site in extraction.py for the full
+    rationale (why a narrower per-item invalidation is architecturally
+    unavailable in cocoindex 1.0.7).
+
+    This class proves the bump is scoped to `extract_classification` ONLY:
+    `version=` is a per-decorated-function parameter
+    (`_compute_logic_fingerprint`, `cocoindex/_internal/function.py:596-640`),
+    baked into each `AsyncFunction` instance's own `_logic_fp` at decoration
+    time — it cannot leak across sibling functions decorated separately.
+    """
+
+    def test_classification_version_bump_changes_its_own_fingerprint(self) -> None:
+        # Proves the bump actually forces a DIFFERENT fingerprint than the
+        # AST-derived one every un-bumped `@coco.fn(memo=True)` extractor
+        # uses — this difference is exactly what forces the one-time
+        # whole-corpus reclassification on the next walk.
+        result = _run_fingerprint_scope_probe()
+        assert (
+            result["classification_version_bumped_fp"]
+            != result["classification_ast_only_fp"]
+        ), (
+            "version=1 must replace the AST-derived fingerprint outright — "
+            "otherwise the S460 bump would not purge the stale memo entries"
+        )
+
+    def test_classification_wrapper_actually_carries_the_bump(self) -> None:
+        # `_logic_fp` is the ACTUAL fingerprint baked into the AsyncFunction
+        # wrapper at import/decoration time — assert it matches the
+        # version-mode computation (not the AST-only one), proving the
+        # `version=1` decorator kwarg took effect for real, not merely that
+        # the helper function CAN compute a version-mode fingerprint.
+        result = _run_fingerprint_scope_probe()
+        assert (
+            result["classification_logic_fp"]
+            == result["classification_version_bumped_fp"]
+        )
+
+    def test_sibling_extractors_are_unaffected(self) -> None:
+        # The other 3 Path-A extractors keep AST-derived fingerprints —
+        # their `_logic_fp` must equal a plain (version=None) computation,
+        # proving the S460 bump did not leak across decorated functions.
+        result = _run_fingerprint_scope_probe()
+        for name, sibling in result["siblings"].items():
+            assert sibling["logic_fp"] == sibling["ast_only_fp"], (
+                f"{name}: sibling extractor fingerprint must stay "
+                "AST-derived — the S460 version bump is scoped to "
+                "extract_classification only"
+            )
+
+    def test_sibling_extractors_fingerprints_differ_from_classifications(self) -> None:
+        # Belt-and-braces: the 3 sibling fingerprints must not accidentally
+        # collide with classification's version-bumped one either.
+        result = _run_fingerprint_scope_probe()
+        classification_fp = result["classification_logic_fp"]
+        for name, sibling in result["siblings"].items():
+            assert sibling["logic_fp"] != classification_fp, (
+                f"{name}: sibling fingerprint collides with classification's"
+            )

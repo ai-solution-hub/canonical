@@ -1078,7 +1078,50 @@ async def _anthropic_message(client, /, **create_kwargs) -> anthropic.types.Mess
     return message
 
 
-@coco.fn(memo=True)
+@coco.fn(
+    memo=True,
+    # ── S460 owner-ratified burn valve (ID-127.33) — ONE-TIME fingerprint
+    # bump, NOT a general pattern to repeat casually ─────────────────────
+    #
+    # WHY: the pre-2026-07-07 `ClassificationExtraction` memo shape (3
+    # stuck staging corpus items, S456/S457/S459 evidence) can only be
+    # purged by forcing EVERY existing memo entry for THIS extractor to
+    # miss on the next walk. A narrower per-item invalidation was
+    # investigated and found architecturally unavailable in cocoindex
+    # 1.0.7: the memoization-keys-&-states validation contract
+    # (`__coco_memo_state__` / `register_memo_key_function(..., state_fn=)`)
+    # never reaches a primitive-typed argument like `content_text: str` —
+    # `cocoindex._internal.memo_fingerprint._canonicalize` returns
+    # primitives (str/int/float/bool/bytes) as-is BEFORE either hook path is
+    # consulted (verified empirically against the installed 1.0.7 package).
+    # Making `content_text` hook-eligible would itself change the
+    # fingerprint SHAPE for every entry at once — the same whole-corpus
+    # cost as this bump, just via a different mechanism.
+    #
+    # WHAT: `version=1` REPLACES the AST-derived fingerprint outright
+    # (`_compute_logic_fingerprint`, `cocoindex/_internal/function.py:596-640`
+    # — "When version is provided, it is used as the canonical
+    # representation instead of the AST"), so it forces a full
+    # RECOMPUTE-AND-PERSIST for every corpus item's classification on the
+    # FIRST walk after this deploys — a deliberate, owner-approved,
+    # ONE-TIME whole-corpus re-classification burn. DR-047's
+    # `extract_with_memo_self_heal` fallback (below) stays as the standing
+    # safety net for genuine transient deserialize failures; THIS bump is
+    # what makes the 3 currently-stuck items converge instead of re-healing
+    # on every subsequent walk.
+    #
+    # SCOPE: `version=` is a per-decorated-function parameter — it cannot
+    # leak to `extract_qa_form` / `extract_entity_mentions` /
+    # `extract_relationships`, which keep their AST-derived fingerprints
+    # untouched (proven in
+    # `scripts/tests/test_cocoindex_memo_self_heal.py::TestClassificationMemoFingerprintBump`).
+    #
+    # WARNING: bumping this value again in future (2, 3, …) re-burns the
+    # WHOLE corpus for this extractor a second time — only do so with the
+    # same owner burn-valve sign-off as this one (do not bump reflexively
+    # on every unrelated schema tweak).
+    version=1,
+)
 async def extract_classification(content_text: str) -> ClassificationExtraction:
     """Classification extractor — validates LLM JSON into `ClassificationExtraction`.
 
