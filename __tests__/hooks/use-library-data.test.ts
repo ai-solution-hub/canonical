@@ -161,13 +161,46 @@ describe('useLibraryData', () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    expect(mockSupabase._chain.not).toHaveBeenCalledWith(
+    expect(mockSupabase._chain.is).toHaveBeenCalledWith(
+      'answer_advanced',
+      null,
+    );
+    // bl-434: `answer_standard` is NOT NULL on q_a_pairs — the redundant
+    // `.not('answer_standard', 'is', null)` clause was removed, it was
+    // always true.
+    expect(mockSupabase._chain.not).not.toHaveBeenCalledWith(
       'answer_standard',
       'is',
       null,
     );
-    expect(mockSupabase._chain.is).toHaveBeenCalledWith(
+  });
+
+  it('narrows to pairs with an advanced answer for the "both" variant, without the redundant answer_standard check (bl-434)', async () => {
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    const filters: LibraryFilters = {
+      ...DEFAULT_FILTERS,
+      variant: 'both',
+    };
+
+    const { result } = renderHook(() => useLibraryData(filters), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(mockSupabase._chain.not).toHaveBeenCalledWith(
       'answer_advanced',
+      'is',
+      null,
+    );
+    expect(mockSupabase._chain.not).not.toHaveBeenCalledWith(
+      'answer_standard',
+      'is',
       null,
     );
   });

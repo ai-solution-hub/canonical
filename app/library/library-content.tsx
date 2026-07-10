@@ -368,10 +368,6 @@ export function LibraryContent() {
                       <SelectItem value="standard_only">
                         Standard only
                       </SelectItem>
-                      <SelectItem value="advanced_only">
-                        Advanced only
-                      </SelectItem>
-                      <SelectItem value="neither">No answer</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

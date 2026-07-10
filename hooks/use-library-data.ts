@@ -146,20 +146,15 @@ export function useLibraryData(filters: LibraryFilters) {
         .is('superseded_by', null)
         .order('question_text', { ascending: true });
 
+      // `answer_standard` is NOT NULL on q_a_pairs — an explicit
+      // `.not('answer_standard', 'is', null)` clause is always true and was
+      // removed as redundant (bl-434). The `advanced_only` / `neither`
+      // variants (which required `answer_standard IS NULL`) were removed
+      // entirely — they were schema-impossible, always-empty branches.
       if (filters.variant === 'both') {
-        query = query
-          .not('answer_standard', 'is', null)
-          .not('answer_advanced', 'is', null);
+        query = query.not('answer_advanced', 'is', null);
       } else if (filters.variant === 'standard_only') {
-        query = query
-          .not('answer_standard', 'is', null)
-          .is('answer_advanced', null);
-      } else if (filters.variant === 'advanced_only') {
-        query = query
-          .is('answer_standard', null)
-          .not('answer_advanced', 'is', null);
-      } else if (filters.variant === 'neither') {
-        query = query.is('answer_standard', null).is('answer_advanced', null);
+        query = query.is('answer_advanced', null);
       }
 
       if (filters.search) {

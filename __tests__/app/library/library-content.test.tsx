@@ -13,6 +13,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { mockTaxonomyContext } from '../../helpers/mock-contexts';
 import { createQueryWrapper } from '../../helpers/query-wrapper';
+import { installRadixPointerShims } from '@/__tests__/helpers/radix-pointer-shims';
 
 // ---------------------------------------------------------------------------
 // vi.hoisted() — mocks referenced in vi.mock() factories
@@ -234,6 +235,7 @@ function renderLibraryContent() {
 
 describe('LibraryContent', () => {
   beforeEach(() => {
+    installRadixPointerShims();
     vi.clearAllMocks();
     mockFilters.value = {
       domain: undefined,
@@ -311,6 +313,36 @@ describe('LibraryContent', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('Filter by freshness')).toBeInTheDocument();
     });
+  });
+
+  // -------------------------------------------------------------------------
+  // bl-434: Advanced-only / No-answer variant options were schema-impossible
+  // (q_a_pairs.answer_standard is NOT NULL) — always-empty dead filters,
+  // removed.
+  // -------------------------------------------------------------------------
+
+  it('does not show the dead Advanced-only / No-answer variant options (bl-434)', async () => {
+    const user = userEvent.setup();
+    renderLibraryContent();
+
+    // Variant select lives inside the "More filters" popover.
+    await user.click(await screen.findByText('More filters'));
+
+    const trigger = await screen.findByLabelText('Filter by variant');
+    await user.click(trigger);
+
+    expect(
+      await screen.findByRole('option', { name: 'Standard only' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('option', { name: 'Standard + Advanced' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('option', { name: 'Advanced only' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('option', { name: 'No answer' }),
+    ).not.toBeInTheDocument();
   });
 
   it('shows secondary filters popover', async () => {

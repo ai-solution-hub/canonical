@@ -12,7 +12,7 @@ import type { UrlFilterConfig } from '@/lib/content-browsing';
 export interface LibraryFilters {
   domain?: string;
   source_file?: string;
-  variant?: 'all' | 'standard_only' | 'advanced_only' | 'both' | 'neither';
+  variant?: 'all' | 'standard_only' | 'both';
   search?: string;
   freshness?: 'fresh' | 'aging' | 'stale' | 'expired';
   verified?: 'verified' | 'unverified';
