@@ -694,13 +694,18 @@ async def _pull_sync_materialise(
     row that raises here is CAUGHT, recorded into `row_failures`, and
     skipped — it does NOT abort the pass, mirroring the {80.9} per-item-
     isolation cascade inversion (one bad row must never zero every other
-    row's materialised writes). The ONLY exception: a WHOLLY failed pass
-    (every row raised, zero "materialised"/"unchanged" successes) re-raises
-    the LAST row's original exception, preserving the PRE-ID-141 abort
-    behaviour for that degenerate case — `_pull_sync_then_walk` propagates
-    it uncaught exactly as before, so a pass that lands nothing still skips
-    the walk and releases the {138.9} writer-fence lock via `_run_walk`'s
-    `finally`.
+    row's materialised writes). The ONLY exception: a WHOLLY failed pass —
+    every row that was NOT merely "refused" FAILED (`row_failures` is
+    non-empty) AND zero rows landed (`counts["materialised"] == 0 and
+    counts["unchanged"] == 0`) — re-raises the LAST failed row's original
+    exception, preserving the PRE-ID-141 abort behaviour for that
+    degenerate case. This is precise for the MIXED case too: a pass with
+    one "refused" row and one "failed" row (zero successes) still fires
+    the guard — a refusal is never itself a success, so it cannot rescue
+    an otherwise wholly-failed pass from aborting. `_pull_sync_then_walk`
+    propagates the re-raise uncaught exactly as before, so a pass that
+    lands nothing still skips the walk and releases the {138.9}
+    writer-fence lock via `_run_walk`'s `finally`.
 
     Idle-mode guard (belt-and-braces): `_walk_handler` already rejects an
     unset/missing `COCOINDEX_SOURCE_PATH` with a 400 BEFORE `_run_walk` is

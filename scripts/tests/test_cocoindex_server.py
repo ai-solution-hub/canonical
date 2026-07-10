@@ -2534,6 +2534,65 @@ class TestPullSyncRowResilience:
 
         assert not any(corpus.iterdir())
 
+    def test_mixed_refused_and_failed_rows_zero_successes_still_aborts(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Locks the EXACT wholly-failed-pass trigger condition (Checker
+        PASS_WITH_NOTES precision nit): the guard is `row_failures` non-
+        empty AND zero "materialised"/"unchanged" successes — NOT "every
+        row raised". A "refused" row (path-containment escape) never
+        raises and is never counted as a success either, so a pass with
+        ONE refused row + ONE failed row (zero successes overall) must
+        still fire the guard and abort — a refusal cannot rescue an
+        otherwise wholly-failed pass."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+
+        rows = [
+            {
+                "id": "sd-refused",
+                "storage_path": "evil.md",
+                "logical_path": "../evil.md",
+                "content_hash": "irrelevant",
+            },
+            {
+                "id": "sd-failed",
+                "storage_path": "bad.md",
+                "logical_path": "bad.md",
+                "content_hash": "irrelevant",
+            },
+        ]
+
+        async def _fake_fetch_candidates(_conn: object) -> list[dict]:
+            return rows
+
+        def _fake_downloader():
+            def _download(storage_path: str) -> bytes:
+                assert storage_path == "bad.md", (
+                    "the REFUSED row must never reach the downloader"
+                )
+                raise ConnectionError("storage backend unreachable")
+
+            return _download
+
+        monkeypatch.setattr(
+            server_mod, "_fetch_pull_sync_candidates", _fake_fetch_candidates
+        )
+        monkeypatch.setattr(
+            server_mod, "_resolve_storage_downloader", _fake_downloader
+        )
+
+        conn = _FakeFenceConn(acquire_result=True)
+
+        with pytest.raises(ConnectionError, match="storage backend unreachable"):
+            asyncio.run(server_mod._pull_sync_materialise(conn))
+
+        assert not (tmp_path / "evil.md").exists()
+        assert not any(corpus.iterdir())
+
     def test_partial_row_failure_does_not_skip_the_walk(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
