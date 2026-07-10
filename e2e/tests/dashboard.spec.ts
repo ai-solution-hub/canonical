@@ -166,14 +166,31 @@ test.describe('Dashboard -- content health stats', () => {
     // Heading
     await expect(healthSection.getByText('Content Health')).toBeVisible();
 
-    // At least one "Fresh" stat label (worker seeds fresh items)
-    await expect(healthSection.getByText('Fresh')).toBeVisible();
+    // At least one "Fresh" stat label (worker seeds fresh items). Exact
+    // match — components/dashboard/quick-stats-strip.tsx also renders an
+    // "All content is fresh" empty-state span (when there is no aging/
+    // stale/expired content), and getByText's default case-insensitive
+    // substring match makes that string collide with "Fresh" too (strict-
+    // mode violation whenever the corpus happens to carry zero unhealthy
+    // items at read time — S457 finding).
+    await expect(
+      healthSection.getByText('Fresh', { exact: true }),
+    ).toBeVisible();
 
     // Active bids label with a non-zero numeric value (worker data seeds at
     // least 1 active bid). The StatItem component renders:
     //   <span>{value}</span> <span>{label}</span>
     // We locate the label, then check the sibling value span is not "0".
-    const activeBidsLabel = healthSection.getByText(/Active bids?/);
+    // components/dashboard/quick-stats-strip.tsx renders this label as
+    // "Active bid" (count === 1) or "Active procurements" (otherwise) — the
+    // prior `/Active bids?/` regex was stale from before the id-61 "Active
+    // Bids" -> "Active procurements" rename (this file's own comment above
+    // the section[aria-label="Active procurements"] locator already
+    // documents that rename; this label was simply missed at the time,
+    // S457 finding) and could never match either current label.
+    const activeBidsLabel = healthSection.getByText(
+      /Active (bid|procurements)/,
+    );
     await expect(activeBidsLabel).toBeVisible();
 
     // The value <span> is the immediately preceding sibling of the label <span>
@@ -291,8 +308,15 @@ test.describe('Dashboard -- recent activity', () => {
       .first();
     await expect(activitySection).toBeVisible({ timeout: 15000 });
 
-    // Heading text
-    await expect(activitySection.getByText('Recent Activity')).toBeVisible();
+    // Heading text. Exact match — components/dashboard/dashboard-activity-
+    // feed.tsx renders a "No recent activity" empty-state string when there
+    // are zero activity items, which case-insensitive-substring-collides
+    // with the "Recent Activity" heading (strict-mode violation whenever
+    // this worker's view happens to have no recent activity — S457 finding,
+    // same pattern as the Content-health "Fresh" collision above).
+    await expect(
+      activitySection.getByText('Recent Activity', { exact: true }),
+    ).toBeVisible();
   });
 });
 

@@ -37,8 +37,21 @@ test.describe('Provenance -- admin access and tab navigation', () => {
   }) => {
     await page.goto('/provenance');
 
-    // Should show the access-denied alert
-    const alert = page.getByRole('alert');
+    // Should show the access-denied alert. Next.js also injects a visually-
+    // hidden #__next-route-announcer__ div with role="alert" on every page
+    // (route-change a11y announcer), which a bare getByRole('alert')
+    // strict-mode-violates against (reproduced identically across two
+    // independent runs, S457 finding). `role="alert"` has "Name from:
+    // author" only per the ARIA spec (NOT "contents"), so getByRole's
+    // `name` option — which matches the computed ACCESSIBLE NAME, not
+    // visible text — cannot discriminate here: neither alert has an
+    // explicit aria-label, so both have an empty accessible name. Filter by
+    // text content instead (components/provenance/access-denied.tsx's
+    // role="alert" div contains the "Admin access required" heading; the
+    // route-announcer never does).
+    const alert = page
+      .getByRole('alert')
+      .filter({ hasText: 'Admin access required' });
     await expect(alert).toBeVisible({ timeout: 15000 });
     await expect(alert).toContainText('Admin access required');
 
@@ -51,8 +64,11 @@ test.describe('Provenance -- admin access and tab navigation', () => {
   }) => {
     await page.goto('/provenance');
 
-    // Should show the access-denied alert
-    const alert = page.getByRole('alert');
+    // Should show the access-denied alert (see the viewer test above for
+    // why this is filtered by text content, not getByRole's `name` option).
+    const alert = page
+      .getByRole('alert')
+      .filter({ hasText: 'Admin access required' });
     await expect(alert).toBeVisible({ timeout: 15000 });
     await expect(alert).toContainText('Admin access required');
 

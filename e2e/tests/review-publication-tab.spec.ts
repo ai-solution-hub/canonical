@@ -116,11 +116,20 @@ test.describe('Review page — awaiting-publication tab (S31 W3)', () => {
     await approveButton.click();
 
     // ── Step 5: assert toast appears confirming the approval ────────
-    // sonner renders toasts inside role="status" regions (live region
-    // for screen-reader announcements). The success copy is fixed by
-    // publication-review-action-bar.tsx L78-82:
+    // S457 finding (ID-128.16 #2): the installed sonner version renders each
+    // toast as a plain `<li data-sonner-toast data-type="success" ...>` with
+    // NO explicit ARIA role at all (confirmed by dumping the live DOM right
+    // after clicking Approve) — `getByRole('status')` never matches
+    // anything, so this assertion failed deterministically on every run
+    // (root-caused as test-side, not app-side; the toast itself renders
+    // correctly and reliably, well within the 10s timeout). `[data-sonner-
+    // toast]` is the library's own documented, stable DOM hook — scope to
+    // it directly instead of an ARIA role the library doesn't set. The
+    // success copy is fixed by publication-review-action-bar.tsx L112-116:
     //   'Published. The item is now live in the knowledge base.'
-    const toast = page.getByRole('status').filter({ hasText: /published/i });
+    const toast = page
+      .locator('[data-sonner-toast]')
+      .filter({ hasText: /published/i });
     await expect(toast).toBeVisible({ timeout: 10000 });
 
     // ── Step 6: assert row disappears from in-review tab ────────────

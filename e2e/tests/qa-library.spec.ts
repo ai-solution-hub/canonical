@@ -293,7 +293,21 @@ test.describe('Q&A Library page', () => {
     await expect(domainTrigger).toBeVisible();
   });
 
-  test('selecting a domain filters the list', async ({
+  // S457 finding (ID-128.16, de-flake pass): these two tests previously
+  // asserted that selecting a domain narrows the Q&A pair count, and that
+  // clearing it restores the full count. That assertion is on dead
+  // functionality, not a race: hooks/use-library-data.ts's queryFn applies
+  // NO domain clause at all (`domain` / `source_file` / `freshness` /
+  // `verified` are explicitly documented "honest no-ops" there, per
+  // ID-131.21 G-MANUAL-QA — richer filtering parity is deferred to id-135
+  // {135.22}). The item count never actually changes when a domain is
+  // selected; the two tests only ever "passed" when a concurrent worker's
+  // beforeAll/afterAll happened to shrink the corpus between the two count
+  // reads for an unrelated reason — a coincidence, not the behaviour under
+  // test. Rewritten to assert the one thing that IS real and stable today:
+  // the Select's own controlled value round-trips through the trigger's
+  // displayed label.
+  test('selecting a domain updates the filter trigger label', async ({
     authenticatedPage: page,
   }) => {
     await page.goto('/library');
@@ -301,12 +315,6 @@ test.describe('Q&A Library page', () => {
       timeout: 20000,
     });
 
-    // Capture the initial count
-    const fullCountText = await page.getByText(/\d+ Q&A pairs?/).textContent();
-    const fullMatch = fullCountText?.match(/(\d+) Q&A/);
-    const fullCount = fullMatch ? parseInt(fullMatch[1], 10) : 0;
-
-    // Open domain dropdown and select the first non-"All" domain
     const domainTrigger = page
       .locator('button[role="combobox"]')
       .filter({ hasText: 'All domains' });
@@ -314,29 +322,26 @@ test.describe('Q&A Library page', () => {
     // Pick the second option (first is "All domains")
     const options = page.locator('[role="option"]');
     const secondOption = options.nth(1);
+    const selectedDomain = (await secondOption.textContent())?.trim();
     await secondOption.click();
 
-    // Count should decrease after filtering
-    await expect(async () => {
-      const text = await page.getByText(/\d+ Q&A pairs?/).textContent();
-      const match = text?.match(/(\d+) Q&A/);
-      const count = match ? parseInt(match[1], 10) : fullCount;
-      expect(count).toBeLessThan(fullCount);
-    }).toPass({ timeout: 10000 });
+    // The trigger's displayed label now shows the selected domain, not the
+    // "All domains" placeholder.
+    expect(selectedDomain).toBeTruthy();
+    await expect(
+      page
+        .locator('button[role="combobox"]')
+        .filter({ hasText: selectedDomain ?? '' }),
+    ).toBeVisible({ timeout: 5000 });
   });
 
-  test('clearing domain filter restores all items', async ({
+  test('clearing domain filter restores the All-domains trigger label', async ({
     authenticatedPage: page,
   }) => {
     await page.goto('/library');
     await expect(page.getByText(/\d+ Q&A pairs?/)).toBeVisible({
       timeout: 20000,
     });
-
-    // Capture the initial (full) count
-    const fullCountText = await page.getByText(/\d+ Q&A pairs?/).textContent();
-    const fullCountMatch = fullCountText?.match(/(\d+) Q&A/);
-    const fullCount = fullCountMatch ? parseInt(fullCountMatch[1], 10) : 0;
 
     // Apply domain filter — pick the first non-"All" domain
     const domainTrigger = page
@@ -345,34 +350,26 @@ test.describe('Q&A Library page', () => {
     await domainTrigger.click();
     const options = page.locator('[role="option"]');
     const secondOption = options.nth(1);
-    const selectedDomain = await secondOption.textContent();
+    const selectedDomain = (await secondOption.textContent())?.trim();
     await secondOption.click();
 
-    // Wait for filter to take effect — count should decrease
-    await expect(async () => {
-      const text = await page.getByText(/\d+ Q&A pairs?/).textContent();
-      const match = text?.match(/(\d+) Q&A/);
-      const count = match ? parseInt(match[1], 10) : fullCount;
-      expect(count).toBeLessThan(fullCount);
-    }).toPass({ timeout: 10000 });
-
-    // Clear by selecting "All domains" — trigger now shows the selected domain
     const filteredTrigger = page
       .locator('button[role="combobox"]')
       .filter({ hasText: selectedDomain ?? '' });
+    await expect(filteredTrigger).toBeVisible({ timeout: 5000 });
+
+    // Clear by selecting "All domains" — trigger label reverts.
     await filteredTrigger.click();
     await page
       .locator('[role="option"]')
       .filter({ hasText: 'All domains' })
       .click();
 
-    // Count should return to the full count
-    await expect(async () => {
-      const text = await page.getByText(/\d+ Q&A pairs?/).textContent();
-      const match = text?.match(/(\d+) Q&A/);
-      const count = match ? parseInt(match[1], 10) : 0;
-      expect(count).toBe(fullCount);
-    }).toPass({ timeout: 10000 });
+    await expect(
+      page
+        .locator('button[role="combobox"]')
+        .filter({ hasText: 'All domains' }),
+    ).toBeVisible({ timeout: 5000 });
   });
 
   // ---------------------------------------------------------------------------
@@ -450,7 +447,22 @@ test.describe('Q&A Library page', () => {
     ).not.toBeVisible();
   });
 
-  test('grouping by domain creates collapsible groups', async ({
+  // S457 finding (ID-128.16, de-flake pass): this test hard-coded
+  // "Service Delivery" as a domain group header, but no q_a_pairs-backed
+  // /library item carries a real domain today —
+  // hooks/use-library-data.ts's mapQAPairToContentListItem sets
+  // `primary_domain: ''` for every row (q_a_pairs has no domain column;
+  // per-pair classification parity is deferred to id-135 {135.22}), and
+  // components/shell/collapsible-group.tsx's groupItems() falls back to
+  // the literal key 'Unclassified' whenever primary_domain is falsy. So
+  // grouping by domain deterministically produces exactly ONE group,
+  // 'Unclassified', containing every item — "Service Delivery" can never
+  // appear. This was failing for a real, stable reason, not a flake;
+  // rewritten to assert the one true-today outcome (asserting on
+  // "Unclassified" also makes this test a tripwire: once id-135 {135.22}
+  // gives q_a_pairs real per-pair domains, this single-Unclassified-group
+  // assertion will start failing and need updating alongside that work).
+  test('grouping by domain creates a single Unclassified group', async ({
     authenticatedPage: page,
   }) => {
     await page.goto('/library');
@@ -475,12 +487,28 @@ test.describe('Q&A Library page', () => {
     // Close the popover by pressing Escape
     await page.keyboard.press('Escape');
 
-    // Collapsible group headers should appear — buttons with aria-expanded and domain names
-    await expect(
-      page.locator('button[aria-expanded]', { hasText: 'Service Delivery' }),
-    ).toBeVisible({ timeout: 10000 });
+    // Exactly one collapsible group header renders, labelled Unclassified.
+    // A bare `button[aria-expanded]` ALSO matches every visible QARow's own
+    // per-item expand toggle (components/qa/qa-row.tsx) — and QARow rows
+    // can carry their own Badge/FreshnessBadge, so filtering on "has a
+    // badge" isn't precise enough either. `.border-l-4` is the one class
+    // exclusive to components/shell/collapsible-group.tsx's CollapsibleGroup
+    // header (QARow's expand button carries no such class).
+    const groupHeaders = page.locator('button[aria-expanded].border-l-4');
+    await expect(groupHeaders.filter({ hasText: 'Unclassified' })).toBeVisible({
+      timeout: 10000,
+    });
+    await expect(groupHeaders).toHaveCount(1);
   });
 
+  // S457 finding (ID-128.16, de-flake pass): same root cause as the two
+  // domain-filter tests above — the count-decrease/count-restore
+  // assertions were testing a domain filter that never actually narrows the
+  // query (hooks/use-library-data.ts). "Clear all" is driven by
+  // useLibraryFilters' `activeCount` (a filters-state truthiness count, not
+  // a query-result count), so it genuinely appears once `filters.domain` is
+  // set and disappears once cleared — asserting on that UI round-trip is
+  // real, stable behaviour; asserting on the Q&A pair count is not.
   test('clear filters button resets all filters', async ({
     authenticatedPage: page,
   }) => {
@@ -489,39 +517,36 @@ test.describe('Q&A Library page', () => {
       timeout: 20000,
     });
 
-    // Capture the initial (full) count
-    const fullCountText = await page.getByText(/\d+ Q&A pairs?/).textContent();
-    const fullCountMatch = fullCountText?.match(/(\d+) Q&A/);
-    const fullCount = fullCountMatch ? parseInt(fullCountMatch[1], 10) : 0;
-
     // Apply a domain filter to make "Clear all" appear
     const domainTrigger = page
       .locator('button[role="combobox"]')
       .filter({ hasText: 'All domains' });
     await domainTrigger.click();
     // Pick the first non-"All" domain
+    const selectedDomain = (
+      await page.locator('[role="option"]').nth(1).textContent()
+    )?.trim();
     await page.locator('[role="option"]').nth(1).click();
 
-    // Wait for filter to take effect — count should decrease
-    await expect(async () => {
-      const text = await page.getByText(/\d+ Q&A pairs?/).textContent();
-      const match = text?.match(/(\d+) Q&A/);
-      const count = match ? parseInt(match[1], 10) : fullCount;
-      expect(count).toBeLessThan(fullCount);
-    }).toPass({ timeout: 10000 });
+    await expect(
+      page
+        .locator('button[role="combobox"]')
+        .filter({ hasText: selectedDomain ?? '' }),
+    ).toBeVisible({ timeout: 5000 });
 
     // "Clear all" button should now be visible
     const clearAll = page.getByRole('button', { name: /clear all/i });
     await expect(clearAll).toBeVisible();
     await clearAll.click();
 
-    // Count should return to the full count
-    await expect(async () => {
-      const text = await page.getByText(/\d+ Q&A pairs?/).textContent();
-      const match = text?.match(/(\d+) Q&A/);
-      const count = match ? parseInt(match[1], 10) : 0;
-      expect(count).toBe(fullCount);
-    }).toPass({ timeout: 10000 });
+    // The domain trigger reverts to the "All domains" placeholder, and
+    // "Clear all" disappears now that no filter is active.
+    await expect(
+      page
+        .locator('button[role="combobox"]')
+        .filter({ hasText: 'All domains' }),
+    ).toBeVisible({ timeout: 5000 });
+    await expect(clearAll).not.toBeVisible();
   });
 
   // ---------------------------------------------------------------------------
@@ -597,14 +622,22 @@ test.describe('Q&A Library page', () => {
     await selectAll.click();
 
     // Toolbar should show selection count
-    await expect(page.getByText(/\d+ selected/)).toBeVisible({ timeout: 5000 });
+    // Anchored regex: the "Select all" header span ALSO renders "All N
+    // selected" once every item is selected (library-content.tsx line
+    // ~510) — a bare /\d+ selected/ strict-mode-violates by matching both
+    // that span and BulkActionToolbar's "N selected" (components/browse/
+    // bulk-action-toolbar.tsx). Anchoring to ^\d (no "All " prefix) scopes
+    // this to the toolbar's own text.
+    await expect(page.getByText(/^\d+ selected$/)).toBeVisible({
+      timeout: 5000,
+    });
 
     // Click again to deselect all (label changes to "Deselect all")
     const deselectAll = page.getByLabel(/deselect all/i);
     await deselectAll.click();
 
     // Toolbar should disappear (0 selected = null render)
-    await expect(page.getByText(/\d+ selected/)).not.toBeVisible({
+    await expect(page.getByText(/^\d+ selected$/)).not.toBeVisible({
       timeout: 5000,
     });
   });
@@ -761,9 +794,11 @@ test.describe('Q&A Library page', () => {
     await expect(firstRow.getByLabel(/^Select "/)).toBeVisible();
 
     // 3. Selecting rows reveals the bulk-action toolbar ("N selected") with
-    //    the (non-role-gated) Verify action visible to the viewer.
+    //    the (non-role-gated) Verify action visible to the viewer. Anchored
+    //    regex avoids the strict-mode collision with the "Select all"
+    //    header's "All N selected" text (see the sibling admin test above).
     await selectAll.click();
-    await expect(page.getByText(/\d+ selected/)).toBeVisible();
+    await expect(page.getByText(/^\d+ selected$/)).toBeVisible();
     await expect(page.getByRole('button', { name: /verify/i })).toBeVisible();
   });
 });

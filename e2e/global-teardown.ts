@@ -2,6 +2,34 @@ import { createServiceClient } from './fixtures/supabase';
 const E2E_CONTENT_PREFIXES = ['[E2E-', '[E2E Test]'] as const;
 
 /**
+ * `source_documents` rows that are provisioned ONCE (by `bun run
+ * seed:e2e-users` -> `seedPublicationReviewFixture`) and declared
+ * NEVER-deleted there — NOT per-worker/per-run fixtures this safety sweep
+ * should ever touch. Duplicated literal (scripts/seed-e2e-users.ts's
+ * `PUBLICATION_REVIEW_FIXTURE_TITLE` const is not exported — MUST stay in
+ * lock-step with that script, matching the existing lock-step convention
+ * used for the taxonomy/governance fixture literals in
+ * e2e/tests/settings-mutations.spec.ts).
+ *
+ * S457 finding (ID-128.16 #1): this fixture's filename carries the same
+ * '[E2E-' prefix this sweep matches on, so every Playwright invocation was
+ * deleting it (confirmed empirically). e2e/tests/review-publication-tab.
+ * spec.ts does NOT seed it inline — it is "provisioned ONCE PER CI E2E job
+ * by `bun run seed:e2e-users`" and the test FAILS honestly if the row is
+ * missing (its own header comment, spec §10.1) — so this teardown's
+ * deletion is only "benign" in the sense that the NEXT invocation's
+ * seed:e2e-users step re-creates it before that run's tests execute
+ * (idempotent create-if-missing); it is a genuine unconditional deletion of
+ * a row declared NEVER-deleted, and a real cross-shard race in the sharded
+ * nightly (multiple shards share one seed pass, so shard A's teardown can
+ * delete the row while shard B's review-publication-tab spec is still
+ * reading it).
+ */
+const PERSISTENT_FIXTURE_FILENAMES: readonly string[] = [
+  '[E2E-PUB-REVIEW-FIXTURE] Awaiting publication test row',
+];
+
+/**
  * ID-131.19 M6 retirement note (S450 GO tail): `content_items` (+
  * `content_history`) was DROPPED at M6. There is no single surviving
  * table shaped like the old god-table — the per-worker fixture
@@ -36,7 +64,7 @@ async function cleanupContentItemsByTitlePrefix(
 
   const { data: sdRows, error: sdError } = await supabase
     .from('source_documents')
-    .select('id')
+    .select('id, filename')
     .like('filename', `${prefix}%`);
 
   if (sdError) {
@@ -45,7 +73,9 @@ async function cleanupContentItemsByTitlePrefix(
     );
   }
 
-  const sdIds = (sdRows ?? []).map((row) => row.id);
+  const sdIds = (sdRows ?? [])
+    .filter((row) => !PERSISTENT_FIXTURE_FILENAMES.includes(row.filename))
+    .map((row) => row.id);
   if (sdIds.length === 0) return;
 
   await supabase
