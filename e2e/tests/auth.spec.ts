@@ -286,8 +286,17 @@ authTest.describe('Authentication — authenticated session', () => {
 
         // BI-20: every non-reserved Knowledge entry stays reachable for a
         // viewer (Concepts is excluded — reserved, BI-8).
-        for (const label of ['Search', 'Answers', 'External sources']) {
+        const knowledgeDestinations: Array<{
+          label: string;
+          hrefPattern: RegExp;
+        }> = [
+          { label: 'Search', hrefPattern: /\/search/ },
+          { label: 'Answers', hrefPattern: /\/library/ },
+          { label: 'External sources', hrefPattern: /\/reference/ },
+        ];
+        for (const { label, hrefPattern } of knowledgeDestinations) {
           await navigateViaHeader(page, label);
+          await expect(page).toHaveURL(hrefPattern, { timeout: 10000 });
           await page.goto('/');
           await expect(
             page.getByRole('navigation', { name: 'Main navigation' }).first(),

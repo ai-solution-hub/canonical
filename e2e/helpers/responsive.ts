@@ -1,5 +1,5 @@
 import { type Page, expect } from '@playwright/test';
-import { NAV_ZONES, findZoneForHref } from '@/components/shell/nav-config';
+import { NAV_ZONES } from '@/components/shell/nav-config';
 
 /**
  * The sm breakpoint (640px). Below this, the hamburger menu is shown
@@ -25,14 +25,13 @@ export function isMobileViewport(
 }
 
 /**
- * Resolve the NAV_ZONES zone that owns a leaf by its accessible label,
- * via the leaf's href + the {118.6} findZoneForHref lookup (single
- * source of truth — no separate label->zone table to drift out of sync).
+ * Resolve the NAV_ZONES zone that owns a leaf by its accessible label
+ * (single source of truth — no separate label->zone table to drift out
+ * of sync with {118.6}'s NAV_ZONES membership).
  */
 function findZoneForLabel(label: string) {
   for (const zone of NAV_ZONES) {
-    const entry = zone.entries.find((e) => e.label === label);
-    if (entry) return findZoneForHref(entry.href);
+    if (zone.entries.some((e) => e.label === label)) return zone;
   }
   return undefined;
 }
@@ -54,13 +53,21 @@ export async function navigateViaHeader(
   linkName: string,
 ): Promise<void> {
   if (isMobileViewport(page)) {
-    // Open hamburger menu
-    await page.getByRole('button', { name: 'Open navigation menu' }).click();
-    // Wait for Sheet to animate open
     const mobileNav = page.getByRole('navigation', {
       name: 'Mobile navigation',
     });
-    await expect(mobileNav).toBeVisible();
+    // Idempotent: the Sheet may already be open (e.g. this is called right
+    // after getVisibleNavLinks, which opens it) — a redundant click on the
+    // hamburger while the Sheet's modal overlay (z-50) is already up fails
+    // Playwright's actionability check against the z-40 header button
+    // (test-philosophy.md §7.2). Only open it if it isn't already.
+    const alreadyOpen = await mobileNav.isVisible().catch(() => false);
+    if (!alreadyOpen) {
+      // Open hamburger menu
+      await page.getByRole('button', { name: 'Open navigation menu' }).click();
+      // Wait for Sheet to animate open
+      await expect(mobileNav).toBeVisible();
+    }
     // Click the link inside the mobile nav
     await mobileNav.getByRole('link', { name: linkName }).click();
   } else {
