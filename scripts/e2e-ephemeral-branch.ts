@@ -35,33 +35,64 @@
  *      sweep cycle + the next scheduled nightly.
  *
  * EPISTEMIC CAVEAT (read before touching the parsing helpers): the Supabase
- * Management API's branch-object JSON schema (exact field names for id/ref/
- * created_at, and the api-keys response shape) is not fully published in the
- * docs at the time of writing, and this account's `list_branches` MCP tool
- * returned "insufficient privileges" against the Platform-staging project —
- * so none of this could be exercised against a live branch during
- * implementation. `normaliseBranchRecord` / `normaliseApiKeys` are
- * deliberately DEFENSIVE: they try several plausible field-name aliases and,
- * if none match, throw with the ACTUAL top-level keys of the response so the
- * first live run (the orchestrator's post-merge `workflow_dispatch` gate)
- * fails LOUD with an actionable diagnostic instead of silently mis-targeting
- * or hanging. If a live run surfaces a different field name, extend the
- * alias list in the relevant `extractString`/`find` call — do not rewrite
- * the fail-loud shape.
+ * Management API's branch-object JSON schema was not fully published in the
+ * docs at implementation time, but has since been confirmed empirically
+ * (live probes against the parent project zjqbrdctesqvouboziae, 2026-07-10 —
+ * see the EMPIRICAL FINDING below): `id`/`project_ref`/`name`/`created_at`/
+ * `status`/`preview_project_status` on the LIST endpoint
+ * (`GET /v1/projects/{ref}/branches`); `db_host`/`db_port`/`db_user`/
+ * `db_pass`/`status` (a DIFFERENT, project-health `status` — see below) on
+ * the SINGLE-branch endpoint (`GET /v1/branches/{id}`). `normaliseBranchRecord`
+ * / `normaliseApiKeys` remain deliberately DEFENSIVE (try plausible aliases,
+ * fail loud with the actual top-level keys on a mismatch) as insurance
+ * against the account/project boundary drifting again.
+ *
+ * EMPIRICAL FINDING (manual Management-API probe, 2026-07-10, branch
+ * `doziocclnhpadoevfmwf` off parent zjqbrdctesqvouboziae — created, observed,
+ * deleted within the same session; see {128.10} journal for the full trace):
+ * a Management-API-created branch (no `git_branch` — no GitHub PR behind it)
+ * DOES attempt to replay this repo's real migration files (Postgres logs
+ * showed the exact code comment from `20260619120000_rls_initplan_wrap_qa.sql`
+ * executing), so it is NOT a bare schema-less clone — but the replay is
+ * UNRELIABLE: it silently SKIPPED `20260617130000_squash_baseline.sql`
+ * (13.8k lines — the migration that creates `public.change_reports` and
+ * everything else) and then failed the very next migration with `relation
+ * "public.change_reports" does not exist`, ending in branch-list `status:
+ * "MIGRATIONS_FAILED"` with effectively NO application schema present. This
+ * happened well BEFORE any of `application_types`/`change_reports`/etc.
+ * existed, so the value `waitForBranchReady` polls for (below) would have
+ * spun for the FULL timeout on PGRST002 no matter how long the window — this
+ * is the concrete root cause of the S460 live-proof failure (run
+ * 29127594878, 12-min PGRST002). Two DISTINCT status signals matter and must
+ * not be conflated:
+ *   - `preview_project_status` (list endpoint) / `status` (single-branch
+ *     endpoint) — the underlying Postgres COMPUTE's health. Reaches
+ *     `ACTIVE_HEALTHY` in ~15s regardless of migration outcome — necessary
+ *     but NOT sufficient for schema/seed readiness. `waitForBranchComputeHealthy`
+ *     polls this.
+ *   - `status` (list endpoint ONLY, e.g. `CREATING_PROJECT` /
+ *     `MIGRATIONS_FAILED` / `FUNCTIONS_DEPLOYED`) — Supabase's OWN
+ *     migration-replay pipeline's outcome. Given it is empirically unreliable
+ *     for this project, this script does not gate on it at all — it is
+ *     logged for visibility only. Instead `applyMigrationsAndSeed` takes over
+ *     migration + seed application entirely via direct `psql` (see its
+ *     doc-comment) rather than trusting Supabase's own replay.
+ * The single-branch endpoint (`fetchBranchDbCreds`) response contains
+ * `db_pass`/`jwt_secret` in PLAINTEXT — confirmed on both `main` and
+ * `staging` — see the SECURITY note on that function.
  *
  * `waitForBranchReady` deliberately does NOT poll an undocumented branch
  * `status` enum. Instead it polls the branch's own PostgREST endpoint for
  * `public.application_types` — the table `supabase/seed.sql` §2·0 seeds
- * exactly once, automatically, after all migrations replay on branch
- * creation (per Supabase's documented "Preview Branches are seeded ... The
- * database is only seeded once, when the preview branch is created"
- * behaviour, and per this repo's own seed.sql header: "This file runs ONCE
- * per branch creation, AFTER all migrations apply"). A non-empty read is the
- * concrete signal this slice actually depends on (per PLAN.md {128.10}:
- * "application_types.id is gen_random_uuid(), NOT stable across branches ...
- * the branch MUST be seeded with application_types or every workspace
- * insert throws") — so the readiness probe doubles as an empirical check of
- * that exact assumption, rather than trusting it silently.
+ * exactly once. Per the EMPIRICAL FINDING above, this repo no longer relies
+ * on Supabase's own automatic replay+seed to make that true — `wait-ready`
+ * now runs AFTER `applyMigrationsAndSeed` has explicitly written it, so this
+ * probe confirms (a) that explicit apply actually took effect and (b)
+ * PostgREST's schema cache has picked it up, rather than gating on Supabase's
+ * own pipeline. A non-empty read is the concrete signal this slice actually
+ * depends on (per PLAN.md {128.10}: "application_types.id is
+ * gen_random_uuid(), NOT stable across branches ... the branch MUST be
+ * seeded with application_types or every workspace insert throws").
  *
  * RETRY: every Management API call (`mgmtFetch`, `deleteBranch`) retries a
  * bounded number of times with backoff on 429/5xx/network-error — but NEVER
@@ -73,18 +104,25 @@
  * USAGE (CLI, invoked from the workflow — see `.github/workflows/e2e-nightly.yml`):
  *   bun run scripts/e2e-ephemeral-branch.ts sweep [--max-age-hours=6] [--dry-run]
  *   bun run scripts/e2e-ephemeral-branch.ts create --run-id=<id>
+ *   bun run scripts/e2e-ephemeral-branch.ts wait-compute-healthy --branch-ref=<ref>
+ *   bun run scripts/e2e-ephemeral-branch.ts migrate --branch-id=<id>
  *   bun run scripts/e2e-ephemeral-branch.ts wait-ready --branch-url=<url> --service-role-key=<key>
  *   bun run scripts/e2e-ephemeral-branch.ts keys --branch-ref=<ref>
  *   bun run scripts/e2e-ephemeral-branch.ts delete --branch-ref=<ref>
  *
  * Required env vars: SUPABASE_ACCESS_TOKEN (Management API PAT), and for
- * sweep/create/keys/delete, PLATFORM_PROJECT_REF (this repo's own Platform
- * staging project — the branch PARENT). Secret-shaped CLI outputs
- * (service-role-key) are emitted via GitHub Actions `::add-mask::` BEFORE
- * being written to `$GITHUB_OUTPUT` — never echoed in plain log lines.
+ * sweep/create/wait-compute-healthy/keys/delete, PLATFORM_PROJECT_REF (this
+ * repo's own Platform staging project — the branch PARENT). `migrate` needs
+ * only SUPABASE_ACCESS_TOKEN (it fetches the branch's own DB creds directly)
+ * and the `psql` binary on PATH. Secret-shaped CLI outputs (service-role-key,
+ * and `migrate`'s in-process DB password) are emitted via GitHub Actions
+ * `::add-mask::` BEFORE being written to `$GITHUB_OUTPUT` or used — never
+ * echoed in plain log lines.
  */
 
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 const MANAGEMENT_API = 'https://api.supabase.com';
 const DEFAULT_BRANCH_PREFIX = 'e2e-nightly-';
@@ -143,7 +181,16 @@ export interface BranchSummary {
   ref: string;
   name: string;
   createdAt: string | null;
+  /** Supabase's OWN migration-replay pipeline status (list endpoint only,
+   * e.g. `CREATING_PROJECT` / `MIGRATIONS_FAILED` / `FUNCTIONS_DEPLOYED`) —
+   * per the file-header EMPIRICAL FINDING this is logged for visibility only
+   * and never gated on (empirically unreliable for this project). */
   status?: string;
+  /** The underlying Postgres COMPUTE's health (list endpoint's
+   * `preview_project_status`, mirrored by the single-branch endpoint's own
+   * `status` field — two different API shapes, same underlying value).
+   * `waitForBranchComputeHealthy` polls THIS field, not `status` above. */
+  previewProjectStatus?: string;
 }
 
 /**
@@ -171,7 +218,8 @@ export function normaliseBranchRecord(raw: unknown): BranchSummary {
     extractString(obj, ['name', 'branch_name', 'git_branch']) ?? '(unnamed)';
   const createdAt = extractString(obj, ['created_at', 'inserted_at']) ?? null;
   const status = extractString(obj, ['status']);
-  return { id, ref, name, createdAt, status };
+  const previewProjectStatus = extractString(obj, ['preview_project_status']);
+  return { id, ref, name, createdAt, status, previewProjectStatus };
 }
 
 export interface BranchApiKeys {
@@ -461,6 +509,250 @@ export async function fetchBranchApiKeys(
   return normaliseApiKeys(raw);
 }
 
+export interface WaitComputeHealthyOptions {
+  /** The PARENT project ref — branches are only listed via the parent (see
+   * the file-header EMPIRICAL FINDING: the branch's own ref refuses this
+   * endpoint). */
+  platformProjectRef: string;
+  /** THIS branch's own project ref (the `ref` field `createEphemeralBranch`
+   * returned), used to find it in the parent's branch list. */
+  branchRef: string;
+  timeoutMs?: number;
+  intervalMs?: number;
+  log?: (message: string) => void;
+  nowFn?: () => number;
+  sleepFn?: (ms: number) => Promise<void>;
+}
+
+const DEFAULT_COMPUTE_HEALTHY_TIMEOUT_MS = 5 * 60 * 1000;
+const DEFAULT_COMPUTE_HEALTHY_INTERVAL_MS = 10_000;
+
+/**
+ * Poll the PARENT project's branch list for THIS branch's
+ * `previewProjectStatus` until `ACTIVE_HEALTHY` — the underlying Postgres
+ * compute is up and reachable. Per the file-header EMPIRICAL FINDING, this
+ * is NOT proof of schema/seed readiness (it reaches `ACTIVE_HEALTHY` in ~15s
+ * regardless of whether Supabase's own migration replay succeeds) — it is
+ * only the precondition for the `psql` connection `applyMigrationsAndSeed`
+ * makes next. Logs the branch's own (unreliable, informational-only)
+ * `status` alongside for visibility, but never gates on it.
+ */
+export async function waitForBranchComputeHealthy(
+  opts: WaitComputeHealthyOptions & ManagementApiDeps,
+): Promise<void> {
+  const log = opts.log ?? console.log;
+  const now = opts.nowFn ?? Date.now;
+  const sleep =
+    opts.sleepFn ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_COMPUTE_HEALTHY_TIMEOUT_MS;
+  const intervalMs = opts.intervalMs ?? DEFAULT_COMPUTE_HEALTHY_INTERVAL_MS;
+  const deadline = now() + timeoutMs;
+
+  let lastSeen = 'no attempt made';
+  while (now() < deadline) {
+    const all = await listBranches(opts.platformProjectRef, opts);
+    const mine = all.find((b) => b.ref === opts.branchRef);
+    if (mine) {
+      lastSeen = `previewProjectStatus=${mine.previewProjectStatus ?? '(absent)'} status=${mine.status ?? '(absent)'}`;
+      if (mine.previewProjectStatus === 'ACTIVE_HEALTHY') {
+        log(
+          `[e2e-ephemeral-branch] branch compute healthy — ${lastSeen} ` +
+            '(its own migration-replay status is informational only; ' +
+            'this script applies migrations explicitly next).',
+        );
+        return;
+      }
+    } else {
+      lastSeen = `branch ${opts.branchRef} not present in parent's branch list yet`;
+    }
+    log(
+      `[e2e-ephemeral-branch] compute not healthy yet (${lastSeen}) — retrying in ${
+        intervalMs / 1000
+      }s…`,
+    );
+    await sleep(intervalMs);
+  }
+  throw new EphemeralBranchError(
+    `Branch compute did not become healthy within ${timeoutMs / 60_000} minutes. Last seen: ${lastSeen}`,
+  );
+}
+
+export interface BranchDbCreds {
+  host: string;
+  port: number;
+  user: string;
+  password: string;
+}
+
+/**
+ * `GET /v1/branches/{branch_id}` — the SINGLE-branch endpoint (distinct from
+ * `listBranches`'s `GET /v1/projects/{ref}/branches`). Returns this branch's
+ * own live Postgres connection details for `applyMigrationsAndSeed`.
+ *
+ * SECURITY: the raw response body carries `db_pass` + `jwt_secret` in
+ * PLAINTEXT (confirmed empirically against both the `main` and `staging`
+ * branches, 2026-07-10). NEVER log the raw body — including on error: unlike
+ * `mgmtFetch`'s generic error path, this deliberately withholds `res.text()`
+ * from the thrown message, since an error body on this specific endpoint
+ * could plausibly still carry those fields.
+ */
+export async function fetchBranchDbCreds(
+  branchId: string,
+  deps: ManagementApiDeps,
+): Promise<BranchDbCreds> {
+  const f = deps.fetchImpl ?? fetch;
+  const res = await fetchWithRetry(
+    `${MANAGEMENT_API}/v1/branches/${branchId}`,
+    { headers: { Authorization: `Bearer ${deps.token}` } },
+    f,
+    { log: deps.log, sleepFn: deps.sleepFn },
+  );
+  if (!res.ok) {
+    throw new EphemeralBranchError(
+      `GET /v1/branches/${branchId} failed: HTTP ${res.status} (body withheld — may contain credentials).`,
+    );
+  }
+  const raw = (await res.json()) as Record<string, unknown>;
+  const host = extractString(raw, ['db_host']);
+  const password = extractString(raw, ['db_pass']);
+  const user = extractString(raw, ['db_user']) ?? 'postgres';
+  const portRaw = raw['db_port'];
+  const port =
+    typeof portRaw === 'number'
+      ? portRaw
+      : typeof portRaw === 'string' && portRaw.length > 0
+        ? Number(portRaw)
+        : 5432;
+  if (!host || !password) {
+    throw new EphemeralBranchError(
+      `GET /v1/branches/${branchId} response missing db_host/db_pass — got ` +
+        `keys [${Object.keys(raw).join(', ')}] (values withheld).`,
+    );
+  }
+  return { host, port, user, password };
+}
+
+export interface PsqlExecResult {
+  ok: boolean;
+  stderr: string;
+}
+
+/** Injectable so tests never shell out to a real `psql`. */
+export type PsqlExecutor = (
+  file: string,
+  env: NodeJS.ProcessEnv,
+) => PsqlExecResult;
+
+function defaultPsqlExecutor(
+  file: string,
+  env: NodeJS.ProcessEnv,
+): PsqlExecResult {
+  try {
+    execFileSync('psql', ['-v', 'ON_ERROR_STOP=1', '-q', '-f', file], {
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return { ok: true, stderr: '' };
+  } catch (err) {
+    const e = err as { stderr?: Buffer | string | null; message?: string };
+    const stderr = e.stderr
+      ? typeof e.stderr === 'string'
+        ? e.stderr
+        : e.stderr.toString('utf-8')
+      : (e.message ?? String(err));
+    return { ok: false, stderr };
+  }
+}
+
+const DEFAULT_MIGRATIONS_DIR = 'supabase/migrations';
+const DEFAULT_SEED_FILE = 'supabase/seed.sql';
+
+function defaultListMigrationFiles(dir: string): string[] {
+  return readdirSync(dir)
+    .filter((f) => f.endsWith('.sql'))
+    .sort()
+    .map((f) => join(dir, f));
+}
+
+export interface ApplyMigrationsOptions {
+  dbCreds: BranchDbCreds;
+  migrationsDir?: string;
+  seedFile?: string;
+  log?: (message: string) => void;
+  psqlExec?: PsqlExecutor;
+  listMigrationFiles?: (dir: string) => string[];
+}
+
+/**
+ * Explicitly replay every `supabase/migrations/*.sql` file (filename order)
+ * then `supabase/seed.sql` directly against the branch's own Postgres via
+ * `psql` — bypassing Supabase's own branch-creation migration-replay
+ * pipeline entirely.
+ *
+ * WHY: per the file-header EMPIRICAL FINDING, that automatic pipeline is NOT
+ * reliable for this project — it silently skipped the squash-baseline
+ * migration and failed the next one, leaving the branch with no application
+ * schema at all. Rather than trying to detect/repair that specific
+ * Supabase-owned failure mode, this function takes over entirely. `psql` is
+ * used (not the `supabase` CLI) because it is stateless — no `supabase
+ * link` session-state-doesn't-survive-fresh-runners issue (see the
+ * top-of-file MECHANISM note). Every migration/seed.sql statement in this
+ * repo already follows an idempotent pattern (`CREATE ... IF NOT EXISTS`,
+ * `DROP ... IF EXISTS` + `CREATE`, `ON CONFLICT DO NOTHING` — see
+ * `supabase/seed.sql`'s own contract §2), so replaying the FULL set
+ * unconditionally is safe even if Supabase's own (per-file-transaction,
+ * rolled-back-on-error) attempt already touched the branch.
+ *
+ * Fails LOUD (`ON_ERROR_STOP=1`, non-zero `psql` exit) on the first broken
+ * statement in either a migration file or seed.sql, naming the exact file —
+ * must never silently continue past a broken migration onto the next one.
+ */
+export async function applyMigrationsAndSeed(
+  opts: ApplyMigrationsOptions,
+): Promise<{ migrationsApplied: number }> {
+  const log = opts.log ?? console.log;
+  const exec = opts.psqlExec ?? defaultPsqlExecutor;
+  const list = opts.listMigrationFiles ?? defaultListMigrationFiles;
+  const migrationsDir = opts.migrationsDir ?? DEFAULT_MIGRATIONS_DIR;
+  const seedFile = opts.seedFile ?? DEFAULT_SEED_FILE;
+  const files = list(migrationsDir);
+
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    PGHOST: opts.dbCreds.host,
+    PGPORT: String(opts.dbCreds.port),
+    PGUSER: opts.dbCreds.user,
+    PGPASSWORD: opts.dbCreds.password,
+    PGDATABASE: 'postgres',
+    PGSSLMODE: 'require',
+  };
+
+  log(
+    `[e2e-ephemeral-branch] explicitly applying ${files.length} migration ` +
+      `file(s) from ${migrationsDir} (bypassing Supabase's own ` +
+      'branch-creation replay — see file header EMPIRICAL FINDING)…',
+  );
+  for (const file of files) {
+    log(`[e2e-ephemeral-branch] migrate: ${file}`);
+    const result = exec(file, env);
+    if (!result.ok) {
+      throw new EphemeralBranchError(
+        `Explicit migration apply FAILED on ${file}: ${result.stderr}`,
+      );
+    }
+  }
+
+  log(`[e2e-ephemeral-branch] loading seed data: ${seedFile}`);
+  const seedResult = exec(seedFile, env);
+  if (!seedResult.ok) {
+    throw new EphemeralBranchError(
+      `Explicit seed.sql apply FAILED: ${seedResult.stderr}`,
+    );
+  }
+  log('[e2e-ephemeral-branch] migrations + seed.sql applied successfully.');
+  return { migrationsApplied: files.length };
+}
+
 export interface WaitReadyOptions {
   branchUrl: string;
   serviceRoleKey: string;
@@ -474,12 +766,21 @@ export interface WaitReadyOptions {
 
 /**
  * Poll the branch's PostgREST endpoint until `application_types` (seeded by
- * `supabase/seed.sql` §2·0, once, immediately after migrations replay) is
- * readable — see the file-header rationale for why this is the readiness
- * signal instead of an undocumented branch-status enum. Any non-2xx
- * response, an empty result, or a network error is treated as "not ready
- * yet" and retried until `timeoutMs` elapses, at which point it fails loud
- * with the last observed error (never hangs silently).
+ * `supabase/seed.sql` §2·0) is readable — see the file-header rationale for
+ * why this is the readiness signal instead of an undocumented branch-status
+ * enum. Any non-2xx response, an empty result, or a network error is
+ * treated as "not ready yet" and retried until `timeoutMs` elapses, at which
+ * point it fails loud with the last observed error (never hangs silently).
+ *
+ * ROLE CHANGE (post {128.10} EMPIRICAL FINDING): this now runs AFTER
+ * `applyMigrationsAndSeed` has explicitly written the schema/seed data
+ * itself, so it confirms that write took effect + PostgREST's schema cache
+ * picked it up — NOT Supabase's own (empirically unreliable) migration
+ * replay. The default timeout is shrunk accordingly: the S460 failure mode
+ * (12 minutes of PGRST002) was Supabase's replay NEVER finishing, not slow
+ * PostgREST cache reload — a genuinely fresh schema-cache pickup is a matter
+ * of seconds, so a much shorter window now fails fast and loud instead of
+ * masking a real regression behind a long, hopeful spin.
  */
 export async function waitForBranchReady(
   opts: WaitReadyOptions,
@@ -489,8 +790,8 @@ export async function waitForBranchReady(
   const now = opts.nowFn ?? Date.now;
   const sleep =
     opts.sleepFn ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
-  const timeoutMs = opts.timeoutMs ?? 12 * 60 * 1000;
-  const intervalMs = opts.intervalMs ?? 15_000;
+  const timeoutMs = opts.timeoutMs ?? 3 * 60 * 1000;
+  const intervalMs = opts.intervalMs ?? 10_000;
   const deadline = now() + timeoutMs;
   const url = `${opts.branchUrl.replace(/\/$/, '')}/rest/v1/${READY_CHECK_TABLE}?select=id&limit=1`;
 
@@ -605,6 +906,23 @@ async function runCreate(): Promise<void> {
   writeOutput('branch-url', branchUrlFor(branch.ref));
 }
 
+async function runWaitComputeHealthy(): Promise<void> {
+  const token = requireEnv('SUPABASE_ACCESS_TOKEN');
+  const platformProjectRef = requireEnv('PLATFORM_PROJECT_REF');
+  const branchRef = requireArg('branch-ref');
+  await waitForBranchComputeHealthy({ platformProjectRef, branchRef, token });
+}
+
+async function runMigrate(): Promise<void> {
+  const token = requireEnv('SUPABASE_ACCESS_TOKEN');
+  const branchId = requireArg('branch-id');
+  const dbCreds = await fetchBranchDbCreds(branchId, { token });
+  // Mask the password THE INSTANT it's in hand — before any further log
+  // line (including this process's own) can echo it in plain text.
+  console.log(`::add-mask::${dbCreds.password}`);
+  await applyMigrationsAndSeed({ dbCreds });
+}
+
 async function runWaitReady(): Promise<void> {
   const branchUrl = requireArg('branch-url');
   const serviceRoleKey = requireEnv('BRANCH_SERVICE_ROLE_KEY');
@@ -640,6 +958,10 @@ async function main(): Promise<void> {
       return runSweep();
     case 'create':
       return runCreate();
+    case 'wait-compute-healthy':
+      return runWaitComputeHealthy();
+    case 'migrate':
+      return runMigrate();
     case 'wait-ready':
       return runWaitReady();
     case 'keys':
@@ -648,7 +970,7 @@ async function main(): Promise<void> {
       return runDelete();
     default:
       throw new EphemeralBranchError(
-        `Unknown command "${command}". Expected one of: sweep, create, wait-ready, keys, delete.`,
+        `Unknown command "${command}". Expected one of: sweep, create, wait-compute-healthy, migrate, wait-ready, keys, delete.`,
       );
   }
 }
