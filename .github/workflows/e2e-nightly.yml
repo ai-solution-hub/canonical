@@ -136,20 +136,30 @@ jobs:
         # branch that survived a crashed/cancelled prior run cannot outlive
         # this sweep + one more nightly cycle.
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          # S460 empirical findings (run 29127057445 + local probe): (a) the
+          # standard PAT 403s on branch endpoints — branch ops need the
+          # experimental-API PAT; (b) branches live on the PARENT project
+          # (the staging ref is ITSELF a branch and refuses branch ops), so
+          # these steps override PLATFORM_PROJECT_REF with the parent ref.
+          SUPABASE_ACCESS_TOKEN:
+            ${{ secrets.SUPABASE_ACCESS_TOKEN_EXPERIMENTAL }}
+          PLATFORM_PROJECT_REF: ${{ secrets.SUPABASE_BRANCH_PARENT_REF }}
         run: bun run scripts/e2e-ephemeral-branch.ts sweep
 
       - name: Create this run's ephemeral branch
         id: create
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_ACCESS_TOKEN:
+            ${{ secrets.SUPABASE_ACCESS_TOKEN_EXPERIMENTAL }}
+          PLATFORM_PROJECT_REF: ${{ secrets.SUPABASE_BRANCH_PARENT_REF }}
           RUN_ID: ${{ github.run_id }}
         run: bun run scripts/e2e-ephemeral-branch.ts create --run-id="$RUN_ID"
 
       - name: Fetch branch API keys
         id: keys
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_ACCESS_TOKEN:
+            ${{ secrets.SUPABASE_ACCESS_TOKEN_EXPERIMENTAL }}
           BRANCH_REF: ${{ steps.create.outputs.branch-ref }}
         run:
           bun run scripts/e2e-ephemeral-branch.ts keys
@@ -518,7 +528,8 @@ jobs:
         # provision-branch never got far enough to create a branch,
         # `branch-ref` is empty and the script no-ops cleanly.
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_ACCESS_TOKEN:
+            ${{ secrets.SUPABASE_ACCESS_TOKEN_EXPERIMENTAL }}
           BRANCH_REF: ${{ needs.provision-branch.outputs.branch-ref }}
         run:
           bun run scripts/e2e-ephemeral-branch.ts delete
