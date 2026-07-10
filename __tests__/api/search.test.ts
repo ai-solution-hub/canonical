@@ -213,4 +213,55 @@ describe('POST /api/search', () => {
       limit_count: 10,
     });
   });
+
+  // ID-144.6 (OBS-4 fix): kind/domain/subtopic/dateFrom/dateTo now thread
+  // through to the hybrid_search RPC as filter_* params.
+  it('forwards all 5 filter params to the hybrid_search RPC when supplied', async () => {
+    mockSupabase.rpc.mockResolvedValueOnce({ data: [], error: null });
+
+    const req = createTestRequest('/api/search', {
+      method: 'POST',
+      body: {
+        query: 'test',
+        kind: 'document',
+        domain: 'finance',
+        subtopic: 'invoicing',
+        dateFrom: '2026-01-01T00:00:00.000Z',
+        dateTo: '2026-06-30T23:59:59.999Z',
+      },
+    });
+
+    await POST(req);
+
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('hybrid_search', {
+      query_embedding: expect.any(String),
+      query_text: 'test',
+      similarity_threshold: 0.35,
+      limit_count: 20,
+      filter_kind: 'document',
+      filter_domain: 'finance',
+      filter_subtopic: 'invoicing',
+      filter_date_from: '2026-01-01T00:00:00.000Z',
+      filter_date_to: '2026-06-30T23:59:59.999Z',
+    });
+  });
+
+  it('passes filter_* as undefined (never null) when the 5 fields are omitted', async () => {
+    mockSupabase.rpc.mockResolvedValueOnce({ data: [], error: null });
+
+    const req = createTestRequest('/api/search', {
+      method: 'POST',
+      body: { query: 'test' },
+    });
+
+    await POST(req);
+
+    const rpcCall = mockSupabase.rpc.mock.calls[0];
+    const rpcArgs = rpcCall[1];
+    expect(rpcArgs.filter_kind).toBeUndefined();
+    expect(rpcArgs.filter_domain).toBeUndefined();
+    expect(rpcArgs.filter_subtopic).toBeUndefined();
+    expect(rpcArgs.filter_date_from).toBeUndefined();
+    expect(rpcArgs.filter_date_to).toBeUndefined();
+  });
 });

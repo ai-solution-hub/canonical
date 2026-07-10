@@ -104,6 +104,74 @@ describe('SearchBodySchema', () => {
       expect(result.data.query).toBe('hello world');
     }
   });
+
+  // ID-144.6 (OBS-4 fix): kind/domain/subtopic/dateFrom/dateTo must be
+  // RETAINED (previously silently stripped by Zod, so BI-16 filters never
+  // reached the server).
+  it('should retain kind, domain, subtopic, dateFrom and dateTo when supplied', () => {
+    const result = SearchBodySchema.safeParse({
+      query: 'test',
+      kind: 'document',
+      domain: 'finance',
+      subtopic: 'invoicing',
+      dateFrom: '2026-01-01T00:00:00.000Z',
+      dateTo: '2026-06-30T23:59:59.999Z',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.kind).toBe('document');
+      expect(result.data.domain).toBe('finance');
+      expect(result.data.subtopic).toBe('invoicing');
+      expect(result.data.dateFrom).toBe('2026-01-01T00:00:00.000Z');
+      expect(result.data.dateTo).toBe('2026-06-30T23:59:59.999Z');
+    }
+  });
+
+  it('should accept all three kind enum values', () => {
+    for (const kind of ['answer', 'document', 'reference'] as const) {
+      const result = SearchBodySchema.safeParse({ query: 'test', kind });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.kind).toBe(kind);
+      }
+    }
+  });
+
+  it('should default kind/domain/subtopic/dateFrom/dateTo to undefined when omitted', () => {
+    const result = SearchBodySchema.safeParse({ query: 'test' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.kind).toBeUndefined();
+      expect(result.data.domain).toBeUndefined();
+      expect(result.data.subtopic).toBeUndefined();
+      expect(result.data.dateFrom).toBeUndefined();
+      expect(result.data.dateTo).toBeUndefined();
+    }
+  });
+
+  it('should reject an invalid kind enum value', () => {
+    const result = SearchBodySchema.safeParse({
+      query: 'test',
+      kind: 'bogus-kind',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject a non-ISO dateFrom', () => {
+    const result = SearchBodySchema.safeParse({
+      query: 'test',
+      dateFrom: '2026-01-01',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject a non-ISO dateTo', () => {
+    const result = SearchBodySchema.safeParse({
+      query: 'test',
+      dateTo: 'not-a-date',
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe('ReviewActionBodySchema', () => {

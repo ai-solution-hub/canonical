@@ -41,7 +41,17 @@ export const POST = withRequestContext(
       const raw = await request.json();
       const parsed = parseBody(SearchBodySchema, raw);
       if (!parsed.success) return parsed.response;
-      const { query, threshold, limit, workspace_id } = parsed.data;
+      const {
+        query,
+        threshold,
+        limit,
+        workspace_id,
+        kind,
+        domain,
+        subtopic,
+        dateFrom,
+        dateTo,
+      } = parsed.data;
 
       // 1. Generate embedding via shared helper (singleton OpenAI client)
       let embedding: number[];
@@ -96,6 +106,14 @@ export const POST = withRequestContext(
           limit_count: limit,
           // Omitted (undefined) opts into the RPC default profile.
           application_type: applicationType,
+          // ID-144.6 (OBS-4 fix, TECH §2.5): thread the 5 server-side filters
+          // through as filter_* — `?? undefined` keeps the JSON-RPC payload
+          // free of `null` (matches the application_type idiom above).
+          filter_kind: kind ?? undefined,
+          filter_domain: domain ?? undefined,
+          filter_subtopic: subtopic ?? undefined,
+          filter_date_from: dateFrom ?? undefined,
+          filter_date_to: dateTo ?? undefined,
         },
       );
 
