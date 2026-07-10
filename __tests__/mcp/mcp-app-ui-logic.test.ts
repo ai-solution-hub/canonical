@@ -27,7 +27,7 @@ interface ProcurementSummary {
 }
 
 // ---------------------------------------------------------------------------
-// Pure functions reimplemented from mcp-apps/bid-dashboard/src/app.ts
+// Pure functions reimplemented from mcp-apps/form-dashboard/src/app.ts
 // ---------------------------------------------------------------------------
 
 /** Determine urgency from days until deadline */
