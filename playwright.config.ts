@@ -25,17 +25,12 @@ const authFile = 'e2e/.auth/admin.json';
 // so it can still be run via an explicit invocation.
 const taskViewSpecs = '**/task-mirror-*.spec.ts';
 
-// Specs the Canonical browser projects skip. task-view is ALWAYS excluded (it
-// drives the vendored task-view patch-server, not Canonical surfaces). bid-* are
-// TEMPORARILY excluded only when E2E_EXCLUDE_BID is set (the nightly sets it):
-// every bid-* spec currently fails on `api.bid_questions` while id-130 {130.9}
-// regenerates the api.* views on staging, and — unskipped, with retries — the
-// resulting failures exhaust the nightly's 50-min budget so the rest of the
-// suite never runs. Remove E2E_EXCLUDE_BID from e2e-nightly.yml when {130.9} lands.
-const nightlyExcludedSpecs = [
-  taskViewSpecs,
-  ...(process.env.E2E_EXCLUDE_BID ? ['**/bid-*.spec.ts'] : []),
-];
+// Specs the Canonical browser projects skip. task-view is the only permanent
+// exclusion (it drives the vendored task-view patch-server, not Canonical
+// surfaces). The prior temporary bid-* exclusion (gated on id-130 {130.9}
+// regenerating the api.* views) was removed once {130.9} landed — bl-420
+// retired the gate; bid-*.spec.ts rejoins the nightly unconditionally.
+const nightlyExcludedSpecs = [taskViewSpecs];
 
 export default defineConfig({
   testDir: './e2e/tests',

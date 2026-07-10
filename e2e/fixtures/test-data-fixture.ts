@@ -388,44 +388,39 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       }
 
       // --- Procurement questions + responses (from centralised shapes) ---
-      // SKIPPED when E2E_EXCLUDE_BID is set: id-130 {130.5} dropped the
-      // api.bid_questions view ({130.9} regenerates the api.* views), so seeding
-      // bid_questions/bid_responses throws `Could not find the table
-      // 'api.bid_questions'` for EVERY worker — which masked the real residual of
-      // the non-bid specs (the spec-level `**/bid-*.spec.ts` exclusion alone did
-      // not, because this shared worker seed runs for every workerData spec).
-      // Gated in lockstep with playwright.config.ts. Remove — and re-thread onto
-      // the form_questions model — when {130.9} lands. The downstream cleanup is
-      // already guarded by `responseIds.length > 0`, so empty arrays are safe.
-      let questionIds: string[] = [];
-      let responseIds: string[] = [];
-      if (!process.env.E2E_EXCLUDE_BID) {
-        const questions = CORE_BID_QUESTIONS.map((q) => ({
-          ...q,
-          project_id: procurementId,
-        }));
+      // id-130 renamed the bid-prefixed tables onto the form-domain model:
+      // `bid_questions` → `form_questions` (with `project_id` → `workspace_id`)
+      // and `bid_responses` → `form_responses`. {130.9} regenerated the api.*
+      // views on top of the renamed tables, so this seed runs unconditionally
+      // for every worker again (bl-420 retired the temporary env-gated skip
+      // that covered this block while the rename was in flight). The
+      // downstream cleanup is guarded by `responseIds.length > 0`, so empty
+      // arrays remain safe if seeding is ever skipped for another reason.
+      const questions = CORE_BID_QUESTIONS.map((q) => ({
+        ...q,
+        workspace_id: procurementId,
+      }));
 
-        const { data: qs } = await supabase
-          .from('bid_questions')
-          .insert(questions)
-          .select('id')
-          .throwOnError();
+      const { data: qs } = await supabase
+        .from('form_questions')
+        .insert(questions)
+        .select('id')
+        .throwOnError();
 
-        questionIds = (qs ?? []).map((q) => q.id);
+      const questionIds: string[] = (qs ?? []).map((q) => q.id);
 
-        const responses = CORE_BID_RESPONSES.map((r, i) => ({
-          ...r,
-          question_id: questionIds[i],
-        }));
+      const responses = CORE_BID_RESPONSES.map((r, i) => ({
+        ...r,
+        question_id: questionIds[i],
+      }));
 
-        const { data: resps } = await supabase
-          .from('bid_responses')
-          .insert(responses)
-          .select('id')
-          .throwOnError();
+      const { data: resps } = await supabase
+        .from('form_responses')
+        .insert(responses)
+        .select('id')
+        .throwOnError();
 
-        responseIds = (resps ?? []).map((r) => r.id);
-      }
+      const responseIds: string[] = (resps ?? []).map((r) => r.id);
 
       // --- Advance bid to drafting state ---
       //
@@ -659,7 +654,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
 
       // 2. Procurement responses (safety net — CASCADE from workspace should handle)
       if (responseIds.length > 0) {
-        await supabase.from('bid_responses').delete().in('id', responseIds);
+        await supabase.from('form_responses').delete().in('id', responseIds);
       }
 
       // 3. Entity mentions and relationships (FK -> source_documents)
