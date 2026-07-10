@@ -240,6 +240,48 @@ describe('SiteHeader', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('fails closed: hides edit/admin-gated entries everywhere during the role-loading window, keeps role-uniform entries visible', async () => {
+    // Pins today's fail-closed contract: while useUserRole is still loading,
+    // canEdit/canAdmin default to false, so any visibility:'edit'|'admin'
+    // entry stays hidden rather than leaking before the role resolves. A
+    // future change to useUserRole's loading-state defaults must not
+    // silently widen this window.
+    const user = userEvent.setup();
+    mockUserRole.role = null;
+    mockUserRole.loading = true;
+    mockUserRole.canEdit = false;
+    mockUserRole.canAdmin = false;
+    render(<SiteHeader />);
+
+    const appsContent = await openDesktopZone(user, 'Applications');
+    expect(within(appsContent).getByText('Procurement')).toBeInTheDocument();
+    expect(
+      within(appsContent).queryByText('Intelligence'),
+    ).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
+
+    const govContent = await openDesktopZone(user, 'Governance');
+    expect(within(govContent).getByText('Change reports')).toBeInTheDocument();
+    expect(within(govContent).getByText('Activity')).toBeInTheDocument();
+    expect(within(govContent).queryByText('Review')).not.toBeInTheDocument();
+    expect(within(govContent).queryByText('Coverage')).not.toBeInTheDocument();
+    expect(
+      within(govContent).queryByText('Provenance'),
+    ).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
+
+    await user.click(screen.getByLabelText('Open navigation menu'));
+    const mobileNav = screen.getByLabelText('Mobile navigation');
+    expect(within(mobileNav).getByText('Procurement')).toBeInTheDocument();
+    expect(within(mobileNav).getByText('Change reports')).toBeInTheDocument();
+    expect(
+      within(mobileNav).queryByText('Intelligence'),
+    ).not.toBeInTheDocument();
+    expect(within(mobileNav).queryByText('Review')).not.toBeInTheDocument();
+    expect(within(mobileNav).queryByText('Coverage')).not.toBeInTheDocument();
+    expect(within(mobileNav).queryByText('Provenance')).not.toBeInTheDocument();
+  });
+
   // ── BI-23/BI-24: active leaf + zone affordance ──
 
   it('marks the active leaf with aria-current and its zone header with a non-colour affordance', async () => {
