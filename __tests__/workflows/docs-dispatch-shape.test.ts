@@ -58,13 +58,16 @@ describe('docs-dispatch.yml workflow shape (ID-68.26 / TECH PC-27)', () => {
     expect(Object.keys(jobs)).toEqual(['dispatch']);
   });
 
-  it('triggers on pull_request closed against staging (only)', () => {
+  it('triggers on pull_request closed against main or staging', () => {
     expect(Object.keys(on)).toEqual(['pull_request']);
     const pr = on.pull_request as { types?: string[]; branches?: string[] };
     expect(pr.types).toEqual(['closed']);
-    // Staging-first cutover: feature PRs land on `staging` first, so the
-    // docs-dispatch bridge fires on merges to staging (was `main`).
-    expect(pr.branches).toEqual(['staging']);
+    // bl-437 (S460): PR #100's staging-only filter left the bridge
+    // structurally dead — zero PRs ever close against staging (deploy-only
+    // branch, synced by direct push). Additive [main, staging] so the
+    // bridge fires on the real merge target AND still works if a
+    // staging-first PR flow is ever adopted.
+    expect(pr.branches).toEqual(['main', 'staging']);
   });
 
   it('filters the job to merged==true (closed-without-merge must not dispatch)', () => {
