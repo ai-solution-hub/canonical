@@ -21,6 +21,9 @@ import {
   createEphemeralBranch,
   deleteBranch,
   fetchBranchApiKeys,
+  fetchBranchDbCreds,
+  waitForBranchComputeHealthy,
+  applyMigrationsAndSeed,
   waitForBranchReady,
   EphemeralBranchError,
 } from '@/scripts/e2e-ephemeral-branch';
@@ -140,6 +143,18 @@ describe('normaliseBranchRecord', () => {
 
   it('throws on a non-object record', () => {
     expect(() => normaliseBranchRecord(null)).toThrow(EphemeralBranchError);
+  });
+
+  it('extracts previewProjectStatus (compute health) distinct from status (migration-replay outcome)', () => {
+    const b = normaliseBranchRecord({
+      id: 'branch-uuid-2',
+      project_ref: 'ref2',
+      name: 'e2e-nightly-r2',
+      status: 'MIGRATIONS_FAILED',
+      preview_project_status: 'ACTIVE_HEALTHY',
+    });
+    expect(b.status).toBe('MIGRATIONS_FAILED');
+    expect(b.previewProjectStatus).toBe('ACTIVE_HEALTHY');
   });
 });
 
@@ -552,6 +567,262 @@ describe('fetchBranchApiKeys', () => {
     expect(calls[0].url).toBe(
       'https://api.supabase.com/v1/projects/branchref/api-keys?reveal=true',
     );
+  });
+});
+
+describe('waitForBranchComputeHealthy — compute-readiness gate (distinct from migration-replay status)', () => {
+  it('resolves as soon as THIS branch reaches previewProjectStatus ACTIVE_HEALTHY', async () => {
+    const { fetchImpl } = fakeFetch([
+      {
+        ok: true,
+        json: [
+          {
+            id: 'a',
+            project_ref: 'branchref',
+            name: 'e2e-nightly-r1',
+            status: 'CREATING_PROJECT',
+            preview_project_status: 'ACTIVE_HEALTHY',
+          },
+        ],
+      },
+    ]);
+    await expect(
+      waitForBranchComputeHealthy({
+        platformProjectRef: 'parentref',
+        branchRef: 'branchref',
+        token: 't',
+        fetchImpl,
+        log: silent,
+        sleepFn: vi.fn().mockResolvedValue(undefined),
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('retries while the branch is absent or not yet ACTIVE_HEALTHY, even if status shows MIGRATIONS_FAILED', async () => {
+    const { fetchImpl, calls } = fakeFetch([
+      { ok: true, json: [] }, // branch not listed yet
+      {
+        ok: true,
+        json: [
+          {
+            id: 'a',
+            project_ref: 'branchref',
+            name: 'e2e-nightly-r1',
+            status: 'MIGRATIONS_FAILED', // informational only — never gated on
+            preview_project_status: 'COMING_UP',
+          },
+        ],
+      },
+      {
+        ok: true,
+        json: [
+          {
+            id: 'a',
+            project_ref: 'branchref',
+            name: 'e2e-nightly-r1',
+            status: 'MIGRATIONS_FAILED',
+            preview_project_status: 'ACTIVE_HEALTHY',
+          },
+        ],
+      },
+    ]);
+    const sleepFn = vi.fn().mockResolvedValue(undefined);
+    await waitForBranchComputeHealthy({
+      platformProjectRef: 'parentref',
+      branchRef: 'branchref',
+      token: 't',
+      fetchImpl,
+      log: silent,
+      sleepFn,
+    });
+    expect(calls).toHaveLength(3);
+    expect(sleepFn).toHaveBeenCalledTimes(2);
+  });
+
+  it('times out with a diagnostic error if compute never becomes healthy', async () => {
+    const { fetchImpl } = fakeFetch([
+      {
+        ok: true,
+        json: [
+          {
+            id: 'a',
+            project_ref: 'branchref',
+            name: 'e2e-nightly-r1',
+            preview_project_status: 'COMING_UP',
+          },
+        ],
+      },
+    ]);
+    let now = 0;
+    await expect(
+      waitForBranchComputeHealthy({
+        platformProjectRef: 'parentref',
+        branchRef: 'branchref',
+        token: 't',
+        fetchImpl,
+        log: silent,
+        timeoutMs: 100,
+        intervalMs: 10,
+        nowFn: () => {
+          now += 40;
+          return now;
+        },
+        sleepFn: vi.fn().mockResolvedValue(undefined),
+      }),
+    ).rejects.toThrow(/did not become healthy/);
+  });
+});
+
+describe('fetchBranchDbCreds', () => {
+  it('extracts host/port/user/password from the single-branch endpoint', async () => {
+    const { fetchImpl, calls } = fakeFetch([
+      {
+        ok: true,
+        json: {
+          ref: 'branchref',
+          db_host: 'db.branchref.supabase.co',
+          db_port: 5432,
+          db_user: 'postgres',
+          db_pass: 'super-secret-password',
+        },
+      },
+    ]);
+    const creds = await fetchBranchDbCreds('branch-id-1', {
+      token: 't',
+      fetchImpl,
+      log: silent,
+    });
+    expect(creds).toEqual({
+      host: 'db.branchref.supabase.co',
+      port: 5432,
+      user: 'postgres',
+      password: 'super-secret-password',
+    });
+    expect(calls[0].url).toBe(
+      'https://api.supabase.com/v1/branches/branch-id-1',
+    );
+  });
+
+  it('defaults user to postgres and port to 5432 when absent', async () => {
+    const { fetchImpl } = fakeFetch([
+      { ok: true, json: { db_host: 'host', db_pass: 'pw' } },
+    ]);
+    const creds = await fetchBranchDbCreds('id', {
+      token: 't',
+      fetchImpl,
+      log: silent,
+    });
+    expect(creds).toEqual({
+      host: 'host',
+      port: 5432,
+      user: 'postgres',
+      password: 'pw',
+    });
+  });
+
+  it('throws WITHOUT echoing the response body on a non-2xx (may contain credentials)', async () => {
+    const { fetchImpl } = fakeFetch([
+      { ok: false, status: 500, text: 'db_pass: leaked-secret-value' },
+    ]);
+    await expect(
+      fetchBranchDbCreds('id', {
+        token: 't',
+        fetchImpl,
+        log: silent,
+        sleepFn: vi.fn().mockResolvedValue(undefined),
+      }),
+    ).rejects.toSatisfy((err: unknown) => {
+      expect(err).toBeInstanceOf(EphemeralBranchError);
+      expect((err as Error).message).not.toMatch(/leaked-secret-value/);
+      return true;
+    });
+  });
+
+  it('throws with only the key names (not values) when db_host/db_pass are missing', async () => {
+    const { fetchImpl } = fakeFetch([
+      { ok: true, json: { some_other_field: 'super-secret-should-not-leak' } },
+    ]);
+    await expect(
+      fetchBranchDbCreds('id', { token: 't', fetchImpl, log: silent }),
+    ).rejects.toSatisfy((err: unknown) => {
+      expect(err).toBeInstanceOf(EphemeralBranchError);
+      const message = (err as Error).message;
+      expect(message).toMatch(/some_other_field/);
+      expect(message).not.toMatch(/super-secret-should-not-leak/);
+      return true;
+    });
+  });
+});
+
+describe('applyMigrationsAndSeed — explicit migrate+seed via psql (bypasses Supabase auto-replay)', () => {
+  const dbCreds = { host: 'h', port: 5432, user: 'postgres', password: 'pw' };
+
+  it('applies every migration file in sorted order, then seed.sql, and passes the DB creds as env', async () => {
+    const calls: Array<{ file: string; env: NodeJS.ProcessEnv }> = [];
+    const psqlExec = vi.fn((file: string, env: NodeJS.ProcessEnv) => {
+      calls.push({ file, env });
+      return { ok: true, stderr: '' };
+    });
+    const result = await applyMigrationsAndSeed({
+      dbCreds,
+      log: silent,
+      psqlExec,
+      listMigrationFiles: () => [
+        'supabase/migrations/20260101_a.sql',
+        'supabase/migrations/20260102_b.sql',
+      ],
+      seedFile: 'supabase/seed.sql',
+    });
+    expect(result.migrationsApplied).toBe(2);
+    expect(calls.map((c) => c.file)).toEqual([
+      'supabase/migrations/20260101_a.sql',
+      'supabase/migrations/20260102_b.sql',
+      'supabase/seed.sql',
+    ]);
+    expect(calls[0].env.PGHOST).toBe('h');
+    expect(calls[0].env.PGPORT).toBe('5432');
+    expect(calls[0].env.PGUSER).toBe('postgres');
+    expect(calls[0].env.PGPASSWORD).toBe('pw');
+    expect(calls[0].env.PGSSLMODE).toBe('require');
+  });
+
+  it('fails loud naming the exact file on a broken migration, and does not run later files or seed', async () => {
+    const psqlExec = vi
+      .fn()
+      .mockReturnValueOnce({ ok: true, stderr: '' })
+      .mockReturnValueOnce({
+        ok: false,
+        stderr: 'relation "public.change_reports" does not exist',
+      });
+    await expect(
+      applyMigrationsAndSeed({
+        dbCreds,
+        log: silent,
+        psqlExec,
+        listMigrationFiles: () => [
+          'supabase/migrations/20260617130000_squash_baseline.sql',
+          'supabase/migrations/20260619120000_rls_initplan_wrap_qa.sql',
+        ],
+      }),
+    ).rejects.toThrow(
+      /20260619120000_rls_initplan_wrap_qa\.sql.*change_reports/,
+    );
+    expect(psqlExec).toHaveBeenCalledTimes(2); // stopped — never reached seed.sql
+  });
+
+  it('fails loud when seed.sql itself is broken', async () => {
+    const psqlExec = vi
+      .fn()
+      .mockReturnValueOnce({ ok: true, stderr: '' })
+      .mockReturnValueOnce({ ok: false, stderr: 'syntax error' });
+    await expect(
+      applyMigrationsAndSeed({
+        dbCreds,
+        log: silent,
+        psqlExec,
+        listMigrationFiles: () => ['supabase/migrations/20260101_a.sql'],
+      }),
+    ).rejects.toThrow(/seed\.sql.*syntax error/);
   });
 });
 

@@ -99,16 +99,23 @@ env:
 jobs:
   # ───────────────────────────────────────────────────────────────────────────
   # provision-branch — {128.10}: sweep orphans, create this run's ephemeral
-  # Supabase branch, wait for migrations + seed.sql, seed E2E users. Every
-  # other job in this workflow targets the branch this job creates.
+  # Supabase branch, wait for its compute to come up, explicitly apply
+  # migrations + seed.sql ourselves (see the "Explicitly apply migrations"
+  # step below for why), confirm PostgREST picked it up, seed E2E users.
+  # Every other job in this workflow targets the branch this job creates.
   # ───────────────────────────────────────────────────────────────────────────
   provision-branch:
     name: Provision ephemeral Supabase branch
     runs-on: ubuntu-latest
     environment: Staging
-    # Cost/time analysis estimate: create(~5m) + migrate(~3-5m) + seed(~2m) ≈
-    # 10-12m. 20m leaves headroom for the sweep step + a slow migration apply.
-    timeout-minutes: 20
+    # {128.10} iteration 2: bumped from 20m. Supabase's own branch-creation
+    # migration replay was found empirically UNRELIABLE for this project (see
+    # scripts/e2e-ephemeral-branch.ts header EMPIRICAL FINDING) — this job now
+    # explicitly replays all ~83 migration files + seed.sql itself via `psql`
+    # rather than trusting that pipeline. Compute-wait is fast (~15s
+    # observed); the explicit migrate leg is the new time cost. 25m leaves
+    # headroom for the sweep step + a slower-than-observed migration apply.
+    timeout-minutes: 25
     permissions:
       contents: read
     outputs:
@@ -165,11 +172,67 @@ jobs:
           bun run scripts/e2e-ephemeral-branch.ts keys
           --branch-ref="$BRANCH_REF"
 
-      - name: Wait for branch schema + seed.sql readiness
-        # Polls the branch's own PostgREST endpoint for `application_types`
-        # (seeded once by supabase/seed.sql immediately after migrations
-        # replay) rather than an undocumented branch-status enum — see
+      - name: Wait for branch compute to come healthy
+        # {128.10} iteration 2: polls the Management API (NOT PostgREST) for
+        # this branch's OWN compute health (`preview_project_status`) before
+        # trying to connect via psql below. EMPIRICAL FINDING
+        # (scripts/e2e-ephemeral-branch.ts header): this reaches
+        # ACTIVE_HEALTHY in ~15s regardless of whether Supabase's own
+        # migration replay succeeds — it is only a "can psql connect yet?"
+        # gate, never a proxy for schema/seed readiness.
+        env:
+          SUPABASE_ACCESS_TOKEN:
+            ${{ secrets.SUPABASE_ACCESS_TOKEN_EXPERIMENTAL }}
+          PLATFORM_PROJECT_REF: ${{ secrets.SUPABASE_BRANCH_PARENT_REF }}
+          BRANCH_REF: ${{ steps.create.outputs.branch-ref }}
+        run:
+          bun run scripts/e2e-ephemeral-branch.ts wait-compute-healthy
+          --branch-ref="$BRANCH_REF"
+
+      - name: Ensure psql is available
+        # ubuntu-latest images ship postgresql-client, but install
+        # defensively rather than assume — cheap when already present.
+        run:
+          command -v psql || (sudo apt-get update && sudo apt-get install -y
+          --no-install-recommends postgresql-client)
+
+      - name: Explicitly apply migrations + seed.sql to the branch
+        # {128.10} iteration 2: a manual Management-API probe (2026-07-10,
+        # branch doziocclnhpadoevfmwf — see scripts/e2e-ephemeral-branch.ts
+        # header EMPIRICAL FINDING) found Supabase's OWN branch-creation
+        # migration replay UNRELIABLE for this project: it silently skipped
+        # `20260617130000_squash_baseline.sql` and failed the very next
+        # migration, leaving the branch with NO application schema
+        # (`status: MIGRATIONS_FAILED`) — the root cause of the S460
+        # live-proof's 12-minute PGRST002 hang (run 29127594878). This step
+        # bypasses that pipeline entirely: connects directly via `psql`
+        # (stateless — no `supabase link` session-state issue) using this
+        # run's branch DB credentials (fetched fresh from the Management API
+        # inside the script — masked via `::add-mask::` the instant they're
+        # read, never written to a log line or `$GITHUB_OUTPUT`) and replays
+        # every `supabase/migrations/*.sql` file in order, then
+        # `supabase/seed.sql`. Fails LOUD (non-zero `psql` exit,
+        # `ON_ERROR_STOP=1`) naming the exact file on the first broken
+        # statement.
+        env:
+          SUPABASE_ACCESS_TOKEN:
+            ${{ secrets.SUPABASE_ACCESS_TOKEN_EXPERIMENTAL }}
+          BRANCH_ID: ${{ steps.create.outputs.branch-id }}
+        run:
+          bun run scripts/e2e-ephemeral-branch.ts migrate
+          --branch-id="$BRANCH_ID"
+
+      - name: Confirm PostgREST reflects the applied schema + seed
+        # {128.10} iteration 2 ROLE CHANGE: this now confirms the EXPLICIT
+        # apply above took effect + PostgREST's schema cache picked it up —
+        # not Supabase's own migration replay (bypassed above). Polls the
+        # branch's own PostgREST endpoint for `application_types` rather than
+        # an undocumented branch-status enum — see
         # scripts/e2e-ephemeral-branch.ts header for the full rationale.
+        # Timeout is deliberately short (3m default): a genuinely fresh
+        # schema-cache pickup is a matter of seconds, so a long spin here
+        # would now mask a real regression rather than tolerate a slow (but
+        # real) automatic replay.
         env:
           BRANCH_SERVICE_ROLE_KEY: ${{ steps.keys.outputs.service-role-key }}
           BRANCH_URL: ${{ steps.create.outputs.branch-url }}
@@ -178,10 +241,11 @@ jobs:
           --branch-url="$BRANCH_URL"
 
       - name: Seed E2E users on the branch
-        # application_types / taxonomy / governance reference data is already
-        # seeded automatically by supabase/seed.sql (previous step verified
-        # this) — this only needs to provision auth.users + user_roles, which
-        # seed.sql explicitly defers to this script (§5 of its contract).
+        # application_types / taxonomy / governance reference data was just
+        # explicitly applied (two steps above) and confirmed readable
+        # (previous step) — this only needs to provision auth.users +
+        # user_roles, which seed.sql explicitly defers to this script (§5 of
+        # its contract).
         env:
           SUPABASE_URL: ${{ steps.create.outputs.branch-url }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ steps.keys.outputs.service-role-key }}
