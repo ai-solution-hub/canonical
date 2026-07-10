@@ -108,6 +108,7 @@ _ENRICH_SOURCE_PATH = (
 
 _SD_ID = "11111111-1111-4111-8111-111111111111"
 _RI_ID = "22222222-2222-4222-8222-222222222222"
+_WS_ID = "33333333-3333-4333-8333-333333333333"
 
 
 # ── Test doubles ─────────────────────────────────────────────────────────
@@ -198,6 +199,52 @@ def _product_raw() -> ConceptRaw:
         source_documents=[{"id": _SD_ID, "filename": "01-company-overview.docx"}],
         q_a_pairs=[{"id": "qa-1", "question_text": "What is the LMS?"}],
         reference_items=[{"id": _RI_ID, "title": "LMS reference"}],
+    )
+
+
+def _won_bid_case_study_key() -> ConceptKey:
+    """{132.28}: the S443-amendment won-bid case_study locator — `workspace_id`
+    set, `scope_tag`/`domain`/`subtopic` unset (routes `_qa_pairs_anchor` to
+    `None`, per `_annotate_raw_with_anchors`'s existing case_study posture)."""
+    return ConceptKey(
+        rel_path="case-studies/acme-corp.md",
+        concept_type="case_study",
+        entity_id="Acme Corp",
+        workspace_id=_WS_ID,
+    )
+
+
+def _won_bid_raw() -> ConceptRaw:
+    """{132.28}: a won-bid case_study `ConceptRaw` — the `workspaces`/
+    `form_templates` buckets `{132.21}` shipped (buyer identity +
+    `outcome_notes`) plus a published `derived_from_form_response` q_a row
+    carrying `source_workspace_id` provenance."""
+    return ConceptRaw(
+        workspaces=[
+            {
+                "id": _WS_ID,
+                "name": "Acme Corp Workspace",
+                "domain_metadata": {"sector": "logistics"},
+            }
+        ],
+        form_templates=[
+            {
+                "id": "44444444-4444-4444-8444-444444444444",
+                "workspace_id": _WS_ID,
+                "outcome": "won",
+                "outcome_notes": "Won on technical differentiation and price.",
+                "issuing_organisation": "Acme Corp",
+            }
+        ],
+        q_a_pairs=[
+            {
+                "id": "qa-won-1",
+                "question_text": "What was our approach to data migration?",
+                "origin_kind": "derived_from_form_response",
+                "publication_status": "published",
+                "source_workspace_id": _WS_ID,
+            }
+        ],
     )
 
 
@@ -434,6 +481,42 @@ class TestCitationValidationProxy:
         assert annotated["qa_resource"] == build_q_a_pairs_query_uri(scope_tag="gdpr")
         assert build_q_a_pairs_query_uri(scope_tag="gdpr") in seen_anchors
 
+    def test_annotate_raw_with_anchors_surfaces_won_bid_workspaces_and_form_templates(
+        self,
+    ) -> None:
+        """{132.28} G-ENRICH-WONBID-WIRE: the won-bid case_study grain's
+        `ConceptRaw.workspaces`/`form_templates` buckets ({132.21}) must reach
+        the `read_concept_raw` payload verbatim — buyer identity
+        (`workspaces`/`form_templates.issuing_organisation`) +
+        `outcome_notes` + won-bid q_a provenance (`source_workspace_id`) all
+        need to ground the Pass-1 draft (PRODUCT.md S443 amendment BI-28).
+        Neither `workspaces` nor `form_templates` carries a BI-6/BI-8
+        `canonical://` anchor (no `resource_uri.py` builder exists for
+        either table; a case_study `ConceptKey` carries no
+        scope_tag/domain/subtopic locator so no BI-8 `qa_resource` is minted
+        either) — both buckets pass through unadorned, exactly like
+        `q_a_pairs`/`record_lifecycle`/`entity_mentions`/
+        `entity_relationships` already do."""
+        key = _won_bid_case_study_key()
+        raw = _won_bid_raw()
+        seen_anchors: "set[str]" = set()
+        annotated = enrich._annotate_raw_with_anchors(key, raw, seen_anchors)
+
+        assert annotated["workspaces"] == raw.workspaces
+        assert annotated["form_templates"] == raw.form_templates
+        assert annotated["form_templates"][0]["outcome_notes"] == (
+            "Won on technical differentiation and price."
+        )
+        assert annotated["q_a_pairs"] == raw.q_a_pairs
+        assert annotated["q_a_pairs"][0]["source_workspace_id"] == _WS_ID
+        # case_study carries no scope_tag/domain/subtopic locator -> no BI-8
+        # qa_resource minted; won-bid q_a stays surfaced-but-uncitable,
+        # matching the TECH.md citability grid (S443 amendment) — see the
+        # {132.28} journal for the citability-decision rationale.
+        assert "qa_resource" not in annotated
+        # workspaces/form_templates mint no canonical:// anchor of their own.
+        assert seen_anchors == set()
+
     def test_resource_from_raw_prefers_source_documents_over_reference_items(
         self,
     ) -> None:
@@ -596,6 +679,51 @@ class TestEnrichConceptEndToEnd:
         asyncio.run(_exercise())
 
         assert source.read_concept_calls == [key]  # exactly ONE DB read
+
+    def test_read_concept_raw_payload_for_won_bid_case_study_includes_buyer_outcome_notes_and_won_qa_provenance(
+        self,
+    ) -> None:
+        """{132.28} testStrategy, exercised through the actual `read_concept_
+        raw` tool-dispatch path (`_build_tool_executors`'s `_read_concept_
+        raw` closure, not just the `_annotate_raw_with_anchors` unit level):
+        a won-bid case_study concept's `read_concept_raw` tool RESULT — the
+        JSON text the model actually receives — carries buyer identity
+        (`workspaces`), `outcome_notes` (`form_templates`), and won-bid q_a
+        provenance (`source_workspace_id`/`origin_kind`) verbatim, so Pass-1
+        can ground its draft in them."""
+        key = _won_bid_case_study_key()
+        raw = _won_bid_raw()
+        source = _FakeSource(
+            catalogue=_catalogue_with_gdpr(key), raw_by_path={key.rel_path: raw}
+        )
+        # No source_documents/reference_items/qa_resource are minted for
+        # this won-bid raw (no BI-6/BI-8 anchor form exists), so the final
+        # envelope's only valid citation is a BI-9 concept cross-link.
+        final = _MockMessage(
+            [TextBlock(type="text", text=_envelope_json(citations=["topics/gdpr.md"]))],
+            stop_reason="end_turn",
+        )
+        client = _mock_client([_read_concept_raw_tool_turn(key), final])
+
+        async def _exercise():
+            with patch(
+                "scripts.cocoindex_pipeline.producer.enrich.anthropic.AsyncAnthropic",
+                return_value=client,
+            ):
+                return await enrich.enrich_concept(key, source)
+
+        asyncio.run(_exercise())
+
+        tool_result_content = client.messages.create.call_args_list[1].kwargs[
+            "messages"
+        ][-1]["content"][0]["content"]
+        payload = json.loads(tool_result_content)
+        assert payload["workspaces"][0]["id"] == _WS_ID
+        assert payload["form_templates"][0]["outcome_notes"] == (
+            "Won on technical differentiation and price."
+        )
+        assert payload["q_a_pairs"][0]["source_workspace_id"] == _WS_ID
+        assert payload["q_a_pairs"][0]["origin_kind"] == "derived_from_form_response"
 
     def test_unknown_ref_in_tool_call_returns_soft_error_not_a_raise(self) -> None:
         """A model typo (unknown ref) surfaces as a soft-error tool_result

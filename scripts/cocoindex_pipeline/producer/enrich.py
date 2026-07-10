@@ -206,7 +206,16 @@ def _annotate_raw_with_anchors(
     per-run provenance ledger `_validate_citation` checks membership
     against, so a citation the model COPIES from this tool result validates,
     but a well-formed, never-issued anchor the model INVENTS does not
-    (BI-17 — format alone is not proof of provenance)."""
+    (BI-17 — format alone is not proof of provenance).
+
+    `{132.28}` G-ENRICH-WONBID-WIRE: `workspaces`/`form_templates` are
+    populated ONLY by the won-bid case_study grain ({132.21}, S443
+    amendment) — buyer identity (`workspaces`) + `outcome_notes`
+    (`form_templates`) reach the model verbatim, unadorned like `q_a_pairs`/
+    `record_lifecycle`/`entity_mentions`/`entity_relationships` above: no
+    `resource_uri.py` builder exists for either table (TECH.md's case_study
+    "Anchors emitted" column names only `source_documents`/`reference_items`),
+    so no anchor is minted for them here."""
     payload: "dict[str, Any]" = {
         "source_documents": [
             _with_resource(row, _mint(build_source_document_uri(row["id"]), seen_anchors))
@@ -220,6 +229,8 @@ def _annotate_raw_with_anchors(
         "record_lifecycle": list(raw.record_lifecycle),
         "entity_mentions": list(raw.entity_mentions),
         "entity_relationships": list(raw.entity_relationships),
+        "workspaces": list(raw.workspaces),
+        "form_templates": list(raw.form_templates),
     }
     qa_resource = _qa_pairs_anchor(key)
     if qa_resource is not None:
