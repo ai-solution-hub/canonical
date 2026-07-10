@@ -1,9 +1,23 @@
 /**
  * WP2 Phase 1 spec — 8.0.2 MCP tool invocation
  *
- * IMPORTANT — corrected after Phase 2 adversarial review:
- *   - The real MCP tool name is `search_knowledge_base` (verified against
- *     `docs/generated/mcp-inventory.md`, tool #1). NOT `search_kb`.
+ * IMPORTANT — corrected after Phase 2 adversarial review, and again at S457
+ * (ID-128.15 Class 5):
+ *   - The tool name was `search_knowledge_base` at authoring time (verified
+ *     against the now-retired `docs/generated/mcp-inventory.md`, tool #1).
+ *     ID-71.7 (M27/M33/M37, `lib/mcp/tools/search.ts`) collapsed the former
+ *     search trio (`search_knowledge_base` / `search_qa_library` /
+ *     `search_content_chunks`) + `find_similar_items` into ONE `find` tool —
+ *     confirmed against `scripts/mcp-eval/fixtures.ts` (the canonical
+ *     tool/prompt list). Calling the retired name doesn't error at the
+ *     transport level: the MCP SDK's dispatcher returns a 200 JSON-RPC
+ *     envelope with `result.isError: true` (an "unknown tool" content
+ *     block) rather than a top-level `error` — every prior assertion in
+ *     this test (200, jsonrpc, id, no top-level error, non-empty content
+ *     array) passed against that unknown-tool response; only the sentinel-
+ *     substring assertion caught it, because the seeded row was never
+ *     actually queried. `query` maps 1:1 (item-granularity search is `find`'s
+ *     default branch — no `type`/`scope`/`granularity` needed for this test).
  *   - The transport endpoint is `/api/mcp/[transport]` (verified at
  *     `app/api/mcp/[transport]/route.ts`).
  *   - OAuth tokens are managed by Supabase Auth, NOT custom
@@ -16,11 +30,11 @@
  *   1. Pre-seed a deterministic `q_a_pairs` row (+ `record_embeddings` vector
  *      row) whose question_text contains a unique sentinel string (e.g.
  *      `[E2E-MCP-<workerPrefix>] Sentinel Pricing Policy <ts>`) — ID-131.19
- *      M6 retirement: `search_knowledge_base` calls the `hybrid_search` RPC,
- *      a polymorphic UNION over `record_embeddings` with NO `content_items`
- *      scan (never did, even before the table was DROPPED at M6), so the
- *      fixture targets `q_a_pairs` directly (see `beforeAll` below).
- *      The row MUST be embedded so `search_knowledge_base` can find it
+ *      M6 retirement: `search_knowledge_base` (now `find` — ID-71.7) calls
+ *      the `hybrid_search` RPC, a polymorphic UNION over `record_embeddings`
+ *      with NO `content_items` scan (never did, even before the table was
+ *      DROPPED at M6), so the fixture targets `q_a_pairs` directly (see
+ *      `beforeAll` below). The row MUST be embedded so `find` can find it
  *      semantically — Phase 3 implementer must either (a) populate the
  *      `embedding` column directly via service key with a deterministic
  *      vector that aligns with the sentinel query, OR (b) call the
@@ -42,7 +56,7 @@
  *        - Header: `Accept: application/json, text/event-stream`
  *        - Body: JSON-RPC 2.0 envelope:
  *          `{ jsonrpc: "2.0", id: 1, method: "tools/call",
- *             params: { name: "search_knowledge_base",
+ *             params: { name: "find",
  *                       arguments: { query: "<sentinel substring>",
  *                                    limit: 5 } } }`
  *   4. Parse the response. If the transport returns an SSE-style payload,
@@ -67,8 +81,8 @@
  *     returned the seeded row, not a cached/empty fixture).
  *   - Parse the `result.content[0].text` (or whichever entry is the
  *     structured payload — Phase 3 must verify against the
- *     `search_knowledge_base` tool's documented output schema in
- *     `lib/mcp/tools/search/`) and assert the seeded `q_a_pairs.id`
+ *     `find` tool's documented output schema in
+ *     `lib/mcp/tools/search.ts`) and assert the seeded `q_a_pairs.id`
  *     appears in an `items[].id`-style field. (Substring presence in the
  *     JSON blob is necessary; structured ID match is sufficient.)
  *   - Unauthenticated POST returns HTTP 401 AND the body parses as JSON
@@ -107,7 +121,7 @@
  *   - Unknown tool names silently return empty results instead of an
  *     error envelope (which would mask real bugs in valid-tool dispatch)
  *     → caught by the unknown-tool-name assertion.
- *   - `search_knowledge_base` is registered but the underlying handler
+ *   - `find` is registered but the underlying handler
  *     returns rows from the wrong RLS context (e.g. service-role bypass
  *     leak) → partially caught by the seeded-row presence (production
  *     row should be returned for admin); a stricter follow-up test belongs
@@ -151,7 +165,10 @@ const TEST_USER_EMAIL =
 const TEST_USER_PASSWORD = process.env.TEST_USER_1_PASSWORD || 'Welcome12391.';
 
 const MCP_ENDPOINT = '/api/mcp/mcp';
-const TOOL_NAME = 'search_knowledge_base';
+// ID-71.7 collapsed search_knowledge_base/search_qa_library/
+// search_content_chunks/find_similar_items into ONE `find` tool (S457
+// ID-128.15 Class 5 finding — see the header comment above).
+const TOOL_NAME = 'find';
 
 interface JsonRpcResponse {
   jsonrpc: string;
@@ -207,8 +224,9 @@ test.describe('8.0.2 MCP tool invocation', () => {
   let sentinel: string;
   let accessToken: string;
 
-  // ID-131.19 M6 retirement note (S450 GO tail): `search_knowledge_base`
-  // calls the `hybrid_search` RPC (lib/mcp/tools/search.ts), which has been a
+  // ID-131.19 M6 retirement note (S450 GO tail): `find` (formerly
+  // `search_knowledge_base`, collapsed at ID-71.7) calls the `hybrid_search`
+  // RPC (lib/mcp/tools/search.ts), which has been a
   // 4-arm polymorphic UNION over `record_embeddings` (source_documents /
   // content_chunks / q_a_pairs / reference_items) since ID-131.11 — it never
   // scanned `content_items` even before the table was DROPPED at M6. This

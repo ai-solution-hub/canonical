@@ -80,9 +80,12 @@ test.describe('Settings -- Team management', () => {
       main.getByRole('heading', { name: /team members/i }),
     ).toBeVisible({ timeout: 15000 });
 
-    // The desktop table renders a <select> (via SelectTrigger) for non-current-user rows.
-    // The current user row shows a static Badge instead. Find a SelectTrigger in the
-    // team table (desktop view) — its presence confirms a non-self user row.
+    // Each non-current-user row renders a role <Select> (via SelectTrigger,
+    // role="combobox") with an aria-label "Role for <name>"; the current
+    // user's own row shows a static Badge instead (components/settings/
+    // team-section.tsx TeamMemberRow — a responsive `role="list"` Card
+    // layout, NOT a <table>; the prior `main.locator('table')` scope never
+    // matched any element post-restructure, timing out regardless of data).
     //
     // Staging seeds three test users (admin/editor/viewer) via `bun run seed:e2e-users`
     // and the authenticated user for this test is admin, so at least two
@@ -90,8 +93,7 @@ test.describe('Settings -- Team management', () => {
     // `if (dropdownCount === 0) { test.skip(...) }` conditional silently passed
     // when the user_roles fixture drifted per `feedback_e2e_conditional_false_pass`
     // (test-philosophy §2.1).
-    const tableArea = main.locator('table');
-    const roleDropdowns = tableArea.locator('button[role="combobox"]');
+    const roleDropdowns = main.getByRole('combobox', { name: /^Role for /i });
     await expect(roleDropdowns.first()).toBeVisible({ timeout: 10000 });
 
     // Click the first role dropdown to open it
@@ -246,27 +248,32 @@ test.describe('Settings -- Content Organisation (Taxonomy)', () => {
     await expect(submitButton.first()).toBeVisible();
   });
 
-  test('tags tab loads with tag list', async ({ authenticatedPage: page }) => {
-    await page.goto('/settings?section=content-organisation&tab=tags');
+  test('tag morphology section loads with drift-review tabs', async ({
+    authenticatedPage: page,
+  }) => {
+    // The old "tags" tab under content-organisation (Tag Health / Duplicates /
+    // By Domain / All Tags) was retired in the ID-131-wave restructure —
+    // content-organisation-section.tsx's Tabs now render only "categories"
+    // and "depth-levels" (`tab=tags` is not a recognised value and falls back
+    // to the default tab). General tag management was replaced by the
+    // narrower admin/editor-only "Tag Morphology Drift" review console
+    // (components/settings/tag-morphology-section.tsx, its own top-level
+    // sidebar section — settings-sidebar.tsx `tag-morphology`), which lists
+    // `tag_morphology_drift_flags` filtered by decision (Pending/Accepted/
+    // Overrides/Dismissed/All).
+    await page.goto('/settings?section=tag-morphology');
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
       timeout: 10000,
     });
 
     const main = page.locator('main');
+    await expect(
+      main.getByRole('heading', { name: 'Tag Morphology Drift' }),
+    ).toBeVisible({ timeout: 15000 });
 
-    // Wait for content to load (either tags or empty state)
-    // The tags tab should be active
-    await expect(main.getByText(/tags/i).first()).toBeVisible({
-      timeout: 15000,
-    });
-
-    // The tags section renders sub-tabs: "Duplicates", "By Domain", "All Tags".
-    // Verify the tag health stats loaded (confirms tags data fetched)
-    // and that the sub-tab navigation is rendered.
-    await expect(main.getByText('Tag Health')).toBeVisible({ timeout: 15000 });
-
-    // At least one sub-tab should be visible (the section uses its own internal Tabs)
-    await expect(main.getByRole('tab', { name: /All Tags/ })).toBeVisible();
+    // The decision-filter tabs confirm the section's own internal Tabs render.
+    await expect(main.getByRole('tab', { name: 'Pending' })).toBeVisible();
+    await expect(main.getByRole('tab', { name: 'All' })).toBeVisible();
   });
 });
 
@@ -316,7 +323,11 @@ test.describe('Settings -- Quality Review (Governance)', () => {
     await expect(seededConfigRow).toHaveCount(1);
 
     // The seeded row's domain label is rendered verbatim (hard equality).
-    await expect(seededConfigRow.locator('.text-sm.font-medium')).toHaveText(
+    // Scoped to `p` — the row's "Edit" Button also carries the shared
+    // `text-sm font-medium` utility classes (components/settings/
+    // governance-section.tsx), so the untyped class-only locator matched
+    // both the domain <p> and the Edit <button> (strict-mode violation).
+    await expect(seededConfigRow.locator('p.text-sm.font-medium')).toHaveText(
       SEEDED_GOVERNANCE_DOMAIN,
     );
 
@@ -357,7 +368,10 @@ test.describe('Settings -- Permission gating for mutations', () => {
     await expect(
       settingsNav.getByText('Content Organisation'),
     ).not.toBeVisible();
-    await expect(settingsNav.getByText('Activity')).not.toBeVisible();
+    // 'Activity' was removed from the settings sidebar (replaced by the
+    // /provenance route's audit tab, commit f5a1ff05) — 'Provenance' is the
+    // current admin-only system-group section this gating check exercises.
+    await expect(settingsNav.getByText('Provenance')).not.toBeVisible();
   });
 
   test('viewer sees only personal sections in settings', async ({
@@ -380,7 +394,7 @@ test.describe('Settings -- Permission gating for mutations', () => {
     await expect(
       settingsNav.getByText('Content Organisation'),
     ).not.toBeVisible();
-    await expect(settingsNav.getByText('Activity')).not.toBeVisible();
+    await expect(settingsNav.getByText('Provenance')).not.toBeVisible();
   });
 
   test('admin sees all settings sections', async ({
@@ -400,9 +414,12 @@ test.describe('Settings -- Permission gating for mutations', () => {
     // Content management sections (admin only)
     await expect(settingsNav.getByText('Content Organisation')).toBeVisible();
 
-    // System sections (admin only)
+    // System sections (admin only). 'Activity' was removed from the settings
+    // sidebar (replaced by the /provenance route's audit tab, commit
+    // f5a1ff05) — the stale 'Activity' assertion timed out unconditionally
+    // (S457 Class 4). 'Provenance' is the current admin-only replacement.
     await expect(settingsNav.getByText('Team')).toBeVisible();
     await expect(settingsNav.getByText('Quality Review')).toBeVisible();
-    await expect(settingsNav.getByText('Activity')).toBeVisible();
+    await expect(settingsNav.getByText('Provenance')).toBeVisible();
   });
 });
