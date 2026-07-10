@@ -61,6 +61,8 @@ from typing import Any, Callable
 # .flow`, both are safe at module top rather than lazily inside a function
 # (ID-138 {138.14} P5 pull-sync — TECH.md §2.3 R(c) / §2.6 R(ops)).
 import asyncpg
+from tenacity import Retrying, before_sleep_log, stop_after_attempt, wait_exponential
+
 from scripts.cocoindex_pipeline.writer_fence import WriterFenceBusyError, writer_fence
 
 # `scripts.cocoindex_pipeline.extract` is the single in-house Trafilatura
@@ -596,16 +598,62 @@ def _resolve_pull_sync_target(source_root: str, logical_path: str) -> Path | Non
     return Path(target_real)
 
 
+# ID-141 (bl-399 / subo-id138 S446 {138.14}) — retry-with-backoff download
+# policy. Module-level constants (mirrors `extraction.py`'s
+# `_ANTHROPIC_RETRY_WAIT_SECONDS_*` / `_ANTHROPIC_RETRY_TOTAL_ATTEMPTS`) so
+# unit tests can monkeypatch the wait to zero (avoids a real backoff ladder
+# slowing CI); production defaults: 0.5 s base, 5 s cap, 2x exponent.
+_PULL_SYNC_DOWNLOAD_RETRY_WAIT_SECONDS_MIN: float = 0.5
+_PULL_SYNC_DOWNLOAD_RETRY_WAIT_SECONDS_MAX: float = 5.0
+# Total attempt cap — 1 initial + 2 retries (bounded per the ID-141 brief).
+_PULL_SYNC_DOWNLOAD_RETRY_TOTAL_ATTEMPTS: int = 3
+
+
+def _download_with_retry(
+    download: Callable[[str], bytes], storage_path: str
+) -> bytes:
+    """Call `download(storage_path)`, retrying up to
+    `_PULL_SYNC_DOWNLOAD_RETRY_TOTAL_ATTEMPTS` times total with exponential
+    backoff on ANY exception (ID-141; mirrors `extraction.py`'s
+    `_anthropic_retry` tenacity wrapper — the SYNC `Retrying` variant here
+    since `download` is a plain blocking call, not an awaitable).
+
+    `reraise=True` re-raises the LAST attempt's ORIGINAL exception (never
+    tenacity's own `RetryError` wrapper) once every attempt is exhausted —
+    the caller (`_materialise_one`, via `_pull_sync_materialise`'s per-row
+    catch) owns the partial-row-tolerance decision; this helper owns ONLY
+    the retry/backoff policy, never the tolerance.
+    """
+    retrying = Retrying(
+        stop=stop_after_attempt(_PULL_SYNC_DOWNLOAD_RETRY_TOTAL_ATTEMPTS),
+        wait=wait_exponential(
+            multiplier=1,
+            min=_PULL_SYNC_DOWNLOAD_RETRY_WAIT_SECONDS_MIN,
+            max=_PULL_SYNC_DOWNLOAD_RETRY_WAIT_SECONDS_MAX,
+        ),
+        before_sleep=before_sleep_log(_logger, logging.WARNING),
+        reraise=True,
+    )
+    return retrying(download, storage_path)
+
+
 def _materialise_one(
     source_root: str, row: dict[str, Any], download: Callable[[str], bytes]
 ) -> str:
     """Materialise ONE candidate row content-hash-gated. Returns "unchanged",
     "materialised", or "refused" (a path-containment violation — logged,
-    never raises, never touches the filesystem for that row; only a genuine
-    download/write fault propagates, aborting this pull-sync pass — see
-    `_pull_sync_then_walk`). A refusal does NOT abort the pass: one
-    poisoned/corrupted row must not block pull-sync for every other
-    legitimate keep_and_watch source (see `_pull_sync_materialise`)."""
+    never raises, never touches the filesystem for that row). A refusal
+    does NOT abort the pass: one poisoned/corrupted row must not block
+    pull-sync for every other legitimate keep_and_watch source (see
+    `_pull_sync_materialise`).
+
+    ID-141: the download is retried with backoff (`_download_with_retry`);
+    if every attempt fails (or the subsequent local write faults), the
+    exception propagates OUT of this function. It is no longer this
+    function's contract to say what happens next — `_pull_sync_materialise`
+    catches it per-row (partial-row tolerance) rather than letting one row's
+    fault abort the whole pass, EXCEPT when the whole pass yields zero
+    successes (see that function's docstring)."""
     storage_path = row["storage_path"]
     logical_path = row.get("logical_path") or storage_path
     target = _resolve_pull_sync_target(source_root, logical_path)
@@ -623,16 +671,36 @@ def _materialise_one(
         # Content-hash match — leave the file COMPLETELY untouched (no write,
         # no mtime churn) so cocoindex's own memoisation short-circuits it.
         return "unchanged"
-    data = download(storage_path)
+    data = _download_with_retry(download, storage_path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(data)
     return "materialised"
 
 
-async def _pull_sync_materialise(conn: "asyncpg.Connection") -> dict[str, int]:
+async def _pull_sync_materialise(
+    conn: "asyncpg.Connection",
+) -> tuple[dict[str, int], list[dict[str, str]]]:
     """Run one content-hash-gated pull-sync pass over the keep_and_watch (+
-    Platform) scope. Returns per-outcome counts for observability/tests
-    ("materialised" / "unchanged" / "refused" — see `_materialise_one`).
+    Platform) scope. Returns `(counts, row_failures)`:
+
+      - `counts` — per-outcome tally for observability/tests
+        ("materialised" / "unchanged" / "refused" / "failed" — see
+        `_materialise_one`).
+      - `row_failures` — `[{"id": ..., "reason": ...}, ...]`, one entry per
+        row whose download/write raised even after `_download_with_retry`'s
+        bounded retries were exhausted.
+
+    ID-141 (bl-399 / subo-id138 S446 {138.14} — partial-row tolerance): a
+    row that raises here is CAUGHT, recorded into `row_failures`, and
+    skipped — it does NOT abort the pass, mirroring the {80.9} per-item-
+    isolation cascade inversion (one bad row must never zero every other
+    row's materialised writes). The ONLY exception: a WHOLLY failed pass
+    (every row raised, zero "materialised"/"unchanged" successes) re-raises
+    the LAST row's original exception, preserving the PRE-ID-141 abort
+    behaviour for that degenerate case — `_pull_sync_then_walk` propagates
+    it uncaught exactly as before, so a pass that lands nothing still skips
+    the walk and releases the {138.9} writer-fence lock via `_run_walk`'s
+    `finally`.
 
     Idle-mode guard (belt-and-braces): `_walk_handler` already rejects an
     unset/missing `COCOINDEX_SOURCE_PATH` with a 400 BEFORE `_run_walk` is
@@ -645,18 +713,42 @@ async def _pull_sync_materialise(conn: "asyncpg.Connection") -> dict[str, int]:
         _logger.info(
             "pull-sync: COCOINDEX_SOURCE_PATH unset — skipping (idle mode)"
         )
-        return {"materialised": 0, "unchanged": 0, "refused": 0}
+        return {"materialised": 0, "unchanged": 0, "refused": 0, "failed": 0}, []
 
     rows = await _fetch_pull_sync_candidates(conn)
-    counts = {"materialised": 0, "unchanged": 0, "refused": 0}
+    counts = {"materialised": 0, "unchanged": 0, "refused": 0, "failed": 0}
+    row_failures: list[dict[str, str]] = []
     if not rows:
-        return counts
+        return counts, row_failures
 
     download = _resolve_storage_downloader()
+    last_exc: Exception | None = None
     for row in rows:
-        outcome = _materialise_one(source_root, row, download)
+        try:
+            outcome = _materialise_one(source_root, row, download)
+        except Exception as exc:  # noqa: BLE001 — ID-141 partial-row tolerance
+            last_exc = exc
+            row_id = str(row.get("id"))
+            _logger.warning(
+                "pull-sync: row id=%s FAILED after retries exhausted — "
+                "skipped, pass continues: %s",
+                row_id,
+                exc,
+            )
+            row_failures.append({"id": row_id, "reason": str(exc)})
+            counts["failed"] += 1
+            continue
         counts[outcome] = counts.get(outcome, 0) + 1
-    return counts
+
+    if row_failures and counts["materialised"] == 0 and counts["unchanged"] == 0:
+        # Wholly-failed pass — every row that wasn't merely "refused" raised,
+        # and nothing landed. Preserve the pre-ID-141 abort behaviour: raise
+        # so the caller aborts exactly as it did before per-row tolerance
+        # existed (bl-399).
+        assert last_exc is not None
+        raise last_exc
+
+    return counts, row_failures
 
 
 async def _pull_sync_then_walk(
@@ -673,16 +765,34 @@ async def _pull_sync_then_walk(
     is never called. This is the P5 guard's enforcement point: the walk
     cannot run without first passing through this fence acquisition, because
     `_run_walk` is the ONLY caller of `update_blocking` in this module.
+
+    ID-141: `_pull_sync_materialise` itself re-raises (uncaught here, same
+    propagation as before) ONLY for a wholly-failed pass (zero rows landed);
+    a PARTIAL failure (some rows failed, at least one succeeded) returns
+    normally with `row_failures` populated, so the walk below still runs —
+    `rowFailures` is surfaced log-side only (no existing pipeline_runs/
+    webhook wire schema carries pull-sync counts today, so there is nothing
+    to extend/risk-dropping per the S457 memoHeals lesson).
     """
     pool = await _build_pull_sync_pool()
     try:
         async with writer_fence(pool, holder="pull_sync") as conn:
-            counts = await _pull_sync_materialise(conn)
-            _logger.info(
-                "pull-sync materialise complete (requestId=%s): %s",
-                request_id,
-                counts,
-            )
+            counts, row_failures = await _pull_sync_materialise(conn)
+            if row_failures:
+                _logger.warning(
+                    "pull-sync materialise complete WITH row failures "
+                    "(requestId=%s): counts=%s rowFailures=%d ids=%s",
+                    request_id,
+                    counts,
+                    len(row_failures),
+                    [failure["id"] for failure in row_failures],
+                )
+            else:
+                _logger.info(
+                    "pull-sync materialise complete (requestId=%s): %s",
+                    request_id,
+                    counts,
+                )
             await asyncio.to_thread(
                 app.update_blocking, live=False, full_reprocess=full_reprocess
             )

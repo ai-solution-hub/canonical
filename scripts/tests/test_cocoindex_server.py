@@ -2307,11 +2307,337 @@ class TestPullSyncPathContainment:
 
         conn = _FakeFenceConn(acquire_result=True)
 
-        counts = asyncio.run(server_mod._pull_sync_materialise(conn))
+        counts, row_failures = asyncio.run(server_mod._pull_sync_materialise(conn))
 
-        assert counts == {"materialised": 1, "unchanged": 0, "refused": 1}
+        assert counts == {
+            "materialised": 1,
+            "unchanged": 0,
+            "refused": 1,
+            "failed": 0,
+        }
+        assert row_failures == []
         assert (corpus / "good.md").read_bytes() == good_bytes
         assert not (tmp_path / "evil.md").exists()
+
+
+class TestPullSyncRowResilience:
+    """ID-141 (bl-399 / subo-id138 S446 {138.14}) — retry-with-backoff per
+    row download + partial-row tolerance. Mirrors the {80.9} per-item-
+    isolation cascade inversion: one bad row (download/write fault, retries
+    exhausted) must not abort the WHOLE pull-sync pass — the pass completes,
+    good rows land, the bad row is recorded into `row_failures` and skipped,
+    and the walk still runs. A WHOLLY failed pass (0 successes) preserves
+    the PRE-ID-141 abort behaviour."""
+
+    @pytest.fixture(autouse=True)
+    def _fast_pull_sync_retry_wait(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Zero the retry backoff so these tests don't sleep the real
+        0.5-5s ladder (mirrors test_cocoindex_extractor_retry.py's
+        `_fast_retry_wait` pattern for `_anthropic_retry`)."""
+        monkeypatch.setattr(
+            "scripts.cocoindex_pipeline.server."
+            "_PULL_SYNC_DOWNLOAD_RETRY_WAIT_SECONDS_MIN",
+            0.0,
+        )
+        monkeypatch.setattr(
+            "scripts.cocoindex_pipeline.server."
+            "_PULL_SYNC_DOWNLOAD_RETRY_WAIT_SECONDS_MAX",
+            0.0,
+        )
+
+    def test_download_with_retry_succeeds_on_second_attempt(self) -> None:
+        """A transient fault on attempt 1 must not fail the row — attempt 2
+        succeeds and the retry is invisible to the caller (no failure
+        record needed for a recovered row)."""
+        from scripts.cocoindex_pipeline.server import _download_with_retry
+
+        calls: list[str] = []
+
+        def _flaky_download(storage_path: str) -> bytes:
+            calls.append(storage_path)
+            if len(calls) == 1:
+                raise ConnectionError("transient network fault")
+            return b"recovered bytes"
+
+        result = _download_with_retry(_flaky_download, "doc.md")
+
+        assert result == b"recovered bytes"
+        assert calls == ["doc.md", "doc.md"]
+
+    def test_download_with_retry_exhausts_attempts_and_raises_last_exception(
+        self,
+    ) -> None:
+        """Every attempt failing must re-raise the ORIGINAL exception (not
+        tenacity's own RetryError wrapper) after exactly the bounded attempt
+        count — never an unbounded retry loop."""
+        from scripts.cocoindex_pipeline.server import (
+            _PULL_SYNC_DOWNLOAD_RETRY_TOTAL_ATTEMPTS,
+            _download_with_retry,
+        )
+
+        calls: list[str] = []
+
+        def _always_fails(storage_path: str) -> bytes:
+            calls.append(storage_path)
+            raise ConnectionError("persistent network fault")
+
+        with pytest.raises(ConnectionError, match="persistent network fault"):
+            _download_with_retry(_always_fails, "doc.md")
+
+        assert len(calls) == _PULL_SYNC_DOWNLOAD_RETRY_TOTAL_ATTEMPTS
+
+    def test_materialise_one_transient_fault_recovers_via_retry(
+        self, tmp_path: Path
+    ) -> None:
+        """Wiring check: `_materialise_one` itself benefits from the retry
+        — a transient download fault on attempt 1 still yields
+        "materialised" (no exception escapes this layer)."""
+        from scripts.cocoindex_pipeline.server import _materialise_one
+
+        new_bytes = b"fresh bytes"
+        calls: list[str] = []
+
+        def _flaky_download(storage_path: str) -> bytes:
+            calls.append(storage_path)
+            if len(calls) == 1:
+                raise ConnectionError("transient fault")
+            return new_bytes
+
+        row = {
+            "storage_path": "doc.md",
+            "logical_path": "doc.md",
+            "content_hash": hashlib.sha256(new_bytes).hexdigest(),
+        }
+
+        outcome = _materialise_one(str(tmp_path), row, _flaky_download)
+
+        assert outcome == "materialised"
+        assert (tmp_path / "doc.md").read_bytes() == new_bytes
+        assert len(calls) == 2
+
+    def test_one_bad_row_download_exhausts_retries_recorded_pass_continues_good_rows_land(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The ID-141 defect fix: one row whose download NEVER succeeds
+        (retries exhausted) must not abort the pass — good rows still
+        materialise, and the bad row lands in `row_failures` (id +
+        reason)."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+
+        good_bytes = b"legitimate content"
+        rows = [
+            {
+                "id": "sd-bad",
+                "storage_path": "bad.md",
+                "logical_path": "bad.md",
+                "content_hash": "never-matches-so-a-download-is-attempted",
+            },
+            {
+                "id": "sd-good",
+                "storage_path": "good.md",
+                "logical_path": "good.md",
+                "content_hash": hashlib.sha256(good_bytes).hexdigest(),
+            },
+        ]
+
+        async def _fake_fetch_candidates(_conn: object) -> list[dict]:
+            return rows
+
+        def _fake_downloader():
+            def _download(storage_path: str) -> bytes:
+                if storage_path == "bad.md":
+                    raise ConnectionError("storage backend unreachable")
+                assert storage_path == "good.md"
+                return good_bytes
+
+            return _download
+
+        monkeypatch.setattr(
+            server_mod, "_fetch_pull_sync_candidates", _fake_fetch_candidates
+        )
+        monkeypatch.setattr(
+            server_mod, "_resolve_storage_downloader", _fake_downloader
+        )
+
+        conn = _FakeFenceConn(acquire_result=True)
+
+        counts, row_failures = asyncio.run(
+            server_mod._pull_sync_materialise(conn)
+        )
+
+        assert counts == {
+            "materialised": 1,
+            "unchanged": 0,
+            "refused": 0,
+            "failed": 1,
+        }
+        assert len(row_failures) == 1
+        assert row_failures[0]["id"] == "sd-bad"
+        assert "storage backend unreachable" in row_failures[0]["reason"]
+        assert (corpus / "good.md").read_bytes() == good_bytes
+        assert not (corpus / "bad.md").exists()
+
+    def test_all_rows_fail_wholly_failed_pass_preserves_abort_behaviour(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Zero successes across the whole candidate set must still abort
+        the pass — the pre-ID-141 behaviour for a wholly-failed pass is
+        UNCHANGED (partial-row tolerance only kicks in once ≥1 row
+        lands)."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+
+        rows = [
+            {
+                "id": "sd-bad-1",
+                "storage_path": "bad1.md",
+                "logical_path": "bad1.md",
+                "content_hash": "irrelevant",
+            },
+            {
+                "id": "sd-bad-2",
+                "storage_path": "bad2.md",
+                "logical_path": "bad2.md",
+                "content_hash": "irrelevant",
+            },
+        ]
+
+        async def _fake_fetch_candidates(_conn: object) -> list[dict]:
+            return rows
+
+        def _fake_downloader():
+            def _download(storage_path: str) -> bytes:
+                raise ConnectionError(
+                    f"storage backend unreachable: {storage_path}"
+                )
+
+            return _download
+
+        monkeypatch.setattr(
+            server_mod, "_fetch_pull_sync_candidates", _fake_fetch_candidates
+        )
+        monkeypatch.setattr(
+            server_mod, "_resolve_storage_downloader", _fake_downloader
+        )
+
+        conn = _FakeFenceConn(acquire_result=True)
+
+        with pytest.raises(ConnectionError, match="storage backend unreachable"):
+            asyncio.run(server_mod._pull_sync_materialise(conn))
+
+        assert not any(corpus.iterdir())
+
+    def test_partial_row_failure_does_not_skip_the_walk(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """End-to-end via the real `_run_walk` entry point: one row's
+        download exhausts its retries, the OTHER materialises — the walk
+        (`update_blocking`) must still run (the pass is NOT wholly
+        failed)."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+
+        good_bytes = b"legitimate content"
+        rows = [
+            {
+                "id": "sd-bad",
+                "storage_path": "bad.md",
+                "logical_path": "bad.md",
+                "content_hash": "irrelevant",
+            },
+            {
+                "id": "sd-good",
+                "storage_path": "good.md",
+                "logical_path": "good.md",
+                "content_hash": hashlib.sha256(good_bytes).hexdigest(),
+            },
+        ]
+
+        async def _fake_fetch_candidates(_conn: object) -> list[dict]:
+            return rows
+
+        def _fake_downloader():
+            def _download(storage_path: str) -> bytes:
+                if storage_path == "bad.md":
+                    raise ConnectionError("storage backend unreachable")
+                return good_bytes
+
+            return _download
+
+        monkeypatch.setattr(
+            server_mod, "_fetch_pull_sync_candidates", _fake_fetch_candidates
+        )
+        monkeypatch.setattr(
+            server_mod, "_resolve_storage_downloader", _fake_downloader
+        )
+
+        flow = _patched_walk_app()
+        with patch.object(
+            flow.KH_PIPELINE_APP, "update_blocking", return_value=None
+        ) as mock_update:
+            server_mod._run_walk(False, "req-partial-fail")
+
+        mock_update.assert_called_once_with(live=False, full_reprocess=False)
+        assert (corpus / "good.md").read_bytes() == good_bytes
+        assert not (corpus / "bad.md").exists()
+
+    def test_wholly_failed_pass_skips_walk_and_releases_the_lock(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """End-to-end: EVERY row failing (0 successes) must still abort the
+        pass exactly as pre-ID-141 — `update_blocking` never runs, and the
+        single-flight lock is released (a failed pass must not wedge
+        it)."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_walk_state()
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+
+        rows = [
+            {
+                "id": "sd-bad",
+                "storage_path": "bad.md",
+                "logical_path": "bad.md",
+                "content_hash": "irrelevant",
+            }
+        ]
+
+        async def _fake_fetch_candidates(_conn: object) -> list[dict]:
+            return rows
+
+        def _fake_downloader():
+            def _download(storage_path: str) -> bytes:
+                raise ConnectionError("storage backend unreachable")
+
+            return _download
+
+        monkeypatch.setattr(
+            server_mod, "_fetch_pull_sync_candidates", _fake_fetch_candidates
+        )
+        monkeypatch.setattr(
+            server_mod, "_resolve_storage_downloader", _fake_downloader
+        )
+
+        flow = _patched_walk_app()
+        with patch.object(
+            flow.KH_PIPELINE_APP, "update_blocking", return_value=None
+        ) as mock_update:
+            server_mod._run_walk(False, "req-wholly-fail")
+
+        mock_update.assert_not_called()
+        assert not server_mod.walk_in_progress()
 
 
 class TestPullSyncFenceHold:
