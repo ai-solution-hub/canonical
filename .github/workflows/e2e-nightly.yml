@@ -193,6 +193,22 @@ jobs:
     permissions:
       contents: read
     steps:
+      # {128.10} SECURITY: `::add-mask::` registered in provision-branch's own
+      # job only redacts THAT job's log stream — GitHub Actions masking is
+      # per-job, not global, so a value passed cross-job via `needs.*.outputs`
+      # arrives UNMASKED on this fresh runner until re-registered here. This
+      # MUST be the first step, before the key is referenced anywhere else in
+      # this job (env dumps / debug prints downstream would otherwise leak a
+      # full RLS-bypass key in plain text). The publishable key is NOT masked
+      # — it is the client-exposed key by design (already baked into
+      # NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY and shipped in the browser
+      # bundle), not a secret.
+      - name: Mask branch service-role key for this job's logs
+        env:
+          BRANCH_SERVICE_ROLE_KEY:
+            ${{ needs.provision-branch.outputs.service-role-key }}
+        run: echo "::add-mask::$BRANCH_SERVICE_ROLE_KEY"
+
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -296,6 +312,16 @@ jobs:
         shardIndex: [1, 2, 3, 4]
         shardTotal: [4]
     steps:
+      # {128.10} SECURITY: same per-job masking requirement as `build` above —
+      # each of the 4 shard-matrix runners is a FRESH runner that has never
+      # registered this mask, so it must be re-registered here, first, before
+      # anything else in this job touches the key.
+      - name: Mask branch service-role key for this job's logs
+        env:
+          BRANCH_SERVICE_ROLE_KEY:
+            ${{ needs.provision-branch.outputs.service-role-key }}
+        run: echo "::add-mask::$BRANCH_SERVICE_ROLE_KEY"
+
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:

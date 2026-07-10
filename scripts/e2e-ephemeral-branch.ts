@@ -63,6 +63,13 @@
  * insert throws") — so the readiness probe doubles as an empirical check of
  * that exact assumption, rather than trusting it silently.
  *
+ * RETRY: every Management API call (`mgmtFetch`, `deleteBranch`) retries a
+ * bounded number of times with backoff on 429/5xx/network-error — but NEVER
+ * on other 4xx (bad auth/body is not fixed by retrying). This matters most
+ * for `deleteBranch` under `always()`: a single transient 503 during
+ * teardown must not silently widen the orphan-branch guard's worst-case
+ * lifetime from "one run" to "one sweep cycle" (see `fetchWithRetry`).
+ *
  * USAGE (CLI, invoked from the workflow — see `.github/workflows/e2e-nightly.yml`):
  *   bun run scripts/e2e-ephemeral-branch.ts sweep [--max-age-hours=6] [--dry-run]
  *   bun run scripts/e2e-ephemeral-branch.ts create --run-id=<id>
@@ -82,6 +89,11 @@ import { appendFileSync } from 'node:fs';
 const MANAGEMENT_API = 'https://api.supabase.com';
 const DEFAULT_BRANCH_PREFIX = 'e2e-nightly-';
 const DEFAULT_MAX_AGE_HOURS = 6;
+/** Retried: rate-limit + transient server errors. NOT retried: other 4xx
+ * (bad auth/body — a retry cannot fix those). */
+const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
+const DEFAULT_RETRY_ATTEMPTS = 3;
+const DEFAULT_RETRY_BASE_DELAY_MS = 1000;
 /** Seeded once by supabase/seed.sql §2·0, immediately after migrations — the
  * concrete branch-readiness signal (see file header). */
 const READY_CHECK_TABLE = 'application_types';
@@ -207,6 +219,72 @@ export interface ManagementApiDeps {
   token: string;
   fetchImpl?: typeof fetch;
   log?: (message: string) => void;
+  /** Injectable for tests — defaults to a real `setTimeout`-based sleep. */
+  sleepFn?: (ms: number) => Promise<void>;
+}
+
+/**
+ * Bounded retry + exponential backoff around a single fetch call. Retries
+ * ONLY on 429/5xx HTTP statuses or a thrown network error (DNS/timeout/
+ * connection reset) — a genuine 4xx (bad auth, malformed body) is returned
+ * immediately since retrying cannot fix it. Exhausting all attempts on a
+ * retryable HTTP status returns the last (failing) Response so the caller's
+ * normal error-handling path fires with the real status; exhausting on a
+ * thrown network error re-throws the last error.
+ */
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit | undefined,
+  f: typeof fetch,
+  opts: {
+    attempts?: number;
+    baseDelayMs?: number;
+    log?: (message: string) => void;
+    sleepFn?: (ms: number) => Promise<void>;
+  } = {},
+): Promise<Response> {
+  const attempts = opts.attempts ?? DEFAULT_RETRY_ATTEMPTS;
+  const baseDelayMs = opts.baseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS;
+  const log = opts.log ?? console.log;
+  const sleep =
+    opts.sleepFn ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
+
+  let lastNetworkError: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const res = await f(url, init);
+      if (res.ok || !RETRYABLE_STATUS.has(res.status)) {
+        return res;
+      }
+      if (attempt === attempts) {
+        return res; // exhausted — let the caller's normal !res.ok path throw
+      }
+      const delayMs = baseDelayMs * 2 ** (attempt - 1);
+      log(
+        `[e2e-ephemeral-branch] ${url} returned HTTP ${res.status} ` +
+          `(attempt ${attempt}/${attempts}) — retrying in ${delayMs}ms…`,
+      );
+      await sleep(delayMs);
+    } catch (err) {
+      lastNetworkError = err;
+      if (attempt === attempts) {
+        throw err;
+      }
+      const delayMs = baseDelayMs * 2 ** (attempt - 1);
+      log(
+        `[e2e-ephemeral-branch] network error calling ${url} (attempt ` +
+          `${attempt}/${attempts}): ${
+            err instanceof Error ? err.message : String(err)
+          } — retrying in ${delayMs}ms…`,
+      );
+      await sleep(delayMs);
+    }
+  }
+  // Unreachable (the loop always returns or throws by the final attempt),
+  // but keeps the return type sound for TS.
+  throw lastNetworkError instanceof Error
+    ? lastNetworkError
+    : new Error(String(lastNetworkError));
 }
 
 async function mgmtFetch(
@@ -215,14 +293,19 @@ async function mgmtFetch(
   init?: RequestInit,
 ): Promise<unknown> {
   const f = deps.fetchImpl ?? fetch;
-  const res = await f(`${MANAGEMENT_API}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${deps.token}`,
-      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(init?.headers ?? {}),
+  const res = await fetchWithRetry(
+    `${MANAGEMENT_API}${path}`,
+    {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${deps.token}`,
+        ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(init?.headers ?? {}),
+      },
     },
-  });
+    f,
+    { log: deps.log, sleepFn: deps.sleepFn },
+  );
   if (!res.ok) {
     throw new EphemeralBranchError(
       `${init?.method ?? 'GET'} ${path} failed: HTTP ${res.status} ${await res.text()}`,
@@ -281,8 +364,15 @@ export async function sweepStaleBranches(
   const kept: BranchSummary[] = [];
 
   for (const b of candidates) {
-    const ageMs = b.createdAt
-      ? now - new Date(b.createdAt).getTime()
+    // Fail TOWARD deletion, not away from it: a missing createdAt AND an
+    // unparseable one (the field-name/format is unconfirmed — see the file
+    // header epistemic caveat) both collapse to Infinity. `new Date(garbage)
+    // .getTime()` is NaN, and `NaN > maxAgeMs` is false, which would
+    // silently KEEP a branch this guard exists to delete — the opposite of
+    // the orphan-teardown guard's intent.
+    const parsedCreatedAt = b.createdAt ? new Date(b.createdAt).getTime() : NaN;
+    const ageMs = Number.isFinite(parsedCreatedAt)
+      ? now - parsedCreatedAt
       : Infinity;
     if (ageMs > maxAgeMs) {
       log(
@@ -339,10 +429,15 @@ export async function deleteBranch(
 ): Promise<void> {
   const log = deps.log ?? console.log;
   const f = deps.fetchImpl ?? fetch;
-  const res = await f(`${MANAGEMENT_API}/v1/branches/${branchIdOrRef}`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${deps.token}` },
-  });
+  const res = await fetchWithRetry(
+    `${MANAGEMENT_API}/v1/branches/${branchIdOrRef}`,
+    {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${deps.token}` },
+    },
+    f,
+    { log, sleepFn: deps.sleepFn },
+  );
   if (!res.ok && res.status !== 404) {
     throw new EphemeralBranchError(
       `DELETE /v1/branches/${branchIdOrRef} failed: HTTP ${res.status} ${await res.text()}`,

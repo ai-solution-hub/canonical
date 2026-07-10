@@ -32,6 +32,11 @@ interface FakeResponse {
   text?: string;
 }
 
+/** A queue entry that throws (network error) instead of resolving a Response. */
+interface FakeThrow {
+  throws: unknown;
+}
+
 /** Returns a fetch double that yields the queued responses in order, recording calls. */
 function fakeFetch(queue: FakeResponse[]): {
   fetchImpl: typeof fetch;
@@ -42,6 +47,29 @@ function fakeFetch(queue: FakeResponse[]): {
   const fetchImpl = (async (url: string | URL, init?: RequestInit) => {
     calls.push({ url: String(url), init });
     const r = queue[i++] ?? queue[queue.length - 1];
+    return {
+      ok: r.ok,
+      status: r.status ?? (r.ok ? 200 : 500),
+      json: async () => r.json,
+      text: async () => r.text ?? (r.json ? JSON.stringify(r.json) : ''),
+    } as Response;
+  }) as unknown as typeof fetch;
+  return { fetchImpl, calls };
+}
+
+/** Like fakeFetch, but queue entries may also be a `{ throws }` network-error double. */
+function fakeFetchWithThrows(queue: Array<FakeResponse | FakeThrow>): {
+  fetchImpl: typeof fetch;
+  calls: Array<{ url: string; init?: RequestInit }>;
+} {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  let i = 0;
+  const fetchImpl = (async (url: string | URL, init?: RequestInit) => {
+    calls.push({ url: String(url), init });
+    const r = queue[i++] ?? queue[queue.length - 1];
+    if ('throws' in r) {
+      throw r.throws;
+    }
     return {
       ok: r.ok,
       status: r.status ?? (r.ok ? 200 : 500),
@@ -241,6 +269,40 @@ describe('sweepStaleBranches — orphan-teardown guard', () => {
     });
     expect(result.deleted).toHaveLength(1);
   });
+
+  it('fails TOWARD deletion when created_at is present but unparseable, not away from it', async () => {
+    // A present-but-garbage created_at must NOT silently keep the branch —
+    // that would be the opposite of this guard's fail-safe direction, and
+    // the exact field format is unconfirmed (see file-header epistemic
+    // caveat), so a real live response could plausibly send something this
+    // script doesn't expect.
+    const { fetchImpl } = fakeFetch([
+      {
+        ok: true,
+        json: [
+          {
+            id: 'garbage-ts',
+            project_ref: 'refgarbage',
+            name: 'e2e-nightly-garbage-timestamp',
+            created_at: 'not-a-real-timestamp',
+          },
+        ],
+      },
+      { ok: true, status: 200, text: '' }, // DELETE
+    ]);
+    const result = await sweepStaleBranches({
+      platformProjectRef: 'platformref',
+      maxAgeHours: 6,
+      nowMs: new Date('2026-07-10T12:00:00.000Z').getTime(),
+      token: 't',
+      fetchImpl,
+      log: silent,
+    });
+    expect(result.deleted.map((b) => b.name)).toEqual([
+      'e2e-nightly-garbage-timestamp',
+    ]);
+    expect(result.kept).toHaveLength(0);
+  });
 });
 
 describe('createEphemeralBranch', () => {
@@ -280,18 +342,161 @@ describe('deleteBranch — idempotent teardown', () => {
     expect(calls[0].init?.method).toBe('DELETE');
   });
 
-  it('treats 404 (already gone) as success, not failure', async () => {
-    const { fetchImpl } = fakeFetch([{ ok: false, status: 404 }]);
+  it('treats 404 (already gone) as success, not failure — and does not retry', async () => {
+    const { fetchImpl, calls } = fakeFetch([{ ok: false, status: 404 }]);
     await expect(
       deleteBranch('gone-already', { token: 't', fetchImpl, log: silent }),
     ).resolves.toBeUndefined();
+    expect(calls).toHaveLength(1); // 404 is not retryable — single attempt
   });
 
-  it('throws on a genuine server error', async () => {
-    const { fetchImpl } = fakeFetch([{ ok: false, status: 500, text: 'boom' }]);
+  it('throws after exhausting retries on a persistent server error', async () => {
+    const { fetchImpl, calls } = fakeFetch([
+      { ok: false, status: 500, text: 'boom' },
+    ]);
     await expect(
-      deleteBranch('someref', { token: 't', fetchImpl, log: silent }),
+      deleteBranch('someref', {
+        token: 't',
+        fetchImpl,
+        log: silent,
+        sleepFn: vi.fn().mockResolvedValue(undefined),
+      }),
     ).rejects.toBeInstanceOf(EphemeralBranchError);
+    expect(calls).toHaveLength(3); // default 3 attempts, all exhausted
+  });
+
+  it('retries a transient 503 during always()-teardown and then succeeds', async () => {
+    const sleepFn = vi.fn().mockResolvedValue(undefined);
+    const { fetchImpl, calls } = fakeFetchWithThrows([
+      { ok: false, status: 503, text: 'unavailable' },
+      { ok: true, status: 200 },
+    ]);
+    await expect(
+      deleteBranch('flaky-ref', {
+        token: 't',
+        fetchImpl,
+        log: silent,
+        sleepFn,
+      }),
+    ).resolves.toBeUndefined();
+    expect(calls).toHaveLength(2);
+    expect(sleepFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries a network error (not just HTTP statuses) and then succeeds', async () => {
+    const sleepFn = vi.fn().mockResolvedValue(undefined);
+    const { fetchImpl, calls } = fakeFetchWithThrows([
+      { throws: new TypeError('fetch failed: connection reset') },
+      { ok: true, status: 200 },
+    ]);
+    await expect(
+      deleteBranch('flaky-ref', {
+        token: 't',
+        fetchImpl,
+        log: silent,
+        sleepFn,
+      }),
+    ).resolves.toBeUndefined();
+    expect(calls).toHaveLength(2);
+  });
+
+  it('throws after exhausting retries on a persistent network error', async () => {
+    const sleepFn = vi.fn().mockResolvedValue(undefined);
+    const { fetchImpl, calls } = fakeFetchWithThrows([
+      { throws: new TypeError('fetch failed: connection reset') },
+    ]);
+    await expect(
+      deleteBranch('flaky-ref', {
+        token: 't',
+        fetchImpl,
+        log: silent,
+        sleepFn,
+      }),
+    ).rejects.toThrow(/connection reset/);
+    expect(calls).toHaveLength(3);
+  });
+
+  it('does NOT retry a non-retryable 4xx (e.g. 401) — single attempt', async () => {
+    const { fetchImpl, calls } = fakeFetch([
+      { ok: false, status: 401, text: 'unauthorized' },
+    ]);
+    await expect(
+      deleteBranch('someref', {
+        token: 'bad',
+        fetchImpl,
+        log: silent,
+        sleepFn: vi.fn().mockResolvedValue(undefined),
+      }),
+    ).rejects.toBeInstanceOf(EphemeralBranchError);
+    expect(calls).toHaveLength(1);
+  });
+});
+
+describe('mgmtFetch retry behaviour (exercised via listBranches / createEphemeralBranch)', () => {
+  it('retries a transient 500 then succeeds', async () => {
+    const sleepFn = vi.fn().mockResolvedValue(undefined);
+    const { fetchImpl, calls } = fakeFetch([
+      { ok: false, status: 500, text: 'boom' },
+      { ok: true, json: [{ id: 'a', project_ref: 'refa', name: 'staging' }] },
+    ]);
+    const branches = await listBranches('platformref', {
+      token: 't',
+      fetchImpl,
+      log: silent,
+      sleepFn,
+    });
+    expect(branches).toHaveLength(1);
+    expect(calls).toHaveLength(2);
+    expect(sleepFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries a 429 rate-limit response then succeeds', async () => {
+    const sleepFn = vi.fn().mockResolvedValue(undefined);
+    const { fetchImpl, calls } = fakeFetch([
+      { ok: false, status: 429, text: 'rate limited' },
+      { ok: true, json: { id: 'newid', project_ref: 'newref', name: 'r1' } },
+    ]);
+    const branch = await createEphemeralBranch({
+      platformProjectRef: 'platformref',
+      branchName: 'r1',
+      token: 't',
+      fetchImpl,
+      log: silent,
+      sleepFn,
+    });
+    expect(branch.id).toBe('newid');
+    expect(calls).toHaveLength(2);
+  });
+
+  it('throws after exhausting retries on a persistent 5xx', async () => {
+    const sleepFn = vi.fn().mockResolvedValue(undefined);
+    const { fetchImpl, calls } = fakeFetch([
+      { ok: false, status: 503, text: 'unavailable' },
+    ]);
+    await expect(
+      listBranches('platformref', {
+        token: 't',
+        fetchImpl,
+        log: silent,
+        sleepFn,
+      }),
+    ).rejects.toBeInstanceOf(EphemeralBranchError);
+    expect(calls).toHaveLength(3);
+  });
+
+  it('does NOT retry a non-retryable 401 — fails on the first attempt', async () => {
+    const { fetchImpl, calls } = fakeFetch([
+      { ok: false, status: 401, text: 'unauthorized' },
+    ]);
+    await expect(
+      listBranches('platformref', {
+        token: 'bad',
+        fetchImpl,
+        log: silent,
+        sleepFn: vi.fn().mockResolvedValue(undefined),
+      }),
+    ).rejects.toBeInstanceOf(EphemeralBranchError);
+    expect(calls).toHaveLength(1);
   });
 });
 
