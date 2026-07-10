@@ -279,25 +279,6 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
--- 2g. Test content item (required by publication-status-migration integration
---     tests AC1.1/AC1.2 which probe content_items for structural assertions).
-INSERT INTO public.content_items (
-  id, title, suggested_title, content, content_type, platform,
-  captured_date, publication_status, created_by
-)
-VALUES (
-  'f0000000-0000-4000-8000-000000000001',
-  'CI Test Content Item',
-  'CI Test Content Item',
-  'Deterministic content item for CI integration tests. Seeded by seed.sql.',
-  'article',
-  'manual',
-  NOW(),
-  'published',
-  'a0000000-0000-4000-8000-000000000001'
-)
-ON CONFLICT (id) DO NOTHING;
-
 -- ======================================================================
 -- §3  Reference data (via staging-reference-refresh workflow)
 -- ======================================================================
