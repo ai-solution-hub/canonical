@@ -95,48 +95,6 @@ export function createTestGuideSection(
 }
 
 // ---------------------------------------------------------------------------
-// Content item factory
-// ---------------------------------------------------------------------------
-
-export interface TestContentItem {
-  id: string;
-  title: string;
-  content: string;
-  content_type: string;
-  primary_domain: string | null;
-  primary_subtopic: string | null;
-  secondary_domain: string | null;
-  secondary_subtopic: string | null;
-  layer: string | null;
-  metadata: Record<string, unknown>;
-  governance_review_status: string | null;
-  archived_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export function createTestContentItem(
-  overrides: Partial<TestContentItem> = {},
-): TestContentItem {
-  return {
-    id: overrides.id ?? testUUID(),
-    title: overrides.title ?? 'Test Content Item',
-    content: overrides.content ?? '<p>Test content</p>',
-    content_type: overrides.content_type ?? 'q_a_pair',
-    primary_domain: overrides.primary_domain ?? 'corporate',
-    primary_subtopic: overrides.primary_subtopic ?? null,
-    secondary_domain: overrides.secondary_domain ?? null,
-    secondary_subtopic: overrides.secondary_subtopic ?? null,
-    layer: overrides.layer ?? null,
-    metadata: overrides.metadata ?? {},
-    governance_review_status: overrides.governance_review_status ?? null,
-    archived_at: overrides.archived_at ?? null,
-    created_at: overrides.created_at ?? '2026-01-01T00:00:00Z',
-    updated_at: overrides.updated_at ?? '2026-01-01T00:00:00Z',
-  };
-}
-
-// ---------------------------------------------------------------------------
 // RPC result factory — simulates get_guide_content RPC response rows
 // ---------------------------------------------------------------------------
 
