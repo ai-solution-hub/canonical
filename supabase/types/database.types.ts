@@ -3725,6 +3725,11 @@ export type Database = {
       hybrid_search: {
         Args: {
           application_type?: string
+          filter_date_from?: string
+          filter_date_to?: string
+          filter_domain?: string
+          filter_kind?: string
+          filter_subtopic?: string
           include_superseded?: boolean
           limit_count?: number
           query_embedding: string
@@ -3741,13 +3746,16 @@ export type Database = {
           created_by: string
           id: string
           metadata: Json
+          owner_kind: string
           platform: string
           primary_domain: string
           primary_subtopic: string
           priority: string
+          scope_tag: string[]
           similarity: number
           snippet: string
           source_domain: string
+          source_url: string
           suggested_title: string
           summary: string
           thumbnail_url: string
@@ -8177,6 +8185,11 @@ export type Database = {
       hybrid_search: {
         Args: {
           application_type?: string
+          filter_date_from?: string
+          filter_date_to?: string
+          filter_domain?: string
+          filter_kind?: string
+          filter_subtopic?: string
           include_superseded?: boolean
           limit_count?: number
           query_embedding: string
@@ -8193,13 +8206,16 @@ export type Database = {
           created_by: string
           id: string
           metadata: Json
+          owner_kind: string
           platform: string
           primary_domain: string
           primary_subtopic: string
           priority: string
+          scope_tag: string[]
           similarity: number
           snippet: string
           source_domain: string
+          source_url: string
           suggested_title: string
           summary: string
           thumbnail_url: string
