@@ -264,4 +264,57 @@ describe('POST /api/search', () => {
     expect(rpcArgs.filter_date_from).toBeUndefined();
     expect(rpcArgs.filter_date_to).toBeUndefined();
   });
+
+  // ID-144.6 boundary-normalisation fix (TECH §2.5 as amended S460): the
+  // real caller shape. The native <input type="date"> in
+  // corpus-search-controls.tsx emits a bare YYYY-MM-DD (no time component),
+  // which must normalise to a UTC day-start/day-end bound before binding to
+  // the timestamptz RPC params — otherwise picking a date in the real UI
+  // 400s the whole request (a regression vs. the old silent Zod strip).
+  it('normalises a bare YYYY-MM-DD dateFrom/dateTo to UTC day-start/day-end before calling the RPC', async () => {
+    mockSupabase.rpc.mockResolvedValueOnce({ data: [], error: null });
+
+    const req = createTestRequest('/api/search', {
+      method: 'POST',
+      body: {
+        query: 'test',
+        dateFrom: '2026-01-01',
+        dateTo: '2026-06-30',
+      },
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+
+    expect(mockSupabase.rpc).toHaveBeenCalledWith(
+      'hybrid_search',
+      expect.objectContaining({
+        filter_date_from: '2026-01-01T00:00:00.000Z',
+        filter_date_to: '2026-06-30T23:59:59.999Z',
+      }),
+    );
+  });
+
+  it('does not alter a full Z-suffixed dateFrom/dateTo when calling the RPC', async () => {
+    mockSupabase.rpc.mockResolvedValueOnce({ data: [], error: null });
+
+    const req = createTestRequest('/api/search', {
+      method: 'POST',
+      body: {
+        query: 'test',
+        dateFrom: '2026-01-01T12:34:56.000Z',
+        dateTo: '2026-06-30T01:02:03.000Z',
+      },
+    });
+
+    await POST(req);
+
+    expect(mockSupabase.rpc).toHaveBeenCalledWith(
+      'hybrid_search',
+      expect.objectContaining({
+        filter_date_from: '2026-01-01T12:34:56.000Z',
+        filter_date_to: '2026-06-30T01:02:03.000Z',
+      }),
+    );
+  });
 });

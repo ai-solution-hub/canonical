@@ -22,6 +22,30 @@ const SearchResponseSchema = z.object({
   count: z.number(),
 });
 
+const BARE_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * ID-144.6 boundary-normalisation fix (TECH §2.5 as amended S460): the sole
+ * shipped caller (the native `<input type="date">` in
+ * `corpus-search-controls.tsx`) emits a bare `YYYY-MM-DD` date via
+ * `e.target.value` — no time component. `filter_date_from`/`filter_date_to`
+ * are `timestamptz` RPC params, so a bare date is expanded to a UTC
+ * day-start (`dateFrom`) or day-end (`dateTo`) bound before binding. A full
+ * Z-suffixed datetime (already valid per `SearchBodySchema`) passes through
+ * unchanged. DR-051 strict-exclude NULL-date-row semantics are untouched —
+ * this only widens the accepted input shape, never the exclusion behaviour.
+ */
+function normaliseDateBound(
+  value: string | undefined,
+  boundary: 'start' | 'end',
+): string | undefined {
+  if (!value) return undefined;
+  if (!BARE_DATE_RE.test(value)) return value;
+  return boundary === 'start'
+    ? `${value}T00:00:00.000Z`
+    : `${value}T23:59:59.999Z`;
+}
+
 export const POST = withRequestContext(
   defineRoute(SearchResponseSchema, async (request: NextRequest) => {
     try {
@@ -112,8 +136,8 @@ export const POST = withRequestContext(
           filter_kind: kind ?? undefined,
           filter_domain: domain ?? undefined,
           filter_subtopic: subtopic ?? undefined,
-          filter_date_from: dateFrom ?? undefined,
-          filter_date_to: dateTo ?? undefined,
+          filter_date_from: normaliseDateBound(dateFrom, 'start'),
+          filter_date_to: normaliseDateBound(dateTo, 'end'),
         },
       );
 

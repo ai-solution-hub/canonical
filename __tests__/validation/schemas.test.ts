@@ -157,20 +157,52 @@ describe('SearchBodySchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('should reject a non-ISO dateFrom', () => {
+  // TECH §2.5 as amended S460: the sole shipped caller is the native
+  // <input type="date"> in corpus-search-controls.tsx, which emits bare
+  // YYYY-MM-DD (no time component) via e.target.value. A Z-suffixed-only
+  // schema rejected that shape and 400'd the whole /api/search request the
+  // moment a user picked a date — a real regression vs. the old silent
+  // strip. The schema now accepts EITHER shape; boundary normalisation to
+  // UTC day-start/day-end happens in the route, not here.
+  it('should accept a bare YYYY-MM-DD dateFrom and dateTo', () => {
     const result = SearchBodySchema.safeParse({
       query: 'test',
       dateFrom: '2026-01-01',
+      dateTo: '2026-06-30',
     });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.dateFrom).toBe('2026-01-01');
+      expect(result.data.dateTo).toBe('2026-06-30');
+    }
   });
 
-  it('should reject a non-ISO dateTo', () => {
-    const result = SearchBodySchema.safeParse({
+  it('should reject an offsetted (non-Z) datetime for dateFrom and dateTo', () => {
+    const from = SearchBodySchema.safeParse({
+      query: 'test',
+      dateFrom: '2026-01-01T00:00:00.000+01:00',
+    });
+    expect(from.success).toBe(false);
+
+    const to = SearchBodySchema.safeParse({
+      query: 'test',
+      dateTo: '2026-01-01T00:00:00.000+01:00',
+    });
+    expect(to.success).toBe(false);
+  });
+
+  it('should reject a malformed dateFrom or dateTo string', () => {
+    const badFrom = SearchBodySchema.safeParse({
+      query: 'test',
+      dateFrom: 'not-a-date',
+    });
+    expect(badFrom.success).toBe(false);
+
+    const badTo = SearchBodySchema.safeParse({
       query: 'test',
       dateTo: 'not-a-date',
     });
-    expect(result.success).toBe(false);
+    expect(badTo.success).toBe(false);
   });
 });
 

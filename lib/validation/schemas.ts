@@ -142,17 +142,34 @@ export const SearchBodySchema = z.object({
   // the workspace's `application_types.key`; omitted falls through to the RPC
   // default ('procurement').
   workspace_id: z.string().uuid().optional(),
-  // ID-144.6 (OBS-4 fix, TECH §2.5): server-side filters threaded to the
-  // hybrid_search RPC as filter_*. Previously Zod silently stripped these
-  // keys, so the BI-16 filters never reached the server. Optional — an
-  // empty filter set is the default. `kind` is the display vocabulary
-  // (answer|document|reference); the RPC maps it to arms, no translation
-  // here. ISO-datetime so the timestamptz RPC params bind cleanly.
+  // ID-144.6 (OBS-4 fix, TECH §2.5 as amended S460): server-side filters
+  // threaded to the hybrid_search RPC as filter_*. Previously Zod silently
+  // stripped these keys, so the BI-16 filters never reached the server.
+  // Optional — an empty filter set is the default. `kind` is the display
+  // vocabulary (answer|document|reference); the RPC maps it to arms, no
+  // translation here.
   kind: z.enum(['answer', 'document', 'reference']).optional(),
   domain: z.string().optional(),
   subtopic: z.string().optional(),
-  dateFrom: z.string().datetime().optional(),
-  dateTo: z.string().datetime().optional(),
+  // Boundary-normalisation fix (S460): the sole shipped caller is the
+  // native <input type="date"> in corpus-search-controls.tsx, which emits
+  // bare YYYY-MM-DD (no time component) via e.target.value — a
+  // Z-suffixed-only schema 400s the whole request the moment a user picks
+  // a date, a regression vs. the old silent strip. Accept EITHER a bare
+  // date OR a full Z-suffixed datetime so the API stays tolerant for ALL
+  // future callers; offsetted (non-Z) datetimes stay rejected. The route
+  // normalises a bare date to a UTC day-start/day-end bound before binding
+  // to the timestamptz RPC params (app/api/search/route.ts).
+  dateFrom: z
+    .string()
+    .datetime()
+    .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
+    .optional(),
+  dateTo: z
+    .string()
+    .datetime()
+    .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
+    .optional(),
 });
 
 /**
