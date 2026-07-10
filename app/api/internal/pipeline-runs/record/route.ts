@@ -179,6 +179,21 @@ const BodySchema = z.object({
       url: z.number().int().nonnegative().optional(),
     })
     .optional(),
+  /**
+   * ID-127.33 (S457 self-healing-memo ratification): per-extractor tally of
+   * memo-HIT deserialize failures that fell back to a fresh (un-memoised)
+   * extraction — `_FlowMemoHealCounter.tally()` in
+   * `scripts/cocoindex_pipeline/flow.py` emits `dict[str, int]` as
+   * `payload["memoHeals"]` at flow end. Before this fix the strict schema
+   * silently stripped the key — logs-only, never reaching
+   * `pipeline_runs.result` (a converged system should show heals→0 on the
+   * walk after the healing walk; that convergence was previously
+   * unobservable in the persisted row). `None` omits the field entirely
+   * (flow-start emission); an empty map at flow end means "walk ran, zero
+   * memo self-heals". Rides ALONGSIDE itemFailures/taxonomyMisses — never
+   * clobbers.
+   */
+  memoHeals: z.record(z.string(), z.number().int().nonnegative()).optional(),
 });
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -219,6 +234,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     retryCount,
     taxonomyMisses,
     itemFailures,
+    memoHeals,
   } = parsed.data;
 
   // Compose `pipeline_runs.result` (Inv-17 / Inv-8 / Inv-23 envelope).
@@ -242,6 +258,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // absent when the sidecar omits the field (no `item_failures: undefined`
   // leakage).
   if (itemFailures !== undefined) result.item_failures = itemFailures;
+  // ID-127.33: `!== undefined` (not truthy) — an empty map means "walk ran,
+  // zero memo self-heals" and must land verbatim, same discipline as
+  // taxonomyMisses/itemFailures above.
+  if (memoHeals !== undefined) result.memo_heals = memoHeals;
 
   try {
     const supabase = createServiceClient();

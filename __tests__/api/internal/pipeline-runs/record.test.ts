@@ -86,6 +86,7 @@ function makePayload(
     retryCount: number;
     taxonomyMisses: Record<string, number>;
     itemFailures: Record<string, number>;
+    memoHeals: Record<string, number>;
   }> = {},
 ): Record<string, unknown> {
   return {
@@ -125,6 +126,9 @@ function makePayload(
       : {}),
     ...(overrides.itemFailures !== undefined
       ? { itemFailures: overrides.itemFailures }
+      : {}),
+    ...(overrides.memoHeals !== undefined
+      ? { memoHeals: overrides.memoHeals }
       : {}),
   };
 }
@@ -703,6 +707,54 @@ describe('POST /api/internal/pipeline-runs/record — taxonomyMisses (ID-63.8 In
     const call = mockRecordPipelineRun.mock.calls[0][0];
     const result = call.result as Record<string, unknown>;
     expect(result).not.toHaveProperty('taxonomy_misses');
+  });
+});
+
+describe('POST /api/internal/pipeline-runs/record — memoHeals (ID-127.33 self-healing-memo)', () => {
+  beforeEach(resetMocks);
+
+  it('lands memoHeals inside result.memo_heals', async () => {
+    // flow.py emits `payload["memoHeals"]` (per-extractor tally of memo-HIT
+    // deserialize failures that fell back to a fresh, un-memoised
+    // extraction — `_FlowMemoHealCounter.tally()` → dict[str, int]). Before
+    // this fix the strict BodySchema silently stripped the key — logs-only
+    // observability, never reaching pipeline_runs.result.
+    await POST(
+      buildRequest({
+        body: makePayload({ memoHeals: { classification: 2, qa_form: 1 } }),
+      }) as never,
+    );
+
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    const result = call.result as Record<string, unknown>;
+    expect(result.memo_heals).toEqual({ classification: 2, qa_form: 1 });
+  });
+
+  it('lands an empty memoHeals map verbatim (a converged walk is meaningful)', async () => {
+    // A converged system should show heals→0 on the walk after the healing
+    // walk — an empty dict at flow-end means "extractions ran, zero heals",
+    // distinguishable from the field being omitted (flow-start emission).
+    await POST(buildRequest({ body: makePayload({ memoHeals: {} }) }) as never);
+
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    const result = call.result as Record<string, unknown>;
+    expect(result.memo_heals).toEqual({});
+  });
+
+  it('rejects negative heal counts with HTTP 400', async () => {
+    const payload = makePayload({ memoHeals: { classification: -1 } });
+
+    const res = await POST(buildRequest({ body: payload }) as never);
+    expect(res.status).toBe(400);
+    expect(mockRecordPipelineRun).not.toHaveBeenCalled();
+  });
+
+  it('omits memo_heals from result when memoHeals is absent (no undefined leakage)', async () => {
+    await POST(buildRequest({ body: makePayload() }) as never);
+
+    const call = mockRecordPipelineRun.mock.calls[0][0];
+    const result = call.result as Record<string, unknown>;
+    expect(result).not.toHaveProperty('memo_heals');
   });
 });
 
