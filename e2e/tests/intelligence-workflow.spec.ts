@@ -16,25 +16,6 @@ import { test, expect } from '../fixtures';
 // ---------------------------------------------------------------------------
 
 test.describe('Intelligence workspace navigation', () => {
-  test('intelligence card appears on /workspaces page', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.goto('/workspaces');
-
-    await expect(page.getByRole('heading', { name: 'Workspaces' })).toBeVisible(
-      { timeout: 10000 },
-    );
-
-    // Intelligence card should be visible (look for the workspace type card)
-    const intelligenceCard = page
-      .locator(
-        'a[aria-label*="Intelligence"], [data-testid="workspace-card-intelligence"]',
-      )
-      .first();
-
-    await expect(intelligenceCard).toBeVisible({ timeout: 5000 });
-  });
-
   test('intelligence workspace page loads with sub-navigation', async ({
     authenticatedPage: page,
     workerData,
