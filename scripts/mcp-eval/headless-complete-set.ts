@@ -6,8 +6,8 @@
  *   - O4   reorientation/briefing reads     (driven via `get_reorientation`,
  *          widened beyond KH state — the read reorients the *person*, not only
  *          their KH state)
- *   - O6   exposure five-layer reads        (driven via `where_are_we_exposed`,
- *          five layers + first-class resolution affordance)
+ *   - O6   exposure four-layer reads        (driven via `where_are_we_exposed`,
+ *          four layers + first-class resolution affordance)
  *   - W5.6 re-syndication                   (driven via `trigger_intelligence_poll`,
  *          re-distributes an already-published consumption output)
  *
@@ -32,20 +32,25 @@ export type HeadlessCompleteOutcome =
   (typeof HEADLESS_COMPLETE_OUTCOMES)[number];
 
 /**
- * The five-layer ordering O6 (`where_are_we_exposed`) presents (B-INV-4):
- * data you have -> its quality -> how you could use it today -> the gaps ->
- * the opportunities. Mirrors the `ExposureLayer.key` enum in
+ * The four-layer ordering O6 (`where_are_we_exposed`) presents (B-INV-4):
+ * data you have -> how you could use it today -> the gaps -> the
+ * opportunities. Mirrors the `ExposureLayer.key` enum in
  * lib/mcp/tools/dashboard.ts.
+ *
+ * ID-131.19 (S450 Wave 1, owner-ruled): the former "its quality" layer (fed
+ * solely by the dropped `get_quality_issue_counts` RPC, retired at M6) was
+ * TRIMMED from this ordering — five layers to four. See
+ * __tests__/mcp/where-are-we-exposed-tool.test.ts for the tool-level
+ * four-layer contract this constant mirrors.
  */
-export const FIVE_LAYER_ORDER = [
+export const FOUR_LAYER_ORDER = [
   'data',
-  'quality',
   'use_today',
   'gaps',
   'opportunities',
 ] as const;
 
-export type FiveLayerKey = (typeof FIVE_LAYER_ORDER)[number];
+export type FourLayerKey = (typeof FOUR_LAYER_ORDER)[number];
 
 /**
  * One member of the headless-complete read set. Each carries the MCP entry
@@ -81,11 +86,11 @@ export interface HeadlessCompleteMember {
    */
   readonly nonKhStateDimension?: string;
 
-  // --- O6 five-layer + resolution (B-INV-4) -------------------------------
-  /** True iff this member must return the five-layer structure (O6). */
-  readonly assertsFiveLayer?: boolean;
-  /** The asserted five-layer ordering (O6). */
-  readonly fiveLayerOrder?: readonly FiveLayerKey[];
+  // --- O6 four-layer + resolution (B-INV-4) -------------------------------
+  /** True iff this member must return the four-layer structure (O6). */
+  readonly assertsFourLayer?: boolean;
+  /** The asserted four-layer ordering (O6). */
+  readonly fourLayerOrder?: readonly FourLayerKey[];
   /** True iff this member must carry >=1 suggested-resolution affordance (O6). */
   readonly assertsResolutionAffordance?: boolean;
 
@@ -123,12 +128,12 @@ export const HEADLESS_COMPLETE_SET: readonly HeadlessCompleteMember[] = [
   },
   {
     outcome: 'O6',
-    label: 'exposure five-layer reads',
+    label: 'exposure four-layer reads',
     mcpTool: 'where_are_we_exposed',
     uiOnly: false,
     invariant: 'B-INV-4',
-    assertsFiveLayer: true,
-    fiveLayerOrder: FIVE_LAYER_ORDER,
+    assertsFourLayer: true,
+    fourLayerOrder: FOUR_LAYER_ORDER,
     assertsResolutionAffordance: true,
   },
   {

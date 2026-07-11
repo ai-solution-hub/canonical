@@ -13,7 +13,7 @@
  *   B-INV-1 — enumerate exactly {O1/O4/O6 reads + W5.6}
  *   B-INV-2 — each driven MCP-only to a terminal result, zero human-in-UI step
  *   B-INV-3 — O4 widened beyond KH state (non-KH-state dimension surfaced)
- *   B-INV-4 — O6 five-layer ordering + >=1 resolution affordance
+ *   B-INV-4 — O6 four-layer ordering + >=1 resolution affordance
  *   B-INV-5 — W5.6 re-syndication MCP-only to a delivered re-syndication
  */
 import { describe, expect, it } from 'vitest';
@@ -21,7 +21,7 @@ import { describe, expect, it } from 'vitest';
 import {
   HEADLESS_COMPLETE_SET,
   HEADLESS_COMPLETE_OUTCOMES,
-  FIVE_LAYER_ORDER,
+  FOUR_LAYER_ORDER,
   type HeadlessCompleteMember,
 } from '@/scripts/mcp-eval/headless-complete-set';
 import { CANONICAL_TOOL_NAMES } from '@/scripts/mcp-eval/fixtures';
@@ -93,19 +93,18 @@ describe('O4 reorientation/briefing read (B-INV-3 — widened beyond KH state)',
   });
 });
 
-describe('O6 exposure read (B-INV-4 — five-layer + resolution)', () => {
+describe('O6 exposure read (B-INV-4 — four-layer + resolution)', () => {
   const o6 = byOutcome('O6');
 
-  it('is driven by the consolidated five-layer exposure entry', () => {
+  it('is driven by the consolidated four-layer exposure entry', () => {
     expect(o6.mcpTool).toBe('where_are_we_exposed');
   });
 
-  it('asserts the five-layer ordering: data -> quality -> use_today -> gaps -> opportunities', () => {
-    expect(o6.assertsFiveLayer).toBe(true);
-    expect(o6.fiveLayerOrder).toEqual(FIVE_LAYER_ORDER);
-    expect(FIVE_LAYER_ORDER).toEqual([
+  it('asserts the four-layer ordering: data -> use_today -> gaps -> opportunities', () => {
+    expect(o6.assertsFourLayer).toBe(true);
+    expect(o6.fourLayerOrder).toEqual(FOUR_LAYER_ORDER);
+    expect(FOUR_LAYER_ORDER).toEqual([
       'data',
-      'quality',
       'use_today',
       'gaps',
       'opportunities',

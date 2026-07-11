@@ -26,7 +26,7 @@ import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import {
   HEADLESS_COMPLETE_SET,
   HEADLESS_COMPLETE_OUTCOMES,
-  FIVE_LAYER_ORDER,
+  FOUR_LAYER_ORDER,
 } from './headless-complete-set.js';
 import {
   PROPOSE_WRITE_TOOLS,
@@ -2999,11 +2999,11 @@ async function runGuideToolChecks(accessToken: string): Promise<void> {
 //     ID-71.22 — Wave 3, B-INV-1/2/3/4/5 (M1-M5).
 //
 // The launch headless-complete set is EXACTLY {O1 find, O4 reorientation
-// (widened beyond KH state), O6 exposure five-layer, W5.6 re-syndication}.
+// (widened beyond KH state), O6 exposure four-layer, W5.6 re-syndication}.
 // This section confirms the enumeration verbatim (no extras, no omissions),
 // then drives each member MCP-only to a terminal result with zero
 // human-in-UI step — asserting O4's non-KH-state dimension (B-INV-3) and O6's
-// five-layer ordering + resolution affordance (B-INV-4). The declarative set
+// four-layer ordering + resolution affordance (B-INV-4). The declarative set
 // lives in headless-complete-set.ts (unit-tested behaviour-first); this
 // section is the live MCP-only drive.
 // ---------------------------------------------------------------------------
@@ -3184,17 +3184,22 @@ async function runHeadlessCompleteEnumerationChecks(
     }
   }
 
-  // FC-95: O6 where_are_we_exposed — five-layer ordering + >=1 resolution
+  // FC-95: O6 where_are_we_exposed — four-layer ordering + >=1 resolution
   // affordance (B-INV-4). Asserts the layers appear in order:
-  // data -> quality -> use_today -> gaps -> opportunities, and at least one
+  // data -> use_today -> gaps -> opportunities, and at least one
   // "Suggested resolutions" block (gaps/opportunities carry resolutions).
+  //
+  // ID-131.19 (S450 Wave 1, owner-ruled): the former "its quality" layer (fed
+  // solely by the `get_quality_issue_counts` RPC, dropped at M6) was TRIMMED
+  // from five layers to four — this assertion mirrors that trim (was stale
+  // pre-fix, still asserting the retired five-layer order).
   {
     const result = await callTool('where_are_we_exposed', {}, accessToken);
     if (result.errorMessage) {
       record(
         SECTION,
         'FC-95',
-        'O6 five-layer + resolution',
+        'O6 four-layer + resolution',
         'FAIL',
         result.errorMessage,
       );
@@ -3202,25 +3207,23 @@ async function runHeadlessCompleteEnumerationChecks(
       record(
         SECTION,
         'FC-95',
-        'O6 five-layer + resolution',
+        'O6 four-layer + resolution',
         'FAIL',
         `Tool error: ${result.text.slice(0, 100)}`,
       );
     } else {
       const textLower = result.text.toLowerCase();
       // Layer titles from formatWhereAreWeExposed (lib/mcp/formatters/dashboard.ts):
-      //   data -> "the data you have"; quality -> "its quality"/"quality";
-      //   use_today -> "how you could use it today"; gaps -> "the gaps";
-      //   opportunities -> "the opportunities".
-      const layerMarkers: Record<(typeof FIVE_LAYER_ORDER)[number], string[]> =
+      //   data -> "the data you have"; use_today -> "how you could use it
+      //   today"; gaps -> "the gaps"; opportunities -> "the opportunities".
+      const layerMarkers: Record<(typeof FOUR_LAYER_ORDER)[number], string[]> =
         {
           data: ['the data you have', 'data you have'],
-          quality: ['its quality', 'quality'],
           use_today: ['how you could use it today', 'use it today'],
           gaps: ['the gaps'],
           opportunities: ['the opportunities'],
         };
-      const positions = FIVE_LAYER_ORDER.map((key) => {
+      const positions = FOUR_LAYER_ORDER.map((key) => {
         for (const marker of layerMarkers[key]) {
           const idx = textLower.indexOf(marker);
           if (idx >= 0) return idx;
@@ -3236,16 +3239,16 @@ async function runHeadlessCompleteEnumerationChecks(
         record(
           SECTION,
           'FC-95',
-          'O6 five-layer + resolution',
+          'O6 four-layer + resolution',
           'PASS',
-          'five layers in order (data -> quality -> use_today -> gaps -> opportunities) + resolution affordance',
+          'four layers in order (data -> use_today -> gaps -> opportunities) + resolution affordance',
         );
       } else {
-        const missing = FIVE_LAYER_ORDER.filter((_, i) => positions[i] < 0);
+        const missing = FOUR_LAYER_ORDER.filter((_, i) => positions[i] < 0);
         record(
           SECTION,
           'FC-95',
-          'O6 five-layer + resolution',
+          'O6 four-layer + resolution',
           'FAIL',
           `layers present=${allPresent}${missing.length ? ` (missing: ${missing.join(', ')})` : ''}, in-order=${inOrder}, resolution=${hasResolution}`,
         );

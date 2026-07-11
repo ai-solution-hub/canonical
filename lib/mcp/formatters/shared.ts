@@ -25,15 +25,20 @@ export function truncate(text: string, maxLength: number): string {
   return text.slice(0, maxLength - 3) + '...';
 }
 
+const TRUNCATION_NOTICE =
+  '\n\n... (content truncated — request specific items for full detail)';
+
 /**
  * Truncate a Markdown response to CHARACTER_LIMIT. Appends a note when
  * content is truncated so the LLM knows to request specific items instead.
+ * Reserves room for the notice so the TOTAL length (body + notice) never
+ * exceeds CHARACTER_LIMIT — mirrors the sibling `truncate()` helper above.
  */
 export function truncateResponse(text: string): string {
   if (text.length <= CHARACTER_LIMIT) return text;
   return (
-    text.slice(0, CHARACTER_LIMIT) +
-    '\n\n... (content truncated — request specific items for full detail)'
+    text.slice(0, CHARACTER_LIMIT - TRUNCATION_NOTICE.length) +
+    TRUNCATION_NOTICE
   );
 }
 
