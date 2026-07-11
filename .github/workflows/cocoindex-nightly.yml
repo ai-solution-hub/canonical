@@ -383,6 +383,11 @@ jobs:
             if printf '%s' "$WALK_LINES" | grep -q "fence busy"; then
               FENCE_RETRIES=$((FENCE_RETRIES + 1))
               echo "walk pass skipped (requestId=${REQUEST_ID}) — writer-fence busy (another writer holds the {138.9} lease); re-issuing /walk (retry ${FENCE_RETRIES})"
+              if [ "$(date +%s)" -ge "$DEADLINE" ]; then
+                WALK_ELAPSED=$(( $(date +%s) - WALK_OVERALL_START ))
+                echo "walk did not complete within ${WALK_ELAPSED}s (deadline 1800s, requestId=${REQUEST_ID}, fence-busy retries=${FENCE_RETRIES})" >&2
+                exit 1
+              fi
               sleep 5
               trigger_walk
               continue
