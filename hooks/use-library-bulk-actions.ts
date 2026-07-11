@@ -9,6 +9,7 @@ import {
   type BulkProgress,
 } from '@/lib/content-browsing';
 import type { ContentListItem } from '@/types/content';
+import type { WorkspaceOption } from '@/components/browse/bulk-action-toolbar';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -19,12 +20,6 @@ export interface UseLibraryBulkActionsParams {
   filterDeps: unknown[];
   /** @deprecated No longer needed — bulk actions invalidate queries directly */
   onRefetch?: () => void;
-}
-
-interface WorkspaceOption {
-  id: string;
-  name: string;
-  type: string | null;
 }
 
 /**
