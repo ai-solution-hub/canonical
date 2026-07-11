@@ -40,11 +40,12 @@ every anchor it mints), and a concept cross-link citation must be a member
 of `catalogue_paths`, the concept catalogue `list_concepts` offers this run.
 A well-formed but never-issued `canonical://source_documents/<random-uuid>`
 therefore FAILS validation even though it satisfies the format check —
-format alone is not proof of provenance. `read_concept_raw`'s tool result is
-the ONLY place a record-anchor string enters the conversation (minted here
-via the resource_uri builders from the row ids the Source adapter actually
-returned, and recorded into `seen_anchors` at mint time), so a validated
-citation is provably traceable to a real row this run actually read.
+format alone is not proof of provenance. `read_concept_raw`'s tool result —
+plus `sample_rows`' for the source_documents-backed grains — are the ONLY
+places a record-anchor string enters the conversation (minted via the
+resource_uri builders from the row ids the Source adapter actually returned,
+and recorded into `seen_anchors` at mint time), so a validated citation is
+provably traceable to a real row this run actually read.
 
 **Memoisation (BI-18).** `enrich_concept` is `@coco.fn(memo=True)`, keyed on
 `key: ConceptKey` — the SAME frozen-dataclass memo-key shape
@@ -198,9 +199,10 @@ def _annotate_raw_with_anchors(
     """The `read_concept_raw` tool result — `raw`'s rows, with every
     `source_documents`/`reference_items` row carrying its BI-6 per-row
     `canonical://` anchor and a top-level `qa_resource` (BI-8) when `key`
-    carries a topic locator. This is the ONLY place a `canonical://` anchor
-    or a q_a_pairs query anchor enters the conversation — the model copies
-    these verbatim into its `citations` array rather than inventing them.
+    carries a topic locator. Together with `_sample_rows`' sd-backed-grain
+    minting, this is where every `canonical://` anchor or q_a_pairs query
+    anchor enters the conversation — the model copies these verbatim into
+    its `citations` array rather than inventing them.
 
     Every anchor minted here is also recorded into `seen_anchors` — the
     per-run provenance ledger `_validate_citation` checks membership
@@ -299,6 +301,20 @@ def _build_tool_executors(
         except (TypeError, ValueError):
             return {"error": f"n must be an integer, got {n!r}"}
         rows = await source.sample_rows(target, n_int)
+        if target.concept_type in ("company", "certification"):
+            # These grains sample source_documents rows (the adapter
+            # dispatch's fallthrough arm — `l_records.sample_rows`), so each
+            # row gets its BI-6 anchor minted into `seen_anchors` exactly as
+            # `_annotate_raw_with_anchors` does: a sampled row is real
+            # provenance, and an unminted one leaks a REAL sd id the BI-17
+            # gate must then refuse. q_a_pairs-backed grains stay unadorned
+            # (q_a citation is DB-internal, owner-ratified).
+            return [
+                _with_resource(
+                    row, _mint(build_source_document_uri(row["id"]), seen_anchors)
+                )
+                for row in rows
+            ]
         return list(rows)
 
     async def _list_concepts(_tool_input: "Mapping[str, Any]") -> Any:

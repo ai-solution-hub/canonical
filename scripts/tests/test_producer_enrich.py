@@ -989,3 +989,87 @@ class TestEnrichConceptEndToEnd:
 
         draft = asyncio.run(_exercise())
         assert f"- {minted}" in draft.body
+
+
+# ============================================================================
+# BI-17 — sample_rows results are legally citable for sd-backed grains
+# ============================================================================
+
+
+class TestSampleRowsAnchorMinting:
+    """`sample_rows` for the source_documents-backed grains (`company`/
+    `certification` — the adapter dispatch's fallthrough arm) must mint each
+    sampled row's BI-6 `canonical://` anchor into `seen_anchors`, exactly as
+    `_annotate_raw_with_anchors` does for `read_concept_raw`: a row the model
+    actually read via `sample_rows` is real provenance, so a citation copied
+    from it must validate. Unminted sampled rows leak REAL sd ids the BI-17
+    gate then (correctly) refuses — the {132.15} v3 live-run failure shape.
+    q_a_pairs-backed grains stay unadorned: q_a citation is DB-internal
+    (owner-ratified), so no anchor form may enter the conversation for them.
+    """
+
+    @staticmethod
+    def _executors(key: ConceptKey, sample: "list[dict]") -> "tuple[dict, set]":
+        source = _FakeSource(
+            catalogue=_catalogue_with_gdpr(key),
+            raw_by_path={},
+            sample_by_path={key.rel_path: sample},
+        )
+        seen_anchors: "set[str]" = set()
+        executors = enrich._build_tool_executors(
+            key, source, [key, _gdpr_key()], {}, seen_anchors
+        )
+        return executors, seen_anchors
+
+    def test_certification_sample_rows_carry_minted_sd_anchors(self) -> None:
+        key = ConceptKey(
+            rel_path="certifications/iso-9001.md",
+            concept_type="certification",
+            entity_id="ISO 9001",
+        )
+        sd_id = str(uuid.uuid4())
+        executors, seen_anchors = self._executors(
+            key, [{"id": sd_id, "filename": "iso-9001-cert.pdf"}]
+        )
+
+        rows = asyncio.run(executors["sample_rows"]({"concept": key.rel_path, "n": 5}))
+
+        expected = build_source_document_uri(sd_id)
+        assert rows == [
+            {"id": sd_id, "filename": "iso-9001-cert.pdf", "resource": expected}
+        ]
+        assert seen_anchors == {expected}
+
+    def test_company_sample_rows_carry_minted_sd_anchors(self) -> None:
+        key = ConceptKey(rel_path="company/overview.md", concept_type="company")
+        sd_id = str(uuid.uuid4())
+        executors, seen_anchors = self._executors(
+            key, [{"id": sd_id, "filename": "team-structure.md"}]
+        )
+
+        rows = asyncio.run(executors["sample_rows"]({"concept": key.rel_path, "n": 3}))
+
+        expected = build_source_document_uri(sd_id)
+        assert rows[0]["resource"] == expected
+        assert seen_anchors == {expected}
+
+    def test_topic_qa_sample_rows_stay_unadorned(self) -> None:
+        key = _gdpr_key()
+        qa_rows = [{"id": "qa-7", "question_text": "What is GDPR?"}]
+        executors, seen_anchors = self._executors(key, qa_rows)
+
+        rows = asyncio.run(executors["sample_rows"]({"concept": key.rel_path, "n": 5}))
+
+        assert rows == qa_rows
+        assert "resource" not in rows[0]
+        assert seen_anchors == set()
+
+    def test_won_bid_case_study_qa_sample_rows_stay_unadorned(self) -> None:
+        key = _won_bid_case_study_key()
+        qa_rows = [{"id": "qa-9", "question_text": "Outcome?", "source_workspace_id": _WS_ID}]
+        executors, seen_anchors = self._executors(key, qa_rows)
+
+        rows = asyncio.run(executors["sample_rows"]({"concept": key.rel_path, "n": 2}))
+
+        assert rows == qa_rows
+        assert seen_anchors == set()
