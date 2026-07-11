@@ -116,9 +116,11 @@ export const NAV_ZONES: readonly NavZone[] = [
         label: 'Concepts',
         icon: Waypoints,
         visibility: 'all',
-        // BI-8: /okf has no landing route yet (id-132/id-138). Icon/label
-        // pre-declared so enabling this later is a one-line `reserved` flip.
-        reserved: true,
+        // {132.32} G-LANDING-IMPL (LI-7/LI-8): the /okf landing route has
+        // shipped (app/okf/page.tsx) — the one-line `reserved` flip BI-8
+        // anticipated. No other edit needed; visibleZoneEntries admits the
+        // entry and it propagates to the desktop bar, mobile drawer, and
+        // Cmd+K palette via the single-source NAV_ZONES registry.
       },
     ],
   },

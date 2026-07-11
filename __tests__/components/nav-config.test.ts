@@ -15,6 +15,7 @@ import {
   isEntryActive,
   isZoneActive,
   findZoneForHref,
+  visibleZoneEntries,
   type NavVisibility,
 } from '@/components/shell/nav-config';
 
@@ -64,9 +65,12 @@ describe('NAV_ZONES membership', () => {
     expect(new Set(hrefs).size).toBe(hrefs.length);
   });
 
-  it('marks only Concepts as reserved (BI-8)', () => {
+  // {132.32} G-LANDING-IMPL (LI-7/LI-8): the `/okf` landing route has shipped,
+  // so the Concepts slot flips from reserved to a rendered entry — no entry
+  // is reserved any more.
+  it('marks no entry as reserved now the /okf landing has shipped (LI-7/LI-8)', () => {
     const reserved = ALL_ENTRIES.filter((e) => e.reserved);
-    expect(reserved.map((e) => e.href)).toEqual(['/okf']);
+    expect(reserved).toEqual([]);
   });
 
   it.each([
@@ -127,11 +131,18 @@ describe('isEntryVisible role-gating (BI-20/BI-21)', () => {
   });
 });
 
-describe('reserved-entry render filter (BI-8)', () => {
-  it('excludes the Concepts entry from a render-visible list until its route lands', () => {
+describe('reserved-entry render filter (BI-8 / {132.32} LI-7/LI-8 flip)', () => {
+  it('renders the Concepts entry now the /okf landing route exists', () => {
     const renderable = ALL_ENTRIES.filter((e) => !e.reserved);
-    expect(renderable.some((e) => e.href === '/okf')).toBe(false);
+    expect(renderable.some((e) => e.href === '/okf')).toBe(true);
     expect(ALL_ENTRIES.some((e) => e.href === '/okf')).toBe(true);
+  });
+
+  it('includes the Concepts entry in visibleZoneEntries for every role (LI-8/LI-10)', () => {
+    const knowledgeZone = NAV_ZONES.find((z) => z.id === 'knowledge')!;
+    const viewer = { canEdit: false, canAdmin: false };
+    const visible = visibleZoneEntries(knowledgeZone, viewer);
+    expect(visible.some((e) => e.href === '/okf')).toBe(true);
   });
 });
 

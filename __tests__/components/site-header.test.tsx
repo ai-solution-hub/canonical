@@ -149,17 +149,17 @@ describe('SiteHeader', () => {
     expect(within(content).getByText('Intelligence')).toBeInTheDocument();
   });
 
-  it('lists the Knowledge zone members and never lists the reserved Concepts entry (BI-8)', async () => {
+  it('lists the Knowledge zone members including Concepts, now the /okf landing has shipped ({132.32} LI-8)', async () => {
     const user = userEvent.setup();
     render(<SiteHeader />);
     const content = await openDesktopZone(user, 'Knowledge');
     expect(within(content).getByText('Search')).toBeInTheDocument();
     expect(within(content).getByText('Answers')).toBeInTheDocument();
     expect(within(content).getByText('External sources')).toBeInTheDocument();
-    expect(within(content).queryByText('Concepts')).not.toBeInTheDocument();
+    expect(within(content).getByText('Concepts')).toBeInTheDocument();
   });
 
-  it('routes Search to /search and External sources to /reference', async () => {
+  it('routes Search to /search, External sources to /reference, and Concepts to /okf ({132.32} LI-8)', async () => {
     const user = userEvent.setup();
     render(<SiteHeader />);
     const content = await openDesktopZone(user, 'Knowledge');
@@ -170,6 +170,10 @@ describe('SiteHeader', () => {
     expect(
       within(content).getByText('External sources').closest('a'),
     ).toHaveAttribute('href', '/reference');
+    expect(within(content).getByText('Concepts').closest('a')).toHaveAttribute(
+      'href',
+      '/okf',
+    );
   });
 
   it('lists the Governance zone members for an editor (Provenance and Activity excluded — admin only)', async () => {

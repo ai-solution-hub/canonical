@@ -102,3 +102,67 @@ export async function fetchOkfResource(
     `/api/okf/resource?uri=${encodeURIComponent(uri)}`,
   );
 }
+
+// ---------------------------------------------------------------------------
+// /okf landing — full-bundle file explorer (ID-132 {132.32} G-LANDING-IMPL,
+// OKF-LANDING.md LI-3/LI-14/LI-15/LI-16/LI-17). Net-new fetchers alongside
+// the G-VIEWER ones above — `fetchOkfBundle`/`fetchOkfResource` are unchanged.
+// ---------------------------------------------------------------------------
+
+/** `GET /api/okf/bundles` response — the enumerate-all bundle list (LI-14). */
+export interface OkfBundleListResult {
+  bundles: string[];
+  /** `false` when `OKF_BUNDLE_ROOT` itself is unset/blank (LI-4(a)). */
+  configured: boolean;
+}
+
+/** Enumerate every configured bundleId (LI-14); never throws on empty/unset root. */
+export async function fetchOkfBundleList(): Promise<OkfBundleListResult> {
+  return fetchJson<OkfBundleListResult>('/api/okf/bundles');
+}
+
+/** One node in the full-bundle file-explorer tree (LI-15/LI-16). */
+export interface OkfTreeNode {
+  name: string;
+  /** Bundle-root-relative, POSIX-separated path. */
+  path: string;
+  type: 'file' | 'directory';
+  /** Files only: `false` for machine-facing files (e.g. `ontology.json`) — LI-16. */
+  renderable?: boolean;
+  /** Directories only. */
+  children?: OkfTreeNode[];
+}
+
+/** `GET /api/okf/[bundleId]/tree` response — one bundle's full file tree. */
+export interface OkfBundleTreeResult {
+  tree: OkfTreeNode[];
+}
+
+/** Fetch the full file-explorer tree for one bundle (LI-15). */
+export async function fetchOkfBundleTree(
+  bundleId: string,
+): Promise<OkfBundleTreeResult> {
+  return fetchJson<OkfBundleTreeResult>(
+    `/api/okf/${encodeURIComponent(bundleId)}/tree`,
+  );
+}
+
+/** `GET /api/okf/[bundleId]/file` response — one file's rendered-ready text. */
+export interface OkfBundleFileResult {
+  path: string;
+  content: string;
+}
+
+/**
+ * Read one within-bundle markdown file's text for the explorer render pane
+ * (LI-15). `filePath` is a bundle-root-relative path from the tree (LI-17
+ * traversal-safety is enforced server-side).
+ */
+export async function fetchOkfBundleFile(
+  bundleId: string,
+  filePath: string,
+): Promise<OkfBundleFileResult> {
+  return fetchJson<OkfBundleFileResult>(
+    `/api/okf/${encodeURIComponent(bundleId)}/file?path=${encodeURIComponent(filePath)}`,
+  );
+}

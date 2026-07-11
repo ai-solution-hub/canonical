@@ -485,6 +485,18 @@ export const queryKeys = {
     bundle: (bundleId: string) => ['okf', 'bundle', bundleId] as const,
     /** Secondary resource-resolution lane (a `resource:` pointer click). */
     resource: (uri: string) => ['okf', 'resource', uri] as const,
+    // -------------------------------------------------------------------
+    // {132.32} G-LANDING-IMPL — /okf landing + full-bundle file explorer
+    // (OKF-LANDING.md LI-3/LI-14/LI-15). New members only — the `bundle`/
+    // `resource` keys above are unchanged (C-4: never a rewrite).
+    // -------------------------------------------------------------------
+    /** Enumerate-all bundle list (LI-14). */
+    bundles: ['okf', 'bundles'] as const,
+    /** Full-bundle file-tree listing for one bundle (LI-15/LI-16). */
+    tree: (bundleId: string) => ['okf', 'tree', bundleId] as const,
+    /** Per-file text read for the explorer render pane (LI-15/LI-17). */
+    file: (bundleId: string, path: string) =>
+      ['okf', 'file', bundleId, path] as const,
   },
 
   // ---------------------------------------------------------------------------

@@ -204,17 +204,15 @@ describe('CommandPalette', () => {
       expect(screen.queryByText('Bids')).not.toBeInTheDocument();
     });
 
-    it('does not render the reserved Concepts entry (BI-8)', async () => {
+    it('renders the Concepts entry now the /okf landing has shipped ({132.32} LI-8)', async () => {
       setRole('admin');
       const user = userEvent.setup();
       render(<CommandPalette />);
       await openPalette(user);
 
       await waitFor(() => {
-        expect(screen.getByText('Applications')).toBeInTheDocument();
+        expect(screen.getByText('Concepts')).toBeInTheDocument();
       });
-
-      expect(screen.queryByText('Concepts')).not.toBeInTheDocument();
     });
 
     it('routes to the NAV_ZONES href for every visible entry (lockstep w/ site-header)', async () => {

@@ -17,8 +17,14 @@
  */
 import path from 'node:path';
 
-/** A bundleId must be a single safe path segment — no traversal, no separators. */
-const SAFE_BUNDLE_ID_RE = /^[A-Za-z0-9_-]+$/;
+/**
+ * A bundleId must be a single safe path segment — no traversal, no
+ * separators. Exported ({132.32} G-LANDING-IMPL) so the bundle-enumeration
+ * seam (`lib/okf/enumerate-bundles.ts`, LI-14) can filter `OKF_BUNDLE_ROOT`
+ * subdirectory names against the same guard, rather than duplicating the
+ * pattern.
+ */
+export const SAFE_BUNDLE_ID_RE = /^[A-Za-z0-9_-]+$/;
 
 /**
  * Resolve `bundleId` to the OKF bundle's filesystem root.
@@ -43,4 +49,20 @@ export function resolveOkfBundleRoot(bundleId: string): string {
     throw new Error(`Invalid bundleId: ${bundleId}`);
   }
   return path.join(root, bundleId);
+}
+
+/**
+ * Resolve the `OKF_BUNDLE_ROOT` parent directory itself — not a specific
+ * bundle ({132.32} G-LANDING-IMPL, LI-3(a)/LI-14 root-enumeration seam).
+ *
+ * Unlike `resolveOkfBundleRoot` (fail-loud, per-`bundleId`, preserved above
+ * unchanged), this returns `null` when unset/blank instead of throwing: the
+ * `/okf` landing surfaces to every authenticated user via the nav flip
+ * (LI-7) before any bundle is configured, so the bundle-list route degrades
+ * to a friendly 200 + empty state (LI-4(a)) rather than the `[bundleId]`
+ * graph route's fail-loud 500.
+ */
+export function resolveOkfBundleRootDirOrNull(): string | null {
+  const root = process.env.OKF_BUNDLE_ROOT?.trim();
+  return root || null;
 }
