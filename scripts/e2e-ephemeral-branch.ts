@@ -109,6 +109,23 @@
  * `fetchBranchDbCreds` (the pooler-config endpoint does not return a
  * password) — only the connection HOST/PORT/USER changed.
  *
+ * ITERATION-4 FIX (live-proof failure, run 29148230316): the S461 fix above
+ * assumed every branch exposes a `PRIMARY`/`session` pooler entry — false
+ * for ephemeral BRANCH projects, whose `config/database/pooler` response
+ * contains ONLY a `PRIMARY`/`transaction` entry. `fetchBranchPoolerConnection`
+ * now prefers the session entry when present but FALLS BACK to the
+ * transaction entry (host/port/user still read verbatim from the API
+ * response), failing loud with the actual entries seen only when neither
+ * exists. Using a transaction-mode pooler connection safely requires
+ * `applyMigrationsAndSeed`'s `psql` invocation to add `--single-transaction`
+ * — every migration file / `seed.sql` then runs as ONE transaction pinned to
+ * ONE backend connection, which is the property transaction mode does not
+ * otherwise guarantee across statements. Verified safe for this repo's full
+ * migration/seed set: no live `CREATE INDEX CONCURRENTLY` (the two grep
+ * matches in `20260619120100_index_unindexed_fks.sql` are comments
+ * explicitly rejecting it), no `VACUUM`/`ALTER SYSTEM`/`CREATE|DROP
+ * DATABASE|TABLESPACE`, and no explicit `BEGIN`/`COMMIT`/`ROLLBACK`.
+ *
  * `waitForBranchReady` deliberately does NOT poll an undocumented branch
  * `status` enum. Instead it polls the branch's own PostgREST endpoint for
  * `public.application_types` — the table `supabase/seed.sql` §2·0 seeds
@@ -681,15 +698,34 @@ export interface PoolerConnectionInfo {
  * file-header ROOT CAUSE + FIX note: GitHub-hosted runners have no IPv6
  * connectivity, so `psql` cannot reach `fetchBranchDbCreds`'s direct
  * `db_host`. Supavisor's SESSION-mode pooler (NOT transaction mode — see the
- * same note for why) is IPv4 on every plan tier, no add-on required.
+ * same note for why session mode was originally preferred) is IPv4 on every
+ * plan tier, no add-on required.
  *
- * Reads `db_host`/`db_port`/`db_user` straight from the API response for the
- * `PRIMARY` database's `session`-mode entry, rather than hand-building
+ * ITERATION-4 FALLBACK (live run 29148230316): ephemeral BRANCH projects
+ * have been observed to expose ONLY the `PRIMARY`/`transaction` pooler
+ * entry — no `PRIMARY`/`session` entry at all. Prefers the session entry
+ * when present; FALLS BACK to the transaction entry (host/port/user read
+ * verbatim from the API response, same as the session path) rather than
+ * failing loud, since a branch genuinely may not offer session mode.
+ * `applyMigrationsAndSeed`'s `psql` invocation adds `--single-transaction`
+ * so a transaction-mode pooler connection (which does not preserve session
+ * state — prepared statements, `SET`, advisory locks — across statements)
+ * is still safe: each migration file / `seed.sql` runs as ONE transaction on
+ * ONE pinned backend connection, and this repo's full migration/seed set
+ * contains no `CREATE INDEX CONCURRENTLY` / `VACUUM` / `ALTER SYSTEM` /
+ * `CREATE|DROP DATABASE|TABLESPACE` / explicit `BEGIN`/`COMMIT`/`ROLLBACK`
+ * (verified by grep — see the iteration-3 executor's PLAN.md {128.10}
+ * journal) that would conflict with that constraint.
+ *
+ * Reads `db_host`/`db_port`/`db_user` straight from the API response for
+ * whichever entry is chosen, rather than hand-building
  * `aws-0-<region>.pooler.supabase.com` from a region string — this tracks
  * whatever host Supabase's own infrastructure actually assigns (including
  * any future non-`aws-0-` shard) without this script needing to know the
  * mapping. Does NOT return a password — `fetchBranchDbCreds`'s `db_pass` is
- * still the only source for that.
+ * still the only source for that. Fails loud, naming the actual entries
+ * seen, only when NEITHER a session nor a transaction `PRIMARY` entry
+ * exists.
  */
 export async function fetchBranchPoolerConnection(
   branchProjectRef: string,
@@ -709,10 +745,15 @@ export async function fetchBranchPoolerConnection(
   const sessionEntry = entries.find(
     (e) => e.database_type === 'PRIMARY' && e.pool_mode === 'session',
   );
-  if (!sessionEntry) {
+  const transactionEntry = entries.find(
+    (e) => e.database_type === 'PRIMARY' && e.pool_mode === 'transaction',
+  );
+  const chosenEntry = sessionEntry ?? transactionEntry;
+  if (!chosenEntry) {
     throw new EphemeralBranchError(
-      'Could not find a PRIMARY/session Supavisor pooler entry in the ' +
-        `config/database/pooler response — got entries: ${JSON.stringify(
+      'Could not find a PRIMARY session-mode or transaction-mode Supavisor ' +
+        'pooler entry in the config/database/pooler response — got ' +
+        `entries: ${JSON.stringify(
           entries.map((e) => ({
             database_type: e.database_type,
             pool_mode: e.pool_mode,
@@ -720,9 +761,9 @@ export async function fetchBranchPoolerConnection(
         )}.`,
     );
   }
-  const host = extractString(sessionEntry, ['db_host']);
-  const user = extractString(sessionEntry, ['db_user']);
-  const portRaw = sessionEntry['db_port'];
+  const host = extractString(chosenEntry, ['db_host']);
+  const user = extractString(chosenEntry, ['db_user']);
+  const portRaw = chosenEntry['db_port'];
   const port =
     typeof portRaw === 'number'
       ? portRaw
@@ -731,8 +772,8 @@ export async function fetchBranchPoolerConnection(
         : NaN;
   if (!host || !user || !Number.isFinite(port)) {
     throw new EphemeralBranchError(
-      'Supavisor session-mode pooler entry missing db_host/db_user/db_port ' +
-        `— got keys [${Object.keys(sessionEntry).join(', ')}].`,
+      `Supavisor ${chosenEntry.pool_mode ?? '(unknown)'}-mode pooler entry ` +
+        `missing db_host/db_user/db_port — got keys [${Object.keys(chosenEntry).join(', ')}].`,
     );
   }
   return { host, port, user };
@@ -754,10 +795,19 @@ function defaultPsqlExecutor(
   env: NodeJS.ProcessEnv,
 ): PsqlExecResult {
   try {
-    execFileSync('psql', ['-v', 'ON_ERROR_STOP=1', '-q', '-f', file], {
-      env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    // `--single-transaction` wraps the whole file in one BEGIN/COMMIT,
+    // pinned to one backend connection — required now that the pooler
+    // connection may be Supavisor TRANSACTION mode (see the
+    // fetchBranchPoolerConnection doc comment's ITERATION-4 FALLBACK note),
+    // which does not preserve session state across statements otherwise.
+    execFileSync(
+      'psql',
+      ['-v', 'ON_ERROR_STOP=1', '-q', '--single-transaction', '-f', file],
+      {
+        env,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    );
     return { ok: true, stderr: '' };
   } catch (err) {
     const e = err as { stderr?: Buffer | string | null; message?: string };

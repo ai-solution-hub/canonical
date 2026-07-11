@@ -29,6 +29,25 @@ import {
   EphemeralBranchError,
 } from '@/scripts/e2e-ephemeral-branch';
 
+// Only the (real) default psql executor shells out to `execFileSync` — every
+// other test in this file injects its own `psqlExec` double. Mocking the
+// module lets one test assert the ACTUAL CLI args a real invocation would
+// use (e.g. `--single-transaction`) without ever spawning a real `psql`.
+const { execFileSyncMock } = vi.hoisted(() => ({
+  execFileSyncMock: vi.fn(),
+}));
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    execFileSync: execFileSyncMock,
+    default: {
+      ...(actual.default as Record<string, unknown> | undefined),
+      execFileSync: execFileSyncMock,
+    },
+  };
+});
+
 interface FakeResponse {
   ok: boolean;
   status?: number;
@@ -797,7 +816,12 @@ describe('fetchBranchPoolerConnection — Supavisor session-mode pooler (IPv4, u
     );
   });
 
-  it('throws when no PRIMARY/session entry is present (e.g. only transaction mode returned)', async () => {
+  it('falls back to the PRIMARY/transaction entry, verbatim from the API, when ephemeral branches expose no session entry', async () => {
+    // Ephemeral BRANCH projects have been observed (live, run 29148230316)
+    // to expose ONLY the PRIMARY/transaction pooler entry — no session-mode
+    // entry at all. This must no longer throw; it must fall back and use
+    // the transaction entry's host/port/user exactly as the API returned
+    // them (no hand-built pooler host).
     const { fetchImpl } = fakeFetch([
       {
         ok: true,
@@ -813,13 +837,75 @@ describe('fetchBranchPoolerConnection — Supavisor session-mode pooler (IPv4, u
         ],
       },
     ]);
+    const pooler = await fetchBranchPoolerConnection('branchref123', {
+      token: 't',
+      fetchImpl,
+      log: silent,
+    });
+    expect(pooler).toEqual({
+      host: 'aws-0-us-east-1.pooler.supabase.com',
+      port: 6543,
+      user: 'postgres.branchref123',
+    });
+  });
+
+  it('prefers the session entry over the transaction entry when both are present', async () => {
+    const { fetchImpl } = fakeFetch([
+      {
+        ok: true,
+        json: [
+          {
+            identifier: 'txn',
+            database_type: 'PRIMARY',
+            pool_mode: 'transaction',
+            db_host: 'txn-host.pooler.supabase.com',
+            db_port: 6543,
+            db_user: 'postgres.txnuser',
+          },
+          {
+            identifier: 'session',
+            database_type: 'PRIMARY',
+            pool_mode: 'session',
+            db_host: 'session-host.pooler.supabase.com',
+            db_port: 5432,
+            db_user: 'postgres.sessionuser',
+          },
+        ],
+      },
+    ]);
+    const pooler = await fetchBranchPoolerConnection('branchref123', {
+      token: 't',
+      fetchImpl,
+      log: silent,
+    });
+    expect(pooler).toEqual({
+      host: 'session-host.pooler.supabase.com',
+      port: 5432,
+      user: 'postgres.sessionuser',
+    });
+  });
+
+  it('throws loud, listing the actual entries, when neither a PRIMARY/session nor PRIMARY/transaction entry exists', async () => {
+    const { fetchImpl } = fakeFetch([
+      {
+        ok: true,
+        json: [
+          {
+            identifier: 'replica',
+            database_type: 'READ_REPLICA',
+            pool_mode: 'session',
+            db_host: 'replica-host.pooler.supabase.com',
+          },
+        ],
+      },
+    ]);
     await expect(
       fetchBranchPoolerConnection('branchref123', {
         token: 't',
         fetchImpl,
         log: silent,
       }),
-    ).rejects.toThrow(/PRIMARY\/session/);
+    ).rejects.toThrow(/READ_REPLICA/);
   });
 
   it('throws when the response is not an array', async () => {
@@ -925,6 +1011,30 @@ describe('applyMigrationsAndSeed — explicit migrate+seed via psql (bypasses Su
         listMigrationFiles: () => ['supabase/migrations/20260101_a.sql'],
       }),
     ).rejects.toThrow(/seed\.sql.*syntax error/);
+  });
+});
+
+describe('applyMigrationsAndSeed — real psql invocation is transaction-pooler-safe', () => {
+  const dbCreds = { host: 'h', port: 6543, user: 'postgres', password: 'pw' };
+
+  it('invokes the real psql executor with --single-transaction on every migration + seed.sql call, so replay is one transaction on one pinned backend connection', async () => {
+    execFileSyncMock.mockReset();
+    execFileSyncMock.mockReturnValue(Buffer.from(''));
+    await applyMigrationsAndSeed({
+      dbCreds,
+      log: silent,
+      listMigrationFiles: () => [
+        'supabase/migrations/20260101_a.sql',
+        'supabase/migrations/20260102_b.sql',
+      ],
+      seedFile: 'supabase/seed.sql',
+    });
+    expect(execFileSyncMock).toHaveBeenCalledTimes(3); // 2 migrations + seed.sql
+    for (const call of execFileSyncMock.mock.calls) {
+      const [bin, args] = call as [string, string[]];
+      expect(bin).toBe('psql');
+      expect(args).toContain('--single-transaction');
+    }
   });
 });
 
