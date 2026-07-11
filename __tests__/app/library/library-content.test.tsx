@@ -2,10 +2,11 @@
  * LibraryContent Component Tests
  *
  * Tests the Q&A Library page content — header, search, filters,
- * loading/empty states, and bulk selection. ID-139 {139.9}: the Tag,
- * Assign-to-workspace, Re-classify and Delete dialogs/handlers were
- * retired (dead /api/items/* affordances) — Verify is the only
- * surviving bulk action.
+ * loading/empty states, and bulk selection. ID-135 {135.25}: verifies
+ * LibraryContent wires the {135.22}-shipped useLibraryBulkActions
+ * assign/delete handlers through to BulkActionToolbar's props (the
+ * toolbar's own behaviour — confirm dialogs gating the mutations — is
+ * covered in bulk-action-toolbar.test.tsx against the real component).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -53,6 +54,15 @@ const {
     toggleSelectAll: vi.fn(),
     clearSelection: vi.fn(),
     handleBulkVerify: vi.fn(),
+    handleBulkDelete: vi.fn(),
+    assignDialogOpen: false,
+    setAssignDialogOpen: vi.fn(),
+    workspaces: [] as { id: string; name: string; type: string | null }[],
+    workspacesLoading: false,
+    selectedWorkspaceId: '',
+    setSelectedWorkspaceId: vi.fn(),
+    handleBulkAssignOpen: vi.fn(),
+    handleBulkAssignConfirm: vi.fn(),
   },
   mockUserRole: {
     role: 'editor' as string | null,
@@ -137,9 +147,24 @@ vi.mock('@/components/qa/qa-row', () => ({
 }));
 
 vi.mock('@/components/browse/bulk-action-toolbar', () => ({
-  BulkActionToolbar: ({ selectedCount }: { selectedCount: number }) =>
+  BulkActionToolbar: ({
+    selectedCount,
+    onBulkDelete,
+    onOpenAssignDialog,
+    onConfirmAssign,
+  }: {
+    selectedCount: number;
+    onBulkDelete: () => void;
+    onOpenAssignDialog: () => void;
+    onConfirmAssign: () => void;
+  }) =>
     selectedCount > 0 ? (
-      <div data-testid="bulk-toolbar">Bulk: {selectedCount}</div>
+      <div data-testid="bulk-toolbar">
+        Bulk: {selectedCount}
+        <button onClick={onBulkDelete}>stub-delete</button>
+        <button onClick={onOpenAssignDialog}>stub-open-assign</button>
+        <button onClick={onConfirmAssign}>stub-confirm-assign</button>
+      </div>
     ) : null,
 }));
 
@@ -412,6 +437,47 @@ describe('LibraryContent', () => {
       expect(screen.getByTestId('bulk-toolbar')).toBeInTheDocument();
       expect(screen.getByText('Bulk: 1')).toBeInTheDocument();
     });
+  });
+
+  // -------------------------------------------------------------------------
+  // ID-135 {135.25}: wire the {135.22}-shipped assign/delete handlers into
+  // BulkActionToolbar's props
+  // -------------------------------------------------------------------------
+
+  it('wires bulk.handleBulkDelete into BulkActionToolbar onBulkDelete', async () => {
+    const items = [createQAItem({ id: 'qa-1' })];
+    mockLibraryData.items = items;
+    mockBulk.selectedIds = new Set(['qa-1']);
+    const user = userEvent.setup();
+
+    renderLibraryContent();
+    await user.click(await screen.findByText('stub-delete'));
+
+    expect(mockBulk.handleBulkDelete).toHaveBeenCalledOnce();
+  });
+
+  it('wires bulk.handleBulkAssignOpen into BulkActionToolbar onOpenAssignDialog', async () => {
+    const items = [createQAItem({ id: 'qa-1' })];
+    mockLibraryData.items = items;
+    mockBulk.selectedIds = new Set(['qa-1']);
+    const user = userEvent.setup();
+
+    renderLibraryContent();
+    await user.click(await screen.findByText('stub-open-assign'));
+
+    expect(mockBulk.handleBulkAssignOpen).toHaveBeenCalledOnce();
+  });
+
+  it('wires bulk.handleBulkAssignConfirm into BulkActionToolbar onConfirmAssign', async () => {
+    const items = [createQAItem({ id: 'qa-1' })];
+    mockLibraryData.items = items;
+    mockBulk.selectedIds = new Set(['qa-1']);
+    const user = userEvent.setup();
+
+    renderLibraryContent();
+    await user.click(await screen.findByText('stub-confirm-assign'));
+
+    expect(mockBulk.handleBulkAssignConfirm).toHaveBeenCalledOnce();
   });
 
   it('clear all filters button resets filters', async () => {

@@ -483,6 +483,15 @@ export function LibraryContent() {
           bulkProgress={bulk.bulkProgress}
           onBulkVerify={bulk.handleBulkVerify}
           onClearSelection={bulk.clearSelection}
+          onBulkDelete={bulk.handleBulkDelete}
+          assignDialogOpen={bulk.assignDialogOpen}
+          onAssignDialogOpenChange={bulk.setAssignDialogOpen}
+          workspaces={bulk.workspaces}
+          workspacesLoading={bulk.workspacesLoading}
+          selectedWorkspaceId={bulk.selectedWorkspaceId}
+          onSelectedWorkspaceIdChange={bulk.setSelectedWorkspaceId}
+          onOpenAssignDialog={bulk.handleBulkAssignOpen}
+          onConfirmAssign={bulk.handleBulkAssignConfirm}
         />
 
         {/* Select all header */}
