@@ -1073,3 +1073,49 @@ class TestSampleRowsAnchorMinting:
 
         assert rows == qa_rows
         assert seen_anchors == set()
+
+
+class TestEntityMentionSdAnchorMinting:
+    """`entity_mentions` rows in a `read_concept_raw` payload each carry a
+    `context_snippet` — genuinely-read content from their parent
+    `source_documents` row — so that parent sd is real provenance the model
+    may cite. Each mention row therefore gets `resource` =
+    `build_source_document_uri(source_document_id)` minted into
+    `seen_anchors` (the {132.15} v4 live-run failure: a certification cited
+    a mention's REAL parent sd, which had no minted anchor form). Mention
+    rows' OWN ids stay unadorned — `entity_mentions` is not a BI-6
+    allowlisted citation table."""
+
+    def test_mention_rows_carry_parent_sd_anchor(self) -> None:
+        key = _product_key()
+        sd_id = str(uuid.uuid4())
+        raw = ConceptRaw(
+            entity_mentions=[
+                {
+                    "id": "em-1",
+                    "source_document_id": sd_id,
+                    "entity_name": "LMS",
+                    "context_snippet": "…the LMS product…",
+                }
+            ]
+        )
+        seen_anchors: "set[str]" = set()
+
+        payload = enrich._annotate_raw_with_anchors(key, raw, seen_anchors)
+
+        expected = build_source_document_uri(sd_id)
+        assert payload["entity_mentions"][0]["resource"] == expected
+        assert payload["entity_mentions"][0]["id"] == "em-1"
+        assert expected in seen_anchors
+
+    def test_mention_row_without_parent_sd_stays_unadorned(self) -> None:
+        key = _product_key()
+        raw = ConceptRaw(
+            entity_mentions=[{"id": "em-2", "source_document_id": None, "entity_name": "X"}]
+        )
+        seen_anchors: "set[str]" = set()
+
+        payload = enrich._annotate_raw_with_anchors(key, raw, seen_anchors)
+
+        assert "resource" not in payload["entity_mentions"][0]
+        assert seen_anchors == set()

@@ -229,7 +229,18 @@ def _annotate_raw_with_anchors(
         ],
         "q_a_pairs": list(raw.q_a_pairs),
         "record_lifecycle": list(raw.record_lifecycle),
-        "entity_mentions": list(raw.entity_mentions),
+        # A mention's `context_snippet` is genuinely-read content from its
+        # parent source_documents row, so that parent sd is citable
+        # provenance and gets its anchor minted; the mention row's OWN id
+        # stays unadorned (`entity_mentions` is not a BI-6 citation table).
+        "entity_mentions": [
+            _with_resource(
+                row, _mint(build_source_document_uri(row["source_document_id"]), seen_anchors)
+            )
+            if row.get("source_document_id")
+            else dict(row)
+            for row in raw.entity_mentions
+        ],
         "entity_relationships": list(raw.entity_relationships),
         "workspaces": list(raw.workspaces),
         "form_templates": list(raw.form_templates),
