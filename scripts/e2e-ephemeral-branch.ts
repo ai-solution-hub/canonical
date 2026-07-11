@@ -126,6 +126,27 @@
  * explicitly rejecting it), no `VACUUM`/`ALTER SYSTEM`/`CREATE|DROP
  * DATABASE|TABLESPACE`, and no explicit `BEGIN`/`COMMIT`/`ROLLBACK`.
  *
+ * ITERATION-5 FIX (live-proof failure, run 29148591505): with the pooler fix
+ * above, `provision-branch` now SUCCEEDS end-to-end, but the downstream
+ * `build` job's env validation failed — `SUPABASE_SERVICE_ROLE_KEY` arrived
+ * EMPTY. Root cause: GitHub Actions job outputs are DROPPED, not merely
+ * unmasked, when their value has been `::add-mask::`-ed —
+ * `##[warning] Skip output 'service-role-key' since it may contain secret.`
+ * (undocumented at implementation time; empirically confirmed by this run's
+ * log). `branch-ref`/`branch-url`/`publishable-key` are unmasked/non-secret
+ * and cross the job boundary fine — only the masked `service-role-key`
+ * output silently vanished. FIX: stop passing the service-role key via job
+ * outputs at all. The new `keys-env` subcommand
+ * (`emitBranchServiceRoleKeyToEnv`) lets each CONSUMING job (`build`,
+ * `e2e-shard`) fetch its OWN copy straight from the Management API — using
+ * the non-secret `branch-ref` job output + `SUPABASE_ACCESS_TOKEN_EXPERIMENTAL`
+ * (both already available to every job) — and writes it to `$GITHUB_ENV`,
+ * masked, entirely WITHIN that job. `$GITHUB_ENV` never crosses a job
+ * boundary, so this sidesteps the job-output masking bug rather than working
+ * around it. `provision-branch`'s OWN internal steps keep reading
+ * `steps.keys.outputs.service-role-key` (a same-job STEP output, unaffected
+ * by this bug) unchanged.
+ *
  * `waitForBranchReady` deliberately does NOT poll an undocumented branch
  * `status` enum. Instead it polls the branch's own PostgREST endpoint for
  * `public.application_types` — the table `supabase/seed.sql` §2·0 seeds
@@ -153,6 +174,7 @@
  *   bun run scripts/e2e-ephemeral-branch.ts migrate --branch-id=<id> --branch-ref=<ref>
  *   bun run scripts/e2e-ephemeral-branch.ts wait-ready --branch-url=<url> --service-role-key=<key>
  *   bun run scripts/e2e-ephemeral-branch.ts keys --branch-ref=<ref>
+ *   bun run scripts/e2e-ephemeral-branch.ts keys-env --branch-ref=<ref>
  *   bun run scripts/e2e-ephemeral-branch.ts delete --branch-ref=<ref>
  *
  * Required env vars: SUPABASE_ACCESS_TOKEN (Management API PAT), and for
@@ -161,10 +183,12 @@
  * only SUPABASE_ACCESS_TOKEN (it fetches the branch's own DB creds AND its
  * Supavisor pooler connection info directly — see the ROOT CAUSE + FIX note
  * above for why both `--branch-id` and `--branch-ref` are required) and the
- * `psql` binary on PATH. Secret-shaped CLI outputs (service-role-key,
- * and `migrate`'s in-process DB password) are emitted via GitHub Actions
- * `::add-mask::` BEFORE being written to `$GITHUB_OUTPUT` or used — never
- * echoed in plain log lines.
+ * `psql` binary on PATH. `keys-env` (ITERATION-5 FIX above) likewise needs
+ * only SUPABASE_ACCESS_TOKEN + `--branch-ref` — no PLATFORM_PROJECT_REF.
+ * Secret-shaped CLI outputs (service-role-key via `keys`/`keys-env`, and
+ * `migrate`'s in-process DB password) are emitted via GitHub Actions
+ * `::add-mask::` BEFORE being written to `$GITHUB_OUTPUT` / `$GITHUB_ENV` or
+ * used — never echoed in plain log lines.
  */
 
 import { appendFileSync, readdirSync } from 'node:fs';
@@ -1036,6 +1060,94 @@ function maskAndWriteOutput(name: string, value: string): void {
   writeOutput(name, value);
 }
 
+export interface WriteEnvVarOptions {
+  /** Injectable — defaults to `node:fs`'s real `appendFileSync`. Tests supply
+   * a spy instead of touching disk. */
+  appendToFile?: (path: string, content: string) => void;
+  /** Injectable — defaults to `console.log`, same as `writeOutput` /
+   * `maskAndWriteOutput` above. */
+  log?: (message: string) => void;
+}
+
+/**
+ * {128.10} ITERATION-5 FIX: write `NAME=VALUE` to the GitHub Actions
+ * `$GITHUB_ENV` file so every SUBSEQUENT step in the SAME job sees it as a
+ * plain process env var — no `${{ steps.X.outputs.Y }}` interpolation (and
+ * no `needs.*.outputs` cross-job reference) required downstream. Unlike
+ * `needs.*.outputs`, `$GITHUB_ENV` never crosses a job boundary, so GitHub's
+ * per-job masking of secret-shaped values can never be silently dropped by
+ * it — see the file-header ITERATION-5 FIX note for the bug this sidesteps.
+ * Secret-shaped values MUST be masked BEFORE this is called
+ * (`maskAndWriteEnvVar` below) — mirrors `writeOutput`'s own contract.
+ */
+export function writeEnvVar(
+  name: string,
+  value: string,
+  opts: WriteEnvVarOptions = {},
+): void {
+  const log = opts.log ?? console.log;
+  const append = opts.appendToFile ?? appendFileSync;
+  const envFile = process.env.GITHUB_ENV;
+  if (!envFile) {
+    log(`[e2e-ephemeral-branch] (no GITHUB_ENV set) ${name}=${value}`);
+    return;
+  }
+  const delimiter = `ghaenvdelim_${Math.random().toString(36).slice(2)}`;
+  append(envFile, `${name}<<${delimiter}\n${value}\n${delimiter}\n`);
+}
+
+/**
+ * Same masking discipline as `maskAndWriteOutput`: the `::add-mask::`
+ * directive is printed (via `log`) BEFORE the value is written anywhere
+ * else, so any later accidental echo of it is redacted correctly.
+ */
+export function maskAndWriteEnvVar(
+  name: string,
+  value: string,
+  opts: WriteEnvVarOptions = {},
+): void {
+  const log = opts.log ?? console.log;
+  log(`::add-mask::${value}`);
+  writeEnvVar(name, value, opts);
+}
+
+export interface EmitServiceRoleKeyOptions {
+  /** The branch's own project ref — the same non-secret value the workflow's
+   * `branch-ref` job output already exposes. Validated here (not only in
+   * the CLI wrapper below) so a direct/programmatic call still fails loud on
+   * a missing/blank ref, matching this file's fail-loud convention. */
+  branchProjectRef: string | undefined;
+}
+
+/**
+ * `keys-env` subcommand core (see file-header ITERATION-5 FIX note): fetch
+ * this branch's API keys via the SAME `fetchBranchApiKeys` /
+ * `normaliseApiKeys` path the `keys` subcommand uses, and emit ONLY the
+ * secret-shaped service-role key to `$GITHUB_ENV`, masked. Consuming jobs
+ * (`build`, `e2e-shard`) call this THEMSELVES instead of reading
+ * `needs.provision-branch.outputs.service-role-key`, because GitHub Actions
+ * silently DROPS a job output whose value it has masked — the root cause of
+ * the {128.10} live-proof `build`-job failure (run 29148591505). The
+ * publishable key and branch-url are NOT secret-shaped and continue to flow
+ * via ordinary job outputs, unaffected by that bug — this function
+ * deliberately does not also emit them.
+ */
+export async function emitBranchServiceRoleKeyToEnv(
+  opts: EmitServiceRoleKeyOptions & ManagementApiDeps & WriteEnvVarOptions,
+): Promise<BranchApiKeys> {
+  if (!opts.branchProjectRef) {
+    throw new EphemeralBranchError(
+      "--branch-ref=<ref> is required to fetch this branch's API keys.",
+    );
+  }
+  const keys = await fetchBranchApiKeys({
+    ...opts,
+    branchProjectRef: opts.branchProjectRef,
+  });
+  maskAndWriteEnvVar('SUPABASE_SERVICE_ROLE_KEY', keys.serviceRoleKey, opts);
+  return keys;
+}
+
 async function runSweep(): Promise<void> {
   const token = requireEnv('SUPABASE_ACCESS_TOKEN');
   const platformProjectRef = requireEnv('PLATFORM_PROJECT_REF');
@@ -1105,6 +1217,12 @@ async function runKeys(): Promise<void> {
   maskAndWriteOutput('service-role-key', keys.serviceRoleKey);
 }
 
+async function runKeysEnv(): Promise<void> {
+  const token = requireEnv('SUPABASE_ACCESS_TOKEN');
+  const branchProjectRef = requireArg('branch-ref');
+  await emitBranchServiceRoleKeyToEnv({ branchProjectRef, token });
+}
+
 async function runDelete(): Promise<void> {
   const token = requireEnv('SUPABASE_ACCESS_TOKEN');
   const branchRef = parseArg('branch-ref');
@@ -1134,11 +1252,13 @@ async function main(): Promise<void> {
       return runWaitReady();
     case 'keys':
       return runKeys();
+    case 'keys-env':
+      return runKeysEnv();
     case 'delete':
       return runDelete();
     default:
       throw new EphemeralBranchError(
-        `Unknown command "${command}". Expected one of: sweep, create, wait-compute-healthy, migrate, wait-ready, keys, delete.`,
+        `Unknown command "${command}". Expected one of: sweep, create, wait-compute-healthy, migrate, wait-ready, keys, keys-env, delete.`,
       );
   }
 }

@@ -26,6 +26,9 @@ import {
   waitForBranchComputeHealthy,
   applyMigrationsAndSeed,
   waitForBranchReady,
+  writeEnvVar,
+  maskAndWriteEnvVar,
+  emitBranchServiceRoleKeyToEnv,
   EphemeralBranchError,
 } from '@/scripts/e2e-ephemeral-branch';
 
@@ -1090,5 +1093,118 @@ describe('waitForBranchReady', () => {
         sleepFn: vi.fn().mockResolvedValue(undefined),
       }),
     ).rejects.toThrow(/did not become ready/);
+  });
+});
+
+describe('writeEnvVar / maskAndWriteEnvVar — $GITHUB_ENV emission ({128.10} ITERATION-5 FIX)', () => {
+  // GITHUB_ENV is read directly from process.env inside writeEnvVar (mirrors
+  // writeOutput's own GITHUB_OUTPUT read) — save/restore around each test so
+  // this file's mutation never leaks into other tests/files.
+  const withGithubEnv = (value: string | undefined, run: () => void) => {
+    const prev = process.env.GITHUB_ENV;
+    if (value === undefined) delete process.env.GITHUB_ENV;
+    else process.env.GITHUB_ENV = value;
+    try {
+      run();
+    } finally {
+      if (prev === undefined) delete process.env.GITHUB_ENV;
+      else process.env.GITHUB_ENV = prev;
+    }
+  };
+
+  it('appends a delimited NAME=VALUE block to the file at $GITHUB_ENV', () => {
+    const appendCalls: Array<{ path: string; content: string }> = [];
+    withGithubEnv('/fake/github-env-path', () => {
+      writeEnvVar('SOME_VAR', 'some-value', {
+        appendToFile: (path, content) => appendCalls.push({ path, content }),
+        log: silent,
+      });
+    });
+    expect(appendCalls).toHaveLength(1);
+    expect(appendCalls[0].path).toBe('/fake/github-env-path');
+    expect(appendCalls[0].content).toMatch(/^SOME_VAR<</);
+    expect(appendCalls[0].content).toContain('some-value');
+  });
+
+  it('falls back to logging when $GITHUB_ENV is unset, rather than throwing (local-run safety net)', () => {
+    const logs: string[] = [];
+    withGithubEnv(undefined, () => {
+      writeEnvVar('SOME_VAR', 'some-value', { log: (m) => logs.push(m) });
+    });
+    expect(logs).toEqual([
+      '[e2e-ephemeral-branch] (no GITHUB_ENV set) SOME_VAR=some-value',
+    ]);
+  });
+
+  it('prints the ::add-mask:: directive BEFORE the value is appended to the env file — never the reverse', () => {
+    const order: string[] = [];
+    withGithubEnv('/fake/github-env-path', () => {
+      maskAndWriteEnvVar('SECRET_VAR', 'top-secret', {
+        log: (m) => order.push(`log:${m}`),
+        appendToFile: () => order.push('append'),
+      });
+    });
+    expect(order).toEqual(['log:::add-mask::top-secret', 'append']);
+  });
+});
+
+describe('emitBranchServiceRoleKeyToEnv — {128.10} ITERATION-5 FIX: consuming jobs fetch their own copy instead of a dropped job output', () => {
+  it("fetches this branch's keys and emits ONLY the masked service-role key to $GITHUB_ENV, mask-before-value", async () => {
+    const { fetchImpl, calls } = fakeFetch([
+      {
+        ok: true,
+        json: [
+          { type: 'publishable', api_key: 'pub-1' },
+          { type: 'secret', api_key: 'sec-1' },
+        ],
+      },
+    ]);
+    const order: string[] = [];
+    let result: { publishableKey: string; serviceRoleKey: string } | undefined;
+    const prevEnv = process.env.GITHUB_ENV;
+    process.env.GITHUB_ENV = '/fake/github-env-path';
+    try {
+      result = await emitBranchServiceRoleKeyToEnv({
+        branchProjectRef: 'branchref',
+        token: 't',
+        fetchImpl,
+        log: (m) => order.push(`log:${m}`),
+        appendToFile: (_path, content) => order.push(`append:${content}`),
+      });
+    } finally {
+      if (prevEnv === undefined) delete process.env.GITHUB_ENV;
+      else process.env.GITHUB_ENV = prevEnv;
+    }
+    expect(result).toEqual({
+      publishableKey: 'pub-1',
+      serviceRoleKey: 'sec-1',
+    });
+    expect(calls[0].url).toBe(
+      'https://api.supabase.com/v1/projects/branchref/api-keys?reveal=true',
+    );
+    const maskIndex = order.indexOf('log:::add-mask::sec-1');
+    const appendIndex = order.findIndex((l) => l.startsWith('append:'));
+    expect(maskIndex).toBeGreaterThanOrEqual(0);
+    expect(appendIndex).toBeGreaterThan(maskIndex);
+    expect(order[appendIndex]).toContain('SUPABASE_SERVICE_ROLE_KEY');
+    expect(order[appendIndex]).toContain('sec-1');
+    // The publishable key is NOT emitted to env — it still flows via the
+    // unaffected, unmasked `publishable-key` job output (see file header).
+    expect(order.some((l) => l.includes('pub-1'))).toBe(false);
+  });
+
+  it('fails loud when branchProjectRef is missing — mirrors the CLI --branch-ref requirement', async () => {
+    await expect(
+      emitBranchServiceRoleKeyToEnv({
+        branchProjectRef: undefined,
+        token: 't',
+      }),
+    ).rejects.toBeInstanceOf(EphemeralBranchError);
+    await expect(
+      emitBranchServiceRoleKeyToEnv({
+        branchProjectRef: undefined,
+        token: 't',
+      }),
+    ).rejects.toThrow(/--branch-ref/);
   });
 });

@@ -122,7 +122,13 @@ jobs:
       branch-ref: ${{ steps.create.outputs.branch-ref }}
       branch-url: ${{ steps.create.outputs.branch-url }}
       publishable-key: ${{ steps.keys.outputs.publishable-key }}
-      service-role-key: ${{ steps.keys.outputs.service-role-key }}
+      # {128.10} iteration 5: NO service-role-key job output — GitHub Actions
+      # SILENTLY DROPS a job output whose value it has masked
+      # (`##[warning] Skip output 'service-role-key' since it may contain
+      # secret.`, confirmed live run 29148591505), so this always arrived
+      # EMPTY in consuming jobs. Consuming jobs (`build`, `e2e-shard`) now
+      # fetch their own copy directly via the `keys-env` subcommand instead
+      # — see scripts/e2e-ephemeral-branch.ts header ITERATION-5 FIX note.
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -276,22 +282,6 @@ jobs:
     permissions:
       contents: read
     steps:
-      # {128.10} SECURITY: `::add-mask::` registered in provision-branch's own
-      # job only redacts THAT job's log stream — GitHub Actions masking is
-      # per-job, not global, so a value passed cross-job via `needs.*.outputs`
-      # arrives UNMASKED on this fresh runner until re-registered here. This
-      # MUST be the first step, before the key is referenced anywhere else in
-      # this job (env dumps / debug prints downstream would otherwise leak a
-      # full RLS-bypass key in plain text). The publishable key is NOT masked
-      # — it is the client-exposed key by design (already baked into
-      # NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY and shipped in the browser
-      # bundle), not a secret.
-      - name: Mask branch service-role key for this job's logs
-        env:
-          BRANCH_SERVICE_ROLE_KEY:
-            ${{ needs.provision-branch.outputs.service-role-key }}
-        run: echo "::add-mask::$BRANCH_SERVICE_ROLE_KEY"
-
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -320,6 +310,29 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # {128.10} iteration 5: fetches THIS job's own copy of the branch
+      # service-role key directly from the Management API instead of reading
+      # `needs.provision-branch.outputs.service-role-key` — GitHub Actions
+      # SILENTLY DROPS a job output whose value it has masked
+      # (`##[warning] Skip output 'service-role-key' since it may contain
+      # secret.`, confirmed live run 29148591505), so that output always
+      # arrived EMPTY here. `$GITHUB_ENV` never crosses a job boundary, so
+      # masking here is never at risk of being dropped — see
+      # scripts/e2e-ephemeral-branch.ts header ITERATION-5 FIX note. Emits
+      # `SUPABASE_SERVICE_ROLE_KEY` for the "Build (Next.js prod)" step
+      # below (which no longer sets it in its own `env:` block). Must run
+      # BEFORE that step; placed after Install dependencies since the script
+      # needs the repo checked out (no `bun install` dependency itself, but
+      # mirrors provision-branch's own checkout→setup→install→script order).
+      - name: Fetch branch service-role key
+        env:
+          SUPABASE_ACCESS_TOKEN:
+            ${{ secrets.SUPABASE_ACCESS_TOKEN_EXPERIMENTAL }}
+          BRANCH_REF: ${{ needs.provision-branch.outputs.branch-ref }}
+        run:
+          bun run scripts/e2e-ephemeral-branch.ts keys-env
+          --branch-ref="$BRANCH_REF"
+
       # {128.10}: the prior "Cleanup stale test artifacts (staging preflight)"
       # step is REMOVED — it existed to clean up leftover test data on the
       # SHARED, persistent staging project between runs. A freshly-provisioned
@@ -334,10 +347,12 @@ jobs:
         # "Build (Next.js)" step. {128.10}: Supabase values now come from
         # provision-branch's ephemeral branch outputs, not the static staging
         # project — this build must happen AFTER the branch exists.
+        # SUPABASE_SERVICE_ROLE_KEY is deliberately NOT set here — it arrives
+        # ambient via `$GITHUB_ENV` from the "Fetch branch service-role key"
+        # step above (iteration 5 fix; a job OUTPUT for this value is
+        # silently dropped by GitHub Actions' masking — see that step).
         env:
           NODE_OPTIONS: --max-old-space-size=4096
-          SUPABASE_SERVICE_ROLE_KEY:
-            ${{ needs.provision-branch.outputs.service-role-key }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -395,16 +410,6 @@ jobs:
         shardIndex: [1, 2, 3, 4]
         shardTotal: [4]
     steps:
-      # {128.10} SECURITY: same per-job masking requirement as `build` above —
-      # each of the 4 shard-matrix runners is a FRESH runner that has never
-      # registered this mask, so it must be re-registered here, first, before
-      # anything else in this job touches the key.
-      - name: Mask branch service-role key for this job's logs
-        env:
-          BRANCH_SERVICE_ROLE_KEY:
-            ${{ needs.provision-branch.outputs.service-role-key }}
-        run: echo "::add-mask::$BRANCH_SERVICE_ROLE_KEY"
-
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -422,6 +427,23 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      # {128.10} iteration 5: same per-job direct-fetch requirement as `build`
+      # above — each of the 4 shard-matrix runners is a FRESH runner, so this
+      # fetches its OWN copy of the branch service-role key rather than
+      # reading `needs.provision-branch.outputs.service-role-key` (GitHub
+      # Actions silently DROPS that job output — see
+      # scripts/e2e-ephemeral-branch.ts header ITERATION-5 FIX note). Emits
+      # `SUPABASE_SERVICE_ROLE_KEY` for the "Run Playwright" step below
+      # (which no longer sets it in its own `env:` block).
+      - name: Fetch branch service-role key
+        env:
+          SUPABASE_ACCESS_TOKEN:
+            ${{ secrets.SUPABASE_ACCESS_TOKEN_EXPERIMENTAL }}
+          BRANCH_REF: ${{ needs.provision-branch.outputs.branch-ref }}
+        run:
+          bun run scripts/e2e-ephemeral-branch.ts keys-env
+          --branch-ref="$BRANCH_REF"
 
       - name: Install Playwright browsers (chromium only)
         # chromium-desktop uses Desktop Chrome only (per playwright.config.ts).
@@ -458,11 +480,13 @@ jobs:
           # {128.10}: Supabase connection points at THIS RUN's ephemeral
           # branch (provision-branch's outputs), not the shared staging
           # project. `next start` reads the server vars at boot.
+          # SUPABASE_SERVICE_ROLE_KEY is deliberately NOT set here — it
+          # arrives ambient via `$GITHUB_ENV` from the "Fetch branch
+          # service-role key" step above (iteration 5 fix; a job OUTPUT for
+          # this value is silently dropped by GitHub Actions' masking).
           SUPABASE_URL: ${{ needs.provision-branch.outputs.branch-url }}
           SUPABASE_PUBLISHABLE_KEY:
             ${{ needs.provision-branch.outputs.publishable-key }}
-          SUPABASE_SERVICE_ROLE_KEY:
-            ${{ needs.provision-branch.outputs.service-role-key }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
