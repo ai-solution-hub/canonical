@@ -136,6 +136,7 @@ exactly mirroring `test_producer_web_pass.py`.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -147,20 +148,29 @@ from scripts.cocoindex_pipeline._coco_api import localfs
 from scripts.cocoindex_pipeline.producer.enrich import ConceptDraft
 from scripts.cocoindex_pipeline.producer.frontmatter import ConceptFrontmatter
 from scripts.cocoindex_pipeline.producer.validator import (
+    ALLOWED_CONCEPT_TYPES,
     ALLOWED_ENTITY_TYPES,
     ALLOWED_RELATIONSHIP_TYPES,
+    EffectiveOntology,
     check_concept,
 )
 from scripts.cocoindex_pipeline.producer.web_pass import ReferenceConceptDraft
 
 # Reserved bundle-level filenames — never treated as a concept `.md` path by
 # `_existing_concept_paths`'s previous-run keyset scan (BI-11: N concept
-# files PLUS exactly one index.md and one log.md; DR-027 adds one more
-# bundle-level artefact, the ontology snapshot).
+# files PLUS exactly one index.md and one log.md; DR-027 adds two more
+# bundle-level artefacts, the ontology snapshot + the client-authored
+# overlay source; S464 rider R1 additionally reserves the committed bundle
+# README so it stops surfacing as a false `RunSummary.removed` entry — see
+# `_existing_concept_paths`).
 INDEX_FILENAME = "index.md"
 LOG_FILENAME = "log.md"
 ONTOLOGY_FILENAME = "ontology.json"
-_RESERVED_BUNDLE_FILENAMES = frozenset({INDEX_FILENAME, LOG_FILENAME, ONTOLOGY_FILENAME})
+README_FILENAME = "README.md"
+OVERLAY_FILENAME = "ontology-overlay.json"
+_RESERVED_BUNDLE_FILENAMES = frozenset(
+    {INDEX_FILENAME, LOG_FILENAME, ONTOLOGY_FILENAME, README_FILENAME, OVERLAY_FILENAME}
+)
 
 _ConceptLikeDraft = "ConceptDraft | ReferenceConceptDraft"
 
@@ -273,6 +283,7 @@ def declare_concept(
     *,
     entities: "Sequence[Mapping[str, object]] | None" = None,
     relationships: "Sequence[Mapping[str, object]] | None" = None,
+    effective_ontology: "EffectiveOntology | None" = None,
 ) -> ConceptWriteResult:
     """BI-13 gate THEN BI-11 `declare_file` write — the ONLY call site every
     concept write (a Pass-1 draft, a Pass-2-enriched draft, or a Pass-2
@@ -291,12 +302,21 @@ def declare_concept(
     for every concept EXCEPT the won-bid `case_study` grain, which is
     redirected into `case-studies/won-bid/<slug>.md` to avoid the {132.29}
     cross-grain slug collision (see module docstring).
+
+    `effective_ontology` (OV-8, ID-132 {132.34}) is the run's composed
+    base ∪ client-overlay set (`write_bundle` computes it once per run via
+    `read_client_overlay` and passes it to every `declare_concept` call);
+    `None` gates against the bare base frozensets, unchanged.
     """
     rel_path = bundle_write_path(draft)
     frontmatter: ConceptFrontmatter = draft.frontmatter
     body: str = draft.body
     errors = check_concept(
-        frontmatter, body=body, entities=entities, relationships=relationships
+        frontmatter,
+        body=body,
+        entities=entities,
+        relationships=relationships,
+        effective_ontology=effective_ontology,
     )
     if errors:
         return ConceptWriteResult(rel_path=rel_path, written=False, errors=tuple(errors))
@@ -544,17 +564,103 @@ def append_log_entry(
 
 def _base_ontology_snapshot() -> "dict[str, object]":
     """DR-027's "pinned base snapshot" half — sourced from `producer/
-    validator.py`'s `ALLOWED_ENTITY_TYPES`/`ALLOWED_RELATIONSHIP_TYPES`
-    frozensets, the SAME closed 12-entity/10-relation register BI-13
+    validator.py`'s `ALLOWED_CONCEPT_TYPES`/`ALLOWED_ENTITY_TYPES`/
+    `ALLOWED_RELATIONSHIP_TYPES` frozensets, the SAME closed register BI-13
     already gates every concept write against (not invented here — see
     `validator.py`'s own docstring for provenance back to `extraction.py`'s
-    Pydantic Literals). This is the Python-consumable materialisation
-    source that DOES exist in-repo today; `lib/ontology/concept-schema.ts`
-    (ID-133) has no Python-consumable export yet (per the {132.10} brief —
-    FLAGGED, see this module's own docstring / the {132.10} report)."""
+    Pydantic Literals). Carries all THREE CV dimensions (OV-6a, ID-132
+    {132.34}) so every dimension is uniformly overlay-extensible — the
+    concept-`type` set joined `entity_types`/`relationship_types` here.
+    This is the Python-consumable materialisation source that DOES exist
+    in-repo today; `lib/ontology/concept-schema.ts` (ID-133) has no
+    Python-consumable export yet (per the {132.10} brief — FLAGGED, see
+    this module's own docstring / the {132.10} report)."""
     return {
+        "concept_types": sorted(ALLOWED_CONCEPT_TYPES),
         "entity_types": sorted(ALLOWED_ENTITY_TYPES),
         "relationship_types": sorted(ALLOWED_RELATIONSHIP_TYPES),
+    }
+
+
+class OntologyOverlayError(ValueError):
+    """OV-5 (ID-132 {132.34}, DR-054): raised when a PRESENT
+    `ontology-overlay.json` fails validation — malformed JSON, a non-object
+    top level, an unknown top-level key (OV-2/OQ-OV-4 — including a
+    removal/redefinition attempt, which has no dedicated mechanism in the
+    closed schema and so is ALWAYS an unknown key, OV-3), or a dimension
+    value that is not a list of strings. `write_bundle` does NOT catch
+    this — a present-but-invalid overlay ABORTS the whole producer run for
+    that bundle rather than degrading to a base-only or partial ontology
+    (fail-loud, deliberately contra DR-047's narrowly-scoped degrade
+    posture; see OV-5's rationale). An ABSENT overlay file is not an error
+    (OV-4/OV-11) — it never raises this."""
+
+
+# OV-2: the overlay's three permitted top-level keys — closed schema, any
+# other key (including a singular typo like `entity_type`, or a `remove`/
+# `exclude` mechanism) is a validation failure (OQ-OV-4/OV-3).
+_OVERLAY_DIMENSIONS = ("concept_types", "entity_types", "relationship_types")
+
+
+def _validate_overlay_schema(data: object) -> "dict[str, list[str]]":
+    """OV-2 (closed additive schema): `data` must be a JSON object whose
+    ONLY permitted keys are `_OVERLAY_DIMENSIONS`, each a list of strings
+    (a missing key defaults to an empty list — no extension for that
+    dimension). Raises `OntologyOverlayError` on any violation."""
+    if not isinstance(data, dict):
+        raise OntologyOverlayError(
+            f"{OVERLAY_FILENAME} must be a JSON object at the top level, "
+            f"got {type(data).__name__} (OV-2)"
+        )
+    unknown_keys = sorted(set(data) - set(_OVERLAY_DIMENSIONS))
+    if unknown_keys:
+        raise OntologyOverlayError(
+            f"{OVERLAY_FILENAME} has unknown top-level key(s) {unknown_keys} "
+            f"— only {list(_OVERLAY_DIMENSIONS)} are permitted (OV-2/OQ-OV-4)"
+        )
+    dimensions: "dict[str, list[str]]" = {}
+    for dimension in _OVERLAY_DIMENSIONS:
+        value = data.get(dimension, [])
+        if not isinstance(value, list) or not all(isinstance(term, str) for term in value):
+            raise OntologyOverlayError(
+                f"{OVERLAY_FILENAME}[{dimension!r}] must be a list of "
+                f"strings, got {value!r} (OV-2)"
+            )
+        dimensions[dimension] = value
+    return dimensions
+
+
+def read_client_overlay(bundle_dir: Path) -> "dict[str, object] | None":
+    """OV-1/OV-4/OV-6 (ID-132 {132.34}, DR-054): read + validate the
+    client-authored `ontology-overlay.json` at `bundle_dir`'s root.
+
+    Returns the OV-6 provenance-wrapped mapping — `source` (the reserved
+    filename), `sha256` (of the file's raw bytes), plus the three OV-2
+    dimension keys — or `None` when the file is absent (OV-4/OV-11:
+    absence is NOT an error, the bundle composes base-only). Raises
+    `OntologyOverlayError` for a present-but-invalid file (OV-5, fail-loud)
+    — never silently degrades to a base-only or partial result.
+
+    The overlay file is CLIENT-authored (DR-016) — this function only ever
+    READS it, never `declare_file`s or deletes it (`OVERLAY_FILENAME` is in
+    `_RESERVED_BUNDLE_FILENAMES`, S464 rider R1), so it is immune to
+    cocoindex's own orphan-delete reconciliation (module docstring's
+    EXECUTOR-VERIFY finding).
+    """
+    path = bundle_dir / OVERLAY_FILENAME
+    try:
+        raw = path.read_bytes()
+    except (FileNotFoundError, NotADirectoryError):
+        return None
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise OntologyOverlayError(f"{OVERLAY_FILENAME} is not valid JSON: {exc}") from exc
+    dimensions = _validate_overlay_schema(data)
+    return {
+        "source": OVERLAY_FILENAME,
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        **dimensions,
     }
 
 
@@ -563,17 +669,21 @@ def write_ontology_artefact(
 ) -> str:
     """DR-027: "every bundle repo carries the materialised effective
     ontology (pinned base snapshot + client overlay)". Ships the BASE
-    snapshot (`_base_ontology_snapshot`) always; `client_overlay`, when
-    supplied by a future per-client config (no such config exists in-repo
-    yet — FLAGGED), is nested under its own `overlay` key.
+    snapshot (`_base_ontology_snapshot`) always; `client_overlay` — the
+    OV-6 provenance-wrapped mapping `write_bundle` supplies via
+    `read_client_overlay` (or an explicit caller-supplied mapping) — is
+    nested verbatim under its own `overlay` key when present.
 
     Deliberately PLAIN JSON, not a bespoke ontology DSL — the {132.10}
     brief is explicit not to invent an ontology FORMAT; this only
-    serialises the already-ratified entity/relation vocabulary plus an
-    explicit `overlay: null` placeholder when no client-overlay source is
+    serialises the already-ratified vocabulary plus an explicit
+    `overlay: null` placeholder when no client-overlay source is
     available, so a bundle consumer can detect "no overlay shipped yet"
-    rather than silently assuming a base-only artefact IS the full
-    effective ontology.
+    (or "platform bundle, never a client-overlay consumer" — OV-10) rather
+    than silently assuming a base-only artefact IS the full effective
+    ontology. Pure echo of whatever `client_overlay` mapping it is given —
+    the provenance-stamping and OV-2/OV-3/OV-5 validation both happen
+    upstream, in `read_client_overlay`.
     """
     payload = {
         "base": _base_ontology_snapshot(),
@@ -649,7 +759,31 @@ def write_bundle(
     with another same-slug draft. Fails loudly before either write happens
     rather than letting the second `declare_file` call silently overwrite
     the first.
+
+    **Client-CV-overlay composition (OV-4, ID-132 {132.34}, DR-054).**
+    Before anything else this run does, `write_bundle` reads+validates
+    `bundle_dir`'s `ontology-overlay.json` via `read_client_overlay` — the
+    already-landed `client_ontology_overlay` kwarg remains a raw,
+    unvalidated escape hatch for an explicit caller-supplied mapping
+    (tests; `write_ontology_artefact`'s own direct-call test), used INSTEAD
+    of the read when supplied. A present-but-invalid overlay file raises
+    `OntologyOverlayError` here, BEFORE any `declare_file` call this run
+    would otherwise make (OV-5: fail-loud, all-or-nothing — no bundle is
+    published for that run). The resulting overlay (or `None`) both (a)
+    composes this run's `EffectiveOntology` (OV-7: base ∪ overlay per
+    dimension), threaded into every `declare_concept` call so the BI-13
+    gate lints against the widened set (OV-8), and (b) reaches
+    `write_ontology_artefact` unchanged via the pre-existing
+    `client_ontology_overlay` pass-through (the `write_ontology_artefact`
+    call below).
     """
+    overlay = (
+        client_ontology_overlay
+        if client_ontology_overlay is not None
+        else read_client_overlay(bundle_dir)
+    )
+    effective_ontology = EffectiveOntology.compose(overlay)
+
     previous_paths = _existing_concept_paths(bundle_dir)
     moved_from = set(moved)
 
@@ -683,7 +817,7 @@ def write_bundle(
         seen_write_paths.add(write_path)
 
     for draft in all_drafts:
-        result = declare_concept(bundle_dir, draft)
+        result = declare_concept(bundle_dir, draft, effective_ontology=effective_ontology)
         if not result.written:
             failures.append((result.rel_path, result.errors))
             continue
@@ -711,7 +845,7 @@ def write_bundle(
     localfs.declare_file(
         bundle_dir / INDEX_FILENAME, regenerate_indexes(themes), create_parent_dirs=True
     )
-    write_ontology_artefact(bundle_dir, client_overlay=client_ontology_overlay)
+    write_ontology_artefact(bundle_dir, client_overlay=overlay)
     append_log_entry(bundle_dir, summary, timestamp=timestamp)
 
     return summary

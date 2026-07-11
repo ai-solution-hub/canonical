@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -389,6 +390,46 @@ class TestDegradation:
         )
         assert (bundle_dir / "topics/alpha.md").is_file()
         assert report.embedded == ()
+
+    def test_composes_a_client_overlay_from_the_bundle_dir_end_to_end(
+        self, env, bundle_dir: Path
+    ) -> None:
+        """OV-4 (ID-132 {132.34} G-OVERLAY-CV): a REAL `run_producer_flow`
+        run — not only a direct `write_bundle` unit call — exercises the
+        overlay READ end-to-end. The sole production caller
+        (`flow_def.py:379-385`) never explicitly supplies
+        `client_ontology_overlay`; composing an overlay for a real run
+        depends entirely on `write_bundle`'s own bundle_dir read."""
+        (bundle_dir / "ontology-overlay.json").write_text(
+            json.dumps({"entity_types": ["widget"]}), encoding="utf-8"
+        )
+        draft = env.build_draft("topics/alpha.md", title="Alpha")
+        _wire_source(env, {draft.key: draft})
+
+        asyncio.run(
+            env.flow_def.run_producer_flow(pool=object(), bundle_dir=bundle_dir)
+        )
+
+        ontology = json.loads((bundle_dir / "ontology.json").read_text(encoding="utf-8"))
+        assert ontology["overlay"]["entity_types"] == ["widget"]
+        assert ontology["overlay"]["source"] == "ontology-overlay.json"
+        assert ontology["base"]["concept_types"]  # OV-6a: three-dimension base
+
+    def test_is_base_only_when_no_overlay_file_present_in_the_bundle_dir(
+        self, env, bundle_dir: Path
+    ) -> None:
+        """OV-4/OV-10: a real producer run over a bundle_dir with no
+        `ontology-overlay.json` (the platform bundle's permanent state)
+        composes `overlay: null`."""
+        draft = env.build_draft("topics/alpha.md", title="Alpha")
+        _wire_source(env, {draft.key: draft})
+
+        asyncio.run(
+            env.flow_def.run_producer_flow(pool=object(), bundle_dir=bundle_dir)
+        )
+
+        ontology = json.loads((bundle_dir / "ontology.json").read_text(encoding="utf-8"))
+        assert ontology["overlay"] is None
 
     def test_stages_regardless_of_seed_contract_status(
         self, env, bundle_dir: Path, repo: Path

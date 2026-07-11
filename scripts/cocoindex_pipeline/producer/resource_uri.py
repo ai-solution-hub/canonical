@@ -34,7 +34,7 @@ TECH.md §"Proposed changes per invariant":
 take already-resolved ids/paths as plain inputs and are buildable against
 fixtures alone. `derive_source_document_id` / `derive_reference_item_id`
 additionally need the seed-contract namespace constant `_KH_PIPELINE_DOC_NS`
-(`flow.py:1665` = `fbfaf1ff-1ee4-583c-9757-1674465b2ec1`) — imported/reused,
+(`flow.py:1708` = `fbfaf1ff-1ee4-583c-9757-1674465b2ec1`) — imported/reused,
 never redeclared, via a LAZY function-local import (mirrors `server.py`'s
 `_build_dsn` lazy import) because `flow.py` eagerly imports `cocoindex` +
 `asyncpg` + `aiohttp` + `httpx` at module scope; a module-level import here
@@ -71,7 +71,7 @@ _EMBEDDED_UUID_RE = re.compile(
 def _seed_contract_namespace() -> uuid.UUID:
     """Return `_KH_PIPELINE_DOC_NS` via a lazy, function-local import.
 
-    Reuses the single frozen SEED-CONTRACT constant (`flow.py:1665`) rather
+    Reuses the single frozen SEED-CONTRACT constant (`flow.py:1708`) rather
     than redeclaring the literal — but importing `flow` eagerly at module
     scope would pull in `cocoindex`/`asyncpg`/`aiohttp`/`httpx`, breaking this
     module's pure-builder/collection-safety posture. `server.py`'s
