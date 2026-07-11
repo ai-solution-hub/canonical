@@ -41,21 +41,49 @@ test.describe('Source Document Detail (/documents/[id])', () => {
     // row with no separate client-side fetch — the most deterministic of
     // the five composed sections for a minimal smoke assertion.
     //
-    // KNOWN APP-SIDE BUG (S457 finding, routed — not fixed here, out of
-    // this e2e-only Subtask's file-ownership boundary): on the FIRST
-    // navigation to a `/documents/[id]` URL in a fresh session, TWO
-    // `<section aria-label="Document provenance">` DOM nodes exist
-    // transiently — one normally laid out, one with a zero-size bounding
-    // rect (getBoundingClientRect() all-zero) that isn't exposed in the
-    // accessibility tree. Reproduced identically under a `next start`
-    // PRODUCTION build (not a dev/Strict-Mode double-invoke artifact) and
-    // across repeated runs; a subsequent `page.reload()` on the SAME URL
-    // consistently shows only one. `.first()` here keeps this spec passing
-    // and useful (it still proves the section renders with the right
-    // content) without masking or asserting away the duplicate-render bug.
-    const provenanceSection = page
-      .locator('section[aria-label="Document provenance"]')
-      .first();
+    // ID-135.27 (root-caused, S457/S460 finding, re-verified under this
+    // Subtask by instrumenting Node/Element mutation primitives —
+    // `appendChild`/`insertBefore`/`removeChild`/`setAttribute` — to catch
+    // a same-task DOM race no MutationObserver/rAF sampling could): on the
+    // FIRST navigation to a fresh `/documents/[id]` URL, TWO `<section
+    // aria-label="Document provenance">` DOM nodes genuinely coexist for a
+    // measured ~100-300ms window (matches the original ~200-400ms
+    // estimate) — one normally laid out, one zero-size and absent from the
+    // accessibility tree. Root cause is NOT an application double-render:
+    // `SourceDocumentProvenance` has exactly one call site
+    // (`SourceDocumentDetailClient`, confirmed via `gitnexus_impact` — 1
+    // direct caller, LOW risk) and no console hydration-mismatch warning is
+    // ever logged. The zero-size copy sits inside a `<div hidden id="S:N">`
+    // ancestor — Next.js/React's own streaming-SSR Suspense-boundary
+    // "reveal" scratch node (this route has no segment-local `loading.tsx`,
+    // so it inherits the ROOT `app/loading.tsx` Suspense boundary; when the
+    // page's server-side auth+DB read doesn't resolve inside the initial
+    // flush, the resolved content streams in separately and React mounts a
+    // fresh copy via its hydration-retry path while the server-streamed
+    // staging node hasn't yet been garbage-collected). It self-resolves
+    // without ever painting a frame or reaching the accessibility tree —
+    // exactly what the original finding observed. The duplicate is a
+    // framework-internal streaming-reveal artifact of whichever Suspense
+    // boundary is currently in play — here, the inherited root
+    // `app/loading.tsx` boundary, since this route has no segment-local
+    // `loading.tsx` of its own (~15 sibling routes do, including
+    // `/documents/[id]/diff`). Adding one here is a cheaper, precedented
+    // in-boundary candidate for narrowing or eliminating the race, but it
+    // was NOT tested or ruled out in this Subtask — routed to the Curator
+    // as a follow-up spike (add `app/documents/[id]/loading.tsx`,
+    // re-instrument per the DOM-mutation-primitive method above, confirm
+    // whether the race narrows/disappears). No cheaper in-boundary fix was
+    // attempted here; only the e2e-assertion-level resolution below is
+    // in-scope for ID-135.27.
+    //
+    // `getByRole('region', …)` queries the accessibility tree directly, so
+    // it always resolves to the one real, visible section regardless of
+    // this framework-internal timing — no `.first()` guess-which-one-is-
+    // real needed, and it still fails (Playwright strict-mode violation) if
+    // a GENUINE second visible section ever appears.
+    const provenanceSection = page.getByRole('region', {
+      name: 'Document provenance',
+    });
     await expect(provenanceSection).toBeVisible({ timeout: 10000 });
     await expect(
       provenanceSection.getByRole('heading', { name: 'Provenance' }),
