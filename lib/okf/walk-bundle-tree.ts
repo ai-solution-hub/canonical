@@ -25,6 +25,24 @@
  * relative to a document's own directory, while this validates an
  * *arbitrary caller-supplied path* (URL/query) relative to the bundle root;
  * same algorithm, different call shape.
+ *
+ * **Symlink hardening (post-{132.32} Checker finding, security blocker).**
+ * The lexical checks above (`path.resolve`/`path.relative` on the raw
+ * string) do NOT detect a committed symlink whose TARGET resolves outside
+ * the bundle root — `OKF_BUNDLE_ROOT` is a client-owned, externally-synced
+ * git repo (DR-016), so a committed symlink is untrusted input, not
+ * something this codebase controls. Two containment layers close this:
+ * (1) `walk()` excludes every symlink from the tree listing outright
+ * (`Dirent.isSymbolicLink()`, itself an lstat-equivalent check — never
+ * followed, whether it points in or out of the bundle root), so a symlink
+ * is never *offered* by `GET /api/okf/[bundleId]/tree`; (2)
+ * `assertRealpathWithinBundleRoot` re-verifies containment against the REAL
+ * (symlink-resolved) filesystem path, closing the gap for a `path` query
+ * value an attacker supplies directly to `GET /api/okf/[bundleId]/file`
+ * without going through the tree at all. `resolveBundleTreePath` calls it
+ * once; the file route calls it again immediately before the actual
+ * `fs.readFileSync` (defense in depth — matching this surface's existing
+ * "re-check even though an earlier layer already checked" auth posture).
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -47,24 +65,33 @@ function toPosixPath(bundleRootResolved: string, fullPath: string): string {
 
 function walk(dir: string, bundleRootResolved: string): OkfTreeNode[] {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
-  const nodes = entries.map((entry): OkfTreeNode => {
+  const nodes: OkfTreeNode[] = [];
+  for (const entry of entries) {
+    // Security: never list a symlink, whether it points inside or outside
+    // the bundle root — `entry.isSymbolicLink()` reflects the raw dirent
+    // (lstat-equivalent, does not follow the link), so a symlinked file or
+    // directory is excluded before any recursion or containment check runs
+    // (see module doc "Symlink hardening").
+    if (entry.isSymbolicLink()) continue;
+
     const full = path.join(dir, entry.name);
     const relPath = toPosixPath(bundleRootResolved, full);
     if (entry.isDirectory()) {
-      return {
+      nodes.push({
         name: entry.name,
         path: relPath,
         type: 'directory',
         children: walk(full, bundleRootResolved),
-      };
+      });
+      continue;
     }
-    return {
+    nodes.push({
       name: entry.name,
       path: relPath,
       type: 'file',
       renderable: entry.name.endsWith('.md'),
-    };
-  });
+    });
+  }
   return nodes.sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -79,12 +106,55 @@ export function walkBundleTree(bundleRoot: string): OkfTreeNode[] {
 }
 
 /**
+ * Second containment layer (LI-17 hardening, security blocker fix): re-verify
+ * containment against the REAL filesystem path — following any symlink —
+ * rather than trusting the lexical (string-level) result alone. A committed
+ * symlink inside `OKF_BUNDLE_ROOT` (a client-owned, externally-synced git
+ * repo, DR-016 — untrusted input) can point anywhere on the host; a purely
+ * lexical check on the raw path string cannot detect that, and
+ * `fs.readFileSync` transparently follows a symlink to its real target.
+ *
+ * A no-op (never throws) when nothing exists at `candidatePath` yet — a
+ * genuinely-missing path is the caller's 404 concern, not a containment
+ * violation, and `fs.realpathSync` would otherwise throw ENOENT for that
+ * ordinary case too.
+ *
+ * Exported so both `resolveBundleTreePath` (below) AND the file-read route
+ * (`app/api/okf/[bundleId]/file/route.ts`, immediately before its
+ * `fs.readFileSync`) call the identical check — defense in depth without
+ * duplicating the containment algorithm in two places.
+ *
+ * @throws when `candidatePath`'s real (symlink-resolved) path resolves
+ *   outside the bundle root's real path.
+ */
+export function assertRealpathWithinBundleRoot(
+  bundleRoot: string,
+  candidatePath: string,
+): void {
+  if (!fs.existsSync(candidatePath)) return;
+
+  const realBundleRoot = fs.realpathSync(path.resolve(bundleRoot));
+  const realCandidate = fs.realpathSync(candidatePath);
+  const rel = path.relative(realBundleRoot, realCandidate);
+  if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) {
+    throw new Error(
+      `Path escapes bundle root (symlink target): ${candidatePath}`,
+    );
+  }
+}
+
+/**
  * Resolve a caller-supplied bundle-root-relative path to an absolute
  * filesystem path, rejecting any path that would escape `bundleRoot`
  * (LI-17 — the per-file read's traversal-safety guard).
  *
+ * Two containment checks: a lexical one on the raw path string, THEN
+ * `assertRealpathWithinBundleRoot`'s real-filesystem (symlink-resolved)
+ * re-verification (see that function's doc comment).
+ *
  * @throws when `relPath` resolves outside `bundleRoot` (`..`/absolute
- *   escape, or resolves to the root itself).
+ *   escape, resolves to the root itself, or a symlink whose real target
+ *   escapes the root).
  */
 export function resolveBundleTreePath(
   bundleRoot: string,
@@ -96,5 +166,8 @@ export function resolveBundleTreePath(
   if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) {
     throw new Error(`Path escapes bundle root: ${relPath}`);
   }
+
+  assertRealpathWithinBundleRoot(bundleRootResolved, resolved);
+
   return resolved;
 }

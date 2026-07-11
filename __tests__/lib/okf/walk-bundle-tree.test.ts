@@ -5,12 +5,19 @@
  * `bundle-graph.test.ts` fixture convention.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  rmSync,
+  symlinkSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
   walkBundleTree,
   resolveBundleTreePath,
+  assertRealpathWithinBundleRoot,
 } from '@/lib/okf/walk-bundle-tree';
 
 describe('walkBundleTree', () => {
@@ -81,6 +88,100 @@ describe('walkBundleTree', () => {
     const bNode = aNode.children!.find((n) => n.name === 'b')!;
     expect(bNode.children![0].path).toBe('a/b/c.md');
   });
+
+  // Security regression (post-{132.32} Checker finding): a committed
+  // symlink in the client-owned, externally-synced bundle repo (DR-016)
+  // pointing OUTSIDE the bundle root must never be listed — Dirent reports
+  // it as a file (isDirectory() false) with no lexical `..` in its own
+  // name, so the lexical-only guard alone would have let it through.
+  it('excludes a symlink pointing outside the bundle root from the tree (LI-17 security)', () => {
+    const outsideDir = mkdtempSync(path.join(tmpdir(), 'okf-outside-'));
+    const outsideSecretPath = path.join(outsideDir, 'outside-secret.md');
+    writeFileSync(outsideSecretPath, 'TOP SECRET HOST CONTENT', 'utf-8');
+
+    writeFileSync(path.join(bundleRoot, 'index.md'), '## Sales\n', 'utf-8');
+    symlinkSync(outsideSecretPath, path.join(bundleRoot, 'leaked.md'));
+
+    try {
+      const tree = walkBundleTree(bundleRoot);
+      const names = tree.map((n) => n.name).sort();
+      expect(names).toEqual(['index.md']);
+      expect(tree.some((n) => n.name === 'leaked.md')).toBe(false);
+    } finally {
+      rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
+
+  it('excludes a symlinked directory (and never recurses into it)', () => {
+    const outsideDir = mkdtempSync(path.join(tmpdir(), 'okf-outside-dir-'));
+    writeFileSync(
+      path.join(outsideDir, 'secret.md'),
+      'TOP SECRET HOST CONTENT',
+      'utf-8',
+    );
+    symlinkSync(outsideDir, path.join(bundleRoot, 'linked-dir'));
+
+    try {
+      const tree = walkBundleTree(bundleRoot);
+      expect(tree.some((n) => n.name === 'linked-dir')).toBe(false);
+    } finally {
+      rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('assertRealpathWithinBundleRoot (LI-17 symlink-target hardening, security fix)', () => {
+  let bundleRoot: string;
+  let outsideDir: string;
+
+  beforeEach(() => {
+    bundleRoot = mkdtempSync(path.join(tmpdir(), 'okf-realpath-'));
+    outsideDir = mkdtempSync(path.join(tmpdir(), 'okf-realpath-outside-'));
+  });
+
+  afterEach(() => {
+    rmSync(bundleRoot, { recursive: true, force: true });
+    rmSync(outsideDir, { recursive: true, force: true });
+  });
+
+  it('does not throw for a real (non-symlink) file within the bundle root', () => {
+    const filePath = path.join(bundleRoot, 'index.md');
+    writeFileSync(filePath, '## Sales\n', 'utf-8');
+    expect(() =>
+      assertRealpathWithinBundleRoot(bundleRoot, filePath),
+    ).not.toThrow();
+  });
+
+  it('does not throw for a path that does not exist yet (a 404 concern, not a containment violation)', () => {
+    expect(() =>
+      assertRealpathWithinBundleRoot(
+        bundleRoot,
+        path.join(bundleRoot, 'does-not-exist.md'),
+      ),
+    ).not.toThrow();
+  });
+
+  it('rejects a symlink whose real target resolves outside the bundle root — the checker PoC', () => {
+    const outsideSecretPath = path.join(outsideDir, 'outside-secret.md');
+    writeFileSync(outsideSecretPath, 'TOP SECRET HOST CONTENT', 'utf-8');
+    const leakedPath = path.join(bundleRoot, 'leaked.md');
+    symlinkSync(outsideSecretPath, leakedPath);
+
+    expect(() =>
+      assertRealpathWithinBundleRoot(bundleRoot, leakedPath),
+    ).toThrow(/escapes bundle root/);
+  });
+
+  it('does not throw for a symlink whose real target resolves within the bundle root', () => {
+    const realPath = path.join(bundleRoot, 'real-concept.md');
+    writeFileSync(realPath, 'body', 'utf-8');
+    const linkPath = path.join(bundleRoot, 'alias.md');
+    symlinkSync(realPath, linkPath);
+
+    expect(() =>
+      assertRealpathWithinBundleRoot(bundleRoot, linkPath),
+    ).not.toThrow();
+  });
 });
 
 describe('resolveBundleTreePath (LI-17 traversal-safety guard)', () => {
@@ -128,5 +229,22 @@ describe('resolveBundleTreePath (LI-17 traversal-safety guard)', () => {
     expect(() => resolveBundleTreePath(bundleRoot, '../evil.md')).toThrow(
       /escapes bundle root/,
     );
+  });
+
+  it('rejects a symlink whose real target resolves outside the bundle root (LI-17 security)', () => {
+    const outsideDir = mkdtempSync(
+      path.join(tmpdir(), 'okf-tree-path-outside-'),
+    );
+    const outsideSecretPath = path.join(outsideDir, 'outside-secret.md');
+    writeFileSync(outsideSecretPath, 'TOP SECRET HOST CONTENT', 'utf-8');
+    symlinkSync(outsideSecretPath, path.join(bundleRoot, 'leaked.md'));
+
+    try {
+      expect(() => resolveBundleTreePath(bundleRoot, 'leaked.md')).toThrow(
+        /escapes bundle root/,
+      );
+    } finally {
+      rmSync(outsideDir, { recursive: true, force: true });
+    }
   });
 });

@@ -17,6 +17,13 @@
  *      containment discipline as `bundle-graph.ts:extractLinks`) rejects any
  *      path resolving outside the bundle root — `../`, absolute, or a
  *      resolved escape — with 400, before any `fs` read is attempted.
+ *   3. **Symlink containment (LI-17 hardening, security blocker fix).**
+ *      `resolveBundleTreePath` already re-verifies containment against the
+ *      REAL (symlink-resolved) filesystem path via
+ *      `assertRealpathWithinBundleRoot` — this route calls that SAME check
+ *      again immediately before `fs.readFileSync`, defense in depth against
+ *      a committed symlink in the client-owned, externally-synced bundle
+ *      repo (DR-016) whose target resolves outside the bundle root.
  *
  * AUTHED — deliberately NOT added to `proxy.ts` `publicRoutes` (LI-2).
  */
@@ -27,7 +34,10 @@ import { defineRoute } from '@/lib/api/define-route';
 import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { resolveOkfBundleRoot } from '@/lib/okf/resolve-bundle-root';
-import { resolveBundleTreePath } from '@/lib/okf/walk-bundle-tree';
+import {
+  assertRealpathWithinBundleRoot,
+  resolveBundleTreePath,
+} from '@/lib/okf/walk-bundle-tree';
 import { parseSearchParams } from '@/lib/validation';
 import type { OkfBundleFileResult } from '@/lib/query/okf';
 
@@ -90,6 +100,19 @@ export const GET = defineRoute(
 
       if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
         return NextResponse.json({ error: 'File not found' }, { status: 404 });
+      }
+
+      // Defense-in-depth re-check immediately before the read (see file-level
+      // doc comment, guard 3) — a committed symlink resolving outside the
+      // bundle root must never reach fs.readFileSync, which follows it
+      // transparently.
+      try {
+        assertRealpathWithinBundleRoot(bundleRoot, filePath);
+      } catch {
+        return NextResponse.json(
+          { error: 'Invalid file path' },
+          { status: 400 },
+        );
       }
 
       const content = fs.readFileSync(filePath, 'utf-8');

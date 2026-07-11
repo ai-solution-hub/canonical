@@ -4,7 +4,13 @@
  * traversal-safety guard; LI-2 auth).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  rmSync,
+  symlinkSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
@@ -155,6 +161,40 @@ describe('GET /api/okf/[bundleId]/file', () => {
     );
 
     expect(response.status).toBe(404);
+  });
+
+  // Security regression (post-{132.32} Checker finding, blocker): a
+  // committed symlink in the client-owned, externally-synced bundle repo
+  // (DR-016) pointing outside the bundle root must never leak the target's
+  // content, even when requested directly by path (bypassing the tree
+  // listing entirely — the tree already excludes symlinks, but that alone
+  // does not stop a caller who crafts the `path` query param by hand).
+  it('rejects a symlinked file whose real target resolves outside the bundle root — checker PoC (LI-17 security)', async () => {
+    configureRole(mockSupabase, 'viewer');
+
+    const outsideDir = mkdtempSync(
+      path.join(tmpdir(), 'okf-file-route-outside-'),
+    );
+    const outsideSecretPath = path.join(outsideDir, 'outside-secret.md');
+    writeFileSync(outsideSecretPath, 'TOP SECRET HOST CONTENT', 'utf-8');
+    const bundleRoot = path.join(bundleParentDir, 'first-client');
+    symlinkSync(outsideSecretPath, path.join(bundleRoot, 'leaked.md'));
+
+    try {
+      const response = await GET(
+        createTestRequest('/api/okf/first-client/file', {
+          searchParams: { path: 'leaked.md' },
+        }),
+        { params: createTestParams({ bundleId: 'first-client' }) },
+      );
+
+      // Must be rejected (400/404) — never a 200 carrying the outside file.
+      expect([400, 404]).toContain(response.status);
+      const body = await response.json();
+      expect(JSON.stringify(body)).not.toContain('TOP SECRET HOST CONTENT');
+    } finally {
+      rmSync(outsideDir, { recursive: true, force: true });
+    }
   });
 
   it('routes an unauthenticated request through authFailureResponse (401)', async () => {

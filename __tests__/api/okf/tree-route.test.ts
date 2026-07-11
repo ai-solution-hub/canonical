@@ -4,7 +4,13 @@
  * route's fail-loud-on-unset-root convention, LI-13).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  rmSync,
+  symlinkSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
@@ -92,6 +98,38 @@ describe('GET /api/okf/[bundleId]/tree', () => {
 
     const theme = body.tree.find((n: { name: string }) => n.name === 'theme');
     expect(theme.children[0].path).toBe('theme/concept.md');
+  });
+
+  // Security regression (post-{132.32} Checker finding, blocker): a
+  // committed symlink in the client-owned, externally-synced bundle repo
+  // (DR-016) pointing outside the bundle root must never be listed —
+  // Dirent.isDirectory() is false for it (falls through the file branch)
+  // and its own name carries no `..`, so a lexical-only guard alone would
+  // have let it through as {type:'file', renderable:true}.
+  it('excludes a symlinked file whose target resolves outside the bundle root from the tree (LI-17 security)', async () => {
+    configureRole(mockSupabase, 'viewer');
+
+    const outsideDir = mkdtempSync(
+      path.join(tmpdir(), 'okf-tree-route-outside-'),
+    );
+    const outsideSecretPath = path.join(outsideDir, 'outside-secret.md');
+    writeFileSync(outsideSecretPath, 'TOP SECRET HOST CONTENT', 'utf-8');
+    const bundleRoot = path.join(bundleParentDir, 'first-client');
+    symlinkSync(outsideSecretPath, path.join(bundleRoot, 'leaked.md'));
+
+    try {
+      const response = await GET(
+        createTestRequest('/api/okf/first-client/tree'),
+        { params: createTestParams({ bundleId: 'first-client' }) },
+      );
+
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      const names = body.tree.map((n: { name: string }) => n.name);
+      expect(names).not.toContain('leaked.md');
+    } finally {
+      rmSync(outsideDir, { recursive: true, force: true });
+    }
   });
 
   it('routes an unauthenticated request through authFailureResponse (401)', async () => {
