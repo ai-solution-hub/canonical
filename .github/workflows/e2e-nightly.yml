@@ -205,7 +205,7 @@ jobs:
         # migration, leaving the branch with NO application schema
         # (`status: MIGRATIONS_FAILED`) — the root cause of the S460
         # live-proof's 12-minute PGRST002 hang (run 29127594878). This step
-        # bypasses that pipeline entirely: connects directly via `psql`
+        # bypasses that pipeline entirely: connects via `psql`
         # (stateless — no `supabase link` session-state issue) using this
         # run's branch DB credentials (fetched fresh from the Management API
         # inside the script — masked via `::add-mask::` the instant they're
@@ -214,13 +214,22 @@ jobs:
         # `supabase/seed.sql`. Fails LOUD (non-zero `psql` exit,
         # `ON_ERROR_STOP=1`) naming the exact file on the first broken
         # statement.
+        #
+        # {128.10} iteration 3 (S461 live-proof fix): the direct DB host
+        # (`db.<branch-ref>.supabase.co`) resolves IPv6-only, and this
+        # runner has no IPv6 route — connects via the Supavisor SESSION
+        # pooler (IPv4 on every plan tier) instead, hence BOTH --branch-id
+        # (DB password) and --branch-ref (pooler host/port/user, fetched
+        # from the Management API) are now required — see
+        # scripts/e2e-ephemeral-branch.ts header ROOT CAUSE + FIX note.
         env:
           SUPABASE_ACCESS_TOKEN:
             ${{ secrets.SUPABASE_ACCESS_TOKEN_EXPERIMENTAL }}
           BRANCH_ID: ${{ steps.create.outputs.branch-id }}
+          BRANCH_REF: ${{ steps.create.outputs.branch-ref }}
         run:
           bun run scripts/e2e-ephemeral-branch.ts migrate
-          --branch-id="$BRANCH_ID"
+          --branch-id="$BRANCH_ID" --branch-ref="$BRANCH_REF"
 
       - name: Confirm PostgREST reflects the applied schema + seed
         # {128.10} iteration 2 ROLE CHANGE: this now confirms the EXPLICIT

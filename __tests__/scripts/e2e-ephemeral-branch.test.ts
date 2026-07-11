@@ -22,6 +22,7 @@ import {
   deleteBranch,
   fetchBranchApiKeys,
   fetchBranchDbCreds,
+  fetchBranchPoolerConnection,
   waitForBranchComputeHealthy,
   applyMigrationsAndSeed,
   waitForBranchReady,
@@ -751,6 +752,107 @@ describe('fetchBranchDbCreds', () => {
       expect(message).not.toMatch(/super-secret-should-not-leak/);
       return true;
     });
+  });
+});
+
+describe('fetchBranchPoolerConnection — Supavisor session-mode pooler (IPv4, unlike the direct host)', () => {
+  it('GETs the config/database/pooler endpoint and extracts the PRIMARY session-mode host/port/user', async () => {
+    const { fetchImpl, calls } = fakeFetch([
+      {
+        ok: true,
+        json: [
+          {
+            identifier: 'txn',
+            database_type: 'PRIMARY',
+            pool_mode: 'transaction',
+            db_host: 'aws-0-us-east-1.pooler.supabase.com',
+            db_port: 6543,
+            db_user: 'postgres.branchref123',
+            db_name: 'postgres',
+          },
+          {
+            identifier: 'session',
+            database_type: 'PRIMARY',
+            pool_mode: 'session',
+            db_host: 'aws-0-us-east-1.pooler.supabase.com',
+            db_port: 5432,
+            db_user: 'postgres.branchref123',
+            db_name: 'postgres',
+          },
+        ],
+      },
+    ]);
+    const pooler = await fetchBranchPoolerConnection('branchref123', {
+      token: 't',
+      fetchImpl,
+      log: silent,
+    });
+    expect(pooler).toEqual({
+      host: 'aws-0-us-east-1.pooler.supabase.com',
+      port: 5432,
+      user: 'postgres.branchref123',
+    });
+    expect(calls[0].url).toBe(
+      'https://api.supabase.com/v1/projects/branchref123/config/database/pooler',
+    );
+  });
+
+  it('throws when no PRIMARY/session entry is present (e.g. only transaction mode returned)', async () => {
+    const { fetchImpl } = fakeFetch([
+      {
+        ok: true,
+        json: [
+          {
+            identifier: 'txn',
+            database_type: 'PRIMARY',
+            pool_mode: 'transaction',
+            db_host: 'aws-0-us-east-1.pooler.supabase.com',
+            db_port: 6543,
+            db_user: 'postgres.branchref123',
+          },
+        ],
+      },
+    ]);
+    await expect(
+      fetchBranchPoolerConnection('branchref123', {
+        token: 't',
+        fetchImpl,
+        log: silent,
+      }),
+    ).rejects.toThrow(/PRIMARY\/session/);
+  });
+
+  it('throws when the response is not an array', async () => {
+    const { fetchImpl } = fakeFetch([{ ok: true, json: { not: 'an array' } }]);
+    await expect(
+      fetchBranchPoolerConnection('branchref123', {
+        token: 't',
+        fetchImpl,
+        log: silent,
+      }),
+    ).rejects.toBeInstanceOf(EphemeralBranchError);
+  });
+
+  it('throws with a diagnostic key dump when the session entry is missing db_host/db_user/db_port', async () => {
+    const { fetchImpl } = fakeFetch([
+      {
+        ok: true,
+        json: [
+          {
+            database_type: 'PRIMARY',
+            pool_mode: 'session',
+            some_other_field: 'x',
+          },
+        ],
+      },
+    ]);
+    await expect(
+      fetchBranchPoolerConnection('branchref123', {
+        token: 't',
+        fetchImpl,
+        log: silent,
+      }),
+    ).rejects.toThrow(/some_other_field/);
   });
 });
 

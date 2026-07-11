@@ -81,6 +81,34 @@
  * `db_pass`/`jwt_secret` in PLAINTEXT — confirmed on both `main` and
  * `staging` — see the SECURITY note on that function.
  *
+ * ROOT CAUSE + FIX (S461 live-proof failure, run 29147735431): `psql`
+ * connecting to `fetchBranchDbCreds`'s `db_host`
+ * (`db.<branch-ref>.supabase.co`, the DIRECT connection) failed with
+ * `Network is unreachable` — that hostname resolves IPv6-ONLY (Supabase docs,
+ * "Dedicated IPv4 Address for Ingress" —
+ * https://supabase.com/docs/guides/platform/ipv4-address — "By default,
+ * Supabase Postgres use IPv6 addresses"), and GitHub-hosted runners have NO
+ * IPv6 connectivity (same doc's IPv6-incompatible-platforms list names
+ * "GitHub Actions" explicitly). `applyMigrationsAndSeed` now connects via
+ * Supavisor's SESSION-mode pooler instead (`fetchBranchPoolerConnection`,
+ * `GET /v1/projects/{ref}/config/database/pooler` — Supabase docs, "Connect
+ * to your database" —
+ * https://supabase.com/docs/guides/database/connecting-to-postgres — session
+ * mode is "Always uses an IPv4 address" on every plan tier, no add-on
+ * required). Session mode, NOT transaction mode (port 6543): transaction
+ * mode does not preserve session-level Postgres state across statements
+ * (prepared statements, `SET`, advisory locks) within one pooled connection,
+ * which a `psql -f <migration-file>` run implicitly relies on — Supabase's
+ * own guidance names transaction mode for "serverless or edge functions"
+ * traffic, not migrations. `fetchBranchPoolerConnection` reads
+ * `db_host`/`db_port`/`db_user` for the `PRIMARY`+`session` entry STRAIGHT
+ * from the Management API response rather than hand-building
+ * `aws-0-<region>.pooler.supabase.com` from a region string — this repo does
+ * not need to track Supabase's own region→pooler-host mapping (including any
+ * future non-`aws-0-` shard) at all. `db_pass` still comes from
+ * `fetchBranchDbCreds` (the pooler-config endpoint does not return a
+ * password) — only the connection HOST/PORT/USER changed.
+ *
  * `waitForBranchReady` deliberately does NOT poll an undocumented branch
  * `status` enum. Instead it polls the branch's own PostgREST endpoint for
  * `public.application_types` — the table `supabase/seed.sql` §2·0 seeds
@@ -105,7 +133,7 @@
  *   bun run scripts/e2e-ephemeral-branch.ts sweep [--max-age-hours=6] [--dry-run]
  *   bun run scripts/e2e-ephemeral-branch.ts create --run-id=<id>
  *   bun run scripts/e2e-ephemeral-branch.ts wait-compute-healthy --branch-ref=<ref>
- *   bun run scripts/e2e-ephemeral-branch.ts migrate --branch-id=<id>
+ *   bun run scripts/e2e-ephemeral-branch.ts migrate --branch-id=<id> --branch-ref=<ref>
  *   bun run scripts/e2e-ephemeral-branch.ts wait-ready --branch-url=<url> --service-role-key=<key>
  *   bun run scripts/e2e-ephemeral-branch.ts keys --branch-ref=<ref>
  *   bun run scripts/e2e-ephemeral-branch.ts delete --branch-ref=<ref>
@@ -113,8 +141,10 @@
  * Required env vars: SUPABASE_ACCESS_TOKEN (Management API PAT), and for
  * sweep/create/wait-compute-healthy/keys/delete, PLATFORM_PROJECT_REF (this
  * repo's own Platform staging project — the branch PARENT). `migrate` needs
- * only SUPABASE_ACCESS_TOKEN (it fetches the branch's own DB creds directly)
- * and the `psql` binary on PATH. Secret-shaped CLI outputs (service-role-key,
+ * only SUPABASE_ACCESS_TOKEN (it fetches the branch's own DB creds AND its
+ * Supavisor pooler connection info directly — see the ROOT CAUSE + FIX note
+ * above for why both `--branch-id` and `--branch-ref` are required) and the
+ * `psql` binary on PATH. Secret-shaped CLI outputs (service-role-key,
  * and `migrate`'s in-process DB password) are emitted via GitHub Actions
  * `::add-mask::` BEFORE being written to `$GITHUB_OUTPUT` or used — never
  * echoed in plain log lines.
@@ -587,7 +617,14 @@ export interface BranchDbCreds {
 /**
  * `GET /v1/branches/{branch_id}` — the SINGLE-branch endpoint (distinct from
  * `listBranches`'s `GET /v1/projects/{ref}/branches`). Returns this branch's
- * own live Postgres connection details for `applyMigrationsAndSeed`.
+ * own live Postgres connection details.
+ *
+ * USAGE NOTE (post ROOT-CAUSE-+-FIX above): `applyMigrationsAndSeed` no
+ * longer connects via THIS function's `host`/`port`/`user` — those describe
+ * the DIRECT (IPv6-only) connection, unreachable from GitHub-hosted runners.
+ * Only `password` (`db_pass`, not exposed anywhere else) is still sourced
+ * from here; `host`/`port`/`user` for the actual `psql` connection come from
+ * `fetchBranchPoolerConnection` below.
  *
  * SECURITY: the raw response body carries `db_pass` + `jwt_secret` in
  * PLAINTEXT (confirmed empirically against both the `main` and `staging`
@@ -630,6 +667,75 @@ export async function fetchBranchDbCreds(
     );
   }
   return { host, port, user, password };
+}
+
+export interface PoolerConnectionInfo {
+  host: string;
+  port: number;
+  user: string;
+}
+
+/**
+ * `GET /v1/projects/{ref}/config/database/pooler` — this BRANCH's own
+ * project ref's Supavisor (shared pooler) connection info. See the
+ * file-header ROOT CAUSE + FIX note: GitHub-hosted runners have no IPv6
+ * connectivity, so `psql` cannot reach `fetchBranchDbCreds`'s direct
+ * `db_host`. Supavisor's SESSION-mode pooler (NOT transaction mode — see the
+ * same note for why) is IPv4 on every plan tier, no add-on required.
+ *
+ * Reads `db_host`/`db_port`/`db_user` straight from the API response for the
+ * `PRIMARY` database's `session`-mode entry, rather than hand-building
+ * `aws-0-<region>.pooler.supabase.com` from a region string — this tracks
+ * whatever host Supabase's own infrastructure actually assigns (including
+ * any future non-`aws-0-` shard) without this script needing to know the
+ * mapping. Does NOT return a password — `fetchBranchDbCreds`'s `db_pass` is
+ * still the only source for that.
+ */
+export async function fetchBranchPoolerConnection(
+  branchProjectRef: string,
+  deps: ManagementApiDeps,
+): Promise<PoolerConnectionInfo> {
+  const raw = await mgmtFetch(
+    `/v1/projects/${branchProjectRef}/config/database/pooler`,
+    deps,
+  );
+  if (!Array.isArray(raw)) {
+    throw new EphemeralBranchError(
+      'GET .../config/database/pooler did not return an array (got ' +
+        `${typeof raw}).`,
+    );
+  }
+  const entries = raw as Record<string, unknown>[];
+  const sessionEntry = entries.find(
+    (e) => e.database_type === 'PRIMARY' && e.pool_mode === 'session',
+  );
+  if (!sessionEntry) {
+    throw new EphemeralBranchError(
+      'Could not find a PRIMARY/session Supavisor pooler entry in the ' +
+        `config/database/pooler response — got entries: ${JSON.stringify(
+          entries.map((e) => ({
+            database_type: e.database_type,
+            pool_mode: e.pool_mode,
+          })),
+        )}.`,
+    );
+  }
+  const host = extractString(sessionEntry, ['db_host']);
+  const user = extractString(sessionEntry, ['db_user']);
+  const portRaw = sessionEntry['db_port'];
+  const port =
+    typeof portRaw === 'number'
+      ? portRaw
+      : typeof portRaw === 'string' && portRaw.length > 0
+        ? Number(portRaw)
+        : NaN;
+  if (!host || !user || !Number.isFinite(port)) {
+    throw new EphemeralBranchError(
+      'Supavisor session-mode pooler entry missing db_host/db_user/db_port ' +
+        `— got keys [${Object.keys(sessionEntry).join(', ')}].`,
+    );
+  }
+  return { host, port, user };
 }
 
 export interface PsqlExecResult {
@@ -916,11 +1022,23 @@ async function runWaitComputeHealthy(): Promise<void> {
 async function runMigrate(): Promise<void> {
   const token = requireEnv('SUPABASE_ACCESS_TOKEN');
   const branchId = requireArg('branch-id');
+  const branchRef = requireArg('branch-ref');
   const dbCreds = await fetchBranchDbCreds(branchId, { token });
   // Mask the password THE INSTANT it's in hand — before any further log
   // line (including this process's own) can echo it in plain text.
   console.log(`::add-mask::${dbCreds.password}`);
-  await applyMigrationsAndSeed({ dbCreds });
+  // Runners have no IPv6 (see file-header ROOT CAUSE + FIX) — connect via
+  // the Supavisor session pooler's API-provided host/port/user, not the
+  // direct (IPv6-only) host/port/user fetchBranchDbCreds itself returned.
+  const pooler = await fetchBranchPoolerConnection(branchRef, { token });
+  await applyMigrationsAndSeed({
+    dbCreds: {
+      host: pooler.host,
+      port: pooler.port,
+      user: pooler.user,
+      password: dbCreds.password,
+    },
+  });
 }
 
 async function runWaitReady(): Promise<void> {
