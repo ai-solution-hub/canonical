@@ -128,6 +128,13 @@ export const UNCLASSIFIED_TAXONOMY_OR_PREDICATE =
 // API Route Schemas
 // ──────────────────────────────────────────
 
+/** Bare `YYYY-MM-DD` date shape (no time component) accepted alongside a
+ *  full Z-suffixed datetime for `dateFrom`/`dateTo` below — see the ID-144.6
+ *  boundary-normalisation note on those fields. Mirrors `BARE_DATE_RE` in
+ *  `app/api/search/route.ts`, which normalises the accepted bare date to a
+ *  UTC day-start/day-end bound. */
+const SEARCH_BARE_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 /** POST /api/search */
 export const SearchBodySchema = z.object({
   query: z.string().trim().min(1, 'Query is required').max(2000),
@@ -163,12 +170,12 @@ export const SearchBodySchema = z.object({
   dateFrom: z
     .string()
     .datetime()
-    .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
+    .or(z.string().regex(SEARCH_BARE_DATE_RE))
     .optional(),
   dateTo: z
     .string()
     .datetime()
-    .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
+    .or(z.string().regex(SEARCH_BARE_DATE_RE))
     .optional(),
 });
 

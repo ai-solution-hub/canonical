@@ -261,14 +261,13 @@ export function useCorpusSearch(): UseCorpusSearchReturn {
       );
 
       const rows = data.results ?? [];
-      const mapped = rows.map(toCorpusSearchResult);
       // id-144 TECH §2.3/§2.4: the server now narrows authoritatively via
       // `hybrid_search`'s `filter_kind` param (applied BEFORE the `LIMIT`),
-      // so no client-side narrow is needed here any more. The removed
-      // post-LIMIT `.filter()` was the OBS-4 pagination bug — it silently
-      // shrank a page below `PAGE_SIZE` by narrowing AFTER the server had
-      // already truncated to the top-N.
-      const narrowed = mapped;
+      // so `mapped` IS the final page — no client-side narrow is applied
+      // here any more. The removed post-LIMIT `.filter()` was the OBS-4
+      // pagination bug — it silently shrank a page below `PAGE_SIZE` by
+      // narrowing AFTER the server had already truncated to the top-N.
+      const mapped = rows.map(toCorpusSearchResult);
 
       // A short raw response (pre-narrow) is the server-confirmed end of
       // ALL results; a full response optimistically assumes more may exist
@@ -276,7 +275,7 @@ export function useCorpusSearch(): UseCorpusSearchReturn {
       const reachedEnd = mapped.length < pageParam;
 
       return {
-        items: narrowed,
+        items: mapped,
         nextLimit: reachedEnd ? null : pageParam + PAGE_SIZE,
       };
     },

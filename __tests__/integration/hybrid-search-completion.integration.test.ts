@@ -138,32 +138,57 @@ const seeded = {
 };
 
 afterAll(async () => {
+  // Mirrors the seed-helper discipline (throw on `.error`, never swallow it)
+  // — a silent cleanup failure here would leak fixture rows into the shared
+  // staging DB undetected.
   if (seeded.qaPairIds.length) {
-    await serviceClient
+    const { error } = await serviceClient
       .from('record_embeddings')
       .delete()
       .eq('owner_kind', 'q_a_pair')
       .in('owner_id', seeded.qaPairIds);
+    if (error) {
+      throw new Error(
+        `cleanup record_embeddings (q_a_pair) failed: ${error.message}`,
+      );
+    }
   }
   if (seeded.referenceItemIds.length) {
-    await serviceClient
+    const { error: embError } = await serviceClient
       .from('record_embeddings')
       .delete()
       .eq('owner_kind', 'reference_item')
       .in('owner_id', seeded.referenceItemIds);
-    await serviceClient
+    if (embError) {
+      throw new Error(
+        `cleanup record_embeddings (reference_item) failed: ${embError.message}`,
+      );
+    }
+    const { error: refError } = await serviceClient
       .from('reference_items')
       .delete()
       .in('id', seeded.referenceItemIds);
+    if (refError) {
+      throw new Error(`cleanup reference_items failed: ${refError.message}`);
+    }
   }
   if (seeded.qaPairIds.length) {
-    await serviceClient.from('q_a_pairs').delete().in('id', seeded.qaPairIds);
+    const { error } = await serviceClient
+      .from('q_a_pairs')
+      .delete()
+      .in('id', seeded.qaPairIds);
+    if (error) {
+      throw new Error(`cleanup q_a_pairs failed: ${error.message}`);
+    }
   }
   if (seeded.sourceDocumentIds.length) {
-    await serviceClient
+    const { error } = await serviceClient
       .from('source_documents')
       .delete()
       .in('id', seeded.sourceDocumentIds);
+    if (error) {
+      throw new Error(`cleanup source_documents failed: ${error.message}`);
+    }
   }
 }, 30_000);
 
