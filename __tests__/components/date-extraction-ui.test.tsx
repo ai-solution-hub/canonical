@@ -120,7 +120,7 @@ describe('CertificationSummaryCard — Renew button', () => {
     expect(renewLink).toBeInTheDocument();
     expect(renewLink).toHaveAttribute(
       'href',
-      expect.stringContaining('/item/item-1'),
+      expect.stringContaining('/documents/item-1'),
     );
   });
 
@@ -191,7 +191,7 @@ describe('CertificationSummaryCard — Renew button', () => {
     expect(renewLink).toBeInTheDocument();
     expect(renewLink).toHaveAttribute(
       'href',
-      expect.stringContaining('/item/item-3'),
+      expect.stringContaining('/documents/item-3'),
     );
   });
 
