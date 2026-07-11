@@ -383,6 +383,45 @@ def _validate_citation(
     return path
 
 
+def _recover_terminal_json_object(
+    text: str,
+    *,
+    error_cls: "type[Exception]",
+    error_prefix: str,
+    cause: "json.JSONDecodeError",
+) -> Any:
+    """Fallback for `_parse_pass1_response`/`_parse_pass2_response` — a bare
+    `json.loads(text)` just failed. Live terminal turns intermittently
+    prefix the JSON payload with a short conversational preamble despite the
+    instruction prompt's "no commentary before or after it" contract
+    (observed live, {132.15} 2026-07-11 `claude-opus-4-6` run: 'I now have
+    the backing records and the full concept catalogue. Let me draft the
+    concept document.\\n\\n{"title":...}' — 18/18 concepts failed drafting
+    on the bare `json.loads`). Locates the first `{` and parses the first
+    complete JSON object AT that position via
+    `json.JSONDecoder().raw_decode` — any trailing commentary after the
+    object's closing brace is ignored, never validated. Raises `error_cls`
+    if no `{` exists anywhere in `text`, or if the object at that position
+    still doesn't parse; the message includes a short repr of the text's
+    head (not a full-payload dump) so future terminal-text drift stays
+    diagnosable from logs."""
+    start = text.find("{")
+    if start == -1:
+        raise error_cls(
+            f"{error_prefix}: terminal text was not valid JSON and contains "
+            f"no '{{' to recover a payload from: {cause} (head: {text[:120]!r})"
+        ) from cause
+    try:
+        payload, _end = json.JSONDecoder().raw_decode(text, start)
+    except json.JSONDecodeError as exc:
+        raise error_cls(
+            f"{error_prefix}: terminal text was not valid JSON, and the "
+            f"first '{{' at index {start} did not start a parseable object: "
+            f"{exc} (head: {text[:120]!r})"
+        ) from exc
+    return payload
+
+
 def _parse_pass1_response(
     message: "anthropic.types.Message",
     *,
@@ -393,9 +432,9 @@ def _parse_pass1_response(
     try:
         payload = json.loads(text)
     except json.JSONDecodeError as exc:
-        raise Pass1DraftError(
-            f"enrich_concept: terminal text was not valid JSON: {exc}"
-        ) from exc
+        payload = _recover_terminal_json_object(
+            text, error_cls=Pass1DraftError, error_prefix="enrich_concept", cause=exc
+        )
     if not isinstance(payload, dict):
         raise Pass1DraftError(
             "enrich_concept: terminal JSON must be an object, got "

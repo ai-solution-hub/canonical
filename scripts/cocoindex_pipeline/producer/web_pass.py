@@ -125,6 +125,7 @@ from scripts.cocoindex_pipeline.producer.enrich import (
     ConceptDraft,
     _build_tool_executors,
     _extract_terminal_text,
+    _recover_terminal_json_object,
     _render_citations_section,
 )
 from scripts.cocoindex_pipeline.producer.frontmatter import (
@@ -642,9 +643,9 @@ def _parse_pass2_response(
     try:
         payload = json.loads(text)
     except json.JSONDecodeError as exc:
-        raise Pass2EnrichError(
-            f"run_web_pass: terminal text was not valid JSON: {exc}"
-        ) from exc
+        payload = _recover_terminal_json_object(
+            text, error_cls=Pass2EnrichError, error_prefix="run_web_pass", cause=exc
+        )
     if not isinstance(payload, dict):
         raise Pass2EnrichError(
             "run_web_pass: terminal JSON must be an object, got "

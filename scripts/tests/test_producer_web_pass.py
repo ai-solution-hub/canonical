@@ -782,6 +782,166 @@ class TestRejectRedirectFollowingHttpClient:
 
 
 # ============================================================================
+# _parse_pass2_response — terminal-text JSON tolerance ({132.15})
+# ============================================================================
+
+
+class TestParsePass2ResponseTerminalTextTolerance:
+    """`_parse_pass2_response` shares `_parse_pass1_response`'s bare-
+    `json.loads` boundary on the terminal text (same
+    `enrich._recover_terminal_json_object` fallback), so it is exposed to
+    the identical {132.15} live-run defect: `claude-opus-4-6` terminal
+    turns occasionally prefix (and/or trail) the JSON payload with
+    conversational prose despite the instruction prompt's "no commentary"
+    contract."""
+
+    def test_parse_response_tolerates_leading_prose_before_terminal_json(self) -> None:
+        citation = build_source_document_uri(_SD_ID)
+        previous_body = (
+            "The LMS is the client's learning-management product.\n\n"
+            f"{_render_citations_section([citation])}"
+        )
+        preamble = (
+            "I have reviewed the gated documentation and drafted the "
+            "enriched concept.\n\n"
+        )
+        message = _MockMessage(
+            [
+                TextBlock(
+                    type="text",
+                    text=preamble + _pass2_envelope_json(citations=[citation]),
+                )
+            ],
+            stop_reason="end_turn",
+        )
+        envelope = web_pass._parse_pass2_response(
+            message,
+            previous_body=previous_body,
+            seen_record_anchors=set(),
+            seen_gated_anchors=set(),
+            catalogue_paths=set(),
+        )
+        assert envelope.citations == (citation,)
+
+    def test_parse_response_tolerates_leading_prose_and_trailing_commentary(
+        self,
+    ) -> None:
+        citation = build_source_document_uri(_SD_ID)
+        previous_body = (
+            "The LMS is the client's learning-management product.\n\n"
+            f"{_render_citations_section([citation])}"
+        )
+        preamble = "Here is the enriched concept document.\n\n"
+        trailing = "\n\nLet me know if further detail would help."
+        message = _MockMessage(
+            [
+                TextBlock(
+                    type="text",
+                    text=preamble + _pass2_envelope_json(citations=[citation]) + trailing,
+                )
+            ],
+            stop_reason="end_turn",
+        )
+        envelope = web_pass._parse_pass2_response(
+            message,
+            previous_body=previous_body,
+            seen_record_anchors=set(),
+            seen_gated_anchors=set(),
+            catalogue_paths=set(),
+        )
+        assert envelope.citations == (citation,)
+
+    def test_parse_response_still_raises_pass2_enrich_error_for_pure_prose(
+        self,
+    ) -> None:
+        """No `{` anywhere in the text — the recovery path has nothing to
+        locate, so this must still surface the informative
+        `Pass2EnrichError`, never hang or silently swallow the failure."""
+        message = _MockMessage(
+            [
+                TextBlock(
+                    type="text",
+                    text=(
+                        "I reviewed the gated sources but was unable to "
+                        "draft an enriched concept at this time."
+                    ),
+                )
+            ],
+            stop_reason="end_turn",
+        )
+        with pytest.raises(web_pass.Pass2EnrichError, match="valid JSON"):
+            web_pass._parse_pass2_response(
+                message,
+                previous_body="",
+                seen_record_anchors=set(),
+                seen_gated_anchors=set(),
+                catalogue_paths=set(),
+            )
+
+    def test_parse_response_tolerates_json_wrapped_in_markdown_code_fence(
+        self,
+    ) -> None:
+        """Terminal turns sometimes wrap the payload in a fenced ```json
+        code block rather than (or in addition to) plain prose — the fence
+        markers themselves are not JSON, so the same first-brace-recovery
+        path must skip past the ```json marker and stop before the closing
+        fence."""
+        citation = build_source_document_uri(_SD_ID)
+        previous_body = (
+            "The LMS is the client's learning-management product.\n\n"
+            f"{_render_citations_section([citation])}"
+        )
+        message = _MockMessage(
+            [
+                TextBlock(
+                    type="text",
+                    text=(
+                        "Here is the enriched concept document:\n\n"
+                        "```json\n"
+                        + _pass2_envelope_json(citations=[citation])
+                        + "\n```\n"
+                    ),
+                )
+            ],
+            stop_reason="end_turn",
+        )
+        envelope = web_pass._parse_pass2_response(
+            message,
+            previous_body=previous_body,
+            seen_record_anchors=set(),
+            seen_gated_anchors=set(),
+            catalogue_paths=set(),
+        )
+        assert envelope.citations == (citation,)
+
+    def test_parse_response_still_raises_pass2_enrich_error_when_brace_present_but_unparseable(
+        self,
+    ) -> None:
+        """A brace IS present (so the recovery path fires) but the text
+        after it never closes into a valid JSON object — e.g. the model was
+        cut off mid-draft. This must still surface `Pass2EnrichError`
+        loudly, proving the recovery path does not mask genuinely malformed
+        JSON by swallowing the second `JSONDecodeError`."""
+        message = _MockMessage(
+            [
+                TextBlock(
+                    type="text",
+                    text='Here is a draft: {"title": "Learning Management System", "descr',
+                )
+            ],
+            stop_reason="end_turn",
+        )
+        with pytest.raises(web_pass.Pass2EnrichError, match="valid JSON"):
+            web_pass._parse_pass2_response(
+                message,
+                previous_body="",
+                seen_record_anchors=set(),
+                seen_gated_anchors=set(),
+                catalogue_paths=set(),
+            )
+
+
+# ============================================================================
 # run_web_pass — end to end
 # ============================================================================
 

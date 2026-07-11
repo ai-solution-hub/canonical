@@ -432,6 +432,126 @@ class TestCitationValidationProxy:
         )
         assert envelope.citations == (uri, "topics/gdpr.md")
 
+    def test_parse_response_tolerates_leading_prose_before_terminal_json(self) -> None:
+        """{132.15} live-run defect (first live producer run, 2026-07-11):
+        `claude-opus-4-6` terminal turns occasionally prefix the JSON
+        payload with a short conversational preamble despite
+        `PASS1_INSTRUCTION_PROMPT`'s "no commentary before or after it"
+        contract — verbatim observed shape below. A bare `json.loads` on
+        this text raised `Pass1DraftError` for 18/18 concepts; the parser
+        must recover the JSON object that follows the preamble."""
+        uri = build_source_document_uri(_SD_ID)
+        preamble = (
+            "I now have the backing records and the full concept "
+            "catalogue. Let me draft the concept document.\n\n"
+        )
+        message = _MockMessage(
+            [
+                TextBlock(
+                    type="text",
+                    text=preamble + _envelope_json(citations=[uri, "topics/gdpr.md"]),
+                )
+            ],
+            stop_reason="end_turn",
+        )
+        envelope = enrich._parse_pass1_response(
+            message, seen_anchors={uri}, catalogue_paths={"topics/gdpr.md"}
+        )
+        assert envelope.citations == (uri, "topics/gdpr.md")
+
+    def test_parse_response_tolerates_leading_prose_and_trailing_commentary(
+        self,
+    ) -> None:
+        """Same recovery path, but the terminal turn ALSO appends
+        commentary after the JSON object's closing brace — the recovered
+        object must ignore everything past its own closing `}`."""
+        uri = build_source_document_uri(_SD_ID)
+        preamble = "Here is the concept document I've drafted.\n\n"
+        trailing = "\n\nLet me know if you would like any adjustments."
+        message = _MockMessage(
+            [
+                TextBlock(
+                    type="text",
+                    text=preamble
+                    + _envelope_json(citations=[uri, "topics/gdpr.md"])
+                    + trailing,
+                )
+            ],
+            stop_reason="end_turn",
+        )
+        envelope = enrich._parse_pass1_response(
+            message, seen_anchors={uri}, catalogue_paths={"topics/gdpr.md"}
+        )
+        assert envelope.citations == (uri, "topics/gdpr.md")
+
+    def test_parse_response_still_raises_pass1_draft_error_for_pure_prose(
+        self,
+    ) -> None:
+        """The recovery path only fires when a `{` is actually present —
+        pure prose with no JSON object anywhere in it (the model failed to
+        draft at all) must still surface the informative `Pass1DraftError`,
+        never hang or silently swallow the failure."""
+        message = _MockMessage(
+            [
+                TextBlock(
+                    type="text",
+                    text=(
+                        "I reviewed the backing records but was unable to "
+                        "draft a concept document from them at this time."
+                    ),
+                )
+            ],
+            stop_reason="end_turn",
+        )
+        with pytest.raises(enrich.Pass1DraftError, match="valid JSON"):
+            enrich._parse_pass1_response(message, seen_anchors=set(), catalogue_paths=set())
+
+    def test_parse_response_tolerates_json_wrapped_in_markdown_code_fence(self) -> None:
+        """Terminal turns sometimes wrap the payload in a fenced ```json
+        code block rather than (or in addition to) plain prose — the fence
+        markers themselves are not JSON, so the same first-brace-recovery
+        path must skip past the ```json marker and stop before the closing
+        fence."""
+        uri = build_source_document_uri(_SD_ID)
+        message = _MockMessage(
+            [
+                TextBlock(
+                    type="text",
+                    text=(
+                        "Here is the concept document:\n\n"
+                        "```json\n"
+                        + _envelope_json(citations=[uri, "topics/gdpr.md"])
+                        + "\n```\n"
+                    ),
+                )
+            ],
+            stop_reason="end_turn",
+        )
+        envelope = enrich._parse_pass1_response(
+            message, seen_anchors={uri}, catalogue_paths={"topics/gdpr.md"}
+        )
+        assert envelope.citations == (uri, "topics/gdpr.md")
+
+    def test_parse_response_still_raises_pass1_draft_error_when_brace_present_but_unparseable(
+        self,
+    ) -> None:
+        """A brace IS present (so the recovery path fires) but the text
+        after it never closes into a valid JSON object — e.g. the model was
+        cut off mid-draft. This must still surface `Pass1DraftError`
+        loudly, proving the recovery path does not mask genuinely malformed
+        JSON by swallowing the second `JSONDecodeError`."""
+        message = _MockMessage(
+            [
+                TextBlock(
+                    type="text",
+                    text='Here is a draft: {"title": "Learning Management System", "descr',
+                )
+            ],
+            stop_reason="end_turn",
+        )
+        with pytest.raises(enrich.Pass1DraftError, match="valid JSON"):
+            enrich._parse_pass1_response(message, seen_anchors=set(), catalogue_paths=set())
+
     def test_rendered_citations_section_round_trips_through_shared_validator(
         self,
     ) -> None:
