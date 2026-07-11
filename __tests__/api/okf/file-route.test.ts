@@ -163,6 +163,81 @@ describe('GET /api/okf/[bundleId]/file', () => {
     expect(response.status).toBe(404);
   });
 
+  // Rendering regression (post-{132.32} browser-verify finding): a concept
+  // file's leading YAML frontmatter (type/title/resource/tags) must be
+  // stripped before it reaches the render pane — reusing parseOkfDocument,
+  // not a bespoke splitter (lib/okf/okf-document.ts is "the render pipeline
+  // any file-explorer file view reuses").
+  it('strips frontmatter before returning content, leaving only the body (LI-5/LI-6 render-pipeline reuse)', async () => {
+    configureRole(mockSupabase, 'viewer');
+    const bundleRoot = path.join(bundleParentDir, 'first-client');
+    writeFileSync(
+      path.join(bundleRoot, 'theme', 'concept.md'),
+      [
+        '---',
+        'type: certification',
+        'title: Example Concept',
+        'resource: canonical://reference_items/123',
+        'tags: [a, b]',
+        '---',
+        '',
+        'Body prose about the concept.',
+      ].join('\n'),
+      'utf-8',
+    );
+
+    const response = await GET(
+      createTestRequest('/api/okf/first-client/file', {
+        searchParams: { path: 'theme/concept.md' },
+      }),
+      { params: createTestParams({ bundleId: 'first-client' }) },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.content).toContain('Body prose about the concept.');
+    expect(body.content).not.toMatch(/type:\s*certification/);
+    expect(body.content).not.toMatch(/resource:\s*canonical:\/\//);
+    expect(body.content).not.toContain('---');
+  });
+
+  it('leaves content unchanged for a file with no frontmatter', async () => {
+    configureRole(mockSupabase, 'viewer');
+
+    const response = await GET(
+      createTestRequest('/api/okf/first-client/file', {
+        searchParams: { path: 'index.md' },
+      }),
+      { params: createTestParams({ bundleId: 'first-client' }) },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.content).toBe('## Sales\n');
+  });
+
+  it('fails open to the raw text when frontmatter is malformed rather than 500ing', async () => {
+    configureRole(mockSupabase, 'viewer');
+    const bundleRoot = path.join(bundleParentDir, 'first-client');
+    const malformed = '---\ntitle: Unterminated\nBody without a closing fence.';
+    writeFileSync(
+      path.join(bundleRoot, 'theme', 'concept.md'),
+      malformed,
+      'utf-8',
+    );
+
+    const response = await GET(
+      createTestRequest('/api/okf/first-client/file', {
+        searchParams: { path: 'theme/concept.md' },
+      }),
+      { params: createTestParams({ bundleId: 'first-client' }) },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.content).toBe(malformed);
+  });
+
   // Security regression (post-{132.32} Checker finding, blocker): a
   // committed symlink in the client-owned, externally-synced bundle repo
   // (DR-016) pointing outside the bundle root must never leak the target's

@@ -25,6 +25,21 @@
  *      a committed symlink in the client-owned, externally-synced bundle
  *      repo (DR-016) whose target resolves outside the bundle root.
  *
+ * **Frontmatter stripped before returning content (post-{132.32}
+ * browser-verify finding).** A concept `.md` file's leading `---`-fenced
+ * YAML frontmatter (`type`/`title`/`resource`/`tags`) is producer metadata,
+ * not human body prose — the render pane must never show it as a raw text
+ * blob. `lib/okf/okf-document.ts`'s `parseOkfDocument` is already "the
+ * frontmatter/body parser … the render pipeline any file-explorer file view
+ * reuses" (per its own doc comment, the reason it exists) — this route
+ * calls it once, right after the read, and returns ONLY the body as
+ * `content`. A file with no leading `---` (e.g. `index.md`, `log.md`) is
+ * unaffected — `parseOkfDocument` passes such text through unchanged. A
+ * malformed/unterminated frontmatter block (`OkfDocumentError`) fails OPEN
+ * to the raw text rather than 500ing the whole read — showing an
+ * imperfectly-split file is preferable to breaking the explorer over a
+ * producer-side formatting slip.
+ *
  * AUTHED — deliberately NOT added to `proxy.ts` `publicRoutes` (LI-2).
  */
 import fs from 'node:fs';
@@ -33,6 +48,7 @@ import { z } from 'zod';
 import { defineRoute } from '@/lib/api/define-route';
 import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
+import { OkfDocumentError, parseOkfDocument } from '@/lib/okf/okf-document';
 import { resolveOkfBundleRoot } from '@/lib/okf/resolve-bundle-root';
 import {
   assertRealpathWithinBundleRoot,
@@ -115,7 +131,22 @@ export const GET = defineRoute(
         );
       }
 
-      const content = fs.readFileSync(filePath, 'utf-8');
+      const rawContent = fs.readFileSync(filePath, 'utf-8');
+
+      // Strip frontmatter (see file-level doc comment) — reuses the single
+      // parseOkfDocument parser rather than a bespoke split. Fails open to
+      // the raw text on a malformed/unterminated frontmatter block.
+      let content: string;
+      try {
+        content = parseOkfDocument(rawContent).body;
+      } catch (err) {
+        if (err instanceof OkfDocumentError) {
+          content = rawContent;
+        } else {
+          throw err;
+        }
+      }
+
       return NextResponse.json({ path: relPath, content });
     } catch (err) {
       return NextResponse.json(

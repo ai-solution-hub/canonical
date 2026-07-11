@@ -43,6 +43,18 @@
  * once; the file route calls it again immediately before the actual
  * `fs.readFileSync` (defense in depth — matching this surface's existing
  * "re-check even though an earlier layer already checked" auth posture).
+ *
+ * **Dot-entry exclusion (post-{132.32} browser-verify finding, hygiene).**
+ * `OKF_BUNDLE_ROOT` bundles are git clones (DR-016 — a bundle IS a client-
+ * owned git repo), so every bundle's working tree carries a `.git/`
+ * directory (config, HEAD, hooks/*.sample, objects/pack/*, refs/…) that is
+ * VCS plumbing, never bundle content. Reads of it were already blocked
+ * (`.md`-only + containment — `.git/config` 400s at the file route), so
+ * this was never an exposure, but the explorer must list the BUNDLE tree,
+ * not VCS internals. `walk()` skips any entry whose name starts with `.`
+ * (files and directories alike) before type branching — this also
+ * incidentally excludes any other dotfile (`.gitignore`, `.gitattributes`),
+ * which is the same "not bundle content" reasoning.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -73,6 +85,12 @@ function walk(dir: string, bundleRootResolved: string): OkfTreeNode[] {
     // directory is excluded before any recursion or containment check runs
     // (see module doc "Symlink hardening").
     if (entry.isSymbolicLink()) continue;
+
+    // Hygiene: never list a dot-entry (`.git/` VCS plumbing, `.gitignore`,
+    // etc.) — a bundle is a git clone (DR-016), so its working tree always
+    // carries `.git/`, which is not bundle content (see module doc
+    // "Dot-entry exclusion").
+    if (entry.name.startsWith('.')) continue;
 
     const full = path.join(dir, entry.name);
     const relPath = toPosixPath(bundleRootResolved, full);

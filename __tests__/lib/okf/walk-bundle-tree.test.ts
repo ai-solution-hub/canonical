@@ -128,6 +128,40 @@ describe('walkBundleTree', () => {
       rmSync(outsideDir, { recursive: true, force: true });
     }
   });
+
+  // Hygiene regression (post-{132.32} browser-verify finding): a bundle is
+  // a git clone (DR-016) — its `.git/` VCS plumbing (and any other
+  // dotfile/dot-directory) must never appear in the explorer tree.
+  it('excludes .git and other dot-entries from the tree (hygiene)', () => {
+    writeFileSync(path.join(bundleRoot, 'index.md'), '## Sales\n', 'utf-8');
+    writeFileSync(path.join(bundleRoot, '.hidden.md'), 'hidden', 'utf-8');
+    mkdirSync(path.join(bundleRoot, '.git', 'objects', 'pack'), {
+      recursive: true,
+    });
+    writeFileSync(path.join(bundleRoot, '.git', 'config'), '[core]', 'utf-8');
+    writeFileSync(
+      path.join(bundleRoot, '.git', 'HEAD'),
+      'ref: refs/heads/main',
+      'utf-8',
+    );
+    mkdirSync(path.join(bundleRoot, '.git', 'hooks'), { recursive: true });
+    writeFileSync(
+      path.join(bundleRoot, '.git', 'hooks', 'pre-commit.sample'),
+      '#!/bin/sh',
+      'utf-8',
+    );
+    writeFileSync(
+      path.join(bundleRoot, '.git', 'objects', 'pack', 'pack-abc.pack'),
+      'binary',
+      'utf-8',
+    );
+
+    const tree = walkBundleTree(bundleRoot);
+    const names = tree.map((n) => n.name).sort();
+    expect(names).toEqual(['index.md']);
+    expect(tree.some((n) => n.name === '.git')).toBe(false);
+    expect(tree.some((n) => n.name === '.hidden.md')).toBe(false);
+  });
 });
 
 describe('assertRealpathWithinBundleRoot (LI-17 symlink-target hardening, security fix)', () => {

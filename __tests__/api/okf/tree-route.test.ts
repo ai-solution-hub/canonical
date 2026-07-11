@@ -132,6 +132,31 @@ describe('GET /api/okf/[bundleId]/tree', () => {
     }
   });
 
+  // Hygiene regression (post-{132.32} browser-verify finding): a bundle is
+  // a git clone (DR-016), so its `.git/` VCS plumbing must never surface
+  // in the explorer tree the route returns.
+  it('excludes .git VCS plumbing from the tree response (hygiene)', async () => {
+    configureRole(mockSupabase, 'viewer');
+
+    const bundleRoot = path.join(bundleParentDir, 'first-client');
+    mkdirSync(path.join(bundleRoot, '.git', 'objects', 'pack'), {
+      recursive: true,
+    });
+    writeFileSync(path.join(bundleRoot, '.git', 'config'), '[core]', 'utf-8');
+    writeFileSync(path.join(bundleRoot, '.hidden.md'), 'hidden', 'utf-8');
+
+    const response = await GET(
+      createTestRequest('/api/okf/first-client/tree'),
+      { params: createTestParams({ bundleId: 'first-client' }) },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    const names = body.tree.map((n: { name: string }) => n.name);
+    expect(names).not.toContain('.git');
+    expect(names).not.toContain('.hidden.md');
+  });
+
   it('routes an unauthenticated request through authFailureResponse (401)', async () => {
     configureUnauthenticated(mockSupabase);
 
