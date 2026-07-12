@@ -1,5 +1,6 @@
 /**
- * Path C — catalogue-from-instance behaviour tests (ID-52.14; {130.24} DR-036).
+ * Path C — catalogue-from-instance behaviour tests (ID-52.14; {130.24} DR-036;
+ * {145.16} POST-W1 rename).
  *
  * Covers the two load-bearing invariants:
  * - Inv-21: the catalogue is authored through a human-confirmed step — no row
@@ -9,10 +10,13 @@
  *   written.
  *
  * Plus the Inv-22 read shape and Inv-23 (no workspace_id) on the produced row,
- * the classify step parsing behaviour, and ({130.24} DR-036) the embedding
+ * the classify step parsing behaviour, the read step against
+ * `form_instance_fields` ({145.16} W1c — renamed from `form_template_fields`,
+ * `template_id` -> `form_instance_id`), and ({130.24} DR-036) the embedding
  * dual-write into the polymorphic `record_embeddings` store — the
- * `requirement_embedding` column was dropped from `form_template_requirements`
- * in favour of `record_embeddings(owner_kind='form_template_requirement')`,
+ * `requirement_embedding` column was dropped from `form_requirement_templates`
+ * ({145.16} W1c — renamed from `form_template_requirements`, pure rename) in
+ * favour of `record_embeddings(owner_kind='form_template_requirement')`,
  * mirroring the company_profile EMB-STORE precedent. Anthropic is mocked at
  * the SDK boundary; Supabase via the shared `createMockSupabaseClient()`
  * helper, per `docs/reference/test-philosophy.md`
@@ -22,13 +26,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { AuthorisedResult } from '@/lib/auth/client';
 import {
+  readInstanceFields,
   classifyField,
   buildCatalogueRow,
   confirmAndWriteCatalogue,
   resolveRequirementEmbedding,
   REQUIREMENT_TYPES,
   DEFAULT_TEMPLATE_VERSION,
-  type FormTemplateField,
+  type FormInstanceField,
   type FieldClassification,
   type CatalogueCandidate,
 } from '@/lib/domains/procurement/form-templating/catalogue/from-instance';
@@ -52,11 +57,11 @@ beforeEach(() => {
 // ── Factory functions (test-philosophy §1 criterion 6) ──────────────────────
 
 function makeField(
-  overrides: Partial<FormTemplateField> = {},
-): FormTemplateField {
+  overrides: Partial<FormInstanceField> = {},
+): FormInstanceField {
   return {
     id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    template_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    form_instance_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
     sequence: 1,
     field_type: 'text',
     question_text:
@@ -123,6 +128,53 @@ function authorised(role: 'admin' | 'editor'): AuthorisedResult {
     supabase: {} as never,
   };
 }
+
+// ── readInstanceFields — read-only instance-field fetch ({145.16} W1c) ──────
+
+describe('readInstanceFields — reads form_instance_fields ({145.16})', () => {
+  it('queries form_instance_fields filtered by form_instance_id, ordered by sequence', async () => {
+    const supabase = createMockSupabaseClient();
+    const rows = [makeField({ sequence: 1 }), makeField({ sequence: 2 })];
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: rows, error: null, count: 2 }),
+    );
+
+    const result = await readInstanceFields(
+      supabase as never,
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toEqual(rows);
+    }
+    expect(supabase.from).toHaveBeenCalledWith('form_instance_fields');
+    expect(supabase._chain.eq).toHaveBeenCalledWith(
+      'form_instance_id',
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    );
+    expect(supabase._chain.order).toHaveBeenCalledWith('sequence', {
+      ascending: true,
+    });
+  });
+
+  it('returns a Result error (not a throw) when the read fails', async () => {
+    const supabase = createMockSupabaseClient();
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: null,
+          error: { message: 'relation does not exist', code: '42P01' },
+          count: null,
+        }),
+    );
+
+    const result = await readInstanceFields(supabase as never, 'some-id');
+
+    expect(result.ok).toBe(false);
+  });
+});
 
 // ── Inv-24: auth gate ───────────────────────────────────────────────────────
 
@@ -231,7 +283,7 @@ describe('confirmAndWriteCatalogue — confirmation gate (Inv-21)', () => {
       .mockResolvedValueOnce({
         data: null,
         error: {
-          message: 'permission denied for table form_template_requirements',
+          message: 'permission denied for table form_requirement_templates',
           code: '42501',
         },
       })
@@ -323,6 +375,9 @@ describe('confirmAndWriteCatalogue — idempotent re-run (ID-52.22)', () => {
 
     expect(result.written).toBe(2);
     expect(result.failed).toBe(0);
+    // {145.16} W1c — the write targets the renamed form_requirement_templates
+    // table (was form_template_requirements).
+    expect(supabase.from).toHaveBeenCalledWith('form_requirement_templates');
     // The write verb is upsert — a re-run over identical rows UPDATEs in
     // place (zero net new rows) instead of raising 23505 on the constraint.
     expect(supabase._chain.insert).not.toHaveBeenCalled();
@@ -378,8 +433,9 @@ describe('resolveRequirementEmbedding — recompute on text change only (ID-52.2
 
   /**
    * Stub the two-step pre-read ({130.24} DR-036 — the vector no longer lives
-   * inline on form_template_requirements): (1) the natural-key lookup on
-   * form_template_requirements resolving `{id, requirement_text}`, then (2)
+   * inline on form_requirement_templates, {145.16} W1c-renamed from
+   * form_template_requirements): (1) the natural-key lookup on
+   * form_requirement_templates resolving `{id, requirement_text}`, then (2)
    * — only reached when the text matches — the record_embeddings lookup by
    * `(owner_kind, owner_id, model)` resolving the stored embedding (or a
    * null row when there is none).
