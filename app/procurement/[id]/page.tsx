@@ -1,6 +1,7 @@
 'use client';
 
 import { use, useState } from 'react';
+import { notFound } from 'next/navigation';
 import { handleTablistKeyDown } from '@/lib/tablist-keyboard';
 import Link from 'next/link';
 import {
@@ -51,10 +52,6 @@ import {
   ProcurementWorkflowBadge,
   ProcurementWorkflowStepper,
 } from '@/components/procurement/procurement-workflow-indicator';
-import {
-  getProcurementForms,
-  getProcurementRollup,
-} from '@/lib/domains/procurement/procurement-detail-shape';
 import { ProcurementExportMenu } from '@/components/procurement/procurement-export-menu';
 import {
   ReadinessChecklist,
@@ -62,7 +59,6 @@ import {
 } from '@/components/procurement/readiness-checklist';
 import { CostEstimateDialog } from '@/components/coverage/cost-estimate-dialog';
 import { ProcurementOutcomeDialog } from '@/components/procurement/procurement-outcome';
-import { ProcurementFormsCard } from '@/components/procurement/procurement-forms-card';
 import { KBIntegrationReview } from '@/components/procurement/kb-integration-review';
 import { ConfidenceDot } from '@/components/shared/confidence-badge';
 import { QuestionList } from '@/components/procurement/question-list';
@@ -99,6 +95,7 @@ export default function ProcurementDetailPage({
     questions,
     stats,
     loading,
+    notFoundConfirmed,
     activeTab,
     setActiveTab,
     transitioning,
@@ -151,6 +148,14 @@ export default function ProcurementDetailPage({
         <ProcurementDetailSkeleton />
       </div>
     );
+  }
+
+  // ID-145 {145.18} BI-2/BI-3 — the item IS the form, addressed by its form
+  // id. An unknown/retired id resolves to the standard not-found surface via
+  // Next's notFound() (renders app/procurement/[id]/not-found.tsx) — NO
+  // legacy redirect, no primary-form lookup, no workspace->form mapping.
+  if (notFoundConfirmed) {
+    notFound();
   }
 
   if (!bid || !procurementStatus) {
@@ -730,9 +735,9 @@ function OverviewTab({
   readinessError: string | null;
   onRefreshReadiness: () => void;
 }) {
-  // {130.13} re-point: `metadata` is derived from the new umbrella read-shape
-  // by the hook ({130.11} removed `bid.domain_metadata`) and passed in as a
-  // prop. It may be null for an umbrella with no forms yet.
+  // ID-145 {145.18} re-point: `metadata` is derived directly off the flat
+  // form_instances response by the hook (BI-1 — no `domain_metadata` read)
+  // and passed in as a prop. It may be null for a not-yet-loaded item.
   const postureBreakdown = stats
     ? [
         {
@@ -764,16 +769,6 @@ function OverviewTab({
         onShowOutcomeDialog={onShowOutcomeDialog}
         onShowKBReview={onShowKBReview}
       />
-
-      {/* Forms — net-new multi-form navigation + roll-up ({130.13}, B-7/B-19) */}
-      <div className="lg:col-span-2">
-        <ProcurementFormsCard
-          procurementId={procurementId}
-          forms={getProcurementForms(bid)}
-          rollup={getProcurementRollup(bid)}
-          canEdit={canEdit}
-        />
-      </div>
 
       {/* Progress */}
       <div className="rounded-lg border bg-card p-4">
