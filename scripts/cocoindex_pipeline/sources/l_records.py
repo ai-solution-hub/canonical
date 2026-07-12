@@ -43,17 +43,36 @@ this a runtime invariant, not just a convention: constructing a
 | `product`        | distinct `entity_mentions.canonical_name` where `entity_type='product'` | `source_documents` (filename/logical_path match) + product-scoped `q_a_pairs` + `reference_items` |
 | `company`        | singleton, iff a company-overview/team-structure `source_documents` row exists | `source_documents` (company-overview, team-structure) + `reference_items` + the company `entity_mentions` graph |
 | `certification`  | distinct `entity_mentions.canonical_name` where `entity_type='certification'` | `source_documents` (compliance) + `reference_items` + the certification's own `entity_mentions` (by canonical_name, across all docs — external evidence) |
-| `case_study`     | distinct named-client `entity_mentions.canonical_name` (`entity_type='organisation'`) mentioned in the named-clients doc, PLUS one per BUYER of a `won` procurement bid (S443 amendment / DR-029) | named-clients grain: `source_documents` (named-clients) + supporting `q_a_pairs` + `reference_items`. won-bid grain (`key.workspace_id` set): the `workspaces` row (buyer identity via `domain_metadata`) + `derived_from_form_response` `q_a_pairs` (by `source_workspace_id`, published-only) + the won `form_templates` (`outcome_notes`) |
+| `case_study`     | distinct named-client `entity_mentions.canonical_name` (`entity_type='organisation'`) mentioned in the named-clients doc, PLUS one per BUYER of a `won` procurement bid (S443 amendment / DR-029) | named-clients grain: `source_documents` (named-clients) + supporting `q_a_pairs` + `reference_items`. won-bid grain (`key.workspace_id` set): `derived_from_form_response` `q_a_pairs` (by `source_form_instance_id`, published-only) + the won `form_instances` row itself (`issuing_organisation`/`name`/`outcome_notes`) — see the {145.24} note below |
 
-**Won-bid case_study grain (S443 amendment / DR-029).** A `won` procurement
-workspace is a first-class case_study source. Enumeration joins `workspaces`
-→ `application_types` (`key='procurement'`) → `form_templates`
-(`outcome='won'`); the ConceptKey carries `workspace_id` + `entity_id`=buyer.
-This grain is READ-ONLY against the `derived_from_form_response` q_a_pair
-write path ({131.28}, `b89ae76a`) — it never writes q_a_pairs or
-content_items. Buyer = the won form's `issuing_organisation` (the live
-engagement field post-{130.11}), with `domain_metadata` surfaced verbatim in
-the read per the TECH grid.
+**Won-bid case_study grain (S443 amendment / DR-029; re-pointed {145.24}
+post-{145.6} W1e).** A `won` procurement form is a first-class case_study
+source. Originally (pre-ID-145) enumeration joined `workspaces` →
+`application_types` (`key='procurement'`) → `form_templates`
+(`outcome='won'`), and buyer identity/outcome_notes were split across a
+`workspaces` row and a `form_templates` row. {145.6}'s W1e migration
+wholesale-deletes every procurement `workspaces` row (R3/R10) and W1c drops
+`form_instances.workspace_id` entirely — the join target is GONE, not merely
+renamed, and `form_instances` is exclusively procurement's own table (no
+`application_types` discriminator needed). Ground truth
+(`supabase/migrations/20260712062000_id145_w1c_rename_reshape.sql`,
+`…w1e_drop_workspace_stratum.sql`) shows every engagement fact the old
+`workspaces` row supplied is ALREADY denormalised directly onto the form
+(`form_instances.issuing_organisation`/`name` NOT NULL/`outcome`/
+`outcome_notes`), so post-{145.6} enumeration reads `form_instances` alone —
+no join, no `workspaces` fetch. `q_a_pairs.source_workspace_id` is dropped in
+the same batch; its replacement lineage column is `source_form_instance_id`
+(the renamed `source_form_template_id`). `ConceptKey.workspace_id` KEEPS its
+field name (repointed to hold the won form's own `form_instances.id`, not a
+`workspaces.id`) — a rename would ripple into `producer/flow_def.py`/
+`producer/bundle_writer.py`/`producer/git_sync.py`, outside this Subtask's
+file-ownership boundary; see that field's docstring below and the {145.24}
+journal for the naming-debt this leaves for a future Subtask. This grain is
+READ-ONLY against the `derived_from_form_response` q_a_pair write path
+({131.28}, `b89ae76a`) — it never writes q_a_pairs or content_items. Buyer =
+`COALESCE(issuing_organisation, name)` (falls back to the form's own
+NOT-NULL `name` column now that there is no `workspaces.name` to fall back
+to).
 
 **Owner-discretion filename patterns.** `company`/`certification`/
 `case_study` source_documents are located by filename/logical_path
@@ -142,13 +161,23 @@ class ConceptKey:
     `issuing_organisation`)."""
 
     workspace_id: "str | None" = None
-    """`case_study` won-bid grain locator ONLY (S443 amendment / DR-029): the
-    procurement `workspaces.id` whose `won` bid seeds this case study. Set for
-    the won-bid case_study source, `None` for the named-clients case_study
+    """`case_study` won-bid grain locator ONLY (S443 amendment / DR-029). Set
+    for the won-bid case_study source, `None` for the named-clients case_study
     source and every other type. Its presence is what routes `read_concept` to
-    the won-bid join (workspace `domain_metadata` + `derived_from_form_response`
-    q_a_pairs + won `form_templates.outcome_notes`) instead of the
-    named-clients source_documents grain."""
+    the won-bid read (`derived_from_form_response` q_a_pairs + the won form's
+    own `outcome_notes`) instead of the named-clients source_documents grain.
+
+    **{145.24} re-point (post-{145.6} W1e workspace-stratum deletion):** this
+    field now holds the won `form_instances.id`, NOT a `workspaces.id` — the
+    procurement `workspaces` stratum no longer exists (W1e wholesale-deletes
+    every procurement workspace row; W1c drops `form_instances.workspace_id`).
+    The field KEEPS the name `workspace_id` deliberately rather than being
+    renamed to `form_instance_id`: `producer/flow_def.py` and
+    `producer/bundle_writer.py` (both outside this Subtask's file-ownership
+    boundary) read `ConceptKey.workspace_id` by attribute name, and renaming
+    it would ripple into those files mid-wave. Recommended to the Curator as
+    backlog-worthy naming-debt cleanup once those files' own Subtask can land
+    the rename alongside its callers."""
 
     def __post_init__(self) -> None:
         if not self.rel_path:
@@ -189,9 +218,16 @@ class ConceptRaw:
     `record_lifecycle`/`entity_relationships`; `company`/`certification`
     never populate `q_a_pairs`/`record_lifecycle`/`entity_relationships`).
 
-    `workspaces`/`form_templates` are populated ONLY by the won-bid
+    `workspaces`/`form_templates` were populated ONLY by the won-bid
     `case_study` grain (S443 amendment / DR-029) — every named-clients /
     topic / product / company / certification read leaves them empty.
+    **{145.24}:** post-{145.6} W1e (the procurement workspace-stratum
+    delete), `workspaces` is now ALWAYS empty, including for the won-bid
+    grain — there is no more `workspaces` row to fetch. `form_templates`
+    (kept under its pre-rename field name; the underlying table is now
+    `form_instances`) still carries the won-bid grain's one row, now
+    self-contained (`issuing_organisation`/`name`/`outcome_notes` live
+    directly on the form — no workspace join was ever needed for those).
 
     Never frozen (unlike `ConceptKey`): this is a per-call return value, not
     a cocoindex memo key.
@@ -354,56 +390,70 @@ _SQL_DISTINCT_CASE_STUDY_ENTITIES = (
 )
 
 # ── won-bid case_study grain (S443 amendment / DR-029 / TECH G-SOURCE
-# amendment). A `won` procurement workspace is a first-class case_study
-# source. Enumeration: procurement workspaces with a `won` form; buyer =
-# the won form's `issuing_organisation` (the live per-form engagement field
-# post-{130.11}; `workspaces.domain_metadata` engagement facts were
-# relocated to `form_templates` there), falling back to the workspace name.
-# The read (`_read_won_bid_case_study`) still surfaces `domain_metadata`
-# verbatim per the TECH grid's "buyer identity (`domain_metadata`)". ────────
+# amendment; re-pointed {145.24} post-{145.6} W1e workspace-stratum drop).
+# A `won` procurement form is a first-class case_study source. Enumeration:
+# `form_instances` rows with `outcome = 'won'` — NO join to `workspaces`/
+# `application_types`. Pre-{145.6}, this joined workspaces -> application_types
+# -> form_templates (procurement-discriminated via apt.key); post-{145.6},
+# form_instances IS exclusively procurement's own table (no other app_type
+# writes it), so the discriminator join is gone along with the workspace
+# stratum it discriminated. Buyer = COALESCE(issuing_organisation, name) —
+# `form_instances.name` (NOT NULL since table creation, squash_baseline.sql)
+# replaces the old `workspaces.name` fallback; `workspaces.domain_metadata`
+# is no longer read at all (every procurement workspace row is wholesale
+# DELETEd by W1e — there is nothing left to join to). ─────────────────────
 _SQL_WON_BID_CASE_STUDIES = (
-    "SELECT DISTINCT w.id AS workspace_id, "
-    "COALESCE(ft.issuing_organisation, w.name) AS buyer "
-    "FROM workspaces w "
-    "JOIN application_types apt ON apt.id = w.application_type_id "
-    "JOIN form_templates ft ON ft.workspace_id = w.id "
-    "WHERE apt.key = 'procurement' AND ft.outcome = 'won' "
-    "AND COALESCE(ft.issuing_organisation, w.name) IS NOT NULL "
+    "SELECT DISTINCT id AS workspace_id, "
+    "COALESCE(issuing_organisation, name) AS buyer "
+    "FROM form_instances "
+    "WHERE outcome = 'won' "
+    "AND COALESCE(issuing_organisation, name) IS NOT NULL "
     "ORDER BY 2, 1"
 )
 
-_WORKSPACE_COLUMNS = (
-    "id, name, description, application_type_id, domain_metadata, status, "
-    "is_archived, created_at, updated_at"
-)
-
-_SQL_WORKSPACE_BY_ID = (
-    f"SELECT {_WORKSPACE_COLUMNS} FROM workspaces WHERE id = $1"
-)
+# {145.24}: `_WORKSPACE_COLUMNS`/`_SQL_WORKSPACE_BY_ID` (a `SELECT ... FROM
+# workspaces WHERE id = $1` fetch feeding `ConceptRaw.workspaces`) are REMOVED
+# — W1e wholesale-deletes every procurement `workspaces` row, so this fetch
+# would always return zero rows post-push; buyer identity/outcome_notes now
+# come straight off the `form_instances` row itself (see
+# `_SQL_WON_FORM_TEMPLATES_BY_WORKSPACE` below). `ConceptRaw.workspaces`
+# stays in the dataclass shape (structural stability for `enrich.py`'s
+# `list(raw.workspaces)` — outside this Subtask's rename-blast-radius
+# concern) but `_read_won_bid_case_study` now always populates it `[]`.
 
 # Won-bid-provenance q_a_pairs (the {131.28} write path, origin_kind
 # 'derived_from_form_response'), surfaced only once PROMOTED (published)
 # through the DR-025 knowledge-admission gate — the same published-only read
 # posture the topic/product grains take. Provenance columns
-# (source_workspace_id/source_form_response_id/source_question_id) are
+# (source_form_instance_id/source_form_response_id/source_question_id) are
 # carried so downstream (BI-28 proposal shaping) keeps won-bid lineage.
+# {145.24}: `source_workspace_id` is DROPPED by {145.6} W1c (STEP 5) — its
+# replacement lineage column is `source_form_instance_id` (the renamed
+# `source_form_template_id`), which already carries the same "which form"
+# provenance the workspace column duplicated (ARCH-REVIEW §2 C8).
 _QA_WON_COLUMNS = (
-    f"{_QA_COLUMNS}, source_workspace_id, source_form_response_id, "
+    f"{_QA_COLUMNS}, source_form_instance_id, source_form_response_id, "
     "source_question_id"
 )
 
 _SQL_WON_BID_QA_BY_WORKSPACE = (
     f"SELECT {_QA_WON_COLUMNS} FROM q_a_pairs "
-    "WHERE source_workspace_id = $1 "
+    "WHERE source_form_instance_id = $1 "
     "AND origin_kind = 'derived_from_form_response' "
     "AND publication_status = 'published' ORDER BY id"
 )
 
+# {145.24}: table renamed form_templates -> form_instances; `workspace_id`
+# column is DROPPED by W1c — `key.workspace_id` (the ConceptKey locator, kept
+# under its pre-existing field name per the docstring above) now carries the
+# won form's own `form_instances.id`, so this filters on the form's OWN id
+# rather than a workspace grouping id. A single row (0 or 1) in practice —
+# `_SQL_WON_BID_CASE_STUDIES` already enumerates one row per won form.
 _SQL_WON_FORM_TEMPLATES_BY_WORKSPACE = (
-    "SELECT id, workspace_id, name, form_type, outcome, outcome_notes, "
+    "SELECT id, name, form_type, outcome, outcome_notes, "
     "outcome_recorded_at, outcome_recorded_by, issuing_organisation, "
-    "created_at, updated_at FROM form_templates "
-    "WHERE workspace_id = $1 AND outcome = 'won' ORDER BY id"
+    "created_at, updated_at FROM form_instances "
+    "WHERE id = $1 AND outcome = 'won' ORDER BY id"
 )
 
 _SLUG_INVALID_RE = re.compile(r"[^a-z0-9]+")
@@ -720,18 +770,24 @@ class LRecordsSource:
 
     async def _read_won_bid_case_study(self, key: ConceptKey) -> ConceptRaw:
         """The won-bid case_study grain read (S443 amendment / DR-029, TECH
-        G-SOURCE amendment): the workspace row (buyer identity via
-        `domain_metadata`) + won-bid-provenance `q_a_pairs` (the {131.28}
-        `derived_from_form_response` write path, once promoted/published
-        through the DR-025 admission gate, keyed by `source_workspace_id`) +
-        the won `form_templates` row (`outcome_notes`).
+        G-SOURCE amendment; re-pointed {145.24} post-{145.6} W1e): won-bid-
+        provenance `q_a_pairs` (the {131.28} `derived_from_form_response`
+        write path, once promoted/published through the DR-025 admission
+        gate, keyed by `source_form_instance_id`) + the won `form_instances`
+        row itself (`issuing_organisation`/`name`/`outcome_notes`).
+
+        No `workspaces` fetch: {145.6} W1e wholesale-deletes every procurement
+        `workspaces` row, so a `workspaces`-table read would always return
+        zero rows post-push — buyer identity now comes straight off the
+        `form_instances` row (`_SQL_WON_FORM_TEMPLATES_BY_WORKSPACE`).
+        `ConceptRaw.workspaces` stays `[]` for this grain (dataclass shape
+        preserved for `enrich.py`'s consumption, per that field's own note).
 
         Read-only against the won-bid write path — this method writes nothing.
         Anchors (BI-9): the q_a_pairs land in the `q_a_pairs` bucket (anchored
         downstream via the BI-8 `canonical://q_a_pairs?…` query form, NEVER a
         q_a_pair master uuid — BI-3); `source_documents`/`reference_items`
         stay empty for this grain (no named-clients doc backs a won bid)."""
-        ws_rows = await self._pool.fetch(_SQL_WORKSPACE_BY_ID, key.workspace_id)
         qa_rows = await self._pool.fetch(
             _SQL_WON_BID_QA_BY_WORKSPACE, key.workspace_id
         )
@@ -739,7 +795,7 @@ class LRecordsSource:
             _SQL_WON_FORM_TEMPLATES_BY_WORKSPACE, key.workspace_id
         )
         return ConceptRaw(
-            workspaces=ws_rows, q_a_pairs=qa_rows, form_templates=ft_rows
+            workspaces=[], q_a_pairs=qa_rows, form_templates=ft_rows
         )
 
     # ── sample_rows (concrete helper, base.py) ──────────────────────────
@@ -756,7 +812,8 @@ class LRecordsSource:
             return await self._topic_qa_rows(key, limit=n)
         if key.concept_type == "case_study" and key.workspace_id is not None:
             # won-bid grain: sample the won-bid-provenance q_a_pairs directly
-            # by source_workspace_id (no named-clients source_documents exist).
+            # by source_form_instance_id ({145.24} — no named-clients
+            # source_documents exist for this grain).
             sql = f"{_SQL_WON_BID_QA_BY_WORKSPACE} LIMIT $2"
             return await self._pool.fetch(sql, key.workspace_id, n)
         if key.concept_type in ("product", "case_study"):

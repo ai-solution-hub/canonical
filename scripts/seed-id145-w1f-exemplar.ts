@@ -26,13 +26,15 @@
  *   already contains 66 real, reviewed Standard-SQ (PPN 03/24) requirement
  *   rows with embeddings — re-implementing that dataset in a second script
  *   would create two divergent sources of truth for the same canonical
- *   catalogue. That script currently targets the pre-{145.6} table name
- *   (`form_template_requirements`) and is OUT of this Subtask's file-ownership
- *   boundary (grep-swept and reported, not fixed, per the {145.6}/{145.7}
- *   dispatch brief's SQL-grep discipline instruction) — running it against
- *   staging is a POST-PUSH step once its table-name reference is updated. The
- *   remaining ~30 rows needed to reach prod's 96-row count (from the other
- *   three exemplar dirs under docs/testing/test-data/templates/ —
+ *   catalogue. That script targeted the pre-{145.6} table name
+ *   (`form_template_requirements`) and was OUT of {145.6}/{145.7}'s
+ *   file-ownership boundary (grep-swept and reported, not fixed, per that
+ *   dispatch brief's SQL-grep discipline instruction) — {145.24} is the
+ *   Subtask that owns and has now updated its table-name reference to
+ *   `form_requirement_templates`, so running it against staging (checklist
+ *   step 7) is a POST-PUSH step, not blocked by a stale table name anymore.
+ *   The remaining ~30 rows needed to reach prod's 96-row count (from the
+ *   other three exemplar dirs under docs/testing/test-data/templates/ —
  *   itt-services-charnwood, itt-services-efa, rfp-british-council) have no
  *   equivalent checked-in cataloguing script; BI-44's own verifiable
  *   criterion only requires ONE usable exemplar (JOB 3 below), so the
@@ -58,11 +60,20 @@
  * the push is an Orchestrator-gated integration step). Run post-push:
  *   bun run scripts/seed-id145-w1f-exemplar.ts --env=staging
  *
+ * {145.24}: `--env=<staging|prod>` is now a REQUIRED, enforced flag (parity
+ * with sibling seed scripts, e.g. seed-procurement-test-data.ts's `--reset`
+ * gate) — this script uploads a real file to Supabase Storage and
+ * mints/mutates `form_instances` rows, so it refuses to run at all without
+ * an explicit env flag naming the intended target, and `--env=prod` is
+ * additionally guarded against a URL/project-ref mismatch
+ * (`assertEnvFlag`, `lib/script-env.ts`).
+ *
  * Usage:
- *   bun run scripts/seed-id145-w1f-exemplar.ts                   # full run
- *   bun run scripts/seed-id145-w1f-exemplar.ts --dry-run          # preview only
- *   bun run scripts/seed-id145-w1f-exemplar.ts --skip-bid-reclassify
- *   bun run scripts/seed-id145-w1f-exemplar.ts --skip-exemplar
+ *   bun run scripts/seed-id145-w1f-exemplar.ts --env=staging          # full run
+ *   bun run scripts/seed-id145-w1f-exemplar.ts --env=staging --dry-run # preview only
+ *   bun run scripts/seed-id145-w1f-exemplar.ts --env=staging --skip-bid-reclassify
+ *   bun run scripts/seed-id145-w1f-exemplar.ts --env=staging --skip-exemplar
+ *   bun run scripts/seed-id145-w1f-exemplar.ts --env=prod             # interactive prod target
  */
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -70,6 +81,7 @@ import { dirname, resolve } from 'node:path';
 
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import { loadEnv } from './lib/load-env';
+import { assertEnvFlag } from './lib/script-env';
 
 loadEnv();
 
@@ -83,12 +95,23 @@ function parseCliArgs(): {
   dryRun: boolean;
   skipBidReclassify: boolean;
   skipExemplar: boolean;
+  env: string;
 } {
   const args = process.argv.slice(2);
+  let env = '';
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--env' && args[i + 1]) {
+      env = args[++i];
+    } else if (arg.startsWith('--env=')) {
+      env = arg.slice('--env='.length);
+    }
+  }
   return {
     dryRun: args.includes('--dry-run'),
     skipBidReclassify: args.includes('--skip-bid-reclassify'),
     skipExemplar: args.includes('--skip-exemplar'),
+    env,
   };
 }
 
@@ -205,7 +228,24 @@ async function seedExemplar(
 }
 
 async function main(): Promise<void> {
-  const { dryRun, skipBidReclassify, skipExemplar } = parseCliArgs();
+  const { dryRun, skipBidReclassify, skipExemplar, env } = parseCliArgs();
+
+  // {145.24}: refuse to run without an explicit env flag (parity with
+  // seed-procurement-test-data.ts's `--reset` gate) — this script uploads a
+  // real file to Storage and mints/mutates form_instances rows, so an
+  // unintentional run against the wrong project is a real-data hazard.
+  if (env !== 'staging' && env !== 'prod') {
+    console.error(
+      'ERROR: seed-id145-w1f-exemplar.ts requires an explicit --env=<staging|prod>.\n' +
+        'It uploads a real file to Supabase Storage and mints/mutates form_instances\n' +
+        'rows; refusing to run without an explicit env flag to prevent accidental\n' +
+        'writes to the wrong project.\n\n' +
+        'Usage:\n' +
+        '  bun run scripts/seed-id145-w1f-exemplar.ts --env=staging\n' +
+        '  bun run scripts/seed-id145-w1f-exemplar.ts --env=prod\n',
+    );
+    process.exit(1);
+  }
 
   const supabaseUrl =
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
@@ -216,6 +256,8 @@ async function main(): Promise<void> {
     );
     process.exit(1);
   }
+
+  assertEnvFlag(env, supabaseUrl, 'scripts/seed-id145-w1f-exemplar.ts');
 
   const supabase = createScriptClient(supabaseUrl, supabaseKey);
 
@@ -235,10 +277,10 @@ async function main(): Promise<void> {
     'JOB 2 (form_requirement_templates reseed) is NOT run by this script —',
   );
   console.log(
-    "  see this file's header comment: run scripts/catalogue-standard-sq.ts",
+    '  run scripts/catalogue-standard-sq.ts separately (it now targets',
   );
   console.log(
-    '  once its table-name reference is updated for the {145.6} rename.',
+    `  form_requirement_templates post-{145.6}/{145.24}): bun run scripts/catalogue-standard-sq.ts --env=${env}`,
   );
 }
 
