@@ -18,8 +18,12 @@ PDF field detector (DR-057) — a DIFFERENT module than the id-52 pdfplumber
 reader {145.10} originally recovered (superseded; removed post-Checker
 ruling once {145.11} landed at the identical path). It exports its own
 ``PdfFieldDetectionResult`` shape, not this package's ``ExtractedForm``;
-the orchestrator does not yet dispatch ``.pdf`` to it — {145.13} owns that
-shape-adaptation + wiring.
+{145.13} wired the orchestrator's ``.pdf`` branch to it via the
+``orchestrator._pdf_result_to_extracted_form`` shape-adapter (direct-import
+only, per the "No barrel re-exports" note below — the {145.13} worker calls
+``detect_pdf_fields`` once itself for the fillable-artefact bytes, then
+reuses this adapter for the ``ExtractedForm``/``form_instance_fields`` view
+rather than re-running detection through ``extract_form_structure``).
 
 Per CLAUDE.md "No barrel re-exports" — callers import the per-format readers
 and the shared shapes directly from the individual modules (``from

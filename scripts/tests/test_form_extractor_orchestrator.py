@@ -10,10 +10,15 @@ storage.
 WHAT THIS PROVES:
   - ``.xlsx`` / ``.docx`` route to the matching reader's ``extract`` (called
     with the same raw bytes + filename the dispatcher received).
-  - ``.pdf`` is NOT YET WIRED — returns None and logs
-    ``form_extractor.skip``/``pdf_not_yet_wired`` (Checker ruling,
-    post-{145.11} landing — see the PDF NOTE below and the orchestrator's
-    own module docstring).
+  - ``.pdf`` routes to ``_detect_pdf_fields`` ({145.11}'s commonforms
+    detector) then shape-adapts the result to ``ExtractedForm`` via
+    ``_pdf_result_to_extracted_form`` (ID-145.13 wiring — see the PDF
+    WIRING note below); a detection failure wraps as this package's own
+    ``FormExtractionError`` (Inv-17 parity with the docx/xlsx readers);
+    with the heavy Plane-2 stack unavailable (``_detect_pdf_fields is
+    None``), it returns ``None`` and logs
+    ``form_extractor.skip``/``pdf_dependencies_unavailable`` instead of
+    raising ``ImportError``.
   - ``.xls`` returns ``None`` and logs ``form_extractor.skip`` (Inv-3 — no raise).
   - Any other suffix (``.md``, ``.txt``) returns ``None`` (not a form).
   - The orchestrator is exported from the package ``__init__`` (the single
@@ -26,16 +31,19 @@ dict/typed round-trip via ``coerce_extracted_form``. Both are cocoindex-flow
 machinery that no longer applies once the orchestrator is decoupled from the
 corpus walk (DR-014) — dropped here, not carried forward as dead coverage.
 
-PDF NOTE (ID-145.10 Checker ruling, post-{145.11} landing): {145.10}'s
-original brief recovered the id-52 pdfplumber PDF reader and wired it here.
-That strategy is SUPERSEDED by ratified DR-057 (commonforms detection is
-mandatory — real UK procurement PDFs are FLAT); {145.11} has already landed
-its own commonforms-based module at this package's ``pdf.py`` path, with a
-different output shape (``PdfFieldDetectionResult``, not this package's
-``ExtractedForm``). This dispatcher does not import or call it — {145.13}
-owns the shape-adaptation + wiring. The ``.pdf`` test below asserts the
-explicit not-wired outcome against a REAL minimal PDF (no monkeypatching —
-there is no per-format reader function to patch on this branch).
+PDF WIRING (ID-145.13): {145.11} landed its own commonforms-based module at
+this package's ``pdf.py`` path (DR-057 — real UK procurement PDFs are FLAT,
+so commonforms detection is mandatory), with a different output shape
+(``PdfFieldDetectionResult``, not this package's ``ExtractedForm``).
+{145.13} wires it into the dispatcher via ``_pdf_result_to_extracted_form``.
+The PDF tests below monkeypatch ``orch_module._detect_pdf_fields`` with a
+duck-typed ``SimpleNamespace`` fake (mirroring the ``PdfDetectedField`` /
+``PdfFieldDetectionResult`` shape's attributes only — ``_pdf_result_to_
+extracted_form`` never isinstance-checks) rather than importing the real
+``pdf`` module, so these tests run WITHOUT the heavy commonforms/pypdf/
+pdfplumber stack installed (S467 — matches ``test_pdf_field_detection.py``'s
+own ``pytest.importorskip`` guard convention for real-behaviour coverage of
+``detect_pdf_fields`` itself).
 
 Async tests follow the repo convention (no pytest-asyncio plugin): drive
 coroutines via ``asyncio.run`` inside sync test functions.
@@ -46,6 +54,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from types import SimpleNamespace
 
 import pytest
 
@@ -58,6 +67,7 @@ from scripts.cocoindex_pipeline.form_extractors import (
 from scripts.cocoindex_pipeline.form_extractors.shared import (
     ExtractedField,
     ExtractedForm,
+    FormExtractionError,
     FormMetadata,
 )
 
@@ -105,15 +115,73 @@ def test_extract_form_structure_exported_from_package() -> None:
 
 
 class TestSuffixDispatch:
-    def test_pdf_is_not_yet_wired_returns_none_and_logs_skip(
-        self, caplog: pytest.LogCaptureFixture
+    def test_pdf_routes_to_detect_pdf_fields_and_shape_adapts(
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """``.pdf`` has NO reader wired on this dispatcher (Checker ruling,
-        post-{145.11} landing) — a real minimal PDF returns None and logs
-        a structured ``form_extractor.skip``/``pdf_not_yet_wired`` line, no
-        raise. No monkeypatching: there is no ``_extract_pdf`` seam on this
-        branch to patch."""
-        with caplog.at_level(logging.INFO):
+        """``.pdf`` dispatches to ``_detect_pdf_fields`` then shape-adapts
+        via ``_pdf_result_to_extracted_form`` (ID-145.13 wiring).
+        GEOMETRY-PERSISTENCE assertion: ``table_index`` <- page_number,
+        ``row_index`` <- sequence, ``col_index`` stays unused (None)."""
+        fake_field = SimpleNamespace(
+            question_text="Company name?", page_number=2, sequence=5
+        )
+        fake_result = SimpleNamespace(
+            fields=[fake_field], fillable_pdf_bytes=b"%PDF-fake-fillable"
+        )
+
+        def _fake_detect(raw_bytes: bytes, filename: str):
+            assert raw_bytes == _MINIMAL_PDF_BYTES
+            assert filename == "blank.pdf"
+            return fake_result
+
+        monkeypatch.setattr(orch_module, "_detect_pdf_fields", _fake_detect)
+
+        result = asyncio.run(
+            extract_form_structure(_MINIMAL_PDF_BYTES, "blank.pdf")
+        )
+
+        assert isinstance(result, ExtractedForm)
+        assert result.form_metadata.form_format == "pdf"
+        assert result.form_metadata.form_type == "questionnaire"
+        assert len(result.fields) == 1
+        field = result.fields[0]
+        assert field.question_text == "Company name?"
+        assert field.field_type == "empty_cell"
+        assert field.fill_status == "pending"
+        assert field.table_index == 2  # page_number
+        assert field.row_index == 5  # sequence (reading order)
+        assert field.col_index is None  # no column concept for flat PDF
+        assert field.sequence == 5
+
+    def test_pdf_detection_error_wraps_as_form_extraction_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A ``detect_pdf_fields`` failure (malformed/encrypted PDF) wraps
+        as this package's own ``FormExtractionError`` — Inv-17 contract
+        parity with the docx/xlsx readers, never a raw
+        ``PdfFieldDetectionError`` escaping the dispatcher."""
+
+        def _raise(raw_bytes: bytes, filename: str):
+            raise orch_module.PdfFieldDetectionError(
+                f"{filename}: could not be parsed (malformed or encrypted PDF)"
+            )
+
+        monkeypatch.setattr(orch_module, "_detect_pdf_fields", _raise)
+
+        with pytest.raises(FormExtractionError) as exc_info:
+            asyncio.run(extract_form_structure(_MINIMAL_PDF_BYTES, "blank.pdf"))
+        assert exc_info.value.reason == "corrupt_pdf"
+        assert exc_info.value.rel_path == "blank.pdf"
+
+    def test_pdf_dependencies_unavailable_returns_none_and_logs_skip(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """With the heavy Plane-2 stack unavailable (``_detect_pdf_fields``
+        resolves to ``None`` at import time — S467), a ``.pdf`` input
+        returns None and logs ``form_extractor.skip``/
+        ``pdf_dependencies_unavailable``, never raises ``ImportError``."""
+        monkeypatch.setattr(orch_module, "_detect_pdf_fields", None)
+        with caplog.at_level(logging.WARNING):
             result = asyncio.run(
                 extract_form_structure(_MINIMAL_PDF_BYTES, "blank.pdf")
             )
@@ -125,7 +193,7 @@ class TestSuffixDispatch:
             if rec.message.startswith("{") and "form_extractor.skip" in rec.message
         ]
         assert skip_logs, "a .pdf input must emit a form_extractor.skip log line"
-        assert skip_logs[0]["reason"] == "pdf_not_yet_wired"
+        assert skip_logs[0]["reason"] == "pdf_dependencies_unavailable"
         assert skip_logs[0]["rel_path"] == "blank.pdf"
 
     def test_xlsx_routes_to_xlsx_extract(
@@ -195,13 +263,18 @@ class TestSuffixDispatch:
         result = asyncio.run(extract_form_structure(b"PK\x03\x04", "SHEET.XLSX"))
         assert isinstance(result, ExtractedForm)
 
-    def test_uppercase_pdf_suffix_also_not_wired(
-        self, caplog: pytest.LogCaptureFixture
+    def test_uppercase_pdf_suffix_also_routes_to_pdf_branch(
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Case-insensitivity holds for the not-wired ``.pdf`` branch too
-        (``.PDF`` behaves like ``.pdf``)."""
-        with caplog.at_level(logging.INFO):
-            result = asyncio.run(
-                extract_form_structure(_MINIMAL_PDF_BYTES, "BLANK.PDF")
-            )
-        assert result is None
+        """Case-insensitivity holds for the ``.pdf`` branch too (``.PDF``
+        behaves like ``.pdf`` — dispatches to ``_detect_pdf_fields``, not
+        the "not a form" fallthrough)."""
+        fake_result = SimpleNamespace(fields=[], fillable_pdf_bytes=b"%PDF-fake")
+        monkeypatch.setattr(
+            orch_module, "_detect_pdf_fields", lambda raw, name: fake_result
+        )
+        result = asyncio.run(
+            extract_form_structure(_MINIMAL_PDF_BYTES, "BLANK.PDF")
+        )
+        assert isinstance(result, ExtractedForm)
+        assert result.form_metadata.form_format == "pdf"

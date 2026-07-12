@@ -3,12 +3,14 @@
 # GENERATED FILE — do not hand-edit. Regenerate with:
 #   uv pip compile requirements.txt --python 3.13 -o requirements.lock
 # (--python 3.13 matches the image's GOOGLE_PYTHON_VERSION=3.13.13 pin in
-# .github/workflows/onprem-deploy.yml; requires network access to PyPI.)
+# .github/workflows/onprem-deploy.yml; requires network access to PyPI. `uv`
+# overwrites this header comment block on every regen — it is restored by
+# hand immediately after, per the {145.13} regen below; keep doing so.)
 #
 # requirements.txt remains the human-edited source of direct dependencies +
-# their rationale comments. This lock pins the FULL transitive closure (165
-# packages) so image rebuilds are reproducible — no more float-drift like the
-# docling 2.107->2.108 libxcb regression (S437) that motivated this lockfile.
+# their rationale comments. This lock pins the FULL transitive closure so
+# image rebuilds are reproducible — no more float-drift like the docling
+# 2.107->2.108 libxcb regression (S437) that motivated this lockfile.
 #
 # BUILD WIRING: .github/workflows/onprem-deploy.yml's pruned build-context step
 # copies this file into the buildpacks context AS `requirements.txt` (the
@@ -22,6 +24,17 @@
 # below: numpy==2.5.0, scipy==1.18.0, faiss-cpu==1.14.2. faiss's
 # swigfaiss_avx2 ModuleNotFoundError is a benign AVX2-probe fallback — do not
 # chase it if seen in build/runtime logs.
+#
+# ID-145 {145.13} regen (BI-20): commonforms==0.2.1 + pypdf==6.14.2 ({145.11}'s
+# PDF Plane-2 detector, requirements.txt) were direct dependencies but ABSENT
+# from this lock — the onprem image installs from THIS file (see BUILD WIRING
+# above), not requirements.txt directly, so the deployed worker silently
+# lacked commonforms' own transitive closure until this regen (599 -> 705
+# lines). torch/torchvision were ALREADY present pre-regen (pulled in
+# transitively by docling-ibm-models' own layout model) — the net-new
+# packages are commonforms, pypdf, and commonforms' OWN additional
+# transitive deps not already covered by docling (e.g. ultralytics,
+# ultralytics-thop, colorama, supervision).
 #
 # Determinism: two consecutive `uv pip compile` runs from an unchanged
 # requirements.txt produce a byte-identical package list (verified {127.22}).
@@ -89,12 +102,17 @@ click==8.4.2
     #   typer
 cocoindex==1.0.7
     # via -r requirements.txt
+colorama==0.4.6
+    # via onnxslim
+commonforms==0.2.1
+    # via -r requirements.txt
 contourpy==1.3.3
     # via matplotlib
 courlan==1.4.0
     # via trafilatura
 cryptography==49.0.0
     # via
+    #   commonforms
     #   pdfminer-six
     #   pyjwt
 cycler==0.12.1
@@ -105,6 +123,7 @@ defusedxml==0.7.1
     # via
     #   docling-core
     #   docling-slim
+    #   supervision
 deprecation==2.1.0
     # via
     #   postgrest
@@ -146,8 +165,12 @@ filelock==3.29.4
     #   torch
 filetype==1.2.0
     # via docling-slim
+flatbuffers==25.12.19
+    # via onnxruntime
 fonttools==4.63.0
     # via matplotlib
+formalpdf==0.1.6
+    # via commonforms
 frozenlist==1.8.0
     # via
     #   aiohttp
@@ -189,6 +212,7 @@ httpx==0.28.1
 huggingface-hub==1.21.0
     # via
     #   accelerate
+    #   commonforms
     #   docling-ibm-models
     #   docling-slim
     #   tokenizers
@@ -261,11 +285,18 @@ marko==2.2.3
 markupsafe==3.0.3
     # via jinja2
 matplotlib==3.11.0
-    # via bert-score
+    # via
+    #   bert-score
+    #   supervision
+    #   ultralytics
 mdurl==0.1.2
     # via markdown-it-py
 mf2py==2.0.1
     # via extruct
+ml-dtypes==0.5.4
+    # via
+    #   onnx
+    #   onnxslim
 more-itertools==11.1.0
     # via inflect
 mpire==2.10.2
@@ -291,16 +322,38 @@ numpy==2.5.0
     #   docling-ibm-models
     #   faiss-cpu
     #   matplotlib
+    #   ml-dtypes
+    #   onnx
+    #   onnxruntime
+    #   opencv-python
     #   opencv-python-headless
     #   pandas
+    #   rfdetr
     #   safetensors
     #   scipy
+    #   supervision
     #   torchvision
     #   transformers
+    #   ultralytics
+    #   ultralytics-thop
+nvidia-ml-py==13.610.43
+    # via ultralytics
+onnx==1.22.0
+    # via
+    #   commonforms
+    #   onnxslim
+onnxruntime==1.27.0
+    # via commonforms
+onnxslim==0.1.94
+    # via commonforms
 openai==2.21.0
     # via
     #   -r requirements.txt
     #   litellm
+opencv-python==5.0.0.93
+    # via
+    #   supervision
+    #   ultralytics
 opencv-python-headless==4.13.0.92
     # via -r requirements.txt
 openpyxl==3.1.5
@@ -315,6 +368,8 @@ packaging==26.2
     #   faiss-cpu
     #   huggingface-hub
     #   matplotlib
+    #   onnxruntime
+    #   onnxslim
     #   pytest
     #   transformers
 pandas==3.0.3
@@ -327,33 +382,47 @@ pdfplumber==0.11.9
     # via -r requirements.txt
 pillow==12.3.0
     # via
+    #   commonforms
     #   docling-core
     #   docling-ibm-models
     #   docling-parse
+    #   formalpdf
     #   matplotlib
     #   pdfplumber
     #   python-pptx
+    #   supervision
     #   torchvision
+    #   ultralytics
 pluggy==1.6.0
     # via
     #   docling-slim
     #   pytest
+polars==1.42.1
+    # via ultralytics
+polars-runtime-32==1.42.1
+    # via polars
 postgrest==2.31.0
     # via supabase
 propcache==0.5.2
     # via
     #   aiohttp
     #   yarl
+protobuf==7.35.1
+    # via
+    #   onnx
+    #   onnxruntime
 psutil==7.2.2
     # via
     #   accelerate
     #   cocoindex
+    #   ultralytics
 pycparser==3.0
     # via cffi
 pydantic==2.12.5
     # via
     #   -r requirements.txt
     #   anthropic
+    #   commonforms
     #   docling-core
     #   docling-ibm-models
     #   docling-parse
@@ -363,6 +432,7 @@ pydantic==2.12.5
     #   postgrest
     #   pydantic-settings
     #   realtime
+    #   rfdetr
     #   storage3
     #   supabase-auth
 pydantic-core==2.41.5
@@ -371,6 +441,10 @@ pydantic-settings==2.14.2
     # via
     #   docling-core
     #   docling-slim
+pydeprecate==0.9.0
+    # via
+    #   rfdetr
+    #   supervision
 pygments==2.20.0
     # via
     #   mpire
@@ -386,9 +460,14 @@ pyparsing==3.3.2
     # via
     #   matplotlib
     #   rdflib
+pypdf==6.14.2
+    # via
+    #   -r requirements.txt
+    #   commonforms
 pypdfium2==5.11.0
     # via
     #   docling-slim
+    #   formalpdf
     #   pdfplumber
 pyrdfa3==3.6.5
     # via extruct
@@ -420,7 +499,9 @@ pyyaml==6.0.3
     #   accelerate
     #   docling-core
     #   huggingface-hub
+    #   supervision
     #   transformers
+    #   ultralytics
 rdflib==7.6.0
     # via
     #   extruct
@@ -443,7 +524,12 @@ requests==2.33.0
     #   docling-slim
     #   mf2py
     #   pyrdfa3
+    #   rfdetr
+    #   supervision
     #   tiktoken
+    #   ultralytics
+rfdetr==1.8.3
+    # via commonforms
 rich==15.0.0
     # via
     #   cocoindex
@@ -460,7 +546,9 @@ safetensors==0.8.0
     #   docling-ibm-models
     #   transformers
 scipy==1.18.0
-    # via -r requirements.txt
+    # via
+    #   -r requirements.txt
+    #   supervision
 semchunk==3.2.5
     # via docling-core
 setuptools==81.0.0
@@ -487,8 +575,12 @@ supabase-auth==2.31.0
     # via supabase
 supabase-functions==2.31.0
     # via supabase
+supervision==0.29.1
+    # via rfdetr
 sympy==1.14.0
-    # via torch
+    # via
+    #   onnxslim
+    #   torch
 tabulate==0.10.0
     # via docling-core
 tenacity==9.1.4
@@ -509,12 +601,17 @@ torch==2.12.1
     #   bert-score
     #   docling-ibm-models
     #   docling-slim
+    #   rfdetr
     #   safetensors
     #   torchvision
+    #   ultralytics
+    #   ultralytics-thop
 torchvision==0.27.1
     # via
     #   docling-ibm-models
     #   docling-slim
+    #   rfdetr
+    #   ultralytics
 tqdm==4.68.3
     # via
     #   bert-score
@@ -523,15 +620,19 @@ tqdm==4.68.3
     #   huggingface-hub
     #   mpire
     #   openai
+    #   rfdetr
     #   semchunk
+    #   supervision
     #   transformers
 trafilatura==2.0.0
     # via -r requirements.txt
 transformers==5.8.1
     # via
     #   bert-score
+    #   commonforms
     #   docling-core
     #   docling-ibm-models
+    #   rfdetr
 tree-sitter==0.26.0
     # via docling-core
 tree-sitter-c==0.24.2
@@ -557,6 +658,7 @@ typing-extensions==4.16.0
     #   cocoindex
     #   docling-core
     #   huggingface-hub
+    #   onnx
     #   openai
     #   pydantic
     #   pydantic-core
@@ -572,6 +674,10 @@ typing-inspection==0.4.2
     #   pydantic-settings
 tzlocal==5.4.4
     # via dateparser
+ultralytics==8.4.92
+    # via commonforms
+ultralytics-thop==2.0.20
+    # via ultralytics
 urllib3==2.7.0
     # via
     #   courlan

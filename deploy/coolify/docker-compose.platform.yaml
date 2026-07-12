@@ -199,6 +199,99 @@ services:
       retries: 3
       start_period: 60s
 
+  # ----------------------------------------------------------------------------
+  # bid-worker — processing_queue consumer (analyse_form + template_fill),
+  # PRODUCTION (ID-145 {145.13}, BI-20, G8 deploy gap).
+  #
+  # G8 WAS: scripts/bid_worker.py had NO deploy manifest at all — a
+  # manually-run poller. {145.13}'s brief recommends "FOLDING the
+  # analyse_form + template_fill lanes into the existing processing_queue
+  # consumer (avoid a second long-running service)" — DONE at the JOB-TYPE
+  # level: analyse_form is a new case in bid_worker.py's own process_job()
+  # dispatch (scripts/bid_worker.py), not a second poller script. This
+  # compose service is the separate DEPLOY decision layered on top: the
+  # poller (a synchronous `while True: ... time.sleep()` loop, no asyncio)
+  # and the cocoindex sidecar (an asyncio HTTP server, `coco.start_blocking()`
+  # lifespan) are two incompatible process models that cannot share one PID
+  # without a much larger rewrite of one or the other — out of this
+  # Subtask's file-ownership boundary (scripts/cocoindex_pipeline/server.py
+  # is NOT owned here). Reusing the SAME already-built pipeline image
+  # (bid_worker.py ships inside it — scripts/** is packaged whole,
+  # .github/workflows/onprem-deploy.yml) with a `command:` override is the
+  # narrowest resolution: NO second image build/CI pipeline, only a second
+  # CONTAINER running the SAME artefact with a different entrypoint. The
+  # Google Cloud Buildpacks CNB launcher execs an explicit `command:`
+  # directly (bypassing the build-time GOOGLE_ENTRYPOINT default process) —
+  # AUTHORED, NOT LIVE-VERIFIED against a real deploy (constraint: no
+  # deploys/no Coolify this round); confirm at first real rollout per the
+  # runbook.
+  #
+  # No Traefik ingress — bid_worker.py has no HTTP server (a pure poller),
+  # unlike cocoindex-platform's /walk /health /extract surface above.
+  # ----------------------------------------------------------------------------
+  bid-worker-platform:
+    image: "ghcr.io/${GHCR_OWNER:-ai-solution-hub}/kh-cocoindex-pipeline:${COCOINDEX_IMAGE_TAG:?set to a pinned sha- tag from {66.7}}"
+    container_name: ca-bid-worker-platform
+    restart: unless-stopped
+    # ID-145 {145.13} invocation note (see scripts/bid_worker.py's own
+    # module docstring): module form (`-m`), run from the image's WORKDIR
+    # (the repo root the buildpack build context copied in) — required so
+    # `scripts.cocoindex_pipeline.form_extractors` (package-qualified)
+    # resolves; the old bare-script form only put `scripts/` itself on
+    # sys.path, not the repo root.
+    command: ["python3", "-m", "scripts.bid_worker"]
+
+    # Resource caps — the analyse_form PDF Plane-2 lane runs commonforms'
+    # CPU torch inference (ID-145.11, ~4-36s per document measured,
+    # TECH.md §1.3/§3.2), comparably heavy to cocoindex's own walk — mirror
+    # cocoindex-platform's own limits above rather than a lighter poller
+    # default.
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1536M
+        reservations:
+          memory: 256M
+    # Same rationale as cocoindex-platform above: buildpack images run as
+    # uid 1000 (cnb); root avoids permission friction on the LibreOffice
+    # temp-conversion workdir (a fresh container filesystem layer, not a
+    # named volume — this service is otherwise stateless, see "no volumes"
+    # below).
+    user: "0:0"
+
+    environment:
+      # --- Supabase (PLATFORM PRODUCTION values, injected by Coolify) ---
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+
+      # --- Plane-1 extraction bridge (ID-145 {145.13}) ---
+      # NEXT_PUBLIC_APP_URL + PIPELINE_TRIGGER_SECRET (CRON_SECRET
+      # dual-accept fallback) authenticate this worker's outbound POST to
+      # app/api/internal/procurement/extract-questions/route.ts — the SAME
+      # secret + URL cocoindex-platform above already uses for its own
+      # webhook call, reused here rather than a new secret.
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      PIPELINE_TRIGGER_SECRET: ${PIPELINE_TRIGGER_SECRET:-}
+      CRON_SECRET: ${CRON_SECRET}
+
+      # --- Prod-target assertion (WP-S5.3 D-21 F-1) ---
+      # PROD_PROJECT_REF is read by bid_worker.py's --env=prod path; unset
+      # here since this compose service does not pass --env=prod (SUPABASE_URL
+      # above IS already the platform-production project by construction of
+      # this compose file — the assertion flag is for ad hoc/manual runs
+      # against an ambiguous environment, not this pinned deploy).
+
+    # No `volumes:` — bid_worker.py is stateless (no LMDB/engine store); the
+    # LibreOffice DR-059 conversion step and template-fill's tempfile I/O
+    # both use ephemeral container-local temp paths (tempfile.
+    # TemporaryDirectory / NamedTemporaryFile), cleaned up per-job.
+
+    # No healthcheck — no HTTP surface to probe (unlike cocoindex-platform's
+    # /health). `restart: unless-stopped` covers crash-recovery; the
+    # poll-loop's own outer try/except (main()) already survives per-job
+    # exceptions without exiting the process.
+
 # ------------------------------------------------------------------------------
 # Volumes
 #
