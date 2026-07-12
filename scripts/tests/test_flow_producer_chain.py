@@ -164,6 +164,39 @@ class TestAppMainWiresProducerTrigger:
         # Exactly one call site — no double-fire from two independent hooks.
         assert source.count("trigger_producer_post_walk(") == 1
 
+    def test_hook_passes_pool_re_target_repo_path_context(self) -> None:
+        """S465 fix wave (ID-132 {132.35} G-DEPLOY-PROOF): the deployed
+        producer never ran because the post-walk call site supplied NO
+        `pool`/`re_target`/`repo_path` — `run_producer_flow` idle-no-ops on
+        `pool is None` regardless of a real delta firing. The call site must
+        now thread all three through: `pool` via the SAME `coco.use_context
+        (DB_CTX)` idiom already used one line above (for the delta fetch),
+        `re_target` reusing the Stage-6 `record_embeddings` mount, and
+        `repo_path` from `OKF_BUNDLE_DIR` (the producer auto-resolves
+        `bundle_dir` from that env var itself, but NOT `repo_path` — the
+        single-clone model requires passing it explicitly)."""
+        flow = _flow_module()
+        source = inspect.getsource(flow.app_main)
+        hook_idx = source.find("trigger_producer_post_walk(")
+        assert hook_idx != -1
+        call_block = source[hook_idx : hook_idx + 400]
+
+        assert "pool=coco.use_context(DB_CTX)" in call_block, (
+            "the hook call must pass pool=coco.use_context(DB_CTX) — the same "
+            "pool-resolution idiom the delta-fetch call one line above uses."
+        )
+        assert "re_target=re_target" in call_block, (
+            "the hook call must pass re_target=re_target — the Stage-6 "
+            "record_embeddings mount already in scope — so G-EMBED can write "
+            "concept embeddings from a chained producer run."
+        )
+        assert 'repo_path=os.environ.get("OKF_BUNDLE_DIR")' in call_block, (
+            "the hook call must pass repo_path resolved from OKF_BUNDLE_DIR "
+            "explicitly — bundle_dir auto-resolves from that env var inside "
+            "the producer, but repo_path does not (single-clone model: "
+            "bundle_dir == repo_path == OKF_BUNDLE_DIR)."
+        )
+
     def test_hook_is_gated_on_completed_status(self) -> None:
         flow = _flow_module()
         source = inspect.getsource(flow.app_main)

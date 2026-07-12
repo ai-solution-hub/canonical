@@ -17,6 +17,7 @@ De-identified throughout: no client name appears anywhere below.
 from __future__ import annotations
 
 import json
+import logging
 import subprocess
 import sys
 from pathlib import Path
@@ -32,9 +33,11 @@ if str(_REPO_ROOT) not in sys.path:
 from scripts.cocoindex_pipeline.producer.git_sync import LOG_FILENAME  # noqa: E402
 from scripts.cocoindex_pipeline.producer.publish import (  # noqa: E402
     PublishAbortedError,
+    PushResult,
     SeedContractCheckResult,
     ensure_seed_contract_green,
     publish_bundle,
+    push_bundle_repo,
     read_status_file,
     run,
 )
@@ -320,4 +323,131 @@ class TestPublishCli:
         exit_code = run(["--bundle-dir", str(bundle_dir), "--repo-path", str(repo)])
 
         assert exit_code == 1
-        assert _commit_count(repo) == 0
+
+
+# ── push_bundle_repo: the DR-055 post-publish push lane ({132.35}) ─────
+
+
+@pytest.fixture()
+def bare_remote(tmp_path: Path) -> Path:
+    """A real bare git repo standing in for the DR-055 client-owned remote —
+    a plain local filesystem path is sufficient to exercise `git push`
+    end-to-end without any real SSH infrastructure (GIT_SSH_COMMAND is only
+    consulted for an ssh:// / scp-like remote, so it is harmlessly unused
+    here)."""
+    bare_dir = tmp_path / "bare-remote.git"
+    subprocess.run(["git", "init", "--quiet", "--bare", str(bare_dir)], check=True)
+    return bare_dir
+
+
+def _current_branch(repo_path: Path) -> str:
+    return _git(repo_path, "rev-parse", "--abbrev-ref", "HEAD").strip()
+
+
+class TestPushBundleRepo:
+    def test_unconfigured_is_a_clean_no_op(self, repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("OKF_BUNDLE_DEPLOY_KEY_PATH", raising=False)
+        publish_bundle(repo, {"topic-a.md": "draft one\n"}, status_source=_green)
+
+        result = push_bundle_repo(repo)
+
+        assert result == PushResult(attempted=False, pushed=False)
+
+    def test_configured_push_reaches_the_bundle_repo_path(
+        self, repo: Path, bare_remote: Path
+    ) -> None:
+        publish_bundle(repo, {"topic-a.md": "draft one\n"}, status_source=_green)
+        _git(repo, "remote", "add", "origin", str(bare_remote))
+        _git(repo, "push", "--quiet", "-u", "origin", _current_branch(repo))
+        # A SECOND commit, not yet pushed to the bare remote — this is what
+        # push_bundle_repo must land.
+        publish_bundle(repo, {"topic-a.md": "draft two\n"}, status_source=_green)
+        local_head = _git(repo, "rev-parse", "HEAD").strip()
+
+        result = push_bundle_repo(repo, deploy_key_path="/fake/deploy-key")
+
+        assert result == PushResult(attempted=True, pushed=True)
+        remote_head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=bare_remote,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        assert remote_head == local_head
+
+    def test_configured_push_reads_the_env_var_when_no_explicit_path(
+        self, repo: Path, bare_remote: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        publish_bundle(repo, {"topic-a.md": "draft one\n"}, status_source=_green)
+        _git(repo, "remote", "add", "origin", str(bare_remote))
+        _git(repo, "push", "--quiet", "-u", "origin", _current_branch(repo))
+        monkeypatch.setenv("OKF_BUNDLE_DEPLOY_KEY_PATH", "/fake/deploy-key")
+
+        result = push_bundle_repo(repo)
+
+        assert result == PushResult(attempted=True, pushed=True)
+
+    def test_push_failure_is_logged_loud_and_does_not_raise(
+        self, repo: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """No `origin` remote configured at all — `git push` fails with a
+        named git error. push_bundle_repo must return a failed PushResult
+        (never raise) and log it at ERROR."""
+        publish_bundle(repo, {"topic-a.md": "draft one\n"}, status_source=_green)
+
+        with caplog.at_level(
+            logging.ERROR, logger="scripts.cocoindex_pipeline.producer.publish"
+        ):
+            result = push_bundle_repo(repo, deploy_key_path="/fake/deploy-key")
+
+        assert result.attempted is True
+        assert result.pushed is False
+        assert result.error
+        error_records = [r for r in caplog.records if r.levelno == logging.ERROR]
+        assert any("DR-055 push FAILED" in r.message for r in error_records)
+
+    def test_the_producer_publish_cli_pushes_after_a_successful_commit(
+        self, repo: Path, bundle_dir: Path, bare_remote: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The `producer publish` CLI (`run()`) invokes the push lane AFTER
+        its gated commit, when configured — end-to-end through `run()`,
+        never calling `push_bundle_repo` directly. Mirrors the DR-055
+        persistent-volume clone's real state (origin + upstream tracking
+        already configured, per `push_bundle_repo`'s own docstring
+        assumption) by publishing once to establish that tracking, THEN
+        exercising the run this test actually asserts on."""
+        monkeypatch.setenv("OKF_BUNDLE_DEPLOY_KEY_PATH", "/fake/deploy-key")
+        run(["--bundle-dir", str(bundle_dir), "--repo-path", str(repo)], status_source=_green)
+        _git(repo, "remote", "add", "origin", str(bare_remote))
+        _git(repo, "push", "--quiet", "-u", "origin", _current_branch(repo))
+
+        (bundle_dir / "topic-a.md").write_text("draft two\n", encoding="utf-8")
+        exit_code = run(
+            ["--bundle-dir", str(bundle_dir), "--repo-path", str(repo)],
+            status_source=_green,
+        )
+
+        assert exit_code == 0
+        local_head = _git(repo, "rev-parse", "HEAD").strip()
+        remote_head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=bare_remote,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        assert remote_head == local_head
+
+    def test_the_producer_publish_cli_does_not_fail_when_push_is_unconfigured(
+        self, repo: Path, bundle_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("OKF_BUNDLE_DEPLOY_KEY_PATH", raising=False)
+
+        exit_code = run(
+            ["--bundle-dir", str(bundle_dir), "--repo-path", str(repo)],
+            status_source=_green,
+        )
+
+        assert exit_code == 0
+        assert _commit_count(repo) == 1

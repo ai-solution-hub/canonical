@@ -2919,3 +2919,387 @@ class TestPullSyncEndToEnd:
         assert unchanged_path.read_bytes() == unchanged_bytes
         # Only the CHANGED row's object was ever downloaded.
         assert downloaded == ["changed.md"]
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# §8 — POST /producer-run (ID-132 {132.35} G-DEPLOY-PROOF, F2 — manual
+# forced-run surface)
+# ──────────────────────────────────────────────────────────────────────────
+#
+# `_build_forced_producer_report` is the dedicated, monkeypatched seam (mirrors
+# `_build_pull_sync_pool`) — the real cocoindex Rust engine cannot boot in
+# unit tests, so every test below patches THAT function directly rather than
+# booting a real `coco.App`. `_build_forced_producer_report`'s OWN body
+# (pool/re_target/repo_path wiring) is covered by source-inspection in
+# `TestForcedProducerReportWiring` below, mirroring
+# `test_flow_producer_chain.py`'s established pattern for `app_main`.
+
+
+async def _exercise_producer_run(
+    aiohttp_app: web.Application,
+    *,
+    bearer: str | None = _WALK_CRON_SECRET,
+) -> tuple[int, dict]:
+    """Invoke the /producer-run handler in-process — mirrors `_exercise_walk`
+    (no TCP socket, no request body needed)."""
+    headers: dict[str, str] = {}
+    if bearer is not None:
+        headers["Authorization"] = f"Bearer {bearer}"
+    loop = asyncio.get_running_loop()
+    stream = StreamReader(Mock(), limit=2**16, loop=loop)
+    stream.feed_eof()
+    request = make_mocked_request(
+        "POST", "/producer-run", headers=headers, payload=stream, app=aiohttp_app
+    )
+    match_info = await aiohttp_app.router.resolve(request)
+    resp = await match_info.handler(request)
+    return resp.status, json.loads(resp.body)
+
+
+def _wait_for_producer_run_lock_release(
+    server_mod: object, timeout: float = 2.0
+) -> None:
+    """Spin-wait until the /producer-run single-flight lock is released
+    (mirrors `_wait_for_lock_release` for `_WALK_IN_FLIGHT`)."""
+    import time
+
+    deadline = time.monotonic() + timeout
+    while server_mod.producer_run_in_progress() and time.monotonic() < deadline:
+        time.sleep(0.01)
+
+
+class TestProducerRunRouteTable:
+    """/producer-run is registered on the same `build_app()` app and does not
+    displace /health, /stage, /walk, or /extract."""
+
+    def test_producer_run_route_registered(
+        self, aiohttp_app: web.Application
+    ) -> None:
+        request = make_mocked_request(
+            "POST", "/producer-run", app=aiohttp_app
+        )
+        match_info = asyncio.run(aiohttp_app.router.resolve(request))
+        assert match_info.handler is not None
+
+    def test_producer_run_does_not_displace_existing_routes(
+        self, aiohttp_app: web.Application
+    ) -> None:
+        health_req = make_mocked_request("GET", "/health", app=aiohttp_app)
+        walk_req = make_mocked_request("POST", "/walk", app=aiohttp_app)
+        health_match = asyncio.run(aiohttp_app.router.resolve(health_req))
+        walk_match = asyncio.run(aiohttp_app.router.resolve(walk_req))
+        assert health_match.handler is not None
+        assert walk_match.handler is not None
+
+
+class TestProducerRunAuth:
+    """Identical dual-accept bearer gate to /walk (PIPELINE_TRIGGER_SECRET OR
+    the legacy CRON_SECRET; 503 if both unset; 401 on missing/wrong bearer)."""
+
+    def test_producer_run_401_when_no_bearer(
+        self,
+        aiohttp_app: web.Application,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_producer_run_state()
+        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+
+        status, body = asyncio.run(
+            _exercise_producer_run(aiohttp_app, bearer=None)
+        )
+
+        assert status == 401
+        assert not server_mod.producer_run_in_progress()
+
+    def test_producer_run_401_when_wrong_bearer(
+        self,
+        aiohttp_app: web.Application,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_producer_run_state()
+        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+
+        status, body = asyncio.run(
+            _exercise_producer_run(aiohttp_app, bearer="wrong-secret")
+        )
+
+        assert status == 401
+        assert not server_mod.producer_run_in_progress()
+
+    def test_producer_run_503_when_both_secrets_unset(
+        self,
+        aiohttp_app: web.Application,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_producer_run_state()
+        monkeypatch.delenv("PIPELINE_TRIGGER_SECRET", raising=False)
+        monkeypatch.delenv("CRON_SECRET", raising=False)
+
+        status, _ = asyncio.run(_exercise_producer_run(aiohttp_app, bearer=None))
+
+        assert status == 503
+        assert not server_mod.producer_run_in_progress()
+
+    def test_producer_run_202_with_dedicated_pipeline_trigger_secret(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_producer_run_state()
+        monkeypatch.setenv(
+            "PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET
+        )
+        monkeypatch.delenv("CRON_SECRET", raising=False)
+        monkeypatch.setenv("OKF_BUNDLE_DIR", str(tmp_path))
+        monkeypatch.setattr(
+            server_mod, "_build_forced_producer_report", lambda request_id: None
+        )
+
+        status, body = asyncio.run(
+            _exercise_producer_run(
+                aiohttp_app, bearer=_WALK_PIPELINE_TRIGGER_SECRET
+            )
+        )
+
+        assert status == 202
+        _wait_for_producer_run_lock_release(server_mod)
+
+
+class TestProducerRunIdleBundle:
+    """Mirrors /walk's Inv-5 idle-source loud-reject: a forced run with no
+    configured bundle checkout is a named 400, never a silent no-op."""
+
+    def test_producer_run_400_when_bundle_dir_unset(
+        self,
+        aiohttp_app: web.Application,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_producer_run_state()
+        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.delenv("OKF_BUNDLE_DIR", raising=False)
+
+        status, body = asyncio.run(_exercise_producer_run(aiohttp_app))
+
+        assert status == 400
+        assert "OKF_BUNDLE_DIR" in body["error"]
+        assert not server_mod.producer_run_in_progress()
+
+    def test_producer_run_400_when_bundle_dir_missing(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_producer_run_state()
+        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("OKF_BUNDLE_DIR", str(tmp_path / "does-not-exist"))
+
+        status, body = asyncio.run(_exercise_producer_run(aiohttp_app))
+
+        assert status == 400
+        assert not server_mod.producer_run_in_progress()
+
+
+class TestProducerRunHappyPath:
+    """A valid bearer + configured OKF_BUNDLE_DIR → 202 + the worker thread
+    invokes `_build_forced_producer_report` exactly once with the accepted
+    requestId, bypassing the delta gate entirely (no deltas needed)."""
+
+    def test_producer_run_202_invokes_forced_report_builder(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_producer_run_state()
+        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("OKF_BUNDLE_DIR", str(tmp_path))
+
+        run_ran = threading.Event()
+        seen_request_ids: list[str] = []
+
+        class _FakeReport:
+            ran = True
+            embedded = ("topic-a.md",)
+
+        def _fake_build(request_id: str) -> _FakeReport:
+            seen_request_ids.append(request_id)
+            run_ran.set()
+            return _FakeReport()
+
+        monkeypatch.setattr(
+            server_mod, "_build_forced_producer_report", _fake_build
+        )
+
+        status, body = asyncio.run(_exercise_producer_run(aiohttp_app))
+        assert run_ran.wait(timeout=2.0), (
+            "the /producer-run worker thread must invoke "
+            "_build_forced_producer_report"
+        )
+
+        assert status == 202
+        assert body["status"] == "accepted"
+        assert isinstance(body["requestId"], str) and len(body["requestId"]) > 0
+        assert seen_request_ids == [body["requestId"]]
+        _wait_for_producer_run_lock_release(server_mod)
+        assert not server_mod.producer_run_in_progress()
+
+    def test_producer_run_worker_failure_releases_the_lock(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A raised exception inside the forced-run builder must not wedge
+        the single-flight lock (mirrors the /walk failure-containment
+        contract) or crash the container — logged, swallowed."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_producer_run_state()
+        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("OKF_BUNDLE_DIR", str(tmp_path))
+
+        def _failing_build(request_id: str) -> None:
+            raise RuntimeError("simulated forced-run failure")
+
+        monkeypatch.setattr(
+            server_mod, "_build_forced_producer_report", _failing_build
+        )
+
+        status, _ = asyncio.run(_exercise_producer_run(aiohttp_app))
+        assert status == 202
+
+        _wait_for_producer_run_lock_release(server_mod)
+        assert not server_mod.producer_run_in_progress()
+
+
+class TestProducerRunSingleFlight:
+    """A second /producer-run arriving while one is in flight → 409 — never
+    two concurrent forced runs burning Anthropic tokens in parallel."""
+
+    def test_producer_run_409_when_already_in_flight(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_producer_run_state()
+        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("OKF_BUNDLE_DIR", str(tmp_path))
+
+        release_worker = threading.Event()
+        worker_started = threading.Event()
+
+        def _blocking_build(request_id: str) -> None:
+            worker_started.set()
+            release_worker.wait(timeout=2.0)
+
+        monkeypatch.setattr(
+            server_mod, "_build_forced_producer_report", _blocking_build
+        )
+
+        try:
+            status1, _ = asyncio.run(_exercise_producer_run(aiohttp_app))
+            assert status1 == 202
+            assert worker_started.wait(timeout=2.0)
+
+            status2, body2 = asyncio.run(_exercise_producer_run(aiohttp_app))
+            assert status2 == 409
+            assert "already in progress" in body2["error"]
+        finally:
+            release_worker.set()
+            _wait_for_producer_run_lock_release(server_mod)
+
+
+class TestProducerRunRateLimit:
+    """{127.17}-style hardening — /producer-run reuses the SAME shared
+    fixed-window `_rate_limit_allows` guard as /walk + /extract."""
+
+    def test_producer_run_429_when_rate_limit_exceeded(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_producer_run_state()
+        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("OKF_BUNDLE_DIR", str(tmp_path))
+        monkeypatch.setattr(server_mod, "_RATE_LIMIT_MAX_REQUESTS", 1)
+        monkeypatch.setattr(
+            server_mod, "_build_forced_producer_report", lambda request_id: None
+        )
+
+        status1, _ = asyncio.run(_exercise_producer_run(aiohttp_app))
+        assert status1 == 202
+        _wait_for_producer_run_lock_release(server_mod)
+
+        status2, body2 = asyncio.run(_exercise_producer_run(aiohttp_app))
+        assert status2 == 429
+        assert "rate limit" in body2["error"].lower()
+        assert not server_mod.producer_run_in_progress()
+
+
+class TestForcedProducerReportWiring:
+    """Source-inspection coverage of `_build_forced_producer_report`'s OWN
+    body — the real cocoindex Rust engine cannot boot in unit tests (mirrors
+    `test_flow_producer_chain.py`'s established pattern for `app_main`), so
+    the pool/re_target/repo_path wiring + the delta-gate bypass are verified
+    by reading the function's source rather than executing it end-to-end."""
+
+    def test_resolves_pool_via_use_context_db_ctx(self) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+        import inspect
+
+        source = inspect.getsource(server_mod._build_forced_producer_report)
+        assert "coco.use_context(flow.DB_CTX)" in source
+
+    def test_mounts_re_target_against_record_embeddings(self) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+        import inspect
+
+        source = inspect.getsource(server_mod._build_forced_producer_report)
+        assert "flow.mount_table_target(" in source
+        assert '"record_embeddings"' in source
+        assert "flow.RECORD_EMBEDDINGS_SCHEMA" in source
+        assert "managed_by=flow.ManagedBy.USER" in source
+
+    def test_resolves_repo_path_from_okf_bundle_dir(self) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+        import inspect
+
+        source = inspect.getsource(server_mod._build_forced_producer_report)
+        assert 'os.environ.get("OKF_BUNDLE_DIR")' in source
+
+    def test_calls_run_producer_now_with_the_delta_gate_bypassed(self) -> None:
+        """The delta gate + reentrancy guard MUST be bypassed — `deltas=()`
+        into `run_producer_now` (never `trigger_producer_post_walk`), which
+        is what makes the F2 Run-1 proof reachable at all."""
+        from scripts.cocoindex_pipeline import server as server_mod
+        import inspect
+
+        source = inspect.getsource(server_mod._build_forced_producer_report)
+        assert "run_producer_now(" in source
+        assert "deltas=()" in source
+        assert "pool=pool" in source
+        assert "re_target=re_target" in source
+        assert "repo_path=repo_path" in source
+        assert "trigger_producer_post_walk" not in source

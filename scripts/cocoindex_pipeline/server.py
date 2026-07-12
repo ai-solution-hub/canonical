@@ -157,6 +157,39 @@ def reset_walk_state() -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────────
+# Producer-run single-flight state (ID-132 {132.35} G-DEPLOY-PROOF, F2 —
+# manual forced-run surface)
+# ──────────────────────────────────────────────────────────────────────────
+#
+# `POST /producer-run` runs ONE forced producer pass (bypassing BOTH the
+# delta gate and the reentrancy guard — `producer.trigger.run_producer_now`)
+# on a worker thread. Mirrors `/walk`'s single-flight discipline (ID-83 /
+# bl-221 G4) exactly, via its OWN independent `threading.Lock` — a forced
+# producer run and a corpus walk are different resources (concept drafting
+# vs source ingest) so they are NOT mutually exclusive with each other, only
+# with a second concurrent forced producer run (never two producer passes
+# burning Anthropic tokens in parallel).
+
+_PRODUCER_RUN_IN_FLIGHT = threading.Lock()
+
+
+def producer_run_in_progress() -> bool:
+    """True while a `/producer-run` forced pass is in flight."""
+    return _PRODUCER_RUN_IN_FLIGHT.locked()
+
+
+def reset_producer_run_state() -> None:
+    """Release the /producer-run single-flight lock if held — test-only clean-slate helper."""
+    if _PRODUCER_RUN_IN_FLIGHT.locked():
+        try:
+            _PRODUCER_RUN_IN_FLIGHT.release()
+        except RuntimeError:
+            # Released from a thread that did not acquire it (test teardown) —
+            # tolerate, the goal is simply a clean unlocked state.
+            pass
+
+
+# ──────────────────────────────────────────────────────────────────────────
 # Shared rate-limit state ({112.6} Property 3 — best-effort hardening;
 # extended to /walk by {127.17} / S436 D1 board ratification)
 # ──────────────────────────────────────────────────────────────────────────
@@ -999,6 +1032,228 @@ async def _walk_handler(request: web.Request) -> web.Response:
     )
 
 
+# ──────────────────────────────────────────────────────────────────────────
+# POST /producer-run — DR-055 manual forced-run surface (ID-132 {132.35}
+# G-DEPLOY-PROOF, F2)
+# ──────────────────────────────────────────────────────────────────────────
+#
+# The automatic post-walk hook (`flow.app_main`'s `finally` block ->
+# `producer.trigger.trigger_producer_post_walk`) is delta-gated (`if not
+# deltas: return False`) — it only ever fires when the JUST-COMPLETED walk
+# touched `source_documents` rows, so the BI-18 Run-1 proof ("a producer run
+# over UNCHANGED L-records makes zero Anthropic drafting calls — a memo-hit
+# no-op") is unreachable through it: there is no way to force a producer pass
+# over records that legitimately did not change this walk. This route is that
+# manual forced surface — bearer-gated + single-flight, mirroring `/walk`
+# exactly — that bypasses BOTH the delta gate and the reentrancy guard via
+# `producer.trigger.run_producer_now` (never `trigger_producer_post_walk`).
+#
+# **Why a SEPARATE cocoindex App (not `KH_PIPELINE_APP.update_blocking()`).**
+# `enrich_concept` is `@coco.fn(memo=True)` — BI-18 memoisation requires an
+# ACTIVE cocoindex ComponentContext (verified against the installed engine,
+# `cocoindex._internal.function.AsyncFunction.__call__`: with no ambient
+# ComponentContext, `@coco.fn(memo=True)` executes UNMEMOISED, silently
+# defeating the whole Run-1 proof). `mount_table_target`'s `re_target` handle
+# has the SAME requirement (`coco.use_mount` -> `get_context_from_ctx()`).
+# `KH_PIPELINE_APP.update_blocking()` runs the FULL corpus walk (`app_main`,
+# gated on `COCOINDEX_SOURCE_PATH`) — not a "producer-only, skip the walk"
+# mode, and this Subtask's flow.py file-ownership boundary is the ONE
+# trigger-context call site only, so `app_main` cannot be given a second
+# mode here. `_build_forced_producer_report` instead constructs a genuinely
+# SEPARATE `coco.App` (a distinct `AppConfig(name=...)`, but the SAME default
+# `environment` `AppConfig` defaults to — verified empirically:
+# `coco.start_blocking()`'s `@coco.lifespan kh_pipeline_lifespan` registers
+# onto `cocoindex._internal.component_ctx._default_env`, NOT onto
+# `KH_PIPELINE_APP` specifically, so `coco.use_context(DB_CTX)` resolves the
+# SAME already-provisioned pool from EITHER App). `update_blocking()` on
+# THAT App gives its own `main_fn` a real, live ComponentContext — so
+# `enrich_concept`'s memo cache is genuinely live, `mount_table_target`
+# succeeds, and `re_target.declare_row()` resolves `get_context_from_ctx()`
+# exactly as flow.py's own post-walk hook does.
+#
+# **Named implementation decision (journaled, not silently assumed).** This
+# forced-run App's memo/target-state namespace is DISTINCT from
+# `KH_PIPELINE_APP`'s ("kh_pipeline") — cocoindex's persistent LMDB
+# target-state/memo store is keyed by component stable-path, which is
+# name-derived. Two forced runs (Run-1 cold-draft, Run-2 memo-hit) through
+# THIS route are self-consistently comparable — they share the SAME App
+# name/namespace every call — but a memo cache populated by the AUTOMATIC
+# post-walk hook (running inside `KH_PIPELINE_APP`) is NOT guaranteed to be
+# hit by a forced `/producer-run` call, or vice versa. The BI-18 proof
+# sequence should therefore run entirely through ONE surface (either two
+# `/producer-run` calls, or a walk-triggered run followed by another walk
+# with no new deltas) — not compare a walk-triggered Run-1 against a forced
+# Run-2 (or the reverse) and expect a cross-App memo-hit.
+
+_PRODUCER_FORCED_RUN_APP_NAME = "kh_pipeline_producer_forced"
+
+
+def _build_forced_producer_report(request_id: str) -> Any:
+    """Builds the pool/re_target/repo_path context inside a dedicated
+    cocoindex App's `main_fn` (see module comment above for why a separate
+    App is required) and forces ONE producer run via
+    `producer.trigger.run_producer_now` — the delta gate + reentrancy guard
+    are bypassed entirely (`deltas=()`), so this runs over EVERY concept
+    `LRecordsSource.list_concepts()` returns, exactly like the {132.16}
+    "discrete `producer` command" surface the trigger module's own docstring
+    names as the manual-invocation contract.
+
+    A dedicated, easily-monkeypatched seam (mirrors `_build_pull_sync_pool`)
+    so `_run_producer_forced`'s auth/single-flight/thread-dispatch logic is
+    testable without booting the real cocoindex Rust engine — see
+    `test_cocoindex_server.py`'s `TestProducerRun*` classes, which patch
+    THIS function directly, and `test_cocoindex_server_producer_run_wiring.py`
+    for source-inspection coverage of this function's own body (mirrors
+    `test_flow_producer_chain.py`'s established pattern for `app_main` —
+    the real engine cannot boot in unit tests either way).
+    """
+    from scripts.cocoindex_pipeline import flow
+    from scripts.cocoindex_pipeline.producer.trigger import run_producer_now
+
+    async def _forced_producer_main_fn() -> Any:
+        pool = coco.use_context(flow.DB_CTX)
+        re_target = await flow.mount_table_target(
+            flow.DB_CTX,
+            "record_embeddings",
+            flow.RECORD_EMBEDDINGS_SCHEMA,
+            managed_by=flow.ManagedBy.USER,
+        )
+        repo_path = os.environ.get("OKF_BUNDLE_DIR") or None
+        return await run_producer_now(
+            deltas=(),
+            pool=pool,
+            re_target=re_target,
+            repo_path=repo_path,
+        )
+
+    forced_app = coco.App(
+        coco.AppConfig(name=_PRODUCER_FORCED_RUN_APP_NAME),
+        _forced_producer_main_fn,
+    )
+    _logger.info(
+        "/producer-run (requestId=%s) entering forced-run App %r",
+        request_id,
+        _PRODUCER_FORCED_RUN_APP_NAME,
+    )
+    return forced_app.update_blocking()
+
+
+def _run_producer_forced(request_id: str) -> None:
+    """Worker-thread target — runs `_build_forced_producer_report` and
+    releases the single-flight lock regardless of outcome (mirrors
+    `_run_walk`'s containment posture: a failed forced run must not wedge
+    the lock, and must not be surfaced as a container-liveness fault)."""
+    try:
+        report = _build_forced_producer_report(request_id)
+        _logger.info(
+            "/producer-run completed (requestId=%s): ran=%s embedded=%d",
+            request_id,
+            getattr(report, "ran", None),
+            len(getattr(report, "embedded", ()) or ()),
+        )
+    except Exception:  # noqa: BLE001 — top-level worker boundary, must log
+        _logger.exception("/producer-run failed (requestId=%s)", request_id)
+    finally:
+        reset_producer_run_state()
+
+
+async def _producer_run_handler(request: web.Request) -> web.Response:  # noqa: ARG001 — request unused (no body contract yet)
+    """POST /producer-run — the DR-055 manual forced-run surface (F2).
+
+    Auth: identical dual-accept bearer gate to `/walk` (`PIPELINE_TRIGGER_
+    SECRET` OR the legacy `CRON_SECRET`) — fails closed (503) if neither
+    secret is configured, 401 on a missing/wrong bearer.
+
+    Rate limit: reuses the SAME shared `/walk` + `/extract` fixed-window
+    guard (`_rate_limit_allows`) — a flood backstop layered on the bearer
+    gate, checked right after auth.
+
+    Idle-bundle loud-reject (mirrors `/walk`'s Inv-5 idle-source gate): if
+    `OKF_BUNDLE_DIR` is unset or does not point at an existing directory, a
+    named 400 up front — never a silent no-op that consumes the
+    single-flight slot on a guaranteed-idle forced run.
+
+    Single-flight (mirrors bl-221 G4): a module-level `threading.Lock`
+    acquired non-blocking. A forced run already in flight -> 409.
+
+    Behaviour: validate bearer -> rate-limit guard -> validate OKF_BUNDLE_DIR
+    -> acquire the single-flight guard -> spawn a daemon worker thread
+    running `_run_producer_forced` -> return 202 Accepted + `requestId`
+    immediately (the run happens async; completion is observed via the
+    server log — this route has no webhook of its own).
+    """
+    # (1) Auth — SAME dual-accept bearer gate as /walk (ID-127.18 dual-accept
+    #     rotation window). Fail closed if BOTH are unset.
+    pipeline_trigger_secret = os.environ.get("PIPELINE_TRIGGER_SECRET")
+    cron_secret = os.environ.get("CRON_SECRET")
+    if not pipeline_trigger_secret and not cron_secret:
+        return web.json_response(
+            {
+                "error": (
+                    "PIPELINE_TRIGGER_SECRET and CRON_SECRET are both unset "
+                    "— /producer-run auth unavailable"
+                )
+            },
+            status=503,
+        )
+    auth_header = request.headers.get("Authorization", "")
+    accepted_bearers = {
+        f"Bearer {secret}"
+        for secret in (pipeline_trigger_secret, cron_secret)
+        if secret
+    }
+    if auth_header not in accepted_bearers:
+        return web.json_response(
+            {"error": "missing or invalid bearer token"}, status=401
+        )
+
+    # (2) Rate-limit guard — the SAME shared `/walk` + `/extract` budget.
+    if not _rate_limit_allows():
+        return web.json_response(
+            {"error": "rate limit exceeded — retry later"}, status=429
+        )
+
+    # (3) Idle-bundle loud-reject — a forced run with no bundle checkout is a
+    #     named 400, not a silent no-op that consumes the single-flight slot.
+    bundle_dir = os.environ.get("OKF_BUNDLE_DIR")
+    if not bundle_dir:
+        return web.json_response(
+            {"error": "OKF_BUNDLE_DIR is unset — nothing to run the producer over"},
+            status=400,
+        )
+    if not Path(bundle_dir).exists():
+        return web.json_response(
+            {"error": f"OKF_BUNDLE_DIR does not exist: {bundle_dir}"}, status=400
+        )
+
+    # (4) Single-flight guard — non-blocking acquire; a held lock means a
+    #     forced run is already in progress -> 409.
+    if not _PRODUCER_RUN_IN_FLIGHT.acquire(blocking=False):
+        return web.json_response(
+            {"error": "producer run already in progress"}, status=409
+        )
+
+    # (5) Spawn the worker thread. If anything below raises before the
+    #     thread starts, release the lock so it is not wedged.
+    try:
+        request_id = uuid.uuid4().hex
+        thread = threading.Thread(
+            target=_run_producer_forced,
+            args=(request_id,),
+            name="cocoindex-producer-run",
+            daemon=True,
+        )
+        thread.start()
+    except Exception:
+        reset_producer_run_state()
+        raise
+
+    _logger.info("/producer-run accepted (requestId=%s)", request_id)
+    return web.json_response(
+        {"status": "accepted", "requestId": request_id}, status=202
+    )
+
+
 async def _extract_handler(request: web.Request) -> web.Response:
     """POST /extract — the PURE-CLEANER HTTP seam ({112.6}, PI-4 / PI-9).
 
@@ -1133,6 +1388,12 @@ def build_app() -> web.Application:
         `{text, verdict, warnings}` out, NO fetch / NO SSRF. Hardened with a
         per-route 20 MB body cap (tighter than the app-wide 50 MB) because —
         unlike /stage + /walk — it IS Traefik-reachable.
+      - POST /producer-run — bearer-gated manual forced-run surface (ID-132
+        {132.35} G-DEPLOY-PROOF F2): forces ONE producer pass over every
+        concept, bypassing the automatic post-walk hook's delta gate — the
+        surface the BI-18 Run-1 (memo-hit no-op) proof requires. Same
+        auth/rate-limit/single-flight discipline as /walk, an INDEPENDENT
+        single-flight lock.
 
     `client_max_size` is set EXPLICITLY to 50 MB: aiohttp's invisible default
     is 1 MB, which a future large /stage fixture (multi-MB PDF/DOCX — the
@@ -1146,6 +1407,7 @@ def build_app() -> web.Application:
     app.router.add_post("/stage", _stage_handler)
     app.router.add_post("/walk", _walk_handler)
     app.router.add_post("/extract", _extract_handler)
+    app.router.add_post("/producer-run", _producer_run_handler)
     return app
 
 
