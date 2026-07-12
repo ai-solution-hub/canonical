@@ -7,6 +7,10 @@ import {
 } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
+import {
+  recomputeQuestionMatches,
+  recomputeQuestionMatchesBatch,
+} from '@/lib/domains/procurement/question-match-recompute';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { sb } from '@/lib/supabase/safe';
 import { parseBody } from '@/lib/validation';
@@ -218,9 +222,12 @@ export const POST = defineRoute(
       // directly (BI-1/BI-2). The form already exists form-first (created via
       // {145.8}), so a question attaches to the KNOWN form_instance_id — no
       // resolve-or-mint step.
+      // ID-145 {145.17} (R7/BI-34): `form_type` is also read here — it is
+      // the `question_matches.question_kind` FK value used by the
+      // post-insert recompute call below.
       const { data: form, error: formError } = await supabase
         .from('form_instances')
-        .select('id')
+        .select('id, form_type')
         .eq('id', id)
         .single();
 
@@ -246,6 +253,7 @@ export const POST = defineRoute(
           id,
           user.id,
           batchParsed.data.questions,
+          form.form_type,
         );
       }
 
@@ -304,6 +312,18 @@ export const POST = defineRoute(
         );
       }
 
+      // ID-145 {145.17} (R7/BI-34) — recompute question_matches for the
+      // newly created question so the retrieve step of the answering loop
+      // has fresh matches. Awaited (not fire-and-forget) so the invariant
+      // ("creating a question yields recomputed matches for it") holds by
+      // the time this response returns; best-effort internally (see helper
+      // docstring) — never blocks question creation on a matching failure.
+      await recomputeQuestionMatches(supabase, {
+        formQuestionId: created.id,
+        questionText: created.question_text,
+        formType: form.form_type,
+      });
+
       return NextResponse.json(created, { status: 201 });
     } catch (err) {
       return NextResponse.json(
@@ -320,6 +340,7 @@ async function handleBatchInsert(
   formInstanceId: string,
   userId: string,
   questions: z.infer<typeof BatchQuestionCreateSchema>['questions'],
+  formType: string | null,
 ) {
   // ID-145 {145.7}: formInstanceId IS the route's own [id] — every batch row
   // is stamped with it directly, no resolve-or-mint (see the single-insert
@@ -349,6 +370,16 @@ async function handleBatchInsert(
       { status: 500 },
     );
   }
+
+  // ID-145 {145.17} (R7/BI-34) — recompute question_matches for every
+  // newly created question in the batch (see the single-insert path above
+  // for the awaited-not-fire-and-forget rationale; bounded-concurrency
+  // batching is internal to recomputeQuestionMatchesBatch).
+  await recomputeQuestionMatchesBatch(
+    supabase,
+    (created ?? []).map((q) => ({ id: q.id, questionText: q.question_text })),
+    formType,
+  );
 
   return NextResponse.json(
     { questions: created, count: created?.length ?? 0 },
