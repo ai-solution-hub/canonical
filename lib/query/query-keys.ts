@@ -461,6 +461,14 @@ export const queryKeys = {
     proposal: (id: string) => ['admin', 'qa-dedup-proposal', id] as const,
   },
 
+  // Promotion-gate candidates — thin Governance UI (ID-145 {145.22}, BI-38/39).
+  // Read-only key: the eligibility set behind `q_a_extractions_promotion_candidates()`
+  // ({138.17}); the mutation (`postQaPromoteCorpus`) invalidates `.all` on success.
+  governancePromotion: {
+    all: ['governance', 'promotion-candidates'] as const,
+    candidates: () => ['governance', 'promotion-candidates', 'list'] as const,
+  },
+
   // ---------------------------------------------------------------------------
   // Eval engine (ID-104) — cost aggregate + future refinement keys
   // ---------------------------------------------------------------------------
