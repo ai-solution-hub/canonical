@@ -708,3 +708,147 @@ export async function postAdminQaDedupReject(
     {},
   );
 }
+
+// ---------------------------------------------------------------------------
+// Promotion-gate candidates — thin Governance UI (ID-145 {145.22}, TECH §5/§7
+// section I, BI-38/39)
+// ---------------------------------------------------------------------------
+//
+// READS go directly through the role-scoped Supabase client (mirroring
+// `fetchAdminQaDedupProposals` above) — the `q_a_extractions_promotion_candidates()`
+// RPC ({138.17}) is the SAME 3-branch eligibility set `promoteCorpusExtractions`
+// (lib/q-a-pairs/promote-corpus.ts) consumes; this fetcher issues NO writes.
+//
+// The RPC row alone cannot distinguish branch 2 (self-heal: linked to a
+// still-draft pair) from branch 3 (awaiting-review: linked to an ALREADY
+// published/in_review/archived pair whose re-walked text differs — DR-026, a
+// curated pair is NEVER auto-mutated). A follow-up read of the linked pairs'
+// `publication_status` classifies each row EXACTLY as `promoteCorpusExtractions`'
+// own DR-026 gate does (see that function's header + inline comments) — this
+// fetcher never guesses; it mirrors the real write-path gate so the UI cannot
+// claim a disposition the batch write would not actually take.
+//
+// The mutation (`postQaPromoteCorpus`) POSTs to the existing, unmodified
+// `/api/q-a-pairs/promote-corpus` route ({59.25}) — no new backend endpoint.
+// That POST is the human gate (BI-39): nothing is promoted until a human
+// triggers it from this surface.
+
+import type { PromotionSummary } from '@/lib/q-a-pairs/promote-corpus';
+
+/**
+ * Honest per-candidate disposition — mirrors `promoteCorpusExtractions`' own
+ * DR-026 gate so the UI never claims a disposition the batch write path would
+ * not actually take.
+ *   'new'             — unlinked; the next promotion run inserts + publishes it.
+ *   'self_healing'    — linked to a still-draft pair; the next run re-syncs +
+ *                       (re-)embeds it.
+ *   'awaiting_review' — linked to an already-published/in_review/archived pair
+ *                       (or an unconfirmed/missing pair row); the next run
+ *                       NEVER writes it — DR-026 human review only.
+ */
+/** @public */
+export type QaPromotionCandidateKind =
+  | 'new'
+  | 'self_healing'
+  | 'awaiting_review';
+
+/** One row of the promotion-candidates eligibility set, UI-shaped. */
+/** @public */
+export interface QaPromotionCandidate {
+  id: string;
+  extractedQuestionText: string;
+  extractedAnswerText: string | null;
+  promotedToPairId: string | null;
+  createdAt: string;
+  kind: QaPromotionCandidateKind;
+}
+
+/** The subset of the RPC's row shape this fetcher consumes. */
+type PromotionCandidateRow = {
+  id: string;
+  extracted_question_text: string;
+  extracted_answer_text: string | null;
+  promoted_to_pair_id: string | null;
+  created_at: string;
+};
+
+/**
+ * Fetch the current promotion-candidates eligibility set (read-only — NEVER
+ * writes). Classifies each row's disposition (`kind`) by mirroring
+ * `promoteCorpusExtractions`' own DR-026 gate: a linked row is
+ * `'self_healing'` ONLY when its pair is confirmed still `'draft'`; every
+ * other outcome (published/in_review/archived, or an unreadable/missing pair
+ * row) is `'awaiting_review'` — the fail-safe default never over-claims an
+ * auto-apply.
+ */
+export async function fetchQaPromotionCandidates(): Promise<
+  QaPromotionCandidate[]
+> {
+  const supabase = createClient();
+
+  const candidatesResult = await tryQuery<PromotionCandidateRow[]>(
+    supabase.rpc('q_a_extractions_promotion_candidates'),
+    'governance.promotion_candidates.list',
+  );
+  if (!candidatesResult.ok) throw candidatesResult.error;
+  const rows = candidatesResult.data ?? [];
+
+  const linkedPairIds = Array.from(
+    new Set(
+      rows
+        .map((row) => row.promoted_to_pair_id)
+        .filter((id): id is string => id !== null),
+    ),
+  );
+
+  let draftPairIds = new Set<string>();
+  if (linkedPairIds.length > 0) {
+    const pairsResult = await tryQuery<
+      { id: string; publication_status: string | null }[]
+    >(
+      supabase
+        .from('q_a_pairs')
+        .select('id, publication_status')
+        .in('id', linkedPairIds),
+      'governance.promotion_candidates.linked_pairs',
+    );
+    if (!pairsResult.ok) throw pairsResult.error;
+    draftPairIds = new Set(
+      (pairsResult.data ?? [])
+        .filter((pair) => pair.publication_status === 'draft')
+        .map((pair) => pair.id),
+    );
+  }
+
+  return rows.map((row) => {
+    const kind: QaPromotionCandidateKind =
+      row.promoted_to_pair_id === null
+        ? 'new'
+        : draftPairIds.has(row.promoted_to_pair_id)
+          ? 'self_healing'
+          : 'awaiting_review';
+    return {
+      id: row.id,
+      extractedQuestionText: row.extracted_question_text,
+      extractedAnswerText: row.extracted_answer_text,
+      promotedToPairId: row.promoted_to_pair_id,
+      createdAt: row.created_at,
+      kind,
+    };
+  });
+}
+
+/**
+ * Trigger a promotion run — `POST /api/q-a-pairs/promote-corpus` ({59.25}).
+ * No parameters: the route processes the full eligible set returned by
+ * `q_a_extractions_promotion_candidates()` (re-runnable/idempotent per that
+ * route's own header comment). This call IS the human gate (BI-39) — nothing
+ * is promoted until a human triggers it from this surface; there is no
+ * automatic/background trigger here.
+ */
+export async function postQaPromoteCorpus(): Promise<PromotionSummary> {
+  return mutationFetchJson<PromotionSummary>(
+    '/api/q-a-pairs/promote-corpus',
+    {},
+  );
+}
