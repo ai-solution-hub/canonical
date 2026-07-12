@@ -10,8 +10,6 @@ import {
 } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
-import type { ProcurementWorkflowState } from '@/lib/domains/procurement/procurement-workflow';
-import { canTransition } from '@/lib/domains/procurement/procurement-workflow';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { QuestionMatchBodySchema } from '@/lib/validation/schemas';
@@ -59,16 +57,16 @@ export const POST = defineRoute(
 
       const { question_ids, force } = parsed.data;
 
-      // Verify bid exists.
-      // Post-T2: discriminator via application_types JOIN.
-      const { data: bid, error: procurementError } = await supabase
-        .from('workspaces')
-        .select('id, status, domain_metadata, application_types!inner(key)')
+      // ID-145 {145.7} — form-first: the route [id] IS the form_instances id
+      // directly (BI-1/BI-2). No more workspace lookup/discriminator join —
+      // form_instances carries no workspace_id post-{145.6} M3.
+      const { data: form, error: formError } = await supabase
+        .from('form_instances')
+        .select('id')
         .eq('id', id)
-        .eq('application_types.key', 'procurement')
         .single();
 
-      if (procurementError || !bid) {
+      if (formError || !form) {
         return NextResponse.json(
           { error: 'Procurement not found' },
           { status: 404 },
@@ -76,11 +74,12 @@ export const POST = defineRoute(
       }
 
       // Fetch questions to match.
-      // Post-T2: `form_questions.workspace_id` → `workspace_id`.
+      // ID-145 {145.7}: `form_questions.workspace_id` is dropped ({145.6}
+      // M3) — scope on `form_instance_id`.
       let questionsQuery = supabase
         .from('form_questions')
         .select('id, question_text, confidence_posture')
-        .eq('workspace_id', id);
+        .eq('form_instance_id', id);
 
       if (question_ids && question_ids.length > 0) {
         questionsQuery = questionsQuery.in('id', question_ids);
@@ -163,16 +162,20 @@ export const POST = defineRoute(
         const posture = assessConfidence(topMatches);
         const matchedIds = topMatches.map((m) => m.id);
 
-        // Update the question.
-        // Post-T2: `form_questions.workspace_id` → `workspace_id`.
+        // Update the question. ID-145 {145.7}: `matched_record_ids` is
+        // dropped from form_questions ({145.6} M3) — only confidence_posture
+        // is persisted now; the matched ids still flow through in the
+        // response's `top_matches` (below), un-persisted (R7/{145.17}
+        // question_matches wiring, a LATER Subtask, is the sanctioned
+        // persistence path for match candidates — out of this Subtask's
+        // scope). Scope on `form_instance_id` (workspace_id is dropped).
         await supabase
           .from('form_questions')
           .update({
             confidence_posture: posture,
-            matched_record_ids: matchedIds,
           })
           .eq('id', question.id)
-          .eq('workspace_id', id);
+          .eq('form_instance_id', id);
 
         return {
           question_id: question.id,
@@ -215,33 +218,15 @@ export const POST = defineRoute(
         }
       }
 
-      // Check if bid should transition to 'drafting'
-      const currentStatus = (bid.status as ProcurementWorkflowState) ?? 'draft';
-
-      if (
-        currentStatus === 'matching' &&
-        canTransition(currentStatus, 'drafting')
-      ) {
-        // Check if all questions now have a confidence posture.
-        // Post-T2: `form_questions.workspace_id` → `workspace_id`.
-        const { count: unmatchedCount } = await supabase
-          .from('form_questions')
-          .select('id', { count: 'exact', head: true })
-          .eq('workspace_id', id)
-          .is('confidence_posture', null);
-
-        if (unmatchedCount === null || unmatchedCount === 0) {
-          // UPDATE narrows on id only (prior read enforces procurement-type).
-          await supabase
-            .from('workspaces')
-            .update({
-              status: 'drafting',
-              updated_by: user.id,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', id);
-        }
-      }
+      // ID-145 {145.7} — BI-6 single state home: the ex-workspaces.status
+      // second home ('drafting', previously written here once every question
+      // reached a confidence posture) is retired — workflow_state on
+      // form_instances is the ONLY state home now, and this route does not
+      // write it (no route-level state transition was specified for this
+      // Subtask; a form_instances.workflow_state transition on
+      // all-questions-matched, if wanted, is a follow-up product decision,
+      // not reintroduced here as a same-shape replacement of the retired
+      // write).
 
       return NextResponse.json({
         matched: results.length,

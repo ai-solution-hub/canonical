@@ -24,7 +24,6 @@ import {
   createLooseScriptClient,
 } from '@/scripts/lib/supabase-script-client';
 import { prodProjectRef, stagingProjectRef } from '@/scripts/lib/project-refs';
-import { resolveOrMintFormTemplateId } from '@/lib/domains/procurement/resolve-form-template';
 import { parseArgs } from 'util';
 import { createInterface } from 'readline';
 import path from 'path';
@@ -459,6 +458,14 @@ async function main() {
 
   // Check for existing test bid. Post-T2: discriminator is
   // application_types.key via JOIN; 'bid' → 'procurement'.
+  //
+  // ID-145 {145.6}/{145.7}: form_questions no longer carries workspace_id
+  // (form-first re-architecture, form_questions.form_instance_id is the sole
+  // scoping key) — this fixture still separately creates a `workspaces` row
+  // (harmless; `workspaces` survives W1, DR-056) AND a `form_instances` row
+  // (below), unlinked to each other. The existing-check/cleanup path below
+  // therefore looks up BOTH by TEST_BID_NAME independently, rather than
+  // resolving the form via the workspace as the old resolve-or-mint RPC did.
   const { data: existing, error: checkError } = await supabase
     .from('workspaces')
     .select('id, name, application_types!inner(key)')
@@ -471,49 +478,87 @@ async function main() {
     process.exit(1);
   }
 
-  if (existing && existing.length > 0) {
+  const { data: existingForm, error: checkFormError } = await supabase
+    .from('form_instances')
+    .select('id, name')
+    .eq('name', TEST_BID_NAME)
+    .limit(1);
+
+  if (checkFormError) {
+    console.error(
+      'Failed to check for existing test form:',
+      checkFormError.message,
+    );
+    process.exit(1);
+  }
+
+  if (
+    (existing && existing.length > 0) ||
+    (existingForm && existingForm.length > 0)
+  ) {
     if (clean) {
-      console.log(`Found existing test bid: ${existing[0].id}`);
+      if (existing && existing.length > 0) {
+        console.log(`Found existing test bid workspace: ${existing[0].id}`);
+      }
+      if (existingForm && existingForm.length > 0) {
+        console.log(`Found existing test form instance: ${existingForm[0].id}`);
+      }
       if (!dryRun) {
-        // Delete responses, questions, then workspace
-        const procurementId = existing[0].id;
+        // Delete responses, questions, then the form instance.
+        if (existingForm && existingForm.length > 0) {
+          const formInstanceId = existingForm[0].id;
 
-        const { data: questions } = await supabase
-          .from('form_questions')
-          .select('id')
-          .eq('workspace_id', procurementId);
+          const { data: questions } = await supabase
+            .from('form_questions')
+            .select('id')
+            .eq('form_instance_id', formInstanceId);
 
-        if (questions && questions.length > 0) {
-          const qIds = questions.map((q: { id: string }) => q.id);
-          const { error: respDelErr } = await supabase
-            .from('form_responses')
+          if (questions && questions.length > 0) {
+            const qIds = questions.map((q: { id: string }) => q.id);
+            const { error: respDelErr } = await supabase
+              .from('form_responses')
+              .delete()
+              .in('question_id', qIds);
+            if (respDelErr) {
+              console.error(
+                'Failed to delete test responses:',
+                respDelErr.message,
+              );
+            }
+          }
+
+          const { error: qDelErr } = await supabase
+            .from('form_questions')
             .delete()
-            .in('question_id', qIds);
-          if (respDelErr) {
+            .eq('form_instance_id', formInstanceId);
+          if (qDelErr) {
+            console.error('Failed to delete test questions:', qDelErr.message);
+          }
+
+          const { error: formDelErr } = await supabase
+            .from('form_instances')
+            .delete()
+            .eq('id', formInstanceId);
+          if (formDelErr) {
             console.error(
-              'Failed to delete test responses:',
-              respDelErr.message,
+              'Failed to delete test form instance:',
+              formDelErr.message,
             );
           }
         }
 
-        const { error: qDelErr } = await supabase
-          .from('form_questions')
-          .delete()
-          .eq('workspace_id', procurementId);
-        if (qDelErr) {
-          console.error('Failed to delete test questions:', qDelErr.message);
-        }
-
-        const { error: procurementDelErr } = await supabase
-          .from('workspaces')
-          .delete()
-          .eq('id', procurementId);
-        if (procurementDelErr) {
-          console.error(
-            'Failed to delete test bid:',
-            procurementDelErr.message,
-          );
+        // Delete the (unlinked) workspace row, if one exists.
+        if (existing && existing.length > 0) {
+          const { error: procurementDelErr } = await supabase
+            .from('workspaces')
+            .delete()
+            .eq('id', existing[0].id);
+          if (procurementDelErr) {
+            console.error(
+              'Failed to delete test bid workspace:',
+              procurementDelErr.message,
+            );
+          }
         }
 
         console.log('Cleaned up existing test bid.\n');
@@ -522,7 +567,8 @@ async function main() {
       }
     } else {
       console.log(
-        `Test bid already exists: ${existing[0].id}\n` +
+        `Test bid already exists ` +
+          `(workspace: ${existing?.[0]?.id ?? 'none'}, form: ${existingForm?.[0]?.id ?? 'none'})\n` +
           'Use --clean to remove it first, or it will be left as-is.\n',
       );
       process.exit(0);
@@ -597,24 +643,38 @@ async function main() {
   console.log('2. Creating questions...');
   const questionIds: string[] = [];
 
-  // {130.27} — resolve (or mint) the test bid's canonical form_template id
-  // once, so this seeder's questions do not NULL-drift form_template_id the
-  // same way the live extraction/manual-add paths used to. No user context
-  // here (script, not a request) — created_by is left null on a mint.
-  let formTemplateId: string | null = null;
+  // ID-145 {145.6}/{145.7} — form-first: mint the test form_instances row
+  // directly (the resolve_or_mint_form_template_id RPC + its TS resolver are
+  // retired, {145.7}). No user context here (script, not a request) —
+  // created_by is left null. ingest_source='minted' (not 'app_upload') — this
+  // is a docless placeholder mint (file_size 0, no real storage_path), the
+  // exact case TECH.md §2 M3's re-cut ingest_source CHECK reserves 'minted'
+  // for.
+  let formInstanceId: string | null = null;
   if (!dryRun && procurementId) {
-    formTemplateId = await resolveOrMintFormTemplateId(
-      supabase,
-      procurementId,
-      {
+    const { data: mintedForm, error: mintError } = await supabase
+      .from('form_instances')
+      .insert({
         name: TEST_BID_NAME,
         filename: 'seed-procurement-test-data.pdf',
-        storagePath: `app-created/${procurementId}/seed-procurement-test-data`,
-        fileSize: 0,
-        mimeType: 'application/pdf',
-        createdBy: null,
-      },
-    );
+        storage_path: `app-created/${procurementId}/seed-procurement-test-data`,
+        file_size: 0,
+        mime_type: 'application/pdf',
+        form_type: 'itt',
+        ingest_source: 'minted',
+        created_by: null,
+      })
+      .select('id')
+      .single();
+
+    if (mintError || !mintedForm) {
+      console.error(
+        'Failed to mint test form instance:',
+        mintError?.message ?? 'unknown error',
+      );
+      process.exit(1);
+    }
+    formInstanceId = mintedForm.id;
   }
 
   for (const q of TEST_QUESTIONS) {
@@ -626,8 +686,7 @@ async function main() {
       const { data: created, error: qError } = await supabase
         .from('form_questions')
         .insert({
-          workspace_id: procurementId,
-          form_template_id: formTemplateId,
+          form_instance_id: formInstanceId,
           section_name: q.section_name,
           section_sequence: q.section_sequence,
           question_text: q.question_text,
