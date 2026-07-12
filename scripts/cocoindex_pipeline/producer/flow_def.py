@@ -160,13 +160,37 @@ def _read_bundle_dir(bundle_dir: Path) -> "dict[str, str]":
     `{rel_path: content}` mapping `publish_bundle`/`sync_bundle` expect —
     every regular file under `bundle_dir`, keyed by its POSIX path relative
     to `bundle_dir` (mirrors `publish._read_bundle_dir`, re-implemented here
-    to avoid importing `publish` at module scope for one helper)."""
+    to avoid importing `publish` at module scope for one helper).
+
+    **`.git`-safe (ID-132 {132.35} G-DEPLOY-PROOF Defect B).** `bundle_dir` is
+    ALWAYS a git clone in deployment (DR-016) — its working tree carries
+    `.git/` (config, HEAD, index, `objects/**` loose/packed blobs). RUN 1 of
+    the {132.35} deploy-proof crashed here (`UnicodeDecodeError: 'utf-8'
+    codec can't decode byte 0xe2`) reading those binary git-internal files as
+    UTF-8 text — the git-less `tmp_path` fixtures this helper's tests used
+    before never exercised that (the same fixture-blind-spot the {132.32}
+    explorer hit, commit 6c54f26a). Mirrors that fix's dotdir convention:
+    any path component starting with `.` is skipped entirely (`.git/` and
+    any other hidden file/dir), not just a hardcoded `.git` special-case.
+    A file that survives the dotdir filter but still isn't valid UTF-8 is
+    skipped with a loud warning rather than crashing the whole read — fails
+    open, mirrors the {132.32} frontmatter-parse posture."""
     output: "dict[str, str]" = {}
     for path in sorted(bundle_dir.rglob("*")):
         if not path.is_file():
             continue
-        rel_path = path.relative_to(bundle_dir).as_posix()
-        output[rel_path] = path.read_text(encoding="utf-8")
+        rel_path = path.relative_to(bundle_dir)
+        if any(part.startswith(".") for part in rel_path.parts):
+            continue
+        rel_path_str = rel_path.as_posix()
+        try:
+            output[rel_path_str] = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            _logger.warning(
+                "producer flow: skipping non-UTF-8 file under bundle_dir "
+                "(not a valid bundle artefact): %s",
+                rel_path_str,
+            )
     return output
 
 

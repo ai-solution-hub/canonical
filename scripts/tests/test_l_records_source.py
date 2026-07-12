@@ -13,6 +13,7 @@ so no conftest stubbing is needed here, mirroring `test_url_source.py`.
 
 import asyncio
 import dataclasses
+import threading
 
 import pytest
 
@@ -795,3 +796,83 @@ class TestFind:
         src = LRecordsSource(_five_type_pool())
 
         assert _run(src.find("nonexistent-needle")) == []
+
+
+# ── Defect A ESCALATION (ID-132 {132.35} G-DEPLOY-PROOF) — memo-key protocol ──
+#
+# RUN 1 of the {132.35} deploy proof crashed inside a REAL cocoindex App run:
+# `enrich_concept(key, source)` is `@coco.fn(memo=True)`, and the installed
+# engine's `memo_fingerprint._make_call_canonical` (cocoindex==1.0.7,
+# `_internal/memo_fingerprint.py:372-401`) canonicalizes EVERY positional/
+# keyword arg of a memoised call — `source` (an `LRecordsSource` wrapping a
+# live `asyncpg.Pool`) included. `enrich.py`'s prior docstring claim that
+# `source` "is not part of the memo fingerprint's data-varying surface" was
+# never actually exercised (the S463 harness had no ambient ComponentContext,
+# so `enrich_concept` ran unmemoised, silently) and is FALSE against the
+# installed engine — see `enrich.py`'s corrected module docstring.
+#
+# This class pins the CURRENT, ESCALATED state — NOT fixed by this Subtask:
+# (1) LRecordsSource is NOT memo-keyable against the REAL engine's checker
+# (reproduces RUN 1's exact TypeError against a pool double shaped like the
+# real asyncpg.Pool — unpicklable, holding live lock/socket state, unlike a
+# plain self-contained double which would accidentally succeed via the
+# pickle-fallback and mask the defect); (2) ConceptKey carries NO
+# content-varying signal in ANY of its fields, so even a `source`-side-only
+# fix cannot satisfy BI-18's "a targeted record change re-drafts exactly
+# that concept" direction — a memo-hit on an identity-unchanged-but-
+# content-changed record would silently serve a STALE draft. Kept GREEN
+# deliberately: whoever implements the real fix (a per-concept content-
+# versioning mechanism) must touch these assertions, forcing a conscious
+# update rather than a silent staleness regression.
+class TestMemoKeyProtocolEscalation:
+    def test_lrecords_source_is_not_memo_keyable_against_the_installed_engine(self):
+        """Reproduces RUN 1's `TypeError: Unsupported type for memoization
+        key` against the REAL installed `cocoindex==1.0.7` engine — no App/
+        Environment boot required: `memo_fingerprint()` is a pure
+        canonicalize + hash utility (empirically verified standalone,
+        unlike `coco.App(...).update_blocking()`), so this needs neither the
+        bl-218/bl-239 subprocess-isolation pattern nor an engine-availability
+        skipif guard.
+        """
+        from cocoindex._internal.memo_fingerprint import memo_fingerprint
+
+        class _UnpicklablePool:
+            """Stands in for the real `asyncpg.Pool`, which holds live
+            locks/sockets and is genuinely unpicklable — a plain
+            self-contained pool double would accidentally succeed via
+            `_canonicalize`'s `pickle.dumps` fallback and mask the defect."""
+
+            def __init__(self) -> None:
+                self._lock = threading.Lock()
+
+            async def fetch(self, *args: object, **kwargs: object) -> list:
+                return []
+
+        source = LRecordsSource(_UnpicklablePool())
+
+        with pytest.raises(TypeError, match="Unsupported type for memoization key"):
+            memo_fingerprint(source)
+
+    def test_concept_key_carries_no_content_varying_signal(self):
+        """The {132.35} Defect A delta-contract trace: `ConceptKey`'s fields
+        are exhaustively LOCATOR/identity fields — enumerated here so this
+        test breaks (forcing deliberate review) the day a content-hash/
+        `updated_at`/version-shaped field is added, which is the real fix
+        this Subtask escalated rather than implemented ad hoc."""
+        field_names = {f.name for f in dataclasses.fields(ConceptKey)}
+
+        assert field_names == {
+            "rel_path",
+            "concept_type",
+            "scope_tag",
+            "domain",
+            "subtopic",
+            "entity_id",
+            "workspace_id",
+        }, (
+            "ConceptKey's field set changed — if a content-hash/updated_at/"
+            "version field was ADDED, the {132.35} Defect A escalation "
+            "(enrich_concept's memo key carries no content-varying signal) "
+            "may now be resolved; update enrich.py's memoisation docstring "
+            "and re-evaluate whether `source` can safely become memo-keyable."
+        )

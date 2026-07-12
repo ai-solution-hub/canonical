@@ -347,13 +347,37 @@ def _read_bundle_dir(bundle_dir: Path) -> "dict[str, str]":
     into the `{rel_path: content}` mapping `publish_bundle`/`sync_bundle`
     expect. Every regular file under `bundle_dir` is read as UTF-8 text and
     keyed by its POSIX-style path relative to `bundle_dir`.
+
+    **`.git`-safe (ID-132 {132.35} G-DEPLOY-PROOF Defect B, mirrors
+    `flow_def._read_bundle_dir`'s identical fix).** `bundle_dir` is ALWAYS a
+    git clone in deployment (DR-016), so its working tree carries `.git/`
+    (config, HEAD, index, `objects/**` binary blobs) — the {132.35} deploy
+    proof crashed here on the first git-internal binary file (`UnicodeDecode
+    Error: 'utf-8' codec can't decode byte 0xe2`), a hazard this module's own
+    git-less `tmp_path` fixtures never exercised before. Any path component
+    starting with `.` is skipped (mirrors the {132.32} explorer's dotdir
+    convention, commit 6c54f26a — `.git/` and any other hidden file/dir, not
+    a hardcoded `.git` special-case); a file that survives that filter but
+    still isn't valid UTF-8 is skipped with a loud warning rather than
+    crashing the whole read (fails open, mirrors the {132.32} frontmatter-
+    parse posture).
     """
     output: "dict[str, str]" = {}
     for path in sorted(bundle_dir.rglob("*")):
         if not path.is_file():
             continue
-        rel_path = path.relative_to(bundle_dir).as_posix()
-        output[rel_path] = path.read_text(encoding="utf-8")
+        rel_path = path.relative_to(bundle_dir)
+        if any(part.startswith(".") for part in rel_path.parts):
+            continue
+        rel_path_str = rel_path.as_posix()
+        try:
+            output[rel_path_str] = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            _logger.warning(
+                "producer publish: skipping non-UTF-8 file under bundle_dir "
+                "(not a valid bundle artefact): %s",
+                rel_path_str,
+            )
     return output
 
 

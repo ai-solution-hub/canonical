@@ -35,6 +35,7 @@ from scripts.cocoindex_pipeline.producer.publish import (  # noqa: E402
     PublishAbortedError,
     PushResult,
     SeedContractCheckResult,
+    _read_bundle_dir,
     ensure_seed_contract_green,
     publish_bundle,
     push_bundle_repo,
@@ -452,3 +453,61 @@ class TestPushBundleRepo:
 
         assert exit_code == 0
         assert _commit_count(repo) == 1
+
+
+# ── _read_bundle_dir: .git-safe reads (ID-132 {132.35} G-DEPLOY-PROOF Defect B) ──
+#
+# Mirrors `flow_def._read_bundle_dir`'s own fix + its `TestReadBundleDir`
+# class — RUN 1 of the {132.35} deploy-proof crashed reading `.git/**` of the
+# deployed bundle clone (a bundle IS always a git clone in deployment,
+# DR-016); this module's `_read_bundle_dir` has the identical rglob("*") +
+# unconditional read_text(utf-8) hazard, reproduced/fixed here against a REAL
+# `git init` + commit repo (the `repo` fixture above), not a bare tmp_path.
+
+
+def _commit_all(repo_path: Path, message: str) -> None:
+    subprocess.run(["git", "add", "-A"], cwd=repo_path, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=test",
+            "-c",
+            "user.email=test@example.com",
+            "commit",
+            "--quiet",
+            "-m",
+            message,
+        ],
+        cwd=repo_path,
+        check=True,
+    )
+
+
+class TestReadBundleDir:
+    def test_excludes_git_plumbing_from_a_real_git_backed_bundle(self, repo: Path) -> None:
+        (repo / "topic-a.md").write_text("draft body\n", encoding="utf-8")
+        _commit_all(repo, "seed")
+
+        output = _read_bundle_dir(repo)
+
+        assert output == {"topic-a.md": "draft body\n"}
+        assert not any(rel == ".git" or rel.startswith(".git/") for rel in output)
+
+    def test_skips_a_hidden_dotfile_alongside_git(self, repo: Path) -> None:
+        (repo / "topic-a.md").write_text("draft body\n", encoding="utf-8")
+        (repo / ".hidden.md").write_text("hidden\n", encoding="utf-8")
+        _commit_all(repo, "seed")
+
+        output = _read_bundle_dir(repo)
+
+        assert output == {"topic-a.md": "draft body\n"}
+
+    def test_skips_a_non_utf8_file_gracefully_rather_than_raising(self, repo: Path) -> None:
+        (repo / "topic-a.md").write_text("draft body\n", encoding="utf-8")
+        (repo / "binary.bin").write_bytes(b"\xff\xfe\x00binary")
+
+        output = _read_bundle_dir(repo)
+
+        assert output == {"topic-a.md": "draft body\n"}
+        assert "binary.bin" not in output
