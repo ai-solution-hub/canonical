@@ -25,6 +25,7 @@ const {
   mockGetDeadlineProximity,
   mockBidStateLabels,
   mockBidStateShortLabels,
+  mockNotFound,
 } = vi.hoisted(() => ({
   mockRouter: {
     push: vi.fn(),
@@ -34,6 +35,7 @@ const {
     refresh: vi.fn(),
     prefetch: vi.fn().mockResolvedValue(undefined),
   },
+  mockNotFound: vi.fn(),
   mockUseUserRole: {
     role: 'editor' as string | null,
     canEdit: true,
@@ -77,6 +79,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => mockRouter,
   usePathname: () => '/procurement/test-bid-1',
   useSearchParams: () => new URLSearchParams(),
+  notFound: () => mockNotFound(),
 }));
 
 vi.mock('next/link', () => ({
@@ -286,6 +289,7 @@ function makeDefaultHookReturn(overrides: Record<string, unknown> = {}) {
     questions: overrides.questions ?? [],
     stats,
     loading: overrides.loading ?? false,
+    notFoundConfirmed: overrides.notFoundConfirmed ?? false,
     activeTab: overrides.activeTab ?? 'overview',
     setActiveTab: overrides.setActiveTab ?? vi.fn(),
     transitioning: overrides.transitioning ?? false,
@@ -382,6 +386,21 @@ describe('ProcurementDetailPage', () => {
     );
     renderWithQuery(<ProcurementDetailPage params={mockParams} />);
     expect(screen.getByText('Procurement not found')).toBeInTheDocument();
+  });
+
+  // ID-145 {145.18} BI-2/BI-3 — a confirmed 404 calls Next's notFound()
+  // (renders app/procurement/[id]/not-found.tsx), never a redirect.
+  it('calls notFound() when notFoundConfirmed is true', () => {
+    mockUseFormActions.mockReturnValue(
+      makeDefaultHookReturn({ notFoundConfirmed: true, bid: null }),
+    );
+    renderWithQuery(<ProcurementDetailPage params={mockParams} />);
+    expect(mockNotFound).toHaveBeenCalled();
+  });
+
+  it('does not call notFound() for a healthy load', () => {
+    renderWithQuery(<ProcurementDetailPage params={mockParams} />);
+    expect(mockNotFound).not.toHaveBeenCalled();
   });
 
   // ---- Header rendering ----

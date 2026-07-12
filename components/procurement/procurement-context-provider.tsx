@@ -93,9 +93,8 @@ export function ProcurementContextProvider({
       const res = await fetch(`/api/procurement/${procurementId}`);
       if (!res.ok) return;
       const data = await res.json();
-      // {130.13} re-point: the umbrella detail GET ({130.11}) moved the
-      // engagement facts onto the primary child form. Derive the summary view
-      // from the new read-shape (with a graceful legacy fallback).
+      // ID-145 {145.18} re-point: post-W1, `form_instances` IS the item — the
+      // engagement facts are read directly off the flat GET response (BI-1).
       const metadata = deriveProcurementMetadata(data);
       const stats = data.question_stats;
 

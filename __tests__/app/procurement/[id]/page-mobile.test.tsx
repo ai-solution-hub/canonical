@@ -29,6 +29,7 @@ const {
   mockBidStateLabels,
   mockBidStateShortLabels,
   mockToast,
+  mockNotFound,
 } = vi.hoisted(() => ({
   mockRouter: {
     push: vi.fn(),
@@ -38,6 +39,7 @@ const {
     refresh: vi.fn(),
     prefetch: vi.fn().mockResolvedValue(undefined),
   },
+  mockNotFound: vi.fn(),
   mockUseUserRole: {
     role: 'editor' as string | null,
     canEdit: true,
@@ -82,6 +84,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => mockRouter,
   usePathname: () => '/procurement/test-bid-1',
   useSearchParams: () => new URLSearchParams(),
+  notFound: () => mockNotFound(),
 }));
 
 vi.mock('next/link', () => ({
@@ -274,6 +277,7 @@ function makeDefaultHookReturn(overrides: Record<string, unknown> = {}) {
     questions: overrides.questions ?? [],
     stats: overrides.stats ?? null,
     loading: overrides.loading ?? false,
+    notFoundConfirmed: overrides.notFoundConfirmed ?? false,
     activeTab: overrides.activeTab ?? 'overview',
     setActiveTab: overrides.setActiveTab ?? vi.fn(),
     transitioning: overrides.transitioning ?? false,

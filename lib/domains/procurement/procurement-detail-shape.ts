@@ -5,24 +5,30 @@ import type {
 } from '@/types/procurement';
 
 /**
- * ID-130 {130.13} — adapter for the umbrella detail read-shape.
+ * ID-130 {130.13} legacy adapter, REBUILT for ID-145 {145.18} (BI-1..5,
+ * 13..19) — the form-first re-architecture.
  *
- * {130.11} re-anchored `GET /api/procurement/[id]`: the per-stage engagement
- * facts no longer live on `workspaces.domain_metadata`/`workspaces.status`. The
- * response is now the workspace identity + a materialised `rollup`
- * (`procurement_workspaces`) + a `forms` list (the child `form_templates`
- * rows). Consumers that previously read `bid.status` / `bid.domain_metadata`
- * re-point through these helpers.
+ * Post-W1 (TECH.md §2 M3), `form_instances` IS the procurement item: there is
+ * no more workspace umbrella wrapping many child forms, and no more
+ * `procurement_workspaces` roll-up. Every lifecycle fact — state, deadline,
+ * outcome, questions — is read DIRECTLY off the top-level GET response, which
+ * mirrors the `form_instances` row (BI-1). The two-axis split is exposed as
+ * two independent read functions that must never be collapsed into one
+ * signal: `deriveProcessingStatus` (the upload/analyse/fill pipeline) and
+ * `deriveProcurementStatus` (the 10-state procurement workflow, BI-18). No
+ * fact is read from a workspace `domain_metadata` blob.
  *
- * The model is a workspace umbrella holding MANY forms (B-1); v1 is the
- * common single-form case, so the legacy umbrella-level `status`/`metadata`
- * surface is derived from the FIRST (earliest-created) form. The helpers also
- * tolerate the pre-{130.11} legacy shape (`status`/`domain_metadata` present,
- * no `forms`) so a graceful-migration read never throws — the new shape is
- * always preferred when present.
+ * LEGACY (pre-{145.18}) exports below — `getPrimaryForm`, `getProcurementForms`,
+ * `getProcurementRollup`, `ProcurementFormSummary`, `ProcurementRollup` — are
+ * kept UNCHANGED. `procurement-forms-card.tsx` (the BI-4 forms-sub-collection
+ * card) still imports them; that card's removal is {145.19}'s file-ownership
+ * boundary, not this Subtask's (`app/procurement/[id]/page.tsx` — mine — no
+ * longer renders it, per BI-4 "no forms-sub-collection surface"). These
+ * legacy helpers are dead on the item page itself and safe to delete once
+ * {145.19} lands.
  */
 
-/** A child form row as returned by GET (`FORM_LIST_COLUMNS` in the route). */
+/** A child form row as returned by GET (`FORM_LIST_COLUMNS` in the route). LEGACY — {145.19} to remove alongside the forms-card. */
 export interface ProcurementFormSummary {
   id: string;
   form_type: string | null;
@@ -39,7 +45,7 @@ export interface ProcurementFormSummary {
   updated_at: string;
 }
 
-/** The materialised workspace roll-up (`procurement_workspaces`), B-7/AD-2. */
+/** The materialised workspace roll-up (`procurement_workspaces`), B-7/AD-2. LEGACY — the table itself is dropped by W1e; {145.19} to remove alongside the forms-card. */
 export interface ProcurementRollup {
   nearest_deadline: string | null;
   overall_outcome: string | null;
@@ -48,30 +54,44 @@ export interface ProcurementRollup {
 }
 
 /**
- * The umbrella detail response shape after the {130.11} re-anchor. Legacy
- * `status`/`domain_metadata` are typed optional for graceful-migration reads.
+ * The `GET /api/procurement/[id]` response shape. ID-145 {145.18}: post-W1
+ * the item is a flat `form_instances` row — `form_type`, `processing_status`,
+ * `workflow_state`, `deadline`, ... sit at the top level, alongside the
+ * enrichments (`tender_documents`, `question_stats`, `warnings`) that were
+ * already independent reads. `forms` / `rollup` / `status` / `domain_metadata`
+ * are the pre-{145.18} legacy nested shape, kept optional so the retained
+ * legacy getters above keep compiling — the {145.18} derivations below never
+ * read them.
  */
 export interface ProcurementDetailResponse {
   id: string;
   name: string;
   description: string | null;
-  forms?: ProcurementFormSummary[];
-  rollup?: ProcurementRollup | null;
+
+  // ID-145 {145.18} flat form_instances fields (BI-1) — the item IS the form.
+  form_type?: string | null;
+  processing_status?: string | null;
+  workflow_state?: ProcurementWorkflowState | null;
+  deadline?: string | null;
+  submission_date?: string | null;
+  issuing_organisation?: string | null;
+  outcome?: string | null;
+  outcome_notes?: string | null;
+  outcome_recorded_at?: string | null;
+  outcome_recorded_by?: string | null;
+  reference_number?: string | null;
+  estimated_value?: string | number | null;
   tender_documents?: TenderDocument[];
   question_stats?: unknown;
   warnings?: string[];
-  /** @deprecated pre-{130.11} umbrella status — derived from forms now. */
+
+  // LEGACY (pre-{145.18}) — retained ONLY for the still-live forms-card getters.
+  forms?: ProcurementFormSummary[];
+  rollup?: ProcurementRollup | null;
+  /** @deprecated pre-{130.11} umbrella status. */
   status?: ProcurementWorkflowState | null;
-  /** @deprecated pre-{130.11} engagement metadata — moved to the form. */
+  /** @deprecated pre-{130.11} engagement metadata. NEVER read by the {145.18} derivations. */
   domain_metadata?: ProcurementMetadata | null;
-  /**
-   * RESIDUAL workspace-level tender facts with no per-form home ({130.21}
-   * wave-3 follow-up) — flattened onto the GET response, not nested under
-   * `domain_metadata`.
-   */
-  reference_number?: string | null;
-  estimated_value?: string | null;
-  notes?: string | null;
 }
 
 /**
@@ -84,6 +104,14 @@ type LooseDetail = Partial<ProcurementDetailResponse> & Record<string, unknown>;
 function asDetail(data: unknown): LooseDetail | null {
   return data && typeof data === 'object' ? (data as LooseDetail) : null;
 }
+
+function asString(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+// ---------------------------------------------------------------------------
+// LEGACY (pre-{145.18}) — forms-card only. Untouched by the {145.18} rebuild.
+// ---------------------------------------------------------------------------
 
 /**
  * The primary (v1) form of an umbrella: the earliest-created child form. The
@@ -98,73 +126,6 @@ export function getPrimaryForm(data: unknown): ProcurementFormSummary | null {
   return null;
 }
 
-/**
- * Derive the umbrella workflow state from the primary form's `workflow_state`
- * (B-8). Falls back to the deprecated umbrella `status`, then `'draft'`.
- * Returns `null` only when there is no data at all.
- */
-export function deriveProcurementStatus(
-  data: unknown,
-): ProcurementWorkflowState | null {
-  const detail = asDetail(data);
-  if (!detail) return null;
-  const primary = getPrimaryForm(detail);
-  const state = primary?.workflow_state ?? detail.status ?? 'draft';
-  return state as ProcurementWorkflowState;
-}
-
-/**
- * Derive the legacy `ProcurementMetadata` view from the new read-shape so the
- * existing detail surfaces keep rendering. The per-stage facts come from the
- * primary form (B-2); `deadline` falls back to the roll-up's nearest deadline
- * (B-7). When the new shape is absent, the deprecated `domain_metadata` is
- * returned verbatim (graceful-migration read).
- *
- * NOTE: `reference_number` / `estimated_value` / `notes` are residual
- * workspace-level fields with no per-form home (B-1 — a single opportunity
- * fact doesn't belong to any one of the umbrella's many forms); the {130.11}
- * GET re-anchor stopped surfacing them entirely, silently hiding data PATCH
- * still persisted. {130.21} re-wired GET to flatten them from
- * `domain_metadata` onto the response top-level (never nested, so the
- * deprecated engagement keys inside `domain_metadata` stay hidden) — read
- * them off the new shape here too. Returns `null` when there is no data.
- */
-export function deriveProcurementMetadata(
-  data: unknown,
-): ProcurementMetadata | null {
-  const detail = asDetail(data);
-  if (!detail) return null;
-  const primary = getPrimaryForm(detail);
-  if (!primary) {
-    // Legacy shape (pre-{130.11}) — return the engagement metadata verbatim.
-    return (detail.domain_metadata as ProcurementMetadata | undefined) ?? null;
-  }
-
-  const tenderDocuments = Array.isArray(detail.tender_documents)
-    ? (detail.tender_documents as TenderDocument[])
-    : [];
-  const outcome = primary.outcome;
-
-  return {
-    buyer: primary.issuing_organisation ?? '',
-    status: deriveProcurementStatus(detail) ?? 'draft',
-    deadline: primary.deadline ?? detail.rollup?.nearest_deadline ?? null,
-    reference_number: detail.reference_number ?? null,
-    estimated_value: detail.estimated_value ?? null,
-    tender_source: null,
-    tender_document_ids: tenderDocuments.map((doc) => doc.path),
-    submission_date: primary.submission_date ?? null,
-    outcome:
-      outcome === 'won' || outcome === 'lost' || outcome === 'withdrawn'
-        ? outcome
-        : null,
-    outcome_notes: primary.outcome_notes ?? null,
-    notes: detail.notes ?? null,
-    outcome_recorded_at: primary.outcome_recorded_at ?? undefined,
-    outcome_recorded_by: primary.outcome_recorded_by ?? undefined,
-  };
-}
-
 /** The child forms of the umbrella (empty array when none). */
 export function getProcurementForms(data: unknown): ProcurementFormSummary[] {
   const forms = asDetail(data)?.forms;
@@ -174,4 +135,82 @@ export function getProcurementForms(data: unknown): ProcurementFormSummary[] {
 /** The materialised roll-up, or `null` when absent. */
 export function getProcurementRollup(data: unknown): ProcurementRollup | null {
   return (asDetail(data)?.rollup as ProcurementRollup | undefined) ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// ID-145 {145.18} — form-first derivations (BI-1, BI-13..18). Source every
+// fact directly off the flat GET response; never via `getPrimaryForm`, never
+// via `domain_metadata`.
+// ---------------------------------------------------------------------------
+
+/**
+ * The document-processing pipeline axis (upload -> analyse -> fill, BI-1).
+ * Independent of `deriveProcurementStatus` — the two axes are never collapsed
+ * into one signal. Returns `null` when absent or for nullish input.
+ */
+export function deriveProcessingStatus(data: unknown): string | null {
+  const detail = asDetail(data);
+  if (!detail) return null;
+  return asString(detail.processing_status);
+}
+
+/**
+ * The 10-state procurement workflow axis (BI-1/BI-18), read directly off the
+ * form's `workflow_state` — the single home for procurement state post-W1
+ * (the ex-`workspaces.status` second home is retired). Defaults to `'draft'`
+ * when the item has no state yet; returns `null` only for nullish input.
+ */
+export function deriveProcurementStatus(
+  data: unknown,
+): ProcurementWorkflowState | null {
+  const detail = asDetail(data);
+  if (!detail) return null;
+  const state = asString(detail.workflow_state) ?? 'draft';
+  return state as ProcurementWorkflowState;
+}
+
+/**
+ * Derive the `ProcurementMetadata` view directly off the flat form_instances
+ * response (BI-1, BI-5, BI-13, BI-16) — no `domain_metadata` read, no
+ * `forms[]`/`rollup` indirection. `tender_document_ids` is the one surviving
+ * legacy key (BI-5), sourced from `tender_documents`. `tender_source` and
+ * `notes` are dropped (no live reader, BI-5) — always `null`/`undefined`
+ * here, never read from anywhere. Returns `null` for nullish input.
+ */
+export function deriveProcurementMetadata(
+  data: unknown,
+): ProcurementMetadata | null {
+  const detail = asDetail(data);
+  if (!detail) return null;
+
+  const tenderDocuments = Array.isArray(detail.tender_documents)
+    ? (detail.tender_documents as TenderDocument[])
+    : [];
+  const outcome = detail.outcome;
+  const rawEstimatedValue = detail.estimated_value;
+
+  return {
+    buyer: asString(detail.issuing_organisation) ?? '',
+    status: deriveProcurementStatus(detail) ?? 'draft',
+    deadline: asString(detail.deadline),
+    reference_number: asString(detail.reference_number),
+    estimated_value:
+      typeof rawEstimatedValue === 'number'
+        ? String(rawEstimatedValue)
+        : asString(rawEstimatedValue),
+    tender_source: null,
+    tender_document_ids: tenderDocuments.map((doc) => doc.path),
+    submission_date: asString(detail.submission_date),
+    outcome:
+      outcome === 'won' || outcome === 'lost' || outcome === 'withdrawn'
+        ? outcome
+        : null,
+    outcome_notes: asString(detail.outcome_notes),
+    // BI-5 ({145.18}): the free-text engagement `notes` key (pre-{130.21}
+    // `domain_metadata.notes`) has no form_instances column and no live
+    // reader post-W1 — dropped, never carried as dead data.
+    notes: null,
+    outcome_recorded_at: asString(detail.outcome_recorded_at) ?? undefined,
+    outcome_recorded_by: asString(detail.outcome_recorded_by) ?? undefined,
+  };
 }
