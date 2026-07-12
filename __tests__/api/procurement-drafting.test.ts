@@ -701,8 +701,7 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {
         id: VALID_UUID,
-        status: 'questions_extracted',
-        domain_metadata: {},
+        workflow_state: 'questions_extracted',
       },
       error: null,
     });
@@ -727,7 +726,7 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
 
     // Procurement lookup
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
+      data: { id: VALID_UUID, workflow_state: 'drafting' },
       error: null,
     });
 
@@ -749,7 +748,7 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
     expect(res.status).toBe(404);
 
     const body = await res.json();
-    expect(body.error).toBe('Question not found in this bid');
+    expect(body.error).toBe('Question not found in this form');
   });
 
   // ID-58 {58.6}: the writer now targets the polymorphic `public.citations`
@@ -766,10 +765,10 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
 
     // (1) Procurement lookup
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
+      data: { id: VALID_UUID, workflow_state: 'drafting' },
       error: null,
     });
-    // (2) Question lookup — two matched items
+    // (2) Question lookup
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {
         id: VALID_UUID_2,
@@ -777,8 +776,15 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
         word_limit: 500,
         section_name: 'Method',
         confidence_posture: 'balanced',
-        matched_record_ids: [ITEM_CITED, ITEM_UNCITED],
       },
+      error: null,
+    });
+
+    // ID-145 {145.21} BI-37: matched ids now come from question_match_search
+    // (the R7 substrate) rather than the dropped matched_record_ids column —
+    // two matched q_a_pair candidates.
+    mockSupabase.rpc.mockResolvedValueOnce({
+      data: [{ q_a_pair_id: ITEM_CITED }, { q_a_pair_id: ITEM_UNCITED }],
       error: null,
     });
 
@@ -951,10 +957,10 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
 
     // (1) Procurement lookup — draftable
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
+      data: { id: VALID_UUID, workflow_state: 'drafting' },
       error: null,
     });
-    // (2) Question lookup — one matched item (enough to drive the writer)
+    // (2) Question lookup
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {
         id: VALID_UUID_2,
@@ -962,8 +968,14 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
         word_limit: 500,
         section_name: 'Method',
         confidence_posture: 'balanced',
-        matched_record_ids: [ITEM_CITED],
       },
+      error: null,
+    });
+
+    // ID-145 {145.21} BI-37: one matched item (enough to drive the writer)
+    // sourced from question_match_search.
+    mockSupabase.rpc.mockResolvedValueOnce({
+      data: [{ q_a_pair_id: ITEM_CITED }],
       error: null,
     });
 

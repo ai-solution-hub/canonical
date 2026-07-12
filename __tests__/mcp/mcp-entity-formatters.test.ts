@@ -476,7 +476,7 @@ describe('formatCitation', () => {
 describe('formatContentEffectiveness', () => {
   it('produces "highly effective" commentary for high win rate (>= 0.7)', () => {
     const data: ContentEffectiveness = {
-      content_item_id: 'item-001',
+      q_a_pair_id: 'item-001',
       total_citations: 10,
       winning_citations: 8,
       losing_citations: 2,
@@ -493,7 +493,7 @@ describe('formatContentEffectiveness', () => {
 
   it('produces moderate commentary for moderate win rate (>= 0.4)', () => {
     const data: ContentEffectiveness = {
-      content_item_id: 'item-002',
+      q_a_pair_id: 'item-002',
       total_citations: 10,
       winning_citations: 5,
       losing_citations: 5,
@@ -509,7 +509,7 @@ describe('formatContentEffectiveness', () => {
 
   it('produces low win rate commentary for win rate < 0.4', () => {
     const data: ContentEffectiveness = {
-      content_item_id: 'item-003',
+      q_a_pair_id: 'item-003',
       total_citations: 10,
       winning_citations: 2,
       losing_citations: 8,
@@ -525,7 +525,7 @@ describe('formatContentEffectiveness', () => {
 
   it('produces "no citations" message when total_citations is 0', () => {
     const data: ContentEffectiveness = {
-      content_item_id: 'item-004',
+      q_a_pair_id: 'item-004',
       total_citations: 0,
       winning_citations: 0,
       losing_citations: 0,
@@ -544,7 +544,7 @@ describe('formatContentEffectiveness', () => {
 
   it('shows "Awaiting outcomes" when citations exist but no decided bids', () => {
     const data: ContentEffectiveness = {
-      content_item_id: 'item-005',
+      q_a_pair_id: 'item-005',
       total_citations: 5,
       winning_citations: 0,
       losing_citations: 0,
@@ -562,7 +562,7 @@ describe('formatContentEffectiveness', () => {
 
   it('shows losing citations count', () => {
     const data: ContentEffectiveness = {
-      content_item_id: 'item-006',
+      q_a_pair_id: 'item-006',
       total_citations: 8,
       winning_citations: 3,
       losing_citations: 3,
@@ -578,7 +578,7 @@ describe('formatContentEffectiveness', () => {
 
   it('omits pending line when pending_citations is 0', () => {
     const data: ContentEffectiveness = {
-      content_item_id: 'item-007',
+      q_a_pair_id: 'item-007',
       total_citations: 6,
       winning_citations: 4,
       losing_citations: 2,

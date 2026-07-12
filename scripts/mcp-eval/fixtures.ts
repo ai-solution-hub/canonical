@@ -576,8 +576,9 @@ export function getMinimalArgs(
     case 'get_content_effectiveness':
       // Resolves against q_a_pairs via get_content_win_rate's p_q_a_pair_id
       // (ID-131.10/BI-26 re-anchor) — needs qaPairId, not contentItemId
-      // (source_documents).
-      return { content_item_id: knownUUIDs.qaPairId };
+      // (source_documents). ID-145 {145.21} (DR-056/BI-37): the tool's own
+      // arg is now q_a_pair_id (breaking rename, no alias).
+      return { q_a_pair_id: knownUUIDs.qaPairId };
     case 'find_duplicates':
       // ID-71.10 part 2 — single-item admin dedup, requires `id`. The
       // `scope: 'all'` whole-KB batch scan branch was retired under
@@ -630,9 +631,11 @@ export function getMinimalArgs(
         governance_review_status: 'draft',
       };
     case 'cite_content':
-      // Use eval item + a fake form response UUID — will return a structured error
+      // Use eval item + a fake form response UUID — will return a structured error.
+      // ID-145 {145.21} (DR-056/BI-37): the tool's own arg is now q_a_pair_id
+      // (breaking rename, no alias).
       return {
-        content_item_id: evalItemId,
+        q_a_pair_id: evalItemId,
         form_response_id: '00000000-0000-0000-0000-000000000000',
       };
     case 'update_content_item':
