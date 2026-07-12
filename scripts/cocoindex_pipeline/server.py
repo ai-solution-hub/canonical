@@ -1101,11 +1101,11 @@ def _build_forced_producer_report(request_id: str) -> Any:
     A dedicated, easily-monkeypatched seam (mirrors `_build_pull_sync_pool`)
     so `_run_producer_forced`'s auth/single-flight/thread-dispatch logic is
     testable without booting the real cocoindex Rust engine — see
-    `test_cocoindex_server.py`'s `TestProducerRun*` classes, which patch
-    THIS function directly, and `test_cocoindex_server_producer_run_wiring.py`
-    for source-inspection coverage of this function's own body (mirrors
-    `test_flow_producer_chain.py`'s established pattern for `app_main` —
-    the real engine cannot boot in unit tests either way).
+    `test_cocoindex_server.py`'s `TestProducerRun*` classes (which patch
+    THIS function directly) and that same file's `TestForcedProducerReportWiring`
+    class (source-inspection coverage of this function's own body, mirroring
+    `test_flow_producer_chain.py`'s established pattern for `app_main` — the
+    real engine cannot boot in unit tests either way).
     """
     from scripts.cocoindex_pipeline import flow
     from scripts.cocoindex_pipeline.producer.trigger import run_producer_now

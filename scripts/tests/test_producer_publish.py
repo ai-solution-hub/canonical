@@ -323,6 +323,7 @@ class TestPublishCli:
         exit_code = run(["--bundle-dir", str(bundle_dir), "--repo-path", str(repo)])
 
         assert exit_code == 1
+        assert _commit_count(repo) == 0
 
 
 # ── push_bundle_repo: the DR-055 post-publish push lane ({132.35}) ─────
