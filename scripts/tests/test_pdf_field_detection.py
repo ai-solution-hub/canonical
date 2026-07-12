@@ -19,6 +19,13 @@ from pathlib import Path
 
 import pytest
 
+# The Plane-2 stack (commonforms + torch closure) is heavyweight and only
+# installed where requirements.txt is — skip cleanly elsewhere instead of
+# erroring the whole scripts/tests/ collection (S467 integration guard).
+pytest.importorskip("pypdf", reason="pypdf not installed (requirements.txt)")
+pytest.importorskip("commonforms", reason="commonforms not installed (requirements.txt)")
+pytest.importorskip("pdfplumber", reason="pdfplumber not installed (requirements.txt)")
+
 from scripts.cocoindex_pipeline.form_extractors.pdf import (
     PdfFieldDetectionError,
     PdfFieldDetectionResult,
