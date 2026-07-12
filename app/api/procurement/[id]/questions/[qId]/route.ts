@@ -3,6 +3,7 @@ import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
 import { recomputeQuestionMatches } from '@/lib/domains/procurement/question-match-recompute';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { parseBody } from '@/lib/validation';
 import { QuestionUpdateBodySchema } from '@/lib/validation/schemas';
 import { NextRequest, NextResponse } from 'next/server';
@@ -90,11 +91,18 @@ export const PATCH = defineRoute(
       // internally (see helper docstring); a separate best-effort lookup
       // since this route performs no existence-check form_instances read
       // elsewhere (unlike the sibling create/extract routes).
-      const { data: form } = await supabase
+      const { data: form, error: formError } = await supabase
         .from('form_instances')
         .select('form_type')
         .eq('id', id)
         .maybeSingle();
+      if (formError) {
+        logBestEffortWarn(
+          'procurement.questions.form_type_lookup',
+          'Failed to look up form_type for question_matches recompute',
+          { formInstanceId: id, error: formError.message },
+        );
+      }
       await recomputeQuestionMatches(supabase, {
         formQuestionId: updated.id,
         questionText: updated.question_text,
