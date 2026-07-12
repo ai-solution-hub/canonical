@@ -9,6 +9,10 @@ import {
   createMockFile,
   createMockUploadRequest,
 } from '../helpers/factories/file-upload';
+// Real (unmocked) singleton — spied on directly in the {145.21} BI-37
+// degrade-path test below rather than a new file-wide `vi.mock('@/lib/logger'...)`,
+// since no such mock scaffold exists elsewhere in this suite.
+import { logger } from '@/lib/logger';
 
 // ---------------------------------------------------------------------------
 // Shared mock client
@@ -1087,6 +1091,132 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
     expect(sseText).toContain('event: done');
     expect(sseText).toContain(RESPONSE_ID);
     expect(sseText).not.toContain('event: error');
+  });
+
+  // ID-145 {145.21} BI-37 Checker gap: when `question_match_search` itself
+  // errors (RPC failure — e.g. the R7 substrate unavailable), the route
+  // degrades to "no matched content" rather than blocking the draft (see the
+  // route's inline comment ahead of the `.rpc('question_match_search', ...)`
+  // call). This drives that degrade path end-to-end: the request still
+  // succeeds, no content is injected into the drafting pipeline, and the
+  // failure is observable via `logger.warn`.
+  it('degrades to no matched content (without blocking) when question_match_search RPC errors', async () => {
+    const RESPONSE_ID = 'd6666666-6666-4666-8666-666666666666';
+    const RPC_ERROR = {
+      code: 'XX000',
+      message: 'question_match_search unavailable',
+    };
+
+    configureRole(mockSupabase, 'editor');
+
+    // (1) Procurement lookup
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID, workflow_state: 'drafting' },
+      error: null,
+    });
+    // (2) Question lookup
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        id: VALID_UUID_2,
+        question_text: 'Describe your approach.',
+        word_limit: 500,
+        section_name: 'Method',
+        confidence_posture: 'balanced',
+      },
+      error: null,
+    });
+
+    // ID-145 {145.21} BI-37: question_match_search RPC errors — matchedIds
+    // resolves to [] and the fetchMatchedContentForDrafting lookup (and the
+    // q_a_pair_history version lookup, and the citations writer, all gated on
+    // matchedIds/matchedContent being non-empty) are never reached.
+    mockSupabase.rpc.mockResolvedValueOnce({ data: null, error: RPC_ERROR });
+
+    const warnSpy = vi
+      .spyOn(logger, 'warn')
+      .mockImplementation(() => undefined);
+
+    // Pipeline mocks — matchedContent is asserted to be [] via the call args
+    // below, so these can be minimal (no citations, so the citations writer
+    // stays un-exercised).
+    mockGetModelForTier.mockReturnValue('claude-sonnet-4-6');
+    mockAnalyseQuestion.mockResolvedValue({
+      analysis: { coverage: 'none' },
+      tokensUsed: 1,
+      inputTokens: 1,
+      outputTokens: 1,
+      cost: 0,
+    });
+    mockDraftResponseStreaming.mockResolvedValue({
+      textStream: (async function* () {
+        yield 'Draft text with no source material.';
+      })(),
+      finalise: vi.fn().mockResolvedValue({
+        responseText: 'Draft text with no source material.',
+        model: 'claude-sonnet-4-6',
+        citations: [],
+        tokensUsed: 1,
+        inputTokens: 1,
+        outputTokens: 1,
+        cost: 0,
+      }),
+    });
+    mockCheckResponseQuality.mockResolvedValue({
+      qualityData: { overall_score: 60 },
+      tokensUsed: 1,
+      inputTokens: 1,
+      outputTokens: 1,
+      cost: 0,
+    });
+
+    // (3) form_responses upsert → returns the new response id
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: RESPONSE_ID },
+      error: null,
+    });
+
+    const req = createTestRequest(
+      `/api/procurement/${VALID_UUID}/responses/draft-stream`,
+      { method: 'POST', body: { question_id: VALID_UUID_2 } },
+    );
+
+    const res = await draftStreamPost(req, { params });
+    // (a) The request still succeeds — the RPC error does NOT block drafting.
+    expect(res.status).toBe(200);
+
+    const sseText = await res.text();
+    expect(sseText).not.toContain('event: error');
+    expect(sseText).toContain('event: done');
+    expect(sseText).toContain(RESPONSE_ID);
+
+    // (b) The draft proceeds with NO matched content: both pipeline calls
+    // received an empty matchedContent array, and the saved response has no
+    // source_record_ids.
+    expect(mockAnalyseQuestion).toHaveBeenCalledWith(
+      expect.objectContaining({ id: VALID_UUID_2 }),
+      [],
+    );
+    expect(mockDraftResponseStreaming).toHaveBeenCalledWith(
+      expect.objectContaining({ id: VALID_UUID_2 }),
+      [],
+      expect.anything(),
+      'drafting',
+    );
+    const upsertCalls = mockSupabase._chain.upsert.mock.calls;
+    expect(upsertCalls.length).toBeGreaterThan(0);
+    const upsertedRow = upsertCalls[upsertCalls.length - 1][0] as Record<
+      string,
+      unknown
+    >;
+    expect(upsertedRow.source_record_ids).toEqual([]);
+
+    // (c) The RPC error is logged (non-fatal, observable degrade).
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ err: RPC_ERROR }),
+      expect.stringContaining('Failed to read question_matches'),
+    );
+
+    warnSpy.mockRestore();
   });
 });
 
