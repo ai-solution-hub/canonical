@@ -8,10 +8,18 @@ generalised past its original two-archetype-per-format ceiling
 labelled-cell -> empty/placeholder-cell detector UNDER their original
 archetype fast-paths, rather than requiring an exact archetype match.
 
-Each format module (`pdf`, `xlsx`, `docx`) exports an async
+Each format module (`xlsx`, `docx`) exports an async
 ``extract(raw_bytes: bytes, filename: str) -> ExtractedForm`` function. The
 shared module hosts the Pydantic shapes ``ExtractedField`` / ``ExtractedForm``
 and the typed ``FormExtractionError`` exception used across all readers.
+
+PDF NOTE: this package's ``pdf.py`` is {145.11}'s commonforms-based Plane-2
+PDF field detector (DR-057) — a DIFFERENT module than the id-52 pdfplumber
+reader {145.10} originally recovered (superseded; removed post-Checker
+ruling once {145.11} landed at the identical path). It exports its own
+``PdfFieldDetectionResult`` shape, not this package's ``ExtractedForm``;
+the orchestrator does not yet dispatch ``.pdf`` to it — {145.13} owns that
+shape-adaptation + wiring.
 
 Per CLAUDE.md "No barrel re-exports" — callers import the per-format readers
 and the shared shapes directly from the individual modules (``from

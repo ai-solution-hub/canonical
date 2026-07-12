@@ -27,7 +27,10 @@ use — so the {145.13} analyse_form worker lane can call it directly on the
 bytes it reads from storage, with no cocoindex dependency at all.
 
 Dispatch contract:
-  - ``.pdf`` / ``.xlsx`` / ``.docx`` → the matching reader's ``extract(raw, name)``.
+  - ``.xlsx`` / ``.docx`` → the matching reader's ``extract(raw, name)``.
+  - ``.pdf`` → NOT YET WIRED here — ``None`` + a structured
+    ``form_extractor.skip`` log (see the PDF NOTE below). {145.13} owns
+    wiring this branch.
   - ``.xls`` → ``None`` + a structured ``form_extractor.skip`` log (Inv-3: legacy
     ``.xls`` is out of automated scope here; {145.13} converts .doc/.xls via
     LibreOffice headless BEFORE this dispatcher sees them — DR-059).
@@ -36,6 +39,20 @@ Dispatch contract:
 Reader failures raise ``FormExtractionError`` (defined in ``shared``); the
 {145.13} worker catches it per-file (Inv-17) so one form's failure never
 halts the queue consumer.
+
+PDF NOTE (ID-145.10 Checker ruling, post-{145.11} landing): this
+dispatcher does NOT import or call a PDF reader. {145.10}'s brief listed
+the recovered id-52 ``pdf.py`` (a pdfplumber AcroForm/table-walker) in its
+git-restore list, but that strategy is SUPERSEDED by ratified DR-057 —
+real UK procurement PDFs are FLAT (0 AcroForm fields measured), so
+commonforms-based detection is mandatory, not AcroForm/table-walking.
+{145.11} already owns and has landed the commonforms Plane-2 module at
+THIS package's ``pdf.py`` path (``PdfFieldDetectionResult`` /
+``detect_pdf_fields``, a shape distinct from this package's
+``ExtractedForm``). {145.13} is the integration slice that shape-adapts
+{145.11}'s output to ``ExtractedForm`` and wires it into the ``.pdf``
+branch below — deliberately NOT designed here, to keep that shape-adapter
+decision with the subtask that owns both sides of it.
 
 References:
 - TECH.md §3.1 (Plane 2), §3.2 (per-format producer + recovery instruction).
@@ -49,7 +66,6 @@ import json
 import logging
 
 from scripts.cocoindex_pipeline.form_extractors.docx import extract as _extract_docx
-from scripts.cocoindex_pipeline.form_extractors.pdf import extract as _extract_pdf
 from scripts.cocoindex_pipeline.form_extractors.shared import ExtractedForm
 from scripts.cocoindex_pipeline.form_extractors.xlsx import extract as _extract_xlsx
 
@@ -71,8 +87,10 @@ async def extract_form_structure(
     Returns:
         An ``ExtractedForm`` when ``filename`` carries a recognised
         form-bearing suffix and the reader succeeds; ``None`` when the file
-        is not form-relevant (e.g. ``.md`` content) or is an out-of-scope
-        legacy ``.xls`` (Inv-3 — logged, not raised).
+        is not form-relevant (e.g. ``.md`` content), an out-of-scope
+        legacy ``.xls`` (Inv-3 — logged, not raised), or a ``.pdf`` (NOT
+        YET WIRED — see the PDF NOTE in the module docstring; {145.13}
+        wires this branch to {145.11}'s commonforms detector).
 
     Raises:
         FormExtractionError: propagated unchanged from the per-format
@@ -81,12 +99,27 @@ async def extract_form_structure(
     suffix = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     suffix = f".{suffix}" if suffix else ""
 
-    if suffix == ".pdf":
-        return await _extract_pdf(raw_bytes, filename)
     if suffix == ".xlsx":
         return await _extract_xlsx(raw_bytes, filename)
     if suffix == ".docx":
         return await _extract_docx(raw_bytes, filename)
+    if suffix == ".pdf":
+        # NOT YET WIRED (see the module docstring's PDF NOTE) — {145.11}'s
+        # commonforms detector lives at this package's pdf.py but returns
+        # PdfFieldDetectionResult, not this package's ExtractedForm; {145.13}
+        # is the integration slice that shape-adapts and wires it in. Until
+        # then, a .pdf reaching this dispatcher is a NOT-YET-INTEGRATED
+        # condition, not a form_extractor failure — logged, not raised.
+        _logger.info(
+            json.dumps(
+                {
+                    "event": "form_extractor.skip",
+                    "reason": "pdf_not_yet_wired",
+                    "rel_path": filename,
+                }
+            )
+        )
+        return None
     if suffix == ".xls":
         # Inv-3: legacy .xls is out of automated scope for THIS dispatcher —
         # log + return None (NOT a FormExtractionError — there is no
