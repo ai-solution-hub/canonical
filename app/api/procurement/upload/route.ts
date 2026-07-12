@@ -107,6 +107,29 @@ const TARGET_MIME_TYPE: Record<string, string> = {
   [LEGACY_XLS_MIME]: XLSX_MIME,
 };
 
+/**
+ * Storage-key extension for each TARGET (post-conversion) mime type — the
+ * SAME 3-valued {docx,xlsx,pdf} set as `form_instances.mime_type`'s CHECK.
+ * Security finding (automated commit review, MEDIUM, path traversal):
+ * the storage key MUST NOT be built from the client-supplied `file.name` —
+ * derive the extension from the VALIDATED target mime type instead. The
+ * original filename is kept ONLY in the DB `filename` column (display),
+ * never in the storage key.
+ */
+const EXTENSION_FOR_TARGET_MIME: Record<string, string> = {
+  [PDF_MIME]: 'pdf',
+  [DOCX_MIME]: 'docx',
+  [XLSX_MIME]: 'xlsx',
+};
+
+/**
+ * Reject filenames carrying path-traversal or path-separator characters
+ * before they are ever persisted to the DB `filename` column (display-only,
+ * but still untrusted input) — defence in depth alongside the storage-key
+ * fix above, which already does not derive the key from `file.name` at all.
+ */
+const UNSAFE_FILENAME_RE = /[/\\]|\.\.|\0/;
+
 const PDF_MAGIC = [0x25, 0x50, 0x44, 0x46]; // %PDF
 const ZIP_MAGIC = [0x50, 0x4b, 0x03, 0x04]; // PK\x03\x04 — OOXML (docx/xlsx) container
 /** OLE2/MS-CFB compound-file signature — legacy .doc/.xls container. */
@@ -176,6 +199,16 @@ export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
       );
     }
 
+    if (UNSAFE_FILENAME_RE.test(file.name)) {
+      return NextResponse.json(
+        {
+          error:
+            'Invalid filename. Filenames must not contain path separators or ".." segments.',
+        },
+        { status: 400 },
+      );
+    }
+
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
         {
@@ -229,7 +262,14 @@ export const POST = defineRoute(z.unknown(), async (request: NextRequest) => {
 
     const targetMimeType = TARGET_MIME_TYPE[file.type];
     const formInstanceId = crypto.randomUUID();
-    const storagePath = `${formInstanceId}/${file.name}`;
+    // Security fix (automated commit review, MEDIUM, path traversal): the
+    // storage key is built from the VALIDATED target mime type's extension,
+    // never from the client-supplied `file.name` — `../`, `/`, `\`, or a
+    // null byte in a filename cannot escape/manipulate the storage path.
+    // The original filename lives ONLY in the DB `filename` column below
+    // (display) and in `derivedName` (also display-only, further down).
+    const storageExtension = EXTENSION_FOR_TARGET_MIME[targetMimeType];
+    const storagePath = `${formInstanceId}/document.${storageExtension}`;
     const buffer = Buffer.from(arrayBuffer);
 
     const { error: uploadError } = await supabase.storage

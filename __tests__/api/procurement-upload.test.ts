@@ -168,6 +168,25 @@ describe('POST /api/procurement/upload', () => {
     expect(body.error).toContain('No file provided');
   });
 
+  it('rejects a hostile filename containing path-traversal segments (400, no storage write)', async () => {
+    configureRole(mockSupabase, 'editor');
+    const file = makeMockFile(PDF_MAGIC, '../../etc/x.pdf', PDF_MIME);
+    const res = await uploadPost(createUploadRequest(file));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain('Invalid filename');
+    expect(mockSupabase.storage.from).not.toHaveBeenCalled();
+  });
+
+  it('rejects a filename containing a path separator', async () => {
+    configureRole(mockSupabase, 'editor');
+    const file = makeMockFile(PDF_MAGIC, 'sub/dir/x.pdf', PDF_MIME);
+    const res = await uploadPost(createUploadRequest(file));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain('Invalid filename');
+  });
+
   it('returns 400 for an empty file', async () => {
     configureRole(mockSupabase, 'editor');
     const file = makeMockFile(new Uint8Array(0), 'test.pdf', PDF_MIME);
@@ -275,6 +294,18 @@ describe('POST /api/procurement/upload', () => {
     expect(insertArg.mime_type).toBe(PDF_MIME);
     expect(insertArg.ingest_source).toBe('app_upload');
     expect(insertArg.processing_status).toBe('uploaded');
+
+    // Security fix (path traversal): the storage key is derived from the
+    // validated mime type's extension, NEVER from the client-supplied
+    // filename — `standard-sq` must not appear anywhere in the storage key.
+    // `formInstanceId` is generated fresh inside the route (crypto.randomUUID()),
+    // independent of the mocked `CREATED_FORM_ROW.id` returned by the insert
+    // — assert the KEY SHAPE and consistency, not a fixed UUID.
+    const bucket = mockSupabase.storage.from.mock.results[0]?.value;
+    const uploadedPath = bucket?.upload.mock.calls[0][0];
+    expect(uploadedPath).toMatch(/^[0-9a-f-]{36}\/document\.pdf$/);
+    expect(uploadedPath).not.toContain('standard-sq');
+    expect(insertArg.storage_path).toBe(uploadedPath);
 
     // analyse_form job enqueued for this form.
     expect(mockEnqueueQueueJob).toHaveBeenCalledTimes(1);
