@@ -45,6 +45,8 @@ vi.mock('next/headers', () => ({
 const {
   mockExtractPDFQuestions,
   mockExtractDOCXQuestions,
+  mockExtractXLSXQuestions,
+  mockXlsxWorkbookToHtml,
   mockExtractTenderMetadata,
   mockGenerateSearchQueries,
   mockGenerateEmbedding,
@@ -53,6 +55,8 @@ const {
 } = vi.hoisted(() => ({
   mockExtractPDFQuestions: vi.fn(),
   mockExtractDOCXQuestions: vi.fn(),
+  mockExtractXLSXQuestions: vi.fn(),
+  mockXlsxWorkbookToHtml: vi.fn(),
   mockExtractTenderMetadata: vi.fn(),
   mockGenerateSearchQueries: vi.fn(),
   mockGenerateEmbedding: vi.fn(),
@@ -63,6 +67,8 @@ const {
 vi.mock('@/lib/domains/procurement/ai/extract-questions', () => ({
   extractPDFQuestions: mockExtractPDFQuestions,
   extractDOCXQuestions: mockExtractDOCXQuestions,
+  extractXLSXQuestions: mockExtractXLSXQuestions,
+  xlsxWorkbookToHtml: mockXlsxWorkbookToHtml,
   extractTenderMetadata: mockExtractTenderMetadata,
   generateSearchQueries: mockGenerateSearchQueries,
 }));
@@ -187,6 +193,8 @@ function resetMocks() {
   // Reset AI mocks
   mockExtractPDFQuestions.mockResolvedValue({ sections: [] });
   mockExtractDOCXQuestions.mockResolvedValue({ sections: [] });
+  mockExtractXLSXQuestions.mockResolvedValue({ sections: [] });
+  mockXlsxWorkbookToHtml.mockReturnValue('<h2>Sheet1</h2><table></table>');
   mockExtractTenderMetadata.mockResolvedValue(null);
   mockGenerateSearchQueries.mockResolvedValue({ queries: ['test query'] });
   mockGenerateEmbedding.mockResolvedValue(new Array(1024).fill(0));
@@ -672,6 +680,111 @@ describe('POST /api/bids/:id/questions/extract', () => {
 
     // ID-145 {145.7} — BI-6 single state home: no workspaces.update call.
     expect(mockSupabase._chain.update).not.toHaveBeenCalled();
+  });
+
+  it('returns 200 with extracted questions for XLSX format, each carrying expected_response_kind', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Form instance exists
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: BID_UUID, name: 'Test form' },
+      error: null,
+    });
+
+    // ID-145 {145.12}: XLSX extraction — workbook -> HTML via the `xlsx`
+    // reader (mocked here), then the same tool_use path as PDF/DOCX. Each
+    // question carries expected_response_kind — metadata parity with
+    // q_a_extractions.
+    mockExtractXLSXQuestions.mockResolvedValueOnce({
+      sections: [
+        {
+          section_name: 'Pricing Schedule',
+          section_sequence: 1,
+          questions: [
+            {
+              question_text: 'Describe your delivery methodology',
+              question_sequence: 1,
+              word_limit: 300,
+              evaluation_weight: 15,
+              category: 'mandatory',
+              expected_response_kind: 'mandatory',
+            },
+          ],
+        },
+      ],
+    });
+
+    let thenCallCount = 0;
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) {
+          // Existing questions check
+          return resolve({ data: [], error: null });
+        }
+        if (thenCallCount === 2) {
+          // Upsert result
+          return resolve({ data: null, error: null });
+        }
+        if (thenCallCount === 3) {
+          // Fetch saved questions
+          return resolve({
+            data: [
+              {
+                id: QUESTION_UUID,
+                form_instance_id: BID_UUID,
+                section_name: 'Pricing Schedule',
+                question_text: 'Describe your delivery methodology',
+                question_sequence: 1,
+                section_sequence: 1,
+                word_limit: 300,
+                evaluation_weight: 15,
+                confidence_posture: null,
+                assigned_to: null,
+                created_by: 'test-user-id',
+                created_at: '2026-01-01T00:00:00Z',
+                updated_at: '2026-01-01T00:00:00Z',
+              },
+            ],
+            error: null,
+          });
+        }
+        return resolve({ data: [], error: null });
+      },
+    );
+
+    const req = createTestRequest(
+      `/api/procurement/${BID_UUID}/questions/extract`,
+      {
+        method: 'POST',
+        body: { document_path: 'tender.xlsx', format: 'xlsx' },
+      },
+    );
+    const params = createTestParams({ id: BID_UUID });
+    const res = await extractQuestions(req, { params });
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.status).toBe('complete');
+    expect(json.questions_found).toBe(1);
+    expect(json.questions_inserted).toBe(1);
+    expect(json.questions).toHaveLength(1);
+
+    // form_instance_id attachment (BI-10) + expected_response_kind metadata
+    // parity with q_a_extractions — both required by this route's
+    // extraction contract.
+    expect(json.questions[0].form_instance_id).toBe(BID_UUID);
+    expect(json.questions[0].expected_response_kind).toBe('mandatory');
+
+    expect(mockExtractXLSXQuestions).toHaveBeenCalled();
+    expect(mockExtractPDFQuestions).not.toHaveBeenCalled();
+    expect(mockExtractDOCXQuestions).not.toHaveBeenCalled();
+
+    const upsertArg = mockSupabase._chain.upsert.mock.calls[0][0];
+    const rows = Array.isArray(upsertArg) ? upsertArg : [upsertArg];
+    for (const row of rows) {
+      expect(row.form_instance_id).toBe(BID_UUID);
+    }
   });
 
   it('skips duplicate questions already existing for the bid', async () => {

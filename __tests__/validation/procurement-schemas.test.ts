@@ -187,6 +187,16 @@ describe('bid validation schemas', () => {
       expect(result.success).toBe(true);
     });
 
+    // ID-145 {145.12}: XLSX added — Plane-1 extraction covers all three mime
+    // lanes (mime_type CHECK 3-valued: docx/xlsx/pdf).
+    it('accepts valid XLSX extraction', () => {
+      const result = QuestionExtractBodySchema.safeParse({
+        document_path: 'uuid/document.xlsx',
+        format: 'xlsx',
+      });
+      expect(result.success).toBe(true);
+    });
+
     it('rejects missing document_path', () => {
       const result = QuestionExtractBodySchema.safeParse({
         format: 'docx',

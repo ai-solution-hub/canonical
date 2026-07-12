@@ -3,6 +3,7 @@ import { getAnthropicClient, getAIModel } from '@/lib/anthropic';
 import { TenderExtractedMetadataSchema } from '@/lib/validation/schemas';
 import type { TenderExtractedMetadata } from '@/types/procurement-metadata';
 import mammoth from 'mammoth';
+import * as XLSX from 'xlsx';
 import { logger } from '@/lib/logger';
 import { assertSuccessfulStop } from '@/lib/ai/stop-reason';
 
@@ -35,6 +36,14 @@ const _TENDER_QUESTIONS_SCHEMA = {
                     type: 'string' as const,
                     enum: ['mandatory', 'desirable', 'informational'],
                   },
+                  // ID-145 {145.12} — metadata parity with q_a_extractions
+                  // (scripts/cocoindex_pipeline/prompts.py Q_A_FORM_PROMPT):
+                  // the SAME 2-value vocabulary, additive alongside `category`
+                  // (which stays 3-valued for its existing consumers).
+                  expected_response_kind: {
+                    type: 'string' as const,
+                    enum: ['mandatory', 'optional'],
+                  },
                 },
                 required: [
                   'question_text',
@@ -42,6 +51,7 @@ const _TENDER_QUESTIONS_SCHEMA = {
                   'word_limit',
                   'evaluation_weight',
                   'category',
+                  'expected_response_kind',
                 ] as const,
                 additionalProperties: false,
               },
@@ -115,6 +125,14 @@ const EXTRACT_QUESTIONS_TOOL = {
                     type: 'string' as const,
                     enum: ['mandatory', 'desirable', 'informational'],
                   },
+                  // ID-145 {145.12} — metadata parity with q_a_extractions
+                  // (scripts/cocoindex_pipeline/prompts.py Q_A_FORM_PROMPT):
+                  // the SAME 2-value vocabulary, additive alongside `category`
+                  // (which stays 3-valued for its existing consumers).
+                  expected_response_kind: {
+                    type: 'string' as const,
+                    enum: ['mandatory', 'optional'],
+                  },
                 },
                 required: [
                   'question_text',
@@ -122,6 +140,7 @@ const EXTRACT_QUESTIONS_TOOL = {
                   'word_limit',
                   'evaluation_weight',
                   'category',
+                  'expected_response_kind',
                 ] as string[],
                 additionalProperties: false as const,
               },
@@ -152,6 +171,13 @@ export interface ExtractedPDFQuestions {
       word_limit: number | null;
       evaluation_weight: number | null;
       category: 'mandatory' | 'desirable' | 'informational';
+      /**
+       * ID-145 {145.12} — metadata parity with q_a_extractions
+       * (`expected_response_kind`, the SAME 2-value vocabulary as
+       * `scripts/cocoindex_pipeline/extraction.py` QAPair). Additive
+       * alongside `category`, which keeps its existing 3-value shape.
+       */
+      expected_response_kind: 'mandatory' | 'optional';
     }>;
   }>;
 }
@@ -204,6 +230,7 @@ async function extractPDFQuestionsWithToolUse(
 Extract ALL questions that require a written response from the bidder.
 Ignore instructions, preamble, and administrative sections.
 Group questions by section based on document headings.
+For each question set expected_response_kind: MUST be EXACTLY ONE of "mandatory" or "optional" — "optional" for administrative/informational detail fields (company name, VAT number, contact details, and similar), "mandatory" for everything else. NEVER use any other value.
 Use UK English throughout.
 You MUST call the extract_questions tool with your results.`,
     messages: [
@@ -267,6 +294,7 @@ For each question, detect:
 - **Word limits:** Look for patterns like "Max 500 words", "500 words", "(maximum 300 words)" in the question text, adjacent table cells, or dedicated "Word Limit" columns.
 - **Evaluation weights:** Look for patterns like "10%", "10 marks", "10 points" in dedicated "Weighting" or "Max Marks" columns.
 - **Category:** Classify as "informational" if the question asks for administrative details (company name, registered address, VAT number, contact details, trading name, registration number, DUNS number, website URL, turnover, number of employees, parent company, SME status, postcode, email, telephone, signature). Otherwise classify as "mandatory".
+- **Expected response kind:** set expected_response_kind to MUST be EXACTLY ONE of "mandatory" or "optional" — "optional" for the same administrative/informational fields described above, "mandatory" for everything else. NEVER use any other value.
 
 Exclude:
 - Instructions and preamble sections
@@ -282,6 +310,93 @@ You MUST call the extract_questions tool with your results.`,
       {
         role: 'user',
         content: `Extract all bid questions from this tender document HTML:\n\n${html}`,
+      },
+    ],
+    tools: [EXTRACT_QUESTIONS_TOOL],
+    tool_choice: { type: 'tool', name: 'extract_questions' },
+  });
+
+  // B-INV-36: surface refusal / max_tokens explicitly before reading the tool result.
+  assertSuccessfulStop(response, 'extract-questions.extractQuestions');
+
+  return extractToolResult(response);
+}
+
+/**
+ * Convert an XLSX/XLS workbook buffer into structured HTML text — one
+ * `<table>` per sheet, preceded by an `<h2>` sheet-name heading. Mirrors the
+ * DOCX -> HTML conversion (`mammoth`) so the same Claude extraction contract
+ * (table cells, headings) applies uniformly to both formats. Exported so the
+ * best-effort tender-metadata path (route.ts) can reuse the same conversion
+ * without re-deriving it.
+ *
+ * Sheets with no populated cell range (`!ref` absent) are skipped — an
+ * all-empty sheet contributes an empty `<table>` that adds noise without
+ * content for Claude to extract from.
+ */
+export function xlsxWorkbookToHtml(buffer: Buffer): string {
+  const workbook = XLSX.read(buffer, { type: 'buffer' });
+
+  const sections = workbook.SheetNames.map((name) => {
+    const sheet = workbook.Sheets[name];
+    if (!sheet || !sheet['!ref']) return '';
+    return `<h2>${name}</h2>\n${XLSX.utils.sheet_to_html(sheet)}`;
+  }).filter((section) => section.length > 0);
+
+  return sections.join('\n');
+}
+
+/**
+ * Extract questions from an XLSX tender document using the SheetJS `xlsx`
+ * reader + Claude tool_use.
+ *
+ * Converts the workbook to per-sheet HTML tables (preserving row/column
+ * structure — the "Question" / "Word Limit" / "Weighting" column layout
+ * XLSX-format tenders share with DOCX-format tenders), then sends the HTML
+ * to Claude for structured extraction using the same tool_use schema as the
+ * PDF and DOCX paths.
+ */
+export async function extractXLSXQuestions(
+  buffer: Buffer,
+): Promise<ExtractedPDFQuestions> {
+  const html = xlsxWorkbookToHtml(buffer);
+
+  if (!html || html.trim().length === 0) {
+    throw new Error('XLSX conversion produced no content');
+  }
+
+  const anthropic = getAnthropicClient();
+
+  const response = await anthropic.messages.create({
+    model: getAIModel(),
+    max_tokens: 8192,
+    system: `You are extracting questions from a UK tender document that has been converted from XLSX to HTML (one table per sheet, preceded by an <h2> heading naming the sheet).
+
+Extract ALL questions that require a written response from the bidder. These are typically found in:
+- HTML tables with columns like "Question", "Requirement", "Response Required", "Description"
+- Requirement matrices with evaluation criteria, one row per question
+- Rate-card / pricing schedule rows that require a written response (not just a numeric rate)
+
+For each question, detect:
+- **Word limits:** Look for patterns like "Max 500 words", "500 words", "(maximum 300 words)" in the question text, adjacent cells, or dedicated "Word Limit" columns.
+- **Evaluation weights:** Look for patterns like "10%", "10 marks", "10 points" in dedicated "Weighting" or "Max Marks" columns.
+- **Category:** Classify as "informational" if the question asks for administrative details (company name, registered address, VAT number, contact details, trading name, registration number, DUNS number, website URL, turnover, number of employees, parent company, SME status, postcode, email, telephone, signature). Otherwise classify as "mandatory".
+- **Expected response kind:** set expected_response_kind to MUST be EXACTLY ONE of "mandatory" or "optional" — "optional" for the same administrative/informational fields described above, "mandatory" for everything else. NEVER use any other value.
+
+Exclude:
+- Instructions and preamble sections
+- Administrative header fields (company name, address, VAT, etc.) — these should be classified as "informational" if included
+- Response/answer columns and empty answer cells (only extract the question text)
+
+Group questions by section — use the sheet name (the <h2> heading) as the section_name when a sheet has no internal section headings of its own.
+Assign sequential section_sequence (starting from 0) and question_sequence (starting from 0 within each section).
+Use UK English throughout.
+
+You MUST call the extract_questions tool with your results.`,
+    messages: [
+      {
+        role: 'user',
+        content: `Extract all bid questions from this tender spreadsheet, rendered as HTML tables (one per sheet):\n\n${html}`,
       },
     ],
     tools: [EXTRACT_QUESTIONS_TOOL],

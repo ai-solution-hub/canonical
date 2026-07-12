@@ -2,6 +2,8 @@ import {
   extractDOCXQuestions,
   extractPDFQuestions,
   extractTenderMetadata,
+  extractXLSXQuestions,
+  xlsxWorkbookToHtml,
 } from '@/lib/domains/procurement/ai/extract-questions';
 import { defineRoute } from '@/lib/api/define-route';
 import {
@@ -32,6 +34,11 @@ interface ExtractedQuestion {
   question_sequence: number;
   word_limit: number | null;
   evaluation_weight: number | null;
+  // ID-145 {145.12} — metadata parity with q_a_extractions
+  // (expected_response_kind). Not a form_questions column (no W1 DDL added
+  // one) — carried through extraction only, and attached to the API
+  // response by text-match, not persisted to the DB row.
+  expected_response_kind: 'mandatory' | 'optional';
 }
 
 export const POST = defineRoute(
@@ -112,6 +119,7 @@ export const POST = defineRoute(
               question_sequence: question.question_sequence,
               word_limit: question.word_limit ?? null,
               evaluation_weight: question.evaluation_weight ?? null,
+              expected_response_kind: question.expected_response_kind,
             });
           }
         }
@@ -132,6 +140,27 @@ export const POST = defineRoute(
               question_sequence: question.question_sequence,
               word_limit: question.word_limit ?? null,
               evaluation_weight: question.evaluation_weight ?? null,
+              expected_response_kind: question.expected_response_kind,
+            });
+          }
+        }
+      } else if (format === 'xlsx') {
+        // ID-145 {145.12}: workbook -> structured HTML text via the `xlsx`
+        // reader, then the same Claude extraction path as PDF/DOCX.
+        const arrayBuffer = await fileData.arrayBuffer();
+        const result = await extractXLSXQuestions(Buffer.from(arrayBuffer));
+
+        for (const section of result.sections ?? []) {
+          sectionsFound++;
+          for (const question of section.questions ?? []) {
+            extractedQuestions.push({
+              section_name: section.section_name,
+              section_sequence: section.section_sequence,
+              question_text: question.question_text,
+              question_sequence: question.question_sequence,
+              word_limit: question.word_limit ?? null,
+              evaluation_weight: question.evaluation_weight ?? null,
+              expected_response_kind: question.expected_response_kind,
             });
           }
         }
@@ -260,6 +289,13 @@ export const POST = defineRoute(
           const pdfBase64 = Buffer.from(pdfArrayBuffer).toString('base64');
           const result = await extractTenderMetadata(pdfBase64, 'pdf_base64');
           if (result) extracted_metadata = result;
+        } else if (format === 'xlsx') {
+          const xlsxBuffer = Buffer.from(await fileData.arrayBuffer());
+          const html = xlsxWorkbookToHtml(xlsxBuffer);
+          if (html && html.trim().length > 0) {
+            const result = await extractTenderMetadata(html, 'html');
+            if (result) extracted_metadata = result;
+          }
         }
       } catch (metaErr) {
         logger.warn(
@@ -285,13 +321,34 @@ export const POST = defineRoute(
         'bids.questions.extract.savedQuestions.read',
       );
 
+      // ID-145 {145.12} — metadata parity with q_a_extractions
+      // (expected_response_kind): form_questions has no such column (no W1
+      // DDL added one, and this Subtask authors no new migration), so the
+      // per-question classification from THIS extraction pass is attached to
+      // the response by question_text match rather than persisted. Rows
+      // pre-existing before this call (skipped as duplicates) carry no
+      // expected_response_kind — they were not part of this extraction pass.
+      const expectedResponseKindByText = new Map(
+        extractedQuestions.map((q) => [
+          q.question_text.toLowerCase().trim(),
+          q.expected_response_kind,
+        ]),
+      );
+      const questionsWithMetadata = (savedQuestions ?? []).map((q) => ({
+        ...q,
+        expected_response_kind:
+          expectedResponseKindByText.get(
+            q.question_text?.toLowerCase().trim() ?? '',
+          ) ?? null,
+      }));
+
       return NextResponse.json({
         status: 'complete',
         questions_found: extractedQuestions.length,
         sections_found: sectionsFound,
         duplicates_skipped: duplicatesSkipped,
         questions_inserted: questionsInserted,
-        questions: savedQuestions ?? [],
+        questions: questionsWithMetadata,
         ...(extracted_metadata ? { extracted_metadata } : {}),
       });
     } catch (err) {
