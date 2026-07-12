@@ -63,6 +63,26 @@ const VALID_CREATE_BODY = {
   name: 'New Procurement',
   buyer: 'Test Buyer',
   description: 'A new bid',
+  form_type: 'itt',
+};
+
+// ID-145 {145.8} — form-first create: POST mints a `form_instances` row
+// directly (BI-7), never a bare `workspaces` row. This fixture mirrors the
+// real `.select()` projection off the newly-minted row.
+const MOCK_FORM_INSTANCE = {
+  id: VALID_UUID,
+  name: 'New Procurement',
+  description: 'A new bid',
+  form_type: 'itt',
+  processing_status: 'uploaded',
+  workflow_state: 'draft',
+  deadline: null,
+  issuing_organisation: 'Test Buyer',
+  reference_number: null,
+  estimated_value: null,
+  created_by: 'test-user-id',
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
 };
 
 // ID-130 T-B1 / T-B8: the umbrella GET reads workspace identity + the roll-up +
@@ -107,12 +127,6 @@ const MOCK_FORM = {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-// Application-type seed UUID. The POST/INSERT path now does a separate
-// `application_types.select('id').eq('key', 'procurement').maybeSingle()`
-// lookup (T2 schema migration) before the workspace insert. Tests mock that
-// lookup with this canonical fixture id.
-const PROCUREMENT_APP_TYPE_ID = 'aaaaaaaa-0000-4000-8000-000000000001';
 
 function resetMocks() {
   // NB: `vi.clearAllMocks()` clears `mock.calls` but does NOT drain the
@@ -180,18 +194,6 @@ function resetMocks() {
       .mockReturnValue({ data: { publicUrl: 'https://example.com/file' } }),
   };
   mockSupabase.storage.from.mockReturnValue(storageBucket);
-}
-
-/**
- * Configure the `application_types` lookup that POST /api/procurement and the bid
- * sub-routes perform via `maybeSingle()`. Post-T2 the route resolves the
- * procurement application_type id (FK) before inserting/joining workspaces.
- */
-function configureProcurementAppType() {
-  mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-    data: { id: PROCUREMENT_APP_TYPE_ID },
-    error: null,
-  });
 }
 
 // ---------------------------------------------------------------------------
@@ -347,7 +349,7 @@ describe('POST /api/procurement', () => {
     configureRole(mockSupabase, 'editor');
     const req = createTestRequest('/api/procurement', {
       method: 'POST',
-      body: { name: 'Test Procurement' },
+      body: { name: 'Test Procurement', form_type: 'itt' },
     });
     const res = await POST(req);
 
@@ -359,13 +361,30 @@ describe('POST /api/procurement', () => {
     );
   });
 
-  it('returns 201 on successful creation', async () => {
+  // ID-145 {145.8} (BI-7/8): the create action always mints a form (with a
+  // `form_type`) — the FormTypePicker's confirmed choice is required, never
+  // silently defaulted (B-14 precedent).
+  it('returns 400 for missing form_type', async () => {
     configureRole(mockSupabase, 'editor');
-    // Post-T2: route resolves procurement app_type FK before workspace insert.
-    configureProcurementAppType();
+    const req = createTestRequest('/api/procurement', {
+      method: 'POST',
+      body: { name: 'Test Procurement', buyer: 'Test Buyer' },
+    });
+    const res = await POST(req);
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe('Validation failed');
+    expect(body.details).toEqual(
+      expect.arrayContaining([expect.objectContaining({ field: 'form_type' })]),
+    );
+  });
+
+  it('returns 201 on successful creation, minting a form_instances row directly (never a bare workspace)', async () => {
+    configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: MOCK_BID,
+      data: MOCK_FORM_INSTANCE,
       error: null,
     });
 
@@ -378,43 +397,75 @@ describe('POST /api/procurement', () => {
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.id).toBe(VALID_UUID);
-    expect(body.name).toBe('Test Procurement');
+    expect(body.name).toBe('New Procurement');
+    expect(body.form_type).toBe('itt');
 
-    // Content-of-write: the new bid row carries the caller-supplied name +
-    // buyer, points at the procurement application_type FK, defaults the
-    // status to draft, and stamps the actor. Post-T2 the discriminator is
-    // `application_type_id` (UUID), not `type` ('bid').
+    // BI-7: the item IS the form — the route mints `form_instances` directly,
+    // never a `workspaces` row (the born-formless root cause this Subtask
+    // fixes).
+    expect(mockSupabase.from).toHaveBeenCalledWith('form_instances');
+    expect(mockSupabase.from).not.toHaveBeenCalledWith('workspaces');
+    expect(mockSupabase.from).not.toHaveBeenCalledWith('application_types');
+
+    // Content-of-write: buyer re-anchors to `issuing_organisation` (the
+    // native column, BI-5/BI-1 — no more nested `domain_metadata`); the
+    // confirmed `form_type` is authoritative (B-14); the row is minted
+    // docless (`ingest_source='minted'`, the re-cut CHECK's reserved value
+    // for exactly this case, TECH.md §2 M3) and stamped with the actor.
     const insertArg = mockSupabase._chain.insert.mock.calls[0][0];
     expect(insertArg).toMatchObject({
       name: 'New Procurement',
-      application_type_id: PROCUREMENT_APP_TYPE_ID,
+      issuing_organisation: 'Test Buyer',
+      form_type: 'itt',
+      ingest_source: 'minted',
       created_by: 'test-user-id',
-      domain_metadata: expect.objectContaining({
-        buyer: 'Test Buyer',
-        status: 'draft',
-      }),
     });
-    expect(insertArg).not.toHaveProperty('type');
+    expect(insertArg).not.toHaveProperty('domain_metadata');
+    expect(insertArg).not.toHaveProperty('workspace_id');
+    expect(insertArg).not.toHaveProperty('application_type_id');
   });
 
-  it('returns 409 on duplicate name (Postgres 23505)', async () => {
+  it('parses a currency-formatted estimated_value into a numeric column value', async () => {
     configureRole(mockSupabase, 'editor');
-    configureProcurementAppType();
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: null,
-      error: { code: '23505', message: 'duplicate key value' },
+      data: { ...MOCK_FORM_INSTANCE, estimated_value: 50000 },
+      error: null,
     });
 
     const req = createTestRequest('/api/procurement', {
       method: 'POST',
-      body: VALID_CREATE_BODY,
+      body: { ...VALID_CREATE_BODY, estimated_value: '£50,000' },
     });
     const res = await POST(req);
 
-    expect(res.status).toBe(409);
-    const body = await res.json();
-    expect(body.error).toContain('already exists');
+    expect(res.status).toBe(201);
+    const insertArg = mockSupabase._chain.insert.mock.calls[0][0];
+    expect(insertArg.estimated_value).toBe(50000);
+  });
+
+  it('folds notes into description (the surviving free-text column) rather than dropping it', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: MOCK_FORM_INSTANCE,
+      error: null,
+    });
+
+    const req = createTestRequest('/api/procurement', {
+      method: 'POST',
+      body: {
+        name: 'New Procurement',
+        buyer: 'Test Buyer',
+        form_type: 'itt',
+        notes: 'Follow up next week.',
+      },
+    });
+    const res = await POST(req);
+
+    expect(res.status).toBe(201);
+    const insertArg = mockSupabase._chain.insert.mock.calls[0][0];
+    expect(insertArg.description).toBe('Follow up next week.');
   });
 });
 

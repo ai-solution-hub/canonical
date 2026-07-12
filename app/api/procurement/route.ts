@@ -8,6 +8,7 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { tryQuery } from '@/lib/supabase/safe';
 import { parseBody, parseSearchParams } from '@/lib/validation';
 import {
   ProcurementCreateBodySchema,
@@ -187,37 +188,75 @@ export const GET = defineRoute(
   },
 );
 
-// POST returns the inserted procurement workspace row (status 201) from
-// `.insert().select('id, name, description, status, domain_metadata,
-// is_archived, created_by, created_at, updated_at, updated_by').single()`.
-// `status` is .optional() because some 2xx insert projections omit it; the
-// remaining selected columns are nullable DB values.
-const ProcurementRowSchema = z.object({
+/**
+ * `estimated_value` is a free-text field in the creation wizard (placeholder
+ * "e.g. £50,000") but a native `numeric` column on `form_instances`
+ * post-{145.6} M3 (BI-5 — first-class form attribute, no longer nested,
+ * unvalidated JSONB). Strip everything but digits/decimal point and
+ * best-effort parse; unparseable/empty input maps to NULL rather than
+ * rejecting the whole create — the field is optional and the common failure
+ * mode is a stray currency symbol or thousands separator, not malicious
+ * input.
+ */
+function parseEstimatedValue(raw: string | undefined): number | null {
+  if (!raw) return null;
+  const cleaned = raw.replace(/[^0-9.]/g, '');
+  if (!cleaned) return null;
+  const value = Number(cleaned);
+  return Number.isFinite(value) ? value : null;
+}
+
+// POST mints the item's `form_instances` row directly (ID-145 {145.8},
+// BI-7) — the item IS the form, never a bare `workspaces` row (the
+// born-formless root cause: the pre-{145.8} handler inserted only
+// `.from('workspaces')`, RESEARCH §6 root cause 1). The FormTypePicker's
+// confirmed choice (`form_type`) is required, never silently defaulted
+// (B-14 precedent, ARCH-REVIEW §6 BI-11 gate carries over unchanged).
+const CreateFormInstanceBodySchema = ProcurementCreateBodySchema.extend({
+  // The closed CV enum lives in `api.form_types` (DB) + the
+  // `form_instances_form_type_fkey` FK — Zod only guards shape here rather
+  // than duplicating the 7-value tuple a third time (server
+  // `lib/validation/schemas.ts` and client `form-type-picker.tsx` already
+  // keep their own compile-time copies for documented reasons, and neither
+  // file is in this Subtask's file-ownership boundary).
+  form_type: z.string().trim().min(1, 'Form type is required').max(50),
+});
+
+// Response = the created `form_instances` row (the item IS the form,
+// BI-1/BI-7) — replaces the pre-{145.8} bare `workspaces` row projection.
+// `estimated_value` is the native numeric column (see parseEstimatedValue).
+const ProcurementCreateResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().nullable().optional(),
-  status: z.string().nullable().optional(),
-  // domain_metadata is the inserted jsonb value passed through verbatim.
-  domain_metadata: z.unknown(),
-  is_archived: z.boolean().nullable().optional(),
+  form_type: z.string().nullable().optional(),
+  processing_status: z.string().nullable().optional(),
+  workflow_state: z.string().nullable().optional(),
+  deadline: z.string().nullable().optional(),
+  issuing_organisation: z.string().nullable().optional(),
+  reference_number: z.string().nullable().optional(),
+  estimated_value: z.number().nullable().optional(),
   created_by: z.string().nullable().optional(),
   created_at: z.string().nullable().optional(),
   updated_at: z.string().nullable().optional(),
-  updated_by: z.string().nullable().optional(),
 });
 export const POST = defineRoute(
-  ProcurementRowSchema,
+  ProcurementCreateResponseSchema,
   async (request: NextRequest) => {
     try {
       const auth = await getAuthorisedClient(['admin', 'editor']);
       if (!auth.success) return authFailureResponse(auth);
       const { user, supabase } = auth;
 
-      const { allowed } = checkRateLimit(`bids:${user.id}`, 10, 60_000);
+      const { allowed } = checkRateLimit(
+        `procurement-create:${user.id}`,
+        10,
+        60_000,
+      );
       if (!allowed) return rateLimitResponse();
 
       const raw = await request.json();
-      const parsed = parseBody(ProcurementCreateBodySchema, raw);
+      const parsed = parseBody(CreateFormInstanceBodySchema, raw);
       if (!parsed.success) return parsed.response;
 
       const {
@@ -228,73 +267,66 @@ export const POST = defineRoute(
         reference_number,
         estimated_value,
         notes,
+        form_type,
       } = parsed.data;
 
-      const domainMetadata = {
-        buyer,
-        status: 'draft',
-        deadline: deadline ?? null,
-        reference_number: reference_number ?? null,
-        estimated_value: estimated_value ?? null,
-        tender_source: null,
-        tender_document_ids: [],
-        submission_date: null,
-        outcome: null,
-        outcome_notes: null,
-        notes: notes ?? null,
-      };
+      // ID-145 {145.8} (BI-7): mint the form_instances row directly — no
+      // `workspaces` insert, no `application_types` resolution (that
+      // discriminator belongs to the workspace stratum, which W1 (M5)
+      // deletes wholesale for procurement; form_instances carries no
+      // workspace concept post-{145.6} M3). No document exists yet at
+      // blank-creation time, so the doc-identity columns get the
+      // {130.13}-style placeholder mint convention; `ingest_source='minted'`
+      // is the re-cut CHECK's reserved value for exactly this docless-mint
+      // case (never 'app_upload', which now means a real uploaded document —
+      // TECH.md §2 M3).
+      const insertResult = await tryQuery<Record<string, unknown>>(
+        supabase
+          .from('form_instances')
+          .insert({
+            name,
+            // `notes`/`tender_source`/`outcome_notes` predate the form-first
+            // model and have no column home post-{145.6} M3 (die with the
+            // workspace rows, BI-5). Fold `notes` into `description` (the
+            // one free-text column that survives) rather than silently
+            // dropping the caller's input.
+            description: description?.trim() || notes?.trim() || null,
+            issuing_organisation: buyer,
+            deadline: deadline ?? null,
+            reference_number: reference_number ?? null,
+            estimated_value: parseEstimatedValue(estimated_value),
+            form_type,
+            filename: 'app-created-form.pdf',
+            storage_path: `app-created/${crypto.randomUUID()}`,
+            file_size: 0,
+            mime_type: 'application/pdf',
+            ingest_source: 'minted',
+            created_by: user.id,
+          })
+          .select(
+            'id, name, description, form_type, processing_status, workflow_state, deadline, issuing_organisation, reference_number, estimated_value, created_by, created_at, updated_at',
+          )
+          .single(),
+        'procurement.create',
+      );
 
-      // Resolve the procurement application_type id (seeded in T2 sub-task 1.2).
-      // Per Q-OQR1-02, `bid` workspaces live under the `procurement` umbrella.
-      const { data: appType, error: appTypeError } = await supabase
-        .from('application_types')
-        .select('id')
-        .eq('key', 'procurement')
-        .maybeSingle();
-      if (appTypeError || !appType) {
+      if (!insertResult.ok) {
         logger.error(
-          { err: appTypeError },
-          'Failed to resolve procurement application_type',
+          { err: insertResult.error },
+          'Failed to create procurement item',
         );
         return NextResponse.json(
-          { error: 'procurement application_type not seeded' },
+          { error: 'Failed to create procurement item' },
           { status: 500 },
         );
       }
 
-      const { data, error } = await supabase
-        .from('workspaces')
-        .insert({
-          name,
-          description: description ?? null,
-          application_type_id: appType.id,
-          status: 'draft',
-          created_by: user.id,
-          domain_metadata: domainMetadata,
-        })
-        .select(
-          'id, name, description, status, domain_metadata, is_archived, created_by, created_at, updated_at, updated_by',
-        )
-        .single();
-
-      if (error) {
-        if (error.code === '23505') {
-          return NextResponse.json(
-            { error: `A bid named "${name}" already exists` },
-            { status: 409 },
-          );
-        }
-        logger.error({ err: error }, 'Failed to create bid');
-        return NextResponse.json(
-          { error: 'Failed to create bid' },
-          { status: 500 },
-        );
-      }
-
-      return NextResponse.json(data, { status: 201 });
+      return NextResponse.json(insertResult.data, { status: 201 });
     } catch (err) {
       return NextResponse.json(
-        { error: safeErrorMessage(err, 'Failed to create bid') },
+        {
+          error: safeErrorMessage(err, 'Failed to create procurement item'),
+        },
         { status: 500 },
       );
     }
