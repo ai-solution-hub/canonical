@@ -13,6 +13,7 @@ import {
 } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
+import { recomputeQuestionMatchesBatch } from '@/lib/domains/procurement/question-match-recompute';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { sb } from '@/lib/supabase/safe';
 import { parseBody } from '@/lib/validation';
@@ -72,9 +73,12 @@ export const POST = defineRoute(
       // ID-145 {145.7} — form-first: the route [id] IS the form_instances id
       // directly (BI-1/BI-2). No more workspace lookup/discriminator join —
       // form_instances carries no workspace_id post-{145.6} M3.
+      // ID-145 {145.17} (R7/BI-34): `form_type` is also read here — it is
+      // the `question_matches.question_kind` FK value used by the
+      // post-insert recompute loop below.
       const { data: form, error: formError } = await supabase
         .from('form_instances')
-        .select('id, name')
+        .select('id, name, form_type')
         .eq('id', id)
         .single();
 
@@ -169,6 +173,9 @@ export const POST = defineRoute(
       // Deduplicate against existing questions before inserting
       let questionsInserted = 0;
       let duplicatesSkipped = 0;
+      // ID-145 {145.17} (R7/BI-34) — populated below when new questions are
+      // inserted; scopes the post-insert recompute loop to THIS pass only.
+      let newQuestionTexts = new Set<string>();
 
       if (extractedQuestions.length > 0) {
         // ID-145 {145.7}: `form_questions.workspace_id` is dropped ({145.6}
@@ -262,6 +269,14 @@ export const POST = defineRoute(
         }
 
         questionsInserted = newQuestions.length;
+        // ID-145 {145.17} (R7/BI-34): text-match set used below to scope the
+        // recompute loop to the questions actually inserted by THIS pass
+        // (mirrors the expectedResponseKindByText text-match convention
+        // further down this function) — recomputing pre-existing, already
+        // extracted questions on every re-extraction pass would be wasteful.
+        newQuestionTexts = new Set(
+          newQuestions.map((q) => q.question_text.toLowerCase().trim()),
+        );
 
         // ID-145 {145.7} — BI-6 single state home: the ex-workspaces.status
         // second home ('questions_extracted') is retired here — workflow_state
@@ -341,6 +356,26 @@ export const POST = defineRoute(
             q.question_text?.toLowerCase().trim() ?? '',
           ) ?? null,
       }));
+
+      // ID-145 {145.17} (R7/BI-34) — recompute question_matches for exactly
+      // the questions newly inserted by THIS extraction pass (the
+      // newQuestionTexts set, same text-match convention as
+      // expectedResponseKindByText above), never the pre-existing rows also
+      // present in savedQuestions. Awaited before responding — best-effort
+      // internally, see the helper docstring.
+      const questionsToRecompute = questionsWithMetadata.filter((q) =>
+        newQuestionTexts.has(q.question_text?.toLowerCase().trim() ?? ''),
+      );
+      if (questionsToRecompute.length > 0) {
+        await recomputeQuestionMatchesBatch(
+          supabase,
+          questionsToRecompute.map((q) => ({
+            id: q.id,
+            questionText: q.question_text,
+          })),
+          form.form_type,
+        );
+      }
 
       return NextResponse.json({
         status: 'complete',

@@ -1,13 +1,15 @@
 /**
  * MCP tool registrations for the Knowledge Hub server.
  *
- * Registers 40 tools across 16 category files (canonical surface after the
+ * Registers 41 tools across 17 category files (canonical surface after the
  * S357 Wave-1 consolidations + ID-117.12 get_document_diff retirement +
- * ID-131.19 get_workspace_items retirement — see scripts/mcp-eval/fixtures.ts,
- * drift-guarded by mcp-fixture-sync.test.ts):
+ * ID-131.19 get_workspace_items retirement + ID-145 {145.17} R7 reader
+ * addition — see scripts/mcp-eval/fixtures.ts, drift-guarded by
+ * mcp-fixture-sync.test.ts):
  *   - search.ts     (2): find_duplicates, find
  *   - content.ts    (5): get, create_content_item, update_content_item, assign, get_document_versions
  *   - procurement.ts (5): list_active_procurement, get_procurement_detail, get_form_question, cite_content, get_content_effectiveness
+ *   - question-matches.ts (1): get_question_matches
  *   - dashboard.ts  (2): get_reorientation, where_are_we_exposed
  *   - quality.ts    (1): suggest_content_creation
  *   - governance.ts (4): delete_content_item, update_governance_status, update_publication_status, review_governance_item
@@ -34,6 +36,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerSearchTools } from './search';
 import { registerContentTools } from './content';
 import { registerProcurementTools } from './procurement';
+import { registerQuestionMatchTools } from './question-matches';
 import { registerDashboardTools } from './dashboard';
 import { registerQualityTools } from './quality';
 import { registerAITools } from './ai';
@@ -53,14 +56,14 @@ export async function registerTools(server: McpServer): Promise<void> {
   // Preserve the original ordering: search, dashboard, bids, content,
   // reorientation, quality, AI, entities, templates, apps, governance.
   // Review tools (S180 P0-23) register after governance so review/governance
-  // tools appear together in client discovery.
-  //
-  // Within each category file, tools are registered in their original
-  // numeric order from the monolith.
+  // tools appear together in client discovery. question-matches (ID-145
+  // {145.17}) registers directly after procurement — same domain, new file
+  // (kept disjoint from procurement.ts per TECH §4 / {145.21} ownership).
 
   await registerSearchTools(server);
   await registerDashboardTools(server);
   await registerProcurementTools(server);
+  await registerQuestionMatchTools(server);
   await registerContentTools(server);
   await registerQualityTools(server);
   await registerAITools(server);
