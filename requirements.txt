@@ -18,6 +18,16 @@ lxml>=5.0.0
 
 # PDF extraction (used by Python scripts only; JS routes use unpdf)
 pdfplumber==0.11.9
+# commonforms + pypdf: PDF Plane-2 field DETECTION (ID-145.11, DR-057, BI-20).
+# Real UK procurement PDFs are FLAT — pypdf.PdfReader.get_fields() is a dead
+# end (0 AcroForm fields, 5/5 measured) — so commonforms.prepare_form(...)
+# render->detect->write (FFDetr, CPU, licence ratified Apache-2.0 — DR-057,
+# adopted DIRECTLY, no in-repo wrapper fallback) is mandatory. pypdf reads the
+# detected widgets back off the fillable artefact it writes. Both re-verified
+# at impl time (TECH.md §1.3) against the SQ PDF fixture: 198 fields / 57pp
+# reproduced exactly (141 /Tx + 57 /Btn, matching ARCH-REVIEW §4.1).
+commonforms==0.2.1
+pypdf==6.14.2
 
 # XLSX extraction (used by ID-52 Path B Python form extractor;
 # transitive via cocoindex today but pinned explicitly as a direct
