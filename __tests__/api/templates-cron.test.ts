@@ -291,7 +291,7 @@ describe('POST /api/bids/:id/templates/:templateId/auto-map', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID_2, status: 'uploaded' },
+      data: { id: VALID_UUID_2, processing_status: 'uploaded' },
       error: null,
     });
 
@@ -312,7 +312,7 @@ describe('POST /api/bids/:id/templates/:templateId/auto-map', () => {
 
     // Template exists and is analysed
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID_2, status: 'analysed' },
+      data: { id: VALID_UUID_2, processing_status: 'analysed' },
       error: null,
     });
 
@@ -339,11 +339,13 @@ describe('POST /api/bids/:id/templates/:templateId/auto-map', () => {
 
     // Template exists
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID_2, status: 'analysed' },
+      data: { id: VALID_UUID_2, processing_status: 'analysed' },
       error: null,
     });
 
-    // Unmapped fields
+    // Unmapped form_instance_fields rows -- ID-145 {145.14}: real writer
+    // output (e.g. PDF's pdfplumber-paired label text, {145.11}), not the
+    // structural no-op the route was before a field writer existed.
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
@@ -352,7 +354,7 @@ describe('POST /api/bids/:id/templates/:templateId/auto-map', () => {
         }),
     );
 
-    // Procurement questions
+    // This form's form_questions rows
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
@@ -384,6 +386,66 @@ describe('POST /api/bids/:id/templates/:templateId/auto-map', () => {
     expect(body.mapped).toBe(1);
     expect(body.mappings).toHaveLength(1);
     expect(body.mappings[0].confidence).toBe(0.8);
+    // BI-21/BI-26: auto-map leaves the field 'unreviewed' (not
+    // pre-confirmed) so the user can still review/adjust the mapping.
+    expect(body.mappings[0].field_id).toBe('field-1');
+    expect(body.mappings[0].question_id).toBe('q-1');
+  });
+
+  it('produces a per-field mapping over real form_instance_fields rows, not a no-op against an empty set', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Template exists and is analysed
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID_2, processing_status: 'analysed' },
+      error: null,
+    });
+
+    // Two real fields carrying non-empty question_text (PDF: pdfplumber-
+    // paired label text {145.11}; OOXML: cell labels {145.10}).
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            { id: 'field-1', question_text: 'Company registration number' },
+            { id: 'field-2', question_text: 'Unrelated field text' },
+          ],
+          error: null,
+        }),
+    );
+
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [{ id: 'q-1', question_text: 'Company registration number' }],
+          error: null,
+        }),
+    );
+
+    mockSimilarity
+      .mockReturnValueOnce(1.0) // field-1 vs q-1: exact match
+      .mockReturnValueOnce(0.1); // field-2 vs q-1: below threshold
+
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: null, count: 1 }),
+    );
+
+    const req = createTestRequest('/api/procurement/x/templates/y/auto-map', {
+      method: 'POST',
+      body: { threshold: 0.7 },
+    });
+
+    const res = await autoMapPost(req, { params });
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.total).toBe(2);
+    expect(body.mapped).toBe(1);
+    expect(body.unmapped).toBe(1);
+    expect(body.mappings[0].field_question_text).toBe(
+      'Company registration number',
+    );
   });
 });
 

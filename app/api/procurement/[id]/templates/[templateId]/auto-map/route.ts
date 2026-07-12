@@ -47,13 +47,17 @@ export const POST = defineRoute(
       if (!parsed.success) return parsed.response;
       const { threshold } = parsed.data;
 
-      // Verify template exists and is analysed.
-      // Post-T2: `templates` → `form_templates`, `workspace_id` → `workspace_id`.
+      // Verify the form exists and is analysed.
+      // ID-145 {145.6} M3 (TECH.md section 2): `form_templates` -> `form_instances`,
+      // `status` -> `processing_status`, `workspace_id` DROPPED (BI-1 -- the item
+      // IS the form, no second workspace-mediated home). `templateId` is the
+      // form_instances row's own id -- there is no longer a workspace scope to
+      // join against; `procurementId` stays format-validated above for the
+      // route's URL shape but is not a query predicate here.
       const { data: template, error: templateError } = await supabase
-        .from('form_templates')
-        .select('id, status')
+        .from('form_instances')
+        .select('id, processing_status')
         .eq('id', templateId)
-        .eq('workspace_id', procurementId)
         .single();
 
       if (templateError || !template) {
@@ -63,19 +67,24 @@ export const POST = defineRoute(
         );
       }
 
-      if (template.status !== 'analysed' && template.status !== 'completed') {
+      if (
+        template.processing_status !== 'analysed' &&
+        template.processing_status !== 'completed'
+      ) {
         return NextResponse.json(
           { error: 'Template must be analysed before auto-mapping' },
           { status: 409 },
         );
       }
 
-      // Fetch unmapped template fields.
-      // Post-T2: `template_fields` → `form_template_fields`.
+      // Fetch unmapped fields for this form.
+      // ID-145 {145.6} M3: `form_template_fields` -> `form_instance_fields`,
+      // `template_id` -> `form_instance_id` (BI-21 -- un-orphaned against real
+      // rows once {145.10}/{145.11} restore the Plane-2 writer).
       const { data: fields, error: fieldsError } = await supabase
-        .from('form_template_fields')
+        .from('form_instance_fields')
         .select('id, question_text')
-        .eq('template_id', templateId)
+        .eq('form_instance_id', templateId)
         .in('mapping_status', ['unreviewed', 'unmapped'])
         .not('question_text', 'is', null);
 
@@ -95,12 +104,14 @@ export const POST = defineRoute(
         });
       }
 
-      // Fetch bid questions for this workspace.
-      // Post-T2: `form_questions.workspace_id` → `workspace_id`.
+      // Fetch this form's questions.
+      // ID-145 {145.6} M3: `form_questions.workspace_id` (dropped) ->
+      // `form_questions.form_instance_id` (NOT NULL, BI-7 -- every question
+      // belongs to exactly one form, by construction).
       const { data: questions, error: questionsError } = await supabase
         .from('form_questions')
         .select('id, question_text')
-        .eq('workspace_id', procurementId);
+        .eq('form_instance_id', templateId);
 
       if (questionsError || !questions || questions.length === 0) {
         return NextResponse.json({
@@ -151,9 +162,9 @@ export const POST = defineRoute(
 
         if (bestMatch) {
           // Update field with auto-mapped question.
-          // Post-T2: `template_fields` → `form_template_fields`.
+          // ID-145 {145.6} M3: `form_template_fields` -> `form_instance_fields`.
           await supabase
-            .from('form_template_fields')
+            .from('form_instance_fields')
             .update({
               question_id: bestMatch.question_id,
               mapping_status: 'unreviewed',
@@ -175,17 +186,18 @@ export const POST = defineRoute(
         }
       }
 
-      // Update mapped_count on template.
-      // Post-T2: `template_fields` → `form_template_fields`, `templates` → `form_templates`.
+      // Update mapped_count on the form.
+      // ID-145 {145.6} M3: `form_template_fields` -> `form_instance_fields`,
+      // `template_id` -> `form_instance_id`, `form_templates` -> `form_instances`.
       const { count } = await supabase
-        .from('form_template_fields')
+        .from('form_instance_fields')
         .select('id', { count: 'exact', head: true })
-        .eq('template_id', templateId)
+        .eq('form_instance_id', templateId)
         .not('question_id', 'is', null)
         .in('mapping_status', ['unreviewed', 'confirmed', 'manual']);
 
       await supabase
-        .from('form_templates')
+        .from('form_instances')
         .update({ mapped_count: count ?? 0 })
         .eq('id', templateId);
 
