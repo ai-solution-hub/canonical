@@ -89,6 +89,12 @@ type Role = (typeof ROLES)[number];
  * dynamic-only tables (signup_policy, tenant_config, content_propagation_version)
  * that never appear as a `.from('literal')` but are reached via `.from(variable)`
  * (SURFACE.md §3). Each MUST be a public BASE TABLE (asserted below).
+ *
+ * ID-145 {145.6} W1c renames: form_templates -> form_instances,
+ * form_template_fields -> form_instance_fields, form_template_requirements ->
+ * form_requirement_templates (BI-1). `engagement_groups`, the new LINK table
+ * from the same migration, is DELIBERATELY NOT added here — see
+ * scripts/check-api-view-coverage.ts's INTERNAL_ONLY_TABLES entry for it.
  */
 export const SURFACE_TABLES: readonly string[] = [
   'ai_call_events',
@@ -111,13 +117,13 @@ export const SURFACE_TABLES: readonly string[] = [
   'feed_flags',
   'feed_prompts',
   'feed_sources',
+  'form_instance_fields',
+  'form_instances',
   'form_outcome_types',
   'form_questions',
+  'form_requirement_templates',
   'form_response_history',
   'form_responses',
-  'form_template_fields',
-  'form_template_requirements',
-  'form_templates',
   'form_types',
   'governance_config',
   'guide_sections',
