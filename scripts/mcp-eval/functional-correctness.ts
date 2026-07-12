@@ -1592,11 +1592,12 @@ async function runEntityToolChecks(
   // FC-51: get_content_effectiveness with known item — keyword check.
   // Resolves via get_content_win_rate's p_q_a_pair_id (ID-131.10/BI-26
   // re-anchor) — needs qaPairId, not contentItemId (source_documents;
-  // ID-130.23 B2).
+  // ID-130.23 B2). ID-145 {145.21} (DR-056/BI-37): the tool's own arg is
+  // now q_a_pair_id (breaking rename, no alias).
   {
     const result = await callTool(
       'get_content_effectiveness',
-      { content_item_id: knownUUIDs.qaPairId },
+      { q_a_pair_id: knownUUIDs.qaPairId },
       accessToken,
     );
     if (result.errorMessage) {
@@ -2033,7 +2034,7 @@ async function runWriteToolChecks(
       const result = await callTool(
         'cite_content',
         {
-          content_item_id: evalItem.id,
+          q_a_pair_id: evalItem.id,
           form_response_id: knownUUIDs.procurementResponseId,
         },
         accessToken,
@@ -2084,7 +2085,7 @@ async function runWriteToolChecks(
       const result = await callTool(
         'cite_content',
         {
-          content_item_id: evalItem.id,
+          q_a_pair_id: evalItem.id,
           form_response_id: '00000000-0000-0000-0000-000000000000',
         },
         accessToken,

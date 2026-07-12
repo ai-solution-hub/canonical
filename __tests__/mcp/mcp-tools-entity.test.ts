@@ -352,7 +352,7 @@ describe('MCP tools #14-16', () => {
 
       const result = (await handler(
         {
-          content_item_id: 'item-abc',
+          q_a_pair_id: 'item-abc',
           form_response_id: 'resp-xyz',
         },
         extra,
@@ -404,7 +404,7 @@ describe('MCP tools #14-16', () => {
 
       const result = (await handler(
         {
-          content_item_id: 'item-abc',
+          q_a_pair_id: 'item-abc',
           form_response_id: 'resp-xyz',
           citation_type: 'adapted',
         },
@@ -425,7 +425,7 @@ describe('MCP tools #14-16', () => {
 
       const result = (await handler(
         {
-          content_item_id: 'item-abc',
+          q_a_pair_id: 'item-abc',
           form_response_id: 'resp-xyz',
         },
         extra,
@@ -450,7 +450,7 @@ describe('MCP tools #14-16', () => {
 
       const result = (await handler(
         {
-          content_item_id: 'item-abc',
+          q_a_pair_id: 'item-abc',
           form_response_id: 'resp-xyz',
         },
         extra,
@@ -483,13 +483,10 @@ describe('MCP tools #14-16', () => {
         error: null,
       });
 
-      const result = (await handler(
-        { content_item_id: 'item-001' },
-        extra,
-      )) as {
+      const result = (await handler({ q_a_pair_id: 'item-001' }, extra)) as {
         content: Array<{ text: string }>;
         structuredContent: {
-          content_item_id: string;
+          q_a_pair_id: string;
           total_citations: number;
           winning_citations: number;
           losing_citations: number;
@@ -498,9 +495,9 @@ describe('MCP tools #14-16', () => {
         };
       };
 
-      // ID-131.10 (BI-26): get_content_win_rate arg renamed p_content_item_id ->
-      // p_q_a_pair_id. The tool surface stays content_item-shaped (input content_item_id);
-      // only the RPC arg key changed, so the asserted value is unchanged.
+      // ID-145 {145.21} (DR-056/BI-37): the TOOL's own external arg is now
+      // BREAKINGLY renamed content_item_id -> q_a_pair_id (no alias),
+      // matching the RPC arg it wraps (p_q_a_pair_id, ID-131.10 BI-26).
       expect(supabase.rpc).toHaveBeenCalledWith('get_content_win_rate', {
         p_q_a_pair_id: 'item-001',
       });
@@ -509,7 +506,7 @@ describe('MCP tools #14-16', () => {
       expect(result.content[0].text).toContain('70%');
       expect(result.content[0].text).toContain('highly effective');
 
-      expect(result.structuredContent.content_item_id).toBe('item-001');
+      expect(result.structuredContent.q_a_pair_id).toBe('item-001');
       expect(result.structuredContent.total_citations).toBe(10);
       expect(result.structuredContent.winning_citations).toBe(7);
       expect(result.structuredContent.losing_citations).toBe(3);
@@ -525,10 +522,7 @@ describe('MCP tools #14-16', () => {
         error: null,
       });
 
-      const result = (await handler(
-        { content_item_id: 'item-002' },
-        extra,
-      )) as {
+      const result = (await handler({ q_a_pair_id: 'item-002' }, extra)) as {
         content: Array<{ text: string }>;
         structuredContent: { total_citations: number; win_rate: number };
       };
@@ -546,10 +540,7 @@ describe('MCP tools #14-16', () => {
         error: null,
       });
 
-      const result = (await handler(
-        { content_item_id: 'item-003' },
-        extra,
-      )) as {
+      const result = (await handler({ q_a_pair_id: 'item-003' }, extra)) as {
         structuredContent: {
           total_citations: number;
           winning_citations: number;
@@ -574,10 +565,10 @@ describe('MCP tools #14-16', () => {
         error: { message: 'function not found' },
       });
 
-      const result = (await handler(
-        { content_item_id: 'item-004' },
-        extra,
-      )) as { content: Array<{ text: string }>; isError: boolean };
+      const result = (await handler({ q_a_pair_id: 'item-004' }, extra)) as {
+        content: Array<{ text: string }>;
+        isError: boolean;
+      };
 
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Effectiveness query failed');
@@ -600,10 +591,9 @@ describe('MCP tools #14-16', () => {
         error: null,
       });
 
-      const result = (await handler(
-        { content_item_id: 'item-005' },
-        extra,
-      )) as { content: Array<{ text: string }> };
+      const result = (await handler({ q_a_pair_id: 'item-005' }, extra)) as {
+        content: Array<{ text: string }>;
+      };
 
       expect(result.content[0].text).toContain('low win rate');
     });
@@ -624,10 +614,9 @@ describe('MCP tools #14-16', () => {
         error: null,
       });
 
-      const result = (await handler(
-        { content_item_id: 'item-006' },
-        extra,
-      )) as { content: Array<{ text: string }> };
+      const result = (await handler({ q_a_pair_id: 'item-006' }, extra)) as {
+        content: Array<{ text: string }>;
+      };
 
       expect(result.content[0].text).toContain('Awaiting outcomes');
       expect(result.content[0].text).not.toContain('low win rate');

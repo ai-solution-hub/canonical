@@ -10,7 +10,6 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createMcpClient, getMcpUserId, checkMcpRole } from '@/lib/mcp/auth';
 import { sb } from '@/lib/supabase/safe';
-import { parseProcurementMetadata } from '@/lib/validation/schemas';
 import type { Database } from '@/supabase/types/database.types';
 import {
   formatActiveProcurements,
@@ -31,11 +30,12 @@ import type {
   QualityData,
 } from '@/types/procurement-metadata';
 import type { ActiveProcurementSummary } from '@/lib/dashboard';
+import type { ProcurementWorkflowState } from '@/lib/domains/procurement/procurement-workflow';
+import { isActive } from '@/lib/domains/procurement/procurement-workflow';
 import {
   type ToolExtra,
   toStructuredContent,
   getDashboardModule,
-  getProcurementQueriesModule,
   fetchProcurementSections,
   defineTool,
   READ_ONLY_ANNOTATIONS,
@@ -52,18 +52,22 @@ export async function registerProcurementTools(
     server,
     'list_active_procurement',
     {
-      title: 'List Active Bids',
+      title: 'List Active Procurements',
       description:
-        'List all active (non-archived) bids with their status, buyer, deadline, and question completion progress. Use this to see which bids are in progress and which need attention.',
+        'List all active (non-terminal workflow state) procurements with their workflow state, buyer, deadline, and question completion progress. Use this to see which procurements are in progress and which need attention.',
       inputSchema: {
         limit: z
           .number()
           .optional()
-          .describe('Maximum number of bids to return (default: 20, max: 50)'),
+          .describe(
+            'Maximum number of procurements to return (default: 20, max: 50)',
+          ),
         offset: z
           .number()
           .optional()
-          .describe('Number of bids to skip for pagination (default: 0)'),
+          .describe(
+            'Number of procurements to skip for pagination (default: 0)',
+          ),
       },
       annotations: READ_ONLY_ANNOTATIONS,
     },
@@ -72,25 +76,69 @@ export async function registerProcurementTools(
         const supabase = createMcpClient(extra.authInfo);
         const procurementLimit = Math.min(args.limit ?? 20, 50);
         const procurementOffset = args.offset ?? 0;
-        const { fetchActiveProcurementWithStats } =
-          await getProcurementQueriesModule();
-        const { workspaces, statsMap } =
-          await fetchActiveProcurementWithStats(supabase);
+
+        // DR-056 re-key: the umbrella tool KEEPS its name but its underlying
+        // read moves workspace -> form_instances (the item IS the form,
+        // BI-1). `workspaces`/`procurement_workspaces` are wholesale-deleted
+        // for procurement (W1e, {145.6}) so this can no longer go through the
+        // shared `fetchActiveProcurementWithStats` helper (which stays
+        // workspace-shaped for its OTHER two callers, lib/dashboard.ts and
+        // lib/reorient.ts, owned outside this Subtask) — the form-scoped read
+        // is inlined here instead. "Active" = non-terminal `workflow_state`
+        // (PROCUREMENT_WORKFLOW_STATES is the single source, BI-18); there is
+        // no `is_archived` concept on `form_instances`.
+        const forms = await sb(
+          supabase
+            .from('form_instances')
+            .select('id, name, issuing_organisation, deadline, workflow_state')
+            .order('updated_at', { ascending: false }),
+          'mcp.procurement.list_active_forms',
+        );
+        const activeForms = (forms ?? []).filter((form) =>
+          isActive(
+            (form.workflow_state as ProcurementWorkflowState) ?? 'draft',
+          ),
+        );
+
+        const formIds = activeForms.map((form) => form.id);
+        const batchStats =
+          formIds.length > 0
+            ? await sb(
+                supabase.rpc('get_form_question_stats_batch', {
+                  p_project_ids: formIds,
+                }),
+                'mcp.procurement.question_stats_batch',
+              )
+            : [];
+        const statsMap = new Map<
+          string,
+          {
+            total_questions: number;
+            drafted_count: number;
+            complete_count: number;
+          }
+        >();
+        for (const row of batchStats ?? []) {
+          statsMap.set(row.workspace_id, {
+            total_questions: row.total_questions,
+            drafted_count: row.drafted_count,
+            complete_count: row.complete_count,
+          });
+        }
 
         // Map to ActiveProcurementSummary type
         const { getDeadlineUrgency, getDaysUntilDeadline } =
           await getDashboardModule();
-        const allProcurements: ActiveProcurementSummary[] = workspaces.map(
-          (workspace) => {
-            const meta = parseProcurementMetadata(workspace.domain_metadata);
-            const stats = statsMap.get(workspace.id);
-            const deadline = meta?.deadline ?? null;
+        const allProcurements: ActiveProcurementSummary[] = activeForms.map(
+          (form) => {
+            const stats = statsMap.get(form.id);
+            const deadline = form.deadline;
 
             return {
-              id: workspace.id,
-              name: workspace.name ?? 'Untitled Procurement',
-              buyer: meta?.buyer ?? null,
-              status: meta?.status ?? 'draft',
+              id: form.id,
+              name: form.name ?? 'Untitled Procurement',
+              buyer: form.issuing_organisation ?? null,
+              status: form.workflow_state,
               deadline,
               days_until_deadline: getDaysUntilDeadline(deadline),
               total_questions: stats?.total_questions ?? 0,
@@ -141,7 +189,7 @@ export async function registerProcurementTools(
           content: [
             {
               type: 'text' as const,
-              text: `Failed to list bids: ${message}. Try simplifying your query or removing filters.`,
+              text: `Failed to list procurements: ${message}. Try simplifying your query or removing filters.`,
             },
           ],
           isError: true,
@@ -159,9 +207,9 @@ export async function registerProcurementTools(
     {
       title: 'Get Procurement Detail',
       description:
-        'Get detailed information about a specific bid including buyer, deadline, status, and question completion progress. Use this after listing bids to drill into a specific one.',
+        'Get detailed information about a specific procurement including buyer, deadline, status, and question completion progress. Use this after listing procurements to drill into a specific one.',
       inputSchema: {
-        id: z.string().uuid().describe('The UUID of the bid workspace'),
+        id: z.string().uuid().describe('The UUID of the procurement form'),
       },
       annotations: READ_ONLY_ANNOTATIONS,
     },
@@ -169,18 +217,20 @@ export async function registerProcurementTools(
       try {
         const supabase = createMcpClient(extra.authInfo);
 
-        // Fetch workspace (post-T2: discriminator is application_types.key via
-        // JOIN, not the dropped workspaces.type col. 'bid' → 'procurement').
-        const { data: workspace, error: wsError } = await supabase
-          .from('workspaces')
+        // DR-056 re-key: the id argument + underlying read move
+        // workspace -> form_instances (the item IS the form, BI-1).
+        // `workspaces`/`procurement_workspaces` are wholesale-deleted for
+        // procurement (W1e, {145.6}) — there is no application_types
+        // discriminator to join through any more.
+        const { data: form, error: formError } = await supabase
+          .from('form_instances')
           .select(
-            'id, name, description, domain_metadata, is_archived, application_types!inner(key)',
+            'id, name, description, issuing_organisation, deadline, reference_number, workflow_state',
           )
           .eq('id', args.id)
-          .eq('application_types.key', 'procurement')
           .single();
 
-        if (wsError || !workspace) {
+        if (formError || !form) {
           return {
             content: [
               {
@@ -197,7 +247,7 @@ export async function registerProcurementTools(
           supabase.rpc('get_form_question_stats', {
             p_project_id: args.id,
           }),
-          'mcp.bid.question_stats',
+          'mcp.procurement.question_stats',
         );
 
         // Fetch individual questions grouped by section
@@ -285,15 +335,14 @@ export async function registerProcurementTools(
           };
         }
 
-        const meta = parseProcurementMetadata(workspace.domain_metadata);
         const procurementDetail: ProcurementDetail = {
-          id: workspace.id,
-          name: workspace.name ?? 'Untitled Procurement',
-          buyer: meta?.buyer ?? null,
-          status: meta?.status ?? 'draft',
-          deadline: meta?.deadline ?? null,
-          reference_number: meta?.reference_number ?? null,
-          description: workspace.description,
+          id: form.id,
+          name: form.name ?? 'Untitled Procurement',
+          buyer: form.issuing_organisation ?? null,
+          status: form.workflow_state,
+          deadline: form.deadline,
+          reference_number: form.reference_number,
+          description: form.description,
           question_stats: stats?.[0] ?? null,
           sections,
           status_breakdown,
@@ -319,7 +368,7 @@ export async function registerProcurementTools(
           content: [
             {
               type: 'text' as const,
-              text: `Failed to get bid detail: ${message}. Check the ID is a valid UUID.`,
+              text: `Failed to get procurement detail: ${message}. Check the ID is a valid UUID.`,
             },
           ],
           isError: true,
@@ -403,7 +452,7 @@ export async function registerProcurementTools(
           content: [
             {
               type: 'text' as const,
-              text: `Failed to get bid question: ${message}. Check the ID is a valid UUID.`,
+              text: `Failed to get procurement question: ${message}. Check the ID is a valid UUID.`,
             },
           ],
           isError: true,
@@ -421,12 +470,12 @@ export async function registerProcurementTools(
     {
       title: 'Cite Content',
       description:
-        'Record that a knowledge base Q&A pair was used when drafting a form response. This tracks which content contributes to responses and enables win rate analysis. Requires editor or admin role. Note: if the same content_item_id + form_response_id pair is cited again, the existing citation is updated (upsert) — re-citing with a different citation_type will silently overwrite the previous type.',
+        'Record that a knowledge base Q&A pair was used when drafting a form response. This tracks which content contributes to responses and enables win rate analysis. Requires editor or admin role. Note: if the same q_a_pair_id + form_response_id pair is cited again, the existing citation is updated (upsert) — re-citing with a different citation_type will silently overwrite the previous type.',
       inputSchema: {
-        content_item_id: z
+        q_a_pair_id: z
           .string()
           .uuid()
-          .describe('The UUID of the content item that was used'),
+          .describe('The UUID of the Q&A pair that was used'),
         form_response_id: z
           .string()
           .uuid()
@@ -462,16 +511,18 @@ export async function registerProcurementTools(
         // 'q_a_pair' (cited_q_a_pair_id), mirroring the ALREADY-shipped
         // production writer at app/api/procurement/[id]/responses/
         // draft-stream/route.ts ({131.16} BI-29), which stopped writing
-        // content_item rows before this column even dropped. The external
-        // arg stays `content_item_id`-shaped (full surface rename to
-        // q_a_pair_id is ID-131.11 scope) — same convention already used by
-        // the sibling get_content_effectiveness tool below.
+        // content_item rows before this column even dropped.
+        //
+        // ID-145 {145.21} (DR-056/BI-37): the external arg is now BREAKINGLY
+        // renamed content_item_id -> q_a_pair_id (no alias, R8 no-aliases
+        // posture) — the `content_item` vocabulary no longer names any part
+        // of this tool's contract.
         const insertData: Database['public']['Tables']['citations']['Insert'] =
           {
             citing_kind: 'form_response',
             citing_form_response_id: args.form_response_id,
             cited_kind: 'q_a_pair',
-            cited_q_a_pair_id: args.content_item_id,
+            cited_q_a_pair_id: args.q_a_pair_id,
             citation_type: args.citation_type ?? 'reference',
             created_by: userId,
           };
@@ -497,7 +548,7 @@ export async function registerProcurementTools(
             content: [
               {
                 type: 'text' as const,
-                text: `Failed to record citation: ${error?.message ?? 'Unknown error'}. Ensure both the content item and form response exist.`,
+                text: `Failed to record citation: ${error?.message ?? 'Unknown error'}. Ensure both the Q&A pair and form response exist.`,
               },
             ],
             isError: true,
@@ -546,12 +597,12 @@ export async function registerProcurementTools(
     {
       title: 'Content Effectiveness',
       description:
-        'Get win rate statistics for a content item — how often it has been cited in bid responses and what proportion of those bids were won. Use this to identify high-performing content and content that may need improvement.',
+        'Get win rate statistics for a Q&A pair — how often it has been cited in procurement responses and what proportion of those procurements were won. Use this to identify high-performing content and content that may need improvement.',
       inputSchema: {
-        content_item_id: z
+        q_a_pair_id: z
           .string()
           .uuid()
-          .describe('The UUID of the content item to check'),
+          .describe('The UUID of the Q&A pair to check'),
       },
       annotations: READ_ONLY_ANNOTATIONS,
     },
@@ -559,15 +610,18 @@ export async function registerProcurementTools(
       try {
         const supabase = createMcpClient(extra.authInfo);
 
-        // ID-131.10 (BI-26): get_content_win_rate re-anchored content_item -> q_a_pair;
-        // arg renamed p_content_item_id -> p_q_a_pair_id. Key updated for the regenerated
-        // public types; this tool stays content_item-shaped (input content_item_id) until
-        // its surface is re-anchored to q_a_pairs (M5 / ID-131.11), so the value is still a
-        // content_item id and the win-rate is vacuous in the interim (citations = 0).
+        // ID-131.10 (BI-26): get_content_win_rate re-anchored content_item ->
+        // q_a_pair; the RPC arg is p_q_a_pair_id.
+        //
+        // ID-145 {145.21} (DR-056/BI-37): the TOOL's own external arg is now
+        // BREAKINGLY renamed content_item_id -> q_a_pair_id (no alias) — the
+        // tool surface is fully re-anchored to the q_a_pair grain, matching
+        // the RPC it wraps; `content_item` no longer names any part of this
+        // contract.
         const { data: rows, error } = await supabase.rpc(
           'get_content_win_rate',
           {
-            p_q_a_pair_id: args.content_item_id,
+            p_q_a_pair_id: args.q_a_pair_id,
           },
         );
 
@@ -594,7 +648,7 @@ export async function registerProcurementTools(
         )?.[0];
 
         const effectiveness: ContentEffectiveness = {
-          content_item_id: args.content_item_id,
+          q_a_pair_id: args.q_a_pair_id,
           total_citations: Number(row?.total_citations ?? 0),
           winning_citations: Number(row?.winning_citations ?? 0),
           losing_citations: Number(row?.losing_citations ?? 0),

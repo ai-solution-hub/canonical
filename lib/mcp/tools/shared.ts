@@ -265,14 +265,18 @@ export async function fetchProcurementSections(
   status_breakdown: Record<string, number>;
   confidence_breakdown: Record<string, number>;
 }> {
-  // Fetch individual questions with ordering
+  // ID-145 {145.21} DR-056 re-key: form_questions.workspace_id was DROPPED
+  // (W1c, {145.6}) — form_template_id was renamed to form_instance_id and
+  // every question now belongs to exactly one form by construction (BI-7).
+  // `procurementId` is a form id, not a workspace id, for both callers of
+  // this helper (get_procurement_detail + show_procurement_dashboard).
   const questions = await sb(
     supabase
       .from('form_questions')
       .select(
         'id, question_text, section_name, section_sequence, question_sequence, status, confidence_posture, word_limit',
       )
-      .eq('workspace_id', procurementId)
+      .eq('form_instance_id', procurementId)
       .order('section_sequence')
       .order('question_sequence'),
     'mcp.tools.shared.bid.questions',

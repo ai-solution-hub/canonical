@@ -170,47 +170,6 @@ const baseDashboardData = {
 
 const MCP_TOOL_IMPORT_TIMEOUT_MS = 30_000;
 
-function makeBidMetadata(
-  overrides: Partial<{
-    buyer: string;
-    status:
-      | 'draft'
-      | 'questions_extracted'
-      | 'matching'
-      | 'drafting'
-      | 'in_review'
-      | 'ready_for_export'
-      | 'submitted'
-      | 'won'
-      | 'lost'
-      | 'withdrawn';
-    deadline: string | null;
-    reference_number: string | null;
-    estimated_value: string | null;
-    tender_source: 'upload' | 'manual' | null;
-    tender_document_ids: string[];
-    submission_date: string | null;
-    outcome: 'won' | 'lost' | 'withdrawn' | null;
-    outcome_notes: string | null;
-    notes: string | null;
-  }> = {},
-) {
-  return {
-    buyer: 'Placeholder Buyer',
-    status: 'draft' as const,
-    deadline: null,
-    reference_number: null,
-    estimated_value: null,
-    tender_source: null,
-    tender_document_ids: [],
-    submission_date: null,
-    outcome: null,
-    outcome_notes: null,
-    notes: null,
-    ...overrides,
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Test suite
 // ---------------------------------------------------------------------------
@@ -914,12 +873,10 @@ describe('MCP App trigger tools #22-23', () => {
             id: 'bid-001',
             name: 'NHS Digital Transformation',
             description: 'A digital transformation bid for NHS England.',
-            domain_metadata: makeBidMetadata({
-              buyer: 'NHS England',
-              status: 'drafting',
-              deadline: '2026-04-15T00:00:00+00:00',
-              reference_number: 'NHS-DT-2026',
-            }),
+            issuing_organisation: 'NHS England',
+            workflow_state: 'drafting',
+            deadline: '2026-04-15T00:00:00+00:00',
+            reference_number: 'NHS-DT-2026',
           },
           error: null,
         }),
@@ -1095,12 +1052,10 @@ describe('MCP App trigger tools #22-23', () => {
             id: 'bid-001',
             name: 'NHS Digital Transformation',
             description: 'A digital transformation bid.',
-            domain_metadata: makeBidMetadata({
-              buyer: 'NHS England',
-              status: 'drafting',
-              deadline: '2026-04-15T00:00:00+00:00',
-              reference_number: 'NHS-DT-2026',
-            }),
+            issuing_organisation: 'NHS England',
+            workflow_state: 'drafting',
+            deadline: '2026-04-15T00:00:00+00:00',
+            reference_number: 'NHS-DT-2026',
           },
           error: null,
         }),
@@ -1159,7 +1114,10 @@ describe('MCP App trigger tools #22-23', () => {
             id: 'bid-001',
             name: 'Test Procurement',
             description: null,
-            domain_metadata: makeBidMetadata(),
+            issuing_organisation: 'Placeholder Buyer',
+            workflow_state: 'draft',
+            deadline: null,
+            reference_number: null,
           },
           error: null,
         }),
@@ -1249,7 +1207,10 @@ describe('MCP App trigger tools #22-23', () => {
             id: 'bid-001',
             name: 'Test Procurement',
             description: null,
-            domain_metadata: makeBidMetadata(),
+            issuing_organisation: 'Placeholder Buyer',
+            workflow_state: 'draft',
+            deadline: null,
+            reference_number: null,
           },
           error: null,
         }),
@@ -1338,7 +1299,10 @@ describe('MCP App trigger tools #22-23', () => {
             id: 'bid-001',
             name: 'Empty Procurement',
             description: null,
-            domain_metadata: makeBidMetadata(),
+            issuing_organisation: 'Placeholder Buyer',
+            workflow_state: 'draft',
+            deadline: null,
+            reference_number: null,
           },
           error: null,
         }),
@@ -1404,11 +1368,10 @@ describe('MCP App trigger tools #22-23', () => {
               id: 'bid-001',
               name: 'Test Procurement',
               description: null,
-              domain_metadata: makeBidMetadata({
-                buyer: 'Test Corp',
-                status: 'drafting',
-              }),
-              is_archived: false,
+              issuing_organisation: 'Test Corp',
+              workflow_state: 'drafting',
+              deadline: null,
+              reference_number: null,
             },
             error: null,
           }),
@@ -1521,8 +1484,10 @@ describe('MCP App trigger tools #22-23', () => {
               id: 'bid-001',
               name: 'Test Procurement',
               description: null,
-              domain_metadata: makeBidMetadata(),
-              is_archived: false,
+              issuing_organisation: 'Placeholder Buyer',
+              workflow_state: 'draft',
+              deadline: null,
+              reference_number: null,
             },
             error: null,
           }),
@@ -1624,8 +1589,10 @@ describe('MCP App trigger tools #22-23', () => {
               id: 'bid-001',
               name: 'Test Procurement',
               description: null,
-              domain_metadata: makeBidMetadata(),
-              is_archived: false,
+              issuing_organisation: 'Placeholder Buyer',
+              workflow_state: 'draft',
+              deadline: null,
+              reference_number: null,
             },
             error: null,
           }),
@@ -1697,8 +1664,10 @@ describe('MCP App trigger tools #22-23', () => {
               id: 'bid-001',
               name: 'Empty Procurement',
               description: null,
-              domain_metadata: makeBidMetadata(),
-              is_archived: false,
+              issuing_organisation: 'Placeholder Buyer',
+              workflow_state: 'draft',
+              deadline: null,
+              reference_number: null,
             },
             error: null,
           }),
@@ -1753,8 +1722,10 @@ describe('MCP App trigger tools #22-23', () => {
               id: 'bid-001',
               name: 'Test Procurement',
               description: null,
-              domain_metadata: makeBidMetadata(),
-              is_archived: false,
+              issuing_organisation: 'Placeholder Buyer',
+              workflow_state: 'draft',
+              deadline: null,
+              reference_number: null,
             },
             error: null,
           }),
