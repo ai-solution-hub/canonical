@@ -9,12 +9,14 @@
  * INFORMATIONAL — reported, never gated (owner ruling S438: promoted to a
  * hard gate once id-133 populates the register).
  *
- * **Harness** mirrors `scripts/seed-synthetic-corpus.ts` /
- * `scripts/seed-platform-workspaces.ts`: same `--target=prod|staging`
- * resolution + project-ref guard (`resolveTarget`), `sb()`/`tryQuery()` from
- * `@/lib/supabase/safe` (direct import, no barrel). Unlike the seed scripts,
- * this gate **only reads** — there is no `--apply`/dry-run distinction because
- * no write path exists.
+ * **Harness** mirrors `scripts/seed-platform-workspaces.ts`: same
+ * `--target=prod|staging` resolution + project-ref guard (`resolveTarget`),
+ * `sb()`/`tryQuery()` from `@/lib/supabase/safe` (direct import, no barrel).
+ * Unlike the seed scripts, this gate **only reads** — there is no
+ * `--apply`/dry-run distinction because no write path exists. `parseCorpusArgs`
+ * (below) is relocated in-file from the retired `scripts/seed-synthetic-corpus.ts`
+ * (ID-145.25 — that script's mint-and-rekey machinery hard-failed post-{145.6}
+ * M3; this was its only live dependency).
  *
  * **Run-select (the foundation).** Latest row from
  * `pipeline_runs WHERE pipeline_name='kh_canonical_pipeline' AND op_id IS NOT
@@ -70,11 +72,13 @@
  */
 import { sb, tryQuery } from '@/lib/supabase/safe';
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
-import { parseCorpusArgs } from '@/scripts/seed-synthetic-corpus';
 import {
   resolveTarget,
+  parseSeedArgs,
   PLATFORM_TARGETS,
   type ResolvedTarget,
+  type EnvLike,
+  type PlatformTarget,
 } from '@/scripts/seed-platform-workspaces';
 
 // ── Corpus-shape constants (PROMOTION_TECH §2.2) ────────────────────────────
@@ -504,6 +508,50 @@ async function checkEntityInformational(
     entityMentionsCount: emCount ?? 0,
     entityRelationshipsCount: erCount ?? 0,
     queryError: null,
+  };
+}
+
+// ── Arg parsing ──────────────────────────────────────────────────────────────
+//
+// Relocated verbatim from the retired `scripts/seed-synthetic-corpus.ts`
+// (ID-145.25 — gitnexus_impact confirmed this gate's `main()` was the only
+// live caller outside that file). Kept as its full original shape (not
+// trimmed to the `target`-only field this gate reads) so the CLI flag surface
+// (`--clean`, `--emit-manifest`, `--manifest-out=`) stays byte-identical if
+// ever reintroduced; only `target` is consumed below.
+
+export interface CorpusArgs {
+  readonly target: PlatformTarget;
+  /** True unless `--apply` is given. Dry-run never writes. */
+  readonly dryRun: boolean;
+  /** Delete all `Synthetic — %` workspaces + cascade their questions. */
+  readonly clean: boolean;
+  /** Resolve the forms-route workspace uuid and emit the root manifest. */
+  readonly emitManifest: boolean;
+  /** Optional path to write the manifest to (else printed to stdout). */
+  readonly manifestOut: string | null;
+}
+
+/**
+ * Parse the CLI flags. Target selection is REQUIRED (reuses the shared
+ * `parseSeedArgs` guard — `--target=prod|staging` or `SEED_PLATFORM_TARGET`).
+ * Dry-run is the SAFE default unless `--apply` is given. Adds `--clean`,
+ * `--emit-manifest`, and `--manifest-out=<path>`.
+ */
+export function parseCorpusArgs(
+  argv: readonly string[],
+  env: EnvLike = process.env,
+): CorpusArgs {
+  const base = parseSeedArgs(argv, env);
+  const manifestFlag = argv.find((a) => a.startsWith('--manifest-out='));
+  return {
+    target: base.target,
+    dryRun: base.dryRun,
+    clean: argv.includes('--clean'),
+    emitManifest: argv.includes('--emit-manifest'),
+    manifestOut: manifestFlag
+      ? manifestFlag.slice('--manifest-out='.length)
+      : null,
   };
 }
 

@@ -22,9 +22,11 @@
  * file-tree facts (entry set, magic bytes, manifest JSON shape), not pipeline
  * internals.
  *
- * The expected manifest shape is cross-checked (read-only) against the
- * `WorkspaceMapManifest` interface / `buildManifest` in
- * `scripts/seed-synthetic-corpus.ts`.
+ * The expected manifest shape is cross-checked (read-only) against TECH §2.1's
+ * manifest-shape contract (previously mirrored by the `WorkspaceMapManifest`
+ * interface / `buildManifest` in `scripts/seed-synthetic-corpus.ts`, retired
+ * ID-145.25 — that script's mint-and-rekey machinery was purpose-obsolete
+ * post-{145.6} M3).
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve, join, relative, sep } from 'node:path';
@@ -138,7 +140,7 @@ describe('Platform seam-coverage corpus — vendored tree shape (TECH §2.1/§2.
     });
   });
 
-  describe('manifest template shape (§2.1; cross-checked vs buildManifest)', () => {
+  describe('manifest template shape (§2.1)', () => {
     it('parses as JSON with a schema_version and an empty mappings array (DR-014)', () => {
       expect(manifest.schema_version).toBe(1);
       expect(Array.isArray(manifest.mappings)).toBe(true);
