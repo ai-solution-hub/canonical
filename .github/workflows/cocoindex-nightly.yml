@@ -229,7 +229,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Setup the Cloud Native Buildpacks `pack` CLI
-        uses: buildpacks/github-actions/setup-pack@8fe5c9d7f5a3fa22d4b7cc7d50ba8ebd7eddf414 # v5.12.3 (pinned, matches onprem-deploy.yml)
+        uses: buildpacks/github-actions/setup-pack@e3b14c6e906f91da358e01dc2849ce068188107f # v5.12.3 (pinned, matches onprem-deploy.yml)
 
       - name: Build cocoindex sidecar image (local — no publish, see header)
         # Pruned context mirrors onprem-deploy.yml's IMAGE HYGIENE step
