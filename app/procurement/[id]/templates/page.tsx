@@ -86,11 +86,24 @@ export default function TemplateCompletionPage() {
     async (templateId: string) => {
       setLoadingTemplateId(templateId);
       try {
-        const res = await fetch(
-          `/api/procurement/${procurementId}/templates/${templateId}`,
-        );
+        // DR-075 re-path: `[id]/templates/[templateId]` retired -> the
+        // field/§C surface now lives at `[id]/fields`, where `id` IS the
+        // form's own PK (templateId here), matching the BI-23 fill/auto-map
+        // anchor above.
+        const res = await fetch(`/api/procurement/${templateId}/fields`);
         if (!res.ok) throw new Error('Failed to load template');
-        const detail: TemplateWithDetail = await res.json();
+        const raw = await res.json();
+        // Shape-sync: the response now selects `form_instances.processing_status`
+        // (the dropped `form_templates.status` this page's TemplateWithDetail
+        // type still expects) — map it onto the legacy `status` field the rest
+        // of this workflow-step shell reads. `workspace_id` no longer exists
+        // on the response either (form_instances has none post-{145.6}); this
+        // page never reads it, kept here only to satisfy the Template shape.
+        const detail: TemplateWithDetail = {
+          ...raw,
+          workspace_id: procurementId,
+          status: raw.processing_status,
+        };
         setSelectedTemplate(detail);
 
         // Determine step based on template status
@@ -163,8 +176,10 @@ export default function TemplateCompletionPage() {
     async (fieldId: string, questionId: string | null, status: string) => {
       if (!selectedTemplate) return;
       try {
+        // DR-075 re-path: `[id]/templates/[templateId]/fields/[fieldId]` ->
+        // `[id]/fields/[fieldId]` (id = the form's own PK).
         const res = await fetch(
-          `/api/procurement/${procurementId}/templates/${selectedTemplate.id}/fields/${fieldId}`,
+          `/api/procurement/${selectedTemplate.id}/fields/${fieldId}`,
           {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
@@ -181,7 +196,7 @@ export default function TemplateCompletionPage() {
         toast.error('Failed to update field mapping');
       }
     },
-    [procurementId, selectedTemplate, loadTemplateDetail],
+    [selectedTemplate, loadTemplateDetail],
   );
 
   const handleBulkAccept = useCallback(async () => {
@@ -197,8 +212,10 @@ export default function TemplateCompletionPage() {
     if (unreviewedFields.length === 0) return;
 
     try {
+      // DR-075 re-path: `[id]/templates/[templateId]/fields/bulk-update` ->
+      // `[id]/fields/bulk-update` (id = the form's own PK).
       const res = await fetch(
-        `/api/procurement/${procurementId}/templates/${selectedTemplate.id}/fields/bulk-update`,
+        `/api/procurement/${selectedTemplate.id}/fields/bulk-update`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -211,7 +228,7 @@ export default function TemplateCompletionPage() {
       logger.error({ err }, 'Failed to bulk accept mappings');
       toast.error('Failed to bulk accept mappings');
     }
-  }, [procurementId, selectedTemplate, loadTemplateDetail]);
+  }, [selectedTemplate, loadTemplateDetail]);
 
   const handleBulkReject = useCallback(
     async (fieldIds: string[]) => {
@@ -224,8 +241,10 @@ export default function TemplateCompletionPage() {
       }));
 
       try {
+        // DR-075 re-path: `[id]/templates/[templateId]/fields/bulk-update` ->
+        // `[id]/fields/bulk-update` (id = the form's own PK).
         const res = await fetch(
-          `/api/procurement/${procurementId}/templates/${selectedTemplate.id}/fields/bulk-update`,
+          `/api/procurement/${selectedTemplate.id}/fields/bulk-update`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -239,7 +258,7 @@ export default function TemplateCompletionPage() {
         toast.error('Failed to bulk reject mappings');
       }
     },
-    [procurementId, selectedTemplate, loadTemplateDetail],
+    [selectedTemplate, loadTemplateDetail],
   );
 
   const handleFill = useCallback(async () => {

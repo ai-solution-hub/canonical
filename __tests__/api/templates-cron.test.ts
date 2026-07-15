@@ -78,10 +78,13 @@ vi.mock('@/lib/domains/procurement/form-templating/template-coverage', () => ({
 // Import route handlers AFTER all vi.mock() calls
 const { POST: autoMapPost } =
   await import('@/app/api/procurement/[id]/templates/[templateId]/auto-map/route');
+// DR-075 (ID-147 TECH.md §6 row B, ratified S474): re-keyed + re-pathed from
+// `templates/[templateId]/fields/*` to `[id]/fields/*` -- `id` IS the form's
+// own PK, no more separate `templateId` segment.
 const { PATCH: fieldPatch } =
-  await import('@/app/api/procurement/[id]/templates/[templateId]/fields/[fieldId]/route');
+  await import('@/app/api/procurement/[id]/fields/[fieldId]/route');
 const { POST: bulkUpdatePost } =
-  await import('@/app/api/procurement/[id]/templates/[templateId]/fields/bulk-update/route');
+  await import('@/app/api/procurement/[id]/fields/bulk-update/route');
 const { POST: fillPost } =
   await import('@/app/api/procurement/[id]/templates/[templateId]/fill/route');
 const { PATCH: subtopicPatch } =
@@ -450,20 +453,22 @@ describe('POST /api/bids/:id/templates/:templateId/auto-map', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PATCH /api/bids/:id/templates/:templateId/fields/:fieldId
+// PATCH /api/procurement/:id/fields/:fieldId
+// DR-075 (ID-147 TECH.md §6 row B, ratified S474): re-keyed + re-pathed from
+// `templates/[templateId]/fields/[fieldId]` -- `id` IS the form's own PK, no
+// more separate `templateId` segment.
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('PATCH /api/bids/:id/templates/:templateId/fields/:fieldId', () => {
+describe('PATCH /api/procurement/:id/fields/:fieldId', () => {
   const params = createTestParams({
-    id: VALID_UUID,
-    templateId: VALID_UUID_2,
+    id: VALID_UUID_2,
     fieldId: VALID_UUID_3,
   });
 
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest('/api/procurement/x/templates/y/fields/z', {
+    const req = createTestRequest('/api/procurement/y/fields/z', {
       method: 'PATCH',
       body: { question_id: VALID_UUID, mapping_status: 'confirmed' },
     });
@@ -475,7 +480,7 @@ describe('PATCH /api/bids/:id/templates/:templateId/fields/:fieldId', () => {
   it('returns 403 for viewer role', async () => {
     configureRole(mockSupabase, 'viewer');
 
-    const req = createTestRequest('/api/procurement/x/templates/y/fields/z', {
+    const req = createTestRequest('/api/procurement/y/fields/z', {
       method: 'PATCH',
       body: { question_id: VALID_UUID, mapping_status: 'confirmed' },
     });
@@ -484,16 +489,15 @@ describe('PATCH /api/bids/:id/templates/:templateId/fields/:fieldId', () => {
     expect(res.status).toBe(403);
   });
 
-  it('returns 400 when any UUID is invalid (triple validation)', async () => {
+  it('returns 400 when any UUID is invalid (double validation)', async () => {
     configureRole(mockSupabase, 'editor');
 
     const badParams = createTestParams({
-      id: VALID_UUID,
-      templateId: 'not-uuid',
+      id: 'not-uuid',
       fieldId: VALID_UUID_3,
     });
 
-    const req = createTestRequest('/api/procurement/x/templates/y/fields/z', {
+    const req = createTestRequest('/api/procurement/y/fields/z', {
       method: 'PATCH',
       body: { question_id: VALID_UUID, mapping_status: 'confirmed' },
     });
@@ -508,7 +512,7 @@ describe('PATCH /api/bids/:id/templates/:templateId/fields/:fieldId', () => {
   it('returns 400 for invalid request body (FieldMappingUpdateSchema)', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const req = createTestRequest('/api/procurement/x/templates/y/fields/z', {
+    const req = createTestRequest('/api/procurement/y/fields/z', {
       method: 'PATCH',
       body: { mapping_status: 'invalid_status' },
     });
@@ -521,16 +525,16 @@ describe('PATCH /api/bids/:id/templates/:templateId/fields/:fieldId', () => {
     expect(body.details).toBeDefined();
   });
 
-  it('returns 404 when template not found', async () => {
+  it('returns 404 when the form is not found', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Template lookup (after role lookup)
+    // Form lookup (after role lookup)
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: null,
       error: { message: 'Not found', code: 'PGRST116' },
     });
 
-    const req = createTestRequest('/api/procurement/x/templates/y/fields/z', {
+    const req = createTestRequest('/api/procurement/y/fields/z', {
       method: 'PATCH',
       body: { question_id: VALID_UUID, mapping_status: 'confirmed' },
     });
@@ -545,7 +549,7 @@ describe('PATCH /api/bids/:id/templates/:templateId/fields/:fieldId', () => {
   it('returns 404 when field not found', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Template exists
+    // Form exists
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { id: VALID_UUID_2 },
       error: null,
@@ -557,7 +561,7 @@ describe('PATCH /api/bids/:id/templates/:templateId/fields/:fieldId', () => {
       error: { message: 'Not found', code: 'PGRST116' },
     });
 
-    const req = createTestRequest('/api/procurement/x/templates/y/fields/z', {
+    const req = createTestRequest('/api/procurement/y/fields/z', {
       method: 'PATCH',
       body: { question_id: VALID_UUID, mapping_status: 'confirmed' },
     });
@@ -572,7 +576,7 @@ describe('PATCH /api/bids/:id/templates/:templateId/fields/:fieldId', () => {
   it('returns 200 with updated field data on success', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Template exists
+    // Form exists
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { id: VALID_UUID_2 },
       error: null,
@@ -595,7 +599,7 @@ describe('PATCH /api/bids/:id/templates/:templateId/fields/:fieldId', () => {
         resolve({ data: null, error: null, count: 5 }),
     );
 
-    const req = createTestRequest('/api/procurement/x/templates/y/fields/z', {
+    const req = createTestRequest('/api/procurement/y/fields/z', {
       method: 'PATCH',
       body: { question_id: VALID_UUID, mapping_status: 'confirmed' },
     });
@@ -610,11 +614,13 @@ describe('PATCH /api/bids/:id/templates/:templateId/fields/:fieldId', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// POST /api/bids/:id/templates/:templateId/fields/bulk-update
+// POST /api/procurement/:id/fields/bulk-update
+// DR-075 (ID-147 TECH.md §6 row B, ratified S474): re-keyed + re-pathed from
+// `templates/[templateId]/fields/bulk-update` -- `id` IS the form's own PK.
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('POST /api/bids/:id/templates/:templateId/fields/bulk-update', () => {
-  const params = createTestParams({ id: VALID_UUID, templateId: VALID_UUID_2 });
+describe('POST /api/procurement/:id/fields/bulk-update', () => {
+  const params = createTestParams({ id: VALID_UUID_2 });
 
   const validBody = {
     mappings: [
@@ -629,13 +635,10 @@ describe('POST /api/bids/:id/templates/:templateId/fields/bulk-update', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest(
-      '/api/procurement/x/templates/y/fields/bulk-update',
-      {
-        method: 'POST',
-        body: validBody,
-      },
-    );
+    const req = createTestRequest('/api/procurement/y/fields/bulk-update', {
+      method: 'POST',
+      body: validBody,
+    });
 
     const res = await bulkUpdatePost(req, { params });
     expect(res.status).toBe(401);
@@ -644,13 +647,10 @@ describe('POST /api/bids/:id/templates/:templateId/fields/bulk-update', () => {
   it('returns 403 for viewer role', async () => {
     configureRole(mockSupabase, 'viewer');
 
-    const req = createTestRequest(
-      '/api/procurement/x/templates/y/fields/bulk-update',
-      {
-        method: 'POST',
-        body: validBody,
-      },
-    );
+    const req = createTestRequest('/api/procurement/y/fields/bulk-update', {
+      method: 'POST',
+      body: validBody,
+    });
 
     const res = await bulkUpdatePost(req, { params });
     expect(res.status).toBe(403);
@@ -659,15 +659,12 @@ describe('POST /api/bids/:id/templates/:templateId/fields/bulk-update', () => {
   it('returns 400 for invalid UUID', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const badParams = createTestParams({ id: 'bad', templateId: VALID_UUID_2 });
+    const badParams = createTestParams({ id: 'bad' });
 
-    const req = createTestRequest(
-      '/api/procurement/bad/templates/y/fields/bulk-update',
-      {
-        method: 'POST',
-        body: validBody,
-      },
-    );
+    const req = createTestRequest('/api/procurement/bad/fields/bulk-update', {
+      method: 'POST',
+      body: validBody,
+    });
 
     const res = await bulkUpdatePost(req, { params: badParams });
     expect(res.status).toBe(400);
@@ -676,13 +673,10 @@ describe('POST /api/bids/:id/templates/:templateId/fields/bulk-update', () => {
   it('returns 400 for empty mappings array', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const req = createTestRequest(
-      '/api/procurement/x/templates/y/fields/bulk-update',
-      {
-        method: 'POST',
-        body: { mappings: [] },
-      },
-    );
+    const req = createTestRequest('/api/procurement/y/fields/bulk-update', {
+      method: 'POST',
+      body: { mappings: [] },
+    });
 
     const res = await bulkUpdatePost(req, { params });
     expect(res.status).toBe(400);
@@ -691,22 +685,19 @@ describe('POST /api/bids/:id/templates/:templateId/fields/bulk-update', () => {
     expect(body.error).toBe('Validation failed');
   });
 
-  it('returns 404 when template not found', async () => {
+  it('returns 404 when the form is not found', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Template lookup (after role lookup)
+    // Form lookup (after role lookup)
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: null,
       error: { message: 'Not found', code: 'PGRST116' },
     });
 
-    const req = createTestRequest(
-      '/api/procurement/x/templates/y/fields/bulk-update',
-      {
-        method: 'POST',
-        body: validBody,
-      },
-    );
+    const req = createTestRequest('/api/procurement/y/fields/bulk-update', {
+      method: 'POST',
+      body: validBody,
+    });
 
     const res = await bulkUpdatePost(req, { params });
     expect(res.status).toBe(404);
@@ -715,7 +706,7 @@ describe('POST /api/bids/:id/templates/:templateId/fields/bulk-update', () => {
   it('returns 200 with updated count and mapped_count on success', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Template exists
+    // Form exists
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { id: VALID_UUID_2 },
       error: null,
@@ -732,13 +723,10 @@ describe('POST /api/bids/:id/templates/:templateId/fields/bulk-update', () => {
         resolve({ data: null, error: null, count: 3 }),
     );
 
-    const req = createTestRequest(
-      '/api/procurement/x/templates/y/fields/bulk-update',
-      {
-        method: 'POST',
-        body: validBody,
-      },
-    );
+    const req = createTestRequest('/api/procurement/y/fields/bulk-update', {
+      method: 'POST',
+      body: validBody,
+    });
 
     const res = await bulkUpdatePost(req, { params });
     expect(res.status).toBe(200);

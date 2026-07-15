@@ -11,19 +11,27 @@ export const maxDuration = 30;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// ──────────────────────────────────────────
+// POST /api/procurement/:id/fields/bulk-update -- bulk field mapping update
+// DR-075 (ID-147 TECH.md §6 row B, ratified S474): re-keyed + re-pathed from
+// `templates/[templateId]/fields/bulk-update/route.ts` -- `id` IS the form's
+// own PK (form_instances.id), matching the fill/auto-map convention; there
+// is no longer a separate `templateId` segment.
+// ──────────────────────────────────────────
+
 export const POST = defineRoute(
   z.unknown(),
   async (
     request: NextRequest,
-    { params }: { params: Promise<{ id: string; templateId: string }> },
+    { params }: { params: Promise<{ id: string }> },
   ) => {
     try {
       const auth = await getAuthorisedClient(['admin', 'editor']);
       if (!auth.success) return authFailureResponse(auth);
       const { supabase } = auth;
 
-      const { id: procurementId, templateId } = await params;
-      if (!UUID_RE.test(procurementId) || !UUID_RE.test(templateId)) {
+      const { id } = await params;
+      if (!UUID_RE.test(id)) {
         return NextResponse.json(
           { error: 'Invalid ID format -- must be a valid UUID' },
           { status: 400 },
@@ -34,13 +42,11 @@ export const POST = defineRoute(
       const parsed = parseBody(BulkFieldMappingSchema, body);
       if (!parsed.success) return parsed.response;
 
-      // Verify template exists and belongs to this bid.
-      // Post-T2: `templates` → `form_templates`, `workspace_id` → `workspace_id`.
+      // Verify the form exists.
       const { data: template, error: templateError } = await supabase
-        .from('form_templates')
+        .from('form_instances')
         .select('id')
-        .eq('id', templateId)
-        .eq('workspace_id', procurementId)
+        .eq('id', id)
         .single();
 
       if (templateError || !template) {
@@ -51,36 +57,34 @@ export const POST = defineRoute(
       }
 
       // Update each field.
-      // Post-T2: `template_fields` → `form_template_fields`.
       let updated = 0;
       for (const mapping of parsed.data.mappings) {
         const { error } = await supabase
-          .from('form_template_fields')
+          .from('form_instance_fields')
           .update({
             question_id: mapping.question_id,
             mapping_status: mapping.mapping_status,
           })
           .eq('id', mapping.field_id)
-          .eq('template_id', templateId);
+          .eq('form_instance_id', id);
 
         if (!error) {
           updated++;
         }
       }
 
-      // Update mapped_count on template.
-      // Post-T2: same table renames.
+      // Update mapped_count on the form.
       const { count } = await supabase
-        .from('form_template_fields')
+        .from('form_instance_fields')
         .select('id', { count: 'exact', head: true })
-        .eq('template_id', templateId)
+        .eq('form_instance_id', id)
         .not('question_id', 'is', null)
         .in('mapping_status', ['confirmed', 'manual']);
 
       await supabase
-        .from('form_templates')
+        .from('form_instances')
         .update({ mapped_count: count ?? 0 })
-        .eq('id', templateId);
+        .eq('id', id);
 
       return NextResponse.json({
         updated,
