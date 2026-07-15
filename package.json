@@ -45,6 +45,7 @@
     "seed:e2e-users": "bun run scripts/seed-e2e-users.ts",
     "kb-search": "bun run scripts/kb-search.ts",
     "ast-dataflow": "bun run tools/ast-dataflow/cli.ts",
+    "ast-dataflow-py": "python3 tools/ast_dataflow_py/cli.py",
     "gitnexus:analyze": "bun run scripts/gitnexus-analyze.ts",
     "dupe-check": "jscpd . --pattern \"**/*.{ts,tsx,js,jsx,py}\"",
     "knip": "knip --no-config-hints",
