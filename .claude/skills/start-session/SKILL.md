@@ -61,7 +61,7 @@ Read these documents in parallel to load context. **Load anchor first** — `${K
 
 ### 2a: Memory recall
 
-Call `mempalace_diary_read` (`agent_name: claude`, `last_n: 2`) — skip `CHECKPOINT:` auto-noise rows, read the narrative entries. Then run recall via `mempalace_search` / `mempalace_kg_query` per the `mempalace-recall` skill, **seeded with the continuation-prompt-named task ids and titles** (the SessionStart hook seeds only branch + cwd, which degenerates to the repo name on `main` — the task-topic seeding is yours to supply). Search **without** a `wing` filter (upstream #1665) and filter client-side.
+Call `mempalace_diary_read` (`agent_name: claude`, `last_n: 2`) — skip `CHECKPOINT:` auto-noise rows, read the narrative entries. Then run recall via `mempalace_search` / `mempalace_kg_query` per the `recall-grounding` skill (workflow recall discipline; underlying palace-search mechanism: the plugin `mempalace-recall` skill), **seeded with the continuation-prompt-named task ids and titles** (the SessionStart hook seeds only branch + cwd, which degenerates to the repo name on `main` — the task-topic seeding is yours to supply). Search **without** a `wing` filter (upstream #1665) and filter client-side.
 
 **Fail open:** if the palace errors (e.g. `MCP error -32002` integrity-check refusal), tell the user memory is degraded and proceed — never block session start on recall. The lock-free FTS read survives index corruption; run it manually with your seed terms:
 
