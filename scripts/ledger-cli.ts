@@ -116,12 +116,12 @@ import {
   resolveDefaultLedgerDir,
 } from '@/scripts/ledger-server-lifecycle';
 import { SubtaskSchema, TaskSchema } from '@/lib/validation/task-list-schema';
-// ID-148.8: `update-roadmap`/`create-theme` (the only WRITE consumers of
-// RoadmapThemeSchema) are retired — the import stays because `schema theme`
-// discoverability (SCHEMA_SHAPES below) and EDIT_SCHEMAS type-completeness
-// still need it; `RoadmapSchema` itself is untouched (shell stays for
-// {148.12} — TECH §3.4).
-import { RoadmapThemeSchema } from '@/lib/validation/roadmap-schema';
+// ID-148.12: `RoadmapThemeSchema` import DROPPED — the 'theme' SchemaRecordKind
+// arm (SCHEMA_SHAPES/SCHEMA_TARGETS/EDIT_SCHEMAS/KIND_LABEL/KIND_BUDGET_KEY)
+// is fully retired below (TECH §3.2/§3.4, INV-7/INV-12(a)/(d)); the shell
+// `lib/validation/roadmap-schema.ts` this import pointed at is DELETED in the
+// same Subtask (its only other consumer, the re-vendored `lib/ledger/*`
+// oracle, now imports `InitiativesSchema` instead).
 import { BacklogItemSchema } from '@/lib/validation/backlog-schema';
 import { RetroRecordSchema } from '@/lib/validation/retro-schema';
 // ID-148.6 — initiatives + projects read verbs. KH-native, direct import (no
@@ -938,10 +938,14 @@ function checkFieldEditArity(
 /**
  * ID-35.15 CLI-layer auto-id (RESEARCH §2.2). Computes `max(existingIds) + 1`
  * for a collection, returning a bare-digit STRING for EVERY collection:
- *   - `tasks` / `themes` / `items` → bare-digit STRING (`"186"`)
- *   - `subtasks`                    → bare-digit STRING (`"13"`), scoped to
+ *   - `tasks` / `items` → bare-digit STRING (`"186"`)
+ *   - `subtasks`         → bare-digit STRING (`"13"`), scoped to
  *     `taskId` (ID-102: subtask ids are digit-strings, unifying with the other
- *     three collections; the value is unchanged, only the type flips).
+ *     collections; the value is unchanged, only the type flips).
+ *
+ * ID-148.12: the `themes` collection key is RETIRED (INV-12(d), TECH §8) — no
+ * initiatives analog; initiatives project ids are caller-supplied kebab slugs,
+ * never auto-minted (mirrors how retro session ids are caller-supplied).
  *
  * WS-C C4 Bug3 — the allocator is a MONOTONIC HIGH-WATER allocator, NOT a bare
  * `max(survivors)+1`. The latter reuses an id freed by delete/promote (which
@@ -974,7 +978,7 @@ function checkFieldEditArity(
  */
 function nextId(
   detected: KnownDetected,
-  collectionKey: 'tasks' | 'themes' | 'items' | 'subtasks',
+  collectionKey: 'tasks' | 'items' | 'subtasks',
   taskId?: string,
 ): string {
   if (collectionKey === 'subtasks') {
@@ -991,8 +995,6 @@ function nextId(
   let ids: string[] = [];
   if (collectionKey === 'tasks' && detected.kind === 'task-list') {
     ids = detected.data.tasks.map((t) => t.id);
-  } else if (collectionKey === 'themes' && detected.kind === 'roadmap') {
-    ids = detected.data.themes.map((t) => t.id);
   } else if (collectionKey === 'items' && detected.kind === 'backlog') {
     ids = detected.data.items.map((it) => it.id);
   } else {
@@ -1029,8 +1031,10 @@ function nextId(
 // at the flag-day schema flip.
 
 /** The documented record kinds, each backed by a Zod object schema. WS-C C2
- * adds `retro`. */
-type SchemaRecordKind = 'task' | 'subtask' | 'theme' | 'item' | 'retro';
+ * adds `retro`. ID-148.12: `theme` RETIRED (TECH §3.2/§3.4, INV-7/INV-12(d)) —
+ * the roadmap server arm is repurposed to initiatives, which has no flat
+ * theme-record analog; `RoadmapThemeSchema` is no longer imported. */
+type SchemaRecordKind = 'task' | 'subtask' | 'item' | 'retro';
 
 /** Schemas keyed by record kind. Zod v4 exposes `.shape` directly even with a
  * trailing `.superRefine` (TaskSchema) — so all shapes are introspectable. */
@@ -1040,7 +1044,6 @@ const SCHEMA_SHAPES: Record<
 > = {
   task: TaskSchema,
   subtask: SubtaskSchema,
-  theme: RoadmapThemeSchema,
   item: BacklogItemSchema,
   retro: RetroRecordSchema,
 };
@@ -1050,7 +1053,6 @@ const SCHEMA_SHAPES: Record<
 const KIND_LABEL: Record<SchemaRecordKind, string> = {
   task: 'task',
   subtask: 'subtask',
-  theme: 'theme',
   item: 'backlog',
   retro: 'retro',
 };
@@ -1060,7 +1062,6 @@ const KIND_LABEL: Record<SchemaRecordKind, string> = {
 const KIND_BUDGET_KEY: Record<SchemaRecordKind, LedgerRecordKind> = {
   task: 'task',
   subtask: 'subtask',
-  theme: 'theme',
   item: 'item',
   retro: 'retro',
 };
@@ -1181,17 +1182,18 @@ function renderKind(kind: SchemaRecordKind): string {
 }
 
 /** Map a `schema`/help target token to the record kind(s) it documents.
- * A ledger name resolves to ALL its record kinds (task → task + subtask). */
+ * A ledger name resolves to ALL its record kinds (task → task + subtask).
+ * ID-148.12: `roadmap`/`theme` targets RETIRED (no 'theme' SchemaRecordKind
+ * any more) — `schema roadmap`/`schema theme` now correctly resolve to
+ * `bad-schema-target` via the `SCHEMA_TARGETS[target]` undefined lookup. */
 const SCHEMA_TARGETS: Record<string, SchemaRecordKind[]> = {
   // ledger names
   task: ['task', 'subtask'],
-  roadmap: ['theme'],
   backlog: ['item'],
   // WS-C C2: the retro ledger surfaces the single retro record kind.
   retro: ['retro'],
   // record-kind aliases
   subtask: ['subtask'],
-  theme: ['theme'],
   item: ['item'],
 };
 
@@ -1204,7 +1206,7 @@ const SCHEMA_TARGETS: Record<string, SchemaRecordKind[]> = {
 function renderSchema(target?: string): string | null {
   let kinds: SchemaRecordKind[];
   if (target === undefined) {
-    kinds = ['task', 'subtask', 'theme', 'item', 'retro'];
+    kinds = ['task', 'subtask', 'item', 'retro'];
   } else {
     const resolved = SCHEMA_TARGETS[target];
     if (!resolved) return null;
@@ -2330,16 +2332,17 @@ function shapeShowRecord(
 // unknown field has no schema entry → keep the raw string (the keyset guard
 // inside `fieldPatchMutation` then rejects the unknown field downstream).
 
-/** The four editable record schemas keyed by CLI command's record kind. */
+/** The editable record schemas keyed by CLI command's record kind. ID-148.12:
+ * `theme` RETIRED (was already dead code — zero `coerceFieldValue('theme', …)`
+ * call sites, confirmed by the {148.8} Checker; TECH §3.2/§3.4, INV-7). */
 const EDIT_SCHEMAS: Record<
-  'subtask' | 'task' | 'theme' | 'item',
+  'subtask' | 'task' | 'item',
   { shape: Record<string, ZodTypeAny> }
 > = {
   subtask: SubtaskSchema,
   // Zod v4 exposes `.shape` directly on the object schema even with a trailing
   // `.superRefine` (the sibling-dep check), so `TaskSchema.shape` is available.
   task: TaskSchema,
-  theme: RoadmapThemeSchema,
   item: BacklogItemSchema,
 };
 
@@ -2357,7 +2360,7 @@ const EDIT_SCHEMAS: Record<
  *     keyset guard rejects the unknown field downstream).
  */
 function coerceFieldValue(
-  recordKind: 'subtask' | 'task' | 'theme' | 'item',
+  recordKind: 'subtask' | 'task' | 'item',
   field: string,
   raw: string,
 ): unknown {
@@ -2381,9 +2384,14 @@ function coerceFieldValue(
 // (title / description / priority / type / track) are NOT defaulted — they come
 // from flags/JSON, and the schema rightly rejects their absence.
 
-/** Per-record-kind structural defaults — empty arrays, nulls, empty strings. */
+/** Per-record-kind structural defaults — empty arrays, nulls, empty strings.
+ * ID-148.12: `theme` RETIRED — zero live `withCreateDefaults('theme', …)`
+ * call sites (TECH §3.2/§3.4, INV-7/INV-12(d)); the roadmap server arm's
+ * project-create defaults live in the re-vendored `lib/ledger/record-mutate.ts`
+ * (upstream `CREATE_DEFAULTS.project`), a SEPARATE registry from this
+ * KH-native CLI one — {148.7} wires the initiatives create verbs. */
 const CREATE_DEFAULTS: Record<
-  'subtask' | 'task' | 'theme' | 'item' | 'retro',
+  'subtask' | 'task' | 'item' | 'retro',
   Record<string, unknown>
 > = {
   subtask: {
@@ -2404,16 +2412,6 @@ const CREATE_DEFAULTS: Record<
     session_refs: [],
     commit_refs: [],
     updatedAt: '',
-  },
-  theme: {
-    status: 'pending',
-    time_horizon: 'later',
-    linked_tasks: [],
-    linked_backlog: [],
-    session_refs: [],
-    commit_refs: [],
-    cross_doc_links: [],
-    notes: null,
   },
   item: {
     // `type` / `track` are required scalars with no inherent empty value;
@@ -2458,7 +2456,7 @@ const CREATE_DEFAULTS: Record<
  * write timestamp when absent.
  */
 function withCreateDefaults(
-  recordKind: 'subtask' | 'task' | 'theme' | 'item' | 'retro',
+  recordKind: 'subtask' | 'task' | 'item' | 'retro',
   record: Record<string, unknown>,
 ): Record<string, unknown> {
   const defaults = { ...CREATE_DEFAULTS[recordKind] };
@@ -2847,11 +2845,22 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       const loaded = await loadLedger(ledgerPath(dir, ledger as LedgerName));
       if (!loaded.ok) return loaded.result;
       const d = loaded.detected;
+      // ID-148.12: `d.kind` can no longer be 'roadmap' (the re-vendored
+      // oracle registers 'initiatives' instead). This generic bare-id lookup
+      // has no initiatives-tree analog — `initiatives[]`/`sub-initiatives[]`
+      // is a NESTED tree, not a flat findable-by-id collection — so the
+      // `show initiatives [id]` / `show project <slug>` dedicated verbs
+      // above (reading a SEPARATE file via loadInitiativesDoc) are the live
+      // initiatives read path; this arm stays a documented dead branch
+      // (`show roadmap <id>`/`show initiatives <id>` never reach here — the
+      // `ledger` positional dispatch above already routes 'initiatives' to
+      // the dedicated verb and 'roadmap' is a still-valid-but-unmigrated
+      // LedgerName whose file content no longer parses to this kind).
       const record =
         d.kind === 'task-list'
           ? d.data.tasks.find((t) => t.id === id)
-          : d.kind === 'roadmap'
-            ? d.data.themes.find((t) => t.id === id)
+          : d.kind === 'initiatives'
+            ? undefined
             : d.kind === 'retro'
               ? d.data.retros.find((r) => r.id === id)
               : d.data.items.find((it) => it.id === id);
@@ -2937,11 +2946,14 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         return { ok: true, subcommand: 'get', result: subRec[field] };
       }
 
+      // ID-148.12: see the identical `show` dispatch comment above — this
+      // generic bare-id lookup has no initiatives-tree analog, stays a
+      // documented dead branch.
       const record =
         d.kind === 'task-list'
           ? d.data.tasks.find((t) => t.id === id)
-          : d.kind === 'roadmap'
-            ? d.data.themes.find((t) => t.id === id)
+          : d.kind === 'initiatives'
+            ? undefined
             : d.kind === 'retro'
               ? d.data.retros.find((r) => r.id === id)
               : d.data.items.find((it) => it.id === id);
@@ -3357,10 +3369,12 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       };
       const meta = META[ledger as LedgerName];
 
+      // ID-148.12: see the `show`/`get` dispatch comment — no initiatives-tree
+      // analog for a flat record list; documented dead branch (empty array).
       const records = (d.kind === 'task-list'
         ? d.data.tasks
-        : d.kind === 'roadmap'
-          ? d.data.themes
+        : d.kind === 'initiatives'
+          ? []
           : d.kind === 'retro'
             ? d.data.retros
             : d.data.items) as unknown as Record<string, unknown>[];
@@ -4483,15 +4497,23 @@ async function promote(
   // ID-35.39 Item A: roadmap is only loaded + validated when the operator opts
   // into capability-theme binding (preserves the pre-{35.39} two-ledger
   // residual-window discipline when the flag is absent).
+  // ID-148.12: this whole `capabilityTheme !== undefined` branch is UNREACHABLE
+  // via the CLI — the dispatch case above (INV-7) returns `retired-flag` before
+  // `promote()` is ever called with a defined `capabilityTheme`; left in place
+  // (ID-148.8) so {148.7}'s initiatives-linking replacement can reuse the
+  // transaction shape without a type churn. The re-vendored oracle no longer
+  // has a `kind:'roadmap'`/flat `themes[]` shape to check against — the kind
+  // literal + lookup below are updated ONLY for type-compatibility with the
+  // re-vendored `DetectSchemaResult` (INV-12(a)); no behaviour change (dead).
   let rmLoad: Awaited<ReturnType<typeof loadLedger>> | null = null;
   if (capabilityTheme !== undefined) {
     rmLoad = await loadLedger(roadmapP);
     if (!rmLoad.ok) return rmLoad.result;
-    if (rmLoad.detected.kind !== 'roadmap')
+    if (rmLoad.detected.kind !== 'initiatives')
       return cliErr('promote', 'wrong-ledger', 'roadmap');
-    const themeExists = rmLoad.detected.data.themes.some(
-      (t) => t.id === capabilityTheme,
-    );
+    // No flat `themes[]` collection exists on the initiatives tree shape —
+    // this dead branch (see comment above) can never reach a true value.
+    const themeExists = false;
     if (!themeExists) {
       return cliErr(
         'promote',

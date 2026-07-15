@@ -137,7 +137,6 @@ describe('ledger-cli — schema subcommand', () => {
       const text = r.result as string;
       expect(text).toContain('task.id: string');
       expect(text).toContain('subtask.id: string');
-      expect(text).toContain('theme.');
       expect(text).toContain('backlog.title: string ≤80');
     }
   });
@@ -153,6 +152,21 @@ describe('ledger-cli — schema subcommand', () => {
     const r = await run(args('schema', ['nonsense']));
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toBe('bad-schema-target');
+  });
+
+  // ID-148.12: the 'theme' SchemaRecordKind is RETIRED (TECH §3.2/§3.4,
+  // INV-7/INV-12(d)) — `schema roadmap`/`schema theme` no longer resolve to
+  // a record kind and MUST fall through to `bad-schema-target`, never print
+  // a stale `theme.` slice.
+  it('schema roadmap / schema theme are retired targets (bad-schema-target)', async () => {
+    const roadmapResult = await run(args('schema', ['roadmap']));
+    expect(roadmapResult.ok).toBe(false);
+    if (!roadmapResult.ok)
+      expect(roadmapResult.error).toBe('bad-schema-target');
+
+    const themeResult = await run(args('schema', ['theme']));
+    expect(themeResult.ok).toBe(false);
+    if (!themeResult.ok) expect(themeResult.error).toBe('bad-schema-target');
   });
 
   it('is read-only — touches no ledger file', async () => {

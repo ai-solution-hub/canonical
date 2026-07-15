@@ -20,11 +20,16 @@
  *
  * Coverage:
  *   - task-list.json        → TaskListSchema (+ parseTaskListWithWarnings)
- *   - product-roadmap.json  → RoadmapSchema
  *   - product-backlog.json  → BacklogSchema
  *   - negative case         → a fixture with the exact S283 typo
  *                             (`"in-progress"`) MUST throw, proving the guard
  *                             actually catches a corrupted ledger.
+ *
+ * ID-148.12: the `product-roadmap.json` → `RoadmapSchema` coverage line
+ * RETIRED — `lib/validation/roadmap-schema.ts` is deleted (TECH §3.2/§3.4,
+ * INV-12(a)/(d); the roadmap server arm is repurposed to initiatives
+ * upstream, re-vendored via `lib/ledger/detect-schema.ts`'s `kind:'initiatives'`
+ * arm, not this direct-schema-import guard).
  */
 
 import { join, resolve } from 'node:path';
@@ -35,7 +40,6 @@ import {
   TaskListSchema,
   parseTaskListWithWarnings,
 } from '@/lib/validation/task-list-schema';
-import { RoadmapSchema } from '@/lib/validation/roadmap-schema';
 import { BacklogSchema } from '@/lib/validation/backlog-schema';
 
 // Reads from the synthetic de-identified fixture dir (ID-68.35 ledger relocation).
@@ -61,11 +65,6 @@ describe('Ledger schema integrity (bl-208) — fixture ledgers strict-parse', ()
     // Mirrors the ledger-CLI's hard-fail path: throws ZodError on any schema
     // violation. Soft field-length warnings are advisory and do not fail.
     expect(() => parseTaskListWithWarnings(ledger)).not.toThrow();
-  });
-
-  it('product-roadmap.json parses against RoadmapSchema (strict)', () => {
-    const ledger = readLedger('product-roadmap.json');
-    expect(() => RoadmapSchema.parse(ledger)).not.toThrow();
   });
 
   it('product-backlog.json parses against BacklogSchema (strict)', () => {

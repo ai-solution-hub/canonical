@@ -1,11 +1,17 @@
 /**
- * ledger-budgets.ts — unified char-budget registry for all THREE workflow
- * ledgers (task-list, roadmap, backlog). Ledger-CLI v2 {35.13}.
+ * ledger-budgets.ts — unified char-budget registry for the KH workflow
+ * ledgers (task-list, backlog). Ledger-CLI v2 {35.13}.
+ *
+ * ID-148.12: the `theme` recordKind RETIRED (TECH §3.2/§3.4, INV-12(d)) —
+ * the roadmap server arm is repurposed to initiatives upstream, which is
+ * outside this KH-native registry's scope (see
+ * `lib/validation/initiatives-schema.ts`'s `INITIATIVES_BUDGETS` header for
+ * the two-registry split).
  *
  * Single source of truth mapping `(recordKind → field → char budget)`, where
- * `recordKind` is one of `task | subtask | theme | item`. Consumed by:
- *   - the three `parse*WithWarnings` helpers (task-list / roadmap / backlog),
- *     which emit a SOFT warning for an over-budget field;
+ * `recordKind` is one of `task | subtask | item`. Consumed by:
+ *   - the `parse*WithWarnings` helpers (task-list / backlog), which emit a
+ *     SOFT warning for an over-budget field;
  *   - the ledger-CLI v2 write-time budget pre-check (RESEARCH §2.3), which
  *     REJECTS an over-budget write at source unless `--force`;
  *   - the `schema` / `--help` discoverability surface.
@@ -40,9 +46,6 @@
  *     `FIELD_BUDGETS` (taskDescription 1500, taskStatusNote 300,
  *     subtaskDescription 250, subtaskTestStrategy 300) so the existing
  *     task-list discipline is unchanged.
- *   - `theme` — `description` shares the task-description class (a markdown
- *     scope statement) → 1500; `notes` shares the status_note prose class
- *     → 300.
  *   - `item.description` — the one-sentence summary under the `title`
  *     heading. Live data: median 125 / mean 182 / max 971; 500 is a soft
  *     budget generous enough never to flag the median/mean but to surface the
@@ -61,11 +64,6 @@ export const LEDGER_BUDGETS = {
   subtask: {
     description: 250,
     testStrategy: 300,
-  },
-  /** product-roadmap.json — Theme record. */
-  theme: {
-    description: 1500,
-    notes: 300,
   },
   /** product-backlog.json — Item record. */
   item: {
