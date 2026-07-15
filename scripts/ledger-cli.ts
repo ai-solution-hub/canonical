@@ -2884,12 +2884,21 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       const [ledger, id, field] = p;
       if (!ledger || !id)
         return cliErr('get', 'missing-args', 'get <ledger> <id> [field]');
-      if (!(ledger in LEDGER_FILES))
-        return cliErr(
+      // ID-148.8 fix-Executor (Checker FAIL): `get` was missing the same
+      // INV-7 retired-ledger guard `show`/`list` already carry — a bare
+      // `!(ledger in LEDGER_FILES)` check does NOT catch 'roadmap' (still a
+      // valid LedgerName, per Option C's server-arm repurpose), so
+      // `get roadmap <id>` fell through to `loadLedger` and surfaced a raw
+      // ENOENT instead of a clean retired-verb envelope.
+      if (ledger in RETIRED_LEDGER_NAMES) {
+        return retiredVerbResult(
           'get',
-          'bad-ledger',
-          `ledger must be task|roadmap|backlog|retro`,
+          `get ${ledger}`,
+          RETIRED_LEDGER_NAMES[ledger],
         );
+      }
+      if (!(ledger in LEDGER_FILES))
+        return cliErr('get', 'bad-ledger', `ledger must be task|backlog|retro`);
       const loaded = await loadLedger(ledgerPath(dir, ledger as LedgerName));
       if (!loaded.ok) return loaded.result;
       const d = loaded.detected;

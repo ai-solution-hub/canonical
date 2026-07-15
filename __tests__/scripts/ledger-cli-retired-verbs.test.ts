@@ -131,6 +131,30 @@ describe('ledger-cli — ID-148.8 retired <ledger> arguments (show/list)', () =>
     }
   });
 
+  // Checker FAIL remediation: `get` was missing this guard — `get roadmap
+  // <id>` fell through to `loadLedger` and surfaced a raw ENOENT (the
+  // product-roadmap.json fixture is absent from this suite's empty temp
+  // dir), because 'roadmap' is still a valid LedgerName (Option C's server
+  // arm repurpose). `get` now carries the identical RETIRED_LEDGER_NAMES
+  // guard `show`/`list` already had.
+  it('get roadmap returns retired-verb, no ENOENT/parse/stack', async () => {
+    const r = await run(args('get', ['roadmap', '1']));
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toBe('retired-verb');
+      expect(r.detail).not.toMatch(/ENOENT/i);
+    }
+  });
+
+  it('get umbrellas returns retired-verb, no ENOENT/parse/stack (symmetry)', async () => {
+    const r = await run(args('get', ['umbrellas', 'canonical-pipeline']));
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toBe('retired-verb');
+      expect(r.detail).not.toMatch(/ENOENT/i);
+    }
+  });
+
   it('a genuinely unknown ledger name still gets the normal bad-ledger error, not retired-verb', async () => {
     const r = await run(args('show', ['nonsense-ledger', '1']));
     expect(r.ok).toBe(false);
