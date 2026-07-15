@@ -33,7 +33,7 @@
  * CLAUDE.md gotchas applied:
  *   * Embedding vector: JSON.stringify(embeddingArray) for RPC vector params.
  *   * Service-role client: bypasses RLS for test setup/teardown.
- *   * FK-safe cleanup order: q_a_pairs → form_questions → workspaces;
+ *   * FK-safe cleanup order: q_a_pairs → form_questions → form_instances;
  *     question_matches CASCADE-deletes from both parents (no explicit delete
  *     needed — see the ID-57.7 fix note above).
  *   * Hard assertions only — no conditional if-visible patterns.
@@ -146,7 +146,7 @@ if (RUN_INTEGRATION) {
 // ---------------------------------------------------------------------------
 let seededPairIds: string[] = [];
 let seededQuestionIds: string[] = [];
-let seededWorkspaceIds: string[] = [];
+let seededFormInstanceIds: string[] = [];
 
 // ---------------------------------------------------------------------------
 // Embedding vector helper — 1024-dim with distinct leading dimensions so the
@@ -161,42 +161,43 @@ function makeEmbedding(d0: number, d1 = 0): number[] {
 
 // ---------------------------------------------------------------------------
 // Seed helpers.
+//
+// ID-145 {145.23} round-2: form_questions.workspace_id was DROPPED (W1c) and
+// RENAMED form_template_id -> form_instance_id, NOT NULL. The old
+// seedWorkspace() -> workspaces row is no longer a valid FK target for
+// form_questions; seedFormInstance() below inserts a real form_instances
+// row instead (minimal NOT-NULL-no-default column set post-W1c: name,
+// filename, storage_path, file_size, mime_type).
 // ---------------------------------------------------------------------------
-async function seedWorkspace(name: string): Promise<string> {
-  const { data: appType, error: appTypeErr } = await db
-    .from('application_types')
-    .select('id')
-    .limit(1)
-    .single();
-
-  if (appTypeErr || !appType) {
-    throw new Error(
-      `seedWorkspace: no application_types row found — ${appTypeErr?.message ?? 'no data'}`,
-    );
-  }
-
+async function seedFormInstance(name: string): Promise<string> {
   const { data, error } = await db
-    .from('workspaces')
-    .insert({ name, application_type_id: appType.id })
+    .from('form_instances')
+    .insert({
+      name,
+      filename: `${name}.pdf`,
+      storage_path: `id57-integration-test/${name}.pdf`,
+      file_size: 1024,
+      mime_type: 'application/pdf',
+    })
     .select('id')
     .single();
 
   if (error || !data) {
-    throw new Error(`seedWorkspace failed: ${error?.message ?? 'no data'}`);
+    throw new Error(`seedFormInstance failed: ${error?.message ?? 'no data'}`);
   }
 
-  seededWorkspaceIds.push(data.id);
+  seededFormInstanceIds.push(data.id);
   return data.id;
 }
 
 async function seedFormQuestion(
-  workspaceId: string,
+  formInstanceId: string,
   questionText: string,
 ): Promise<string> {
   const { data, error } = await db
     .from('form_questions')
     .insert({
-      workspace_id: workspaceId,
+      form_instance_id: formInstanceId,
       question_text: questionText,
       section_name: 'ID-57.7 test section',
       section_sequence: 1,
@@ -378,13 +379,13 @@ afterEach(async () => {
   if (seededQuestionIds.length > 0) {
     await db.from('form_questions').delete().in('id', seededQuestionIds);
   }
-  if (seededWorkspaceIds.length > 0) {
-    await db.from('workspaces').delete().in('id', seededWorkspaceIds);
+  if (seededFormInstanceIds.length > 0) {
+    await db.from('form_instances').delete().in('id', seededFormInstanceIds);
   }
 
   seededPairIds = [];
   seededQuestionIds = [];
-  seededWorkspaceIds = [];
+  seededFormInstanceIds = [];
 });
 
 // ===========================================================================
@@ -418,13 +419,13 @@ describe.skipIf(!RUN_INTEGRATION)(
     // a sibling form-question's materialised rows are not surfaced.
     // -------------------------------------------------------------------------
     it('returns only candidates for the target form-question (C1)', async () => {
-      const workspaceId = await seedWorkspace('ID-57.7 C1 workspace');
+      const formInstanceId = await seedFormInstance('ID-57.7 C1 workspace');
       const fqTarget = await seedFormQuestion(
-        workspaceId,
+        formInstanceId,
         'Target form question?',
       );
       const fqOther = await seedFormQuestion(
-        workspaceId,
+        formInstanceId,
         'Sibling form question?',
       );
 
@@ -473,9 +474,11 @@ describe.skipIf(!RUN_INTEGRATION)(
     // identical on repeat. Both raw scores returned (C6).
     // -------------------------------------------------------------------------
     it('ranks by the 0.6/0.4 blend over stored scores, deterministic on repeat; returns both raw scores (C3/D4/C6)', async () => {
-      const workspaceId = await seedWorkspace('ID-57.7 ranking workspace');
+      const formInstanceId = await seedFormInstance(
+        'ID-57.7 ranking workspace',
+      );
       const fq = await seedFormQuestion(
-        workspaceId,
+        formInstanceId,
         'How do we evidence GDPR compliance?',
       );
 
@@ -534,9 +537,9 @@ describe.skipIf(!RUN_INTEGRATION)(
     // Test 3 (C4): p_limit caps the result set.
     // -------------------------------------------------------------------------
     it('honours p_limit (C4)', async () => {
-      const workspaceId = await seedWorkspace('ID-57.7 limit workspace');
+      const formInstanceId = await seedFormInstance('ID-57.7 limit workspace');
       const fq = await seedFormQuestion(
-        workspaceId,
+        formInstanceId,
         'Limit probe form question?',
       );
 
@@ -566,9 +569,11 @@ describe.skipIf(!RUN_INTEGRATION)(
     // publication_status pass-through.
     // -------------------------------------------------------------------------
     it('truncates previews to 200 chars and passes through scope_tag + publication_status (C2)', async () => {
-      const workspaceId = await seedWorkspace('ID-57.7 preview workspace');
+      const formInstanceId = await seedFormInstance(
+        'ID-57.7 preview workspace',
+      );
       const fq = await seedFormQuestion(
-        workspaceId,
+        formInstanceId,
         'Preview probe form question?',
       );
 
@@ -613,9 +618,9 @@ describe.skipIf(!RUN_INTEGRATION)(
     // materialised rows.
     // -------------------------------------------------------------------------
     it('returns an empty list (not an error) for a form-question with no materialised rows (C5)', async () => {
-      const workspaceId = await seedWorkspace('ID-57.7 empty workspace');
+      const formInstanceId = await seedFormInstance('ID-57.7 empty workspace');
       const fq = await seedFormQuestion(
-        workspaceId,
+        formInstanceId,
         'Form question with no candidates?',
       );
 
@@ -633,9 +638,9 @@ describe.skipIf(!RUN_INTEGRATION)(
     // (read-time publication re-check — no stale surfacing).
     // -------------------------------------------------------------------------
     it('suppresses a pair unpublished after materialisation at read time (B6)', async () => {
-      const workspaceId = await seedWorkspace('ID-57.7 B6 workspace');
+      const formInstanceId = await seedFormInstance('ID-57.7 B6 workspace');
       const fq = await seedFormQuestion(
-        workspaceId,
+        formInstanceId,
         'B6 read-time re-check probe?',
       );
 
@@ -685,8 +690,10 @@ describe.skipIf(!RUN_INTEGRATION)(
     // Test 7 (B4/A6): p_question_kind filter narrows the result correctly.
     // -------------------------------------------------------------------------
     it('narrows results by the p_question_kind filter (B4/A6)', async () => {
-      const workspaceId = await seedWorkspace('ID-57.7 kind-filter workspace');
-      const fq = await seedFormQuestion(workspaceId, 'Kind filter probe?');
+      const formInstanceId = await seedFormInstance(
+        'ID-57.7 kind-filter workspace',
+      );
+      const fq = await seedFormQuestion(formInstanceId, 'Kind filter probe?');
 
       const pairBid = await seedQaPair({
         questionText: 'Bid-kind procurement compliance pair.',

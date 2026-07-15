@@ -606,7 +606,15 @@ describe('fetchUnifiedDashboardData', () => {
   // an all-failed signal — an unowned file this Subtask must not regress).
   it('degrades active_forms to empty on a form_instances query failure, without polluting errors[]', async () => {
     const mock = setupDefaultMock();
-    const originalFrom = mock.from.getMockImplementation();
+    // ID-145 {145.23} round-2: `mock.from` is `ReturnType<typeof vi.fn>`
+    // (unparameterized) — `getMockImplementation()`'s return type includes
+    // Vitest's construct-signature overload (`new (...args) => any`), which
+    // has no call signature, so calling the union directly does not
+    // typecheck. Retype at this one call site (the only place in the suite
+    // that chains getMockImplementation() into a direct call).
+    const originalFrom = mock.from.getMockImplementation() as
+      | ((table: string) => unknown)
+      | undefined;
     mock.from.mockImplementation((table: string) => {
       if (table === 'form_instances') {
         const chain: Record<string, ReturnType<typeof vi.fn>> = {};

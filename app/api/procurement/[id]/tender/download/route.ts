@@ -49,12 +49,13 @@ export const GET = defineRoute(
       }
 
       // Verify bid exists.
-      // Post-T2: discriminator via application_types JOIN.
+      // ID-145 {145.23} round-2 runtime grep sweep (mandatory extra #2, DR-056):
+      // workspaces/procurement_workspaces are wholesale-deleted for
+      // procurement (W1e, {145.6}) — [id] IS the form_instances PK now.
       const { data: bid, error: procurementError } = await supabase
-        .from('workspaces')
-        .select('id, application_types!inner(key)')
+        .from('form_instances')
+        .select('id')
         .eq('id', procurementId)
-        .eq('application_types.key', 'procurement')
         .single();
 
       if (procurementError || !bid) {

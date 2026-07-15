@@ -118,9 +118,6 @@ if (RUN_INTEGRATION) {
 // cleaned first (defensive — CASCADE handles history automatically on pair
 // DELETE, but explicit first is belt-and-suspenders per dispatch brief).
 let seededPairIds: string[] = [];
-// Workspaces seeded for source_workspace_id lineage tests (ID-64.15). Cleaned
-// up AFTER q_a_pairs are deleted (q_a_pairs.source_workspace_id FK -> workspaces).
-let seededWorkspaceIds: string[] = [];
 
 // ---------------------------------------------------------------------------
 // Embedding vector helpers
@@ -165,15 +162,17 @@ async function seedQaPair(opts: {
   publicationStatus: 'draft' | 'in_review' | 'published' | 'archived';
   embedding?: number[];
   scopeTag?: string[];
-  sourceWorkspaceId?: string;
 }): Promise<string> {
+  // ID-145 {145.23} round-2: q_a_pairs.source_workspace_id was DROPPED
+  // outright by W1c (data lineage-migrated onto source_form_instance_id in
+  // the preceding w1a migration; no replacement column for a live/mutable
+  // "current workspace" concept) — no longer a settable field here.
   const payload: Database['public']['Tables']['q_a_pairs']['Insert'] = {
     question_text: opts.questionText,
     answer_standard: opts.answerStandard,
     publication_status: opts.publicationStatus,
     scope_tag: opts.scopeTag ?? [],
     origin_kind: 'curated_explicit',
-    source_workspace_id: opts.sourceWorkspaceId,
   };
 
   const { data, error } = await db
@@ -194,47 +193,10 @@ async function seedQaPair(opts: {
 }
 
 // ---------------------------------------------------------------------------
-// Workspace seed helper (ID-64.15 — source_workspace_id lineage tests)
-// ---------------------------------------------------------------------------
-// q_a_pairs.source_workspace_id is an FK -> workspaces(id). To exercise the
-// history-snapshot of that column we need a real workspace row. workspaces.type
-// is now an application_type_id FK (S246 WP2b T2), so we look up any existing
-// application_type and attach to it. Tracked for FK-safe teardown.
-async function seedWorkspace(name: string): Promise<string> {
-  const { data: appType, error: appTypeErr } = await db
-    .from('application_types')
-    .select('id')
-    .limit(1)
-    .single();
-
-  if (appTypeErr || !appType) {
-    throw new Error(
-      `seedWorkspace: no application_types row found — ${appTypeErr?.message ?? 'no data'}`,
-    );
-  }
-
-  const { data, error } = await db
-    .from('workspaces')
-    .insert({ name, application_type_id: appType.id })
-    .select('id')
-    .single();
-
-  if (error || !data) {
-    throw new Error(`seedWorkspace failed: ${error?.message ?? 'no data'}`);
-  }
-
-  seededWorkspaceIds.push(data.id);
-  return data.id;
-}
-
-// ---------------------------------------------------------------------------
 // Cleanup
 // ---------------------------------------------------------------------------
 afterEach(async () => {
-  if (
-    !RUN_INTEGRATION ||
-    (seededPairIds.length === 0 && seededWorkspaceIds.length === 0)
-  ) {
+  if (!RUN_INTEGRATION || seededPairIds.length === 0) {
     return;
   }
 
@@ -243,8 +205,11 @@ afterEach(async () => {
   // 2. q_a_extractions (FK to q_a_pairs — explicit, no cascade on pair DELETE)
   // 3. record_embeddings (polymorphic owner, no FK — explicit)
   // 4. q_a_pairs
-  // 5. workspaces (last — q_a_pairs.source_workspace_id FK -> workspaces(id),
-  //    so pairs must be gone before their referenced workspace can be deleted).
+  //
+  // ID-145 {145.23} round-2: the trailing "5. workspaces" step (q_a_pairs.
+  // source_workspace_id FK -> workspaces(id)) is REMOVED — that column was
+  // dropped outright by W1c; no workspace rows are seeded by this suite
+  // any more (the ID-64.15 seedWorkspace() helper was removed with it).
 
   if (seededPairIds.length > 0) {
     await db.from('q_a_pair_history').delete().in('q_a_pair_id', seededPairIds);
@@ -263,12 +228,7 @@ afterEach(async () => {
     await db.from('q_a_pairs').delete().in('id', seededPairIds);
   }
 
-  if (seededWorkspaceIds.length > 0) {
-    await db.from('workspaces').delete().in('id', seededWorkspaceIds);
-  }
-
   seededPairIds = [];
-  seededWorkspaceIds = [];
 });
 
 // ---------------------------------------------------------------------------
@@ -599,10 +559,15 @@ describe.skipIf(!RUN_INTEGRATION)(
         'superseded_by' in publishedRow,
         'superseded_by column must be present in q_a_get_verbatim shape',
       ).toBe(true);
+      // ID-145 {145.23} round-2: source_workspace_id was DROPPED from
+      // q_a_pairs (W1c) and the q_a_get_verbatim RPC's RETURNS TABLE shape
+      // was fixed to match (the RPC statically SELECTed the dropped column
+      // and hard-failed every call until this fix) — assert its ABSENCE now,
+      // mirroring the question_embedding absence check above.
       expect(
         'source_workspace_id' in publishedRow,
-        'source_workspace_id column must be present in q_a_get_verbatim shape',
-      ).toBe(true);
+        'source_workspace_id must NOT appear in q_a_get_verbatim result (column dropped W1c)',
+      ).toBe(false);
       expect(
         'valid_from' in publishedRow,
         'valid_from column must be present in q_a_get_verbatim shape',
@@ -741,20 +706,25 @@ describe.skipIf(!RUN_INTEGRATION)(
     }, 60_000);
 
     // -------------------------------------------------------------------------
-    // Test 3b (ID-64.15): history trigger snapshots superseded_by +
-    // source_workspace_id. Proves (i) both columns exist on q_a_pair_history,
-    // and (ii) an UPDATE to a q_a_pairs row carrying both lineage values
-    // produces a history row that captures BOTH (snapshot = OLD-row values, so
-    // the values must be set on the row, then a SUBSEQUENT update fires the
-    // snapshot of that state).
+    // Test 3b (ID-64.15, narrowed at {145.23} round-2): history trigger
+    // snapshots superseded_by. Proves (i) the column exists on
+    // q_a_pair_history, and (ii) an UPDATE to a q_a_pairs row carrying a
+    // supersession value produces a history row that captures it (snapshot =
+    // OLD-row values, so the value must be set on the row, then a SUBSEQUENT
+    // update fires the snapshot of that state).
+    //
+    // source_workspace_id coverage REMOVED here: q_a_pairs.source_workspace_id
+    // was DROPPED outright by W1c with no replacement (workspace lineage
+    // retired system-wide for Q&A pairs) — the trigger itself was fixed in
+    // the same round to stop reading/snapshotting it (it referenced a
+    // dropped column and hard-failed EVERY q_a_pairs UPDATE until fixed;
+    // q_a_pair_history.source_workspace_id itself is untouched and still
+    // holds pre-W1 historical values, exercised by readHistory()'s select
+    // list, but nothing new ever populates it going forward).
     // -------------------------------------------------------------------------
-    it('history trigger snapshots superseded_by + source_workspace_id on UPDATE', async () => {
-      // Seed a workspace (source_workspace_id FK target) and a supersession
-      // target pair (superseded_by FK target on the live q_a_pairs row).
-      const workspaceId = await seedWorkspace(
-        'ID-64.15 lineage-snapshot workspace',
-      );
-
+    it('history trigger snapshots superseded_by on UPDATE', async () => {
+      // Seed a supersession target pair (superseded_by FK target on the live
+      // q_a_pairs row).
       const supersedingPairId = await seedQaPair({
         questionText: 'What is the superseding canonical answer?',
         answerStandard:
@@ -762,18 +732,16 @@ describe.skipIf(!RUN_INTEGRATION)(
         publicationStatus: 'published',
       });
 
-      // Seed the subject pair WITH source_workspace_id already set at insert.
       const subjectPairId = await seedQaPair({
         questionText: 'What is our data residency policy?',
         answerStandard:
           'Data is held within UK/EU regions per contractual terms.',
         publicationStatus: 'draft',
-        sourceWorkspaceId: workspaceId,
       });
 
       // UPDATE 1: set superseded_by (the live q_a_pairs FK accepts the target
       // pair id). This snapshots the OLD state — at which point superseded_by
-      // was still NULL but source_workspace_id was already set.
+      // was still NULL.
       const { error: update1Err } = await db
         .from('q_a_pairs')
         .update({
@@ -795,15 +763,11 @@ describe.skipIf(!RUN_INTEGRATION)(
       ).toBe(1);
 
       const v1 = historyAfter1[0];
-      // v1 snapshots OLD state: superseded_by still NULL, source_workspace_id set.
+      // v1 snapshots OLD state: superseded_by still NULL.
       expect(v1.superseded_by, 'v1 superseded_by is OLD (NULL)').toBeNull();
-      expect(
-        v1.source_workspace_id,
-        'v1 source_workspace_id snapshot equals the seeded workspace id',
-      ).toBe(workspaceId);
 
       // UPDATE 2: change the answer. This snapshots the state set by UPDATE 1,
-      // i.e. superseded_by = supersedingPairId AND source_workspace_id = workspace.
+      // i.e. superseded_by = supersedingPairId.
       const { error: update2Err } = await db
         .from('q_a_pairs')
         .update({
@@ -826,15 +790,11 @@ describe.skipIf(!RUN_INTEGRATION)(
 
       const v2 = historyAfter2[1];
       expect(v2.version).toBe(2);
-      // v2 snapshots the post-UPDATE-1 state: BOTH lineage columns carried.
+      // v2 snapshots the post-UPDATE-1 state: superseded_by carried forward.
       expect(
         v2.superseded_by,
         'v2 superseded_by snapshot equals the superseding pair id',
       ).toBe(supersedingPairId);
-      expect(
-        v2.source_workspace_id,
-        'v2 source_workspace_id snapshot equals the seeded workspace id',
-      ).toBe(workspaceId);
     }, 60_000);
 
     // -------------------------------------------------------------------------

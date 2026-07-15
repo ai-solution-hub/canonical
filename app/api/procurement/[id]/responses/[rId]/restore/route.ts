@@ -57,7 +57,7 @@ export const POST = defineRoute(
           .from('form_questions')
           .select('id')
           .eq('id', existing.question_id)
-          .eq('workspace_id', id)
+          .eq('form_instance_id', id)
           .maybeSingle(),
         'bids.response.restore.questionOwnership',
       );

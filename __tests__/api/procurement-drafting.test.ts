@@ -339,7 +339,7 @@ describe('POST /api/bids/:id/responses/draft', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'draft', domain_metadata: {} },
+      data: { id: VALID_UUID, workflow_state: 'draft' },
       error: null,
     });
 
@@ -364,7 +364,7 @@ describe('POST /api/bids/:id/responses/draft', () => {
 
     // Procurement lookup: draftable state
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
+      data: { id: VALID_UUID, workflow_state: 'drafting' },
       error: null,
     });
 
@@ -393,7 +393,7 @@ describe('POST /api/bids/:id/responses/draft', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
+      data: { id: VALID_UUID, workflow_state: 'drafting' },
       error: null,
     });
 
@@ -435,7 +435,7 @@ describe('POST /api/bids/:id/responses/draft', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
+      data: { id: VALID_UUID, workflow_state: 'drafting' },
       error: null,
     });
 
@@ -483,7 +483,7 @@ describe('POST /api/bids/:id/responses/draft', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
+      data: { id: VALID_UUID, workflow_state: 'drafting' },
       error: null,
     });
 
@@ -538,7 +538,7 @@ describe('POST /api/bids/:id/responses/draft', () => {
 
     // Workspace lookup.
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
+      data: { id: VALID_UUID, workflow_state: 'drafting' },
       error: null,
     });
 
@@ -1239,13 +1239,14 @@ describe('POST /api/bids/:id/responses/draft-all (post-S224 §5.4.1 queued)', ()
   // Helper: configure the mock chain to walk the route's HTTP-level
   // pre-conditions through to the enqueue point. Sequence:
   //   1. role lookup (.single) — configureRole
-  //   2. workspaces.select.eq.eq.single() — bid existence
+  //   2. form_instances.select.eq.single() — bid existence (ID-145 {145.23}
+  //      round-2: workspaces -> form_instances, W1e)
   //   3. pipeline_runs.insert(...) — awaited via .then (default empty impl)
   //   4. user_roles.select.eq.maybeSingle() — envelope role lookup
   function configureRouteToEnqueuePoint(
     opts: {
       role?: 'admin' | 'editor' | 'viewer';
-      bid?: { status: string } | null;
+      bid?: { workflow_state: string } | null;
       procurementError?: { code: string; message: string } | null;
       envelopeRole?: 'admin' | 'editor' | 'viewer';
     } = {},
@@ -1256,8 +1257,7 @@ describe('POST /api/bids/:id/responses/draft-all (post-S224 §5.4.1 queued)', ()
       mockSupabase._chain.single.mockResolvedValueOnce({
         data: opts.bid ?? {
           id: VALID_UUID,
-          status: 'drafting',
-          domain_metadata: {},
+          workflow_state: 'drafting',
         },
         error: null,
       });
@@ -1349,7 +1349,7 @@ describe('POST /api/bids/:id/responses/draft-all (post-S224 §5.4.1 queued)', ()
   });
 
   it('returns 400 when bid is not in a draftable state', async () => {
-    configureRouteToEnqueuePoint({ bid: { status: 'draft' } });
+    configureRouteToEnqueuePoint({ bid: { workflow_state: 'draft' } });
 
     const req = createTestRequest(
       `/api/procurement/${VALID_UUID}/responses/draft-all`,
@@ -1373,7 +1373,7 @@ describe('POST /api/bids/:id/responses/draft-all (post-S224 §5.4.1 queued)', ()
   it('AC-1: returns 202 + {job_id, pipeline_run_id, status:"queued", deduplicated:false} on first POST (editor)', async () => {
     configureRouteToEnqueuePoint({
       role: 'editor',
-      bid: { status: 'drafting' },
+      bid: { workflow_state: 'drafting' },
     });
 
     const req = createTestRequest(
@@ -1422,7 +1422,7 @@ describe('POST /api/bids/:id/responses/draft-all (post-S224 §5.4.1 queued)', ()
   it('AC-1: returns 202 with admin auth (editor-required role gate satisfied via ROLE_RANK)', async () => {
     configureRouteToEnqueuePoint({
       role: 'admin',
-      bid: { status: 'drafting' },
+      bid: { workflow_state: 'drafting' },
     });
 
     const req = createTestRequest(
@@ -1453,7 +1453,7 @@ describe('POST /api/bids/:id/responses/draft-all (post-S224 §5.4.1 queued)', ()
   it('AC-3: same-day second POST → 202 + same job_id + deduplicated:true', async () => {
     configureRouteToEnqueuePoint({
       role: 'editor',
-      bid: { status: 'drafting' },
+      bid: { workflow_state: 'drafting' },
     });
 
     // Override the default mock to return deduplicated:true.
@@ -1484,7 +1484,7 @@ describe('POST /api/bids/:id/responses/draft-all (post-S224 §5.4.1 queued)', ()
   it('returns 500 when enqueueQueueJob throws (e.g. RLS violation)', async () => {
     configureRouteToEnqueuePoint({
       role: 'editor',
-      bid: { status: 'drafting' },
+      bid: { workflow_state: 'drafting' },
     });
 
     mockEnqueueQueueJob.mockRejectedValueOnce(
@@ -1585,7 +1585,7 @@ describe('POST /api/bids/:id/responses/estimate', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'submitted', domain_metadata: {} },
+      data: { id: VALID_UUID, workflow_state: 'submitted' },
       error: null,
     });
 
@@ -1608,7 +1608,7 @@ describe('POST /api/bids/:id/responses/estimate', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
+      data: { id: VALID_UUID, workflow_state: 'drafting' },
       error: null,
     });
 
@@ -1636,7 +1636,7 @@ describe('POST /api/bids/:id/responses/estimate', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
+      data: { id: VALID_UUID, workflow_state: 'drafting' },
       error: null,
     });
 

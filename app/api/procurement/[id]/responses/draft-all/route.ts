@@ -74,13 +74,20 @@ export const POST = defineRoute(
       // Pre-conditions kept verbatim from the pre-S224 sync route — these
       // fail fast at HTTP-level before any queue work, surfacing 4xx
       // errors to the user immediately rather than via worker dead-letter.
+      //
+      // ID-145 {145.23} round-2 mandatory extra #1 (DR-056, mirrors the
+      // {145.21} draft-stream route + round-1's identical re-point of this
+      // route's WORKER handler, lib/queue/handlers/procurement-draft-all.ts):
+      // workspaces/procurement_workspaces are wholesale-deleted for
+      // procurement (W1e, {145.6}) — this producer route's `workspaces`
+      // lookup was tsc-INVISIBLE (schema-valid table, runtime hard-fail)
+      // and silently 404'd every draft-all enqueue with "Procurement not
+      // found" since the W1 push. [id] IS the form_instances PK now.
       // ----------------------------------------------------------------
-      // Post-T2: discriminator via application_types JOIN.
       const { data: bid, error: procurementError } = await supabase
-        .from('workspaces')
-        .select('id, status, domain_metadata, application_types!inner(key)')
+        .from('form_instances')
+        .select('id, workflow_state')
         .eq('id', id)
-        .eq('application_types.key', 'procurement')
         .single();
 
       if (procurementError || !bid) {
@@ -91,7 +98,7 @@ export const POST = defineRoute(
       }
 
       const procurementStatus =
-        (bid.status as ProcurementWorkflowState) ?? 'draft';
+        (bid.workflow_state as ProcurementWorkflowState) ?? 'draft';
       const draftableStates: ProcurementWorkflowState[] = [
         'drafting',
         'in_review',
@@ -143,7 +150,15 @@ export const POST = defineRoute(
           id: pipelineRunId,
           pipeline_name: 'form_draft_all',
           status: 'running',
-          workspace_id: id,
+          // ID-145 {145.23} round-2: `pipeline_runs.workspace_id` FK ->
+          // workspaces(id) ON DELETE SET NULL — [id] is a form_instances id,
+          // not a workspaces id, post-W1e (procurement rows deleted from
+          // workspaces wholesale). Writing `id` here would violate the FK on
+          // every enqueue. No replacement column tracks the form; the caller
+          // already gets `pipeline_run_id` back for polling (matches the
+          // app/api/admin/batch-reclassify/route.ts precedent, which also
+          // passes null for a non-workspace-scoped pipeline).
+          workspace_id: null,
         }),
         'bids.response.draftAll.pipelineRunInsert',
       );

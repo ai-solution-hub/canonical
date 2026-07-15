@@ -7,6 +7,7 @@ import { parseBody } from '@/lib/validation';
 import { ProcurementOutcomeBodySchema } from '@/lib/validation/schemas';
 import { tryQuery } from '@/lib/supabase/safe';
 import { computeWorkflowTransition } from '@/app/api/procurement/[id]/route';
+import type { Database } from '@/supabase/types/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -133,10 +134,17 @@ export const POST = defineRoute(
       // UPDATE narrows on the form id. `.select()` lets us VERIFY a row was
       // actually written — a REST PATCH that matches zero rows silently
       // succeeds with an empty body (RLS / vanished row).
+      //
+      // ID-145 {145.23} round-2: `formUpdates` is `Record<string, unknown>`
+      // (built from `computeWorkflowTransition`'s `WorkflowTransitionOutcome`
+      // union, which returns the same loose shape) — cast through `unknown`
+      // at the call boundary, same as `[id]/route.ts`'s PATCH handler.
       const updateResult = await tryQuery<Array<{ id: string }>>(
         supabase
           .from('form_instances')
-          .update(formUpdates)
+          .update(
+            formUpdates as unknown as Database['public']['Tables']['form_instances']['Update'],
+          )
           .eq('id', targetForm.id)
           .select('id'),
         'procurement.outcome.formUpdate',

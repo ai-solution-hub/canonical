@@ -72,7 +72,7 @@ export const GET = defineRoute(
           'id, question_text, word_limit, section_name, confidence_posture',
         )
         .eq('id', response.question_id)
-        .eq('workspace_id', id)
+        .eq('form_instance_id', id)
         .single();
 
       if (questionError || !question) {
@@ -247,7 +247,7 @@ export const PATCH = defineRoute(
           .from('form_questions')
           .select('id, word_limit')
           .eq('id', existing.question_id)
-          .eq('workspace_id', id)
+          .eq('form_instance_id', id)
           .maybeSingle(),
         'bids.response.update.questionOwnership',
       );
@@ -339,13 +339,13 @@ export const PATCH = defineRoute(
           .from('form_questions')
           .update({ status: 'complete' })
           .eq('id', existing.question_id)
-          .eq('workspace_id', id);
+          .eq('form_instance_id', id);
       } else if (review_status === 'needs_review') {
         await supabase
           .from('form_questions')
           .update({ status: 'needs_review' })
           .eq('id', existing.question_id)
-          .eq('workspace_id', id);
+          .eq('form_instance_id', id);
       }
 
       return NextResponse.json(updated);

@@ -47,13 +47,19 @@ export async function fetchProcurementExportData(
     );
   }
 
-  // Fetch bid workspace (post-T2: discriminator is application_types.key via
-  // JOIN, not the dropped workspaces.type col). 'bid' maps to 'procurement'.
+  // ID-145 {145.23} round-2 runtime grep sweep (mandatory extra #2, DR-056):
+  // workspaces/procurement_workspaces are wholesale-deleted for procurement
+  // (W1e, {145.6}) — this bid-existence read was tsc-INVISIBLE residue round-1
+  // missed (it fixed the tsc-visible form_questions.workspace_id error below
+  // in the same function, but not this schema-valid-but-empty workspaces
+  // read). [id] IS the form_instances PK now; the flat columns replace the
+  // domain_metadata bag (BI-1/BI-5, {145.18}).
   const { data: bid, error: procurementError } = await supabase
-    .from('workspaces')
-    .select('id, name, status, domain_metadata, application_types!inner(key)')
+    .from('form_instances')
+    .select(
+      'id, name, workflow_state, issuing_organisation, reference_number, deadline, estimated_value',
+    )
     .eq('id', procurementId)
-    .eq('application_types.key', 'procurement')
     .single();
 
   if (procurementError || !bid) {
@@ -108,19 +114,19 @@ export async function fetchProcurementExportData(
     );
   }
 
-  // Transform to export types
-  const procurementMetadata = (bid.domain_metadata ?? {}) as Record<
-    string,
-    unknown
-  >;
+  // Transform to export types.
+  // ID-145 {145.23} round-2: flat form_instances columns replace the
+  // domain_metadata bag. `notes` has no form_instances column and no live
+  // reader post-W1 (BI-5, {145.18}) — always null, never carried as dead data.
   const exportMetadata: ExportProcurementMetadata = {
     procurement_name: bid.name,
-    buyer: (procurementMetadata.buyer as string) || 'Unknown Buyer',
-    reference_number: (procurementMetadata.reference_number as string) || null,
-    deadline: (procurementMetadata.deadline as string) || null,
-    status: (bid.status as string) || 'draft',
-    estimated_value: (procurementMetadata.estimated_value as string) || null,
-    notes: (procurementMetadata.notes as string) || null,
+    buyer: bid.issuing_organisation || 'Unknown Buyer',
+    reference_number: bid.reference_number || null,
+    deadline: bid.deadline || null,
+    status: bid.workflow_state || 'draft',
+    estimated_value:
+      bid.estimated_value != null ? String(bid.estimated_value) : null,
+    notes: null,
   };
 
   const exportQuestions: ExportQuestion[] = questions.map((q) => {

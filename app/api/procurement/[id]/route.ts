@@ -14,6 +14,7 @@ import {
   validateFormOutcome,
 } from '@/lib/validation/schemas';
 import { tryQuery } from '@/lib/supabase/safe';
+import type { Database } from '@/supabase/types/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -429,10 +430,19 @@ export const PATCH = defineRoute(
       // UPDATE narrows on the PK directly. `.select()` lets us VERIFY a row
       // was actually written — a REST PATCH that matches zero rows silently
       // succeeds with an empty body (RLS / vanished row).
+      //
+      // ID-145 {145.23} round-2: `formUpdates` is built dynamically (keys
+      // set conditionally above) as `Record<string, unknown>`, which the
+      // generated `.update()` overload's RejectExcessProperties helper
+      // cannot verify has no excess keys against an open index signature —
+      // cast through `unknown` at the call boundary rather than re-typing
+      // the whole dynamic-build helper.
       const updateResult = await tryQuery<Array<Record<string, unknown>>>(
         supabase
           .from('form_instances')
-          .update(formUpdates)
+          .update(
+            formUpdates as unknown as Database['public']['Tables']['form_instances']['Update'],
+          )
           .eq('id', id)
           .select(FORM_DETAIL_COLUMNS),
         'procurement.patch.formUpdate',

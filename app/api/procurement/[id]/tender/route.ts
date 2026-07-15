@@ -8,7 +8,6 @@ import { isEncryptedDocx } from '@/lib/docx-utils';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { parseProcurementMetadata } from '@/lib/validation/schemas';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -114,12 +113,13 @@ export const POST = defineRoute(
       }
 
       // Verify bid exists.
-      // Post-T2: discriminator via application_types JOIN.
+      // ID-145 {145.23} round-2 runtime grep sweep (mandatory extra #2, DR-056):
+      // workspaces/procurement_workspaces are wholesale-deleted for
+      // procurement (W1e, {145.6}) — [id] IS the form_instances PK now.
       const { data: bid, error: procurementError } = await supabase
-        .from('workspaces')
-        .select('id, domain_metadata, application_types!inner(key)')
+        .from('form_instances')
+        .select('id')
         .eq('id', id)
-        .eq('application_types.key', 'procurement')
         .single();
 
       if (procurementError || !bid) {
@@ -176,40 +176,23 @@ export const POST = defineRoute(
         );
       }
 
-      // Update bid's domain_metadata.tender_document_ids array
-      const currentMetadata =
-        parseProcurementMetadata(bid.domain_metadata) ??
-        (bid.domain_metadata as Record<string, unknown>) ??
-        {};
-      const existingDocIds = Array.isArray(currentMetadata.tender_document_ids)
-        ? (currentMetadata.tender_document_ids as string[])
-        : [];
-
-      // Append the storage path if not already present
-      const updatedDocIds = existingDocIds.includes(storagePath)
-        ? existingDocIds
-        : [...existingDocIds, storagePath];
-
-      // UPDATE narrows on id only (prior fetchError gate enforces procurement-type).
-      const { error: updateError } = await supabase
-        .from('workspaces')
-        .update({
-          domain_metadata: {
-            ...currentMetadata,
-            tender_document_ids: updatedDocIds,
-          },
-          updated_by: user.id,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id);
-
-      if (updateError) {
-        logger.error({ err: updateError }, 'Failed to update bid metadata');
-        return NextResponse.json(
-          { error: 'File uploaded but failed to update bid metadata.' },
-          { status: 500 },
-        );
-      }
+      // ID-145 {145.23} round-2 (mandatory extra #2, DR-056): the
+      // domain_metadata.tender_document_ids write that used to live here is
+      // REMOVED, not re-pointed — form_instances has no domain_metadata (or
+      // any JSONB metadata bag) column, AND the read side no longer consumes
+      // this field: `deriveProcurementMetadata`
+      // (lib/domains/procurement/procurement-detail-shape.ts, {145.18})
+      // already re-anchored `tender_document_ids` onto the live
+      // `tender_documents` storage-bucket listing (GET
+      // app/api/procurement/[id]/route.ts lists `tender-documents/<id>/...`
+      // directly) — "no domain_metadata read... tender_document_ids is the
+      // ONE surviving legacy key, sourced from tender_documents" per that
+      // file's own docstring. This write was already vestigial (dead write,
+      // superseded reader) and ALSO tsc-invisibly broken (workspaces row
+      // doesn't exist post-W1e) — every upload was returning a false-negative
+      // "File uploaded but failed to update bid metadata" 500 even though
+      // the upload itself (above) succeeded and was already correctly
+      // reflected via the storage-listing read path.
 
       return NextResponse.json({
         path: storagePath,
