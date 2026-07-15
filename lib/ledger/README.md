@@ -29,7 +29,7 @@ intentional difference from upstream is the schema import specifier
 (`@task-view/schemas/*` → `@/lib/validation/{task-list,initiatives,backlog}-schema.ts`,
 which export the identical symbols). The bodies are byte-faithful.
 
-**Pinned release:** `v0.10.1-task-view` (the same `TASK_VIEW_TAG` used by
+**Pinned release:** `v0.11.0-task-view` (the same `TASK_VIEW_TAG` used by
 `scripts/regen-mirrors.sh` and `ci.yml`).
 
 **ID-148.12 re-vendor lineage (Option C).** The three retained primitives had NOT actually
@@ -73,6 +73,30 @@ Byte-faithful, whole-file-copy convention holds (see Re-vendor procedure below) 
 categories above are NOT hand-curated out; the whole upstream file is copied as-is
 (import-specifier rewire only) so the drift-detection workflow stays meaningful (a
 hand-diffed copy would show permanent false-positive drift on every future run).
+
+**ID-148.13 re-vendor lineage (`v0.10.1` → `v0.11.0`, TECH §2 INV-3 status-enum gate).**
+Curator-routed finding (S474): at `v0.10.1` INV-3's server-side half was NOT implemented —
+zero executable `PROJECT_STATUSES`/`INITIATIVE_STATUSES` references anywhere in
+task-view's `packages/server/{patch-apply,record-mutate}.ts` or `gates/*`; the CLI's
+`requireValidProjectStatus` (`scripts/ledger-cli.ts`) was the ONLY enforcement, a gap the
+CLI's own jsdoc disclosed. `{148.13}` added upstream `gates/status-enum-gate.ts`
+(mirroring the `gates/budget-gate.ts`/`gates/record-set-gate.ts` idiom), wired into
+`packages/server/patch-server.ts` at the same two hook points as the budget gate (PATCH
+field-patches + POST record create).
+
+**Zero delta to the four RETAINED files in this directory.** The new gate — and its wiring
+— lives entirely in `patch-server.ts` and `gates/status-enum-gate.ts`, NEITHER of which is
+part of the CLI-side validation oracle vendored here (this oracle only ever covers
+`detect-schema.ts`/`patch-apply.ts`/`record-mutate.ts`/`initiatives-tree.ts` — the
+gate-registration surface, like `gates/budget-gate.ts` and `gates/record-set-gate.ts`
+before it, is server-only). Verified byte-identical (SHA-256) against the prior sync point
+for all four retained files, and against the six vendor-bundle schema assets
+(`initiatives-schema.ts` included — the gate consumes `PROJECT_STATUSES`/
+`INITIATIVE_STATUSES`, both already exported at `v0.10.1`, no schema export change
+needed). The server-side enforcement is real regardless of vendoring: canonical's
+`scripts/ledger-server-client.ts` routes every initiatives-kind mutation through the SAME
+running task-view patch-server process this gate is wired into, so the CLI's
+`--ledger-dir`-scoped writes hit the new gate live.
 
 **Disposition.** These four modules ride **{68.30}**: when the schemas migrate upstream
 (PRODUCT inv 62), the oracle is re-homed and the KH copies retire with them. Until then

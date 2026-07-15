@@ -229,6 +229,19 @@ describe.skipIf(!CLONE_PRESENT)(
       },
     );
 
+    // {148.13} note: the test above proves only the CLI's client-side
+    // pre-flight (`requireValidProjectStatus`, scripts/ledger-cli.ts) — this
+    // CLI has no flag to bypass that check, so a CLI-driven end-to-end proof
+    // of the SERVER rejecting an invalid status is not constructible from
+    // this file without dedicated bypass plumbing (out of scope here). The
+    // server-side half of INV-3 — now the AUTHORITATIVE enforcement point,
+    // `requireValidProjectStatus` jsdoc updated to defense-in-depth framing —
+    // is proven end-to-end (direct HTTP PATCH/POST, bypassing any CLI, both
+    // rejection and acceptance, project + initiative nodes) upstream in
+    // task-view's `packages/server/patch-server.test.ts` ("INV-3 status-enum
+    // gate" describe blocks) and unit-tested in
+    // `packages/server/gates/status-enum-gate.test.ts`.
+
     it(
       'delete-project rejects project-not-empty while linked_tasks is non-empty, then succeeds after unlinking (INV-5)',
       { timeout: 20_000 },

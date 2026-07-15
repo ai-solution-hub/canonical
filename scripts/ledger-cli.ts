@@ -2942,21 +2942,21 @@ function requireBareDigitIds(
 }
 
 /**
- * INV-3 (lenient read / strict write on `status`) — client-side surfacing.
+ * INV-3 (lenient read / strict write on `status`) — client-side, defense-in-
+ * depth surfacing.
  *
- * VERIFIED (this Subtask): the upstream {148.10} patch-apply/record-mutate
- * write arm applies NO status-enum gate — `ProjectSchema.status`/
- * `InitiativeSchema.status` are `z.string()` on BOTH read and write (no
- * `PROJECT_STATUSES`/`INITIATIVE_STATUSES` reference anywhere in
- * task-view's `packages/server/{patch-apply,record-mutate,gates/*}.ts`,
- * confirmed by grep against the pinned `v0.10.1-task-view` checkout). TECH
- * §2 INV-3 states the enum check is "enforced server-side ... with the
- * CLI-side oracle able to surface it early" — since the server-side half of
- * that sentence is not actually implemented, THIS check is the only
- * enforcement point today. Flagged as an out-of-scope finding for the
- * Curator (a task-view follow-up to close the gate in patch-apply.ts); a
- * client that bypasses this CLI (e.g. a raw PATCH to the patch-server) is
- * NOT rejected. */
+ * The server is now the AUTHORITATIVE enforcement point (`{148.13}`,
+ * TECH §2 INV-3): task-view's `gates/status-enum-gate.ts`, wired into
+ * `packages/server/patch-server.ts` at the same post-mutation /
+ * pre-serialisation hook as the budget gate, re-validates every
+ * initiatives-kind `status` SET (field-patch or record-create) against
+ * `PROJECT_STATUSES`/`INITIATIVE_STATUSES` and rejects out-of-enum values
+ * with a clean `invalid-status` 422 — a client that bypasses this CLI (e.g.
+ * a raw PATCH to the patch-server) IS rejected. This check stays as the
+ * fast, local pre-flight: it fails a malformed mutation before the request
+ * round-trips to the server, surfacing the same `invalid-status` envelope
+ * client-side. Pinned release: `v0.11.0-task-view` (see
+ * `lib/ledger/README.md`'s `{148.13}` re-vendor lineage note). */
 function requireValidProjectStatus(
   subcommand: string,
   value: string,
