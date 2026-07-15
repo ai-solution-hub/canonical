@@ -301,7 +301,7 @@ export function produceProcurementDeadlineItems(
       action_url: `/procurement/${bid.id}`,
       action_label: 'View procurement',
       role_visibility: ['admin', 'editor', 'viewer'],
-      claude_prompt: `Show me the status of the "${bid.name}" bid. What questions still need answering? Help me prioritise the remaining work.`,
+      claude_prompt: `Show me the status of the "${bid.name}" procurement. What questions still need answering? Help me prioritise the remaining work.`,
       deadline: bid.deadline,
     });
   }

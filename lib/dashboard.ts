@@ -21,7 +21,7 @@ import {
   isActive,
   type ProcurementWorkflowState,
 } from '@/lib/domains/procurement/procurement-workflow';
-import { logger } from '@/lib/logger';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -281,9 +281,10 @@ async function fetchActiveFormInstanceSummaries(
   );
 
   if (!formsResult.ok) {
-    logger.error(
-      { err: formsResult.error },
+    logBestEffortWarn(
+      'dashboard.active_forms.fetch',
       'dashboard: active_form_instances query failed — degrading to empty active_forms',
+      { err: formsResult.error },
     );
     return [];
   }
@@ -313,9 +314,10 @@ async function fetchActiveFormInstanceSummaries(
         statsMap.set(row.workspace_id, row);
       }
     } else {
-      logger.warn(
-        { err: batchStats.error },
+      logBestEffortWarn(
+        'dashboard.active_forms.stats_batch',
         'dashboard: active_form_instances question-stats batch failed — stats default to zero',
+        { err: batchStats.error },
       );
     }
   }
