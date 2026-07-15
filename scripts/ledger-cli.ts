@@ -118,6 +118,17 @@ import { RoadmapThemeSchema } from '@/lib/validation/roadmap-schema';
 import { BacklogItemSchema } from '@/lib/validation/backlog-schema';
 import { RetroRecordSchema } from '@/lib/validation/retro-schema';
 import { UmbrellasSchema } from '@/lib/validation/umbrellas-schema';
+// ID-148.6 — initiatives + projects read verbs. KH-native, direct import (no
+// barrel), NOT added to the vendored `detectSchema` — mirrors the
+// `UmbrellasSchema` import above (initiatives-schema.ts header comment).
+import {
+  InitiativesSchema,
+  parseInitiativesWithWarnings,
+  type InitiativesDocument,
+  type Initiative,
+  type SubInitiative,
+  type Project,
+} from '@/lib/validation/initiatives-schema';
 import { BARE_ID_REGEX } from '@/lib/validation/schemas';
 import {
   LEDGER_BUDGETS,
@@ -509,6 +520,9 @@ interface ParsedArgs {
      *   - `recent`    : last-N (raw string → Number() at the call site).
      *   - `limit`     : output cap (raw string → Number() at the call site).
      *   - `fields`    : csv output projection (default id,title,status).
+     *   - `initiative`: ID-148.6 — `list projects` scope filter (a TOP-LEVEL
+     *                    initiative id; inert on `list initiatives`, already
+     *                    the top-level scope).
      */
     since?: string;
     theme?: string;
@@ -516,6 +530,7 @@ interface ParsedArgs {
     recent?: string;
     limit?: string;
     fields?: string;
+    initiative?: string;
     /**
      * Read-path `show` / `journal` shaping flags (S447 read-path upgrade).
      * All optional / undefined-as-falsy for back-compat with pre-existing
@@ -580,6 +595,8 @@ const VALUE_FLAGS: Record<string, keyof ParsedArgs['flags']> = {
   '--recent': 'recent',
   '--limit': 'limit',
   '--fields': 'fields',
+  // ID-148.6 — `list projects --initiative <id>` scope filter.
+  '--initiative': 'initiative',
   // S447 read-path — `journal <taskId.subId> --last <n>` bounds the thread to the
   // n most-recent entries (consumes the next token; coerced + range-checked at
   // the `journal` call site, never here — parseArgs stays a pure tokeniser).
@@ -1242,7 +1259,10 @@ const SUBCOMMAND_HELP: Record<
   show: {
     synopsis:
       'show <ledger> <id> — print a record (read-only); ' +
-      '`show umbrellas [umbrellaId]` reads umbrellas.json (no id = whole doc)',
+      '`show umbrellas [umbrellaId]` reads umbrellas.json (no id = whole doc); ' +
+      '`show initiatives [id]` reads initiatives.json (no id = whole doc, id = ' +
+      'one TOP-LEVEL initiative); `show project <slug>` finds one project ' +
+      'anywhere in the initiative/sub-initiative tree (ID-148.6)',
     flags:
       'S447 shaping (all read-only). DEFAULT output is GUARANTEED ≤48KB via an ' +
       'escalating valve (only --full may exceed): verbatim if it fits → else ' +
@@ -1278,7 +1298,8 @@ const SUBCOMMAND_HELP: Record<
   },
   list: {
     synopsis:
-      'list <ledger> [filters] — read-only filtered snapshot (ledger: task|roadmap|backlog|retro)',
+      'list <ledger> [filters] — read-only filtered snapshot ' +
+      '(ledger: task|roadmap|backlog|retro|initiatives|projects)',
     flags:
       'default `list task` = every non-cancelled Task as {id,title,status}; ' +
       '--status <csv> (overrides the cancelled-exclusion default) | ' +
@@ -1289,7 +1310,11 @@ const SUBCOMMAND_HELP: Record<
       '--limit <n> (output cap; default 200) | ' +
       '--fields <csv> (projection; default id,title,status) | --ids-only. ' +
       'Result carries total vs shown + a truncated flag — never silently floods ' +
-      'or truncates. deprecated records are always excluded.',
+      'or truncates. deprecated records are always excluded. ' +
+      'ID-148.6: `list initiatives` is TOP-LEVEL only (no --initiative — ' +
+      'already the top-level scope); `list projects` flattens every project ' +
+      'in the tree, `--initiative <id>` scopes to one top-level initiative’s ' +
+      'projects; `--recent` on either falls back to document order (no date field).',
   },
   'flip-task': {
     synopsis:
@@ -1454,12 +1479,15 @@ const SUBCOMMAND_HELP: Record<
 const USAGE = `ledger-cli — mutate the KH workflow ledgers
   show           <ledger> <id>                 (ledger: task|roadmap|backlog|retro; "show umbrellas [umbrellaId]" = umbrellas.json read, no id = whole doc)
                  [--full|--summary|--no-journals|--fields csv]  (default guaranteed ≤48KB: stub journals → degrade to summary; --full opts out)
+                 "show initiatives [id]" = initiatives.json read, no id = whole doc, id = one top-level initiative (ID-148.6)
+                 "show project <slug>" = one project anywhere in the initiative tree (ID-148.6)
   get            <ledger> <id> [field]         (single-field read; no field = show)
                  get task <taskId>.<subId> [field]              (subtask path)
   journal        <taskId>                       (per-subtask journal index — counts, not content)
   journal        <taskId.subId> [--last n]      (chronological journal thread; --last warns on supersession)
   schema         [ledger|recordKind]           (print field names + types + budgets)
   list           <ledger> [filters]            (read-only snapshot; default "list task" = non-cancelled {id,title,status,subtasks})
+                 "list initiatives" / "list projects" (ID-148.6; --initiative <id> scopes list projects)
   flip-task      <taskId> <status>
   flip-subtask   <taskId.subId> <status>        (legacy <taskId> <subId> <status>)
   update-subtask <taskId.subId> <field> <value>
@@ -2593,6 +2621,124 @@ function coerceSubtaskRecord(
   return { ok: true, record };
 }
 
+/**
+ * `list`-family integer-flag coercion (`--recent`/`--limit`) — module-scope so
+ * BOTH the generic `list <ledger>` arm and the ID-148.6 initiatives/projects
+ * list arms share ONE implementation (previously a `case 'list':`-local
+ * closure). A non-integer / negative value is a hard error, never a silent
+ * slice: `--recent abc` must reject, not return everything.
+ */
+function coerceCountFlag(
+  subcommand: string,
+  raw: string | undefined,
+  flag: string,
+): { ok: true; value?: number } | { ok: false; result: CliResult } {
+  if (raw === undefined) return { ok: true };
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 0)
+    return {
+      ok: false,
+      result: cliErr(
+        subcommand,
+        'bad-flag-value',
+        `${flag} must be a non-negative integer (got "${raw}")`,
+      ),
+    };
+  return { ok: true, value: n };
+}
+
+/** Output cap shared by every `list` arm (generic + ID-148.6 initiatives/projects). */
+const LIST_DEFAULT_CAP = 200;
+
+// ── ID-148.6 — initiatives + projects read verbs ────────────────────────────
+//
+// `initiatives.json` is KH-native (TECH §3.2) — deliberately NOT added to
+// `LedgerName`/`LEDGER_FILES` (extending those unions ripples widely, same
+// rationale as `umbrellas` — S450 comment above). Read handlers are
+// self-contained `readFile` + `InitiativesSchema.safeParse`, mirroring the
+// `show umbrellas` read arm.
+
+const INITIATIVES_FILE = 'initiatives.json';
+
+/**
+ * Load + parse `initiatives.json`, mirroring the `show umbrellas` read arm
+ * (readFile → JSON.parse → `InitiativesSchema.safeParse`), PLUS the INV-2
+ * non-fatal warnings (gitignored `substrate_doc` / over-budget fields) via
+ * `parseInitiativesWithWarnings`. That helper re-parses the SAME `raw` value
+ * ALREADY validated by the `safeParse` above — deterministic, cannot throw.
+ */
+async function loadInitiativesDoc(
+  dir: string,
+  subcommand: string,
+): Promise<
+  | { ok: true; value: InitiativesDocument; warnings: string[] }
+  | { ok: false; result: CliResult }
+> {
+  const path = resolve(dir, INITIATIVES_FILE);
+  let text: string;
+  try {
+    text = await readFile(path, 'utf8');
+  } catch (err) {
+    return {
+      ok: false,
+      result: cliErr(subcommand, 'ledger-read-failed', `${path}: ${msg(err)}`),
+    };
+  }
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch (err) {
+    return {
+      ok: false,
+      result: cliErr(subcommand, 'ledger-parse-failed', `${path}: ${msg(err)}`),
+    };
+  }
+  const parsedDoc = InitiativesSchema.safeParse(raw);
+  if (!parsedDoc.success) {
+    return {
+      ok: false,
+      result: {
+        ok: false,
+        subcommand,
+        error: 'ledger-schema-invalid',
+        detail: path,
+        issues: parsedDoc.error.issues,
+        expected: describeExpectedShape(parsedDoc.error),
+      },
+    };
+  }
+  const { warnings } = parseInitiativesWithWarnings(raw);
+  return {
+    ok: true,
+    value: parsedDoc.data,
+    warnings: warnings.map((w) => `${w.path}: ${w.message}`),
+  };
+}
+
+interface FlatProject {
+  project: Project;
+  /** The TOP-LEVEL initiative id this project descends from (direct or via
+   * one or more sub-initiatives) — powers `list projects --initiative <id>`. */
+  initiativeId: string;
+}
+
+/**
+ * Flatten every project across the initiative/sub-initiative tree. Project
+ * ids are globally unique across the whole live ledger (verified), so
+ * `show project <slug>` needs no path disambiguation — unlike initiative ids,
+ * which collide across nesting depth (§ `show initiatives` comment above).
+ */
+function flattenProjects(doc: InitiativesDocument): FlatProject[] {
+  const out: FlatProject[] = [];
+  const walk = (node: Initiative | SubInitiative, topId: string): void => {
+    for (const project of node.projects)
+      out.push({ project, initiativeId: topId });
+    for (const sub of node['sub-initiatives']) walk(sub, topId);
+  };
+  for (const initiative of doc.initiatives) walk(initiative, initiative.id);
+  return out;
+}
+
 async function run(args: ParsedArgs): Promise<CliResult> {
   const { subcommand: rawSubcommand, positionals: p, flags } = args;
   // ID-35.34 — resolve subcommand aliases at the dispatch boundary. parseArgs()
@@ -2658,12 +2804,73 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           );
         return { ok: true, subcommand: 'show', result: entry };
       }
+      // ID-148.6 — initiatives read affordance, mirroring the `show umbrellas`
+      // arm immediately above (self-contained readFile + InitiativesSchema
+      // parse — `initiatives` is NOT a LedgerName either, same rationale).
+      // `show initiatives` (no id) prints the whole document (43.5KB — under
+      // the 48KB valve, no shaping needed); `show initiatives <id>` scopes to
+      // ONE TOP-LEVEL initiative. Ids are NOT globally unique across nesting
+      // depth (e.g. sub-initiative id "1" exists under BOTH initiative 4 and
+      // initiative 8), so an unqualified id lookup stays scoped to the
+      // unambiguous top-level `initiatives[]` array — same discipline as
+      // `show umbrellas <umbrellaId>` scoping to the flat `umbrellas[]` array.
+      if (ledger === 'initiatives') {
+        const loaded = await loadInitiativesDoc(dir, 'show');
+        if (!loaded.ok) return loaded.result;
+        if (!id)
+          return {
+            ok: true,
+            subcommand: 'show',
+            result: loaded.value,
+            ...(loaded.warnings.length ? { warnings: loaded.warnings } : {}),
+          };
+        const entry = loaded.value.initiatives.find((i) => i.id === id);
+        if (!entry)
+          return cliErr(
+            'show',
+            'record-not-found',
+            `no initiative with id "${id}" — known: [${loaded.value.initiatives
+              .map((i) => i.id)
+              .join(', ')}]`,
+          );
+        return {
+          ok: true,
+          subcommand: 'show',
+          result: entry,
+          ...(loaded.warnings.length ? { warnings: loaded.warnings } : {}),
+        };
+      }
+      // ID-148.6 — `show project <slug>` — project ids ARE globally unique
+      // across the whole tree (verified against the live ledger), so this
+      // searches every initiative + sub-initiative recursively with no path
+      // disambiguation needed.
+      if (ledger === 'project') {
+        if (!id) return cliErr('show', 'missing-args', 'show project <slug>');
+        const loaded = await loadInitiativesDoc(dir, 'show');
+        if (!loaded.ok) return loaded.result;
+        const flat = flattenProjects(loaded.value);
+        const found = flat.find((f) => f.project.id === id);
+        if (!found)
+          return cliErr(
+            'show',
+            'record-not-found',
+            `no project with id "${id}" — known: [${flat
+              .map((f) => f.project.id)
+              .join(', ')}]`,
+          );
+        return {
+          ok: true,
+          subcommand: 'show',
+          result: found.project,
+          ...(loaded.warnings.length ? { warnings: loaded.warnings } : {}),
+        };
+      }
       if (!id) return cliErr('show', 'missing-args', 'show <ledger> <id>');
       if (!(ledger in LEDGER_FILES))
         return cliErr(
           'show',
           'bad-ledger',
-          `ledger must be task|roadmap|backlog|retro|umbrellas`,
+          `ledger must be task|roadmap|backlog|retro|umbrellas|initiatives|project`,
         );
       const loaded = await loadLedger(ledgerPath(dir, ledger as LedgerName));
       if (!loaded.ok) return loaded.result;
@@ -2960,38 +3167,155 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         return cliErr(
           'list',
           'missing-args',
-          'list <ledger> [--status csv --since ISO --theme id --depends-on id --recent n --limit n --fields csv --ids-only] (ledger: task|roadmap|backlog|retro)',
+          'list <ledger> [--status csv --since ISO --theme id --depends-on id --recent n --limit n --fields csv --ids-only] (ledger: task|roadmap|backlog|retro|initiatives|projects)',
         );
+      // ID-148.6 — `list initiatives` / `list projects`, mirroring the
+      // self-contained initiatives read affordance (`show initiatives` /
+      // `show project` above). Neither `initiatives` nor `projects` is a
+      // LedgerName (same rationale as `umbrellas`), so both branch BEFORE the
+      // generic `LEDGER_FILES` membership check below.
+      if (ledger === 'initiatives' || ledger === 'projects') {
+        const recentC = coerceCountFlag('list', flags.recent, '--recent');
+        if (!recentC.ok) return recentC.result;
+        const limitC = coerceCountFlag('list', flags.limit, '--limit');
+        if (!limitC.ok) return limitC.result;
+        const recent = recentC.value;
+        const limit = limitC.value;
+
+        const loadedInitiatives = await loadInitiativesDoc(dir, 'list');
+        if (!loadedInitiatives.ok) return loadedInitiatives.result;
+        const warnings: string[] = [...loadedInitiatives.warnings];
+        const inertInitiatives = (flag: string, why: string) =>
+          warnings.push(`${flag} ignored: ${why}`);
+
+        // --status (csv) — filters on the record kind's OWN status field
+        // (initiative-level for `list initiatives`, project-level for
+        // `list projects`). --recent n has no date field to key off for
+        // either kind (ProjectSchema/InitiativeSchema carry no timestamp), so
+        // it falls back to document order (last = most recent) — the SAME
+        // fallback the generic list handler below uses for roadmap/backlog.
+        const wantedStatuses =
+          flags.status !== undefined
+            ? new Set(
+                flags.status
+                  .split(',')
+                  .map((s) => s.trim())
+                  .filter((s) => s.length > 0),
+              )
+            : undefined;
+
+        let rowsOut: Record<string, unknown>[];
+        let idsOut: string[];
+        let total: number;
+
+        if (ledger === 'initiatives') {
+          // TOP-LEVEL initiatives only — sub-initiative ids collide across
+          // nesting depth (e.g. "1" exists under BOTH initiative 4 and
+          // initiative 8), so a flat listing stays scoped to the unambiguous
+          // top-level array (same discipline as `show initiatives <id>`).
+          let matched: Initiative[] = loadedInitiatives.value.initiatives;
+          if (wantedStatuses)
+            matched = matched.filter((i) => wantedStatuses.has(i.status));
+          if (flags.initiative !== undefined)
+            inertInitiatives(
+              '--initiative',
+              'list initiatives is already the top-level scope — use `show initiatives <id>` for one initiative, or `list projects --initiative <id>` to scope projects',
+            );
+          total = matched.length;
+          let ordered = matched;
+          if (recent !== undefined)
+            ordered = [...matched].reverse().slice(0, recent);
+          const cap =
+            limit !== undefined
+              ? limit
+              : recent !== undefined
+                ? ordered.length
+                : LIST_DEFAULT_CAP;
+          const rows = ordered.slice(0, cap);
+          const projFields = flags.idsOnly
+            ? ['id']
+            : (flags.fields
+                ?.split(',')
+                .map((s) => s.trim())
+                .filter((s) => s.length > 0) ?? ['id', 'title', 'status']);
+          rowsOut = rows.map((r) => {
+            const out: Record<string, unknown> = {};
+            for (const f of projFields)
+              out[f] = (r as unknown as Record<string, unknown>)[f];
+            return out;
+          });
+          idsOut = rows.map((r) => r.id);
+        } else {
+          let matched: FlatProject[] = flattenProjects(loadedInitiatives.value);
+          if (wantedStatuses)
+            matched = matched.filter((f) =>
+              wantedStatuses.has(f.project.status),
+            );
+          if (flags.initiative !== undefined) {
+            const wantedInitiative = flags.initiative;
+            matched = matched.filter(
+              (f) => f.initiativeId === wantedInitiative,
+            );
+          }
+          total = matched.length;
+          let ordered = matched;
+          if (recent !== undefined)
+            ordered = [...matched].reverse().slice(0, recent);
+          const cap =
+            limit !== undefined
+              ? limit
+              : recent !== undefined
+                ? ordered.length
+                : LIST_DEFAULT_CAP;
+          const rows = ordered.slice(0, cap);
+          const projFields = flags.idsOnly
+            ? ['id']
+            : (flags.fields
+                ?.split(',')
+                .map((s) => s.trim())
+                .filter((s) => s.length > 0) ?? ['id', 'title', 'status']);
+          rowsOut = rows.map((r) => {
+            const out: Record<string, unknown> = {};
+            for (const f of projFields)
+              out[f] = (r.project as unknown as Record<string, unknown>)[f];
+            return out;
+          });
+          idsOut = rows.map((r) => r.project.id);
+        }
+
+        const shown = flags.idsOnly ? idsOut.length : rowsOut.length;
+        const truncated = shown < total;
+        if (truncated)
+          warnings.push(
+            `showing ${shown} of ${total} matched ${ledger} record(s) — pass --limit to raise the cap or add filters to narrow`,
+          );
+
+        return {
+          ok: true,
+          subcommand: 'list',
+          result: {
+            ledger,
+            total,
+            shown,
+            truncated,
+            records: flags.idsOnly ? idsOut : rowsOut,
+          },
+          ...(warnings.length ? { warnings } : {}),
+        };
+      }
       if (!(ledger in LEDGER_FILES))
         return cliErr(
           'list',
           'bad-ledger',
-          `ledger must be task|roadmap|backlog|retro`,
+          `ledger must be task|roadmap|backlog|retro|initiatives|projects`,
         );
 
       // Coerce the integer flags up-front — parseArgs stores them as raw string
       // tokens. A non-integer / negative value is a hard error (never a silent
       // slice): `--recent abc` must reject, not return everything.
-      const coerceCount = (
-        raw: string | undefined,
-        flag: string,
-      ): { ok: true; value?: number } | { ok: false; result: CliResult } => {
-        if (raw === undefined) return { ok: true };
-        const n = Number(raw);
-        if (!Number.isInteger(n) || n < 0)
-          return {
-            ok: false,
-            result: cliErr(
-              'list',
-              'bad-flag-value',
-              `${flag} must be a non-negative integer (got "${raw}")`,
-            ),
-          };
-        return { ok: true, value: n };
-      };
-      const recentC = coerceCount(flags.recent, '--recent');
+      const recentC = coerceCountFlag('list', flags.recent, '--recent');
       if (!recentC.ok) return recentC.result;
-      const limitC = coerceCount(flags.limit, '--limit');
+      const limitC = coerceCountFlag('list', flags.limit, '--limit');
       if (!limitC.ok) return limitC.result;
       const recent = recentC.value;
       const limit = limitC.value;
