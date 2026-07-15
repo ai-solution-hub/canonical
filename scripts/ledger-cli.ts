@@ -2841,6 +2841,23 @@ function retiredVerbResult(
   );
 }
 
+/** `show`/`get`/`list` each reject a retired `<ledger>` argument
+ * (roadmap/umbrellas) before ever touching `LEDGER_FILES` — INV-7: no
+ * ENOENT/parse/stack on a retired path. Shared so the three call sites
+ * can't drift on the envelope shape; returns `null` when `ledger` isn't
+ * retired. */
+function checkRetiredLedgerName(
+  subcommand: string,
+  ledger: string,
+): CliResult | null {
+  if (!(ledger in RETIRED_LEDGER_NAMES)) return null;
+  return retiredVerbResult(
+    subcommand,
+    `${subcommand} ${ledger}`,
+    RETIRED_LEDGER_NAMES[ledger],
+  );
+}
+
 // ── ID-148.7 — initiatives write verbs (Option C: ServerIntents) ───────────
 //
 // TECH §3.3, INV-5/6/8/10/13. Every write verb below builds a ServerIntent
@@ -3156,13 +3173,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       // by ledger-name validation, before the (now-deleted) self-contained
       // `show umbrellas` load or the generic LEDGER_FILES fallthrough for
       // `roadmap` ever run.
-      if (ledger in RETIRED_LEDGER_NAMES) {
-        return retiredVerbResult(
-          'show',
-          `show ${ledger}`,
-          RETIRED_LEDGER_NAMES[ledger],
-        );
-      }
+      const showRetired = checkRetiredLedgerName('show', ledger);
+      if (showRetired) return showRetired;
       // ID-148.6 — initiatives read affordance (self-contained readFile +
       // InitiativesSchema parse — `initiatives` is NOT a LedgerName, same
       // rationale as the retired `umbrellas` special-case above).
@@ -3287,13 +3299,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       // valid LedgerName, per Option C's server-arm repurpose), so
       // `get roadmap <id>` fell through to `loadLedger` and surfaced a raw
       // ENOENT instead of a clean retired-verb envelope.
-      if (ledger in RETIRED_LEDGER_NAMES) {
-        return retiredVerbResult(
-          'get',
-          `get ${ledger}`,
-          RETIRED_LEDGER_NAMES[ledger],
-        );
-      }
+      const getRetired = checkRetiredLedgerName('get', ledger);
+      if (getRetired) return getRetired;
       if (!(ledger in LEDGER_FILES))
         return cliErr('get', 'bad-ledger', `ledger must be task|backlog|retro`);
       const loaded = await loadLedger(ledgerPath(dir, ledger as LedgerName));
@@ -3553,13 +3560,8 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       // ID-148.8 — INV-7: the roadmap/umbrellas <ledger> argument is rejected
       // by ledger-name validation, before the generic LEDGER_FILES membership
       // check below ever runs.
-      if (ledger in RETIRED_LEDGER_NAMES) {
-        return retiredVerbResult(
-          'list',
-          `list ${ledger}`,
-          RETIRED_LEDGER_NAMES[ledger],
-        );
-      }
+      const listRetired = checkRetiredLedgerName('list', ledger);
+      if (listRetired) return listRetired;
       // ID-148.6 — `list initiatives` / `list projects`, mirroring the
       // self-contained initiatives read affordance (`show initiatives` /
       // `show project` above). Neither `initiatives` nor `projects` is a
