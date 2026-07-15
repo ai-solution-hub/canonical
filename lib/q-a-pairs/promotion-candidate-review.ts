@@ -88,7 +88,7 @@ const PAIR_READ_COLUMNS =
   'id, question_text, answer_standard, alternate_question_phrasings, publication_status' as const;
 
 /** The subset of q_a_extractions this module reads/writes. */
-export interface ExtractionCandidateRow {
+interface ExtractionCandidateRow {
   id: string;
   extracted_question_text: string;
   extracted_answer_text: string | null;
@@ -98,7 +98,7 @@ export interface ExtractionCandidateRow {
 }
 
 /** The subset of q_a_pairs this module reads/writes. */
-export interface PairCandidateRow {
+interface PairCandidateRow {
   id: string;
   question_text: string;
   answer_standard: string;
@@ -113,12 +113,12 @@ export interface CandidateEditInput {
   alternate_question_phrasings?: string[];
 }
 
-export type PromotionCandidateActionErrorCode =
+type PromotionCandidateActionErrorCode =
   | 'not_found'
   | 'not_awaiting_review'
   | 'write_failed';
 
-export interface PromotionCandidateActionError {
+interface PromotionCandidateActionError {
   code: PromotionCandidateActionErrorCode;
   message: string;
 }
