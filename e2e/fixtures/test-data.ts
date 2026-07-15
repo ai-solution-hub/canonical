@@ -248,7 +248,7 @@ export function buildCoreContentItems(timestamps: {
 }
 
 // ---------------------------------------------------------------------------
-// Workspace shapes (without prefix)
+// Workspace shapes (without prefix) — non-procurement workspaces only.
 // ---------------------------------------------------------------------------
 
 export interface WorkspaceShape {
@@ -263,60 +263,76 @@ export interface WorkspaceShape {
    * insert time (`application_types.id` is gen_random_uuid() — NOT stable across
    * Supabase branches, so a literal UUID would break on a fresh branch).
    *
-   * Migration 1.4 mapping: old `'bid'` -> `'procurement'`; `'kb_section'` was
-   * retired (0 prod rows). The kb-section content-grouping workspace has no
-   * dedicated application_type post-T2, so it reuses `'procurement'` — the
-   * junction-assignment logic that consumes it is type-agnostic.
+   * ID-145 {145.6} W1e wholesale-deletes every `workspaces` row that is
+   * procurement-scoped (`procurement_workspaces` join) — procurement items are
+   * `form_instances` rows now (see `buildCoreFormInstances` below), never
+   * `workspaces` rows. The one surviving shape here is the kb_section
+   * content-grouping workspace, which has no dedicated `application_type`
+   * post-T2 and reuses `'procurement'` — the junction-assignment logic that
+   * consumes it is type-agnostic, and this key predates/survives W1 unchanged
+   * (`workspaces`/`application_types` themselves are explicitly untouched by
+   * W1e, DR-056).
    */
   applicationTypeKey: string;
-  domain_metadata?: Record<string, unknown>;
 }
 
-/**
- * Build workspace definitions. Accepts a deadline date string for the bid.
- */
-export function buildCoreWorkspaces(bidDeadline: string): WorkspaceShape[] {
+/** Build the (non-procurement) workspace definitions — kb_section only. */
+export function buildCoreWorkspaces(): WorkspaceShape[] {
   return [
     {
       name: 'Test KB Section',
       description: 'E2E worker-scoped KB section workspace.',
       applicationTypeKey: 'procurement',
     },
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// Form instance shapes (without prefix) — the procurement items themselves.
+// ---------------------------------------------------------------------------
+
+/**
+ * ID-145 {145.6}/{145.18} form-first re-architecture (BI-1): a procurement
+ * item IS a `form_instances` row directly — no more `workspaces` umbrella,
+ * no more `domain_metadata` JSONB. `buyer` lives on `issuing_organisation`;
+ * `deadline`/`reference_number`/`estimated_value` are top-level columns.
+ */
+export interface FormInstanceShape {
+  name: string;
+  description: string;
+  issuing_organisation: string;
+  deadline: string;
+  reference_number: string | null;
+  estimated_value: number | null;
+}
+
+/**
+ * Build the two seeded procurement items. Accepts a deadline date string.
+ * `IT Support Services` is the primary worker bid (`workerData.procurementId`,
+ * advanced through `BID_STATE_TRANSITIONS`, asserted on by name in several
+ * specs). `Cloud Migration RFP` (`workerData.projectId`) is a second,
+ * untouched item — preserved from the pre-W1 shape for card-count parity;
+ * no live spec asserts on it by name.
+ */
+export function buildCoreFormInstances(
+  bidDeadline: string,
+): FormInstanceShape[] {
+  return [
     {
       name: 'IT Support Services',
       description: 'E2E worker-scoped bid.',
-      applicationTypeKey: 'procurement',
-      domain_metadata: {
-        buyer: 'E2E Test Corp',
-        status: 'draft',
-        deadline: bidDeadline,
-        reference_number: null,
-        estimated_value: null,
-        tender_source: null,
-        tender_document_ids: [],
-        submission_date: null,
-        outcome: null,
-        outcome_notes: null,
-        notes: null,
-      },
+      issuing_organisation: 'E2E Test Corp',
+      deadline: bidDeadline,
+      reference_number: null,
+      estimated_value: null,
     },
     {
       name: 'Cloud Migration RFP',
       description: 'E2E worker-scoped second bid workspace.',
-      applicationTypeKey: 'procurement',
-      domain_metadata: {
-        buyer: 'E2E Cloud Corp',
-        status: 'draft',
-        deadline: bidDeadline,
-        reference_number: null,
-        estimated_value: null,
-        tender_source: null,
-        tender_document_ids: [],
-        submission_date: null,
-        outcome: null,
-        outcome_notes: null,
-        notes: null,
-      },
+      issuing_organisation: 'E2E Cloud Corp',
+      deadline: bidDeadline,
+      reference_number: null,
+      estimated_value: null,
     },
   ];
 }

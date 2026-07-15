@@ -356,7 +356,7 @@ test.describe('Procurement add question dialog', () => {
       await supabase
         .from('form_questions')
         .delete()
-        .eq('workspace_id', workerData.procurementId)
+        .eq('form_instance_id', workerData.procurementId)
         .like('question_text', `%${uniqueText}%`);
     }
   });

@@ -75,7 +75,7 @@ test.describe('Procurement export -- menu visibility', () => {
       await expect(exportButton).toBeDisabled();
     } finally {
       const supabase = createServiceClient();
-      await supabase.from('workspaces').delete().eq('id', emptyBidId);
+      await supabase.from('form_instances').delete().eq('id', emptyBidId);
     }
   });
 
@@ -158,7 +158,7 @@ test.describe('Procurement export -- download triggers', () => {
       if (questionIds.length > 0) {
         await supabase.from('form_questions').delete().in('id', questionIds);
       }
-      await supabase.from('workspaces').delete().eq('id', procurementId);
+      await supabase.from('form_instances').delete().eq('id', procurementId);
     }
   });
 
@@ -204,7 +204,7 @@ test.describe('Procurement export -- download triggers', () => {
       if (questionIds.length > 0) {
         await supabase.from('form_questions').delete().in('id', questionIds);
       }
-      await supabase.from('workspaces').delete().eq('id', procurementId);
+      await supabase.from('form_instances').delete().eq('id', procurementId);
     }
   });
 });
