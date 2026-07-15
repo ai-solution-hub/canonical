@@ -81,6 +81,7 @@ export type ConfidencePosture =
   | 'needs_sme'
   | 'no_content';
 export type QuestionStatus =
+  | 'pending'
   | 'not_started'
   | 'ai_drafted'
   | 'in_progress'

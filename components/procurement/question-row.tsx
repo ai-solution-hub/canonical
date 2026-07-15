@@ -48,6 +48,11 @@ interface StatusConfig {
 }
 
 const STATUS_CONFIG: Record<QuestionStatus, StatusConfig> = {
+  pending: {
+    label: 'Pending',
+    icon: Circle,
+    className: 'text-confidence-none',
+  },
   not_started: {
     label: 'Not Started',
     icon: Circle,
@@ -75,8 +80,29 @@ const STATUS_CONFIG: Record<QuestionStatus, StatusConfig> = {
   },
 };
 
+/** Turn a raw CV token (`needs_review`) into a display label (`Needs Review`). */
+function humaniseStatus(status: string): string {
+  return status
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 function StatusIndicator({ status }: { status: QuestionStatus }) {
-  const config = STATUS_CONFIG[status];
+  // `form_questions.status` is a DB-level CHECK CV
+  // (pending/in_progress/drafted/reviewed/final/skipped/complete) that is
+  // broader than — and drifts from — the QuestionStatus TS union, and its
+  // default is `pending`. Look up defensively so any value without a
+  // STATUS_CONFIG entry (a fresh `pending` question, or a future CV addition)
+  // renders a humanised fallback rather than throwing and crashing the whole
+  // /procurement/[id] page via the error boundary (ID-145 {145.36}).
+  const config = (STATUS_CONFIG as Record<string, StatusConfig | undefined>)[
+    status
+  ] ?? {
+    label: humaniseStatus(status),
+    icon: Circle,
+    className: 'text-confidence-none',
+  };
   const Icon = config.icon;
 
   return (

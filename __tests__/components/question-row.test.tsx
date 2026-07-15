@@ -87,6 +87,7 @@ describe('QuestionRow', () => {
   // ----------------------------------------------------------
 
   it.each<[QuestionStatus, string]>([
+    ['pending', 'Pending'],
     ['not_started', 'Not Started'],
     ['ai_drafted', 'Drafted'],
     ['in_progress', 'In Progress'],
@@ -95,6 +96,18 @@ describe('QuestionRow', () => {
   ])('shows "%s" status as "%s"', (status, label) => {
     renderRow({ status });
     expect(screen.getByText(label)).toBeInTheDocument();
+  });
+
+  // A freshly-inserted form_questions row carries the DB default status
+  // `pending` (both insert paths omit status), and the DB CHECK CV admits
+  // further values not modelled by the QuestionStatus union (`drafted`,
+  // `reviewed`, `final`, `skipped`). None of these may crash the row — the
+  // whole /procurement/[id] page renders it and a throw takes down the page
+  // via the error boundary (ID-145 {145.36}).
+  it('renders an unmapped/future status as a humanised fallback instead of throwing', () => {
+    renderRow({ status: 'skipped' as QuestionStatus });
+    expect(screen.getByText('Skipped')).toBeInTheDocument();
+    expect(screen.getByRole('listitem')).toBeInTheDocument();
   });
 
   // ----------------------------------------------------------
