@@ -8,6 +8,22 @@
 -- throughout so a partial-retry re-apply does not error on already-applied steps.
 
 -- ============================================================================
+-- STEP 0 — pre-drop the legacy api.* views that DEPEND on columns this file
+-- DROPs (Postgres blocks DROP COLUMN under a dependent view — first observed
+-- live on the S474 staging push: `api.form_templates depends on column
+-- workspace_id`, SQLSTATE 2BP01). Every view dropped here is recreated against
+-- the post-rename shape by W1d (20260712063000) later in this same push batch,
+-- so the api surface for these four tables is absent only within the batch
+-- window. Only the four column-DROP-affected views are dropped — views over
+-- tables that are merely RENAMEd follow the rename and are left for W1d's own
+-- DROP-and-recreate.
+-- ============================================================================
+DROP VIEW IF EXISTS api.form_templates;          -- blocks form_instances.workspace_id DROP (STEP 1)
+DROP VIEW IF EXISTS api.form_questions;          -- blocks form_questions.workspace_id + matched_record_ids DROPs (STEP 4)
+DROP VIEW IF EXISTS api.q_a_pairs;               -- blocks q_a_pairs.source_workspace_id DROP (STEP 5)
+DROP VIEW IF EXISTS api.q_a_pair_dedup_proposals; -- blocks pair_a/b_source_workspace_id DROPs (STEP 5)
+
+-- ============================================================================
 -- STEP 1 — form_templates -> form_instances (BI-1: the item IS the form; no
 -- second workspace-mediated home for its lifecycle facts).
 -- ============================================================================
