@@ -15,9 +15,18 @@ Every Create carries provenance in `session_refs` + `commit_refs` (+
 do NOT accept a separate `metadata.source` field. At minimum pass
 `session_refs: [session_counter]`.
 
-## Roadmap theme — `RoadmapThemeSchema`
+## Roadmap theme — `RoadmapThemeSchema` — RETIRED (ID-148.8/DR-073/074)
 
-The roadmap is a flat list of **themes** (multi-month capability areas), NOT
+`create-theme` returns a clean `retired-verb` envelope; `lib/validation/
+roadmap-schema.ts` (this schema's source) is deleted in both repos. The
+roadmap ledger's data was repurposed server-side to the SERVER-managed
+`initiatives.json` (vendored twin: `lib/validation/initiatives-schema.ts`),
+writes via ServerIntent through the task-view patch-server — not this skill's
+Create flow, and the exact curator procedure for a would-be new theme is
+undesigned (flagged for the owner, ID-148.11). Table below kept **for
+historical orientation only**:
+
+The roadmap was a flat list of **themes** (multi-month capability areas), NOT
 typed-item sections.
 
 | Field | Source | CLI flag |
@@ -79,8 +88,7 @@ want recorded.
 | `cross_doc_links` | Spec-substrate links; auto-filled to `[]`. | positional JSON |
 | `session_refs` | `[session_counter]`; auto-filled to `[]`. | positional JSON |
 | `commit_refs` | `[source_commit_sha]` or auto-filled `[]`. | positional JSON |
-| `capability_theme` | Optional. Roadmap theme id back-link. Distinct from `umbrella_id`. | positional JSON |
+| `capability_theme` | **RETIRED, no analog** — was a roadmap theme id back-link. | — |
 
-`capability_theme` (on the Task, points at a roadmap theme) and `umbrella_id`
-(drives the `umbrellas.json` membership append) are orthogonal — both may be
-supplied in the same Create.
+`capability_theme` and `umbrella_id` are both retired with no replacement
+field on the initiatives/projects surface.

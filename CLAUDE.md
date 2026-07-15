@@ -99,11 +99,16 @@ its `publicRoutes` allowlist or they silently redirect to `/login`.
 ## Ledgers (docs-site — slice reads only)
 
 Ledgers live in the PRIVATE docs-site: `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/`
-(task-list, product-backlog, product-roadmap, product-retros, umbrellas + per-record
-mirrors in `tasks/`, `backlog/`, `roadmap/`). **Never Read the ledger JSONs wholesale**
+(task-list, product-backlog, product-retros, initiatives + per-record mirrors in
+`tasks/`, `backlog/`, `initiatives/`, `retros/`). **Never Read the ledger JSONs wholesale**
 (task-list.json is multi-MB). Access via the CLI:
 `bun scripts/ledger-cli.ts show task <id>` / `get task <id> <field>` (reads), mutation
 subcommands for writes (run `bun scripts/ledger-cli.ts` for usage).
+**`product-roadmap.json` no longer exists** — repurposed server-side to the
+SERVER-managed `initiatives.json` ledger (writes via ServerIntent through the task-view
+patch-server, no in-process writer, DR-073/074; mirrors are server-generated). The
+`umbrellas.json` surface is retired (unmaintained, file-delete deferred per OQ4) — do not
+read or write it.
 
 ## Key References (private docs-site)
 

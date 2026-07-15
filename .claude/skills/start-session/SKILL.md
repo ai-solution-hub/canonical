@@ -116,13 +116,20 @@ For each active Task surfaced in 2b, load the owning **Initiative / Project** so
 session opens with the strategic "why this Task matters" — not just the tactical state.
 
 The strategic ledger is
-`${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/initiatives.json`
+`${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/initiatives.json` — a **SERVER-managed**
+ledger (writes route via ServerIntent through the task-view patch-server, DR-073/074;
+mirrors are server-generated)
 (Initiatives → sub-initiatives → Projects; only Projects carry `linked_tasks[]` /
-`linked_backlog[]`). It is ~40KB and has no ledger-cli verb yet — a direct `Read`
-wholesale is safe (unlike task-list.json).
+`linked_backlog[]`, DR-074). Read verbs now exist (`show initiatives [id]`, `list
+initiatives`, `list projects [--initiative <id>]`, `show project <slug>`) — prefer them
+over a wholesale `Read` where a single record answers the question. For the
+owning-Project scan below (which needs to check `linked_tasks[]` across every project),
+`list projects` is the read-verb equivalent; a direct `Read` wholesale remains a safe
+fallback too (the file is ~40KB, unlike task-list.json).
 
 1. **Resolve the owning Project** by finding which project's `linked_tasks[]` contains
-   the active Task id.
+   the active Task id (`bun scripts/ledger-cli.ts list projects`, or the wholesale-Read
+   fallback above).
 2. **Surface** the initiative + project **titles**, the project **status**, and the
    **description/summary** ("why this Task matters"). If `substrate_doc` is set, it is
    the floor for the initiative's latest context, not the ceiling — confirm against the

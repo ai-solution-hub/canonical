@@ -74,10 +74,10 @@ CURRENT TASK CONTEXT:
   Parent Task acceptance criteria: [list — parent Task ID-N's `## Acceptance criteria` excerpt from PRODUCT.md]
   Sibling Subtask file ownership: { ID-N.X: [globs], ID-N.Y: [globs], ... }  # pending/in-progress siblings under same parent Task
 
-CURRENT ROADMAP/BACKLOG STATE (you slice-read via the CLI — never wholesale Read):
-  - bun scripts/ledger-cli.ts show roadmap <themeId>   # ${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/product-roadmap.json
+CURRENT INITIATIVES/BACKLOG STATE (you slice-read via the CLI — never wholesale Read):
+  - bun scripts/ledger-cli.ts show initiatives [id]    # ${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/initiatives.json (SERVER-managed — reads only, see note below)
+  - bun scripts/ledger-cli.ts list projects [--initiative <id>]  # project-coverage check (`show roadmap`/`get roadmap … linked_tasks` are RETIRED — retired-verb envelope)
   - bun scripts/ledger-cli.ts show backlog <itemId>    # ${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/product-backlog.json
-  - bun scripts/ledger-cli.ts get roadmap <themeId> linked_tasks   # theme-coverage check
 ```
 
 The Orchestrator dispatcher **MUST** populate `Parent Task acceptance criteria` and
@@ -130,11 +130,18 @@ the defect rather than guess.
 - **Never edit production code; ledger writes route through `bun scripts/ledger-cli.ts` on
   the MAIN checkout only — never raw `Edit` on the JSON ledgers** (the single ledger-write
   invariant; see `.claude/agents/references/shared-discipline.md` §Ledger-write
-  invariant). You write to the three workflow ledgers only (`product-roadmap.json`,
-  `product-backlog.json`, `task-list.json`) and ALWAYS via the CLI through the
-  `update-roadmap-backlog` skill. The CLI surface provides atomic-write, default-on mirror
-  regen, a write-time budget gate, and a record-set gate.
-  Code-change suggestions belong in the subtask spec, not your edits.
+  invariant). You write to `product-backlog.json` and `task-list.json` via the CLI through
+  the `update-roadmap-backlog` skill. **`product-roadmap.json` no longer exists** — that
+  data was repurposed server-side to the SERVER-managed `initiatives.json` ledger (writes
+  route via ServerIntent through the task-view patch-server, no in-process writer,
+  DR-073/074); `create-theme`/`update-roadmap`/`update-umbrella` all return a clean
+  `retired-verb` envelope. **The curator's write path for a `decision: roadmap` finding is
+  currently undesigned** — the initiatives `create-project` verb requires an existing
+  initiative/sub-initiative path and there is no verb to create a new top-level initiative;
+  flag such findings to the orchestrator rather than guessing a write (ID-148.11 ambiguous
+  case). The CLI surface provides atomic-write, default-on mirror regen, a write-time
+  budget gate, and a record-set gate. Code-change suggestions belong in the subtask spec,
+  not your edits.
 - **Always cite provenance.** Every new ledger entry carries enough information to trace
   back to the source: source task / source commit / session counter. The schemas have
   specific fields for this (see the `update-roadmap-backlog` skill); use them.
@@ -221,16 +228,19 @@ Parse the orchestrator's finding packet. Make sure you have:
 
 ### Step 2 — Read current state
 
-Slice-read both ledgers via the CLI — **never wholesale `Read`** the JSONs (paths in the
+Slice-read via the CLI — **never wholesale `Read`** the JSONs (paths in the
 finding-packet block above):
 
-- `bun scripts/ledger-cli.ts show roadmap <themeId>` / `show backlog <itemId>` to inspect
-  candidate entries; `get roadmap <themeId> linked_tasks` for theme-coverage checks.
+- `bun scripts/ledger-cli.ts show backlog <itemId>` to inspect candidate backlog entries.
+- `bun scripts/ledger-cli.ts show initiatives [id]` / `list projects [--initiative <id>]`
+  for initiatives/project-coverage checks (`show roadmap <themeId>` / `get roadmap
+  <themeId> linked_tasks` are **RETIRED** — clean `retired-verb` envelope).
 
 so you can check:
 
 - Is this already tracked somewhere? (If yes → `no-action` with citation.)
-- Which roadmap section / backlog track would this fit?
+- Which backlog track — or, for a strategic finding, which existing initiative/project —
+  would this fit?
 
 ### Step 3 — Run `triage-finding`
 
@@ -266,11 +276,19 @@ Invoke the `triage-finding` skill. It returns a structured decision:
 
 **If `decision === "roadmap"`:**
 
-- Invoke `update-roadmap-backlog` with `target: "roadmap"`, plus the finding detail,
-  target section, and provenance (source-task-id or source-commit-sha or session counter).
-  Concrete CLI subcommand mapping (the skill fires this for you): `target: "roadmap"` →
-  `bun scripts/ledger-cli.ts create-theme <themeJson>`.
-- After the write completes, return to the orchestrator with the new item ID.
+- **RETIRED write path (ID-148.8/DR-073/074) — do not execute as documented below.**
+  `target: "roadmap"` → `create-theme` now returns a clean `retired-verb` envelope
+  (nothing written). The roadmap ledger's data was repurposed server-side to the
+  SERVER-managed `initiatives.json`; the initiatives `create-project` verb requires an
+  **existing** initiative/sub-initiative path and there is no verb to create a new
+  top-level initiative. There is currently no designed curator write path for a
+  strategic/cross-cutting finding — return to the orchestrator with `decision: roadmap`
+  and the finding detail, and flag it as an open procedural gap (ID-148.11) rather than
+  attempting a write.
+- (Historical, pre-retirement flow — kept for orientation only, not executable: invoke
+  `update-roadmap-backlog` with `target: "roadmap"`, plus the finding detail, target
+  section, and provenance; CLI subcommand mapping was `target: "roadmap"` →
+  `bun scripts/ledger-cli.ts create-theme <themeJson>`.)
 
 **If `decision === "backlog"`:**
 
@@ -322,13 +340,13 @@ IF SUBTASK:
     Estimated effort: ...
 
 IF ROADMAP:
-  Written to: ledgers/product-roadmap.json
-  CLI subcommand: create-theme
-  CLI exit: ok | schema-error | budget-exceeded | record-set-violation
+  Write path RETIRED (ID-148.8/DR-073/074) — `create-theme` returns `retired-verb`;
+  `product-roadmap.json` no longer exists. No designed replacement write exists (the
+  initiatives `create-project` verb needs an existing initiative path). Report the
+  decision + finding detail to the orchestrator as a flagged procedural gap instead of a
+  completed write:
   Section: §N.M
-  Item ID: {new-id}
-  Provenance: source-{task|commit|session}: {value}
-  Warnings (if any): [stderr warnings surfaced by the CLI — e.g. 13-theme soft cap]
+  Flagged: yes — ID-148.11 ambiguous case, no curator write path currently exists
 
 IF BACKLOG:
   Written to: ledgers/product-backlog.json

@@ -223,8 +223,11 @@ primitive.
 
 **ONE invariant: all workflow-ledger writes route through `bun scripts/ledger-cli.ts` on
 the MAIN checkout only** — never raw `Edit` on the JSON ledgers (task-list,
-product-backlog, product-roadmap, product-retros, or their markdown mirrors), and never an
-in-branch write or commit from a worktree. The ID-90 daemon serialises behind one mutex
+product-backlog, product-retros, initiatives, or their markdown mirrors), and never an
+in-branch write or commit from a worktree. (`product-roadmap.json` no longer exists —
+repurposed server-side to the SERVER-managed `initiatives.json`, DR-073/074: ALL
+initiatives writes route via ServerIntent through the task-view patch-server, no
+in-process writer at all, not even from the MAIN-checkout CLI.) The ID-90 daemon serialises behind one mutex
 per main-checkout ledger directory, so an in-branch `chore(ledger)` commit bypasses it
 entirely. Worktree workers RETURN ledger-write intents
 (status flips, journal appends, item creates) in their report; the Orchestrator — or the
