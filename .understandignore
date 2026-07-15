@@ -1,0 +1,49 @@
+# Understand-Anything uses .gitignore-style patterns. Keep the graph focused
+# on runtime code and production boundaries rather than test scaffolding,
+# documentation, agent metadata, and generated/tooling output.
+
+# Local analysis data and worktree artefacts
+.ua/
+.understand-anything/
+.memtrace/
+.memdb/
+.claude/worktrees/
+.worktrees/
+
+# Tests and test-only support
+__tests__/
+e2e/
+scripts/tests/
+tools/**/__tests__/
+eslint-rules/tests/
+**/*.test.ts
+**/*.test.tsx
+**/*.test.js
+**/*.test.jsx
+**/*.spec.ts
+**/*.spec.tsx
+**/*.spec.js
+**/*.spec.jsx
+**/*.integration.test.ts
+**/*.integration.test.tsx
+**/test_*.py
+**/*_test.py
+**/tests.py
+**/conftest.py
+tools/ast-dataflow/__tests__/fixtures/
+
+# Documentation, agent configuration, and repository metadata
+docs/
+.claude/
+.github/
+.design-sync/
+AGENTS.md
+CLAUDE.md
+THIRD-PARTY-NOTICES
+
+# Generated and non-runtime project surfaces
+public/
+supabase/types/
+mcp-apps/*/dist/
+mcp-apps/*/node_modules/
+**/*.d.ts
