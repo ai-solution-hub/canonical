@@ -2,10 +2,10 @@
  * ledger-cli-retired-verbs.test.ts — ID-148.8 (TECH §3.4, INV-7): the
  * umbrella + roadmap-verb-names retirement under Option C.
  *
- * NARROWED scope reminder (Option C): the roadmap ledger's SERVER arm is
+ * NARROWED scope reminder (Option C): the roadmap ledger's SERVER arm was
  * REPURPOSED upstream to `initiatives` ({148.10}), NOT deleted —
- * `lib/validation/roadmap-schema.ts` stays a shell for {148.12}. Only the
- * CANONICAL CLI VERB NAMES retire here:
+ * `lib/validation/roadmap-schema.ts` was a shell until {148.12} re-vendored
+ * the oracle and deleted it. Only the CANONICAL CLI VERB NAMES retire here:
  *   - `update-roadmap`, `create-theme`, `update-umbrella` (bare subcommands)
  *   - `show`/`list` with a `roadmap`/`umbrellas` <ledger> argument
  *   - `promote --capability-theme` (a retired FLAG, not a retired verb name)

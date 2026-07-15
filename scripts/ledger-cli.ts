@@ -45,6 +45,16 @@
  *     delete-subtask <taskId.subId>               (legacy <taskId> <subId>)
  *   cross-ledger:
  *     promote        <backlogId> <taskJson | --file <path> (- = stdin) | --title …>
+ *   ID-148.7 initiatives project write verbs (TECH §3.3, INV-5/6/8/10/13 — every
+ *     verb below builds a ServerIntent routed through the transport, no in-process
+ *     writer, DR-073/DR-074):
+ *     create-project   <initiativePath> <projectJson | --title …>  (caller-supplied slug)
+ *     update-project   <slug> <field> <value | --file <path>>      (incl `status`)
+ *     delete-project   <slug>                                      (rejects project-not-empty)
+ *     link-tasks       <slug> <taskId…>          unlink-tasks   <slug> <taskId…>
+ *     link-backlog     <slug> <backlogId…>       unlink-backlog <slug> <backlogId…>
+ *     move-task        <taskId> --from <slug> --to <slug>          (atomic re-parent)
+ *     move-backlog     <backlogId> --from <slug> --to <slug>       (atomic re-parent)
  *   ID-148.8: `update-roadmap`/`create-theme`/`show|list umbrellas`/`update-umbrella`/
  *     `promote --capability-theme` are RETIRED — see RETIRED_VERBS below (the roadmap
  *     ledger's server arm is repurposed upstream to `initiatives`, not deleted; only
@@ -130,12 +140,20 @@ import { RetroRecordSchema } from '@/lib/validation/retro-schema';
 // `UmbrellasSchema` import — the umbrella surface is fully retired).
 import {
   InitiativesSchema,
+  ProjectSchema,
   parseInitiativesWithWarnings,
+  PROJECT_STATUSES,
   type InitiativesDocument,
   type Initiative,
   type SubInitiative,
   type Project,
 } from '@/lib/validation/initiatives-schema';
+// ID-148.7 — tree-walk primitives shared with the vendored `record-mutate.ts`/
+// `patch-apply.ts` oracle (TECH §3.3, INV-13). Used client-side ONLY to
+// disambiguate a project slug from an initiative/sub-initiative path BEFORE
+// building a link/unlink/move ServerIntent (INV-6 `links-project-only`) — the
+// server re-resolves independently via the same primitives.
+import { resolveRecordId, type TreeDoc } from '@/lib/ledger/initiatives-tree';
 // ID-148.8: BARE_ID_REGEX import DROPPED — its only consumer,
 // `updateUmbrella`'s `firstMalformedId`, was deleted with the umbrella
 // surface (TECH §3.4, INV-7).
@@ -161,7 +179,15 @@ import type { ZodTypeAny } from 'zod';
  * flag-OFF write path uses LEDGER_FILES/ledgerPath() and the mirror filenames
  * stay `product-backlog.json` / `product-roadmap.json` (unchanged).
  */
-type LedgerSlug = 'task-list' | 'roadmap' | 'backlog' | 'umbrellas' | 'retro';
+// ID-148.7: `initiatives` added — the server's repurposed roadmap arm now
+// routes `/api/ledger/initiatives/...` (TECH §3.1(b)/§3.3, INV-8/12(a)).
+type LedgerSlug =
+  | 'task-list'
+  | 'roadmap'
+  | 'backlog'
+  | 'umbrellas'
+  | 'retro'
+  | 'initiatives';
 
 const LEDGER_NAME_TO_SLUG: Record<LedgerName, LedgerSlug> = {
   task: 'task-list',
@@ -169,6 +195,8 @@ const LEDGER_NAME_TO_SLUG: Record<LedgerName, LedgerSlug> = {
   backlog: 'backlog',
   // WS-C C2: the retro ledger routes through the server's `retro` slug.
   retro: 'retro',
+  // ID-148.7 — the initiatives write verbs route through this slug.
+  initiatives: 'initiatives',
 };
 
 function ledgerSlug(name: LedgerName): LedgerSlug {
@@ -187,7 +215,19 @@ type ServerIntent =
       recordId: string;
       patches: FieldPatch[];
     }
-  | { kind: 'record-create'; slug: LedgerSlug; record: unknown }
+  | {
+      kind: 'record-create';
+      slug: LedgerSlug;
+      record: unknown;
+      /**
+       * ID-148.7 (INV-13): REQUIRED for `slug:'initiatives'` creates only —
+       * the dotted initiative/sub-initiative path the new project inserts
+       * under (threaded to the server's `POST /record` `initiativePath` body
+       * field — task-view `patch-server.ts` `handlePostRecord`). Ignored by
+       * every other slug's create.
+       */
+      initiativePath?: string;
+    }
   | {
       kind: 'subtask-create';
       slug: LedgerSlug;
@@ -222,7 +262,19 @@ type ServerIntent =
 
 // ── ledger resolution ─────────────────────────────────────────────────────────
 
-type LedgerName = 'task' | 'roadmap' | 'backlog' | 'retro';
+// ID-148.7: `initiatives` added (TECH §3.3) — this is a SEPARATE membership
+// from the {148.6} dedicated `show initiatives`/`list initiatives|projects`/
+// `show project <slug>` read verbs above, which self-contained-read the file
+// directly and branch BEFORE the generic `ledger in LEDGER_FILES` checks
+// below (unaffected by this addition). Adding `initiatives` here newly lets
+// the GENERIC bare-id `get initiatives <id> <field>` / `list initiatives`
+// (via the fallback path) / `show initiatives <id>` dispatch reach
+// `loadLedger` — those generic bare-id-collection code paths have no
+// initiatives-tree analog (the tree is nested, not a flat collection) and
+// are documented dead branches at each call site (see the `d.kind ===
+// 'initiatives'` comments below) that resolve to a coherent
+// `record-not-found`/empty-list, never a crash.
+type LedgerName = 'task' | 'roadmap' | 'backlog' | 'retro' | 'initiatives';
 
 const LEDGER_FILES: Record<LedgerName, string> = {
   task: 'task-list.json',
@@ -230,6 +282,9 @@ const LEDGER_FILES: Record<LedgerName, string> = {
   backlog: 'product-backlog.json',
   // WS-C C2: the session retro ledger — the 4th ledger surface.
   retro: 'product-retros.json',
+  // ID-148.7 — the initiatives write verbs (create/update/delete-project,
+  // link/unlink, move-*) load this path via `loadLedger`/`ledgerPath`.
+  initiatives: 'initiatives.json',
 };
 
 function ledgerPath(dir: string, name: LedgerName): string {
@@ -529,6 +584,13 @@ interface ParsedArgs {
     fields?: string;
     initiative?: string;
     /**
+     * ID-148.7 — `move-task`/`move-backlog <id> --from <slug> --to <slug>`
+     * (TECH §3.3, INV-13 atomic re-parent). Both required; consumes the next
+     * argv token each.
+     */
+    from?: string;
+    to?: string;
+    /**
      * Read-path `show` / `journal` shaping flags (S447 read-path upgrade).
      * All optional / undefined-as-falsy for back-compat with pre-existing
      * `ParsedArgs.flags` literals; `show`/`journal` are read-only (no write gate).
@@ -595,6 +657,9 @@ const VALUE_FLAGS: Record<string, keyof ParsedArgs['flags']> = {
   // n most-recent entries (consumes the next token; coerced + range-checked at
   // the `journal` call site, never here — parseArgs stays a pure tokeniser).
   '--last': 'last',
+  // ID-148.7 — `move-task`/`move-backlog <id> --from <slug> --to <slug>`.
+  '--from': 'from',
+  '--to': 'to',
 };
 
 /** ID-35.15 boolean flags. Presence sets the corresponding `flags` key true. */
@@ -1788,7 +1853,18 @@ async function buildTransportRequest(
       return {
         url: `${base}/${intent.slug}/record`,
         method: 'POST',
-        body: { baseMtime: mtime, record: intent.record },
+        body: {
+          baseMtime: mtime,
+          record: intent.record,
+          // ID-148.7 (INV-13): threaded only for `slug:'initiatives'`
+          // creates — task-view `patch-server.ts` `handlePostRecord` reads
+          // `body.initiativePath` to tree-insert under the addressed
+          // initiative/sub-initiative; every other slug's create ignores an
+          // absent field.
+          ...(intent.initiativePath !== undefined
+            ? { initiativePath: intent.initiativePath }
+            : {}),
+        },
       };
     case 'subtask-create':
       return {
@@ -2152,12 +2228,17 @@ function subtaskTable(
   return subtasks.map((s) => ({ id: s.id, title: s.title, status: s.status }));
 }
 
-/** Per-ledger identity fields for the last-resort projection (all short, budgeted). */
+/** Per-ledger identity fields for the last-resort projection (all short, budgeted).
+ * ID-148.7: `initiatives` entry required for `Record<LedgerName,…>`
+ * exhaustiveness — the generic `show`/`get` bare-id path never reaches it in
+ * practice (the {148.6} dedicated `show initiatives`/`show project` verbs
+ * branch first and never call `shapeShowRecord`); documented dead entry. */
 const SHOW_IDENTITY_FIELDS: Record<LedgerName, string[]> = {
   task: ['id', 'title', 'status'],
   roadmap: ['id', 'title', 'status'],
   backlog: ['id', 'title', 'status'],
   retro: ['id', 'date', 'track'],
+  initiatives: ['id', 'title', 'status'],
 };
 
 /**
@@ -2334,9 +2415,13 @@ function shapeShowRecord(
 
 /** The editable record schemas keyed by CLI command's record kind. ID-148.12:
  * `theme` RETIRED (was already dead code — zero `coerceFieldValue('theme', …)`
- * call sites, confirmed by the {148.8} Checker; TECH §3.2/§3.4, INV-7). */
+ * call sites, confirmed by the {148.8} Checker; TECH §3.2/§3.4, INV-7).
+ * ID-148.7: `project` ADDED — `update-project`/link/unlink verbs coerce
+ * against `ProjectSchema.shape` (`status`/`summary`/`description` stay
+ * strings; `blocked_by`/`blocking`/`linked_tasks`/`linked_backlog`/
+ * `originating_session` are arrays). */
 const EDIT_SCHEMAS: Record<
-  'subtask' | 'task' | 'item',
+  'subtask' | 'task' | 'item' | 'project',
   { shape: Record<string, ZodTypeAny> }
 > = {
   subtask: SubtaskSchema,
@@ -2344,6 +2429,7 @@ const EDIT_SCHEMAS: Record<
   // `.superRefine` (the sibling-dep check), so `TaskSchema.shape` is available.
   task: TaskSchema,
   item: BacklogItemSchema,
+  project: ProjectSchema,
 };
 
 /**
@@ -2360,7 +2446,7 @@ const EDIT_SCHEMAS: Record<
  *     keyset guard rejects the unknown field downstream).
  */
 function coerceFieldValue(
-  recordKind: 'subtask' | 'task' | 'item',
+  recordKind: 'subtask' | 'task' | 'item' | 'project',
   field: string,
   raw: string,
 ): unknown {
@@ -2389,9 +2475,14 @@ function coerceFieldValue(
  * call sites (TECH §3.2/§3.4, INV-7/INV-12(d)); the roadmap server arm's
  * project-create defaults live in the re-vendored `lib/ledger/record-mutate.ts`
  * (upstream `CREATE_DEFAULTS.project`), a SEPARATE registry from this
- * KH-native CLI one — {148.7} wires the initiatives create verbs. */
+ * KH-native CLI one — {148.7} wires the initiatives create verbs.
+ * ID-148.7: `project` ADDED, values ported VERBATIM from the vendored
+ * `lib/ledger/record-mutate.ts` `CREATE_DEFAULTS.project` so the CLI-side
+ * `insertRecord` oracle pre-check (which requires every non-optional
+ * `ProjectSchema` field present) validates a bare `create-project <path>
+ * --title X` identically to the server's own `withCreateDefaults` merge. */
 const CREATE_DEFAULTS: Record<
-  'subtask' | 'task' | 'item' | 'retro',
+  'subtask' | 'task' | 'item' | 'retro' | 'project',
   Record<string, unknown>
 > = {
   subtask: {
@@ -2447,6 +2538,19 @@ const CREATE_DEFAULTS: Record<
     superseding_record_id: null,
     last_conflict_check: null,
   },
+  // ID-148.7 (TECH §3.3) — `id`/`title` are caller-supplied (no auto-id,
+  // INV-13); `status: 'idea'` is the lowest/untriaged PROJECT_STATUSES value.
+  project: {
+    summary: '',
+    description: '',
+    substrate_doc: '',
+    status: 'idea',
+    blocked_by: [],
+    blocking: [],
+    linked_tasks: [],
+    linked_backlog: [],
+    originating_session: [],
+  },
 };
 
 /**
@@ -2456,7 +2560,7 @@ const CREATE_DEFAULTS: Record<
  * write timestamp when absent.
  */
 function withCreateDefaults(
-  recordKind: 'subtask' | 'task' | 'item' | 'retro',
+  recordKind: 'subtask' | 'task' | 'item' | 'retro' | 'project',
   record: Record<string, unknown>,
 ): Record<string, unknown> {
   const defaults = { ...CREATE_DEFAULTS[recordKind] };
@@ -2697,13 +2801,13 @@ function flattenProjects(doc: InitiativesDocument): FlatProject[] {
 
 // ── ID-148.8 — retired verbs (Option C: TECH §3.4, INV-7) ───────────────────
 //
-// The roadmap ledger's SERVER arm is REPURPOSED upstream to `initiatives`
-// (task-view {148.10}), NOT deleted — `lib/validation/roadmap-schema.ts`
-// stays a shell (the not-yet-revendored `lib/ledger/*` oracle still imports
-// `RoadmapSchema`; {148.12} deletes it post re-vendor). Only the CANONICAL
-// CLI VERB NAMES retire here, so a retired verb/ledger name returns a clean
-// `retired-verb` envelope FIRST — before any file read / JSON.parse / schema
-// validation ever runs (never ENOENT/parse/stack).
+// The roadmap ledger's SERVER arm was REPURPOSED upstream to `initiatives`
+// (task-view {148.10}), NOT deleted — `lib/validation/roadmap-schema.ts` was
+// a shell until {148.12} re-vendored the `lib/ledger/*` oracle (which now
+// imports `InitiativesSchema` instead of `RoadmapSchema`) and deleted it.
+// Only the CANONICAL CLI VERB NAMES retire here, so a retired verb/ledger
+// name returns a clean `retired-verb` envelope FIRST — before any file read /
+// JSON.parse / schema validation ever runs (never ENOENT/parse/stack).
 
 /** Bare subcommand names retired under ID-148.8, keyed to a one-line
  * replacement pointer. Checked at the TOP of `run()`'s dispatch. */
@@ -2735,6 +2839,290 @@ function retiredVerbResult(
     'retired-verb',
     `${retiredThing} removed under ID-148 - use ${replacement}`,
   );
+}
+
+// ── ID-148.7 — initiatives write verbs (Option C: ServerIntents) ───────────
+//
+// TECH §3.3, INV-5/6/8/10/13. Every write verb below builds a ServerIntent
+// routed through commitMutation -> serverCommitMutation -> buildTransportRequest
+// (no in-process writer — DR-073/DR-074 hold: the R1b single-write-path
+// invariant is unchanged, `initiatives` is a first-class server kind exactly
+// like task-list/backlog/retro). The CLI-side oracle (loadLedger->
+// detectSchema->'initiatives', fieldPatchMutation/applyPatches->
+// applyInitiativesPatches, insertRecord/removeRecord) runs at the call site
+// for the fast local envelope; the server re-validates + runs the
+// record-set/budget gates authoritatively.
+
+/** Load `initiatives.json` via the (now first-class) generic `loadLedger`
+ * path and narrow to the `kind:'initiatives'` variant, giving call sites both
+ * the generic `detected` (for insertRecord/removeRecord/applyPatches, which
+ * accept the whole `KnownDetected` union) and the narrowly-typed `doc` (for
+ * the tree-walk helpers below). Distinct from the {148.6} dedicated
+ * `loadInitiativesDoc` self-contained reader above — that one predates
+ * `initiatives` becoming a `LedgerName` and stays the live READ path
+ * unchanged; this one exists because the write verbs need the SAME
+ * `KnownDetected` shape `insertRecord`/`removeRecord`/`applyPatches` expect. */
+async function loadInitiativesLedger(
+  dir: string,
+  subcommand: string,
+): Promise<
+  | { ok: true; detected: KnownDetected; doc: InitiativesDocument }
+  | { ok: false; result: CliResult }
+> {
+  const loaded = await loadLedger(ledgerPath(dir, 'initiatives'));
+  if (!loaded.ok) return loaded;
+  if (loaded.detected.kind !== 'initiatives') {
+    return {
+      ok: false,
+      result: cliErr(
+        subcommand,
+        'ledger-schema-invalid',
+        `initiatives.json did not parse to the initiatives kind (got "${loaded.detected.kind}")`,
+      ),
+    };
+  }
+  return { ok: true, detected: loaded.detected, doc: loaded.detected.data };
+}
+
+/** INV-6 — link/unlink/move operate ONLY at project level. Resolves `id`
+ * against the whole initiatives tree (project slug OR initiative/
+ * sub-initiative path) via the SAME `resolveRecordId` primitive the vendored
+ * server oracle uses, so the two can never drift on the disambiguation rule.
+ * An initiative/sub-initiative match rejects `links-project-only` BEFORE any
+ * ServerIntent is built (TECH §3.3: "enforced at the CLI before building the
+ * intent"). */
+function requireProject(
+  subcommand: string,
+  doc: InitiativesDocument,
+  id: string,
+): { ok: true; project: Project } | { ok: false; result: CliResult } {
+  const resolved = resolveRecordId(doc as unknown as TreeDoc, id);
+  if (resolved.kind === 'initiative') {
+    return {
+      ok: false,
+      result: cliErr(
+        subcommand,
+        'links-project-only',
+        `"${id}" is an initiative/sub-initiative path, not a project slug — link/unlink/move address projects only`,
+      ),
+    };
+  }
+  if (resolved.kind === 'not-found') {
+    return {
+      ok: false,
+      result: cliErr(
+        subcommand,
+        'record-not-found',
+        `no project with slug "${id}"`,
+      ),
+    };
+  }
+  return { ok: true, project: resolved.location.project as unknown as Project };
+}
+
+/** Bare-digit id validation on task/backlog ids threaded to link/unlink/move
+ * (TECH §3.3). Project ids (slugs) are validated separately via
+ * `requireProject`'s tree-walk. */
+function requireBareDigitIds(
+  subcommand: string,
+  ids: string[],
+): { ok: true } | { ok: false; result: CliResult } {
+  const bad = ids.filter((id) => !/^\d+$/.test(id));
+  if (bad.length > 0) {
+    return {
+      ok: false,
+      result: cliErr(
+        subcommand,
+        'invalid-id',
+        `task/backlog ids must be bare-digit strings — got: [${bad.join(', ')}]`,
+      ),
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * INV-3 (lenient read / strict write on `status`) — client-side surfacing.
+ *
+ * VERIFIED (this Subtask): the upstream {148.10} patch-apply/record-mutate
+ * write arm applies NO status-enum gate — `ProjectSchema.status`/
+ * `InitiativeSchema.status` are `z.string()` on BOTH read and write (no
+ * `PROJECT_STATUSES`/`INITIATIVE_STATUSES` reference anywhere in
+ * task-view's `packages/server/{patch-apply,record-mutate,gates/*}.ts`,
+ * confirmed by grep against the pinned `v0.10.1-task-view` checkout). TECH
+ * §2 INV-3 states the enum check is "enforced server-side ... with the
+ * CLI-side oracle able to surface it early" — since the server-side half of
+ * that sentence is not actually implemented, THIS check is the only
+ * enforcement point today. Flagged as an out-of-scope finding for the
+ * Curator (a task-view follow-up to close the gate in patch-apply.ts); a
+ * client that bypasses this CLI (e.g. a raw PATCH to the patch-server) is
+ * NOT rejected. */
+function requireValidProjectStatus(
+  subcommand: string,
+  value: string,
+): { ok: true } | { ok: false; result: CliResult } {
+  if (!(PROJECT_STATUSES as readonly string[]).includes(value)) {
+    return {
+      ok: false,
+      result: cliErr(
+        subcommand,
+        'invalid-status',
+        `"${value}" is not a valid project status — known: [${PROJECT_STATUSES.join(', ')}]`,
+      ),
+    };
+  }
+  return { ok: true };
+}
+
+type LinkField = 'linked_tasks' | 'linked_backlog';
+
+/** Shared body for link-tasks/unlink-tasks/link-backlog/unlink-backlog
+ * (TECH §3.3, INV-5/6). `mode:'link'` unions the ids into the field
+ * (order-preserving dedupe); `mode:'unlink'` removes them. Builds ONE
+ * `field-patch` ServerIntent (a single-field SET of the full array — the
+ * server's `applyInitiativesPatches` re-validates the whole document in one
+ * pass, matching every other field-patch verb's discipline). */
+async function linkUnlinkVerb(
+  subcommand: string,
+  dir: string,
+  args: ParsedArgs,
+  linkField: LinkField,
+  mode: 'link' | 'unlink',
+): Promise<CliResult> {
+  const { positionals: p, flags } = args;
+  const [slug, ...ids] = p;
+  if (!slug || ids.length === 0)
+    return cliErr(subcommand, 'missing-args', `${subcommand} <slug> <id…>`);
+  const idCheck = requireBareDigitIds(subcommand, ids);
+  if (!idCheck.ok) return idCheck.result;
+  const loaded = await loadInitiativesLedger(dir, subcommand);
+  if (!loaded.ok) return loaded.result;
+  const proj = requireProject(subcommand, loaded.doc, slug);
+  if (!proj.ok) return proj.result;
+  const current = proj.project[linkField];
+  const newValue =
+    mode === 'link'
+      ? [...new Set([...current, ...ids])]
+      : current.filter((id) => !ids.includes(id));
+  const patch: FieldPatch = {
+    fieldPath: ['projects', slug, linkField],
+    newValue,
+  };
+  const m = fieldPatchMutation(subcommand, loaded.detected, patch);
+  if (!m.ok) return m.result;
+  return commitMutation({
+    subcommand,
+    path: ledgerPath(dir, 'initiatives'),
+    resultPayload: { slug, [linkField]: newValue },
+    dryRun: flags.dryRun,
+    regenMirrors: !flags.noRegenMirrors,
+    force: flags.force,
+    serverIntent: {
+      kind: 'field-patch',
+      slug: ledgerSlug('initiatives'),
+      recordId: slug,
+      patches: [patch],
+    },
+  });
+}
+
+/**
+ * `move-task`/`move-backlog <id> --from <slug> --to <slug>` — the atomic
+ * re-parent (TECH §3.3, INV-13). NOT a distinct wire-level opcode: this
+ * compiles to a TWO-patch batch (source project's `linkField` minus the id;
+ * target's plus it) sent in ONE `field-patch` ServerIntent/request, which
+ * the server's existing `applyInitiativesPatches` all-or-nothing multi-patch
+ * machinery already applies atomically (one Zod parse, one gate cycle). The
+ * record-set gate sees `expectedDelta:'none'` regardless — a project's
+ * `linked_*` field CONTENTS change but no project is added or removed, so
+ * the delta is ∅ by construction (verified against task-view
+ * `packages/server/patch-server.ts` `handlePatchRecord`).
+ *
+ * NOTE (out-of-scope finding, journaled): the server's `generateRecordMirror`
+ * scopes a field-PATCH's mirror regen to ONE recordId's owning top-level
+ * initiative. When `--from`/`--to` belong to DIFFERENT top-level
+ * initiatives, only the `--to` side's mirror (the recordId threaded below)
+ * regenerates on this request — the `--from` side's mirror goes stale until
+ * the next full regen. This does not affect the canonical JSON (the
+ * authoritative record) or the record-set delta ∅ guarantee — only the
+ * generated markdown mirror.
+ */
+async function moveVerb(
+  subcommand: string,
+  dir: string,
+  args: ParsedArgs,
+  linkField: LinkField,
+): Promise<CliResult> {
+  const { positionals: p, flags } = args;
+  const [id] = p;
+  const fromSlug = flags.from;
+  const toSlug = flags.to;
+  if (!id || !fromSlug || !toSlug)
+    return cliErr(
+      subcommand,
+      'missing-args',
+      `${subcommand} <id> --from <slug> --to <slug>`,
+    );
+  const idCheck = requireBareDigitIds(subcommand, [id]);
+  if (!idCheck.ok) return idCheck.result;
+  if (fromSlug === toSlug)
+    return cliErr(subcommand, 'same-project', '--from and --to must differ');
+  const loaded = await loadInitiativesLedger(dir, subcommand);
+  if (!loaded.ok) return loaded.result;
+  const fromProj = requireProject(subcommand, loaded.doc, fromSlug);
+  if (!fromProj.ok) return fromProj.result;
+  const toProj = requireProject(subcommand, loaded.doc, toSlug);
+  if (!toProj.ok) return toProj.result;
+  const fromList = fromProj.project[linkField];
+  if (!fromList.includes(id)) {
+    return cliErr(
+      subcommand,
+      'not-linked',
+      `"${id}" is not linked to project "${fromSlug}" — nothing to move`,
+    );
+  }
+  const newFrom = fromList.filter((x) => x !== id);
+  const toList = toProj.project[linkField];
+  const newTo = toList.includes(id) ? toList : [...toList, id];
+  const patches: FieldPatch[] = [
+    { fieldPath: ['projects', fromSlug, linkField], newValue: newFrom },
+    { fieldPath: ['projects', toSlug, linkField], newValue: newTo },
+  ];
+  // Both patches re-validate through the SAME applyInitiativesPatches batch
+  // (patch-apply.ts) as the CLI-side oracle pre-check — all-or-nothing, one
+  // Zod parse (mirrors fieldPatchMutation's single-patch discipline, widened
+  // to two patches since fieldPatchMutation only accepts one).
+  const applied = applyPatches(loaded.detected, patches);
+  if (!applied.ok) {
+    if (applied.kind === 'schema-error')
+      return {
+        ok: false,
+        subcommand,
+        error: 'schema-error',
+        issues: applied.zodError.issues,
+        expected: describeExpectedShape(applied.zodError),
+      };
+    if (applied.kind === 'walk-error')
+      return cliErr(subcommand, 'walk-error', applied.detail);
+    return cliErr(subcommand, applied.kind);
+  }
+  return commitMutation({
+    subcommand,
+    path: ledgerPath(dir, 'initiatives'),
+    resultPayload: { id, from: fromSlug, to: toSlug },
+    dryRun: flags.dryRun,
+    regenMirrors: !flags.noRegenMirrors,
+    force: flags.force,
+    serverIntent: {
+      kind: 'field-patch',
+      slug: ledgerSlug('initiatives'),
+      // The URL/mirror-regen scope needs ONE recordId; the arrival (`to`)
+      // project is the primary subject of a "move to" — see the mirror-scope
+      // out-of-scope finding in this function's jsdoc above.
+      recordId: toSlug,
+      patches,
+    },
+  });
 }
 
 async function run(args: ParsedArgs): Promise<CliResult> {
@@ -3365,6 +3753,15 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           dateField: 'date',
           hasStatus: false,
           defaultFields: ['id', 'date', 'track'],
+        },
+        // ID-148.7: `initiatives` entry required for `Record<LedgerName,…>`
+        // exhaustiveness — unreachable in practice, `list initiatives`/`list
+        // projects` branch BEFORE this generic path (see the dedicated
+        // {148.6} handler above); documented dead entry, `records` is always
+        // `[]` for `d.kind === 'initiatives'` (see below).
+        initiatives: {
+          hasStatus: true,
+          defaultFields: ['id', 'title', 'status'],
         },
       };
       const meta = META[ledger as LedgerName];
@@ -4389,6 +4786,192 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         flags.capabilityTheme,
       );
     }
+
+    // ── ID-148.7 — initiatives project write verbs (TECH §3.3) ─────────────
+
+    case 'create-project': {
+      const [initiativePath] = p;
+      if (!initiativePath)
+        return cliErr(
+          'create-project',
+          'missing-args',
+          'create-project <initiativePath> <projectJson | --file <path> | --title …>',
+        );
+      const loaded = await loadInitiativesLedger(dir, 'create-project');
+      if (!loaded.ok) return loaded.result;
+      // `initiativePath` already consumed positionals[0] — shift so
+      // readRecordInput sees the (optional) JSON body as positionals[0],
+      // mirroring `promote`'s bodyArgs pattern above.
+      const bodyArgs: ParsedArgs = { ...args, positionals: p.slice(1) };
+      const input = readRecordInput(bodyArgs);
+      if (!input.ok) return input.result;
+      const record = withCreateDefaults(
+        'project',
+        input.value as Record<string, unknown>,
+      );
+      // insertRecord is the CLI-side duplicate-slug + schema + tree-path
+      // oracle (esc-4 retained; TECH §2 INV-13); the record-set + budget
+      // gates run server-side (R1b).
+      const ins = insertRecord(loaded.detected, record, initiativePath);
+      if (!ins.ok) {
+        if (ins.kind === 'schema-error')
+          return {
+            ok: false,
+            subcommand: 'create-project',
+            error: 'schema-error',
+            issues: ins.zodError.issues,
+            expected: describeExpectedShape(ins.zodError),
+          };
+        if (ins.kind === 'duplicate-id')
+          return cliErr('create-project', 'duplicate-id', ins.recordId);
+        return cliErr(
+          'create-project',
+          ins.kind,
+          'detail' in ins ? ins.detail : undefined,
+        );
+      }
+      return commitMutation({
+        subcommand: 'create-project',
+        path: ledgerPath(dir, 'initiatives'),
+        resultPayload: { recordId: ins.recordId, initiativePath },
+        dryRun: flags.dryRun,
+        regenMirrors: !flags.noRegenMirrors,
+        force: flags.force,
+        serverIntent: {
+          kind: 'record-create',
+          slug: ledgerSlug('initiatives'),
+          record,
+          initiativePath,
+        },
+      });
+    }
+
+    case 'update-project': {
+      const [slug, field] = p;
+      if (!slug || !field)
+        return cliErr(
+          'update-project',
+          'missing-args',
+          'update-project <slug> <field> <value | --file <path>>',
+        );
+      const arity = checkFieldEditArity('update-project', p, flags.file);
+      if (!arity.ok) return arity.result;
+      const valueRes = readFieldValue('update-project', flags.file, p[2]);
+      if (!valueRes.ok) return valueRes.result;
+      const value = valueRes.raw;
+      // INV-3 — client-side status-enum surfacing (see requireValidProjectStatus
+      // jsdoc for the verified server-side gap this compensates for).
+      if (field === 'status') {
+        const statusCheck = requireValidProjectStatus('update-project', value);
+        if (!statusCheck.ok) return statusCheck.result;
+      }
+      const loaded = await loadInitiativesLedger(dir, 'update-project');
+      if (!loaded.ok) return loaded.result;
+      const newValue = coerceFieldValue('project', field, value);
+      const patch: FieldPatch = {
+        fieldPath: ['projects', slug, field],
+        newValue,
+      };
+      // CLI-side validation oracle (esc-4 retained); budget + record-set
+      // gates run server-side (R1b). `--force` still threads through for
+      // budget.
+      const m = fieldPatchMutation('update-project', loaded.detected, patch);
+      if (!m.ok) return m.result;
+      return commitMutation({
+        subcommand: 'update-project',
+        path: ledgerPath(dir, 'initiatives'),
+        resultPayload: { slug, field },
+        dryRun: flags.dryRun,
+        regenMirrors: !flags.noRegenMirrors,
+        force: flags.force,
+        serverIntent: {
+          kind: 'field-patch',
+          slug: ledgerSlug('initiatives'),
+          recordId: slug,
+          patches: [patch],
+        },
+      });
+    }
+
+    case 'delete-project': {
+      const [slug] = p;
+      if (!slug)
+        return cliErr(
+          'delete-project',
+          'missing-args',
+          'delete-project <slug>',
+        );
+      const loaded = await loadInitiativesLedger(dir, 'delete-project');
+      if (!loaded.ok) return loaded.result;
+      // removeRecord is the CLI-side schema + record-not-found + non-empty
+      // ("project-not-empty") oracle (esc-4 retained; TECH §2 INV-5) — the
+      // server re-runs the SAME guard authoritatively (record-mutate.ts
+      // removeRecord, {148.10}); the record-set drop-guard runs server-side.
+      const rem = removeRecord(loaded.detected, slug);
+      if (!rem.ok) {
+        if (rem.kind === 'schema-error')
+          return {
+            ok: false,
+            subcommand: 'delete-project',
+            error: 'schema-error',
+            issues: rem.zodError.issues,
+            expected: describeExpectedShape(rem.zodError),
+          };
+        if (rem.kind === 'record-not-found')
+          return cliErr('delete-project', 'record-not-found', rem.recordId);
+        if (rem.kind === 'project-not-empty')
+          return cliErr(
+            'delete-project',
+            'project-not-empty',
+            `project "${rem.recordId}" still holds linked_tasks/linked_backlog — unlink first (link-tasks/link-backlog to move them, or unlink-tasks/unlink-backlog to clear them)`,
+          );
+        return cliErr('delete-project', rem.kind);
+      }
+      return commitMutation({
+        subcommand: 'delete-project',
+        path: ledgerPath(dir, 'initiatives'),
+        resultPayload: { recordId: rem.recordId },
+        dryRun: flags.dryRun,
+        regenMirrors: !flags.noRegenMirrors,
+        serverIntent: {
+          kind: 'record-delete',
+          slug: ledgerSlug('initiatives'),
+          recordId: slug,
+        },
+      });
+    }
+
+    case 'link-tasks':
+      return linkUnlinkVerb('link-tasks', dir, args, 'linked_tasks', 'link');
+    case 'unlink-tasks':
+      return linkUnlinkVerb(
+        'unlink-tasks',
+        dir,
+        args,
+        'linked_tasks',
+        'unlink',
+      );
+    case 'link-backlog':
+      return linkUnlinkVerb(
+        'link-backlog',
+        dir,
+        args,
+        'linked_backlog',
+        'link',
+      );
+    case 'unlink-backlog':
+      return linkUnlinkVerb(
+        'unlink-backlog',
+        dir,
+        args,
+        'linked_backlog',
+        'unlink',
+      );
+
+    case 'move-task':
+      return moveVerb('move-task', dir, args, 'linked_tasks');
+    case 'move-backlog':
+      return moveVerb('move-backlog', dir, args, 'linked_backlog');
 
     default:
       // ID-35.34 — lead with a --help callout so the operator's first line of
