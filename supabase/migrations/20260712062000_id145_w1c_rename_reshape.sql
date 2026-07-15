@@ -71,6 +71,14 @@ COMMENT ON COLUMN "public"."form_instances"."estimated_value" IS 'First-class fo
 -- §2 M3 specifies; .doc/.xls convert to one of those three pre-insert, so the
 -- constraint never needs to see the legacy MIME types.
 ALTER TABLE "public"."form_instances" DROP CONSTRAINT IF EXISTS "form_templates_ingest_source_check";
+-- Data migration for the re-cut (S474: the ADD CONSTRAINT below 23514'd on live
+-- staging rows — every pre-existing row carries the retired 'pipeline' value).
+-- All 'pipeline' rows are document-backed (storage_path present), so they map to
+-- 'app_upload'; 'minted' is reserved for the created-WITHOUT-a-document path
+-- (BI-16) that no historical row can have taken.
+UPDATE "public"."form_instances"
+    SET "ingest_source" = 'app_upload'
+    WHERE "ingest_source" = 'pipeline';
 ALTER TABLE "public"."form_instances"
     ADD CONSTRAINT "form_instances_ingest_source_check"
     CHECK (("ingest_source" = ANY (ARRAY['app_upload'::"text", 'minted'::"text"])));
