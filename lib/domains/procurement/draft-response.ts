@@ -27,12 +27,18 @@ import type {
 } from '@/lib/domains/procurement/ai/draft';
 import { runDraftingPipeline } from '@/lib/domains/procurement/ai/draft';
 import { PIPELINE_SYSTEM_USER_ID } from '@/lib/intelligence/types';
+import { logger } from '@/lib/logger';
 import type { Database, Json } from '@/supabase/types/database.types';
 
 /**
  * The `form_questions` columns the drafting step reads. Mirrors the `select`
  * both callers issue (`id, question_text, word_limit, section_name,
- * confidence_posture, matched_record_ids`).
+ * confidence_posture`).
+ *
+ * ID-145 {145.23}: `matched_record_ids` (dropped W1c STEP 4) is no longer a
+ * field on this row — matches are sourced from `question_match_search`
+ * (R7 substrate, BI-37) inside {@link draftSingleQuestion} below, mirroring
+ * the {145.21} draft-stream route's re-point.
  */
 export interface DraftableQuestionRow {
   id: string;
@@ -40,7 +46,6 @@ export interface DraftableQuestionRow {
   word_limit: number | null;
   section_name: string | null;
   confidence_posture: string | null;
-  matched_record_ids: string[] | null;
 }
 
 /**
@@ -165,7 +170,7 @@ export async function fetchMatchedContentForDrafting(
  *
  * @param supabase    Caller's client (route: RLS user client; handler: service-role).
  * @param question    The question row to draft.
- * @param workspaceId The owning workspace id (route path-param `id` / handler `form_id`).
+ * @param workspaceId The owning form id (route path-param `id` / handler `form_id`).
  * @param modelTier   Which model the drafting Pass 2 runs against.
  */
 export async function draftSingleQuestion(
@@ -175,7 +180,23 @@ export async function draftSingleQuestion(
   modelTier: 'analysis' | 'drafting',
 ): Promise<DraftOutcome> {
   // Fetch matched content for this question.
-  const matchedIds = question.matched_record_ids ?? [];
+  //
+  // ID-145 {145.23}: form_questions.matched_record_ids was DROPPED (W1c,
+  // {145.6}); matches are now sourced from question_match_search below (R7
+  // substrate, BI-37) — mirrors the {145.21} draft-stream route's BI-37
+  // degrade path (RPC error -> logger.warn + matchedIds=[] + draft proceeds,
+  // never a hard failure here).
+  const { data: matchRows, error: matchError } = await supabase.rpc(
+    'question_match_search',
+    { p_form_question_id: question.id, p_limit: 20 },
+  );
+  if (matchError) {
+    logger.warn(
+      { err: matchError },
+      'Failed to read question_matches; drafting proceeds with no matched content',
+    );
+  }
+  const matchedIds = (matchRows ?? []).map((row) => row.q_a_pair_id);
   let matchedContent: DraftableContent[] = [];
   if (matchedIds.length > 0) {
     try {
@@ -238,11 +259,12 @@ export async function draftSingleQuestion(
   }
 
   // Mark the question as drafted.
+  // ID-145 {145.23}: form_questions.workspace_id -> form_instance_id (W1c).
   const { error: updateError } = await supabase
     .from('form_questions')
     .update({ status: 'ai_drafted' })
     .eq('id', question.id)
-    .eq('workspace_id', workspaceId);
+    .eq('form_instance_id', workspaceId);
 
   if (updateError) {
     return {

@@ -244,13 +244,14 @@ export async function registerResources(server: McpServer): Promise<void> {
           };
         }
 
+        // ID-145 {145.23}: form_questions.workspace_id -> form_instance_id (W1c).
         const questions = await sb(
           supabase
             .from('form_questions')
             .select(
               'id, question_text, section_name, status, confidence_posture',
             )
-            .eq('workspace_id', procurementId)
+            .eq('form_instance_id', procurementId)
             .order('section_sequence')
             .order('question_sequence'),
           'mcp.resources.form_workspace.questions',

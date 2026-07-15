@@ -107,7 +107,9 @@ export interface ProcurementDraftAllResult extends Record<string, unknown> {
 /**
  * Auth context the dispatcher passes through to the handler. Mirrors
  * `QueueJobPayload<TBody>['auth_context']` from `lib/queue/envelope.ts`.
- * Used for `updated_by` on the bid transition (spec §4.4 step 4).
+ * ID-145 {145.23}: no longer consumed by the bid transition below —
+ * form_instances carries no `updated_by` column (unlike the retired
+ * `workspaces` row) — retained for dispatcher call-site contract stability.
  */
 export interface ProcurementDraftAllAuthContext {
   user_id: string;
@@ -121,10 +123,10 @@ export interface ProcurementDraftAllAuthContext {
  * spec §4.2 PR-5 before calling).
  *
  * Throws `PermanentJobError` for handler-level fatal conditions:
- *   - bid not found in `workspaces` where `type='bid'`
- *   - bid status not in `draftableStates` (`drafting`, `in_review`, `ready_for_export`)
- *   - 0 questions on the bid
- *   - DB error reading `workspaces` or `form_questions`
+ *   - form not found in `form_instances`
+ *   - form workflow_state not in `draftableStates` (`drafting`, `in_review`, `ready_for_export`)
+ *   - 0 questions on the form
+ *   - DB error reading `form_instances` or `form_questions`
  *
  * Per-question failures are caught and recorded as `status: 'failed'` in
  * `results[]` (continue-with-partial, per spec D-2 authored default) — the
@@ -134,29 +136,37 @@ export interface ProcurementDraftAllAuthContext {
 export async function runFormDraftAllJob(
   body: ProcurementDraftAllBody,
   supabase: SupabaseClient<Database>,
-  authContext: ProcurementDraftAllAuthContext,
+  // ID-145 {145.23}: form_instances has no `updated_by` column (unlike the
+  // retired `workspaces` row this handler used to update) — the transition
+  // write below no longer attributes the actor, so this is now unused.
+  // Retained in the signature for call-site/dispatcher contract stability.
+  _authContext: ProcurementDraftAllAuthContext,
 ): Promise<ProcurementDraftAllResult> {
   const { form_id, model_tier, skip_existing } = body;
 
   // ------------------------------------------------------------------
-  // 1. Verify bid exists + is in a draftable state.
+  // 1. Verify the form exists + is in a draftable state.
   //    Mirrors route.ts L52-78 verbatim, but throws PermanentJobError
   //    instead of returning HTTP 4xx.
-  // ------------------------------------------------------------------
-  // Post-T2: discriminator is application_types.key via JOIN, not the dropped
-  // workspaces.type col. 'bid' maps to 'procurement'.
+  //
+  // ID-145 {145.23}: `workspaces`/`procurement_workspaces` are
+  // wholesale-deleted for procurement (W1e, {145.6}) — a `workspaces` lookup
+  // here now returns zero rows for every real form, hard-failing every
+  // form_draft_all job with `form_not_found`. Re-pointed onto `form_instances`
+  // directly (DR-056 "the item IS the form"), mirroring the {145.21}
+  // draft-stream route's identical re-point.
   const { data: bid, error: procurementError } = await supabase
-    .from('workspaces')
-    .select('id, status, domain_metadata, application_types!inner(key)')
+    .from('form_instances')
+    .select('id, workflow_state')
     .eq('id', form_id)
-    .eq('application_types.key', 'procurement')
     .single();
 
   if (procurementError || !bid) {
     throw new PermanentJobError(`form_not_found: ${form_id}`);
   }
 
-  const procurementStatus = (bid.status as ProcurementWorkflowState) ?? 'draft';
+  const procurementStatus =
+    (bid.workflow_state as ProcurementWorkflowState) ?? 'draft';
   const draftableStates: ProcurementWorkflowState[] = [
     'drafting',
     'in_review',
@@ -170,12 +180,14 @@ export async function runFormDraftAllJob(
   // 2. Fetch all questions for the bid in (section_sequence,
   //    question_sequence) order — mirrors route.ts L80-99.
   // ------------------------------------------------------------------
+  // ID-145 {145.23}: form_questions.workspace_id -> form_instance_id (W1c);
+  // matched_record_ids (dropped W1c STEP 4) is no longer selected here —
+  // draftSingleQuestion now sources matches itself via question_match_search
+  // (R7 substrate, BI-37), mirroring the {145.21} draft-stream route.
   const { data: questions, error: questionsError } = await supabase
     .from('form_questions')
-    .select(
-      'id, question_text, word_limit, section_name, confidence_posture, matched_record_ids',
-    )
-    .eq('workspace_id', form_id)
+    .select('id, question_text, word_limit, section_name, confidence_posture')
+    .eq('form_instance_id', form_id)
     .order('section_sequence', { ascending: true })
     .order('question_sequence', { ascending: true });
 
@@ -296,8 +308,7 @@ export async function runFormDraftAllJob(
   }
 
   // ------------------------------------------------------------------
-  // 5. Final transition — mirrors route.ts L263-301. Uses
-  //    authContext.user_id for `updated_by` (instead of user.id).
+  // 5. Final transition — mirrors route.ts L263-301.
   // ------------------------------------------------------------------
   const draftedCount = results.filter((r) => r.status === 'drafted').length;
   const failedCount = results.filter((r) => r.status === 'failed').length;
@@ -310,10 +321,11 @@ export async function runFormDraftAllJob(
     canTransition(procurementStatus, 'in_review')
   ) {
     // Check if there are any questions still without responses.
+    // ID-145 {145.23}: form_questions.workspace_id -> form_instance_id (W1c).
     const { count: undraftedCount } = await supabase
       .from('form_questions')
       .select('id', { count: 'exact', head: true })
-      .eq('workspace_id', form_id)
+      .eq('form_instance_id', form_id)
       .neq('confidence_posture', 'no_content')
       .not(
         'id',
@@ -326,16 +338,16 @@ export async function runFormDraftAllJob(
       .is('status', null);
 
     if (undraftedCount === null || undraftedCount === 0) {
-      // Post-T2: the application-type filter on the WHERE clause requires a
-      // JOIN through application_types. For a single-row update by `id` we
-      // skip the application-type recheck since the bid was already verified
-      // at the start of the handler.
+      // ID-145 {145.23}: re-pointed onto form_instances (workspaces is
+      // wholesale-deleted for procurement, W1e) — the bid was already
+      // verified to exist at the start of the handler, so no re-check is
+      // needed here. form_instances has no `updated_by` column (unlike the
+      // retired workspaces row), so only workflow_state/updated_at are set.
       await sb(
         supabase
-          .from('workspaces')
+          .from('form_instances')
           .update({
-            status: 'in_review',
-            updated_by: authContext.user_id,
+            workflow_state: 'in_review',
             updated_at: new Date(Date.now()).toISOString(),
           })
           .eq('id', form_id),

@@ -87,7 +87,8 @@ export async function fetchProcurementExportData(
       )
     `,
     )
-    .eq('workspace_id', procurementId)
+    // ID-145 {145.23}: form_questions.workspace_id -> form_instance_id (W1c).
+    .eq('form_instance_id', procurementId)
     .order('section_sequence', { ascending: true })
     .order('question_sequence', { ascending: true });
 

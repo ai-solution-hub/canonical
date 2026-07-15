@@ -168,7 +168,7 @@ export async function getItemProvenance(
           question_id,
           drafted_by,
           updated_at,
-          form_questions!inner(workspace_id, question_text)`,
+          form_questions!inner(form_instance_id, question_text)`,
         )
         .contains('source_record_ids', [itemId])
         .order('updated_at', { ascending: false })
@@ -203,29 +203,32 @@ export async function getItemProvenance(
       ? await resolveUserDisplayNames(supabase, draftUserIds)
       : new Map<string, { display_name: string }>();
 
-  // 6. Resolve bid workspace names (post-T2: form_questions.workspace_id renamed
-  // to workspace_id).
-  const workspaceIds = recentDraftsResult
+  // 6. Resolve procurement (form) names. ID-145 {145.23}: form_questions.
+  // workspace_id was DROPPED (W1c, {145.6}); the owning-form scope is now
+  // form_instance_id, and (DR-056 "the item IS the form") the display name
+  // lookup moves from `workspaces` to `form_instances.name`.
+  const formInstanceIds = recentDraftsResult
     .map((r) => {
       const bq = r.form_questions;
       // form_questions is a joined object (inner join, so always present)
-      if (Array.isArray(bq)) return bq[0]?.workspace_id as string | undefined;
-      return (bq as { workspace_id: string } | null)?.workspace_id;
+      if (Array.isArray(bq))
+        return bq[0]?.form_instance_id as string | undefined;
+      return (bq as { form_instance_id: string } | null)?.form_instance_id;
     })
     .filter((id): id is string => id != null);
 
-  const uniqueWorkspaceIds = [...new Set(workspaceIds)];
+  const uniqueFormInstanceIds = [...new Set(formInstanceIds)];
   let procurementNameMap = new Map<string, string | null>();
 
-  if (uniqueWorkspaceIds.length > 0) {
-    const workspaces = await sb(
+  if (uniqueFormInstanceIds.length > 0) {
+    const formInstances = await sb(
       supabase
-        .from('workspaces')
+        .from('form_instances')
         .select('id, name')
-        .in('id', uniqueWorkspaceIds),
+        .in('id', uniqueFormInstanceIds),
       'provenance.item.procurementNames',
     );
-    procurementNameMap = new Map(workspaces.map((w) => [w.id, w.name]));
+    procurementNameMap = new Map(formInstances.map((f) => [f.id, f.name]));
   }
 
   // 7. Assemble recent drafts
@@ -233,11 +236,11 @@ export async function getItemProvenance(
     const bq = Array.isArray(r.form_questions)
       ? r.form_questions[0]
       : (r.form_questions as {
-          workspace_id: string;
+          form_instance_id: string;
           question_text: string;
         } | null);
 
-    const procurementId = bq?.workspace_id ?? '';
+    const procurementId = bq?.form_instance_id ?? '';
 
     return {
       responseId: r.id,

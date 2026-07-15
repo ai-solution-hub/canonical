@@ -30,8 +30,10 @@
  *
  * ID-130 {130.9} adds the form-engagement column overrides (text columns the
  * generator types as `string | null`, narrowed to their domain unions):
- *   - form_templates.Row.workflow_state    -> ProcurementWorkflowState | null
- *   - form_templates.Row.outcome           -> FormOutcomeValue | null
+ *   - form_instances.Row.workflow_state    -> ProcurementWorkflowState | null
+ *   - form_instances.Row.outcome           -> FormOutcomeValue | null
+ *     (ID-145 {145.6}/{145.23}: `form_templates` renamed `form_instances`
+ *     (W1c STEP 1) — the override key moves with it.)
  *
  * Out of scope (later subtasks 47.6–47.9): RPC `Returns` overrides, Insert /
  * Update column overrides, DB migrations, consumer migration.
@@ -119,8 +121,8 @@ type MergedTables = Omit<
   // unions. `outcome` is FK-validated against the `form_outcome_types` CV and
   // app-validated by `FormOutcomeSchema` (stage-appropriate subset); the column
   // itself is NULLable (NULL until a terminal outcome is recorded).
-  form_templates: OverrideRow<
-    'form_templates',
+  form_instances: OverrideRow<
+    'form_instances',
     {
       workflow_state: ProcurementWorkflowState | null;
       outcome: FormOutcomeValue | null;

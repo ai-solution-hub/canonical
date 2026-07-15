@@ -476,7 +476,22 @@ export interface QaDedupPairMember {
   questionText: string | null;
   answerText: string | null;
   publicationStatus: string | null;
-  /** Snapshot-by-value provenance from the proposal row (INV-16). */
+  /**
+   * Snapshot-by-value provenance from the proposal row (INV-16).
+   *
+   * ID-145 {145.23}: `q_a_pair_dedup_proposals.pair_a/b_source_workspace_id`
+   * was DROPPED entirely (W1c STEP 5) with NO replacement column on this
+   * table — workspace lineage is retired system-wide for procurement
+   * (workspaces/procurement_workspaces wholesale-deleted, W1e {145.6}; see
+   * the same retirement applied to `q_a_pairs.source_workspace_id` at
+   * {145.19}/{145.23}). The migration's own W1a commentary confirms this is
+   * an intentional, ratified drop, not an oversight: "no structural target
+   * column... to migrate them onto." This field is therefore ALWAYS `null`
+   * going forward — kept on the type (rather than removed) so the six
+   * `components/admin/q-a-pairs/dedup-proposals/*` consumers stay
+   * source-compatible; a full UI retirement of the "spans workspaces" badge
+   * is a follow-up product decision, out of this Subtask's scope.
+   */
   sourceWorkspaceId: string | null;
   sourceFormResponseId: string | null;
   /** ISO timestamp; the UI formats DD/MM/YYYY. */
@@ -487,6 +502,11 @@ export interface QaDedupPairMember {
  * A dedup proposal flattened for the curator list view. `spansWorkspaces` /
  * `spansForms` drive the non-colour-only "spans workspaces/forms" badge
  * (INV-11/18) — computed from the two provenance snapshots.
+ *
+ * ID-145 {145.23}: `spansWorkspaces` is now ALWAYS `false` — see
+ * {@link QaDedupPairMember.sourceWorkspaceId} for the ratified rationale
+ * (workspace lineage retired system-wide; no data source survives to
+ * compute this).
  */
 /** @public */
 export interface QaDedupProposalSummary {
@@ -524,8 +544,11 @@ export interface QaDedupResolveResult {
   archived_id?: string;
 }
 
+// ID-145 {145.23}: pair_a/b_source_workspace_id DROPPED (W1c STEP 5, no
+// replacement) — no longer selected. See QaDedupPairMember.sourceWorkspaceId
+// for the ratified rationale.
 const QA_DEDUP_PROPOSAL_COLUMNS =
-  'id, status, similarity_score, proposed_survivor_id, survivor_reason, resolved_survivor_id, created_at, pair_a_id, pair_b_id, pair_a_source_workspace_id, pair_b_source_workspace_id, pair_a_source_form_response_id, pair_b_source_form_response_id' as const;
+  'id, status, similarity_score, proposed_survivor_id, survivor_reason, resolved_survivor_id, created_at, pair_a_id, pair_b_id, pair_a_source_form_response_id, pair_b_source_form_response_id' as const;
 
 /**
  * Shape of one proposal row as selected for the list/detail reads — the
@@ -543,8 +566,6 @@ type DedupProposalSelectRow = Pick<
   | 'created_at'
   | 'pair_a_id'
   | 'pair_b_id'
-  | 'pair_a_source_workspace_id'
-  | 'pair_b_source_workspace_id'
   | 'pair_a_source_form_response_id'
   | 'pair_b_source_form_response_id'
 >;
@@ -565,10 +586,9 @@ function toSummary(row: DedupProposalSelectRow): QaDedupProposalSummary {
     createdAt: row.created_at,
     pairAId: row.pair_a_id,
     pairBId: row.pair_b_id,
-    spansWorkspaces: spans(
-      row.pair_a_source_workspace_id,
-      row.pair_b_source_workspace_id,
-    ),
+    // ID-145 {145.23}: pair_a/b_source_workspace_id DROPPED, no
+    // replacement — always false (see QaDedupPairMember.sourceWorkspaceId).
+    spansWorkspaces: false,
     spansForms: spans(
       row.pair_a_source_form_response_id,
       row.pair_b_source_form_response_id,
@@ -647,9 +667,11 @@ export async function fetchAdminQaDedupProposal(
   if (!membersResult.ok) throw membersResult.error;
   const byId = new Map((membersResult.data ?? []).map((row) => [row.id, row]));
 
+  // ID-145 {145.23}: sourceWorkspaceId is no longer sourced from the row —
+  // pair_a/b_source_workspace_id is DROPPED with no replacement (see
+  // QaDedupPairMember.sourceWorkspaceId) — always null.
   const hydrate = (
     pairId: string,
-    sourceWorkspaceId: string | null,
     sourceFormResponseId: string | null,
   ): QaDedupPairMember => {
     const row = byId.get(pairId);
@@ -658,7 +680,7 @@ export async function fetchAdminQaDedupProposal(
       questionText: row?.question_text ?? null,
       answerText: row?.answer_standard ?? null,
       publicationStatus: row?.publication_status ?? null,
-      sourceWorkspaceId,
+      sourceWorkspaceId: null,
       sourceFormResponseId,
       updatedAt: row?.updated_at ?? null,
     };
@@ -668,12 +690,10 @@ export async function fetchAdminQaDedupProposal(
     ...summary,
     pairA: hydrate(
       summary.pairAId,
-      proposalResult.data.pair_a_source_workspace_id,
       proposalResult.data.pair_a_source_form_response_id,
     ),
     pairB: hydrate(
       summary.pairBId,
-      proposalResult.data.pair_b_source_workspace_id,
       proposalResult.data.pair_b_source_form_response_id,
     ),
   };

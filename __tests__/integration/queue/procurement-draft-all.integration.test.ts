@@ -166,15 +166,27 @@ async function createTestBid(opts: {
     const { data: q, error: qErr } = await serviceClient
       .from('form_questions')
       .insert({
-        // S246 WP2b T2 (P2): form_questions.workspace_id → workspace_id.
-        workspace_id: bid.id,
+        // ID-145 {145.23}: form_questions.workspace_id was DROPPED (W1c
+        // STEP 4); form_instance_id is now NOT NULL + FK'd to
+        // form_instances(id) — NOT workspaces(id). `bid.id` above is a
+        // `workspaces` row id (workspaces/procurement_workspaces are
+        // wholesale-deleted for procurement, W1e {145.6}); this fixture
+        // still only inserts a `workspaces` row, so `form_instance_id: bid.id`
+        // will FK-violate against a real (post-W1e) staging DB. Flagged as a
+        // genuine out-of-scope fixture gap in the {145.23} report — this
+        // TSC-clearing fix does not attempt the fuller form_instances
+        // fixture rewrite this suite needs (tracked separately; see also
+        // the SAME `workspaces`-based bid check still live in
+        // app/api/procurement/[id]/responses/draft-all/route.ts:80, which
+        // this suite also drives). matched_record_ids was also DROPPED
+        // (W1c STEP 4) — no replacement needed here, matches are R7-sourced.
+        form_instance_id: bid.id,
         question_text: `${TEST_PREFIX} question ${i + 1}`,
         word_limit: 200,
         section_name: 'Test Section',
         section_sequence: 1,
         question_sequence: i + 1,
         confidence_posture: 'strong',
-        matched_record_ids: [],
       })
       .select('id')
       .single();
