@@ -248,32 +248,25 @@ export async function generateContentSuggestions(
   // 3. Fetch active procurements (domains with active procurements get priority boost)
   // -------------------------------------------------------------------------
 
-  // Post-T2: discriminator is application_types.key via JOIN, not the dropped
-  // workspaces.type col. 'bid' maps to 'procurement'.
+  // ID-145 {145.23} round-2 runtime grep sweep (mandatory extra #2, DR-056):
+  // workspaces/procurement_workspaces are wholesale-deleted for procurement
+  // (W1e, {145.6}) — [id] IS the form_instances PK now; existence (not
+  // domain_metadata) is all that matters here (see below).
+  //
+  // The per-domain `activeProcurementDomains` extraction below this comment
+  // was REMOVED, not re-pointed: `inProcurementDomain =
+  // activeProcurementDomains.has(domainName) || hasActiveProcurements`
+  // (used further down) shows `hasActiveProcurements` alone already implies
+  // `inProcurementDomain` for EVERY domain once ANY procurement is active —
+  // `activeProcurementDomains.has(domainName)` can only ever add a TRUE in
+  // the case where `hasActiveProcurements` is false, which is impossible
+  // (the set is built FROM the same non-empty-checked list). The
+  // domain-tag extraction was already dead weight pre-W1; only the
+  // existence check below is load-bearing.
   const activeProcurements = await sb(
-    supabase
-      .from('workspaces')
-      .select('id, name, domain_metadata, application_types!inner(key)')
-      .eq('application_types.key', 'procurement')
-      .eq('is_archived', false),
+    supabase.from('form_instances').select('id').limit(1),
     'workspaces.activeBids',
   );
-
-  // Extract domains mentioned in active bid metadata
-  const activeProcurementDomains = new Set<string>();
-  for (const bid of activeProcurements ?? []) {
-    const meta = bid.domain_metadata as Record<string, unknown> | null;
-    if (meta?.primary_domain) {
-      activeProcurementDomains.add(meta.primary_domain as string);
-    }
-    // Some bids reference domains through their questions
-    if (meta?.domains && Array.isArray(meta.domains)) {
-      for (const d of meta.domains) {
-        if (typeof d === 'string') activeProcurementDomains.add(d);
-      }
-    }
-  }
-  // If there are active procurements, consider all domains as potentially bid-related
   const hasActiveProcurements = (activeProcurements ?? []).length > 0;
 
   // -------------------------------------------------------------------------
@@ -292,8 +285,10 @@ export async function generateContentSuggestions(
 
     // 4a. Empty subtopics
     if (!stats || stats.total === 0) {
-      const inProcurementDomain =
-        activeProcurementDomains.has(domainName) || hasActiveProcurements;
+      // ID-145 {145.23} round-2: inProcurementDomain simplifies to
+      // hasActiveProcurements alone — see the removed activeProcurementDomains
+      // declaration's comment above (dead-weight redundancy pre-dating W1).
+      const inProcurementDomain = hasActiveProcurements;
       const priority = inProcurementDomain ? 'critical' : 'medium';
 
       suggestions.push({
@@ -362,18 +357,18 @@ export async function generateContentSuggestions(
   if (includeTemplateGaps) {
     const templates = await sb(
       supabase
-        .from('form_template_requirements')
+        .from('form_requirement_templates')
         .select(
           'template_name, section_name, requirement_text, primary_domain, primary_subtopic',
         )
         .eq('is_current', true)
         // `coverage_status` is computed in `lib/domains/procurement/form-templating/template-coverage.ts`,
-        // not a DB column — it never exists in `form_template_requirements`.
+        // not a DB column — it never exists in `form_requirement_templates`.
         // Filtering here is not possible at the DB level; return all current
         // requirements and let callers use the in-memory coverage engine to
         // determine gap status if needed.
         .limit(50),
-      'form_template_requirements.gaps',
+      'form_requirement_templates.gaps',
     );
 
     for (const req of templates ?? []) {

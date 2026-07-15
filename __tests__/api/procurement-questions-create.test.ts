@@ -7,6 +7,15 @@
  *
  * Covers auth enforcement, UUID validation, body validation,
  * successful operations, and error handling.
+ *
+ * ID-145 {145.7} — form-first re-architecture: the route [id] is now the
+ * form_instances id directly (BI-1/BI-2); the {130.27}
+ * resolveOrMintFormTemplateId resolver + resolve_or_mint_form_template_id RPC
+ * are retired (form_questions.form_instance_id is stamped directly from the
+ * route param, no resolve-or-mint step). BID_UUID below now represents a
+ * form_instances id, and every "bid exists" mock resolves against the
+ * `form_instances` lookup (`.from('form_instances').select('id')...`), not
+ * `workspaces`.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
@@ -25,19 +34,6 @@ const mockSupabase = createMockSupabaseClient();
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => mockSupabase),
   createServiceClient: vi.fn(() => mockSupabase),
-}));
-
-// {130.27} — mock the form_template_id resolver at the module boundary so
-// these route tests don't need to know its internal SELECT/INSERT mechanics
-// (that is covered in isolation by
-// __tests__/lib/procurement/resolve-form-template.test.ts). Every test below
-// gets a fixed resolved id unless overridden.
-const RESOLVED_FORM_TEMPLATE_ID = '00000000-0000-4000-8000-0000000000ff';
-const { mockResolveOrMintFormTemplateId } = vi.hoisted(() => ({
-  mockResolveOrMintFormTemplateId: vi.fn(),
-}));
-vi.mock('@/lib/domains/procurement/resolve-form-template', () => ({
-  resolveOrMintFormTemplateId: mockResolveOrMintFormTemplateId,
 }));
 
 vi.mock('next/headers', () => ({
@@ -71,9 +67,6 @@ function resetMocks() {
   // `mockResolvedValueOnce` queue. We `mockReset()` terminal methods to
   // drop their queues so leftover once-mocks don't leak into the next test.
   vi.clearAllMocks();
-
-  mockResolveOrMintFormTemplateId.mockReset();
-  mockResolveOrMintFormTemplateId.mockResolvedValue(RESOLVED_FORM_TEMPLATE_ID);
 
   mockSupabase.auth.getUser.mockReset();
   mockSupabase.auth.getUser.mockResolvedValue({
@@ -205,7 +198,7 @@ describe('Procurement Questions Create API', () => {
   it('returns 400 for missing question_text in single question', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Procurement exists
+    // Form instance exists
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { id: BID_UUID },
       error: null,
@@ -225,10 +218,10 @@ describe('Procurement Questions Create API', () => {
     expect(response.status).toBe(400);
   });
 
-  it('returns 404 when bid does not exist', async () => {
+  it('returns 404 when the form instance does not exist', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Procurement lookup returns null
+    // Form instance lookup returns null
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: null,
       error: { message: 'Not found' },
@@ -258,7 +251,7 @@ describe('Procurement Questions Create API', () => {
   it('returns 201 on successful single question creation', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // First .single(): bid exists
+    // First .single(): form instance exists
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { id: BID_UUID },
       error: null,
@@ -271,11 +264,12 @@ describe('Procurement Questions Create API', () => {
     );
 
     // Second .single(): insert result.
-    // Post-T2: `form_questions.workspace_id` → `workspace_id`.
+    // ID-145 {145.7}: `form_questions.form_instance_id` (workspace_id and
+    // matched_record_ids are dropped, {145.6} M3).
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {
         id: '00000000-0000-4000-8000-000000000099',
-        workspace_id: BID_UUID,
+        form_instance_id: BID_UUID,
         section_name: 'Technical',
         section_sequence: 0,
         question_text: 'What is your approach?',
@@ -283,7 +277,6 @@ describe('Procurement Questions Create API', () => {
         word_limit: 500,
         evaluation_weight: null,
         confidence_posture: null,
-        matched_record_ids: null,
         assigned_to: null,
         created_by: 'test-user-id',
         created_at: '2026-03-01T00:00:00Z',
@@ -310,20 +303,14 @@ describe('Procurement Questions Create API', () => {
     expect(response.status).toBe(201);
 
     const body = await response.json();
-    expect(body.workspace_id).toBe(BID_UUID);
+    expect(body.form_instance_id).toBe(BID_UUID);
     expect(body.question_text).toBe('What is your approach?');
     expect(body.created_by).toBe('test-user-id');
 
-    // {130.27} — the insert is stamped with the resolved form_template_id
-    // (the NULL-drift fix: without this, the row would be silently dropped
-    // from the win-rate RPCs' and outcome route's INNER JOIN).
-    expect(mockResolveOrMintFormTemplateId).toHaveBeenCalledWith(
-      mockSupabase,
-      BID_UUID,
-      expect.objectContaining({ createdBy: 'test-user-id' }),
-    );
+    // ID-145 {145.7} — the insert is stamped with the route's own [id]
+    // directly (form-first: the form already exists, no resolve-or-mint).
     const insertArg = mockSupabase._chain.insert.mock.calls[0][0];
-    expect(insertArg.form_template_id).toBe(RESOLVED_FORM_TEMPLATE_ID);
+    expect(insertArg.form_instance_id).toBe(BID_UUID);
   });
 
   // =========================================================================
@@ -333,28 +320,28 @@ describe('Procurement Questions Create API', () => {
   it('returns 201 on successful batch question creation', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // First .single(): bid exists
+    // First .single(): form instance exists
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { id: BID_UUID },
       error: null,
     });
 
     // .then(): batch insert result.
-    // Post-T2: `form_questions.workspace_id` → `workspace_id`.
+    // ID-145 {145.7}: `form_questions.form_instance_id`.
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
             {
               id: '00000000-0000-4000-8000-000000000010',
-              workspace_id: BID_UUID,
+              form_instance_id: BID_UUID,
               question_text: 'Question 1?',
               question_sequence: 0,
               created_by: 'test-user-id',
             },
             {
               id: '00000000-0000-4000-8000-000000000011',
-              workspace_id: BID_UUID,
+              form_instance_id: BID_UUID,
               question_text: 'Question 2?',
               question_sequence: 1,
               created_by: 'test-user-id',
@@ -386,32 +373,32 @@ describe('Procurement Questions Create API', () => {
     expect(body.questions).toHaveLength(2);
     expect(body.count).toBe(2);
 
-    // {130.27} — every row in the batch insert is stamped.
+    // ID-145 {145.7} — every row in the batch insert is stamped with the
+    // route's own [id] directly.
     const insertArg = mockSupabase._chain.insert.mock.calls[0][0];
     const rows = Array.isArray(insertArg) ? insertArg : [insertArg];
     for (const row of rows) {
-      expect(row.form_template_id).toBe(RESOLVED_FORM_TEMPLATE_ID);
+      expect(row.form_instance_id).toBe(BID_UUID);
     }
   });
 
-  it('verifies questions are inserted with correct workspace_id', async () => {
+  it('verifies questions are inserted with correct form_instance_id', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // First .single(): bid exists
+    // First .single(): form instance exists
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { id: BID_UUID },
       error: null,
     });
 
     // .then(): batch insert result.
-    // Post-T2: `form_questions.workspace_id` → `workspace_id`.
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
             {
               id: '00000000-0000-4000-8000-000000000010',
-              workspace_id: BID_UUID,
+              form_instance_id: BID_UUID,
             },
           ],
           error: null,
@@ -423,7 +410,7 @@ describe('Procurement Questions Create API', () => {
       {
         method: 'POST',
         body: {
-          questions: [{ question_text: 'Check workspace_id?' }],
+          questions: [{ question_text: 'Check form_instance_id?' }],
         },
       },
     );
@@ -432,24 +419,22 @@ describe('Procurement Questions Create API', () => {
       params: createTestParams({ id: BID_UUID }),
     });
 
-    // Verify .insert() was called and rows had correct workspace_id.
-    // Post-T2: `form_questions` keys workspace not legacy project.
+    // Verify .insert() was called and rows had the correct form_instance_id.
+    // ID-145 {145.7}: form_questions keys on form_instance_id (workspace_id
+    // is dropped, {145.6} M3) — the route's own [id] IS the form's id.
     expect(mockSupabase._chain.insert).toHaveBeenCalled();
     const insertArg = mockSupabase._chain.insert.mock.calls[0][0];
     // Could be a single row or array
     const rows = Array.isArray(insertArg) ? insertArg : [insertArg];
     for (const row of rows) {
-      expect(row.workspace_id).toBe(BID_UUID);
-      // {130.27} — form_template_id must never be left NULL/undefined on a
-      // creation path.
-      expect(row.form_template_id).toBe(RESOLVED_FORM_TEMPLATE_ID);
+      expect(row.form_instance_id).toBe(BID_UUID);
     }
   });
 
   it('returns 400 for empty questions array in batch', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Procurement exists
+    // Form instance exists
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { id: BID_UUID },
       error: null,

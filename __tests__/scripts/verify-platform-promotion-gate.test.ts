@@ -14,6 +14,7 @@ import {
   evaluateG6,
   evaluateG7,
   formatGateTable,
+  parseCorpusArgs,
   type GateResult,
 } from '../../scripts/verify-platform-promotion-gate';
 import { PLATFORM_TARGETS } from '../../scripts/seed-platform-workspaces';
@@ -271,5 +272,49 @@ describe('formatGateTable', () => {
     expect(table).toContain('[PASS] G1');
     expect(table).toContain('[FAIL] G4');
     expect(table).toContain('[INFO] E');
+  });
+});
+
+describe('parseCorpusArgs — relocated from the retired seed-synthetic-corpus.ts (ID-145.25)', () => {
+  it('selects the prod target from --target=prod', () => {
+    expect(parseCorpusArgs(['--target=prod']).target).toBe('prod');
+  });
+
+  it('selects the staging target from --target=staging', () => {
+    expect(parseCorpusArgs(['--target=staging']).target).toBe('staging');
+  });
+
+  it('falls back to the SEED_PLATFORM_TARGET env when no flag is given', () => {
+    expect(
+      parseCorpusArgs([], { SEED_PLATFORM_TARGET: 'staging' }).target,
+    ).toBe('staging');
+  });
+
+  it('refuses to run when no target is named', () => {
+    expect(() => parseCorpusArgs([], {})).toThrow(/target is required/i);
+  });
+
+  it('defaults to dry-run and only writes when --apply is given', () => {
+    expect(parseCorpusArgs(['--target=prod']).dryRun).toBe(true);
+    expect(parseCorpusArgs(['--target=prod', '--apply']).dryRun).toBe(false);
+  });
+
+  it('defaults clean/emitManifest to false and manifestOut to null', () => {
+    const args = parseCorpusArgs(['--target=prod']);
+    expect(args.clean).toBe(false);
+    expect(args.emitManifest).toBe(false);
+    expect(args.manifestOut).toBeNull();
+  });
+
+  it('reads --clean, --emit-manifest, and --manifest-out=<path>', () => {
+    const args = parseCorpusArgs([
+      '--target=prod',
+      '--clean',
+      '--emit-manifest',
+      '--manifest-out=/tmp/manifest.json',
+    ]);
+    expect(args.clean).toBe(true);
+    expect(args.emitManifest).toBe(true);
+    expect(args.manifestOut).toBe('/tmp/manifest.json');
   });
 });

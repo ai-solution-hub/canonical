@@ -51,14 +51,18 @@ def _md5(text: str) -> str:
 
 @dataclass
 class _QaPair:
-    """One in-memory ``q_a_pairs`` row the fake corpus tracks."""
+    """One in-memory ``q_a_pairs`` row the fake corpus tracks.
+
+    ID-145 {145.26}: ``source_workspace_id`` is DROPPED from the real
+    ``q_a_pairs`` table ({145.6} W1c) and is no longer selected by the
+    production candidate-read query — no fixture field for it here either.
+    """
 
     id: uuid.UUID
     question_text: str
     publication_status: str = "published"
     has_embedding: bool = True
     superseded_by: uuid.UUID | None = None
-    source_workspace_id: uuid.UUID | None = None
     source_form_response_id: uuid.UUID | None = None
     updated_at: dt.datetime = field(
         default_factory=lambda: dt.datetime(2026, 6, 1, tzinfo=dt.timezone.utc)
@@ -67,15 +71,19 @@ class _QaPair:
 
 @dataclass
 class _ProposalRow:
-    """One in-memory ``q_a_pair_dedup_proposals`` row."""
+    """One in-memory ``q_a_pair_dedup_proposals`` row.
+
+    ID-145 {145.26}: ``pair_a/b_source_workspace_id`` are DROPPED from the
+    real table ({145.6} W1c STEP 5) with NO replacement column (W1a: lineage
+    stays recoverable via the existing ``pair_a_id``/``pair_b_id`` FKs ->
+    ``q_a_pairs``) — no fixture field for them here either.
+    """
 
     pair_a_id: uuid.UUID
     pair_b_id: uuid.UUID
     similarity_score: float
     proposed_survivor_id: uuid.UUID
     survivor_reason: str
-    pair_a_source_workspace_id: uuid.UUID | None
-    pair_b_source_workspace_id: uuid.UUID | None
     pair_a_source_form_response_id: uuid.UUID | None
     pair_b_source_form_response_id: uuid.UUID | None
     pair_a_fingerprint: str | None
@@ -122,12 +130,10 @@ class _FakeConn:
                     existing.similarity_score = args[2]  # type: ignore[assignment]
                     existing.proposed_survivor_id = args[3]  # type: ignore[assignment]
                     existing.survivor_reason = args[4]  # type: ignore[assignment]
-                    existing.pair_a_source_workspace_id = args[5]  # type: ignore[assignment]
-                    existing.pair_b_source_workspace_id = args[6]  # type: ignore[assignment]
-                    existing.pair_a_source_form_response_id = args[7]  # type: ignore[assignment]
-                    existing.pair_b_source_form_response_id = args[8]  # type: ignore[assignment]
-                    existing.pair_a_fingerprint = args[9]  # type: ignore[assignment]
-                    existing.pair_b_fingerprint = args[10]  # type: ignore[assignment]
+                    existing.pair_a_source_form_response_id = args[5]  # type: ignore[assignment]
+                    existing.pair_b_source_form_response_id = args[6]  # type: ignore[assignment]
+                    existing.pair_a_fingerprint = args[7]  # type: ignore[assignment]
+                    existing.pair_b_fingerprint = args[8]  # type: ignore[assignment]
                     return "INSERT 0 1"
             self.store.append(
                 _ProposalRow(
@@ -136,12 +142,10 @@ class _FakeConn:
                     similarity_score=args[2],  # type: ignore[arg-type]
                     proposed_survivor_id=args[3],  # type: ignore[arg-type]
                     survivor_reason=args[4],  # type: ignore[arg-type]
-                    pair_a_source_workspace_id=args[5],  # type: ignore[arg-type]
-                    pair_b_source_workspace_id=args[6],  # type: ignore[arg-type]
-                    pair_a_source_form_response_id=args[7],  # type: ignore[arg-type]
-                    pair_b_source_form_response_id=args[8],  # type: ignore[arg-type]
-                    pair_a_fingerprint=args[9],  # type: ignore[arg-type]
-                    pair_b_fingerprint=args[10],  # type: ignore[arg-type]
+                    pair_a_source_form_response_id=args[5],  # type: ignore[arg-type]
+                    pair_b_source_form_response_id=args[6],  # type: ignore[arg-type]
+                    pair_a_fingerprint=args[7],  # type: ignore[arg-type]
+                    pair_b_fingerprint=args[8],  # type: ignore[arg-type]
                 )
             )
             return "INSERT 0 1"
@@ -210,8 +214,6 @@ class _FakePool:
                             "pair_b_publication_status": hi.publication_status,
                             "pair_a_updated_at": lo.updated_at,
                             "pair_b_updated_at": hi.updated_at,
-                            "pair_a_source_workspace_id": lo.source_workspace_id,
-                            "pair_b_source_workspace_id": hi.source_workspace_id,
                             "pair_a_source_form_response_id": (
                                 lo.source_form_response_id
                             ),
@@ -383,8 +385,6 @@ def test_resolved_pair_not_resurfaced_unless_fingerprint_changes() -> None:
         similarity_score=0.95,
         proposed_survivor_id=_ID_HIGH,
         survivor_reason="seed",
-        pair_a_source_workspace_id=None,
-        pair_b_source_workspace_id=None,
         pair_a_source_form_response_id=None,
         pair_b_source_form_response_id=None,
         pair_a_fingerprint=_md5(q_a),
@@ -416,25 +416,30 @@ def test_resolved_pair_not_resurfaced_unless_fingerprint_changes() -> None:
 
 
 def test_cross_workspace_cross_form_fixture_proposes() -> None:
-    """The primary driver: the same question across DIFFERENT workspaces AND
-    DIFFERENT forms of one client (intra-tenant) proposes correctly, snapshotting
-    both sides' provenance by value (INV-2/12/16)."""
-    ws_pqq = uuid.UUID("00000000-0000-4000-8000-00000000aaa1")
-    ws_itt = uuid.UUID("00000000-0000-4000-8000-00000000aaa2")
+    """The primary driver: the same question across DIFFERENT forms of one
+    client (intra-tenant) proposes correctly, snapshotting the surviving
+    provenance dimension by value (INV-2/12/16).
+
+    ID-145 {145.26}: the candidate read is still cross-workspace/cross-form —
+    NO scoping filter on either dimension — but ``source_form_response_id``
+    is now the only provenance column snapshotted onto the proposal row;
+    ``source_workspace_id`` is dropped from ``q_a_pairs`` ({145.6} W1c) and
+    the corresponding ``pair_a/b_source_workspace_id`` columns are dropped
+    from ``q_a_pair_dedup_proposals`` with no replacement (see the
+    dataclass docstrings above), so this test no longer asserts on it.
+    """
     form_pqq = uuid.UUID("00000000-0000-4000-8000-00000000bbb1")
     form_itt = uuid.UUID("00000000-0000-4000-8000-00000000bbb2")
     corpus = [
         _QaPair(
             _ID_LOW,
             "Do you hold ISO 27001 certification?",
-            source_workspace_id=ws_pqq,
             source_form_response_id=form_pqq,
             updated_at=dt.datetime(2026, 6, 10, tzinfo=dt.timezone.utc),
         ),
         _QaPair(
             _ID_HIGH,
             "Are you certified to ISO 27001?",
-            source_workspace_id=ws_itt,
             source_form_response_id=form_itt,
             updated_at=dt.datetime(2026, 6, 15, tzinfo=dt.timezone.utc),
         ),
@@ -446,11 +451,7 @@ def test_cross_workspace_cross_form_fixture_proposes() -> None:
 
     assert written == 1
     row = pool.store[0]
-    # Provenance snapshotted by value for both sides (different ws + form).
-    assert {row.pair_a_source_workspace_id, row.pair_b_source_workspace_id} == {
-        ws_pqq,
-        ws_itt,
-    }
+    # Provenance snapshotted by value for both sides (different forms).
     assert {
         row.pair_a_source_form_response_id,
         row.pair_b_source_form_response_id,

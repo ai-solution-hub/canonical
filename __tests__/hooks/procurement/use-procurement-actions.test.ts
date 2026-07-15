@@ -82,13 +82,43 @@ import { useFormActions } from '@/hooks/procurement/use-procurement-actions';
 
 const TEST_BID_ID = hoistedBidId;
 
+// ID-145 {145.18} — the flat form_instances GET response (post-W1, BI-1):
+// every engagement fact sits at the top level; `tender_documents` (not
+// `domain_metadata.tender_document_ids`) is the live source for the derived
+// `tender_document_ids` (BI-5).
 const MOCK_BID = {
   id: TEST_BID_ID,
   title: 'Test Procurement',
-  status: 'drafting',
-  domain_metadata: {
-    tender_document_ids: ['doc-1', 'doc-2'],
-  },
+  name: 'Test Procurement',
+  description: null,
+  form_type: 'psq',
+  processing_status: 'analysed',
+  workflow_state: 'drafting',
+  deadline: null,
+  submission_date: null,
+  issuing_organisation: null,
+  outcome: null,
+  outcome_notes: null,
+  outcome_recorded_at: null,
+  outcome_recorded_by: null,
+  reference_number: null,
+  estimated_value: null,
+  tender_documents: [
+    {
+      path: 'doc-1',
+      filename: 'doc-1',
+      size: 1,
+      mime_type: 'application/pdf',
+      uploaded_at: '2026-06-01T00:00:00.000Z',
+    },
+    {
+      path: 'doc-2',
+      filename: 'doc-2',
+      size: 1,
+      mime_type: 'application/pdf',
+      uploaded_at: '2026-06-01T00:00:00.000Z',
+    },
+  ],
   question_stats: {
     total_questions: 10,
     drafted_count: 3,
@@ -338,19 +368,39 @@ describe('useFormActions (TanStack Query)', () => {
     expect(result.current.stats?.total_questions).toBe(10);
   });
 
-  // ─── 5. 404 redirect handling ─────────────────────────────────────────
+  // ─── 5. Confirmed-404 flag (BI-2/BI-3 — NO legacy redirect) ────────────
+  //
+  // ID-145 {145.18}: an unknown/retired id resolves to the standard
+  // not-found surface via Next's `notFound()`, called by the page in render
+  // — never a toast + bounce to the procurement list, never a redirect.
 
-  it('redirects to /bid on 404', async () => {
+  it('surfaces notFoundConfirmed on a confirmed 404, with no redirect or toast', async () => {
     mockFetchSuccess({ procurementStatus: 404 });
     const { Wrapper } = createWrapper();
-    renderHook(() => useFormActions({ id: TEST_BID_ID }), {
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
     });
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('Procurement not found');
+      expect(result.current.notFoundConfirmed).toBe(true);
     });
-    expect(mockPush).toHaveBeenCalledWith('/procurement');
+    expect(toast.error).not.toHaveBeenCalledWith('Procurement not found');
+    expect(mockPush).not.toHaveBeenCalledWith('/procurement');
+  });
+
+  it('notFoundConfirmed is false while loading and once data resolves', async () => {
+    mockFetchSuccess();
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
+      wrapper: Wrapper,
+    });
+
+    expect(result.current.notFoundConfirmed).toBe(false);
+
+    await waitFor(() => {
+      expect(result.current.bid).not.toBeNull();
+    });
+    expect(result.current.notFoundConfirmed).toBe(false);
   });
 
   // ─── 6. handleStatusTransition calls mutation ─────────────────────────
@@ -1050,9 +1100,10 @@ describe('useFormActions (TanStack Query)', () => {
     });
 
     expect(result.current.procurementStatus).toBe('drafting');
-    expect(result.current.metadata).toEqual({
-      tender_document_ids: ['doc-1', 'doc-2'],
-    });
+    expect(result.current.metadata?.tender_document_ids).toEqual([
+      'doc-1',
+      'doc-2',
+    ]);
 
     // Stats from questions query: total=15, drafted=5, complete=3 -> (5+3)/15 = 53%
     await waitFor(() => {
@@ -1062,9 +1113,9 @@ describe('useFormActions (TanStack Query)', () => {
     expect(result.current.progressPercent).toBe(53);
   });
 
-  it('computes procurementStatus as draft when bid has no status', async () => {
+  it('computes procurementStatus as draft when bid has no workflow_state', async () => {
     mockFetchSuccess({
-      bid: { ...MOCK_BID, status: null },
+      bid: { ...MOCK_BID, workflow_state: null },
     });
     const { Wrapper } = createWrapper();
     const { result } = renderHook(() => useFormActions({ id: TEST_BID_ID }), {
@@ -1089,41 +1140,28 @@ describe('useFormActions (TanStack Query)', () => {
     expect(result.current.procurementStatus).toBeNull();
   });
 
-  // ─── 15b. New {130.11} read-shape re-point ({130.13}) ─────────────────
+  // ─── 15b. Flat form_instances read-shape ({145.18}) ────────────────────
   //
-  // The umbrella GET now returns `forms` + `rollup` (no top-level
-  // `status`/`domain_metadata`). The hook re-points: procurementStatus derives
-  // from the primary form's `workflow_state`; metadata from the form + rollup.
+  // Post-W1 the GET response is a flat form_instances row (BI-1) — no
+  // `forms[]`/`rollup` indirection. procurementStatus derives from the
+  // form's own `workflow_state`; metadata from the form's own columns.
 
-  it('derives procurementStatus + metadata from the new forms/rollup shape', async () => {
+  it('derives procurementStatus + metadata directly off the flat form_instances response', async () => {
     mockFetchSuccess({
       bid: {
         id: TEST_BID_ID,
         name: 'New shape procurement',
         description: null,
-        forms: [
-          {
-            id: 'form-1',
-            form_type: 'psq',
-            name: 'PSQ',
-            workflow_state: 'in_review',
-            outcome: null,
-            outcome_notes: null,
-            deadline: '2026-07-01T00:00:00.000Z',
-            submission_date: null,
-            issuing_organisation: 'Acme Council',
-            outcome_recorded_at: null,
-            outcome_recorded_by: null,
-            created_at: '2026-06-01T00:00:00.000Z',
-            updated_at: '2026-06-01T00:00:00.000Z',
-          },
-        ],
-        rollup: {
-          nearest_deadline: '2026-07-01T00:00:00.000Z',
-          overall_outcome: null,
-          counts_toward_win_rate: null,
-          rollup_updated_at: null,
-        },
+        form_type: 'psq',
+        processing_status: 'analysed',
+        workflow_state: 'in_review',
+        outcome: null,
+        outcome_notes: null,
+        deadline: '2026-07-01T00:00:00.000Z',
+        submission_date: null,
+        issuing_organisation: 'Acme Council',
+        outcome_recorded_at: null,
+        outcome_recorded_by: null,
         question_stats: { total_questions: 0 },
       },
     });
@@ -1141,14 +1179,12 @@ describe('useFormActions (TanStack Query)', () => {
     expect(result.current.metadata?.deadline).toBe('2026-07-01T00:00:00.000Z');
   });
 
-  it('defaults procurementStatus to draft for an umbrella with no forms yet', async () => {
+  it('defaults procurementStatus to draft for an item with no workflow_state yet', async () => {
     mockFetchSuccess({
       bid: {
         id: TEST_BID_ID,
-        name: 'Empty umbrella',
+        name: 'Fresh item',
         description: null,
-        forms: [],
-        rollup: null,
         question_stats: { total_questions: 0 },
       },
     });
@@ -1184,7 +1220,7 @@ describe('useFormActions (TanStack Query)', () => {
 
   it('computes isSubmitted correctly', async () => {
     mockFetchSuccess({
-      bid: { ...MOCK_BID, status: 'submitted' },
+      bid: { ...MOCK_BID, workflow_state: 'submitted' },
     });
     mockGetAvailableTransitions.mockReturnValue([
       'won',
@@ -1575,6 +1611,7 @@ describe('useFormActions (TanStack Query)', () => {
     expect(result.current).toHaveProperty('questions');
     expect(result.current).toHaveProperty('stats');
     expect(result.current).toHaveProperty('loading');
+    expect(result.current).toHaveProperty('notFoundConfirmed');
     expect(result.current).toHaveProperty('activeTab');
     expect(result.current).toHaveProperty('setActiveTab');
 

@@ -73,7 +73,7 @@ export const POST = defineRoute(
           'id, question_text, word_limit, section_name, confidence_posture',
         )
         .eq('id', existing.question_id)
-        .eq('workspace_id', id)
+        .eq('form_instance_id', id)
         .single();
 
       if (questionError || !question) {
@@ -160,7 +160,7 @@ export const POST = defineRoute(
         .from('form_questions')
         .update({ status: 'ai_drafted' })
         .eq('id', question.id)
-        .eq('workspace_id', id);
+        .eq('form_instance_id', id);
 
       return NextResponse.json({
         question_id: question.id,

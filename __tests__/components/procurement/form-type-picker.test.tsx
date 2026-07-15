@@ -28,12 +28,14 @@ vi.mock('@/lib/supabase/client', () => ({
 // Import AFTER the mock so the component picks up the mocked client.
 import { FormTypePicker } from '@/components/procurement/form-type-picker';
 
-// The 7 procurement-applicable form types with their UK human labels
-// (B-13 terminology review; post AD-4 pqq->psq rename). These are returned
-// FROM the mocked api.form_types fetch, proving the option list is CV-driven
-// rather than hardcoded in the component.
+// The 6 procurement-applicable form types with their UK human labels
+// (B-13 terminology review; post AD-4 pqq->psq rename; ID-145.27 BI-8/BI-12
+// retired the 'bid' CV row — "Bid" is no longer offered as a first-class
+// creation label, so it no longer appears in api.form_types and is dropped
+// from this fixture). These are returned FROM the mocked api.form_types
+// fetch, proving the option list is CV-driven rather than hardcoded in the
+// component.
 const FORM_TYPE_ROWS = [
-  { key: 'bid', label: 'Bid' },
   { key: 'checklist', label: 'Checklist' },
   { key: 'itt', label: 'ITT (Invitation To Tender)' },
   { key: 'psq', label: 'Selection Questionnaire (SQ/PSQ)' },
@@ -91,7 +93,7 @@ describe('FormTypePicker', () => {
       ['procurement'],
     );
 
-    // All 7 procurement-applicable options render, by their UK human labels.
+    // All 6 procurement-applicable options render, by their UK human labels.
     for (const row of FORM_TYPE_ROWS) {
       expect(
         screen.getByRole('radio', { name: nameRe(row.label) }),

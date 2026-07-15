@@ -94,6 +94,28 @@ vi.mock('@/components/procurement/question-review', () => ({
   ),
 }));
 
+// ID-145 {145.8} — FormTypePicker is a shared, DB-CV-driven component (its
+// own TanStack Query hook), not owned by this wizard. Mocked like the other
+// reused children above so this suite stays focused on the wizard's OWN
+// integration logic (does it require a confirmed type before create, does it
+// thread the choice into the request body) rather than the picker's
+// internals (covered by the picker's own tests).
+vi.mock('@/components/procurement/form-type-picker', () => ({
+  FormTypePicker: ({
+    onConfirm,
+    isConfirming,
+  }: {
+    onConfirm: (formType: string) => void;
+    isConfirming?: boolean;
+  }) => (
+    <div data-testid="form-type-picker">
+      <button disabled={isConfirming} onClick={() => onConfirm('itt')}>
+        Confirm form type: ITT
+      </button>
+    </div>
+  ),
+}));
+
 describe('ProcurementCreationWizard', () => {
   const onOpenChange = vi.fn();
   const onCreated = vi.fn();
@@ -118,18 +140,29 @@ describe('ProcurementCreationWizard', () => {
     );
   }
 
+  /** Confirm the (mocked) FormTypePicker's ITT option — ID-145 {145.8}. */
+  async function confirmFormType(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole('button', { name: /Confirm form type/ }));
+  }
+
   // ----------------------------------------------------------
   // Step 1: Rendering
   // ----------------------------------------------------------
 
-  it('renders step 1 with bid detail fields when open', () => {
+  it('renders step 1 with procurement detail fields + the FormTypePicker when open', () => {
     renderWizard();
+    expect(screen.getByTestId('form-type-picker')).toBeInTheDocument();
     expect(screen.getByLabelText(/Procurement Name/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Buyer/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Submission Deadline/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Reference Number/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Estimated Value/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Notes/)).toBeInTheDocument();
+  });
+
+  it('the wizard subtitle is item/form language, never "bid workspace" (BI-12)', () => {
+    renderWizard();
+    expect(screen.queryByText(/bid workspace/i)).not.toBeInTheDocument();
   });
 
   it('shows step indicator with 3 steps', () => {
@@ -176,12 +209,28 @@ describe('ProcurementCreationWizard', () => {
     expect(blankBtn).toBeDisabled();
   });
 
-  it('enables both creation paths when name and buyer are filled', async () => {
+  it('remains disabled when name and buyer are filled but the form type is not yet confirmed', async () => {
     const user = userEvent.setup();
     renderWizard();
 
     await user.type(screen.getByLabelText(/Procurement Name/), 'NHS Trust ITT');
     await user.type(screen.getByLabelText(/Buyer/), 'NHS Digital');
+
+    expect(
+      screen.getByRole('button', { name: /Create & Upload Tender/ }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: /Start Blank Procurement/ }),
+    ).toBeDisabled();
+  });
+
+  it('enables both creation paths once name, buyer, and a confirmed form type are all provided', async () => {
+    const user = userEvent.setup();
+    renderWizard();
+
+    await user.type(screen.getByLabelText(/Procurement Name/), 'NHS Trust ITT');
+    await user.type(screen.getByLabelText(/Buyer/), 'NHS Digital');
+    await confirmFormType(user);
 
     expect(
       screen.getByRole('button', { name: /Create & Upload Tender/ }),
@@ -206,6 +255,7 @@ describe('ProcurementCreationWizard', () => {
 
     await user.type(screen.getByLabelText(/Procurement Name/), 'NHS Trust ITT');
     await user.type(screen.getByLabelText(/Buyer/), 'NHS Digital');
+    await confirmFormType(user);
     await user.click(
       screen.getByRole('button', { name: /Create & Upload Tender/ }),
     );
@@ -240,6 +290,7 @@ describe('ProcurementCreationWizard', () => {
       'Quick Procurement',
     );
     await user.type(screen.getByLabelText(/Buyer/), 'HMRC');
+    await confirmFormType(user);
     await user.click(
       screen.getByRole('button', { name: /Start Blank Procurement/ }),
     );
@@ -261,6 +312,7 @@ describe('ProcurementCreationWizard', () => {
 
     await user.type(screen.getByLabelText(/Procurement Name/), 'Blank Path');
     await user.type(screen.getByLabelText(/Buyer/), 'MOD');
+    await confirmFormType(user);
 
     await user.click(
       screen.getByRole('button', { name: /Start Blank Procurement/ }),
@@ -273,6 +325,7 @@ describe('ProcurementCreationWizard', () => {
     const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body as string);
     expect(requestBody.name).toBe('Blank Path');
     expect(requestBody.buyer).toBe('MOD');
+    expect(requestBody.form_type).toBe('itt');
   });
 
   // ----------------------------------------------------------
@@ -294,6 +347,7 @@ describe('ProcurementCreationWizard', () => {
       'Test Procurement',
     );
     await user.type(screen.getByLabelText(/Buyer/), 'Test Org');
+    await confirmFormType(user);
     await user.click(
       screen.getByRole('button', { name: /Create & Upload Tender/ }),
     );
@@ -321,6 +375,7 @@ describe('ProcurementCreationWizard', () => {
 
     await user.type(screen.getByLabelText(/Procurement Name/), 'Skip Test');
     await user.type(screen.getByLabelText(/Buyer/), 'Test Org');
+    await confirmFormType(user);
     await user.click(
       screen.getByRole('button', { name: /Create & Upload Tender/ }),
     );
@@ -350,6 +405,7 @@ describe('ProcurementCreationWizard', () => {
 
     await user.type(screen.getByLabelText(/Procurement Name/), 'Upload Test');
     await user.type(screen.getByLabelText(/Buyer/), 'Test Org');
+    await confirmFormType(user);
     await user.click(
       screen.getByRole('button', { name: /Create & Upload Tender/ }),
     );
@@ -390,6 +446,7 @@ describe('ProcurementCreationWizard', () => {
 
     await user.type(screen.getByLabelText(/Procurement Name/), 'Empty Upload');
     await user.type(screen.getByLabelText(/Buyer/), 'Test Org');
+    await confirmFormType(user);
     await user.click(
       screen.getByRole('button', { name: /Create & Upload Tender/ }),
     );
@@ -420,6 +477,7 @@ describe('ProcurementCreationWizard', () => {
     // Step 1
     await user.type(screen.getByLabelText(/Procurement Name/), 'Confirm Test');
     await user.type(screen.getByLabelText(/Buyer/), 'Test Org');
+    await confirmFormType(user);
     await user.click(
       screen.getByRole('button', { name: /Create & Upload Tender/ }),
     );
@@ -456,6 +514,7 @@ describe('ProcurementCreationWizard', () => {
 
     await user.type(screen.getByLabelText(/Procurement Name/), 'Cancel Test');
     await user.type(screen.getByLabelText(/Buyer/), 'Test Org');
+    await confirmFormType(user);
     await user.click(
       screen.getByRole('button', { name: /Create & Upload Tender/ }),
     );
@@ -506,6 +565,7 @@ describe('ProcurementCreationWizard', () => {
     await user.type(screen.getByLabelText(/Buyer/), 'HMRC');
     await user.type(screen.getByLabelText(/Reference Number/), 'ITT-2026-042');
     await user.type(screen.getByLabelText(/Estimated Value/), '£50,000');
+    await confirmFormType(user);
 
     await user.click(
       screen.getByRole('button', { name: /Create & Upload Tender/ }),
@@ -520,5 +580,6 @@ describe('ProcurementCreationWizard', () => {
     expect(requestBody.buyer).toBe('HMRC');
     expect(requestBody.reference_number).toBe('ITT-2026-042');
     expect(requestBody.estimated_value).toBe('£50,000');
+    expect(requestBody.form_type).toBe('itt');
   });
 });

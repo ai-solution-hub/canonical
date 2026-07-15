@@ -7,8 +7,11 @@ import {
 } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
+import {
+  recomputeQuestionMatches,
+  recomputeQuestionMatchesBatch,
+} from '@/lib/domains/procurement/question-match-recompute';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { resolveOrMintFormTemplateId } from '@/lib/domains/procurement/resolve-form-template';
 import { sb } from '@/lib/supabase/safe';
 import { parseBody } from '@/lib/validation';
 import { QuestionCreateBodySchema } from '@/lib/validation/schemas';
@@ -63,16 +66,16 @@ export const GET = defineRoute(
         );
       }
 
-      // Verify bid exists.
-      // Post-T2: discriminator via application_types JOIN.
-      const { data: bid, error: procurementError } = await supabase
-        .from('workspaces')
-        .select('id, application_types!inner(key)')
+      // ID-145 {145.7} — form-first: the route [id] IS the form_instances id
+      // directly (BI-1/BI-2). No more workspace lookup/discriminator join —
+      // form_instances carries no workspace_id post-{145.6} M3.
+      const { data: form, error: formError } = await supabase
+        .from('form_instances')
+        .select('id')
         .eq('id', id)
-        .eq('application_types.key', 'procurement')
         .single();
 
-      if (procurementError || !bid) {
+      if (formError || !form) {
         return NextResponse.json(
           { error: 'Procurement not found' },
           { status: 404 },
@@ -80,13 +83,16 @@ export const GET = defineRoute(
       }
 
       // Fetch questions ordered by section then question sequence.
-      // Post-T2: `form_questions.workspace_id` → `workspace_id`.
+      // ID-145 {145.7}: `form_questions.workspace_id` is dropped ({145.6} M3)
+      // — scope on `form_instance_id` (the sole scoping key post form-first
+      // re-architecture, BI-7). `matched_record_ids` is also dropped (M3) —
+      // no longer selected.
       const { data: questions, error: questionsError } = await supabase
         .from('form_questions')
         .select(
-          'id, workspace_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, matched_record_ids, status, has_variants, assigned_to, created_by, created_at, updated_at',
+          'id, form_instance_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, status, has_variants, assigned_to, created_by, created_at, updated_at',
         )
-        .eq('workspace_id', id)
+        .eq('form_instance_id', id)
         .order('section_sequence', { ascending: true })
         .order('question_sequence', { ascending: true });
 
@@ -153,8 +159,11 @@ export const GET = defineRoute(
       }));
 
       // Fetch question stats via RPC.
-      // NB: RPC signature `p_project_id` retained — RPC is part of an SQL function
-      // signature that lives in a migration and is renamed separately (T4 scope).
+      // NB: RPC signature `p_project_id` retained — the {145.6} migration
+      // re-points this function's body from the dropped
+      // form_questions.workspace_id to form_instance_id (its parameter name
+      // stays p_project_id for caller-signature stability, matching the T2
+      // carve-out precedent) — `id` here now correctly means the form's id.
       const { data: stats, error: statsError } = await supabase.rpc(
         'get_form_question_stats',
         {
@@ -209,16 +218,20 @@ export const POST = defineRoute(
 
       const raw = await request.json();
 
-      // Verify bid exists.
-      // Post-T2: discriminator via application_types JOIN.
-      const { data: bid, error: procurementError } = await supabase
-        .from('workspaces')
-        .select('id, application_types!inner(key)')
+      // ID-145 {145.7} — form-first: the route [id] IS the form_instances id
+      // directly (BI-1/BI-2). The form already exists form-first (created via
+      // {145.8}), so a question attaches to the KNOWN form_instance_id — no
+      // resolve-or-mint step.
+      // ID-145 {145.17} (R7/BI-34): `form_type` is also read here — it is
+      // the `question_matches.question_kind` FK value used by the
+      // post-insert recompute call below.
+      const { data: form, error: formError } = await supabase
+        .from('form_instances')
+        .select('id, form_type')
         .eq('id', id)
-        .eq('application_types.key', 'procurement')
         .single();
 
-      if (procurementError || !bid) {
+      if (formError || !form) {
         return NextResponse.json(
           { error: 'Procurement not found' },
           { status: 404 },
@@ -228,9 +241,8 @@ export const POST = defineRoute(
       // Try batch format first (from QuestionReview component)
       const batchParsed = parseBody(BatchQuestionCreateSchema, raw);
       if (batchParsed.success) {
-        // Finding 2 ({130.27} Checker remediation): MUST await here, not just
-        // `return`. handleBatchInsert() is async and can throw (e.g. from
-        // resolveOrMintFormTemplateId()'s RPC call) — `return
+        // {130.27}/{145.7}: MUST await here, not just `return`.
+        // handleBatchInsert() is async and can throw — `return
         // handleBatchInsert(...)` without awaiting exits this try block
         // before the promise settles, so a later rejection would NOT be
         // caught by this function's own catch below and would surface as an
@@ -241,6 +253,7 @@ export const POST = defineRoute(
           id,
           user.id,
           batchParsed.data.questions,
+          form.form_type,
         );
       }
 
@@ -248,13 +261,14 @@ export const POST = defineRoute(
       const parsed = parseBody(QuestionCreateBodySchema, raw);
       if (!parsed.success) return parsed.response;
 
-      // Get the max question_sequence for this bid to assign next sequence number.
-      // Post-T2: `form_questions.workspace_id` → `workspace_id`.
+      // Get the max question_sequence for this form to assign next sequence
+      // number. ID-145 {145.7}: `form_questions.workspace_id` is dropped
+      // ({145.6} M3) — scope on `form_instance_id`.
       const maxSeqResult = await sb(
         supabase
           .from('form_questions')
           .select('question_sequence')
-          .eq('workspace_id', id)
+          .eq('form_instance_id', id)
           .order('question_sequence', { ascending: false })
           .limit(1),
         'bids.questions.list.maxSequence',
@@ -268,26 +282,15 @@ export const POST = defineRoute(
       const { section_name, question_text, word_limit, evaluation_weight } =
         parsed.data;
 
-      // {130.27} — resolve (or mint) this workspace's canonical form_template
-      // id so a manually-added question is not NULL-drifted out of the
-      // win-rate/outcome INNER JOINs. No document backs a manual add, so a
-      // mint (when needed) uses the same docless convention as
-      // `forms/route.ts`'s "add a form" action.
-      const formTemplateId = await resolveOrMintFormTemplateId(supabase, id, {
-        name: 'Untitled form',
-        filename: 'app-created-form.pdf',
-        storagePath: `app-created/${id}/${crypto.randomUUID()}`,
-        fileSize: 0,
-        mimeType: 'application/pdf',
-        createdBy: user.id,
-      });
-
-      // Post-T2: `form_questions.workspace_id` → `workspace_id` on insert + select.
+      // ID-145 {145.7}: `form_questions.form_instance_id` is the route's own
+      // [id] — no resolve-or-mint (the {130.27} RPC + its TS resolver are
+      // retired, {145.6} M3/{145.7}). form_questions.form_instance_id is NOT
+      // NULL post-migration, so every insert MUST carry a real form id — it
+      // always does, since it is the route param itself.
       const { data: created, error: insertError } = await supabase
         .from('form_questions')
         .insert({
-          workspace_id: id,
-          form_template_id: formTemplateId,
+          form_instance_id: id,
           section_name: section_name ?? null,
           question_text,
           question_sequence: nextSequence,
@@ -297,7 +300,7 @@ export const POST = defineRoute(
           created_by: user.id,
         })
         .select(
-          'id, workspace_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, matched_record_ids, assigned_to, created_by, created_at, updated_at',
+          'id, form_instance_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, assigned_to, created_by, created_at, updated_at',
         )
         .single();
 
@@ -308,6 +311,18 @@ export const POST = defineRoute(
           { status: 500 },
         );
       }
+
+      // ID-145 {145.17} (R7/BI-34) — recompute question_matches for the
+      // newly created question so the retrieve step of the answering loop
+      // has fresh matches. Awaited (not fire-and-forget) so the invariant
+      // ("creating a question yields recomputed matches for it") holds by
+      // the time this response returns; best-effort internally (see helper
+      // docstring) — never blocks question creation on a matching failure.
+      await recomputeQuestionMatches(supabase, {
+        formQuestionId: created.id,
+        questionText: created.question_text,
+        formType: form.form_type,
+      });
 
       return NextResponse.json(created, { status: 201 });
     } catch (err) {
@@ -322,30 +337,16 @@ export const POST = defineRoute(
 /** Handle batch insert of questions from QuestionReview */
 async function handleBatchInsert(
   supabase: SupabaseClient<Database>,
-  procurementId: string,
+  formInstanceId: string,
   userId: string,
   questions: z.infer<typeof BatchQuestionCreateSchema>['questions'],
+  formType: string | null,
 ) {
-  // {130.27} — resolve (or mint) this workspace's canonical form_template id
-  // once for the whole batch (see the single-insert POST handler above for
-  // the full rationale).
-  const formTemplateId = await resolveOrMintFormTemplateId(
-    supabase,
-    procurementId,
-    {
-      name: 'Untitled form',
-      filename: 'app-created-form.pdf',
-      storagePath: `app-created/${procurementId}/${crypto.randomUUID()}`,
-      fileSize: 0,
-      mimeType: 'application/pdf',
-      createdBy: userId,
-    },
-  );
-
-  // Post-T2: `form_questions.workspace_id` → `workspace_id` on batch insert + select.
+  // ID-145 {145.7}: formInstanceId IS the route's own [id] — every batch row
+  // is stamped with it directly, no resolve-or-mint (see the single-insert
+  // POST handler above for the full rationale).
   const rows = questions.map((q) => ({
-    workspace_id: procurementId,
-    form_template_id: formTemplateId,
+    form_instance_id: formInstanceId,
     section_name: q.section_name ?? null,
     section_sequence: q.section_sequence ?? 0,
     question_sequence: q.question_sequence ?? 0,
@@ -359,7 +360,7 @@ async function handleBatchInsert(
     .from('form_questions')
     .insert(rows)
     .select(
-      'id, workspace_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, matched_record_ids, assigned_to, created_by, created_at, updated_at',
+      'id, form_instance_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, assigned_to, created_by, created_at, updated_at',
     );
 
   if (insertError) {
@@ -369,6 +370,16 @@ async function handleBatchInsert(
       { status: 500 },
     );
   }
+
+  // ID-145 {145.17} (R7/BI-34) — recompute question_matches for every
+  // newly created question in the batch (see the single-insert path above
+  // for the awaited-not-fire-and-forget rationale; bounded-concurrency
+  // batching is internal to recomputeQuestionMatchesBatch).
+  await recomputeQuestionMatchesBatch(
+    supabase,
+    (created ?? []).map((q) => ({ id: q.id, questionText: q.question_text })),
+    formType,
+  );
 
   return NextResponse.json(
     { questions: created, count: created?.length ?? 0 },

@@ -53,25 +53,35 @@ export interface ActiveProcurementWithStats {
 export async function fetchActiveProcurementWithStats(
   supabase: SupabaseClient<Database>,
 ): Promise<ActiveProcurementWithStats> {
-  // Post-T2: discriminator is application_types.key via JOIN, not the dropped
-  // workspaces.type col. 'bid' maps to 'procurement'.
-  const { data: workspaces, error } = await supabase
-    .from('workspaces')
+  // ID-145 {145.23} round-2 runtime grep sweep (mandatory extra #2, DR-056):
+  // workspaces/procurement_workspaces are wholesale-deleted for procurement
+  // (W1e, {145.6}). This function's PRIMARY caller (dashboard.ts active_forms)
+  // was already re-pointed onto fetchActiveFormInstanceSummaries at {145.20}
+  // BI-30 — this helper is kept ONLY for the forms_summary reorient
+  // derivation (lib/activity/bid-summary.ts's buildProcurementSummary, which
+  // reads workspace.domain_metadata.{deadline,buyer,status}), a consumer
+  // {145.20} deliberately left on this pre-existing shape as out-of-scope —
+  // but that consumer is itself broken by the same tsc-invisible W1e miss
+  // (this function still queried a table with zero procurement rows).
+  // [id] IS the form_instances PK now; the flat columns are adapted BACK onto
+  // the domain_metadata-bag-shaped ProcurementWorkspaceRow contract so
+  // buildProcurementSummary (out of this Subtask's file-ownership boundary)
+  // keeps working unchanged.
+  const { data: forms, error } = await supabase
+    .from('form_instances')
     .select(
-      'id, name, domain_metadata, is_archived, created_at, updated_at, application_types!inner(key)',
+      'id, name, workflow_state, deadline, issuing_organisation, created_at, updated_at',
     )
-    .eq('application_types.key', 'procurement')
-    .eq('is_archived', false)
     .order('updated_at', { ascending: false });
 
-  if (error || !workspaces || workspaces.length === 0) {
+  if (error || !forms || forms.length === 0) {
     return {
-      workspaces: (workspaces as unknown as ProcurementWorkspaceRow[]) ?? [],
+      workspaces: [],
       statsMap: new Map(),
     };
   }
 
-  const procurementIds = workspaces.map((w) => w.id);
+  const procurementIds = forms.map((w) => w.id);
   const batchStats = await sb(
     supabase.rpc('get_form_question_stats_batch', {
       p_project_ids: procurementIds,
@@ -92,8 +102,18 @@ export async function fetchActiveProcurementWithStats(
     }
   }
 
-  return {
-    workspaces: workspaces as unknown as ProcurementWorkspaceRow[],
-    statsMap,
-  };
+  const workspaces: ProcurementWorkspaceRow[] = forms.map((form) => ({
+    id: form.id,
+    name: form.name,
+    domain_metadata: {
+      deadline: form.deadline,
+      buyer: form.issuing_organisation,
+      status: form.workflow_state,
+    },
+    is_archived: false,
+    created_at: form.created_at ?? '',
+    updated_at: form.updated_at ?? '',
+  }));
+
+  return { workspaces, statsMap };
 }

@@ -11,6 +11,14 @@ export const maxDuration = 30;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// {145.15} moved the fill lane's storage writes 'templates' -> 'tender-documents'
+// (commit 4f587750), but `template_completions.storage_path` is bucket-relative
+// with no bucket column -- completions written before that cutover still have
+// their bytes in the old 'templates' bucket. Try the new bucket first, fall
+// back to the legacy one so pre-cutover completions keep downloading (DR-075,
+// gate-145-15 finding surfaced via the {145.19} S474 journal).
+const COMPLETION_BUCKET_CANDIDATES = ['tender-documents', 'templates'] as const;
+
 export const GET = defineRoute(
   z.unknown(),
   async (
@@ -42,13 +50,15 @@ export const GET = defineRoute(
         );
       }
 
-      // Verify template belongs to bid.
-      // Post-T2: `templates` → `form_templates`, `workspace_id` → `workspace_id`.
+      // Verify the form exists. DR-075 re-key: `form_templates` ->
+      // `form_instances`; `workspace_id` dropped ({145.6} W1c STEP 1, BI-1 --
+      // the item IS the form, no workspace mediation). `procurementId` stays
+      // format-validated for the route's URL shape but is not a query
+      // predicate (matches the fill/auto-map convention).
       const { data: template, error: templateError } = await supabase
-        .from('form_templates')
+        .from('form_instances')
         .select('id')
         .eq('id', templateId)
-        .eq('workspace_id', procurementId)
         .single();
 
       if (templateError || !template) {
@@ -58,12 +68,13 @@ export const GET = defineRoute(
         );
       }
 
-      // Fetch completion record
+      // Fetch completion record. DR-075 re-key: `template_id` ->
+      // `form_instance_id` ({145.6} W1c STEP 5).
       const { data: completion, error: completionError } = await supabase
         .from('template_completions')
         .select('id, storage_path, fields_filled')
         .eq('id', completionId)
-        .eq('template_id', templateId)
+        .eq('form_instance_id', templateId)
         .single();
 
       if (completionError || !completion) {
@@ -73,13 +84,24 @@ export const GET = defineRoute(
         );
       }
 
-      // Generate signed URL (5-minute expiry)
+      // Generate signed URL (5-minute expiry) -- bucket-fallback read, see
+      // COMPLETION_BUCKET_CANDIDATES above.
       const serviceClient = createServiceClient();
-      const { data: signedUrl, error: signError } = await serviceClient.storage
-        .from('templates')
-        .createSignedUrl(completion.storage_path, 300);
+      let signedUrl: string | null = null;
+      let signError: unknown = null;
 
-      if (signError || !signedUrl?.signedUrl) {
+      for (const bucket of COMPLETION_BUCKET_CANDIDATES) {
+        const { data, error } = await serviceClient.storage
+          .from(bucket)
+          .createSignedUrl(completion.storage_path, 300);
+        if (!error && data?.signedUrl) {
+          signedUrl = data.signedUrl;
+          break;
+        }
+        signError = error;
+      }
+
+      if (!signedUrl) {
         logger.error({ err: signError }, 'Failed to create signed URL');
         return NextResponse.json(
           { error: 'Failed to generate download link' },
@@ -88,7 +110,7 @@ export const GET = defineRoute(
       }
 
       return NextResponse.json({
-        download_url: signedUrl.signedUrl,
+        download_url: signedUrl,
         expires_in: 300,
       });
     } catch (err) {

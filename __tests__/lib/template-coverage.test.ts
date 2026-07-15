@@ -633,7 +633,7 @@ describe('fetchContentForMatching', () => {
 describe('fetchTemplateRequirements', () => {
   it('hydrates requirement_embedding from record_embeddings, keyed by row id', async () => {
     const dispatch = createMockSupabaseTableDispatch({
-      form_template_requirements: {
+      form_requirement_templates: {
         data: [
           {
             id: 'req-1',
@@ -721,7 +721,7 @@ describe('fetchTemplateRequirements', () => {
 
   it('skips the record_embeddings fetch when the template has no requirements', async () => {
     const dispatch = createMockSupabaseTableDispatch({
-      form_template_requirements: { data: [], error: null },
+      form_requirement_templates: { data: [], error: null },
     });
 
     const result = await fetchTemplateRequirements(
@@ -736,7 +736,7 @@ describe('fetchTemplateRequirements', () => {
 
   it('throws a descriptive error when the record_embeddings query fails', async () => {
     const dispatch = createMockSupabaseTableDispatch({
-      form_template_requirements: {
+      form_requirement_templates: {
         data: [
           {
             id: 'req-1',

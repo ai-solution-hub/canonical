@@ -109,6 +109,15 @@ function setupDefaultMock(
     activityFeedData?: unknown[];
     workspaces?: unknown[];
     statsMap?: Map<string, unknown>;
+    /** ID-145 {145.20} BI-30 — raw `form_instances` rows for the new
+     * dashboard active-items read (id, name, issuing_organisation,
+     * deadline, workflow_state). Dispatched by table name, not sequential
+     * index, so it never shifts the other `fromCalls` slots below. */
+    formInstances?: unknown[];
+    /** ID-145 {145.20} BI-30 — `get_form_question_stats_batch` rows keyed
+     * by `workspace_id` (the RPC's historical column name) for the new
+     * form_instances active-items read. Dispatched by RPC name. */
+    formInstanceStats?: unknown[];
   } = {},
 ) {
   const mock = createMockSupabaseClient();
@@ -167,9 +176,14 @@ function setupDefaultMock(
 
   // Configure from() to return per-call chain
   let callIdx = 0;
-  mock.from.mockImplementation(() => {
-    const idx = callIdx++;
-    const response = fromCalls[idx] ?? { data: [], error: null, count: 0 };
+  mock.from.mockImplementation((table: string) => {
+    // ID-145 {145.20} BI-30: form_instances is dispatched by TABLE NAME,
+    // not sequential index — it never shifts the other from() calls below
+    // (which stay index-based, matching their pre-existing behaviour).
+    const response =
+      table === 'form_instances'
+        ? { data: overrides.formInstances ?? [], error: null, count: null }
+        : (fromCalls[callIdx++] ?? { data: [], error: null, count: 0 });
 
     const freshChain: Record<string, ReturnType<typeof vi.fn>> = {};
 
@@ -213,37 +227,46 @@ function setupDefaultMock(
     expired: 2,
   };
 
-  // Configure rpc() calls — 2 RPCs in order:
-  // [0] get_dashboard_attention_counts, [1] get_grouped_activity_feed
-  let rpcIdx = 0;
-  const rpcResponses = [
-    // [0] attention counts — ID-70: RETURNS TABLE → a single-row array; the
-    // consumer reads data[0] and Zod-parses the freshness_summary jsonb column.
-    {
-      data: [
-        {
-          governance_review_count: overrides.governanceCount ?? 0,
-          unverified_count: overrides.unverifiedCount ?? 0,
-          quality_flag_count: overrides.qualityFlagsCount ?? 0,
-          stale_content_count: defaultFreshness.stale,
-          expired_content_count: defaultFreshness.expired,
-          expiring_content_date_count: overrides.expiringContentDateCount ?? 0,
-          unread_notification_count: overrides.notificationsCount ?? 0,
-          // coverage_gap_count RETIRED (ID-131.19 S450 Wave 1 Fix 1, DR-034)
-          // — no longer part of the RPC's RETURNS TABLE shape.
-          freshness_summary: defaultFreshness,
-        },
-      ],
-      error: null,
-    },
-    // [1] recent activity
-    { data: overrides.activityFeedData ?? [], error: null },
-  ];
+  // Configure rpc() calls — dispatched by RPC NAME (not sequential index —
+  // ID-145 {145.20} BI-30 added a second real rpc() call,
+  // get_form_question_stats_batch, whose firing is conditional on
+  // formInstances producing non-empty active forms, which a blind index
+  // counter cannot express safely).
+  const attentionCountsResponse = {
+    // ID-70: RETURNS TABLE → a single-row array; the consumer reads
+    // data[0] and Zod-parses the freshness_summary jsonb column.
+    data: [
+      {
+        governance_review_count: overrides.governanceCount ?? 0,
+        unverified_count: overrides.unverifiedCount ?? 0,
+        quality_flag_count: overrides.qualityFlagsCount ?? 0,
+        stale_content_count: defaultFreshness.stale,
+        expired_content_count: defaultFreshness.expired,
+        expiring_content_date_count: overrides.expiringContentDateCount ?? 0,
+        unread_notification_count: overrides.notificationsCount ?? 0,
+        // coverage_gap_count RETIRED (ID-131.19 S450 Wave 1 Fix 1, DR-034)
+        // — no longer part of the RPC's RETURNS TABLE shape.
+        freshness_summary: defaultFreshness,
+      },
+    ],
+    error: null,
+  };
+  const formInstanceStatsResponse = {
+    data: overrides.formInstanceStats ?? [],
+    error: null,
+  };
 
-  mock.rpc.mockImplementation(() => {
-    const idx = rpcIdx++;
-    const response = rpcResponses[idx] ?? { data: null, error: null };
-    return Promise.resolve(response);
+  mock.rpc.mockImplementation((fn: string) => {
+    if (fn === 'get_form_question_stats_batch') {
+      return Promise.resolve(formInstanceStatsResponse);
+    }
+    if (fn === 'get_dashboard_attention_counts') {
+      return Promise.resolve(attentionCountsResponse);
+    }
+    // get_grouped_activity_feed is RETIRED (never called — the leg is a
+    // Promise.resolve stub, ID-131 {131.19}); any other rpc() name falls
+    // back to an empty response.
+    return Promise.resolve({ data: null, error: null });
   });
 
   // Configure auth
@@ -461,64 +484,55 @@ describe('fetchUnifiedDashboardData', () => {
     expect(result.attention_sources.governance_review_count).toBe(0);
   });
 
+  // ID-145 {145.20} BI-30: active_forms is sourced directly from
+  // form_instances (workflow_state/deadline/issuing_organisation) — never
+  // from workspace domain_metadata. `formInstances` (dispatched by table
+  // name in setupDefaultMock) is the fixture for this leg now.
   it('active procurements sorted by deadline urgency (most urgent first)', async () => {
-    const statsMap = new Map();
-    statsMap.set('bid-1', {
-      total_questions: 10,
-      drafted_count: 5,
-      complete_count: 2,
-    });
-    statsMap.set('bid-2', {
-      total_questions: 8,
-      drafted_count: 3,
-      complete_count: 1,
-    });
-    statsMap.set('bid-3', {
-      total_questions: 6,
-      drafted_count: 2,
-      complete_count: 0,
-    });
-
     const mock = setupDefaultMock({
-      workspaces: [
+      formInstances: [
         {
-          id: 'bid-1',
+          id: 'form-1',
           name: 'Normal Procurement',
-          domain_metadata: {
-            deadline: '2026-04-01T00:00:00Z',
-            buyer: 'Acme',
-            status: 'in_progress',
-          },
-          is_archived: false,
-          created_at: '2026-01-01',
-          updated_at: '2026-03-01',
+          issuing_organisation: 'Acme',
+          deadline: '2026-04-01T00:00:00Z',
+          workflow_state: 'drafting',
         },
         {
-          id: 'bid-2',
+          id: 'form-2',
           name: 'Overdue Procurement',
-          domain_metadata: {
-            deadline: '2026-03-01T00:00:00Z',
-            buyer: 'Corp',
-            status: 'in_progress',
-          },
-          is_archived: false,
-          created_at: '2026-01-01',
-          updated_at: '2026-03-01',
+          issuing_organisation: 'Corp',
+          deadline: '2026-03-01T00:00:00Z',
+          workflow_state: 'drafting',
         },
         {
-          id: 'bid-3',
+          id: 'form-3',
           name: 'Urgent Procurement',
-          domain_metadata: {
-            deadline: '2026-03-09T00:00:00Z',
-            buyer: 'Ltd',
-            status: 'in_progress',
-          },
-          is_archived: false,
-          created_at: '2026-01-01',
-          updated_at: '2026-03-01',
+          issuing_organisation: 'Ltd',
+          deadline: '2026-03-09T00:00:00Z',
+          workflow_state: 'in_review',
         },
       ],
-      statsMap,
+      formInstanceStats: [
+        {
+          workspace_id: 'form-1',
+          total_questions: 10,
+          drafted_count: 5,
+          complete_count: 2,
+        },
+        {
+          workspace_id: 'form-2',
+          total_questions: 8,
+          drafted_count: 3,
+          complete_count: 1,
+        },
+        {
+          workspace_id: 'form-3',
+          total_questions: 6,
+          drafted_count: 2,
+          complete_count: 0,
+        },
+      ],
     });
 
     const result = await fetchUnifiedDashboardData(
@@ -529,10 +543,108 @@ describe('fetchUnifiedDashboardData', () => {
     );
 
     expect(result.active_forms.length).toBe(3);
-    // Overdue (bid-2) < Urgent (bid-3) < Normal (bid-1)
-    expect(result.active_forms[0].id).toBe('bid-2');
-    expect(result.active_forms[1].id).toBe('bid-3');
-    expect(result.active_forms[2].id).toBe('bid-1');
+    // Overdue (form-2) < Urgent (form-3) < Normal (form-1)
+    expect(result.active_forms[0].id).toBe('form-2');
+    expect(result.active_forms[1].id).toBe('form-3');
+    expect(result.active_forms[2].id).toBe('form-1');
+    // Form facts, not domain_metadata: buyer/status come straight off the
+    // form_instances row.
+    expect(result.active_forms[0].buyer).toBe('Corp');
+    expect(result.active_forms[0].status).toBe('drafting');
+  });
+
+  // ID-145 {145.20} BI-30 acceptance: "a form whose state is terminal is
+  // excluded; no item is sourced from domain_metadata."
+  it('excludes terminal-state forms (won/lost/withdrawn) from the active list', async () => {
+    const mock = setupDefaultMock({
+      formInstances: [
+        {
+          id: 'form-active',
+          name: 'In-flight Procurement',
+          issuing_organisation: 'Acme',
+          deadline: '2026-04-01T00:00:00Z',
+          workflow_state: 'drafting',
+        },
+        {
+          id: 'form-won',
+          name: 'Won Procurement',
+          issuing_organisation: 'Corp',
+          deadline: '2026-03-01T00:00:00Z',
+          workflow_state: 'won',
+        },
+        {
+          id: 'form-lost',
+          name: 'Lost Procurement',
+          issuing_organisation: 'Ltd',
+          deadline: '2026-03-09T00:00:00Z',
+          workflow_state: 'lost',
+        },
+        {
+          id: 'form-withdrawn',
+          name: 'Withdrawn Procurement',
+          issuing_organisation: 'Beta',
+          deadline: '2026-03-09T00:00:00Z',
+          workflow_state: 'withdrawn',
+        },
+      ],
+    });
+
+    const result = await fetchUnifiedDashboardData(
+      mock as never,
+      TEST_USER_ID,
+      true,
+      'admin',
+    );
+
+    expect(result.active_forms.length).toBe(1);
+    expect(result.active_forms[0].id).toBe('form-active');
+  });
+
+  // ID-145 {145.20} BI-30: on failure, the active_forms leg degrades to an
+  // empty array rather than throwing, and does NOT push onto the shared
+  // errors[] array (app/api/dashboard/route.ts treats errors.length >= 7 as
+  // an all-failed signal — an unowned file this Subtask must not regress).
+  it('degrades active_forms to empty on a form_instances query failure, without polluting errors[]', async () => {
+    const mock = setupDefaultMock();
+    // ID-145 {145.23} round-2: `mock.from` is `ReturnType<typeof vi.fn>`
+    // (unparameterized) — `getMockImplementation()`'s return type includes
+    // Vitest's construct-signature overload (`new (...args) => any`), which
+    // has no call signature, so calling the union directly does not
+    // typecheck. Retype at this one call site (the only place in the suite
+    // that chains getMockImplementation() into a direct call).
+    const originalFrom = mock.from.getMockImplementation() as
+      | ((table: string) => unknown)
+      | undefined;
+    mock.from.mockImplementation((table: string) => {
+      if (table === 'form_instances') {
+        const chain: Record<string, ReturnType<typeof vi.fn>> = {};
+        for (const key of Object.keys(mock._chain)) {
+          if (key === 'then' || key === 'single' || key === 'maybeSingle') {
+            continue;
+          }
+          chain[key] = vi.fn().mockReturnValue(chain);
+        }
+        chain.then = vi.fn((resolve: (v: unknown) => void) =>
+          resolve({
+            data: null,
+            error: { message: 'form_instances unavailable' },
+            count: null,
+          }),
+        );
+        return chain;
+      }
+      return originalFrom!(table);
+    });
+
+    const result = await fetchUnifiedDashboardData(
+      mock as never,
+      TEST_USER_ID,
+      true,
+      'admin',
+    );
+
+    expect(result.active_forms).toEqual([]);
+    expect(result.errors).not.toContain('active_forms query failed');
   });
 
   it('reorient personal data includes display name and last active', async () => {

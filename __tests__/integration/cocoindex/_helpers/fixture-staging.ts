@@ -494,15 +494,32 @@ export async function dropFixture(args: DropFixtureArgs): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Form-template poll + cleanup helpers (ID-52.13)
+// Form-instance poll + cleanup helpers (ID-52.13)
 //
-// The cocoindex form-extraction write path (ID-52.12) lands rows in
-// `form_templates` + `form_template_fields` — NOT `content_items`. These
+// The cocoindex form-extraction write path (ID-52.12) originally landed rows
+// in `form_templates` + `form_template_fields` — NOT `content_items`. These
 // helpers are the form-side analogues of `pollContentItemsFor` /
 // `dropFixture`: they poll the form tables and purge the seeded rows. They
 // mirror the env-gate + timeout + best-effort-cleanup conventions exactly.
 //
-// NOTE: `form_templates` has NO `title` column (it has `name` +
+// {145.6} W1c re-key (S474 gate sweep, {145.23}): `form_templates` /
+// `form_template_fields` RENAMED to `form_instances` / `form_instance_fields`
+// on live staging (20260712062000_id145_w1c_rename_reshape.sql). Exports
+// RETAIN their ORIGINAL names + signatures per the same precedent
+// `pollContentItemsFor` set at ID-131.19 M6 (dozens of call sites import
+// these unchanged) — only the underlying table/column names change below.
+// `status` was also renamed `processing_status` (the document-processing
+// axis, orthogonal to `workflow_state`) and `workspace_id` was DROPPED (BI-1:
+// the form owns its lifecycle directly, no workspace mediation). SEPARATELY,
+// ID-136 (DONE) retired the cocoindex pipeline's Path-B form-write block
+// entirely (`ft_target`/`ftf_target` removed from `ingest_file`,
+// flow.py:1778-1784) — forms are now written ONLY via the app-side
+// manual-upload route. These helpers stay CORRECT against the live schema
+// regardless of who writes the rows; see the `⚠ ID-136` note in
+// form-extraction.integration.test.ts for the consequence to that file's
+// Path-B assertions.
+//
+// NOTE: `form_instances` has NO `title` column (it has `name` +
 // `storage_path`). The poll matches on `name ILIKE` OR `storage_path ILIKE`
 // so a caller can scope by either the injected name prefix (the same
 // `titlePrefix` convention) or the staged dest-path prefix.
@@ -533,18 +550,19 @@ export interface PollFormTemplatesOpts {
 }
 
 /**
- * The narrow `form_templates` projection the ID-52.13 invariant tests assert
- * on. Mirrors the columns written by the {52.12} pipeline write path.
+ * The narrow `form_instances` projection the ID-52.13 invariant tests assert
+ * on. Mirrors the columns written by the {52.12} pipeline write path (now
+ * superseded by the app-side manual-upload route per ID-136 — see the
+ * module-header note above).
  */
 export interface PolledFormTemplateRow {
   id: string;
-  workspace_id: string;
   name: string;
   filename: string;
   mime_type: string;
   file_size: number;
   storage_path: string;
-  status: string;
+  processing_status: string;
   field_count: number | null;
   description: string | null;
   form_type: string | null;
@@ -553,10 +571,10 @@ export interface PolledFormTemplateRow {
 }
 
 const FORM_TEMPLATE_COLUMNS =
-  'id, workspace_id, name, filename, mime_type, file_size, storage_path, status, field_count, description, form_type, evaluation_methodology, ingest_source';
+  'id, name, filename, mime_type, file_size, storage_path, processing_status, field_count, description, form_type, evaluation_methodology, ingest_source';
 
 /**
- * Poll `form_templates` via the live service-role client until at least
+ * Poll `form_instances` via the live service-role client until at least
  * `minRows` rows whose `name` (or `storage_path`) is prefixed by `prefix`
  * land, or the deadline is reached.
  *
@@ -583,7 +601,7 @@ export async function pollFormTemplatesFor(
 
   while (Date.now() < deadline) {
     const { data, error } = await client
-      .from('form_templates')
+      .from('form_instances')
       .select(FORM_TEMPLATE_COLUMNS)
       .ilike(matchColumn, `${prefix}%`);
 
@@ -601,7 +619,7 @@ export async function pollFormTemplatesFor(
   }
 
   throw new Error(
-    `pollFormTemplatesFor: timed out after ${timeoutMs}ms waiting for >= ${minRows} form_templates row(s) with ${matchColumn} ILIKE '${prefix}%'`,
+    `pollFormTemplatesFor: timed out after ${timeoutMs}ms waiting for >= ${minRows} form_instances row(s) with ${matchColumn} ILIKE '${prefix}%'`,
   );
 }
 
@@ -610,13 +628,12 @@ function toPolledFormTemplateRow(
 ): PolledFormTemplateRow {
   return {
     id: r.id as string,
-    workspace_id: r.workspace_id as string,
     name: r.name as string,
     filename: r.filename as string,
     mime_type: r.mime_type as string,
     file_size: (r.file_size as number | null) ?? 0,
     storage_path: r.storage_path as string,
-    status: r.status as string,
+    processing_status: r.processing_status as string,
     field_count: (r.field_count as number | null) ?? null,
     description: (r.description as string | null) ?? null,
     form_type: (r.form_type as string | null) ?? null,
@@ -635,14 +652,14 @@ export interface PollFormTemplateFieldsOpts {
 }
 
 /**
- * The narrow `form_template_fields` projection the invariant tests assert on
+ * The narrow `form_instance_fields` projection the invariant tests assert on
  * — mirrors the per-field columns written by the {52.12} pipeline write path
  * (Inv-8 coordinates, Inv-10 mandatory, Inv-11 word limit, Inv-12 section,
  * Inv-14 reference URLs).
  */
 export interface PolledFormTemplateFieldRow {
   id: string;
-  template_id: string;
+  form_instance_id: string;
   question_text: string | null;
   placeholder_text: string | null;
   field_type: string;
@@ -658,11 +675,11 @@ export interface PolledFormTemplateFieldRow {
 }
 
 const FORM_TEMPLATE_FIELD_COLUMNS =
-  'id, template_id, question_text, placeholder_text, field_type, fill_status, row_index, col_index, table_index, section_name, sequence, word_limit, is_mandatory, reference_urls';
+  'id, form_instance_id, question_text, placeholder_text, field_type, fill_status, row_index, col_index, table_index, section_name, sequence, word_limit, is_mandatory, reference_urls';
 
 /**
- * Poll `form_template_fields` for `template_id = <templateId>` until at least
- * `minRows` rows land, or the deadline is reached. Throws when live-DB
+ * Poll `form_instance_fields` for `form_instance_id = <templateId>` until at
+ * least `minRows` rows land, or the deadline is reached. Throws when live-DB
  * credentials are not real; rejects on timeout.
  */
 export async function pollFormTemplateFieldsFor(
@@ -684,9 +701,9 @@ export async function pollFormTemplateFieldsFor(
 
   while (Date.now() < deadline) {
     const { data, error } = await client
-      .from('form_template_fields')
+      .from('form_instance_fields')
       .select(FORM_TEMPLATE_FIELD_COLUMNS)
-      .eq('template_id', templateId)
+      .eq('form_instance_id', templateId)
       .order('sequence', { ascending: true });
 
     if (error) {
@@ -703,7 +720,7 @@ export async function pollFormTemplateFieldsFor(
   }
 
   throw new Error(
-    `pollFormTemplateFieldsFor: timed out after ${timeoutMs}ms waiting for >= ${minRows} form_template_fields row(s) for template_id ${templateId}`,
+    `pollFormTemplateFieldsFor: timed out after ${timeoutMs}ms waiting for >= ${minRows} form_instance_fields row(s) for form_instance_id ${templateId}`,
   );
 }
 
@@ -712,7 +729,7 @@ function toPolledFormTemplateFieldRow(
 ): PolledFormTemplateFieldRow {
   return {
     id: r.id as string,
-    template_id: r.template_id as string,
+    form_instance_id: r.form_instance_id as string,
     question_text: (r.question_text as string | null) ?? null,
     placeholder_text: (r.placeholder_text as string | null) ?? null,
     field_type: r.field_type as string,
@@ -736,9 +753,10 @@ export interface DropFormFixtureArgs {
    */
   prefix: string;
   /**
-   * The `form_templates.id` values the test seeded. Cleanup deletes
-   * `form_template_fields` (by `template_id`) first, then `form_templates`
-   * (by id). When empty, falls back to a prefix-scoped resolve-then-delete.
+   * The `form_instances.id` values the test seeded. Cleanup deletes
+   * `form_instance_fields` (by `form_instance_id`) first, then
+   * `form_instances` (by id). When empty, falls back to a prefix-scoped
+   * resolve-then-delete.
    */
   templateIds?: string[];
   /**
@@ -749,11 +767,11 @@ export interface DropFormFixtureArgs {
 }
 
 /**
- * Purge `form_template_fields` + `form_templates` rows for a single test
+ * Purge `form_instance_fields` + `form_instances` rows for a single test
  * fixture. Two-pass FK-respecting delete:
  *
- *   1. Delete `form_template_fields` WHERE `template_id` IN (...templateIds).
- *   2. Delete `form_templates` WHERE `id` IN (...templateIds).
+ *   1. Delete `form_instance_fields` WHERE `form_instance_id` IN (...templateIds).
+ *   2. Delete `form_instances` WHERE `id` IN (...templateIds).
  *
  * When `templateIds` is empty, resolves the ids from the `prefix` first
  * (scoped to `name`/`storage_path` ILIKE) so a test whose poll never landed
@@ -789,7 +807,7 @@ export async function dropFormFixture(
   if (templateIds.length === 0) {
     const matchColumn = args.matchStoragePath ? 'storage_path' : 'name';
     const { data, error } = await client
-      .from('form_templates')
+      .from('form_instances')
       .select('id')
       .ilike(matchColumn, `${args.prefix}%`);
     if (error) {
@@ -806,28 +824,28 @@ export async function dropFormFixture(
     return;
   }
 
-  // 1. form_template_fields — child rows first (FK on template_id).
+  // 1. form_instance_fields — child rows first (FK on form_instance_id).
   {
     const { error } = await client
-      .from('form_template_fields')
+      .from('form_instance_fields')
       .delete()
-      .in('template_id', templateIds);
+      .in('form_instance_id', templateIds);
     if (error) {
       console.warn(
-        `dropFormFixture: form_template_fields cleanup warning — ${error.message ?? String(error)}`,
+        `dropFormFixture: form_instance_fields cleanup warning — ${error.message ?? String(error)}`,
       );
     }
   }
 
-  // 2. form_templates — parent rows, PK delete.
+  // 2. form_instances — parent rows, PK delete.
   {
     const { error } = await client
-      .from('form_templates')
+      .from('form_instances')
       .delete()
       .in('id', templateIds);
     if (error) {
       console.warn(
-        `dropFormFixture: form_templates cleanup warning — ${error.message ?? String(error)}`,
+        `dropFormFixture: form_instances cleanup warning — ${error.message ?? String(error)}`,
       );
     }
   }

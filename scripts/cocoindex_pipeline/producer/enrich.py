@@ -246,14 +246,22 @@ def _annotate_raw_with_anchors(
     but a well-formed, never-issued anchor the model INVENTS does not
     (BI-17 — format alone is not proof of provenance).
 
-    `{132.28}` G-ENRICH-WONBID-WIRE: `workspaces`/`form_templates` are
+    `{132.28}` G-ENRICH-WONBID-WIRE: `workspaces`/`form_templates` were
     populated ONLY by the won-bid case_study grain ({132.21}, S443
     amendment) — buyer identity (`workspaces`) + `outcome_notes`
-    (`form_templates`) reach the model verbatim, unadorned like `q_a_pairs`/
-    `record_lifecycle`/`entity_mentions`/`entity_relationships` above: no
-    `resource_uri.py` builder exists for either table (TECH.md's case_study
-    "Anchors emitted" column names only `source_documents`/`reference_items`),
-    so no anchor is minted for them here."""
+    (`form_templates`) reached the model verbatim, unadorned like
+    `q_a_pairs`/`record_lifecycle`/`entity_mentions`/`entity_relationships`
+    above: no `resource_uri.py` builder exists for either table (TECH.md's
+    case_study "Anchors emitted" column names only
+    `source_documents`/`reference_items`), so no anchor is minted for them
+    here. **{145.24}** (post-{145.6} W1e workspace-stratum drop):
+    `raw.workspaces` is now ALWAYS `[]` (the `l_records.py` won-bid read no
+    longer fetches a `workspaces` row — there is none left to fetch); buyer
+    identity now reaches the model via `raw.form_templates`
+    (`issuing_organisation`/`name`) instead, kept under its pre-rename
+    `ConceptRaw` field name (the underlying table is `form_instances`) — see
+    `sources/l_records.py`'s module docstring for the full re-point
+    rationale."""
     payload: "dict[str, Any]" = {
         "source_documents": [
             _with_resource(row, _mint(build_source_document_uri(row["id"]), seen_anchors))

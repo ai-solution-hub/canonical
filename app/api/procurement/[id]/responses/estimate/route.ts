@@ -45,12 +45,13 @@ export const POST = defineRoute(
       const { skip_existing } = parsed.data;
 
       // Verify bid exists.
-      // Post-T2: discriminator via application_types JOIN.
+      // ID-145 {145.23} round-2 (DR-056, mirrors the {145.21} draft-stream
+      // route): workspaces/procurement_workspaces are wholesale-deleted for
+      // procurement (W1e, {145.6}) — [id] IS the form_instances PK now.
       const { data: bid, error: procurementError } = await supabase
-        .from('workspaces')
-        .select('id, status, domain_metadata, application_types!inner(key)')
+        .from('form_instances')
+        .select('id, workflow_state')
         .eq('id', id)
-        .eq('application_types.key', 'procurement')
         .single();
 
       if (procurementError || !bid) {
@@ -61,7 +62,7 @@ export const POST = defineRoute(
       }
 
       const procurementStatus =
-        (bid.status as ProcurementWorkflowState) ?? 'draft';
+        (bid.workflow_state as ProcurementWorkflowState) ?? 'draft';
       const draftableStates: ProcurementWorkflowState[] = [
         'drafting',
         'in_review',
@@ -78,11 +79,15 @@ export const POST = defineRoute(
       }
 
       // Fetch all questions for this bid.
-      // Post-T2: `form_questions.workspace_id` → `workspace_id`.
+      // ID-145 {145.23} round-2: form_questions.workspace_id -> form_instance_id
+      // (W1c); matched_record_ids (dropped W1c STEP 4) is no longer selected —
+      // matches are resolved per-question below via question_match_search
+      // (R7 substrate, BI-37), mirroring the {145.21}/draftSingleQuestion
+      // precedent.
       const { data: questions, error: questionsError } = await supabase
         .from('form_questions')
-        .select('id, question_text, confidence_posture, matched_record_ids')
-        .eq('workspace_id', id)
+        .select('id, question_text, confidence_posture')
+        .eq('form_instance_id', id)
         .order('section_sequence', { ascending: true })
         .order('question_sequence', { ascending: true });
 
@@ -158,10 +163,36 @@ export const POST = defineRoute(
         });
       }
 
+      // Resolve matched content ids per eligible question via
+      // question_match_search (form_questions.matched_record_ids dropped
+      // W1c STEP 4; R7 substrate, BI-37 — mirrors the draftSingleQuestion/
+      // draft-stream precedent). A per-question RPC failure degrades to zero
+      // matched ids for that question rather than failing the whole estimate.
+      const matchedIdsByQuestion = new Map<string, string[]>();
+      if (eligible.length > 0) {
+        await Promise.all(
+          eligible.map(async (q) => {
+            const { data: matchRows, error: matchError } = await supabase.rpc(
+              'question_match_search',
+              { p_form_question_id: q.id, p_limit: 20 },
+            );
+            if (matchError) {
+              logger.warn(
+                { err: matchError, questionId: q.id },
+                'Failed to read question_matches for cost estimate; treated as zero matches',
+              );
+            }
+            matchedIdsByQuestion.set(
+              q.id,
+              (matchRows ?? []).map((row) => row.q_a_pair_id),
+            );
+          }),
+        );
+      }
+
       // Collect all unique content IDs across eligible questions
       const allContentIds = new Set<string>();
-      for (const q of eligible) {
-        const ids = q.matched_record_ids ?? [];
+      for (const ids of matchedIdsByQuestion.values()) {
         for (const cid of ids) {
           allContentIds.add(cid);
         }
@@ -201,7 +232,7 @@ export const POST = defineRoute(
 
       // Build estimation input
       const estimationInput = eligible.map((q) => {
-        const matchedIds = q.matched_record_ids ?? [];
+        const matchedIds = matchedIdsByQuestion.get(q.id) ?? [];
         let contentTokens = 0;
         for (const cid of matchedIds) {
           contentTokens += contentLengths.get(cid) ?? 0;

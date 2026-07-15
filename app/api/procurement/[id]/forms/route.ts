@@ -1,220 +1,51 @@
 import { defineRoute } from '@/lib/api/define-route';
-import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
-import { safeErrorMessage } from '@/lib/error';
-import { logger } from '@/lib/logger';
-import { parseBody } from '@/lib/validation';
-import {
-  CreateProcurementFormBodySchema,
-  UpdateProcurementFormTypeBodySchema,
-} from '@/lib/validation/schemas';
-import { tryQuery } from '@/lib/supabase/safe';
-import type { Database } from '@/supabase/types/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-type FormTemplateInsert =
-  Database['public']['Tables']['form_templates']['Insert'];
-
 export const maxDuration = 30;
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /**
- * ID-130 {130.13} — add-a-form (B-16 / B-19, TECH T-B16/T-B19).
+ * RETIRED — ID-145 {145.19} groups A+C (DR-075 §6 ruling, ratified S474).
  *
- * A procurement is an umbrella holding MANY forms (B-1). This collection route
- * lets the user add another form to an umbrella: the {130.12} FormTypePicker
- * confirms a `form_type` (confirm-first — the route requires a confirmed type,
- * never silently assigns one), and POST persists a new `form_templates` row
- * with that confirmed type (B-14: the confirmed choice is authoritative).
+ * This route used to mint/re-type a SIBLING form inside the
+ * workspace-holds-many-forms container (`form_templates.workspace_id`,
+ * dropped W1c STEP 1). That container is exactly what ID-145 BI-1/BI-4
+ * retires — the item IS the form, with no separate umbrella. TECH.md §6's
+ * per-route ruling table names this route's disposition explicitly:
+ * "re-shape 'add-a-sibling-form' to `engagement_group_id`-keyed, or retire if
+ * sibling *creation* is not v1" — PRODUCT §A3 settles that: engagement
+ * grouping is a READ-ONLY lineage rail (PSQ -> ITT -> tender), never a
+ * container a form is minted "into" or re-typed "inside". Sibling-form
+ * creation/type-override is therefore NOT a v1 affordance, so both handlers
+ * RETIRE (410 Gone) rather than re-shape onto `engagement_group_id`.
  *
- * `form_templates` requires document columns (`filename`/`storage_path`/
- * `file_size`/`mime_type`) at the DB level — for an app-created form with no
- * document yet we write `ingest_source='app_upload'` (the column comment marks
- * this value as reserved for the thin UI front-end) plus placeholder markers,
- * mirroring the {130.8} mint convention. The document is uploaded later via the
- * existing tender-upload flow targeting the form.
+ * The sole caller, `components/procurement/procurement-forms-card.tsx`, is
+ * already dead code — unreferenced by `app/procurement/[id]/page.tsx` since
+ * {145.18} removed it from the render tree (S470 journal). That component's
+ * own removal is the {145.19} UI-half's file-ownership boundary, not this
+ * (API-only) Subtask's.
  */
-
-/** Columns returned for the created/updated form (matches the GET read-shape). */
-const FORM_LIST_COLUMNS =
-  'id, form_type, name, workflow_state, outcome, outcome_notes, deadline, submission_date, issuing_organisation, outcome_recorded_at, outcome_recorded_by, created_at, updated_at';
+const RETIRED_BODY = {
+  error:
+    'This endpoint is retired (ID-145 form-first re-key, DR-075 §6) — the workspace-holds-many-forms container no longer exists. Engagement grouping is read-only lineage only in v1 (PRODUCT §A3); update the item itself via PATCH /api/procurement/[id].',
+} as const;
 
 export const POST = defineRoute(
   z.unknown(),
   async (
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
+    _request: NextRequest,
+    _context: { params: Promise<{ id: string }> },
   ) => {
-    try {
-      const auth = await getAuthorisedClient(['admin', 'editor']);
-      if (!auth.success) return authFailureResponse(auth);
-      const { user, supabase } = auth;
-
-      const { id } = await params;
-      if (!UUID_RE.test(id)) {
-        return NextResponse.json(
-          { error: 'Invalid procurement ID -- must be a valid UUID' },
-          { status: 400 },
-        );
-      }
-
-      const raw = await request.json();
-      const parsed = parseBody(CreateProcurementFormBodySchema, raw);
-      if (!parsed.success) return parsed.response;
-      const { form_type, name } = parsed.data;
-
-      // Verify the umbrella exists + is a procurement workspace before minting
-      // a child form against it.
-      const workspaceResult = await tryQuery(
-        supabase
-          .from('workspaces')
-          .select('id, application_types!inner(key)')
-          .eq('id', id)
-          .eq('application_types.key', 'procurement')
-          .single(),
-        'procurement.forms.workspace',
-      );
-      if (!workspaceResult.ok) {
-        if (workspaceResult.error.code === 'PGRST116') {
-          return NextResponse.json(
-            { error: 'Procurement not found' },
-            { status: 404 },
-          );
-        }
-        throw workspaceResult.error;
-      }
-
-      // App-created (docless) form: satisfy the NOT-NULL document columns with
-      // the reserved `app_upload` provenance + placeholder markers ({130.8}
-      // mint convention). `workflow_state` defaults to 'draft' (B-8); the
-      // confirmed `form_type` is authoritative (B-14).
-      const insert: FormTemplateInsert = {
-        workspace_id: id,
-        name: name ?? 'Untitled form',
-        filename: 'app-created-form.pdf',
-        storage_path: `app-created/${id}/${crypto.randomUUID()}`,
-        file_size: 0,
-        mime_type: 'application/pdf',
-        ingest_source: 'app_upload',
-        form_type,
-        workflow_state: 'draft',
-        created_by: user.id,
-      };
-
-      // `.select()` lets us VERIFY a row was actually written — a REST insert
-      // that RLS blocks can otherwise return an empty body without erroring.
-      const insertResult = await tryQuery<Array<Record<string, unknown>>>(
-        supabase
-          .from('form_templates')
-          .insert(insert)
-          .select(FORM_LIST_COLUMNS),
-        'procurement.forms.create',
-      );
-      if (!insertResult.ok) {
-        logger.error(
-          { err: insertResult.error },
-          'Failed to create procurement form',
-        );
-        return NextResponse.json(
-          { error: 'Failed to create form' },
-          { status: 500 },
-        );
-      }
-      const createdRows = insertResult.data ?? [];
-      if (createdRows.length === 0) {
-        return NextResponse.json(
-          { error: 'Form could not be created' },
-          { status: 409 },
-        );
-      }
-
-      return NextResponse.json({ form: createdRows[0] }, { status: 201 });
-    } catch (err) {
-      return NextResponse.json(
-        { error: safeErrorMessage(err, 'Failed to create form') },
-        { status: 500 },
-      );
-    }
+    return NextResponse.json(RETIRED_BODY, { status: 410 });
   },
 );
 
 export const PATCH = defineRoute(
   z.unknown(),
   async (
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
+    _request: NextRequest,
+    _context: { params: Promise<{ id: string }> },
   ) => {
-    try {
-      const auth = await getAuthorisedClient(['admin', 'editor']);
-      if (!auth.success) return authFailureResponse(auth);
-      const { supabase } = auth;
-
-      const { id } = await params;
-      if (!UUID_RE.test(id)) {
-        return NextResponse.json(
-          { error: 'Invalid procurement ID -- must be a valid UUID' },
-          { status: 400 },
-        );
-      }
-
-      const raw = await request.json();
-      const parsed = parseBody(UpdateProcurementFormTypeBodySchema, raw);
-      if (!parsed.success) return parsed.response;
-      const { form_id, form_type } = parsed.data;
-
-      const workspaceResult = await tryQuery(
-        supabase
-          .from('workspaces')
-          .select('id, application_types!inner(key)')
-          .eq('id', id)
-          .eq('application_types.key', 'procurement')
-          .single(),
-        'procurement.forms.workspace',
-      );
-      if (!workspaceResult.ok) {
-        if (workspaceResult.error.code === 'PGRST116') {
-          return NextResponse.json(
-            { error: 'Procurement not found' },
-            { status: 404 },
-          );
-        }
-        throw workspaceResult.error;
-      }
-
-      // Override is scoped to a form that belongs to THIS umbrella — the
-      // `workspace_id` predicate prevents re-typing a sibling umbrella's form.
-      const updateResult = await tryQuery<Array<Record<string, unknown>>>(
-        supabase
-          .from('form_templates')
-          .update({ form_type })
-          .eq('id', form_id)
-          .eq('workspace_id', id)
-          .select(FORM_LIST_COLUMNS),
-        'procurement.forms.updateType',
-      );
-      if (!updateResult.ok) {
-        logger.error({ err: updateResult.error }, 'Failed to update form type');
-        return NextResponse.json(
-          { error: 'Failed to update form type' },
-          { status: 500 },
-        );
-      }
-      const updatedRows = updateResult.data ?? [];
-      if (updatedRows.length === 0) {
-        return NextResponse.json(
-          { error: 'Form not found for this procurement' },
-          { status: 404 },
-        );
-      }
-
-      return NextResponse.json({ form: updatedRows[0] });
-    } catch (err) {
-      return NextResponse.json(
-        { error: safeErrorMessage(err, 'Failed to update form type') },
-        { status: 500 },
-      );
-    }
+    return NextResponse.json(RETIRED_BODY, { status: 410 });
   },
 );

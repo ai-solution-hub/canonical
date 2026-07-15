@@ -293,13 +293,18 @@ describe.skipIf(!ENABLED)(
       // expected_response_kind ∈ ['mandatory', 'optional'],
       // evaluation_criteria?, evidence_requirements[], scope_tags[]).
       //
-      // form_metadata lands either on a sibling `form_templates` row (if
-      // ratified by 28.13+ schema migration) OR inline in
+      // form_metadata lands either on a sibling `form_instances` row (renamed
+      // from `form_templates` at {145.6}) OR inline in
       // `source_documents.extraction_metadata` (v1 substrate; ID-131.19 M6
       // retirement: content_items.metadata DROPPED at M6). Per the dispatch
       // brief scope, this test asserts the QAPair shape on `q_a_extractions`
-      // — the form_templates / source_documents.extraction_metadata routing
-      // is owned by 28.13 schema-design.
+      // — the form_instances / source_documents.extraction_metadata routing
+      // is owned by 28.13 schema-design. ({145.23} gate sweep note: ID-136
+      // (DONE) has since removed the cocoindex pipeline's own form_instances
+      // write path entirely — see form-extraction.integration.test.ts's ⚠
+      // ID-136 note — so in practice the extraction_metadata inline surface
+      // is the only one this test's beforeAll flow can land on; this file
+      // does not assert against form_instances directly either way.)
       const client = await createLiveServiceClient();
       const { data, error } = await client
         .from('q_a_extractions')
@@ -390,8 +395,11 @@ describe.skipIf(!ENABLED)(
       // 28.14 narrowed-scope authoring it may land either inline on
       // `source_documents.extraction_metadata` (JSONB; ID-131.19 M6
       // retirement: content_items.metadata DROPPED at M6) or on a sibling
-      // `form_templates` row. This test asserts the contract against
-      // whichever landing surface is canonical at run-time.
+      // `form_instances` row (renamed from `form_templates` at {145.6}; ID-136
+      // has since removed the pipeline's own write path to that table — see
+      // form-extraction.integration.test.ts's ⚠ ID-136 note). This test
+      // asserts the contract against whichever landing surface is canonical
+      // at run-time.
       //
       // The structural shape verified: when form_metadata is present,
       // form_type ∈ VALID_FORM_TYPES and form_format ∈ VALID_FORM_FORMATS.

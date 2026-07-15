@@ -201,6 +201,40 @@ services:
       retries: 3
       start_period: 60s
 
+  # ----------------------------------------------------------------------------
+  # bid-worker — processing_queue consumer (analyse_form + template_fill),
+  # STAGING. Mirrors `bid-worker-platform` in docker-compose.platform.yaml —
+  # see that service's comment block for the full G8 deploy-gap rationale
+  # (ID-145 {145.13}, BI-20). Staging-scoped values only differ below.
+  # ----------------------------------------------------------------------------
+  bid-worker-platform-staging:
+    image: "ghcr.io/${GHCR_OWNER:-ai-solution-hub}/kh-cocoindex-pipeline:${COCOINDEX_IMAGE_TAG:?set to a pinned sha- tag from {66.7}}"
+    container_name: ca-bid-worker-platform-staging
+    restart: unless-stopped
+    command: ["python3", "-m", "scripts.bid_worker"]
+
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1536M
+        reservations:
+          memory: 256M
+    user: "0:0"
+
+    environment:
+      # --- Supabase (PLATFORM STAGING values, injected by Coolify) ---
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+
+      # --- Plane-1 extraction bridge (ID-145 {145.13}) ---
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      PIPELINE_TRIGGER_SECRET: ${PIPELINE_TRIGGER_SECRET:-}
+      CRON_SECRET: ${CRON_SECRET}
+
+    # No volumes (stateless — see production service comment) and no
+    # healthcheck (no HTTP surface).
+
 # ------------------------------------------------------------------------------
 # Volumes
 #

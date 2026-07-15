@@ -8,7 +8,6 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createMcpClient, getMcpUserId, getMcpUserRole } from '@/lib/mcp/auth';
-import { parseProcurementMetadata } from '@/lib/validation/schemas';
 import { sb } from '@/lib/supabase/safe';
 import {
   formatCoverageMatrix,
@@ -520,41 +519,42 @@ export async function registerAppTools(server: McpServer): Promise<void> {
           })),
         };
 
-        // If a specific form_id is requested, fetch detail
+        // If a specific form_id is requested, fetch detail.
+        // ID-145 {145.21} DR-056: `form_id` was misleading-but-workspace-
+        // taking (ARCH-REVIEW §2 C12) — its underlying read now re-keys
+        // workspace -> form_instances, so the arg genuinely takes a form id.
+        // `workspaces`/`procurement_workspaces` are wholesale-deleted for
+        // procurement (W1e, {145.6}).
         if (args.form_id) {
-          // Post-T2: discriminator is application_types.key via JOIN, not the
-          // dropped workspaces.type col. 'bid' maps to 'procurement'.
-          const workspace = await sb(
+          const form = await sb(
             supabase
-              .from('workspaces')
+              .from('form_instances')
               .select(
-                'id, name, description, domain_metadata, application_types!inner(key)',
+                'id, name, description, issuing_organisation, deadline, reference_number, workflow_state',
               )
               .eq('id', args.form_id)
-              .eq('application_types.key', 'procurement')
               .maybeSingle(),
-            'mcp.tools.apps.workspace.load',
+            'mcp.tools.apps.form.load',
           );
 
-          if (workspace) {
+          if (form) {
             const stats = await sb(
               supabase.rpc('get_form_question_stats', {
                 p_project_id: args.form_id,
               }),
-              'mcp.tools.apps.workspace.stats',
+              'mcp.tools.apps.form.stats',
             );
             const { sections, status_breakdown, confidence_breakdown } =
               await fetchProcurementSections(supabase, args.form_id);
-            const meta = parseProcurementMetadata(workspace.domain_metadata);
             (result as unknown as Record<string, unknown>).focused_form_detail =
               {
-                id: workspace.id,
-                name: workspace.name ?? 'Untitled Procurement',
-                buyer: meta?.buyer ?? null,
-                status: meta?.status ?? 'draft',
-                deadline: meta?.deadline ?? null,
-                reference_number: meta?.reference_number ?? null,
-                description: workspace.description,
+                id: form.id,
+                name: form.name ?? 'Untitled Procurement',
+                buyer: form.issuing_organisation ?? null,
+                status: form.workflow_state,
+                deadline: form.deadline,
+                reference_number: form.reference_number,
+                description: form.description,
                 question_stats: stats?.[0] ?? null,
                 sections,
                 status_breakdown,

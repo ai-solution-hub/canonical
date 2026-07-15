@@ -46,15 +46,33 @@ const DB_URL =
  * `DROP TABLE content_templates`) — the table no longer exists, so it is
  * neither a surface entry nor an internal-only allow-list entry; leaving it
  * here would be a dead reference once the M6 migration applies.
+ *
+ * `procurement_vehicle_instances` / `procurement_vehicles` REMOVED at ID-145
+ * {145.6} W1e (20260712064000_id145_w1e_drop_workspace_stratum.sql — C9, zero
+ * code refs, zero inbound FKs) — same "dead reference once the migration
+ * applies" reasoning as content_templates above.
+ *
+ * `procurement_workspaces` is ALSO dropped by the same {145.6} W1e migration
+ * (C4 — aggregates become direct form_instances reads) but its entry is
+ * deliberately LEFT below — the {145.6} dispatch brief scopes the allow-list
+ * edit to "the two" vehicle entries only (TECH.md §2 M5 ties the instruction
+ * specifically to the C9 vehicle drop, in the same sentence). Flagged as a
+ * follow-up cleanup once this migration lands (mirrors the content_templates
+ * precedent above) rather than removed unilaterally here.
  */
 const INTERNAL_ONLY_TABLES: readonly string[] = [
   'competitor_research_workspaces',
   // id-138 writer-fence lease (20260704140000) — pipeline-internal advisory
   // lease, never an app read surface (classified at the S450 GO, INV-16).
   'corpus_writer_fence_lease',
+  // ID-145 {145.6} W1c — new LINK table (engagement_groups), no
+  // {145.6}/{145.7} app-code consumer yet and TECH.md §2 M3 calls for "no
+  // anon grants" (stricter than the blanket api.* surface posture every
+  // other view uses). Reachable only via a direct Postgres connection until
+  // whichever {145.x} Subtask needs API-reachable engagement-group reads
+  // (grouping surfaces land in {145.19}) moves it to SURFACE_TABLES.
+  'engagement_groups',
   'entity_pair_resolutions',
-  'procurement_vehicle_instances',
-  'procurement_vehicles',
   'procurement_workspaces',
   'product_guide_workspaces',
   'question_matches',

@@ -103,11 +103,17 @@ const DRAFT_RESULT = {
   total_cost: 0.01,
 };
 
+// ID-145 {145.23}: form_questions.matched_record_ids was DROPPED (W1c STEP
+// 4) — matches are now sourced via the question_match_search RPC (R7
+// substrate, BI-37), mocked below to return a single q_a_pair id shared by
+// every fixture question (matches the `contentItems` fixtures' `c1c1c1c1-…`
+// id used throughout this suite).
+const MATCHED_QA_PAIR_ID = 'c1c1c1c1-1111-4111-8111-111111111111';
+
 function makeQuestion(
   id: string,
   overrides: Partial<{
     confidence_posture: string | null;
-    matched_record_ids: string[] | null;
   }> = {},
 ) {
   return {
@@ -116,9 +122,6 @@ function makeQuestion(
     word_limit: 200,
     section_name: 'Section 1',
     confidence_posture: overrides.confidence_posture ?? 'strong',
-    matched_record_ids: overrides.matched_record_ids ?? [
-      'c1c1c1c1-1111-4111-8111-111111111111',
-    ],
   };
 }
 
@@ -144,24 +147,26 @@ const AUTH_CONTEXT = {
 // ---------------------------------------------------------------------------
 // Mock-supabase scenario builder.
 //
-// The handler's call sequence (per lib/queue/handlers/bid-draft-all.ts):
-//   1. workspaces.select(...).eq('id', bid_id).eq('type', 'bid').single()
+// The handler's call sequence (per lib/queue/handlers/procurement-draft-all.ts):
+//   1. (ID-145 {145.23}) form_instances.select('id, workflow_state').eq('id', bid_id).single()
 //        → { data: bid, error }
-//   2. form_questions.select(...).eq('workspace_id', bid_id).order(...).order(...)
+//   2. form_questions.select(...).eq('form_instance_id', bid_id).order(...).order(...)
 //        → resolves via .then() with { data: questions, error }
 //   3. (if skip_existing) form_responses.select('question_id').in(...)
 //        → resolves via .then() with { data: existing, error }
 //   4. Per question with content matched:
-//        a. content_items.select(...).in('id', matchedIds)
+//        a. (ID-145 {145.23}) rpc('question_match_search', {...}) → { data, error }
+//           — mocked via mockSupabase.rpc, configured in beforeEach below.
+//        b. q_a_pairs/reference_items .select(...).in('id', matchedIds)
 //           → resolves via .then() with { data, error }
-//        b. form_responses.upsert(...).select('id').single()
+//        c. form_responses.upsert(...).select('id').single()
 //           → returns { data: { id }, error }
-//        c. form_questions.update({ status }).eq('id', qId).eq('workspace_id', ...)
+//        d. form_questions.update({ status }).eq('id', qId).eq('form_instance_id', ...)
 //           → returns { error: null } (no .single()/then call observed —
 //             update without .select() is fire-and-forget through `sb()`)
-//   5. (if all drafted, no failures, drafting state) workspaces.select count
+//   5. (if all drafted, no failures, drafting state) form_questions.select count
 //        → returns { count, error }
-//   6. workspaces.update({ status: 'in_review', ... }).eq(...).eq(...)
+//   6. form_instances.update({ workflow_state: 'in_review', ... }).eq(...)
 //        → returns { error: null }
 // ---------------------------------------------------------------------------
 
@@ -169,8 +174,7 @@ interface SupabaseScenario {
   bid: {
     data: {
       id: string;
-      status: string;
-      domain_metadata: Record<string, unknown>;
+      workflow_state: string;
     } | null;
     error: { message: string } | null;
   };
@@ -180,8 +184,8 @@ interface SupabaseScenario {
   };
   /** Existing form_responses rows with `.in('question_id', ...)` */
   existing: { question_id: string }[];
-  /** Per-content-items batch result. Returned for every question's
-   *  matched_record_ids lookup. */
+  /** Per-question matched-content batch result (q_a_pairs/reference_items),
+   *  returned for every question's question_match_search-driven lookup. */
   contentItems: {
     id: string;
     suggested_title: string;
@@ -200,7 +204,8 @@ function configureSupabase(
   client: MockSupabaseClient,
   scenario: SupabaseScenario,
 ): void {
-  // 1. workspaces.select.single() — bid existence check.
+  // 1. form_instances.select.single() — form existence check (ID-145
+  //    {145.23}: re-pointed off the retired `workspaces` lookup).
   client._chain.single.mockResolvedValueOnce({
     data: scenario.bid.data,
     error: scenario.bid.error,
@@ -228,9 +233,11 @@ function configureSupabase(
     resolve({ data: scenario.existing, error: null }),
   );
 
-  // 4. Per-question fan-out. For each question with matched_record_ids
-  //    we need:
-  //    a. content_items.select(...).in(...) → .then resolve
+  // 4. Per-question fan-out (matches are sourced via the globally-mocked
+  //    mockSupabase.rpc('question_match_search', ...), configured in
+  //    beforeEach — no per-question queueing needed for that call). For
+  //    each question we need:
+  //    a. q_a_pairs/reference_items .select(...).in(...) → .then resolve
   //    b. form_responses.upsert(...).select('id').single() → resolve
   //    c. form_questions.update(...).eq().eq() — terminal `sb()` await,
   //       which the mock fulfils via the chainable .eq() returning the
@@ -242,7 +249,7 @@ function configureSupabase(
     // NB: some scenarios request skip-existing, but this test always queues —
     // it assumes the handler's branch reaches the upsert path. For
     // already-drafted skip cases, content/upsert mocks are simply not consumed.
-    // a. content_items lookup
+    // a. matched-content lookup
     client._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
       resolve({ data: scenario.contentItems, error: null }),
     );
@@ -281,6 +288,13 @@ describe('runFormDraftAllJob — form_draft_all handler (§5.4.1)', () => {
     vi.clearAllMocks();
     mockSupabase = createMockSupabaseClient();
     mockRunDraftingPipeline.mockResolvedValue(DRAFT_RESULT);
+    // ID-145 {145.23}: every fixture question resolves to the single shared
+    // MATCHED_QA_PAIR_ID via question_match_search (R7 substrate, BI-37) —
+    // mirrors the old default `matched_record_ids: ['c1c1c1c1-…']`.
+    mockSupabase.rpc.mockResolvedValue({
+      data: [{ q_a_pair_id: MATCHED_QA_PAIR_ID }],
+      error: null,
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -293,7 +307,7 @@ describe('runFormDraftAllJob — form_draft_all handler (§5.4.1)', () => {
       const questions = QUESTION_IDS.slice(0, 5).map((id) => makeQuestion(id));
       configureSupabase(mockSupabase, {
         bid: {
-          data: { id: BID_ID, status: 'drafting', domain_metadata: {} },
+          data: { id: BID_ID, workflow_state: 'drafting' },
           error: null,
         },
         questions: { data: questions, error: null },
@@ -338,7 +352,7 @@ describe('runFormDraftAllJob — form_draft_all handler (§5.4.1)', () => {
       const questions = [makeQuestion(QUESTION_IDS[0])];
       configureSupabase(mockSupabase, {
         bid: {
-          data: { id: BID_ID, status: 'drafting', domain_metadata: {} },
+          data: { id: BID_ID, workflow_state: 'drafting' },
           error: null,
         },
         questions: { data: questions, error: null },
@@ -382,7 +396,7 @@ describe('runFormDraftAllJob — form_draft_all handler (§5.4.1)', () => {
       const questions = QUESTION_IDS.slice(0, 3).map((id) => makeQuestion(id));
       configureSupabase(mockSupabase, {
         bid: {
-          data: { id: BID_ID, status: 'drafting', domain_metadata: {} },
+          data: { id: BID_ID, workflow_state: 'drafting' },
           error: null,
         },
         questions: { data: questions, error: null },
@@ -409,8 +423,9 @@ describe('runFormDraftAllJob — form_draft_all handler (§5.4.1)', () => {
       // The handler issues form_questions.update(...) per success.
       // We inspect update calls — the FIRST update is form_responses
       // (no, that's upsert; update is only used for form_questions and
-      // workspaces). form_questions update happens 3x for the 3 drafts;
-      // workspaces update 1x for the in_review transition.
+      // form_instances). form_questions update happens 3x for the 3 drafts;
+      // form_instances update 1x for the in_review transition (ID-145
+      // {145.23}: re-pointed off the retired workspaces update).
       expect(mockSupabase._chain.update).toHaveBeenCalled();
       const updateCalls = mockSupabase._chain.update.mock.calls;
       const aiDraftedUpdates = updateCalls.filter(
@@ -418,7 +433,9 @@ describe('runFormDraftAllJob — form_draft_all handler (§5.4.1)', () => {
       );
       expect(aiDraftedUpdates).toHaveLength(3);
       const inReviewUpdates = updateCalls.filter(
-        (call) => (call[0] as { status?: string }).status === 'in_review',
+        (call) =>
+          (call[0] as { workflow_state?: string }).workflow_state ===
+          'in_review',
       );
       expect(inReviewUpdates).toHaveLength(1);
     });
@@ -446,7 +463,7 @@ describe('runFormDraftAllJob — form_draft_all handler (§5.4.1)', () => {
       // Configure 4 successful upserts (Q1, Q2, Q4, Q5).
       configureSupabase(mockSupabase, {
         bid: {
-          data: { id: BID_ID, status: 'drafting', domain_metadata: {} },
+          data: { id: BID_ID, workflow_state: 'drafting' },
           error: null,
         },
         questions: { data: questions, error: null },
@@ -506,7 +523,7 @@ describe('runFormDraftAllJob — form_draft_all handler (§5.4.1)', () => {
 
       configureSupabase(mockSupabase, {
         bid: {
-          data: { id: BID_ID, status: 'drafting', domain_metadata: {} },
+          data: { id: BID_ID, workflow_state: 'drafting' },
           error: null,
         },
         questions: { data: questions, error: null },
@@ -546,7 +563,7 @@ describe('runFormDraftAllJob — form_draft_all handler (§5.4.1)', () => {
     it('bid status=matching → PermanentJobError mentioning bid state', async () => {
       configureSupabase(mockSupabase, {
         bid: {
-          data: { id: BID_ID, status: 'matching', domain_metadata: {} },
+          data: { id: BID_ID, workflow_state: 'matching' },
           error: null,
         },
         questions: { data: [], error: null }, // unused
@@ -573,7 +590,7 @@ describe('runFormDraftAllJob — form_draft_all handler (§5.4.1)', () => {
             const fresh = createMockSupabaseClient();
             configureSupabase(fresh, {
               bid: {
-                data: { id: BID_ID, status: 'matching', domain_metadata: {} },
+                data: { id: BID_ID, workflow_state: 'matching' },
                 error: null,
               },
               questions: { data: [], error: null },
@@ -632,7 +649,7 @@ describe('runFormDraftAllJob — form_draft_all handler (§5.4.1)', () => {
     it('form_questions returns [] → PermanentJobError("no_questions_in_bid")', async () => {
       configureSupabase(mockSupabase, {
         bid: {
-          data: { id: BID_ID, status: 'drafting', domain_metadata: {} },
+          data: { id: BID_ID, workflow_state: 'drafting' },
           error: null,
         },
         questions: { data: [], error: null },
@@ -652,7 +669,7 @@ describe('runFormDraftAllJob — form_draft_all handler (§5.4.1)', () => {
       const fresh = createMockSupabaseClient();
       configureSupabase(fresh, {
         bid: {
-          data: { id: BID_ID, status: 'drafting', domain_metadata: {} },
+          data: { id: BID_ID, workflow_state: 'drafting' },
           error: null,
         },
         questions: { data: [], error: null },
@@ -672,7 +689,7 @@ describe('runFormDraftAllJob — form_draft_all handler (§5.4.1)', () => {
     it('form_questions DB error → PermanentJobError("form_questions_fetch_failed: <msg>")', async () => {
       configureSupabase(mockSupabase, {
         bid: {
-          data: { id: BID_ID, status: 'drafting', domain_metadata: {} },
+          data: { id: BID_ID, workflow_state: 'drafting' },
           error: null,
         },
         questions: { data: null, error: { message: 'connection refused' } },
@@ -705,7 +722,7 @@ describe('runFormDraftAllJob — form_draft_all handler (§5.4.1)', () => {
       ];
       configureSupabase(mockSupabase, {
         bid: {
-          data: { id: BID_ID, status: 'drafting', domain_metadata: {} },
+          data: { id: BID_ID, workflow_state: 'drafting' },
           error: null,
         },
         questions: { data: questions, error: null },
@@ -761,7 +778,7 @@ describe('runFormDraftAllJob — form_draft_all handler (§5.4.1)', () => {
       ];
       configureSupabase(mockSupabase, {
         bid: {
-          data: { id: BID_ID, status: 'drafting', domain_metadata: {} },
+          data: { id: BID_ID, workflow_state: 'drafting' },
           error: null,
         },
         questions: { data: questions, error: null },

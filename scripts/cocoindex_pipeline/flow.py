@@ -1776,9 +1776,10 @@ async def ingest_file(
     `file.file_path.path` — there is no `rel_path` parameter.
 
     ID-136 (forms-route retirement): the `ft_target` / `ftf_target`
-    (`form_templates` / `form_template_fields`) row-level UPSERT targets — and
-    the Path-B form-write block that declared onto them — are REMOVED. The
-    corpus walk no longer writes `form_templates`; the surviving writer is the
+    (`form_templates` / `form_template_fields` — renamed `form_instances` /
+    `form_instance_fields` at {145.6}) row-level UPSERT targets — and the
+    Path-B form-write block that declared onto them — are REMOVED. The
+    corpus walk no longer writes that table; the surviving writer is the
     app-side manual-upload path (`app/api/procurement/[id]/forms/route.ts`,
     `ingest_source='app_upload'`).
 
@@ -4291,10 +4292,13 @@ async def app_main() -> None:
         )
         # ID-136: the Path-B form-template write targets (`ft_target` /
         # `ftf_target`, mounted here through ID-52.12) are REMOVED — the
-        # corpus walk no longer writes `form_templates` / `form_template_fields`.
+        # corpus walk no longer writes `form_templates` / `form_template_fields`
+        # (renamed `form_instances` / `form_instance_fields` at {145.6}).
         # The surviving writer is the app-side manual-upload path
-        # (`app/api/procurement/[id]/forms/route.ts`); the tables themselves
-        # are untouched (§5 — no migration, no DDL).
+        # (`app/api/procurement/[id]/forms/route.ts`); {145.24}: this flow.py
+        # file issues no raw SQL against either table (both write targets were
+        # already removed at ID-136), so the {145.6} rename needs no DDL/query
+        # change here — comment-only accuracy fix.
         # ID-56.8 (PRODUCT C-10..C-13). content_chunks chunk-row UPSERT target.
         # managed_by=ManagedBy.USER: cocoindex UPSERTs rows only — the table +
         # the {56.6} op_id column already exist on staging; NO DDL here.

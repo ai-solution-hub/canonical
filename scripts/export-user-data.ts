@@ -692,7 +692,7 @@ export async function assembleAuditTrailBundle(
     ),
     fetchByAnyColumn(
       client,
-      'form_templates',
+      'form_instances',
       ['created_by', 'outcome_recorded_by'],
       subjectUuid,
     ),

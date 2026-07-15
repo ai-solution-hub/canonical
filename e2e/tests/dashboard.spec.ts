@@ -105,8 +105,10 @@ test.describe('Dashboard -- attention and bids sections', () => {
       .first();
     await expect(bidsSection).toBeVisible({ timeout: 15000 });
 
-    // Heading within the section
-    await expect(bidsSection.getByText('Active Bids')).toBeVisible();
+    // Heading within the section. ID-145 {145.20} BI-33: the heading was
+    // renamed "Active Bids" -> "Active Procurements" so it agrees with the
+    // aria-label above and the QuickStatsStrip tile below.
+    await expect(bidsSection.getByText('Active Procurements')).toBeVisible();
 
     // The seeded bid card should show "IT Support Services" (with worker prefix)
     // Multiple workers may seed bids, so use .first()
@@ -177,28 +179,24 @@ test.describe('Dashboard -- content health stats', () => {
       healthSection.getByText('Fresh', { exact: true }),
     ).toBeVisible();
 
-    // Active bids label with a non-zero numeric value (worker data seeds at
-    // least 1 active bid). The StatItem component renders:
+    // Active procurement label with a non-zero numeric value (worker data
+    // seeds at least 1 active procurement). The StatItem component renders:
     //   <span>{value}</span> <span>{label}</span>
     // We locate the label, then check the sibling value span is not "0".
-    // components/dashboard/quick-stats-strip.tsx renders this label as
-    // "Active bid" (count === 1) or "Active procurements" (otherwise) — the
-    // prior `/Active bids?/` regex was stale from before the id-61 "Active
-    // Bids" -> "Active procurements" rename (this file's own comment above
-    // the section[aria-label="Active procurements"] locator already
-    // documents that rename; this label was simply missed at the time,
-    // S457 finding) and could never match either current label.
-    const activeBidsLabel = healthSection.getByText(
-      /Active (bid|procurements)/,
-    );
-    await expect(activeBidsLabel).toBeVisible();
+    // ID-145 {145.20} BI-33: components/dashboard/quick-stats-strip.tsx
+    // renders this label as "Active procurement" (count === 1) or "Active
+    // procurements" (otherwise) — "bid" vocabulary retired entirely so it
+    // agrees with the ActiveProcurementsSection heading/aria-label.
+    const activeProcurementLabel =
+      healthSection.getByText(/Active procurements?/);
+    await expect(activeProcurementLabel).toBeVisible();
 
     // The value <span> is the immediately preceding sibling of the label <span>
-    const activeBidsValue = activeBidsLabel.locator(
+    const activeProcurementValue = activeProcurementLabel.locator(
       'xpath=preceding-sibling::span',
     );
-    await expect(activeBidsValue).toBeVisible();
-    const valueText = await activeBidsValue.textContent();
+    await expect(activeProcurementValue).toBeVisible();
+    const valueText = await activeProcurementValue.textContent();
     expect(Number(valueText)).toBeGreaterThan(0);
   });
 

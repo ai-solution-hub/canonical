@@ -247,7 +247,7 @@ export function formatCitation(citation: CitationResult): string {
 // ---------------------------------------------------------------------------
 
 export interface ContentEffectiveness {
-  content_item_id: string;
+  q_a_pair_id: string;
   total_citations: number;
   winning_citations: number;
   losing_citations: number;
@@ -262,7 +262,7 @@ export function formatContentEffectiveness(data: ContentEffectiveness): string {
   const lines: string[] = [
     '# Content Effectiveness',
     '',
-    `**Content item:** ${data.content_item_id}`,
+    `**Q&A pair:** ${data.q_a_pair_id}`,
     `**Total citations:** ${data.total_citations}`,
     `**Winning citations:** ${data.winning_citations}`,
     `**Losing citations:** ${data.losing_citations}`,

@@ -23,6 +23,16 @@ import { z } from 'zod';
  * legacy value (the optional CHECK-narrowing migration is DEFERRED to
  * avoid migration churn pre-cutover); the union being a strict subset of
  * the CHECK is harmless.
+ *
+ * `'analyse_form'` added by ID-145 {145.13} (BI-20) — the analyse_form
+ * worker lane. The producer ({145.9}'s `POST /api/procurement/upload`,
+ * `app/api/procurement/upload/route.ts`) bridged this member with a
+ * documented `as JobType` cast ahead of this union widening; that cast is
+ * now literally true and left in place (harmless, self-documenting). The
+ * DB CHECK constraint already carries the value ({145.6} W1c migration
+ * `20260712062000_id145_w1c_rename_reshape.sql` STEP 7) — this commit is
+ * the paired TS-union widening half of `feedback_db_check_ts_union_paired_
+ * widening`.
  */
 
 /**
@@ -60,7 +70,8 @@ export type JobType =
   | 'reprocess'
   | 'template_fill'
   | 'form_draft_all'
-  | 'batch_reclassify';
+  | 'batch_reclassify'
+  | 'analyse_form';
 
 /**
  * Lifecycle states for `processing_queue.status`.

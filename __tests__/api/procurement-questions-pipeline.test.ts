@@ -1,3 +1,17 @@
+/**
+ * ID-145 {145.7} — form-first re-architecture: the route [id] is now the
+ * form_instances id directly (BI-1/BI-2); the {130.27}
+ * resolveOrMintFormTemplateId resolver + resolve_or_mint_form_template_id RPC
+ * are retired. Every "bid exists" mock below resolves against the
+ * `form_instances` lookup, not `workspaces`. `form_questions.workspace_id`
+ * and `matched_record_ids` are dropped ({145.6} M3) — scoping is on
+ * `form_instance_id`, and matched ids are no longer persisted to
+ * `form_questions` (they still flow through the match route's response
+ * shape, un-persisted — R7/{145.17} question_matches wiring is the sanctioned
+ * persistence path, a later Subtask). The ex-`workspaces.status` writes
+ * previously made by the extract and match routes (BI-6 single state home)
+ * are retired — no replacement write is asserted here.
+ */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   createMockSupabaseClient,
@@ -31,6 +45,8 @@ vi.mock('next/headers', () => ({
 const {
   mockExtractPDFQuestions,
   mockExtractDOCXQuestions,
+  mockExtractXLSXQuestions,
+  mockXlsxWorkbookToHtml,
   mockExtractTenderMetadata,
   mockGenerateSearchQueries,
   mockGenerateEmbedding,
@@ -39,6 +55,8 @@ const {
 } = vi.hoisted(() => ({
   mockExtractPDFQuestions: vi.fn(),
   mockExtractDOCXQuestions: vi.fn(),
+  mockExtractXLSXQuestions: vi.fn(),
+  mockXlsxWorkbookToHtml: vi.fn(),
   mockExtractTenderMetadata: vi.fn(),
   mockGenerateSearchQueries: vi.fn(),
   mockGenerateEmbedding: vi.fn(),
@@ -49,6 +67,8 @@ const {
 vi.mock('@/lib/domains/procurement/ai/extract-questions', () => ({
   extractPDFQuestions: mockExtractPDFQuestions,
   extractDOCXQuestions: mockExtractDOCXQuestions,
+  extractXLSXQuestions: mockExtractXLSXQuestions,
+  xlsxWorkbookToHtml: mockXlsxWorkbookToHtml,
   extractTenderMetadata: mockExtractTenderMetadata,
   generateSearchQueries: mockGenerateSearchQueries,
 }));
@@ -73,18 +93,6 @@ vi.mock('mammoth', () => ({
       .fn()
       .mockResolvedValue({ value: '<p>Tender content</p>' }),
   },
-}));
-
-// {130.27} — mock the form_template_id resolver at the module boundary (see
-// __tests__/lib/procurement/resolve-form-template.test.ts for its own
-// isolated coverage). Keeps every existing Supabase `.then()`/`.single()`
-// call-count sequence in this file unchanged.
-const RESOLVED_FORM_TEMPLATE_ID = '00000000-0000-4000-8000-0000000000ff';
-const { mockResolveOrMintFormTemplateId } = vi.hoisted(() => ({
-  mockResolveOrMintFormTemplateId: vi.fn(),
-}));
-vi.mock('@/lib/domains/procurement/resolve-form-template', () => ({
-  resolveOrMintFormTemplateId: mockResolveOrMintFormTemplateId,
 }));
 
 // Suppress console.error/warn noise
@@ -112,9 +120,6 @@ const QUESTION_UUID = '00000000-0000-4000-8000-000000000020';
 
 function resetMocks() {
   vi.clearAllMocks();
-
-  mockResolveOrMintFormTemplateId.mockReset();
-  mockResolveOrMintFormTemplateId.mockResolvedValue(RESOLVED_FORM_TEMPLATE_ID);
 
   // Reset terminators to clear any leaked mockResolvedValueOnce queues
   mockSupabase._chain.single.mockReset();
@@ -188,6 +193,8 @@ function resetMocks() {
   // Reset AI mocks
   mockExtractPDFQuestions.mockResolvedValue({ sections: [] });
   mockExtractDOCXQuestions.mockResolvedValue({ sections: [] });
+  mockExtractXLSXQuestions.mockResolvedValue({ sections: [] });
+  mockXlsxWorkbookToHtml.mockReturnValue('<h2>Sheet1</h2><table></table>');
   mockExtractTenderMetadata.mockResolvedValue(null);
   mockGenerateSearchQueries.mockResolvedValue({ queries: ['test query'] });
   mockGenerateEmbedding.mockResolvedValue(new Array(1024).fill(0));
@@ -224,7 +231,7 @@ describe('GET /api/bids/:id/questions', () => {
     expect(json.error).toContain('Invalid bid ID');
   });
 
-  it('returns 404 when bid does not exist', async () => {
+  it('returns 404 when the form instance does not exist', async () => {
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: null,
       error: { code: 'PGRST116', message: 'No rows found' },
@@ -240,7 +247,7 @@ describe('GET /api/bids/:id/questions', () => {
   });
 
   it('returns 200 with enriched questions on success', async () => {
-    // 1st single(): bid exists
+    // 1st single(): form instance exists
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { id: BID_UUID },
       error: null,
@@ -249,7 +256,7 @@ describe('GET /api/bids/:id/questions', () => {
     const mockQuestions = [
       {
         id: QUESTION_UUID,
-        workspace_id: BID_UUID,
+        form_instance_id: BID_UUID,
         section_name: 'Technical',
         section_sequence: 1,
         question_text: 'Describe your approach',
@@ -257,7 +264,6 @@ describe('GET /api/bids/:id/questions', () => {
         word_limit: 500,
         evaluation_weight: 20,
         confidence_posture: 'strong',
-        matched_record_ids: [VALID_UUID],
         status: null,
         has_variants: false,
         assigned_to: null,
@@ -365,10 +371,10 @@ describe('POST /api/bids/:id/questions', () => {
     expect(json.error).toContain('Invalid bid ID');
   });
 
-  it('returns 404 when bid does not exist', async () => {
+  it('returns 404 when the form instance does not exist', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // The bid lookup returns not found
+    // The form instance lookup returns not found
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: null,
       error: { code: 'PGRST116', message: 'No rows found' },
@@ -389,7 +395,7 @@ describe('POST /api/bids/:id/questions', () => {
   it('returns 201 on successful single question creation', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Procurement exists
+    // Form instance exists
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { id: BID_UUID },
       error: null,
@@ -403,7 +409,7 @@ describe('POST /api/bids/:id/questions', () => {
     // Insert returns the created question
     const mockCreated = {
       id: QUESTION_UUID,
-      workspace_id: BID_UUID,
+      form_instance_id: BID_UUID,
       question_text: 'What is your methodology?',
       question_sequence: 1,
       section_sequence: 0,
@@ -426,15 +432,16 @@ describe('POST /api/bids/:id/questions', () => {
     expect(json.question_text).toBe('What is your methodology?');
     expect(json.id).toBe(QUESTION_UUID);
 
-    // {130.27} — the insert is stamped with the resolved form_template_id.
+    // ID-145 {145.7} — the insert is stamped with the route's own [id]
+    // directly (form-first: no resolve-or-mint).
     const insertArg = mockSupabase._chain.insert.mock.calls[0][0];
-    expect(insertArg.form_template_id).toBe(RESOLVED_FORM_TEMPLATE_ID);
+    expect(insertArg.form_instance_id).toBe(BID_UUID);
   });
 
   it('returns 201 on successful batch question creation', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Procurement exists
+    // Form instance exists
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { id: BID_UUID },
       error: null,
@@ -468,11 +475,12 @@ describe('POST /api/bids/:id/questions', () => {
     expect(json.questions).toHaveLength(2);
     expect(json.count).toBe(2);
 
-    // {130.27} — every row in the batch insert is stamped.
+    // ID-145 {145.7} — every row in the batch insert is stamped with the
+    // route's own [id] directly.
     const insertArg = mockSupabase._chain.insert.mock.calls[0][0];
     const rows = Array.isArray(insertArg) ? insertArg : [insertArg];
     for (const row of rows) {
-      expect(row.form_template_id).toBe(RESOLVED_FORM_TEMPLATE_ID);
+      expect(row.form_instance_id).toBe(BID_UUID);
     }
   });
 });
@@ -549,10 +557,10 @@ describe('POST /api/bids/:id/questions/extract', () => {
     expect(json.error).toBe('Validation failed');
   });
 
-  it('returns 404 when bid does not exist', async () => {
+  it('returns 404 when the form instance does not exist', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Procurement lookup fails
+    // Form instance lookup fails
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: null,
       error: { code: 'PGRST116', message: 'No rows found' },
@@ -576,9 +584,9 @@ describe('POST /api/bids/:id/questions/extract', () => {
   it('returns 200 with extracted questions for PDF format', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Procurement exists
+    // Form instance exists
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: BID_UUID },
+      data: { id: BID_UUID, name: 'Test form' },
       error: null,
     });
 
@@ -600,7 +608,9 @@ describe('POST /api/bids/:id/questions/extract', () => {
       ],
     });
 
-    // No existing questions (dedup check), insert, status update, fetch saved
+    // ID-145 {145.7}: 3 `.then()`-awaited Supabase calls now (down from 4 —
+    // the ex-workspaces.status update step is retired, BI-6): 1) dedup check,
+    // 2) upsert, 3) fetch saved questions.
     let thenCallCount = 0;
     mockSupabase._chain.then.mockImplementation(
       (resolve: (v: unknown) => void) => {
@@ -610,20 +620,16 @@ describe('POST /api/bids/:id/questions/extract', () => {
           return resolve({ data: [], error: null });
         }
         if (thenCallCount === 2) {
-          // Insert result
+          // Upsert result
           return resolve({ data: null, error: null });
         }
         if (thenCallCount === 3) {
-          // Status update
-          return resolve({ data: null, error: null });
-        }
-        if (thenCallCount === 4) {
           // Fetch saved questions
           return resolve({
             data: [
               {
                 id: QUESTION_UUID,
-                workspace_id: BID_UUID,
+                form_instance_id: BID_UUID,
                 section_name: 'Technical Approach',
                 question_text: 'Describe your methodology',
                 question_sequence: 1,
@@ -631,7 +637,6 @@ describe('POST /api/bids/:id/questions/extract', () => {
                 word_limit: 500,
                 evaluation_weight: 20,
                 confidence_posture: null,
-                matched_record_ids: null,
                 assigned_to: null,
                 created_by: 'test-user-id',
                 created_at: '2026-01-01T00:00:00Z',
@@ -665,26 +670,129 @@ describe('POST /api/bids/:id/questions/extract', () => {
 
     expect(mockExtractPDFQuestions).toHaveBeenCalled();
 
-    // {130.27} — the extraction upsert is stamped with the resolved
-    // form_template_id (the NULL-drift fix's primary creation site).
-    expect(mockResolveOrMintFormTemplateId).toHaveBeenCalledWith(
-      mockSupabase,
-      BID_UUID,
-      expect.objectContaining({ createdBy: 'test-user-id' }),
-    );
+    // ID-145 {145.7} — the extraction upsert is stamped with the route's own
+    // [id] directly (form-first: no resolve-or-mint).
     const upsertArg = mockSupabase._chain.upsert.mock.calls[0][0];
     const rows = Array.isArray(upsertArg) ? upsertArg : [upsertArg];
     for (const row of rows) {
-      expect(row.form_template_id).toBe(RESOLVED_FORM_TEMPLATE_ID);
+      expect(row.form_instance_id).toBe(BID_UUID);
+    }
+
+    // ID-145 {145.7} — BI-6 single state home: no workspaces.update call.
+    expect(mockSupabase._chain.update).not.toHaveBeenCalled();
+  });
+
+  it('returns 200 with extracted questions for XLSX format, each carrying expected_response_kind', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Form instance exists
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: BID_UUID, name: 'Test form' },
+      error: null,
+    });
+
+    // ID-145 {145.12}: XLSX extraction — workbook -> HTML via the `xlsx`
+    // reader (mocked here), then the same tool_use path as PDF/DOCX. Each
+    // question carries expected_response_kind — metadata parity with
+    // q_a_extractions.
+    mockExtractXLSXQuestions.mockResolvedValueOnce({
+      sections: [
+        {
+          section_name: 'Pricing Schedule',
+          section_sequence: 1,
+          questions: [
+            {
+              question_text: 'Describe your delivery methodology',
+              question_sequence: 1,
+              word_limit: 300,
+              evaluation_weight: 15,
+              category: 'mandatory',
+              expected_response_kind: 'mandatory',
+            },
+          ],
+        },
+      ],
+    });
+
+    let thenCallCount = 0;
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) {
+          // Existing questions check
+          return resolve({ data: [], error: null });
+        }
+        if (thenCallCount === 2) {
+          // Upsert result
+          return resolve({ data: null, error: null });
+        }
+        if (thenCallCount === 3) {
+          // Fetch saved questions
+          return resolve({
+            data: [
+              {
+                id: QUESTION_UUID,
+                form_instance_id: BID_UUID,
+                section_name: 'Pricing Schedule',
+                question_text: 'Describe your delivery methodology',
+                question_sequence: 1,
+                section_sequence: 1,
+                word_limit: 300,
+                evaluation_weight: 15,
+                confidence_posture: null,
+                assigned_to: null,
+                created_by: 'test-user-id',
+                created_at: '2026-01-01T00:00:00Z',
+                updated_at: '2026-01-01T00:00:00Z',
+              },
+            ],
+            error: null,
+          });
+        }
+        return resolve({ data: [], error: null });
+      },
+    );
+
+    const req = createTestRequest(
+      `/api/procurement/${BID_UUID}/questions/extract`,
+      {
+        method: 'POST',
+        body: { document_path: 'tender.xlsx', format: 'xlsx' },
+      },
+    );
+    const params = createTestParams({ id: BID_UUID });
+    const res = await extractQuestions(req, { params });
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.status).toBe('complete');
+    expect(json.questions_found).toBe(1);
+    expect(json.questions_inserted).toBe(1);
+    expect(json.questions).toHaveLength(1);
+
+    // form_instance_id attachment (BI-10) + expected_response_kind metadata
+    // parity with q_a_extractions — both required by this route's
+    // extraction contract.
+    expect(json.questions[0].form_instance_id).toBe(BID_UUID);
+    expect(json.questions[0].expected_response_kind).toBe('mandatory');
+
+    expect(mockExtractXLSXQuestions).toHaveBeenCalled();
+    expect(mockExtractPDFQuestions).not.toHaveBeenCalled();
+    expect(mockExtractDOCXQuestions).not.toHaveBeenCalled();
+
+    const upsertArg = mockSupabase._chain.upsert.mock.calls[0][0];
+    const rows = Array.isArray(upsertArg) ? upsertArg : [upsertArg];
+    for (const row of rows) {
+      expect(row.form_instance_id).toBe(BID_UUID);
     }
   });
 
   it('skips duplicate questions already existing for the bid', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Procurement exists
+    // Form instance exists
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: BID_UUID },
+      data: { id: BID_UUID, name: 'Test form' },
       error: null,
     });
 
@@ -793,7 +901,7 @@ describe('POST /api/bids/:id/questions/match', () => {
     expect(res.status).toBe(400);
   });
 
-  it('returns 404 when bid does not exist', async () => {
+  it('returns 404 when the form instance does not exist', async () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
@@ -819,13 +927,9 @@ describe('POST /api/bids/:id/questions/match', () => {
   it('returns 200 with empty results when no questions to match', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Procurement exists
+    // Form instance exists
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: {
-        id: BID_UUID,
-        status: 'questions_extracted',
-        domain_metadata: {},
-      },
+      data: { id: BID_UUID },
       error: null,
     });
 
@@ -854,13 +958,9 @@ describe('POST /api/bids/:id/questions/match', () => {
   it('returns 200 with match results for questions', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Procurement exists
+    // Form instance exists
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: {
-        id: BID_UUID,
-        status: 'questions_extracted',
-        domain_metadata: {},
-      },
+      data: { id: BID_UUID },
       error: null,
     });
 
@@ -942,5 +1042,11 @@ describe('POST /api/bids/:id/questions/match', () => {
     );
     expect(mockGenerateEmbedding).toHaveBeenCalled();
     expect(mockAssessConfidence).toHaveBeenCalled();
+
+    // ID-145 {145.7}: `matched_record_ids` is dropped from form_questions
+    // ({145.6} M3) — the persisted UPDATE carries only confidence_posture.
+    const updateArg = mockSupabase._chain.update.mock.calls[0][0];
+    expect(updateArg).toEqual({ confidence_posture: 'strong' });
+    expect(updateArg).not.toHaveProperty('matched_record_ids');
   });
 });

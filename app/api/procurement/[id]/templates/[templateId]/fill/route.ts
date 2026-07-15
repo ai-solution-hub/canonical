@@ -47,39 +47,48 @@ export const POST = defineRoute(
       if (!parsed.success) return parsed.response;
       const options = parsed.data;
 
-      // Fetch template.
-      // Post-T2: `templates` → `form_templates`, `workspace_id` → `workspace_id`.
-      const { data: template, error: templateError } = await supabase
-        .from('form_templates')
-        .select('id, workspace_id, storage_path, status')
+      // Fetch the form. ID-145 BI-23 anchor: fill/auto-map/complete key on
+      // the form's own id — form_instances has no workspace_id (dropped at
+      // {145.6} W1c STEP 1; BI-1: the item IS the form, no
+      // workspace-mediated home for its lifecycle facts). `procurementId`
+      // is URL-namespacing only, not a scoping filter here.
+      const { data: form, error: formError } = await supabase
+        .from('form_instances')
+        .select('id, processing_status')
         .eq('id', templateId)
-        .eq('workspace_id', procurementId)
         .single();
 
-      if (templateError || !template) {
+      if (formError || !form) {
         return NextResponse.json(
           { error: 'Template not found' },
           { status: 404 },
         );
       }
 
-      if (template.status !== 'analysed' && template.status !== 'completed') {
+      if (
+        form.processing_status !== 'analysed' &&
+        form.processing_status !== 'completed'
+      ) {
         return NextResponse.json(
           { error: 'Template must be analysed before filling' },
           { status: 409 },
         );
       }
 
-      // Fetch confirmed/manual mapped fields.
-      // Post-T2: `template_fields` → `form_template_fields`.
+      // Fetch confirmed/manual mapped fields that are NOT already filled —
+      // BI-22 re-entrancy: a fill pass only ever targets outstanding gaps
+      // (`bid_worker.py`'s fill_template_job additionally re-verifies this
+      // live before writing — defence in depth, not solely relying on this
+      // filter).
       const { data: fields, error: fieldsError } = await supabase
-        .from('form_template_fields')
+        .from('form_instance_fields')
         .select(
-          'id, table_index, row_index, col_index, question_id, word_limit, mapping_status',
+          'id, table_index, row_index, col_index, question_id, word_limit, mapping_status, fill_status',
         )
-        .eq('template_id', templateId)
+        .eq('form_instance_id', templateId)
         .in('mapping_status', ['confirmed', 'manual'])
-        .not('question_id', 'is', null);
+        .not('question_id', 'is', null)
+        .neq('fill_status', 'filled');
 
       if (fieldsError) {
         return NextResponse.json(
@@ -179,23 +188,23 @@ export const POST = defineRoute(
         );
       }
 
-      // Update template status to filling.
-      // Post-T2: `templates` → `form_templates`.
+      // Update form status to filling.
       await supabase
-        .from('form_templates')
-        .update({ status: 'filling' })
+        .from('form_instances')
+        .update({ processing_status: 'filling' })
         .eq('id', templateId);
 
-      // Insert job into processing_queue.
-      // payload.workspace_id retained — JSONB blob shape, not a SQL column.
+      // Insert job into processing_queue. Flat, non-enveloped payload — this
+      // job type predates the QueueJobPayload envelope (lib/queue/envelope.ts
+      // §3.1) and is enqueued by this route directly, not enqueueQueueJob().
+      // BI-23 anchor: form_id is the sole identifying key — no workspace_id
+      // (form_instances has none post-{145.6}).
       const { data: job, error: jobError } = await supabase
         .from('processing_queue')
         .insert({
           job_type: 'template_fill',
           payload: {
-            template_id: templateId,
-            workspace_id: procurementId,
-            storage_path: template.storage_path,
+            form_id: templateId,
             field_mappings: fieldMappings,
             user_id: user.id,
             options,
@@ -207,8 +216,8 @@ export const POST = defineRoute(
 
       if (jobError || !job) {
         await supabase
-          .from('form_templates')
-          .update({ status: template.status })
+          .from('form_instances')
+          .update({ processing_status: form.processing_status })
           .eq('id', templateId);
 
         logger.error({ err: jobError }, 'Failed to queue fill job');

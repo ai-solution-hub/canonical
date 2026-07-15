@@ -173,8 +173,10 @@ def _five_type_pool(
         [{"canonical_name": "Acme Corp"}],
     )
     pool.when(
-        # won-bid case_study enumeration grain (S443 amendment / BI-4 / DR-029)
-        "ft.outcome = 'won'",
+        # won-bid case_study enumeration grain (S443 amendment / BI-4 / DR-029;
+        # {145.24}: form_instances-direct query post-{145.6} W1e, no more
+        # `ft.`-aliased join)
+        "COALESCE(issuing_organisation, name) AS buyer",
         [] if won_bids is None else won_bids,
     )
     return pool
@@ -483,7 +485,7 @@ def _won_bid_only_pool(won_bids: "list[dict]") -> FakePool:
     )
     pool.when("LIMIT 1", [])
     pool.when("SELECT DISTINCT em.canonical_name FROM entity_mentions em", [])
-    pool.when("ft.outcome = 'won'", won_bids)
+    pool.when("COALESCE(issuing_organisation, name) AS buyer", won_bids)
     return pool
 
 
@@ -511,9 +513,12 @@ class TestConceptKeyWonBidLocator:
 
 
 class TestListConceptsWonBidCaseStudy:
-    """A won procurement workspace (`application_types.key='procurement'` with a
-    `form_templates.outcome='won'` form) is a first-class case_study source
-    (TECH G-SOURCE amendment). The ConceptKey carries workspace id + buyer."""
+    """A won procurement form (`form_instances.outcome='won'`) is a
+    first-class case_study source (TECH G-SOURCE amendment; {145.24}:
+    re-pointed off the deleted workspace/application_types join to a direct
+    `form_instances` read post-{145.6} W1e). The ConceptKey carries the won
+    form's own id (kept under the `workspace_id` field name — see that
+    field's docstring) + buyer."""
 
     def test_won_procurement_workspace_yields_exactly_one_case_study_for_the_buyer(self):
         pool = _won_bid_only_pool(
@@ -584,44 +589,34 @@ class TestListConceptsWonBidCaseStudy:
 
 
 class TestReadConceptWonBidCaseStudy:
-    """won-bid grain read (TECH G-SOURCE amendment): the workspace row (buyer
-    identity via `domain_metadata`) + won-bid-provenance `q_a_pairs`
-    (`origin_kind='derived_from_form_response'`, `source_workspace_id`) + the
-    won `form_templates` row (`outcome_notes`). NOT the named-clients
-    source_documents/reference_items grain."""
+    """won-bid grain read (TECH G-SOURCE amendment; {145.24} re-pointed
+    post-{145.6} W1e workspace-stratum drop): won-bid-provenance `q_a_pairs`
+    (`origin_kind='derived_from_form_response'`, `source_form_instance_id`)
+    + the won `form_instances` row itself (`outcome_notes`). NOT the
+    named-clients source_documents/reference_items grain. No `workspaces`
+    fetch — the procurement workspace stratum no longer exists post-W1e, so
+    buyer identity/outcome_notes come straight off the form."""
 
     def _pool(self) -> FakePool:
         pool = FakePool()
         pool.when(
-            "FROM workspaces WHERE id = $1",
-            [
-                {
-                    "id": "ws-1",
-                    "name": "TfL cloud tender",
-                    "domain_metadata": {"buyer": "Transport for London"},
-                }
-            ],
-            arg_matcher=lambda args: args == ("ws-1",),
-        )
-        pool.when(
-            "source_workspace_id = $1 AND origin_kind",
+            "source_form_instance_id = $1 AND origin_kind",
             [
                 {
                     "id": "qa-won-1",
                     "question_text": "Describe your SOC.",
                     "origin_kind": "derived_from_form_response",
-                    "source_workspace_id": "ws-1",
+                    "source_form_instance_id": "ws-1",
                     "publication_status": "published",
                 }
             ],
             arg_matcher=lambda args: args == ("ws-1",),
         )
         pool.when(
-            "FROM form_templates WHERE workspace_id = $1",
+            "WHERE id = $1 AND outcome = 'won'",
             [
                 {
-                    "id": "ft-1",
-                    "workspace_id": "ws-1",
+                    "id": "ws-1",
                     "outcome": "won",
                     "outcome_notes": "Won on methodology + price.",
                 }
@@ -638,13 +633,12 @@ class TestReadConceptWonBidCaseStudy:
             workspace_id="ws-1",
         )
 
-    def test_surfaces_workspace_won_qa_pairs_and_outcome_notes(self):
+    def test_surfaces_no_workspace_row_but_won_qa_pairs_and_outcome_notes(self):
         src = LRecordsSource(self._pool())
 
         raw = _run(src.read_concept(self._key()))
 
-        assert [r["id"] for r in raw.workspaces] == ["ws-1"]
-        assert raw.workspaces[0]["domain_metadata"] == {"buyer": "Transport for London"}
+        assert raw.workspaces == []
         assert [r["id"] for r in raw.q_a_pairs] == ["qa-won-1"]
         assert [r["outcome_notes"] for r in raw.form_templates] == [
             "Won on methodology + price."
@@ -693,10 +687,10 @@ class TestReadConceptWonBidCaseStudy:
 
 
 class TestSampleRowsWonBidCaseStudy:
-    def test_won_bid_sample_uses_the_source_workspace_id_query_with_limit(self):
+    def test_won_bid_sample_uses_the_source_form_instance_id_query_with_limit(self):
         pool = FakePool()
         pool.when(
-            "source_workspace_id = $1 AND origin_kind",
+            "source_form_instance_id = $1 AND origin_kind",
             [{"id": "qa-won-1"}, {"id": "qa-won-2"}],
         )
         src = LRecordsSource(pool)

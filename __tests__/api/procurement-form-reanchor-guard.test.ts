@@ -60,22 +60,24 @@ describe('ID-130 dual-writer guard — no domain_metadata engagement writer', ()
     }
   }
 
-  it('the umbrella PATCH writes the workflow transition onto the form', () => {
+  it('the item PATCH writes the workflow transition onto form_instances', () => {
     const src = readFileSync(
       join(process.cwd(), 'app/api/procurement/[id]/route.ts'),
       'utf8',
     );
-    // Positive control: the engagement write target IS form_templates.
-    expect(src).toMatch(/\.from\('form_templates'\)[\s\S]*?\.update\(/);
+    // Positive control: the engagement write target IS form_instances
+    // (ID-145 {145.19} groups A+C, DR-075 §6 — the item IS the form, no more
+    // workspace-mediated `form_templates` write).
+    expect(src).toMatch(/\.from\('form_instances'\)[\s\S]*?\.update\(/);
     expect(src).toMatch(/workflow_state/);
   });
 
-  it('the outcome route writes the outcome + audit onto the form', () => {
+  it('the outcome route writes the outcome + audit onto form_instances', () => {
     const src = readFileSync(
       join(process.cwd(), 'app/api/procurement/[id]/outcome/route.ts'),
       'utf8',
     );
-    expect(src).toMatch(/\.from\('form_templates'\)[\s\S]*?\.update\(/);
+    expect(src).toMatch(/\.from\('form_instances'\)[\s\S]*?\.update\(/);
     expect(src).toMatch(/outcome_recorded_by/);
   });
 });

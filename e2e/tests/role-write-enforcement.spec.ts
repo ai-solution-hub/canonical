@@ -42,9 +42,9 @@
  *      worker-seeded `procurementId`) to prove the role check holds even when
  *      the target row is real and the viewer might be expected to "see"
  *      it. The PATCH path is `/api/procurement/<procurementId>` — verify against
- *      `app/api/bids/[id]/route.ts`.
+ *      `app/api/procurement/[id]/route.ts`.
  *   4. Capture pre-test state of the worker bid (`updated_at`, `name`,
- *     `domain_metadata`) via service-key SELECT BEFORE step 3, so the
+ *     `issuing_organisation`) via service-key SELECT BEFORE step 3, so the
  *     post-test "unchanged" assertion is a real diff.
  *   5. Verify the database afterwards: no rows were created or modified.
  *
@@ -58,10 +58,11 @@
  *   - Each response body parses as JSON (NOT HTML) AND contains an
  *     explicit error key (`error: 'Forbidden'`, per `authFailureResponse`
  *     in `lib/auth/client.ts`).
- *   - PATCH against the seeded `workspaces` row returns 403 AND the row
- *     in DB is unchanged: `updated_at`, `name`, and the buyer field of
- *     `domain_metadata` all equal their pre-test values (strict equality
- *     against the captured snapshot, NOT just "row still exists").
+ *   - PATCH against the seeded `form_instances` row returns 403 AND the row
+ *     in DB is unchanged: `updated_at`, `name`, and `issuing_organisation`
+ *     (the buyer field, ID-145 {145.6}/{145.18} — no more `domain_metadata`)
+ *     all equal their pre-test values (strict equality against the captured
+ *     snapshot, NOT just "row still exists").
  *   - Service-key SELECT confirms zero `q_a_pairs` rows exist with the
  *     attempt's unique `question_text` sentinel.
  *   - Service-key SELECT confirms zero `source_documents` rows exist with
@@ -191,30 +192,6 @@ async function getViewerUserId(): Promise<string> {
   return data.user.id;
 }
 
-/**
- * Resolve the `application_types.id` for a given key.
- *
- * S246 WP2b T2: `workspaces.type` text column dropped. The discriminator
- * is now `workspaces.application_type_id` FK → `application_types(id)`.
- * 'bid' → 'procurement' per Q-OQR1-02.
- */
-async function getApplicationTypeId(
-  svc: ReturnType<typeof createServiceClient>,
-  key: 'procurement' | 'intelligence' | 'content',
-): Promise<string> {
-  const { data, error } = await svc
-    .from('application_types')
-    .select('id')
-    .eq('key', key)
-    .single();
-  if (error || !data) {
-    throw new Error(
-      `application_types row for key='${key}' not found — was the T2 seed step applied? Original error: ${error?.message}`,
-    );
-  }
-  return data.id;
-}
-
 test.describe('8.0.6 viewer write enforcement (server-side)', () => {
   test('viewer POSTs to write endpoints all return 403 and leave the DB untouched', async ({
     viewerPage,
@@ -229,29 +206,30 @@ test.describe('8.0.6 viewer write enforcement (server-side)', () => {
     // this exact value rather than a row-count comparison.
     const attemptId = `viewer-attempt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-    // S246 WP2b T2: resolve procurement application_type_id once for the
-    // workspaces discriminator filter (replaces .eq('type', 'bid')).
-    const procurementAppTypeId = await getApplicationTypeId(svc, 'procurement');
-
     // ---- Pre-test snapshot: bid row ----
+    //
+    // ID-145 {145.6}/{145.18} form-first re-architecture (BI-1): the
+    // procurement item IS a `form_instances` row — `workspaces` +
+    // `domain_metadata` are wholesale-deleted for procurement (W1e). Buyer
+    // lives on `issuing_organisation` directly.
     const { data: preBid, error: preBidErr } = await svc
-      .from('workspaces')
-      .select('id, name, updated_at, domain_metadata')
+      .from('form_instances')
+      .select('id, name, updated_at, issuing_organisation')
       .eq('id', procurementId)
       .single();
     expect(preBidErr).toBeNull();
     expect(preBid).not.toBeNull();
     const preBidName = preBid!.name;
     const preBidUpdatedAt = preBid!.updated_at;
-    const preBidBuyer =
-      (preBid!.domain_metadata as { buyer?: string } | null)?.buyer ?? null;
+    const preBidBuyer = preBid!.issuing_organisation ?? null;
 
-    // ---- Pre-test counts: bid rows owned by the viewer ----
+    // ---- Pre-test counts: bid rows (form_instances) owned by the viewer ----
+    // No `application_type_id` discriminator needed post-W1 — `form_instances`
+    // is procurement-only (there is no umbrella `workspaces` type to filter).
     const { count: preBidsCount, error: preBidsErr } = await svc
-      .from('workspaces')
+      .from('form_instances')
       .select('id', { count: 'exact', head: true })
-      .eq('created_by', viewerId)
-      .eq('application_type_id', procurementAppTypeId);
+      .eq('created_by', viewerId);
     expect(preBidsErr).toBeNull();
 
     // ---- Endpoint A: POST /api/q-a-pairs/batch ----
@@ -330,24 +308,21 @@ test.describe('8.0.6 viewer write enforcement (server-side)', () => {
 
     // ---- Post-test: bid row unchanged ----
     const { data: postBid, error: postBidErr } = await svc
-      .from('workspaces')
-      .select('id, name, updated_at, domain_metadata')
+      .from('form_instances')
+      .select('id, name, updated_at, issuing_organisation')
       .eq('id', procurementId)
       .single();
     expect(postBidErr).toBeNull();
     expect(postBid).not.toBeNull();
     expect(postBid!.name).toBe(preBidName);
     expect(postBid!.updated_at).toBe(preBidUpdatedAt);
-    expect(
-      (postBid!.domain_metadata as { buyer?: string } | null)?.buyer ?? null,
-    ).toBe(preBidBuyer);
+    expect(postBid!.issuing_organisation ?? null).toBe(preBidBuyer);
 
     // ---- Post-test: bid row count unchanged for the viewer ----
     const { count: postBidsCount } = await svc
-      .from('workspaces')
+      .from('form_instances')
       .select('id', { count: 'exact', head: true })
-      .eq('created_by', viewerId)
-      .eq('application_type_id', procurementAppTypeId);
+      .eq('created_by', viewerId);
     expect(postBidsCount).toBe(preBidsCount);
 
     // ---- Post-test: no q_a_pairs row leaked from the forbidden POST ----

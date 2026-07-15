@@ -48,8 +48,14 @@ export async function createTestQAPair(
 }
 
 /**
- * Create a bid workspace for a single test, returning its ID.
+ * Create a bid (a `form_instances` row) for a single test, returning its ID.
  * Uses the worker prefix for automatic cleanup.
+ *
+ * ID-145 {145.6}/{145.18} form-first re-architecture (BI-1): a procurement
+ * item IS a `form_instances` row directly — the pre-W1 `workspaces` +
+ * `domain_metadata` umbrella is wholesale-deleted for procurement (W1e).
+ * `overrides` passes straight through onto the insert body, so callers may
+ * override any `form_instances` column (e.g. `name`).
  */
 export async function createTestBid(
   prefix: string,
@@ -57,24 +63,22 @@ export async function createTestBid(
 ): Promise<string> {
   const supabase = createServiceClient();
   const { data } = await supabase
-    .from('workspaces')
+    .from('form_instances')
     .insert({
       name: `${prefix} Temp Procurement ${Date.now()}`,
       description: 'Temporary test bid.',
-      type: 'bid',
-      domain_metadata: {
-        buyer: 'E2E Temp Corp',
-        status: 'draft',
-        deadline: new Date(Date.now() + 14 * 86400000).toISOString(),
-        reference_number: null,
-        estimated_value: null,
-        tender_source: null,
-        tender_document_ids: [],
-        submission_date: null,
-        outcome: null,
-        outcome_notes: null,
-        notes: null,
-      },
+      issuing_organisation: 'E2E Temp Corp',
+      deadline: new Date(Date.now() + 14 * 86400000).toISOString(),
+      reference_number: null,
+      estimated_value: null,
+      // NOT NULL columns with no usable post-W1c default (`ingest_source`'s
+      // DEFAULT is the now-CHECK-invalid legacy 'pipeline' value) — mirrors
+      // the {145.8} POST /api/procurement docless-mint convention.
+      filename: 'e2e-temp-bid.pdf',
+      storage_path: `test-fixtures/${prefix}/temp-bid-${Date.now()}.pdf`,
+      file_size: 0,
+      mime_type: 'application/pdf',
+      ingest_source: 'minted',
       ...overrides,
     })
     .select('id')
@@ -148,7 +152,7 @@ export async function createExportReadyBid(prefix: string): Promise<{
 }> {
   const supabase = createServiceClient();
 
-  // Create bid workspace
+  // Create bid (`form_instances` row)
   const procurementId = await createTestBid(prefix);
 
   // Create 2 questions
@@ -156,7 +160,7 @@ export async function createExportReadyBid(prefix: string): Promise<{
     .from('form_questions')
     .insert([
       {
-        workspace_id: procurementId,
+        form_instance_id: procurementId,
         section_name: 'Technical',
         section_sequence: 1,
         question_sequence: 1,
@@ -164,7 +168,7 @@ export async function createExportReadyBid(prefix: string): Promise<{
         word_limit: 500,
       },
       {
-        workspace_id: procurementId,
+        form_instance_id: procurementId,
         section_name: 'Experience',
         section_sequence: 2,
         question_sequence: 1,
@@ -230,8 +234,8 @@ export async function createTestNotification(
 }
 
 /**
- * Create a bid workspace and advance it to the target state in one call.
- * Returns the bid workspace ID.
+ * Create a bid (`form_instances` row) and advance it to the target state in
+ * one call. Returns the bid's `form_instances` id.
  */
 export async function createBidWithState(
   prefix: string,
@@ -244,7 +248,8 @@ export async function createBidWithState(
 }
 
 /**
- * Create a bid workspace with N questions. Returns both the bid ID and question IDs.
+ * Create a bid (`form_instances` row) with N questions. Returns both the bid
+ * ID and question IDs.
  */
 export async function createBidWithQuestions(
   prefix: string,
@@ -255,7 +260,7 @@ export async function createBidWithQuestions(
   const procurementId = await createTestBid(prefix, overrides);
 
   const questions = Array.from({ length: questionCount }, (_, i) => ({
-    workspace_id: procurementId,
+    form_instance_id: procurementId,
     section_name: `Section ${i + 1}`,
     section_sequence: i + 1,
     question_sequence: 1,
@@ -273,12 +278,18 @@ export async function createBidWithQuestions(
 }
 
 /**
- * Advance a bid workspace through sequential state transitions to reach
- * the target state. The bid state machine requires stepping through each
- * intermediate state.
+ * Advance a bid (`form_instances` row) through sequential state transitions
+ * to reach the target state. The bid state machine requires stepping
+ * through each intermediate state.
  *
  * State order: draft → questions_extracted → matching → drafting →
  *   review → ready_for_export → exported → submitted
+ *
+ * ID-145 {145.6}/{145.18}: `workflow_state` is a plain scalar column on
+ * `form_instances` (the pre-W1 `workspaces.status`/`domain_metadata` JSONB
+ * read-modify-write dance — and the pgbouncer read-after-write race it
+ * worked around, S152B WP15 item #15 Symptom 2 — no longer applies; each
+ * UPDATE here carries the full, self-contained next state).
  */
 export async function advanceBidState(
   procurementId: string,
@@ -297,18 +308,14 @@ export async function advanceBidState(
 
   const supabase = createServiceClient();
 
-  // Get current state AND domain_metadata up front. We chain `.select()` on
-  // the same call so PostgREST returns the row from the SELECT statement
-  // itself — guaranteeing we don't race against an in-flight commit on a
-  // different pgbouncer connection (Symptom 2 of WP15 item #15).
   const { data: current } = await supabase
-    .from('workspaces')
-    .select('status, domain_metadata')
+    .from('form_instances')
+    .select('workflow_state')
     .eq('id', procurementId)
     .single()
     .throwOnError();
 
-  const currentState = (current?.status as string) ?? 'draft';
+  const currentState = (current?.workflow_state as string) ?? 'draft';
 
   const currentIndex = stateOrder.indexOf(currentState);
   const targetIndex = stateOrder.indexOf(targetState);
@@ -317,32 +324,12 @@ export async function advanceBidState(
     return; // Already at or past target state
   }
 
-  // Carry domain_metadata through the loop locally so we never have to
-  // re-SELECT inside the loop. The previous implementation issued a fresh
-  // SELECT per state to read `domain_metadata` so it could merge new state
-  // into the existing JSONB without clobbering other keys — but those
-  // SELECTs raced with the preceding UPDATE on a different pgbouncer
-  // connection (workers=3 caused intermittent SELECT-after-UPDATE 0-row
-  // misses). We now seed `liveMetadata` from the initial fetch and update
-  // it locally each iteration; the only network calls in the loop are the
-  // UPDATEs themselves, which means there's no read-after-write hazard.
-  let liveMetadata =
-    (current?.domain_metadata as Record<string, unknown> | null) ?? {};
-
   // Step through each intermediate state
   for (let i = currentIndex + 1; i <= targetIndex; i++) {
-    const nextStatus = stateOrder[i];
-    const nextMetadata = { ...liveMetadata, status: nextStatus };
-
     await supabase
-      .from('workspaces')
-      .update({
-        status: nextStatus,
-        domain_metadata: nextMetadata,
-      })
+      .from('form_instances')
+      .update({ workflow_state: stateOrder[i] })
       .eq('id', procurementId)
       .throwOnError();
-
-    liveMetadata = nextMetadata;
   }
 }

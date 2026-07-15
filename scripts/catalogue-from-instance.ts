@@ -1,17 +1,26 @@
 #!/usr/bin/env bun
 /**
- * Path C — generic catalogue-from-instance executable (TECH §2.7, ID-52.14).
+ * Path C — generic catalogue-from-instance executable (TECH §2.7, ID-52.14;
+ * ID-145 {145.16} BI-24/BI-26 — the "catalogue action" entry point, rewired
+ * onto the POST-W1 schema now a `form_instance_fields` writer exists).
  *
- * Reads the `form_template_fields` of one ingested form instance, classifies
- * each field into a catalogue-requirement shape via Anthropic, embeds it,
- * presents each candidate row for explicit `y/n` confirmation, and — only on
- * confirmation by an authorised (admin/editor) caller — writes the rows to the
- * global `form_template_requirements` catalogue.
+ * Reads the `form_instance_fields` ({145.16} W1c — renamed from
+ * `form_template_fields`, `template_id` -> `form_instance_id`) of one
+ * ingested form instance, classifies each field into a catalogue-requirement
+ * shape via Anthropic, embeds it, presents each candidate row for explicit
+ * `y/n` confirmation, and — only on confirmation by an authorised
+ * (admin/editor) caller — writes the rows to the global
+ * `form_requirement_templates` ({145.16} W1c — renamed from
+ * `form_template_requirements`, pure rename) catalogue.
  *
  * This is the generic template. The `catalogue-form-requirements` skill emits
  * per-form copies named `scripts/catalogue-from-instance-<form_template_id>.ts`
  * (which may simply invoke this with the id baked in), but this file runs
- * directly too:
+ * directly too. The CLI flag itself stays `--form-template-id` ({145.16} —
+ * unrenamed deliberately: the skill doc at
+ * `.claude/skills/catalogue-form-requirements/SKILL.md` documents this exact
+ * flag name and is outside this Subtask's file ownership; only the
+ * underlying table/column names below are rewired to POST-W1):
  *
  *   bun run scripts/catalogue-from-instance.ts --form-template-id <uuid> \
  *     [--template-type <form_types.key>] [--confirm] [--env=prod]
@@ -144,18 +153,20 @@ async function main(): Promise<void> {
   const anthropic = new Anthropic();
 
   // ── Read the instance (read-only) ──
-  console.log(`Reading form_template_fields for instance ${formTemplateId}...`);
+  // {145.16} W1c: form_templates -> form_instances, form_template_fields ->
+  // form_instance_fields.
+  console.log(`Reading form_instance_fields for instance ${formTemplateId}...`);
   const templateResult = await tryQuery(
     supabase
-      .from('form_templates')
+      .from('form_instances')
       .select('id, name, form_type')
       .eq('id', formTemplateId)
       .single(),
-    'form_templates.byId',
+    'form_instances.byId',
   );
   if (!templateResult.ok) {
     console.error(
-      `ERROR: could not load form_templates row ${formTemplateId}: ${templateResult.error.message}`,
+      `ERROR: could not load form_instances row ${formTemplateId}: ${templateResult.error.message}`,
     );
     process.exit(1);
   }
@@ -178,7 +189,7 @@ async function main(): Promise<void> {
   const fields = fieldsResult.data;
   if (fields.length === 0) {
     console.error(
-      'ERROR: the instance has no form_template_fields to catalogue.',
+      'ERROR: the instance has no form_instance_fields to catalogue.',
     );
     process.exit(1);
   }
@@ -257,7 +268,7 @@ async function main(): Promise<void> {
       for (const err of result.errors) console.error(`  write error: ${err}`);
       if (result.embeddingWriteFailures > 0) {
         console.error(
-          '  Row(s) were written to form_template_requirements but their record_embeddings ' +
+          '  Row(s) were written to form_requirement_templates but their record_embeddings ' +
             'dual-write failed. Re-run this script over the same instance to self-heal ' +
             '(resolveRequirementEmbedding recomputes missing embeddings on the next pass).',
         );

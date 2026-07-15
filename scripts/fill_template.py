@@ -7,11 +7,15 @@ CRITICAL: Never use cell.text = "value" -- this destroys all formatting.
 Always use the run-level API (paragraph.clear() + paragraph.add_run()).
 """
 
+import io
 import json
 import os
 import sys
 
+import openpyxl
 from docx import Document
+from pypdf import PdfReader, PdfWriter
+
 from docx_utils import open_document_safe
 
 
@@ -286,6 +290,267 @@ def _validate_completed_document(original_path: str, completed_path: str) -> lis
             os.unlink(orig_temp)
         if comp_temp:
             os.unlink(comp_temp)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# PDF WRITER — pypdf AcroForm value writes into the plane-2 fillable
+# artefact (ID-145 {145.15}, TECH.md §3.3/§3.4).
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def _pdf_field_names_by_sequence(pdf_bytes: bytes) -> dict[int, str]:
+    """Rebuild the ``sequence -> AcroForm field-name`` map for a fillable
+    PDF's Widget annotations.
+
+    ADDRESSING GAP: ``form_instance_fields`` carries no ``field_name``
+    column for PDF rows — {145.11}'s ``ExtractedField`` shape-adapter
+    (``orchestrator._pdf_result_to_extracted_form``) deliberately drops the
+    commonforms-assigned field name at the DB-write boundary (the
+    GEOMETRY-PERSISTENCE decision documented there), leaving only
+    ``table_index`` (repurposed as the 0-indexed page) and ``row_index``
+    (repurposed as a document-wide reading-order ``sequence``). This
+    function reconstructs the mapping by walking the SAME bytes in the
+    IDENTICAL page-major + Widget-annotation order
+    ``form_extractors/pdf.py``'s ``detect_pdf_fields`` used to assign that
+    ``sequence`` in the first place — deterministic (no re-detection, just
+    re-reading already-written AcroForm structure) and verified stable
+    across a pypdf write/read round-trip (a re-fill pass's base artefact is
+    a PRIOR pypdf-written completion, not always the original commonforms
+    output).
+    """
+    reader = PdfReader(io.BytesIO(pdf_bytes))
+    names: dict[int, str] = {}
+    sequence = 0
+    for page in reader.pages:
+        for annotation in page.get("/Annots") or []:
+            obj = annotation.get_object()
+            if obj.get("/Subtype") != "/Widget":
+                continue
+            if obj.get("/FT") not in ("/Tx", "/Btn"):
+                continue
+            names[sequence] = str(obj.get("/T"))
+            sequence += 1
+    return names
+
+
+def fill_pdf_template(
+    input_path: str,
+    output_path: str,
+    field_mappings: list[dict],
+) -> dict:
+    """Write approved bid responses into a PDF's AcroForm fields.
+
+    Args:
+        input_path: Path to the base fillable PDF — the plane-2 fillable
+            artefact ({145.11}'s ``{form_id}/fillable.pdf``) on a first
+            pass, or a PRIOR ``template_completions`` output on a re-fill
+            pass (BI-22 re-entrancy — see ``bid_worker.fill_template_job``).
+        output_path: Path to save the filled PDF.
+        field_mappings: List of dicts with:
+            - table_index (int | None) — PDF's 0-indexed page (unused for
+              addressing; carried through into error/truncation records
+              only).
+            - row_index (int) — the PDF's ``sequence`` (see
+              ``_pdf_field_names_by_sequence``).
+            - response_text (str)
+            - word_limit (int | None)
+
+    Returns:
+        Dict with fields_filled, fields_skipped, fields_failed, truncated, errors.
+    """
+    with open(input_path, "rb") as f:
+        pdf_bytes = f.read()
+
+    field_names_by_sequence = _pdf_field_names_by_sequence(pdf_bytes)
+
+    writer = PdfWriter(clone_from=io.BytesIO(pdf_bytes))
+
+    filled = 0
+    skipped = 0
+    failed = 0
+    truncated_fields: list[dict] = []
+    errors: list[dict] = []
+    values: dict[str, str] = {}
+
+    for mapping in field_mappings:
+        table_idx = mapping.get("table_index")
+        sequence = mapping.get("row_index")
+        response_text = mapping.get("response_text")
+        word_limit = mapping.get("word_limit")
+
+        field_name = field_names_by_sequence.get(sequence)
+        if field_name is None:
+            errors.append({
+                "table_index": table_idx,
+                "row_index": sequence,
+                "error": f"No AcroForm widget at sequence {sequence} in the fillable artefact",
+            })
+            failed += 1
+            continue
+
+        if not response_text or not response_text.strip():
+            skipped += 1
+            continue
+
+        text_to_write, was_truncated = _enforce_word_limit(
+            response_text, word_limit
+        )
+        if was_truncated:
+            truncated_fields.append({
+                "table_index": table_idx,
+                "row_index": sequence,
+                "original_words": len(response_text.split()),
+                "limit": word_limit,
+            })
+
+        values[field_name] = text_to_write
+        filled += 1
+
+    if values:
+        writer.update_page_form_field_values(None, values)
+
+    with open(output_path, "wb") as f:
+        writer.write(f)
+
+    return {
+        "fields_filled": filled,
+        "fields_skipped": skipped,
+        "fields_failed": failed,
+        "truncated": truncated_fields,
+        "errors": errors,
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# XLSX WRITER — openpyxl cell writes at the recorded coords (ID-145
+# {145.15}, TECH.md §3.3/§3.4).
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def _xlsx_sheet_by_table_index(raw_bytes: bytes) -> dict[int, str]:
+    """Rebuild the ``table_index -> sheet_name`` boundary map for an XLSX
+    workbook.
+
+    ADDRESSING GAP: ``form_extractors/xlsx.py``'s ``extract()`` increments
+    ``table_index`` as a WORKBOOK-WIDE running counter across every sheet
+    (not a sheet index), and neither ``ExtractedField`` nor
+    ``form_instance_fields`` carries a ``sheet_name``/``sheet_index``
+    column — a real gap for multi-sheet workbooks (e.g. the EFA archetype's
+    multiple "Bidder N" sheets), where ``(row_index, col_index)`` alone is
+    ambiguous. This function reconstructs the boundary by re-running the
+    SAME per-sheet walk (``_walk_sheet``, imported — a deterministic,
+    rule-based walk, not an ML detector) over the IDENTICAL workbook bytes.
+    Safe against {145.10}'s per-form dedup: dedup only drops rows and
+    recomputes ``sequence``, it never mutates a surviving field's
+    ``table_index`` (``xlsx.py``'s ``_dedup_per_form`` docstring — "Preserves
+    the original coordinates from the first occurrence").
+    """
+    from scripts.cocoindex_pipeline.form_extractors.xlsx import _walk_sheet
+
+    wb = openpyxl.load_workbook(
+        io.BytesIO(raw_bytes), data_only=True, read_only=False
+    )
+    sheet_by_table_index: dict[int, str] = {}
+    table_index = 0
+    for sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+        _fields, _next_seq, consumed = _walk_sheet(
+            ws, table_index_offset=table_index, sequence_start=0
+        )
+        for ti in range(table_index, table_index + consumed):
+            sheet_by_table_index[ti] = sheet_name
+        table_index += consumed
+    return sheet_by_table_index
+
+
+def fill_xlsx_template(
+    input_path: str,
+    output_path: str,
+    field_mappings: list[dict],
+) -> dict:
+    """Write approved bid responses into an XLSX workbook's cells.
+
+    Args:
+        input_path: Path to the base XLSX — the original upload on a first
+            pass, or a PRIOR ``template_completions`` output on a re-fill
+            pass (BI-22 re-entrancy).
+        output_path: Path to save the filled XLSX.
+        field_mappings: List of dicts with:
+            - table_index (int) — the workbook-wide table counter (see
+              ``_xlsx_sheet_by_table_index``).
+            - row_index (int), col_index (int) — 1-based openpyxl
+              coordinates within the resolved sheet.
+            - response_text (str)
+            - word_limit (int | None)
+
+    Returns:
+        Dict with fields_filled, fields_skipped, fields_failed, truncated, errors.
+    """
+    with open(input_path, "rb") as f:
+        raw_bytes = f.read()
+
+    sheet_by_table_index = _xlsx_sheet_by_table_index(raw_bytes)
+
+    wb = openpyxl.load_workbook(io.BytesIO(raw_bytes), data_only=False, read_only=False)
+
+    filled = 0
+    skipped = 0
+    failed = 0
+    truncated_fields: list[dict] = []
+    errors: list[dict] = []
+
+    for mapping in field_mappings:
+        table_idx = mapping.get("table_index")
+        row_idx = mapping.get("row_index")
+        col_idx = mapping.get("col_index")
+        response_text = mapping.get("response_text")
+        word_limit = mapping.get("word_limit")
+
+        sheet_name = sheet_by_table_index.get(table_idx)
+        if sheet_name is None:
+            errors.append({
+                "table_index": table_idx,
+                "row_index": row_idx,
+                "error": f"No sheet found for table_index {table_idx}",
+            })
+            failed += 1
+            continue
+
+        if not response_text or not response_text.strip():
+            skipped += 1
+            continue
+
+        text_to_write, was_truncated = _enforce_word_limit(
+            response_text, word_limit
+        )
+        if was_truncated:
+            truncated_fields.append({
+                "table_index": table_idx,
+                "row_index": row_idx,
+                "original_words": len(response_text.split()),
+                "limit": word_limit,
+            })
+
+        try:
+            wb[sheet_name].cell(row=row_idx, column=col_idx).value = text_to_write
+            filled += 1
+        except Exception as e:
+            errors.append({
+                "table_index": table_idx,
+                "row_index": row_idx,
+                "error": str(e),
+            })
+            failed += 1
+
+    wb.save(output_path)
+
+    return {
+        "fields_filled": filled,
+        "fields_skipped": skipped,
+        "fields_failed": failed,
+        "truncated": truncated_fields,
+        "errors": errors,
+    }
 
 
 if __name__ == "__main__":

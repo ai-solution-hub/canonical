@@ -173,34 +173,34 @@ export async function registerResources(server: McpServer): Promise<void> {
       list: async (extra: Extra) => {
         try {
           const supabase = createMcpClient(extra.authInfo);
-          // Post-T2: discriminator is application_types.key via JOIN, not the
-          // dropped workspaces.type col. 'bid' maps to 'procurement'.
-          const workspaces = await sb(
+          // ID-145 {145.23} round-2 runtime grep sweep (mandatory extra #2,
+          // DR-056): workspaces/procurement_workspaces are wholesale-deleted
+          // for procurement (W1e, {145.6}) — this list handler was
+          // tsc-invisible residue round-1 missed in this same file (it fixed
+          // the tsc-visible form_questions.workspace_id error in the sibling
+          // get handler below, not this schema-valid-but-empty workspaces
+          // read). [id] IS the form_instances PK now; issuing_organisation
+          // replaces the domain_metadata.buyer bag field.
+          const forms = await sb(
             supabase
-              .from('workspaces')
-              .select('id, name, domain_metadata, application_types!inner(key)')
-              .eq('application_types.key', 'procurement')
-              .eq('is_archived', false)
+              .from('form_instances')
+              .select('id, name, issuing_organisation')
               .order('updated_at', { ascending: false })
               .limit(10),
             'mcp.resources.form_workspace.list',
           );
 
           return {
-            resources: workspaces.map(
-              (ws: {
+            resources: forms.map(
+              (form: {
                 id: string;
                 name: string | null;
-                domain_metadata: unknown;
+                issuing_organisation: string | null;
               }) => {
-                const meta = ws.domain_metadata as Record<
-                  string,
-                  unknown
-                > | null;
-                const buyer = (meta?.buyer as string) ?? null;
+                const buyer = form.issuing_organisation;
                 return {
-                  uri: `kb://forms/${ws.id}`,
-                  name: ws.name || 'Untitled Procurement',
+                  uri: `kb://forms/${form.id}`,
+                  name: form.name || 'Untitled Procurement',
                   description: buyer ? `Buyer: ${buyer}` : undefined,
                   mimeType: 'application/json',
                 };
@@ -223,16 +223,19 @@ export async function registerResources(server: McpServer): Promise<void> {
         const procurementId = Array.isArray(variables.id)
           ? variables.id[0]
           : variables.id;
-        const { data: workspace, error } = await supabase
-          .from('workspaces')
+        // ID-145 {145.23} round-2 runtime grep sweep (mandatory extra #2,
+        // DR-056): workspaces/procurement_workspaces are wholesale-deleted
+        // for procurement (W1e, {145.6}) — [id] IS the form_instances PK
+        // now.
+        const { data: form, error } = await supabase
+          .from('form_instances')
           .select(
-            'id, name, description, domain_metadata, is_archived, application_types!inner(key)',
+            'id, name, description, issuing_organisation, workflow_state, deadline, reference_number, estimated_value, outcome, outcome_notes',
           )
           .eq('id', procurementId)
-          .eq('application_types.key', 'procurement')
           .single();
 
-        if (error || !workspace) {
+        if (error || !form) {
           return {
             contents: [
               {
@@ -244,13 +247,14 @@ export async function registerResources(server: McpServer): Promise<void> {
           };
         }
 
+        // ID-145 {145.23}: form_questions.workspace_id -> form_instance_id (W1c).
         const questions = await sb(
           supabase
             .from('form_questions')
             .select(
               'id, question_text, section_name, status, confidence_posture',
             )
-            .eq('workspace_id', procurementId)
+            .eq('form_instance_id', procurementId)
             .order('section_sequence')
             .order('question_sequence'),
           'mcp.resources.form_workspace.questions',
@@ -261,7 +265,7 @@ export async function registerResources(server: McpServer): Promise<void> {
             {
               uri: uri.href,
               mimeType: 'application/json',
-              text: JSON.stringify({ ...workspace, questions }, null, 2),
+              text: JSON.stringify({ ...form, questions }, null, 2),
             },
           ],
         };

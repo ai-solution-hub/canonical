@@ -5,6 +5,7 @@ import {
   FRESHNESS_OFFSETS,
   buildCoreContentItems,
   buildCoreWorkspaces,
+  buildCoreFormInstances,
   CORE_BID_QUESTIONS,
   CORE_BID_RESPONSES,
   BID_STATE_TRANSITIONS,
@@ -69,9 +70,16 @@ export interface WorkerData {
   environmentalId: string;
   /** ID of the seeded kb_section workspace. */
   workspaceId: string;
-  /** ID of the seeded bid workspace (advanced to drafting). */
+  /**
+   * ID of the seeded primary bid — a `form_instances` row (ID-145 {145.6}
+   * form-first re-architecture; NOT a `workspaces` row post-W1), advanced to
+   * `drafting` via `workflow_state`.
+   */
   procurementId: string;
-  /** ID of the seeded project workspace. */
+  /**
+   * ID of the seeded second `form_instances` row ("Cloud Migration RFP").
+   * No live spec asserts on it by name — retained for card-count parity.
+   */
   projectId: string;
   /** IDs of the 4 seeded bid questions (Technical, Experience, Social Value, Commercial). */
   questionIds: string[];
@@ -104,8 +112,10 @@ export interface WorkerData {
  *   retirement: `content_items` was DROPPED at M6, so the 2 q_a_pair-typed
  *   shapes land on `q_a_pairs` and the other 10 land on `source_documents`
  *   (see the seeding block below for the full disposition + what's lost).
- * - 3 workspaces (kb_section, bid, project)
- * - 1 bid with 4 questions and 2 responses, advanced to drafting state
+ * - 1 kb_section workspace
+ * - 2 procurement items (`form_instances` rows, ID-145 W1 form-first
+ *   re-architecture — NOT `workspaces` rows) — the primary one with 4
+ *   questions and 2 responses, advanced to `drafting` state
  * - 2 workspace-item assignments (source_documents indices 0, 3 -> kb_section;
  *   the 2 q_a_pairs indices have no workspace_id column to assign)
  * - 2 notifications (freshness_alert + governance_review)
@@ -314,7 +324,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
           ),
       );
 
-      // --- Seed workspaces (from centralised shapes) ---
+      // --- Seed the kb_section workspace (from centralised shapes) ---
       // Clean up stale data from a previous crashed run to avoid
       // workspaces_type_name_unique constraint violations
       await supabase.from('workspaces').delete().like('name', `${prefix}%`);
@@ -346,7 +356,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         return id;
       };
 
-      const workspaceShapes = buildCoreWorkspaces(bidDeadline);
+      const workspaceShapes = buildCoreWorkspaces();
       const workspaceInserts = workspaceShapes.map((shape) => {
         const { applicationTypeKey, ...rest } = shape;
         return {
@@ -364,8 +374,42 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
 
       const workspaceIds = (workspaces ?? []).map((w) => w.id);
       const kbSectionId = workspaceIds[0];
-      const procurementId = workspaceIds[1];
-      const projectId = workspaceIds[2];
+
+      // --- Seed the procurement items (from centralised shapes) ---
+      //
+      // ID-145 {145.6} W1 form-first re-architecture (BI-1): a procurement
+      // item IS a `form_instances` row directly — the pre-W1 `workspaces` +
+      // `domain_metadata` umbrella is wholesale-deleted for procurement
+      // (W1e). NOT NULL columns with no usable default post-W1c: `filename`/
+      // `storage_path`/`file_size`/`mime_type` (doc-identity placeholders,
+      // mirroring the {145.8} POST /api/procurement docless-mint convention)
+      // and `ingest_source` (DEFAULT is the now-CHECK-invalid legacy
+      // 'pipeline' value — must be set explicitly to 'minted', the reserved
+      // docless-creation value, TECH.md §2 M3).
+      const formInstanceShapes = buildCoreFormInstances(bidDeadline);
+      const formInstanceInserts = formInstanceShapes.map((shape, index) => ({
+        name: `${prefix} ${shape.name}`,
+        description: shape.description,
+        issuing_organisation: shape.issuing_organisation,
+        deadline: shape.deadline,
+        reference_number: shape.reference_number,
+        estimated_value: shape.estimated_value,
+        filename: 'e2e-fixture-form.pdf',
+        storage_path: `test-fixtures/${prefix}/form-instance-${index}.pdf`,
+        file_size: 0,
+        mime_type: 'application/pdf',
+        ingest_source: 'minted',
+      }));
+
+      const { data: formInstances } = await supabase
+        .from('form_instances')
+        .insert(formInstanceInserts)
+        .select('id')
+        .throwOnError();
+
+      const formInstanceIds = (formInstances ?? []).map((f) => f.id);
+      const procurementId = formInstanceIds[0];
+      const projectId = formInstanceIds[1];
 
       // --- Workspace-item assignments: link items 0-3 to kb_section ---
       //
@@ -389,16 +433,20 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
 
       // --- Procurement questions + responses (from centralised shapes) ---
       // id-130 renamed the bid-prefixed tables onto the form-domain model:
-      // `bid_questions` → `form_questions` (with `project_id` → `workspace_id`)
-      // and `bid_responses` → `form_responses`. {130.9} regenerated the api.*
-      // views on top of the renamed tables, so this seed runs unconditionally
-      // for every worker again (bl-420 retired the temporary env-gated skip
-      // that covered this block while the rename was in flight). The
-      // downstream cleanup is guarded by `responseIds.length > 0`, so empty
-      // arrays remain safe if seeding is ever skipped for another reason.
+      // `bid_questions` → `form_questions` and `bid_responses` →
+      // `form_responses`. {130.9} regenerated the api.* views on top of the
+      // renamed tables, so this seed runs unconditionally for every worker
+      // again (bl-420 retired the temporary env-gated skip that covered this
+      // block while the rename was in flight). ID-145 {145.6} W1c STEP 4
+      // re-scopes `form_questions`: `workspace_id` is DROPPED and
+      // `form_template_id` is renamed to `form_instance_id` (NOT NULL,
+      // BI-7 — every question belongs to exactly one form by construction).
+      // The downstream cleanup is guarded by `responseIds.length > 0`, so
+      // empty arrays remain safe if seeding is ever skipped for another
+      // reason.
       const questions = CORE_BID_QUESTIONS.map((q) => ({
         ...q,
-        workspace_id: procurementId,
+        form_instance_id: procurementId,
       }));
 
       const { data: qs } = await supabase
@@ -424,37 +472,18 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
 
       // --- Advance bid to drafting state ---
       //
-      // We carry `liveMetadata` through the loop locally instead of issuing
-      // a fresh SELECT per iteration to merge with existing JSONB. The
-      // previous SELECT-then-UPDATE-per-state pattern raced against the
-      // pgbouncer transaction-pooler under `--workers=3`: a SELECT
-      // immediately after an UPDATE on a different pgbouncer connection
-      // could land before the UPDATE was visible, returning 0 rows and
-      // causing the next iteration to merge against an empty object —
-      // dropping every JSONB key the previous iteration had set
-      // (including `buyer` and `deadline` from the original
-      // `buildCoreWorkspaces` shape). We now seed `liveMetadata` directly
-      // from the workspace shape we know we just inserted (the second
-      // `buildCoreWorkspaces` entry is the bid) and update it locally
-      // each iteration. The only network calls inside the loop are the
-      // UPDATEs themselves, so there's no read-after-write hazard.
-      // (S152B WP15 item #15, Symptom 2.)
-      const initialBidMetadata =
-        (workspaceShapes[1]?.domain_metadata as
-          | Record<string, unknown>
-          | undefined) ?? {};
-      let liveMetadata: Record<string, unknown> = { ...initialBidMetadata };
+      // ID-145 {145.6}/{145.18}: `workflow_state` is a plain scalar column on
+      // `form_instances` (the pre-W1 `domain_metadata` JSONB read-modify-write
+      // dance — and the pgbouncer read-after-write race it worked around,
+      // S152B WP15 item #15 Symptom 2 — no longer applies; each UPDATE here
+      // carries the full, self-contained next state, so there is nothing to
+      // merge and no SELECT-between-UPDATEs hazard).
       for (const state of BID_STATE_TRANSITIONS) {
-        const nextMetadata = { ...liveMetadata, status: state };
         await supabase
-          .from('workspaces')
-          .update({
-            status: state,
-            domain_metadata: nextMetadata,
-          })
+          .from('form_instances')
+          .update({ workflow_state: state })
           .eq('id', procurementId)
           .throwOnError();
-        liveMetadata = nextMetadata;
       }
 
       // --- Notifications require admin user_id ---
@@ -626,7 +655,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       console.log(
         `[Worker ${workerInfo.workerIndex}] Seeded: ${data.contentItemIds.length} items ` +
           `(${precomputedEmbeddings.length} with embeddings), ` +
-          `4 workspaces (incl. intelligence), 1 bid (drafting) with ${data.questionIds.length} questions and ` +
+          `2 workspaces (kb_section + intelligence), 2 procurement items (1 in drafting) with ${data.questionIds.length} questions and ` +
           `${data.responseIds.length} responses, ${data.notificationIds.length} notifications, ` +
           `${data.feedArticleIds.length} feed articles ` +
           `(prefix: ${prefix})`,
@@ -652,7 +681,9 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         await supabase.from('notifications').delete().in('id', notificationIds);
       }
 
-      // 2. Procurement responses (safety net — CASCADE from workspace should handle)
+      // 2. Procurement responses (safety net — CASCADE from the question's
+      // `form_instances` parent should handle this, but delete explicitly
+      // in case a response was created without a live question FK).
       if (responseIds.length > 0) {
         await supabase.from('form_responses').delete().in('id', responseIds);
       }
@@ -696,6 +727,20 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
           .in('id', sourceDocumentIds);
       }
       await supabase.from('workspaces').delete().like('name', `${prefix}%`);
+
+      // 6. Procurement items (`form_instances`, ID-145 W1) — deleted by id,
+      // NOT by the `workspaces` prefix sweep above (procurement items no
+      // longer live in `workspaces`). CASCADEs to their `form_questions`
+      // (`form_questions_form_template_id_fkey`, still named after the
+      // pre-rename column but unaffected by the RENAME COLUMN) and onward to
+      // `form_responses`/`form_response_history`, so step 2's explicit
+      // `form_responses` delete above is a pure safety net.
+      if (formInstanceIds.length > 0) {
+        await supabase
+          .from('form_instances')
+          .delete()
+          .in('id', formInstanceIds);
+      }
     },
     { scope: 'worker' },
   ],

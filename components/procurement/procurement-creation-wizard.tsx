@@ -16,6 +16,7 @@ import { Check, FileUp, Loader2, PenLine } from 'lucide-react';
 import { TenderUpload } from '@/components/procurement/tender-upload';
 import { TenderMetadataPrompt } from '@/components/procurement/tender-metadata-prompt';
 import { QuestionReview } from '@/components/procurement/question-review';
+import { FormTypePicker } from '@/components/procurement/form-type-picker';
 import { cn } from '@/lib/utils';
 import type { ExtractionResult, ExtractedSection } from '@/types/procurement';
 import type { TenderExtractedMetadata } from '@/types/procurement-metadata';
@@ -74,6 +75,12 @@ export function ProcurementCreationWizard({
   const [referenceNumber, setReferenceNumber] = useState('');
   const [estimatedValue, setEstimatedValue] = useState('');
   const [notes, setNotes] = useState('');
+  // ID-145 {145.8} (BI-7/8): creation always mints a TYPED form — the
+  // FormTypePicker's confirmed choice is required before either creation
+  // path is reachable (confirm-first, B-14 precedent). No document exists
+  // yet at this point, so there is no inference to pre-select — the user
+  // must actively pick.
+  const [formType, setFormType] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [savingPath, setSavingPath] = useState<'upload' | 'blank' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -100,6 +107,7 @@ export function ProcurementCreationWizard({
     setReferenceNumber('');
     setEstimatedValue('');
     setNotes('');
+    setFormType(null);
     setSaving(false);
     setSavingPath(null);
     setError(null);
@@ -123,6 +131,12 @@ export function ProcurementCreationWizard({
     advanceToUpload: boolean,
   ) {
     e.preventDefault();
+    // Defensive guard — the create buttons are already disabled without a
+    // confirmed form type, so this is normally unreachable.
+    if (!formType) {
+      setError('Choose a form type before creating.');
+      return;
+    }
     setSaving(true);
     setSavingPath(advanceToUpload ? 'upload' : 'blank');
     setError(null);
@@ -131,6 +145,7 @@ export function ProcurementCreationWizard({
       const body: Record<string, string | undefined> = {
         name: name.trim(),
         buyer: buyer.trim(),
+        form_type: formType,
       };
       if (deadline) {
         body.deadline = `${deadline}T17:00:00Z`;
@@ -149,7 +164,8 @@ export function ProcurementCreationWizard({
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         throw new Error(
-          data.error || `Failed to create bid (${response.status})`,
+          data.error ||
+            `Failed to create procurement item (${response.status})`,
         );
       }
 
@@ -163,7 +179,11 @@ export function ProcurementCreationWizard({
         onCreated(created);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create bid');
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to create procurement item',
+      );
     } finally {
       setSaving(false);
       setSavingPath(null);
@@ -189,7 +209,7 @@ export function ProcurementCreationWizard({
 
         setCurrentStep(3);
       } else {
-        // No questions extracted — go directly to bid page
+        // No questions extracted — go directly to the procurement item
         navigateToProcurement();
       }
     },
@@ -230,7 +250,7 @@ export function ProcurementCreationWizard({
           </DialogTitle>
           <DialogDescription>
             {currentStep === 1 &&
-              'Set up a new bid workspace with your bid details.'}
+              'Create a new procurement item and choose its form type.'}
             {currentStep === 2 &&
               'Upload a tender document to extract questions automatically.'}
             {currentStep === 3 &&
@@ -247,6 +267,19 @@ export function ProcurementCreationWizard({
             onSubmit={(e) => handleCreateProcurement(e, true)}
             className="space-y-4"
           >
+            <div className="space-y-1.5">
+              <Label>
+                Form Type <span className="text-destructive">*</span>
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                Choose the kind of form this procurement item is built on.
+              </p>
+              <FormTypePicker
+                onConfirm={(type) => setFormType(type)}
+                isConfirming={saving}
+              />
+            </div>
+
             <div className="space-y-1.5">
               <Label htmlFor="wizard-procurement-name">
                 Procurement Name <span className="text-destructive">*</span>
@@ -324,7 +357,7 @@ export function ProcurementCreationWizard({
                 id="wizard-procurement-notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Any additional notes about this bid"
+                placeholder="Any additional notes about this procurement"
                 maxLength={5000}
                 rows={3}
                 disabled={saving}
@@ -342,7 +375,9 @@ export function ProcurementCreationWizard({
                 <Button
                   type="submit"
                   size="lg"
-                  disabled={saving || !name.trim() || !buyer.trim()}
+                  disabled={
+                    saving || !name.trim() || !buyer.trim() || !formType
+                  }
                   className="w-full"
                 >
                   {savingPath === 'upload' ? (
@@ -364,7 +399,9 @@ export function ProcurementCreationWizard({
                   type="button"
                   variant="outline"
                   size="lg"
-                  disabled={saving || !name.trim() || !buyer.trim()}
+                  disabled={
+                    saving || !name.trim() || !buyer.trim() || !formType
+                  }
                   className="w-full"
                   onClick={(e) =>
                     handleCreateProcurement(e as unknown as FormEvent, false)

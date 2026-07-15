@@ -50,7 +50,7 @@ export const GET = defineRoute(
           .from('form_questions')
           .select('id')
           .eq('id', response.question_id)
-          .eq('workspace_id', id)
+          .eq('form_instance_id', id)
           .maybeSingle(),
         'bids.response.history.questionOwnership',
       );

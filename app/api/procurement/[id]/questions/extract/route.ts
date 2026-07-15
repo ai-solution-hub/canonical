@@ -2,6 +2,8 @@ import {
   extractDOCXQuestions,
   extractPDFQuestions,
   extractTenderMetadata,
+  extractXLSXQuestions,
+  xlsxWorkbookToHtml,
 } from '@/lib/domains/procurement/ai/extract-questions';
 import { defineRoute } from '@/lib/api/define-route';
 import {
@@ -11,12 +13,8 @@ import {
 } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
-import {
-  canTransition,
-  type ProcurementWorkflowState,
-} from '@/lib/domains/procurement/procurement-workflow';
+import { recomputeQuestionMatchesBatch } from '@/lib/domains/procurement/question-match-recompute';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { resolveOrMintFormTemplateId } from '@/lib/domains/procurement/resolve-form-template';
 import { sb } from '@/lib/supabase/safe';
 import { parseBody } from '@/lib/validation';
 import { QuestionExtractBodySchema } from '@/lib/validation/schemas';
@@ -37,6 +35,11 @@ interface ExtractedQuestion {
   question_sequence: number;
   word_limit: number | null;
   evaluation_weight: number | null;
+  // ID-145 {145.12} — metadata parity with q_a_extractions
+  // (expected_response_kind). Not a form_questions column (no W1 DDL added
+  // one) — carried through extraction only, and attached to the API
+  // response by text-match, not persisted to the DB row.
+  expected_response_kind: 'mandatory' | 'optional';
 }
 
 export const POST = defineRoute(
@@ -67,16 +70,19 @@ export const POST = defineRoute(
 
       const { document_path, format } = parsed.data;
 
-      // Verify bid exists.
-      // Post-T2: discriminator via application_types JOIN.
-      const { data: bid, error: procurementError } = await supabase
-        .from('workspaces')
-        .select('id, name, application_types!inner(key)')
+      // ID-145 {145.7} — form-first: the route [id] IS the form_instances id
+      // directly (BI-1/BI-2). No more workspace lookup/discriminator join —
+      // form_instances carries no workspace_id post-{145.6} M3.
+      // ID-145 {145.17} (R7/BI-34): `form_type` is also read here — it is
+      // the `question_matches.question_kind` FK value used by the
+      // post-insert recompute loop below.
+      const { data: form, error: formError } = await supabase
+        .from('form_instances')
+        .select('id, name, form_type')
         .eq('id', id)
-        .eq('application_types.key', 'procurement')
         .single();
 
-      if (procurementError || !bid) {
+      if (formError || !form) {
         return NextResponse.json(
           { error: 'Procurement not found' },
           { status: 404 },
@@ -117,6 +123,7 @@ export const POST = defineRoute(
               question_sequence: question.question_sequence,
               word_limit: question.word_limit ?? null,
               evaluation_weight: question.evaluation_weight ?? null,
+              expected_response_kind: question.expected_response_kind,
             });
           }
         }
@@ -137,6 +144,27 @@ export const POST = defineRoute(
               question_sequence: question.question_sequence,
               word_limit: question.word_limit ?? null,
               evaluation_weight: question.evaluation_weight ?? null,
+              expected_response_kind: question.expected_response_kind,
+            });
+          }
+        }
+      } else if (format === 'xlsx') {
+        // ID-145 {145.12}: workbook -> structured HTML text via the `xlsx`
+        // reader, then the same Claude extraction path as PDF/DOCX.
+        const arrayBuffer = await fileData.arrayBuffer();
+        const result = await extractXLSXQuestions(Buffer.from(arrayBuffer));
+
+        for (const section of result.sections ?? []) {
+          sectionsFound++;
+          for (const question of section.questions ?? []) {
+            extractedQuestions.push({
+              section_name: section.section_name,
+              section_sequence: section.section_sequence,
+              question_text: question.question_text,
+              question_sequence: question.question_sequence,
+              word_limit: question.word_limit ?? null,
+              evaluation_weight: question.evaluation_weight ?? null,
+              expected_response_kind: question.expected_response_kind,
             });
           }
         }
@@ -145,13 +173,17 @@ export const POST = defineRoute(
       // Deduplicate against existing questions before inserting
       let questionsInserted = 0;
       let duplicatesSkipped = 0;
+      // ID-145 {145.17} (R7/BI-34) — populated below when new questions are
+      // inserted; scopes the post-insert recompute loop to THIS pass only.
+      let newQuestionTexts = new Set<string>();
 
       if (extractedQuestions.length > 0) {
-        // Post-T2: `form_questions.workspace_id` → `workspace_id`.
+        // ID-145 {145.7}: `form_questions.workspace_id` is dropped ({145.6}
+        // M3) — scope on `form_instance_id`.
         const { data: existingQuestions, error: existingError } = await supabase
           .from('form_questions')
           .select('question_text')
-          .eq('workspace_id', id);
+          .eq('form_instance_id', id);
 
         if (existingError) {
           logger.error(
@@ -193,34 +225,19 @@ export const POST = defineRoute(
           });
         }
 
-        // {130.27} — resolve (or mint) this workspace's canonical form_template
-        // id and stamp it on every inserted row. Without this, extraction-created
-        // rows keep form_template_id NULL and are silently dropped by the
-        // win-rate RPCs' and outcome route's INNER JOIN on form_template_id (the
-        // NULL-drift bug {130.27} fixes). The real downloaded document gives a
-        // genuine filename/size/mime_type for the mint-on-demand case, better
-        // data than the {130.8} migration's placeholder mint.
-        const documentFilename =
-          document_path.split('/').pop() ?? document_path;
-        const formTemplateId = await resolveOrMintFormTemplateId(supabase, id, {
-          name: bid.name || documentFilename,
-          filename: documentFilename,
-          storagePath: document_path,
-          fileSize: fileData.size,
-          mimeType:
-            format === 'docx'
-              ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-              : 'application/pdf',
-          createdBy: user.id,
-        });
-
-        // Post-T2: `form_questions.workspace_id` → `workspace_id`. The unique index
-        // backing this onConflict was renamed in the migration too
-        // (form_questions_project_question_unique → form_questions_workspace_question_unique)
-        // but PostgREST resolves `onConflict` by column list, not constraint name.
+        // ID-145 {145.7}: every inserted row is stamped with the form's own
+        // id directly (`id`, the route param) — no resolve-or-mint (the
+        // {130.27} RPC + its TS resolver are retired, {145.6} M3/{145.7}).
+        // form_questions.form_instance_id is NOT NULL post-migration, so
+        // every insert MUST carry a real form id — it always does here.
+        //
+        // ID-145 {145.7}: `form_questions.workspace_id` is dropped ({145.6}
+        // M3) — scope on `form_instance_id`. The UNIQUE index backing this
+        // onConflict is renamed too (form_questions_workspace_question_unique
+        // -> form_questions_form_instance_question_unique) but PostgREST
+        // resolves `onConflict` by column list, not constraint name.
         const inserts = newQuestions.map((q) => ({
-          workspace_id: id,
-          form_template_id: formTemplateId,
+          form_instance_id: id,
           section_name: q.section_name,
           section_sequence: q.section_sequence,
           question_text: q.question_text,
@@ -236,7 +253,7 @@ export const POST = defineRoute(
         const { error: insertError } = await supabase
           .from('form_questions')
           .upsert(inserts, {
-            onConflict: 'workspace_id,question_text',
+            onConflict: 'form_instance_id,question_text',
             ignoreDuplicates: true,
           });
 
@@ -252,28 +269,22 @@ export const POST = defineRoute(
         }
 
         questionsInserted = newQuestions.length;
-
-        // Update bid status to questions_extracted (only if transition is valid)
-        const currentProcurement = await sb(
-          supabase
-            .from('workspaces')
-            .select('status')
-            .eq('id', id)
-            .maybeSingle(),
-          'bids.questions.extract.workspace.read',
+        // ID-145 {145.17} (R7/BI-34): text-match set used below to scope the
+        // recompute loop to the questions actually inserted by THIS pass
+        // (mirrors the expectedResponseKindByText text-match convention
+        // further down this function) — recomputing pre-existing, already
+        // extracted questions on every re-extraction pass would be wasteful.
+        newQuestionTexts = new Set(
+          newQuestions.map((q) => q.question_text.toLowerCase().trim()),
         );
 
-        const currentStatus = (currentProcurement?.status ??
-          'draft') as ProcurementWorkflowState;
-        if (canTransition(currentStatus, 'questions_extracted')) {
-          await supabase
-            .from('workspaces')
-            .update({
-              status: 'questions_extracted',
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', id);
-        }
+        // ID-145 {145.7} — BI-6 single state home: the ex-workspaces.status
+        // second home ('questions_extracted') is retired here — workflow_state
+        // on form_instances is the ONLY state home now, and this route does
+        // not write it (no route-level state transition was specified for
+        // this Subtask; a form_instances.workflow_state transition on
+        // extraction success, if wanted, is a follow-up product decision, not
+        // reintroduced here as a same-shape replacement of the retired write).
       }
 
       // Best-effort tender metadata extraction (non-critical)
@@ -293,6 +304,13 @@ export const POST = defineRoute(
           const pdfBase64 = Buffer.from(pdfArrayBuffer).toString('base64');
           const result = await extractTenderMetadata(pdfBase64, 'pdf_base64');
           if (result) extracted_metadata = result;
+        } else if (format === 'xlsx') {
+          const xlsxBuffer = Buffer.from(await fileData.arrayBuffer());
+          const html = xlsxWorkbookToHtml(xlsxBuffer);
+          if (html && html.trim().length > 0) {
+            const result = await extractTenderMetadata(html, 'html');
+            if (result) extracted_metadata = result;
+          }
         }
       } catch (metaErr) {
         logger.warn(
@@ -302,19 +320,62 @@ export const POST = defineRoute(
       }
 
       // Fetch the saved questions to return with IDs.
-      // Post-T2: `form_questions.workspace_id` → `workspace_id`.
+      // ID-145 {145.7}: `form_questions.workspace_id` is dropped ({145.6}
+      // M3) — scope on `form_instance_id`. `matched_record_ids` is also
+      // dropped — no longer selected.
       const savedQuestions = await sb(
         supabase
           .from('form_questions')
           .select(
-            'id, workspace_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, matched_record_ids, assigned_to, created_by, created_at, updated_at',
+            'id, form_instance_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, assigned_to, created_by, created_at, updated_at',
           )
-          .eq('workspace_id', id)
+          .eq('form_instance_id', id)
           .eq('created_by', user.id)
           .order('section_sequence', { ascending: true })
           .order('question_sequence', { ascending: true }),
         'bids.questions.extract.savedQuestions.read',
       );
+
+      // ID-145 {145.12} — metadata parity with q_a_extractions
+      // (expected_response_kind): form_questions has no such column (no W1
+      // DDL added one, and this Subtask authors no new migration), so the
+      // per-question classification from THIS extraction pass is attached to
+      // the response by question_text match rather than persisted. Rows
+      // pre-existing before this call (skipped as duplicates) carry no
+      // expected_response_kind — they were not part of this extraction pass.
+      const expectedResponseKindByText = new Map(
+        extractedQuestions.map((q) => [
+          q.question_text.toLowerCase().trim(),
+          q.expected_response_kind,
+        ]),
+      );
+      const questionsWithMetadata = (savedQuestions ?? []).map((q) => ({
+        ...q,
+        expected_response_kind:
+          expectedResponseKindByText.get(
+            q.question_text?.toLowerCase().trim() ?? '',
+          ) ?? null,
+      }));
+
+      // ID-145 {145.17} (R7/BI-34) — recompute question_matches for exactly
+      // the questions newly inserted by THIS extraction pass (the
+      // newQuestionTexts set, same text-match convention as
+      // expectedResponseKindByText above), never the pre-existing rows also
+      // present in savedQuestions. Awaited before responding — best-effort
+      // internally, see the helper docstring.
+      const questionsToRecompute = questionsWithMetadata.filter((q) =>
+        newQuestionTexts.has(q.question_text?.toLowerCase().trim() ?? ''),
+      );
+      if (questionsToRecompute.length > 0) {
+        await recomputeQuestionMatchesBatch(
+          supabase,
+          questionsToRecompute.map((q) => ({
+            id: q.id,
+            questionText: q.question_text,
+          })),
+          form.form_type,
+        );
+      }
 
       return NextResponse.json({
         status: 'complete',
@@ -322,7 +383,7 @@ export const POST = defineRoute(
         sections_found: sectionsFound,
         duplicates_skipped: duplicatesSkipped,
         questions_inserted: questionsInserted,
-        questions: savedQuestions ?? [],
+        questions: questionsWithMetadata,
         ...(extracted_metadata ? { extracted_metadata } : {}),
       });
     } catch (err) {

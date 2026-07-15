@@ -476,7 +476,22 @@ export interface QaDedupPairMember {
   questionText: string | null;
   answerText: string | null;
   publicationStatus: string | null;
-  /** Snapshot-by-value provenance from the proposal row (INV-16). */
+  /**
+   * Snapshot-by-value provenance from the proposal row (INV-16).
+   *
+   * ID-145 {145.23}: `q_a_pair_dedup_proposals.pair_a/b_source_workspace_id`
+   * was DROPPED entirely (W1c STEP 5) with NO replacement column on this
+   * table — workspace lineage is retired system-wide for procurement
+   * (workspaces/procurement_workspaces wholesale-deleted, W1e {145.6}; see
+   * the same retirement applied to `q_a_pairs.source_workspace_id` at
+   * {145.19}/{145.23}). The migration's own W1a commentary confirms this is
+   * an intentional, ratified drop, not an oversight: "no structural target
+   * column... to migrate them onto." This field is therefore ALWAYS `null`
+   * going forward — kept on the type (rather than removed) so the six
+   * `components/admin/q-a-pairs/dedup-proposals/*` consumers stay
+   * source-compatible; a full UI retirement of the "spans workspaces" badge
+   * is a follow-up product decision, out of this Subtask's scope.
+   */
   sourceWorkspaceId: string | null;
   sourceFormResponseId: string | null;
   /** ISO timestamp; the UI formats DD/MM/YYYY. */
@@ -487,6 +502,11 @@ export interface QaDedupPairMember {
  * A dedup proposal flattened for the curator list view. `spansWorkspaces` /
  * `spansForms` drive the non-colour-only "spans workspaces/forms" badge
  * (INV-11/18) — computed from the two provenance snapshots.
+ *
+ * ID-145 {145.23}: `spansWorkspaces` is now ALWAYS `false` — see
+ * {@link QaDedupPairMember.sourceWorkspaceId} for the ratified rationale
+ * (workspace lineage retired system-wide; no data source survives to
+ * compute this).
  */
 /** @public */
 export interface QaDedupProposalSummary {
@@ -524,8 +544,11 @@ export interface QaDedupResolveResult {
   archived_id?: string;
 }
 
+// ID-145 {145.23}: pair_a/b_source_workspace_id DROPPED (W1c STEP 5, no
+// replacement) — no longer selected. See QaDedupPairMember.sourceWorkspaceId
+// for the ratified rationale.
 const QA_DEDUP_PROPOSAL_COLUMNS =
-  'id, status, similarity_score, proposed_survivor_id, survivor_reason, resolved_survivor_id, created_at, pair_a_id, pair_b_id, pair_a_source_workspace_id, pair_b_source_workspace_id, pair_a_source_form_response_id, pair_b_source_form_response_id' as const;
+  'id, status, similarity_score, proposed_survivor_id, survivor_reason, resolved_survivor_id, created_at, pair_a_id, pair_b_id, pair_a_source_form_response_id, pair_b_source_form_response_id' as const;
 
 /**
  * Shape of one proposal row as selected for the list/detail reads — the
@@ -543,8 +566,6 @@ type DedupProposalSelectRow = Pick<
   | 'created_at'
   | 'pair_a_id'
   | 'pair_b_id'
-  | 'pair_a_source_workspace_id'
-  | 'pair_b_source_workspace_id'
   | 'pair_a_source_form_response_id'
   | 'pair_b_source_form_response_id'
 >;
@@ -565,10 +586,9 @@ function toSummary(row: DedupProposalSelectRow): QaDedupProposalSummary {
     createdAt: row.created_at,
     pairAId: row.pair_a_id,
     pairBId: row.pair_b_id,
-    spansWorkspaces: spans(
-      row.pair_a_source_workspace_id,
-      row.pair_b_source_workspace_id,
-    ),
+    // ID-145 {145.23}: pair_a/b_source_workspace_id DROPPED, no
+    // replacement — always false (see QaDedupPairMember.sourceWorkspaceId).
+    spansWorkspaces: false,
     spansForms: spans(
       row.pair_a_source_form_response_id,
       row.pair_b_source_form_response_id,
@@ -647,9 +667,11 @@ export async function fetchAdminQaDedupProposal(
   if (!membersResult.ok) throw membersResult.error;
   const byId = new Map((membersResult.data ?? []).map((row) => [row.id, row]));
 
+  // ID-145 {145.23}: sourceWorkspaceId is no longer sourced from the row —
+  // pair_a/b_source_workspace_id is DROPPED with no replacement (see
+  // QaDedupPairMember.sourceWorkspaceId) — always null.
   const hydrate = (
     pairId: string,
-    sourceWorkspaceId: string | null,
     sourceFormResponseId: string | null,
   ): QaDedupPairMember => {
     const row = byId.get(pairId);
@@ -658,7 +680,7 @@ export async function fetchAdminQaDedupProposal(
       questionText: row?.question_text ?? null,
       answerText: row?.answer_standard ?? null,
       publicationStatus: row?.publication_status ?? null,
-      sourceWorkspaceId,
+      sourceWorkspaceId: null,
       sourceFormResponseId,
       updatedAt: row?.updated_at ?? null,
     };
@@ -668,12 +690,10 @@ export async function fetchAdminQaDedupProposal(
     ...summary,
     pairA: hydrate(
       summary.pairAId,
-      proposalResult.data.pair_a_source_workspace_id,
       proposalResult.data.pair_a_source_form_response_id,
     ),
     pairB: hydrate(
       summary.pairBId,
-      proposalResult.data.pair_b_source_workspace_id,
       proposalResult.data.pair_b_source_form_response_id,
     ),
   };
@@ -705,6 +725,242 @@ export async function postAdminQaDedupReject(
 ): Promise<QaDedupResolveResult> {
   return mutationFetchJson<QaDedupResolveResult>(
     `/api/q-a-pairs/dedup-proposals/${proposalId}/reject`,
+    {},
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Promotion-gate candidates — thin Governance UI (ID-145 {145.22}, TECH §5/§7
+// section I, BI-38/39)
+// ---------------------------------------------------------------------------
+//
+// READS go directly through the role-scoped Supabase client (mirroring
+// `fetchAdminQaDedupProposals` above) — the `q_a_extractions_promotion_candidates()`
+// RPC ({138.17}) is the SAME 3-branch eligibility set `promoteCorpusExtractions`
+// (lib/q-a-pairs/promote-corpus.ts) consumes; this fetcher issues NO writes.
+//
+// The RPC row alone cannot distinguish branch 2 (self-heal: linked to a
+// still-draft pair) from branch 3 (awaiting-review: linked to an ALREADY
+// published/in_review/archived pair whose re-walked text differs — DR-026, a
+// curated pair is NEVER auto-mutated). A follow-up read of the linked pairs'
+// `publication_status` classifies each row EXACTLY as `promoteCorpusExtractions`'
+// own DR-026 gate does (see that function's header + inline comments) — this
+// fetcher never guesses; it mirrors the real write-path gate so the UI cannot
+// claim a disposition the batch write would not actually take.
+//
+// The mutation (`postQaPromoteCorpus`) POSTs to the existing, unmodified
+// `/api/q-a-pairs/promote-corpus` route ({59.25}) — no new backend endpoint.
+// That POST is the human gate (BI-39): nothing is promoted until a human
+// triggers it from this surface.
+
+import type { PromotionSummary } from '@/lib/q-a-pairs/promote-corpus';
+
+/**
+ * Honest per-candidate disposition — mirrors `promoteCorpusExtractions`' own
+ * DR-026 gate so the UI never claims a disposition the batch write path would
+ * not actually take.
+ *   'new'             — unlinked; the next promotion run inserts + publishes it.
+ *   'self_healing'    — linked to a still-draft pair; the next run re-syncs +
+ *                       (re-)embeds it.
+ *   'awaiting_review' — linked to an already-published/in_review/archived pair
+ *                       (or an unconfirmed/missing pair row); the next run
+ *                       NEVER writes it — DR-026 human review only.
+ */
+/** @public */
+export type QaPromotionCandidateKind =
+  | 'new'
+  | 'self_healing'
+  | 'awaiting_review';
+
+/** One row of the promotion-candidates eligibility set, UI-shaped. */
+/** @public */
+export interface QaPromotionCandidate {
+  id: string;
+  extractedQuestionText: string;
+  extractedAnswerText: string | null;
+  promotedToPairId: string | null;
+  createdAt: string;
+  kind: QaPromotionCandidateKind;
+}
+
+/** The subset of the RPC's row shape this fetcher consumes. */
+type PromotionCandidateRow = {
+  id: string;
+  extracted_question_text: string;
+  extracted_answer_text: string | null;
+  promoted_to_pair_id: string | null;
+  created_at: string;
+};
+
+/**
+ * Fetch the current promotion-candidates eligibility set (read-only — NEVER
+ * writes). Classifies each row's disposition (`kind`) by mirroring
+ * `promoteCorpusExtractions`' own DR-026 gate: a linked row is
+ * `'self_healing'` ONLY when its pair is confirmed still `'draft'`; every
+ * other outcome (published/in_review/archived, or an unreadable/missing pair
+ * row) is `'awaiting_review'` — the fail-safe default never over-claims an
+ * auto-apply.
+ */
+export async function fetchQaPromotionCandidates(): Promise<
+  QaPromotionCandidate[]
+> {
+  const supabase = createClient();
+
+  const candidatesResult = await tryQuery<PromotionCandidateRow[]>(
+    supabase.rpc('q_a_extractions_promotion_candidates'),
+    'governance.promotion_candidates.list',
+  );
+  if (!candidatesResult.ok) throw candidatesResult.error;
+  const rows = candidatesResult.data ?? [];
+
+  const linkedPairIds = Array.from(
+    new Set(
+      rows
+        .map((row) => row.promoted_to_pair_id)
+        .filter((id): id is string => id !== null),
+    ),
+  );
+
+  let draftPairIds = new Set<string>();
+  if (linkedPairIds.length > 0) {
+    const pairsResult = await tryQuery<
+      { id: string; publication_status: string | null }[]
+    >(
+      supabase
+        .from('q_a_pairs')
+        .select('id, publication_status')
+        .in('id', linkedPairIds),
+      'governance.promotion_candidates.linked_pairs',
+    );
+    if (!pairsResult.ok) throw pairsResult.error;
+    draftPairIds = new Set(
+      (pairsResult.data ?? [])
+        .filter((pair) => pair.publication_status === 'draft')
+        .map((pair) => pair.id),
+    );
+  }
+
+  return rows.map((row) => {
+    const kind: QaPromotionCandidateKind =
+      row.promoted_to_pair_id === null
+        ? 'new'
+        : draftPairIds.has(row.promoted_to_pair_id)
+          ? 'self_healing'
+          : 'awaiting_review';
+    return {
+      id: row.id,
+      extractedQuestionText: row.extracted_question_text,
+      extractedAnswerText: row.extracted_answer_text,
+      promotedToPairId: row.promoted_to_pair_id,
+      createdAt: row.created_at,
+      kind,
+    };
+  });
+}
+
+/**
+ * Trigger a promotion run — `POST /api/q-a-pairs/promote-corpus` ({59.25}).
+ * No parameters: the route processes the full eligible set returned by
+ * `q_a_extractions_promotion_candidates()` (re-runnable/idempotent per that
+ * route's own header comment). This call IS the human gate (BI-39) — nothing
+ * is promoted until a human triggers it from this surface; there is no
+ * automatic/background trigger here.
+ */
+export async function postQaPromoteCorpus(): Promise<PromotionSummary> {
+  return mutationFetchJson<PromotionSummary>(
+    '/api/q-a-pairs/promote-corpus',
+    {},
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Per-candidate promotion accept/edit/reject (ID-145 {145.30} — BI-38
+// amendment, DR-062, S470)
+// ---------------------------------------------------------------------------
+//
+// These three mutations POST to the NEW
+// `/api/governance/promotion-candidates/:extractionId/{accept,edit,reject}`
+// routes — the per-item write path DR-026 blocked from auto-firing, scoped
+// to the `kind: 'awaiting_review'` bucket only (see
+// lib/q-a-pairs/promotion-candidate-review.ts's module header for the full
+// scoping rationale: 'new'/'self_healing' candidates have no per-item
+// judgement gap and stay on the existing batch "Run promotion pass").
+
+/** The pair/extraction shape a disposition response echoes back (UI-shaped
+ *  subset — the route's typed PairCandidateRow / ExtractionCandidateRow). */
+/** @public */
+export interface QaPromotionCandidateDispositionPair {
+  id: string;
+  question_text: string;
+  answer_standard: string;
+  alternate_question_phrasings: string[];
+  publication_status: string;
+}
+
+/** @public */
+export interface QaPromotionCandidateDispositionExtraction {
+  id: string;
+  extracted_question_text: string;
+  extracted_answer_text: string | null;
+  alternate_question_phrasings: string[];
+  promoted_to_pair_id: string | null;
+  invalidated_at: string | null;
+}
+
+/** @public */
+export interface QaPromotionCandidateDisposition {
+  disposition: 'accepted' | 'edited' | 'rejected';
+  pair: QaPromotionCandidateDispositionPair;
+  extraction: QaPromotionCandidateDispositionExtraction;
+}
+
+/** Reviewer-supplied edit body — question_text + answer_standard are
+ *  REQUIRED (both NOT NULL columns on q_a_pairs). */
+/** @public */
+export interface QaPromotionCandidateEditInput {
+  question_text: string;
+  answer_standard: string;
+  alternate_question_phrasings?: string[];
+}
+
+/**
+ * ACCEPT an individual `awaiting_review` candidate — the published pair
+ * adopts the extraction's own re-walked carried fields.
+ */
+export async function postQaPromotionCandidateAccept(
+  extractionId: string,
+): Promise<QaPromotionCandidateDisposition> {
+  return mutationFetchJson<QaPromotionCandidateDisposition>(
+    `/api/governance/promotion-candidates/${extractionId}/accept`,
+    {},
+  );
+}
+
+/**
+ * EDIT an individual `awaiting_review` candidate — the published pair
+ * adopts the reviewer-supplied carried fields (may differ from the raw
+ * extraction text).
+ */
+export async function postQaPromotionCandidateEdit(
+  extractionId: string,
+  edit: QaPromotionCandidateEditInput,
+): Promise<QaPromotionCandidateDisposition> {
+  return mutationFetchJson<QaPromotionCandidateDisposition>(
+    `/api/governance/promotion-candidates/${extractionId}/edit`,
+    edit,
+  );
+}
+
+/**
+ * REJECT an individual `awaiting_review` candidate — the published pair is
+ * untouched; the extraction's carried fields are reconciled down to match
+ * it.
+ */
+export async function postQaPromotionCandidateReject(
+  extractionId: string,
+): Promise<QaPromotionCandidateDisposition> {
+  return mutationFetchJson<QaPromotionCandidateDisposition>(
+    `/api/governance/promotion-candidates/${extractionId}/reject`,
     {},
   );
 }

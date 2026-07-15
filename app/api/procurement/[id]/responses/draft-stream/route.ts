@@ -61,16 +61,17 @@ export const POST = defineRoute(
 
       const { question_id, model_tier } = parsed.data;
 
-      // Verify bid exists and is in an appropriate state.
-      // Post-T2: discriminator via application_types JOIN.
-      const { data: bid, error: procurementError } = await supabase
-        .from('workspaces')
-        .select('id, status, domain_metadata, application_types!inner(key)')
+      // Verify the form exists and is in an appropriate workflow state.
+      // ID-145 {145.21} DR-056 re-key: reads move workspace -> form_instances
+      // (the item IS the form, BI-1). `workspaces`/`procurement_workspaces`
+      // are wholesale-deleted for procurement (W1e, {145.6}).
+      const { data: form, error: procurementError } = await supabase
+        .from('form_instances')
+        .select('id, workflow_state')
         .eq('id', id)
-        .eq('application_types.key', 'procurement')
         .single();
 
-      if (procurementError || !bid) {
+      if (procurementError || !form) {
         return new Response(
           JSON.stringify({ error: 'Procurement not found' }),
           {
@@ -81,7 +82,7 @@ export const POST = defineRoute(
       }
 
       const procurementStatus =
-        (bid.status as ProcurementWorkflowState) ?? 'draft';
+        (form.workflow_state as ProcurementWorkflowState) ?? 'draft';
       const draftableStates: ProcurementWorkflowState[] = [
         'drafting',
         'in_review',
@@ -97,19 +98,24 @@ export const POST = defineRoute(
       }
 
       // Fetch the question.
-      // Post-T2: `form_questions.workspace_id` → `workspace_id`.
+      // ID-145 {145.21}: form_questions.workspace_id was DROPPED (W1c,
+      // {145.6}) and form_template_id renamed to form_instance_id — every
+      // question now belongs to exactly one form by construction (BI-7).
+      // matched_record_ids (the content-era candidate array) was also
+      // dropped; matches are now sourced from question_match_search below
+      // (R7 substrate, BI-37).
       const { data: question, error: qError } = await supabase
         .from('form_questions')
         .select(
-          'id, question_text, word_limit, section_name, confidence_posture, matched_record_ids',
+          'id, question_text, word_limit, section_name, confidence_posture',
         )
         .eq('id', question_id)
-        .eq('workspace_id', id)
+        .eq('form_instance_id', id)
         .single();
 
       if (qError || !question) {
         return new Response(
-          JSON.stringify({ error: 'Question not found in this bid' }),
+          JSON.stringify({ error: 'Question not found in this form' }),
           { status: 404, headers: { 'Content-Type': 'application/json' } },
         );
       }
@@ -117,7 +123,27 @@ export const POST = defineRoute(
       // Fetch matched content (post-{131.16} BI-29: q_a_pairs + reference_items;
       // `content_type` on each item doubles as the cited_kind discriminator
       // for the citations writer below).
-      const matchedIds = question.matched_record_ids ?? [];
+      //
+      // ID-145 {145.21} BI-37 — activates the dormant q_a_pair cite path: the
+      // R7 substrate (TECH.md §4) is now the source of matched ids —
+      // question_matches via question_match_search — replacing the dropped
+      // form_questions.matched_record_ids array. question_match_search only
+      // returns q_a_pair candidates (no reference_item lane in the wired
+      // substrate); a failure here degrades to "no matched content" rather
+      // than blocking the draft (BI-22 — partial fill is a first-class
+      // success, and question_matches may legitimately be empty until the
+      // {145.17} recompute callers land and have run for this question).
+      const { data: matchRows, error: matchError } = await supabase.rpc(
+        'question_match_search',
+        { p_form_question_id: question_id, p_limit: 20 },
+      );
+      if (matchError) {
+        logger.warn(
+          { err: matchError },
+          'Failed to read question_matches; drafting proceeds with no matched content',
+        );
+      }
+      const matchedIds = (matchRows ?? []).map((row) => row.q_a_pair_id);
       let matchedContent: DraftableContent[] = [];
       // ID-58 R1 (re-pointed {131.16}): neither q_a_pairs nor reference_items
       // carries an inline `version` column, so the cited version is the
@@ -416,12 +442,12 @@ export const POST = defineRoute(
             }
 
             // Update question status.
-            // Post-T2: `form_questions.workspace_id` → `workspace_id`.
+            // ID-145 {145.21}: form_questions.workspace_id → form_instance_id (W1c).
             await supabase
               .from('form_questions')
               .update({ status: 'ai_drafted' })
               .eq('id', question.id)
-              .eq('workspace_id', id);
+              .eq('form_instance_id', id);
 
             send('done', {
               response_id: response?.id,

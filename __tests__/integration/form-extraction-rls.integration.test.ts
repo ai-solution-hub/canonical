@@ -1,13 +1,51 @@
 /**
- * Integration test — ID-52 PRODUCT Inv-25 (workspace scoping on form instances).
+ * Integration test — ID-52 PRODUCT Inv-25 (RLS on form instances), RE-KEYED
+ * post-{145.6} W1c (S474 gate sweep, {145.23}).
  *
- * Subtask ID-52.13 (S278 — Wave-3). Sanity-checks the EXISTING RLS on
- * `form_templates` / `form_template_fields`: a viewer of workspace A must NOT
- * be able to SELECT workspace B's `form_templates` rows, while the global
- * catalogue (`form_template_requirements`) is visible regardless of workspace.
+ * Subtask ID-52.13 (S278 — Wave-3) originally sanity-checked the EXISTING RLS
+ * on `form_templates` / `form_template_fields`: a viewer of workspace A must
+ * NOT be able to SELECT workspace B's `form_templates` rows, while the global
+ * catalogue (`form_template_requirements`) is visible regardless of
+ * workspace.
  *
  * ───────────────────────────────────────────────────────────────────────────
- * ⚠ ESCALATION — Inv-25 vs CURRENT LIVE RLS (empirically confirmed, S278)
+ * ✅ SUPERSEDED — the {52.13} escalation is resolved by the {145.6} redesign,
+ * not by a policy fix
+ * ───────────────────────────────────────────────────────────────────────────
+ * The original {52.13} escalation (below, kept for provenance) flagged that
+ * the live `form_templates` SELECT policy was `USING (true)` (role-gated
+ * only), contradicting Inv-25's workspace-scoping requirement. ID-145 {145.6}
+ * W1c (20260712062000_id145_w1c_rename_reshape.sql STEP 1) did not "fix" that
+ * policy — it removed the premise: `form_instances.workspace_id` is DROPPED
+ * entirely (BI-1 — "the item IS the form; no second workspace-mediated home
+ * for its lifecycle facts"). The old `form_templates_select` policy was
+ * explicitly DROPPED and replaced with:
+ *
+ *     CREATE POLICY "form_instances_select" ON "public"."form_instances"
+ *       FOR SELECT TO "authenticated" USING (true);
+ *
+ * i.e. "any authenticated member may read" — matching the house pattern
+ * already used by sibling non-tenant-scoped tables (source documents,
+ * citations). Inv-25's literal workspace-scoping requirement is therefore
+ * ARCHITECTURALLY INAPPLICABLE post-{145.6} (no workspace concept survives on
+ * form_instances to scope against) — this is a deliberate design decision
+ * (BI-1), not the same missing-policy bug the original {52.13} escalation
+ * flagged. Whether Inv-25 itself should be formally superseded in
+ * docs/specs/id-52-form-extraction/PRODUCT.md is a spec-amendment call for
+ * the Orchestrator/Curator, not decided here — this file only re-keys the
+ * test to the empirically-verified live policy (`form_instances_select`,
+ * migration STEP 1 above) so it stops encoding a requirement the schema can
+ * no longer satisfy.
+ *
+ * This test now asserts the POSITIVE regression-guard shape: an authenticated
+ * viewer CAN read a form_instances row regardless of which (former) workspace
+ * it would have belonged to, and the global catalogue read stays ungated.
+ * Both guard against a future accidental re-introduction of workspace
+ * scoping (or an accidental RLS lockout) rather than testing scoping itself.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ⚠ ORIGINAL ESCALATION (S278, kept for provenance — see the SUPERSEDED note
+ * above for current disposition)
  * ───────────────────────────────────────────────────────────────────────────
  * During authoring, the live staging `form_templates` SELECT policy was probed
  * with a real viewer-role JWT (test.user3, `get_user_role()='viewer'`) against
@@ -22,31 +60,17 @@
  *       FOR SELECT TO authenticated USING (true);
  *
  * `USING (true)` is ROLE-gated (any authenticated user), NOT workspace-scoped.
- * No later migration overrides it. This CONTRADICTS Inv-25's requirement that
- * "a viewer of workspace A cannot SELECT `form_templates` rows from workspace
- * B".
- *
  * Per the {52.13} dispatch brief ("If the RLS test reveals a missing/incorrect
- * policy → STOP and escalate; do NOT author a policy migration"), this is
- * ESCALATED to the Orchestrator → Liam. No policy migration is authored here.
- *
- * This test ENCODES Inv-25's REQUIRED behaviour (cross-workspace denial) so it
- * is the durable artefact that PASSES once a workspace-scoped SELECT policy on
- * `form_templates` lands. It is gated behind the same fixture-staging ENABLED
- * gate as the sibling suite, so it SKIPS CLEAN in this environment (the
- * fixture-staging infra — OQ-53-FIXTURE-STAGING / backlog-191 — is unwired)
- * AND does not produce a false green against the current `USING (true)` policy.
- * When the policy is corrected and the infra wired, the assertions verify the
- * scoping; until then, the escalation above is the load-bearing record.
+ * policy → STOP and escalate; do NOT author a policy migration"), this was
+ * ESCALATED to the Orchestrator → Liam. No policy migration was authored at
+ * {52.13} — {145.6} superseded the question entirely (see above).
  *
  * References:
  *   - docs/specs/id-52-form-extraction/PRODUCT.md Inv-25 (+ Inv-23 catalogue
  *     has no workspace FK).
  *   - docs/specs/id-52-form-extraction/TECH.md §3.1 (Inv-25 row).
- *   - supabase/migrations/20260416102457_pre_squash_reconciliation.sql
- *     (`templates_select … USING (true)`).
- *   - supabase/migrations/20260520120828_t2_combined_pr_intel_shape_b_form_type_split.sql
- *     SUB-TASK 2 (templates → form_templates rename; policy inherited).
+ *   - supabase/migrations/20260712062000_id145_w1c_rename_reshape.sql STEP 1
+ *     (workspace_id DROP + form_instances_select `USING (true)` policy).
  *   - __tests__/integration/helpers/auth-session.ts (role-scoped sign-in).
  *   - docs/reference/test-philosophy.md (real-behaviour, not implementation).
  */
@@ -68,43 +92,39 @@ const ENABLED =
 
 const RUN = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-// Two distinct staging workspaces (mirror __tests__/fixtures/form-extraction/
-// .kh-workspace-map.json). Workspace A is the one the viewer is scoped to;
-// workspace B is the one the viewer must NOT see form_templates rows from.
-const WORKSPACE_A = 'b0000000-0000-4000-8000-000000000001';
-const WORKSPACE_B = '328ba316-4709-47b1-988a-86681975d620';
-
+// Two synthetic rows — no workspace concept survives on form_instances
+// post-{145.6} (workspace_id DROPPED), so these are plain fixture rows, not
+// workspace-scoped fixtures. Names retained (TEMPLATE_A/B) for minimal diff
+// against the {52.13} original.
 const TEMPLATE_A_ID = '52131111-0000-4000-8000-0000000000a1';
 const TEMPLATE_B_ID = '52131111-0000-4000-8000-0000000000b1';
 
 beforeAll(async () => {
   if (!ENABLED) return;
-  // Seed one form_templates row in each workspace via the service-role client
-  // (bypasses RLS for setup). The viewer-JWT client below then exercises the
-  // SELECT policy against these seeded rows.
+  // Seed two form_instances rows via the service-role client (bypasses RLS
+  // for setup). The viewer-JWT client below then exercises the SELECT policy
+  // against these seeded rows.
   const admin = await createLiveServiceClient();
-  await admin.from('form_templates').upsert([
+  await admin.from('form_instances').upsert([
     {
       id: TEMPLATE_A_ID,
-      workspace_id: WORKSPACE_A,
       name: `[52.13-RLS-A-${RUN}] template A`,
       filename: 'rls-a.pdf',
       file_size: 1,
       mime_type: 'application/pdf',
       storage_path: `id-52-13-rls-ws-a/${RUN}/rls-a.pdf`,
-      status: 'analysed',
-      ingest_source: 'pipeline',
+      processing_status: 'analysed',
+      ingest_source: 'app_upload',
     },
     {
       id: TEMPLATE_B_ID,
-      workspace_id: WORKSPACE_B,
       name: `[52.13-RLS-B-${RUN}] template B`,
       filename: 'rls-b.pdf',
       file_size: 1,
       mime_type: 'application/pdf',
       storage_path: `id-52-13-rls-ws-b/${RUN}/rls-b.pdf`,
-      status: 'analysed',
-      ingest_source: 'pipeline',
+      processing_status: 'analysed',
+      ingest_source: 'app_upload',
     },
   ]);
 }, 30_000);
@@ -113,7 +133,7 @@ afterAll(async () => {
   if (!ENABLED) return;
   const admin = await createLiveServiceClient();
   await admin
-    .from('form_templates')
+    .from('form_instances')
     .delete()
     .in('id', [TEMPLATE_A_ID, TEMPLATE_B_ID]);
 }, 30_000);
@@ -146,9 +166,9 @@ async function createViewerScopedClient() {
 }
 
 describe.skipIf(!ENABLED)(
-  'ID-52 Inv-25 — form-instance workspace scoping (RLS)',
+  'ID-52 Inv-25 — form_instances RLS (post-{145.6}: unscoped authenticated read, by design)',
   () => {
-    it('a viewer of workspace A cannot SELECT workspace B form_templates rows', async () => {
+    it('an authenticated viewer CAN SELECT a form_instances row regardless of which prior workspace it would have belonged to (form_instances_select USING (true))', async () => {
       const viewer = await createViewerScopedClient();
       if (!viewer) {
         // No viewer creds — cannot exercise the policy. Treated as a clean
@@ -156,19 +176,22 @@ describe.skipIf(!ENABLED)(
         return;
       }
 
-      // Inv-25 REQUIRED behaviour: the viewer must NOT see workspace B's row.
+      // {145.6} BI-1: form_instances has no workspace_id to scope against —
+      // the form_instances_select policy grants read to any authenticated
+      // member. This is a positive regression guard: it fails loudly if a
+      // future migration re-locks the table down without updating this test.
       const { data: bRows, error: bErr } = await viewer
-        .from('form_templates')
-        .select('id, workspace_id')
+        .from('form_instances')
+        .select('id')
         .eq('id', TEMPLATE_B_ID);
       expect(bErr).toBeNull();
       expect(
         bRows?.length ?? 0,
-        'Inv-25: a viewer scoped to workspace A must NOT SELECT workspace B form_templates rows',
-      ).toBe(0);
+        'form_instances_select (USING (true)) must permit any authenticated read',
+      ).toBe(1);
     }, 60_000);
 
-    it('the global catalogue (form_template_requirements) is visible regardless of workspace (Inv-23/Inv-25)', async () => {
+    it('the global catalogue (form_requirement_templates) is visible regardless of workspace (Inv-23/Inv-25)', async () => {
       const viewer = await createViewerScopedClient();
       if (!viewer) return;
 
@@ -178,7 +201,7 @@ describe.skipIf(!ENABLED)(
       // may be empty in this env) — the load-bearing check is that the read
       // is permitted, not workspace-gated.
       const { error } = await viewer
-        .from('form_template_requirements')
+        .from('form_requirement_templates')
         .select('id')
         .limit(1);
       expect(

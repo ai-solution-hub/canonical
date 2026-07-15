@@ -9,6 +9,10 @@ import {
   createMockFile,
   createMockUploadRequest,
 } from '../helpers/factories/file-upload';
+// Real (unmocked) singleton — spied on directly in the {145.21} BI-37
+// degrade-path test below rather than a new file-wide `vi.mock('@/lib/logger'...)`,
+// since no such mock scaffold exists elsewhere in this suite.
+import { logger } from '@/lib/logger';
 
 // ---------------------------------------------------------------------------
 // Shared mock client
@@ -335,7 +339,7 @@ describe('POST /api/bids/:id/responses/draft', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'draft', domain_metadata: {} },
+      data: { id: VALID_UUID, workflow_state: 'draft' },
       error: null,
     });
 
@@ -360,7 +364,7 @@ describe('POST /api/bids/:id/responses/draft', () => {
 
     // Procurement lookup: draftable state
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
+      data: { id: VALID_UUID, workflow_state: 'drafting' },
       error: null,
     });
 
@@ -389,7 +393,7 @@ describe('POST /api/bids/:id/responses/draft', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
+      data: { id: VALID_UUID, workflow_state: 'drafting' },
       error: null,
     });
 
@@ -431,7 +435,7 @@ describe('POST /api/bids/:id/responses/draft', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
+      data: { id: VALID_UUID, workflow_state: 'drafting' },
       error: null,
     });
 
@@ -479,7 +483,7 @@ describe('POST /api/bids/:id/responses/draft', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
+      data: { id: VALID_UUID, workflow_state: 'drafting' },
       error: null,
     });
 
@@ -534,7 +538,7 @@ describe('POST /api/bids/:id/responses/draft', () => {
 
     // Workspace lookup.
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
+      data: { id: VALID_UUID, workflow_state: 'drafting' },
       error: null,
     });
 
@@ -701,8 +705,7 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {
         id: VALID_UUID,
-        status: 'questions_extracted',
-        domain_metadata: {},
+        workflow_state: 'questions_extracted',
       },
       error: null,
     });
@@ -727,7 +730,7 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
 
     // Procurement lookup
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
+      data: { id: VALID_UUID, workflow_state: 'drafting' },
       error: null,
     });
 
@@ -749,7 +752,7 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
     expect(res.status).toBe(404);
 
     const body = await res.json();
-    expect(body.error).toBe('Question not found in this bid');
+    expect(body.error).toBe('Question not found in this form');
   });
 
   // ID-58 {58.6}: the writer now targets the polymorphic `public.citations`
@@ -766,10 +769,10 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
 
     // (1) Procurement lookup
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
+      data: { id: VALID_UUID, workflow_state: 'drafting' },
       error: null,
     });
-    // (2) Question lookup — two matched items
+    // (2) Question lookup
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {
         id: VALID_UUID_2,
@@ -777,8 +780,15 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
         word_limit: 500,
         section_name: 'Method',
         confidence_posture: 'balanced',
-        matched_record_ids: [ITEM_CITED, ITEM_UNCITED],
       },
+      error: null,
+    });
+
+    // ID-145 {145.21} BI-37: matched ids now come from question_match_search
+    // (the R7 substrate) rather than the dropped matched_record_ids column —
+    // two matched q_a_pair candidates.
+    mockSupabase.rpc.mockResolvedValueOnce({
+      data: [{ q_a_pair_id: ITEM_CITED }, { q_a_pair_id: ITEM_UNCITED }],
       error: null,
     });
 
@@ -951,10 +961,10 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
 
     // (1) Procurement lookup — draftable
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
+      data: { id: VALID_UUID, workflow_state: 'drafting' },
       error: null,
     });
-    // (2) Question lookup — one matched item (enough to drive the writer)
+    // (2) Question lookup
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {
         id: VALID_UUID_2,
@@ -962,8 +972,14 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
         word_limit: 500,
         section_name: 'Method',
         confidence_posture: 'balanced',
-        matched_record_ids: [ITEM_CITED],
       },
+      error: null,
+    });
+
+    // ID-145 {145.21} BI-37: one matched item (enough to drive the writer)
+    // sourced from question_match_search.
+    mockSupabase.rpc.mockResolvedValueOnce({
+      data: [{ q_a_pair_id: ITEM_CITED }],
       error: null,
     });
 
@@ -1076,6 +1092,132 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
     expect(sseText).toContain(RESPONSE_ID);
     expect(sseText).not.toContain('event: error');
   });
+
+  // ID-145 {145.21} BI-37 Checker gap: when `question_match_search` itself
+  // errors (RPC failure — e.g. the R7 substrate unavailable), the route
+  // degrades to "no matched content" rather than blocking the draft (see the
+  // route's inline comment ahead of the `.rpc('question_match_search', ...)`
+  // call). This drives that degrade path end-to-end: the request still
+  // succeeds, no content is injected into the drafting pipeline, and the
+  // failure is observable via `logger.warn`.
+  it('degrades to no matched content (without blocking) when question_match_search RPC errors', async () => {
+    const RESPONSE_ID = 'd6666666-6666-4666-8666-666666666666';
+    const RPC_ERROR = {
+      code: 'XX000',
+      message: 'question_match_search unavailable',
+    };
+
+    configureRole(mockSupabase, 'editor');
+
+    // (1) Procurement lookup
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID, workflow_state: 'drafting' },
+      error: null,
+    });
+    // (2) Question lookup
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        id: VALID_UUID_2,
+        question_text: 'Describe your approach.',
+        word_limit: 500,
+        section_name: 'Method',
+        confidence_posture: 'balanced',
+      },
+      error: null,
+    });
+
+    // ID-145 {145.21} BI-37: question_match_search RPC errors — matchedIds
+    // resolves to [] and the fetchMatchedContentForDrafting lookup (and the
+    // q_a_pair_history version lookup, and the citations writer, all gated on
+    // matchedIds/matchedContent being non-empty) are never reached.
+    mockSupabase.rpc.mockResolvedValueOnce({ data: null, error: RPC_ERROR });
+
+    const warnSpy = vi
+      .spyOn(logger, 'warn')
+      .mockImplementation(() => undefined);
+
+    // Pipeline mocks — matchedContent is asserted to be [] via the call args
+    // below, so these can be minimal (no citations, so the citations writer
+    // stays un-exercised).
+    mockGetModelForTier.mockReturnValue('claude-sonnet-4-6');
+    mockAnalyseQuestion.mockResolvedValue({
+      analysis: { coverage: 'none' },
+      tokensUsed: 1,
+      inputTokens: 1,
+      outputTokens: 1,
+      cost: 0,
+    });
+    mockDraftResponseStreaming.mockResolvedValue({
+      textStream: (async function* () {
+        yield 'Draft text with no source material.';
+      })(),
+      finalise: vi.fn().mockResolvedValue({
+        responseText: 'Draft text with no source material.',
+        model: 'claude-sonnet-4-6',
+        citations: [],
+        tokensUsed: 1,
+        inputTokens: 1,
+        outputTokens: 1,
+        cost: 0,
+      }),
+    });
+    mockCheckResponseQuality.mockResolvedValue({
+      qualityData: { overall_score: 60 },
+      tokensUsed: 1,
+      inputTokens: 1,
+      outputTokens: 1,
+      cost: 0,
+    });
+
+    // (3) form_responses upsert → returns the new response id
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: RESPONSE_ID },
+      error: null,
+    });
+
+    const req = createTestRequest(
+      `/api/procurement/${VALID_UUID}/responses/draft-stream`,
+      { method: 'POST', body: { question_id: VALID_UUID_2 } },
+    );
+
+    const res = await draftStreamPost(req, { params });
+    // (a) The request still succeeds — the RPC error does NOT block drafting.
+    expect(res.status).toBe(200);
+
+    const sseText = await res.text();
+    expect(sseText).not.toContain('event: error');
+    expect(sseText).toContain('event: done');
+    expect(sseText).toContain(RESPONSE_ID);
+
+    // (b) The draft proceeds with NO matched content: both pipeline calls
+    // received an empty matchedContent array, and the saved response has no
+    // source_record_ids.
+    expect(mockAnalyseQuestion).toHaveBeenCalledWith(
+      expect.objectContaining({ id: VALID_UUID_2 }),
+      [],
+    );
+    expect(mockDraftResponseStreaming).toHaveBeenCalledWith(
+      expect.objectContaining({ id: VALID_UUID_2 }),
+      [],
+      expect.anything(),
+      'drafting',
+    );
+    const upsertCalls = mockSupabase._chain.upsert.mock.calls;
+    expect(upsertCalls.length).toBeGreaterThan(0);
+    const upsertedRow = upsertCalls[upsertCalls.length - 1][0] as Record<
+      string,
+      unknown
+    >;
+    expect(upsertedRow.source_record_ids).toEqual([]);
+
+    // (c) The RPC error is logged (non-fatal, observable degrade).
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ err: RPC_ERROR }),
+      expect.stringContaining('Failed to read question_matches'),
+    );
+
+    warnSpy.mockRestore();
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1097,13 +1239,14 @@ describe('POST /api/bids/:id/responses/draft-all (post-S224 §5.4.1 queued)', ()
   // Helper: configure the mock chain to walk the route's HTTP-level
   // pre-conditions through to the enqueue point. Sequence:
   //   1. role lookup (.single) — configureRole
-  //   2. workspaces.select.eq.eq.single() — bid existence
+  //   2. form_instances.select.eq.single() — bid existence (ID-145 {145.23}
+  //      round-2: workspaces -> form_instances, W1e)
   //   3. pipeline_runs.insert(...) — awaited via .then (default empty impl)
   //   4. user_roles.select.eq.maybeSingle() — envelope role lookup
   function configureRouteToEnqueuePoint(
     opts: {
       role?: 'admin' | 'editor' | 'viewer';
-      bid?: { status: string } | null;
+      bid?: { workflow_state: string } | null;
       procurementError?: { code: string; message: string } | null;
       envelopeRole?: 'admin' | 'editor' | 'viewer';
     } = {},
@@ -1114,8 +1257,7 @@ describe('POST /api/bids/:id/responses/draft-all (post-S224 §5.4.1 queued)', ()
       mockSupabase._chain.single.mockResolvedValueOnce({
         data: opts.bid ?? {
           id: VALID_UUID,
-          status: 'drafting',
-          domain_metadata: {},
+          workflow_state: 'drafting',
         },
         error: null,
       });
@@ -1207,7 +1349,7 @@ describe('POST /api/bids/:id/responses/draft-all (post-S224 §5.4.1 queued)', ()
   });
 
   it('returns 400 when bid is not in a draftable state', async () => {
-    configureRouteToEnqueuePoint({ bid: { status: 'draft' } });
+    configureRouteToEnqueuePoint({ bid: { workflow_state: 'draft' } });
 
     const req = createTestRequest(
       `/api/procurement/${VALID_UUID}/responses/draft-all`,
@@ -1231,7 +1373,7 @@ describe('POST /api/bids/:id/responses/draft-all (post-S224 §5.4.1 queued)', ()
   it('AC-1: returns 202 + {job_id, pipeline_run_id, status:"queued", deduplicated:false} on first POST (editor)', async () => {
     configureRouteToEnqueuePoint({
       role: 'editor',
-      bid: { status: 'drafting' },
+      bid: { workflow_state: 'drafting' },
     });
 
     const req = createTestRequest(
@@ -1280,7 +1422,7 @@ describe('POST /api/bids/:id/responses/draft-all (post-S224 §5.4.1 queued)', ()
   it('AC-1: returns 202 with admin auth (editor-required role gate satisfied via ROLE_RANK)', async () => {
     configureRouteToEnqueuePoint({
       role: 'admin',
-      bid: { status: 'drafting' },
+      bid: { workflow_state: 'drafting' },
     });
 
     const req = createTestRequest(
@@ -1311,7 +1453,7 @@ describe('POST /api/bids/:id/responses/draft-all (post-S224 §5.4.1 queued)', ()
   it('AC-3: same-day second POST → 202 + same job_id + deduplicated:true', async () => {
     configureRouteToEnqueuePoint({
       role: 'editor',
-      bid: { status: 'drafting' },
+      bid: { workflow_state: 'drafting' },
     });
 
     // Override the default mock to return deduplicated:true.
@@ -1342,7 +1484,7 @@ describe('POST /api/bids/:id/responses/draft-all (post-S224 §5.4.1 queued)', ()
   it('returns 500 when enqueueQueueJob throws (e.g. RLS violation)', async () => {
     configureRouteToEnqueuePoint({
       role: 'editor',
-      bid: { status: 'drafting' },
+      bid: { workflow_state: 'drafting' },
     });
 
     mockEnqueueQueueJob.mockRejectedValueOnce(
@@ -1443,7 +1585,7 @@ describe('POST /api/bids/:id/responses/estimate', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'submitted', domain_metadata: {} },
+      data: { id: VALID_UUID, workflow_state: 'submitted' },
       error: null,
     });
 
@@ -1466,7 +1608,7 @@ describe('POST /api/bids/:id/responses/estimate', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
+      data: { id: VALID_UUID, workflow_state: 'drafting' },
       error: null,
     });
 
@@ -1491,10 +1633,12 @@ describe('POST /api/bids/:id/responses/estimate', () => {
   });
 
   it('returns cost estimate for eligible questions', async () => {
+    const MATCHED_QA_ID = 'e7777777-7777-4777-8777-777777777777';
+
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'drafting', domain_metadata: {} },
+      data: { id: VALID_UUID, workflow_state: 'drafting' },
       error: null,
     });
 
@@ -1507,12 +1651,43 @@ describe('POST /api/bids/:id/responses/estimate', () => {
               id: VALID_UUID_2,
               question_text: 'Test question',
               confidence_posture: 'strong',
-              matched_record_ids: [],
             },
           ],
           error: null,
         }),
     );
+
+    // ID-145 {145.23} round-2 Checker fix (MAJOR): matched ids come from
+    // question_match_search (the R7 substrate) rather than the dropped
+    // matched_record_ids column — one matched q_a_pair candidate for the
+    // single eligible question, mirroring the {145.21} draft-stream
+    // precedent above.
+    mockSupabase.rpc.mockResolvedValueOnce({
+      data: [{ q_a_pair_id: MATCHED_QA_ID }],
+      error: null,
+    });
+
+    // fetchMatchedContentForDrafting resolves the matched id via
+    // Promise.all([q_a_pairs.in(), reference_items.in()]) — both awaited
+    // via the chain `then`. The matched id resolves as a q_a_pair here.
+    mockSupabase._chain.then
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              id: MATCHED_QA_ID,
+              question_text: 'Matched Q&A',
+              answer_standard: 'matched answer body',
+              answer_advanced: null,
+            },
+          ],
+          error: null,
+          count: 1,
+        }),
+      )
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 0 }),
+      );
 
     const req = createTestRequest(
       `/api/procurement/${VALID_UUID}/responses/estimate`,
@@ -1528,6 +1703,99 @@ describe('POST /api/bids/:id/responses/estimate', () => {
     const body = await res.json();
     expect(body.eligible_questions).toBe(2);
     expect(mockEstimateBatchCost).toHaveBeenCalledOnce();
+
+    // The RPC is called per eligible question with the question id.
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('question_match_search', {
+      p_form_question_id: VALID_UUID_2,
+      p_limit: 20,
+    });
+
+    // The estimate input reflects the matched content: one matched item,
+    // tokenised via the (mocked) estimateTokens call.
+    expect(mockEstimateBatchCost).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: VALID_UUID_2,
+        contentItemCount: 1,
+        contentTokens: 100,
+      }),
+    ]);
+  });
+
+  // ID-145 {145.23} round-2 Checker fix (MAJOR): the estimate route resolves
+  // matched content per-question via question_match_search (BI-37, R7
+  // substrate) — mirrors the {145.21} draft-stream degrade-path precedent
+  // above. When the RPC errors for a question, the estimate must still
+  // succeed with zero matched content for that question rather than
+  // throwing/500ing.
+  it('degrades to zero matched content (without failing) when question_match_search RPC errors', async () => {
+    const RPC_ERROR = {
+      code: 'XX000',
+      message: 'question_match_search unavailable',
+    };
+
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID, workflow_state: 'drafting' },
+      error: null,
+    });
+
+    // Questions query
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              id: VALID_UUID_2,
+              question_text: 'Test question',
+              confidence_posture: 'strong',
+            },
+          ],
+          error: null,
+        }),
+    );
+
+    // question_match_search errors for the (only) eligible question —
+    // matchedIdsByQuestion resolves to [] for it, so allContentIds stays
+    // empty and fetchMatchedContentForDrafting is never reached.
+    mockSupabase.rpc.mockResolvedValueOnce({ data: null, error: RPC_ERROR });
+
+    const warnSpy = vi
+      .spyOn(logger, 'warn')
+      .mockImplementation(() => undefined);
+
+    const req = createTestRequest(
+      `/api/procurement/${VALID_UUID}/responses/estimate`,
+      {
+        method: 'POST',
+        body: { skip_existing: false },
+      },
+    );
+
+    const res = await estimatePost(req, { params });
+    // The RPC error does not block the estimate — it still succeeds.
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.eligible_questions).toBe(2);
+
+    // Zero matched content flows through to the estimate input for the
+    // affected question.
+    expect(mockEstimateBatchCost).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: VALID_UUID_2,
+        contentItemCount: 0,
+        contentTokens: 0,
+      }),
+    ]);
+
+    // The RPC error is logged (non-fatal, observable degrade).
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ err: RPC_ERROR, questionId: VALID_UUID_2 }),
+      expect.stringContaining('Failed to read question_matches'),
+    );
+
+    warnSpy.mockRestore();
   });
 });
 

@@ -48,22 +48,34 @@ const STATUS_URL_PATH_RE = /\/api\/jobs\/[0-9a-f-]{36}\/status$/;
 
 test.describe('Procurement draft-all queued flow (S224 §5.4.1 AC-10)', () => {
   test.beforeEach(async ({ workerData }) => {
-    // Defensive: clear any pending/processing/completed bid_draft_all
+    // Defensive: clear any pending/processing/completed form_draft_all
     // jobs for this bid so the dedup pre-check doesn't return a stale
     // dedup-hit (which would skip the 202+queued envelope path).
+    //
+    // ID-145 {145.23}: the job/pipeline label is `form_draft_all` (not
+    // `bid_draft_all`) — the producer route (`enqueueQueueJob({ jobType:
+    // 'form_draft_all', ... })`, `app/api/procurement/[id]/responses/
+    // draft-all/route.ts`) builds the idempotency key and the
+    // `pipeline_runs.pipeline_name` from that same literal. The producer
+    // also always inserts `pipeline_runs.workspace_id: null` post-W1e ([id]
+    // is a form_instances id, not a workspaces id — writing it would violate
+    // the FK; see that route's own comment) — no column on `pipeline_runs`
+    // tracks the form, so scope the cleanup to `pipeline_name` +
+    // `workspace_id IS NULL` rather than an `.eq('workspace_id', ...)` that
+    // can never match.
     const supabase = createServiceClient();
     await supabase
       .from('processing_queue')
       .delete()
-      .like('idempotency_key', `bid_draft_all:${workerData.procurementId}:%`);
+      .like('idempotency_key', `form_draft_all:${workerData.procurementId}:%`);
     // Also clear any pipeline_runs rows scoped to this bid to keep
     // post-test state clean (Pattern 2 caller-allocated rows linger
     // otherwise).
     await supabase
       .from('pipeline_runs')
       .delete()
-      .eq('pipeline_name', 'bid_draft_all')
-      .eq('workspace_id', workerData.procurementId);
+      .eq('pipeline_name', 'form_draft_all')
+      .is('workspace_id', null);
   });
 
   test.afterEach(async ({ workerData }) => {
@@ -75,12 +87,15 @@ test.describe('Procurement draft-all queued flow (S224 §5.4.1 AC-10)', () => {
       await supabase
         .from('processing_queue')
         .delete()
-        .like('idempotency_key', `bid_draft_all:${workerData.procurementId}:%`);
+        .like(
+          'idempotency_key',
+          `form_draft_all:${workerData.procurementId}:%`,
+        );
       await supabase
         .from('pipeline_runs')
         .delete()
-        .eq('pipeline_name', 'bid_draft_all')
-        .eq('workspace_id', workerData.procurementId);
+        .eq('pipeline_name', 'form_draft_all')
+        .is('workspace_id', null);
     } catch (err) {
       console.error('bid-draft-all cleanup failed:', err);
     }

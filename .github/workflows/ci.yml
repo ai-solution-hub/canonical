@@ -116,6 +116,10 @@ jobs:
         if: "!cancelled()"
         run: bun run ci:knip-check
 
+      - name: Legacy form-template resolver guard (ID-145 {145.7})
+        if: "!cancelled()"
+        run: bun run scripts/check-no-legacy-form-template-resolver.ts
+
       - name: Build (Next.js)
         # Dependabot PRs now pull from the repo-level Dependabot secret
         # namespace + repo-level vars (mirror of staging) instead of the

@@ -48,10 +48,12 @@ export function loadEnv(): void {
 // it depended on was dropped) — find_duplicates is now single-item-only, no
 // `scope` param. ID-131.19 (M6, S450 GO tail) RETIRED get_workspace_items —
 // its sole mechanism (content_item_workspaces junction table) was dropped at
-// M6, no production caller existed. 42 → 41 → 40.
+// M6, no production caller existed. 42 → 41 → 40. ID-145 {145.17} (R7/BI-36)
+// ADDED get_question_matches — the first TypeScript caller of the
+// built-but-unwired question_match_search RPC (id-57/T10). 40 → 41.
 // ---------------------------------------------------------------------------
 
-/** Canonical set of all 40 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
+/** Canonical set of all 41 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
 export const CANONICAL_TOOL_NAMES = [
   // ID-71.7 — ONE consolidated find/answer entry (search + QA + chunk + similar).
   'find', // 1
@@ -65,6 +67,8 @@ export const CANONICAL_TOOL_NAMES = [
   'get_form_question', // 10
   'cite_content', // 11
   'get_content_effectiveness', // 12
+  // ID-145 {145.17} — R7 reader (BI-36): question_match_search consumer.
+  'get_question_matches',
   'get', // 13 (ID-71.10 — one-or-many; was get_content_item + get_content_items)
   'create_content_item', // 14
   'update_content_item', // 15
@@ -111,7 +115,7 @@ export const CANONICAL_TOOL_NAMES = [
   'update_publication_status', // 57
 ] as const;
 
-export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 40 (ID-117.12 retired get_document_diff: 42 − 1; ID-131.19 retired get_workspace_items: 41 − 1)
+export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 41 (ID-117.12 retired get_document_diff: 42 − 1; ID-131.19 retired get_workspace_items: 41 − 1; ID-145 {145.17} added get_question_matches: 40 + 1)
 
 /** Read-only tools (no side effects). */
 export const READ_ONLY_TOOLS = new Set([
@@ -124,6 +128,8 @@ export const READ_ONLY_TOOLS = new Set([
   'get_procurement_detail',
   'get_form_question',
   'get_content_effectiveness',
+  // ID-145 {145.17} — R7 reader (BI-36): pure read over question_match_search.
+  'get_question_matches',
   'get', // ID-71.10 — one-or-many (was get_content_item + get_content_items)
   // get_workspace_items RETIRED (ID-131.19, M6) — content_item_workspaces dropped.
   'suggest_content_creation',
@@ -570,8 +576,9 @@ export function getMinimalArgs(
     case 'get_content_effectiveness':
       // Resolves against q_a_pairs via get_content_win_rate's p_q_a_pair_id
       // (ID-131.10/BI-26 re-anchor) — needs qaPairId, not contentItemId
-      // (source_documents).
-      return { content_item_id: knownUUIDs.qaPairId };
+      // (source_documents). ID-145 {145.21} (DR-056/BI-37): the tool's own
+      // arg is now q_a_pair_id (breaking rename, no alias).
+      return { q_a_pair_id: knownUUIDs.qaPairId };
     case 'find_duplicates':
       // ID-71.10 part 2 — single-item admin dedup, requires `id`. The
       // `scope: 'all'` whole-KB batch scan branch was retired under
@@ -624,9 +631,11 @@ export function getMinimalArgs(
         governance_review_status: 'draft',
       };
     case 'cite_content':
-      // Use eval item + a fake form response UUID — will return a structured error
+      // Use eval item + a fake form response UUID — will return a structured error.
+      // ID-145 {145.21} (DR-056/BI-37): the tool's own arg is now q_a_pair_id
+      // (breaking rename, no alias).
       return {
-        content_item_id: evalItemId,
+        q_a_pair_id: evalItemId,
         form_response_id: '00000000-0000-0000-0000-000000000000',
       };
     case 'update_content_item':

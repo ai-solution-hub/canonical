@@ -127,13 +127,13 @@ export function formatActiveProcurements(
   bids: ActiveProcurementSummary[],
 ): string {
   if (bids.length === 0) {
-    return '# Active Bids\n\nNo active procurements found.';
+    return '# Active Procurements\n\nNo active procurements found.';
   }
 
   const lines: string[] = [
-    '# Active Bids',
+    '# Active Procurements',
     '',
-    `${bids.length} active bid${bids.length === 1 ? '' : 's'}:`,
+    `${bids.length} active procurement${bids.length === 1 ? '' : 's'}:`,
     '',
   ];
 

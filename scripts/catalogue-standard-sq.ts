@@ -2,7 +2,9 @@
 /**
  * Catalogue Standard Selection Questionnaire (PPN 03/24) Requirements
  *
- * Populates the `template_requirements` table with the 66 questions from
+ * Populates the `form_requirement_templates` table (renamed from
+ * `template_requirements` -> `form_template_requirements` post-T2 ->
+ * `form_requirement_templates` at {145.6}) with the 66 questions from
  * the Standard Selection Questionnaire extracted during UAT Scenario 1.
  * Each question becomes a requirement row with taxonomy mapping, requirement
  * type, matching keywords, and pre-computed embedding.
@@ -2160,9 +2162,10 @@ async function main(): Promise<void> {
   // ── Check for existing rows (idempotency) ──
 
   console.log('Checking for existing requirements...');
-  // Post-T2: `template_requirements` renamed to `form_template_requirements`.
+  // Post-T2: `template_requirements` renamed to `form_template_requirements`;
+  // {145.6} W1c renamed it again to `form_requirement_templates`.
   const { data: existing, error: checkError } = await supabase
-    .from('form_template_requirements')
+    .from('form_requirement_templates')
     .select('id, section_ref, question_number')
     .eq('template_name', TEMPLATE_NAME)
     .eq('template_version', TEMPLATE_VERSION);
@@ -2178,7 +2181,7 @@ async function main(): Promise<void> {
     );
     console.log('To re-catalogue, delete existing rows first:');
     console.log(
-      `  DELETE FROM template_requirements WHERE template_name = '${TEMPLATE_NAME}' AND template_version = '${TEMPLATE_VERSION}';`,
+      `  DELETE FROM form_requirement_templates WHERE template_name = '${TEMPLATE_NAME}' AND template_version = '${TEMPLATE_VERSION}';`,
     );
     console.log('');
     console.log('Aborting to prevent duplicates.');
@@ -2188,13 +2191,15 @@ async function main(): Promise<void> {
   // ── Generate embeddings ──
   //
   // {130.24} DR-036: requirement_embedding is no longer an inline column on
-  // form_template_requirements — the vector is dual-written into the
-  // polymorphic record_embeddings store (owner_kind=
-  // 'form_template_requirement') after the row insert, keyed by the
-  // inserted row's id. Tracked here by the natural key
-  // (section_ref, question_number) — unique within this single-template
-  // seed run — rather than by array index, since a multi-row INSERT's
-  // RETURNING order is not a contractual guarantee.
+  // form_requirement_templates (renamed from form_template_requirements at
+  // {145.6}) — the vector is dual-written into the polymorphic
+  // record_embeddings store (owner_kind='form_template_requirement' — this
+  // CV value is UNCHANGED by the {145.6} table rename; record_embeddings_
+  // owner_kind_chk was never re-cut, so it must stay exactly as-is) after
+  // the row insert, keyed by the inserted row's id. Tracked here by the
+  // natural key (section_ref, question_number) — unique within this
+  // single-template seed run — rather than by array index, since a
+  // multi-row INSERT's RETURNING order is not a contractual guarantee.
 
   const rows: InsertRow[] = [];
   const embeddingByNaturalKey = new Map<string, string>();
@@ -2252,7 +2257,7 @@ async function main(): Promise<void> {
   // ── Insert into database ──
 
   console.log(
-    `Inserting ${rows.length} requirements into template_requirements...`,
+    `Inserting ${rows.length} requirements into form_requirement_templates...`,
   );
 
   // Insert in batches of 10 to avoid payload size limits
@@ -2262,12 +2267,13 @@ async function main(): Promise<void> {
 
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
     const batch = rows.slice(i, i + BATCH_SIZE);
-    // Post-T2: `template_requirements` renamed to `form_template_requirements`.
+    // Post-T2: `template_requirements` renamed to `form_template_requirements`;
+    // {145.6} W1c renamed it again to `form_requirement_templates`.
     // `.select(...)` reads the inserted ids back (+ the natural-key columns,
     // to avoid relying on RETURNING preserving VALUES-list order) for the
     // record_embeddings dual-write below.
     const { data: insertedRows, error: insertError } = await supabase
-      .from('form_template_requirements')
+      .from('form_requirement_templates')
       .insert(batch)
       .select('id, section_ref, question_number');
 
@@ -2279,7 +2285,7 @@ async function main(): Promise<void> {
       console.error('  Rows inserted before failure:', inserted);
       console.error('  You may need to clean up partial inserts with:');
       console.error(
-        `  DELETE FROM template_requirements WHERE template_name = '${TEMPLATE_NAME}' AND template_version = '${TEMPLATE_VERSION}';`,
+        `  DELETE FROM form_requirement_templates WHERE template_name = '${TEMPLATE_NAME}' AND template_version = '${TEMPLATE_VERSION}';`,
       );
       process.exit(1);
     }
@@ -2320,7 +2326,7 @@ async function main(): Promise<void> {
             embeddingError.message,
           );
           console.error(
-            '  Rows were inserted into form_template_requirements but their embeddings were NOT written.',
+            '  Rows were inserted into form_requirement_templates but their embeddings were NOT written.',
           );
           process.exit(1);
         }

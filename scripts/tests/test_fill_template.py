@@ -11,9 +11,11 @@ Tests cover:
   - Track Changes safe opening via open_document_safe
 """
 
+import io
 import pytest
 from docx import Document
 from docx.shared import Pt, RGBColor
+import openpyxl
 import os
 import sys
 import tempfile
@@ -22,11 +24,16 @@ from unittest.mock import patch, MagicMock
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from fill_template import (
     fill_template,
+    fill_pdf_template,
+    fill_xlsx_template,
     _enforce_word_limit,
     _copy_cell_formatting,
     _validate_completed_document,
+    _pdf_field_names_by_sequence,
+    _xlsx_sheet_by_table_index,
 )
 from analyse_template import analyse_template
+from pypdf import PdfReader
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────────
@@ -1081,3 +1088,359 @@ class TestFillTemplateTrackChanges:
                     os.unlink(tmp_in.name)
                 if os.path.exists(output_path):
                     os.unlink(output_path)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# PDF WRITER TESTS (ID-145 {145.15} — pypdf AcroForm value writes)
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def _build_fillable_pdf(field_names: list[str]) -> bytes:
+    """Programmatically build a minimal single-page fillable PDF with one
+    ``/Tx`` Widget annotation per name, in the given order.
+
+    Real fillable PDFs come from commonforms ({145.11}); this synthetic
+    fixture avoids booting the real ML detector in a unit test while
+    exercising the SAME page-major + Widget-annotation walk
+    ``_pdf_field_names_by_sequence`` performs on commonforms' output.
+    """
+    from pypdf import PdfWriter
+    from pypdf.generic import (
+        ArrayObject,
+        BooleanObject,
+        DictionaryObject,
+        NameObject,
+        NumberObject,
+        TextStringObject,
+    )
+
+    writer = PdfWriter()
+    page = writer.add_blank_page(width=612, height=792)
+    field_refs = []
+    for i, name in enumerate(field_names):
+        field = DictionaryObject()
+        field.update(
+            {
+                NameObject("/FT"): NameObject("/Tx"),
+                NameObject("/T"): TextStringObject(name),
+                NameObject("/Subtype"): NameObject("/Widget"),
+                NameObject("/Rect"): ArrayObject(
+                    [
+                        NumberObject(x)
+                        for x in (100, 700 - i * 40, 300, 720 - i * 40)
+                    ]
+                ),
+                NameObject("/F"): NumberObject(4),
+                NameObject("/Ff"): NumberObject(0),
+            }
+        )
+        field_refs.append(writer._add_object(field))
+    page[NameObject("/Annots")] = ArrayObject(field_refs)
+
+    acroform = DictionaryObject()
+    acroform[NameObject("/Fields")] = ArrayObject(field_refs)
+    acroform[NameObject("/NeedAppearances")] = BooleanObject(True)
+    writer._root_object[NameObject("/AcroForm")] = acroform
+
+    buf = io.BytesIO()
+    writer.write(buf)
+    return buf.getvalue()
+
+
+class TestPdfFieldNamesBySequence:
+    """_pdf_field_names_by_sequence rebuilds sequence -> field_name in
+    page-major + Widget-annotation order."""
+
+    def test_maps_sequence_to_field_name_in_order(self):
+        pdf_bytes = _build_fillable_pdf(["textbox_0_0", "textbox_0_1", "textbox_0_2"])
+        result = _pdf_field_names_by_sequence(pdf_bytes)
+        assert result == {0: "textbox_0_0", 1: "textbox_0_1", 2: "textbox_0_2"}
+
+
+class TestFillPdfTemplate:
+    """fill_pdf_template writes response text into AcroForm fields,
+    addressing by reconstructed sequence -> field_name (form_instance_fields
+    carries no field_name for PDF rows, {145.15})."""
+
+    def test_fills_field_matched_by_sequence(self, tmp_path):
+        pdf_bytes = _build_fillable_pdf(["textbox_0_0", "textbox_0_1"])
+        input_path = str(tmp_path / "fillable.pdf")
+        output_path = str(tmp_path / "out.pdf")
+        with open(input_path, "wb") as f:
+            f.write(pdf_bytes)
+
+        result = fill_pdf_template(
+            input_path,
+            output_path,
+            [
+                {
+                    "table_index": 0,
+                    "row_index": 0,
+                    "response_text": "Answer A",
+                    "word_limit": None,
+                }
+            ],
+        )
+
+        assert result["fields_filled"] == 1
+        assert result["fields_failed"] == 0
+        reader = PdfReader(output_path)
+        fields = reader.get_fields()
+        assert fields["textbox_0_0"].get("/V") == "Answer A"
+
+    def test_empty_response_skipped(self, tmp_path):
+        pdf_bytes = _build_fillable_pdf(["textbox_0_0"])
+        input_path = str(tmp_path / "fillable.pdf")
+        output_path = str(tmp_path / "out.pdf")
+        with open(input_path, "wb") as f:
+            f.write(pdf_bytes)
+
+        result = fill_pdf_template(
+            input_path,
+            output_path,
+            [{"table_index": 0, "row_index": 0, "response_text": "", "word_limit": None}],
+        )
+
+        assert result["fields_skipped"] == 1
+        assert result["fields_filled"] == 0
+
+    def test_missing_sequence_fails(self, tmp_path):
+        pdf_bytes = _build_fillable_pdf(["textbox_0_0"])
+        input_path = str(tmp_path / "fillable.pdf")
+        output_path = str(tmp_path / "out.pdf")
+        with open(input_path, "wb") as f:
+            f.write(pdf_bytes)
+
+        result = fill_pdf_template(
+            input_path,
+            output_path,
+            [
+                {
+                    "table_index": 0,
+                    "row_index": 99,
+                    "response_text": "Orphan mapping",
+                    "word_limit": None,
+                }
+            ],
+        )
+
+        assert result["fields_failed"] == 1
+        assert "No AcroForm widget" in result["errors"][0]["error"]
+
+    def test_word_limit_truncation(self, tmp_path):
+        pdf_bytes = _build_fillable_pdf(["textbox_0_0"])
+        input_path = str(tmp_path / "fillable.pdf")
+        output_path = str(tmp_path / "out.pdf")
+        with open(input_path, "wb") as f:
+            f.write(pdf_bytes)
+
+        long_text = " ".join(["word"] * 20)
+        result = fill_pdf_template(
+            input_path,
+            output_path,
+            [
+                {
+                    "table_index": 0,
+                    "row_index": 0,
+                    "response_text": long_text,
+                    "word_limit": 5,
+                }
+            ],
+        )
+
+        assert result["fields_filled"] == 1
+        assert len(result["truncated"]) == 1
+        assert result["truncated"][0]["limit"] == 5
+        reader = PdfReader(output_path)
+        written = reader.get_fields()["textbox_0_0"].get("/V")
+        assert len(written.split()) == 5
+
+    def test_refill_pass_preserves_prior_value_and_fills_gap(self, tmp_path):
+        """A re-fill pass, using pass 1's OUTPUT as its base (BI-22
+        re-entrancy — bid_worker.fill_template_job downloads the latest
+        completion as the base on a subsequent pass), preserves the
+        previously-filled field's value while filling a new gap. Proves
+        the sequence -> field_name reconstruction stays stable across a
+        pypdf write/read round-trip."""
+        pdf_bytes = _build_fillable_pdf(["textbox_0_0", "textbox_0_1"])
+        pass1_in = str(tmp_path / "p1_in.pdf")
+        pass1_out = str(tmp_path / "p1_out.pdf")
+        with open(pass1_in, "wb") as f:
+            f.write(pdf_bytes)
+
+        fill_pdf_template(
+            pass1_in,
+            pass1_out,
+            [
+                {
+                    "table_index": 0,
+                    "row_index": 0,
+                    "response_text": "First answer",
+                    "word_limit": None,
+                }
+            ],
+        )
+
+        pass2_out = str(tmp_path / "p2_out.pdf")
+        result2 = fill_pdf_template(
+            pass1_out,
+            pass2_out,
+            [
+                {
+                    "table_index": 0,
+                    "row_index": 1,
+                    "response_text": "Second answer",
+                    "word_limit": None,
+                }
+            ],
+        )
+
+        assert result2["fields_filled"] == 1
+        fields = PdfReader(pass2_out).get_fields()
+        assert fields["textbox_0_0"].get("/V") == "First answer"
+        assert fields["textbox_0_1"].get("/V") == "Second answer"
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# XLSX WRITER TESTS (ID-145 {145.15} — openpyxl cell writes at recorded coords)
+# ══════════════════════════════════════════════════════════════════════════
+
+_WALK_SHEET_TARGET = "scripts.cocoindex_pipeline.form_extractors.xlsx._walk_sheet"
+
+
+class TestXlsxSheetByTableIndex:
+    """_xlsx_sheet_by_table_index reconstructs table_index -> sheet_name
+    boundaries by re-running the deterministic per-sheet walk (xlsx.py's
+    table_index is a workbook-wide counter, not a sheet index — no
+    sheet_name column exists anywhere in the pipeline)."""
+
+    def test_maps_table_index_across_multiple_sheets(self):
+        wb = openpyxl.Workbook()
+        wb.active.title = "Bidder 1"
+        wb.create_sheet("Bidder 2")
+        buf = io.BytesIO()
+        wb.save(buf)
+        raw_bytes = buf.getvalue()
+
+        with patch(_WALK_SHEET_TARGET) as mock_walk:
+            mock_walk.side_effect = [
+                ([], 0, 2),  # "Bidder 1" consumes table_index 0, 1
+                ([], 0, 1),  # "Bidder 2" consumes table_index 2
+            ]
+            result = _xlsx_sheet_by_table_index(raw_bytes)
+
+        assert result == {0: "Bidder 1", 1: "Bidder 1", 2: "Bidder 2"}
+
+
+class TestFillXlsxTemplate:
+    """fill_xlsx_template writes response text into the correct sheet/cell,
+    resolving sheet identity from table_index via the reconstructed
+    boundary map (the multi-sheet addressing gap, {145.15})."""
+
+    def _make_two_sheet_workbook(self, tmp_path) -> str:
+        wb = openpyxl.Workbook()
+        ws1 = wb.active
+        ws1.title = "Bidder 1"
+        ws1["A1"] = "Question"
+        wb.create_sheet("Bidder 2")
+        input_path = str(tmp_path / "in.xlsx")
+        wb.save(input_path)
+        return input_path
+
+    def test_writes_to_correct_sheet_for_table_index(self, tmp_path):
+        input_path = self._make_two_sheet_workbook(tmp_path)
+        output_path = str(tmp_path / "out.xlsx")
+
+        with patch(_WALK_SHEET_TARGET) as mock_walk:
+            mock_walk.side_effect = [([], 0, 1), ([], 0, 1)]
+            result = fill_xlsx_template(
+                input_path,
+                output_path,
+                [
+                    {
+                        "table_index": 1,
+                        "row_index": 1,
+                        "col_index": 2,
+                        "response_text": "Answer on Bidder 2",
+                        "word_limit": None,
+                    }
+                ],
+            )
+
+        assert result["fields_filled"] == 1
+        out_wb = openpyxl.load_workbook(output_path)
+        assert out_wb["Bidder 2"].cell(row=1, column=2).value == "Answer on Bidder 2"
+        assert out_wb["Bidder 1"].cell(row=1, column=2).value is None
+
+    def test_missing_table_index_fails(self, tmp_path):
+        input_path = self._make_two_sheet_workbook(tmp_path)
+        output_path = str(tmp_path / "out.xlsx")
+
+        with patch(_WALK_SHEET_TARGET) as mock_walk:
+            mock_walk.side_effect = [([], 0, 1), ([], 0, 1)]
+            result = fill_xlsx_template(
+                input_path,
+                output_path,
+                [
+                    {
+                        "table_index": 99,
+                        "row_index": 1,
+                        "col_index": 2,
+                        "response_text": "Orphan mapping",
+                        "word_limit": None,
+                    }
+                ],
+            )
+
+        assert result["fields_failed"] == 1
+        assert "No sheet found" in result["errors"][0]["error"]
+
+    def test_empty_response_skipped(self, tmp_path):
+        input_path = self._make_two_sheet_workbook(tmp_path)
+        output_path = str(tmp_path / "out.xlsx")
+
+        with patch(_WALK_SHEET_TARGET) as mock_walk:
+            mock_walk.side_effect = [([], 0, 1), ([], 0, 1)]
+            result = fill_xlsx_template(
+                input_path,
+                output_path,
+                [
+                    {
+                        "table_index": 0,
+                        "row_index": 1,
+                        "col_index": 2,
+                        "response_text": "   ",
+                        "word_limit": None,
+                    }
+                ],
+            )
+
+        assert result["fields_skipped"] == 1
+        assert result["fields_filled"] == 0
+
+    def test_word_limit_truncation(self, tmp_path):
+        input_path = self._make_two_sheet_workbook(tmp_path)
+        output_path = str(tmp_path / "out.xlsx")
+        long_text = " ".join(["word"] * 20)
+
+        with patch(_WALK_SHEET_TARGET) as mock_walk:
+            mock_walk.side_effect = [([], 0, 1), ([], 0, 1)]
+            result = fill_xlsx_template(
+                input_path,
+                output_path,
+                [
+                    {
+                        "table_index": 0,
+                        "row_index": 1,
+                        "col_index": 2,
+                        "response_text": long_text,
+                        "word_limit": 5,
+                    }
+                ],
+            )
+
+        assert result["fields_filled"] == 1
+        assert len(result["truncated"]) == 1
+        out_wb = openpyxl.load_workbook(output_path)
+        written = out_wb["Bidder 1"].cell(row=1, column=2).value
+        assert len(written.split()) == 5

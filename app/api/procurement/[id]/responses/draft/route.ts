@@ -49,12 +49,15 @@ export const POST = defineRoute(
       const { question_ids, model_tier, force } = parsed.data;
 
       // Verify bid exists and is in an appropriate state.
-      // Post-T2: discriminator via application_types JOIN.
+      // ID-145 {145.23} round-2 (DR-056, mirrors the {145.21} draft-stream
+      // route): workspaces/procurement_workspaces are wholesale-deleted for
+      // procurement (W1e, {145.6}) — the old workspaces+application_types
+      // JOIN silently returned zero rows for every real form. [id] IS the
+      // form_instances PK now.
       const { data: bid, error: procurementError } = await supabase
-        .from('workspaces')
-        .select('id, status, domain_metadata, application_types!inner(key)')
+        .from('form_instances')
+        .select('id, workflow_state')
         .eq('id', id)
-        .eq('application_types.key', 'procurement')
         .single();
 
       if (procurementError || !bid) {
@@ -65,7 +68,7 @@ export const POST = defineRoute(
       }
 
       const procurementStatus =
-        (bid.status as ProcurementWorkflowState) ?? 'draft';
+        (bid.workflow_state as ProcurementWorkflowState) ?? 'draft';
       const draftableStates: ProcurementWorkflowState[] = [
         'drafting',
         'in_review',
@@ -82,13 +85,16 @@ export const POST = defineRoute(
       }
 
       // Fetch questions to draft.
-      // Post-T2: `form_questions.workspace_id` → `workspace_id`.
+      // ID-145 {145.23} round-2: form_questions.workspace_id -> form_instance_id
+      // (W1c); matched_record_ids (dropped W1c STEP 4) is no longer selected —
+      // draftSingleQuestion now sources matches itself via question_match_search
+      // (R7 substrate, BI-37), mirroring the {145.21} draft-stream route.
       let questionsQuery = supabase
         .from('form_questions')
         .select(
-          'id, question_text, word_limit, section_name, confidence_posture, matched_record_ids',
+          'id, question_text, word_limit, section_name, confidence_posture',
         )
-        .eq('workspace_id', id);
+        .eq('form_instance_id', id);
 
       if (question_ids && question_ids.length > 0) {
         questionsQuery = questionsQuery.in('id', question_ids);

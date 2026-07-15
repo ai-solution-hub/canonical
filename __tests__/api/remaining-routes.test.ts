@@ -759,6 +759,10 @@ describe('DELETE /api/guides/[slug]/sections/[sectionId]', () => {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // GET /api/bids/[id]/templates/[templateId]/completions/[completionId]/download
+// DR-075 (ID-147 TECH.md §6 row B, ratified S474): RE-KEYED in place --
+// path unchanged, tables -> form_instances/template_completions.form_instance_id,
+// + a bucket-fallback storage read (tender-documents, falling back to the
+// legacy templates bucket for pre-{145.15}-cutover completions).
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe('GET /api/bids/:id/templates/:templateId/completions/:completionId/download', () => {
@@ -866,6 +870,55 @@ describe('GET /api/bids/:id/templates/:templateId/completions/:completionId/down
     const body = await res.json();
     expect(body.download_url).toBe('https://example.com/signed-url');
     expect(body.expires_in).toBe(300);
+    // Tries the post-{145.15} bucket first.
+    expect(mockSupabase.storage.from).toHaveBeenCalledWith('tender-documents');
+  });
+
+  it('falls back to the legacy templates bucket when the tender-documents lookup fails', async () => {
+    // Template lookup — found
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID_2 },
+      error: null,
+    });
+
+    // Completion lookup — found (a pre-{145.15}-cutover row)
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        id: VALID_UUID_3,
+        storage_path: 'completions/pre-cutover.docx',
+        fields_filled: 5,
+      },
+      error: null,
+    });
+
+    // tender-documents fails, templates succeeds.
+    const tenderDocumentsBucket = {
+      createSignedUrl: vi.fn().mockResolvedValue({
+        data: null,
+        error: { message: 'Not found' },
+      }),
+    };
+    const templatesBucket = {
+      createSignedUrl: vi.fn().mockResolvedValue({
+        data: { signedUrl: 'https://example.com/legacy-signed-url' },
+        error: null,
+      }),
+    };
+    mockSupabase.storage.from.mockImplementation((bucket: string) =>
+      bucket === 'tender-documents' ? tenderDocumentsBucket : templatesBucket,
+    );
+
+    const req = createTestRequest(
+      `/api/procurement/${VALID_UUID}/templates/${VALID_UUID_2}/completions/${VALID_UUID_3}/download`,
+    );
+
+    const res = await completionDownloadGet(req, { params });
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.download_url).toBe('https://example.com/legacy-signed-url');
+    expect(mockSupabase.storage.from).toHaveBeenCalledWith('tender-documents');
+    expect(mockSupabase.storage.from).toHaveBeenCalledWith('templates');
   });
 
   it('returns 500 when signed URL generation fails', async () => {

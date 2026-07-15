@@ -912,9 +912,11 @@ export const UpdateProcurementFormTypeBodySchema = z.object({
 });
 
 /** POST /api/procurement/[id]/questions/extract */
+// ID-145 {145.12}: 'xlsx' added — Plane-1 extraction now covers all three
+// mime lanes (mime_type CHECK 3-valued: docx/xlsx/pdf).
 export const QuestionExtractBodySchema = z.object({
   document_path: z.string().min(1, 'Document path is required'),
-  format: z.enum(['docx', 'pdf']),
+  format: z.enum(['docx', 'pdf', 'xlsx']),
 });
 
 /** POST /api/procurement/[id]/questions */

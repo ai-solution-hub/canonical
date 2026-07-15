@@ -13,7 +13,8 @@ WHAT IT DOES (PRODUCT INV-1..INV-21):
   is now a `record_embeddings` (owner_kind='q_a_pair') join, not an inline
   column (ID-127.32 / DR-036: `q_a_pairs.question_embedding` was DROPPED live by
   20260706120000_id131_drop_inline_vector_cols.sql). The read is deliberately
-  NOT scoped by `source_workspace_id` — this is the 2nd named "confined
+  NOT scoped by `source_form_instance_id` (ID-145 {145.26}: re-pointed off the
+  dropped `source_workspace_id`, {145.6} W1c) — this is the 2nd named "confined
   widening" after Stage-5's ID-80.14 op_id exception. The deployment is one
   Supabase DB per client, so the DATABASE is the tenant boundary; reading
   across the client's workspaces AND forms is the INTRA-tenant dedup axis (the
@@ -73,6 +74,14 @@ References:
   empirically hit the resulting UndefinedColumnError before this Subtask).
 - `supabase/migrations/20260623124556_id120_qa_pair_dedup_proposals.sql` — the
   proposal-store table this writes ({120.5}).
+- `supabase/migrations/20260712060000_id145_w1a_qa_pairs_lineage_migrate.sql` /
+  `20260712062000_id145_w1c_rename_reshape.sql` — ID-145 {145.6} W1: renames
+  `q_a_pairs.source_form_template_id` -> `source_form_instance_id` and DROPs
+  `q_a_pairs.source_workspace_id` (lineage migrated onto the renamed column
+  first); DROPs `q_a_pair_dedup_proposals.pair_a/b_source_workspace_id` with
+  NO replacement column on that table (W1a: lineage stays recoverable via the
+  existing `pair_a_id`/`pair_b_id` FKs -> `q_a_pairs`). Re-pointed here at
+  {145.26}.
 """
 
 from __future__ import annotations
@@ -157,13 +166,13 @@ async def _select_candidate_pairs(
     """SQL self-join candidate read (INV-2/3/6/7/21).
 
     Reads the WHOLE published, embedding-bearing, non-superseded `q_a_pairs`
-    population (NO `source_workspace_id` filter — the named confined widening,
-    INV-6/8) and self-joins it on `a.id < b.id` to produce exactly-2-distinct-row
-    candidate pairs (INV-7: never self, chains decompose into separate pairwise
-    proposals). Similarity is the pgvector cosine expression
-    `1.0 - (re_a.embedding <=> re_b.embedding)` computed in SQL, filtered to
-    `>= threshold` — NOT an in-Python recompute, so the candidate set is
-    identical regardless of any vector index (INV-21).
+    population (NO `source_form_instance_id` filter — the named confined
+    widening, INV-6/8) and self-joins it on `a.id < b.id` to produce
+    exactly-2-distinct-row candidate pairs (INV-7: never self, chains
+    decompose into separate pairwise proposals). Similarity is the pgvector
+    cosine expression `1.0 - (re_a.embedding <=> re_b.embedding)` computed in
+    SQL, filtered to `>= threshold` — NOT an in-Python recompute, so the
+    candidate set is identical regardless of any vector index (INV-21).
 
     ID-127.32 (DR-036): `q_a_pairs.question_embedding` was DROPPED live
     (20260706120000_id131_drop_inline_vector_cols.sql) — the vector now reads
@@ -177,10 +186,16 @@ async def _select_candidate_pairs(
     belt-and-braces check, matching the precedent migration's own idiom.
 
     Each returned record carries both sides' survivor-decision inputs
-    (publication_status, updated_at), provenance snapshot columns
-    (source_workspace_id, source_form_response_id) and question_text (for the
-    fingerprint). `a.id < b.id` matches the table's `CHECK (pair_a_id < pair_b_id)`
-    canonical pair order, so `pair_a_id`/`pair_b_id` map straight through.
+    (publication_status, updated_at), a provenance snapshot column
+    (source_form_response_id) and question_text (for the fingerprint).
+    ID-145 {145.26} (post-{145.6} W1c): `source_workspace_id` is dropped —
+    the write side no longer snapshots a form/workspace lineage id at all
+    (`q_a_pair_dedup_proposals.pair_a/b_source_workspace_id` were dropped
+    with no replacement column; lineage stays recoverable via the
+    `pair_a_id`/`pair_b_id` FKs -> `q_a_pairs.source_form_instance_id`), so
+    it is not selected here either. `a.id < b.id` matches the table's
+    `CHECK (pair_a_id < pair_b_id)` canonical pair order, so
+    `pair_a_id`/`pair_b_id` map straight through.
     """
     return await db_pool.fetch(
         """
@@ -195,8 +210,6 @@ async def _select_candidate_pairs(
             b.publication_status       AS pair_b_publication_status,
             a.updated_at               AS pair_a_updated_at,
             b.updated_at               AS pair_b_updated_at,
-            a.source_workspace_id      AS pair_a_source_workspace_id,
-            b.source_workspace_id      AS pair_b_source_workspace_id,
             a.source_form_response_id  AS pair_a_source_form_response_id,
             b.source_form_response_id  AS pair_b_source_form_response_id
         FROM public.q_a_pairs a
@@ -369,8 +382,6 @@ async def _run_qa_dedup_proposer(
                 record["similarity_score"],
                 survivor_id,
                 survivor_reason,
-                record["pair_a_source_workspace_id"],
-                record["pair_b_source_workspace_id"],
                 record["pair_a_source_form_response_id"],
                 record["pair_b_source_form_response_id"],
                 fingerprint_a,
@@ -412,18 +423,15 @@ async def _run_qa_dedup_proposer(
                     INSERT INTO public.q_a_pair_dedup_proposals (
                         pair_a_id, pair_b_id, similarity_score,
                         proposed_survivor_id, survivor_reason,
-                        pair_a_source_workspace_id, pair_b_source_workspace_id,
                         pair_a_source_form_response_id, pair_b_source_form_response_id,
                         pair_a_fingerprint, pair_b_fingerprint
                     )
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                     ON CONFLICT (pair_a_id, pair_b_id) DO UPDATE SET
                         status = 'pending',
                         similarity_score = EXCLUDED.similarity_score,
                         proposed_survivor_id = EXCLUDED.proposed_survivor_id,
                         survivor_reason = EXCLUDED.survivor_reason,
-                        pair_a_source_workspace_id = EXCLUDED.pair_a_source_workspace_id,
-                        pair_b_source_workspace_id = EXCLUDED.pair_b_source_workspace_id,
                         pair_a_source_form_response_id =
                             EXCLUDED.pair_a_source_form_response_id,
                         pair_b_source_form_response_id =

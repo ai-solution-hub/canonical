@@ -1,12 +1,23 @@
 /**
- * Path C — catalogue-from-instance helpers (TECH §2.7, PRODUCT Inv-20..Inv-25).
+ * Path C — catalogue-from-instance helpers (TECH §2.7, PRODUCT Inv-20..Inv-25;
+ * ID-145 {145.16} BI-24/BI-26 — un-stranded + rewired onto the POST-W1
+ * schema).
  *
  * The human-confirmed cataloguing path. An ingested form instance
- * (`form_templates` + its `form_template_fields`) is read, each field is
+ * (`form_instances` + its `form_instance_fields`) is read, each field is
  * classified by Anthropic into a catalogue-requirement shape (requirement
  * type + matching keywords + matching guidance), embedded, presented for
  * explicit per-row confirmation, and — only on confirmation by an authorised
- * caller — written to the global `form_template_requirements` catalogue.
+ * caller — written to the global `form_requirement_templates` catalogue.
+ *
+ * {145.16} W1c renamed `form_template_fields` -> `form_instance_fields`
+ * (`template_id` -> `form_instance_id`, plus a new FK to `form_instances`)
+ * and `form_template_requirements` -> `form_requirement_templates` (pure
+ * rename — TECH.md §2 M3). This module is authored against that POST-W1
+ * schema even though the generated `database.types.ts` still reflects the
+ * PRE-W1 shape (staging has not been pushed yet) — the same allowance
+ * {145.6}/{145.7}/{145.9} already took; typecheck failures against the stale
+ * generated types are EXPECTED here, journalled not chased.
  *
  * Invariant map:
  * - Inv-20: ingest never auto-writes the catalogue; cataloguing happens only
@@ -66,18 +77,23 @@ const RECORD_EMBEDDINGS_OWNER_KIND = 'form_template_requirement';
 /**
  * Non-NULL `template_version` sentinel ({52.22} design §2.2). The natural key
  * `(template_name, template_version, section_ref, question_number)` backs the
- * `form_template_requirements_unique_section` UNIQUE constraint, which is
- * plain `NULLS DISTINCT` — a NULL `template_version` would defeat
- * `ON CONFLICT` and silently duplicate rows on re-run. Emitting this sentinel
- * keeps every key column non-NULL, aligning with
- * `scripts/catalogue-standard-sq.ts` (which always sets a non-null version).
+ * `form_template_requirements_unique_section` UNIQUE constraint — the name
+ * survives the {145.16} W1c `form_template_requirements` ->
+ * `form_requirement_templates` table rename unchanged (a plain
+ * `ALTER TABLE … RENAME TO` does not rename constraints), so this is still
+ * its live name on the renamed table. The constraint is plain
+ * `NULLS DISTINCT` — a NULL `template_version` would defeat `ON CONFLICT`
+ * and silently duplicate rows on re-run. Emitting this sentinel keeps every
+ * key column non-NULL, aligning with `scripts/catalogue-standard-sq.ts`
+ * (which always sets a non-null version).
  */
 export const DEFAULT_TEMPLATE_VERSION = 'v1';
 
 /**
  * The four natural-key columns of the live
- * `form_template_requirements_unique_section` UNIQUE constraint — the
- * `onConflict` target that makes the catalogue write idempotent ({52.22}).
+ * `form_template_requirements_unique_section` UNIQUE constraint (now on the
+ * `form_requirement_templates` table, {145.16} W1c) — the `onConflict`
+ * target that makes the catalogue write idempotent ({52.22}).
  */
 const CATALOGUE_CONFLICT_TARGET =
   'template_name,template_version,section_ref,question_number';
@@ -100,9 +116,9 @@ type RequirementType = (typeof REQUIREMENT_TYPES)[number];
 
 // ── Types ────────────────────────────────────────────────────────────────
 
-export type FormTemplateField = Tables<'form_template_fields'>;
+export type FormInstanceField = Tables<'form_instance_fields'>;
 export type CatalogueRowInsert =
-  Database['public']['Tables']['form_template_requirements']['Insert'];
+  Database['public']['Tables']['form_requirement_templates']['Insert'];
 
 /** The Anthropic-produced classification for one instance field. */
 export interface FieldClassification {
@@ -141,7 +157,7 @@ export interface CatalogueWriteResult {
  * `Q_A_FORM_PROMPT` style (verbatim-text, strict JSON, no commentary) and
  * extends it with the catalogue-requirement classification fields T10 needs.
  */
-function buildClassificationPrompt(field: FormTemplateField): string {
+function buildClassificationPrompt(field: FormInstanceField): string {
   const types = REQUIREMENT_TYPES.join(', ');
   return `You are cataloguing a single question from a procurement form, questionnaire, or sales-proposal template into a reusable, global requirement record for an enterprise knowledge base. Read the question and produce a single JSON object classifying it.
 
@@ -176,21 +192,23 @@ Question text: ${field.question_text ?? '(empty)'}`;
 // ── Read step (read-only) ──────────────────────────────────────────────────
 
 /**
- * Read the `form_template_fields` rows for a form instance, ordered by
- * sequence. Read-only — never mutates instance state. Returns a `Result` so
- * the caller branches on `ok` before reading data (no silent failures).
+ * Read the `form_instance_fields` rows for a form instance ({145.16} W1c —
+ * renamed from `form_template_fields`, `template_id` -> `form_instance_id`),
+ * ordered by sequence. Read-only — never mutates instance state. Returns a
+ * `Result` so the caller branches on `ok` before reading data (no silent
+ * failures).
  */
 export async function readInstanceFields(
   supabase: SupabaseClient<Database>,
-  formTemplateId: string,
-): Promise<Result<FormTemplateField[]>> {
-  return tryQuery<FormTemplateField[]>(
+  formInstanceId: string,
+): Promise<Result<FormInstanceField[]>> {
+  return tryQuery<FormInstanceField[]>(
     supabase
-      .from('form_template_fields')
+      .from('form_instance_fields')
       .select('*')
-      .eq('template_id', formTemplateId)
+      .eq('form_instance_id', formInstanceId)
       .order('sequence', { ascending: true }),
-    'form_template_fields.byTemplate',
+    'form_instance_fields.byFormInstance',
   );
 }
 
@@ -256,7 +274,7 @@ function parseClassificationJson(raw: string): FieldClassification {
  */
 export async function classifyField(
   anthropic: Pick<Anthropic, 'messages'>,
-  field: FormTemplateField,
+  field: FormInstanceField,
 ): Promise<FieldClassification> {
   const message = await anthropic.messages.create({
     model: CLASSIFY_MODEL,
@@ -335,7 +353,8 @@ export interface ResolvedEmbedding {
  * deterministic, human-authored change signal — NOT the LLM-derived
  * keyword-augmented embed input), the stored vector for that row's `id` is
  * looked up in `record_embeddings` ({130.24} DR-036 — the vector no longer
- * lives inline on `form_template_requirements`) and reused, skipping the
+ * lives inline on `form_requirement_templates`, {145.16} W1c-renamed from
+ * `form_template_requirements`) and reused, skipping the
  * OpenAI call. Otherwise (no row, changed text, no/unusable stored vector, or
  * a failed pre-read) the embedding is recomputed via `embedFn`.
  *
@@ -346,7 +365,7 @@ export interface ResolvedEmbedding {
  */
 export async function resolveRequirementEmbedding(args: {
   supabase: SupabaseClient<Database>;
-  field: FormTemplateField;
+  field: FormInstanceField;
   templateName: string;
   templateVersion?: string | null;
   /** The embed-input text used if a recompute is needed. */
@@ -359,18 +378,18 @@ export async function resolveRequirementEmbedding(args: {
   const candidateText = field.question_text ?? '';
 
   const existing = await tryQuery<Pick<
-    Tables<'form_template_requirements'>,
+    Tables<'form_requirement_templates'>,
     'id' | 'requirement_text'
   > | null>(
     supabase
-      .from('form_template_requirements')
+      .from('form_requirement_templates')
       .select('id, requirement_text')
       .eq('template_name', templateName)
       .eq('template_version', args.templateVersion ?? DEFAULT_TEMPLATE_VERSION)
       .eq('section_ref', field.section_name ?? 'General')
       .eq('question_number', field.sequence)
       .maybeSingle(),
-    'form_template_requirements.byNaturalKey',
+    'form_requirement_templates.byNaturalKey',
   );
 
   if (!existing.ok) {
@@ -430,10 +449,11 @@ export async function resolveRequirementEmbedding(args: {
 
 /**
  * A candidate catalogue row bundled with its resolved embedding ({130.24}
- * DR-036). The row alone is the `form_template_requirements` insert/upsert
- * shape (no `requirement_embedding` column — dropped); `embedding` is
- * dual-written into `record_embeddings` by `confirmAndWriteCatalogue` after
- * the row write succeeds, keyed by the row's `id`.
+ * DR-036). The row alone is the `form_requirement_templates` ({145.16}
+ * W1c-renamed from `form_template_requirements`) insert/upsert shape (no
+ * `requirement_embedding` column — dropped); `embedding` is dual-written
+ * into `record_embeddings` by `confirmAndWriteCatalogue` after the row write
+ * succeeds, keyed by the row's `id`.
  */
 export interface CatalogueCandidate {
   row: CatalogueRowInsert;
@@ -441,7 +461,7 @@ export interface CatalogueCandidate {
 }
 
 /**
- * Assemble the `form_template_requirements` insert row from a classified
+ * Assemble the `form_requirement_templates` insert row from a classified
  * instance field, bundled with its resolved embedding. Carries the Inv-22
  * read shape and — by construction — NO `workspace_id` (Inv-23: the
  * catalogue is global). {130.24} DR-036: `embedding` is no longer inlined on
@@ -450,7 +470,7 @@ export interface CatalogueCandidate {
  * `confirmAndWriteCatalogue` can dual-write it after the row upsert.
  */
 export function buildCatalogueRow(args: {
-  field: FormTemplateField;
+  field: FormInstanceField;
   classification: FieldClassification;
   embedding: number[] | null;
   templateName: string;
@@ -596,14 +616,14 @@ export async function confirmAndWriteCatalogue(
     // dual-write below ({130.24} DR-036).
     const upsertResult = await tryQuery(
       supabase
-        .from('form_template_requirements')
+        .from('form_requirement_templates')
         .upsert(row, {
           onConflict: CATALOGUE_CONFLICT_TARGET,
           ignoreDuplicates: false,
         })
         .select('id')
         .single(),
-      'form_template_requirements.upsert',
+      'form_requirement_templates.upsert',
     );
     if (!upsertResult.ok) {
       failed += 1;

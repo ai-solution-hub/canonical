@@ -87,12 +87,6 @@ const TEST_PREFIX = `[S224-W4C-BIDDRAFTALL-${Date.now()}-${Math.random()
 let ADMIN_USER_ID = '';
 let EDITOR_USER_ID = '';
 
-// Procurement application_type id — resolved at beforeAll from the seeded
-// `application_types` table (S246 WP2b T2 — workspaces discriminator is now
-// application_type_id FK, not `workspaces.type` text col). 'bid' → 'procurement'
-// per Q-OQR1-02.
-let PROCUREMENT_APP_TYPE_ID = '';
-
 // Track every seeded row so afterAll can scrub.
 const seededBidIds = new Set<string>();
 const seededQuestionIds = new Set<string>();
@@ -140,17 +134,27 @@ async function createTestBid(opts: {
   const status = opts.status ?? 'drafting';
   const questionCount = opts.zeroQuestions ? 0 : (opts.questionCount ?? 3);
 
-  // Insert workspace (bid). Schema: workspaces.name (not title).
-  // S246 WP2b T2: workspace discriminator is application_type_id FK, not
-  // `type` text col. `domain_metadata` JSONB column dropped (P1).
+  // ID-145 {145.23} round-2: insert form_instances directly — the item IS
+  // the form now (BI-1); workspaces/procurement_workspaces are
+  // wholesale-deleted for procurement (W1e, {145.6}), so a `workspaces`
+  // insert here would create a row `form_questions.form_instance_id`
+  // (NOT NULL, FK'd to form_instances(id) — never workspaces(id)) could
+  // never reference, FK-violating on the very next insert. Minimal
+  // NOT-NULL-no-default column set post-W1c: name, filename, storage_path,
+  // file_size, mime_type. `workflow_state` replaces the old `status` column
+  // (default 'draft'; explicitly set to the caller's requested status).
+  // form_instances has no `updated_by` column (unlike the retired
+  // `workspaces` row this fixture used to insert).
   const { data: bid, error: bidErr } = await serviceClient
-    .from('workspaces')
+    .from('form_instances')
     .insert({
-      application_type_id: PROCUREMENT_APP_TYPE_ID,
       name: `${TEST_PREFIX} test bid`,
-      status,
+      filename: `${TEST_PREFIX}.pdf`,
+      storage_path: `${TEST_PREFIX}/test.pdf`,
+      file_size: 1024,
+      mime_type: 'application/pdf',
+      workflow_state: status,
       created_by: ADMIN_USER_ID,
-      updated_by: ADMIN_USER_ID,
     })
     .select('id')
     .single();
@@ -161,20 +165,23 @@ async function createTestBid(opts: {
 
   // Insert questions in order. Use confidence_posture='strong' so the
   // handler's loop attempts to draft them.
+  //
+  // ID-145 {145.23} round-2: form_questions.workspace_id was DROPPED (W1c
+  // STEP 4); form_instance_id is now NOT NULL + FK'd to form_instances(id).
+  // matched_record_ids was also DROPPED (W1c STEP 4) — no replacement
+  // needed here, matches are R7-sourced (question_match_search).
   const questionIds: string[] = [];
   for (let i = 0; i < questionCount; i += 1) {
     const { data: q, error: qErr } = await serviceClient
       .from('form_questions')
       .insert({
-        // S246 WP2b T2 (P2): form_questions.workspace_id → workspace_id.
-        workspace_id: bid.id,
+        form_instance_id: bid.id,
         question_text: `${TEST_PREFIX} question ${i + 1}`,
         word_limit: 200,
         section_name: 'Test Section',
         section_sequence: 1,
         question_sequence: i + 1,
         confidence_posture: 'strong',
-        matched_record_ids: [],
       })
       .select('id')
       .single();
@@ -226,36 +233,31 @@ beforeAll(async () => {
   expect(EDITOR_USER_ID).toMatch(
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
   );
-
-  // S246 WP2b T2: discriminator FK lookup.
-  const { data: appType, error: appTypeErr } = await serviceClient
-    .from('application_types')
-    .select('id')
-    .eq('key', 'procurement')
-    .single();
-  if (appTypeErr || !appType) {
-    throw new Error(
-      `application_types row for key='procurement' not found — was the T2 seed step applied? Original error: ${appTypeErr?.message}`,
-    );
-  }
-  PROCUREMENT_APP_TYPE_ID = appType.id;
+  // ID-145 {145.23} round-2: the S246 WP2b T2 application_types discriminator
+  // lookup that used to resolve PROCUREMENT_APP_TYPE_ID is REMOVED —
+  // createTestBid() inserts form_instances directly now, which carries no
+  // application_type_id FK (that was a `workspaces` column; form_instances
+  // has no application-type discriminator at all — it IS the procurement
+  // item, BI-1).
 }, 30_000);
 
 afterAll(async () => {
   if (!HAS_REQUIRED_ENV) return;
 
-  // Defence — re-query workspaces by name prefix to catch any bids created
-  // by tests that did not run through createTestBid (e.g. direct inserts),
-  // or where seededBidIds was not populated before a crash.
-  const { data: prefixWorkspaces } = await serviceClient
-    .from('workspaces')
+  // Defence — re-query form_instances by name prefix to catch any bids
+  // created by tests that did not run through createTestBid (e.g. direct
+  // inserts), or where seededBidIds was not populated before a crash.
+  // ID-145 {145.23} round-2: workspaces -> form_instances (W1e; the item IS
+  // the form now, no more workspace container).
+  const { data: prefixForms } = await serviceClient
+    .from('form_instances')
     .select('id')
     .like('name', `${TEST_PREFIX}%`);
-  for (const row of prefixWorkspaces ?? []) {
+  for (const row of prefixForms ?? []) {
     seededBidIds.add(row.id);
   }
 
-  // Scrub in dependency-order — form_responses → form_questions → workspaces;
+  // Scrub in dependency-order — form_responses → form_questions → form_instances;
   // processing_queue and pipeline_runs are independent.
   if (seededResponseIds.size > 0) {
     await serviceClient
@@ -278,14 +280,14 @@ afterAll(async () => {
   }
   if (seededBidIds.size > 0) {
     await serviceClient
-      .from('workspaces')
+      .from('form_instances')
       .delete()
       .in('id', Array.from(seededBidIds));
   }
-  // Defence — also scrub workspaces by name prefix (catches any rows the
+  // Defence — also scrub form_instances by name prefix (catches any rows the
   // re-query above missed due to timing or partial failures).
   await serviceClient
-    .from('workspaces')
+    .from('form_instances')
     .delete()
     .like('name', `${TEST_PREFIX}%`);
   if (seededJobIds.size > 0) {
@@ -845,9 +847,11 @@ describeIfEnv('AC-6 — bid not in draftable state', () => {
   it('AC-6 (handler-level): direct envelope insert + flip bid to matching → cron tick → status=failed, error_message mentions bid_not_draftable', async () => {
     const { procurementId } = await createTestBid({ status: 'drafting' });
     // Flip to matching (simulates state change post-enqueue).
+    // ID-145 {145.23} round-2: workspaces -> form_instances (W1e);
+    // status -> workflow_state (W1c rename).
     await serviceClient
-      .from('workspaces')
-      .update({ status: 'matching' })
+      .from('form_instances')
+      .update({ workflow_state: 'matching' })
       .eq('id', procurementId);
 
     // Direct envelope insert to processing_queue.

@@ -48,14 +48,12 @@ interface UseFormActionsParams {
 // ---------------------------------------------------------------------------
 
 function useFormData(id: string) {
-  const router = useRouter();
   const queryClient = useQueryClient();
 
-  // The queryFn deliberately does NOT close over `router` — putting an
-  // unstable function reference in the query closure forces it into the
-  // queryKey deps under @tanstack/query/exhaustive-deps. Instead the
-  // queryFn returns a sentinel on 404 and the navigation is performed in
-  // a side-effect hook below.
+  // The queryFn returns a `null` sentinel on a confirmed 404 rather than
+  // throwing, so the query settles `isSuccess` with `data === null` instead
+  // of `isError` — that distinction is what lets the page tell "genuinely
+  // not found" apart from "fetch failed" below.
   const procurementQuery = useQuery({
     queryKey: queryKeys.procurement.detail(id),
     queryFn: async () => {
@@ -70,22 +68,16 @@ function useFormData(id: string) {
     },
   });
 
-  // Redirect on confirmed 404 (queryFn returned null without throwing).
-  useEffect(() => {
-    if (
-      !procurementQuery.isLoading &&
-      procurementQuery.isSuccess &&
-      procurementQuery.data === null
-    ) {
-      toast.error('Procurement not found');
-      router.push('/procurement');
-    }
-  }, [
-    procurementQuery.isLoading,
-    procurementQuery.isSuccess,
-    procurementQuery.data,
-    router,
-  ]);
+  // ID-145 {145.18} BI-2/BI-3 — a confirmed 404 (queryFn's `null` sentinel,
+  // settled not loading) is surfaced as a flag the item page renders through
+  // Next's standard `notFound()` boundary. NO legacy redirect: BI-3 dropped
+  // the workspace->form redirect entirely (R3's wholesale delete leaves
+  // nothing to map to), so an unknown/retired id must resolve to the
+  // standard not-found surface, never a toast + bounce to the list.
+  const notFoundConfirmed =
+    !procurementQuery.isLoading &&
+    procurementQuery.isSuccess &&
+    procurementQuery.data === null;
 
   const questionsQuery = useQuery({
     queryKey: queryKeys.procurement.questions(id),
@@ -115,6 +107,7 @@ function useFormData(id: string) {
       procurementQuery.data?.question_stats ??
       null,
     loading: procurementQuery.isLoading,
+    notFoundConfirmed,
     fetchProcurement,
     fetchQuestions,
     queryClient,
@@ -168,8 +161,8 @@ function useFormTransitions(
   const handleStatusTransition = useCallback(
     async (newStatus: ProcurementWorkflowState) => {
       if (!bid) return;
-      // {130.13} re-point: the umbrella workflow state derives from the primary
-      // form's `workflow_state` (B-8), not the removed `bid.status`.
+      // ID-145 {145.18} re-point: the workflow state derives directly off the
+      // form's `workflow_state` (BI-1/BI-18) — the item IS the form post-W1.
       const currentStatus =
         deriveProcurementStatus(bid) ?? ('draft' as ProcurementWorkflowState);
       if (!canTransition(currentStatus, newStatus)) {
@@ -294,8 +287,15 @@ export function useFormActions({ id }: UseFormActionsParams) {
   const queryClient = useQueryClient();
 
   // Data fetching (TanStack Query)
-  const { bid, questions, stats, loading, fetchProcurement, fetchQuestions } =
-    useFormData(id);
+  const {
+    bid,
+    questions,
+    stats,
+    loading,
+    notFoundConfirmed,
+    fetchProcurement,
+    fetchQuestions,
+  } = useFormData(id);
 
   // Tab state — derived from URL ?tab= param for deep-link and refresh support
   const searchString = searchParams.toString();
@@ -594,10 +594,9 @@ export function useFormActions({ id }: UseFormActionsParams) {
   }
 
   // Computed values
-  // {130.13} re-point: the umbrella detail GET ({130.11}) no longer returns
-  // `bid.status` / `bid.domain_metadata` — the per-stage facts live on the
-  // primary child form, with `deadline` falling back to the roll-up. The
-  // derivation also tolerates the legacy shape for a graceful migration read.
+  // ID-145 {145.18} re-point: the GET response is a flat `form_instances` row
+  // post-W1 — every engagement fact is read directly off it (BI-1), never
+  // from `bid.domain_metadata`.
   const metadata = deriveProcurementMetadata(bid);
   const procurementStatus = deriveProcurementStatus(bid);
   const totalQuestions = stats?.total_questions ?? 0;
@@ -634,6 +633,7 @@ export function useFormActions({ id }: UseFormActionsParams) {
     questions,
     stats,
     loading,
+    notFoundConfirmed,
     activeTab,
     setActiveTab,
 

@@ -14,6 +14,7 @@ import {
   Briefcase,
   FileBarChart,
   History,
+  Inbox,
   Library,
   Link2,
   Newspaper,
@@ -132,6 +133,18 @@ export const NAV_ZONES: readonly NavZone[] = [
         href: '/review',
         label: 'Review',
         icon: ShieldCheck,
+        visibility: 'edit',
+      },
+      {
+        // ID-145 {145.22} (TECH §5/§7 section I, BI-38/39, BI-48): thin
+        // promotion-gate UI composing the existing q_a_extractions_
+        // promotion_candidates() RPC + promote-corpus route + dedup-proposals
+        // queue. Same admin/editor gate as the surface itself
+        // (getAuthorisedClient(['admin','editor'])) — 'edit' visibility
+        // mirrors Review/Coverage, the other review-queue entries.
+        href: '/promotion-gate',
+        label: 'Promotion gate',
+        icon: Inbox,
         visibility: 'edit',
       },
       {

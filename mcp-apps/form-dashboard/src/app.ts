@@ -20,7 +20,7 @@ import './styles.css';
 
 // -- App setup ---------------------------------------------------------------
 
-const app = new App({ name: 'Bid Dashboard', version: '1.0.0' });
+const app = new App({ name: 'Procurement Dashboard', version: '1.0.0' });
 
 const root = document.getElementById('app')!;
 let dashboardData: ProcurementDashboardData | null = null;
@@ -54,7 +54,7 @@ app.ontoolresult = (result) => {
       const text = result.content?.find(
         (c: { type: string }) => c.type === 'text',
       ) as { text?: string } | undefined;
-      renderEmpty(text?.text ?? 'No bid data available.');
+      renderEmpty(text?.text ?? 'No procurement data available.');
       return;
     }
     dashboardData = data;
@@ -72,7 +72,7 @@ app.ontoolresult = (result) => {
 
     renderDashboard();
   } catch {
-    renderEmpty('Failed to parse bid data.');
+    renderEmpty('Failed to parse procurement data.');
   }
 };
 
@@ -81,7 +81,7 @@ app.ontoolinput = () => {
 };
 
 app.ontoolcancelled = () => {
-  renderEmpty('Bid dashboard request was cancelled.');
+  renderEmpty('Procurement dashboard request was cancelled.');
 };
 
 app.onerror = (error) => {
@@ -112,14 +112,14 @@ function renderLoading(): void {
   clearElement(root);
   const container = createElement('div', {
     className: 'loading-state',
-    attrs: { role: 'status', 'aria-label': 'Loading bid data' },
+    attrs: { role: 'status', 'aria-label': 'Loading procurement data' },
   });
   const spinner = createElement('div', {
     className: 'loading-spinner',
     attrs: { 'aria-hidden': 'true' },
   });
   const text = createElement('p');
-  text.textContent = 'Waiting for bid data\u2026';
+  text.textContent = 'Waiting for procurement data\u2026';
   container.appendChild(spinner);
   container.appendChild(text);
   root.appendChild(container);
@@ -160,9 +160,10 @@ function renderDashboard(): void {
   // Header
   const header = createElement('header', { className: 'dashboard-header' });
   const title = createElement('h1', { className: 'dashboard-title' });
-  title.textContent = 'Bid Dashboard';
+  title.textContent = 'Procurement Dashboard';
   const subtitle = createElement('p', { className: 'dashboard-subtitle' });
-  subtitle.textContent = 'Active bids with progress and deadline tracking';
+  subtitle.textContent =
+    'Active procurements with progress and deadline tracking';
   header.appendChild(title);
   header.appendChild(subtitle);
   root.appendChild(header);
@@ -177,13 +178,13 @@ function renderDashboard(): void {
       attrs: { role: 'status' },
     });
     const p = createElement('p');
-    p.textContent = 'No active bids found.';
+    p.textContent = 'No active procurements found.';
     empty.appendChild(p);
     root.appendChild(empty);
   } else {
     const list = createElement('div', {
       className: 'bid-list',
-      attrs: { role: 'list', 'aria-label': 'Active bids' },
+      attrs: { role: 'list', 'aria-label': 'Active procurements' },
     });
     for (const bid of sortedBids) {
       list.appendChild(buildBidCard(bid));
@@ -198,7 +199,7 @@ function buildSummaryBar(
 ): HTMLElement {
   const bar = createElement('div', {
     className: 'summary-bar',
-    attrs: { role: 'region', 'aria-label': 'Bid pipeline summary' },
+    attrs: { role: 'region', 'aria-label': 'Procurement pipeline summary' },
   });
 
   const overdueCount = bids.filter(
@@ -212,7 +213,7 @@ function buildSummaryBar(
     value: string;
     modifier?: string;
   }> = [
-    { label: 'Total Bids', value: String(totalCount) },
+    { label: 'Total Procurements', value: String(totalCount) },
     {
       label: 'Overdue',
       value: String(overdueCount),
@@ -416,7 +417,7 @@ function buildDetailSection(state: ExpandedProcurementState): HTMLElement {
       className: 'bid-detail-loading',
       attrs: { role: 'status' },
     });
-    loading.textContent = 'Loading bid detail\u2026';
+    loading.textContent = 'Loading procurement detail\u2026';
     section.appendChild(loading);
     return section;
   }
@@ -454,7 +455,7 @@ function buildDetailSection(state: ExpandedProcurementState): HTMLElement {
         content: [
           {
             type: 'text',
-            text: `Show me the full detail for the ${detail.name} bid.`,
+            text: `Show me the full detail for the ${detail.name} procurement.`,
           },
         ],
       })
@@ -1063,7 +1064,10 @@ async function toggleBidExpansion(procurementId: string): Promise<void> {
       procurementId,
       loading: false,
       detail: null,
-      error: err instanceof Error ? err.message : 'Failed to load bid detail',
+      error:
+        err instanceof Error
+          ? err.message
+          : 'Failed to load procurement detail',
       expandedQuestion: null,
     };
   }

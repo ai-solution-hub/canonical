@@ -3,10 +3,23 @@
  *
  * The 20260617130000 squash folded several pre-squash seed migrations into
  * DDL-only CREATE TABLE statements, silently DROPPING their INSERT VALUES
- * (a fresh/reset DB gets the table shape but not its core rows). Four CV
- * tables have been re-homed into `supabase/seed.sql` to close that gap —
- * application_types and form_types (§2·0/§2·0b), then procurement_vehicles
- * and procurement_vehicle_instances (§2·0c/§2·0d, ID-130.19).
+ * (a fresh/reset DB gets the table shape but not its core rows). Two CV
+ * tables are re-homed into `supabase/seed.sql` to close that gap —
+ * application_types and form_types (§2·0/§2·0b).
+ *
+ * procurement_vehicles and procurement_vehicle_instances (§2·0c/§2·0d,
+ * ID-130.19) were re-homed here too, but ID-145 {145.6} W1e
+ * (20260712064000_id145_w1e_drop_workspace_stratum.sql STEP 3) DROPPED both
+ * tables outright (zero code refs, zero inbound FKs) — so as of {145.28}
+ * (S474) they are no longer squash-fidelity victims to guard, they are
+ * gone. The corresponding seed.sql INSERTs and the two cases/test below
+ * were removed in the same commit as this comment.
+ *
+ * form_types' expected key set also no longer includes 'bid': ID-145 {145.27}
+ * BI-8/BI-12 retired 'Bid' as a first-class creation label (migration
+ * 20260712065000_id145_bi8_retire_bid_creation_label.sql DELETEs
+ * form_types.key='bid'), and {145.28} removed the matching seed.sql tuple so
+ * a fresh/reset DB doesn't silently resurrect the retired row.
  *
  * There is no local Docker/Supabase stack available to run `supabase db
  * reset` and assert the live tables directly in this environment, so this
@@ -176,7 +189,6 @@ describe('squash-seed-preservation guard (ID-130.19)', () => {
     {
       table: 'form_types',
       expectedKeys: [
-        'bid',
         'rfp',
         'psq',
         'itt',
@@ -185,14 +197,6 @@ describe('squash-seed-preservation guard (ID-130.19)', () => {
         'questionnaire',
         'sales_proposal_template',
       ],
-    },
-    {
-      table: 'procurement_vehicles',
-      expectedKeys: ['framework', 'dps', 'dynamic_procurement'],
-    },
-    {
-      table: 'procurement_vehicle_instances',
-      expectedKeys: ['g_cloud', 'dos'],
     },
   ];
 
@@ -210,21 +214,4 @@ describe('squash-seed-preservation guard (ID-130.19)', () => {
       ).toEqual([]);
     },
   );
-
-  it('procurement_vehicle_instances.vehicle_key FKs resolve within seed.sql', () => {
-    const vehicleKeys = extractColumnValues('procurement_vehicles', 'key');
-    const instanceVehicleKeys = extractColumnValues(
-      'procurement_vehicle_instances',
-      'vehicle_key',
-    );
-
-    const unresolved = instanceVehicleKeys.filter(
-      (vk) => !vehicleKeys.includes(vk),
-    );
-    expect(
-      unresolved,
-      `procurement_vehicle_instances references vehicle_key(s) not seeded ` +
-        `in procurement_vehicles: ${unresolved.join(', ')}`,
-    ).toEqual([]);
-  });
 });

@@ -116,8 +116,11 @@ function configureMock(options: {
     taxonomy_subtopics: { data: SUBTOPICS, error: null },
     source_documents: { data: sourceDocuments, error: null },
     record_lifecycle: { data: lifecycleRows, error: null },
-    workspaces: { data: activeProcurements, error: null },
-    form_template_requirements: { data: templateGaps, error: null },
+    // ID-145 {145.23} round-2: workspaces -> form_instances (W1e; the
+    // content-suggestions.ts active-procurements existence check now reads
+    // form_instances directly).
+    form_instances: { data: activeProcurements, error: null },
+    form_requirement_templates: { data: templateGaps, error: null },
   };
 
   // Create per-table chains

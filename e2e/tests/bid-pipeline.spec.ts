@@ -17,12 +17,14 @@
  * ASSERTIONS (each must be verifiable from browser state OR DB state — no
  * trivial "element exists" checks; every assertion must map to a failure mode):
  *   - URL after submit matches `/procurement/[0-9a-f-]{36}` exactly.
- *   - A `workspaces` row with `type='bid'`, the typed Name, and the typed
- *     Buyer (from `domain_metadata->>buyer`) exists in DB. Verified via
- *     service-key query against the captured workspace id from the URL.
+ *   - A `form_instances` row (ID-145 {145.6}/{145.18} form-first
+ *     re-architecture — NOT a `workspaces` row post-W1) with the typed
+ *     Name and the typed Buyer (on `issuing_organisation`, a top-level
+ *     column, NOT a `domain_metadata` JSONB key) exists in DB. Verified via
+ *     service-key query against the captured form_instances id from the URL.
  *   - On reload, the bid name is visible in the page heading (proves the
  *     row is fetched back, not a transient client cache).
- *   - The `workspaces.created_by` matches the admin user id (proves the
+ *   - The `form_instances.created_by` matches the admin user id (proves the
  *     POST handler is reading auth, not inserting NULL).
  *
  * FIXTURE DATA (pre-seeded before test runs):
@@ -32,14 +34,14 @@
  *
  * EXPECTED FAILURE MODES (production-code breakages this test must catch —
  * each must map to >= 1 assertion above):
- *   - `POST /api/bids` returns 200 without inserting into `workspaces` →
- *     caught by DB row existence assertion.
+ *   - `POST /api/procurement` returns 200 without inserting into
+ *     `form_instances` → caught by DB row existence assertion.
  *   - Submit handler navigates to `/procurement` (list) instead of `/procurement/<id>` →
  *     caught by URL regex assertion.
  *   - `created_by` left NULL because auth context not threaded through →
  *     caught by created_by match assertion.
- *   - Buyer field stored under wrong JSON key (e.g. typo in
- *     domain_metadata key) → caught by buyer DB assertion.
+ *   - Buyer field stored under the wrong column → caught by buyer DB
+ *     assertion.
  *   - Procurement persists only in client memory, not DB → caught by post-reload
  *     name visibility assertion.
  *
@@ -50,21 +52,23 @@
  *   tests. Viewer create is forbidden and tested in 8.0.6.
  *
  * CLEANUP:
- *   afterEach: service-key delete of any `workspaces` row whose name
+ *   afterEach: service-key delete of any `form_instances` row whose name
  *   starts with `[E2E-WP2-8.0.3]` (idempotent — also handles partial
  *   failures). The Phase 3 implementer must use the worker prefix
  *   pattern from `data-factory.createTestBid` for safe parallel runs.
  *
- * VERIFIED AGAINST PRODUCTION (Phase 2 adversarial review):
- *   - `app/api/bids/route.ts` POST handler inserts into the `workspaces`
- *     table with `type='bid'` and stores buyer in
- *     `domain_metadata.buyer` (NOT a top-level column). The DB query
- *     in this spec must use `domain_metadata->>buyer`.
+ * VERIFIED AGAINST PRODUCTION (Phase 2 adversarial review; re-verified
+ * ID-145 {145.23} post-W1):
+ *   - `app/api/procurement/route.ts` POST handler inserts into the
+ *     `form_instances` table and stores buyer in `issuing_organisation`
+ *     (a top-level column, not a `domain_metadata` JSONB key).
  *   - `created_by` is set to `user.id` from `getAuthorisedClient`
  *     (admin/editor), so the assertion on `created_by` is meaningful.
- *   - The handler returns the inserted row; the front-end then navigates
- *     to `/procurement/<id>`. If the navigation step is intercepted by an
- *     intermediate page, the URL regex assertion still passes as long as
+ *   - The handler returns the inserted row; the front-end
+ *     (`components/procurement/procurement-creation-wizard.tsx`) then
+ *     navigates to `/procurement/<id>` (`app/procurement/page.tsx`
+ *     `handleProcurementCreated`). If the navigation step is intercepted by
+ *     an intermediate page, the URL regex assertion still passes as long as
  *     the final URL matches.
  *
  * EXPLICIT FORBIDDEN PATTERNS (Phase 3 implementer must NOT do these):
@@ -73,7 +77,7 @@
  *   - DO NOT pre-seed a row with the same name in `beforeEach` — that
  *     would make the post-reload "name visible" assertion pass even if
  *     the create flow did nothing (Attack 2 — trivial fixture).
- *   - DO NOT wrap the DB assertion in `if (workspaceId) { ... }` — if
+ *   - DO NOT wrap the DB assertion in `if (formInstanceId) { ... }` — if
  *     the URL capture fails, the test must FAIL loudly, not silently
  *     skip the DB check.
  *   - DO NOT replace the `created_by === admin.id` assertion with
@@ -90,9 +94,9 @@ import { createServiceClient } from '../fixtures/supabase';
 /**
  * Flow: Procurement Pipeline
  *
- * Tests for the Procurement Pipeline pages covering the bid list (/bid),
- * bid detail (/bid/[id]), status filters, role-based behaviour,
- * bid creation form, and mobile responsiveness.
+ * Tests for the Procurement Pipeline pages covering the bid list
+ * (/procurement), bid detail (/procurement/[id]), status filters,
+ * role-based behaviour, bid creation form, and mobile responsiveness.
  *
  * Worker-scoped data provides one bid in "drafting" state with
  * 4 questions and 2 responses (see test-data-fixture.ts).
@@ -108,12 +112,16 @@ test.describe('Procurement list page', () => {
   }) => {
     await page.goto('/procurement');
 
-    await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
+    await expect(
+      page.getByRole('heading', { name: 'Procurement' }),
+    ).toBeVisible({
       timeout: 10000,
     });
 
     await expect(
-      page.getByText('Manage bid submissions and tender responses'),
+      page.getByText(
+        'Manage your procurement engagements and the forms within them',
+      ),
     ).toBeVisible();
   });
 
@@ -146,7 +154,9 @@ test.describe('Procurement list page', () => {
     await page.goto('/procurement');
 
     // Wait for content to load
-    await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
+    await expect(
+      page.getByRole('heading', { name: 'Procurement' }),
+    ).toBeVisible({
       timeout: 10000,
     });
 
@@ -191,9 +201,9 @@ test.describe('Procurement list page', () => {
       const draftCard = page.locator(`a[href="/procurement/${draftBidId}"]`);
       await expect(draftCard).not.toBeVisible();
     } finally {
-      // Clean up the temporary bid
+      // Clean up the temporary bid (a `form_instances` row, ID-145 W1)
       const supabase = createServiceClient();
-      await supabase.from('workspaces').delete().eq('id', draftBidId);
+      await supabase.from('form_instances').delete().eq('id', draftBidId);
     }
   });
 
@@ -209,7 +219,7 @@ test.describe('Procurement list page', () => {
     await filterGroup.getByRole('button', { name: 'Completed' }).click();
 
     await expect(
-      page.getByText('No bids match the selected filter.'),
+      page.getByText('No procurements match the selected filter.'),
     ).toBeVisible();
   });
 
@@ -239,7 +249,9 @@ test.describe('Procurement creation form', () => {
     authenticatedPage: page,
   }) => {
     await page.goto('/procurement');
-    await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
+    await expect(
+      page.getByRole('heading', { name: 'Procurement' }),
+    ).toBeVisible({
       timeout: 10000,
     });
 
@@ -256,7 +268,9 @@ test.describe('Procurement creation form', () => {
     authenticatedPage: page,
   }) => {
     await page.goto('/procurement');
-    await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
+    await expect(
+      page.getByRole('heading', { name: 'Procurement' }),
+    ).toBeVisible({
       timeout: 10000,
     });
 
@@ -280,7 +294,9 @@ test.describe('Procurement creation form', () => {
     authenticatedPage: page,
   }) => {
     await page.goto('/procurement');
-    await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
+    await expect(
+      page.getByRole('heading', { name: 'Procurement' }),
+    ).toBeVisible({
       timeout: 10000,
     });
 
@@ -289,15 +305,17 @@ test.describe('Procurement creation form', () => {
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
 
-    // The in-use dialog is ProcurementCreationWizard (3-step), which exposes two
-    // submit affordances on step 1: "Create Without Document" (link button,
-    // create-only path) and "Next: Upload Tender" (form submit, advance path).
+    // The in-use dialog is ProcurementCreationWizard (3-step), which exposes
+    // two submit affordances on step 1: "Start Blank Procurement" (type=button,
+    // create-only path) and "Create & Upload Tender" (type=submit, advance
+    // path) — button copy re-verified against
+    // components/procurement/procurement-creation-wizard.tsx (ID-145 {145.23}).
     // Both must be disabled until both required fields are filled.
     const createWithoutDocButton = dialog.getByRole('button', {
-      name: /Create Without Document/,
+      name: /Start Blank Procurement/,
     });
     const nextButton = dialog.getByRole('button', {
-      name: /Next: Upload Tender/,
+      name: /Create & Upload Tender/,
     });
     await expect(createWithoutDocButton).toBeDisabled();
     await expect(nextButton).toBeDisabled();
@@ -307,15 +325,31 @@ test.describe('Procurement creation form', () => {
     await expect(createWithoutDocButton).toBeDisabled();
     await expect(nextButton).toBeDisabled();
 
-    // Fill buyer too — now both enabled
+    // Fill buyer too — STILL disabled: both submit buttons are gated on three
+    // required inputs (name + buyer + form type), and the form type is not yet
+    // selected. Production gate:
+    // `saving || !name.trim() || !buyer.trim() || !formType`
+    // (components/procurement/procurement-creation-wizard.tsx). The
+    // FormTypePicker (ID-130 {130.12}) predates the {145.6} form-first work, so
+    // this is the true gating contract, not a W1 regression (ID-145 {145.23}).
     await dialog.locator('#wizard-procurement-buyer').fill('Test Buyer');
+    await expect(createWithoutDocButton).toBeDisabled();
+    await expect(nextButton).toBeDisabled();
+
+    // Pick a form type — now, with all three required inputs satisfied, both
+    // submit affordances enable.
+    await dialog
+      .getByRole('radiogroup', { name: 'Form type' })
+      .getByRole('radio')
+      .first()
+      .click();
     await expect(createWithoutDocButton).toBeEnabled();
     await expect(nextButton).toBeEnabled();
   });
 });
 
 // ---------------------------------------------------------------------------
-// 3. Procurement Detail Page (/bid/[id])
+// 3. Procurement Detail Page (/procurement/[id])
 // ---------------------------------------------------------------------------
 
 test.describe('Procurement detail page', () => {
@@ -465,7 +499,9 @@ test.describe('Procurement role gating', () => {
     authenticatedPage: page,
   }) => {
     await page.goto('/procurement');
-    await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
+    await expect(
+      page.getByRole('heading', { name: 'Procurement' }),
+    ).toBeVisible({
       timeout: 10000,
     });
 
@@ -478,7 +514,9 @@ test.describe('Procurement role gating', () => {
     editorPage: page,
   }) => {
     await page.goto('/procurement');
-    await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
+    await expect(
+      page.getByRole('heading', { name: 'Procurement' }),
+    ).toBeVisible({
       timeout: 10000,
     });
 
@@ -491,7 +529,9 @@ test.describe('Procurement role gating', () => {
     viewerPage: page,
   }) => {
     await page.goto('/procurement');
-    await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
+    await expect(
+      page.getByRole('heading', { name: 'Procurement' }),
+    ).toBeVisible({
       timeout: 10000,
     });
 
@@ -590,15 +630,16 @@ test.describe('Procurement mobile layout', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('Procurement create happy path submit (8.0.3)', () => {
-  // Idempotent cleanup: delete any workspaces whose name carries the
-  // 8.0.3 prefix from this or previous runs.
+  // Idempotent cleanup: delete any form_instances rows whose name carries
+  // the 8.0.3 prefix from this or previous runs (ID-145 W1 — procurement
+  // items are `form_instances` rows, not `workspaces` rows).
   const NAME_PREFIX = '[E2E-WP2-8.0.3]';
 
   test.afterEach(async () => {
     const supabase = createServiceClient();
     try {
       await supabase
-        .from('workspaces')
+        .from('form_instances')
         .delete()
         .like('name', `${NAME_PREFIX}%`);
     } catch (err) {
@@ -647,9 +688,11 @@ test.describe('Procurement create happy path submit (8.0.3)', () => {
     const uniqueName = `${NAME_PREFIX} Submit Path Procurement ${Date.now()}`;
     const buyerName = 'E2E Submit Buyer';
 
-    // 1. Navigate to /bid
+    // 1. Navigate to /procurement
     await page.goto('/procurement');
-    await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
+    await expect(
+      page.getByRole('heading', { name: 'Procurement' }),
+    ).toBeVisible({
       timeout: 10000,
     });
 
@@ -665,13 +708,19 @@ test.describe('Procurement create happy path submit (8.0.3)', () => {
       dialog.getByRole('heading', { name: 'Create New Procurement' }),
     ).toBeVisible();
 
-    // 3. Fill required fields. NOTE: the in-use dialog is the
-    //    `ProcurementCreationWizard` (3-step), NOT the older `BidCreationForm`.
-    //    Phase 2 verified the wrong component. The wizard renders inputs
-    //    with `wizard-procurement-name` / `wizard-procurement-buyer` ids and
-    //    submits the create-only path via the "Create Without Document" link
-    //    button. See components/bid/bid-creation-wizard.tsx (handleCreateBid
-    //    with advanceToUpload=false, which still POSTs /api/bids and navigates).
+    // 3. Fill required fields. The wizard
+    //    (`components/procurement/procurement-creation-wizard.tsx`) renders
+    //    inputs with `wizard-procurement-name` / `wizard-procurement-buyer`
+    //    ids, a `FormTypePicker` radiogroup (also required — both submit
+    //    buttons stay disabled without a selection), and submits the
+    //    create-only path via the "Start Blank Procurement" button
+    //    (`handleCreateProcurement(e, false)`, which POSTs /api/procurement
+    //    and navigates via `onCreated`/`router.push`).
+    await dialog
+      .getByRole('radiogroup', { name: 'Form type' })
+      .getByRole('radio')
+      .first()
+      .click();
     const nameInput = dialog.locator('#wizard-procurement-name');
     await nameInput.waitFor({ state: 'visible', timeout: 10000 });
     await nameInput.fill(uniqueName);
@@ -679,9 +728,9 @@ test.describe('Procurement create happy path submit (8.0.3)', () => {
     await buyerInput.waitFor({ state: 'visible' });
     await buyerInput.fill(buyerName);
 
-    // 4. Submit via "Create Without Document" (the create-only path).
+    // 4. Submit via "Start Blank Procurement" (the create-only path).
     const createButton = dialog.getByRole('button', {
-      name: /Create Without Document/,
+      name: /Start Blank Procurement/,
     });
     await expect(createButton).toBeVisible({ timeout: 10000 });
     await expect(createButton).toBeEnabled();
@@ -690,40 +739,42 @@ test.describe('Procurement create happy path submit (8.0.3)', () => {
     const postPromise = page.waitForResponse(
       (resp) =>
         resp.request().method() === 'POST' &&
-        /\/api\/bids$/.test(new URL(resp.url()).pathname),
+        /\/api\/procurement$/.test(new URL(resp.url()).pathname),
     );
     await createButton.click();
     const postResponse = await postPromise;
-    expect(postResponse.status(), 'POST /api/bids must return 201').toBe(201);
+    expect(postResponse.status(), 'POST /api/procurement must return 201').toBe(
+      201,
+    );
 
-    // 5. Wait for navigation to /bid/<uuid>
-    await page.waitForURL(/\/bid\/[0-9a-f-]{36}$/, { timeout: 15000 });
+    // 5. Wait for navigation to /procurement/<uuid>
+    await page.waitForURL(/\/procurement\/[0-9a-f-]{36}$/, { timeout: 15000 });
 
-    // ASSERTION: URL matches /bid/<uuid> exactly
+    // ASSERTION: URL matches /procurement/<uuid> exactly (BI-31 — never
+    // /bid/<uuid> or /bids/<uuid>).
     const url = new URL(page.url());
-    const uuidMatch = url.pathname.match(/^\/bid\/([0-9a-f-]{36})$/);
+    const uuidMatch = url.pathname.match(/^\/procurement\/([0-9a-f-]{36})$/);
     expect(
       uuidMatch,
-      `URL ${url.pathname} must match /bid/<uuid>`,
+      `URL ${url.pathname} must match /procurement/<uuid>`,
     ).not.toBeNull();
-    const workspaceId = uuidMatch![1];
+    const formInstanceId = uuidMatch![1];
 
-    // ASSERTION: workspaces row exists with the correct name, type=bid,
-    // and buyer in domain_metadata.
+    // ASSERTION: form_instances row exists with the correct name and buyer
+    // (ID-145 {145.6}/{145.18} form-first re-architecture — the item IS the
+    // form; no `workspaces` row, no `domain_metadata` JSONB).
     const { data: row, error: rowErr } = await supabase
-      .from('workspaces')
-      .select('id, name, type, domain_metadata, created_by')
-      .eq('id', workspaceId)
+      .from('form_instances')
+      .select('id, name, issuing_organisation, created_by')
+      .eq('id', formInstanceId)
       .single();
     if (rowErr) throw rowErr;
-    expect(row, 'workspace row must exist').toBeTruthy();
-    expect(row!.type).toBe('bid');
+    expect(row, 'form_instances row must exist').toBeTruthy();
     expect(row!.name).toBe(uniqueName);
 
-    // ASSERTION: buyer stored under domain_metadata.buyer (NOT a top-level
-    // column). Use object access since supabase-js parses JSONB.
-    const meta = (row!.domain_metadata ?? {}) as Record<string, unknown>;
-    expect(meta.buyer).toBe(buyerName);
+    // ASSERTION: buyer stored under `issuing_organisation` (a top-level
+    // column, not a `domain_metadata` JSONB key).
+    expect(row!.issuing_organisation).toBe(buyerName);
 
     // ASSERTION: created_by matches the admin user id (proves auth is
     // threaded through). Exact equality, not a null-check.

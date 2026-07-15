@@ -1114,6 +1114,208 @@ export type Database = {
           },
         ]
       }
+      form_instance_fields: {
+        Row: {
+          col_index: number | null
+          created_at: string | null
+          field_type: string | null
+          fill_error: string | null
+          fill_status: string | null
+          form_instance_id: string | null
+          id: string | null
+          is_mandatory: boolean | null
+          mapping_confidence: number | null
+          mapping_status: string | null
+          placeholder_text: string | null
+          question_id: string | null
+          question_text: string | null
+          reference_urls: string[] | null
+          row_index: number | null
+          section_name: string | null
+          sequence: number | null
+          table_index: number | null
+          updated_at: string | null
+          word_limit: number | null
+        }
+        Insert: {
+          col_index?: number | null
+          created_at?: string | null
+          field_type?: string | null
+          fill_error?: string | null
+          fill_status?: string | null
+          form_instance_id?: string | null
+          id?: string | null
+          is_mandatory?: boolean | null
+          mapping_confidence?: number | null
+          mapping_status?: string | null
+          placeholder_text?: string | null
+          question_id?: string | null
+          question_text?: string | null
+          reference_urls?: string[] | null
+          row_index?: number | null
+          section_name?: string | null
+          sequence?: number | null
+          table_index?: number | null
+          updated_at?: string | null
+          word_limit?: number | null
+        }
+        Update: {
+          col_index?: number | null
+          created_at?: string | null
+          field_type?: string | null
+          fill_error?: string | null
+          fill_status?: string | null
+          form_instance_id?: string | null
+          id?: string | null
+          is_mandatory?: boolean | null
+          mapping_confidence?: number | null
+          mapping_status?: string | null
+          placeholder_text?: string | null
+          question_id?: string | null
+          question_text?: string | null
+          reference_urls?: string[] | null
+          row_index?: number | null
+          section_name?: string | null
+          sequence?: number | null
+          table_index?: number | null
+          updated_at?: string | null
+          word_limit?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_instance_fields_form_instance_id_fkey"
+            columns: ["form_instance_id"]
+            isOneToOne: false
+            referencedRelation: "form_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_template_fields_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "form_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_instances: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          deadline: string | null
+          description: string | null
+          engagement_group_id: string | null
+          estimated_value: number | null
+          evaluation_methodology: string | null
+          field_count: number | null
+          file_size: number | null
+          filename: string | null
+          form_type: string | null
+          id: string | null
+          ingest_source: string | null
+          issuing_organisation: string | null
+          mapped_count: number | null
+          mime_type: string | null
+          name: string | null
+          outcome: string | null
+          outcome_notes: string | null
+          outcome_recorded_at: string | null
+          outcome_recorded_by: string | null
+          processing_status: string | null
+          reference_number: string | null
+          status_reason: string | null
+          storage_path: string | null
+          structure_path: string | null
+          submission_date: string | null
+          updated_at: string | null
+          workflow_state: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          deadline?: string | null
+          description?: string | null
+          engagement_group_id?: string | null
+          estimated_value?: number | null
+          evaluation_methodology?: string | null
+          field_count?: number | null
+          file_size?: number | null
+          filename?: string | null
+          form_type?: string | null
+          id?: string | null
+          ingest_source?: string | null
+          issuing_organisation?: string | null
+          mapped_count?: number | null
+          mime_type?: string | null
+          name?: string | null
+          outcome?: string | null
+          outcome_notes?: string | null
+          outcome_recorded_at?: string | null
+          outcome_recorded_by?: string | null
+          processing_status?: string | null
+          reference_number?: string | null
+          status_reason?: string | null
+          storage_path?: string | null
+          structure_path?: string | null
+          submission_date?: string | null
+          updated_at?: string | null
+          workflow_state?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          deadline?: string | null
+          description?: string | null
+          engagement_group_id?: string | null
+          estimated_value?: number | null
+          evaluation_methodology?: string | null
+          field_count?: number | null
+          file_size?: number | null
+          filename?: string | null
+          form_type?: string | null
+          id?: string | null
+          ingest_source?: string | null
+          issuing_organisation?: string | null
+          mapped_count?: number | null
+          mime_type?: string | null
+          name?: string | null
+          outcome?: string | null
+          outcome_notes?: string | null
+          outcome_recorded_at?: string | null
+          outcome_recorded_by?: string | null
+          processing_status?: string | null
+          reference_number?: string | null
+          status_reason?: string | null
+          storage_path?: string | null
+          structure_path?: string | null
+          submission_date?: string | null
+          updated_at?: string | null
+          workflow_state?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_templates_form_type_fkey"
+            columns: ["form_type"]
+            isOneToOne: false
+            referencedRelation: "form_types"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "form_templates_outcome_fkey"
+            columns: ["outcome"]
+            isOneToOne: false
+            referencedRelation: "form_outcome_types"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       form_outcome_types: {
         Row: {
           applicable_form_types: string[] | null
@@ -1148,10 +1350,9 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           evaluation_weight: number | null
-          form_template_id: string | null
+          form_instance_id: string | null
           has_variants: boolean | null
           id: string | null
-          matched_record_ids: string[] | null
           question_sequence: number | null
           question_text: string | null
           section_name: string | null
@@ -1160,7 +1361,6 @@ export type Database = {
           template_requirement_id: string | null
           updated_at: string | null
           word_limit: number | null
-          workspace_id: string | null
         }
         Insert: {
           assigned_to?: string | null
@@ -1168,10 +1368,9 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           evaluation_weight?: number | null
-          form_template_id?: string | null
+          form_instance_id?: string | null
           has_variants?: boolean | null
           id?: string | null
-          matched_record_ids?: string[] | null
           question_sequence?: number | null
           question_text?: string | null
           section_name?: string | null
@@ -1180,7 +1379,6 @@ export type Database = {
           template_requirement_id?: string | null
           updated_at?: string | null
           word_limit?: number | null
-          workspace_id?: string | null
         }
         Update: {
           assigned_to?: string | null
@@ -1188,10 +1386,9 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           evaluation_weight?: number | null
-          form_template_id?: string | null
+          form_instance_id?: string | null
           has_variants?: boolean | null
           id?: string | null
-          matched_record_ids?: string[] | null
           question_sequence?: number | null
           question_text?: string | null
           section_name?: string | null
@@ -1200,7 +1397,6 @@ export type Database = {
           template_requirement_id?: string | null
           updated_at?: string | null
           word_limit?: number | null
-          workspace_id?: string | null
         }
         Relationships: [
           {
@@ -1219,24 +1415,103 @@ export type Database = {
           },
           {
             foreignKeyName: "form_questions_form_template_id_fkey"
-            columns: ["form_template_id"]
+            columns: ["form_instance_id"]
             isOneToOne: false
-            referencedRelation: "form_templates"
+            referencedRelation: "form_instances"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "form_questions_template_requirement_id_fkey"
             columns: ["template_requirement_id"]
             isOneToOne: false
-            referencedRelation: "form_template_requirements"
+            referencedRelation: "form_requirement_templates"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      form_requirement_templates: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          display_order: number | null
+          id: string | null
+          is_current: boolean | null
+          is_mandatory: boolean | null
+          matching_guidance: string | null
+          matching_keywords: string[] | null
+          primary_domain: string | null
+          primary_subtopic: string | null
+          question_number: number | null
+          requirement_text: string | null
+          requirement_type: string | null
+          secondary_domain: string | null
+          secondary_subtopic: string | null
+          section_name: string | null
+          section_ref: string | null
+          sector_applicability: string[] | null
+          template_name: string | null
+          template_type: string | null
+          template_version: string | null
+          updated_at: string | null
+          word_limit_guidance: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          id?: string | null
+          is_current?: boolean | null
+          is_mandatory?: boolean | null
+          matching_guidance?: string | null
+          matching_keywords?: string[] | null
+          primary_domain?: string | null
+          primary_subtopic?: string | null
+          question_number?: number | null
+          requirement_text?: string | null
+          requirement_type?: string | null
+          secondary_domain?: string | null
+          secondary_subtopic?: string | null
+          section_name?: string | null
+          section_ref?: string | null
+          sector_applicability?: string[] | null
+          template_name?: string | null
+          template_type?: string | null
+          template_version?: string | null
+          updated_at?: string | null
+          word_limit_guidance?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          id?: string | null
+          is_current?: boolean | null
+          is_mandatory?: boolean | null
+          matching_guidance?: string | null
+          matching_keywords?: string[] | null
+          primary_domain?: string | null
+          primary_subtopic?: string | null
+          question_number?: number | null
+          requirement_text?: string | null
+          requirement_type?: string | null
+          secondary_domain?: string | null
+          secondary_subtopic?: string | null
+          section_name?: string | null
+          section_ref?: string | null
+          sector_applicability?: string[] | null
+          template_name?: string | null
+          template_type?: string | null
+          template_version?: string | null
+          updated_at?: string | null
+          word_limit_guidance?: number | null
+        }
+        Relationships: [
           {
-            foreignKeyName: "form_questions_workspace_id_fkey"
-            columns: ["workspace_id"]
+            foreignKeyName: "form_template_requirements_template_type_fkey"
+            columns: ["template_type"]
             isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
+            referencedRelation: "form_types"
+            referencedColumns: ["key"]
           },
         ]
       }
@@ -1373,288 +1648,6 @@ export type Database = {
             columns: ["question_id"]
             isOneToOne: false
             referencedRelation: "form_questions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      form_template_fields: {
-        Row: {
-          col_index: number | null
-          created_at: string | null
-          field_type: string | null
-          fill_error: string | null
-          fill_status: string | null
-          id: string | null
-          is_mandatory: boolean | null
-          mapping_confidence: number | null
-          mapping_status: string | null
-          placeholder_text: string | null
-          question_id: string | null
-          question_text: string | null
-          reference_urls: string[] | null
-          row_index: number | null
-          section_name: string | null
-          sequence: number | null
-          table_index: number | null
-          template_id: string | null
-          updated_at: string | null
-          word_limit: number | null
-        }
-        Insert: {
-          col_index?: number | null
-          created_at?: string | null
-          field_type?: string | null
-          fill_error?: string | null
-          fill_status?: string | null
-          id?: string | null
-          is_mandatory?: boolean | null
-          mapping_confidence?: number | null
-          mapping_status?: string | null
-          placeholder_text?: string | null
-          question_id?: string | null
-          question_text?: string | null
-          reference_urls?: string[] | null
-          row_index?: number | null
-          section_name?: string | null
-          sequence?: number | null
-          table_index?: number | null
-          template_id?: string | null
-          updated_at?: string | null
-          word_limit?: number | null
-        }
-        Update: {
-          col_index?: number | null
-          created_at?: string | null
-          field_type?: string | null
-          fill_error?: string | null
-          fill_status?: string | null
-          id?: string | null
-          is_mandatory?: boolean | null
-          mapping_confidence?: number | null
-          mapping_status?: string | null
-          placeholder_text?: string | null
-          question_id?: string | null
-          question_text?: string | null
-          reference_urls?: string[] | null
-          row_index?: number | null
-          section_name?: string | null
-          sequence?: number | null
-          table_index?: number | null
-          template_id?: string | null
-          updated_at?: string | null
-          word_limit?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "form_template_fields_question_id_fkey"
-            columns: ["question_id"]
-            isOneToOne: false
-            referencedRelation: "form_questions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      form_template_requirements: {
-        Row: {
-          created_at: string | null
-          description: string | null
-          display_order: number | null
-          id: string | null
-          is_current: boolean | null
-          is_mandatory: boolean | null
-          matching_guidance: string | null
-          matching_keywords: string[] | null
-          primary_domain: string | null
-          primary_subtopic: string | null
-          question_number: number | null
-          requirement_text: string | null
-          requirement_type: string | null
-          secondary_domain: string | null
-          secondary_subtopic: string | null
-          section_name: string | null
-          section_ref: string | null
-          sector_applicability: string[] | null
-          template_name: string | null
-          template_type: string | null
-          template_version: string | null
-          updated_at: string | null
-          word_limit_guidance: number | null
-        }
-        Insert: {
-          created_at?: string | null
-          description?: string | null
-          display_order?: number | null
-          id?: string | null
-          is_current?: boolean | null
-          is_mandatory?: boolean | null
-          matching_guidance?: string | null
-          matching_keywords?: string[] | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
-          question_number?: number | null
-          requirement_text?: string | null
-          requirement_type?: string | null
-          secondary_domain?: string | null
-          secondary_subtopic?: string | null
-          section_name?: string | null
-          section_ref?: string | null
-          sector_applicability?: string[] | null
-          template_name?: string | null
-          template_type?: string | null
-          template_version?: string | null
-          updated_at?: string | null
-          word_limit_guidance?: number | null
-        }
-        Update: {
-          created_at?: string | null
-          description?: string | null
-          display_order?: number | null
-          id?: string | null
-          is_current?: boolean | null
-          is_mandatory?: boolean | null
-          matching_guidance?: string | null
-          matching_keywords?: string[] | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
-          question_number?: number | null
-          requirement_text?: string | null
-          requirement_type?: string | null
-          secondary_domain?: string | null
-          secondary_subtopic?: string | null
-          section_name?: string | null
-          section_ref?: string | null
-          sector_applicability?: string[] | null
-          template_name?: string | null
-          template_type?: string | null
-          template_version?: string | null
-          updated_at?: string | null
-          word_limit_guidance?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "form_template_requirements_template_type_fkey"
-            columns: ["template_type"]
-            isOneToOne: false
-            referencedRelation: "form_types"
-            referencedColumns: ["key"]
-          },
-        ]
-      }
-      form_templates: {
-        Row: {
-          created_at: string | null
-          created_by: string | null
-          deadline: string | null
-          description: string | null
-          evaluation_methodology: string | null
-          field_count: number | null
-          file_size: number | null
-          filename: string | null
-          form_type: string | null
-          id: string | null
-          ingest_source: string | null
-          issuing_organisation: string | null
-          mapped_count: number | null
-          mime_type: string | null
-          name: string | null
-          outcome: string | null
-          outcome_notes: string | null
-          outcome_recorded_at: string | null
-          outcome_recorded_by: string | null
-          status: string | null
-          status_reason: string | null
-          storage_path: string | null
-          structure_path: string | null
-          submission_date: string | null
-          updated_at: string | null
-          workflow_state: string | null
-          workspace_id: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          created_by?: string | null
-          deadline?: string | null
-          description?: string | null
-          evaluation_methodology?: string | null
-          field_count?: number | null
-          file_size?: number | null
-          filename?: string | null
-          form_type?: string | null
-          id?: string | null
-          ingest_source?: string | null
-          issuing_organisation?: string | null
-          mapped_count?: number | null
-          mime_type?: string | null
-          name?: string | null
-          outcome?: string | null
-          outcome_notes?: string | null
-          outcome_recorded_at?: string | null
-          outcome_recorded_by?: string | null
-          status?: string | null
-          status_reason?: string | null
-          storage_path?: string | null
-          structure_path?: string | null
-          submission_date?: string | null
-          updated_at?: string | null
-          workflow_state?: string | null
-          workspace_id?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          created_by?: string | null
-          deadline?: string | null
-          description?: string | null
-          evaluation_methodology?: string | null
-          field_count?: number | null
-          file_size?: number | null
-          filename?: string | null
-          form_type?: string | null
-          id?: string | null
-          ingest_source?: string | null
-          issuing_organisation?: string | null
-          mapped_count?: number | null
-          mime_type?: string | null
-          name?: string | null
-          outcome?: string | null
-          outcome_notes?: string | null
-          outcome_recorded_at?: string | null
-          outcome_recorded_by?: string | null
-          status?: string | null
-          status_reason?: string | null
-          storage_path?: string | null
-          structure_path?: string | null
-          submission_date?: string | null
-          updated_at?: string | null
-          workflow_state?: string | null
-          workspace_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "form_templates_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "form_templates_form_type_fkey"
-            columns: ["form_type"]
-            isOneToOne: false
-            referencedRelation: "form_types"
-            referencedColumns: ["key"]
-          },
-          {
-            foreignKeyName: "form_templates_outcome_fkey"
-            columns: ["outcome"]
-            isOneToOne: false
-            referencedRelation: "form_outcome_types"
-            referencedColumns: ["key"]
-          },
-          {
-            foreignKeyName: "form_templates_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -2269,11 +2262,9 @@ export type Database = {
           pair_a_fingerprint: string | null
           pair_a_id: string | null
           pair_a_source_form_response_id: string | null
-          pair_a_source_workspace_id: string | null
           pair_b_fingerprint: string | null
           pair_b_id: string | null
           pair_b_source_form_response_id: string | null
-          pair_b_source_workspace_id: string | null
           proposed_survivor_id: string | null
           resolved_at: string | null
           resolved_by: string | null
@@ -2288,11 +2279,9 @@ export type Database = {
           pair_a_fingerprint?: string | null
           pair_a_id?: string | null
           pair_a_source_form_response_id?: string | null
-          pair_a_source_workspace_id?: string | null
           pair_b_fingerprint?: string | null
           pair_b_id?: string | null
           pair_b_source_form_response_id?: string | null
-          pair_b_source_workspace_id?: string | null
           proposed_survivor_id?: string | null
           resolved_at?: string | null
           resolved_by?: string | null
@@ -2307,11 +2296,9 @@ export type Database = {
           pair_a_fingerprint?: string | null
           pair_a_id?: string | null
           pair_a_source_form_response_id?: string | null
-          pair_a_source_workspace_id?: string | null
           pair_b_fingerprint?: string | null
           pair_b_id?: string | null
           pair_b_source_form_response_id?: string | null
-          pair_b_source_workspace_id?: string | null
           proposed_survivor_id?: string | null
           resolved_at?: string | null
           resolved_by?: string | null
@@ -2422,10 +2409,9 @@ export type Database = {
           question_text: string | null
           scope_tag: string[] | null
           source_document_id: string | null
+          source_form_instance_id: string | null
           source_form_response_id: string | null
-          source_form_template_id: string | null
           source_question_id: string | null
-          source_workspace_id: string | null
           superseded_by: string | null
           updated_at: string | null
           valid_from: string | null
@@ -2444,10 +2430,9 @@ export type Database = {
           question_text?: string | null
           scope_tag?: string[] | null
           source_document_id?: string | null
+          source_form_instance_id?: string | null
           source_form_response_id?: string | null
-          source_form_template_id?: string | null
           source_question_id?: string | null
-          source_workspace_id?: string | null
           superseded_by?: string | null
           updated_at?: string | null
           valid_from?: string | null
@@ -2466,10 +2451,9 @@ export type Database = {
           question_text?: string | null
           scope_tag?: string[] | null
           source_document_id?: string | null
+          source_form_instance_id?: string | null
           source_form_response_id?: string | null
-          source_form_template_id?: string | null
           source_question_id?: string | null
-          source_workspace_id?: string | null
           superseded_by?: string | null
           updated_at?: string | null
           valid_from?: string | null
@@ -2485,9 +2469,9 @@ export type Database = {
           },
           {
             foreignKeyName: "q_a_pairs_source_form_template_id_fkey"
-            columns: ["source_form_template_id"]
+            columns: ["source_form_instance_id"]
             isOneToOne: false
-            referencedRelation: "form_templates"
+            referencedRelation: "form_instances"
             referencedColumns: ["id"]
           },
           {
@@ -2495,13 +2479,6 @@ export type Database = {
             columns: ["source_question_id"]
             isOneToOne: false
             referencedRelation: "form_questions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "q_a_pairs_source_workspace_id_fkey"
-            columns: ["source_workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
           {
@@ -3206,10 +3183,10 @@ export type Database = {
           fields_filled: number | null
           fields_skipped: number | null
           file_size: number | null
+          form_instance_id: string | null
           id: string | null
           job_id: string | null
           storage_path: string | null
-          template_id: string | null
         }
         Insert: {
           created_at?: string | null
@@ -3218,10 +3195,10 @@ export type Database = {
           fields_filled?: number | null
           fields_skipped?: number | null
           file_size?: number | null
+          form_instance_id?: string | null
           id?: string | null
           job_id?: string | null
           storage_path?: string | null
-          template_id?: string | null
         }
         Update: {
           created_at?: string | null
@@ -3230,10 +3207,10 @@ export type Database = {
           fields_filled?: number | null
           fields_skipped?: number | null
           file_size?: number | null
+          form_instance_id?: string | null
           id?: string | null
           job_id?: string | null
           storage_path?: string | null
-          template_id?: string | null
         }
         Relationships: [
           {
@@ -3252,9 +3229,9 @@ export type Database = {
           },
           {
             foreignKeyName: "template_completions_template_id_fkey"
-            columns: ["template_id"]
+            columns: ["form_instance_id"]
             isOneToOne: false
-            referencedRelation: "form_templates"
+            referencedRelation: "form_instances"
             referencedColumns: ["id"]
           },
         ]
@@ -3705,15 +3682,6 @@ export type Database = {
           keyword: string
         }[]
       }
-      get_procurement_rollup: {
-        Args: { p_workspace_id: string }
-        Returns: {
-          counts_toward_win_rate: boolean
-          nearest_deadline: string
-          overall_outcome: string
-          rollup_updated_at: string
-        }[]
-      }
       get_review_breakdown_stats: { Args: never; Returns: Json }
       get_user_display_names: {
         Args: { user_ids: string[] }
@@ -3808,7 +3776,6 @@ export type Database = {
           publication_status: string
           question_text: string
           scope_tag: string[]
-          source_workspace_id: string
           superseded_by: string
           updated_at: string
           valid_from: string
@@ -3965,18 +3932,6 @@ export type Database = {
           summary_preview: string
           title: string
         }[]
-      }
-      resolve_or_mint_form_template_id: {
-        Args: {
-          p_created_by: string
-          p_file_size: number
-          p_filename: string
-          p_mime_type: string
-          p_name: string
-          p_storage_path: string
-          p_workspace_id: string
-        }
-        Returns: string
       }
       resolve_or_mint_source_identity: {
         Args: {
@@ -4608,6 +4563,38 @@ export type Database = {
           },
         ]
       }
+      engagement_groups: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "engagement_groups_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       entity_aliases: {
         Row: {
           alias: string
@@ -5216,6 +5203,215 @@ export type Database = {
           },
         ]
       }
+      form_instance_fields: {
+        Row: {
+          col_index: number | null
+          created_at: string | null
+          field_type: string
+          fill_error: string | null
+          fill_status: string
+          form_instance_id: string
+          id: string
+          is_mandatory: boolean | null
+          mapping_confidence: number | null
+          mapping_status: string
+          placeholder_text: string | null
+          question_id: string | null
+          question_text: string | null
+          reference_urls: string[] | null
+          row_index: number | null
+          section_name: string | null
+          sequence: number
+          table_index: number | null
+          updated_at: string | null
+          word_limit: number | null
+        }
+        Insert: {
+          col_index?: number | null
+          created_at?: string | null
+          field_type: string
+          fill_error?: string | null
+          fill_status?: string
+          form_instance_id: string
+          id?: string
+          is_mandatory?: boolean | null
+          mapping_confidence?: number | null
+          mapping_status?: string
+          placeholder_text?: string | null
+          question_id?: string | null
+          question_text?: string | null
+          reference_urls?: string[] | null
+          row_index?: number | null
+          section_name?: string | null
+          sequence?: number
+          table_index?: number | null
+          updated_at?: string | null
+          word_limit?: number | null
+        }
+        Update: {
+          col_index?: number | null
+          created_at?: string | null
+          field_type?: string
+          fill_error?: string | null
+          fill_status?: string
+          form_instance_id?: string
+          id?: string
+          is_mandatory?: boolean | null
+          mapping_confidence?: number | null
+          mapping_status?: string
+          placeholder_text?: string | null
+          question_id?: string | null
+          question_text?: string | null
+          reference_urls?: string[] | null
+          row_index?: number | null
+          section_name?: string | null
+          sequence?: number
+          table_index?: number | null
+          updated_at?: string | null
+          word_limit?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_instance_fields_form_instance_id_fkey"
+            columns: ["form_instance_id"]
+            isOneToOne: false
+            referencedRelation: "form_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_template_fields_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "form_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_instances: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          deadline: string | null
+          description: string | null
+          engagement_group_id: string | null
+          estimated_value: number | null
+          evaluation_methodology: string | null
+          field_count: number | null
+          file_size: number
+          filename: string
+          form_type: string | null
+          id: string
+          ingest_source: string
+          issuing_organisation: string | null
+          mapped_count: number | null
+          mime_type: string
+          name: string
+          outcome: string | null
+          outcome_notes: string | null
+          outcome_recorded_at: string | null
+          outcome_recorded_by: string | null
+          processing_status: string
+          reference_number: string | null
+          status_reason: string | null
+          storage_path: string
+          structure_path: string | null
+          submission_date: string | null
+          updated_at: string | null
+          workflow_state: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          deadline?: string | null
+          description?: string | null
+          engagement_group_id?: string | null
+          estimated_value?: number | null
+          evaluation_methodology?: string | null
+          field_count?: number | null
+          file_size: number
+          filename: string
+          form_type?: string | null
+          id?: string
+          ingest_source?: string
+          issuing_organisation?: string | null
+          mapped_count?: number | null
+          mime_type: string
+          name: string
+          outcome?: string | null
+          outcome_notes?: string | null
+          outcome_recorded_at?: string | null
+          outcome_recorded_by?: string | null
+          processing_status?: string
+          reference_number?: string | null
+          status_reason?: string | null
+          storage_path: string
+          structure_path?: string | null
+          submission_date?: string | null
+          updated_at?: string | null
+          workflow_state?: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          deadline?: string | null
+          description?: string | null
+          engagement_group_id?: string | null
+          estimated_value?: number | null
+          evaluation_methodology?: string | null
+          field_count?: number | null
+          file_size?: number
+          filename?: string
+          form_type?: string | null
+          id?: string
+          ingest_source?: string
+          issuing_organisation?: string | null
+          mapped_count?: number | null
+          mime_type?: string
+          name?: string
+          outcome?: string | null
+          outcome_notes?: string | null
+          outcome_recorded_at?: string | null
+          outcome_recorded_by?: string | null
+          processing_status?: string
+          reference_number?: string | null
+          status_reason?: string | null
+          storage_path?: string
+          structure_path?: string | null
+          submission_date?: string | null
+          updated_at?: string | null
+          workflow_state?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_instances_engagement_group_id_fkey"
+            columns: ["engagement_group_id"]
+            isOneToOne: false
+            referencedRelation: "engagement_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_templates_form_type_fkey"
+            columns: ["form_type"]
+            isOneToOne: false
+            referencedRelation: "form_types"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "form_templates_outcome_fkey"
+            columns: ["outcome"]
+            isOneToOne: false
+            referencedRelation: "form_outcome_types"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       form_outcome_types: {
         Row: {
           applicable_form_types: string[]
@@ -5250,10 +5446,9 @@ export type Database = {
           created_at: string
           created_by: string | null
           evaluation_weight: number | null
-          form_template_id: string | null
+          form_instance_id: string
           has_variants: boolean | null
           id: string
-          matched_record_ids: string[] | null
           question_sequence: number
           question_text: string
           section_name: string | null
@@ -5262,7 +5457,6 @@ export type Database = {
           template_requirement_id: string | null
           updated_at: string | null
           word_limit: number | null
-          workspace_id: string
         }
         Insert: {
           assigned_to?: string | null
@@ -5270,10 +5464,9 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           evaluation_weight?: number | null
-          form_template_id?: string | null
+          form_instance_id: string
           has_variants?: boolean | null
           id?: string
-          matched_record_ids?: string[] | null
           question_sequence: number
           question_text: string
           section_name?: string | null
@@ -5282,7 +5475,6 @@ export type Database = {
           template_requirement_id?: string | null
           updated_at?: string | null
           word_limit?: number | null
-          workspace_id: string
         }
         Update: {
           assigned_to?: string | null
@@ -5290,10 +5482,9 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           evaluation_weight?: number | null
-          form_template_id?: string | null
+          form_instance_id?: string
           has_variants?: boolean | null
           id?: string
-          matched_record_ids?: string[] | null
           question_sequence?: number
           question_text?: string
           section_name?: string | null
@@ -5302,7 +5493,6 @@ export type Database = {
           template_requirement_id?: string | null
           updated_at?: string | null
           word_limit?: number | null
-          workspace_id?: string
         }
         Relationships: [
           {
@@ -5321,24 +5511,103 @@ export type Database = {
           },
           {
             foreignKeyName: "form_questions_form_template_id_fkey"
-            columns: ["form_template_id"]
+            columns: ["form_instance_id"]
             isOneToOne: false
-            referencedRelation: "form_templates"
+            referencedRelation: "form_instances"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "form_questions_template_requirement_id_fkey"
             columns: ["template_requirement_id"]
             isOneToOne: false
-            referencedRelation: "form_template_requirements"
+            referencedRelation: "form_requirement_templates"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      form_requirement_templates: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          display_order: number
+          id: string
+          is_current: boolean | null
+          is_mandatory: boolean | null
+          matching_guidance: string | null
+          matching_keywords: string[] | null
+          primary_domain: string | null
+          primary_subtopic: string | null
+          question_number: number | null
+          requirement_text: string
+          requirement_type: string
+          secondary_domain: string | null
+          secondary_subtopic: string | null
+          section_name: string
+          section_ref: string
+          sector_applicability: string[] | null
+          template_name: string
+          template_type: string
+          template_version: string | null
+          updated_at: string | null
+          word_limit_guidance: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_current?: boolean | null
+          is_mandatory?: boolean | null
+          matching_guidance?: string | null
+          matching_keywords?: string[] | null
+          primary_domain?: string | null
+          primary_subtopic?: string | null
+          question_number?: number | null
+          requirement_text: string
+          requirement_type: string
+          secondary_domain?: string | null
+          secondary_subtopic?: string | null
+          section_name: string
+          section_ref: string
+          sector_applicability?: string[] | null
+          template_name: string
+          template_type: string
+          template_version?: string | null
+          updated_at?: string | null
+          word_limit_guidance?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_current?: boolean | null
+          is_mandatory?: boolean | null
+          matching_guidance?: string | null
+          matching_keywords?: string[] | null
+          primary_domain?: string | null
+          primary_subtopic?: string | null
+          question_number?: number | null
+          requirement_text?: string
+          requirement_type?: string
+          secondary_domain?: string | null
+          secondary_subtopic?: string | null
+          section_name?: string
+          section_ref?: string
+          sector_applicability?: string[] | null
+          template_name?: string
+          template_type?: string
+          template_version?: string | null
+          updated_at?: string | null
+          word_limit_guidance?: number | null
+        }
+        Relationships: [
           {
-            foreignKeyName: "form_questions_workspace_id_fkey"
-            columns: ["workspace_id"]
+            foreignKeyName: "form_template_requirements_template_type_fkey"
+            columns: ["template_type"]
             isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
+            referencedRelation: "form_types"
+            referencedColumns: ["key"]
           },
         ]
       }
@@ -5475,288 +5744,6 @@ export type Database = {
             columns: ["question_id"]
             isOneToOne: false
             referencedRelation: "form_questions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      form_template_fields: {
-        Row: {
-          col_index: number | null
-          created_at: string | null
-          field_type: string
-          fill_error: string | null
-          fill_status: string
-          id: string
-          is_mandatory: boolean | null
-          mapping_confidence: number | null
-          mapping_status: string
-          placeholder_text: string | null
-          question_id: string | null
-          question_text: string | null
-          reference_urls: string[] | null
-          row_index: number | null
-          section_name: string | null
-          sequence: number
-          table_index: number | null
-          template_id: string
-          updated_at: string | null
-          word_limit: number | null
-        }
-        Insert: {
-          col_index?: number | null
-          created_at?: string | null
-          field_type: string
-          fill_error?: string | null
-          fill_status?: string
-          id?: string
-          is_mandatory?: boolean | null
-          mapping_confidence?: number | null
-          mapping_status?: string
-          placeholder_text?: string | null
-          question_id?: string | null
-          question_text?: string | null
-          reference_urls?: string[] | null
-          row_index?: number | null
-          section_name?: string | null
-          sequence?: number
-          table_index?: number | null
-          template_id: string
-          updated_at?: string | null
-          word_limit?: number | null
-        }
-        Update: {
-          col_index?: number | null
-          created_at?: string | null
-          field_type?: string
-          fill_error?: string | null
-          fill_status?: string
-          id?: string
-          is_mandatory?: boolean | null
-          mapping_confidence?: number | null
-          mapping_status?: string
-          placeholder_text?: string | null
-          question_id?: string | null
-          question_text?: string | null
-          reference_urls?: string[] | null
-          row_index?: number | null
-          section_name?: string | null
-          sequence?: number
-          table_index?: number | null
-          template_id?: string
-          updated_at?: string | null
-          word_limit?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "form_template_fields_question_id_fkey"
-            columns: ["question_id"]
-            isOneToOne: false
-            referencedRelation: "form_questions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      form_template_requirements: {
-        Row: {
-          created_at: string | null
-          description: string | null
-          display_order: number
-          id: string
-          is_current: boolean | null
-          is_mandatory: boolean | null
-          matching_guidance: string | null
-          matching_keywords: string[] | null
-          primary_domain: string | null
-          primary_subtopic: string | null
-          question_number: number | null
-          requirement_text: string
-          requirement_type: string
-          secondary_domain: string | null
-          secondary_subtopic: string | null
-          section_name: string
-          section_ref: string
-          sector_applicability: string[] | null
-          template_name: string
-          template_type: string
-          template_version: string | null
-          updated_at: string | null
-          word_limit_guidance: number | null
-        }
-        Insert: {
-          created_at?: string | null
-          description?: string | null
-          display_order?: number
-          id?: string
-          is_current?: boolean | null
-          is_mandatory?: boolean | null
-          matching_guidance?: string | null
-          matching_keywords?: string[] | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
-          question_number?: number | null
-          requirement_text: string
-          requirement_type: string
-          secondary_domain?: string | null
-          secondary_subtopic?: string | null
-          section_name: string
-          section_ref: string
-          sector_applicability?: string[] | null
-          template_name: string
-          template_type: string
-          template_version?: string | null
-          updated_at?: string | null
-          word_limit_guidance?: number | null
-        }
-        Update: {
-          created_at?: string | null
-          description?: string | null
-          display_order?: number
-          id?: string
-          is_current?: boolean | null
-          is_mandatory?: boolean | null
-          matching_guidance?: string | null
-          matching_keywords?: string[] | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
-          question_number?: number | null
-          requirement_text?: string
-          requirement_type?: string
-          secondary_domain?: string | null
-          secondary_subtopic?: string | null
-          section_name?: string
-          section_ref?: string
-          sector_applicability?: string[] | null
-          template_name?: string
-          template_type?: string
-          template_version?: string | null
-          updated_at?: string | null
-          word_limit_guidance?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "form_template_requirements_template_type_fkey"
-            columns: ["template_type"]
-            isOneToOne: false
-            referencedRelation: "form_types"
-            referencedColumns: ["key"]
-          },
-        ]
-      }
-      form_templates: {
-        Row: {
-          created_at: string | null
-          created_by: string | null
-          deadline: string | null
-          description: string | null
-          evaluation_methodology: string | null
-          field_count: number | null
-          file_size: number
-          filename: string
-          form_type: string | null
-          id: string
-          ingest_source: string
-          issuing_organisation: string | null
-          mapped_count: number | null
-          mime_type: string
-          name: string
-          outcome: string | null
-          outcome_notes: string | null
-          outcome_recorded_at: string | null
-          outcome_recorded_by: string | null
-          status: string
-          status_reason: string | null
-          storage_path: string
-          structure_path: string | null
-          submission_date: string | null
-          updated_at: string | null
-          workflow_state: string
-          workspace_id: string
-        }
-        Insert: {
-          created_at?: string | null
-          created_by?: string | null
-          deadline?: string | null
-          description?: string | null
-          evaluation_methodology?: string | null
-          field_count?: number | null
-          file_size: number
-          filename: string
-          form_type?: string | null
-          id?: string
-          ingest_source?: string
-          issuing_organisation?: string | null
-          mapped_count?: number | null
-          mime_type: string
-          name: string
-          outcome?: string | null
-          outcome_notes?: string | null
-          outcome_recorded_at?: string | null
-          outcome_recorded_by?: string | null
-          status?: string
-          status_reason?: string | null
-          storage_path: string
-          structure_path?: string | null
-          submission_date?: string | null
-          updated_at?: string | null
-          workflow_state?: string
-          workspace_id: string
-        }
-        Update: {
-          created_at?: string | null
-          created_by?: string | null
-          deadline?: string | null
-          description?: string | null
-          evaluation_methodology?: string | null
-          field_count?: number | null
-          file_size?: number
-          filename?: string
-          form_type?: string | null
-          id?: string
-          ingest_source?: string
-          issuing_organisation?: string | null
-          mapped_count?: number | null
-          mime_type?: string
-          name?: string
-          outcome?: string | null
-          outcome_notes?: string | null
-          outcome_recorded_at?: string | null
-          outcome_recorded_by?: string | null
-          status?: string
-          status_reason?: string | null
-          storage_path?: string
-          structure_path?: string | null
-          submission_date?: string | null
-          updated_at?: string | null
-          workflow_state?: string
-          workspace_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "form_templates_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "form_templates_form_type_fkey"
-            columns: ["form_type"]
-            isOneToOne: false
-            referencedRelation: "form_types"
-            referencedColumns: ["key"]
-          },
-          {
-            foreignKeyName: "form_templates_outcome_fkey"
-            columns: ["outcome"]
-            isOneToOne: false
-            referencedRelation: "form_outcome_types"
-            referencedColumns: ["key"]
-          },
-          {
-            foreignKeyName: "form_templates_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -6292,100 +6279,6 @@ export type Database = {
         }
         Relationships: []
       }
-      procurement_vehicle_instances: {
-        Row: {
-          created_at: string
-          key: string
-          label: string
-          provenance: string
-          vehicle_key: string
-        }
-        Insert: {
-          created_at?: string
-          key: string
-          label: string
-          provenance?: string
-          vehicle_key: string
-        }
-        Update: {
-          created_at?: string
-          key?: string
-          label?: string
-          provenance?: string
-          vehicle_key?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "procurement_vehicle_instances_vehicle_key_fkey"
-            columns: ["vehicle_key"]
-            isOneToOne: false
-            referencedRelation: "procurement_vehicles"
-            referencedColumns: ["key"]
-          },
-        ]
-      }
-      procurement_vehicles: {
-        Row: {
-          created_at: string
-          key: string
-          label: string
-          provenance: string
-        }
-        Insert: {
-          created_at?: string
-          key: string
-          label: string
-          provenance?: string
-        }
-        Update: {
-          created_at?: string
-          key?: string
-          label?: string
-          provenance?: string
-        }
-        Relationships: []
-      }
-      procurement_workspaces: {
-        Row: {
-          counts_toward_win_rate: boolean | null
-          created_at: string
-          id: string
-          nearest_deadline: string | null
-          overall_outcome: string | null
-          rollup_updated_at: string | null
-          updated_at: string
-          workspace_id: string
-        }
-        Insert: {
-          counts_toward_win_rate?: boolean | null
-          created_at?: string
-          id?: string
-          nearest_deadline?: string | null
-          overall_outcome?: string | null
-          rollup_updated_at?: string | null
-          updated_at?: string
-          workspace_id: string
-        }
-        Update: {
-          counts_toward_win_rate?: boolean | null
-          created_at?: string
-          id?: string
-          nearest_deadline?: string | null
-          overall_outcome?: string | null
-          rollup_updated_at?: string | null
-          updated_at?: string
-          workspace_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "procurement_workspaces_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: true
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       product_guide_workspaces: {
         Row: {
           created_at: string
@@ -6494,11 +6387,9 @@ export type Database = {
           pair_a_fingerprint: string | null
           pair_a_id: string
           pair_a_source_form_response_id: string | null
-          pair_a_source_workspace_id: string | null
           pair_b_fingerprint: string | null
           pair_b_id: string
           pair_b_source_form_response_id: string | null
-          pair_b_source_workspace_id: string | null
           proposed_survivor_id: string
           resolved_at: string | null
           resolved_by: string | null
@@ -6513,11 +6404,9 @@ export type Database = {
           pair_a_fingerprint?: string | null
           pair_a_id: string
           pair_a_source_form_response_id?: string | null
-          pair_a_source_workspace_id?: string | null
           pair_b_fingerprint?: string | null
           pair_b_id: string
           pair_b_source_form_response_id?: string | null
-          pair_b_source_workspace_id?: string | null
           proposed_survivor_id: string
           resolved_at?: string | null
           resolved_by?: string | null
@@ -6532,11 +6421,9 @@ export type Database = {
           pair_a_fingerprint?: string | null
           pair_a_id?: string
           pair_a_source_form_response_id?: string | null
-          pair_a_source_workspace_id?: string | null
           pair_b_fingerprint?: string | null
           pair_b_id?: string
           pair_b_source_form_response_id?: string | null
-          pair_b_source_workspace_id?: string | null
           proposed_survivor_id?: string
           resolved_at?: string | null
           resolved_by?: string | null
@@ -6647,10 +6534,9 @@ export type Database = {
           question_text: string
           scope_tag: string[]
           source_document_id: string | null
+          source_form_instance_id: string | null
           source_form_response_id: string | null
-          source_form_template_id: string | null
           source_question_id: string | null
-          source_workspace_id: string | null
           superseded_by: string | null
           updated_at: string
           valid_from: string | null
@@ -6669,10 +6555,9 @@ export type Database = {
           question_text: string
           scope_tag?: string[]
           source_document_id?: string | null
+          source_form_instance_id?: string | null
           source_form_response_id?: string | null
-          source_form_template_id?: string | null
           source_question_id?: string | null
-          source_workspace_id?: string | null
           superseded_by?: string | null
           updated_at?: string
           valid_from?: string | null
@@ -6691,10 +6576,9 @@ export type Database = {
           question_text?: string
           scope_tag?: string[]
           source_document_id?: string | null
+          source_form_instance_id?: string | null
           source_form_response_id?: string | null
-          source_form_template_id?: string | null
           source_question_id?: string | null
-          source_workspace_id?: string | null
           superseded_by?: string | null
           updated_at?: string
           valid_from?: string | null
@@ -6710,9 +6594,9 @@ export type Database = {
           },
           {
             foreignKeyName: "q_a_pairs_source_form_template_id_fkey"
-            columns: ["source_form_template_id"]
+            columns: ["source_form_instance_id"]
             isOneToOne: false
-            referencedRelation: "form_templates"
+            referencedRelation: "form_instances"
             referencedColumns: ["id"]
           },
           {
@@ -6720,13 +6604,6 @@ export type Database = {
             columns: ["source_question_id"]
             isOneToOne: false
             referencedRelation: "form_questions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "q_a_pairs_source_workspace_id_fkey"
-            columns: ["source_workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
           {
@@ -7518,10 +7395,10 @@ export type Database = {
           fields_filled: number
           fields_skipped: number | null
           file_size: number | null
+          form_instance_id: string
           id: string
           job_id: string | null
           storage_path: string
-          template_id: string
         }
         Insert: {
           created_at?: string | null
@@ -7530,10 +7407,10 @@ export type Database = {
           fields_filled: number
           fields_skipped?: number | null
           file_size?: number | null
+          form_instance_id: string
           id?: string
           job_id?: string | null
           storage_path: string
-          template_id: string
         }
         Update: {
           created_at?: string | null
@@ -7542,10 +7419,10 @@ export type Database = {
           fields_filled?: number
           fields_skipped?: number | null
           file_size?: number | null
+          form_instance_id?: string
           id?: string
           job_id?: string | null
           storage_path?: string
-          template_id?: string
         }
         Relationships: [
           {
@@ -7564,9 +7441,9 @@ export type Database = {
           },
           {
             foreignKeyName: "template_completions_template_id_fkey"
-            columns: ["template_id"]
+            columns: ["form_instance_id"]
             isOneToOne: false
-            referencedRelation: "form_templates"
+            referencedRelation: "form_instances"
             referencedColumns: ["id"]
           },
         ]
@@ -8142,15 +8019,6 @@ export type Database = {
           keyword: string
         }[]
       }
-      get_procurement_rollup: {
-        Args: { p_workspace_id: string }
-        Returns: {
-          counts_toward_win_rate: boolean
-          nearest_deadline: string
-          overall_outcome: string
-          rollup_updated_at: string
-        }[]
-      }
       get_review_breakdown_stats: { Args: never; Returns: Json }
       get_template_summary: {
         Args: { p_template_id: string }
@@ -8285,7 +8153,6 @@ export type Database = {
           publication_status: string
           question_text: string
           scope_tag: string[]
-          source_workspace_id: string
           superseded_by: string
           updated_at: string
           valid_from: string
@@ -8353,10 +8220,6 @@ export type Database = {
           stale_count: number
           total_count: number
         }[]
-      }
-      recompute_procurement_rollup: {
-        Args: { p_workspace_id: string }
-        Returns: undefined
       }
       reference_get_verbatim: {
         Args: { p_reference_id: string }
@@ -8446,18 +8309,6 @@ export type Database = {
           summary_preview: string
           title: string
         }[]
-      }
-      resolve_or_mint_form_template_id: {
-        Args: {
-          p_created_by: string
-          p_file_size: number
-          p_filename: string
-          p_mime_type: string
-          p_name: string
-          p_storage_path: string
-          p_workspace_id: string
-        }
-        Returns: string
       }
       resolve_or_mint_source_identity: {
         Args: {
