@@ -362,18 +362,18 @@ export async function generateContentSuggestions(
   if (includeTemplateGaps) {
     const templates = await sb(
       supabase
-        .from('form_template_requirements')
+        .from('form_requirement_templates')
         .select(
           'template_name, section_name, requirement_text, primary_domain, primary_subtopic',
         )
         .eq('is_current', true)
         // `coverage_status` is computed in `lib/domains/procurement/form-templating/template-coverage.ts`,
-        // not a DB column — it never exists in `form_template_requirements`.
+        // not a DB column — it never exists in `form_requirement_templates`.
         // Filtering here is not possible at the DB level; return all current
         // requirements and let callers use the in-memory coverage engine to
         // determine gap status if needed.
         .limit(50),
-      'form_template_requirements.gaps',
+      'form_requirement_templates.gaps',
     );
 
     for (const req of templates ?? []) {

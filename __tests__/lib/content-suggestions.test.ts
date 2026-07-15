@@ -117,7 +117,7 @@ function configureMock(options: {
     source_documents: { data: sourceDocuments, error: null },
     record_lifecycle: { data: lifecycleRows, error: null },
     workspaces: { data: activeProcurements, error: null },
-    form_template_requirements: { data: templateGaps, error: null },
+    form_requirement_templates: { data: templateGaps, error: null },
   };
 
   // Create per-table chains

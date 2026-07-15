@@ -372,7 +372,7 @@ describe('user-linked-table bundle reconciliation (id-138.19)', () => {
     'form_response_history',
     'form_responses',
     'form_questions',
-    'form_templates',
+    'form_instances',
     'verification_history',
     'classification_disputes',
     'feed_flags',
@@ -516,10 +516,10 @@ describe('user-linked-table bundle reconciliation (id-138.19)', () => {
     );
   });
 
-  it('form_templates fetch checks created_by and outcome_recorded_by (gap-fill: never bundled pre-id-138.19)', async () => {
+  it('form_instances fetch checks created_by and outcome_recorded_by (gap-fill: never bundled pre-id-138.19)', async () => {
     const mock = createMockSupabaseTableDispatch();
     await assembleAuditTrailBundle(mock as never, VALID_UUID_A);
-    const columns = mock._chains['form_templates'].eq.mock.calls.map(
+    const columns = mock._chains['form_instances'].eq.mock.calls.map(
       (c) => c[0],
     );
     expect(columns).toEqual(['created_by', 'outcome_recorded_by']);

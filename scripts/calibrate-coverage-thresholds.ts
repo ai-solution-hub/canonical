@@ -115,9 +115,9 @@ async function fetchRequirements(
   supabase: SupabaseClient<Database>,
   templateName: string,
 ): Promise<TemplateRequirement[]> {
-  // Post-T2: `template_requirements` renamed to `form_template_requirements`.
+  // {145.6} W1c: `form_template_requirements` renamed to `form_requirement_templates` (pure rename).
   const { data, error } = await supabase
-    .from('form_template_requirements')
+    .from('form_requirement_templates')
     .select(
       'id, template_name, template_version, template_type, section_ref, section_name, question_number, requirement_text, description, requirement_type, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, matching_keywords, matching_guidance, is_mandatory, sector_applicability, word_limit_guidance, display_order',
     )
@@ -130,7 +130,7 @@ async function fetchRequirements(
   const rows = data ?? [];
 
   // {130.24} DR-036: requirement_embedding was dropped from
-  // form_template_requirements — hydrate it from the polymorphic
+  // form_requirement_templates — hydrate it from the polymorphic
   // record_embeddings store (owner_kind='form_template_requirement'),
   // keyed by owner_id (the requirement row's id). Mirrors
   // lib/domains/procurement/form-templating/template-coverage.ts's

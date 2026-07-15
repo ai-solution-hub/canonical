@@ -482,7 +482,7 @@ const EMBEDDING_MODEL = 'text-embedding-3-large';
  * Defaults to `is_current = true` unless a specific version is provided.
  *
  * {130.24} DR-036: `requirement_embedding` no longer lives inline on
- * `form_template_requirements` (column dropped) — the vector is hydrated from
+ * `form_requirement_templates` (column dropped) — the vector is hydrated from
  * the polymorphic `record_embeddings` store (`owner_kind =
  * 'form_template_requirement'`), mirroring `fetchContentForMatching`'s
  * q_a_pair/reference_item pattern below (same EMBEDDING_MODEL constant,
@@ -493,9 +493,9 @@ export async function fetchTemplateRequirements(
   templateName: string,
   templateVersion?: string,
 ): Promise<TemplateRequirement[]> {
-  // Post-T2: `template_requirements` renamed to `form_template_requirements`.
+  // {145.6} W1c: `form_template_requirements` renamed to `form_requirement_templates` (pure rename).
   let query = supabase
-    .from('form_template_requirements')
+    .from('form_requirement_templates')
     .select(
       'id, template_name, template_version, template_type, section_ref, section_name, question_number, requirement_text, description, requirement_type, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, matching_keywords, matching_guidance, is_mandatory, sector_applicability, word_limit_guidance, display_order',
     )
@@ -818,9 +818,9 @@ export async function listAvailableTemplates(
   supabase: SupabaseClientTyped,
   templateType?: string,
 ): Promise<TemplateSummary[]> {
-  // Post-T2: `template_requirements` renamed to `form_template_requirements`.
+  // {145.6} W1c: `form_template_requirements` renamed to `form_requirement_templates` (pure rename).
   let query = supabase
-    .from('form_template_requirements')
+    .from('form_requirement_templates')
     .select('template_name, template_version, template_type, is_current')
     .eq('is_current', true);
 
