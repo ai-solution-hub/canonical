@@ -63,7 +63,7 @@ PASS1_INSTRUCTION_PROMPT = """You are drafting one concept document for a client
 WORKFLOW
 1. DRAFT — call read_concept_raw for the concept you are drafting to read its actual backing records (source documents, question-and-answer pairs, reference items, entity mentions). Call sample_rows if you need a broader but lighter-weight sample to understand the record set. Synthesise a clear, well-organised markdown document from what you read. Never copy long passages of raw record text verbatim — distil and explain in your own words. Every factual claim you make must be grounded in a record you actually read via a tool call.
 2. CITE — for every material fact in your body, note the "resource" (or "qa_resource") anchor string the tool result attached to the record(s) it came from. You will list these anchors verbatim in your final "citations" array. Never invent a canonical:// uri or a database id yourself — only use an anchor a tool result actually returned to you. Question-and-answer rows never carry an anchor — they are internal evidence, not citable records; a concept grounded mainly in Q&A rows cites via concept cross-links instead. Never place a bare database id or any "qa::" string in your citations.
-3. CROSS-LINK — call list_concepts to see the full concept catalogue (every concept's bundle path and type). Where this concept is clearly related to another concept in the catalogue, add that concept's bundle path (for example "products/lms.md") to your "citations" array as a cross-link. Concept cross-links use the bare bundle path — never a canonical:// uri, never a database id.
+3. CROSS-LINK — call list_concepts to see the full concept catalogue (every concept's bundle path and type). Where this concept is clearly related to another concept in the catalogue, add that concept's bundle path (for example "products/lms.md") to your "citations" array as a cross-link. Concept cross-links use the bare bundle path — never a canonical:// uri, never a database id. If you also link to another concept as a markdown link INSIDE your body prose, the link target must be the bundle-ABSOLUTE path with a leading "/" (for example "[Product LMS](/products/lms.md)") — never a relative path and never a path without the leading "/".
 
 OUTPUT CONTRACT — read carefully
 When your draft is ready, respond with PLAIN TEXT ONLY — do not call any more tools. Your entire final message must be a single JSON object (no markdown code fence, no commentary before or after it) with exactly these keys:
@@ -71,7 +71,7 @@ When your draft is ready, respond with PLAIN TEXT ONLY — do not call any more 
   "title"       — a short, human-readable concept title.
   "description" — a one-sentence summary of the concept (used in the document's frontmatter).
   "tags"        — a JSON array of short lower-case tags (may be empty).
-  "body"        — the distilled markdown body prose. Do not include a "# Citations" heading yourself — it is appended separately from your "citations" array.
+  "body"        — the distilled markdown body prose. Do not include a "# Citations" heading yourself — it is appended separately from your "citations" array, rendered as a numbered list of markdown links. Any markdown link to another concept inside this body must use the bundle-absolute leading-"/" form described in the WORKFLOW.
   "citations"   — a JSON array of every anchor string (record anchors and/or concept cross-link paths) backing this draft, copied verbatim from tool results. This array must be non-empty for any concept with backing records — an uncited factual claim is a defect.
 
 Write in UK English (organisation, colour, -ise endings). Do not describe your own process in the body — write the concept document itself, for a knowledgeable reader who wants a clear, accurate account of this concept."""
@@ -81,7 +81,7 @@ PASS2_INSTRUCTION_PROMPT = """You are enriching one concept document in a client
 WORKFLOW
 1. REVIEW — the user message gives you the concept's current Pass-1 draft: its title, description, tags, body, and existing "# Citations". Read it before enriching. You may also call read_concept_raw / sample_rows again if you need to revisit the backing records.
 2. ENRICH — call fetch_url on URLs drawn from the client's own site-structure corpus to find supporting detail. If fetch_url refuses a URL (wrong host, too deep, filtered path), do not retry the same URL — try a different, in-corpus URL, or stop enriching from the web and rely on the existing draft instead. Weave what you learn into the existing body as new prose: add and refine, never delete or contradict sound existing content.
-3. CITE — every successful fetch_url call returns a "resource" canonical://reference_items/<uuid> anchor; copy it verbatim into your "citations" array for any fact it grounds. Call list_concepts to add BI-9 concept cross-links where genuinely relevant (a bundle path, never a uuid).
+3. CITE — every successful fetch_url call returns a "resource" canonical://reference_items/<uuid> anchor; copy it verbatim into your "citations" array for any fact it grounds. Call list_concepts to add BI-9 concept cross-links where genuinely relevant (a bundle path, never a uuid). Any markdown link to another concept INSIDE your body prose must use the bundle-ABSOLUTE path with a leading "/" (for example "[Product LMS](/products/lms.md)") — never a relative path and never a path without the leading "/".
 4. REFERENCES (optional) — where you found a genuinely new, citable source worth its own entry, propose a reference concept: a short lower-case hyphenated slug, a title, a description, tags, and a body drawn ONLY from your gated fetches, citing ONLY the canonical://reference_items/<uuid> anchors fetch_url minted for it this run.
 
 OUTPUT CONTRACT — read carefully
@@ -92,7 +92,7 @@ When you are done, respond with PLAIN TEXT ONLY — do not call any more tools. 
   "title"               — the concept title (may be refined; keep it recognisable).
   "description"         — a one-sentence summary (frontmatter).
   "tags"                — a JSON array of short lower-case tags (may be empty).
-  "body"                — the FULL enriched markdown body (the Pass-1 content plus your new prose). Do not include a "# Citations" heading yourself — it is appended separately.
+  "body"                — the FULL enriched markdown body (the Pass-1 content plus your new prose). Do not include a "# Citations" heading yourself — it is appended separately from your "citations" array, rendered as a numbered list of markdown links. Concept links inside the body use the bundle-absolute leading-"/" form described in the WORKFLOW.
   "citations"            — the COMPLETE citations array described above.
   "reference_concepts"  — a JSON array (may be empty) of new reference-concept objects, each with "slug", "title", "description", "tags", "body", and "citations" (canonical://reference_items/<uuid> anchors ONLY, each one you actually minted via fetch_url this run).
 

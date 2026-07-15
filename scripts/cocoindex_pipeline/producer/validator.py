@@ -95,7 +95,11 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
 from scripts.cocoindex_pipeline.producer.frontmatter import ConceptFrontmatter
-from scripts.cocoindex_pipeline.producer.resource_uri import contains_record_pointer
+from scripts.cocoindex_pipeline.producer.resource_uri import (
+    contains_record_pointer,
+    is_canonical_resource_uri,
+    parse_citation_entry,
+)
 
 # ──────────────────────────────────────────
 # BI-4: the closed concept type set.
@@ -543,16 +547,120 @@ def validate_concept(
         raise ConceptValidationError(errors)
 
 
-def _citation_entries(body: str) -> "set[str]":
-    """Parse the `- <entry>` / `* <entry>` bullet lines out of `body`'s
-    `# Citations` section into a comparable set."""
+# A `[n] [label](target)` numbered-link trailer line (SPEC §8 form) —
+# recognised alongside the legacy `- <entry>` / `* <entry>` bullets.
+_CITATION_NUMBERED_LINE_RE = re.compile(r"^\[\d+\]\s+\S")
+
+
+def _ordered_citation_entries(body: str) -> "list[tuple[str | None, str]]":
+    """Parse `body`'s `# Citations` section into an ORDERED, de-duplicated
+    (by target, first occurrence wins) list of `(label, target)` pairs.
+
+    Accepts BOTH trailer forms — the legacy bare-path `- <entry>` / `*
+    <entry>` bullets (prior committed bundles) and the SPEC §8 numbered-link
+    `[n] [label](target)` lines — normalising every entry to its canonical
+    TARGET via `resource_uri.parse_citation_entry` (leading `/` stripped, so
+    targets compare against identity rel_paths)."""
     section = _section_body(body, _CITATIONS_HEADING)
-    entries: "set[str]" = set()
+    entries: "dict[str, str | None]" = {}
     for line in section.splitlines():
         stripped = line.strip()
         if stripped.startswith("- ") or stripped.startswith("* "):
-            entries.add(stripped[2:].strip())
-    return entries
+            candidate = stripped[2:].strip()
+        elif _CITATION_NUMBERED_LINE_RE.match(stripped):
+            candidate = stripped
+        else:
+            continue
+        label, target = parse_citation_entry(candidate)
+        if target and target not in entries:
+            entries[target] = label
+    return [(label, target) for target, label in entries.items()]
+
+
+def _citation_entries(body: str) -> "set[str]":
+    """The comparable TARGET set of `body`'s `# Citations` section — both
+    the legacy bare-path bullet form and the SPEC §8 numbered-link form
+    normalise to the same targets (see `_ordered_citation_entries`), so a
+    format migration alone is never a citation "shrink"."""
+    return {target for _label, target in _ordered_citation_entries(body)}
+
+
+def _escape_link_label(label: str) -> str:
+    """Backslash-escape square brackets in a markdown link label so a title
+    containing `[`/`]` cannot break the `[label](target)` link form."""
+    return label.replace("[", "\\[").replace("]", "\\]")
+
+
+def render_citations_trailer(
+    citations: "Sequence[str]",
+    *,
+    titles: "Mapping[str, str] | None" = None,
+    labels: "Mapping[str, str | None] | None" = None,
+) -> str:
+    """Render the SPEC §5.1/§8-conformant `# Citations` trailer: numbered
+    `[n] ` entries, each a REAL markdown link, so a generic OKF consumer
+    building link-edges finds one edge per citation.
+
+        # Citations
+
+        [1] [canonical://source_documents/<uuid>](canonical://source_documents/<uuid>)
+        [2] [ISO 9001:2015 — Quality Management Certification](/certifications/iso-9001.md)
+
+    `citations` are normalised TARGETS (a `canonical://` record anchor, or a
+    concept rel_path WITHOUT a leading `/`). Per entry:
+      - record anchors: label = the URI text itself, target = the URI;
+      - concept cross-links: target = the §5.1 bundle-ABSOLUTE form
+        (`/` + rel_path); label = `titles[rel_path]` (the target concept's
+        title, when the caller can resolve one at render time), else
+        `labels[rel_path]` (a label preserved from a prior trailer parse),
+        else the rel_path.
+
+    The SINGLE trailer renderer — `enrich._render_citations_section` and
+    `normalise_citations_section` below both delegate here, so the on-disk
+    format has exactly one source of truth (never model formatting).
+    """
+    lines = ["# Citations", ""]
+    for index, citation in enumerate(citations, start=1):
+        if is_canonical_resource_uri(citation):
+            label, target = citation, citation
+        else:
+            rel_path = citation.lstrip("/")
+            resolved = (titles or {}).get(rel_path) or (labels or {}).get(rel_path)
+            label = _escape_link_label(resolved) if resolved else rel_path
+            target = f"/{rel_path}"
+        lines.append(f"[{index}] [{label}]({target})")
+    return "\n".join(lines) + "\n"
+
+
+def normalise_citations_section(
+    body: str, *, titles: "Mapping[str, str] | None" = None
+) -> str:
+    """Deterministic write-time trailer normalisation (SPEC §5.1/§8): parse
+    `body`'s `# Citations` section — accepting BOTH the legacy bare-path
+    bullet form and the §8 numbered-link form — and re-emit it in the
+    numbered-link form via `render_citations_trailer`, so the on-disk
+    format never depends on model formatting or on which producer version
+    drafted the prior state.
+
+    `titles` maps concept rel_path -> title for cross-link labels; an entry
+    whose prior trailer already carried a non-target label keeps it when
+    `titles` cannot resolve one. A body with no `# Citations` section is
+    returned unchanged."""
+    span = _find_heading_span(body, _CITATIONS_HEADING)
+    if span is None:
+        return body
+    entries = _ordered_citation_entries(body)
+    labels = {
+        target: label for label, target in entries if label and label != target
+    }
+    trailer = render_citations_trailer(
+        [target for _label, target in entries], titles=titles, labels=labels
+    )
+    start, end = span
+    tail = body[end:]
+    if tail:
+        return body[:start] + trailer + "\n" + tail.lstrip("\n")
+    return body[:start] + trailer
 
 
 def detect_citation_shrink(*, previous_body: str, new_body: str) -> "list[str]":

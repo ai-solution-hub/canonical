@@ -181,6 +181,37 @@ class TestHumanEditReconcile:
         assert "topic-a.md" in log_content
         assert "human edit" in log_content.lower()
 
+    def test_findings_are_inserted_into_the_newest_run_not_appended_to_the_tail(
+        self, repo: Path
+    ) -> None:
+        """SPEC §7 lockstep: `log.md` is date-grouped NEWEST FIRST, so this
+        run's block sits at the TOP of the file — the reconcile findings
+        must be inserted after the NEWEST run's bullets, never appended to
+        the tail (the tail is the OLDEST run)."""
+        base_log_run1 = (
+            "## 2026-07-08\n\n"
+            "* **Run 2026-07-08T09:00:00Z — Added (1):** topic-a.md\n"
+        )
+        sync_bundle(
+            repo, {"topic-a.md": "producer draft one\n", LOG_FILENAME: base_log_run1}
+        )
+        (repo / "topic-a.md").write_text("HUMAN EDIT\n", encoding="utf-8")
+
+        base_log_run2 = (
+            "## 2026-07-09\n\n"
+            "* **Run 2026-07-09T09:00:00Z — Changed (1):** topic-a.md\n\n"
+            + base_log_run1
+        )
+        sync_bundle(
+            repo, {"topic-a.md": "producer draft two\n", LOG_FILENAME: base_log_run2}
+        )
+
+        log_content = (repo / LOG_FILENAME).read_text(encoding="utf-8")
+        findings_idx = log_content.find("### git-sync reconcile findings")
+        newest_bullet_idx = log_content.find("* **Run 2026-07-09T09:00:00Z")
+        older_heading_idx = log_content.find("## 2026-07-08")
+        assert -1 < newest_bullet_idx < findings_idx < older_heading_idx
+
     def test_a_concept_never_touched_by_a_human_updates_normally(self, repo: Path) -> None:
         """Control case — proves the conflict above is genuinely about the
         divergence, not merely about the content changing."""

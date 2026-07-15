@@ -26,8 +26,15 @@ describe('resolveInternalMdLink', () => {
     ).toBeNull();
   });
 
-  it('returns null for a root-relative link', () => {
-    expect(resolveInternalMdLink('tables/orders', '/customers.md')).toBeNull();
+  it('resolves a leading-/ link against the bundle root (SPEC §5.1 bundle-absolute form)', () => {
+    // The producer's citation trailer + body-prose cross-link convention:
+    // never relative to the current file's directory.
+    expect(resolveInternalMdLink('tables/orders', '/customers.md')).toBe(
+      'customers',
+    );
+    expect(
+      resolveInternalMdLink('tables/orders', '/certifications/iso-9001.md'),
+    ).toBe('certifications/iso-9001');
   });
 
   it('returns null for a non-.md link', () => {

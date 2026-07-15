@@ -15,7 +15,12 @@
 /**
  * Resolve a markdown link `href` found in `currentConceptId`'s body to a
  * bundle-root-relative concept id, or `null` when the link is external
- * (has a URL scheme), root-relative (a leading `/`), or not a `.md` link.
+ * (has a URL scheme) or not a `.md` link.
+ *
+ * A leading-`/` href is the SPEC §5.1 bundle-ABSOLUTE form (the producer's
+ * `# Citations` trailer and body-prose cross-link convention) — resolved
+ * against the BUNDLE ROOT (the leading `/` stripped, no directory-relative
+ * walk), never treated as external.
  *
  * Does NOT check the result against the known concept-id set — the caller
  * (`<ConceptDetail>`) does that, so a resolved-but-unknown id (a link to a
@@ -27,14 +32,17 @@ export function resolveInternalMdLink(
   currentConceptId: string,
   href: string,
 ): string | null {
-  if (!href || href.includes('://') || href.startsWith('/')) return null;
+  if (!href || href.includes('://')) return null;
 
+  const isBundleAbsolute = href.startsWith('/');
   const hashIdx = href.indexOf('#');
   const withoutAnchor = hashIdx === -1 ? href : href.slice(0, hashIdx);
   if (!withoutAnchor.endsWith('.md')) return null;
 
-  const currentDirSegments = currentConceptId.split('/').slice(0, -1);
-  const targetSegments = withoutAnchor.split('/');
+  const currentDirSegments = isBundleAbsolute
+    ? []
+    : currentConceptId.split('/').slice(0, -1);
+  const targetSegments = withoutAnchor.replace(/^\/+/, '').split('/');
 
   const resolved: string[] = [...currentDirSegments];
   for (const segment of targetSegments) {

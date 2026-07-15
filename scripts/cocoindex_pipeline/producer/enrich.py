@@ -126,10 +126,14 @@ from scripts.cocoindex_pipeline.producer.resource_uri import (
     build_q_a_pairs_query_uri,
     build_reference_item_uri,
     build_source_document_uri,
+    citation_target,
     concept_citation_path,
     is_canonical_resource_uri,
 )
-from scripts.cocoindex_pipeline.producer.validator import is_valid_concept_resource_uri
+from scripts.cocoindex_pipeline.producer.validator import (
+    is_valid_concept_resource_uri,
+    render_citations_trailer,
+)
 from scripts.cocoindex_pipeline.sources.l_records import ConceptKey, ConceptRaw, Source
 
 # The full Pass-1 toolset — PASS1_TOOLS (read_concept_raw, sample_rows) plus
@@ -415,6 +419,14 @@ def _validate_citation(
         raise Pass1DraftError(
             f"enrich_concept: citation entries must be non-empty strings, got {entry!r}"
         )
+    # SPEC §5.1/§8 tolerance: an entry may arrive as a numbered/markdown
+    # link (`[n] [label](target)`) or a `/`-leading bundle-absolute path —
+    # normalise to the bare TARGET first, then validate exactly as before.
+    entry = citation_target(entry)
+    if not entry:
+        raise Pass1DraftError(
+            "enrich_concept: citation entry resolves to an empty target"
+        )
     if is_canonical_resource_uri(entry):
         if not is_valid_concept_resource_uri(entry):
             raise Pass1DraftError(
@@ -536,13 +548,14 @@ def _parse_pass1_response(
 
 
 def _render_citations_section(citations: "Sequence[str]") -> str:
-    """Renders in the exact `- <entry>` bullet shape
-    `producer/validator.py:_citation_entries` parses back out — so
-    `{132.9}`/`{132.12}`'s `detect_citation_shrink` augmentation guard reads
-    this section correctly."""
-    lines = ["# Citations"]
-    lines.extend(f"- {citation}" for citation in citations)
-    return "\n".join(lines) + "\n"
+    """Renders the SPEC §5.1/§8 numbered-link `# Citations` trailer via the
+    SINGLE shared renderer `producer/validator.py:render_citations_trailer`
+    (which `_citation_entries` parses back out, so `{132.9}`/`{132.12}`'s
+    `detect_citation_shrink` augmentation guard reads this section
+    correctly). Cross-link labels are the bare rel_path here — target
+    concept titles are not resolvable at draft time; `{132.10}`'s
+    bundle-writer re-normalises with a run-wide titles map at write time."""
+    return render_citations_trailer(citations)
 
 
 def _cached_system() -> "list[dict[str, object]]":

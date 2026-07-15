@@ -107,10 +107,13 @@ from scripts.cocoindex_pipeline.sources.l_records import ConceptKey  # noqa: E40
 # lib/okf/parse-index.ts / lib/okf/parse-log.ts regex mirrors — Python-side
 # defence-in-depth so a format drift is caught here TOO, not only by the
 # TS round-trip Vitest test (S451 rider — a mismatch degrades BundleNav
-# SILENTLY, so both sides check independently).
+# SILENTLY, so both sides check independently). Post OKF v0.1 conformance
+# (SPEC §7): `##` log headings are ISO DATES (newest first) and each run's
+# records are `* **Run <ISO-ts> — …:**` bullets.
 _TS_HEADING_RE = re.compile(r"^(#{2,3})\s+(.+?)\s*$")
 _TS_CONCEPT_BULLET_RE = re.compile(r"^[*-]\s*\[(.+?)\]\(([^)\s]+\.md)\)(?:\s*[-—]\s*(.*))?$")
-_TS_RUN_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$")
+_TS_DATE_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$")
+_TS_RUN_BULLET_RE = re.compile(r"^\*\s+\*\*Run\s+(\S+)\s+[—-]")
 
 _SAMPLE_UUID = "11111111-1111-4111-8111-111111111111"
 
@@ -164,7 +167,14 @@ def test_declare_concept_valid_writes_file(tmp_path: Path) -> None:
     assert result.is_new is True
     _localfs_stub.declare_file.assert_called_once()
     written_path = (tmp_path / "topics/alpha.md")
-    assert written_path.read_text(encoding="utf-8") == draft.rendered_markdown
+    written = written_path.read_text(encoding="utf-8")
+    # The on-disk content is the draft with its `# Citations` trailer
+    # normalised to the SPEC §8 numbered-link form (write-time
+    # normalisation) — never the raw draft markdown verbatim.
+    sd_uri = build_source_document_uri(_SAMPLE_UUID)
+    assert written.startswith("---\n")
+    assert f"[1] [{sd_uri}]({sd_uri})" in written
+    assert written.split("# Citations")[0] == draft.rendered_markdown.split("# Citations")[0]
 
 
 def test_declare_concept_invalid_not_written(tmp_path: Path) -> None:
@@ -216,6 +226,69 @@ def test_declare_concept_classifies_new_changed_unchanged(tmp_path: Path) -> Non
     draft_v2 = _draft("topics/alpha.md", title="Alpha", body_suffix=" Updated.")
     r3 = bundle_writer.declare_concept(tmp_path, draft_v2)
     assert r3.is_new is False and r3.changed is True
+
+
+def test_declare_concept_normalises_legacy_citation_trailer_to_numbered_links(
+    tmp_path: Path,
+) -> None:
+    """SPEC §5.1/§8 write-time normalisation: a draft whose `# Citations`
+    section carries LEGACY bare-path bullets lands on disk in the
+    numbered-link form — cross-links bundle-absolute (leading `/`),
+    labelled by the target concept's title via `citation_titles`."""
+    sd_uri = build_source_document_uri(_SAMPLE_UUID)
+    key = ConceptKey(rel_path="topics/alpha.md", concept_type="topic", scope_tag="alpha")
+    draft = ConceptDraft(
+        key=key,
+        frontmatter=_fm(title="Alpha", resource=sd_uri),
+        body=(
+            "A distilled synthesis.\n\n"
+            "# Citations\n"
+            f"- {sd_uri}\n"
+            "- certifications/iso-9001.md\n"
+        ),
+    )
+
+    result = bundle_writer.declare_concept(
+        tmp_path,
+        draft,
+        citation_titles={
+            "certifications/iso-9001.md": (
+                "ISO 9001:2015 — Quality Management Certification"
+            )
+        },
+    )
+
+    assert result.written is True
+    written = (tmp_path / "topics/alpha.md").read_text(encoding="utf-8")
+    assert f"[1] [{sd_uri}]({sd_uri})" in written
+    assert (
+        "[2] [ISO 9001:2015 — Quality Management Certification]"
+        "(/certifications/iso-9001.md)" in written
+    )
+    assert "- certifications/iso-9001.md" not in written  # legacy form gone
+
+
+def test_write_bundle_labels_cross_links_with_the_target_concepts_title(
+    tmp_path: Path,
+) -> None:
+    """`write_bundle` threads a run-wide rel_path -> title map into every
+    `declare_concept` call, so a cross-link to a concept drafted THIS run
+    is labelled with that concept's real title."""
+    target = _draft("topics/beta.md", title="Beta Continuity Plan")
+    citing_key = ConceptKey(
+        rel_path="topics/alpha.md", concept_type="topic", scope_tag="alpha"
+    )
+    sd_uri = build_source_document_uri(_SAMPLE_UUID)
+    citing = ConceptDraft(
+        key=citing_key,
+        frontmatter=_fm(title="Alpha", resource=sd_uri),
+        body=f"Synthesis.\n\n# Citations\n- {sd_uri}\n- topics/beta.md\n",
+    )
+
+    bundle_writer.write_bundle(tmp_path, [citing, target])
+
+    written = (tmp_path / "topics/alpha.md").read_text(encoding="utf-8")
+    assert "[2] [Beta Continuity Plan](/topics/beta.md)" in written
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -276,6 +349,25 @@ def test_regenerate_indexes_renders_theme_nav_over_fixture_bundle() -> None:
     assert all(b.group(3) for b in bullets)
 
 
+def test_regenerate_indexes_stamps_okf_version_frontmatter() -> None:
+    """SPEC §11 / DR-019 house rule: the bundle-root `index.md` opens with
+    a frontmatter block carrying EXACTLY one key — `okf_version: "0.1"` —
+    followed by the `# OKF Concept Bundle` heading. §11 permits ONLY the
+    bundle-root index a frontmatter block, and only this key is stamped."""
+    concepts, theme_config = _synthetic_catalogue(4)
+    themes = bundle_writer.build_index_themes(theme_config, concepts)
+    text = bundle_writer.regenerate_indexes(themes)
+
+    lines = text.splitlines()
+    # single-key discipline: exactly one line between the fences.
+    assert lines[:4] == [
+        "---",
+        'okf_version: "0.1"',
+        "---",
+        "# OKF Concept Bundle",
+    ]
+
+
 def test_regenerate_indexes_unthemed_concept_falls_into_trailing_bucket() -> None:
     concepts = {
         "topics/claimed.md": _fm(title="Claimed", description="Claimed desc"),
@@ -308,17 +400,32 @@ def test_build_index_themes_skips_theme_config_entry_with_no_matching_concept() 
 # ─────────────────────────────────────────────────────────────────────────
 
 
-def test_render_log_entry_matches_parse_log_ts_run_heading_format() -> None:
+def test_render_log_entry_emits_spec7_date_heading_and_run_bullets() -> None:
+    """SPEC §7: the `##` heading is the ISO 8601 DATE (`YYYY-MM-DD`), and
+    every category line is a `* **Run <ISO-ts> — <Action> (N):**` bullet
+    carrying the FULL run timestamp (BI-11 per-run visibility)."""
     summary = bundle_writer.RunSummary(added=("topics/a.md",))
     text = bundle_writer.render_log_entry(summary, timestamp="2026-07-08T12:00:00Z")
 
-    match = _TS_RUN_HEADING_RE.match(text.splitlines()[0])
+    lines = text.splitlines()
+    match = _TS_DATE_HEADING_RE.match(lines[0])
     assert match is not None
-    assert match.group(1) == "2026-07-08T12:00:00Z"
-    assert "topics/a.md" in text
+    assert match.group(1) == "2026-07-08"
+    assert lines[2] == "* **Run 2026-07-08T12:00:00Z — Added (1):** topics/a.md"
 
 
-def test_append_log_entry_appends_one_block_per_run(tmp_path: Path) -> None:
+def test_render_log_entry_no_op_run_still_emits_a_visible_bullet() -> None:
+    """BI-11 is unconditional — a no-op run's record is still one visible
+    per-run bullet, in the same `**Run <ts> — …**` shape."""
+    text = bundle_writer.render_log_entry(
+        bundle_writer.RunSummary(), timestamp="2026-07-08T12:00:00Z"
+    )
+    assert (
+        "* **Run 2026-07-08T12:00:00Z — No changes** (no-op re-run)." in text
+    )
+
+
+def test_append_log_entry_prepends_new_date_sections_newest_first(tmp_path: Path) -> None:
     summary1 = bundle_writer.RunSummary(added=("topics/a.md",))
     bundle_writer.append_log_entry(tmp_path, summary1, timestamp="2026-07-08T00:00:00Z")
 
@@ -327,12 +434,39 @@ def test_append_log_entry_appends_one_block_per_run(tmp_path: Path) -> None:
 
     text = (tmp_path / "log.md").read_text(encoding="utf-8")
     headings = [
-        m.group(1) for line in text.splitlines() if (m := _TS_RUN_HEADING_RE.match(line))
+        m.group(1) for line in text.splitlines() if (m := _TS_DATE_HEADING_RE.match(line))
     ]
-    assert headings == ["2026-07-08T00:00:00Z", "2026-07-09T00:00:00Z"]
-    # first run's content is PRESERVED, not overwritten (append-only).
+    # SPEC §7: date-grouped, NEWEST FIRST (prepend).
+    assert headings == ["2026-07-09", "2026-07-08"]
+    # first run's content is PRESERVED, not overwritten.
     assert "topics/a.md" in text
     assert "topics/b.md" in text
+    assert text.find("topics/b.md") < text.find("topics/a.md")
+
+
+def test_append_log_entry_merges_same_date_runs_newest_run_first(tmp_path: Path) -> None:
+    """Two runs on the SAME date share ONE `## YYYY-MM-DD` heading; the
+    newer run's bullets are inserted at the TOP of that section."""
+    bundle_writer.append_log_entry(
+        tmp_path,
+        bundle_writer.RunSummary(added=("topics/a.md",)),
+        timestamp="2026-07-08T09:00:00Z",
+    )
+    bundle_writer.append_log_entry(
+        tmp_path,
+        bundle_writer.RunSummary(changed=("topics/a.md",)),
+        timestamp="2026-07-08T15:00:00Z",
+    )
+
+    text = (tmp_path / "log.md").read_text(encoding="utf-8")
+    headings = [
+        m.group(1) for line in text.splitlines() if (m := _TS_DATE_HEADING_RE.match(line))
+    ]
+    assert headings == ["2026-07-08"]  # ONE heading per date
+    run_ts = [
+        m.group(1) for line in text.splitlines() if (m := _TS_RUN_BULLET_RE.match(line))
+    ]
+    assert run_ts == ["2026-07-08T15:00:00Z", "2026-07-08T09:00:00Z"]
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -434,13 +568,14 @@ def test_write_bundle_no_op_rerun_produces_no_op_diff(tmp_path: Path) -> None:
     for rel_path in concepts:
         assert (tmp_path / rel_path).read_text(encoding="utf-8") == concept_content_after_run1[rel_path]
 
-    # log.md gained exactly one additional no-op block.
+    # log.md gained exactly one additional no-op run record (BI-11
+    # unconditional) — SPEC §7: newest date section FIRST.
     log_text = (tmp_path / "log.md").read_text(encoding="utf-8")
     headings = [
-        m.group(1) for line in log_text.splitlines() if (m := _TS_RUN_HEADING_RE.match(line))
+        m.group(1) for line in log_text.splitlines() if (m := _TS_DATE_HEADING_RE.match(line))
     ]
-    assert headings == ["2026-07-08T00:00:00Z", "2026-07-09T00:00:00Z"]
-    assert "No changes (no-op re-run)." in log_text
+    assert headings == ["2026-07-09", "2026-07-08"]
+    assert "* **Run 2026-07-09T00:00:00Z — No changes** (no-op re-run)." in log_text
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -579,11 +714,31 @@ def test_write_ontology_artefact_with_client_overlay(tmp_path: Path) -> None:
 
 
 def test_readme_and_overlay_filenames_are_reserved(tmp_path: Path) -> None:
-    """Rider R1 + OV-1: both the committed bundle README and the
-    client-authored overlay source are reserved bundle-level filenames —
-    never mistaken for a concept `.md` path."""
+    """Rider R1 + OV-1 + OKF v0.1 conformance: the committed bundle README,
+    the hand-authored bundle-root CONFORMANCE.md and the client-authored
+    overlay source are ALL reserved bundle-level filenames — never mistaken
+    for a concept `.md` path."""
     assert "README.md" in bundle_writer._RESERVED_BUNDLE_FILENAMES
+    assert "CONFORMANCE.md" in bundle_writer._RESERVED_BUNDLE_FILENAMES
     assert "ontology-overlay.json" in bundle_writer._RESERVED_BUNDLE_FILENAMES
+
+
+def test_write_bundle_does_not_report_a_committed_conformance_doc_as_removed(
+    tmp_path: Path,
+) -> None:
+    """OKF v0.1 conformance hygiene: a hand-authored bundle-root
+    `CONFORMANCE.md` is a `.md` file scanned by `_existing_concept_paths`'s
+    `rglob("*.md")` — reserving it prevents the false
+    `Removed (N): CONFORMANCE.md` audit-log line (mirrors README's R1)."""
+    (tmp_path / "CONFORMANCE.md").write_text("# Conformance\n", encoding="utf-8")
+    draft = _draft("topics/alpha.md", title="Alpha")
+
+    summary = bundle_writer.write_bundle(tmp_path, [draft])
+
+    assert summary.removed == ()
+    log_text = (tmp_path / "log.md").read_text(encoding="utf-8")
+    assert "CONFORMANCE.md" not in log_text
+    assert (tmp_path / "CONFORMANCE.md").exists()  # untouched, never declare_file'd
 
 
 def test_write_bundle_does_not_report_a_committed_readme_as_removed(tmp_path: Path) -> None:

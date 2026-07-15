@@ -4,8 +4,9 @@
  * `<BundleLog>` — the read-only `log.md` change history (ID-132 {132.14}
  * G-VIEWER NATIVE ADDITION; TECH-ADDENDUM-reference-agents.md Part 2).
  *
- * Reverse-chronological (ISO-8601 headings per DR-019) — `parseBundleLog`
- * already reverses the order, so this component renders `entries` as-given.
+ * Reverse-chronological (ISO-8601 run timestamps per DR-019/SPEC §7) —
+ * `parseBundleLog` already yields entries newest-first, so this component
+ * renders `entries` as-given.
  * Read-only: no edit/accept/reject affordance here (that is ID-135's remit,
  * out of `{132.14}` scope per the addendum's cross-cutting takeaways).
  */

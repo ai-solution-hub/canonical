@@ -225,3 +225,49 @@ def test_is_canonical_resource_uri():
     assert ru.is_canonical_resource_uri("canonical://source_documents/x")
     assert not ru.is_canonical_resource_uri("https://example.com")
     assert not ru.is_canonical_resource_uri("")
+
+
+# ──────────────────────────────────────────
+# OKF v0.1 conformance (SPEC §5.1/§8) — citation-entry target extraction:
+# the single normalisation every citation consumer keys comparisons on.
+# ──────────────────────────────────────────
+
+
+def test_citation_target_passes_a_bare_legacy_entry_through():
+    uri = ru.build_source_document_uri(uuid.uuid4())
+    assert ru.citation_target(uri) == uri
+    assert ru.citation_target("certifications/iso-9001.md") == "certifications/iso-9001.md"
+
+
+def test_citation_target_unwraps_a_numbered_markdown_link():
+    uri = ru.build_source_document_uri(uuid.uuid4())
+    assert ru.citation_target(f"[1] [{uri}]({uri})") == uri
+    assert (
+        ru.citation_target("[2] [ISO 9001:2015](/certifications/iso-9001.md)")
+        == "certifications/iso-9001.md"
+    )
+
+
+def test_citation_target_unwraps_a_bare_markdown_link_without_ordinal():
+    assert (
+        ru.citation_target("[GDPR and Data Protection](/topics/gdpr.md)")
+        == "topics/gdpr.md"
+    )
+
+
+def test_citation_target_strips_a_leading_slash_from_a_bare_path():
+    assert ru.citation_target("/topics/gdpr.md") == "topics/gdpr.md"
+
+
+def test_parse_citation_entry_returns_label_and_target():
+    label, target = ru.parse_citation_entry(
+        "[2] [ISO 9001:2015 — Quality Management Certification](/certifications/iso-9001.md)"
+    )
+    assert label == "ISO 9001:2015 — Quality Management Certification"
+    assert target == "certifications/iso-9001.md"
+
+
+def test_parse_citation_entry_bare_form_has_no_label():
+    label, target = ru.parse_citation_entry("topics/gdpr.md")
+    assert label is None
+    assert target == "topics/gdpr.md"

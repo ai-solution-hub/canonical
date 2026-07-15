@@ -25,6 +25,26 @@ const FIXTURE_PATH = resolve(
 );
 
 describe('parseBundleNav', () => {
+  it('skips the SPEC §11 okf_version frontmatter block the writer stamps on the bundle-root index', () => {
+    const text = readFileSync(FIXTURE_PATH, 'utf8');
+    // The regenerated fixture opens with the §11 frontmatter stamp…
+    expect(text.startsWith('---\nokf_version: "0.1"\n---\n')).toBe(true);
+
+    // …and the nav still parses fully structured with the block present:
+    // only content BELOW the closing fence contributes themes.
+    const minimal = [
+      '---',
+      'okf_version: "0.1"',
+      '---',
+      '## Real Theme',
+      '',
+      '* [Concept](concept.md) — A concept.',
+    ].join('\n');
+    const themes = parseBundleNav(minimal);
+    expect(themes).toHaveLength(1);
+    expect(themes[0].heading).toBe('Real Theme');
+  });
+
   it('parses the {132.10} bundle_writer.regenerate_indexes() fixture with full structure (no fallback)', () => {
     const text = readFileSync(FIXTURE_PATH, 'utf8');
 

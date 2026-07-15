@@ -101,6 +101,53 @@ describe('buildBundleGraph', () => {
     expect(graph.edges).toHaveLength(3);
   });
 
+  it('resolves leading-/ bundle-absolute links (SPEC §5.1 citation-trailer form) into edges', () => {
+    const citing = [
+      '---',
+      'type: topic',
+      'title: Quality Management',
+      'description: Quality management overview.',
+      '---',
+      '',
+      'Certified per [ISO 9001](/tables/customers.md).',
+      '',
+      '# Citations',
+      '',
+      '[1] [Customers](/tables/customers.md)',
+    ].join('\n');
+    const root = bundle({
+      'topics/quality.md': citing,
+      'tables/customers.md': customers,
+      'tables/orders.md': orders,
+    });
+
+    const graph = buildBundleGraph(root);
+
+    const edgeIds = graph.edges.map(
+      (e) => `${e.data.source}->${e.data.target}`,
+    );
+    // The bundle-absolute link resolves against the BUNDLE root — one
+    // de-duplicated edge from the citing concept to the target.
+    expect(edgeIds).toContain('topics/quality->tables/customers');
+  });
+
+  it('skips bundle-root README.md and CONFORMANCE.md (reserved hand-authored docs), but not nested ones', () => {
+    const root = bundle({
+      'tables/orders.md': orders,
+      'README.md': '# Bundle repo\n',
+      'CONFORMANCE.md': '# Conformance statement\n',
+      'guides/README.md': customers, // nested — still a walkable file
+    });
+
+    const graph = buildBundleGraph(root);
+
+    const ids = graph.nodes.map((n) => n.data.id);
+    expect(ids).toContain('tables/orders');
+    expect(ids).toContain('guides/README');
+    expect(ids).not.toContain('README');
+    expect(ids).not.toContain('CONFORMANCE');
+  });
+
   it('skips index.md when walking concepts', () => {
     const root = bundle({
       'tables/orders.md': orders,

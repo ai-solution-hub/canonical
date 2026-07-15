@@ -550,6 +550,20 @@ class TestValidatePass2Citations:
         )
         assert validated == (prior,)
 
+    def test_a_previously_cited_entry_returned_link_wrapped_still_matches(self) -> None:
+        """SPEC §5.1/§8 tolerance: `previous_entries` holds bare TARGETS
+        (both trailer forms normalise there) — a model carrying a Pass-1
+        citation forward in the numbered-link form must still match it,
+        and the validated tuple carries the normalised bare target."""
+        prior = build_source_document_uri(_SD_ID)
+        validated = web_pass._validate_pass2_citations(
+            [f"[1] [{prior}]({prior})"],
+            previous_entries={prior},
+            seen_anchors=set(),  # empty — proves NO re-check happens
+            catalogue_paths=set(),
+        )
+        assert validated == (prior,)
+
     def test_a_new_record_anchor_not_in_seen_anchors_is_rejected(self) -> None:
         fabricated = build_source_document_uri(str(uuid.uuid4()))
         with pytest.raises(web_pass.Pass2EnrichError, match="never minted"):
@@ -621,7 +635,7 @@ class TestParseReferenceConcept:
         assert draft.frontmatter.type == "topic"
         assert "reference" in draft.frontmatter.tags
         assert draft.frontmatter.resource == anchor
-        assert f"- {anchor}" in draft.body
+        assert f"[1] [{anchor}]({anchor})" in draft.body
 
     def test_invalid_slug_is_rejected(self) -> None:
         anchor = reference_item_uri_from_source_url(f"https://{_ALLOWED_HOST}/services/lms")
@@ -1049,7 +1063,7 @@ class TestRunWebPassEndToEnd:
             assert len(result.reference_concepts) == 1
             reference = result.reference_concepts[0]
             assert reference.rel_path == "references/lms-public-docs.md"
-            assert f"- {gated_anchor}" in reference.body
+            assert f"[1] [{gated_anchor}]({gated_anchor})" in reference.body
 
             return result
 

@@ -530,11 +530,15 @@ def _render_findings(
     conflicts: "Sequence[HumanEditConflict]",
     refusals: "Sequence[AugmentationGuardRefusal]",
 ) -> str:
-    """Renders the git-sync reconcile findings block appended to the tail
-    of this run's `log.md` content — an `###` (not `##`) sub-heading, so
-    `lib/okf/parse-log.ts`'s `RUN_HEADING_RE` (`^##\\s+`) does not mistake
-    it for a second run block; it reads as part of the SAME (last, still-
-    open) run block bundle_writer already appended this run."""
+    """Renders the git-sync reconcile findings block for this run's
+    `log.md` content — an `###` (not `##`) sub-heading, so
+    `lib/okf/parse-log.ts`'s date-heading regex (`^##\\s+`, `##` only) does
+    not mistake it for a date section; the parser attaches it to the run
+    whose bullets it follows. Placement is `_merge_findings_into_log`'s
+    job — under the SPEC §7 date-grouped, newest-first `log.md` contract,
+    this run's block sits at the TOP of the file, so the findings are
+    INSERTED after the newest run's bullets, never appended to the tail
+    (the tail is the OLDEST run)."""
     if not conflicts and not refusals:
         return ""
     lines = ["### git-sync reconcile findings"]
@@ -553,6 +557,53 @@ def _render_findings(
                 f"  - {refusal.rel_path}: would drop {list(refusal.dropped_citations)!r}"
             )
     return "\n".join(lines) + "\n"
+
+
+# One `* **Run <ISO-ts> — …:**` bullet — the SPEC §7 per-run record shape
+# `bundle_writer._render_run_bullets` emits (mirrored, not imported — same
+# zero-cocoindex-import rationale as the reserved-filename constants above).
+_RUN_BULLET_RE = re.compile(r"^\*\s+\*\*Run (\S+) ")
+
+
+def _merge_findings_into_log(base_log: str, findings: str) -> str:
+    """Place this run's reconcile `findings` block inside `base_log` —
+    immediately AFTER the newest run's bullet group (the first
+    `* **Run <ts> — …**` bullets under the FIRST `## YYYY-MM-DD` heading,
+    including their indented sub-bullets), per the SPEC §7 newest-first
+    `log.md` contract. Falls back to the pre-conformance tail-append for a
+    `base_log` with no date heading or no run bullets (an empty, legacy, or
+    foreign log shape)."""
+    if not findings:
+        return base_log
+    if not base_log.strip():
+        return findings
+    lines = base_log.splitlines()
+    heading_idx = next((i for i, l in enumerate(lines) if l.startswith("## ")), None)
+    if heading_idx is None:
+        return f"{base_log.rstrip()}\n\n{findings}"
+
+    ts: "str | None" = None
+    end: "int | None" = None
+    for i in range(heading_idx + 1, len(lines)):
+        line = lines[i]
+        if line.startswith("## "):
+            break
+        match = _RUN_BULLET_RE.match(line)
+        if match:
+            if ts is None or match.group(1) == ts:
+                ts = match.group(1)
+                end = i + 1
+            else:
+                break
+        elif ts is not None:
+            if line.strip() and line.startswith((" ", "\t")):
+                end = i + 1  # nested sub-bullet of the newest run's bullets
+            else:
+                break
+    if end is None:
+        return f"{base_log.rstrip()}\n\n{findings}"
+    merged = [*lines[:end], "", *findings.rstrip("\n").splitlines(), *lines[end:]]
+    return "\n".join(merged).rstrip("\n") + "\n"
 
 
 def sync_bundle(
@@ -637,13 +688,9 @@ def sync_bundle(
 
     if LOG_FILENAME in managed:
         base_log = new_output.get(LOG_FILENAME, "")
-        findings = _render_findings(conflicts, refusals)
-        if findings:
-            desired_log = (
-                f"{base_log.rstrip()}\n\n{findings}" if base_log.strip() else findings
-            )
-        else:
-            desired_log = base_log
+        desired_log = _merge_findings_into_log(
+            base_log, _render_findings(conflicts, refusals)
+        )
         log_decision = _decide_and_apply(repo_path, LOG_FILENAME, desired_log)
         decisions.append(log_decision)
         if log_decision.action == "conflict":
