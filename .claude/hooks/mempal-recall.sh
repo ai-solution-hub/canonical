@@ -39,6 +39,49 @@ for raw in ${BRANCH//[^a-zA-Z0-9]/ } "$BASENAME"; do
   seen="$seen$tok "
   TOKENS+=("$tok")
 done
+
+# --- degenerate-seed fallback: augment with active-task-id when the token set is
+# uninformative — empty, reduced to just the bare repo basename (e.g. on MAIN, branch
+# tokens like "main" are stoplisted, leaving only "canonical"), or pure branch-hash hex
+# (worktree branches like cmux-worker-...-88957f6b). Lightweight source only (this is a
+# SessionStart hook — must stay fast): grep the newest continuation-prompt file rather than
+# shell out to ledger-cli (heavy bun startup + stderr `[branding]` noise on every session
+# start). Any failure here (missing env var, missing dir, no files, no matches) degrades
+# silently to the pre-existing behaviour below — never blocks session start.
+degenerate=false
+if [ "${#TOKENS[@]}" -eq 0 ]; then
+  degenerate=true
+elif [ "${#TOKENS[@]}" -eq 1 ] && [ "${TOKENS[0]}" = "$(printf '%s' "$BASENAME" | tr '[:upper:]' '[:lower:]')" ]; then
+  degenerate=true
+else
+  all_hex=true
+  for tok in "${TOKENS[@]}"; do
+    case "$tok" in
+      *[!0-9a-f]*) all_hex=false ;;
+      *[a-f]*) : ;;
+      *) all_hex=false ;;  # pure-numeric tokens (e.g. an id already in the branch name)
+                            # are informative, not hash garbage
+    esac
+    [ "${#tok}" -ge 6 ] || all_hex=false
+    [ "$all_hex" = true ] || break
+  done
+  [ "$all_hex" = true ] && degenerate=true
+fi
+
+if [ "$degenerate" = true ] && [ -n "$KH_PRIVATE_DOCS_DIR" ]; then
+  CP_DIR="$KH_PRIVATE_DOCS_DIR/src/content/docs/continuation-prompts"
+  if [ -d "$CP_DIR" ]; then
+    LATEST_CP=$(ls -1 "$CP_DIR"/continuation-prompt-ca-*.md 2>/dev/null | sort -V | tail -1)
+    if [ -n "$LATEST_CP" ] && [ -f "$LATEST_CP" ]; then
+      for id in $(grep -oiE 'id-[0-9]+' "$LATEST_CP" 2>/dev/null | grep -oE '[0-9]+' | awk '!s[$0]++' | head -2); do
+        case "$seen" in *" $id "*) continue ;; esac
+        seen="$seen$id "
+        TOKENS+=("$id")
+      done
+    fi
+  fi
+fi
+
 [ "${#TOKENS[@]}" -gt 0 ] || exit 0
 
 # Build the FTS5 MATCH string EXPLICITLY as "tok1 OR tok2 OR ..."
