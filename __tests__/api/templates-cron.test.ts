@@ -838,52 +838,23 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
     expect(body.error).toMatch(/analysed/);
   });
 
-  it('returns 400 when no fields have been mapped', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    // Template exists and is analysed
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: {
-        id: VALID_UUID_2,
-        workspace_id: VALID_UUID,
-        storage_path: '/test.docx',
-        status: 'analysed',
-      },
-      error: null,
-    });
-
-    // No confirmed/manual fields
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
-    );
-
-    const req = createTestRequest('/api/procurement/x/templates/y/fill', {
-      method: 'POST',
-      body: {},
-    });
-
-    const res = await fillPost(req, { params });
-    expect(res.status).toBe(400);
-
-    const body = await res.json();
-    expect(body.error).toMatch(/mapped/i);
-  });
+  // NOTE: "returns 400 when no fields have been mapped" was removed here —
+  // it duplicated __tests__/api/procurement-templates-fill.test.ts's
+  // "returns 400 when there are no outstanding mapped fields" (same form
+  // fetch -> empty fields -> 400 "No fields have been mapped" scenario,
+  // same route). Kept in exactly one place per {145.15} test sync.
 
   it('returns 202 when fill job is queued successfully', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Template exists and is analysed
+    // Form exists and is analysed (form_instances, keyed on processing_status
+    // post-{145.15} form-first fill rewrite).
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: {
-        id: VALID_UUID_2,
-        workspace_id: VALID_UUID,
-        storage_path: '/test.docx',
-        status: 'analysed',
-      },
+      data: { id: VALID_UUID_2, processing_status: 'analysed' },
       error: null,
     });
 
-    // Confirmed fields
+    // Confirmed fields (form_instance_fields, form_instance_id-keyed)
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
@@ -896,6 +867,7 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
               question_id: 'q-1',
               word_limit: 200,
               mapping_status: 'confirmed',
+              fill_status: 'pending',
             },
           ],
           error: null,
@@ -941,18 +913,13 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
   it('returns 500 and reverts template status when queue job insert fails', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Template exists
+    // Form exists (form_instances, processing_status-keyed)
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: {
-        id: VALID_UUID_2,
-        workspace_id: VALID_UUID,
-        storage_path: '/test.docx',
-        status: 'analysed',
-      },
+      data: { id: VALID_UUID_2, processing_status: 'analysed' },
       error: null,
     });
 
-    // Confirmed fields
+    // Confirmed fields (form_instance_fields, form_instance_id-keyed)
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
@@ -965,6 +932,7 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
               question_id: 'q-1',
               word_limit: null,
               mapping_status: 'confirmed',
+              fill_status: 'pending',
             },
           ],
           error: null,
