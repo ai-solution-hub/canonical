@@ -288,6 +288,15 @@ if [ -n "$BRIEF_FILE" ]; then
 fi
 
 # --- Write meta file (hooks consult this to recognise managed sessions) ---
+#
+# session_number (ID-150.3, OQ-3): optional S<NNN> bridge supplied by the
+# launching orchestrator via KH_SESSION_NUMBER. When set/non-empty it is
+# included verbatim (no normalisation/derivation); when unset/empty the key
+# is OMITTED entirely (never written as null) via jq conditional object
+# construction. stop-worker.sh already reads `.session_number // .session`
+# to name the archive segment, so setting this env var at launch makes the
+# eventual archive S-resolvable — see docs-site
+# workflow-evaluation/s-number-crosswalk.md.
 
 jq -n \
   --arg worker_name "$WORKER_NAME" \
@@ -297,7 +306,9 @@ jq -n \
   --arg branch "$BRANCH_NAME" \
   --arg started_at "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
   --arg brief_path "$BRIEF_DEST" \
-  '{worker_name: $worker_name, session_id: $session_id, cwd: $cwd, project_root: $project_root, branch: $branch, started_at: $started_at, brief_path: $brief_path}' \
+  --arg session_number "${KH_SESSION_NUMBER:-}" \
+  '{worker_name: $worker_name, session_id: $session_id, cwd: $cwd, project_root: $project_root, branch: $branch, started_at: $started_at, brief_path: $brief_path}
+   + (if $session_number != "" then {session_number: $session_number} else {} end)' \
   > "$META_FILE"
 
 # --- Create cmux workspace ---
@@ -405,6 +416,9 @@ if [ -n "$BRIEF_DEST" ]; then
 fi
 
 # --- Output result JSON ---
+#
+# Same session_number conditional-omission as the meta.json write above
+# (ID-150.3) — kept in sync so the launch's stdout result mirrors meta.json.
 
 jq -n \
   --arg session_id "$SESSION_ID" \
@@ -415,6 +429,7 @@ jq -n \
   --arg events_dir "$EVENTS_DIR" \
   --arg branch "$BRANCH_NAME" \
   --arg brief_path "$BRIEF_DEST" \
+  --arg session_number "${KH_SESSION_NUMBER:-}" \
   '{
     session_id: $session_id,
     worker_name: $worker_name,
@@ -424,4 +439,4 @@ jq -n \
     events_dir: $events_dir,
     branch: $branch,
     brief_path: $brief_path
-  }'
+  } + (if $session_number != "" then {session_number: $session_number} else {} end)'
